@@ -21,10 +21,12 @@ namespace Przegladarka
             public bool BlockCookies;
             public bool StrictTrackers;
             public bool AutoClearData;
+            public bool Trusted;      // zaufana domena: bez AdBlocka, trackerow i SmartScreen
 
             public override string ToString()
             {
                 var tags = new List<string>();
+                if (Trusted) tags.Add("zaufana");
                 if (BlockJs) tags.Add("JS");
                 if (BlockCookies) tags.Add("cookies");
                 if (StrictTrackers) tags.Add("trackery");
@@ -251,6 +253,27 @@ namespace Przegladarka
             return RuleForHost(u.Host);
         }
 
+        bool IsTrustedUrl(string url)
+        {
+            var r = RuleForUrl(url);
+            return r != null && r.Trusted;
+        }
+
+        // Pozwala wkleic caly adres (https://www.example.com/strona) - zostaje sama domena.
+        static string NormalizeRuleDomain(string text)
+        {
+            var d = (text ?? "").Trim().ToLowerInvariant();
+            Uri u;
+            if (d.Contains("://") && Uri.TryCreate(d, UriKind.Absolute, out u)) d = u.Host;
+            else
+            {
+                int slash = d.IndexOf('/');
+                if (slash >= 0) d = d.Substring(0, slash);
+            }
+            if (d.StartsWith("*.")) d = d.Substring(2);
+            return d.Trim('.');
+        }
+
         void LoadSitePrivacyRules()
         {
             _privacyRules.Clear();
@@ -269,6 +292,7 @@ namespace Przegladarka
                         BlockCookies = p[2] == "1",
                         StrictTrackers = p[3] == "1",
                         AutoClearData = p[4] == "1",
+                        Trusted = p.Length > 5 && p[5] == "1",
                     };
                     if (rule.Domain.Length > 0) _privacyRules[rule.Domain] = rule;
                 }
@@ -283,7 +307,7 @@ namespace Przegladarka
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllLines(PrivacyRulesFile,
                     _privacyRules.Values.OrderBy(x => x.Domain)
-                        .Select(x => x.Domain + "\t" + (x.BlockJs ? "1" : "0") + "\t" + (x.BlockCookies ? "1" : "0") + "\t" + (x.StrictTrackers ? "1" : "0") + "\t" + (x.AutoClearData ? "1" : "0")));
+                        .Select(x => x.Domain + "\t" + (x.BlockJs ? "1" : "0") + "\t" + (x.BlockCookies ? "1" : "0") + "\t" + (x.StrictTrackers ? "1" : "0") + "\t" + (x.AutoClearData ? "1" : "0") + "\t" + (x.Trusted ? "1" : "0")));
             }
             catch (IOException) { }
             NotifyLanStateChanged();
@@ -491,6 +515,7 @@ namespace Przegladarka
             var ck = new CheckBox { Content = "Nie wysyłaj cookies dla domeny", Margin = new Thickness(0, 4, 0, 0) };
             var tr = new CheckBox { Content = "Wymuś blokowanie trackerów dla domeny", Margin = new Thickness(0, 4, 0, 0) };
             var cl = new CheckBox { Content = "Automatycznie czyść dane po wejściu na domenę", Margin = new Thickness(0, 4, 0, 0) };
+            var trusted = new CheckBox { Content = "Zaufana domena – nie blokuj reklam/trackerów i nie sprawdzaj SmartScreen", Margin = new Thickness(0, 8, 0, 0), FontWeight = FontWeights.SemiBold };
             var info = new TextBlock
             {
                 Text = "Reguły działają per domena. Karty prywatne używają osobnego, izolowanego storage WebView2 (InPrivate).",
@@ -514,6 +539,7 @@ namespace Przegladarka
             optionsPanel.Children.Add(ck);
             optionsPanel.Children.Add(tr);
             optionsPanel.Children.Add(cl);
+            optionsPanel.Children.Add(trusted);
 
             Action refresh = () =>
             {
@@ -537,13 +563,14 @@ namespace Przegladarka
 
             Action loadCurrentDomain = () =>
             {
-                var d = (dom.Text ?? "").Trim().ToLowerInvariant();
+                var d = NormalizeRuleDomain(dom.Text);
                 SitePrivacyRule r;
                 if (!_privacyRules.TryGetValue(d, out r)) r = new SitePrivacyRule { Domain = d };
                 js.IsChecked = r.BlockJs;
                 ck.IsChecked = r.BlockCookies;
                 tr.IsChecked = r.StrictTrackers;
                 cl.IsChecked = r.AutoClearData;
+                trusted.IsChecked = r.Trusted;
             };
 
             dom.TextChanged += (s, e) => loadCurrentDomain();
@@ -573,10 +600,10 @@ namespace Przegladarka
 
             var save = SmallButton("Zapisz regułę", () =>
             {
-                var d = (dom.Text ?? "").Trim().ToLowerInvariant();
+                var d = NormalizeRuleDomain(dom.Text);
                 if (d.Length < 3 || d.IndexOf('.') < 1)
                 {
-                    MessageBox.Show(win, "Podaj poprawną domenę, np. example.com", "Prywatność");
+                    MessageBox.Show(win, "Podaj poprawną domenę stron www, np. example.com (adresy chrome-extension:// dodatków nie są blokowane regułami).", "Prywatność");
                     return;
                 }
                 bool destructive = (ck.IsChecked == true) || (cl.IsChecked == true);
@@ -595,6 +622,7 @@ namespace Przegladarka
                     BlockCookies = ck.IsChecked == true,
                     StrictTrackers = tr.IsChecked == true,
                     AutoClearData = cl.IsChecked == true,
+                    Trusted = trusted.IsChecked == true,
                 };
                 _privacyRules[d] = r;
                 SaveSitePrivacyRules();
@@ -604,8 +632,8 @@ namespace Przegladarka
 
             var del = SmallButton("Usuń regułę", () =>
             {
-                var d = (dom.Text ?? "").Trim().ToLowerInvariant();
-                if (_privacyRules.Remove(d))
+                var d = NormalizeRuleDomain(dom.Text);
+                if (_privacyRules.Remove(d) || _privacyRules.Remove((dom.Text ?? "").Trim().ToLowerInvariant()))
                 {
                     SaveSitePrivacyRules();
                     refresh();

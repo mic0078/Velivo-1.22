@@ -359,6 +359,12 @@ namespace Przegladarka
                     return;
 
                 if (ApplyPrivacyRulesToRequest(e, tab)) return;
+                // zaufana domena (strona albo zasob) - nic nie blokujemy
+                if (IsTrustedUrl(e.Request.Uri) || IsTrustedUrl(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null))
+                {
+                    StripWebViewBrand(e.Request.Headers);
+                    return;
+                }
                 if (_downloadWin != null) NoteMediaRequest(e.Request.Uri, tab, e.ResourceContext);
                 if (!_blocker.ShouldBlock(e.Request.Uri))
                 {
@@ -389,7 +395,7 @@ namespace Przegladarka
                 tab.LastRequestedUrl = e.Uri;
                 if (!IsQuickAccessUrl(e.Uri)) tab.QuickAccessRecoveryTried = false;
                 core.Settings.IsWebMessageEnabled = IsQuickAccessUrl(e.Uri);
-                core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri);
+                core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri) && !IsTrustedUrl(e.Uri);
                 // nowa karta przegladarki (np. chrome.tabs.create bez adresu) -> strona nowej karty z dodatku
                 if (IsInternalNewTabUrl(e.Uri))
                 {
@@ -594,7 +600,7 @@ namespace Przegladarka
                 core.NavigationStarting += (s, a) =>
                 {
                     core.Settings.IsWebMessageEnabled = IsQuickAccessUrl(a.Uri);
-                    core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(a.Uri);
+                    core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(a.Uri) && !IsTrustedUrl(a.Uri);
                 };
                 core.WindowCloseRequested += (s, a) => win.Close();
                 core.DocumentTitleChanged += (s, a) => win.Title = BuildWindowTitle(core.DocumentTitle);
@@ -774,13 +780,13 @@ namespace Przegladarka
             try
             {
                 var target = ToUrl(text);
-                tab.View.CoreWebView2.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(target);
+                tab.View.CoreWebView2.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(target) && !IsTrustedUrl(target);
                 tab.View.CoreWebView2.Navigate(target);
             }
             catch (ArgumentException)
             {
                 var fallback = _settings.SearchUrl(text);
-                tab.View.CoreWebView2.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(fallback);
+                tab.View.CoreWebView2.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(fallback) && !IsTrustedUrl(fallback);
                 tab.View.CoreWebView2.Navigate(fallback);
             }
         }

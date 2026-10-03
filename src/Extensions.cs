@@ -525,7 +525,7 @@ namespace Przegladarka
                     core.NavigationStarting += (a, b) =>
                     {
                         core.Settings.IsWebMessageEnabled = IsQuickAccessUrl(b.Uri);
-                        core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(b.Uri);
+                        core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(b.Uri) && !IsTrustedUrl(b.Uri);
                     };
                     core.WindowCloseRequested += (a, b) => { closing = true; win.Close(); };
                     core.NewWindowRequested += (a, b) => OnNewWindowRequested(b, false);

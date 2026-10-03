@@ -31,9 +31,33 @@ namespace Przegladarka
         {
             _settings.DarkPages = !_settings.DarkPages;
             try { _settings.Save(DataDir); } catch (Exception) { }
-            foreach (var t in _tabs) ApplyDarkMode(t);
+            foreach (var t in _tabs) { ApplyDarkMode(t); ApplyLiveDarkCss(t.View.CoreWebView2); }
             UpdateDarkButton();
-            OfferRestartForDarkMode();
+            // Bez restartu: do nastepnego uruchomienia dziala przyciemnianie CSS (zdjecia odwracane z powrotem),
+            // a przy kolejnym starcie wlacza sie pelny tryb silnika.
+            if (_settings.DarkPages != _darkEngineAtStart)
+                ShowToast(_settings.DarkPages ? "🌙 Tryb ciemny włączony." : "☀ Tryb ciemny wyłączony.", null);
+        }
+
+        // Tryb wybrany w tej sesji rozni sie od trybu, z ktorym wystartowal silnik -> poprawka CSS na stronie.
+        const string LiveDarkCss = "html{filter:invert(1) hue-rotate(180deg)!important;background:#fff!important}" +
+            "img,video,picture,canvas,svg image,iframe,embed,object,[style*='background-image']{filter:invert(1) hue-rotate(180deg)!important}";
+        const string LiveLightCss = ":root{color-scheme:only light!important}";
+
+        async void ApplyLiveDarkCss(CoreWebView2 core)
+        {
+            try
+            {
+                if (core == null || _settings == null) return;
+                var src = core.Source ?? "";
+                if (!(src.StartsWith("http://") || src.StartsWith("https://"))) return;
+                string css = _settings.DarkPages == _darkEngineAtStart ? "" : (_settings.DarkPages ? LiveDarkCss : LiveLightCss);
+                await core.ExecuteScriptAsync("(function(){try{var id='velivo-tryb-ciemny';var st=document.getElementById(id);" +
+                    "if(!" + System.Text.Json.JsonSerializer.Serialize(css) + "){if(st)st.remove();return;}" +
+                    "if(!st){st=document.createElement('style');st.id=id;(document.head||document.documentElement).appendChild(st);}" +
+                    "st.textContent=" + System.Text.Json.JsonSerializer.Serialize(css) + ";}catch(e){}})();");
+            }
+            catch (Exception) { }
         }
 
         // Silnik ma inny tryb niz ustawienie -> zaproponuj ponowne uruchomienie (karty wroca).

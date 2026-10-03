@@ -737,7 +737,7 @@ namespace Przegladarka
             win.MaxWidth = SystemParameters.WorkArea.Width - 40;
             win.Content = frame;
             win.ShowDialog();
-            if (darkChanged) OfferRestartForDarkMode(); // po zamknieciu okna ustawien
+            if (darkChanged) foreach (var t in _tabs) ApplyLiveDarkCss(t.View.CoreWebView2); // od razu, bez restartu
         }
     }
 }

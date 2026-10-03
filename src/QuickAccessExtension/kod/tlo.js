@@ -1,4 +1,5 @@
 ﻿'use strict';
+importScripts('jezyk-wybor.js', 'jezyk.js');
 
 // =====================================================================
 //  Szybki Dostep - proces tla
@@ -137,7 +138,7 @@ async function zbudujMenuTeraz() {
   await chrome.contextMenus.removeAll();
   const profile = await listaProfili();
 
-  await utworzPozycje({ id: KORZEN, title: 'Dodaj do Szybkiego Dostepu', contexts: KONTEKSTY });
+  await utworzPozycje({ id: KORZEN, title: SD_T('Dodaj do Szybkiego Dostepu'), contexts: KONTEKSTY });
 
   // przy jednym profilu nie robimy zbednego poziomu w menu
   const jeden = profile.length <= 1;
@@ -216,7 +217,7 @@ function pokazWynik(tekst, dobry) {
   chrome.action.setTitle({ title: tekst });
   setTimeout(() => {
     chrome.action.setBadgeText({ text: '' });
-    chrome.action.setTitle({ title: 'Szybki Dostep' });
+    chrome.action.setTitle({ title: SD_T('Szybki Dostep') });
   }, 3000);
   } catch (e) { /* brak paska dodatkow */ }
 }

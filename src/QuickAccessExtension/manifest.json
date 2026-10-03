@@ -12,7 +12,7 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["kod/formularze.js"],
+      "js": ["kod/jezyk-wybor.js", "kod/jezyk.js", "kod/formularze.js"],
       "run_at": "document_idle",
       "all_frames": false
     }

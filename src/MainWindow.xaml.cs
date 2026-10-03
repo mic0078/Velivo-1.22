@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -66,6 +66,14 @@ namespace Przegladarka
             Title = AppTitleLabel;
             _settings = AppSettings.Load(DataDir);
             L.Init(_settings.Language);
+            try
+            {
+                // Szybki Dostep (dodatek) czyta jezyk z kod/jezyk-wybor.js
+                var langJs = Path.Combine(BundledQuickAccessDir, "kod", "jezyk-wybor.js");
+                var want = "var VELIVO_LANG = '" + (L.En ? "en" : "pl") + "';\n";
+                if (File.Exists(langJs) && File.ReadAllText(langJs) != want) File.WriteAllText(langJs, want);
+            }
+            catch (Exception) { }
             L.TranslateTree(this);   // napisy okna z XAML (dymki, przyciski) - gdy wybrano angielski
             UpdateProfileBadge();
             LoadSitePrivacyRules();

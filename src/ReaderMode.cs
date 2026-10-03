@@ -84,6 +84,7 @@ namespace Przegladarka
                     {
                         volTimer.Stop();
                         _settings.ReadVolume = volume.Value / 100.0;
+                        SetPiperVolume(_settings.ReadVolume);
                         try { _settings.Save(DataDir); } catch (Exception) { }
                         if (view.CoreWebView2 != null) await view.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.volume(" + Num(_settings.ReadVolume) + ")");
                     };
@@ -114,6 +115,7 @@ namespace Przegladarka
                                 if (!e2.IsSuccess) return;
                                 await view.CoreWebView2.ExecuteScriptAsync(ReaderScript);
                                 await view.CoreWebView2.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
+                                await PreparePiperReading(view.CoreWebView2);
                                 // klikniecie w tekst = czytaj od tego miejsca (przeciaganie/zaznaczanie i linki dzialaja jak zwykle)
                                 await view.CoreWebView2.ExecuteScriptAsync(@"(() => {
   if (window.__velivoClickRead) return; window.__velivoClickRead = true;

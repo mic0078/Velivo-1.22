@@ -309,7 +309,7 @@ namespace Przegladarka
             root.Children.Add(compactBar);
             root.Children.Add(new TextBlock { Text = "Czytanie na głos – głos i prędkość:", Margin = new Thickness(0, 6, 0, 2) });
             var voiceRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var voice = new ComboBox { Width = 260, Margin = new Thickness(0, 0, 8, 0) };
+            var voice = new ComboBox { Width = 340, Margin = new Thickness(0, 0, 8, 0) };
             voice.Items.Add(new ComboBoxItem { Content = "Automatycznie (język strony: polski/angielski)", Tag = "" });
             foreach (var vn in _voiceNames)
             {
@@ -321,6 +321,9 @@ namespace Przegladarka
                                (local == "0" ? ", online – naturalny)" : ")");
                 voice.Items.Add(new ComboBoxItem { Content = label, Tag = name });
             }
+            // naturalne glosy offline (Piper) - pobieraja sie przy pierwszym czytaniu
+            foreach (var pv in PiperVoices)
+                voice.Items.Add(new ComboBoxItem { Content = "★ " + pv.Label + (PiperVoiceInstalled(pv) ? "" : " – pobierze ok. 60 MB"), Tag = "piper:" + pv.Id });
             voice.SelectedItem = System.Linq.Enumerable.FirstOrDefault(System.Linq.Enumerable.Cast<ComboBoxItem>(voice.Items), i => (string)i.Tag == (s.ReadVoice ?? "")) ?? voice.Items[0];
             var rate = new ComboBox { Width = 90 };
             foreach (var rv in ReadRates) { var it = new ComboBoxItem { Content = rv.ToString("0.##") + "×", Tag = rv }; rate.Items.Add(it); if (Math.Abs(rv - s.ReadRate) < 0.01) rate.SelectedItem = it; }

@@ -19,7 +19,7 @@ namespace Przegladarka
         const string ReaderScript = @"(() => {
   if (window.__velivoRead) return;
   const S = speechSynthesis;
-  const st = { items: [], i: 0, rate: 1, volume: 1, voice: null, active: false, paused: false, mark: null, lang: '' };
+  const st = { items: [], i: 0, rate: 1, volume: 1, external: false, pending: null, seq: 0, voice: null, active: false, paused: false, mark: null, lang: '' };
   const HL = 'velivo-czyta';
   const style = document.createElement('style');
   style.textContent = '.' + HL + '{background:rgba(255,213,0,.45)!important;outline:3px solid #f59e0b!important;border-radius:4px;transition:background .2s}';
@@ -84,6 +84,12 @@ namespace Przegladarka
       const r = it.el.getBoundingClientRect();
       if (r.top < 60 || r.bottom > innerHeight - 60) it.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
+    // glos zewnetrzny (Piper w programie Velivo): zdanie odbiera program, ktory po odtworzeniu wola done()
+    if (st.external) {
+      const nx = st.items[st.i + 1];
+      st.pending = { seq: ++st.seq, i: st.i, text: it.text, next: nx ? nx.text : '' };
+      return;
+    }
     const u = new SpeechSynthesisUtterance(it.text);
     u.rate = st.rate; u.volume = st.volume; if (st.voice) u.voice = st.voice; u.lang = st.voice ? st.voice.lang : 'pl-PL';
     u.onend = () => { if (!st.active || st.paused) return; st.i++; speakNext(); };
@@ -146,7 +152,10 @@ namespace Przegladarka
     stop() { st.active = false; st.paused = false; S.cancel(); unmark(); },
     volume(v) { st.volume = Math.max(0, Math.min(1, v)); }, // glosnosc 0-1: bez przerywania, dziala od nastepnego fragmentu (glos systemowy nie zmienia glosnosci w trakcie zdania)
     rate(r) { st.rate = r; if (st.active && !st.paused) { S.cancel(); speakNext(); } }, // od biezacego zdania
-    state() { return JSON.stringify({ active: st.active, paused: st.paused, i: st.i, n: st.items.length, lang: st.lang }); }
+    state() { return JSON.stringify({ active: st.active, paused: st.paused, i: st.i, n: st.items.length, lang: st.lang, seq: st.seq }); },
+    setExternal(b) { st.external = !!b; },
+    take() { const p = st.pending; st.pending = null; return p ? JSON.stringify(p) : ''; },
+    done(seq) { if (st.active && !st.paused && seq === st.seq) { st.i++; speakNext(); } }
   };
   addEventListener('pagehide', () => { try { window.__velivoRead.stop(); } catch (e) {} });
 })();";
@@ -177,6 +186,7 @@ namespace Przegladarka
             if (core == null) return false;
             await core.ExecuteScriptAsync(ReaderScript);
             await core.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
+            await PreparePiperReading(core);   // glos Piper (offline) - dzwiek z programu, nie z silnika
             return true;
         }
 
@@ -192,9 +202,6 @@ namespace Przegladarka
                 Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")");
             if (n == "0" || n == "null") { ShowToast("🔊 Nie znalazłem tekstu do przeczytania na tej stronie.", null); return; }
             _readTab = tab;
-            var lang = (await tab.View.CoreWebView2.ExecuteScriptAsync("(document.documentElement.lang||'').toLowerCase()")).Trim('"');
-            if (lang.Length > 0 && !lang.StartsWith("pl"))
-                ShowToast("🔊 Strona nie jest po polsku, a w systemie są tylko polskie głosy.\nLepiej najpierw: prawy klik → „Przetłumacz stronę na polski”, potem czytaj.", null);
             ShowReadControls(true, false);
             if (_readTimer == null)
             {

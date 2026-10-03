@@ -77,6 +77,7 @@ namespace Przegladarka
             LoadZoom();
             InitZoomMenu();
             UpdateDarkButton();
+            ApplyBrowserTheme();
             UpdatePrivacyButton();
             if (Environment.GetEnvironmentVariable("VELIVO_DEBUG") == "1")
                 Closing += (s, e) => File.AppendAllText(Path.Combine(DataDir, "debug.log"), DateTime.Now + " ZAMYKANIE OKNA\n" + Environment.StackTrace + "\n\n");
@@ -614,17 +615,22 @@ namespace Przegladarka
             finally { deferral.Complete(); }
         }
 
-        void SelectTab(BrowserTab tab)
+        void SelectTabColors()
         {
-            _current = tab;
             foreach (var t in _tabs)
             {
-                bool on = t == tab;
+                bool on = t == _current;
                 t.View.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 t.Header.Background = t.Private
                     ? new SolidColorBrush(on ? Color.FromRgb(0x4C, 0x1D, 0x95) : Color.FromRgb(0x6D, 0x28, 0xD9))
-                    : (on ? Brushes.White : Brushes.Transparent);
+                    : (on ? ActiveTabBrush : Brushes.Transparent);
             }
+        }
+
+        void SelectTab(BrowserTab tab)
+        {
+            _current = tab;
+            SelectTabColors();
             Address.Text = tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : "";
             Title = BuildWindowTitle(tab.Title.Text);
             UpdateCounter();

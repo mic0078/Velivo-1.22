@@ -70,21 +70,21 @@ namespace Przegladarka
                     if (text.Length > 0)
                     {
                         string shortText = text.Length > 32 ? text.Substring(0, 32).TrimEnd() + "…" : text;
-                        var search = _env.CreateContextMenuItem(MenuLabel("Wyszukaj „" + shortText + "” w " + SearchEngineName), null, CoreWebView2ContextMenuItemKind.Command);
+                        var search = _env.CreateContextMenuItem(MenuLabel(L.En ? "Search “" + shortText + "” on " + SearchEngineName : "Wyszukaj „" + shortText + "” w " + SearchEngineName), null, CoreWebView2ContextMenuItemKind.Command);
                         search.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => AddTab(_settings.SearchUrl(text), isPrivate));
                         add(search);
                         if (text.Length <= 200 && text.IndexOf(' ') < 0 && LooksLikeAddress.IsMatch(text))
                         {
-                            var go = _env.CreateContextMenuItem(MenuLabel("Przejdź do " + shortText), null, CoreWebView2ContextMenuItemKind.Command);
+                            var go = _env.CreateContextMenuItem(MenuLabel((L.En ? "Go to " : "Przejdź do ") + shortText), null, CoreWebView2ContextMenuItemKind.Command);
                             go.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => AddTab(ToUrl(text), isPrivate));
                             add(go);
                         }
-                        var tr = _env.CreateContextMenuItem("Przetłumacz zaznaczenie na polski", null, CoreWebView2ContextMenuItemKind.Command);
+                        var tr = _env.CreateContextMenuItem(L.T("Przetłumacz zaznaczenie na polski"), null, CoreWebView2ContextMenuItemKind.Command);
                         var q = text.Length > 4500 ? text.Substring(0, 4500) : text;
                         tr.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() =>
                             AddTab("https://translate.google.com/?sl=auto&tl=pl&op=translate&text=" + Uri.EscapeDataString(q), isPrivate));
                         add(tr);
-                        var readSel = _env.CreateContextMenuItem("Czytaj zaznaczenie na głos", null, CoreWebView2ContextMenuItemKind.Command);
+                        var readSel = _env.CreateContextMenuItem(L.T("Czytaj zaznaczenie na głos"), null, CoreWebView2ContextMenuItemKind.Command);
                         readSel.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => StartReading(true));
                         add(readSel);
                         separator();
@@ -107,55 +107,55 @@ namespace Przegladarka
                         });
                         add(trPage);
                     };
-                    if (!polish || unknown) addTranslate("Przetłumacz stronę na polski", "pl");
-                    if (polish || unknown) addTranslate("Przetłumacz stronę na angielski", "en");
+                    if (!polish || unknown) addTranslate(L.T("Przetłumacz stronę na polski"), "pl");
+                    if (polish || unknown) addTranslate(L.T("Przetłumacz stronę na angielski"), "en");
                 }
 
                 if (web)
                 {
                     var tabForBlock = _current;
                     double px = e.Location.X, py = e.Location.Y;
-                    var block = _env.CreateContextMenuItem("🚫 Blokuj element (reklamę)…", null, CoreWebView2ContextMenuItemKind.Command);
+                    var block = _env.CreateContextMenuItem(L.T("🚫 Blokuj element (reklamę)…"), null, CoreWebView2ContextMenuItemKind.Command);
                     block.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartElementPicker(tabForBlock, px, py));
                     add(block);
                     if (ElementSelectorsFor(pageUrl).Count > 0)
                     {
-                        var unblock = _env.CreateContextMenuItem("Przywróć zablokowane elementy na tej stronie", null, CoreWebView2ContextMenuItemKind.Command);
+                        var unblock = _env.CreateContextMenuItem(L.T("Przywróć zablokowane elementy na tej stronie"), null, CoreWebView2ContextMenuItemKind.Command);
                         unblock.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => ClearElementRules(tabForBlock));
                         add(unblock);
                     }
                     separator();
-                    var reader = _env.CreateContextMenuItem("Tryb czytania i streszczenie", null, CoreWebView2ContextMenuItemKind.Command);
+                    var reader = _env.CreateContextMenuItem(L.T("Tryb czytania i streszczenie"), null, CoreWebView2ContextMenuItemKind.Command);
                     reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenReaderMode);
                     add(reader);
-                    var readPage = _env.CreateContextMenuItem(_readTab != null ? "Zatrzymaj czytanie" : "Czytaj stronę na głos (Ctrl+Shift+U)", null, CoreWebView2ContextMenuItemKind.Command);
+                    var readPage = _env.CreateContextMenuItem(_readTab != null ? L.T("Zatrzymaj czytanie") : L.T("Czytaj stronę na głos (Ctrl+Shift+U)"), null, CoreWebView2ContextMenuItemKind.Command);
                     readPage.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => { if (_readTab != null) StopReading(); else StartReading(false); });
                     add(readPage);
                 }
-                var shots = _env.CreateContextMenuItem("Zrzut ekranu", null, CoreWebView2ContextMenuItemKind.Submenu);
-                var visible = _env.CreateContextMenuItem("Widoczna część strony", null, CoreWebView2ContextMenuItemKind.Command);
+                var shots = _env.CreateContextMenuItem(L.T("Zrzut ekranu"), null, CoreWebView2ContextMenuItemKind.Submenu);
+                var visible = _env.CreateContextMenuItem(L.T("Widoczna część strony"), null, CoreWebView2ContextMenuItemKind.Command);
                 visible.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await TakeScreenshot(false));
-                var full = _env.CreateContextMenuItem("Cała strona (z przewijaniem)", null, CoreWebView2ContextMenuItemKind.Command);
+                var full = _env.CreateContextMenuItem(L.T("Cała strona (z przewijaniem)"), null, CoreWebView2ContextMenuItemKind.Command);
                 full.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await TakeScreenshot(true));
                 shots.Children.Add(visible); shots.Children.Add(full);
                 add(shots);
 
-                var tools = _env.CreateContextMenuItem("Narzędzia Velivo", null, CoreWebView2ContextMenuItemKind.Submenu);
-                var tPrivacy = _env.CreateContextMenuItem("Prywatność i antyfingerprinting", null, CoreWebView2ContextMenuItemKind.Command);
+                var tools = _env.CreateContextMenuItem(L.T("Narzędzia Velivo"), null, CoreWebView2ContextMenuItemKind.Submenu);
+                var tPrivacy = _env.CreateContextMenuItem(L.T("Prywatność i antyfingerprinting"), null, CoreWebView2ContextMenuItemKind.Command);
                 tPrivacy.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenPrivacyPanel);
-                var tMedia = _env.CreateContextMenuItem("Wykryj media do pobrania", null, CoreWebView2ContextMenuItemKind.Command);
+                var tMedia = _env.CreateContextMenuItem(L.T("Wykryj media do pobrania"), null, CoreWebView2ContextMenuItemKind.Command);
                 tMedia.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(DetectPageMedia);
-                var tDl = _env.CreateContextMenuItem("Menedżer pobrań", null, CoreWebView2ContextMenuItemKind.Command);
+                var tDl = _env.CreateContextMenuItem(L.T("Menedżer pobrań"), null, CoreWebView2ContextMenuItemKind.Command);
                 tDl.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => Downloads_Click(null, null));
-                var tHist = _env.CreateContextMenuItem("Historia", null, CoreWebView2ContextMenuItemKind.Command);
+                var tHist = _env.CreateContextMenuItem(L.T("Historia"), null, CoreWebView2ContextMenuItemKind.Command);
                 tHist.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => History_Click(null, null));
-                var tExt = _env.CreateContextMenuItem("Dodatki", null, CoreWebView2ContextMenuItemKind.Command);
+                var tExt = _env.CreateContextMenuItem(L.T("Dodatki"), null, CoreWebView2ContextMenuItemKind.Command);
                 tExt.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => Extensions_Click(null, null));
-                var tLan = _env.CreateContextMenuItem("Diagnostyka LAN sync", null, CoreWebView2ContextMenuItemKind.Command);
+                var tLan = _env.CreateContextMenuItem(L.T("Diagnostyka LAN sync"), null, CoreWebView2ContextMenuItemKind.Command);
                 tLan.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenLanDiagnosticsPanel);
-                var tProfileWork = _env.CreateContextMenuItem("Przełącz profil: praca", null, CoreWebView2ContextMenuItemKind.Command);
+                var tProfileWork = _env.CreateContextMenuItem(L.T("Przełącz profil: praca"), null, CoreWebView2ContextMenuItemKind.Command);
                 tProfileWork.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SwitchProfile("praca"));
-                var tUser = _env.CreateContextMenuItem("Przełącz użytkownika/profil…", null, CoreWebView2ContextMenuItemKind.Command);
+                var tUser = _env.CreateContextMenuItem(L.T("Przełącz użytkownika/profil…"), null, CoreWebView2ContextMenuItemKind.Command);
                 tUser.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenProfilesManager);
                 tools.Children.Add(tPrivacy);
                 tools.Children.Add(tMedia);

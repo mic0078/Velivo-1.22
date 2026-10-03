@@ -102,7 +102,9 @@ namespace Przegladarka
             int pct = (int)Math.Round(z * 100);
             ZoomBtn.Content = pct + "%";
             ZoomBtn.Visibility = Math.Abs(z - 1.0) > 0.001 ? Visibility.Visible : Visibility.Collapsed;
-            ZoomBtn.ToolTip = "Powiększenie tej strony: " + pct + "%\nKliknij: przywróć domyślne (" + _settings.DefaultZoom + "%)\nPrawy klik: większe / mniejsze\nCtrl + kółko myszy także działa";
+            ZoomBtn.ToolTip = L.En
+                ? "Zoom for this page: " + pct + "%\nClick: restore default (" + _settings.DefaultZoom + "%)\nRight-click: larger / smaller\nCtrl + mouse wheel also works"
+                : "Powiększenie tej strony: " + pct + "%\nKliknij: przywróć domyślne (" + _settings.DefaultZoom + "%)\nPrawy klik: większe / mniejsze\nCtrl + kółko myszy także działa";
         }
 
         void ZoomBtn_Click(object sender, RoutedEventArgs e) { SetZoom(DefaultZoom); }
@@ -110,9 +112,9 @@ namespace Przegladarka
         void InitZoomMenu()
         {
             var menu = new ContextMenu();
-            var plus = new MenuItem { Header = "Powiększ (Ctrl +)" }; plus.Click += (s, e) => StepZoom(1);
-            var minus = new MenuItem { Header = "Pomniejsz (Ctrl −)" }; minus.Click += (s, e) => StepZoom(-1);
-            var reset = new MenuItem { Header = "Domyślne (Ctrl 0)" }; reset.Click += (s, e) => SetZoom(DefaultZoom);
+            var plus = new MenuItem { Header = L.T("Powiększ (Ctrl +)") }; plus.Click += (s, e) => StepZoom(1);
+            var minus = new MenuItem { Header = L.T("Pomniejsz (Ctrl −)") }; minus.Click += (s, e) => StepZoom(-1);
+            var reset = new MenuItem { Header = L.T("Domyślne (Ctrl 0)") }; reset.Click += (s, e) => SetZoom(DefaultZoom);
             menu.Items.Add(plus); menu.Items.Add(minus); menu.Items.Add(reset);
             ZoomBtn.ContextMenu = menu;
         }

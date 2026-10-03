@@ -34,7 +34,8 @@ namespace Przegladarka
         public double ReadRate = 1.25;
         public double ReadVolume = 1.0;        // glosnosc czytania na glos (0-1)
         public bool NightLight = false;
-        public string Theme = "jasny";          // motyw przegladarki (Themes.cs)        // tryb nocny: cieplejsze kolory stron (jak Swiatlo nocne w Windows)         // predkosc czytania na glos
+        public string Theme = "jasny";
+        public string Language = "auto";       // jezyk interfejsu: auto (jak Windows) / pl / en          // motyw przegladarki (Themes.cs)        // tryb nocny: cieplejsze kolory stron (jak Swiatlo nocne w Windows)         // predkosc czytania na glos
         public string ReadVoice = "";          // glos (pusty = pierwszy polski)
         public string CacheDir = "";           // wlasny folder na smieci (pusty = w profilu)
         public bool CleanJunkOnStart = false;  // usuwaj smieci przy kazdym uruchomieniu
@@ -123,6 +124,7 @@ namespace Przegladarka
                         case "readVolume": double rv; if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out rv)) s.ReadVolume = Math.Max(0, Math.Min(1, rv)); break;
                         case "nightLight": s.NightLight = b; break;
                         case "theme": s.Theme = v; break;
+                        case "language": s.Language = v; break;
                         case "popups": s.BlockThirdPartyPopups = b; break;
                         case "cacheDir": s.CacheDir = v; break;
                         case "cleanJunk": s.CleanJunkOnStart = b; break;
@@ -184,7 +186,7 @@ namespace Przegladarka
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "askDownload=" + B(AskDownload),
                 "popups=" + B(BlockThirdPartyPopups), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
-                "restore=" + B(RestoreTabs), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"),
+                "restore=" + B(RestoreTabs), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
                 "toolbarCompact=" + B(ToolbarAlwaysCompact),
@@ -303,6 +305,16 @@ namespace Przegladarka
             // podglad na zywo przy wyborze
             theme.SelectionChanged += (a, b) => { if (theme.SelectedItem is ComboBoxItem ci) { _settings.Theme = (string)ci.Tag; ApplyBrowserTheme(); } };
             root.Children.Add(theme);
+            root.Children.Add(new TextBlock { Text = L.T("Język interfejsu / Language:"), Margin = new Thickness(0, 6, 0, 2) });
+            var lang = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
+            foreach (var opt in new[] { new[] { "auto", L.T("Automatycznie (język Windows)") }, new[] { "pl", "Polski" }, new[] { "en", "English" } })
+            {
+                var it = new ComboBoxItem { Content = opt[1], Tag = opt[0] };
+                lang.Items.Add(it);
+                if (string.Equals(opt[0], s.Language ?? "auto", StringComparison.OrdinalIgnoreCase)) lang.SelectedItem = it;
+            }
+            if (lang.SelectedItem == null) lang.SelectedIndex = 0;
+            root.Children.Add(lang);
             dark.Checked += (a, b) => night.IsChecked = false;
             night.Checked += (a, b) => dark.IsChecked = false;
             var compactBar = Check("Zawsze kompaktowy pasek narzędzi", "Zmniejsza etykiety i przenosi część przycisków do menu „…”, nawet na szerokim oknie.", s.ToolbarAlwaysCompact);
@@ -641,6 +653,12 @@ namespace Przegladarka
                 s.DefaultZoom = (int)((ComboBoxItem)zoom.SelectedItem).Tag;
                 s.DarkPages = dark.IsChecked == true;
                 s.Theme = (string)((ComboBoxItem)theme.SelectedItem).Tag;
+                var newLang = (string)((ComboBoxItem)lang.SelectedItem).Tag;
+                if (!string.Equals(newLang, s.Language ?? "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    s.Language = newLang;
+                    MessageBox.Show(win, L.T("Zmiana języka zadziała po ponownym uruchomieniu Velivo."), "Velivo");
+                }
                 bool oldNight = s.NightLight;
                 s.NightLight = night.IsChecked == true && !s.DarkPages;
                 if (oldNight != s.NightLight) { UpdateDarkButton(); darkChanged = true; }

@@ -68,6 +68,7 @@ namespace Przegladarka
             "lanSyncSilent",
             "lanSyncKey",
             "quickAccessTab",
+            "language",          // jezyk interfejsu wybiera kazdy komputer sam
         };
 
         const int LanPort = 41919;

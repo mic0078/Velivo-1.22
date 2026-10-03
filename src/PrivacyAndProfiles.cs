@@ -447,7 +447,7 @@ namespace Przegladarka
 
             var win = new Window
             {
-                Title = "Prywatność i antyfingerprinting",
+                Title = L.T("Prywatność i antyfingerprinting"),
                 Width = 1080,
                 Height = 700,
                 MinWidth = 920,
@@ -574,7 +574,7 @@ namespace Przegladarka
                 if (IsQuickAccessExtensionId((dom.Text ?? "").Trim()) || (dom.Text ?? "").Contains("chrome-extension"))
                 {
                     dom.Text = "";
-                    MessageBox.Show(win, "Szybki Dostęp to wbudowany dodatek – jest zaufany na stałe i nic go nie blokuje. Nie trzeba dodawać reguły.", "Prywatność");
+                    MessageBox.Show(win, "Szybki Dostęp to wbudowany dodatek – jest zaufany na stałe i nic go nie blokuje. Nie trzeba dodawać reguły.", L.T("Prywatność"));
                     return;
                 }
                 var d = NormalizeRuleDomain(dom.Text);
@@ -617,7 +617,7 @@ namespace Przegladarka
                 var d = NormalizeRuleDomain(dom.Text);
                 if (d.Length < 3 || d.IndexOf('.') < 1)
                 {
-                    MessageBox.Show(win, "Podaj poprawną domenę stron www, np. example.com (adresy chrome-extension:// dodatków nie są blokowane regułami).", "Prywatność");
+                    MessageBox.Show(win, "Podaj poprawną domenę stron www, np. example.com (adresy chrome-extension:// dodatków nie są blokowane regułami).", L.T("Prywatność"));
                     return;
                 }
                 bool destructive = (ck.IsChecked == true) || (cl.IsChecked == true);
@@ -626,7 +626,7 @@ namespace Przegladarka
                     var txt = "Ta reguła może powodować utratę logowania i ustawień strony (cookies/sesja/localStorage).\n\n" +
                               "Domena: " + d + "\n\n" +
                               "Zapisać mimo to?";
-                    if (MessageBox.Show(win, txt, "Prywatność", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    if (MessageBox.Show(win, txt, L.T("Prywatność"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                         return;
                 }
                 var r = new SitePrivacyRule
@@ -799,10 +799,10 @@ namespace Przegladarka
             if (PrivacyBtn == null) return;
             var url = CurrentUrl;
             var r = url == null ? null : RuleForUrl(url);
-            PrivacyBtn.Content = r == null ? "Prywatność" : "Prywatność*";
+            PrivacyBtn.Content = r == null ? L.T("Prywatność") : L.T("Prywatność*");
             PrivacyBtn.ToolTip = r == null
-                ? "Panel prywatności i antyfingerprinting"
-                : "Aktywna reguła prywatności dla tej domeny";
+                ? L.T("Panel prywatności i antyfingerprinting")
+                : L.T("Aktywna reguła prywatności dla tej domeny");
         }
 
         void SwitchProfile(string profile)

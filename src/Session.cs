@@ -87,14 +87,14 @@ namespace Przegladarka
         ContextMenu BuildTabMenu(BrowserTab tab)
         {
             var menu = new ContextMenu();
-            var reload = new MenuItem { Header = "Odśwież" }; reload.Click += (s, e) => { if (tab.View.CoreWebView2 != null) tab.View.CoreWebView2.Reload(); };
-            var dup = new MenuItem { Header = "Duplikuj kartę" }; dup.Click += (s, e) => { if (tab.View.CoreWebView2 != null) AddTab(tab.View.CoreWebView2.Source, tab.Private); };
-            var close = new MenuItem { Header = "Zamknij kartę (Ctrl+W)" }; close.Click += (s, e) => CloseTab(tab);
-            var others = new MenuItem { Header = "Zamknij inne karty" };
+            var reload = new MenuItem { Header = L.T("Odśwież") }; reload.Click += (s, e) => { if (tab.View.CoreWebView2 != null) tab.View.CoreWebView2.Reload(); };
+            var dup = new MenuItem { Header = L.T("Duplikuj kartę") }; dup.Click += (s, e) => { if (tab.View.CoreWebView2 != null) AddTab(tab.View.CoreWebView2.Source, tab.Private); };
+            var close = new MenuItem { Header = L.T("Zamknij kartę (Ctrl+W)") }; close.Click += (s, e) => CloseTab(tab);
+            var others = new MenuItem { Header = L.T("Zamknij inne karty") };
             others.Click += (s, e) => { foreach (var t in _tabs.Where(x => x != tab).ToList()) CloseTab(t); SelectTab(tab); };
-            var right = new MenuItem { Header = "Zamknij karty po prawej" };
+            var right = new MenuItem { Header = L.T("Zamknij karty po prawej") };
             right.Click += (s, e) => { int i = _tabs.IndexOf(tab); foreach (var t in _tabs.Skip(i + 1).ToList()) CloseTab(t); };
-            var reopen = new MenuItem { Header = "Przywróć zamkniętą kartę (Ctrl+Shift+T)" }; reopen.Click += (s, e) => ReopenClosedTab();
+            var reopen = new MenuItem { Header = L.T("Przywróć zamkniętą kartę (Ctrl+Shift+T)") }; reopen.Click += (s, e) => ReopenClosedTab();
             menu.Opened += (s, e) => { reopen.IsEnabled = _closedTabs.Count > 0; others.IsEnabled = _tabs.Count > 1; right.IsEnabled = _tabs.IndexOf(tab) < _tabs.Count - 1; };
             foreach (var m in new object[] { reload, dup, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
             return menu;

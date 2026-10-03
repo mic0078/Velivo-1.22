@@ -42,6 +42,7 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Pinned;
+            public DateTime NewTabIntentAt;   // ostatni Ctrl+klik / srodkowy klik na linku
             public string PinnedUrl;     // adres zamrozony przy przypieciu - do niego karta wraca po uruchomieniu          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
             public Button CloseBtn;
             public TextBlock PinMark;
@@ -356,6 +357,11 @@ namespace Przegladarka
             // chrome.webview jest potrzebny tylko w okienkach dodatkow (osobne widoki), w kartach go wylaczamy.
             core.Settings.IsWebMessageEnabled = true;   // kanal dla Szybkiego Dostepu; wiadomosci z innych stron sa ignorowane
             core.WebMessageReceived += async (s, e) => await HandleQuickAccessWebMessageAsync(core, e);
+            // Ctrl+klik / srodkowy klik na linku = swiadomie nowa karta. Silnik nie podaje, jakim klikiem otwarto okno,
+            // wiec strona zglasza to przy wcisnieciu przycisku (tylko znacznik, bez danych).
+            core.WebMessageReceived += (s, e) => { try { if (e.TryGetWebMessageAsString() == "velivo:nowa-karta") tab.NewTabIntentAt = DateTime.UtcNow; } catch (Exception) { } };
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(
+                "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button===1||e.ctrlKey||e.shiftKey||e.metaKey){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(a)pm('velivo:nowa-karta');}},true);}catch(x){}})();");
             await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
             if (!_extensionsLoaded)
@@ -605,6 +611,7 @@ namespace Przegladarka
                 if (!_settings.LinksInSameTab || tab.Pinned || !e.IsUserInitiated || tab.View.CoreWebView2 == null) return false;
                 if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl) || Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift)) return false;
                 if (Mouse.MiddleButton == MouseButtonState.Pressed) return false;
+                if ((DateTime.UtcNow - tab.NewTabIntentAt).TotalSeconds < 2) return false;
                 var f = e.WindowFeatures;
                 if (f != null && f.HasSize) return false;
                 Uri u;

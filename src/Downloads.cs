@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -30,7 +30,7 @@ namespace Przegladarka
         Window _downloadWin;
         DispatcherTimer _dlTimer;
 
-        StackPanel DlPanel { get { return _dlPanel ?? (_dlPanel = new StackPanel()); } }
+        StackPanel DlPanel { get { return _dlPanel ?? (_dlPanel = new StackPanel { Background = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)) }); } }   // szare tlo = linie miedzy wierszami
 
         void AddRowToPanel(UIElement row) { DlPanel.Children.Insert(0, row); UpdateDownloadsButton(); }
 
@@ -57,7 +57,7 @@ namespace Przegladarka
             var scroll = new ScrollViewer { Content = DlPanel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             _downloadWin = new Window
             {
-                Title = L.T("Pobrane pliki – Velivo"), Width = 640, Height = 460, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Title = L.T("Pobrane pliki – Velivo"), Width = 760, Height = 520, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Content = Docked(bar, scroll)
             };
             _downloadWin.Closed += (s, a) => { scroll.Content = null; _downloadWin = null; }; // panel zostaje na nastepny raz
@@ -143,6 +143,7 @@ namespace Przegladarka
             public JobState State { get; set; }
             public string Error { get; set; }
             public DateTime Added { get; set; }
+            public DateTime Finished { get; set; }
 
             // tylko w pamieci
             public bool Private;
@@ -343,6 +344,7 @@ namespace Przegladarka
                     File.Move(job.PartFile, final);
                     job.File = final;
                     job.State = JobState.Done;
+                    job.Finished = DateTime.Now;
                     break;
                 }
                 catch (Exception ex)
@@ -480,10 +482,24 @@ namespace Przegladarka
             foreach (var b in new[] { job.OpenBtn, job.PauseBtn, job.CancelBtn, folder }) buttons.Children.Add(b);
             var text = new StackPanel();
             text.Children.Add(job.Name); text.Children.Add(job.Bar); text.Children.Add(job.Status);
-            job.Row = new DockPanel { Margin = new Thickness(10, 8, 10, 8) };
+            job.Row = new DockPanel { Margin = new Thickness(0, 0, 0, 1), Background = Brushes.White };
+            text.Margin = new Thickness(10, 8, 8, 8);
+            buttons.Margin = new Thickness(0, 0, 10, 0);
+            job.Name.ToolTip = job.File + "\n" + job.Url;
             DockPanel.SetDock(buttons, Dock.Right);
             job.Row.Children.Add(buttons); job.Row.Children.Add(text);
             RefreshJob(job);
+        }
+
+        // " · 3 paź 2026, 18:42 · strona.pl" - kiedy i skad pobrano
+        static string DownloadInfo(Job job)
+        {
+            var when = job.Finished != default(DateTime) ? job.Finished : job.Added;
+            string text = when != default(DateTime) ? "  ·  " + when.ToString("d MMM yyyy, HH:mm", L.En ? new System.Globalization.CultureInfo("en-GB") : new System.Globalization.CultureInfo("pl-PL")) : "";
+            Uri u;
+            var src = !string.IsNullOrEmpty(job.Referer) && job.Referer.StartsWith("http") ? job.Referer : job.Url;
+            if (Uri.TryCreate(src ?? "", UriKind.Absolute, out u) && u.Host.Length > 0) text += "  ·  " + (u.Host.StartsWith("www.") ? u.Host.Substring(4) : u.Host);
+            return text;
         }
 
         static string Eta(double seconds)
@@ -516,8 +532,11 @@ namespace Przegladarka
                     job.Status.Foreground = Brushes.DarkGoldenrod;
                     break;
                 case JobState.Done:
-                    job.Status.Text = L.T("Gotowe – ") + Size(total > 0 ? total : got);
-                    job.Status.Foreground = Brushes.SeaGreen;
+                    bool exists = File.Exists(job.File);
+                    job.Status.Text = (exists ? L.T("Gotowe – ") + Size(total > 0 ? total : got) : L.T("Plik usunięty lub przeniesiony"))
+                        + DownloadInfo(job);
+                    job.Status.Foreground = exists ? Brushes.SeaGreen : Brushes.Gray;
+                    job.Bar.Visibility = Visibility.Collapsed;
                     break;
                 case JobState.Failed:
                     job.Status.Text = L.T("Błąd: ") + job.Error + L.T(" – kliknij „Wznów”, aby spróbować ponownie");
@@ -530,7 +549,8 @@ namespace Przegladarka
             }
             job.PauseBtn.Content = job.State == JobState.Running ? L.T("Wstrzymaj") : L.T("Wznów");
             job.PauseBtn.Visibility = job.State == JobState.Done || job.State == JobState.Canceled ? Visibility.Collapsed : Visibility.Visible;
-            job.OpenBtn.Visibility = job.State == JobState.Done ? Visibility.Visible : Visibility.Collapsed;
+            job.OpenBtn.Visibility = job.State == JobState.Done && File.Exists(job.File) ? Visibility.Visible : Visibility.Collapsed;
+            if (job.State != JobState.Done) job.Bar.Visibility = Visibility.Visible;
             job.CancelBtn.Content = job.State == JobState.Running || job.State == JobState.Paused ? L.T("Anuluj") : L.T("Usuń z listy");
         }
 
@@ -587,7 +607,6 @@ namespace Przegladarka
                 foreach (var j in list.OrderBy(x => x.Added))
                 {
                     if (j.State == JobState.Running) j.State = JobState.Paused; // przerwane zamknieciem programu
-                    if (j.State == JobState.Done && !File.Exists(j.File)) continue;  // plik usuniety - nie pokazujemy
                     _jobs.Insert(0, j);
                     BuildJobRow(j);
                     DlPanel.Children.Insert(0, j.Row);
@@ -628,13 +647,16 @@ namespace Przegladarka
             public long Got, Total;
             public bool CanResume, Dead;
             public string Reason;
+            public string Url; public DateTime Added; public bool Private; public bool Converted;
         }
 
         readonly List<DownloadRow> _downloads = new List<DownloadRow>();
 
         void TrackDownload(CoreWebView2DownloadStartingEventArgs e, object owner)
         {
-            var row = new DownloadRow { Op = e.DownloadOperation, File = e.ResultFilePath, Owner = owner as CoreWebView2 };
+            var ownerCore = owner as CoreWebView2;
+            var ownerTab = _tabs.FirstOrDefault(t => t.View.CoreWebView2 == ownerCore);
+            var row = new DownloadRow { Op = e.DownloadOperation, File = e.ResultFilePath, Owner = ownerCore, Url = e.DownloadOperation.Uri, Added = DateTime.Now, Private = ownerTab != null && ownerTab.Private };
             _downloads.Insert(0, row);
             BuildDownloadRow(row);
             AddRowToPanel((UIElement)row.Bar.Tag);
@@ -710,7 +732,9 @@ namespace Przegladarka
             text.Children.Add(row.Status);
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             buttons.Children.Add(row.Action); buttons.Children.Add(folder);
-            var line = new DockPanel { Margin = new Thickness(10, 8, 10, 8) };
+            var line = new DockPanel { Margin = new Thickness(0, 0, 0, 1), Background = Brushes.White };
+            text.Margin = new Thickness(10, 8, 8, 8);
+            buttons.Margin = new Thickness(0, 0, 10, 0);
             DockPanel.SetDock(buttons, Dock.Right);
             line.Children.Add(buttons); line.Children.Add(text);
             row.Bar.Tag = line;
@@ -738,6 +762,7 @@ namespace Przegladarka
                 case CoreWebView2DownloadState.Completed:
                     row.Status.Text = L.T("Gotowe – ") + Size(got);
                     row.Action.Content = L.T("Otwórz");
+                    if (!row.Dead) { Dispatcher.BeginInvoke(new Action(() => KeepEngineDownloadInHistory(row))); }
                     break;
                 default:
                     row.Status.Text = L.T("Przerwano (") + (row.Reason ?? "?") + ")";
@@ -771,6 +796,30 @@ namespace Przegladarka
             }
             RefreshDownload(row);
         }
+
+        // Plik pobrany przez silnik trafia do historii pobranych jak kazdy inny (zostaje po ponownym uruchomieniu).
+        void KeepEngineDownloadInHistory(DownloadRow row)
+        {
+            if (row.Converted) return;
+            row.Converted = true;
+            var line = (UIElement)row.Bar.Tag;
+            int at = Math.Max(0, DlPanel.Children.IndexOf(line));
+            var job = new Job
+            {
+                Url = row.Url, File = row.File, Total = row.Got, SingleGot = row.Got, State = JobState.Done,
+                Added = row.Added, Finished = DateTime.Now, Private = row.Private,
+                Referer = row.Owner != null ? SafeSource(row.Owner) : null
+            };
+            _downloads.Remove(row);
+            DlPanel.Children.Remove(line);
+            _jobs.Insert(0, job);
+            BuildJobRow(job);
+            DlPanel.Children.Insert(Math.Min(at, DlPanel.Children.Count), job.Row);
+            SaveJobs();
+            UpdateDownloadsButton();
+        }
+
+        static string SafeSource(CoreWebView2 core) { try { return core.Source; } catch (Exception) { return null; } }
 
         static string Size(long b)
         {

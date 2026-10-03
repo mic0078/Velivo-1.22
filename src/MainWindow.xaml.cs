@@ -407,6 +407,7 @@ namespace Przegladarka
                 if (!IsQuickAccessUrl(e.Uri)) tab.QuickAccessRecoveryTried = false;
                 core.Settings.IsWebMessageEnabled = true;   // zmiana dziala dopiero od nastepnej nawigacji - wiec stale wlaczone; odbiorca sprawdza nadawce (IsQuickAccessUrl)
                 core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri) && !IsTrustedUrl(e.Uri);
+                if (tab == _current) UpdateTrackingLevel(e.Uri);
                 // nowa karta przegladarki (np. chrome.tabs.create bez adresu) -> strona nowej karty z dodatku
                 if (IsInternalNewTabUrl(e.Uri))
                 {
@@ -651,6 +652,7 @@ namespace Przegladarka
             SaveSessionSoon();
             CheckSejfLogins(tab);
             UpdateAdaptiveToolbarLayout();
+            UpdateTrackingLevel(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null);
         }
 
         void OverflowBtn_Click(object sender, RoutedEventArgs e)

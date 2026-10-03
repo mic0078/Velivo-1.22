@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -253,6 +253,24 @@ namespace Przegladarka
             return RuleForHost(u.Host);
         }
 
+        // Poziom ochrony silnika Edge jest wspolny dla wszystkich kart - ustawiamy go wg aktywnej strony:
+        // wymuszone trackery -> scisla; zaufana domena -> zrownowazona; reszta -> wg ustawien.
+        void UpdateTrackingLevel(string url)
+        {
+            try
+            {
+                var core = _current != null ? _current.View.CoreWebView2 : null;
+                if (core == null) return;
+                var r = RuleForUrl(url);
+                bool strict = r != null && r.StrictTrackers ? true
+                    : (r != null && r.Trusted) || IsQuickAccessUrl(url) ? false
+                    : _settings.StrictTracking;
+                var level = strict ? CoreWebView2TrackingPreventionLevel.Strict : CoreWebView2TrackingPreventionLevel.Balanced;
+                if (core.Profile.PreferredTrackingPreventionLevel != level) core.Profile.PreferredTrackingPreventionLevel = level;
+            }
+            catch (Exception) { }
+        }
+
         bool IsTrustedUrl(string url)
         {
             if (IsQuickAccessUrl(url)) return true;   // Szybki Dostep jest zawsze zaufany
@@ -316,6 +334,7 @@ namespace Przegladarka
                         .Select(x => x.Domain + "\t" + (x.BlockJs ? "1" : "0") + "\t" + (x.BlockCookies ? "1" : "0") + "\t" + (x.StrictTrackers ? "1" : "0") + "\t" + (x.AutoClearData ? "1" : "0") + "\t" + (x.Trusted ? "1" : "0")));
             }
             catch (IOException) { }
+            if (_current != null && _current.View.CoreWebView2 != null) UpdateTrackingLevel(_current.View.CoreWebView2.Source);
             NotifyLanStateChanged();
         }
 

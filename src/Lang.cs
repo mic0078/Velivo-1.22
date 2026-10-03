@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -677,6 +677,10 @@ namespace Przegladarka
             { "Nazwa:", "Name:" },
             { "URL / strona:", "URL / site:" },
             { "Notatki:", "Notes:" },
+            { "Ochrona przed śledzeniem:", "Tracking prevention:" },
+            { "Ochrona zrównoważona (zalecana)", "Balanced protection (recommended)" },
+            { "Ścisła ochrona", "Strict protection" },
+            { "Zrównoważona: blokuje znane trackery, a osadzone treści (np. wpisy z X, filmy) działają. Ścisła: blokuje też osadzone treści serwisów społecznościowych. Na zaufanych domenach ścisła działa jak zrównoważona, chyba że zaznaczysz dla domeny „Wymuś blokowanie trackerów”.", "Balanced: blocks known trackers while embedded content (e.g. posts from X, videos) still works. Strict: also blocks embedded social media content. On trusted domains strict works like balanced, unless you tick \"Force tracker blocking for this domain\"." },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

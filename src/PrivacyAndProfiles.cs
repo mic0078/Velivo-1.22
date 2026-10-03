@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -386,20 +386,16 @@ namespace Przegladarka
             if (rule.BlockJs && e.ResourceContext == CoreWebView2WebResourceContext.Script)
             {
                 e.Response = _env.CreateWebResourceResponse(null, 403, "Blocked", "");
-                tab.Blocked++;
-                _totalBlocked++;
+                NoteBlocked(tab, L.T("JS"), e.Request.Uri);
                 AddPrivacyBlock(L.T("Skrypt (JS) zablokowany regułą domeny"), e.Request.Uri, tab);
-                Dispatcher.BeginInvoke(new Action(UpdateCounter));
                 return true;
             }
 
             if (rule.StrictTrackers && _blocker.ShouldBlockForced(e.Request.Uri))
             {
                 e.Response = _env.CreateWebResourceResponse(null, 403, "Blocked", "");
-                tab.Blocked++;
-                _totalBlocked++;
+                NoteBlocked(tab, L.T("Reguła domeny"), e.Request.Uri);
                 AddPrivacyBlock(L.T("Tracker zablokowany (reguła domeny)"), e.Request.Uri, tab);
-                Dispatcher.BeginInvoke(new Action(UpdateCounter));
                 return true;
             }
 

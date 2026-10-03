@@ -106,13 +106,13 @@
             <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="DarkBtn" Content="&#xE708;" Foreground="#1E293B" Background="#E2E8F0"
                     ToolTip="Tryb ciemny stron" Click="DarkBtn_Click"/>
             <Button DockPanel.Dock="Right" x:Name="BookmarksBtn" Style="{StaticResource Icon}" Content="&#xE728;" Foreground="#B45309" Background="#FEF3C7" ToolTip="Wszystkie zakładki" Click="Bookmarks_Click"/>
-            <ToggleButton x:Name="AdToggle" DockPanel.Dock="Right" IsChecked="True" Margin="4,7" Padding="10,0"
-                          BorderThickness="0" Background="#DCFCE7" Click="AdToggle_Click" ToolTip="Włącz/wyłącz AdBlock">
+            <Button x:Name="AdToggle" DockPanel.Dock="Right" Margin="4,7" Padding="10,0"
+                          BorderThickness="0" Background="#DCFCE7" Click="AdToggle_Click" ToolTip="Zablokowane elementy">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock x:Name="AdIcon" Text="&#xEA18;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="19" Foreground="#15803D" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <TextBlock x:Name="AdCounter" Text="0" FontSize="14" FontWeight="SemiBold" Foreground="#14532D" VerticalAlignment="Center"/>
                 </StackPanel>
-            </ToggleButton>
+            </Button>
             <StackPanel DockPanel.Dock="Right" x:Name="ExtBar" Orientation="Horizontal" Margin="4,0"/>
             <Button DockPanel.Dock="Right" x:Name="StoreBtn" Content="➕ Dodaj do Velivo" Visibility="Collapsed" Width="Auto" Padding="10,0" FontSize="13"
                     Margin="4,7" Background="#DBEAFE" ToolTip="Pobiera ten dodatek ze sklepu i instaluje go" Click="StoreInstall_Click"/>

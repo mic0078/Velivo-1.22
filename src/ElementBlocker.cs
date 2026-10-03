@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -60,7 +60,7 @@ namespace Przegladarka
             return _elementRules.Where(r => host == r.Key || host.EndsWith("." + r.Key)).Select(r => r.Value).Distinct().ToList();
         }
 
-        async void ApplyElementRules(CoreWebView2 core)
+        async void ApplyElementRules(CoreWebView2 core, BrowserTab tab = null)
         {
             try
             {
@@ -68,7 +68,13 @@ namespace Przegladarka
                 var selectors = ElementSelectorsFor(core.Source);
                 if (selectors.Count == 0) return;
                 var css = string.Join("\n", selectors.Select(s => s + " { display: none !important; visibility: hidden !important; }"));
-                await core.ExecuteScriptAsync("(function(){try{var id='velivo-blokowane-elementy';var st=document.getElementById(id);if(!st){st=document.createElement('style');st.id=id;(document.head||document.documentElement).appendChild(st);}st.textContent=" + JsonSerializer.Serialize(css) + ";}catch(e){}})();");
+                var res = await core.ExecuteScriptAsync("(function(){try{var id='velivo-blokowane-elementy';var st=document.getElementById(id);if(!st){st=document.createElement('style');st.id=id;(document.head||document.documentElement).appendChild(st);}st.textContent=" + JsonSerializer.Serialize(css) + ";}catch(e){}var n=0;" + JsonSerializer.Serialize(selectors) + ".forEach(function(s){try{n+=document.querySelectorAll(s).length;}catch(e){}});return n;})();");
+                int n;
+                if (tab != null && int.TryParse(res, out n) && n != tab.HiddenElements)
+                {
+                    tab.HiddenElements = n;
+                    if (tab == _current) UpdateCounter();
+                }
             }
             catch (Exception) { }
         }
@@ -157,7 +163,7 @@ namespace Przegladarka
                             _elementRules.Add(new KeyValuePair<string, string>(host, selector));
                             SaveElementRules();
                         }
-                        ApplyElementRules(core);
+                        ApplyElementRules(core, tab);
                         ShowToast(L.T("🚫 Element zablokowany na ") + host + L.T(". Cofniesz to: prawy przycisk → Przywróć zablokowane elementy."), null);
                     }
                     return;

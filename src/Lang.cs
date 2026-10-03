@@ -85,6 +85,14 @@ namespace Przegladarka
             { "Nowa karta", "New tab" },
             { "🕶 Prywatna", "🕶 Private" },
             { "wyłączony", "off" },
+            { "Zablokowane na tej stronie", "Blocked on this page" },
+            { "Elementy", "Elements" },
+            { " ukrytych elementów (reguły ręczne)", " hidden elements (manual rules)" },
+            { "Nic nie zablokowano na tej stronie.", "Nothing blocked on this page." },
+            { "Wyłącz AdBlock", "Turn AdBlock off" },
+            { "Włącz AdBlock", "Turn AdBlock on" },
+            { "Reguła domeny", "Domain rule" },
+            { "Zablokowane elementy", "Blocked items" },
 
             // ---- pasek: menu "wiecej" ----
             { "Tryb czytania", "Reader mode" },

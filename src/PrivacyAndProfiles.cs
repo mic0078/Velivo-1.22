@@ -255,6 +255,7 @@ namespace Przegladarka
 
         bool IsTrustedUrl(string url)
         {
+            if (IsQuickAccessUrl(url)) return true;   // Szybki Dostep jest zawsze zaufany
             var r = RuleForUrl(url);
             return r != null && r.Trusted;
         }

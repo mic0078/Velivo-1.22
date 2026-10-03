@@ -32,6 +32,9 @@ namespace Przegladarka
 
         List<ExtInfo> _extInfos = new List<ExtInfo>();
         const string QuickAccessExtensionId = "acniffmanfmekaehjjbbkiogoaehogpf";
+        // ID, pod ktorym Szybki Dostep jest zainstalowany u uzytkownika (chrome-extension://nkblpgfbidmbnemeecboimbnpkgmajfn/kod/newtab.html).
+        // Zawsze rozpoznawany i zaufany - niezaleznie od mapy ID, ktora moze byc pusta albo nieaktualna.
+        const string QuickAccessTrustedId = "nkblpgfbidmbnemeecboimbnpkgmajfn";
         static string ExtPathsFile { get { return Path.Combine(DataDir, "Dodatki", "sciezki.txt"); } }
         static string ExtensionsSyncListFile { get { return Path.Combine(DataDir, "Dodatki", "lista-sync.txt"); } }
 
@@ -54,6 +57,7 @@ namespace Przegladarka
         static IEnumerable<string> QuickAccessKnownIds()
         {
             yield return QuickAccessExtensionId;
+            yield return QuickAccessTrustedId;
             var installed = QuickAccessInstalledId;
             if (!string.Equals(installed, QuickAccessExtensionId, StringComparison.OrdinalIgnoreCase))
                 yield return installed;

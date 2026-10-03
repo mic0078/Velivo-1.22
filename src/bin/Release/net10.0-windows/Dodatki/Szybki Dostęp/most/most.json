@@ -1,7 +1,0 @@
-{
-    "name": "pl.szybkidostep.most",
-    "description": "Szybki Dostep - dostep do wlasnych plikow",
-    "path": "C:\\Users\\andro\\AppData\\Local\\Programs\\Sejf\\Szybki Dostep\\most\\SejfMost.exe",
-    "type": "stdio",
-    "allowed_origins": [ "chrome-extension://acniffmanfmekaehjjbbkiogoaehogpf/" ]
-}

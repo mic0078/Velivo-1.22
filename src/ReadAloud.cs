@@ -19,7 +19,7 @@ namespace Przegladarka
         const string ReaderScript = @"(() => {
   if (window.__velivoRead) return;
   const S = speechSynthesis;
-  const st = { items: [], i: 0, rate: 1, voice: null, active: false, paused: false, mark: null, lang: '' };
+  const st = { items: [], i: 0, rate: 1, volume: 1, voice: null, active: false, paused: false, mark: null, lang: '' };
   const HL = 'velivo-czyta';
   const style = document.createElement('style');
   style.textContent = '.' + HL + '{background:rgba(255,213,0,.45)!important;outline:3px solid #f59e0b!important;border-radius:4px;transition:background .2s}';
@@ -66,7 +66,7 @@ namespace Przegladarka
       if (r.top < 60 || r.bottom > innerHeight - 60) it.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
     const u = new SpeechSynthesisUtterance(it.text);
-    u.rate = st.rate; if (st.voice) u.voice = st.voice; u.lang = st.voice ? st.voice.lang : 'pl-PL';
+    u.rate = st.rate; u.volume = st.volume; if (st.voice) u.voice = st.voice; u.lang = st.voice ? st.voice.lang : 'pl-PL';
     u.onend = () => { if (!st.active || st.paused) return; st.i++; speakNext(); };
     u.onerror = e => { if (e.error === 'interrupted' || e.error === 'canceled') return; st.i++; speakNext(); };
     S.speak(u);
@@ -96,6 +96,7 @@ namespace Przegladarka
     pause() { if (st.active && !st.paused) { st.paused = true; S.cancel(); } },
     resume() { if (st.active && st.paused) { st.paused = false; speakNext(); } },
     stop() { st.active = false; st.paused = false; S.cancel(); unmark(); },
+    volume(v) { st.volume = Math.max(0, Math.min(1, v)); if (st.active && !st.paused) { S.cancel(); speakNext(); } }, // glosnosc 0-1 od biezacego zdania
     rate(r) { st.rate = r; if (st.active && !st.paused) { S.cancel(); speakNext(); } }, // od biezacego zdania
     state() { return JSON.stringify({ active: st.active, paused: st.paused, i: st.i, n: st.items.length, lang: st.lang }); }
   };
@@ -127,6 +128,7 @@ namespace Przegladarka
             var core = tab.View.CoreWebView2;
             if (core == null) return false;
             await core.ExecuteScriptAsync(ReaderScript);
+            await core.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
             return true;
         }
 

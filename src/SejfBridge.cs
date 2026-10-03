@@ -202,7 +202,7 @@ namespace Przegladarka
                 foreach (var w in wpisy.EnumerateArray())
                     list.Add(new SejfLogin
                     {
-                        Nazwa = w.TryGetProperty("Nazwa", out var n) ? n.GetString() : "",
+                        Nazwa = w.TryGetProperty(L.T("Nazwa"), out var n) ? n.GetString() : "",
                         Login = w.TryGetProperty("Login", out var l) ? l.GetString() : "",
                         Haslo = w.TryGetProperty("Haslo", out var h) ? h.GetString() : "",
                     });
@@ -236,7 +236,7 @@ namespace Przegladarka
                 if (logins == null || logins.Count == 0) return;
                 _keyLogins = logins; _keyHost = host;
                 KeyBtn.Content = "" + (logins.Count > 1 ? " " + logins.Count : "");
-                KeyBtn.ToolTip = "Sejf ma " + (logins.Count == 1 ? "login" : logins.Count + " loginy") + " dla " + host + "\nKliknij, aby wypełnić formularz";
+                KeyBtn.ToolTip = "Sejf ma " + (logins.Count == 1 ? "login" : logins.Count + " loginy") + " dla " + host + L.T("\nKliknij, aby wypełnić formularz");
                 KeyBtn.Visibility = Visibility.Visible;
             }
             catch (Exception ex) { App.LogError(ex); }
@@ -287,7 +287,7 @@ namespace Przegladarka
             {
                 var args = JsonSerializer.Serialize(login.Login ?? "") + "," + JsonSerializer.Serialize(login.Haslo ?? "") + "," + JsonSerializer.Serialize(_keyHost.ToLowerInvariant());
                 var ok = await core.ExecuteScriptAsync(fill + "(" + args + ")");
-                if (ok != "true") ShowToast("🔑 Nie znaleziono pola loginu lub hasła na tej stronie.", null);
+                if (ok != "true") ShowToast(L.T("🔑 Nie znaleziono pola loginu lub hasła na tej stronie."), null);
             }
             catch (Exception ex) { App.LogError(ex); }
         }

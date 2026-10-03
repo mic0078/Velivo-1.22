@@ -84,7 +84,7 @@ namespace Przegladarka
         async Task<bool> EnsurePiperAsync(PiperVoice v)
         {
             if (PiperVoiceInstalled(v)) return true;
-            if (_piperDownloading) { ShowToast("🔊 Trwa pobieranie głosu – chwilę…", null); return false; }
+            if (_piperDownloading) { ShowToast(L.T("🔊 Trwa pobieranie głosu – chwilę…"), null); return false; }
             _piperDownloading = true;
             try
             {
@@ -114,15 +114,15 @@ namespace Przegladarka
                     if (!File.Exists(model + ".json"))
                         await DownloadFile(http, PiperVoicesBase + v.Path + v.Id + ".onnx.json?download=true", model + ".json", null);
                     if (!File.Exists(model))
-                        await DownloadFile(http, PiperVoicesBase + v.Path + v.Id + ".onnx?download=true", model, (d, t) => report("głos " + v.Label.Split(' ')[0], d, t));
+                        await DownloadFile(http, PiperVoicesBase + v.Path + v.Id + ".onnx?download=true", model, (d, t) => report(L.T("głos ") + v.Label.Split(' ')[0], d, t));
                 }
-                ShowToast("✅ Głos " + v.Label.Split(' ')[0] + " gotowy – działa bez internetu.", null);
+                ShowToast(L.T("✅ Głos ") + v.Label.Split(' ')[0] + L.T(" gotowy – działa bez internetu."), null);
                 return true;
             }
             catch (Exception ex)
             {
                 App.LogError(ex);
-                ShowToast("❌ Nie udało się pobrać głosu Piper: " + ex.Message + "\nCzytam głosem systemowym.", null);
+                ShowToast(L.T("❌ Nie udało się pobrać głosu Piper: ") + ex.Message + L.T("\nCzytam głosem systemowym."), null);
                 return false;
             }
             finally { _piperDownloading = false; }

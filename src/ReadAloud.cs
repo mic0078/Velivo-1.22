@@ -200,7 +200,7 @@ namespace Przegladarka
             if (_readTab != null && _readTab != tab) StopReading();
             var n = await tab.View.CoreWebView2.ExecuteScriptAsync("window.__velivoRead.start(" + (onlySelection ? "true" : "false") + "," +
                 Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")");
-            if (n == "0" || n == "null") { ShowToast("🔊 Nie znalazłem tekstu do przeczytania na tej stronie.", null); return; }
+            if (n == "0" || n == "null") { ShowToast(L.T("🔊 Nie znalazłem tekstu do przeczytania na tej stronie."), null); return; }
             _readTab = tab;
             ShowReadControls(true, false);
             if (_readTimer == null)
@@ -227,7 +227,7 @@ namespace Przegladarka
                     if (!r.GetProperty("active").GetBoolean()) { StopReading(); return; }
                     ShowReadControls(true, r.GetProperty("paused").GetBoolean());
                     int i = r.GetProperty("i").GetInt32(), n = r.GetProperty("n").GetInt32();
-                    ReadBtn.ToolTip = "Czytanie: zdanie " + Math.Min(i + 1, n) + " z " + n + "\nKliknij: pauza / wznów (Ctrl+Shift+U)";
+                    ReadBtn.ToolTip = L.T("Czytanie: zdanie ") + Math.Min(i + 1, n) + L.T(" z ") + n + L.T("\nKliknij: pauza / wznów (Ctrl+Shift+U)");
                 }
             }
             catch (Exception) { StopReading(); }
@@ -239,7 +239,7 @@ namespace Przegladarka
             ReadRateBtn.Visibility = reading ? Visibility.Visible : Visibility.Collapsed;
             ReadRateBtn.Content = _settings.ReadRate.ToString("0.##", CultureInfo.GetCultureInfo("pl-PL")) + "×";
             ReadBtn.Content = !reading ? "" : (paused ? "" : ""); // glosnik / odtworz / pauza
-            if (!reading) ReadBtn.ToolTip = "Czytaj stronę na głos (Ctrl+Shift+U)\nZaznacz tekst, aby przeczytać tylko fragment";
+            if (!reading) ReadBtn.ToolTip = L.T("Czytaj stronę na głos (Ctrl+Shift+U)\nZaznacz tekst, aby przeczytać tylko fragment");
         }
 
         async void ReadBtn_Click(object sender, RoutedEventArgs e)

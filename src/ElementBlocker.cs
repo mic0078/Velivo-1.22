@@ -158,7 +158,7 @@ namespace Przegladarka
                             SaveElementRules();
                         }
                         ApplyElementRules(core);
-                        ShowToast("🚫 Element zablokowany na " + host + ". Cofniesz to: prawy przycisk → Przywróć zablokowane elementy.", null);
+                        ShowToast(L.T("🚫 Element zablokowany na ") + host + L.T(". Cofniesz to: prawy przycisk → Przywróć zablokowane elementy."), null);
                     }
                     return;
                 }
@@ -176,7 +176,7 @@ namespace Przegladarka
             if (removed == 0) return;
             SaveElementRules();
             core.Reload();
-            ShowToast("Przywrócono " + removed + " zablokowanych elementów na " + host + ".", null);
+            ShowToast(L.T("Przywrócono ") + removed + L.T(" zablokowanych elementów na ") + host + ".", null);
         }
     }
 }

@@ -50,12 +50,12 @@ namespace Przegladarka
                 using (var doc = JsonDocument.Parse(json))
                 {
                     var root = doc.RootElement;
-                    var title = root.TryGetProperty("title", out var t) ? t.GetString() : "Tryb czytania";
+                    var title = root.TryGetProperty("title", out var t) ? t.GetString() : L.T("Tryb czytania");
                     var url = root.TryGetProperty("url", out var u) ? u.GetString() : "";
                     var text = root.TryGetProperty("text", out var x) ? x.GetString() : "";
                     if (string.IsNullOrWhiteSpace(text) || text.Length < 120)
                     {
-                        ShowToast("📰 Za mało treści do trybu czytania na tej stronie.", null);
+                        ShowToast(L.T("📰 Za mało treści do trybu czytania na tej stronie."), null);
                         return;
                     }
 
@@ -63,7 +63,7 @@ namespace Przegladarka
 
                     var win = new Window
                     {
-                        Title = "Tryb czytania – " + (title ?? ""),
+                        Title = L.T("Tryb czytania – ") + (title ?? ""),
                         Width = 900,
                         Height = 700,
                         Owner = this,
@@ -71,13 +71,13 @@ namespace Przegladarka
                     };
 
                     var view = new WebView2();
-                    var readSummaryBtn = SmallButton("Czytaj podsumowanie", null);
-                    var readAllBtn = SmallButton("Czytaj całość", null);
-                    var stopBtn = SmallButton("Zatrzymaj", null);
+                    var readSummaryBtn = SmallButton(L.T("Czytaj podsumowanie"), null);
+                    var readAllBtn = SmallButton(L.T("Czytaj całość"), null);
+                    var stopBtn = SmallButton(L.T("Zatrzymaj"), null);
                     var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
                     // suwak glosnosci czytania (zapamietywany w ustawieniach)
                     var volLabel = new TextBlock { Text = "🔊", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), FontSize = 14 };
-                    var volume = new Slider { Minimum = 0, Maximum = 100, Value = Math.Round(_settings.ReadVolume * 100), Width = 140, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), IsMoveToPointEnabled = true, ToolTip = "Głośność czytania" };
+                    var volume = new Slider { Minimum = 0, Maximum = 100, Value = Math.Round(_settings.ReadVolume * 100), Width = 140, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), IsMoveToPointEnabled = true, ToolTip = L.T("Głośność czytania") };
                     var volValue = new TextBlock { Text = (int)volume.Value + "%", Width = 40, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
                     var volTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
                     volTimer.Tick += async (s4, e4) =>
@@ -108,7 +108,7 @@ namespace Przegladarka
                         try
                         {
                             await view.EnsureCoreWebView2Async(_env);
-                            string html = BuildReaderHtml(title ?? "Tryb czytania", url ?? "", summary, text);
+                            string html = BuildReaderHtml(title ?? L.T("Tryb czytania"), url ?? "", summary, text);
                             view.NavigateToString(html);
                             view.CoreWebView2.NavigationCompleted += async (s2, e2) =>
                             {
@@ -138,7 +138,7 @@ namespace Przegladarka
                         catch (Exception ex)
                         {
                             App.LogError(ex);
-                            MessageBox.Show(win, "Nie udało się uruchomić czytnika:\n" + ex.Message, "Tryb czytania");
+                            MessageBox.Show(win, L.T("Nie udało się uruchomić czytnika:\n") + ex.Message, L.T("Tryb czytania"));
                             win.Close();
                         }
                     };
@@ -148,7 +148,7 @@ namespace Przegladarka
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(this, "Nie udało się uruchomić trybu czytania:\n" + ex.Message, "Tryb czytania");
+                MessageBox.Show(this, L.T("Nie udało się uruchomić trybu czytania:\n") + ex.Message, L.T("Tryb czytania"));
             }
         }
 
@@ -178,7 +178,7 @@ namespace Przegladarka
                 .Where(s => s.Length > 40)
                 .Take(120)
                 .ToList();
-            if (sentences.Count == 0) return "Brak danych do streszczenia.";
+            if (sentences.Count == 0) return L.T("Brak danych do streszczenia.");
 
             var stop = new HashSet<string>(new[]
             {

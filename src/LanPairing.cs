@@ -50,13 +50,13 @@ namespace Przegladarka
         {
             if (_settings == null || !_settings.LanSync || _lanTx == null)
             {
-                MessageBox.Show(PairDialogOwner(), "Włącz synchronizację LAN, zapisz ustawienia i otwórz je ponownie, aby rozpocząć parowanie.", "Parowanie Velivo");
+                MessageBox.Show(PairDialogOwner(), L.T("Włącz synchronizację LAN, zapisz ustawienia i otwórz je ponownie, aby rozpocząć parowanie."), "Parowanie Velivo");
                 return;
             }
             ExpireLanPairings();
             if (_lanPendingPairs.Count > 0)
             {
-                MessageBox.Show(PairDialogOwner(), "Trwa już próba parowania. Zakończ ją albo poczekaj na wygaśnięcie.", "Parowanie Velivo");
+                MessageBox.Show(PairDialogOwner(), L.T("Trwa już próba parowania. Zakończ ją albo poczekaj na wygaśnięcie."), "Parowanie Velivo");
                 return;
             }
 
@@ -73,8 +73,8 @@ namespace Przegladarka
                 pairId = pairId,
                 pub = Convert.ToBase64String(ecdh.ExportSubjectPublicKeyInfo())
             });
-            LanLog("Wysłano prośbę o parowanie; oczekuję na potwierdzenie drugiego urządzenia.");
-            ShowToast("Prośba o parowanie LAN została wysłana.", null);
+            LanLog(L.T("Wysłano prośbę o parowanie; oczekuję na potwierdzenie drugiego urządzenia."));
+            ShowToast(L.T("Prośba o parowanie LAN została wysłana."), null);
         }
 
         void HandleLanPairPacket(LanStatePacket pkt, string sourceAddress)
@@ -92,7 +92,7 @@ namespace Przegladarka
             catch (Exception ex)
             {
                 App.LogError(ex);
-                LanLog("Nie udało się obsłużyć parowania: " + ex.Message);
+                LanLog(L.T("Nie udało się obsłużyć parowania: ") + ex.Message);
             }
         }
 
@@ -103,7 +103,7 @@ namespace Przegladarka
                 return;
             if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
             {
-                LanLog("Odrzucono prośbę o parowanie z innego profilu.");
+                LanLog(L.T("Odrzucono prośbę o parowanie z innego profilu."));
                 return;
             }
             if (_lanPendingPairs.ContainsKey(pkt.pairId)) return;
@@ -124,12 +124,12 @@ namespace Przegladarka
 
                 var device = PairDeviceLabel(pkt.device);
                 var code = PairConfirmationCode(transportKey, pkt.pairId);
-                var text = "Urządzenie " + device + " (" + sourceAddress + ") chce sparować profil „" + SelectedProfileName + "”.\n\n" +
-                           "Na obu komputerach musi być widoczny ten sam kod: " + code + "\n\n" +
-                           "Po sparowaniu urządzenia będą synchronizować także zapisane hasła. Czy akceptujesz?";
-                if (MessageBox.Show(PairDialogOwner(), text, "Potwierdź parowanie Velivo", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                var text = L.T("Urządzenie ") + device + " (" + sourceAddress + L.T(") chce sparować profil „") + SelectedProfileName + "”.\n\n" +
+                           L.T("Na obu komputerach musi być widoczny ten sam kod: ") + code + "\n\n" +
+                           L.T("Po sparowaniu urządzenia będą synchronizować także zapisane hasła. Czy akceptujesz?");
+                if (MessageBox.Show(PairDialogOwner(), text, L.T("Potwierdź parowanie Velivo"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 {
-                    LanLog("Odrzucono prośbę o parowanie od " + device + ".");
+                    LanLog(L.T("Odrzucono prośbę o parowanie od ") + device + ".");
                     return;
                 }
 
@@ -154,7 +154,7 @@ namespace Przegladarka
                     pairId = pkt.pairId,
                     pub = Convert.ToBase64String(_lanPendingPairs[pkt.pairId].Ecdh.ExportSubjectPublicKeyInfo())
                 });
-                LanLog("Zaakceptowano prośbę od " + device + "; oczekiwanie na zakończenie parowania.");
+                LanLog(L.T("Zaakceptowano prośbę od ") + device + L.T("; oczekiwanie na zakończenie parowania."));
             }
             finally
             {
@@ -184,14 +184,14 @@ namespace Przegladarka
 
             var device = PairDeviceLabel(pkt.device);
             var code = PairConfirmationCode(transportKey, pkt.pairId);
-            var text = "Potwierdź sparowanie z " + device + " (" + sourceAddress + ").\n\n" +
-                       "Porównaj kod z drugim komputerem: " + code + "\n\n" +
-                       "Akceptuj tylko wtedy, gdy kody są identyczne. Sparowanie zastąpi obecny klucz LAN; pozostałe urządzenia trzeba będzie sparować ponownie.";
-            if (MessageBox.Show(PairDialogOwner(), text, "Potwierdź parowanie Velivo", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            var text = L.T("Potwierdź sparowanie z ") + device + " (" + sourceAddress + ").\n\n" +
+                       L.T("Porównaj kod z drugim komputerem: ") + code + "\n\n" +
+                       L.T("Akceptuj tylko wtedy, gdy kody są identyczne. Sparowanie zastąpi obecny klucz LAN; pozostałe urządzenia trzeba będzie sparować ponownie.");
+            if (MessageBox.Show(PairDialogOwner(), text, L.T("Potwierdź parowanie Velivo"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             {
                 CryptographicOperations.ZeroMemory(transportKey);
                 RemoveLanPairing(pkt.pairId);
-                LanLog("Anulowano parowanie z " + device + ".");
+                LanLog(L.T("Anulowano parowanie z ") + device + ".");
                 return;
             }
 
@@ -210,7 +210,7 @@ namespace Przegladarka
             };
             EncryptPairKey(keyPacket, pending.LanKey, pending.TransportKey);
             LanSend(keyPacket);
-            LanLog("Potwierdzono kod z " + device + "; wysłano zaszyfrowany klucz synchronizacji.");
+            LanLog(L.T("Potwierdzono kod z ") + device + L.T("; wysłano zaszyfrowany klucz synchronizacji."));
         }
 
         void HandleLanPairKey(LanStatePacket pkt)
@@ -235,7 +235,7 @@ namespace Przegladarka
                     pairId = pkt.pairId,
                     proof = CreatePairAckProof(pending.TransportKey, pkt.pairId, _lanId, pkt.id)
                 });
-                LanLog("Parowanie z " + pending.PeerDevice + " zakończone. Klucz zapisano lokalnie.");
+                LanLog(L.T("Parowanie z ") + pending.PeerDevice + L.T(" zakończone. Klucz zapisano lokalnie."));
                 StartLanSync();
             }
             finally { CryptographicOperations.ZeroMemory(lanKey); }
@@ -256,7 +256,7 @@ namespace Przegladarka
 
             PersistPairedLanKey(Convert.ToBase64String(pending.LanKey));
             AskFirstSyncChoice(pkt.device);
-            LanLog("Parowanie z " + pending.PeerDevice + " zakończone. Klucz zapisano lokalnie.");
+            LanLog(L.T("Parowanie z ") + pending.PeerDevice + L.T(" zakończone. Klucz zapisano lokalnie."));
             StartLanSync();
         }
 
@@ -301,7 +301,7 @@ namespace Przegladarka
             var cipher = Convert.FromBase64String(pkt.data ?? "");
             var tag = Convert.FromBase64String(pkt.tag ?? "");
             if (nonce.Length != 12 || tag.Length != 16 || cipher.Length != 32)
-                throw new InvalidDataException("Nieprawidłowe dane parowania.");
+                throw new InvalidDataException(L.T("Nieprawidłowe dane parowania."));
             var plain = new byte[cipher.Length];
             using (var gcm = new AesGcm(transportKey, 16))
                 gcm.Decrypt(nonce, cipher, tag, plain, Encoding.UTF8.GetBytes(pkt.pairId));
@@ -310,7 +310,7 @@ namespace Przegladarka
 
         void PersistPairedLanKey(string key)
         {
-            if (!AppSettings.IsLanSyncKeyStrong(key)) throw new InvalidDataException("Nieprawidłowy klucz synchronizacji.");
+            if (!AppSettings.IsLanSyncKeyStrong(key)) throw new InvalidDataException(L.T("Nieprawidłowy klucz synchronizacji."));
             _settings.LanSync = true;
             _settings.LanSyncKey = key;
             if (_lanSyncSettingCheck != null) _lanSyncSettingCheck.IsChecked = true;
@@ -323,9 +323,9 @@ namespace Przegladarka
         {
             var other = string.IsNullOrWhiteSpace(otherDevice) ? "drugiego komputera" : otherDevice.Trim();
             var ans = MessageBox.Show(PairDialogOwner(),
-                "Połączono z " + other + ".\n\nZakładki, hasła i Szybki Dostęp zostaną POŁĄCZONE z obu komputerów – nic nie zginie.\n\n" +
-                "Ustawienia przeglądarki (wygląd, wyszukiwarka, prywatność itd.):\n" +
-                "• Tak – zachowaj ustawienia z TEGO komputera\n• Nie – przyjmij ustawienia z " + other,
+                L.T("Połączono z ") + other + L.T(".\n\nZakładki, hasła i Szybki Dostęp zostaną POŁĄCZONE z obu komputerów – nic nie zginie.\n\n") +
+                L.T("Ustawienia przeglądarki (wygląd, wyszukiwarka, prywatność itd.):\n") +
+                L.T("• Tak – zachowaj ustawienia z TEGO komputera\n• Nie – przyjmij ustawienia z ") + other,
                 "Pierwsza synchronizacja", MessageBoxButton.YesNo, MessageBoxImage.Question);
             LoadLanChange();
             var fp = LanContentFingerprint();
@@ -339,7 +339,7 @@ namespace Przegladarka
             foreach (var pairId in _lanPendingPairs.Where(x => DateTime.UtcNow - x.Value.CreatedUtc > TimeSpan.FromMinutes(3)).Select(x => x.Key).ToList())
             {
                 RemoveLanPairing(pairId);
-                LanLog("Próba parowania wygasła.");
+                LanLog(L.T("Próba parowania wygasła."));
             }
         }
 
@@ -375,8 +375,8 @@ namespace Przegladarka
 
         static string PairDeviceLabel(string device)
         {
-            var clean = new string((device ?? "Nieznane urządzenie").Where(c => !char.IsControl(c)).Take(64).ToArray()).Trim();
-            return clean.Length == 0 ? "Nieznane urządzenie" : clean;
+            var clean = new string((device ?? L.T("Nieznane urządzenie")).Where(c => !char.IsControl(c)).Take(64).ToArray()).Trim();
+            return clean.Length == 0 ? L.T("Nieznane urządzenie") : clean;
         }
 
         Window PairDialogOwner()
@@ -387,8 +387,8 @@ namespace Przegladarka
         string PromptRecoveryPassphrase(string title)
         {
             var input = new PasswordBox { Margin = new Thickness(10), MinWidth = 320, Padding = new Thickness(6) };
-            var ok = new Button { Content = "Dalej", Width = 86, Margin = new Thickness(6), IsDefault = true };
-            var cancel = new Button { Content = "Anuluj", Width = 86, Margin = new Thickness(6), IsCancel = true };
+            var ok = new Button { Content = L.T("Dalej"), Width = 86, Margin = new Thickness(6), IsDefault = true };
+            var cancel = new Button { Content = L.T("Anuluj"), Width = 86, Margin = new Thickness(6), IsCancel = true };
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             buttons.Children.Add(cancel);
             buttons.Children.Add(ok);
@@ -398,7 +398,7 @@ namespace Przegladarka
             panel.Children.Add(buttons);
             var win = new Window
             {
-                Title = "Odzyskiwanie parowania LAN",
+                Title = L.T("Odzyskiwanie parowania LAN"),
                 Width = 390,
                 Height = 170,
                 ResizeMode = ResizeMode.NoResize,
@@ -414,28 +414,28 @@ namespace Przegladarka
         {
             if (_settings == null || !AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey))
             {
-                MessageBox.Show(PairDialogOwner(), "Najpierw sparuj urządzenie lub skonfiguruj synchronizację LAN.", "Odzyskiwanie parowania");
+                MessageBox.Show(PairDialogOwner(), L.T("Najpierw sparuj urządzenie lub skonfiguruj synchronizację LAN."), "Odzyskiwanie parowania");
                 return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog
             {
-                Title = "Zapisz zaszyfrowany plik odzyskiwania",
+                Title = L.T("Zapisz zaszyfrowany plik odzyskiwania"),
                 FileName = "velivo-parowanie.vlpair",
                 Filter = "Velivo Pair Recovery (*.vlpair)|*.vlpair|Wszystkie pliki (*.*)|*.*"
             };
             if (dlg.ShowDialog(PairDialogOwner()) != true) return;
-            var pass = PromptRecoveryPassphrase("Ustaw hasło do pliku odzyskiwania (co najmniej 12 znaków):");
+            var pass = PromptRecoveryPassphrase(L.T("Ustaw hasło do pliku odzyskiwania (co najmniej 12 znaków):"));
             if (pass == null) return;
             if (pass.Length < 12)
             {
-                MessageBox.Show(PairDialogOwner(), "Hasło musi mieć co najmniej 12 znaków.", "Odzyskiwanie parowania");
+                MessageBox.Show(PairDialogOwner(), L.T("Hasło musi mieć co najmniej 12 znaków."), "Odzyskiwanie parowania");
                 return;
             }
-            var confirmation = PromptRecoveryPassphrase("Wpisz ponownie hasło do pliku odzyskiwania:");
+            var confirmation = PromptRecoveryPassphrase(L.T("Wpisz ponownie hasło do pliku odzyskiwania:"));
             if (confirmation == null) return;
             if (!string.Equals(pass, confirmation, StringComparison.Ordinal))
             {
-                MessageBox.Show(PairDialogOwner(), "Hasła nie są identyczne.", "Odzyskiwanie parowania");
+                MessageBox.Show(PairDialogOwner(), L.T("Hasła nie są identyczne."), "Odzyskiwanie parowania");
                 return;
             }
 
@@ -460,12 +460,12 @@ namespace Przegladarka
                     data = Convert.ToBase64String(cipher)
                 };
                 File.WriteAllText(dlg.FileName, JsonSerializer.Serialize(package, new JsonSerializerOptions { WriteIndented = true }));
-                MessageBox.Show(PairDialogOwner(), "Plik odzyskiwania został zapisany. Przechowuj go poza tym komputerem.", "Odzyskiwanie parowania");
+                MessageBox.Show(PairDialogOwner(), L.T("Plik odzyskiwania został zapisany. Przechowuj go poza tym komputerem."), "Odzyskiwanie parowania");
             }
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(PairDialogOwner(), "Nie udało się zapisać pliku odzyskiwania:\n" + ex.Message, "Odzyskiwanie parowania");
+                MessageBox.Show(PairDialogOwner(), L.T("Nie udało się zapisać pliku odzyskiwania:\n") + ex.Message, "Odzyskiwanie parowania");
             }
             finally
             {
@@ -478,11 +478,11 @@ namespace Przegladarka
         {
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "Odtwórz parowanie z pliku recovery",
+                Title = L.T("Odtwórz parowanie z pliku recovery"),
                 Filter = "Velivo Pair Recovery (*.vlpair)|*.vlpair|Wszystkie pliki (*.*)|*.*"
             };
             if (dlg.ShowDialog(PairDialogOwner()) != true) return;
-            var pass = PromptRecoveryPassphrase("Wpisz hasło do pliku odzyskiwania:");
+            var pass = PromptRecoveryPassphrase(L.T("Wpisz hasło do pliku odzyskiwania:"));
             if (pass == null) return;
 
             byte[] key = null;
@@ -490,34 +490,34 @@ namespace Przegladarka
             try
             {
                 if (new FileInfo(dlg.FileName).Length > MaxPairRecoveryBytes)
-                    throw new InvalidDataException("Plik odzyskiwania przekracza limit 1 MB.");
+                    throw new InvalidDataException(L.T("Plik odzyskiwania przekracza limit 1 MB."));
                 var package = JsonSerializer.Deserialize<PairRecoveryPackage>(File.ReadAllText(dlg.FileName));
                 if (package == null || package.v != 1 || package.iterations < 300000 || package.iterations > 1000000)
-                    throw new InvalidDataException("Nieobsługiwana lub nieprawidłowa wersja pliku odzyskiwania.");
+                    throw new InvalidDataException(L.T("Nieobsługiwana lub nieprawidłowa wersja pliku odzyskiwania."));
                 var salt = Convert.FromBase64String(package.salt ?? "");
                 var nonce = Convert.FromBase64String(package.nonce ?? "");
                 var tag = Convert.FromBase64String(package.tag ?? "");
                 var cipher = Convert.FromBase64String(package.data ?? "");
                 if (salt.Length != 16 || nonce.Length != 12 || tag.Length != 16 || cipher.Length == 0 || cipher.Length > MaxPairRecoveryBytes)
-                    throw new InvalidDataException("Nieprawidłowy rozmiar danych pliku odzyskiwania.");
+                    throw new InvalidDataException(L.T("Nieprawidłowy rozmiar danych pliku odzyskiwania."));
                 key = Rfc2898DeriveBytes.Pbkdf2(pass, salt, package.iterations, HashAlgorithmName.SHA256, 32);
                 plain = new byte[cipher.Length];
                 using (var gcm = new AesGcm(key, 16)) gcm.Decrypt(nonce, cipher, tag, plain);
                 var payload = JsonSerializer.Deserialize<PairRecoveryPayload>(plain);
                 if (payload == null || payload.Version != 1 || !AppSettings.IsLanSyncKeyStrong(payload.Key))
-                    throw new InvalidDataException("Plik nie zawiera prawidłowego klucza parowania.");
+                    throw new InvalidDataException(L.T("Plik nie zawiera prawidłowego klucza parowania."));
                 PersistPairedLanKey(payload.Key);
                 StartLanSync();
-                MessageBox.Show(PairDialogOwner(), "Parowanie odtworzono. Synchronizacja LAN jest aktywna.", "Odzyskiwanie parowania");
+                MessageBox.Show(PairDialogOwner(), L.T("Parowanie odtworzono. Synchronizacja LAN jest aktywna."), "Odzyskiwanie parowania");
             }
             catch (CryptographicException)
             {
-                MessageBox.Show(PairDialogOwner(), "Hasło jest nieprawidłowe albo plik odzyskiwania jest uszkodzony.", "Odzyskiwanie parowania");
+                MessageBox.Show(PairDialogOwner(), L.T("Hasło jest nieprawidłowe albo plik odzyskiwania jest uszkodzony."), "Odzyskiwanie parowania");
             }
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(PairDialogOwner(), "Nie udało się odtworzyć parowania:\n" + ex.Message, "Odzyskiwanie parowania");
+                MessageBox.Show(PairDialogOwner(), L.T("Nie udało się odtworzyć parowania:\n") + ex.Message, "Odzyskiwanie parowania");
             }
             finally
             {

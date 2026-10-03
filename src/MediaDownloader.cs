@@ -137,7 +137,7 @@ namespace Przegladarka
             var panel = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
             panel.Children.Add(new TextBlock
             {
-                Text = "Wykryto media do pobrania na stronie: " + host,
+                Text = L.T("Wykryto media do pobrania na stronie: ") + host,
                 Foreground = Brushes.White,
                 FontSize = 14,
                 TextWrapping = TextWrapping.Wrap,
@@ -146,12 +146,12 @@ namespace Przegladarka
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
             Window toast = null;
-            var open = SmallButton("Pokaż", () =>
+            var open = SmallButton(L.T("Pokaż"), () =>
             {
                 try { DetectPageMedia(); } catch (Exception) { }
                 if (toast != null) toast.Close();
             });
-            var close = SmallButton("Zamknij", () => { if (toast != null) toast.Close(); });
+            var close = SmallButton(L.T("Zamknij"), () => { if (toast != null) toast.Close(); });
             buttons.Children.Add(open);
             buttons.Children.Add(close);
             panel.Children.Add(buttons);
@@ -194,9 +194,9 @@ namespace Przegladarka
                 if (IsYoutubeLikeHost(sourceHost))
                 {
                     MessageBox.Show(this,
-                        "Na YouTube Velivo nie udostępnia pobierania wideo/audio.\n\n" +
-                        "Na innych stronach (bez DRM) wykrywanie i pobieranie działa normalnie.",
-                        "Wykryte media na stronie");
+                        L.T("Na YouTube Velivo nie udostępnia pobierania wideo/audio.\n\n") +
+                        L.T("Na innych stronach (bez DRM) wykrywanie i pobieranie działa normalnie."),
+                        L.T("Wykryte media na stronie"));
                     return;
                 }
 
@@ -223,13 +223,13 @@ namespace Przegladarka
 
                 if (list.Count == 0)
                 {
-                    ShowToast("🎬 Nie wykryto źródeł audio/wideo na tej stronie.", null);
+                    ShowToast(L.T("🎬 Nie wykryto źródeł audio/wideo na tej stronie."), null);
                     return;
                 }
 
                 var win = new Window
                 {
-                    Title = "Wykryte media na stronie",
+                    Title = L.T("Wykryte media na stronie"),
                     Width = 820,
                     Height = 520,
                     Owner = this,
@@ -241,14 +241,14 @@ namespace Przegladarka
                     listBox.Items.Add(new ListBoxItem { Tag = m, Content = "[" + m.kind + "] " + m.url });
 
                 var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
-                bar.Children.Add(SmallButton("Pobierz", () =>
+                bar.Children.Add(SmallButton(L.T("Pobierz"), () =>
                 {
                     var it = listBox.SelectedItem as ListBoxItem;
                     if (it == null) return;
                     var media = (MediaItem)it.Tag;
                     _ = QueueMediaDownload(media.url, media.kind == "audio");
                 }));
-                bar.Children.Add(SmallButton("Pobierz jako audio", () =>
+                bar.Children.Add(SmallButton(L.T("Pobierz jako audio"), () =>
                 {
                     var it = listBox.SelectedItem as ListBoxItem;
                     if (it == null) return;
@@ -262,7 +262,7 @@ namespace Przegladarka
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(this, "Nie udało się wykryć mediów:\n" + ex.Message, "Pobrane");
+                MessageBox.Show(this, L.T("Nie udało się wykryć mediów:\n") + ex.Message, L.T("Pobrane"));
             }
         }
 
@@ -281,24 +281,24 @@ namespace Przegladarka
                 if (url.StartsWith("blob:", StringComparison.OrdinalIgnoreCase))
                 {
                     MessageBox.Show(this,
-                        "To źródło jest typu blob (tymczasowe dane w pamięci strony), więc nie da się go pobrać bezpośrednio jako pliku.",
-                        "Pobrane");
+                        L.T("To źródło jest typu blob (tymczasowe dane w pamięci strony), więc nie da się go pobrać bezpośrednio jako pliku."),
+                        L.T("Pobrane"));
                     return;
                 }
                 if (!(url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
                 {
                     MessageBox.Show(this,
-                        "To źródło nie jest bezpośrednim adresem HTTP/HTTPS do pliku.",
-                        "Pobrane");
+                        L.T("To źródło nie jest bezpośrednim adresem HTTP/HTTPS do pliku."),
+                        L.T("Pobrane"));
                     return;
                 }
                 var host = MediaHost(url);
                 if (IsYoutubeLikeHost(host))
                 {
                     MessageBox.Show(this,
-                        "Dla YouTube pobieranie nie jest wspierane w Velivo z uwagi na zasady platformy i prawa autorskie.\n\n" +
-                        "Na innych stronach (bez DRM) wykrywanie i pobieranie działa normalnie.",
-                        "Pobrane");
+                        L.T("Dla YouTube pobieranie nie jest wspierane w Velivo z uwagi na zasady platformy i prawa autorskie.\n\n") +
+                        L.T("Na innych stronach (bez DRM) wykrywanie i pobieranie działa normalnie."),
+                        L.T("Pobrane"));
                     return;
                 }
                 string dir = core.Profile.DefaultDownloadFolderPath;
@@ -310,16 +310,16 @@ namespace Przegladarka
                 if (job != null)
                 {
                     StartJob(job);
-                    ShowToast("🎬 Dodano do pobierania: " + Path.GetFileName(job.File), job.File);
+                    ShowToast(L.T("🎬 Dodano do pobierania: ") + Path.GetFileName(job.File), job.File);
                     return;
                 }
 
-                MessageBox.Show(this, "Nie udało się przejąć tego pobierania.\nStrona może wymagać tokenu sesji lub odtwarzacz używa szyfrowanego streamu.", "Pobrane");
+                MessageBox.Show(this, L.T("Nie udało się przejąć tego pobierania.\nStrona może wymagać tokenu sesji lub odtwarzacz używa szyfrowanego streamu."), L.T("Pobrane"));
             }
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(this, ex.Message, "Pobrane");
+                MessageBox.Show(this, ex.Message, L.T("Pobrane"));
             }
         }
 

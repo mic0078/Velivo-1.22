@@ -157,8 +157,8 @@ function sdPokazPasek(domena, login, haslo, aktualizacja) {
 
   const tekst = document.createElement('div');
   tekst.textContent = aktualizacja
-    ? `Zaktualizowac haslo dla ${login} (${domena}) w sejfie? Wpisane rozni sie od zapisanego.`
-    : `Zapisac login ${login} dla ${domena} w sejfie?`;
+    ? (VELIVO_LANG === 'en' ? `Update the password for ${login} (${domena}) in the vault? The entered one differs from the saved one.` : `Zaktualizowac haslo dla ${login} (${domena}) w sejfie? Wpisane rozni sie od zapisanego.`)
+    : (VELIVO_LANG === 'en' ? `Save login ${login} for ${domena} in the vault?` : `Zapisac login ${login} dla ${domena} w sejfie?`);
   tekst.style.marginBottom = '10px';
   pasek.appendChild(tekst);
 
@@ -178,9 +178,9 @@ function sdPokazPasek(domena, login, haslo, aktualizacja) {
     return b;
   };
 
-  const zapisz = przycisk('Zapisz', '#0878c9');
-  const nigdy = przycisk('Nie dla tej strony', '#4b5363');
-  const teraz = przycisk('Nie teraz', '#4b5363');
+  const zapisz = przycisk(SD_T('Zapisz'), '#0878c9');
+  const nigdy = przycisk(SD_T('Nie dla tej strony'), '#4b5363');
+  const teraz = przycisk(SD_T('Nie teraz'), '#4b5363');
 
   let zapisywanie = false, poWyniku = false;
   const zamknij = () => { sdZapomnijOdlozone(); pasek.remove(); };
@@ -194,34 +194,34 @@ function sdPokazPasek(domena, login, haslo, aktualizacja) {
     teraz.disabled = true;
     stan.style.display = 'block';
     stan.style.color = '#9da6b8';
-    stan.textContent = 'Zapisuje w zaszyfrowanym sejfie... czekam na potwierdzenie.';
+    stan.textContent = SD_T('Zapisuje w zaszyfrowanym sejfie... czekam na potwierdzenie.');
     try {
       const o = await chrome.runtime.sendMessage({
         typ: 'sejfZapytanie',
         dane: { c: 'sejf-zapisz', domena, login, haslo }
       });
-      if (!o || !o.ok) throw new Error((o && o.blad) || 'Sejf nie odpowiedzial.');
+      if (!o || !o.ok) throw new Error((o && o.blad) || SD_T('Sejf nie odpowiedzial.'));
       // Zapis potwierdzony przez sejf - dopiero teraz kasujemy odlozone dane.
       sdZapomnijOdlozone();
       zapisywanie = false;
       poWyniku = true;
       stan.style.color = '#8fe1a5';
-      stan.textContent = o.zmieniono ? 'Haslo zaktualizowane w sejfie.' : 'Login zapisany w sejfie.';
+      stan.textContent = o.zmieniono ? SD_T('Haslo zaktualizowane w sejfie.') : SD_T('Login zapisany w sejfie.');
       // Potwierdzenie ZOSTAJE na ekranie, dopoki czlowiek go nie zamknie. Wczesniej
       // znikalo po 1,8 s i nie dalo sie go przeczytac.
       rzad.textContent = '';
-      const ok = przycisk('OK, zamknij', '#0878c9');
+      const ok = przycisk(SD_T('OK, zamknij'), '#0878c9');
       ok.addEventListener('click', zamknij);
       ok.focus();
     } catch (e) {
       zapisywanie = false;
       poWyniku = true;
       stan.style.color = '#ff9a8f';
-      stan.textContent = 'Nie zapisalem: ' + e.message;
+      stan.textContent = SD_T('Nie zapisalem: ') + e.message;
       zapisz.disabled = false;
       nigdy.disabled = false;
       teraz.disabled = false;
-      zapisz.textContent = 'Sprobuj ponownie';
+      zapisz.textContent = SD_T('Sprobuj ponownie');
     }
   });
 
@@ -322,7 +322,7 @@ function sdUstaw(pole, wartosc) {
 
 function sdSejf(dane) {
   return chrome.runtime.sendMessage({ typ: 'sejfZapytanie', dane }).then((o) => {
-    if (!o || !o.ok) throw new Error((o && o.blad) || 'Sejf nie odpowiedzial.');
+    if (!o || !o.ok) throw new Error((o && o.blad) || SD_T('Sejf nie odpowiedzial.'));
     return o;
   });
 }
@@ -380,7 +380,7 @@ function sdDodajIkonke(pole) {
   ik.className = 'ik';
   ik.type = 'button';
   ik.tabIndex = -1;
-  ik.title = 'Sejf - wypelnij, wygeneruj haslo, zapisz';
+  ik.title = SD_T('Sejf - wypelnij, wygeneruj haslo, zapisz');
   ik.innerHTML = SD_IKONA_SVG;
   ik.addEventListener('mousedown', (e) => e.preventDefault());   // pole nie traci fokusu
   ik.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); sdPrzelaczMenu(pole); });
@@ -439,7 +439,7 @@ function sdPrzelaczMenu(pole) {
 
 function sdMenuKont(tresc, hasla, noweHasla, polLogin, domena) {
   const blok = sdElement('div');
-  blok.appendChild(sdElement('div', 'inf', 'Szukam kont w Sejfie...'));
+  blok.appendChild(sdElement('div', 'inf', SD_T('Szukam kont w Sejfie...')));
   tresc.appendChild(blok);
   sdSejf({ c: 'sejf-szukaj', domena }).then((o) => {
     blok.textContent = '';
@@ -448,9 +448,9 @@ function sdMenuKont(tresc, hasla, noweHasla, polLogin, domena) {
     const poleHasla = hasla.find((h) => !noweHasla.includes(h)) || null;
     // Rejestracja (same pola nowego hasla): zapisane konta tylko by przeszkadzaly.
     const doLogowania = poleHasla ? wpisy : [];
-    if (poleHasla && !wpisy.length) blok.appendChild(sdElement('div', 'inf', 'Brak zapisanych kont dla tej strony.'));
+    if (poleHasla && !wpisy.length) blok.appendChild(sdElement('div', 'inf', SD_T('Brak zapisanych kont dla tej strony.')));
     for (const w of doLogowania) {
-      const b = sdElement('button', 'poz', w.Login || '(bez loginu)');
+      const b = sdElement('button', 'poz', w.Login || SD_T('(bez loginu)'));
       if (w.Nazwa && w.Nazwa !== w.Login) b.appendChild(sdElement('small', null, w.Nazwa));
       b.addEventListener('click', () => {
         if (polLogin && w.Login) sdUstaw(polLogin, w.Login);
@@ -463,27 +463,27 @@ function sdMenuKont(tresc, hasla, noweHasla, polLogin, domena) {
     const haslo = (hasla.find((h) => h.value) || {}).value;
     const login = polLogin ? polLogin.value.trim() : '';
     if (haslo && login) {
-      const z = sdElement('button', 'poz', 'Zapisz wpisane dane w Sejfie');
+      const z = sdElement('button', 'poz', SD_T('Zapisz wpisane dane w Sejfie'));
       z.appendChild(sdElement('small', null, `login: ${login}`));
       z.addEventListener('click', () => {
         z.disabled = true;
         sdSejf({ c: 'sejf-dodaj', domena, login, haslo })
-          .then(() => { z.remove(); blok.appendChild(sdElement('div', 'ok', 'Zapisane w Sejfie (Hasla do stron).')); })
+          .then(() => { z.remove(); blok.appendChild(sdElement('div', 'ok', SD_T('Zapisane w Sejfie (Hasla do stron).'))); })
           .catch((e) => {
             z.remove();
             // Taki login juz jest - nie nadpisujemy bez pytania: pasek po wyslaniu formularza zapyta.
             if (/istnieje/.test(e.message)) sdOdloz(domena, login, haslo);
             blok.appendChild(sdElement('div', 'blad', /istnieje/.test(e.message)
-              ? 'Ten login juz jest w Sejfie. Po zalogowaniu Sejf zapyta, czy zaktualizowac haslo.'
-              : 'Nie zapisalem: ' + e.message));
+              ? SD_T('Ten login juz jest w Sejfie. Po zalogowaniu Sejf zapyta, czy zaktualizowac haslo.')
+              : SD_T('Nie zapisalem: ') + e.message));
           });
       });
       blok.appendChild(z);
     }
   }).catch((e) => {
     blok.textContent = '';
-    blok.appendChild(sdElement('div', 'blad', 'Sejf niedostepny: ' + e.message));
-    blok.appendChild(sdElement('div', 'inf', 'Sprawdz, czy Sejf jest zainstalowany z mostem do przegladarek.'));
+    blok.appendChild(sdElement('div', 'blad', SD_T('Sejf niedostepny: ') + e.message));
+    blok.appendChild(sdElement('div', 'inf', SD_T('Sprawdz, czy Sejf jest zainstalowany z mostem do przegladarek.')));
   });
 }
 
@@ -492,10 +492,10 @@ function sdMenuGeneratora(tresc, noweHasla, polLogin, domena) {
   tresc.appendChild(blok);
   let haslo = sdGenerujHaslo(SD_DLUGOSC_HASLA);
   const podglad = sdElement('div', 'gen', haslo);
-  const uzyj = sdElement('button', 'poz', 'Uzyj tego hasla i zapisz w Sejfie');
+  const uzyj = sdElement('button', 'poz', SD_T('Uzyj tego hasla i zapisz w Sejfie'));
   uzyj.appendChild(sdElement('small', null, `${SD_DLUGOSC_HASLA} znakow: male, duze litery, cyfry, znaki specjalne`));
-  const inne = sdElement('button', 'poz', 'Losuj inne');
-  blok.appendChild(sdElement('div', 'inf', 'Proponowane mocne haslo:'));
+  const inne = sdElement('button', 'poz', SD_T('Losuj inne'));
+  blok.appendChild(sdElement('div', 'inf', SD_T('Proponowane mocne haslo:')));
   blok.appendChild(podglad);
   blok.appendChild(uzyj);
   blok.appendChild(inne);
@@ -505,20 +505,20 @@ function sdMenuGeneratora(tresc, noweHasla, polLogin, domena) {
     inne.remove(); uzyj.remove();
     const login = polLogin ? polLogin.value.trim() : '';
     if (!login) {
-      blok.appendChild(sdElement('div', 'inf', 'Haslo wpisane. Wpisz login i wyslij formularz - Sejf zapyta o zapis.'));
+      blok.appendChild(sdElement('div', 'inf', SD_T('Haslo wpisane. Wpisz login i wyslij formularz - Sejf zapyta o zapis.')));
       return;
     }
     // Na wypadek przeladowania strony w trakcie - pasek po wyslaniu i tak zapyta.
     sdOdloz(domena, login, haslo);
-    const stan = sdElement('div', 'inf', 'Zapisuje w Sejfie...');
+    const stan = sdElement('div', 'inf', SD_T('Zapisuje w Sejfie...'));
     blok.appendChild(stan);
     sdSejf({ c: 'sejf-dodaj', domena, login, haslo })
-      .then(() => { sdZapomnijOdlozone(); stan.className = 'ok'; stan.textContent = 'Haslo wpisane i zapisane w Sejfie (Hasla do stron).'; })
+      .then(() => { sdZapomnijOdlozone(); stan.className = 'ok'; stan.textContent = SD_T('Haslo wpisane i zapisane w Sejfie (Hasla do stron).'); })
       .catch((e) => {
         stan.className = 'inf';
         stan.textContent = /istnieje/.test(e.message)
-          ? 'Haslo wpisane. Ten login juz jest w Sejfie - stare haslo zostaje, dopoki po wyslaniu formularza nie potwierdzisz zmiany.'
-          : 'Haslo wpisane, ale Sejf go nie zapisal (' + e.message + '). Po wyslaniu formularza Sejf zapyta jeszcze raz.';
+          ? SD_T('Haslo wpisane. Ten login juz jest w Sejfie - stare haslo zostaje, dopoki po wyslaniu formularza nie potwierdzisz zmiany.')
+          : SD_T('Haslo wpisane, ale Sejf go nie zapisal (') + e.message + SD_T('). Po wyslaniu formularza Sejf zapyta jeszcze raz.');
       });
   });
 }

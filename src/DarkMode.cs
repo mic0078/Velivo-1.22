@@ -38,7 +38,7 @@ namespace Przegladarka
             UpdateDarkButton();
             // Bez restartu: do nastepnego uruchomienia dziala przyciemnianie CSS (zdjecia odwracane z powrotem),
             // a przy kolejnym starcie wlacza sie pelny tryb silnika.
-            ShowToast(_settings.DarkPages ? "🌙 Tryb ciemny" : _settings.NightLight ? "🌅 Tryb nocny – cieplejsze kolory" : "☀ Tryb jasny", null);
+            ShowToast(_settings.DarkPages ? L.T("🌙 Tryb ciemny") : _settings.NightLight ? L.T("🌅 Tryb nocny – cieplejsze kolory") : L.T("☀ Tryb jasny"), null);
         }
 
         // Tryb nocny: ciepla, polprzezroczysta warstwa nad strona (mniej niebieskiego swiatla), bez wplywu na klikanie.
@@ -71,12 +71,12 @@ namespace Przegladarka
         {
             if (_settings.DarkPages == _darkEngineAtStart) return;
             string extra = "";
-            if (_tabs.Any(t => t.Private)) extra += "\n• karty prywatne zostaną zamknięte,";
-            if (_jobs.Any(j => j.State == JobState.Running)) extra += "\n• pobieranie zostanie wstrzymane (wznowisz je potem jednym kliknięciem),";
-            var msg = (_settings.DarkPages ? "Tryb ciemny" : "Wyłączenie trybu ciemnego") +
-                      " zadziała na wszystkich stronach po ponownym uruchomieniu Velivo.\nKarty wrócą same." +
-                      (extra.Length > 0 ? "\n\nUwaga:" + extra.TrimEnd(',') + "." : "") +
-                      "\n\nUruchomić Velivo ponownie teraz?";
+            if (_tabs.Any(t => t.Private)) extra += L.T("\n• karty prywatne zostaną zamknięte,");
+            if (_jobs.Any(j => j.State == JobState.Running)) extra += L.T("\n• pobieranie zostanie wstrzymane (wznowisz je potem jednym kliknięciem),");
+            var msg = (_settings.DarkPages ? L.T("Tryb ciemny") : L.T("Wyłączenie trybu ciemnego")) +
+                      L.T(" zadziała na wszystkich stronach po ponownym uruchomieniu Velivo.\nKarty wrócą same.") +
+                      (extra.Length > 0 ? L.T("\n\nUwaga:") + extra.TrimEnd(',') + "." : "") +
+                      L.T("\n\nUruchomić Velivo ponownie teraz?");
             if (MessageBox.Show(this, msg, "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) RestartVelivo();
         }
 
@@ -96,7 +96,7 @@ namespace Przegladarka
                 Process.Start(psi);
                 Close();
             }
-            catch (Exception ex) { App.LogError(ex); MessageBox.Show(this, "Nie udało się uruchomić ponownie:\n" + ex.Message, "Velivo"); }
+            catch (Exception ex) { App.LogError(ex); MessageBox.Show(this, L.T("Nie udało się uruchomić ponownie:\n") + ex.Message, "Velivo"); }
         }
 
         void UpdateDarkButton()
@@ -107,13 +107,13 @@ namespace Przegladarka
                 DarkBtn.Content = "";
                 DarkBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xC2, 0x41, 0x0C));
                 DarkBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xD8, 0xA8));
-                DarkBtn.ToolTip = "Tryb nocny: WŁĄCZONY (cieplejsze kolory)\nKliknij, aby wrócić do trybu jasnego";
+                DarkBtn.ToolTip = L.T("Tryb nocny: WŁĄCZONY (cieplejsze kolory)\nKliknij, aby wrócić do trybu jasnego");
                 return;
             }
             DarkBtn.Content = on ? "" : ""; // slonce (wylacz) / ksiezyc (wlacz)
             DarkBtn.Foreground = new SolidColorBrush(on ? Color.FromRgb(0xB4, 0x53, 0x09) : Color.FromRgb(0x1E, 0x29, 0x3B));
             DarkBtn.Background = new SolidColorBrush(on ? Color.FromRgb(0xFE, 0xF3, 0xC7) : Color.FromRgb(0xE2, 0xE8, 0xF0));
-            DarkBtn.ToolTip = on ? "Tryb ciemny stron: WŁĄCZONY\nKliknij, aby wyłączyć" : "Tryb ciemny stron: wyłączony\nKliknij, aby przyciemnić strony (zdjęcia zostają w prawdziwych kolorach)";
+            DarkBtn.ToolTip = on ? L.T("Tryb ciemny stron: WŁĄCZONY\nKliknij, aby wyłączyć") : L.T("Tryb ciemny stron: wyłączony\nKliknij, aby przyciemnić strony (zdjęcia zostają w prawdziwych kolorach)");
         }
     }
 }

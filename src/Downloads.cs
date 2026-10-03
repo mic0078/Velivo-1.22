@@ -44,7 +44,7 @@ namespace Przegladarka
         {
             if (_downloadWin != null) { _downloadWin.Activate(); return; }
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(6) };
-            bar.Children.Add(SmallButton("Otwórz folder Pobrane", () =>
+            bar.Children.Add(SmallButton(L.T("Otwórz folder Pobrane"), () =>
             {
                 string dir = null;
                 var last = _jobs.FirstOrDefault();
@@ -52,12 +52,12 @@ namespace Przegladarka
                 if (dir == null && Core != null) dir = Core.Profile.DefaultDownloadFolderPath;
                 if (dir != null && Directory.Exists(dir)) Process.Start("explorer.exe", dir);
             }));
-            bar.Children.Add(SmallButton("Media na stronie", DetectPageMedia));
-            bar.Children.Add(SmallButton("Wyczyść zakończone", ClearFinishedDownloads));
+            bar.Children.Add(SmallButton(L.T("Media na stronie"), DetectPageMedia));
+            bar.Children.Add(SmallButton(L.T("Wyczyść zakończone"), ClearFinishedDownloads));
             var scroll = new ScrollViewer { Content = DlPanel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             _downloadWin = new Window
             {
-                Title = "Pobrane pliki – Velivo", Width = 640, Height = 460, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Title = L.T("Pobrane pliki – Velivo"), Width = 640, Height = 460, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Content = Docked(bar, scroll)
             };
             _downloadWin.Closed += (s, a) => { scroll.Content = null; _downloadWin = null; }; // panel zostaje na nastepny raz
@@ -209,7 +209,7 @@ namespace Przegladarka
                 }
                 return resp;
             }
-            throw new IOException("Za dużo przekierowań.");
+            throw new IOException(L.T("Za dużo przekierowań."));
         }
 
         // Sprawdzenie, czy plik da sie pobrac samodzielnie. null = nie (pobierze silnik).
@@ -337,7 +337,7 @@ namespace Przegladarka
                     else
                         await RunSingle(job, ct);
 
-                    if (job.Total > 0 && job.Got != job.Total) throw new IOException("Pobrano " + Size(job.Got) + " z " + Size(job.Total) + ".");
+                    if (job.Total > 0 && job.Got != job.Total) throw new IOException(L.T("Pobrano ") + Size(job.Got) + L.T(" z ") + Size(job.Total) + ".");
                     var final = job.File;
                     if (File.Exists(final)) final = UniqueFile(final);
                     File.Move(job.PartFile, final);
@@ -372,7 +372,7 @@ namespace Przegladarka
             using (var resp = await DlSend(job, job.FinalUrl ?? job.Url, from > 0 ? from : (long?)null, null, ct))
             {
                 int code = (int)resp.StatusCode;
-                if (code != 200 && code != 206) throw new IOException("Serwer odpowiedział: " + code + " " + resp.ReasonPhrase);
+                if (code != 200 && code != 206) throw new IOException(L.T("Serwer odpowiedział: ") + code + " " + resp.ReasonPhrase);
                 if (from > 0 && code == 200) from = 0; // serwer zaczal od poczatku
                 if (job.Total == 0 && resp.Content.Headers.ContentLength.HasValue) job.Total = from + resp.Content.Headers.ContentLength.Value;
                 job.SingleGot = from;
@@ -410,7 +410,7 @@ namespace Przegladarka
                     long from = seg.Start + seg.Done;
                     using (var resp = await DlSend(job, job.FinalUrl ?? job.Url, from, seg.End, ct))
                     {
-                        if ((int)resp.StatusCode != 206) throw new IOException("Serwer nie obsługuje pobierania w częściach (" + (int)resp.StatusCode + ").");
+                        if ((int)resp.StatusCode != 206) throw new IOException(L.T("Serwer nie obsługuje pobierania w częściach (") + (int)resp.StatusCode + ").");
                         using (var fs = new FileStream(job.PartFile, FileMode.Open, FileAccess.Write, FileShare.ReadWrite, 1 << 18, true))
                         using (var body = await resp.Content.ReadAsStreamAsync(ct))
                         {
@@ -439,7 +439,7 @@ namespace Przegladarka
                 {
                     stall.CancelAfter(TimeSpan.FromSeconds(60));
                     try { n = await src.ReadAsync(buf, 0, (int)Math.Min(buf.Length, limit), stall.Token); }
-                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new IOException("Brak danych z serwera przez 60 s."); }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new IOException(L.T("Brak danych z serwera przez 60 s.")); }
                 }
                 if (n == 0) break;
                 await dst.WriteAsync(buf, 0, n, ct);
@@ -455,19 +455,19 @@ namespace Przegladarka
             job.Name = new TextBlock { Text = Path.GetFileName(job.File), FontWeight = FontWeights.SemiBold, FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = job.Url };
             job.Bar = new ProgressBar { Height = 10, Margin = new Thickness(0, 4, 0, 4), Foreground = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A)) };
             job.Status = new TextBlock { FontSize = 12, Foreground = Brushes.DimGray };
-            job.PauseBtn = SmallButton("Wstrzymaj", () => { if (job.State == JobState.Running) PauseJob(job); else ResumeJob(job); });
-            job.CancelBtn = SmallButton("Anuluj", () =>
+            job.PauseBtn = SmallButton(L.T("Wstrzymaj"), () => { if (job.State == JobState.Running) PauseJob(job); else ResumeJob(job); });
+            job.CancelBtn = SmallButton(L.T("Anuluj"), () =>
             {
                 if (job.State == JobState.Running || job.State == JobState.Paused)
                 {
-                    if (MessageBox.Show(_downloadWin ?? (Window)this, "Anulować pobieranie „" + Path.GetFileName(job.File) + "”?\nPobrana część zostanie usunięta.", "Pobrane", MessageBoxButton.YesNo) == MessageBoxResult.Yes) CancelJob(job);
+                    if (MessageBox.Show(_downloadWin ?? (Window)this, L.T("Anulować pobieranie „") + Path.GetFileName(job.File) + L.T("”?\nPobrana część zostanie usunięta."), L.T("Pobrane"), MessageBoxButton.YesNo) == MessageBoxResult.Yes) CancelJob(job);
                 }
                 else { RemoveJob(job); SaveJobs(); UpdateDownloadsButton(); }
             });
-            job.OpenBtn = SmallButton("Otwórz", () =>
+            job.OpenBtn = SmallButton(L.T("Otwórz"), () =>
             {
                 try { Process.Start(new ProcessStartInfo(job.File) { UseShellExecute = true }); }
-                catch (Exception ex) { MessageBox.Show(_downloadWin ?? (Window)this, ex.Message, "Pobrane"); }
+                catch (Exception ex) { MessageBox.Show(_downloadWin ?? (Window)this, ex.Message, L.T("Pobrane")); }
             });
             var folder = SmallButton("📁", () =>
             {
@@ -475,7 +475,7 @@ namespace Przegladarka
                 if (File.Exists(f)) Process.Start("explorer.exe", "/select,\"" + f + "\"");
                 else if (Directory.Exists(Path.GetDirectoryName(job.File))) Process.Start("explorer.exe", Path.GetDirectoryName(job.File));
             });
-            folder.ToolTip = "Pokaż w folderze";
+            folder.ToolTip = L.T("Pokaż w folderze");
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             foreach (var b in new[] { job.OpenBtn, job.PauseBtn, job.CancelBtn, folder }) buttons.Children.Add(b);
             var text = new StackPanel();
@@ -489,9 +489,9 @@ namespace Przegladarka
         static string Eta(double seconds)
         {
             if (double.IsInfinity(seconds) || double.IsNaN(seconds) || seconds <= 0) return "";
-            if (seconds < 60) return "zostało " + (int)seconds + " s";
-            if (seconds < 3600) return "zostało " + (int)(seconds / 60) + " min";
-            return "zostało " + (int)(seconds / 3600) + " godz. " + (int)(seconds % 3600 / 60) + " min";
+            if (seconds < 60) return L.T("zostało ") + (int)seconds + " s";
+            if (seconds < 3600) return L.T("zostało ") + (int)(seconds / 60) + " min";
+            return L.T("zostało ") + (int)(seconds / 3600) + " godz. " + (int)(seconds % 3600 / 60) + " min";
         }
 
         void RefreshJob(Job job)
@@ -501,37 +501,37 @@ namespace Przegladarka
             job.Name.Text = Path.GetFileName(job.File);
             job.Bar.IsIndeterminate = job.State == JobState.Running && total <= 0;
             job.Bar.Value = total > 0 ? got * 100.0 / total : (job.State == JobState.Done ? 100 : 0);
-            string size = Size(got) + (total > 0 ? " z " + Size(total) : "");
+            string size = Size(got) + (total > 0 ? L.T(" z ") + Size(total) : "");
             switch (job.State)
             {
                 case JobState.Running:
                     string speed = job.Speed > 0 ? " · " + Size((long)job.Speed) + "/s" : "";
                     string eta = job.Speed > 0 && total > 0 ? " · " + Eta((total - got) / job.Speed) : "";
-                    string conn = job.Connections > 1 ? " · " + job.Connections + " połączeń" : "";
+                    string conn = job.Connections > 1 ? " · " + job.Connections + L.T(" połączeń") : "";
                     job.Status.Text = size + speed + eta + conn;
                     job.Status.Foreground = Brushes.DimGray;
                     break;
                 case JobState.Paused:
-                    job.Status.Text = "Wstrzymano – " + size + (job.Ranges ? "" : " (ten serwer nie pozwala wznowić – zacznie od nowa)");
+                    job.Status.Text = L.T("Wstrzymano – ") + size + (job.Ranges ? "" : L.T(" (ten serwer nie pozwala wznowić – zacznie od nowa)"));
                     job.Status.Foreground = Brushes.DarkGoldenrod;
                     break;
                 case JobState.Done:
-                    job.Status.Text = "Gotowe – " + Size(total > 0 ? total : got);
+                    job.Status.Text = L.T("Gotowe – ") + Size(total > 0 ? total : got);
                     job.Status.Foreground = Brushes.SeaGreen;
                     break;
                 case JobState.Failed:
-                    job.Status.Text = "Błąd: " + job.Error + " – kliknij „Wznów”, aby spróbować ponownie";
+                    job.Status.Text = L.T("Błąd: ") + job.Error + L.T(" – kliknij „Wznów”, aby spróbować ponownie");
                     job.Status.Foreground = Brushes.Firebrick;
                     break;
                 case JobState.Canceled:
-                    job.Status.Text = "Anulowano";
+                    job.Status.Text = L.T("Anulowano");
                     job.Status.Foreground = Brushes.Gray;
                     break;
             }
-            job.PauseBtn.Content = job.State == JobState.Running ? "Wstrzymaj" : "Wznów";
+            job.PauseBtn.Content = job.State == JobState.Running ? L.T("Wstrzymaj") : L.T("Wznów");
             job.PauseBtn.Visibility = job.State == JobState.Done || job.State == JobState.Canceled ? Visibility.Collapsed : Visibility.Visible;
             job.OpenBtn.Visibility = job.State == JobState.Done ? Visibility.Visible : Visibility.Collapsed;
-            job.CancelBtn.Content = job.State == JobState.Running || job.State == JobState.Paused ? "Anuluj" : "Usuń z listy";
+            job.CancelBtn.Content = job.State == JobState.Running || job.State == JobState.Paused ? L.T("Anuluj") : L.T("Usuń z listy");
         }
 
         // Odswiezanie postepu i predkosci co pol sekundy (tylko gdy cos sie pobiera).
@@ -603,9 +603,9 @@ namespace Przegladarka
             var running = _jobs.Where(j => j.State == JobState.Running).ToList();
             int engine = ActiveDownloadCount();
             if (running.Count + engine == 0) return;
-            var msg = "Trwa pobieranie (" + (running.Count + engine) + ").\n\nZamknąć Velivo?" +
-                      (running.Count > 0 ? "\nPobieranie zostanie wstrzymane – wznowisz je po ponownym uruchomieniu." : "") +
-                      (engine > 0 ? "\nPliki pobierane przez silnik przeglądarki zostaną przerwane." : "");
+            var msg = "Trwa pobieranie (" + (running.Count + engine) + L.T(").\n\nZamknąć Velivo?") +
+                      (running.Count > 0 ? L.T("\nPobieranie zostanie wstrzymane – wznowisz je po ponownym uruchomieniu.") : "") +
+                      (engine > 0 ? L.T("\nPliki pobierane przez silnik przeglądarki zostaną przerwane.") : "");
             if (MessageBox.Show(this, msg, "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) { e.Cancel = true; return; }
             foreach (var j in running) { j.State = JobState.Paused; if (j.Cts != null) j.Cts.Cancel(); }
             try { Task.WaitAll(running.Where(j => j.Worker != null).Select(j => j.Worker).ToArray(), 3000); } catch (Exception) { }
@@ -697,13 +697,13 @@ namespace Przegladarka
         {
             row.Status = new TextBlock { FontSize = 12, Foreground = Brushes.DimGray };
             row.Bar = new ProgressBar { Height = 10, Margin = new Thickness(0, 4, 0, 4) };
-            row.Action = SmallButton("Anuluj", () => DownloadAction(row));
+            row.Action = SmallButton(L.T("Anuluj"), () => DownloadAction(row));
             var folder = SmallButton("📁", () =>
             {
                 if (File.Exists(row.File)) Process.Start("explorer.exe", "/select,\"" + row.File + "\"");
                 else if (Directory.Exists(Path.GetDirectoryName(row.File))) Process.Start("explorer.exe", Path.GetDirectoryName(row.File));
             });
-            folder.ToolTip = "Pokaż w folderze";
+            folder.ToolTip = L.T("Pokaż w folderze");
             var text = new StackPanel();
             text.Children.Add(new TextBlock { Text = Path.GetFileName(row.File), FontWeight = FontWeights.SemiBold, FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = row.File });
             text.Children.Add(row.Bar);
@@ -723,25 +723,25 @@ namespace Przegladarka
             bool done = row.State == CoreWebView2DownloadState.Completed && !row.Dead;
             row.Bar.IsIndeterminate = !row.Dead && total <= 0 && row.State == CoreWebView2DownloadState.InProgress;
             row.Bar.Value = total > 0 ? got * 100.0 / total : (done ? 100 : 0);
-            string suffix = " (pobiera silnik przeglądarki)";
+            string suffix = L.T(" (pobiera silnik przeglądarki)");
             if (row.Dead && row.State != CoreWebView2DownloadState.Completed)
             {
-                row.Status.Text = "Przerwano – " + Size(got) + (total > 0 ? " z " + Size(total) : "");
-                row.Action.Content = "Usuń z listy";
+                row.Status.Text = L.T("Przerwano – ") + Size(got) + (total > 0 ? L.T(" z ") + Size(total) : "");
+                row.Action.Content = L.T("Usuń z listy");
             }
             else switch (row.State)
             {
                 case CoreWebView2DownloadState.InProgress:
-                    row.Status.Text = (row.CanResume ? "Wstrzymano – " : "") + Size(got) + (total > 0 ? " z " + Size(total) : "") + suffix;
-                    row.Action.Content = row.CanResume ? "Wznów" : "Anuluj";
+                    row.Status.Text = (row.CanResume ? L.T("Wstrzymano – ") : "") + Size(got) + (total > 0 ? L.T(" z ") + Size(total) : "") + suffix;
+                    row.Action.Content = row.CanResume ? L.T("Wznów") : L.T("Anuluj");
                     break;
                 case CoreWebView2DownloadState.Completed:
-                    row.Status.Text = "Gotowe – " + Size(got);
-                    row.Action.Content = "Otwórz";
+                    row.Status.Text = L.T("Gotowe – ") + Size(got);
+                    row.Action.Content = L.T("Otwórz");
                     break;
                 default:
-                    row.Status.Text = "Przerwano (" + (row.Reason ?? "?") + ")";
-                    row.Action.Content = row.CanResume ? "Wznów" : "Usuń z listy";
+                    row.Status.Text = L.T("Przerwano (") + (row.Reason ?? "?") + ")";
+                    row.Action.Content = row.CanResume ? L.T("Wznów") : L.T("Usuń z listy");
                     break;
             }
             UpdateDownloadsButton();
@@ -767,7 +767,7 @@ namespace Przegladarka
             catch (Exception ex)
             {
                 row.Dead = true;
-                MessageBox.Show(_downloadWin ?? (Window)this, "Nie udało się wykonać operacji na pobieraniu:\n" + ex.Message, "Pobrane");
+                MessageBox.Show(_downloadWin ?? (Window)this, L.T("Nie udało się wykonać operacji na pobieraniu:\n") + ex.Message, L.T("Pobrane"));
             }
             RefreshDownload(row);
         }

@@ -42,8 +42,8 @@ namespace Przegladarka
                 _errorShowing = true; _lastError = key; _lastErrorShown = DateTime.Now;
                 try
                 {
-                    MessageBox.Show("Wystąpił nieoczekiwany błąd, ale Velivo działa dalej.\n\n" + a.Exception.Message +
-                                    "\n\nSzczegóły zapisano w pliku bledy.log w folderze danych.", "Velivo");
+                    MessageBox.Show(L.T("Wystąpił nieoczekiwany błąd, ale Velivo działa dalej.\n\n") + a.Exception.Message +
+                                    L.T("\n\nSzczegóły zapisano w pliku bledy.log w folderze danych."), "Velivo");
                 }
                 finally { _errorShowing = false; _lastErrorShown = DateTime.Now; }
             };

@@ -45,7 +45,7 @@ namespace Przegladarka
                 RecordBookmarkTombstones();
                 File.WriteAllLines(BookmarksFile, _bookmarks.Select(b => b.Url + "\t" + b.Title.Replace('\t', ' ').Replace('\n', ' ')));
             }
-            catch (IOException ex) { MessageBox.Show(this, "Nie zapisano zakładek:\n" + ex.Message, "Zakładki"); }
+            catch (IOException ex) { MessageBox.Show(this, L.T("Nie zapisano zakładek:\n") + ex.Message, L.T("Zakładki")); }
             RenderBookmarkBar();
             UpdateStar();
             NotifyLanStateChanged();
@@ -85,17 +85,17 @@ namespace Przegladarka
                 btn.Click += (s, e) => { if (_current != null) Navigate(_current, bm.Url); };
                 btn.MouseUp += (s, e) => { if (e.ChangedButton == System.Windows.Input.MouseButton.Middle) AddTab(bm.Url); };
                 var menu = new ContextMenu();
-                var openNew = new MenuItem { Header = "Otwórz w nowej karcie" };
+                var openNew = new MenuItem { Header = L.T("Otwórz w nowej karcie") };
                 openNew.Click += (s, e) => AddTab(bm.Url);
-                var rename = new MenuItem { Header = "Zmień nazwę" };
+                var rename = new MenuItem { Header = L.T("Zmień nazwę") };
                 rename.Click += (s, e) =>
                 {
-                    var name = Prompt("Nazwa zakładki:", bm.Title);
+                    var name = Prompt(L.T("Nazwa zakładki:"), bm.Title);
                     if (string.IsNullOrWhiteSpace(name)) return;
                     bm.Title = name.Trim();
                     SaveBookmarks();
                 };
-                var del = new MenuItem { Header = "Usuń" };
+                var del = new MenuItem { Header = L.T("Usuń") };
                 del.Click += (s, e) => { _bookmarks.Remove(bm); SaveBookmarks(); };
                 menu.Items.Add(openNew); menu.Items.Add(rename); menu.Items.Add(del);
                 btn.ContextMenu = menu;
@@ -132,7 +132,7 @@ namespace Przegladarka
                 foreach (var b in _bookmarks) list.Items.Add(new ListBoxItem { Content = b.Title + "   —   " + b.Url, Tag = b });
             };
             fill();
-            var win = new Window { Title = "Zakładki (dwuklik otwiera)", Width = 700, Height = 500, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var win = new Window { Title = L.T("Zakładki (dwuklik otwiera)"), Width = 700, Height = 500, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             list.MouseDoubleClick += (s, a) =>
             {
                 var it = list.SelectedItem as ListBoxItem;
@@ -141,9 +141,9 @@ namespace Przegladarka
                 win.Close();
             };
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(6) };
-            bar.Children.Add(SmallButton("▲ W górę", () => MoveBookmark(list, -1, fill)));
-            bar.Children.Add(SmallButton("▼ W dół", () => MoveBookmark(list, 1, fill)));
-            bar.Children.Add(SmallButton("Usuń", () =>
+            bar.Children.Add(SmallButton(L.T("▲ W górę"), () => MoveBookmark(list, -1, fill)));
+            bar.Children.Add(SmallButton(L.T("▼ W dół"), () => MoveBookmark(list, 1, fill)));
+            bar.Children.Add(SmallButton(L.T("Usuń"), () =>
             {
                 var it = list.SelectedItem as ListBoxItem;
                 if (it == null) return;
@@ -174,7 +174,7 @@ namespace Przegladarka
             if (Core == null) return;
             var profile = Core.Profile;
             var list = new StackPanel();
-            var win = new Window { Title = "Dodatki – tryb dewelopera", Width = 620, Height = 440, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var win = new Window { Title = L.T("Dodatki – tryb dewelopera"), Width = 620, Height = 440, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
             Func<System.Threading.Tasks.Task> refresh = null;
             refresh = async () =>
@@ -183,14 +183,14 @@ namespace Przegladarka
                 list.Children.Clear();
                 IReadOnlyList<CoreWebView2BrowserExtension> exts;
                 try { exts = await profile.GetBrowserExtensionsAsync(); }
-                catch (Exception ex) { list.Children.Add(new TextBlock { Text = "Błąd: " + ex.Message, Margin = new Thickness(10) }); return; }
+                catch (Exception ex) { list.Children.Add(new TextBlock { Text = L.T("Błąd: ") + ex.Message, Margin = new Thickness(10) }); return; }
                 if (exts.Count(x => !BuiltInExtensions.Contains(x.Id)) == 0)
-                    list.Children.Add(new TextBlock { Text = "Brak dodatków. Kliknij „Wczytaj rozpakowany…” i wskaż folder z manifest.json.", Margin = new Thickness(10), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray });
+                    list.Children.Add(new TextBlock { Text = L.T("Brak dodatków. Kliknij „Wczytaj rozpakowany…” i wskaż folder z manifest.json."), Margin = new Thickness(10), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray });
                 foreach (var x in exts)
                 {
                     if (BuiltInExtensions.Contains(x.Id)) continue; // skladniki silnika Edge - nie pokazujemy
                     var ext = x;
-                    var on = new CheckBox { IsChecked = ext.IsEnabled, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), ToolTip = "Włączony" };
+                    var on = new CheckBox { IsChecked = ext.IsEnabled, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Włączony") };
                     on.Click += async (s, a) =>
                     {
                         try
@@ -204,13 +204,13 @@ namespace Przegladarka
                             await SaveExtensionsSyncListAsync();
                             NotifyLanStateChanged();
                         }
-                        catch (Exception ex) { MessageBox.Show(win, ex.Message, "Dodatki"); }
+                        catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Dodatki")); }
                         await refresh();
                     };
-                    var remove = SmallButton("Usuń", null);
+                    var remove = SmallButton(L.T("Usuń"), null);
                     remove.Click += async (s, a) =>
                     {
-                        if (MessageBox.Show(win, "Usunąć dodatek „" + ext.Name + "”?", "Dodatki", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                        if (MessageBox.Show(win, L.T("Usunąć dodatek „") + ext.Name + "”?", L.T("Dodatki"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                         try
                         {
                             await ext.RemoveAsync();
@@ -231,20 +231,20 @@ namespace Przegladarka
                             await SaveExtensionsSyncListAsync();
                             NotifyLanStateChanged();
                         }
-                        catch (Exception ex) { MessageBox.Show(win, ex.Message, "Dodatki"); }
+                        catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Dodatki")); }
                         await refresh();
                     };
                     var paths = LoadExtPaths(); string folder; paths.TryGetValue(ext.Id, out folder);
                     var info = ReadManifest(ext, folder);
-                    var opts = SmallButton(info.Options != null ? "Opcje" : (info.Popup != null ? "Okienko" : "Opcje"), null);
+                    var opts = SmallButton(info.Options != null ? L.T("Opcje") : (info.Popup != null ? L.T("Okienko") : L.T("Opcje")), null);
                     opts.IsEnabled = info.Options != null || info.Popup != null;
-                    opts.ToolTip = info.Options != null ? "Strona ustawień dodatku" : info.Popup != null ? "Otwiera okienko dodatku w karcie" : "Dodatek nie ma strony ustawień";
+                    opts.ToolTip = info.Options != null ? L.T("Strona ustawień dodatku") : info.Popup != null ? L.T("Otwiera okienko dodatku w karcie") : L.T("Dodatek nie ma strony ustawień");
                     opts.Click += (s, a) => AddTab(ExtUrl(info, info.Options ?? info.Popup));
                     var desc = new StackPanel();
                     desc.Children.Add(new TextBlock { Text = ext.Name, FontWeight = FontWeights.SemiBold });
                     desc.Children.Add(new TextBlock { Text = "ID: " + ext.Id + (folder != null ? "   ·   " + folder : ""), FontSize = 11, Foreground = Brushes.Gray, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = folder });
-                    var reload = SmallButton("Przeładuj", null);
-                    reload.ToolTip = "Wczytuje dodatek od nowa z folderu (po zmianie jego plików). Dane dodatku zostają.";
+                    var reload = SmallButton(L.T("Przeładuj"), null);
+                    reload.ToolTip = L.T("Wczytuje dodatek od nowa z folderu (po zmianie jego plików). Dane dodatku zostają.");
                     reload.IsEnabled = ext.IsEnabled;
                     reload.Click += async (s, a) =>
                     {
@@ -253,7 +253,7 @@ namespace Przegladarka
                             await ReloadExtension(ext);
                             if (folder != null) { var st = LoadStamps(); var stamp = CodeStamp(folder); if (stamp != null) { st[ext.Id] = stamp; SaveStamps(st); } }
                         }
-                        catch (Exception ex) { MessageBox.Show(win, ex.Message, "Dodatki"); }
+                        catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Dodatki")); }
                         await refresh();
                     };
                     var row = new DockPanel { Margin = new Thickness(10, 6, 10, 6) };
@@ -264,30 +264,30 @@ namespace Przegladarka
             };
 
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(6) };
-            var add = SmallButton("Wczytaj rozpakowany…", null);
+            var add = SmallButton(L.T("Wczytaj rozpakowany…"), null);
             add.Click += async (s, a) =>
             {
-                var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Folder dodatku (z plikiem manifest.json)" };
+                var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Folder dodatku (z plikiem manifest.json)") };
                 if (dlg.ShowDialog(win) != true) return;
                 if (!File.Exists(Path.Combine(dlg.FolderName, "manifest.json")))
                 {
-                    MessageBox.Show(win, "W tym folderze nie ma pliku manifest.json.\nJeśli masz plik .crx lub .zip – rozpakuj go najpierw.", "Dodatki");
+                    MessageBox.Show(win, L.T("W tym folderze nie ma pliku manifest.json.\nJeśli masz plik .crx lub .zip – rozpakuj go najpierw."), L.T("Dodatki"));
                     return;
                 }
                 try { var added = await profile.AddBrowserExtensionAsync(dlg.FolderName); SaveExtPath(added.Id, dlg.FolderName); }
-                catch (Exception ex) { MessageBox.Show(win, "Nie udało się wczytać dodatku:\n" + ex.Message, "Dodatki"); }
+                catch (Exception ex) { MessageBox.Show(win, L.T("Nie udało się wczytać dodatku:\n") + ex.Message, L.T("Dodatki")); }
                 await SaveExtensionsSyncListAsync();
                 NotifyLanStateChanged();
                 await refresh();
             };
-            var openStore = SmallButton("Otwórz Chrome Web Store", () => AddTab("https://chromewebstore.google.com/"));
-            var fromStore = SmallButton("Zainstaluj z linku/ID…", null);
+            var openStore = SmallButton(L.T("Otwórz Chrome Web Store"), () => AddTab("https://chromewebstore.google.com/"));
+            var fromStore = SmallButton(L.T("Zainstaluj z linku/ID…"), null);
             fromStore.Click += async (s, a) =>
             {
-                var text = Prompt("Wklej link do dodatku z Chrome Web Store albo jego ID (32 litery):", "");
+                var text = Prompt(L.T("Wklej link do dodatku z Chrome Web Store albo jego ID (32 litery):"), "");
                 if (text == null) return;
                 var id = ParseStoreId(text);
-                if (id == null) { MessageBox.Show(win, "To nie wygląda na link do dodatku ani na jego ID.", "Dodatki"); return; }
+                if (id == null) { MessageBox.Show(win, L.T("To nie wygląda na link do dodatku ani na jego ID."), L.T("Dodatki")); return; }
                 await InstallFromStore(id, win, false);
                 await refresh();
             };
@@ -296,7 +296,7 @@ namespace Przegladarka
             bar.Children.Add(add);
             var note = new TextBlock
             {
-                Text = "Dodatki działają w tle i na stronach (skrypty treści, blokowanie, zmiana wyglądu). Silnik WebView2 nie pokazuje ikonek dodatków ani ich okienek popup – ustawienia otwierasz przyciskiem „Opcje”. Po dodaniu odśwież stronę.",
+                Text = L.T("Dodatki działają w tle i na stronach (skrypty treści, blokowanie, zmiana wyglądu). Silnik WebView2 nie pokazuje ikonek dodatków ani ich okienek popup – ustawienia otwierasz przyciskiem „Opcje”. Po dodaniu odśwież stronę."),
                 TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Brushes.Gray, Margin = new Thickness(10, 8, 10, 0)
             };
             var top = new DockPanel();

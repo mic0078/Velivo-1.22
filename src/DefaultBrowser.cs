@@ -161,7 +161,7 @@ namespace Przegladarka
         void MakeDefaultBrowser(Window owner)
         {
             try { if (!IsRegistered()) RegisterBrowser(); }
-            catch (Exception ex) { MessageBox.Show(owner, "Nie udało się zarejestrować Velivo w Windows:\n" + ex.Message, AppName); return; }
+            catch (Exception ex) { MessageBox.Show(owner, L.T("Nie udało się zarejestrować Velivo w Windows:\n") + ex.Message, AppName); return; }
             try
             {
                 // Windows 11: strona Velivo w "Aplikacje domyslne" z przyciskiem "Ustaw domyslne"
@@ -172,7 +172,7 @@ namespace Przegladarka
                 Process.Start(new ProcessStartInfo("ms-settings:defaultapps") { UseShellExecute = true });
             }
             MessageBox.Show(owner,
-                "Otworzyły się Ustawienia Windows.\n\nKliknij „Ustaw domyślne” przy Velivo (Windows 11)\nalbo wybierz Velivo jako „Przeglądarka sieci Web” (Windows 10).\n\nWindows nie pozwala programom zrobić tego samodzielnie.",
+                L.T("Otworzyły się Ustawienia Windows.\n\nKliknij „Ustaw domyślne” przy Velivo (Windows 11)\nalbo wybierz Velivo jako „Przeglądarka sieci Web” (Windows 10).\n\nWindows nie pozwala programom zrobić tego samodzielnie."),
                 AppName);
         }
     }

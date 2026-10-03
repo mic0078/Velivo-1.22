@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -65,6 +65,16 @@ namespace Przegladarka
             InitializeComponent();
             Title = AppTitleLabel;
             _settings = AppSettings.Load(DataDir);
+            L.Init(_settings.Language);
+            try
+            {
+                // Szybki Dostep (dodatek) czyta jezyk z kod/jezyk-wybor.js
+                var langJs = Path.Combine(BundledQuickAccessDir, "kod", "jezyk-wybor.js");
+                var want = "var VELIVO_LANG = '" + (L.En ? "en" : "pl") + "';\n";
+                if (File.Exists(langJs) && File.ReadAllText(langJs) != want) File.WriteAllText(langJs, want);
+            }
+            catch (Exception) { }
+            L.TranslateTree(this);   // napisy okna z XAML (dymki, przyciski) - gdy wybrano angielski
             UpdateProfileBadge();
             LoadSitePrivacyRules();
             LoadPrivacyLog();
@@ -111,7 +121,7 @@ namespace Przegladarka
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Nie udało się uruchomić WebView2:\n" + ex.Message, "Velivo");
+                    MessageBox.Show(L.T("Nie udało się uruchomić WebView2:\n") + ex.Message, "Velivo");
                     Close();
                 }
             };
@@ -181,7 +191,7 @@ namespace Przegladarka
             {
                 if (_settings != null && !_settings.QuickAccessNewTab) return;
 
-                var bundled = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "Dodatki", "Szybki Dostęp"));
+                var bundled = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, L.T("Dodatki"), "Szybki Dostęp"));
                 if (!File.Exists(Path.Combine(bundled, "manifest.json"))) return;
 
                 var profileDir = Path.Combine(DataDir, "Profil", "EBWebView", "Default");
@@ -281,7 +291,7 @@ namespace Przegladarka
         // nowy widok trzeba oddac przez e.NewWindow, inaczej dodatek nie dostanie uchwytu karty.
         void AddTab(string url, bool isPrivate, CoreWebView2NewWindowRequestedEventArgs pending, CoreWebView2Deferral deferral)
         {
-            var tab = new BrowserTab { Private = isPrivate, View = new WebView2(), Title = new TextBlock { Text = "Nowa karta", MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center } };
+            var tab = new BrowserTab { Private = isPrivate, View = new WebView2(), Title = new TextBlock { Text = L.T("Nowa karta"), MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center } };
             var close = new Button { Content = "×", Width = 20, Height = 20, FontSize = 13, Margin = new Thickness(6, 0, 0, 0) };
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             panel.Children.Add(tab.Title);
@@ -291,7 +301,7 @@ namespace Przegladarka
             {
                 tab.Title.Foreground = Brushes.White;
                 close.Foreground = Brushes.White;
-                tab.Title.Text = "🕶 Prywatna";
+                tab.Title.Text = L.T("🕶 Prywatna");
             }
             tab.StartUrl = url;
             tab.Header.ContextMenu = BuildTabMenu(tab);
@@ -317,7 +327,7 @@ namespace Przegladarka
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Nie udało się otworzyć karty.\nJeśli działa jeszcze starsza wersja Velivo, zamknij ją i spróbuj ponownie.\n\n" + ex.Message, "Velivo");
+                MessageBox.Show(this, L.T("Nie udało się otworzyć karty.\nJeśli działa jeszcze starsza wersja Velivo, zamknij ją i spróbuj ponownie.\n\n") + ex.Message, "Velivo");
                 if (deferral != null) deferral.Complete();
                 if (_tabs.Contains(tab)) CloseTab(tab);
                 return;
@@ -689,15 +699,15 @@ namespace Przegladarka
             Reset(ReaderModeBtn);
             Reset(ShotBtn);
 
-            if (w < 1760) Push(ReaderModeBtn, "Tryb czytania", () => ReaderMode_Click(null, null));
-            if (w < 1680) Push(ShotBtn, "Zrzut ekranu", () => ShotBtn_Click(null, null));
-            if (w < 1600) Push(ReadBtn, "Czytaj na głos", () => ReadBtn_Click(null, null));
-            if (w < 1520) Push(DarkBtn, "Tryb ciemny", () => DarkBtn_Click(null, null));
-            if (w < 1440) Push(DownloadsBtn, "Pobrane pliki", () => Downloads_Click(null, null));
-            if (w < 1360) Push(ExtensionsBtn, "Dodatki", () => Extensions_Click(null, null));
-            if (w < 1280) Push(HistoryBtn, "Historia", () => History_Click(null, null));
-            if (w < 1200) Push(BookmarksBtn, "Zakładki", () => Bookmarks_Click(null, null));
-            if (w < 1120) Push(PrivacyBtn, "Prywatność", () => PrivacyPanel_Click(null, null));
+            if (w < 1760) Push(ReaderModeBtn, L.T("Tryb czytania"), () => ReaderMode_Click(null, null));
+            if (w < 1680) Push(ShotBtn, L.T("Zrzut ekranu"), () => ShotBtn_Click(null, null));
+            if (w < 1600) Push(ReadBtn, L.T("Czytaj na głos"), () => ReadBtn_Click(null, null));
+            if (w < 1520) Push(DarkBtn, L.T("Tryb ciemny"), () => DarkBtn_Click(null, null));
+            if (w < 1440) Push(DownloadsBtn, L.T("Pobrane pliki"), () => Downloads_Click(null, null));
+            if (w < 1360) Push(ExtensionsBtn, L.T("Dodatki"), () => Extensions_Click(null, null));
+            if (w < 1280) Push(HistoryBtn, L.T("Historia"), () => History_Click(null, null));
+            if (w < 1200) Push(BookmarksBtn, L.T("Zakładki"), () => Bookmarks_Click(null, null));
+            if (w < 1120) Push(PrivacyBtn, L.T("Prywatność"), () => PrivacyPanel_Click(null, null));
 
             if (overflow.Count == 0)
             {
@@ -857,10 +867,12 @@ namespace Przegladarka
         void UpdateCounter()
         {
             int here = _current != null ? _current.Blocked : 0;
-            AdCounter.Text = _blocker.Enabled ? here + "  (razem " + _totalBlocked + ")" : "wyłączony";
+            AdCounter.Text = _blocker.Enabled ? here + (L.En ? "  (total " : "  (razem ") + _totalBlocked + ")" : L.T("wyłączony");
             AdIcon.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x15, 0x80, 0x3D)) : new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C));
             AdCounter.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x14, 0x53, 0x2D)) : new SolidColorBrush(Color.FromRgb(0x7F, 0x1D, 0x1D));
-            AdToggle.ToolTip = "AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby " + (_blocker.Enabled ? "wyłączyć" : "włączyć") + ".";
+            AdToggle.ToolTip = L.En
+                ? "AdBlock: " + _blocker.RuleCount + " rules. Click to turn " + (_blocker.Enabled ? "off" : "on") + "."
+                : "AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby " + (_blocker.Enabled ? "wyłączyć" : "włączyć") + ".";
         }
 
         void AdToggle_Click(object sender, RoutedEventArgs e)

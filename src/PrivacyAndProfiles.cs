@@ -134,7 +134,7 @@ namespace Przegladarka
 
         static string ProfileDisplayName(string profile)
         {
-            if (string.IsNullOrWhiteSpace(profile) || profile == "domyslny") return "Domyślny";
+            if (string.IsNullOrWhiteSpace(profile) || profile == "domyslny") return L.T("Domyślny");
             return char.ToUpper(profile[0]) + (profile.Length > 1 ? profile.Substring(1) : "");
         }
 
@@ -215,7 +215,7 @@ namespace Przegladarka
             ProfileBadgeBtn.Content = _toolbarCompact ? (icon + " " + letter) : (icon + " " + letter + "  " + label);
             ProfileBadgeBtn.MinWidth = _toolbarCompact ? 54 : 86;
             ProfileBadgeBtn.Padding = _toolbarCompact ? new Thickness(8, 0, 8, 0) : new Thickness(10, 0, 10, 0);
-            ProfileBadgeBtn.ToolTip = "Aktywny profil: " + label + "\nKliknij, aby przełączyć użytkownika/profil";
+            ProfileBadgeBtn.ToolTip = L.T("Aktywny profil: ") + label + L.T("\nKliknij, aby przełączyć użytkownika/profil");
 
             var palette = new[]
             {
@@ -388,7 +388,7 @@ namespace Przegladarka
                 e.Response = _env.CreateWebResourceResponse(null, 403, "Blocked", "");
                 tab.Blocked++;
                 _totalBlocked++;
-                AddPrivacyBlock("Skrypt (JS) zablokowany regułą domeny", e.Request.Uri, tab);
+                AddPrivacyBlock(L.T("Skrypt (JS) zablokowany regułą domeny"), e.Request.Uri, tab);
                 Dispatcher.BeginInvoke(new Action(UpdateCounter));
                 return true;
             }
@@ -398,7 +398,7 @@ namespace Przegladarka
                 e.Response = _env.CreateWebResourceResponse(null, 403, "Blocked", "");
                 tab.Blocked++;
                 _totalBlocked++;
-                AddPrivacyBlock("Tracker zablokowany (reguła domeny)", e.Request.Uri, tab);
+                AddPrivacyBlock(L.T("Tracker zablokowany (reguła domeny)"), e.Request.Uri, tab);
                 Dispatcher.BeginInvoke(new Action(UpdateCounter));
                 return true;
             }
@@ -425,10 +425,10 @@ namespace Przegladarka
                 if (rule.AutoClearData)
                 {
                     await core.ExecuteScriptAsync("try { localStorage.clear(); sessionStorage.clear(); if (window.indexedDB && indexedDB.databases) indexedDB.databases().then(db => db.forEach(x => x && x.name && indexedDB.deleteDatabase(x.name))); } catch (e) {} ");
-                    AddPrivacyBlock("Automatyczne czyszczenie danych domeny", core.Source, tab);
+                    AddPrivacyBlock(L.T("Automatyczne czyszczenie danych domeny"), core.Source, tab);
                 }
                 if (rule.BlockCookies)
-                    AddPrivacyBlock("Cookies usunięte dla domeny (reguła)", core.Source, tab);
+                    AddPrivacyBlock(L.T("Cookies usunięte dla domeny (reguła)"), core.Source, tab);
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -447,7 +447,7 @@ namespace Przegladarka
 
             var win = new Window
             {
-                Title = "Prywatność i antyfingerprinting",
+                Title = L.T("Prywatność i antyfingerprinting"),
                 Width = 1080,
                 Height = 700,
                 MinWidth = 920,
@@ -492,10 +492,10 @@ namespace Przegladarka
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0xD1, 0xD5, 0xDB))
             };
             var gv = new GridView();
-            gv.Columns.Add(new GridViewColumn { Header = "Godzina", DisplayMemberBinding = new System.Windows.Data.Binding("Time"), Width = 74 });
-            gv.Columns.Add(new GridViewColumn { Header = "Domena", DisplayMemberBinding = new System.Windows.Data.Binding("Domain"), Width = 190 });
-            gv.Columns.Add(new GridViewColumn { Header = "Powód", DisplayMemberBinding = new System.Windows.Data.Binding("Reason"), Width = 250 });
-            gv.Columns.Add(new GridViewColumn { Header = "Tryb", DisplayMemberBinding = new System.Windows.Data.Binding("Mode"), Width = 66 });
+            gv.Columns.Add(new GridViewColumn { Header = L.T("Godzina"), DisplayMemberBinding = new System.Windows.Data.Binding("Time"), Width = 74 });
+            gv.Columns.Add(new GridViewColumn { Header = L.T("Domena"), DisplayMemberBinding = new System.Windows.Data.Binding("Domain"), Width = 190 });
+            gv.Columns.Add(new GridViewColumn { Header = L.T("Powód"), DisplayMemberBinding = new System.Windows.Data.Binding("Reason"), Width = 250 });
+            gv.Columns.Add(new GridViewColumn { Header = L.T("Tryb"), DisplayMemberBinding = new System.Windows.Data.Binding("Mode"), Width = 66 });
             logList.View = gv;
 
             var details = new TextBox
@@ -512,21 +512,21 @@ namespace Przegladarka
             var domRow = new Grid { Margin = new Thickness(0, 8, 0, 0) };
             domRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             domRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var domLbl = new TextBlock { Text = "Domena:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            var domLbl = new TextBlock { Text = L.T("Domena:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             var dom = new TextBox { Text = host, Padding = new Thickness(6, 4, 6, 4), MinHeight = 30 };
             Grid.SetColumn(domLbl, 0);
             Grid.SetColumn(dom, 1);
             domRow.Children.Add(domLbl);
             domRow.Children.Add(dom);
 
-            var js = new CheckBox { Content = "Blokuj JavaScript dla domeny", Margin = new Thickness(0, 6, 0, 0) };
-            var ck = new CheckBox { Content = "Nie wysyłaj cookies dla domeny", Margin = new Thickness(0, 4, 0, 0) };
-            var tr = new CheckBox { Content = "Wymuś blokowanie trackerów dla domeny", Margin = new Thickness(0, 4, 0, 0) };
-            var cl = new CheckBox { Content = "Automatycznie czyść dane po wejściu na domenę", Margin = new Thickness(0, 4, 0, 0) };
-            var trusted = new CheckBox { Content = "Zaufana domena (bez blokowania i SmartScreen)", Margin = new Thickness(0, 8, 0, 0), FontWeight = FontWeights.SemiBold };
+            var js = new CheckBox { Content = L.T("Blokuj JavaScript dla domeny"), Margin = new Thickness(0, 6, 0, 0) };
+            var ck = new CheckBox { Content = L.T("Nie wysyłaj cookies dla domeny"), Margin = new Thickness(0, 4, 0, 0) };
+            var tr = new CheckBox { Content = L.T("Wymuś blokowanie trackerów dla domeny"), Margin = new Thickness(0, 4, 0, 0) };
+            var cl = new CheckBox { Content = L.T("Automatycznie czyść dane po wejściu na domenę"), Margin = new Thickness(0, 4, 0, 0) };
+            var trusted = new CheckBox { Content = L.T("Zaufana domena (bez blokowania i SmartScreen)"), Margin = new Thickness(0, 8, 0, 0), FontWeight = FontWeights.SemiBold };
             var info = new TextBlock
             {
-                Text = "Reguły działają per domena. Karty prywatne używają osobnego, izolowanego storage WebView2 (InPrivate).",
+                Text = L.T("Reguły działają per domena. Karty prywatne używają osobnego, izolowanego storage WebView2 (InPrivate)."),
                 Margin = new Thickness(0, 0, 0, 0),
                 Foreground = new SolidColorBrush(Color.FromRgb(0x4B, 0x55, 0x63)),
                 TextWrapping = TextWrapping.Wrap,
@@ -562,7 +562,7 @@ namespace Przegladarka
                         Time = l.Time.ToString("HH:mm:ss"),
                         Domain = l.Domain,
                         Reason = l.Reason,
-                        Mode = l.PrivateTab ? "Prywat." : "Zwykły",
+                        Mode = l.PrivateTab ? L.T("Prywat.") : L.T("Zwykły"),
                         Raw = l
                     });
                 }
@@ -574,7 +574,7 @@ namespace Przegladarka
                 if (IsQuickAccessExtensionId((dom.Text ?? "").Trim()) || (dom.Text ?? "").Contains("chrome-extension"))
                 {
                     dom.Text = "";
-                    MessageBox.Show(win, "Szybki Dostęp to wbudowany dodatek – jest zaufany na stałe i nic go nie blokuje. Nie trzeba dodawać reguły.", "Prywatność");
+                    MessageBox.Show(win, L.T("Szybki Dostęp to wbudowany dodatek – jest zaufany na stałe i nic go nie blokuje. Nie trzeba dodawać reguły."), L.T("Prywatność"));
                     return;
                 }
                 var d = NormalizeRuleDomain(dom.Text);
@@ -605,28 +605,28 @@ namespace Przegladarka
                     return;
                 }
                 var b = row.Raw;
-                details.Text = "Godzina: " + b.Time.ToString("yyyy-MM-dd HH:mm:ss") +
-                               "\nDomena: " + (b.Domain ?? "") +
-                               "\nPowód: " + (b.Reason ?? "") +
-                               "\nTryb: " + (b.PrivateTab ? "Prywatny" : "Zwykły") +
+                details.Text = L.T("Godzina: ") + b.Time.ToString("yyyy-MM-dd HH:mm:ss") +
+                               L.T("\nDomena: ") + (b.Domain ?? "") +
+                               L.T("\nPowód: ") + (b.Reason ?? "") +
+                               L.T("\nTryb: ") + (b.PrivateTab ? L.T("Prywatny") : L.T("Zwykły")) +
                                "\nURL: " + (b.Url ?? "");
             };
 
-            var save = SmallButton("Zapisz regułę", () =>
+            var save = SmallButton(L.T("Zapisz regułę"), () =>
             {
                 var d = NormalizeRuleDomain(dom.Text);
                 if (d.Length < 3 || d.IndexOf('.') < 1)
                 {
-                    MessageBox.Show(win, "Podaj poprawną domenę stron www, np. example.com (adresy chrome-extension:// dodatków nie są blokowane regułami).", "Prywatność");
+                    MessageBox.Show(win, L.T("Podaj poprawną domenę stron www, np. example.com (adresy chrome-extension:// dodatków nie są blokowane regułami)."), L.T("Prywatność"));
                     return;
                 }
                 bool destructive = (ck.IsChecked == true) || (cl.IsChecked == true);
                 if (destructive)
                 {
-                    var txt = "Ta reguła może powodować utratę logowania i ustawień strony (cookies/sesja/localStorage).\n\n" +
-                              "Domena: " + d + "\n\n" +
-                              "Zapisać mimo to?";
-                    if (MessageBox.Show(win, txt, "Prywatność", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    var txt = L.T("Ta reguła może powodować utratę logowania i ustawień strony (cookies/sesja/localStorage).\n\n") +
+                              L.T("Domena: ") + d + "\n\n" +
+                              L.T("Zapisać mimo to?");
+                    if (MessageBox.Show(win, txt, L.T("Prywatność"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                         return;
                 }
                 var r = new SitePrivacyRule
@@ -644,7 +644,7 @@ namespace Przegladarka
                 if (Core != null) Core.Reload();
             });
 
-            var del = SmallButton("Usuń regułę", () =>
+            var del = SmallButton(L.T("Usuń regułę"), () =>
             {
                 var d = NormalizeRuleDomain(dom.Text);
                 if (_privacyRules.Remove(d) || _privacyRules.Remove((dom.Text ?? "").Trim().ToLowerInvariant()))
@@ -659,7 +659,7 @@ namespace Przegladarka
                 var d = NormalizeRuleDomain(text);
                 if (d.Length < 3 || d.IndexOf('.') < 1)
                 {
-                    MessageBox.Show(win, "Podaj poprawną domenę stron www, np. example.com", "Zaufane domeny");
+                    MessageBox.Show(win, L.T("Podaj poprawną domenę stron www, np. example.com"), L.T("Zaufane domeny"));
                     return;
                 }
                 SitePrivacyRule existing;
@@ -674,19 +674,19 @@ namespace Przegladarka
                 if (Core != null) Core.Reload();
             };
 
-            var trustBtn = SmallButton("✔ Dodaj do zaufanych", () => addTrusted(dom.Text));
-            var trustLogBtn = SmallButton("✔ Zaznaczoną domenę do zaufanych", () =>
+            var trustBtn = SmallButton(L.T("✔ Dodaj do zaufanych"), () => addTrusted(dom.Text));
+            var trustLogBtn = SmallButton(L.T("✔ Zaznaczoną domenę do zaufanych"), () =>
             {
                 var row = logList.SelectedItem as PrivacyLogRow;
                 if (row == null || string.IsNullOrWhiteSpace(row.Domain))
                 {
-                    MessageBox.Show(win, "Najpierw zaznacz wpis na liście blokad.", "Zaufane domeny");
+                    MessageBox.Show(win, L.T("Najpierw zaznacz wpis na liście blokad."), L.T("Zaufane domeny"));
                     return;
                 }
                 addTrusted(row.Domain);
             });
 
-            var clearLog = SmallButton("Wyczyść panel blokad", () =>
+            var clearLog = SmallButton(L.T("Wyczyść panel blokad"), () =>
             {
                 _privacyBlocks.Clear();
                 SavePrivacyLog();
@@ -696,24 +696,24 @@ namespace Przegladarka
 
             var prof = new TextBlock
             {
-                Text = "Aktywny profil: " + SelectedProfileName,
+                Text = L.T("Aktywny profil: ") + SelectedProfileName,
                 Margin = new Thickness(0, 10, 0, 4),
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27))
             };
             var profBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 0) };
-            profBtns.Children.Add(SmallButton("Praca", () => SwitchProfile("praca")));
-            profBtns.Children.Add(SmallButton("Prywatny", () => SwitchProfile("prywatny")));
+            profBtns.Children.Add(SmallButton(L.T("Praca"), () => SwitchProfile("praca")));
+            profBtns.Children.Add(SmallButton(L.T("Prywatny"), () => SwitchProfile("prywatny")));
             profBtns.Children.Add(SmallButton("Dev", () => SwitchProfile("dev")));
-            profBtns.Children.Add(SmallButton("Więcej…", OpenProfilesManager));
+            profBtns.Children.Add(SmallButton(L.T("Więcej…"), OpenProfilesManager));
 
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
             actions.Children.Add(save);
             actions.Children.Add(del);
             actions.Children.Add(trustBtn);
 
-            var leftHeader = new TextBlock { Text = "Reguły prywatności dla domen", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)) };
-            var rulesCaption = new TextBlock { Text = "Zapisane reguły domen", Margin = new Thickness(0, 10, 0, 2), FontWeight = FontWeights.SemiBold };
+            var leftHeader = new TextBlock { Text = L.T("Reguły prywatności dla domen"), FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)) };
+            var rulesCaption = new TextBlock { Text = L.T("Zapisane reguły domen"), Margin = new Thickness(0, 10, 0, 2), FontWeight = FontWeights.SemiBold };
 
             Grid.SetRow(leftHeader, 0);
             Grid.SetRow(info, 1);
@@ -742,7 +742,7 @@ namespace Przegladarka
             var rightHeaderRow = new Grid();
             rightHeaderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             rightHeaderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var rightHeader = new TextBlock { Text = "Co zostało zablokowane i dlaczego", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)), VerticalAlignment = VerticalAlignment.Center };
+            var rightHeader = new TextBlock { Text = L.T("Co zostało zablokowane i dlaczego"), FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)), VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(rightHeader, 0);
             var rightButtons = new StackPanel { Orientation = Orientation.Horizontal };
             rightButtons.Children.Add(trustLogBtn);
@@ -753,12 +753,12 @@ namespace Przegladarka
 
             var rightHint = new TextBlock
             {
-                Text = "Wybierz wpis, aby zobaczyć pełny URL i szczegóły blokady.",
+                Text = L.T("Wybierz wpis, aby zobaczyć pełny URL i szczegóły blokady."),
                 Foreground = new SolidColorBrush(Color.FromRgb(0x4B, 0x55, 0x63)),
                 Margin = new Thickness(0, 6, 0, 0)
             };
 
-            var detailsCaption = new TextBlock { Text = "Szczegóły zaznaczonego wpisu", Margin = new Thickness(0, 10, 0, 2), FontWeight = FontWeights.SemiBold };
+            var detailsCaption = new TextBlock { Text = L.T("Szczegóły zaznaczonego wpisu"), Margin = new Thickness(0, 10, 0, 2), FontWeight = FontWeights.SemiBold };
             var detailsPanel = new StackPanel();
             detailsPanel.Children.Add(detailsCaption);
             detailsPanel.Children.Add(details);
@@ -799,17 +799,17 @@ namespace Przegladarka
             if (PrivacyBtn == null) return;
             var url = CurrentUrl;
             var r = url == null ? null : RuleForUrl(url);
-            PrivacyBtn.Content = r == null ? "Prywatność" : "Prywatność*";
+            PrivacyBtn.Content = r == null ? L.T("Prywatność") : L.T("Prywatność*");
             PrivacyBtn.ToolTip = r == null
-                ? "Panel prywatności i antyfingerprinting"
-                : "Aktywna reguła prywatności dla tej domeny";
+                ? L.T("Panel prywatności i antyfingerprinting")
+                : L.T("Aktywna reguła prywatności dla tej domeny");
         }
 
         void SwitchProfile(string profile)
         {
             profile = NormalizeProfileName(profile);
             if (profile == SelectedProfileName) return;
-            if (MessageBox.Show(this, "Przełączyć profil na „" + profile + "”?\nAplikacja uruchomi się ponownie z osobnym zestawem kart, historii i dodatków.", "Profil", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
+            if (MessageBox.Show(this, L.T("Przełączyć profil na „") + profile + L.T("”?\nAplikacja uruchomi się ponownie z osobnym zestawem kart, historii i dodatków."), L.T("Profil"), MessageBoxButton.YesNo) != MessageBoxResult.Yes)
                 return;
             try
             {
@@ -823,14 +823,14 @@ namespace Przegladarka
                 Process.Start(psi);
                 Close();
             }
-            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Profil"); }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, L.T("Profil")); }
         }
 
         void OpenProfilesManager()
         {
             var win = new Window
             {
-                Title = "Użytkownicy i profile Velivo",
+                Title = L.T("Użytkownicy i profile Velivo"),
                 Width = 560,
                 Height = 460,
                 Owner = this,
@@ -839,10 +839,10 @@ namespace Przegladarka
 
             var list = new ListBox { Margin = new Thickness(8) };
             var iconRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 8, 8) };
-            var iconLabel = new TextBlock { Text = "Ikona profilu:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            var iconLabel = new TextBlock { Text = L.T("Ikona profilu:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             var iconPicker = new ComboBox { Width = 170, Height = 28 };
             foreach (var ic in ProfileIconChoices) iconPicker.Items.Add(ic);
-            var iconSave = SmallButton("Zapisz ikonkę", null);
+            var iconSave = SmallButton(L.T("Zapisz ikonkę"), null);
             iconSave.IsEnabled = false;
             iconRow.Children.Add(iconLabel);
             iconRow.Children.Add(iconPicker);
@@ -852,7 +852,7 @@ namespace Przegladarka
                 list.Items.Clear();
                 foreach (var p in GetKnownProfiles())
                 {
-                    var mark = p == SelectedProfileName ? " (aktywny)" : "";
+                    var mark = p == SelectedProfileName ? L.T(" (aktywny)") : "";
                     var icon = GetProfileIcon(p);
                     list.Items.Add(new ListBoxItem { Content = icon + "  " + p + mark, Tag = p });
                 }
@@ -874,12 +874,12 @@ namespace Przegladarka
                 iconSave.IsEnabled = true;
             }
 
-            var add = SmallButton("Dodaj użytkownika/profil…", () =>
+            var add = SmallButton(L.T("Dodaj użytkownika/profil…"), () =>
             {
-                var raw = Prompt("Nazwa użytkownika/profilu (np. google-konto2):", "");
+                var raw = Prompt(L.T("Nazwa użytkownika/profilu (np. google-konto2):"), "");
                 if (raw == null) return;
                 var profile = NormalizeProfileName(raw);
-                if (profile.Length == 0) { MessageBox.Show(win, "Niepoprawna nazwa.", "Profile"); return; }
+                if (profile.Length == 0) { MessageBox.Show(win, L.T("Niepoprawna nazwa."), L.T("Profile")); return; }
                 try
                 {
                     Directory.CreateDirectory(profile == "domyslny" ? ProfileRoot : Path.Combine(ProfilesDir, profile));
@@ -888,10 +888,10 @@ namespace Przegladarka
                     NotifyLanStateChanged();
                     refresh();
                 }
-                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Profile"); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Profile")); }
             });
 
-            var use = SmallButton("Przełącz na zaznaczony", () =>
+            var use = SmallButton(L.T("Przełącz na zaznaczony"), () =>
             {
                 var it = list.SelectedItem as ListBoxItem;
                 if (it == null) return;
@@ -907,17 +907,17 @@ namespace Przegladarka
                 refresh();
             };
 
-            var del = SmallButton("Usuń zaznaczony profil", () =>
+            var del = SmallButton(L.T("Usuń zaznaczony profil"), () =>
             {
                 var it = list.SelectedItem as ListBoxItem;
                 if (it == null) return;
                 var p = (string)it.Tag;
                 if (p == "domyslny" || p == SelectedProfileName)
                 {
-                    MessageBox.Show(win, "Nie można usunąć aktywnego ani domyślnego profilu.", "Profile");
+                    MessageBox.Show(win, L.T("Nie można usunąć aktywnego ani domyślnego profilu."), L.T("Profile"));
                     return;
                 }
-                if (MessageBox.Show(win, "Usunąć profil „" + p + "” razem z jego lokalnymi danymi?", "Profile", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                if (MessageBox.Show(win, L.T("Usunąć profil „") + p + L.T("” razem z jego lokalnymi danymi?"), L.T("Profile"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 try
                 {
                     var dir = Path.Combine(ProfilesDir, p);
@@ -927,12 +927,12 @@ namespace Przegladarka
                     NotifyLanStateChanged();
                     refresh();
                 }
-                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Profile"); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Profile")); }
             });
 
             var note = new TextBlock
             {
-                Text = "Każdy profil ma własne ustawienia, sesje, historię, zakładki i dodatki. Sejf oraz Szybki Dostęp pozostają wspólne i nie są tutaj zmieniane.",
+                Text = L.T("Każdy profil ma własne ustawienia, sesje, historię, zakładki i dodatki. Sejf oraz Szybki Dostęp pozostają wspólne i nie są tutaj zmieniane."),
                 Margin = new Thickness(8),
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = Brushes.Gray

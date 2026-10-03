@@ -34,7 +34,8 @@ namespace Przegladarka
         public double ReadRate = 1.25;
         public double ReadVolume = 1.0;        // glosnosc czytania na glos (0-1)
         public bool NightLight = false;
-        public string Theme = "jasny";          // motyw przegladarki (Themes.cs)        // tryb nocny: cieplejsze kolory stron (jak Swiatlo nocne w Windows)         // predkosc czytania na glos
+        public string Theme = "jasny";
+        public string Language = "auto";       // jezyk interfejsu: auto (jak Windows) / pl / en          // motyw przegladarki (Themes.cs)        // tryb nocny: cieplejsze kolory stron (jak Swiatlo nocne w Windows)         // predkosc czytania na glos
         public string ReadVoice = "";          // glos (pusty = pierwszy polski)
         public string CacheDir = "";           // wlasny folder na smieci (pusty = w profilu)
         public bool CleanJunkOnStart = false;  // usuwaj smieci przy kazdym uruchomieniu
@@ -123,6 +124,7 @@ namespace Przegladarka
                         case "readVolume": double rv; if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out rv)) s.ReadVolume = Math.Max(0, Math.Min(1, rv)); break;
                         case "nightLight": s.NightLight = b; break;
                         case "theme": s.Theme = v; break;
+                        case "language": s.Language = v; break;
                         case "popups": s.BlockThirdPartyPopups = b; break;
                         case "cacheDir": s.CacheDir = v; break;
                         case "cleanJunk": s.CleanJunkOnStart = b; break;
@@ -184,7 +186,7 @@ namespace Przegladarka
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "askDownload=" + B(AskDownload),
                 "popups=" + B(BlockThirdPartyPopups), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
-                "restore=" + B(RestoreTabs), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"),
+                "restore=" + B(RestoreTabs), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
                 "toolbarCompact=" + B(ToolbarAlwaysCompact),
@@ -246,7 +248,7 @@ namespace Przegladarka
             bool darkChanged = false;
             var win = new Window
             {
-                Title = "Ustawienia",
+                Title = L.T("Ustawienia"),
                 Width = 1160,
                 Height = 760,
                 MinWidth = 940,
@@ -260,23 +262,23 @@ namespace Przegladarka
             Func<string, TextBlock> Header = t => new TextBlock { Text = t, FontWeight = FontWeights.SemiBold, FontSize = 14, Margin = new Thickness(0, 12, 0, 4) };
             Func<string, string, bool, CheckBox> Check = (t, tip, v) => new CheckBox { Content = t, ToolTip = tip, IsChecked = v, Margin = new Thickness(0, 3, 0, 3) };
 
-            root.Children.Add(Header("Domyślna przeglądarka"));
+            root.Children.Add(Header(L.T("Domyślna przeglądarka")));
             bool isDefault = IsDefaultBrowser();
             var defInfo = new TextBlock
             {
-                Text = isDefault ? "✓ Velivo jest domyślną przeglądarką." : "Velivo nie jest teraz domyślną przeglądarką.",
+                Text = isDefault ? L.T("✓ Velivo jest domyślną przeglądarką.") : L.T("Velivo nie jest teraz domyślną przeglądarką."),
                 Foreground = isDefault ? Brushes.SeaGreen : Brushes.Gray, Margin = new Thickness(0, 0, 0, 4)
             };
             root.Children.Add(defInfo);
             if (!isDefault)
             {
-                var makeDefault = SmallButton("Ustaw Velivo jako domyślną przeglądarkę…", () => MakeDefaultBrowser(win));
+                var makeDefault = SmallButton(L.T("Ustaw Velivo jako domyślną przeglądarkę…"), () => MakeDefaultBrowser(win));
                 makeDefault.HorizontalAlignment = HorizontalAlignment.Left; makeDefault.Margin = new Thickness(0);
                 root.Children.Add(makeDefault);
             }
 
-            root.Children.Add(Header("Wygląd i czytelność"));
-            root.Children.Add(new TextBlock { Text = "Domyślne powiększenie stron (każdą stronę możesz też powiększyć osobno: Ctrl + kółko myszy):" , TextWrapping = TextWrapping.Wrap });
+            root.Children.Add(Header(L.T("Wygląd i czytelność")));
+            root.Children.Add(new TextBlock { Text = L.T("Domyślne powiększenie stron (każdą stronę możesz też powiększyć osobno: Ctrl + kółko myszy):") , TextWrapping = TextWrapping.Wrap });
             var zoom = new ComboBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 4) };
             foreach (var zv in new[] { 80, 90, 100, 110, 125, 150, 175, 200 })
             {
@@ -286,16 +288,16 @@ namespace Przegladarka
             }
             if (zoom.SelectedItem == null) zoom.SelectedIndex = 2;
             root.Children.Add(zoom);
-            var dark = Check("Tryb ciemny stron (przycisk z księżycem na pasku)", "Strony z własnym ciemnym wyglądem przełączają się na niego, pozostałe jasne strony są przyciemniane.", s.DarkPages);
+            var dark = Check(L.T("Tryb ciemny stron (przycisk z księżycem na pasku)"), L.T("Strony z własnym ciemnym wyglądem przełączają się na niego, pozostałe jasne strony są przyciemniane."), s.DarkPages);
             root.Children.Add(dark);
-            var night = Check("Tryb nocny – cieplejsze kolory stron (jak Światło nocne w Windows)", "Mniej niebieskiego światła wieczorem. Przycisk z księżycem przełącza: jasny → ciemny → nocny.", s.NightLight);
+            var night = Check(L.T("Tryb nocny – cieplejsze kolory stron (jak Światło nocne w Windows)"), L.T("Mniej niebieskiego światła wieczorem. Przycisk z księżycem przełącza: jasny → ciemny → nocny."), s.NightLight);
             root.Children.Add(night);
-            root.Children.Add(new TextBlock { Text = "Motyw przeglądarki (kolory pasków i kart):", Margin = new Thickness(0, 6, 0, 2) });
+            root.Children.Add(new TextBlock { Text = L.T("Motyw przeglądarki (kolory pasków i kart):"), Margin = new Thickness(0, 6, 0, 2) });
             string origTheme = s.Theme; bool themeSaved = false;
             var theme = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
             foreach (var kv in BrowserThemes)
             {
-                var it = new ComboBoxItem { Content = kv.Value.Name, Tag = kv.Key };
+                var it = new ComboBoxItem { Content = L.T(kv.Value.Name), Tag = kv.Key };
                 theme.Items.Add(it);
                 if (string.Equals(kv.Key, s.Theme, StringComparison.OrdinalIgnoreCase)) theme.SelectedItem = it;
             }
@@ -303,37 +305,47 @@ namespace Przegladarka
             // podglad na zywo przy wyborze
             theme.SelectionChanged += (a, b) => { if (theme.SelectedItem is ComboBoxItem ci) { _settings.Theme = (string)ci.Tag; ApplyBrowserTheme(); } };
             root.Children.Add(theme);
+            root.Children.Add(new TextBlock { Text = L.T("Język interfejsu / Language:"), Margin = new Thickness(0, 6, 0, 2) });
+            var langBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
+            foreach (var opt in new[] { new[] { "auto", L.T("Automatycznie (język z instalatora / Windows)") }, new[] { "pl", "Polski" }, new[] { "en", "English" } })
+            {
+                var it = new ComboBoxItem { Content = opt[1], Tag = opt[0] };
+                langBox.Items.Add(it);
+                if (string.Equals(opt[0], s.Language ?? "auto", StringComparison.OrdinalIgnoreCase)) langBox.SelectedItem = it;
+            }
+            if (langBox.SelectedItem == null) langBox.SelectedIndex = 0;
+            root.Children.Add(langBox);
             dark.Checked += (a, b) => night.IsChecked = false;
             night.Checked += (a, b) => dark.IsChecked = false;
-            var compactBar = Check("Zawsze kompaktowy pasek narzędzi", "Zmniejsza etykiety i przenosi część przycisków do menu „…”, nawet na szerokim oknie.", s.ToolbarAlwaysCompact);
+            var compactBar = Check(L.T("Zawsze kompaktowy pasek narzędzi"), L.T("Zmniejsza etykiety i przenosi część przycisków do menu „…”, nawet na szerokim oknie."), s.ToolbarAlwaysCompact);
             root.Children.Add(compactBar);
-            root.Children.Add(new TextBlock { Text = "Czytanie na głos – głos i prędkość:", Margin = new Thickness(0, 6, 0, 2) });
+            root.Children.Add(new TextBlock { Text = L.T("Czytanie na głos – głos i prędkość:"), Margin = new Thickness(0, 6, 0, 2) });
             var voiceRow = new StackPanel { Orientation = Orientation.Horizontal };
             var voice = new ComboBox { Width = 340, Margin = new Thickness(0, 0, 8, 0) };
-            voice.Items.Add(new ComboBoxItem { Content = "Automatycznie (język strony: polski/angielski)", Tag = "" });
+            voice.Items.Add(new ComboBoxItem { Content = L.T("Automatycznie (język strony: polski/angielski)"), Tag = "" });
             foreach (var vn in _voiceNames)
             {
                 // wpis: nazwa|jezyk|lokalny(1/0)
                 var parts = vn.Split('|');
                 string name = parts[0], lang = parts.Length > 1 ? parts[1] : "", local = parts.Length > 2 ? parts[2] : "1";
                 string short_ = System.Text.RegularExpressions.Regex.Replace(name.Replace("Microsoft ", ""), @"\s*-\s*.*$", "");
-                string label = short_ + (lang.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? " (angielski" : " (polski") +
-                               (local == "0" ? ", online – naturalny)" : ")");
+                string label = short_ + (lang.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? L.T(" (angielski") : L.T(" (polski")) +
+                               (local == "0" ? L.T(", online – naturalny)") : ")");
                 voice.Items.Add(new ComboBoxItem { Content = label, Tag = name });
             }
             // naturalne glosy offline (Piper) - pobieraja sie przy pierwszym czytaniu
             foreach (var pv in PiperVoices)
-                voice.Items.Add(new ComboBoxItem { Content = "★ " + pv.Label + (PiperVoiceInstalled(pv) ? "" : " – pobierze ok. 60 MB"), Tag = "piper:" + pv.Id });
+                voice.Items.Add(new ComboBoxItem { Content = "★ " + L.T(pv.Label) + (PiperVoiceInstalled(pv) ? "" : L.T(" – pobierze ok. 60 MB")), Tag = "piper:" + pv.Id });
             voice.SelectedItem = System.Linq.Enumerable.FirstOrDefault(System.Linq.Enumerable.Cast<ComboBoxItem>(voice.Items), i => (string)i.Tag == (s.ReadVoice ?? "")) ?? voice.Items[0];
             var rate = new ComboBox { Width = 90 };
             foreach (var rv in ReadRates) { var it = new ComboBoxItem { Content = rv.ToString("0.##") + "×", Tag = rv }; rate.Items.Add(it); if (Math.Abs(rv - s.ReadRate) < 0.01) rate.SelectedItem = it; }
             if (rate.SelectedItem == null) rate.SelectedIndex = 1;
             voiceRow.Children.Add(voice); voiceRow.Children.Add(rate);
             root.Children.Add(voiceRow);
-            var restore = Check("Po uruchomieniu przywracaj karty z poprzedniej sesji", "Karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T.", s.RestoreTabs);
+            var restore = Check(L.T("Po uruchomieniu przywracaj karty z poprzedniej sesji"), L.T("Karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T."), s.RestoreTabs);
             root.Children.Add(restore);
 
-            root.Children.Add(Header("Wyszukiwanie i start"));
+            root.Children.Add(Header(L.T("Wyszukiwanie i start")));
             var engine = new ComboBox { Margin = new Thickness(0, 2, 0, 6) };
             foreach (var kv in AppSettings.Engines)
             {
@@ -341,47 +353,47 @@ namespace Przegladarka
                 engine.Items.Add(it);
                 if (kv.Key == s.Search) engine.SelectedItem = it;
             }
-            root.Children.Add(new TextBlock { Text = "Wyszukiwarka w pasku adresu:" });
+            root.Children.Add(new TextBlock { Text = L.T("Wyszukiwarka w pasku adresu:") });
             root.Children.Add(engine);
-            root.Children.Add(new TextBlock { Text = "Strona startowa:" });
+            root.Children.Add(new TextBlock { Text = L.T("Strona startowa:") });
             var home = new TextBox { Text = s.Home, Padding = new Thickness(4), Margin = new Thickness(0, 2, 0, 0) };
             root.Children.Add(home);
             bool quickAccessPresent = System.Linq.Enumerable.Any(_extInfos, i => IsQuickAccessExtensionId(i.Id) && i.NewTab != null);
-            var quickAccess = Check("Szybki Dostęp jako strona nowej karty", "Używa osobnych danych Velivo w folderze danych przeglądarki; Szybki Dostęp Sejfu w innych przeglądarkach pozostaje osobny.", s.QuickAccessNewTab);
+            var quickAccess = Check(L.T("Szybki Dostęp jako strona nowej karty"), L.T("Używa osobnych danych Velivo w folderze danych przeglądarki; Szybki Dostęp Sejfu w innych przeglądarkach pozostaje osobny."), s.QuickAccessNewTab);
             quickAccess.IsEnabled = quickAccessPresent;
             root.Children.Add(quickAccess);
-            root.Children.Add(new TextBlock { Text = "Folder rozszerzenia do ręcznej instalacji w innych przeglądarkach:", Margin = new Thickness(0, 4, 0, 2) });
+            root.Children.Add(new TextBlock { Text = L.T("Folder rozszerzenia do ręcznej instalacji w innych przeglądarkach:"), Margin = new Thickness(0, 4, 0, 2) });
             root.Children.Add(new TextBox
             {
                 Text = Path.Combine(AppContext.BaseDirectory, "Dodatki", "Szybki Dostęp"),
                 IsReadOnly = true,
                 Padding = new Thickness(4),
-                ToolTip = "Wybierz ścieżkę i skopiuj ją do okna ładowania rozpakowanego rozszerzenia."
+                ToolTip = L.T("Wybierz ścieżkę i skopiuj ją do okna ładowania rozpakowanego rozszerzenia.")
             });
 
-            root.Children.Add(Header("Prywatność"));
-            var dnt = Check("Wysyłaj sygnały „Nie śledź” (DNT i Global Privacy Control)", "Strony dostają prośbę o niesprzedawanie i nieśledzenie Twoich danych.", s.SendDnt);
-            var strict = Check("Ścisła ochrona przed śledzeniem", "Blokuje trackery i ciasteczka śledzące między stronami. Rzadko może psuć niektóre strony.", s.StrictTracking);
-            var hist = Check("Zapisuj historię przeglądania", null, s.SaveHistory);
-            var clear = Check("Czyść dane przy zamknięciu (historia i pamięć podręczna)", "Czyści historię i cache przy zamknięciu, ale nie wylogowuje kont ani nie usuwa zapisanych logowań.", s.ClearOnExit);
+            root.Children.Add(Header(L.T("Prywatność")));
+            var dnt = Check(L.T("Wysyłaj sygnały „Nie śledź” (DNT i Global Privacy Control)"), L.T("Strony dostają prośbę o niesprzedawanie i nieśledzenie Twoich danych."), s.SendDnt);
+            var strict = Check(L.T("Ścisła ochrona przed śledzeniem"), L.T("Blokuje trackery i ciasteczka śledzące między stronami. Rzadko może psuć niektóre strony."), s.StrictTracking);
+            var hist = Check(L.T("Zapisuj historię przeglądania"), null, s.SaveHistory);
+            var clear = Check(L.T("Czyść dane przy zamknięciu (historia i pamięć podręczna)"), L.T("Czyści historię i cache przy zamknięciu, ale nie wylogowuje kont ani nie usuwa zapisanych logowań."), s.ClearOnExit);
             bool sejfFound = FindSejfMost() != null;
-            var sejf = Check("Loginy z Sejfu: kluczyk na pasku na stronach logowania" + (sejfFound ? "" : " (nie znaleziono Sejfu)"),
-                "Gdy strona ma pole hasła, Velivo pyta Sejf o loginy dla tej strony. Kliknięcie kluczyka wypełnia formularz.", s.SejfLogins && sejfFound);
+            var sejf = Check(L.T("Loginy z Sejfu: kluczyk na pasku na stronach logowania") + (sejfFound ? "" : L.T(" (nie znaleziono Sejfu)")),
+                L.T("Gdy strona ma pole hasła, Velivo pyta Sejf o loginy dla tej strony. Kliknięcie kluczyka wypełnia formularz."), s.SejfLogins && sejfFound);
             sejf.IsEnabled = sejfFound;
             root.Children.Add(sejf);
-            var pw = Check("Proponuj zapisywanie haseł", null, s.SavePasswords);
-            var af = Check("Autouzupełnianie formularzy (adresy i karty, lokalna szyfrowana baza)", "Dane formularzy i kart są zapisywane lokalnie w szyfrowanej bazie offline. Hasła dalej obsługuje Sejf.", s.Autofill);
-            var pop = Check("Blokuj wyskakujące okna otwierane bez kliknięcia", null, s.BlockThirdPartyPopups);
+            var pw = Check(L.T("Proponuj zapisywanie haseł"), null, s.SavePasswords);
+            var af = Check(L.T("Autouzupełnianie formularzy (adresy i karty, lokalna szyfrowana baza)"), L.T("Dane formularzy i kart są zapisywane lokalnie w szyfrowanej bazie offline. Hasła dalej obsługuje Sejf."), s.Autofill);
+            var pop = Check(L.T("Blokuj wyskakujące okna otwierane bez kliknięcia"), null, s.BlockThirdPartyPopups);
             foreach (var c in new[] { dnt, strict, hist, clear, pw, af, pop }) root.Children.Add(c);
 
             var autofillTools = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
-            var afShow = SmallButton("Pokaż zapisane dane…", null);
+            var afShow = SmallButton(L.T("Pokaż zapisane dane…"), null);
             afShow.Margin = new Thickness(0, 0, 6, 0);
             afShow.Click += (a, b) => OpenAutofillDataViewer(win);
-            var afClearCards = SmallButton("Usuń zapisane karty", null);
+            var afClearCards = SmallButton(L.T("Usuń zapisane karty"), null);
             afClearCards.Margin = new Thickness(0, 0, 6, 0);
             afClearCards.Click += (a, b) => DeleteAutofillCards(win);
-            var afClearAddr = SmallButton("Usuń zapisane adresy", null);
+            var afClearAddr = SmallButton(L.T("Usuń zapisane adresy"), null);
             afClearAddr.Click += (a, b) => DeleteAutofillAddresses(win);
             autofillTools.Children.Add(afShow);
             autofillTools.Children.Add(afClearCards);
@@ -389,101 +401,101 @@ namespace Przegladarka
             root.Children.Add(autofillTools);
 
             var passTools = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
-            var passMgr = SmallButton("Menedżer haseł lokalnych…", null);
+            var passMgr = SmallButton(L.T("Menedżer haseł lokalnych…"), null);
             passMgr.Margin = new Thickness(0, 0, 6, 0);
             passMgr.Click += (a, b) => OpenPasswordsManager(win);
-            var passImport = SmallButton("Import haseł CSV…", null);
+            var passImport = SmallButton(L.T("Import haseł CSV…"), null);
             passImport.Margin = new Thickness(0, 0, 6, 0);
             passImport.Click += (a, b) => ImportPasswordsCsvWithDialog(win);
-            var passExport = SmallButton("Eksport haseł CSV…", null);
+            var passExport = SmallButton(L.T("Eksport haseł CSV…"), null);
             passExport.Click += (a, b) => ExportPasswordsCsvWithDialog(win);
             passTools.Children.Add(passMgr);
             passTools.Children.Add(passImport);
             passTools.Children.Add(passExport);
             root.Children.Add(passTools);
 
-            root.Children.Add(Header("Blokowanie reklam"));
-            var full = Check("Pełne listy filtrów (EasyList, EasyPrivacy, polska lista) – ok. 97 tys. reguł", "Listy pobierają się w tle i odświeżają co 4 dni.", s.FullFilterLists);
+            root.Children.Add(Header(L.T("Blokowanie reklam")));
+            var full = Check(L.T("Pełne listy filtrów (EasyList, EasyPrivacy, polska lista) – ok. 97 tys. reguł"), L.T("Listy pobierają się w tle i odświeżają co 4 dni."), s.FullFilterLists);
             root.Children.Add(full);
-            var listInfo = new TextBlock { Text = "Listy: " + FilterListsInfo() + ". Reguł w użyciu: " + _blocker.RuleCount.ToString("N0") + (FilterStatus.Length > 0 ? "\n" + FilterStatus : ""), FontSize = 11, Foreground = Brushes.Gray, Margin = new Thickness(0, 2, 0, 4) };
+            var listInfo = new TextBlock { Text = L.T("Listy: ") + FilterListsInfo() + L.T(". Reguł w użyciu: ") + _blocker.RuleCount.ToString("N0") + (FilterStatus.Length > 0 ? "\n" + FilterStatus : ""), FontSize = 11, Foreground = Brushes.Gray, Margin = new Thickness(0, 2, 0, 4) };
             root.Children.Add(listInfo);
-            var updLists = SmallButton("Aktualizuj listy teraz", null);
+            var updLists = SmallButton(L.T("Aktualizuj listy teraz"), null);
             updLists.HorizontalAlignment = HorizontalAlignment.Left; updLists.Margin = new Thickness(0);
             updLists.Click += async (a, b) =>
             {
-                updLists.IsEnabled = false; listInfo.Text = "Pobieram listy…";
+                updLists.IsEnabled = false; listInfo.Text = L.T("Pobieram listy…");
                 int ok = await System.Threading.Tasks.Task.Run(DownloadFilterLists);
                 await RebuildBlocker();
-                listInfo.Text = "Pobrano " + ok + " z 3 list. Reguł w użyciu: " + _blocker.RuleCount.ToString("N0") + (FilterStatus.Length > 0 ? "\n" + FilterStatus : "");
+                listInfo.Text = L.T("Pobrano ") + ok + L.T(" z 3 list. Reguł w użyciu: ") + _blocker.RuleCount.ToString("N0") + (FilterStatus.Length > 0 ? "\n" + FilterStatus : "");
                 updLists.IsEnabled = true;
             };
             root.Children.Add(updLists);
 
-            root.Children.Add(Header("Bezpieczeństwo i pobieranie"));
-            var ss = Check("Ostrzegaj przed niebezpiecznymi stronami i plikami (SmartScreen)", "Sprawdzanie adresów wysyła je do Microsoft. Zalecane – chroni przed wyłudzeniami.", s.SmartScreen);
-            var ask = Check("Pytaj, gdzie zapisać każdy pobierany plik", null, s.AskDownload);
+            root.Children.Add(Header(L.T("Bezpieczeństwo i pobieranie")));
+            var ss = Check(L.T("Ostrzegaj przed niebezpiecznymi stronami i plikami (SmartScreen)"), L.T("Sprawdzanie adresów wysyła je do Microsoft. Zalecane – chroni przed wyłudzeniami."), s.SmartScreen);
+            var ask = Check(L.T("Pytaj, gdzie zapisać każdy pobierany plik"), null, s.AskDownload);
             root.Children.Add(ss); root.Children.Add(ask);
-            root.Children.Add(new TextBlock { Text = "Połączeń na jeden pobierany plik (więcej = zwykle szybciej):", Margin = new Thickness(0, 6, 0, 2) });
+            root.Children.Add(new TextBlock { Text = L.T("Połączeń na jeden pobierany plik (więcej = zwykle szybciej):"), Margin = new Thickness(0, 6, 0, 2) });
             var conns = new ComboBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
             foreach (var n in new[] { 1, 2, 4, 8, 12, 16 })
             {
-                var it = new ComboBoxItem { Content = n == 1 ? "1 (bez dzielenia)" : n.ToString(), Tag = n };
+                var it = new ComboBoxItem { Content = n == 1 ? L.T("1 (bez dzielenia)") : n.ToString(), Tag = n };
                 conns.Items.Add(it);
                 if (n == s.Connections) conns.SelectedItem = it;
             }
             if (conns.SelectedItem == null) conns.SelectedIndex = 3;
             root.Children.Add(conns);
 
-            root.Children.Add(Header("Śmieci przeglądarki (pamięć podręczna)"));
+            root.Children.Add(Header(L.T("Śmieci przeglądarki (pamięć podręczna)")));
             root.Children.Add(new TextBlock
             {
-                Text = "Cache stron, skompilowane skrypty i cache grafiki. Można je usuwać bez utraty logowań i danych dodatków.",
+                Text = L.T("Cache stron, skompilowane skrypty i cache grafiki. Można je usuwać bez utraty logowań i danych dodatków."),
                 TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Brushes.Gray
             });
-            root.Children.Add(new TextBlock { Text = "Folder na śmieci (puste = w profilu przeglądarki):", Margin = new Thickness(0, 6, 0, 0) });
+            root.Children.Add(new TextBlock { Text = L.T("Folder na śmieci (puste = w profilu przeglądarki):"), Margin = new Thickness(0, 6, 0, 0) });
             var cacheBox = new TextBox { Text = s.CacheDir, Padding = new Thickness(4), Margin = new Thickness(0, 2, 6, 0) };
-            var browse = SmallButton("Wybierz…", null);
+            var browse = SmallButton(L.T("Wybierz…"), null);
             browse.Click += (a, b) =>
             {
-                var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Folder na śmieci przeglądarki" };
+                var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Folder na śmieci przeglądarki") };
                 if (!string.IsNullOrWhiteSpace(cacheBox.Text) && Directory.Exists(cacheBox.Text)) dlg.InitialDirectory = cacheBox.Text;
                 if (dlg.ShowDialog(win) == true) cacheBox.Text = dlg.FolderName;
             };
-            var reset = SmallButton("Domyślny", () => cacheBox.Text = "");
+            var reset = SmallButton(L.T("Domyślny"), () => cacheBox.Text = "");
             var cacheRow = new DockPanel();
             DockPanel.SetDock(reset, Dock.Right); DockPanel.SetDock(browse, Dock.Right);
             cacheRow.Children.Add(reset); cacheRow.Children.Add(browse); cacheRow.Children.Add(cacheBox);
             root.Children.Add(cacheRow);
             root.Children.Add(new TextBlock
             {
-                Text = "Program tworzy w nim podfolder „" + JunkSubfolder + "” i usuwa tylko jego zawartość. Cache grafiki zostaje w profilu (wymóg silnika).",
+                Text = L.T("Program tworzy w nim podfolder „") + JunkSubfolder + L.T("” i usuwa tylko jego zawartość. Cache grafiki zostaje w profilu (wymóg silnika)."),
                 TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Brushes.Gray, Margin = new Thickness(0, 2, 0, 0)
             });
-            var cleanStart = Check("Usuwaj śmieci przy każdym uruchomieniu przeglądarki", "Strony wczytają się za pierwszym razem odrobinę wolniej.", s.CleanJunkOnStart);
+            var cleanStart = Check(L.T("Usuwaj śmieci przy każdym uruchomieniu przeglądarki"), L.T("Strony wczytają się za pierwszym razem odrobinę wolniej."), s.CleanJunkOnStart);
             root.Children.Add(cleanStart);
-            var junkInfo = new TextBlock { Text = "Teraz zajmują: " + Mb(JunkSize()), Margin = new Thickness(0, 2, 0, 4) };
-            var cleanJunk = SmallButton("Wyczyść śmieci teraz", null);
+            var junkInfo = new TextBlock { Text = L.T("Teraz zajmują: ") + Mb(JunkSize()), Margin = new Thickness(0, 2, 0, 4) };
+            var cleanJunk = SmallButton(L.T("Wyczyść śmieci teraz"), null);
             cleanJunk.HorizontalAlignment = HorizontalAlignment.Left; cleanJunk.Margin = new Thickness(0);
             cleanJunk.Click += async (a, b) =>
             {
                 try
                 {
                     var freed = await CleanJunkNow();
-                    junkInfo.Text = "Zwolniono " + Mb(freed) + ". Teraz zajmują: " + Mb(JunkSize()) + " (cache grafiki zniknie przy następnym uruchomieniu).";
+                    junkInfo.Text = L.T("Zwolniono ") + Mb(freed) + L.T(". Teraz zajmują: ") + Mb(JunkSize()) + L.T(" (cache grafiki zniknie przy następnym uruchomieniu).");
                 }
-                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Ustawienia"); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Ustawienia")); }
             };
             root.Children.Add(junkInfo);
             root.Children.Add(cleanJunk);
 
-            root.Children.Add(Header("Dane"));
-            var clearNow = SmallButton("Wyczyść dane przeglądania teraz…", null);
+            root.Children.Add(Header(L.T("Dane")));
+            var clearNow = SmallButton(L.T("Wyczyść dane przeglądania teraz…"), null);
             clearNow.HorizontalAlignment = HorizontalAlignment.Left; clearNow.Margin = new Thickness(0);
             clearNow.Click += async (a, b) =>
             {
                 var dlg = new Window
                 {
-                    Title = "Wyczyść dane przeglądania",
+                    Title = L.T("Wyczyść dane przeglądania"),
                     Width = 500,
                     Height = 430,
                     MinWidth = 460,
@@ -496,17 +508,17 @@ namespace Przegladarka
                 var panel = new StackPanel { Margin = new Thickness(14) };
                 panel.Children.Add(new TextBlock
                 {
-                    Text = "Wybierz, co usunąć:",
+                    Text = L.T("Wybierz, co usunąć:"),
                     FontWeight = FontWeights.SemiBold,
                     Margin = new Thickness(0, 0, 0, 8)
                 });
 
-                var cHist = new CheckBox { Content = "Historia przeglądania", IsChecked = true, Margin = new Thickness(0, 3, 0, 3) };
-                var cCache = new CheckBox { Content = "Pamięć podręczna (cache)", IsChecked = true, Margin = new Thickness(0, 3, 0, 3) };
-                var cDl = new CheckBox { Content = "Historia pobrań", IsChecked = false, Margin = new Thickness(0, 3, 0, 3) };
-                var cCookies = new CheckBox { Content = "Cookies i aktywne sesje (wyloguje konta)", IsChecked = false, Margin = new Thickness(0, 3, 0, 3) };
-                var cAutofill = new CheckBox { Content = "Dane formularzy i kart zapisane przez silnik", IsChecked = false, Margin = new Thickness(0, 3, 0, 3) };
-                var cPasswords = new CheckBox { Content = "Zapisane hasła w silniku", IsChecked = false, Margin = new Thickness(0, 3, 0, 3) };
+                var cHist = new CheckBox { Content = L.T("Historia przeglądania"), IsChecked = true, Margin = new Thickness(0, 3, 0, 3) };
+                var cCache = new CheckBox { Content = L.T("Pamięć podręczna (cache)"), IsChecked = true, Margin = new Thickness(0, 3, 0, 3) };
+                var cDl = new CheckBox { Content = L.T("Historia pobrań"), IsChecked = false, Margin = new Thickness(0, 3, 0, 3) };
+                var cCookies = new CheckBox { Content = L.T("Cookies i aktywne sesje (wyloguje konta)"), IsChecked = false, Margin = new Thickness(0, 3, 0, 3) };
+                var cAutofill = new CheckBox { Content = L.T("Dane formularzy i kart zapisane przez silnik"), IsChecked = false, Margin = new Thickness(0, 3, 0, 3) };
+                var cPasswords = new CheckBox { Content = L.T("Zapisane hasła w silniku"), IsChecked = false, Margin = new Thickness(0, 3, 0, 3) };
                 panel.Children.Add(cHist);
                 panel.Children.Add(cCache);
                 panel.Children.Add(cDl);
@@ -516,7 +528,7 @@ namespace Przegladarka
 
                 var warn = new TextBlock
                 {
-                    Text = "Uwaga: usunięcie cookies/sesji spowoduje wylogowanie ze stron.",
+                    Text = L.T("Uwaga: usunięcie cookies/sesji spowoduje wylogowanie ze stron."),
                     Foreground = Brushes.DarkRed,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 10, 0, 0)
@@ -525,8 +537,8 @@ namespace Przegladarka
 
                 bool accepted = false;
                 var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-                var okBtn = new Button { Content = "Wyczyść", Width = 96, Height = 30, Margin = new Thickness(0, 0, 6, 0), IsDefault = true };
-                var cancelBtn = new Button { Content = "Anuluj", Width = 96, Height = 30, IsCancel = true };
+                var okBtn = new Button { Content = L.T("Wyczyść"), Width = 96, Height = 30, Margin = new Thickness(0, 0, 6, 0), IsDefault = true };
+                var cancelBtn = new Button { Content = L.T("Anuluj"), Width = 96, Height = 30, IsCancel = true };
                 okBtn.Click += (x, y) => { accepted = true; dlg.Close(); };
                 cancelBtn.Click += (x, y) => dlg.Close();
                 btnRow.Children.Add(okBtn);
@@ -552,80 +564,80 @@ namespace Przegladarka
 
                 if (kinds == 0 && !clearHistoryFile)
                 {
-                    MessageBox.Show(win, "Nie zaznaczono żadnych danych do usunięcia.", "Ustawienia");
+                    MessageBox.Show(win, L.T("Nie zaznaczono żadnych danych do usunięcia."), L.T("Ustawienia"));
                     return;
                 }
 
-                try { await ClearBrowsingData(Core != null ? Core.Profile : null, kinds, clearHistoryFile); MessageBox.Show(win, "Wyczyszczono zaznaczone dane.", "Ustawienia"); }
-                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Ustawienia"); }
+                try { await ClearBrowsingData(Core != null ? Core.Profile : null, kinds, clearHistoryFile); MessageBox.Show(win, L.T("Wyczyszczono zaznaczone dane."), L.T("Ustawienia")); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Ustawienia")); }
             };
             root.Children.Add(clearNow);
 
-            root.Children.Add(Header("Prywatność per-strona"));
-            var privacyPanel = SmallButton("Panel prywatności i antyfingerprinting…", null);
+            root.Children.Add(Header(L.T("Prywatność per-strona")));
+            var privacyPanel = SmallButton(L.T("Panel prywatności i antyfingerprinting…"), null);
             privacyPanel.HorizontalAlignment = HorizontalAlignment.Left; privacyPanel.Margin = new Thickness(0);
             privacyPanel.Click += (a, b) => OpenPrivacyPanel();
             root.Children.Add(privacyPanel);
 
-            root.Children.Add(Header("Profile użytkownika"));
-            root.Children.Add(new TextBlock { Text = "Aktywny profil: " + SelectedProfileName, Margin = new Thickness(0, 0, 0, 4), Foreground = Brushes.Gray });
+            root.Children.Add(Header(L.T("Profile użytkownika")));
+            root.Children.Add(new TextBlock { Text = L.T("Aktywny profil: ") + SelectedProfileName, Margin = new Thickness(0, 0, 0, 4), Foreground = Brushes.Gray });
             var profileRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var pWork = SmallButton("Praca", () => SwitchProfile("praca")); pWork.Margin = new Thickness(0, 0, 6, 0);
-            var pPrivate = SmallButton("Prywatny", () => SwitchProfile("prywatny")); pPrivate.Margin = new Thickness(0, 0, 6, 0);
+            var pWork = SmallButton(L.T("Praca"), () => SwitchProfile("praca")); pWork.Margin = new Thickness(0, 0, 6, 0);
+            var pPrivate = SmallButton(L.T("Prywatny"), () => SwitchProfile("prywatny")); pPrivate.Margin = new Thickness(0, 0, 6, 0);
             var pDev = SmallButton("Dev", () => SwitchProfile("dev"));
             profileRow.Children.Add(pWork); profileRow.Children.Add(pPrivate); profileRow.Children.Add(pDev);
             root.Children.Add(profileRow);
-            var profileMgr = SmallButton("Zarządzaj użytkownikami/profilami…", OpenProfilesManager);
+            var profileMgr = SmallButton(L.T("Zarządzaj użytkownikami/profilami…"), OpenProfilesManager);
             profileMgr.HorizontalAlignment = HorizontalAlignment.Left; profileMgr.Margin = new Thickness(0, 6, 0, 0);
             root.Children.Add(profileMgr);
 
-            root.Children.Add(Header("Synchronizacja E2E"));
+            root.Children.Add(Header(L.T("Synchronizacja E2E")));
             root.Children.Add(new TextBlock
             {
-                Text = "Lokalny eksport/import zaszyfrowanej paczki (hasło + AES-GCM). Możesz przenieść plik na inne urządzenie.",
+                Text = L.T("Lokalny eksport/import zaszyfrowanej paczki (hasło + AES-GCM). Możesz przenieść plik na inne urządzenie."),
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 11,
                 Foreground = Brushes.Gray
             });
             var syncRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            var syncOut = SmallButton("Eksportuj paczkę…", null); syncOut.Margin = new Thickness(0, 0, 6, 0);
+            var syncOut = SmallButton(L.T("Eksportuj paczkę…"), null); syncOut.Margin = new Thickness(0, 0, 6, 0);
             syncOut.Click += SyncExport_Click;
-            var syncIn = SmallButton("Importuj paczkę…", null);
+            var syncIn = SmallButton(L.T("Importuj paczkę…"), null);
             syncIn.Click += SyncImport_Click;
             syncRow.Children.Add(syncOut); syncRow.Children.Add(syncIn);
             root.Children.Add(syncRow);
 
-            root.Children.Add(new TextBlock { Text = "Synchronizacja w czasie rzeczywistym (LAN):", Margin = new Thickness(0, 10, 0, 2) });
-            var lanSync = Check("Włącz synchronizację między uruchomionymi Velivo w tej samej sieci lokalnej", "Synchronizuje ustawienia, zakładki, reguły prywatności i sesję dla tego samego profilu.", s.LanSync);
+            root.Children.Add(new TextBlock { Text = L.T("Synchronizacja w czasie rzeczywistym (LAN):"), Margin = new Thickness(0, 10, 0, 2) });
+            var lanSync = Check(L.T("Włącz synchronizację między uruchomionymi Velivo w tej samej sieci lokalnej"), L.T("Synchronizuje ustawienia, zakładki, hasła, reguły prywatności i Szybki Dostęp dla tego samego profilu. Otwarte karty zostają na każdym komputerze osobno."), s.LanSync);
             _lanSyncSettingCheck = lanSync;
             win.Closed += (sender, args) => { if (ReferenceEquals(_lanSyncSettingCheck, lanSync)) _lanSyncSettingCheck = null; };
             root.Children.Add(lanSync);
             root.Children.Add(new TextBlock
             {
-                Text = "Włącz i zapisz synchronizację na obu komputerach. Sparuj je jednorazowo, porównując krótki kod; sekret zostanie zapisany lokalnie.",
+                Text = L.T("Włącz i zapisz synchronizację na obu komputerach. Sparuj je jednorazowo, porównując krótki kod; sekret zostanie zapisany lokalnie."),
                 FontSize = 11,
                 Foreground = Brushes.Gray,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 4, 0, 4)
             });
-            var pairLan = SmallButton("Sparuj urządzenie w sieci…", BeginLanPairing);
+            var pairLan = SmallButton(L.T("Sparuj urządzenie w sieci…"), BeginLanPairing);
             pairLan.IsEnabled = s.LanSync && _lanTx != null;
             pairLan.HorizontalAlignment = HorizontalAlignment.Left;
             root.Children.Add(pairLan);
             var recoveryRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            var exportRecovery = SmallButton("Zapisz plik odzyskiwania…", ExportLanPairingRecovery);
+            var exportRecovery = SmallButton(L.T("Zapisz plik odzyskiwania…"), ExportLanPairingRecovery);
             exportRecovery.Margin = new Thickness(0, 0, 6, 0);
-            var importRecovery = SmallButton("Odtwórz parowanie…", ImportLanPairingRecovery);
+            var importRecovery = SmallButton(L.T("Odtwórz parowanie…"), ImportLanPairingRecovery);
             recoveryRow.Children.Add(exportRecovery);
             recoveryRow.Children.Add(importRecovery);
             root.Children.Add(recoveryRow);
-            var lanSilent = Check("Tryb cichy LAN (bez dymków „Zsynchronizowano profil…”)", "Log i panel diagnostyczny nadal działają, wyłączone są tylko wyskakujące komunikaty.", s.LanSyncSilent);
+            var lanSilent = Check(L.T("Tryb cichy LAN (bez dymków „Zsynchronizowano profil…”)"), L.T("Log i panel diagnostyczny nadal działają, wyłączone są tylko wyskakujące komunikaty."), s.LanSyncSilent);
             root.Children.Add(lanSilent);
-            var lanDiag = SmallButton("Panel diagnostyczny LAN…", OpenLanDiagnosticsPanel);
+            var lanDiag = SmallButton(L.T("Panel diagnostyczny LAN…"), OpenLanDiagnosticsPanel);
             lanDiag.HorizontalAlignment = HorizontalAlignment.Left; lanDiag.Margin = new Thickness(0, 6, 0, 0);
             root.Children.Add(lanDiag);
 
-            var ok = new Button { Content = "Zapisz", Width = 90, Height = 30, IsDefault = true, Margin = new Thickness(0, 16, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
+            var ok = new Button { Content = L.T("Zapisz"), Width = 90, Height = 30, IsDefault = true, Margin = new Thickness(0, 16, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
             ok.Click += (a, b) =>
             {
                 s.Search = (string)((ComboBoxItem)engine.SelectedItem).Tag;
@@ -641,6 +653,12 @@ namespace Przegladarka
                 s.DefaultZoom = (int)((ComboBoxItem)zoom.SelectedItem).Tag;
                 s.DarkPages = dark.IsChecked == true;
                 s.Theme = (string)((ComboBoxItem)theme.SelectedItem).Tag;
+                var newLang = (string)((ComboBoxItem)langBox.SelectedItem).Tag;
+                if (!string.Equals(newLang, s.Language ?? "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    s.Language = newLang;
+                    MessageBox.Show(win, L.T("Zmiana języka zadziała po ponownym uruchomieniu Velivo."), "Velivo");
+                }
                 bool oldNight = s.NightLight;
                 s.NightLight = night.IsChecked == true && !s.DarkPages;
                 if (oldNight != s.NightLight) { UpdateDarkButton(); darkChanged = true; }
@@ -668,20 +686,20 @@ namespace Przegladarka
                         var probe = Path.Combine(test, ".test");
                         File.WriteAllText(probe, "ok"); File.Delete(probe);
                     }
-                    catch (Exception ex) { MessageBox.Show(win, "Nie można używać tego folderu na śmieci:\n" + ex.Message, "Ustawienia"); return; }
+                    catch (Exception ex) { MessageBox.Show(win, L.T("Nie można używać tego folderu na śmieci:\n") + ex.Message, L.T("Ustawienia")); return; }
                 }
                 bool dirChanged = !string.Equals(newDir, s.CacheDir ?? "", StringComparison.OrdinalIgnoreCase);
                 s.CacheDir = newDir;
                 themeSaved = true;
                 try { s.Save(DataDir); }
-                catch (Exception ex) { MessageBox.Show(win, "Nie zapisano ustawień:\n" + ex.Message, "Ustawienia"); return; }
+                catch (Exception ex) { MessageBox.Show(win, L.T("Nie zapisano ustawień:\n") + ex.Message, L.T("Ustawienia")); return; }
                 ApplySettingsToAllTabs();
                 StopLanSync();
                 StartLanSync();
                 UpdateAdaptiveToolbarLayout();
                 win.Close();
                 if (dirChanged)
-                    MessageBox.Show(this, "Nowy folder na śmieci zacznie działać po ponownym uruchomieniu przeglądarki.", "Ustawienia");
+                    MessageBox.Show(this, L.T("Nowy folder na śmieci zacznie działać po ponownym uruchomieniu przeglądarki."), L.T("Ustawienia"));
             };
             root.Children.Add(ok);
 

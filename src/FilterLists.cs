@@ -80,14 +80,14 @@ namespace Przegladarka
                 }
                 catch (Exception ex) { App.LogError(ex); }
             }
-            FilterStatus = ok == FilterSources.Length ? "" : "Nie udało się pobrać " + (FilterSources.Length - ok) + " list(y) – używam poprzednich.";
+            FilterStatus = ok == FilterSources.Length ? "" : L.T("Nie udało się pobrać ") + (FilterSources.Length - ok) + L.T(" list(y) – używam poprzednich.");
             return ok;
         }
 
         static string FilterListsInfo()
         {
             var dates = FilterSources.Select(s => Path.Combine(FiltersDir, s.File)).Where(File.Exists).Select(File.GetLastWriteTime).ToList();
-            if (dates.Count == 0) return "jeszcze nie pobrane";
+            if (dates.Count == 0) return L.T("jeszcze nie pobrane");
             return "zaktualizowane " + dates.Min().ToString("d.MM.yyyy HH:mm");
         }
     }

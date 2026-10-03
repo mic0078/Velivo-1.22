@@ -306,15 +306,15 @@ namespace Przegladarka
             theme.SelectionChanged += (a, b) => { if (theme.SelectedItem is ComboBoxItem ci) { _settings.Theme = (string)ci.Tag; ApplyBrowserTheme(); } };
             root.Children.Add(theme);
             root.Children.Add(new TextBlock { Text = L.T("Język interfejsu / Language:"), Margin = new Thickness(0, 6, 0, 2) });
-            var lang = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
+            var langBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
             foreach (var opt in new[] { new[] { "auto", L.T("Automatycznie (język Windows)") }, new[] { "pl", "Polski" }, new[] { "en", "English" } })
             {
                 var it = new ComboBoxItem { Content = opt[1], Tag = opt[0] };
-                lang.Items.Add(it);
-                if (string.Equals(opt[0], s.Language ?? "auto", StringComparison.OrdinalIgnoreCase)) lang.SelectedItem = it;
+                langBox.Items.Add(it);
+                if (string.Equals(opt[0], s.Language ?? "auto", StringComparison.OrdinalIgnoreCase)) langBox.SelectedItem = it;
             }
-            if (lang.SelectedItem == null) lang.SelectedIndex = 0;
-            root.Children.Add(lang);
+            if (langBox.SelectedItem == null) langBox.SelectedIndex = 0;
+            root.Children.Add(langBox);
             dark.Checked += (a, b) => night.IsChecked = false;
             night.Checked += (a, b) => dark.IsChecked = false;
             var compactBar = Check("Zawsze kompaktowy pasek narzędzi", "Zmniejsza etykiety i przenosi część przycisków do menu „…”, nawet na szerokim oknie.", s.ToolbarAlwaysCompact);
@@ -653,7 +653,7 @@ namespace Przegladarka
                 s.DefaultZoom = (int)((ComboBoxItem)zoom.SelectedItem).Tag;
                 s.DarkPages = dark.IsChecked == true;
                 s.Theme = (string)((ComboBoxItem)theme.SelectedItem).Tag;
-                var newLang = (string)((ComboBoxItem)lang.SelectedItem).Tag;
+                var newLang = (string)((ComboBoxItem)langBox.SelectedItem).Tag;
                 if (!string.Equals(newLang, s.Language ?? "auto", StringComparison.OrdinalIgnoreCase))
                 {
                     s.Language = newLang;

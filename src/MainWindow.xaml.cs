@@ -851,12 +851,13 @@ namespace Przegladarka
         void Navigate(BrowserTab tab, string text)
         {
             if (tab.View.CoreWebView2 == null) return;
-            if (tab.Pinned)   // przypieta karta jest zamrozona - nowy adres idzie do nowej karty
+            // przypieta karta jest zamrozona - nowy adres (z innej strony) idzie do nowej karty.
+            // Nie dotyczy pierwszego wczytania karty przy starcie (wtedy w karcie nie ma jeszcze strony).
+            if (tab.Pinned && Restorable(tab.View.CoreWebView2.Source))
             {
                 string url;
                 try { url = ToUrl(text); } catch (ArgumentException) { url = _settings.SearchUrl(text); }
-                AddTab(url);
-                return;
+                if (!SameSite(url, tab.PinnedUrl)) { AddTab(url); return; }
             }
             try
             {

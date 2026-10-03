@@ -1,4 +1,4 @@
-; Instalator Velivo - kompilacja: ISCC.exe installer.iss (po dotnet publish do ..\build\velivo)
+﻿; Instalator Velivo - kompilacja: ISCC.exe installer.iss (po dotnet publish do ..\build\velivo)
 #define AppName "Velivo"
 #define AppVer "1.22"
 
@@ -93,6 +93,64 @@ begin
   Result := Result and (v <> '') and (v <> '0.0.0.0');
 end;
 
+var
+  DataPage: TInputOptionWizardPage;
+
+function UserDataDir: String;
+begin
+  Result := ExpandConstant('{localappdata}\Przegladarka');
+end;
+
+function QuickAccessDataDir: String;
+begin
+  Result := ExpandConstant('{localappdata}\Programs\Velivo\Szybki Dostęp');
+end;
+
+function HasOldData: Boolean;
+begin
+  Result := DirExists(UserDataDir) or DirExists(QuickAccessDataDir);
+end;
+
+procedure InitializeWizard;
+begin
+  if not HasOldData then exit;
+  DataPage := CreateInputOptionPage(wpSelectTasks,
+    'Poprzednie ustawienia', 'Wykryto dane z wcześniejszej instalacji Velivo.',
+    'Wybierz, co zrobić z ustawieniami, zakładkami, historią, hasłami, profilami i Szybkim Dostępem:',
+    True, False);
+  DataPage.Add('Zachowaj moje ustawienia i dane (aktualizacja)');
+  DataPage.Add('Czysta instalacja – zacznij od zera (stare dane zostaną przeniesione do kopii zapasowej)');
+  DataPage.SelectedValueIndex := 0;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (DataPage <> nil) and (CurPageID = DataPage.ID) and (DataPage.SelectedValueIndex = 1) then
+    Result := MsgBox('Czysta instalacja: ustawienia, zakładki, historia, zapisane hasła przeglądarki i Szybki Dostęp ' +
+      'zostaną przeniesione do kopii zapasowej (folder z dopiskiem "kopia-..."), a Velivo uruchomi się jak nowe.' + #13#10#13#10 +
+      'Kontynuować?', mbConfirmation, MB_YESNO) = IDYES;
+end;
+
+procedure BackupDir(Dir: String; Stamp: String);
+begin
+  if DirExists(Dir) then
+    if not RenameFile(Dir, Dir + '.kopia-' + Stamp) then
+      MsgBox('Nie udało się przenieść folderu:' + #13#10 + Dir + #13#10 +
+        'Zamknij Velivo i spróbuj ponownie albo usuń go ręcznie.', mbError, MB_OK);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var Stamp: String;
+begin
+  if (CurStep = ssInstall) and (DataPage <> nil) and (DataPage.SelectedValueIndex = 1) then
+  begin
+    Stamp := GetDateTimeString('yyyymmdd-hhnnss', '-', '-');
+    BackupDir(UserDataDir, Stamp);
+    BackupDir(QuickAccessDataDir, Stamp);
+  end;
+end;
+
 function InitializeSetup: Boolean;
 var Err: Integer;
 begin
@@ -112,18 +170,3 @@ begin
               mbConfirmation, MB_YESNO) = IDYES then
       ShellExec('open', 'https://developer.microsoft.com/microsoft-edge/webview2/', '', '', SW_SHOWNORMAL, ewNoWait, Err);
 end;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

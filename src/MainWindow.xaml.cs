@@ -80,6 +80,7 @@ namespace Przegladarka
             }
             catch (Exception) { }
             L.TranslateTree(this);   // napisy okna z XAML (dymki, przyciski) - gdy wybrano angielski
+            BuildAddressMenu();
             UpdateProfileBadge();
             LoadSitePrivacyRules();
             LoadPrivacyLog();
@@ -833,6 +834,35 @@ namespace Przegladarka
             if (e.Key != Key.Enter || _current == null) return;
             Navigate(_current, Address.Text);
             _current.View.Focus();
+        }
+
+        // Menu prawego przycisku w pasku adresu: standardowe pozycje + "Wklej i przejdz" (jak w Chrome/Edge).
+        void BuildAddressMenu()
+        {
+            var menu = new ContextMenu();
+            var cut = new MenuItem { Header = L.T("Wytnij"), Command = ApplicationCommands.Cut, InputGestureText = "Ctrl+X", CommandTarget = Address };
+            var copy = new MenuItem { Header = L.T("Kopiuj"), Command = ApplicationCommands.Copy, InputGestureText = "Ctrl+C", CommandTarget = Address };
+            var paste = new MenuItem { Header = L.T("Wklej"), Command = ApplicationCommands.Paste, InputGestureText = "Ctrl+V", CommandTarget = Address };
+            var pasteGo = new MenuItem { Header = L.T("Wklej i przejdź"), FontWeight = FontWeights.SemiBold };
+            pasteGo.Click += (s, e) =>
+            {
+                string text = null;
+                try { if (Clipboard.ContainsText()) text = Clipboard.GetText(); } catch (Exception) { }
+                if (string.IsNullOrWhiteSpace(text) || _current == null) return;
+                text = text.Trim().Replace("\r", "").Replace("\n", " ");
+                Address.Text = text;
+                Navigate(_current, text);
+                _current.View.Focus();
+            };
+            var all = new MenuItem { Header = L.T("Zaznacz wszystko"), Command = ApplicationCommands.SelectAll, InputGestureText = "Ctrl+A", CommandTarget = Address };
+            menu.Opened += (s, e) =>
+            {
+                bool has = false;
+                try { has = Clipboard.ContainsText(); } catch (Exception) { }
+                pasteGo.IsEnabled = has;
+            };
+            foreach (var m in new object[] { cut, copy, paste, pasteGo, new Separator(), all }) menu.Items.Add(m);
+            Address.ContextMenu = menu;
         }
 
         void Address_Focus(object sender, KeyboardFocusChangedEventArgs e) { Dispatcher.BeginInvoke(new Action(Address.SelectAll)); }

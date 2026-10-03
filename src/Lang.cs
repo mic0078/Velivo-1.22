@@ -694,6 +694,11 @@ namespace Przegladarka
             { "Brak włączonych dodatków", "No enabled extensions" },
             { "Przypnij kartę", "Pin tab" },
             { "Odepnij kartę", "Unpin tab" },
+            { "Wytnij", "Cut" },
+            { "Kopiuj", "Copy" },
+            { "Wklej", "Paste" },
+            { "Wklej i przejdź", "Paste and go" },
+            { "Zaznacz wszystko", "Select all" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

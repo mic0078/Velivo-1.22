@@ -58,7 +58,8 @@ namespace Przegladarka
             public string profiles { get; set; }
             public string extensions { get; set; }
             public string passwords { get; set; }
-            public long changed { get; set; }   // kiedy dane na nadawcy ostatnio zmienil uzytkownik (ms UTC); nowsze wygrywa
+            public long changed { get; set; }
+            public string bookmarksDeleted { get; set; }   // usuniete zakladki (url<TAB>czas), zeby usuniecie dzialalo na obu   // kiedy dane na nadawcy ostatnio zmienil uzytkownik (ms UTC); nowsze wygrywa
         }
 
         static readonly HashSet<string> LanSettingsBlockedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -172,7 +173,8 @@ namespace Przegladarka
             var profiles = ReadProfilesRegistry();
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
             var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
-            return Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + session + "\n--\n" + sessionActive + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
+            // otwarte karty (sesja) nie sa synchronizowane - kazdy komputer ma swoje
+            return Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
         }
 
         static string FilterLanSettingsForImport(string settingsText)
@@ -611,7 +613,7 @@ namespace Przegladarka
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
             var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
 
-            var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + session + "\n--\n" + sessionActive + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
+            var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
             // dane rozne od ostatnio zapamietanych = zmiana zrobiona tu, przez uzytkownika -> nowy znacznik czasu
             LoadLanChange();
             var contentFp = LanContentFingerprint();
@@ -639,6 +641,7 @@ namespace Przegladarka
                 extensions = extensions,
                 passwords = passwords,
                 changed = _lanLocalChanged,
+                bookmarksDeleted = ReadTextOrEmpty(BookmarkTombstonesFile),
             };
             if (_lanLegacyNoKeyMode)
             {
@@ -698,55 +701,101 @@ namespace Przegladarka
             if (localContent != _lanLocalChangedFp) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), localContent);
             bool localEmpty = LanStateLooksEmpty(ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt")), _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync());
             bool incomingEmpty = LanStateLooksEmpty(state.bookmarks, state.passwords);
+            // Ustawienia (oraz prywatnosc, profile, dodatki): wygrywa nowsza zmiana. Pusty komputer zawsze przyjmuje.
             bool incomingNewer =
-                (localEmpty && !incomingEmpty) ? true :          // pusty komputer zawsze przyjmuje pelne dane
-                (!localEmpty && incomingEmpty) ? false :         // puste dane nigdy nie nadpisuja pelnych
+                (localEmpty && !incomingEmpty) ? true :
+                (!localEmpty && incomingEmpty) ? false :
                 state.changed > _lanLocalChanged ||
                 (state.changed == _lanLocalChanged && string.CompareOrdinal(pkt.id, _lanId) < 0);
-            if (!incomingNewer)
-            {
-                _lanPeerStamps[pkt.id] = pkt.ts;
-                // nasze dane sa nowsze - wysylamy je, zeby drugi komputer sie wyrownal (nie czesciej niz co 5 s)
-                if (DateTime.UtcNow - _lanLastPushBack > TimeSpan.FromSeconds(5))
-                {
-                    _lanLastPushBack = DateTime.UtcNow;
-                    LanLog("Pominięto starszy stan od " + pkt.id.Substring(0, 8) + " – tu są nowsze dane, wysyłam je.");
-                    LanBroadcastState(true);
-                }
-                return;
-            }
 
             try
             {
                 _lanApplying = true;
                 Directory.CreateDirectory(DataDir);
 
-                var settingsPath = Path.Combine(DataDir, "ustawienia.txt");
-                File.WriteAllText(settingsPath, MergeLanSettingsForImport(state.settings, settingsPath));
-                File.WriteAllText(Path.Combine(DataDir, "zakladki.txt"), state.bookmarks);
-                File.WriteAllText(Path.Combine(DataDir, "sesja.txt"), state.session);
-                File.WriteAllText(Path.Combine(DataDir, "sesja.txt.aktywna"), state.sessionActive);
-                File.WriteAllText(Path.Combine(DataDir, "prywatnosc.txt"), state.privacy);
-                WriteProfilesRegistry(state.profiles);
-                WriteIfNotEmpty(ExtensionsSyncListFile, state.extensions);
+                // Zakladki i hasla: LACZONE z obu komputerow (nic nie ginie); usuniecia przenosza sie przez liste usunietych.
+                var localBookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
+                var mergedBookmarks = MergeBookmarksText(localBookmarks, state.bookmarks, state.bookmarksDeleted);
+                bool bookmarksChanged = mergedBookmarks != localBookmarks;
+                if (bookmarksChanged) File.WriteAllText(Path.Combine(DataDir, "zakladki.txt"), mergedBookmarks);
                 ImportPasswordsFromSync(state.passwords, true);
 
-                _settings = AppSettings.Load(DataDir);
-                ApplySettingsToAllTabs();
-                UpdateDarkButton();
-                LoadBookmarks();
-                LoadSitePrivacyRules();
-                UpdatePrivacyButton();
-                _ = RebuildBlocker();
-                _ = ApplyExtensionsSyncListAsync();
-                _lastLanFingerprint = CurrentLanFingerprint();
-                SaveLanChange(state.changed, LanContentFingerprint());   // przyjete dane maja czas nadawcy - to nie nasza zmiana
+                if (incomingNewer)
+                {
+                    var settingsPath = Path.Combine(DataDir, "ustawienia.txt");
+                    File.WriteAllText(settingsPath, MergeLanSettingsForImport(state.settings, settingsPath));
+                    File.WriteAllText(Path.Combine(DataDir, "prywatnosc.txt"), state.privacy);
+                    WriteProfilesRegistry(state.profiles);
+                    WriteIfNotEmpty(ExtensionsSyncListFile, state.extensions);
+                    _settings = AppSettings.Load(DataDir);
+                    ApplySettingsToAllTabs();
+                    UpdateDarkButton();
+                    ApplyBrowserTheme();
+                    LoadSitePrivacyRules();
+                    UpdatePrivacyButton();
+                    _ = RebuildBlocker();
+                    _ = ApplyExtensionsSyncListAsync();
+                    SaveLanChange(state.changed, LanContentFingerprint());   // przyjete dane maja czas nadawcy
+                }
+                else SaveLanChange(_lanLocalChanged, LanContentFingerprint()); // polaczenie zakladek/hasel to nie zmiana ustawien
+
+                if (bookmarksChanged) LoadBookmarks();
                 _lanPeerStamps[pkt.id] = pkt.ts;
-                if (ShouldShowLanToast()) ShowToast("🌐 Zsynchronizowano profil z Velivo w sieci lokalnej.", null);
-                LanLog("Zaimportowano stan od " + pkt.id.Substring(0, 8) + ".");
+                var after = CurrentLanFingerprint();
+                var sentHash = pkt.t == "state-plain" ? Sha256(after) : LanFingerprintMac(after);
+                if (!string.Equals(sentHash, pkt.hash, StringComparison.Ordinal) && DateTime.UtcNow - _lanLastPushBack > TimeSpan.FromSeconds(3))
+                {
+                    // mamy cos, czego drugi komputer nie ma (nowsze ustawienia albo dodatkowe zakladki) - odsylamy
+                    _lanLastPushBack = DateTime.UtcNow;
+                    _lastLanFingerprint = "";
+                }
+                else _lastLanFingerprint = after;
+                if (incomingNewer || bookmarksChanged)
+                {
+                    if (ShouldShowLanToast()) ShowToast("🌐 Zsynchronizowano z Velivo w sieci lokalnej.", null);
+                    LanLog("Zsynchronizowano z " + pkt.id.Substring(0, 8) + (incomingNewer ? " (ustawienia przyjęte)" : " (ustawienia tu nowsze)") + (bookmarksChanged ? ", zakładki połączone." : "."));
+                }
             }
             catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog("Błąd importu LAN: " + ex.Message); }
             finally { _lanApplying = false; }
+        }
+
+        // ---------- laczenie zakladek ----------
+        static string BookmarkTombstonesFile { get { return Path.Combine(DataDir, "zakladki-usuniete.txt"); } }
+
+        static Dictionary<string, long> ParseTombstones(string text)
+        {
+            var d = new Dictionary<string, long>(StringComparer.Ordinal);
+            foreach (var line in (text ?? "").Split('\n'))
+            {
+                var p = line.TrimEnd('\r').Split('\t');
+                long t;
+                if (p.Length >= 2 && p[0].Length > 0 && long.TryParse(p[1], out t) && (!d.ContainsKey(p[0]) || d[p[0]] < t)) d[p[0]] = t;
+            }
+            return d;
+        }
+
+        // Suma zakladek z obu komputerow (kolejnosc lokalna, nowe na koncu) minus usuniete na ktorymkolwiek.
+        string MergeBookmarksText(string local, string incoming, string incomingDeleted)
+        {
+            var tomb = ParseTombstones(ReadTextOrEmpty(BookmarkTombstonesFile));
+            foreach (var kv in ParseTombstones(incomingDeleted))
+                if (!tomb.ContainsKey(kv.Key) || tomb[kv.Key] < kv.Value) tomb[kv.Key] = kv.Value;
+            // usuniecie przechowujemy 90 dni
+            long cutoff = DateTimeOffset.UtcNow.AddDays(-90).ToUnixTimeMilliseconds();
+            var keep = tomb.Where(kv => kv.Value > cutoff).ToList();
+            try { File.WriteAllLines(BookmarkTombstonesFile, keep.Select(kv => kv.Key + "\t" + kv.Value)); } catch (Exception) { }
+            var dead = new HashSet<string>(keep.Select(kv => kv.Key), StringComparer.Ordinal);
+
+            var lines = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var line in (local ?? "").Replace("\r", "").Split('\n').Concat((incoming ?? "").Replace("\r", "").Split('\n')))
+            {
+                var url = line.Split('\t')[0];
+                if (url.Length == 0 || dead.Contains(url) || !seen.Add(url)) continue;
+                lines.Add(line);
+            }
+            return lines.Count == 0 ? "" : string.Join(Environment.NewLine, lines) + Environment.NewLine;
         }
 
         readonly HashSet<string> _lanPairOffered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

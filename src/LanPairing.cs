@@ -255,6 +255,7 @@ namespace Przegladarka
             if (!valid) return;
 
             PersistPairedLanKey(Convert.ToBase64String(pending.LanKey));
+            AskFirstSyncChoice(pkt.device);
             LanLog("Parowanie z " + pending.PeerDevice + " zakończone. Klucz zapisano lokalnie.");
             StartLanSync();
         }
@@ -315,6 +316,22 @@ namespace Przegladarka
             if (_lanSyncSettingCheck != null) _lanSyncSettingCheck.IsChecked = true;
             _settings.Save(DataDir);
             _lastLanFingerprint = "";
+        }
+
+        // Pierwsze polaczenie: czyje USTAWIENIA zostaja. Zakladki, hasla i Szybki Dostep i tak sa laczone z obu.
+        void AskFirstSyncChoice(string otherDevice)
+        {
+            var other = string.IsNullOrWhiteSpace(otherDevice) ? "drugiego komputera" : otherDevice.Trim();
+            var ans = MessageBox.Show(PairDialogOwner(),
+                "Połączono z " + other + ".\n\nZakładki, hasła i Szybki Dostęp zostaną POŁĄCZONE z obu komputerów – nic nie zginie.\n\n" +
+                "Ustawienia przeglądarki (wygląd, wyszukiwarka, prywatność itd.):\n" +
+                "• Tak – zachowaj ustawienia z TEGO komputera\n• Nie – przyjmij ustawienia z " + other,
+                "Pierwsza synchronizacja", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            LoadLanChange();
+            var fp = LanContentFingerprint();
+            if (ans == MessageBoxResult.Yes) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), fp);
+            else SaveLanChange(-1, fp);   // -1: kazde ustawienia z drugiego komputera beda "nowsze"
+            _lastLanFingerprint = "";   // StartLanSync zaraz wysle stan
         }
 
         void ExpireLanPairings()

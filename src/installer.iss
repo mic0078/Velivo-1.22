@@ -179,6 +179,38 @@ begin
   end;
 end;
 
+// Zablokowane unins000.exe/.dat (Eksplorator, indeksowanie, antywirus albo zawieszony ukryty proces Velivo)
+// konczyly instalacje bledem "plik jest uzywany przez inny proces" przy zapisie informacji o dezinstalacji.
+// Zmiana nazwy dziala nawet na otwartym pliku - stare kopie sprzatamy przy nastepnej okazji.
+procedure MoveAsideUninstallFiles;
+var FindRec: TFindRec; Dir, Stamp: String;
+begin
+  Dir := ExpandConstant('{app}');
+  if FindFirst(Dir + '\unins*.old-*', FindRec) then
+  begin
+    repeat DeleteFile(Dir + '\' + FindRec.Name); until not FindNext(FindRec);
+    FindClose(FindRec);
+  end;
+  Stamp := GetDateTimeString('yyyymmddhhnnss', #0, #0);
+  if FindFirst(Dir + '\unins???.*', FindRec) then
+  begin
+    repeat
+      RenameFile(Dir + '\' + FindRec.Name, Dir + '\' + FindRec.Name + '.old-' + Stamp);
+    until not FindNext(FindRec);
+    FindClose(FindRec);
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var Code: Integer;
+begin
+  Result := '';
+  // ukryte procesy Velivo (np. sprzatanie przy zamykaniu) razem z ich procesami WebView2
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Velivo.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Sleep(500);
+  MoveAsideUninstallFiles;
+end;
+
 function InitializeSetup: Boolean;
 var Err: Integer;
 begin

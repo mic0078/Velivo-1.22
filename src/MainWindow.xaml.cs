@@ -38,6 +38,8 @@ namespace Przegladarka
             public Button Header;
             public TextBlock Title;
             public int Blocked;
+            public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
+            public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public string StartUrl;      // adres, z ktorym karte otwarto (zanim silnik ruszy)
             public bool ApplyingZoom;    // zmiana powiekszenia robiona przez program, nie przez uzytkownika
@@ -388,10 +390,8 @@ namespace Przegladarka
                     return;
                 }
                 e.Response = _env.CreateWebResourceResponse(null, 403, "Blocked", "");
-                tab.Blocked++;
-                _totalBlocked++;
+                NoteBlocked(tab, "AdBlock", e.Request.Uri);
                 AddPrivacyBlock("Tracker zablokowany (AdBlock)", e.Request.Uri, tab);
-                Dispatcher.BeginInvoke(new Action(UpdateCounter));
             };
 
             core.NewWindowRequested += (s, e) => OnNewWindowRequested(e, tab.Private);
@@ -421,6 +421,8 @@ namespace Przegladarka
                 }
                 if (e.IsRedirected) return;
                 tab.Blocked = 0;
+                tab.HiddenElements = 0;
+                tab.BlockedItems.Clear();
                 if (tab == _current) UpdateCounter();
             };
             core.SourceChanged += (s, e) =>
@@ -449,7 +451,7 @@ namespace Przegladarka
             // Prosba strony o zamkniecie (window.close, pusta karta po starcie pobierania z linku target=_blank)
             // zamyka TYLKO te karte. Domyslnie kontrolka WebView2 zamyka cale okno programu - odpinamy to.
             DetachDefaultWindowClose(tab.View);
-            core.DOMContentLoaded += (s, e) => { ApplyElementRules(core); ApplyLiveDarkCss(core); };   // elementy zablokowane recznie (menu kontekstowe)
+            core.DOMContentLoaded += (s, e) => { ApplyElementRules(core, tab); ApplyLiveDarkCss(core); };   // elementy zablokowane recznie (menu kontekstowe)
             core.WindowCloseRequested += (s, e) => Dispatcher.BeginInvoke(new Action(() => { if (_tabs.Contains(tab)) CloseTab(tab); }));
             core.ContainsFullScreenElementChanged += (s, e) =>
             {
@@ -866,23 +868,74 @@ namespace Przegladarka
 
         // ---------- AdBlock ----------
 
+        // Kazdy silnik blokujacy (AdBlock, reguly domen, skrypty JS) zglasza blokade tutaj - licznik i lista na tarczy.
+        void NoteBlocked(BrowserTab tab, string engine, string url)
+        {
+            tab.Blocked++;
+            _totalBlocked++;
+            if (tab.BlockedItems.Count < 1000) tab.BlockedItems.Add(engine + "\t" + url);
+            if (tab == _current) Dispatcher.BeginInvoke(new Action(UpdateCounter));
+        }
+
         void UpdateCounter()
         {
-            int here = _current != null ? _current.Blocked : 0;
-            AdCounter.Text = _blocker.Enabled ? here + (L.En ? "  (total " : "  (razem ") + _totalBlocked + ")" : L.T("wyłączony");
+            int here = _current != null ? _current.Blocked + _current.HiddenElements : 0;
+            AdCounter.Text = _blocker.Enabled ? here.ToString() : L.T("wyłączony");
             AdIcon.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x15, 0x80, 0x3D)) : new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C));
             AdCounter.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x14, 0x53, 0x2D)) : new SolidColorBrush(Color.FromRgb(0x7F, 0x1D, 0x1D));
+            AdToggle.Background = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0xDC, 0xFC, 0xE7)) : new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
             AdToggle.ToolTip = L.En
-                ? "AdBlock: " + _blocker.RuleCount + " rules. Click to turn " + (_blocker.Enabled ? "off" : "on") + "."
-                : "AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby " + (_blocker.Enabled ? "wyłączyć" : "włączyć") + ".";
+                ? "Blocked on this page: " + here + " (total " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " rules. Click to see the list."
+                : "Zablokowane na tej stronie: " + here + " (razem " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby zobaczyć listę.";
         }
 
         void AdToggle_Click(object sender, RoutedEventArgs e)
         {
-            _blocker.Enabled = AdToggle.IsChecked == true;
-            AdToggle.Background = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0xDC, 0xFC, 0xE7)) : new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
-            UpdateCounter();
-            if (Core != null) Core.Reload();
+            var tab = _current;
+            var win = new Window { Title = L.T("Zablokowane na tej stronie"), Width = 760, Height = 480, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var root = new DockPanel { Margin = new Thickness(10) };
+            var bottom = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+            DockPanel.SetDock(bottom, Dock.Bottom);
+            var toggle = new Button { Padding = new Thickness(12, 4, 12, 4) };
+            var close = new Button { Content = L.T("Zamknij"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+            DockPanel.SetDock(close, Dock.Right);
+            DockPanel.SetDock(toggle, Dock.Right);
+            var summary = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+            bottom.Children.Add(close);
+            bottom.Children.Add(toggle);
+            bottom.Children.Add(summary);
+            var list = new ListBox();
+            root.Children.Add(bottom);
+            root.Children.Add(list);
+            win.Content = root;
+
+            Action refresh = () =>
+            {
+                list.Items.Clear();
+                int hidden = tab != null ? tab.HiddenElements : 0;
+                if (tab != null)
+                {
+                    foreach (var g in tab.BlockedItems.GroupBy(x => x).OrderByDescending(g => g.Count()))
+                    {
+                        var parts = g.Key.Split('\t');
+                        list.Items.Add("[" + parts[0] + "]  " + parts[1] + (g.Count() > 1 ? "   ×" + g.Count() : ""));
+                    }
+                    if (hidden > 0) list.Items.Add("[" + L.T("Elementy") + "]  " + hidden + L.T(" ukrytych elementów (reguły ręczne)"));
+                }
+                if (list.Items.Count == 0) list.Items.Add(L.T("Nic nie zablokowano na tej stronie."));
+                summary.Text = (L.En ? "This page: " : "Ta strona: ") + (tab != null ? tab.Blocked + hidden : 0) + (L.En ? "   ·   total: " : "   ·   razem: ") + _totalBlocked;
+                toggle.Content = _blocker.Enabled ? L.T("Wyłącz AdBlock") : L.T("Włącz AdBlock");
+            };
+            toggle.Click += (s, a) =>
+            {
+                _blocker.Enabled = !_blocker.Enabled;
+                UpdateCounter();
+                if (Core != null) Core.Reload();
+                refresh();
+            };
+            close.Click += (s, a) => win.Close();
+            refresh();
+            win.ShowDialog();
         }
 
         // ---------- pelny ekran ----------

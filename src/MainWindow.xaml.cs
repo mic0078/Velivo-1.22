@@ -512,15 +512,14 @@ namespace Przegladarka
                     // Innych dodatkow uzytkownika nie wylaczamy - nie maja nic wspolnego z problemem Szybkiego Dostepu.
                 }
 
+                // Dodatku nie usuwamy (to kasowalo skroty i ustawienia Szybkiego Dostepu) - tylko wlaczamy.
                 if (quickAccessExt != null)
                 {
-                    await quickAccessExt.RemoveAsync();
-                    SaveExtPath(quickAccessExt.Id, null);
-                    changed = true;
+                    if (!quickAccessExt.IsEnabled) { await quickAccessExt.EnableAsync(true); changed = true; }
                 }
 
                 var bundled = BundledQuickAccessDir;
-                if (File.Exists(Path.Combine(bundled, "manifest.json")))
+                if (quickAccessExt == null && File.Exists(Path.Combine(bundled, "manifest.json")))
                 {
                     var added = await core.Profile.AddBrowserExtensionAsync(bundled);
                     if (!added.IsEnabled) await added.EnableAsync(true);

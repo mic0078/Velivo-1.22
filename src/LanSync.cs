@@ -91,10 +91,34 @@ namespace Przegladarka
             _lanLocalChanged = 0;
             try
             {
-                var lines = File.Exists(LanChangeFile) ? File.ReadAllLines(LanChangeFile) : new string[0];
+                if (!File.Exists(LanChangeFile))
+                {
+                    // pierwsze uruchomienie z ta funkcja (np. swieza instalacja): obecne dane NIE sa "nowa zmiana" -
+                    // znacznik 0, zeby nie nadpisaly danych z drugiego komputera
+                    SaveLanChange(0, LanContentFingerprint());
+                    return;
+                }
+                var lines = File.ReadAllLines(LanChangeFile);
                 if (lines.Length >= 2) { long.TryParse(lines[0], out _lanLocalChanged); _lanLocalChangedFp = lines[1]; }
             }
             catch (Exception) { }
+        }
+
+        // Odcisk TRESCI do znacznika zmian: zakladki, hasla, prywatnosc, profile, dodatki i ustawienia - bez kart
+        // (zmieniaja sie ciagle) i bez ustawien samej synchronizacji (wlaczenie sync to nie jest zmiana danych).
+        string LanContentFingerprint()
+        {
+            var settings = string.Join("\n", ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt")).Split('\n')
+                .Where(l => { int i = l.IndexOf('='); return i <= 0 || !LanSettingsBlockedKeys.Contains(l.Substring(0, i).Trim()); }));
+            return Sha256(settings + "\n--\n" + ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt")) + "\n--\n" +
+                ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt")) + "\n--\n" + ReadProfilesRegistry() + "\n--\n" +
+                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()));
+        }
+
+        // "Pusty" komputer: bez zakladek i bez hasel - jego dane nigdy nie nadpisuja pelnych
+        static bool LanStateLooksEmpty(string bookmarks, string passwords)
+        {
+            return string.IsNullOrWhiteSpace(bookmarks) && (string.IsNullOrWhiteSpace(passwords) || passwords.Trim() == "[]");
         }
 
         void SaveLanChange(long stamp, string fingerprint)
@@ -590,7 +614,8 @@ namespace Przegladarka
             var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + session + "\n--\n" + sessionActive + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
             // dane rozne od ostatnio zapamietanych = zmiana zrobiona tu, przez uzytkownika -> nowy znacznik czasu
             LoadLanChange();
-            if (fingerprint != _lanLocalChangedFp) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), fingerprint);
+            var contentFp = LanContentFingerprint();
+            if (contentFp != _lanLocalChangedFp) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), contentFp);
             if (!force && fingerprint == _lastLanFingerprint) return;
             _lastLanFingerprint = fingerprint;
 
@@ -669,8 +694,14 @@ namespace Przegladarka
             // Kto ma nowsze dane? Wczesniej oba komputery przyjmowaly stan od siebie nawzajem w tej samej chwili
             // i dane zamienialy sie miejscami. Teraz przyjmujemy tylko nowsze; przy remisie decyduje identyfikator.
             LoadLanChange();
-            if (localFingerprint != _lanLocalChangedFp) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), localFingerprint);
-            bool incomingNewer = state.changed > _lanLocalChanged ||
+            var localContent = LanContentFingerprint();
+            if (localContent != _lanLocalChangedFp) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), localContent);
+            bool localEmpty = LanStateLooksEmpty(ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt")), _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync());
+            bool incomingEmpty = LanStateLooksEmpty(state.bookmarks, state.passwords);
+            bool incomingNewer =
+                (localEmpty && !incomingEmpty) ? true :          // pusty komputer zawsze przyjmuje pelne dane
+                (!localEmpty && incomingEmpty) ? false :         // puste dane nigdy nie nadpisuja pelnych
+                state.changed > _lanLocalChanged ||
                 (state.changed == _lanLocalChanged && string.CompareOrdinal(pkt.id, _lanId) < 0);
             if (!incomingNewer)
             {
@@ -709,7 +740,7 @@ namespace Przegladarka
                 _ = RebuildBlocker();
                 _ = ApplyExtensionsSyncListAsync();
                 _lastLanFingerprint = CurrentLanFingerprint();
-                SaveLanChange(state.changed, _lastLanFingerprint);   // przyjete dane maja czas nadawcy - to nie nasza zmiana
+                SaveLanChange(state.changed, LanContentFingerprint());   // przyjete dane maja czas nadawcy - to nie nasza zmiana
                 _lanPeerStamps[pkt.id] = pkt.ts;
                 if (ShouldShowLanToast()) ShowToast("🌐 Zsynchronizowano profil z Velivo w sieci lokalnej.", null);
                 LanLog("Zaimportowano stan od " + pkt.id.Substring(0, 8) + ".");

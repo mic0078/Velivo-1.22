@@ -104,6 +104,18 @@ namespace Przegladarka
 
                 if (web)
                 {
+                    var tabForBlock = _current;
+                    double px = e.Location.X, py = e.Location.Y;
+                    var block = _env.CreateContextMenuItem("🚫 Blokuj element (reklamę)…", null, CoreWebView2ContextMenuItemKind.Command);
+                    block.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartElementPicker(tabForBlock, px, py));
+                    add(block);
+                    if (ElementSelectorsFor(pageUrl).Count > 0)
+                    {
+                        var unblock = _env.CreateContextMenuItem("Przywróć zablokowane elementy na tej stronie", null, CoreWebView2ContextMenuItemKind.Command);
+                        unblock.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => ClearElementRules(tabForBlock));
+                        add(unblock);
+                    }
+                    separator();
                     var reader = _env.CreateContextMenuItem("Tryb czytania i streszczenie", null, CoreWebView2ContextMenuItemKind.Command);
                     reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenReaderMode);
                     add(reader);

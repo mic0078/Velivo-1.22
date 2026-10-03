@@ -437,6 +437,7 @@ namespace Przegladarka
             // Prosba strony o zamkniecie (window.close, pusta karta po starcie pobierania z linku target=_blank)
             // zamyka TYLKO te karte. Domyslnie kontrolka WebView2 zamyka cale okno programu - odpinamy to.
             DetachDefaultWindowClose(tab.View);
+            core.DOMContentLoaded += (s, e) => ApplyElementRules(core);   // elementy zablokowane recznie (menu kontekstowe)
             core.WindowCloseRequested += (s, e) => Dispatcher.BeginInvoke(new Action(() => { if (_tabs.Contains(tab)) CloseTab(tab); }));
             core.ContainsFullScreenElementChanged += (s, e) =>
             {

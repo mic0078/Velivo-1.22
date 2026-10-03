@@ -84,7 +84,9 @@ namespace Przegladarka
         void SetZoom(double z)
         {
             if (_current == null) return;
-            _current.View.ZoomFactor = Math.Max(0.25, Math.Min(5.0, z)); // zapis zrobi OnZoomChanged
+            z = Math.Max(0.25, Math.Min(5.0, z));
+            _current.View.ZoomFactor = z; // zapis zrobi OnZoomChanged
+            ShowZoomValue(z);   // od razu - nie czekamy na potwierdzenie silnika
         }
 
         void StepZoom(int dir)
@@ -98,7 +100,11 @@ namespace Przegladarka
         void UpdateZoomButton()
         {
             if (_current == null) return;
-            double z = _current.View.ZoomFactor;
+            ShowZoomValue(_current.View.ZoomFactor);
+        }
+
+        void ShowZoomValue(double z)
+        {
             int pct = (int)Math.Round(z * 100);
             ZoomBtn.Content = pct + "%";
             ZoomBtn.Visibility = Visibility.Visible;   // zawsze widoczny - powiekszanie samym kolkiem myszy (np. przy telewizorze)

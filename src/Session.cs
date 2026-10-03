@@ -29,7 +29,7 @@ namespace Przegladarka
         {
             try
             {
-                var urls = _tabs.Where(t => t.Pinned).Select(t => t.View.CoreWebView2 != null ? t.View.CoreWebView2.Source : t.StartUrl).Where(Restorable).ToList();
+                var urls = _tabs.Where(t => t.Pinned).Select(t => t.PinnedUrl).Where(Restorable).ToList();
                 if (urls.Count == 0) { if (File.Exists(PinnedFile)) File.Delete(PinnedFile); }
                 else File.WriteAllLines(PinnedFile, urls);
             }
@@ -41,6 +41,7 @@ namespace Przegladarka
         {
             if (tab.Private) return;
             tab.Pinned = pinned;
+            tab.PinnedUrl = pinned ? (tab.View.CoreWebView2 != null && Restorable(tab.View.CoreWebView2.Source) ? tab.View.CoreWebView2.Source : tab.StartUrl) : null;
             tab.PinMark.Visibility = pinned ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
             tab.CloseBtn.Visibility = pinned ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
             tab.Title.MaxWidth = pinned ? 90 : 160;
@@ -53,6 +54,15 @@ namespace Przegladarka
             var before = target + 1 < _tabs.Count ? (System.Windows.UIElement)_tabs[target + 1].Header : NewTabBtn;
             TabStrip.Children.Insert(TabStrip.Children.IndexOf(before), tab.Header);
             if (_sessionLoaded) { SavePinnedTabs(); SaveSessionSoon(); }
+        }
+
+        // ta sama strona = ta sama domena glowna (www.x.pl i m.x.pl to jedna strona)
+        static bool SameSite(string a, string b)
+        {
+            Uri ua, ub;
+            if (!Uri.TryCreate(a ?? "", UriKind.Absolute, out ua) || !Uri.TryCreate(b ?? "", UriKind.Absolute, out ub)) return true;
+            Func<string, string> root = h => { var p = h.ToLowerInvariant().Split('.'); return p.Length >= 2 ? p[p.Length - 2] + "." + p[p.Length - 1] : h; };
+            return root(ua.Host) == root(ub.Host);
         }
 
         static bool Restorable(string url)

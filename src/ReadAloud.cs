@@ -101,6 +101,35 @@ namespace Przegladarka
       speakNext();
       return st.items.length;
     },
+    // czytanie od miejsca klikniecia: akapit pod mysza, od zdania, w ktore kliknieto
+    startAt(x, y, rate, voiceName) {
+      let node = null, off = 0;
+      if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
+      if (!node) return 0;
+      S.cancel(); unmark();
+      const voices = S.getVoices();
+      st.voice = voices.find(v => v.name === voiceName) || voices.find(v => /paulina/i.test(v.name)) || voices.find(v => /^pl/i.test(v.lang)) || voices[0] || null;
+      st.rate = rate; st.paused = false;
+      const blocks = collect(mainRoot());
+      st.items = [];
+      let startIdx = -1;
+      for (const b of blocks) {
+        const parts = split(b.text);
+        if (startIdx < 0 && b.el && b.el.contains(node)) {
+          let clicked = 0;
+          try { const r = document.createRange(); r.setStart(b.el, 0); r.setEnd(node, off); clicked = r.toString().replace(/\s+/g, ' ').length; } catch (e) {}
+          let pos = 0, k = 0;
+          for (; k < parts.length - 1; k++) { pos += parts[k].length + 1; if (pos > clicked) break; }
+          startIdx = st.items.length + k;
+        }
+        for (const s of parts) st.items.push({ el: b.el, text: s });
+      }
+      if (startIdx < 0) return 0;
+      st.i = startIdx;
+      st.active = st.items.length > 0;
+      speakNext();
+      return st.items.length - startIdx;
+    },
     // glosy Windows w silniku nie obsluguja speechSynthesis.pause() - pauza = zatrzymanie i zapamietanie
     // miejsca; wznowienie czyta przerwane zdanie od poczatku
     pause() { if (st.active && !st.paused) { st.paused = true; S.cancel(); } },

@@ -114,6 +114,16 @@ namespace Przegladarka
                                 if (!e2.IsSuccess) return;
                                 await view.CoreWebView2.ExecuteScriptAsync(ReaderScript);
                                 await view.CoreWebView2.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
+                                // klikniecie w tekst = czytaj od tego miejsca (przeciaganie/zaznaczanie i linki dzialaja jak zwykle)
+                                await view.CoreWebView2.ExecuteScriptAsync(@"(() => {
+  if (window.__velivoClickRead) return; window.__velivoClickRead = true;
+  const st = document.createElement('style'); st.textContent = 'p,li,blockquote,h1,h2,h3,h4{cursor:pointer}'; document.head.appendChild(st);
+  document.addEventListener('click', e => {
+    if (e.button !== 0 || (getSelection() && getSelection().toString().trim())) return;
+    if (e.target.closest('a,button,input,textarea,select')) return;
+    window.__velivoRead && window.__velivoRead.startAt(e.clientX, e.clientY, " + Num(_settings.ReadRate) + ", " + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + @");
+  });
+})();");
                                 await ReadSummaryInReader(view);
                             };
                             readSummaryBtn.Click += async (s3, e3) => await ReadSummaryInReader(view);

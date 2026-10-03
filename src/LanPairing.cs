@@ -346,7 +346,11 @@ namespace Przegladarka
             if (_lanTx == null) return;
             var data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(pkt));
             if (data.Length > 60000) return;
-            _lanTx.Send(data, data.Length, new IPEndPoint(IPAddress.Broadcast, LanPort));
+            foreach (var target in LanBroadcastTargets())
+            {
+                try { _lanTx.Send(data, data.Length, new IPEndPoint(target, LanPort)); }
+                catch (Exception) { }
+            }
             _lanPacketsTx++;
             _lanLastTxUtc = DateTime.UtcNow;
             RefreshLanDiagnosticsUi();

@@ -442,8 +442,9 @@ namespace Przegladarka
             {
                 bool requestedQuickAccess = IsQuickAccessUrl(tab.LastRequestedUrl);
                 bool blockedQuickAccess = false;
-                if (requestedQuickAccess)
-                    blockedQuickAccess = !e.IsSuccess || await IsQuickAccessBlockedAsync(core);
+                // Przerwane ladowanie (nowa nawigacja, odswiezenie, zamkniecie karty) to nie blokada dodatku.
+                if (requestedQuickAccess && e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
+                    blockedQuickAccess = await IsQuickAccessBlockedAsync(core, e.IsSuccess);
 
                 if (blockedQuickAccess && !tab.QuickAccessRecoveryTried)
                 {
@@ -500,15 +501,8 @@ namespace Przegladarka
                         string.Equals(Path.GetFullPath(extPath).TrimEnd(Path.DirectorySeparatorChar),
                             Path.GetFullPath(BundledQuickAccessDir).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
                     if (IsQuickAccessExtensionId(ext.Id) || pathMatch)
-                    {
                         quickAccessExt = ext;
-                        continue;
-                    }
-                    if (ext.IsEnabled)
-                    {
-                        await ext.EnableAsync(false);
-                        changed = true;
-                    }
+                    // Innych dodatkow uzytkownika nie wylaczamy - nie maja nic wspolnego z problemem Szybkiego Dostepu.
                 }
 
                 if (quickAccessExt != null)
@@ -543,17 +537,23 @@ namespace Przegladarka
             }
         }
 
-        async Task<bool> IsQuickAccessBlockedAsync(CoreWebView2 core)
+        // Wczesniej kazdy tekst "zablokowan"/"blocked by" na stronie Szybkiego Dostepu (np. w nazwie skrotu,
+        // grupy albo komunikacie paska) albo chwilowy blad skryptu byl traktowany jak blokada przez ochrone -
+        // a "naprawa" wylaczala wszystkie inne dodatki i reinstalowala Szybki Dostep. Teraz: jesli interfejs
+        // dodatku jest na stronie, nie ma blokady; blokada to tylko strona bledu przegladarki.
+        async Task<bool> IsQuickAccessBlockedAsync(CoreWebView2 core, bool navigationSucceeded)
         {
-            if (core == null) return true;
+            if (core == null) return false;
             try
             {
-                var isBlocked = await core.ExecuteScriptAsync("(() => { try { const text = ((document && document.body && document.body.innerText) ? document.body.innerText : '').toLowerCase(); const hasUi = !!document.getElementById('grupy') && !!document.getElementById('siatka'); const blocked = text.indexOf('err_blocked_by_client') >= 0 || text.indexOf('zablokowan') >= 0 || text.indexOf('blocked by') >= 0; return blocked || !hasUi; } catch (e) { return true; } })();");
-                return string.Equals(isBlocked, "true", StringComparison.OrdinalIgnoreCase);
+                var result = await core.ExecuteScriptAsync("(() => { try { if (document.getElementById('grupy') && document.getElementById('siatka')) return 'ui'; const text = ((document.body && document.body.innerText) || '').toLowerCase(); return (text.indexOf('err_blocked_by_client') >= 0 || text.indexOf('err_blocked_by_administrator') >= 0 || text.indexOf('err_file_not_found') >= 0) ? 'blocked' : 'other'; } catch (e) { return 'error'; } })();");
+                if (result == "\"ui\"") return false;
+                if (result == "\"blocked\"") return true;
+                return !navigationSucceeded;
             }
             catch (Exception)
             {
-                return true;
+                return !navigationSucceeded;
             }
         }
 

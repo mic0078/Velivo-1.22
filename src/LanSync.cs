@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -203,7 +204,8 @@ namespace Przegladarka
 
         void EncryptLanState(LanStatePacket pkt, LanSyncPayload payload)
         {
-            var plain = JsonSerializer.SerializeToUtf8Bytes(payload);
+            // Stan (zakladki, sesja, hasla) szybko przekracza limit pakietu UDP - kompresujemy go przed szyfrowaniem.
+            var plain = CompressLanPayload(JsonSerializer.SerializeToUtf8Bytes(payload));
             try
             {
                 var nonce = RandomNumberGenerator.GetBytes(12);
@@ -231,9 +233,43 @@ namespace Przegladarka
             {
                 using (var gcm = new AesGcm(_lanEncryptionKey, 16))
                     gcm.Decrypt(nonce, cipher, tag, plain, LanAssociatedData(pkt));
-                return JsonSerializer.Deserialize<LanSyncPayload>(plain);
+                var json = DecompressLanPayload(plain);
+                try { return JsonSerializer.Deserialize<LanSyncPayload>(json); }
+                finally { if (!ReferenceEquals(json, plain)) CryptographicOperations.ZeroMemory(json); }
             }
             finally { CryptographicOperations.ZeroMemory(plain); }
+        }
+
+        static byte[] CompressLanPayload(byte[] json)
+        {
+            try
+            {
+                using (var output = new MemoryStream())
+                {
+                    using (var gzip = new GZipStream(output, CompressionLevel.Optimal, true)) gzip.Write(json, 0, json.Length);
+                    return output.ToArray();
+                }
+            }
+            finally { CryptographicOperations.ZeroMemory(json); }
+        }
+
+        // Starsze wersje wysylaja czysty JSON (zaczyna sie od '{'), nowe - GZip (naglowek 1F 8B).
+        static byte[] DecompressLanPayload(byte[] data)
+        {
+            if (data.Length < 2 || data[0] != 0x1f || data[1] != 0x8b) return data;
+            using (var input = new MemoryStream(data, false))
+            using (var gzip = new GZipStream(input, CompressionMode.Decompress))
+            using (var output = new MemoryStream())
+            {
+                var buffer = new byte[8192];
+                int read;
+                while ((read = gzip.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    output.Write(buffer, 0, read);
+                    if (output.Length > 8 * 1024 * 1024) throw new InvalidDataException("Stan LAN po rozpakowaniu jest za duży.");
+                }
+                return output.ToArray();
+            }
         }
 
         bool ShouldShowLanToast()
@@ -342,7 +378,12 @@ namespace Przegladarka
                     Guid senderId;
                     if (pkt == null || pkt.id == _lanId || !Guid.TryParseExact(pkt.id, "N", out senderId)) continue;
                     long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    if (pkt.ts < now - 300000 || pkt.ts > now + 300000) continue;
+                    if (pkt.ts < now - 300000 || pkt.ts > now + 300000)
+                    {
+                        var skewed = pkt;
+                        await Dispatcher.InvokeAsync(() => LogLanClockSkew(skewed.device ?? skewed.id, skewed.ts - now));
+                        continue;
+                    }
 
                     if (pkt.t != null && pkt.t.StartsWith("pair-", StringComparison.Ordinal))
                     {
@@ -375,6 +416,7 @@ namespace Przegladarka
                         catch (CryptographicException) { continue; }
                         catch (FormatException) { continue; }
                         catch (JsonException) { continue; }
+                        catch (InvalidDataException) { continue; }
                         if (state == null) continue;
                     }
                     else if (pkt.t == "state-plain")
@@ -565,7 +607,8 @@ namespace Przegladarka
                     LanLog("Nie wysłano pakietu LAN: przekracza limit UDP (" + data.Length.ToString("N0") + " B).");
                     return;
                 }
-                _ = _lanTx.SendAsync(data, data.Length, new IPEndPoint(IPAddress.Broadcast, LanPort));
+                foreach (var target in LanBroadcastTargets())
+                    _ = _lanTx.SendAsync(data, data.Length, new IPEndPoint(target, LanPort));
                 _lanPacketsTx++;
                 _lanLastTxUtc = DateTime.UtcNow;
                 RefreshLanDiagnosticsUi();
@@ -622,6 +665,47 @@ namespace Przegladarka
             }
             catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog("Błąd importu LAN: " + ex.Message); }
             finally { _lanApplying = false; }
+        }
+
+        readonly Dictionary<string, DateTime> _lanClockSkewLogged = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        // Pakiety z komputera z zegarem przesunietym o ponad 5 minut sa odrzucane (ochrona przed powtorkami).
+        // Wczesniej dzialo sie to po cichu i synchronizacja "po prostu nie dzialala".
+        void LogLanClockSkew(string device, long skewMs)
+        {
+            DateTime last;
+            if (_lanClockSkewLogged.TryGetValue(device ?? "", out last) && DateTime.UtcNow - last < TimeSpan.FromMinutes(5)) return;
+            _lanClockSkewLogged[device ?? ""] = DateTime.UtcNow;
+            LanLog("Odrzucono pakiety z " + device + ": zegar różni się o " + Math.Round(Math.Abs(skewMs) / 60000.0) +
+                " min. Ustaw automatyczny czas w Windows na obu komputerach.");
+        }
+
+        // 255.255.255.255 Windows wysyla tylko jedna karta sieciowa (czesto VPN / Hyper-V / VirtualBox),
+        // wiec inne komputery w LAN nie dostawaly pakietow. Wysylamy tez na adres rozgloszeniowy kazdej aktywnej karty IPv4.
+        static List<IPAddress> LanBroadcastTargets()
+        {
+            var list = new List<IPAddress> { IPAddress.Broadcast };
+            try
+            {
+                foreach (var nic in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (nic.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up ||
+                        nic.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                    foreach (var ua in nic.GetIPProperties().UnicastAddresses)
+                    {
+                        if (ua.Address.AddressFamily != AddressFamily.InterNetwork || ua.IPv4Mask == null) continue;
+                        var ip = ua.Address.GetAddressBytes();
+                        var mask = ua.IPv4Mask.GetAddressBytes();
+                        if (mask.Length != 4 || (mask[0] == 255 && mask[1] == 255 && mask[2] == 255 && mask[3] == 255)) continue;
+                        var bcast = new byte[4];
+                        for (int i = 0; i < 4; i++) bcast[i] = (byte)(ip[i] | ~mask[i]);
+                        var addr = new IPAddress(bcast);
+                        if (!list.Contains(addr)) list.Add(addr);
+                    }
+                }
+            }
+            catch (Exception) { }
+            return list;
         }
 
         void NotifyLanStateChanged()

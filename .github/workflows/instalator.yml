@@ -6,6 +6,9 @@ on:
     paths: ['src/**', '.github/workflows/instalator.yml']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -36,3 +39,16 @@ jobs:
         with:
           name: Velivo-Setup
           path: Instalator/Velivo-Setup-*.exe
+
+      - name: Nadpisanie Instalator/Velivo-Setup-1.22.exe w repozytorium
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add -f Instalator/Velivo-Setup-1.22.exe
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "Nowy instalator Velivo-Setup-1.22.exe [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          }

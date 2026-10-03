@@ -1,6 +1,6 @@
 ; Instalator Velivo - kompilacja: ISCC.exe installer.iss (po dotnet publish do ..\build\velivo)
 #define AppName "Velivo"
-#define AppVer "1.23"
+#define AppVer "1.22"
 
 [Setup]
 ; AppId bez zmian od czasow nazwy "Przegladarka" - dzieki temu instalator aktualizuje stara wersje

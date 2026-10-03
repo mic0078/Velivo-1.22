@@ -708,7 +708,7 @@ namespace Przegladarka
             if (w < 1600) Push(ReadBtn, L.T("Czytaj na głos"), () => ReadBtn_Click(null, null));
             if (w < 1520) Push(DarkBtn, L.T("Tryb ciemny"), () => DarkBtn_Click(null, null));
             if (w < 1440) Push(DownloadsBtn, L.T("Pobrane pliki"), () => Downloads_Click(null, null));
-            if (w < 1360) Push(ExtensionsBtn, L.T("Dodatki"), () => Extensions_Click(null, null));
+            if (w < 1360) Push(ExtensionsBtn, L.T("Dodatki"), () => ExtensionsMenu_Click(null, null));
             if (w < 1280) Push(HistoryBtn, L.T("Historia"), () => History_Click(null, null));
             if (w < 1200) Push(BookmarksBtn, L.T("Zakładki"), () => Bookmarks_Click(null, null));
             if (w < 1120) Push(PrivacyBtn, L.T("Prywatność"), () => PrivacyPanel_Click(null, null));

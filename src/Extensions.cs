@@ -378,30 +378,100 @@ namespace Przegladarka
                             .Select(x => { string f; paths.TryGetValue(x.Id, out f); return ReadManifest(x, f); })
                             .ToList();
 
-            ExtBar.Children.Clear();
+            RebuildExtBar();
+        }
+
+        // ---------- przypinanie dodatkow do paska ----------
+        // Odpiety dodatek dziala normalnie, tylko jego ikonka nie zajmuje miejsca na pasku - jest w menu pod przyciskiem Dodatki.
+
+        static string UnpinnedExtFile { get { return Path.Combine(DataDir, "dodatki-odpiete.txt"); } }
+        HashSet<string> _unpinnedExt;
+
+        HashSet<string> UnpinnedExt
+        {
+            get
+            {
+                if (_unpinnedExt == null)
+                {
+                    _unpinnedExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    try { if (File.Exists(UnpinnedExtFile)) foreach (var l in File.ReadAllLines(UnpinnedExtFile)) if (l.Trim().Length > 0) _unpinnedExt.Add(l.Trim()); }
+                    catch (IOException) { }
+                }
+                return _unpinnedExt;
+            }
+        }
+
+        void SetExtPinned(ExtInfo info, bool pinned)
+        {
+            if (pinned) UnpinnedExt.Remove(info.Id); else UnpinnedExt.Add(info.Id);
+            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(UnpinnedExtFile, UnpinnedExt.OrderBy(x => x)); }
+            catch (IOException) { }
+            RebuildExtBar();
+        }
+
+        object ExtIconContent(ExtInfo info, double size)
+        {
+            BitmapImage img = null;
+            try
+            {
+                if (info.Icon != null && File.Exists(info.Icon))
+                {
+                    img = new BitmapImage();
+                    img.BeginInit(); img.CacheOption = BitmapCacheOption.OnLoad; img.UriSource = new Uri(info.Icon); img.DecodePixelWidth = 32; img.EndInit();
+                }
+            }
+            catch (Exception) { img = null; }
+            return img != null
+                ? (object)new Image { Source = img, Width = size, Height = size }
+                : new TextBlock { Text = string.IsNullOrEmpty(info.Name) ? "?" : info.Name.Substring(0, 1).ToUpperInvariant(), FontWeight = FontWeights.Bold };
+        }
+
+        // Przycisk Dodatki: lista wszystkich wlaczonych dodatkow z pinezka (jak w Chrome) i wejscie do zarzadzania.
+        void ExtensionsMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var menu = new ContextMenu { PlacementTarget = ExtensionsBtn, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
             foreach (var x in _extInfos.Where(i => i.Enabled))
             {
                 var info = x;
-                var btn = new Button { ToolTip = info.Name, Padding = new Thickness(0) };
-                BitmapImage img = null;
-                try
+                bool pinned = !UnpinnedExt.Contains(info.Id);
+                var row = new DockPanel { MinWidth = 240, LastChildFill = true };
+                var pin = new Button
                 {
-                    if (info.Icon != null && File.Exists(info.Icon))
-                    {
-                        img = new BitmapImage();
-                        img.BeginInit(); img.CacheOption = BitmapCacheOption.OnLoad; img.UriSource = new Uri(info.Icon); img.DecodePixelWidth = 32; img.EndInit();
-                    }
-                }
-                catch (Exception) { img = null; }
-                btn.Content = img != null
-                    ? (object)new Image { Source = img, Width = 18, Height = 18 }
-                    : new TextBlock { Text = string.IsNullOrEmpty(info.Name) ? "?" : info.Name.Substring(0, 1).ToUpperInvariant(), FontWeight = FontWeights.Bold };
+                    Content = pinned ? "📌" : "📍", Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(12, 0, 0, 0),
+                    Background = Brushes.Transparent, BorderThickness = new Thickness(0), Opacity = pinned ? 1 : 0.45,
+                    ToolTip = pinned ? L.T("Odepnij z paska (dodatek dalej działa)") : L.T("Przypnij do paska")
+                };
+                DockPanel.SetDock(pin, Dock.Right);
+                pin.Click += (s, a) => { a.Handled = true; menu.IsOpen = false; SetExtPinned(info, !pinned); };
+                row.Children.Add(pin);
+                row.Children.Add(new TextBlock { Text = info.Name, VerticalAlignment = VerticalAlignment.Center });
+                var item = new MenuItem { Header = row, Icon = ExtIconContent(info, 16) };
+                item.Click += (s, a) => OpenExtensionPopup(info, ExtensionsBtn);
+                menu.Items.Add(item);
+            }
+            if (menu.Items.Count == 0) menu.Items.Add(new MenuItem { Header = L.T("Brak włączonych dodatków"), IsEnabled = false });
+            menu.Items.Add(new Separator());
+            var manage = new MenuItem { Header = L.T("Zarządzaj dodatkami…") };
+            manage.Click += (s, a) => Extensions_Click(null, null);
+            menu.Items.Add(manage);
+            menu.IsOpen = true;
+        }
+
+        void RebuildExtBar()
+        {
+            ExtBar.Children.Clear();
+            foreach (var x in _extInfos.Where(i => i.Enabled && !UnpinnedExt.Contains(i.Id)))
+            {
+                var info = x;
+                var btn = new Button { ToolTip = info.Name, Padding = new Thickness(0) };
+                btn.Content = ExtIconContent(info, 18);
                 btn.Click += (s, e) => OpenExtensionPopup(info, btn);
                 var menu = new ContextMenu();
                 if (info.Popup != null) { var m = new MenuItem { Header = L.T("Otwórz okienko dodatku") }; m.Click += (s, e) => OpenExtensionPopup(info, btn); menu.Items.Add(m); }
                 if (info.Popup != null) { var m = new MenuItem { Header = L.T("Otwórz okienko w karcie") }; m.Click += (s, e) => AddTab(ExtUrl(info, info.Popup)); menu.Items.Add(m); }
                 if (info.Options != null) { var m = new MenuItem { Header = L.T("Opcje") }; m.Click += (s, e) => AddTab(ExtUrl(info, info.Options)); menu.Items.Add(m); }
                 if (info.NewTab != null) { var m = new MenuItem { Header = L.T("Strona nowej karty") }; m.Click += (s, e) => AddTab(ExtUrl(info, info.NewTab)); menu.Items.Add(m); }
+                var unpin = new MenuItem { Header = L.T("Odepnij z paska (dodatek dalej działa)") }; unpin.Click += (s, e) => SetExtPinned(info, false); menu.Items.Add(unpin);
                 var manage = new MenuItem { Header = L.T("Zarządzaj dodatkami…") }; manage.Click += (s, e) => Extensions_Click(null, null); menu.Items.Add(manage);
                 btn.ContextMenu = menu;
                 ExtBar.Children.Add(btn);

@@ -1,4 +1,4 @@
-<Window x:Class="Przegladarka.MainWindow"
+﻿<Window x:Class="Przegladarka.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Velivo 1.22" Icon="app.ico" Width="1200" Height="800" Background="#F3F4F6">
@@ -89,7 +89,7 @@
                     ToolTip="Aktywny profil" Click="ProfileBadge_Click"/>
             <Button DockPanel.Dock="Right" x:Name="SettingsBtn" Style="{StaticResource Icon}" Content="&#xE713;" Foreground="#1F2937" Background="#E5E7EB" Margin="2,0,6,0" ToolTip="Ustawienia" Click="Settings_Click"/>
             <Button DockPanel.Dock="Right" x:Name="HistoryBtn" Style="{StaticResource Icon}" Content="&#xE81C;" Foreground="#4338CA" Background="#E0E7FF" ToolTip="Historia (Ctrl+H)" Click="History_Click"/>
-            <Button DockPanel.Dock="Right" x:Name="ExtensionsBtn" Style="{StaticResource Icon}" Content="&#xEA86;" Foreground="#6D28D9" Background="#EDE9FE" ToolTip="Dodatki (tryb dewelopera)" Click="Extensions_Click"/>
+            <Button DockPanel.Dock="Right" x:Name="ExtensionsBtn" Style="{StaticResource Icon}" Content="&#xEA86;" Foreground="#6D28D9" Background="#EDE9FE" ToolTip="Dodatki" Click="ExtensionsMenu_Click"/>
             <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="DownloadsBtn" Content="&#xE896;" Foreground="#0E7490" Background="#CFFAFE" Width="Auto" MinWidth="40" Padding="6,0"
                     ToolTip="Pobrane pliki (Ctrl+J)" Click="Downloads_Click"/>
             <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="ReadRateBtn" Content="1×" Visibility="Collapsed" Width="Auto" MinWidth="46" Padding="6,0"

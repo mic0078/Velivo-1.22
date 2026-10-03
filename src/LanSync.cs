@@ -452,6 +452,8 @@ namespace Przegladarka
                             bool profileChanged = _lanDeviceProfile.TryGetValue(device, out previousProfile) &&
                                 !string.Equals(previousProfile, NormalizeProfileName(pkt.profile ?? "domyslny"), StringComparison.OrdinalIgnoreCase);
                             TryPromptProfileSwitch(pkt, !_lanPeers.ContainsKey(pkt.id), profileChanged);
+                            // niesparowany komputer (np. po czystej instalacji) widzi drugi Velivo - proponujemy polaczenie
+                            if (_lanLegacyNoKeyMode) OfferLanPairing(pkt);
                         });
                     }
 
@@ -494,7 +496,6 @@ namespace Przegladarka
                     await Dispatcher.InvokeAsync(() =>
                     {
                         isNewPeer = TouchLanPeer(pkt, res.RemoteEndPoint, out profileChanged);
-                        if (isNewPeer && pkt.t == "state-plain") OfferLanPairing(pkt);
                         if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
                             TryPromptProfileSwitch(pkt, isNewPeer, profileChanged);
                     });
@@ -808,7 +809,8 @@ namespace Przegladarka
         {
             if (!_lanLegacyNoKeyMode || pkt == null || string.IsNullOrEmpty(pkt.id)) return;
             if (!string.Equals(NormalizeProfileName(pkt.profile ?? "domyslny"), SelectedProfileName, StringComparison.OrdinalIgnoreCase)) return;
-            if (string.CompareOrdinal(_lanId, pkt.id) > 0) return;
+            // oba niesparowane: pyta tylko jeden (mniejszy identyfikator); drugi sparowany (hello/state) - pytamy zawsze my
+            if (pkt.t == "state-plain" && string.CompareOrdinal(_lanId, pkt.id) > 0) return;
             if (!_lanPairOffered.Add(pkt.id)) return;
             var device = string.IsNullOrWhiteSpace(pkt.device) ? pkt.id.Substring(0, 8) : pkt.device.Trim();
             Dispatcher.BeginInvoke(new Action(() =>

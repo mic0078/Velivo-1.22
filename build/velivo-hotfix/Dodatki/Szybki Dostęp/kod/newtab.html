@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <title>Nowa karta</title>
+  <link rel="stylesheet" href="newtab.css">
+</head>
+<body>
+
+  <header>
+    <div id="grupy" class="grupy"></div>
+    <div class="narzedzia">
+      <input id="szukaj" type="search" placeholder="Filtruj skroty..." autocomplete="off" spellcheck="false">
+      <select id="profil" title="Profil"></select>
+      <select id="tlo" title="Tlo">
+        <option value="auto">Tlo: systemowe</option>
+        <option value="grafit">Grafit</option>
+        <option value="granat">Granat</option>
+        <option value="fiolet">Nocny fiolet</option>
+        <option value="las">Las</option>
+        <option value="ocean">Ocean</option>
+        <option value="zachod">Zachod slonca</option>
+        <option value="czern">Czern (OLED)</option>
+        <option value="papier">Papier</option>
+        <option value="mgla">Mgla</option>
+      </select>
+      <select id="rozmiar" title="Rozmiar kafelkow">
+        <option value="110">Male kafelki</option>
+        <option value="148">Srednie</option>
+        <option value="190">Duze</option>
+        <option value="240">Bardzo duze</option>
+        <option value="300">Ogromne</option>
+      </select>
+      <button id="btnDodaj"    title="Dodaj skrot">+ Skrot</button>
+      <button id="btnGrupa"    title="Dodaj grupe">+ Grupa</button>
+      <button id="stanSync" class="stanSync" title="Stan synchronizacji">...</button>
+      <button id="btnMenu"     title="Wiecej">&#8942;</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="siatka" class="siatka"></div>
+    <p id="pusto" class="pusto" hidden>
+      Ta grupa jest pusta. Kliknij <strong>+ Skrot</strong>, zeby dodac pierwszy kafelek.
+    </p>
+  </main>
+
+  <!-- Menu glowne: tylko to, czego program nie zrobi za uzytkownika.
+       Wszystko, co dzieje sie automatycznie, wypadlo stad celowo. -->
+  <div id="menu" class="menu" hidden>
+    <button data-akcja="zmienGrupe">Zmien nazwe biezacej grupy</button>
+    <button data-akcja="usunGrupe" class="czerwony">Usun biezaca grupe</button>
+    <hr>
+    <button data-akcja="kosz" id="pozycjaKosz">Kosz...</button>
+    <button data-akcja="miniatury" id="pozycjaMiniatury">Miniatury stron: ...</button>
+    <button data-akcja="ikonyUzupelnij">Uzupelnij brakujace ikony</button>
+    <button data-akcja="folderRozszerzenia" id="pozycjaFolder">Folder rozszerzenia: ...</button>
+    <button data-akcja="sync" id="pozycjaSync">Synchronizacja z kontem Google: ...</button>
+    <hr>
+    <hr>
+    <button data-akcja="pinProfilu" id="pozycjaPin">PIN tego profilu: ...</button>
+    <button data-akcja="usunProfil" id="pozycjaUsunProfil" class="czerwony">Usun ten profil</button>
+    <hr>
+    <button data-akcja="pomoc">Pomoc i informacje</button>
+    <button data-akcja="zaawansowane">Zaawansowane...</button>
+  </div>
+
+  <!-- Rzeczy rzadko potrzebne albo naprawcze -->
+  <div id="menuZaaw" class="menu" hidden>
+    <button data-akcja="eksport">Zapisz kopie teraz</button>
+    <button data-akcja="import">Wczytaj kopie z pliku...</button>
+    <button data-akcja="synchronizuj">Synchronizuj z plikiem teraz</button>
+    <button data-akcja="uporzadkuj">Uporzadkuj folder</button>
+    <hr>
+    <button data-akcja="nazwaKomputera" id="pozycjaUrzadzenie">Nazwa tego komputera: ...</button>
+    <button data-akcja="kopiaTeraz">Zrob kopie zapasowa teraz</button>
+    <hr>
+    <button data-akcja="cofnijDostep" id="pozycjaDostep">Cofnij dostep do witryn</button>
+    <button data-akcja="pytanieOPlik" id="pozycjaPytanie">Pytanie o zgode: ...</button>
+    <button data-akcja="plikWspolny" id="pozycjaPlik">Wspolny plik (stary sposob): ...</button>
+    <hr>
+    <button data-akcja="oproznijKosz" class="czerwony">Oproznij kosz</button>
+    <button data-akcja="ikonyKasuj" class="czerwony">Usun wszystkie ikony</button>
+  </div>
+
+  <!-- okno kosza -->
+  <dialog id="oknoKosza">
+    <h2>Kosz</h2>
+    <div id="listaKosza" class="listaKosza"></div>
+    <div class="przyciski">
+      <button id="koszZamknij" type="button" class="drugi">Zamknij</button>
+    </div>
+  </dialog>
+
+  <!-- okno dodawania / edycji skrotu -->
+  <dialog id="okno">
+    <form method="dialog">
+      <h2 id="oknoTytul">Nowy skrot</h2>
+      <label>Adres
+        <input id="poleUrl" type="text" placeholder="example.com" required>
+      </label>
+      <label>Nazwa <span class="podpowiedz">(puste = z adresu)</span>
+        <input id="poleNazwa" type="text" placeholder="">
+      </label>
+      <label>Ikona <span class="podpowiedz">(mozesz tez wkleic obrazek: Ctrl+V)</span>
+        <div class="ikonaWiersz">
+          <img id="podgladIkony" alt="">
+          <button type="button" id="btnObrazek">Wybierz obrazek...</button>
+          <button type="button" id="btnBezIkony" class="drugi">Usun wlasna</button>
+        </div>
+      </label>
+      <input id="plikObrazek" type="file" accept="image/*" hidden>
+      <div class="przyciski">
+        <!-- type="button" - inaczej przegladarka wymusza walidacje pola
+             wymaganego takze przy anulowaniu i okna nie da sie zamknac -->
+        <button id="oknoAnuluj" type="button" class="drugi">Anuluj</button>
+        <button id="oknoZapisz" value="zapisz" type="submit">Zapisz</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- PIN profilu. Zamek na uczciwosc, nie szyfrowanie - w pliku leza
+       tylko sol i skrot SHA-256, samego kodu nie ma tam nigdzie. -->
+  <dialog id="oknoPin">
+    <h2 id="pinTytul">PIN</h2>
+    <p id="pinPodpowiedz" class="podpowiedz"></p>
+    <label>Kod
+      <input id="polePin" type="password" inputmode="numeric" autocomplete="off">
+    </label>
+    <div class="przyciski">
+      <button id="pinAnuluj" type="button" class="drugi">Anuluj</button>
+      <button id="pinOk" type="button">Potwierdz</button>
+    </div>
+  </dialog>
+
+  <input id="plikImport" type="file" accept="application/json" hidden>
+
+  <div id="pasek" class="pasek" hidden></div>
+
+  <script src="newtab.js"></script>
+</body>
+</html>

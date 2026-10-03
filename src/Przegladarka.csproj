@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Velivo</AssemblyName>
+    <Product>Velivo</Product>
+    <AssemblyTitle>Velivo Browser</AssemblyTitle>
+    <Company>andro</Company>
+    <RootNamespace>Przegladarka</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>1.22</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="app.ico" />
+    <None Include="filters.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="QuickAccessExtension\**\*">
+      <Link>Dodatki\Szybki Dostęp\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+</Project>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

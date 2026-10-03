@@ -1,0 +1,26 @@
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Velivo.exe
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\formularze.js
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\hasla.html
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\hasla.js
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\icon128.png
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\newtab.css
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\newtab.html
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\newtab.js
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\pin.html
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\pin.js
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\kod\tlo.js
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Dodatki\Szybki Dostęp\manifest.json
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\runtimes\win-x86\native\WebView2Loader.dll
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\runtimes\win-x64\native\WebView2Loader.dll
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\runtimes\win-arm64\native\WebView2Loader.dll
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\filters.txt
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Velivo.dll
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Velivo.deps.json
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Velivo.runtimeconfig.json
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Velivo.pdb
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Microsoft.Web.WebView2.Core.dll
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Microsoft.Web.WebView2.WinForms.dll
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Microsoft.Web.WebView2.Wpf.dll
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Microsoft.Web.WebView2.Core.xml
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Microsoft.Web.WebView2.WinForms.xml
+E:\Roboczy\PRZEGLADARKA\build\velivo-pathfix\Microsoft.Web.WebView2.Wpf.xml

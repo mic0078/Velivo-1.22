@@ -1,0 +1,750 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
+
+namespace Przegladarka
+{
+    // Synchronizacja LAN w czasie rzeczywistym dla aktywnego profilu (ustawienia, zakladki, sesja, reguly prywatnosci).
+    public partial class MainWindow
+    {
+        sealed class LanPeerInfo
+        {
+            public string Id;
+            public string Device;
+            public string Address;
+            public string Profile;
+            public string LastType;
+            public long LastStamp;
+            public DateTime LastSeenUtc;
+        }
+
+        sealed class LanStatePacket
+        {
+            public string t { get; set; }      // hello/state
+            public string id { get; set; }     // sender id
+            public string device { get; set; } // nazwa komputera
+            public string profile { get; set; }
+            public long ts { get; set; }
+            public string key { get; set; }    // MAC pakietu hello
+            public string hash { get; set; }   // HMAC stanu do odrzucania duplikatow
+            public string nonce { get; set; }
+            public string tag { get; set; }
+            public string data { get; set; }
+            public string pairId { get; set; }
+            public string pub { get; set; }
+            public string proof { get; set; }
+        }
+
+        sealed class LanSyncPayload
+        {
+            public string settings { get; set; }
+            public string bookmarks { get; set; }
+            public string session { get; set; }
+            public string sessionActive { get; set; }
+            public string privacy { get; set; }
+            public string profiles { get; set; }
+            public string extensions { get; set; }
+            public string passwords { get; set; }
+        }
+
+        static readonly HashSet<string> LanSettingsBlockedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "lanSync",
+            "lanSyncSilent",
+            "lanSyncKey",
+            "quickAccessTab",
+        };
+
+        const int LanPort = 41919;
+        string _lanId = Guid.NewGuid().ToString("N");
+        readonly string _lanDeviceName = Environment.MachineName;
+        CancellationTokenSource _lanCts;
+        UdpClient _lanRx;
+        UdpClient _lanTx;
+        DispatcherTimer _lanTick;
+        string _lastLanFingerprint = "";
+        byte[] _lanEncryptionKey;
+        byte[] _lanAuthenticationKey;
+        bool _lanLegacyNoKeyMode;
+        bool _lanApplying;
+        DateTime _lanStartedUtc = DateTime.MinValue;
+        DateTime _lastHello = DateTime.MinValue;
+        readonly Dictionary<string, LanPeerInfo> _lanPeers = new Dictionary<string, LanPeerInfo>(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, long> _lanPeerStamps = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, string> _lanDeviceProfile = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, DateTime> _lanProfilePrompted = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        readonly List<string> _lanLog = new List<string>();
+        DateTime _lanLastRxUtc;
+        DateTime _lanLastTxUtc;
+        int _lanPacketsRx;
+        int _lanPacketsTx;
+        int _lanErrors;
+
+        Window _lanDiagWindow;
+        TextBlock _lanDiagStatus;
+        TextBlock _lanDiagCounters;
+        ListBox _lanDiagPeers;
+        ListBox _lanDiagLog;
+        DispatcherTimer _lanDiagTimer;
+
+        static string ReadTextOrEmpty(string path)
+        {
+            try { return File.Exists(path) ? File.ReadAllText(path) : ""; }
+            catch (Exception) { return ""; }
+        }
+
+        static string Sha256(string text)
+        {
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(text ?? ""));
+            return Convert.ToHexString(bytes);
+        }
+
+        string CurrentLanFingerprint()
+        {
+            var settings = ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt"));
+            var bookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
+            var session = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt"));
+            var sessionActive = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt.aktywna"));
+            var privacy = ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt"));
+            var profiles = ReadProfilesRegistry();
+            var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
+            var passwords = ExportPasswordsForSync();
+            return Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + session + "\n--\n" + sessionActive + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
+        }
+
+        static string FilterLanSettingsForImport(string settingsText)
+        {
+            if (settingsText == null) return null;
+            var lines = settingsText
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(line =>
+                {
+                    int separator = line.IndexOf('=');
+                    if (separator <= 0) return true;
+                    var key = line.Substring(0, separator).Trim();
+                    return !LanSettingsBlockedKeys.Contains(key);
+                });
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        static string MergeLanSettingsForImport(string remoteSettings, string localSettingsPath)
+        {
+            var remote = FilterLanSettingsForImport(remoteSettings);
+            var localOnly = ReadTextOrEmpty(localSettingsPath)
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(line =>
+                {
+                    int separator = line.IndexOf('=');
+                    return separator > 0 && LanSettingsBlockedKeys.Contains(line.Substring(0, separator).Trim());
+                });
+            return string.Join(Environment.NewLine, new[] { remote }.Concat(localOnly).Where(x => !string.IsNullOrEmpty(x)));
+        }
+
+        static byte[] DeriveLanKeyMaterial(string key)
+        {
+            return Rfc2898DeriveBytes.Pbkdf2(key, Encoding.UTF8.GetBytes("Velivo LAN sync v1"), 250000, HashAlgorithmName.SHA256, 64);
+        }
+
+        void InitializeLanKeys()
+        {
+            var material = DeriveLanKeyMaterial(_settings.LanSyncKey.Trim());
+            _lanEncryptionKey = new byte[32];
+            _lanAuthenticationKey = new byte[32];
+            Buffer.BlockCopy(material, 0, _lanEncryptionKey, 0, 32);
+            Buffer.BlockCopy(material, 32, _lanAuthenticationKey, 0, 32);
+            CryptographicOperations.ZeroMemory(material);
+        }
+
+        static byte[] LanAssociatedData(LanStatePacket pkt)
+        {
+            var header = string.Join("\n", pkt.t ?? "", pkt.id ?? "", pkt.device ?? "", pkt.profile ?? "",
+                pkt.ts.ToString(CultureInfo.InvariantCulture), pkt.hash ?? "");
+            return Encoding.UTF8.GetBytes(header);
+        }
+
+        string LanHelloMac(LanStatePacket pkt)
+        {
+            using (var hmac = new HMACSHA256(_lanAuthenticationKey))
+                return Convert.ToBase64String(hmac.ComputeHash(LanAssociatedData(pkt)));
+        }
+
+        bool VerifyLanHello(LanStatePacket pkt)
+        {
+            if (_lanAuthenticationKey == null || string.IsNullOrWhiteSpace(pkt.key)) return false;
+            try
+            {
+                var supplied = Convert.FromBase64String(pkt.key);
+                using (var hmac = new HMACSHA256(_lanAuthenticationKey))
+                {
+                    var expected = hmac.ComputeHash(LanAssociatedData(pkt));
+                    return supplied.Length == expected.Length && CryptographicOperations.FixedTimeEquals(supplied, expected);
+                }
+            }
+            catch (FormatException) { return false; }
+        }
+
+        string LanFingerprintMac(string fingerprint)
+        {
+            using (var hmac = new HMACSHA256(_lanAuthenticationKey))
+                return Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(fingerprint ?? "")));
+        }
+
+        void EncryptLanState(LanStatePacket pkt, LanSyncPayload payload)
+        {
+            var plain = JsonSerializer.SerializeToUtf8Bytes(payload);
+            try
+            {
+                var nonce = RandomNumberGenerator.GetBytes(12);
+                var cipher = new byte[plain.Length];
+                var tag = new byte[16];
+                using (var gcm = new AesGcm(_lanEncryptionKey, 16))
+                    gcm.Encrypt(nonce, plain, cipher, tag, LanAssociatedData(pkt));
+                pkt.nonce = Convert.ToBase64String(nonce);
+                pkt.tag = Convert.ToBase64String(tag);
+                pkt.data = Convert.ToBase64String(cipher);
+            }
+            finally { CryptographicOperations.ZeroMemory(plain); }
+        }
+
+        LanSyncPayload DecryptLanState(LanStatePacket pkt)
+        {
+            if (_lanEncryptionKey == null || string.IsNullOrWhiteSpace(pkt.nonce) ||
+                string.IsNullOrWhiteSpace(pkt.tag) || string.IsNullOrWhiteSpace(pkt.data)) return null;
+            var nonce = Convert.FromBase64String(pkt.nonce);
+            var tag = Convert.FromBase64String(pkt.tag);
+            var cipher = Convert.FromBase64String(pkt.data);
+            if (nonce.Length != 12 || tag.Length != 16 || cipher.Length == 0 || cipher.Length > 60000) return null;
+            var plain = new byte[cipher.Length];
+            try
+            {
+                using (var gcm = new AesGcm(_lanEncryptionKey, 16))
+                    gcm.Decrypt(nonce, cipher, tag, plain, LanAssociatedData(pkt));
+                return JsonSerializer.Deserialize<LanSyncPayload>(plain);
+            }
+            finally { CryptographicOperations.ZeroMemory(plain); }
+        }
+
+        bool ShouldShowLanToast()
+        {
+            return _settings != null && !_settings.LanSyncSilent;
+        }
+
+        void LanLog(string line)
+        {
+            string msg = DateTime.Now.ToString("HH:mm:ss") + "  " + line;
+            _lanLog.Add(msg);
+            if (_lanLog.Count > 250) _lanLog.RemoveRange(0, _lanLog.Count - 250);
+            RefreshLanDiagnosticsUi();
+        }
+
+        void StartLanSync()
+        {
+            StopLanSync();
+            if (_settings == null || !_settings.LanSync) return;
+            bool hasKey = AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey);
+            _lanLegacyNoKeyMode = !hasKey;
+            _lanCts = new CancellationTokenSource();
+            try
+            {
+                if (hasKey) InitializeLanKeys();
+                _lanRx = new UdpClient(AddressFamily.InterNetwork);
+                _lanRx.Client.ExclusiveAddressUse = false;
+                _lanRx.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                _lanRx.Client.Bind(new IPEndPoint(IPAddress.Any, LanPort));
+                _lanRx.EnableBroadcast = true;
+                _lanTx = new UdpClient(AddressFamily.InterNetwork);
+                _lanTx.EnableBroadcast = true;
+                StartQuickAccessLanListener(_lanCts.Token);
+                _ = Task.Run(() => LanListenLoop(_lanCts.Token));
+                _lanStartedUtc = DateTime.UtcNow;
+
+                _lanTick = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+                _lanTick.Tick += (s, e) =>
+                {
+                    if (_lanApplying) return;
+                    ExpireLanPairings();
+                    if (_lanLegacyNoKeyMode)
+                    {
+                        LanBroadcastState(false);
+                        return;
+                    }
+                    if (_lanAuthenticationKey != null && DateTime.UtcNow - _lastHello > TimeSpan.FromSeconds(12)) LanBroadcastHello();
+                    if (_lanEncryptionKey != null)
+                    {
+                        LanBroadcastState(false);
+                        BroadcastQuickAccessLan();
+                    }
+                };
+                _lanTick.Start();
+                LanLog(hasKey
+                    ? "LAN sync uruchomiona na porcie " + LanPort + " (profil: " + SelectedProfileName + ")."
+                    : "LAN sync uruchomiona w trybie zgodności bez klucza (profil: " + SelectedProfileName + ").");
+                if (hasKey)
+                {
+                    LanBroadcastHello();
+                    LanBroadcastState(true);
+                    BroadcastQuickAccessLan();
+                }
+                else
+                {
+                    LanBroadcastState(true);
+                }
+            }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog("Błąd startu LAN sync: " + ex.Message); }
+        }
+
+        void StopLanSync()
+        {
+            try { _lanTick?.Stop(); } catch (Exception) { }
+            _lanTick = null;
+            try { _lanCts?.Cancel(); } catch (Exception) { }
+            _lanCts = null;
+            StopQuickAccessLanListener();
+            try { _lanRx?.Dispose(); } catch (Exception) { }
+            try { _lanTx?.Dispose(); } catch (Exception) { }
+            _lanRx = null;
+            _lanTx = null;
+            _lanPeers.Clear();
+            _lanPeerStamps.Clear();
+            _lanDeviceProfile.Clear();
+            _lanProfilePrompted.Clear();
+            if (_lanEncryptionKey != null) CryptographicOperations.ZeroMemory(_lanEncryptionKey);
+            if (_lanAuthenticationKey != null) CryptographicOperations.ZeroMemory(_lanAuthenticationKey);
+            _lanEncryptionKey = null;
+            _lanAuthenticationKey = null;
+            _lanLegacyNoKeyMode = false;
+            ClearLanPairings();
+            LanLog("LAN sync zatrzymana.");
+        }
+
+        async Task LanListenLoop(CancellationToken ct)
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    var res = await _lanRx.ReceiveAsync(ct);
+                    if (res.Buffer == null || res.Buffer.Length == 0 || res.Buffer.Length > 60000) continue;
+                    var msg = Encoding.UTF8.GetString(res.Buffer);
+                    var pkt = JsonSerializer.Deserialize<LanStatePacket>(msg);
+                    Guid senderId;
+                    if (pkt == null || pkt.id == _lanId || !Guid.TryParseExact(pkt.id, "N", out senderId)) continue;
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    if (pkt.ts < now - 300000 || pkt.ts > now + 300000) continue;
+
+                    if (pkt.t != null && pkt.t.StartsWith("pair-", StringComparison.Ordinal))
+                    {
+                        await Dispatcher.InvokeAsync(() => HandleLanPairPacket(pkt, res.RemoteEndPoint.Address.ToString()));
+                        continue;
+                    }
+
+                    if (pkt.t == "hello" || pkt.t == "state" || pkt.t == "state-plain")
+                    {
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            var device = string.IsNullOrWhiteSpace(pkt.device) ? pkt.id : pkt.device.Trim();
+                            string previousProfile;
+                            bool profileChanged = _lanDeviceProfile.TryGetValue(device, out previousProfile) &&
+                                !string.Equals(previousProfile, NormalizeProfileName(pkt.profile ?? "domyslny"), StringComparison.OrdinalIgnoreCase);
+                            TryPromptProfileSwitch(pkt, !_lanPeers.ContainsKey(pkt.id), profileChanged);
+                        });
+                    }
+
+                    LanSyncPayload state = null;
+                    if (pkt.t == "hello")
+                    {
+                        if (_lanLegacyNoKeyMode) continue;
+                        if (!VerifyLanHello(pkt)) continue;
+                    }
+                    else if (pkt.t == "state")
+                    {
+                        if (_lanLegacyNoKeyMode) continue;
+                        try { state = DecryptLanState(pkt); }
+                        catch (CryptographicException) { continue; }
+                        catch (FormatException) { continue; }
+                        catch (JsonException) { continue; }
+                        if (state == null) continue;
+                    }
+                    else if (pkt.t == "state-plain")
+                    {
+                        if (!_lanLegacyNoKeyMode) continue;
+                        if (string.IsNullOrWhiteSpace(pkt.data)) continue;
+                        try
+                        {
+                            var plainBytes = Convert.FromBase64String(pkt.data);
+                            if (plainBytes.Length == 0 || plainBytes.Length > 50000) continue;
+                            state = JsonSerializer.Deserialize<LanSyncPayload>(plainBytes);
+                        }
+                        catch (FormatException) { continue; }
+                        catch (JsonException) { continue; }
+                        if (state == null) continue;
+                    }
+                    else continue;
+
+                    _lanPacketsRx++;
+                    _lanLastRxUtc = DateTime.UtcNow;
+                    bool isNewPeer = false;
+                    bool profileChanged = false;
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        isNewPeer = TouchLanPeer(pkt, res.RemoteEndPoint, out profileChanged);
+                        if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
+                            TryPromptProfileSwitch(pkt, isNewPeer, profileChanged);
+                    });
+
+                    if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    if (pkt.t == "hello")
+                    {
+                        await Dispatcher.InvokeAsync(() => LanBroadcastState(isNewPeer));
+                        continue;
+                    }
+                    if (pkt.t == "state" || pkt.t == "state-plain")
+                    {
+                        var statePacket = pkt;
+                        var statePayload = state;
+                        await Dispatcher.InvokeAsync(() => ApplyLanState(statePacket, statePayload));
+                    }
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    _lanErrors++;
+                    App.LogError(ex);
+                    await Dispatcher.InvokeAsync(() => LanLog("Błąd odbioru LAN: " + ex.Message));
+                    try { await Task.Delay(500, ct); } catch (Exception) { }
+                }
+            }
+        }
+
+        bool TouchLanPeer(LanStatePacket pkt, IPEndPoint ep, out bool profileChanged)
+        {
+            profileChanged = false;
+            bool isNew = false;
+            LanPeerInfo p;
+            if (!_lanPeers.TryGetValue(pkt.id, out p))
+            {
+                p = new LanPeerInfo { Id = pkt.id };
+                _lanPeers[pkt.id] = p;
+                LanLog("Wykryto urządzenie: " + pkt.id.Substring(0, 8));
+                isNew = true;
+            }
+            var normalizedProfile = NormalizeProfileName(pkt.profile ?? "domyslny");
+            if (!string.IsNullOrWhiteSpace(p.Profile) && !string.Equals(p.Profile, normalizedProfile, StringComparison.OrdinalIgnoreCase))
+                profileChanged = true;
+
+            var device = string.IsNullOrWhiteSpace(pkt.device) ? pkt.id : pkt.device.Trim();
+            string oldDeviceProfile;
+            if (_lanDeviceProfile.TryGetValue(device, out oldDeviceProfile) && !string.Equals(oldDeviceProfile, normalizedProfile, StringComparison.OrdinalIgnoreCase))
+                profileChanged = true;
+            _lanDeviceProfile[device] = normalizedProfile;
+
+            p.Device = device;
+            p.Address = ep != null ? ep.Address + ":" + ep.Port : "?";
+            p.Profile = normalizedProfile;
+            p.LastType = pkt.t ?? "?";
+            p.LastStamp = pkt.ts;
+            p.LastSeenUtc = DateTime.UtcNow;
+            RefreshLanDiagnosticsUi();
+            return isNew;
+        }
+
+        void TryPromptProfileSwitch(LanStatePacket pkt, bool isNewPeer, bool profileChanged)
+        {
+            var target = NormalizeProfileName(pkt.profile ?? "domyslny");
+            if (string.Equals(target, SelectedProfileName, StringComparison.OrdinalIgnoreCase)) return;
+
+            // Podczas dolaczania pytamy tylko dolaczajaca maszyne. Dla stalej pracy pytamy po wykryciu zmiany trybu na peerze.
+            bool joiningPrompt = isNewPeer && (DateTime.UtcNow - _lanStartedUtc) < TimeSpan.FromSeconds(45);
+            if (!joiningPrompt && !profileChanged) return;
+
+            var device = string.IsNullOrWhiteSpace(pkt.device) ? pkt.id : pkt.device.Trim();
+            if (string.Equals(device, _lanDeviceName, StringComparison.OrdinalIgnoreCase)) return;
+
+            var key = device + "|" + target;
+            DateTime last;
+            if (_lanProfilePrompted.TryGetValue(key, out last) && DateTime.UtcNow - last < TimeSpan.FromMinutes(2)) return;
+            _lanProfilePrompted[key] = DateTime.UtcNow;
+
+            string mode = joiningPrompt ? "Dołączyłeś do sieci z innym trybem pracy." : "Wykryto zmianę trybu pracy na innym urządzeniu.";
+            var ans = MessageBox.Show(this,
+                mode + "\n\nUrządzenie: " + device +
+                "\nWykryty profil: " + target +
+                "\nAktualny profil: " + SelectedProfileName +
+                "\n\nPrzełączyć się na profil \"" + target + "\", aby zachować synchronizację LAN?",
+                "Synchronizacja LAN", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (ans == MessageBoxResult.Yes)
+                SwitchProfile(target);
+        }
+
+        void LanBroadcastHello()
+        {
+            if (_lanTx == null || _lanAuthenticationKey == null) return;
+            _lastHello = DateTime.UtcNow;
+            var pkt = new LanStatePacket
+            {
+                t = "hello",
+                id = _lanId,
+                device = _lanDeviceName,
+                profile = SelectedProfileName,
+                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            };
+            pkt.key = LanHelloMac(pkt);
+            LanSend(pkt);
+        }
+
+        void LanBroadcastState(bool force)
+        {
+            if (_lanTx == null || _lanApplying) return;
+            if (!_lanLegacyNoKeyMode && (_lanEncryptionKey == null || _lanAuthenticationKey == null)) return;
+            var settings = ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt"));
+            var bookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
+            var session = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt"));
+            var sessionActive = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt.aktywna"));
+            var privacy = ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt"));
+            var profiles = ReadProfilesRegistry();
+            var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
+            var passwords = ExportPasswordsForSync();
+
+            var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + session + "\n--\n" + sessionActive + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
+            if (!force && fingerprint == _lastLanFingerprint) return;
+            _lastLanFingerprint = fingerprint;
+
+            var pkt = new LanStatePacket
+            {
+                t = _lanLegacyNoKeyMode ? "state-plain" : "state",
+                id = _lanId,
+                device = _lanDeviceName,
+                profile = SelectedProfileName,
+                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                hash = _lanLegacyNoKeyMode ? Sha256(fingerprint) : LanFingerprintMac(fingerprint),
+            };
+            var payload = new LanSyncPayload
+            {
+                settings = settings,
+                bookmarks = bookmarks,
+                session = session,
+                sessionActive = sessionActive,
+                privacy = privacy,
+                profiles = profiles,
+                extensions = extensions,
+                passwords = passwords,
+            };
+            if (_lanLegacyNoKeyMode)
+            {
+                pkt.data = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(payload));
+            }
+            else
+            {
+                EncryptLanState(pkt, payload);
+            }
+            LanSend(pkt);
+        }
+
+        void LanSend(LanStatePacket pkt)
+        {
+            if (_lanTx == null) return;
+            try
+            {
+                var data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(pkt));
+                if (data.Length > 60000)
+                {
+                    _lanErrors++;
+                    LanLog("Nie wysłano pakietu LAN: przekracza limit UDP (" + data.Length.ToString("N0") + " B).");
+                    return;
+                }
+                _ = _lanTx.SendAsync(data, data.Length, new IPEndPoint(IPAddress.Broadcast, LanPort));
+                _lanPacketsTx++;
+                _lanLastTxUtc = DateTime.UtcNow;
+                RefreshLanDiagnosticsUi();
+            }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog("Błąd nadawania LAN: " + ex.Message); }
+        }
+
+        void ApplyLanState(LanStatePacket pkt, LanSyncPayload state)
+        {
+            long lastStamp;
+            if (_lanPeerStamps.TryGetValue(pkt.id, out lastStamp) && pkt.ts <= lastStamp) return;
+            var localFingerprint = CurrentLanFingerprint();
+            var localHash = pkt.t == "state-plain" ? Sha256(localFingerprint) : LanFingerprintMac(localFingerprint);
+            if (string.Equals(pkt.hash, localHash, StringComparison.Ordinal))
+            {
+                _lanPeerStamps[pkt.id] = pkt.ts;
+                return;
+            }
+            if (state == null || state.settings == null || state.bookmarks == null || state.session == null ||
+                state.sessionActive == null || state.privacy == null || state.profiles == null ||
+                state.extensions == null || state.passwords == null)
+            {
+                LanLog("Odrzucono niekompletny stan synchronizacji.");
+                return;
+            }
+
+            try
+            {
+                _lanApplying = true;
+                Directory.CreateDirectory(DataDir);
+
+                var settingsPath = Path.Combine(DataDir, "ustawienia.txt");
+                File.WriteAllText(settingsPath, MergeLanSettingsForImport(state.settings, settingsPath));
+                File.WriteAllText(Path.Combine(DataDir, "zakladki.txt"), state.bookmarks);
+                File.WriteAllText(Path.Combine(DataDir, "sesja.txt"), state.session);
+                File.WriteAllText(Path.Combine(DataDir, "sesja.txt.aktywna"), state.sessionActive);
+                File.WriteAllText(Path.Combine(DataDir, "prywatnosc.txt"), state.privacy);
+                WriteProfilesRegistry(state.profiles);
+                WriteIfNotEmpty(ExtensionsSyncListFile, state.extensions);
+                ImportPasswordsFromSync(state.passwords, true);
+
+                _settings = AppSettings.Load(DataDir);
+                ApplySettingsToAllTabs();
+                UpdateDarkButton();
+                LoadBookmarks();
+                LoadSitePrivacyRules();
+                UpdatePrivacyButton();
+                _ = RebuildBlocker();
+                _ = ApplyExtensionsSyncListAsync();
+                _lastLanFingerprint = CurrentLanFingerprint();
+                _lanPeerStamps[pkt.id] = pkt.ts;
+                if (ShouldShowLanToast()) ShowToast("🌐 Zsynchronizowano profil z Velivo w sieci lokalnej.", null);
+                LanLog("Zaimportowano stan od " + pkt.id.Substring(0, 8) + ".");
+            }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog("Błąd importu LAN: " + ex.Message); }
+            finally { _lanApplying = false; }
+        }
+
+        void NotifyLanStateChanged()
+        {
+            if (_lanApplying) return;
+            LanBroadcastState(false);
+        }
+
+        static string ReadProfilesRegistry()
+        {
+            try
+            {
+                var list = GetKnownProfiles();
+                return string.Join("\n", list);
+            }
+            catch (Exception) { return "domyslny"; }
+        }
+
+        static void WriteProfilesRegistry(string data)
+        {
+            try
+            {
+                var lines = (data ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(NormalizeProfileName)
+                    .Where(x => x.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (!lines.Contains("domyslny")) lines.Insert(0, "domyslny");
+                SaveKnownProfiles(lines);
+            }
+            catch (Exception) { }
+        }
+
+        void OpenLanDiagnosticsPanel()
+        {
+            if (_lanDiagWindow != null) { _lanDiagWindow.Activate(); return; }
+
+            _lanDiagStatus = new TextBlock { Margin = new Thickness(8, 8, 8, 2), FontWeight = FontWeights.SemiBold };
+            _lanDiagCounters = new TextBlock { Margin = new Thickness(8, 0, 8, 8) };
+            _lanDiagPeers = new ListBox { Margin = new Thickness(8), Height = 180 };
+            _lanDiagLog = new ListBox { Margin = new Thickness(8) };
+
+            var ping = SmallButton("Odśwież teraz", () => { LanBroadcastHello(); LanBroadcastState(true); });
+            var clear = SmallButton("Wyczyść log", () => { _lanLog.Clear(); RefreshLanDiagnosticsUi(); });
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8, 0, 8, 8) };
+            bar.Children.Add(ping); bar.Children.Add(clear);
+
+            var root = new DockPanel();
+            DockPanel.SetDock(_lanDiagStatus, Dock.Top);
+            DockPanel.SetDock(_lanDiagCounters, Dock.Top);
+            DockPanel.SetDock(bar, Dock.Top);
+            root.Children.Add(_lanDiagStatus);
+            root.Children.Add(_lanDiagCounters);
+            root.Children.Add(bar);
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            var tPeers = new TextBlock { Text = "Wykryte urządzenia", Margin = new Thickness(8, 0, 8, 2), FontWeight = FontWeights.SemiBold };
+            var tLog = new TextBlock { Text = "Log synchronizacji", Margin = new Thickness(8, 6, 8, 2), FontWeight = FontWeights.SemiBold };
+            Grid.SetRow(tPeers, 0); Grid.SetRow(_lanDiagPeers, 1); Grid.SetRow(tLog, 2); Grid.SetRow(_lanDiagLog, 3);
+            grid.Children.Add(tPeers); grid.Children.Add(_lanDiagPeers); grid.Children.Add(tLog); grid.Children.Add(_lanDiagLog);
+            root.Children.Add(grid);
+
+            _lanDiagWindow = new Window
+            {
+                Title = "Diagnostyka synchronizacji LAN",
+                Width = 760,
+                Height = 560,
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = root
+            };
+            _lanDiagWindow.Closed += (s, e) =>
+            {
+                _lanDiagTimer?.Stop();
+                _lanDiagTimer = null;
+                _lanDiagWindow = null;
+            };
+
+            _lanDiagTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _lanDiagTimer.Tick += (s, e) => RefreshLanDiagnosticsUi();
+            _lanDiagTimer.Start();
+            RefreshLanDiagnosticsUi();
+            _lanDiagWindow.Show();
+        }
+
+        void RefreshLanDiagnosticsUi()
+        {
+            if (_lanDiagWindow == null || _lanDiagStatus == null) return;
+
+            var now = DateTime.UtcNow;
+            var active = _lanPeers.Values.Where(p => now - p.LastSeenUtc < TimeSpan.FromSeconds(20)).OrderByDescending(p => p.LastSeenUtc).ToList();
+
+            if (_settings == null || !_settings.LanSync)
+                _lanDiagStatus.Text = "Status: synchronizacja LAN wyłączona";
+            else if (_lanRx == null)
+                _lanDiagStatus.Text = "Status: synchronizacja LAN nieaktywna";
+            else if (active.Count == 0)
+                _lanDiagStatus.Text = "Status: aktywna, ale brak połączonych urządzeń";
+            else
+                _lanDiagStatus.Text = "Status: połączono z " + active.Count + " urządzeniem/urządzeniami";
+
+            _lanDiagCounters.Text = "Profil: " + SelectedProfileName +
+                                    "   |   RX: " + _lanPacketsRx +
+                                    "   TX: " + _lanPacketsTx +
+                                    "   Błędy: " + _lanErrors +
+                                    "   |   Ostatni RX: " + (_lanLastRxUtc == default ? "-" : _lanLastRxUtc.ToLocalTime().ToString("HH:mm:ss")) +
+                                    "   Ostatni TX: " + (_lanLastTxUtc == default ? "-" : _lanLastTxUtc.ToLocalTime().ToString("HH:mm:ss"));
+
+            _lanDiagPeers.Items.Clear();
+            foreach (var p in active)
+            {
+                int ago = Math.Max(0, (int)(now - p.LastSeenUtc).TotalSeconds);
+                var device = string.IsNullOrWhiteSpace(p.Device) ? "?" : p.Device;
+                _lanDiagPeers.Items.Add(p.Id.Substring(0, Math.Min(8, p.Id.Length)) + "   " + device + "   " + p.Address + "   profil=" + p.Profile + "   typ=" + p.LastType + "   " + ago + " s temu");
+            }
+            if (active.Count == 0) _lanDiagPeers.Items.Add("Brak aktywnych peerów.");
+
+            _lanDiagLog.Items.Clear();
+            foreach (var l in _lanLog.TakeLast(120).Reverse()) _lanDiagLog.Items.Add(l);
+        }
+    }
+}

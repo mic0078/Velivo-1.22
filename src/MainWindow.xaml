@@ -1,0 +1,134 @@
+<Window x:Class="Przegladarka.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Velivo 1.22" Icon="app.ico" Width="1200" Height="800" Background="#F3F4F6">
+    <Window.Resources>
+        <!-- wszystkie przyciski: bez ramki, zaokraglone podswietlenie po najechaniu -->
+        <Style TargetType="Button">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#E0E7FF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#C7D2FE"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- ikony paska: systemowe ikony Windows 11, duze i kolorowe -->
+        <!-- przelacznik AdBlocka: bez systemowego niebieskiego podswietlenia -->
+        <Style TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Icon" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI"/>
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Margin" Value="3,0"/>
+            <Setter Property="Height" Value="36"/>
+        </Style>
+    </Window.Resources>
+    <DockPanel>
+        <!-- pasek kart -->
+        <DockPanel x:Name="TabBarPanel" DockPanel.Dock="Top" Background="#E5E7EB">
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" Content="&#xE72E;" Foreground="#5B21B6" Background="#EDE9FE" Margin="2,3,6,0"
+                    ToolTip="Nowa karta prywatna (Ctrl+Shift+N) – nic nie zapisuje" Click="PrivateTab_Click"/>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <!-- karty, a zaraz za ostatnia przycisk "+" (jak w Chrome); nowe karty wstawiamy przed nim -->
+                <StackPanel x:Name="TabStrip" Orientation="Horizontal">
+                    <Button x:Name="NewTabBtn" Style="{StaticResource Icon}" Content="&#xE710;" Foreground="#1D4ED8" Background="#DBEAFE" FontSize="17"
+                            Margin="4,4,0,0" ToolTip="Nowa karta (Ctrl+T)" Click="NewTab_Click"/>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+        <!-- pasek narzedzi -->
+        <DockPanel x:Name="ToolBarPanel" DockPanel.Dock="Top" Background="White" Height="48" LastChildFill="True">
+            <Button Style="{StaticResource Icon}" Content="&#xE72B;" Foreground="#1D4ED8" Background="#DBEAFE" Margin="6,0,0,0" ToolTip="Wstecz (Alt+←)" Click="Back_Click"/>
+            <Button Style="{StaticResource Icon}" Content="&#xE72A;" Foreground="#1D4ED8" Background="#DBEAFE" ToolTip="Dalej (Alt+→)" Click="Forward_Click"/>
+            <Button Style="{StaticResource Icon}" Content="&#xE72C;" Foreground="#15803D" Background="#DCFCE7" ToolTip="Odśwież (F5)" Click="Reload_Click"/>
+            <Button Style="{StaticResource Icon}" Content="&#xE80F;" Foreground="#C2410C" Background="#FFEDD5" ToolTip="Strona startowa" Click="Home_Click"/>
+                <Button DockPanel.Dock="Right" x:Name="ProfileBadgeBtn" Content="👤" Width="Auto" MinWidth="86" Height="34" Padding="10,0"
+                    FontSize="13" FontWeight="SemiBold" Foreground="#1F2937" Background="#E5E7EB" Margin="4,0"
+                    ToolTip="Aktywny profil" Click="ProfileBadge_Click"/>
+            <Button DockPanel.Dock="Right" x:Name="SettingsBtn" Style="{StaticResource Icon}" Content="&#xE713;" Foreground="#1F2937" Background="#E5E7EB" Margin="2,0,6,0" ToolTip="Ustawienia" Click="Settings_Click"/>
+            <Button DockPanel.Dock="Right" x:Name="HistoryBtn" Style="{StaticResource Icon}" Content="&#xE81C;" Foreground="#4338CA" Background="#E0E7FF" ToolTip="Historia (Ctrl+H)" Click="History_Click"/>
+            <Button DockPanel.Dock="Right" x:Name="ExtensionsBtn" Style="{StaticResource Icon}" Content="&#xEA86;" Foreground="#6D28D9" Background="#EDE9FE" ToolTip="Dodatki (tryb dewelopera)" Click="Extensions_Click"/>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="DownloadsBtn" Content="&#xE896;" Foreground="#0E7490" Background="#CFFAFE" Width="Auto" MinWidth="40" Padding="6,0"
+                    ToolTip="Pobrane pliki (Ctrl+J)" Click="Downloads_Click"/>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="ReadRateBtn" Content="1×" Visibility="Collapsed" Width="Auto" MinWidth="46" Padding="6,0"
+                    FontFamily="Segoe UI" FontSize="14" FontWeight="SemiBold" Foreground="#0F766E" Background="#CCFBF1" ToolTip="Prędkość czytania (kliknij, aby zmienić)" Click="ReadRateBtn_Click"/>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="ReadStopBtn" Content="&#xE71A;" Visibility="Collapsed" Foreground="#B91C1C" Background="#FEE2E2"
+                    ToolTip="Zatrzymaj czytanie" Click="ReadStopBtn_Click"/>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="ReadBtn" Content="&#xE767;" Foreground="#0F766E" Background="#CCFBF1"
+                    ToolTip="Czytaj stronę na głos (Ctrl+Shift+U)" Click="ReadBtn_Click"/>
+                <Button DockPanel.Dock="Right" x:Name="ReaderModeBtn" Content="Czytnik" Width="Auto" MinWidth="64" Height="34" Padding="10,0"
+                    FontSize="13" FontWeight="SemiBold" Foreground="#155E75" Background="#CFFAFE" Margin="4,0"
+                    ToolTip="Tryb czytania + lokalne streszczenie" Click="ReaderMode_Click"/>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="ShotBtn" Content="&#xE722;" Foreground="#BE185D" Background="#FCE7F3"
+                    ToolTip="Zrzut ekranu strony (widoczna część lub cała strona)" Click="ShotBtn_Click"/>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="DarkBtn" Content="&#xE708;" Foreground="#1E293B" Background="#E2E8F0"
+                    ToolTip="Tryb ciemny stron" Click="DarkBtn_Click"/>
+            <Button DockPanel.Dock="Right" x:Name="BookmarksBtn" Style="{StaticResource Icon}" Content="&#xE728;" Foreground="#B45309" Background="#FEF3C7" ToolTip="Wszystkie zakładki" Click="Bookmarks_Click"/>
+            <ToggleButton x:Name="AdToggle" DockPanel.Dock="Right" IsChecked="True" Margin="4,7" Padding="10,0"
+                          BorderThickness="0" Background="#DCFCE7" Click="AdToggle_Click" ToolTip="Włącz/wyłącz AdBlock">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="AdIcon" Text="&#xEA18;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="19" Foreground="#15803D" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="AdCounter" Text="0" FontSize="14" FontWeight="SemiBold" Foreground="#14532D" VerticalAlignment="Center"/>
+                </StackPanel>
+            </ToggleButton>
+            <StackPanel DockPanel.Dock="Right" x:Name="ExtBar" Orientation="Horizontal" Margin="4,0"/>
+            <Button DockPanel.Dock="Right" x:Name="StoreBtn" Content="➕ Dodaj do Velivo" Visibility="Collapsed" Width="Auto" Padding="10,0" FontSize="13"
+                    Margin="4,7" Background="#DBEAFE" ToolTip="Pobiera ten dodatek ze sklepu i instaluje go" Click="StoreInstall_Click"/>
+                <Button DockPanel.Dock="Right" x:Name="PrivacyBtn" Content="Prywatność" Width="Auto" MinWidth="86" Height="34" Padding="10,0"
+                    FontSize="13" FontWeight="SemiBold" Foreground="#14532D" Background="#DCFCE7" Margin="4,0"
+                    ToolTip="Panel prywatności i antyfingerprinting" Click="PrivacyPanel_Click"/>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="StarBtn" Content="&#xE734;" Foreground="#B45309" Background="#FEF3C7" ToolTip="Dodaj/usuń zakładkę (Ctrl+D)" Click="Star_Click"/>
+                <Button DockPanel.Dock="Right" x:Name="OverflowBtn" Style="{StaticResource Icon}" Content="&#xE712;" Foreground="#374151" Background="#E5E7EB" Visibility="Collapsed"
+                    ToolTip="Więcej narzędzi" Click="OverflowBtn_Click"/>
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="KeyBtn" Content="&#xE8D7;" Visibility="Collapsed" Width="Auto" MinWidth="40" Padding="8,0"
+                    Foreground="#047857" Background="#D1FAE5" Click="KeyBtn_Click"/>
+            <Button DockPanel.Dock="Right" x:Name="ZoomBtn" Content="100%" Visibility="Collapsed" Width="Auto" MinWidth="58" Height="34" Padding="10,0"
+                    FontSize="14" FontWeight="SemiBold" Foreground="#1D4ED8" Background="#DBEAFE" Margin="4,0" Click="ZoomBtn_Click"/>
+            <TextBox x:Name="Address" Margin="8,7" Padding="10,2" FontSize="15" VerticalContentAlignment="Center"
+                     BorderBrush="#9CA3AF" KeyDown="Address_KeyDown" GotKeyboardFocus="Address_Focus"/>
+        </DockPanel>
+        <!-- pasek zakladek (ulubionych) -->
+        <Border x:Name="BookmarkBorder" DockPanel.Dock="Top" Background="White" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1">
+            <WrapPanel x:Name="BookmarkBar" Margin="4,0,4,2"/>
+        </Border>
+        <Grid x:Name="Host"/>
+    </DockPanel>
+</Window>
+

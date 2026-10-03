@@ -1,0 +1,428 @@
+:root {
+  --tlo: #f4f5f7;
+  --panel: #ffffff;
+  --tekst: #1f2328;
+  --przygaszony: #6b7280;
+  --ramka: #d8dbe0;
+  --akcent: #2563eb;
+  --czerwony: #b42318;
+  --cien: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tlo: #16181d;
+    --panel: #21242b;
+    --tekst: #e6e8ec;
+    --przygaszony: #9aa1ad;
+    --ramka: #343943;
+    --akcent: #60a5fa;
+    --czerwony: #f87171;
+    --cien: 0 1px 3px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--tlo-obraz, var(--tlo));
+  background-attachment: fixed;
+  background-size: cover;
+  color: var(--tekst);
+  font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+}
+
+/* =====================================================================
+   MOTYWY TLA
+   Kazdy nadpisuje te same zmienne, wiec reszta wygladu dopasowuje sie
+   sama. Panele sa polprzezroczyste z rozmyciem, zeby gradient przebijal.
+   ===================================================================== */
+[data-tlo="grafit"] {
+  --tlo: #16181d;
+  --tlo-obraz: linear-gradient(160deg, #1b1f27 0%, #0f1115 100%);
+  --panel: rgba(38, 42, 51, .82);
+  --tekst: #e8eaee; --przygaszony: #9aa1ad; --ramka: rgba(255,255,255,.10);
+  --akcent: #6ea8fe;
+}
+[data-tlo="granat"] {
+  --tlo: #0b1a33;
+  --tlo-obraz: linear-gradient(160deg, #12294d 0%, #071122 100%);
+  --panel: rgba(20, 45, 82, .72);
+  --tekst: #e6eefc; --przygaszony: #93a9c9; --ramka: rgba(255,255,255,.12);
+  --akcent: #5b9cff;
+}
+[data-tlo="fiolet"] {
+  --tlo: #1b1130;
+  --tlo-obraz: linear-gradient(160deg, #2d1a54 0%, #120a22 100%);
+  --panel: rgba(56, 34, 96, .72);
+  --tekst: #ede6fb; --przygaszony: #b3a3d4; --ramka: rgba(255,255,255,.12);
+  --akcent: #a78bfa;
+}
+[data-tlo="las"] {
+  --tlo: #0d1f18;
+  --tlo-obraz: linear-gradient(160deg, #133528 0%, #071410 100%);
+  --panel: rgba(23, 60, 45, .72);
+  --tekst: #e3f3ea; --przygaszony: #97b9a8; --ramka: rgba(255,255,255,.12);
+  --akcent: #4ade80;
+}
+[data-tlo="ocean"] {
+  --tlo: #072a33;
+  --tlo-obraz: linear-gradient(160deg, #0b4453 0%, #04191f 100%);
+  --panel: rgba(12, 71, 86, .72);
+  --tekst: #e0f4f8; --przygaszony: #8fbcc7; --ramka: rgba(255,255,255,.12);
+  --akcent: #38bdf8;
+}
+[data-tlo="zachod"] {
+  --tlo: #2a1420;
+  --tlo-obraz: linear-gradient(160deg, #52203a 0%, #2b1020 55%, #10060c 100%);
+  --panel: rgba(78, 34, 56, .72);
+  --tekst: #fbe8f0; --przygaszony: #cfa3b8; --ramka: rgba(255,255,255,.12);
+  --akcent: #fb7185;
+}
+[data-tlo="czern"] {
+  --tlo: #000000;
+  --tlo-obraz: none;
+  --panel: #0d0d0f;
+  --tekst: #f0f0f2; --przygaszony: #8b8b93; --ramka: #26262b;
+  --akcent: #7dd3fc;
+}
+[data-tlo="papier"] {
+  --tlo: #f3efe7;
+  --tlo-obraz: linear-gradient(160deg, #faf7f1 0%, #ebe5da 100%);
+  --panel: rgba(255, 253, 249, .88);
+  --tekst: #2b2a27; --przygaszony: #6d6a63; --ramka: #ddd6c9;
+  --akcent: #b45309;
+}
+[data-tlo="mgla"] {
+  --tlo: #eef2f7;
+  --tlo-obraz: linear-gradient(160deg, #f7fafd 0%, #dfe7f1 100%);
+  --panel: rgba(255, 255, 255, .9);
+  --tekst: #1f2733; --przygaszony: #64748b; --ramka: #d3dce8;
+  --akcent: #2563eb;
+}
+
+/* rozmycie tla pod panelami - widoczne tam, gdzie panel jest przezroczysty */
+header, .kafel, .menu, dialog, .pasek { backdrop-filter: blur(10px); }
+
+/* ---------- gorny pasek ---------- */
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--ramka);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.grupy { display: flex; gap: 4px; flex: 1 1 auto; flex-wrap: wrap; min-width: 0; }
+
+.grupy button {
+  border: 0;
+  background: transparent;
+  color: var(--przygaszony);
+  padding: 7px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.grupy button:hover { background: rgba(127,127,127,.12); color: var(--tekst); }
+.grupy button.aktywna { background: var(--akcent); color: #fff; font-weight: 600; }
+
+.narzedzia { display: flex; gap: 8px; align-items: center; }
+
+input[type="search"], input[type="text"] {
+  background: var(--tlo);
+  border: 1px solid var(--ramka);
+  color: var(--tekst);
+  padding: 7px 11px;
+  border-radius: 7px;
+  font-size: 14px;
+  outline: none;
+}
+input[type="search"]:focus, input[type="text"]:focus { border-color: var(--akcent); }
+input[type="search"] { width: 210px; }
+
+select {
+  background: var(--tlo);
+  border: 1px solid var(--ramka);
+  color: var(--tekst);
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+}
+select:focus { border-color: var(--akcent); }
+
+/* ---------- staly wskaznik synchronizacji ---------- */
+/* Nie da sie go wyciszyc - brak zapisu do folderu ma byc widoczny zawsze,
+   inaczej przegladarka po cichu wypada z wymiany danych. */
+.stanSync {
+  border: 1px solid var(--ramka);
+  background: var(--panel);
+  color: var(--przygaszony);
+  padding: 7px 12px;
+  border-radius: 7px;
+  cursor: default;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.stanSync.dziala {
+  border-color: rgba(74, 222, 128, .5);
+  color: #4ade80;
+}
+.stanSync.nie-dziala {
+  border-color: #f87171;
+  background: rgba(248, 113, 113, .14);
+  color: #f87171;
+  cursor: pointer;
+  font-weight: 600;
+}
+.stanSync.nie-dziala:hover { background: rgba(248, 113, 113, .26); }
+.stanSync.tylko-odczyt {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, .14);
+  color: #f59e0b;
+  cursor: pointer;
+}
+
+.narzedzia button {
+  border: 1px solid var(--ramka);
+  background: var(--panel);
+  color: var(--tekst);
+  padding: 7px 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.narzedzia button:hover { border-color: var(--akcent); color: var(--akcent); }
+
+/* ---------- siatka kafelkow ---------- */
+main { padding: 28px 24px 60px; }
+
+/* Rozmiar kafelka i ikony steruje jedna zmienna - reszta skaluje sie sama,
+   dzieki czemu wieksze kafelki maja tez wieksze, czytelniejsze miniaturki. */
+:root {
+  --kafel: 148px;
+  --ikona: 36px;
+  --odstep: 16px;
+}
+
+.siatka {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--kafel), 1fr));
+  gap: var(--odstep);
+  max-width: 1900px;
+  margin: 0 auto;
+}
+
+.kafel {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--ramka);
+  border-radius: 12px;
+  padding: calc(var(--ikona) * 0.4) 12px 14px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--cien);
+  transition: transform .12s ease, border-color .12s ease;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.kafel:hover { transform: translateY(-2px); border-color: var(--akcent); }
+.kafel.przeciagany { opacity: .4; }
+.kafel.cel { border-color: var(--akcent); border-style: dashed; }
+
+.kafel img, .kafel .literka {
+  width: var(--ikona);
+  height: var(--ikona);
+  margin: 0 auto calc(var(--ikona) * 0.33);
+  display: block;
+  border-radius: calc(var(--ikona) * 0.22);
+  object-fit: contain;
+}
+.kafel .literka {
+  background: var(--akcent);
+  color: #fff;
+  font-size: calc(var(--ikona) * 0.53);
+  font-weight: 700;
+  line-height: var(--ikona);
+}
+
+.kafel .nazwa {
+  font-size: calc(11px + var(--ikona) * 0.055);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kafel .adres {
+  font-size: calc(9px + var(--ikona) * 0.045);
+  color: var(--przygaszony);
+  margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* grupa jako cel przeciagania kafelka */
+.grupy button.celGrupy {
+  background: var(--akcent);
+  color: #fff;
+  outline: 2px dashed #fff;
+  outline-offset: -4px;
+}
+
+/* ---------- kafelek ze zrzutem strony ---------- */
+.kafel.zMiniatura { padding: 0; overflow: hidden; }
+.kafel.zMiniatura .miniatura {
+  display: block;
+  width: 100%;
+  height: calc(var(--kafel) * 0.60);
+  object-fit: cover;
+  object-position: top center;
+  border-bottom: 1px solid var(--ramka);
+  margin: 0;
+  border-radius: 0;
+}
+/* przy miniaturze ikona schodzi do stopki i jest mniejsza */
+.kafel.zMiniatura img:not(.miniatura),
+.kafel.zMiniatura .literka {
+  width: calc(var(--ikona) * 0.55);
+  height: calc(var(--ikona) * 0.55);
+  line-height: calc(var(--ikona) * 0.55);
+  font-size: calc(var(--ikona) * 0.3);
+  margin: 8px auto 4px;
+}
+.kafel.zMiniatura .nazwa { padding: 0 8px; }
+.kafel.zMiniatura .adres { padding: 0 8px 10px; }
+
+/* ---------- kosz ---------- */
+.listaKosza { max-height: 420px; overflow-y: auto; margin-bottom: 14px; min-width: 460px; }
+.wierszKosza {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 10px; border-bottom: 1px solid var(--ramka);
+}
+.wierszKosza:last-child { border-bottom: 0; }
+.opisKosza { flex: 1 1 auto; min-width: 0; }
+.opisKosza .nazwa { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opisKosza .adres { font-size: 12px; color: var(--przygaszony); }
+.wierszKosza button {
+  border: 1px solid var(--akcent); background: transparent; color: var(--akcent);
+  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; flex: 0 0 auto;
+}
+.wierszKosza button:hover { background: var(--akcent); color: #fff; }
+
+.kafel .akcje { position: absolute; top: 5px; right: 5px; display: none; gap: 2px; }
+.kafel:hover .akcje { display: flex; }
+.kafel .akcje button {
+  border: 0; background: rgba(127,127,127,.18); color: var(--tekst);
+  width: 22px; height: 22px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1;
+}
+.kafel .akcje button:hover { background: var(--akcent); color: #fff; }
+
+.pusto { text-align: center; color: var(--przygaszony); margin-top: 60px; }
+
+/* ---------- menu ---------- */
+.menu {
+  position: absolute; right: 24px; top: 60px; z-index: 20;
+  background: var(--panel); border: 1px solid var(--ramka);
+  border-radius: 10px; box-shadow: var(--cien); padding: 6px; min-width: 240px;
+}
+.menu button {
+  display: block; width: 100%; text-align: left;
+  border: 0; background: transparent; color: var(--tekst);
+  padding: 9px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.menu button:hover { background: rgba(127,127,127,.12); }
+.menu button.czerwony { color: var(--czerwony); }
+.menu hr { border: 0; border-top: 1px solid var(--ramka); margin: 6px 4px; }
+
+/* ---------- pasek komunikatow ---------- */
+.pasek {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--ramka);
+  border-left: 4px solid var(--akcent);
+  color: var(--tekst);
+  padding: 12px 18px;
+  border-radius: 9px;
+  box-shadow: var(--cien);
+  max-width: 620px;
+  z-index: 30;
+  font-size: 13px;
+}
+
+/* ---------- wiersz z ikona w oknie edycji ---------- */
+.ikonaWiersz {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.ikonaWiersz img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--ramka);
+  background: var(--tlo);
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.ikonaWiersz button {
+  border: 1px solid var(--ramka);
+  background: var(--panel);
+  color: var(--tekst);
+  padding: 6px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.ikonaWiersz button:hover { border-color: var(--akcent); color: var(--akcent); }
+
+.pasekPrzycisk {
+  margin-left: 10px;
+  border: 1px solid var(--akcent);
+  background: var(--akcent);
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.pasekPrzycisk.drugi {
+  background: transparent;
+  color: var(--tekst);
+  border-color: var(--ramka);
+}
+
+/* ---------- okno dialogowe ---------- */
+dialog {
+  border: 1px solid var(--ramka);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--tekst);
+  padding: 22px 24px;
+  box-shadow: var(--cien);
+  min-width: 380px;
+}
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog h2 { margin: 0 0 16px; font-size: 17px; }
+dialog label { display: block; margin-bottom: 13px; font-size: 13px; color: var(--przygaszony); }
+dialog input { width: 100%; margin-top: 5px; }
+.podpowiedz { font-size: 12px; opacity: .75; }
+
+.przyciski { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.przyciski button {
+  border: 1px solid var(--akcent); background: var(--akcent); color: #fff;
+  padding: 8px 18px; border-radius: 7px; cursor: pointer; font-size: 14px;
+}
+.przyciski button.drugi { background: transparent; color: var(--tekst); border-color: var(--ramka); }

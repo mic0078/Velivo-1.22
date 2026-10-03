@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "SqFhhf/HQ1o=",
+  "success": true,
+  "projectFilePath": "E:\\Roboczy\\Velivo 1.22\\src\\Przegladarka.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\andro\\.nuget\\packages\\microsoft.web.webview2\\1.0.4258.31\\microsoft.web.webview2.1.0.4258.31.nupkg.sha512"
+  ],
+  "logs": []
+}

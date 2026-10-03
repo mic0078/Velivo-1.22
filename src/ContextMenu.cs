@@ -1,0 +1,154 @@
+using System;
+using System.Text.RegularExpressions;
+using Microsoft.Web.WebView2.Core;
+
+namespace Przegladarka
+{
+    // Menu prawego przycisku: "Wyszukaj ..." dla zaznaczonego tekstu (jak w Chrome)
+    // oraz "Przejdz do ..." gdy zaznaczenie wyglada jak adres strony.
+    public partial class MainWindow
+    {
+        static readonly Regex LooksLikeAddress = new Regex(@"^(https?://)?[\w-]+(\.[\w-]+)+(:\d+)?(/\S*)?$", RegexOptions.IgnoreCase);
+
+        string SearchEngineName
+        {
+            get
+            {
+                string[] e;
+                if (!AppSettings.Engines.TryGetValue(_settings.Search, out e)) e = AppSettings.Engines["duckduckgo"];
+                int p = e[0].IndexOf('(');
+                return (p > 0 ? e[0].Substring(0, p) : e[0]).Trim();
+            }
+        }
+
+        // Bezposredni adres strony przetlumaczonej przez Tlumacza Google (jak w Chrome):
+        // en.wikipedia.org/wiki/X -> en-wikipedia-org.translate.goog/wiki/X?_x_tr_sl=auto&_x_tr_tl=pl...
+        // (myslnik w nazwie hosta zapisuje sie podwojnie, kropka jako myslnik)
+        static string TranslatedPageUrl(string url)
+        {
+            Uri u;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out u)) return "https://translate.google.com/translate?sl=auto&tl=pl&u=" + Uri.EscapeDataString(url);
+            string host = u.IdnHost.Replace("-", "--").Replace(".", "-") + ".translate.goog";
+            string port = u.IsDefaultPort ? "" : ":" + u.Port;
+            string q = u.Query.TrimStart('?');
+            string tr = "_x_tr_sl=auto&_x_tr_tl=pl&_x_tr_hl=pl&_x_tr_pto=wapp" + (u.Scheme == "http" ? "&_x_tr_sch=http" : "");
+            return "https://" + host + port + u.AbsolutePath + "?" + (q.Length > 0 ? q + "&" : "") + tr + u.Fragment;
+        }
+
+        // "&" w etykiecie menu oznacza skrot klawiszowy - podwajamy, zeby byl widoczny jako znak
+        static string MenuLabel(string s) { return s.Replace("&", "&&"); }
+
+        // Menu prawego przycisku: wyszukiwanie, tlumaczenie na polski (Tlumacz Google) i zrzut ekranu.
+        async void AddSearchToContextMenu(CoreWebView2ContextMenuRequestedEventArgs e, bool isPrivate)
+        {
+            var target = e.ContextMenuTarget;
+            var core = Core;
+            // jezyk strony sprawdzamy w trakcie otwierania menu - stad odroczenie
+            var deferral = e.GetDeferral();
+            try
+            {
+                string lang = "";
+                try
+                {
+                    if (core != null)
+                        lang = (await core.ExecuteScriptAsync("(document.documentElement.lang || (document.querySelector('meta[http-equiv=\"content-language\" i]') || {}).content || '').toLowerCase()")).Trim('"');
+                }
+                catch (Exception) { }
+                string pageUrl = target.PageUri ?? "";
+                bool web = pageUrl.StartsWith("http://") || pageUrl.StartsWith("https://");
+                bool alreadyTranslated = pageUrl.Contains(".translate.goog") || pageUrl.Contains("translate.google.");
+                // strona po polsku -> bez tlumaczenia; brak informacji o jezyku -> oferujemy (lepiej zbednie niz wcale)
+                bool foreignPage = web && !alreadyTranslated && !lang.StartsWith("pl");
+
+                int pos = 0;
+                Action<CoreWebView2ContextMenuItem> add = item => e.MenuItems.Insert(pos++, item);
+                Action separator = () => add(_env.CreateContextMenuItem("", null, CoreWebView2ContextMenuItemKind.Separator));
+
+                if (target.HasSelection)
+                {
+                    string text = Regex.Replace(target.SelectionText ?? "", @"\s+", " ").Trim();
+                    if (text.Length > 0)
+                    {
+                        string shortText = text.Length > 32 ? text.Substring(0, 32).TrimEnd() + "…" : text;
+                        var search = _env.CreateContextMenuItem(MenuLabel("Wyszukaj „" + shortText + "” w " + SearchEngineName), null, CoreWebView2ContextMenuItemKind.Command);
+                        search.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => AddTab(_settings.SearchUrl(text), isPrivate));
+                        add(search);
+                        if (text.Length <= 200 && text.IndexOf(' ') < 0 && LooksLikeAddress.IsMatch(text))
+                        {
+                            var go = _env.CreateContextMenuItem(MenuLabel("Przejdź do " + shortText), null, CoreWebView2ContextMenuItemKind.Command);
+                            go.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => AddTab(ToUrl(text), isPrivate));
+                            add(go);
+                        }
+                        var tr = _env.CreateContextMenuItem("Przetłumacz zaznaczenie na polski", null, CoreWebView2ContextMenuItemKind.Command);
+                        var q = text.Length > 4500 ? text.Substring(0, 4500) : text;
+                        tr.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() =>
+                            AddTab("https://translate.google.com/?sl=auto&tl=pl&op=translate&text=" + Uri.EscapeDataString(q), isPrivate));
+                        add(tr);
+                        var readSel = _env.CreateContextMenuItem("Czytaj zaznaczenie na głos", null, CoreWebView2ContextMenuItemKind.Command);
+                        readSel.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => StartReading(true));
+                        add(readSel);
+                        separator();
+                    }
+                }
+
+                if (foreignPage)
+                {
+                    var trPage = _env.CreateContextMenuItem("Przetłumacz stronę na polski", null, CoreWebView2ContextMenuItemKind.Command);
+                    trPage.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() =>
+                    {
+                        var c = Core;
+                        if (c != null) c.Navigate(TranslatedPageUrl(pageUrl));
+                    });
+                    add(trPage);
+                }
+
+                if (web)
+                {
+                    var reader = _env.CreateContextMenuItem("Tryb czytania i streszczenie", null, CoreWebView2ContextMenuItemKind.Command);
+                    reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenReaderMode);
+                    add(reader);
+                    var readPage = _env.CreateContextMenuItem(_readTab != null ? "Zatrzymaj czytanie" : "Czytaj stronę na głos (Ctrl+Shift+U)", null, CoreWebView2ContextMenuItemKind.Command);
+                    readPage.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => { if (_readTab != null) StopReading(); else StartReading(false); });
+                    add(readPage);
+                }
+                var shots = _env.CreateContextMenuItem("Zrzut ekranu", null, CoreWebView2ContextMenuItemKind.Submenu);
+                var visible = _env.CreateContextMenuItem("Widoczna część strony", null, CoreWebView2ContextMenuItemKind.Command);
+                visible.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await TakeScreenshot(false));
+                var full = _env.CreateContextMenuItem("Cała strona (z przewijaniem)", null, CoreWebView2ContextMenuItemKind.Command);
+                full.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await TakeScreenshot(true));
+                shots.Children.Add(visible); shots.Children.Add(full);
+                add(shots);
+
+                var tools = _env.CreateContextMenuItem("Narzędzia Velivo", null, CoreWebView2ContextMenuItemKind.Submenu);
+                var tPrivacy = _env.CreateContextMenuItem("Prywatność i antyfingerprinting", null, CoreWebView2ContextMenuItemKind.Command);
+                tPrivacy.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenPrivacyPanel);
+                var tMedia = _env.CreateContextMenuItem("Wykryj media do pobrania", null, CoreWebView2ContextMenuItemKind.Command);
+                tMedia.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(DetectPageMedia);
+                var tDl = _env.CreateContextMenuItem("Menedżer pobrań", null, CoreWebView2ContextMenuItemKind.Command);
+                tDl.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => Downloads_Click(null, null));
+                var tHist = _env.CreateContextMenuItem("Historia", null, CoreWebView2ContextMenuItemKind.Command);
+                tHist.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => History_Click(null, null));
+                var tExt = _env.CreateContextMenuItem("Dodatki", null, CoreWebView2ContextMenuItemKind.Command);
+                tExt.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => Extensions_Click(null, null));
+                var tLan = _env.CreateContextMenuItem("Diagnostyka LAN sync", null, CoreWebView2ContextMenuItemKind.Command);
+                tLan.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenLanDiagnosticsPanel);
+                var tProfileWork = _env.CreateContextMenuItem("Przełącz profil: praca", null, CoreWebView2ContextMenuItemKind.Command);
+                tProfileWork.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SwitchProfile("praca"));
+                var tUser = _env.CreateContextMenuItem("Przełącz użytkownika/profil…", null, CoreWebView2ContextMenuItemKind.Command);
+                tUser.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenProfilesManager);
+                tools.Children.Add(tPrivacy);
+                tools.Children.Add(tMedia);
+                tools.Children.Add(tDl);
+                tools.Children.Add(tHist);
+                tools.Children.Add(tExt);
+                tools.Children.Add(tLan);
+                tools.Children.Add(tProfileWork);
+                tools.Children.Add(tUser);
+                add(tools);
+                separator();
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            finally { deferral.Complete(); }
+        }
+    }
+}

@@ -307,7 +307,7 @@ namespace Przegladarka
             root.Children.Add(theme);
             root.Children.Add(new TextBlock { Text = L.T("Język interfejsu / Language:"), Margin = new Thickness(0, 6, 0, 2) });
             var langBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
-            foreach (var opt in new[] { new[] { "auto", L.T("Automatycznie (język Windows)") }, new[] { "pl", "Polski" }, new[] { "en", "English" } })
+            foreach (var opt in new[] { new[] { "auto", L.T("Automatycznie (język z instalatora / Windows)") }, new[] { "pl", "Polski" }, new[] { "en", "English" } })
             {
                 var it = new ComboBoxItem { Content = opt[1], Tag = opt[0] };
                 langBox.Items.Add(it);

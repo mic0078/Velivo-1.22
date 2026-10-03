@@ -16,6 +16,20 @@ namespace Przegladarka
         public static void Init(string setting)
         {
             setting = (setting ?? "auto").Trim().ToLowerInvariant();
+            // "automatycznie": najpierw jezyk wybrany w instalatorze (language.txt obok programu), potem jezyk Windows
+            if (setting == "auto")
+            {
+                try
+                {
+                    var f = System.IO.Path.Combine(AppContext.BaseDirectory, "language.txt");
+                    if (System.IO.File.Exists(f))
+                    {
+                        var v = System.IO.File.ReadAllText(f).Trim().ToLowerInvariant();
+                        if (v == "pl" || v == "en") setting = v;
+                    }
+                }
+                catch (Exception) { }
+            }
             En = setting == "en" || (setting != "pl" && CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != "pl");
         }
 
@@ -660,9 +674,12 @@ namespace Przegladarka
             { "Dodatek nie ma okienka", "The extension has no popup" },
 
             { " kart?", " tabs?" },
+            { "Nazwa:", "Name:" },
+            { "URL / strona:", "URL / site:" },
+            { "Notatki:", "Notes:" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
-            { "Automatycznie (język Windows)", "Automatic (Windows language)" },
+            { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },
             { "Zmiana języka zadziała po ponownym uruchomieniu Velivo.", "The language change takes effect after restarting Velivo." },
         };
     }

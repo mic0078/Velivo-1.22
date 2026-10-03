@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -85,6 +85,14 @@ namespace Przegladarka
             { "Nowa karta", "New tab" },
             { "🕶 Prywatna", "🕶 Private" },
             { "wyłączony", "off" },
+            { "Zablokowane na tej stronie", "Blocked on this page" },
+            { "Elementy", "Elements" },
+            { " ukrytych elementów (reguły ręczne)", " hidden elements (manual rules)" },
+            { "Nic nie zablokowano na tej stronie.", "Nothing blocked on this page." },
+            { "Wyłącz AdBlock", "Turn AdBlock off" },
+            { "Włącz AdBlock", "Turn AdBlock on" },
+            { "Reguła domeny", "Domain rule" },
+            { "Zablokowane elementy", "Blocked items" },
 
             // ---- pasek: menu "wiecej" ----
             { "Tryb czytania", "Reader mode" },
@@ -677,6 +685,20 @@ namespace Przegladarka
             { "Nazwa:", "Name:" },
             { "URL / strona:", "URL / site:" },
             { "Notatki:", "Notes:" },
+            { "Ochrona przed śledzeniem:", "Tracking prevention:" },
+            { "Ochrona zrównoważona (zalecana)", "Balanced protection (recommended)" },
+            { "Ścisła ochrona", "Strict protection" },
+            { "Zrównoważona: blokuje znane trackery, a osadzone treści (np. wpisy z X, filmy) działają. Ścisła: blokuje też osadzone treści serwisów społecznościowych. Na zaufanych domenach ścisła działa jak zrównoważona, chyba że zaznaczysz dla domeny „Wymuś blokowanie trackerów”.", "Balanced: blocks known trackers while embedded content (e.g. posts from X, videos) still works. Strict: also blocks embedded social media content. On trusted domains strict works like balanced, unless you tick \"Force tracker blocking for this domain\"." },
+            { "Odepnij z paska (dodatek dalej działa)", "Unpin from toolbar (extension keeps working)" },
+            { "Przypnij do paska", "Pin to toolbar" },
+            { "Brak włączonych dodatków", "No enabled extensions" },
+            { "Przypnij kartę", "Pin tab" },
+            { "Odepnij kartę", "Unpin tab" },
+            { "Wytnij", "Cut" },
+            { "Kopiuj", "Copy" },
+            { "Wklej", "Paste" },
+            { "Wklej i przejdź", "Paste and go" },
+            { "Zaznacz wszystko", "Select all" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

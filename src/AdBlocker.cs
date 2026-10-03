@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -21,8 +21,13 @@ namespace Przegladarka
         public static bool IsLocalNetworkUri(string url)
         {
             Uri uri;
-            if (!Uri.TryCreate(url, UriKind.Absolute, out uri) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)) return false;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) return false;
+            return IsLocalNetworkUri(uri);
+        }
+
+        static bool IsLocalNetworkUri(Uri uri)
+        {
+            if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
 
             var host = uri.Host.TrimEnd('.');
             if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
@@ -90,7 +95,7 @@ namespace Przegladarka
             Uri u;
             if (!Uri.TryCreate(url, UriKind.Absolute, out u)) return false;
             if (u.Scheme != "http" && u.Scheme != "https") return false;
-            if (IsLocalNetworkUri(url)) return false;
+            if (IsLocalNetworkUri(u)) return false;
 
             // host i wszystkie domeny nadrzedne: a.b.example.com -> b.example.com -> example.com
             string host = u.Host;

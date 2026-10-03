@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,7 +17,7 @@ namespace Przegladarka
         public string Search = "startpage";
         public string Home = "https://startpage.com";
         public bool SendDnt = true;            // naglowki DNT: 1 i Sec-GPC: 1
-        public bool StrictTracking = true;     // ochrona przed sledzeniem: scisla
+        public bool StrictTracking = false;    // ochrona przed sledzeniem: false = zrownowazona (domyslna), true = scisla
         public bool SaveHistory = true;
         public bool ClearOnExit = false;       // przy zamknieciu: historia + cache (bez wylogowywania kont)
         public bool SavePasswords = true;
@@ -105,7 +105,7 @@ namespace Przegladarka
                         case "search": if (Engines.ContainsKey(v)) s.Search = v; break;
                         case "home": if (v.Length > 0) s.Home = v; break;
                         case "dnt": s.SendDnt = b; break;
-                        case "strict": s.StrictTracking = b; break;
+                        case "tracking": s.StrictTracking = v == "strict"; break;
                         case "history": s.SaveHistory = b; break;
                         case "clearOnExit": s.ClearOnExit = b; break;
                         case "passwords": s.SavePasswords = b; break;
@@ -182,7 +182,7 @@ namespace Przegladarka
             SaveLanSyncKey(dir, LanSyncKey);
             File.WriteAllLines(FilePath(dir), new[]
             {
-                "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "strict=" + B(StrictTracking),
+                "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "askDownload=" + B(AskDownload),
                 "popups=" + B(BlockThirdPartyPopups), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
@@ -205,8 +205,7 @@ namespace Przegladarka
             st.IsPasswordAutosaveEnabled = _settings.SavePasswords;
             st.IsGeneralAutofillEnabled = _settings.Autofill;
             st.IsReputationCheckingRequired = false;
-            core.Profile.PreferredTrackingPreventionLevel = _settings.StrictTracking
-                ? CoreWebView2TrackingPreventionLevel.Strict : CoreWebView2TrackingPreventionLevel.Balanced;
+            UpdateTrackingLevel(_current != null && _current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : core.Source);
         }
 
         void ApplySettingsToAllTabs()
@@ -373,7 +372,14 @@ namespace Przegladarka
 
             root.Children.Add(Header(L.T("Prywatność")));
             var dnt = Check(L.T("Wysyłaj sygnały „Nie śledź” (DNT i Global Privacy Control)"), L.T("Strony dostają prośbę o niesprzedawanie i nieśledzenie Twoich danych."), s.SendDnt);
-            var strict = Check(L.T("Ścisła ochrona przed śledzeniem"), L.T("Blokuje trackery i ciasteczka śledzące między stronami. Rzadko może psuć niektóre strony."), s.StrictTracking);
+            var trackPanel = new StackPanel { Margin = new Thickness(0, 2, 0, 4) };
+            trackPanel.Children.Add(new TextBlock { Text = L.T("Ochrona przed śledzeniem:"), Margin = new Thickness(0, 0, 0, 2) });
+            var trackBox = new ComboBox { Width = 320, HorizontalAlignment = HorizontalAlignment.Left };
+            trackBox.Items.Add(new ComboBoxItem { Content = L.T("Ochrona zrównoważona (zalecana)"), Tag = "balanced" });
+            trackBox.Items.Add(new ComboBoxItem { Content = L.T("Ścisła ochrona"), Tag = "strict" });
+            trackBox.SelectedIndex = s.StrictTracking ? 1 : 0;
+            trackBox.ToolTip = L.T("Zrównoważona: blokuje znane trackery, a osadzone treści (np. wpisy z X, filmy) działają. Ścisła: blokuje też osadzone treści serwisów społecznościowych. Na zaufanych domenach ścisła działa jak zrównoważona, chyba że zaznaczysz dla domeny „Wymuś blokowanie trackerów”.");
+            trackPanel.Children.Add(trackBox);
             var hist = Check(L.T("Zapisuj historię przeglądania"), null, s.SaveHistory);
             var clear = Check(L.T("Czyść dane przy zamknięciu (historia i pamięć podręczna)"), L.T("Czyści historię i cache przy zamknięciu, ale nie wylogowuje kont ani nie usuwa zapisanych logowań."), s.ClearOnExit);
             bool sejfFound = FindSejfMost() != null;
@@ -384,7 +390,8 @@ namespace Przegladarka
             var pw = Check(L.T("Proponuj zapisywanie haseł"), null, s.SavePasswords);
             var af = Check(L.T("Autouzupełnianie formularzy (adresy i karty, lokalna szyfrowana baza)"), L.T("Dane formularzy i kart są zapisywane lokalnie w szyfrowanej bazie offline. Hasła dalej obsługuje Sejf."), s.Autofill);
             var pop = Check(L.T("Blokuj wyskakujące okna otwierane bez kliknięcia"), null, s.BlockThirdPartyPopups);
-            foreach (var c in new[] { dnt, strict, hist, clear, pw, af, pop }) root.Children.Add(c);
+            root.Children.Add(dnt); root.Children.Add(trackPanel);
+            foreach (var c in new[] { hist, clear, pw, af, pop }) root.Children.Add(c);
 
             var autofillTools = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
             var afShow = SmallButton(L.T("Pokaż zapisane dane…"), null);
@@ -642,7 +649,7 @@ namespace Przegladarka
             {
                 s.Search = (string)((ComboBoxItem)engine.SelectedItem).Tag;
                 s.Home = string.IsNullOrWhiteSpace(home.Text) ? "https://duckduckgo.com/" : ToUrl(home.Text);
-                s.SendDnt = dnt.IsChecked == true; s.StrictTracking = strict.IsChecked == true;
+                s.SendDnt = dnt.IsChecked == true; s.StrictTracking = trackBox.SelectedIndex == 1;
                 s.SaveHistory = hist.IsChecked == true; s.ClearOnExit = clear.IsChecked == true;
                 s.SavePasswords = pw.IsChecked == true; s.Autofill = af.IsChecked == true;
                 s.BlockThirdPartyPopups = pop.IsChecked == true;

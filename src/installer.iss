@@ -102,6 +102,9 @@ Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueN
 [Run]
 Filename: "{app}\Velivo.exe"; Description: "{cm:RunApp,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
+[UninstallDelete]
+Type: files; Name: "{app}\unins*.old-*"
+
 [Code]
 function HasDesktopRuntime10: Boolean;
 var FindRec: TFindRec;
@@ -177,6 +180,46 @@ begin
     BackupDir(UserDataDir, Stamp);
     BackupDir(QuickAccessDataDir, Stamp);
   end;
+end;
+
+// Zablokowane unins000.exe/.dat (Eksplorator, indeksowanie, antywirus albo zawieszony ukryty proces Velivo)
+// konczyly instalacje bledem "plik jest uzywany przez inny proces" przy zapisie informacji o dezinstalacji.
+// Zmiana nazwy dziala nawet na otwartym pliku - stare kopie sprzatamy przy nastepnej okazji.
+procedure MoveAsideUninstallFiles;
+var FindRec: TFindRec; Dir, Stamp: String; Names: TStringList; I: Integer;
+begin
+  Dir := ExpandConstant('{app}');
+  if FindFirst(Dir + '\unins*.old-*', FindRec) then
+  begin
+    repeat DeleteFile(Dir + '\' + FindRec.Name); until not FindNext(FindRec);
+    FindClose(FindRec);
+  end;
+  Stamp := GetDateTimeString('yyyymmddhhnnss', #0, #0);
+  // najpierw lista, potem zmiana nazw - zmiana w trakcie przegladania katalogu moglaby trafic drugi raz na ten sam plik
+  Names := TStringList.Create;
+  try
+    if FindFirst(Dir + '\unins???.*', FindRec) then
+    begin
+      repeat
+        if Pos('.old-', FindRec.Name) = 0 then Names.Add(FindRec.Name);
+      until not FindNext(FindRec);
+      FindClose(FindRec);
+    end;
+    for I := 0 to Names.Count - 1 do
+      RenameFile(Dir + '\' + Names[I], Dir + '\' + Names[I] + '.old-' + Stamp);
+  finally
+    Names.Free;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var Code: Integer;
+begin
+  Result := '';
+  // ukryte procesy Velivo (np. sprzatanie przy zamykaniu) razem z ich procesami WebView2
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Velivo.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Sleep(500);
+  MoveAsideUninstallFiles;
 end;
 
 function InitializeSetup: Boolean;

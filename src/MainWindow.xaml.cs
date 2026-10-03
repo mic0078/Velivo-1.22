@@ -38,7 +38,12 @@ namespace Przegladarka
             public Button Header;
             public TextBlock Title;
             public int Blocked;
+            public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
+            public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
+            public bool Pinned;          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
+            public Button CloseBtn;
+            public TextBlock PinMark;
             public string StartUrl;      // adres, z ktorym karte otwarto (zanim silnik ruszy)
             public bool ApplyingZoom;    // zmiana powiekszenia robiona przez program, nie przez uzytkownika
             public string LastRequestedUrl;
@@ -75,6 +80,7 @@ namespace Przegladarka
             }
             catch (Exception) { }
             L.TranslateTree(this);   // napisy okna z XAML (dymki, przyciski) - gdy wybrano angielski
+            BuildAddressMenu();
             UpdateProfileBadge();
             LoadSitePrivacyRules();
             LoadPrivacyLog();
@@ -109,10 +115,12 @@ namespace Przegladarka
                     _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"),
                         new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
                     LoadBookmarks();
+                    var pinned = LoadPinnedTabs(); // karty przypiete - zawsze na poczatku
+                    foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }
                     var session = LoadSession(); // karty z poprzedniego uruchomienia
                     foreach (var u in session) AddTab(u);
-                    if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(LoadSessionActive(), _tabs.Count - 1)]);
-                    if (session.Count == 0 && _startUrls.Length == 0) AddTab("");
+                    if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
+                    if (session.Count == 0 && pinned.Count == 0 && _startUrls.Length == 0) AddTab("");
                     foreach (var u in _startUrls) AddTab(u);
                     _sessionLoaded = true;
                     SaveSessionSoon();
@@ -294,6 +302,9 @@ namespace Przegladarka
             var tab = new BrowserTab { Private = isPrivate, View = new WebView2(), Title = new TextBlock { Text = L.T("Nowa karta"), MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center } };
             var close = new Button { Content = "×", Width = 20, Height = 20, FontSize = 13, Margin = new Thickness(6, 0, 0, 0) };
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            tab.CloseBtn = close;
+            tab.PinMark = new TextBlock { Text = "📌", FontSize = 11, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            panel.Children.Add(tab.PinMark);
             panel.Children.Add(tab.Title);
             panel.Children.Add(close);
             tab.Header = new Button { Content = panel, Width = double.NaN, Padding = new Thickness(10, 0, 4, 0), Height = 32, Margin = new Thickness(1, 4, 0, 0) };
@@ -307,7 +318,7 @@ namespace Przegladarka
             tab.Header.ContextMenu = BuildTabMenu(tab);
             tab.Header.Click += (s, e) => SelectTab(tab);
             close.Click += (s, e) => { CloseTab(tab); e.Handled = true; };
-            tab.Header.MouseUp += (s, e) => { if (e.ChangedButton == MouseButton.Middle) CloseTab(tab); };
+            tab.Header.MouseUp += (s, e) => { if (e.ChangedButton == MouseButton.Middle && !tab.Pinned) CloseTab(tab); };
 
             _tabs.Add(tab);
             TabStrip.Children.Insert(TabStrip.Children.IndexOf(NewTabBtn), tab.Header);
@@ -388,10 +399,8 @@ namespace Przegladarka
                     return;
                 }
                 e.Response = _env.CreateWebResourceResponse(null, 403, "Blocked", "");
-                tab.Blocked++;
-                _totalBlocked++;
+                NoteBlocked(tab, "AdBlock", e.Request.Uri);
                 AddPrivacyBlock("Tracker zablokowany (AdBlock)", e.Request.Uri, tab);
-                Dispatcher.BeginInvoke(new Action(UpdateCounter));
             };
 
             core.NewWindowRequested += (s, e) => OnNewWindowRequested(e, tab.Private);
@@ -407,6 +416,7 @@ namespace Przegladarka
                 if (!IsQuickAccessUrl(e.Uri)) tab.QuickAccessRecoveryTried = false;
                 core.Settings.IsWebMessageEnabled = true;   // zmiana dziala dopiero od nastepnej nawigacji - wiec stale wlaczone; odbiorca sprawdza nadawce (IsQuickAccessUrl)
                 core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri) && !IsTrustedUrl(e.Uri);
+                if (tab == _current) UpdateTrackingLevel(e.Uri);
                 // nowa karta przegladarki (np. chrome.tabs.create bez adresu) -> strona nowej karty z dodatku
                 if (IsInternalNewTabUrl(e.Uri))
                 {
@@ -420,6 +430,8 @@ namespace Przegladarka
                 }
                 if (e.IsRedirected) return;
                 tab.Blocked = 0;
+                tab.HiddenElements = 0;
+                tab.BlockedItems.Clear();
                 if (tab == _current) UpdateCounter();
             };
             core.SourceChanged += (s, e) =>
@@ -448,7 +460,7 @@ namespace Przegladarka
             // Prosba strony o zamkniecie (window.close, pusta karta po starcie pobierania z linku target=_blank)
             // zamyka TYLKO te karte. Domyslnie kontrolka WebView2 zamyka cale okno programu - odpinamy to.
             DetachDefaultWindowClose(tab.View);
-            core.DOMContentLoaded += (s, e) => { ApplyElementRules(core); ApplyLiveDarkCss(core); };   // elementy zablokowane recznie (menu kontekstowe)
+            core.DOMContentLoaded += (s, e) => { ApplyElementRules(core, tab); ApplyLiveDarkCss(core); };   // elementy zablokowane recznie (menu kontekstowe)
             core.WindowCloseRequested += (s, e) => Dispatcher.BeginInvoke(new Action(() => { if (_tabs.Contains(tab)) CloseTab(tab); }));
             core.ContainsFullScreenElementChanged += (s, e) =>
             {
@@ -631,6 +643,14 @@ namespace Przegladarka
             {
                 bool on = t == _current;
                 t.View.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                // karta w tle moze oddac czesc pamieci (strona dalej dziala: muzyka, czaty, liczniki)
+                try
+                {
+                    var c = t.View.CoreWebView2;
+                    var lvl = on ? CoreWebView2MemoryUsageTargetLevel.Normal : CoreWebView2MemoryUsageTargetLevel.Low;
+                    if (c != null && c.MemoryUsageTargetLevel != lvl) c.MemoryUsageTargetLevel = lvl;
+                }
+                catch (Exception) { }
                 t.Header.Background = t.Private
                     ? new SolidColorBrush(on ? Color.FromRgb(0x4C, 0x1D, 0x95) : Color.FromRgb(0x6D, 0x28, 0xD9))
                     : (on ? ActiveTabBrush : Brushes.Transparent);
@@ -651,6 +671,7 @@ namespace Przegladarka
             SaveSessionSoon();
             CheckSejfLogins(tab);
             UpdateAdaptiveToolbarLayout();
+            UpdateTrackingLevel(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null);
         }
 
         void OverflowBtn_Click(object sender, RoutedEventArgs e)
@@ -704,7 +725,7 @@ namespace Przegladarka
             if (w < 1600) Push(ReadBtn, L.T("Czytaj na głos"), () => ReadBtn_Click(null, null));
             if (w < 1520) Push(DarkBtn, L.T("Tryb ciemny"), () => DarkBtn_Click(null, null));
             if (w < 1440) Push(DownloadsBtn, L.T("Pobrane pliki"), () => Downloads_Click(null, null));
-            if (w < 1360) Push(ExtensionsBtn, L.T("Dodatki"), () => Extensions_Click(null, null));
+            if (w < 1360) Push(ExtensionsBtn, L.T("Dodatki"), () => ExtensionsMenu_Click(null, null));
             if (w < 1280) Push(HistoryBtn, L.T("Historia"), () => History_Click(null, null));
             if (w < 1200) Push(BookmarksBtn, L.T("Zakładki"), () => Bookmarks_Click(null, null));
             if (w < 1120) Push(PrivacyBtn, L.T("Prywatność"), () => PrivacyPanel_Click(null, null));
@@ -815,6 +836,35 @@ namespace Przegladarka
             _current.View.Focus();
         }
 
+        // Menu prawego przycisku w pasku adresu: standardowe pozycje + "Wklej i przejdz" (jak w Chrome/Edge).
+        void BuildAddressMenu()
+        {
+            var menu = new ContextMenu();
+            var cut = new MenuItem { Header = L.T("Wytnij"), Command = ApplicationCommands.Cut, InputGestureText = "Ctrl+X", CommandTarget = Address };
+            var copy = new MenuItem { Header = L.T("Kopiuj"), Command = ApplicationCommands.Copy, InputGestureText = "Ctrl+C", CommandTarget = Address };
+            var paste = new MenuItem { Header = L.T("Wklej"), Command = ApplicationCommands.Paste, InputGestureText = "Ctrl+V", CommandTarget = Address };
+            var pasteGo = new MenuItem { Header = L.T("Wklej i przejdź"), FontWeight = FontWeights.SemiBold };
+            pasteGo.Click += (s, e) =>
+            {
+                string text = null;
+                try { if (Clipboard.ContainsText()) text = Clipboard.GetText(); } catch (Exception) { }
+                if (string.IsNullOrWhiteSpace(text) || _current == null) return;
+                text = text.Trim().Replace("\r", "").Replace("\n", " ");
+                Address.Text = text;
+                Navigate(_current, text);
+                _current.View.Focus();
+            };
+            var all = new MenuItem { Header = L.T("Zaznacz wszystko"), Command = ApplicationCommands.SelectAll, InputGestureText = "Ctrl+A", CommandTarget = Address };
+            menu.Opened += (s, e) =>
+            {
+                bool has = false;
+                try { has = Clipboard.ContainsText(); } catch (Exception) { }
+                pasteGo.IsEnabled = has;
+            };
+            foreach (var m in new object[] { cut, copy, paste, pasteGo, new Separator(), all }) menu.Items.Add(m);
+            Address.ContextMenu = menu;
+        }
+
         void Address_Focus(object sender, KeyboardFocusChangedEventArgs e) { Dispatcher.BeginInvoke(new Action(Address.SelectAll)); }
 
         CoreWebView2 Core { get { return _current != null ? _current.View.CoreWebView2 : null; } }
@@ -864,23 +914,74 @@ namespace Przegladarka
 
         // ---------- AdBlock ----------
 
+        // Kazdy silnik blokujacy (AdBlock, reguly domen, skrypty JS) zglasza blokade tutaj - licznik i lista na tarczy.
+        void NoteBlocked(BrowserTab tab, string engine, string url)
+        {
+            tab.Blocked++;
+            _totalBlocked++;
+            if (tab.BlockedItems.Count < 1000) tab.BlockedItems.Add(engine + "\t" + url);
+            if (tab == _current) Dispatcher.BeginInvoke(new Action(UpdateCounter));
+        }
+
         void UpdateCounter()
         {
-            int here = _current != null ? _current.Blocked : 0;
-            AdCounter.Text = _blocker.Enabled ? here + (L.En ? "  (total " : "  (razem ") + _totalBlocked + ")" : L.T("wyłączony");
+            int here = _current != null ? _current.Blocked + _current.HiddenElements : 0;
+            AdCounter.Text = _blocker.Enabled ? here.ToString() : L.T("wyłączony");
             AdIcon.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x15, 0x80, 0x3D)) : new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C));
             AdCounter.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x14, 0x53, 0x2D)) : new SolidColorBrush(Color.FromRgb(0x7F, 0x1D, 0x1D));
+            AdToggle.Background = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0xDC, 0xFC, 0xE7)) : new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
             AdToggle.ToolTip = L.En
-                ? "AdBlock: " + _blocker.RuleCount + " rules. Click to turn " + (_blocker.Enabled ? "off" : "on") + "."
-                : "AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby " + (_blocker.Enabled ? "wyłączyć" : "włączyć") + ".";
+                ? "Blocked on this page: " + here + " (total " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " rules. Click to see the list."
+                : "Zablokowane na tej stronie: " + here + " (razem " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby zobaczyć listę.";
         }
 
         void AdToggle_Click(object sender, RoutedEventArgs e)
         {
-            _blocker.Enabled = AdToggle.IsChecked == true;
-            AdToggle.Background = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0xDC, 0xFC, 0xE7)) : new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
-            UpdateCounter();
-            if (Core != null) Core.Reload();
+            var tab = _current;
+            var win = new Window { Title = L.T("Zablokowane na tej stronie"), Width = 760, Height = 480, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var root = new DockPanel { Margin = new Thickness(10) };
+            var bottom = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+            DockPanel.SetDock(bottom, Dock.Bottom);
+            var toggle = new Button { Padding = new Thickness(12, 4, 12, 4) };
+            var close = new Button { Content = L.T("Zamknij"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+            DockPanel.SetDock(close, Dock.Right);
+            DockPanel.SetDock(toggle, Dock.Right);
+            var summary = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+            bottom.Children.Add(close);
+            bottom.Children.Add(toggle);
+            bottom.Children.Add(summary);
+            var list = new ListBox();
+            root.Children.Add(bottom);
+            root.Children.Add(list);
+            win.Content = root;
+
+            Action refresh = () =>
+            {
+                list.Items.Clear();
+                int hidden = tab != null ? tab.HiddenElements : 0;
+                if (tab != null)
+                {
+                    foreach (var g in tab.BlockedItems.GroupBy(x => x).OrderByDescending(g => g.Count()))
+                    {
+                        var parts = g.Key.Split('\t');
+                        list.Items.Add("[" + parts[0] + "]  " + parts[1] + (g.Count() > 1 ? "   ×" + g.Count() : ""));
+                    }
+                    if (hidden > 0) list.Items.Add("[" + L.T("Elementy") + "]  " + hidden + L.T(" ukrytych elementów (reguły ręczne)"));
+                }
+                if (list.Items.Count == 0) list.Items.Add(L.T("Nic nie zablokowano na tej stronie."));
+                summary.Text = (L.En ? "This page: " : "Ta strona: ") + (tab != null ? tab.Blocked + hidden : 0) + (L.En ? "   ·   total: " : "   ·   razem: ") + _totalBlocked;
+                toggle.Content = _blocker.Enabled ? L.T("Wyłącz AdBlock") : L.T("Włącz AdBlock");
+            };
+            toggle.Click += (s, a) =>
+            {
+                _blocker.Enabled = !_blocker.Enabled;
+                UpdateCounter();
+                if (Core != null) Core.Reload();
+                refresh();
+            };
+            close.Click += (s, a) => win.Close();
+            refresh();
+            win.ShowDialog();
         }
 
         // ---------- pelny ekran ----------

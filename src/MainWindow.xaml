@@ -1,7 +1,7 @@
-<Window x:Class="Przegladarka.MainWindow"
+﻿<Window x:Class="Przegladarka.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Velivo 1.22" Icon="app.ico" Width="1200" Height="800" Background="#F3F4F6">
+        Title="Velivo 1.22" Icon="app.ico" Width="1200" Height="800" WindowStartupLocation="CenterScreen" WindowState="Maximized" Background="#F3F4F6">
     <Window.Resources>
         <!-- kolory motywu przegladarki (zmieniane w kodzie - Themes.cs) -->
         <SolidColorBrush x:Key="VelivoFg" Color="#111827"/>
@@ -89,7 +89,7 @@
                     ToolTip="Aktywny profil" Click="ProfileBadge_Click"/>
             <Button DockPanel.Dock="Right" x:Name="SettingsBtn" Style="{StaticResource Icon}" Content="&#xE713;" Foreground="#1F2937" Background="#E5E7EB" Margin="2,0,6,0" ToolTip="Ustawienia" Click="Settings_Click"/>
             <Button DockPanel.Dock="Right" x:Name="HistoryBtn" Style="{StaticResource Icon}" Content="&#xE81C;" Foreground="#4338CA" Background="#E0E7FF" ToolTip="Historia (Ctrl+H)" Click="History_Click"/>
-            <Button DockPanel.Dock="Right" x:Name="ExtensionsBtn" Style="{StaticResource Icon}" Content="&#xEA86;" Foreground="#6D28D9" Background="#EDE9FE" ToolTip="Dodatki (tryb dewelopera)" Click="Extensions_Click"/>
+            <Button DockPanel.Dock="Right" x:Name="ExtensionsBtn" Style="{StaticResource Icon}" Content="&#xEA86;" Foreground="#6D28D9" Background="#EDE9FE" ToolTip="Dodatki" Click="ExtensionsMenu_Click"/>
             <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="DownloadsBtn" Content="&#xE896;" Foreground="#0E7490" Background="#CFFAFE" Width="Auto" MinWidth="40" Padding="6,0"
                     ToolTip="Pobrane pliki (Ctrl+J)" Click="Downloads_Click"/>
             <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="ReadRateBtn" Content="1×" Visibility="Collapsed" Width="Auto" MinWidth="46" Padding="6,0"
@@ -106,13 +106,13 @@
             <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" x:Name="DarkBtn" Content="&#xE708;" Foreground="#1E293B" Background="#E2E8F0"
                     ToolTip="Tryb ciemny stron" Click="DarkBtn_Click"/>
             <Button DockPanel.Dock="Right" x:Name="BookmarksBtn" Style="{StaticResource Icon}" Content="&#xE728;" Foreground="#B45309" Background="#FEF3C7" ToolTip="Wszystkie zakładki" Click="Bookmarks_Click"/>
-            <ToggleButton x:Name="AdToggle" DockPanel.Dock="Right" IsChecked="True" Margin="4,7" Padding="10,0"
-                          BorderThickness="0" Background="#DCFCE7" Click="AdToggle_Click" ToolTip="Włącz/wyłącz AdBlock">
+            <Button x:Name="AdToggle" DockPanel.Dock="Right" Width="Auto" MinWidth="40" Height="Auto" Margin="4,7" Padding="10,0"
+                          BorderThickness="0" Background="#DCFCE7" Click="AdToggle_Click" ToolTip="Zablokowane elementy">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock x:Name="AdIcon" Text="&#xEA18;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="19" Foreground="#15803D" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <TextBlock x:Name="AdCounter" Text="0" FontSize="14" FontWeight="SemiBold" Foreground="#14532D" VerticalAlignment="Center"/>
                 </StackPanel>
-            </ToggleButton>
+            </Button>
             <StackPanel DockPanel.Dock="Right" x:Name="ExtBar" Orientation="Horizontal" Margin="4,0"/>
             <Button DockPanel.Dock="Right" x:Name="StoreBtn" Content="➕ Dodaj do Velivo" Visibility="Collapsed" Width="Auto" Padding="10,0" FontSize="13"
                     Margin="4,7" Background="#DBEAFE" ToolTip="Pobiera ten dodatek ze sklepu i instaluje go" Click="StoreInstall_Click"/>

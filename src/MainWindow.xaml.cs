@@ -634,6 +634,14 @@ namespace Przegladarka
             {
                 bool on = t == _current;
                 t.View.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                // karta w tle moze oddac czesc pamieci (strona dalej dziala: muzyka, czaty, liczniki)
+                try
+                {
+                    var c = t.View.CoreWebView2;
+                    var lvl = on ? CoreWebView2MemoryUsageTargetLevel.Normal : CoreWebView2MemoryUsageTargetLevel.Low;
+                    if (c != null && c.MemoryUsageTargetLevel != lvl) c.MemoryUsageTargetLevel = lvl;
+                }
+                catch (Exception) { }
                 t.Header.Background = t.Private
                     ? new SolidColorBrush(on ? Color.FromRgb(0x4C, 0x1D, 0x95) : Color.FromRgb(0x6D, 0x28, 0xD9))
                     : (on ? ActiveTabBrush : Brushes.Transparent);

@@ -1337,26 +1337,35 @@ async function odbierzMiniature() {
 // W Velivo miniatury robi przegladarka przy kazdym otwarciu strony (dodatek nie moze
 // zrobic zrzutu karty w silniku WebView2). Pobieramy nowsze i zapisujemy jak zwykle miniatury.
 let miniaturyVelivoTrwa = false;
+// Kiedy TEN komputer zapisal miniature danego adresu - tylko lokalnie (nie w danych skrotow,
+// bo te synchronizuja sie z innymi komputerami, ktore pliku miniatury nie maja).
+function miniLokalne() { try { return JSON.parse(localStorage.getItem('velivoMiniatury') || '{}'); } catch (e) { return {}; } }
+function zapiszMiniLokalne(m) { try { localStorage.setItem('velivoMiniatury', JSON.stringify(m)); } catch (e) { } }
 async function miniaturyZVelivo(wymus) {
   if (!W_VELIVO || miniaturyVelivoTrwa || wyglad().miniatury === false) return 0;
   miniaturyVelivoTrwa = true;
-  let ile = 0;
+  let ile = 0, zmianaDanych = false;
+  const lok = miniLokalne();
   try {
     for (const g of dane.grupy) for (const s of g.skroty) {
       if (!s.url || !/^https?:/i.test(s.url)) continue;
-      const o = await velivoZapytaj({ c: 'thumb', p: s.url, b64: wymus ? '0' : String(s.miniaturaVelivo || 0) });
+      const juz = lok[s.url] || 0;
+      const o = await velivoZapytaj({ c: 'thumb', p: s.url, b64: wymus ? '0' : String(juz) });
       if (!o || !o.ok || !o.b64) continue;
-      if (!wymus && s.miniatura && s.miniaturaVelivo && o.kiedy <= s.miniaturaVelivo) continue;
       try {
         const maly = await przytnijZrzut('data:image/jpeg;base64,' + o.b64);
         let nazwa = await zapiszMiniatureNaDysk(s.url, maly);
-        if (!nazwa) { nazwa = nazwaPlikuMiniatury(s.url); miniaturyLokalne[nazwa] = maly; }
-        s.miniatura = nazwa;
-        s.miniaturaVelivo = o.kiedy;
+        if (nazwa) lok[s.url] = o.kiedy;
+        else nazwa = nazwaPlikuMiniatury(s.url);   // bez zapisu na dysk - tylko w tej sesji
+        miniaturyLokalne[nazwa] = maly;
+        if (s.miniatura !== nazwa) { s.miniatura = nazwa; zmianaDanych = true; }
+        if (s.miniaturaVelivo) { delete s.miniaturaVelivo; zmianaDanych = true; }
         ile++;
       } catch (e) { /* zly zrzut - zostaje poprzednia miniatura */ }
     }
-    if (ile) { await zapisz(); rysuj(); }
+    zapiszMiniLokalne(lok);
+    if (zmianaDanych) await zapisz();
+    if (ile) rysuj();
   } finally { miniaturyVelivoTrwa = false; }
   return ile;
 }
@@ -2046,7 +2055,16 @@ function rysujSkroty() {
       if (ikonyLokalne[s.ikonaPlik]) zrodla.push(ikonyLokalne[s.ikonaPlik]);
     }
     if (s.ikona) zrodla.push(s.ikona);
-    zrodla.push(adresIkony(s.url));
+    if (W_VELIVO) {
+      // W Velivo magazyn faviconow zwraca tylko szara "kartke", a pliki ikon z innego komputera moga nie istniec -
+      // dlatego ikona prosto z witryny i z publicznych uslug ikon (do wyswietlenia nie trzeba zadnej zgody)
+      const host = hostZUrl(s.url);
+      if (host && /^https?:/i.test(s.url)) {
+        const h = host.replace(/^www\./, '');
+        zrodla.push('https://' + host + '/apple-touch-icon.png', 'https://' + host + '/favicon.ico',
+                    'https://icons.duckduckgo.com/ip3/' + h + '.ico', 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(h));
+      }
+    } else zrodla.push(adresIkony(s.url));
 
     // MINIATURA - zrzut strony jako tlo kafelka, ikona schodzi do stopki
     const pokazMiniature = (wyglad().miniatury !== false) && s.miniatura;
@@ -3390,7 +3408,7 @@ $('profil').addEventListener('change', async (e) => {
         // skroty bez miniatury: Velivo otworzy je niewidocznie w tle i zrobi zrzuty - bez wchodzenia na strony
         if (wyglad().miniatury !== false) {
           const bezMini = dane.grupy.reduce((t, g) => t.concat(g.skroty), [])
-            .filter((x) => x.url && /^https?:/i.test(x.url) && !x.miniaturaVelivo).map((x) => x.url);
+            .filter((x) => x.url && /^https?:/i.test(x.url) && !miniLokalne()[x.url]).map((x) => x.url);
           if (bezMini.length) {
             await velivoZapytaj({ c: 'thumbsQueue', p: JSON.stringify(bezMini) });
             // odbieramy gotowe miniatury co 15 s przez kilka minut

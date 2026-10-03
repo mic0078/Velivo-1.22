@@ -161,6 +161,18 @@ namespace Przegladarka
                     string command = commandElement.GetString();
                     string path = request.TryGetProperty("p", out var pathElement) && pathElement.ValueKind == JsonValueKind.String ? pathElement.GetString() : null;
                     string b64 = request.TryGetProperty("b64", out var dataElement) && dataElement.ValueKind == JsonValueKind.String ? dataElement.GetString() : null;
+                    if (command == "thumbsQueue")
+                    {
+                        // lista adresow skrotow bez miniatury - Velivo zrobi je w tle
+                        try
+                        {
+                            var list = JsonSerializer.Deserialize<List<string>>(path ?? "[]") ?? new List<string>();
+                            QueueThumbs(list);
+                        }
+                        catch (JsonException) { }
+                        ReplyQuickAccess(core, id, new { ok = true, id });
+                        return;
+                    }
                     bool allowed = command == "ping" || command == "thumb" || ((command == "read" || command == "write" || command == "list" || command == "del") && IsQuickAccessDataPath(path));
                     if (!allowed || (b64 != null && b64.Length > 16 * 1024 * 1024))
                     {
@@ -183,6 +195,9 @@ namespace Przegladarka
                 // miniatura strony zrobiona przez Velivo przy jej ostatnim otwarciu (p = adres skrotu)
                 var file = PageThumbFile(relativePath);
                 if (file == null || !File.Exists(file)) return new { ok = false, id };
+                long since;   // b64 niesie tu czas miniatury, ktora dodatek juz ma - nie wysylamy jej ponownie
+                var stamp = new DateTimeOffset(File.GetLastWriteTimeUtc(file)).ToUnixTimeMilliseconds();
+                if (long.TryParse(b64, out since) && stamp <= since) return new { ok = false, aktualna = true, id };
                 return new { ok = true, b64 = Convert.ToBase64String(File.ReadAllBytes(file)), kiedy = new DateTimeOffset(File.GetLastWriteTimeUtc(file)).ToUnixTimeMilliseconds(), id };
             }
 
@@ -262,6 +277,84 @@ namespace Przegladarka
                 File.WriteAllBytes(file, jpg);
             }
             catch (Exception ex) { App.LogError(ex); }
+        }
+
+        readonly Queue<string> _thumbQueue = new Queue<string>();
+        readonly HashSet<string> _thumbQueued = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool _thumbWorkerRunning;
+
+        void QueueThumbs(IEnumerable<string> urls)
+        {
+            foreach (var url in urls.Take(200))
+            {
+                var file = PageThumbFile(url);
+                if (file == null || AdBlocker.IsLocalNetworkUri(url) || _thumbQueued.Contains(file)) continue;
+                if (File.Exists(file) && DateTime.UtcNow - File.GetLastWriteTimeUtc(file) < TimeSpan.FromDays(7)) continue;
+                _thumbQueued.Add(file);
+                _thumbQueue.Enqueue(url);
+            }
+            if (!_thumbWorkerRunning && _thumbQueue.Count > 0) _ = ThumbWorkerAsync();
+        }
+
+        // Niewidoczne okno poza ekranem z osobnym widokiem: otwiera po kolei strony i robi zrzuty.
+        // Bez historii, bez dzwieku, bez wyskakujacych okien i pobieran.
+        async Task ThumbWorkerAsync()
+        {
+            _thumbWorkerRunning = true;
+            System.Windows.Window win = null;
+            try
+            {
+                if (_env == null) return;
+                var view = new Microsoft.Web.WebView2.Wpf.WebView2();
+                win = new System.Windows.Window
+                {
+                    Width = 1280, Height = 800, Left = -32000, Top = -32000,
+                    ShowInTaskbar = false, ShowActivated = false, WindowStyle = System.Windows.WindowStyle.None,
+                    WindowStartupLocation = System.Windows.WindowStartupLocation.Manual, Content = view, Title = "Velivo miniatury"
+                };
+                win.Show();
+                await view.EnsureCoreWebView2Async(_env);
+                var core = view.CoreWebView2;
+                core.IsMuted = true;
+                core.Settings.AreDefaultScriptDialogsEnabled = false;
+                core.NewWindowRequested += (a, b) => b.Handled = true;
+                core.DownloadStarting += (a, b) => b.Cancel = true;
+                await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
+                while (_thumbQueue.Count > 0)
+                {
+                    var url = _thumbQueue.Dequeue();
+                    var file = PageThumbFile(url);
+                    try
+                    {
+                        var done = new TaskCompletionSource<bool>();
+                        EventHandler<CoreWebView2NavigationCompletedEventArgs> handler = (a, b) => done.TrySetResult(b.IsSuccess);
+                        core.NavigationCompleted += handler;
+                        core.Navigate(url);
+                        var finished = await Task.WhenAny(done.Task, Task.Delay(20000));
+                        core.NavigationCompleted -= handler;
+                        if (finished != done.Task || !done.Task.Result) continue;
+                        await Task.Delay(2500);   // grafiki i czcionki maja sie dorysowac
+                        using (var ms = new MemoryStream())
+                        {
+                            await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Jpeg, ms);
+                            var jpg = ScaleJpeg(ms.ToArray(), 480);
+                            if (jpg != null && jpg.Length > 2000)
+                            {
+                                Directory.CreateDirectory(PageThumbsDir);
+                                File.WriteAllBytes(file, jpg);
+                            }
+                        }
+                    }
+                    catch (Exception ex) { App.LogError(ex); }
+                    finally { _thumbQueued.Remove(file); }
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            finally
+            {
+                _thumbWorkerRunning = false;
+                try { win?.Close(); } catch (Exception) { }
+            }
         }
 
         static byte[] ScaleJpeg(byte[] data, int width)

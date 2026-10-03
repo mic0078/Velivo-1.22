@@ -331,7 +331,7 @@ namespace Przegladarka
             ApplyDarkMode(tab);
             // Strony nie musza wiedziec, ze to WebView2 - Google blokuje logowanie w "przegladarkach wbudowanych".
             // chrome.webview jest potrzebny tylko w okienkach dodatkow (osobne widoki), w kartach go wylaczamy.
-            core.Settings.IsWebMessageEnabled = false;
+            core.Settings.IsWebMessageEnabled = true;   // kanal dla Szybkiego Dostepu; wiadomosci z innych stron sa ignorowane
             core.WebMessageReceived += async (s, e) => await HandleQuickAccessWebMessageAsync(core, e);
             await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
@@ -394,7 +394,7 @@ namespace Przegladarka
             {
                 tab.LastRequestedUrl = e.Uri;
                 if (!IsQuickAccessUrl(e.Uri)) tab.QuickAccessRecoveryTried = false;
-                core.Settings.IsWebMessageEnabled = IsQuickAccessUrl(e.Uri);
+                core.Settings.IsWebMessageEnabled = true;   // zmiana dziala dopiero od nastepnej nawigacji - wiec stale wlaczone; odbiorca sprawdza nadawce (IsQuickAccessUrl)
                 core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri) && !IsTrustedUrl(e.Uri);
                 // nowa karta przegladarki (np. chrome.tabs.create bez adresu) -> strona nowej karty z dodatku
                 if (IsInternalNewTabUrl(e.Uri))
@@ -600,7 +600,7 @@ namespace Przegladarka
                 ApplyViewSettings(core);
                 core.NavigationStarting += (s, a) =>
                 {
-                    core.Settings.IsWebMessageEnabled = IsQuickAccessUrl(a.Uri);
+                    core.Settings.IsWebMessageEnabled = true;
                     core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(a.Uri) && !IsTrustedUrl(a.Uri);
                 };
                 core.WindowCloseRequested += (s, a) => win.Close();

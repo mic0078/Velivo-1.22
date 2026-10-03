@@ -456,6 +456,8 @@ namespace Przegladarka
             await popup.AddScriptToExecuteOnDocumentCreatedAsync(shim);
             popup.WebMessageReceived += async (s, e) =>
             {
+                // polecenia wykonania kodu przyjmujemy tylko od strony dodatku, nigdy od zwyklej strony WWW
+                if (!(e.Source ?? "").StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase)) return;
                 int k = 0;
                 try
                 {

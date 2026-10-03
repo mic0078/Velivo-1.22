@@ -81,7 +81,11 @@ let ostrzezonoOKoncie = false;
 // W przegladarce Velivo (silnik WebView2) nie ma konta Google w przegladarce - logowanie na stronach
 // Google to nie to samo. Synchronizacje miedzy komputerami robi tam samo Velivo (siec LAN), wiec
 // opcja konta Google jest wylaczona i nie pokazujemy mylacych komunikatow.
-const W_VELIVO = !!(window.chrome && chrome.webview) || /Velivo/i.test(navigator.userAgent || '');
+// Wykrywamy silnik WebView2 (na nim dziala Velivo) po markach przegladarki - to dziala od pierwszego
+// otwarcia karty, w przeciwienstwie do chrome.webview, ktory bywa dostepny dopiero przy kolejnym.
+const W_VELIVO = !!(window.chrome && chrome.webview) ||
+  (((navigator.userAgentData && navigator.userAgentData.brands) || []).some((b) => /WebView2/i.test(b.brand || ''))) ||
+  /Velivo|WebView2/i.test(navigator.userAgent || '');
 
 // Kanal do programu Velivo (miniatury stron robione przez przegladarke).
 let velivoLicznik = 0;
@@ -1340,7 +1344,7 @@ async function miniaturyZVelivo(wymus) {
   try {
     for (const g of dane.grupy) for (const s of g.skroty) {
       if (!s.url || !/^https?:/i.test(s.url)) continue;
-      const o = await velivoZapytaj({ c: 'thumb', p: s.url });
+      const o = await velivoZapytaj({ c: 'thumb', p: s.url, b64: wymus ? '0' : String(s.miniaturaVelivo || 0) });
       if (!o || !o.ok || !o.b64) continue;
       if (!wymus && s.miniatura && s.miniaturaVelivo && o.kiedy <= s.miniaturaVelivo) continue;
       try {
@@ -3383,6 +3387,20 @@ $('profil').addEventListener('change', async (e) => {
     setTimeout(async () => {
       try {
         await miniaturyZVelivo(false);
+        // skroty bez miniatury: Velivo otworzy je niewidocznie w tle i zrobi zrzuty - bez wchodzenia na strony
+        if (wyglad().miniatury !== false) {
+          const bezMini = dane.grupy.reduce((t, g) => t.concat(g.skroty), [])
+            .filter((x) => x.url && /^https?:/i.test(x.url) && !x.miniaturaVelivo).map((x) => x.url);
+          if (bezMini.length) {
+            await velivoZapytaj({ c: 'thumbsQueue', p: JSON.stringify(bezMini) });
+            // odbieramy gotowe miniatury co 15 s przez kilka minut
+            let proby = 0;
+            const t = setInterval(async () => {
+              if (++proby > 24 || document.hidden) { if (proby > 24) clearInterval(t); return; }
+              try { await miniaturyZVelivo(false); } catch (e) { }
+            }, 15000);
+          }
+        }
         const brak = dane.grupy.reduce((t, g) => t.concat(g.skroty), []).filter((x) => !x.ikona && !x.ikonaPlik && !bezIkony.has(x.url));
         if (brak.length) await uzupelnijIkony(brak, true);
       } catch (e) { /* nastepnym razem */ }

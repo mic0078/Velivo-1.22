@@ -442,6 +442,7 @@ namespace Przegladarka
                     await Dispatcher.InvokeAsync(() =>
                     {
                         isNewPeer = TouchLanPeer(pkt, res.RemoteEndPoint, out profileChanged);
+                        if (isNewPeer && pkt.t == "state-plain") OfferLanPairing(pkt);
                         if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
                             TryPromptProfileSwitch(pkt, isNewPeer, profileChanged);
                     });
@@ -665,6 +666,30 @@ namespace Przegladarka
             }
             catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog("Błąd importu LAN: " + ex.Message); }
             finally { _lanApplying = false; }
+        }
+
+        readonly HashSet<string> _lanPairOffered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Drugi komputer z tym samym profilem, ale bez sparowania: synchronizuja sie tylko ustawienia i zakladki
+        // (jawnym pakietem, bez hasel). Proponujemy pelne polaczenie - szyfrowane, z haslami i Szybkim Dostepem.
+        // Pyta tylko jeden z dwoch komputerow (mniejszy identyfikator), zeby nie wyslaly dwoch ofert naraz;
+        // drugi dostaje zwykle okno potwierdzenia parowania z kodem.
+        void OfferLanPairing(LanStatePacket pkt)
+        {
+            if (!_lanLegacyNoKeyMode || pkt == null || string.IsNullOrEmpty(pkt.id)) return;
+            if (!string.Equals(NormalizeProfileName(pkt.profile ?? "domyslny"), SelectedProfileName, StringComparison.OrdinalIgnoreCase)) return;
+            if (string.CompareOrdinal(_lanId, pkt.id) > 0) return;
+            if (!_lanPairOffered.Add(pkt.id)) return;
+            var device = string.IsNullOrWhiteSpace(pkt.device) ? pkt.id.Substring(0, 8) : pkt.device.Trim();
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                var ans = MessageBox.Show(this,
+                    "W sieci jest drugi Velivo:\n\nUrządzenie: " + device + "\nProfil: " + SelectedProfileName +
+                    "\n\nPołączyć oba komputery i synchronizować wszystko – ustawienia, zakładki, karty, hasła i Szybki Dostęp?" +
+                    "\n\nNa obu ekranach pojawi się ten sam krótki kod do porównania. Dane będą szyfrowane.",
+                    "Synchronizacja LAN", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (ans == MessageBoxResult.Yes) BeginLanPairing();
+            }));
         }
 
         readonly Dictionary<string, DateTime> _lanClockSkewLogged = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);

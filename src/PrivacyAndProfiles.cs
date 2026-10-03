@@ -246,7 +246,9 @@ namespace Przegladarka
         SitePrivacyRule RuleForUrl(string url)
         {
             Uri u;
-            return Uri.TryCreate(url, UriKind.Absolute, out u) ? RuleForHost(u.Host) : null;
+            // Reguly domen dotycza tylko stron www - nie dodatkow (chrome-extension://, np. Szybki Dostep).
+            if (!Uri.TryCreate(url, UriKind.Absolute, out u) || (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps)) return null;
+            return RuleForHost(u.Host);
         }
 
         void LoadSitePrivacyRules()
@@ -379,7 +381,7 @@ namespace Przegladarka
             if (tab == null || tab.View.CoreWebView2 == null) return;
             Uri u;
             if (!Uri.TryCreate(tab.View.CoreWebView2.Source, UriKind.Absolute, out u)) return;
-            var rule = RuleForHost(u.Host);
+            var rule = RuleForUrl(u.AbsoluteUri);   // czyszczenie danych dodatku kasowalo skroty Szybkiego Dostepu
             if (rule == null || (!rule.AutoClearData && !rule.BlockCookies)) return;
 
             try

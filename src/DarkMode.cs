@@ -29,11 +29,41 @@ namespace Przegladarka
 
         void DarkBtn_Click(object sender, RoutedEventArgs e)
         {
-            _settings.DarkPages = !_settings.DarkPages;
+            // trzy tryby po kolei: jasny -> ciemny -> nocny -> jasny
+            if (_settings.DarkPages) { _settings.DarkPages = false; _settings.NightLight = true; }
+            else if (_settings.NightLight) _settings.NightLight = false;
+            else _settings.DarkPages = true;
             try { _settings.Save(DataDir); } catch (Exception) { }
-            foreach (var t in _tabs) ApplyDarkMode(t);
+            foreach (var t in _tabs) { ApplyDarkMode(t); ApplyLiveDarkCss(t.View.CoreWebView2); }
             UpdateDarkButton();
-            OfferRestartForDarkMode();
+            // Bez restartu: do nastepnego uruchomienia dziala przyciemnianie CSS (zdjecia odwracane z powrotem),
+            // a przy kolejnym starcie wlacza sie pelny tryb silnika.
+            ShowToast(_settings.DarkPages ? "🌙 Tryb ciemny" : _settings.NightLight ? "🌅 Tryb nocny – cieplejsze kolory" : "☀ Tryb jasny", null);
+        }
+
+        // Tryb nocny: ciepla, polprzezroczysta warstwa nad strona (mniej niebieskiego swiatla), bez wplywu na klikanie.
+        const string NightLightCss = "html::after{content:'';position:fixed;inset:0;background:rgba(255,140,40,.22);mix-blend-mode:multiply;pointer-events:none;z-index:2147483647}";
+
+        // Tryb wybrany w tej sesji rozni sie od trybu, z ktorym wystartowal silnik -> poprawka CSS na stronie.
+        const string LiveDarkCss = "html{filter:invert(1) hue-rotate(180deg)!important;background:#fff!important}" +
+            "img,video,picture,canvas,svg image,iframe,embed,object,[style*='background-image']{filter:invert(1) hue-rotate(180deg)!important}";
+        const string LiveLightCss = ":root{color-scheme:only light!important}";
+
+        async void ApplyLiveDarkCss(CoreWebView2 core)
+        {
+            try
+            {
+                if (core == null || _settings == null) return;
+                var src = core.Source ?? "";
+                if (!(src.StartsWith("http://") || src.StartsWith("https://"))) return;
+                string css = _settings.DarkPages == _darkEngineAtStart ? "" : (_settings.DarkPages ? LiveDarkCss : LiveLightCss);
+                if (_settings.NightLight) css += NightLightCss;
+                await core.ExecuteScriptAsync("(function(){try{var id='velivo-tryb-ciemny';var st=document.getElementById(id);" +
+                    "if(!" + System.Text.Json.JsonSerializer.Serialize(css) + "){if(st)st.remove();return;}" +
+                    "if(!st){st=document.createElement('style');st.id=id;(document.head||document.documentElement).appendChild(st);}" +
+                    "st.textContent=" + System.Text.Json.JsonSerializer.Serialize(css) + ";}catch(e){}})();");
+            }
+            catch (Exception) { }
         }
 
         // Silnik ma inny tryb niz ustawienie -> zaproponuj ponowne uruchomienie (karty wroca).
@@ -72,6 +102,14 @@ namespace Przegladarka
         void UpdateDarkButton()
         {
             bool on = _settings.DarkPages;
+            if (_settings.NightLight)
+            {
+                DarkBtn.Content = "";
+                DarkBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xC2, 0x41, 0x0C));
+                DarkBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xD8, 0xA8));
+                DarkBtn.ToolTip = "Tryb nocny: WŁĄCZONY (cieplejsze kolory)\nKliknij, aby wrócić do trybu jasnego";
+                return;
+            }
             DarkBtn.Content = on ? "" : ""; // slonce (wylacz) / ksiezyc (wlacz)
             DarkBtn.Foreground = new SolidColorBrush(on ? Color.FromRgb(0xB4, 0x53, 0x09) : Color.FromRgb(0x1E, 0x29, 0x3B));
             DarkBtn.Background = new SolidColorBrush(on ? Color.FromRgb(0xFE, 0xF3, 0xC7) : Color.FromRgb(0xE2, 0xE8, 0xF0));

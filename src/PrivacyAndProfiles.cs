@@ -21,10 +21,12 @@ namespace Przegladarka
             public bool BlockCookies;
             public bool StrictTrackers;
             public bool AutoClearData;
+            public bool Trusted;      // zaufana domena: bez AdBlocka, trackerow i SmartScreen
 
             public override string ToString()
             {
                 var tags = new List<string>();
+                if (Trusted) tags.Add("zaufana");
                 if (BlockJs) tags.Add("JS");
                 if (BlockCookies) tags.Add("cookies");
                 if (StrictTrackers) tags.Add("trackery");
@@ -246,12 +248,37 @@ namespace Przegladarka
         SitePrivacyRule RuleForUrl(string url)
         {
             Uri u;
-            return Uri.TryCreate(url, UriKind.Absolute, out u) ? RuleForHost(u.Host) : null;
+            // Reguly domen dotycza tylko stron www - nie dodatkow (chrome-extension://, np. Szybki Dostep).
+            if (!Uri.TryCreate(url, UriKind.Absolute, out u) || (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps)) return null;
+            return RuleForHost(u.Host);
+        }
+
+        bool IsTrustedUrl(string url)
+        {
+            if (IsQuickAccessUrl(url)) return true;   // Szybki Dostep jest zawsze zaufany
+            var r = RuleForUrl(url);
+            return r != null && r.Trusted;
+        }
+
+        // Pozwala wkleic caly adres (https://www.example.com/strona) - zostaje sama domena.
+        static string NormalizeRuleDomain(string text)
+        {
+            var d = (text ?? "").Trim().ToLowerInvariant();
+            Uri u;
+            if (d.Contains("://") && Uri.TryCreate(d, UriKind.Absolute, out u)) d = u.Host;
+            else
+            {
+                int slash = d.IndexOf('/');
+                if (slash >= 0) d = d.Substring(0, slash);
+            }
+            if (d.StartsWith("*.")) d = d.Substring(2);
+            return d.Trim('.');
         }
 
         void LoadSitePrivacyRules()
         {
             _privacyRules.Clear();
+            bool dropped = false;
             try
             {
                 if (!File.Exists(PrivacyRulesFile)) return;
@@ -267,11 +294,16 @@ namespace Przegladarka
                         BlockCookies = p[2] == "1",
                         StrictTrackers = p[3] == "1",
                         AutoClearData = p[4] == "1",
+                        Trusted = p.Length > 5 && p[5] == "1",
                     };
+                    // stare wpisy typu "chrome-extension://.../newtab.html" (adres dodatku zamiast domeny) usuwamy -
+                    // wygladaly jak blokada Szybkiego Dostepu
+                    if (rule.Domain.Contains("://") || rule.Domain.Contains("/") || rule.Domain.IndexOf('.') < 1) { dropped = true; continue; }
                     if (rule.Domain.Length > 0) _privacyRules[rule.Domain] = rule;
                 }
             }
             catch (IOException) { }
+            if (dropped) SaveSitePrivacyRules();
         }
 
         void SaveSitePrivacyRules()
@@ -281,7 +313,7 @@ namespace Przegladarka
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllLines(PrivacyRulesFile,
                     _privacyRules.Values.OrderBy(x => x.Domain)
-                        .Select(x => x.Domain + "\t" + (x.BlockJs ? "1" : "0") + "\t" + (x.BlockCookies ? "1" : "0") + "\t" + (x.StrictTrackers ? "1" : "0") + "\t" + (x.AutoClearData ? "1" : "0")));
+                        .Select(x => x.Domain + "\t" + (x.BlockJs ? "1" : "0") + "\t" + (x.BlockCookies ? "1" : "0") + "\t" + (x.StrictTrackers ? "1" : "0") + "\t" + (x.AutoClearData ? "1" : "0") + "\t" + (x.Trusted ? "1" : "0")));
             }
             catch (IOException) { }
             NotifyLanStateChanged();
@@ -379,7 +411,7 @@ namespace Przegladarka
             if (tab == null || tab.View.CoreWebView2 == null) return;
             Uri u;
             if (!Uri.TryCreate(tab.View.CoreWebView2.Source, UriKind.Absolute, out u)) return;
-            var rule = RuleForHost(u.Host);
+            var rule = RuleForUrl(u.AbsoluteUri);   // czyszczenie danych dodatku kasowalo skroty Szybkiego Dostepu
             if (rule == null || (!rule.AutoClearData && !rule.BlockCookies)) return;
 
             try
@@ -409,7 +441,9 @@ namespace Przegladarka
         void OpenPrivacyPanel()
         {
             Uri u;
-            string host = (Core != null && Uri.TryCreate(Core.Source, UriKind.Absolute, out u)) ? u.Host.ToLowerInvariant() : "";
+            string host = (Core != null && Uri.TryCreate(Core.Source, UriKind.Absolute, out u) &&
+                (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps)) ? u.Host.ToLowerInvariant() : "";
+            // Szybki Dostep (i inne strony dodatkow) nie jest domena - jest zaufany na stale, nie pokazujemy go tu wcale
 
             var win = new Window
             {
@@ -489,6 +523,7 @@ namespace Przegladarka
             var ck = new CheckBox { Content = "Nie wysyłaj cookies dla domeny", Margin = new Thickness(0, 4, 0, 0) };
             var tr = new CheckBox { Content = "Wymuś blokowanie trackerów dla domeny", Margin = new Thickness(0, 4, 0, 0) };
             var cl = new CheckBox { Content = "Automatycznie czyść dane po wejściu na domenę", Margin = new Thickness(0, 4, 0, 0) };
+            var trusted = new CheckBox { Content = "Zaufana domena (bez blokowania i SmartScreen)", Margin = new Thickness(0, 8, 0, 0), FontWeight = FontWeights.SemiBold };
             var info = new TextBlock
             {
                 Text = "Reguły działają per domena. Karty prywatne używają osobnego, izolowanego storage WebView2 (InPrivate).",
@@ -512,6 +547,7 @@ namespace Przegladarka
             optionsPanel.Children.Add(ck);
             optionsPanel.Children.Add(tr);
             optionsPanel.Children.Add(cl);
+            optionsPanel.Children.Add(trusted);
 
             Action refresh = () =>
             {
@@ -535,13 +571,20 @@ namespace Przegladarka
 
             Action loadCurrentDomain = () =>
             {
-                var d = (dom.Text ?? "").Trim().ToLowerInvariant();
+                if (IsQuickAccessExtensionId((dom.Text ?? "").Trim()) || (dom.Text ?? "").Contains("chrome-extension"))
+                {
+                    dom.Text = "";
+                    MessageBox.Show(win, "Szybki Dostęp to wbudowany dodatek – jest zaufany na stałe i nic go nie blokuje. Nie trzeba dodawać reguły.", "Prywatność");
+                    return;
+                }
+                var d = NormalizeRuleDomain(dom.Text);
                 SitePrivacyRule r;
                 if (!_privacyRules.TryGetValue(d, out r)) r = new SitePrivacyRule { Domain = d };
                 js.IsChecked = r.BlockJs;
                 ck.IsChecked = r.BlockCookies;
                 tr.IsChecked = r.StrictTrackers;
                 cl.IsChecked = r.AutoClearData;
+                trusted.IsChecked = r.Trusted;
             };
 
             dom.TextChanged += (s, e) => loadCurrentDomain();
@@ -571,10 +614,10 @@ namespace Przegladarka
 
             var save = SmallButton("Zapisz regułę", () =>
             {
-                var d = (dom.Text ?? "").Trim().ToLowerInvariant();
+                var d = NormalizeRuleDomain(dom.Text);
                 if (d.Length < 3 || d.IndexOf('.') < 1)
                 {
-                    MessageBox.Show(win, "Podaj poprawną domenę, np. example.com", "Prywatność");
+                    MessageBox.Show(win, "Podaj poprawną domenę stron www, np. example.com (adresy chrome-extension:// dodatków nie są blokowane regułami).", "Prywatność");
                     return;
                 }
                 bool destructive = (ck.IsChecked == true) || (cl.IsChecked == true);
@@ -593,6 +636,7 @@ namespace Przegladarka
                     BlockCookies = ck.IsChecked == true,
                     StrictTrackers = tr.IsChecked == true,
                     AutoClearData = cl.IsChecked == true,
+                    Trusted = trusted.IsChecked == true,
                 };
                 _privacyRules[d] = r;
                 SaveSitePrivacyRules();
@@ -602,12 +646,44 @@ namespace Przegladarka
 
             var del = SmallButton("Usuń regułę", () =>
             {
-                var d = (dom.Text ?? "").Trim().ToLowerInvariant();
-                if (_privacyRules.Remove(d))
+                var d = NormalizeRuleDomain(dom.Text);
+                if (_privacyRules.Remove(d) || _privacyRules.Remove((dom.Text ?? "").Trim().ToLowerInvariant()))
                 {
                     SaveSitePrivacyRules();
                     refresh();
                 }
+            });
+
+            Action<string> addTrusted = (text) =>
+            {
+                var d = NormalizeRuleDomain(text);
+                if (d.Length < 3 || d.IndexOf('.') < 1)
+                {
+                    MessageBox.Show(win, "Podaj poprawną domenę stron www, np. example.com", "Zaufane domeny");
+                    return;
+                }
+                SitePrivacyRule existing;
+                if (!_privacyRules.TryGetValue(d, out existing)) existing = new SitePrivacyRule { Domain = d };
+                existing.Trusted = true;
+                existing.BlockJs = false;
+                existing.StrictTrackers = false;
+                _privacyRules[d] = existing;
+                SaveSitePrivacyRules();
+                dom.Text = d;
+                refresh();
+                if (Core != null) Core.Reload();
+            };
+
+            var trustBtn = SmallButton("✔ Dodaj do zaufanych", () => addTrusted(dom.Text));
+            var trustLogBtn = SmallButton("✔ Zaznaczoną domenę do zaufanych", () =>
+            {
+                var row = logList.SelectedItem as PrivacyLogRow;
+                if (row == null || string.IsNullOrWhiteSpace(row.Domain))
+                {
+                    MessageBox.Show(win, "Najpierw zaznacz wpis na liście blokad.", "Zaufane domeny");
+                    return;
+                }
+                addTrusted(row.Domain);
             });
 
             var clearLog = SmallButton("Wyczyść panel blokad", () =>
@@ -634,6 +710,7 @@ namespace Przegladarka
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
             actions.Children.Add(save);
             actions.Children.Add(del);
+            actions.Children.Add(trustBtn);
 
             var leftHeader = new TextBlock { Text = "Reguły prywatności dla domen", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)) };
             var rulesCaption = new TextBlock { Text = "Zapisane reguły domen", Margin = new Thickness(0, 10, 0, 2), FontWeight = FontWeights.SemiBold };
@@ -667,9 +744,12 @@ namespace Przegladarka
             rightHeaderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var rightHeader = new TextBlock { Text = "Co zostało zablokowane i dlaczego", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)), VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(rightHeader, 0);
-            Grid.SetColumn(clearLog, 1);
+            var rightButtons = new StackPanel { Orientation = Orientation.Horizontal };
+            rightButtons.Children.Add(trustLogBtn);
+            rightButtons.Children.Add(clearLog);
+            Grid.SetColumn(rightButtons, 1);
             rightHeaderRow.Children.Add(rightHeader);
-            rightHeaderRow.Children.Add(clearLog);
+            rightHeaderRow.Children.Add(rightButtons);
 
             var rightHint = new TextBlock
             {

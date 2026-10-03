@@ -77,6 +77,7 @@ namespace Przegladarka
             LoadZoom();
             InitZoomMenu();
             UpdateDarkButton();
+            ApplyBrowserTheme();
             UpdatePrivacyButton();
             if (Environment.GetEnvironmentVariable("VELIVO_DEBUG") == "1")
                 Closing += (s, e) => File.AppendAllText(Path.Combine(DataDir, "debug.log"), DateTime.Now + " ZAMYKANIE OKNA\n" + Environment.StackTrace + "\n\n");
@@ -331,7 +332,7 @@ namespace Przegladarka
             ApplyDarkMode(tab);
             // Strony nie musza wiedziec, ze to WebView2 - Google blokuje logowanie w "przegladarkach wbudowanych".
             // chrome.webview jest potrzebny tylko w okienkach dodatkow (osobne widoki), w kartach go wylaczamy.
-            core.Settings.IsWebMessageEnabled = false;
+            core.Settings.IsWebMessageEnabled = true;   // kanal dla Szybkiego Dostepu; wiadomosci z innych stron sa ignorowane
             core.WebMessageReceived += async (s, e) => await HandleQuickAccessWebMessageAsync(core, e);
             await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
@@ -359,6 +360,12 @@ namespace Przegladarka
                     return;
 
                 if (ApplyPrivacyRulesToRequest(e, tab)) return;
+                // zaufana domena (strona albo zasob) - nic nie blokujemy
+                if (IsTrustedUrl(e.Request.Uri) || IsTrustedUrl(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null))
+                {
+                    StripWebViewBrand(e.Request.Headers);
+                    return;
+                }
                 if (_downloadWin != null) NoteMediaRequest(e.Request.Uri, tab, e.ResourceContext);
                 if (!_blocker.ShouldBlock(e.Request.Uri))
                 {
@@ -388,8 +395,8 @@ namespace Przegladarka
             {
                 tab.LastRequestedUrl = e.Uri;
                 if (!IsQuickAccessUrl(e.Uri)) tab.QuickAccessRecoveryTried = false;
-                core.Settings.IsWebMessageEnabled = IsQuickAccessUrl(e.Uri);
-                core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri);
+                core.Settings.IsWebMessageEnabled = true;   // zmiana dziala dopiero od nastepnej nawigacji - wiec stale wlaczone; odbiorca sprawdza nadawce (IsQuickAccessUrl)
+                core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri) && !IsTrustedUrl(e.Uri);
                 // nowa karta przegladarki (np. chrome.tabs.create bez adresu) -> strona nowej karty z dodatku
                 if (IsInternalNewTabUrl(e.Uri))
                 {
@@ -431,6 +438,7 @@ namespace Przegladarka
             // Prosba strony o zamkniecie (window.close, pusta karta po starcie pobierania z linku target=_blank)
             // zamyka TYLKO te karte. Domyslnie kontrolka WebView2 zamyka cale okno programu - odpinamy to.
             DetachDefaultWindowClose(tab.View);
+            core.DOMContentLoaded += (s, e) => { ApplyElementRules(core); ApplyLiveDarkCss(core); };   // elementy zablokowane recznie (menu kontekstowe)
             core.WindowCloseRequested += (s, e) => Dispatcher.BeginInvoke(new Action(() => { if (_tabs.Contains(tab)) CloseTab(tab); }));
             core.ContainsFullScreenElementChanged += (s, e) =>
             {
@@ -442,8 +450,9 @@ namespace Przegladarka
             {
                 bool requestedQuickAccess = IsQuickAccessUrl(tab.LastRequestedUrl);
                 bool blockedQuickAccess = false;
-                if (requestedQuickAccess)
-                    blockedQuickAccess = !e.IsSuccess || await IsQuickAccessBlockedAsync(core);
+                // Przerwane ladowanie (nowa nawigacja, odswiezenie, zamkniecie karty) to nie blokada dodatku.
+                if (requestedQuickAccess && e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
+                    blockedQuickAccess = await IsQuickAccessBlockedAsync(core, e.IsSuccess);
 
                 if (blockedQuickAccess && !tab.QuickAccessRecoveryTried)
                 {
@@ -456,6 +465,7 @@ namespace Przegladarka
                 if (e.IsSuccess) _ = ApplyAutoClearRule(tab);
                 if (e.IsSuccess) CheckSejfLogins(tab); // pole hasla? -> loginy z Sejfu dla tej strony
                 if (e.IsSuccess) LoadVoiceNames(core);  // raz: lista polskich glosow do ustawien
+                if (e.IsSuccess) _ = CapturePageThumbAsync(tab);   // miniatura strony dla Szybkiego Dostepu
             };
 
             if (pending != null)
@@ -500,26 +510,18 @@ namespace Przegladarka
                         string.Equals(Path.GetFullPath(extPath).TrimEnd(Path.DirectorySeparatorChar),
                             Path.GetFullPath(BundledQuickAccessDir).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
                     if (IsQuickAccessExtensionId(ext.Id) || pathMatch)
-                    {
                         quickAccessExt = ext;
-                        continue;
-                    }
-                    if (ext.IsEnabled)
-                    {
-                        await ext.EnableAsync(false);
-                        changed = true;
-                    }
+                    // Innych dodatkow uzytkownika nie wylaczamy - nie maja nic wspolnego z problemem Szybkiego Dostepu.
                 }
 
+                // Dodatku nie usuwamy (to kasowalo skroty i ustawienia Szybkiego Dostepu) - tylko wlaczamy.
                 if (quickAccessExt != null)
                 {
-                    await quickAccessExt.RemoveAsync();
-                    SaveExtPath(quickAccessExt.Id, null);
-                    changed = true;
+                    if (!quickAccessExt.IsEnabled) { await quickAccessExt.EnableAsync(true); changed = true; }
                 }
 
                 var bundled = BundledQuickAccessDir;
-                if (File.Exists(Path.Combine(bundled, "manifest.json")))
+                if (quickAccessExt == null && File.Exists(Path.Combine(bundled, "manifest.json")))
                 {
                     var added = await core.Profile.AddBrowserExtensionAsync(bundled);
                     if (!added.IsEnabled) await added.EnableAsync(true);
@@ -543,17 +545,23 @@ namespace Przegladarka
             }
         }
 
-        async Task<bool> IsQuickAccessBlockedAsync(CoreWebView2 core)
+        // Wczesniej kazdy tekst "zablokowan"/"blocked by" na stronie Szybkiego Dostepu (np. w nazwie skrotu,
+        // grupy albo komunikacie paska) albo chwilowy blad skryptu byl traktowany jak blokada przez ochrone -
+        // a "naprawa" wylaczala wszystkie inne dodatki i reinstalowala Szybki Dostep. Teraz: jesli interfejs
+        // dodatku jest na stronie, nie ma blokady; blokada to tylko strona bledu przegladarki.
+        async Task<bool> IsQuickAccessBlockedAsync(CoreWebView2 core, bool navigationSucceeded)
         {
-            if (core == null) return true;
+            if (core == null) return false;
             try
             {
-                var isBlocked = await core.ExecuteScriptAsync("(() => { try { const text = ((document && document.body && document.body.innerText) ? document.body.innerText : '').toLowerCase(); const hasUi = !!document.getElementById('grupy') && !!document.getElementById('siatka'); const blocked = text.indexOf('err_blocked_by_client') >= 0 || text.indexOf('zablokowan') >= 0 || text.indexOf('blocked by') >= 0; return blocked || !hasUi; } catch (e) { return true; } })();");
-                return string.Equals(isBlocked, "true", StringComparison.OrdinalIgnoreCase);
+                var result = await core.ExecuteScriptAsync("(() => { try { if (document.getElementById('grupy') && document.getElementById('siatka')) return 'ui'; const text = ((document.body && document.body.innerText) || '').toLowerCase(); return (text.indexOf('err_blocked_by_client') >= 0 || text.indexOf('err_blocked_by_administrator') >= 0 || text.indexOf('err_file_not_found') >= 0) ? 'blocked' : 'other'; } catch (e) { return 'error'; } })();");
+                if (result == "\"ui\"") return false;
+                if (result == "\"blocked\"") return true;
+                return !navigationSucceeded;
             }
             catch (Exception)
             {
-                return true;
+                return !navigationSucceeded;
             }
         }
 
@@ -593,8 +601,8 @@ namespace Przegladarka
                 ApplyViewSettings(core);
                 core.NavigationStarting += (s, a) =>
                 {
-                    core.Settings.IsWebMessageEnabled = IsQuickAccessUrl(a.Uri);
-                    core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(a.Uri);
+                    core.Settings.IsWebMessageEnabled = true;
+                    core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(a.Uri) && !IsTrustedUrl(a.Uri);
                 };
                 core.WindowCloseRequested += (s, a) => win.Close();
                 core.DocumentTitleChanged += (s, a) => win.Title = BuildWindowTitle(core.DocumentTitle);
@@ -607,17 +615,22 @@ namespace Przegladarka
             finally { deferral.Complete(); }
         }
 
-        void SelectTab(BrowserTab tab)
+        void SelectTabColors()
         {
-            _current = tab;
             foreach (var t in _tabs)
             {
-                bool on = t == tab;
+                bool on = t == _current;
                 t.View.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 t.Header.Background = t.Private
                     ? new SolidColorBrush(on ? Color.FromRgb(0x4C, 0x1D, 0x95) : Color.FromRgb(0x6D, 0x28, 0xD9))
-                    : (on ? Brushes.White : Brushes.Transparent);
+                    : (on ? ActiveTabBrush : Brushes.Transparent);
             }
+        }
+
+        void SelectTab(BrowserTab tab)
+        {
+            _current = tab;
+            SelectTabColors();
             Address.Text = tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : "";
             Title = BuildWindowTitle(tab.Title.Text);
             UpdateCounter();
@@ -774,13 +787,13 @@ namespace Przegladarka
             try
             {
                 var target = ToUrl(text);
-                tab.View.CoreWebView2.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(target);
+                tab.View.CoreWebView2.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(target) && !IsTrustedUrl(target);
                 tab.View.CoreWebView2.Navigate(target);
             }
             catch (ArgumentException)
             {
                 var fallback = _settings.SearchUrl(text);
-                tab.View.CoreWebView2.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(fallback);
+                tab.View.CoreWebView2.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(fallback) && !IsTrustedUrl(fallback);
                 tab.View.CoreWebView2.Navigate(fallback);
             }
         }

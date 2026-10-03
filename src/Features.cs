@@ -42,12 +42,33 @@ namespace Przegladarka
             try
             {
                 Directory.CreateDirectory(DataDir);
+                RecordBookmarkTombstones();
                 File.WriteAllLines(BookmarksFile, _bookmarks.Select(b => b.Url + "\t" + b.Title.Replace('\t', ' ').Replace('\n', ' ')));
             }
             catch (IOException ex) { MessageBox.Show(this, "Nie zapisano zakładek:\n" + ex.Message, "Zakładki"); }
             RenderBookmarkBar();
             UpdateStar();
             NotifyLanStateChanged();
+        }
+
+        // Usuniete zakladki zapisujemy z czasem - synchronizacja LAN usunie je tez na drugim komputerze.
+        // Ponowne dodanie zakladki kasuje jej wpis z listy usunietych.
+        void RecordBookmarkTombstones()
+        {
+            try
+            {
+                var before = File.Exists(BookmarksFile)
+                    ? new HashSet<string>(File.ReadAllLines(BookmarksFile).Select(l => l.Split('\t')[0]).Where(u => u.Length > 0), StringComparer.Ordinal)
+                    : new HashSet<string>(StringComparer.Ordinal);
+                var now = new HashSet<string>(_bookmarks.Select(b => b.Url), StringComparer.Ordinal);
+                var tomb = ParseTombstones(File.Exists(BookmarkTombstonesFile) ? File.ReadAllText(BookmarkTombstonesFile) : "");
+                long t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                bool changed = false;
+                foreach (var u in before) if (!now.Contains(u)) { tomb[u] = t; changed = true; }
+                foreach (var u in now) if (tomb.Remove(u)) changed = true;
+                if (changed) File.WriteAllLines(BookmarkTombstonesFile, tomb.Select(kv => kv.Key + "\t" + kv.Value));
+            }
+            catch (Exception) { }
         }
 
         void RenderBookmarkBar()

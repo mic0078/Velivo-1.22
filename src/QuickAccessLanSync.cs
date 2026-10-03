@@ -356,7 +356,11 @@ namespace Przegladarka
                         _quickAccessLanArchive = cachedArchive;
                         _quickAccessLanHash = currentHash;
                         _quickAccessLanStamp = QuickAccessFilesStamp();
-                        _quickAccessLanSent[header.Id] = currentHash;
+                        // Oznaczamy jako wyslane tylko, gdy oba komputery maja identyczne dane. Po scaleniu
+                        // (currentHash != header.Hash) odbiorca musi odeslac swoje skroty - inaczej synchronizacja
+                        // dzialala tylko w jedna strone i zmiany z tego komputera nigdy nie trafialy do nadawcy.
+                        if (string.Equals(currentHash, header.Hash, StringComparison.Ordinal)) _quickAccessLanSent[header.Id] = currentHash;
+                        else _quickAccessLanSent.Remove(header.Id);
                         _quickAccessLanPeerStamps[header.Id] = header.Timestamp;
                         LanLog("Zsynchronizowano skróty i grafiki Szybkiego Dostępu z " + header.Device + ".");
                     });

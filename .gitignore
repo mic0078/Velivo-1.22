@@ -1,0 +1,6 @@
+# pliki powstajace przy kompilacji - nie trzymamy ich w repozytorium
+src/bin/
+src/obj/
+build/
+*.user
+.vs/

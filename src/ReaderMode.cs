@@ -75,6 +75,23 @@ namespace Przegladarka
                     var readAllBtn = SmallButton("Czytaj całość", null);
                     var stopBtn = SmallButton("Zatrzymaj", null);
                     var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
+                    // suwak glosnosci czytania (zapamietywany w ustawieniach)
+                    var volLabel = new TextBlock { Text = "🔊", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), FontSize = 14 };
+                    var volume = new Slider { Minimum = 0, Maximum = 100, Value = Math.Round(_settings.ReadVolume * 100), Width = 140, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), IsMoveToPointEnabled = true, ToolTip = "Głośność czytania" };
+                    var volValue = new TextBlock { Text = (int)volume.Value + "%", Width = 40, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+                    var volTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+                    volTimer.Tick += async (s4, e4) =>
+                    {
+                        volTimer.Stop();
+                        _settings.ReadVolume = volume.Value / 100.0;
+                        SetPiperVolume(_settings.ReadVolume);
+                        try { _settings.Save(DataDir); } catch (Exception) { }
+                        if (view.CoreWebView2 != null) await view.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.volume(" + Num(_settings.ReadVolume) + ")");
+                    };
+                    volume.ValueChanged += (s4, e4) => { volValue.Text = (int)volume.Value + "%"; volTimer.Stop(); volTimer.Start(); };
+                    bar.Children.Add(volLabel);
+                    bar.Children.Add(volume);
+                    bar.Children.Add(volValue);
                     bar.Children.Add(readSummaryBtn);
                     bar.Children.Add(readAllBtn);
                     bar.Children.Add(stopBtn);
@@ -97,6 +114,18 @@ namespace Przegladarka
                             {
                                 if (!e2.IsSuccess) return;
                                 await view.CoreWebView2.ExecuteScriptAsync(ReaderScript);
+                                await view.CoreWebView2.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
+                                await PreparePiperReading(view.CoreWebView2);
+                                // klikniecie w tekst = czytaj od tego miejsca (przeciaganie/zaznaczanie i linki dzialaja jak zwykle)
+                                await view.CoreWebView2.ExecuteScriptAsync(@"(() => {
+  if (window.__velivoClickRead) return; window.__velivoClickRead = true;
+  const st = document.createElement('style'); st.textContent = 'p,li,blockquote,h1,h2,h3,h4{cursor:pointer}'; document.head.appendChild(st);
+  document.addEventListener('click', e => {
+    if (e.button !== 0 || (getSelection() && getSelection().toString().trim())) return;
+    if (e.target.closest('a,button,input,textarea,select')) return;
+    window.__velivoRead && window.__velivoRead.startAt(e.clientX, e.clientY, " + Num(_settings.ReadRate) + ", " + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + @");
+  });
+})();");
                                 await ReadSummaryInReader(view);
                             };
                             readSummaryBtn.Click += async (s3, e3) => await ReadSummaryInReader(view);

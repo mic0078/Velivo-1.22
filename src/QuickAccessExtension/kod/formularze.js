@@ -102,6 +102,19 @@ async function sdOdmow(domena) {
   } catch (e) { /* zapamietanie odmowy to wygoda, nie warunek */ }
 }
 
+// Czy Sejf ma juz ten login z tym samym haslem dla tej strony? Wtedy nie pytamy o zapis.
+// Zwraca: 'ten-sam' (nic nie robimy), 'inne-haslo' (pytamy o aktualizacje) albo 'brak'.
+// Gdy Sejf nie odpowie, zachowujemy sie jak dotad (pytamy) - lepiej zapytac raz za duzo, niz zgubic haslo.
+async function sdStanWSejfie(domena, login, haslo) {
+  try {
+    const o = await sdSejf({ c: 'sejf-szukaj', domena });
+    const wpisy = (o && o.wpisy) || [];
+    const ten = wpisy.filter((w) => String(w.Login || '').trim().toLowerCase() === String(login || '').trim().toLowerCase());
+    if (ten.some((w) => w.Haslo === haslo)) return 'ten-sam';
+    return ten.length ? 'inne-haslo' : 'brak';
+  } catch (e) { return 'brak'; }
+}
+
 async function sdSprobujZapytac() {
   if (!sdOstatnie || document.getElementById(SD_PASEK_ID)) return;
   const domena = location.hostname.toLowerCase();
@@ -111,7 +124,10 @@ async function sdSprobujZapytac() {
   // Najpierw odkladamy, potem pokazujemy: gdy strona przeladuje sie w trakcie,
   // pytanie wroci na nowej stronie zamiast przepasc.
   sdOdloz(domena, dane.login, dane.haslo);
-  sdPokazPasek(domena, dane.login, dane.haslo);
+  const stan = await sdStanWSejfie(domena, dane.login, dane.haslo);
+  if (stan === 'ten-sam') { sdZapomnijOdlozone(); return; }
+  if (document.getElementById(SD_PASEK_ID)) return;
+  sdPokazPasek(domena, dane.login, dane.haslo, stan === 'inne-haslo');
 }
 
 // Po wejsciu na strone sprawdzamy, czy nie zostalo pytanie sprzed przeladowania.
@@ -120,13 +136,16 @@ async function sdWrocDoPytania() {
   const d = sdOdlozone();
   if (!d) return;
   if (await sdOdmowione(d.domena)) { sdZapomnijOdlozone(); return; }
-  sdPokazPasek(d.domena, d.login, d.haslo);
+  const stan = await sdStanWSejfie(d.domena, d.login, d.haslo);
+  if (stan === 'ten-sam') { sdZapomnijOdlozone(); return; }
+  if (document.getElementById(SD_PASEK_ID)) return;
+  sdPokazPasek(d.domena, d.login, d.haslo, stan === 'inne-haslo');
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sdWrocDoPytania);
 else sdWrocDoPytania();
 
-function sdPokazPasek(domena, login, haslo) {
+function sdPokazPasek(domena, login, haslo, aktualizacja) {
   const pasek = document.createElement('div');
   pasek.id = SD_PASEK_ID;
   pasek.style.cssText = [
@@ -137,7 +156,9 @@ function sdPokazPasek(domena, login, haslo) {
   ].join(';');
 
   const tekst = document.createElement('div');
-  tekst.textContent = `Zapisac login ${login} dla ${domena} w sejfie?`;
+  tekst.textContent = aktualizacja
+    ? `Zaktualizowac haslo dla ${login} (${domena}) w sejfie? Wpisane rozni sie od zapisanego.`
+    : `Zapisac login ${login} dla ${domena} w sejfie?`;
   tekst.style.marginBottom = '10px';
   pasek.appendChild(tekst);
 

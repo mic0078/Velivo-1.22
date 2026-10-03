@@ -23,7 +23,10 @@ namespace Przegladarka
         }
 
         // To samo dla skryptow strony: navigator.userAgentData.brands i getHighEntropyValues().
+        // Strony dodatkow (chrome-extension://, np. Szybki Dostep) zostawiamy w spokoju - one musza wiedziec,
+        // ze dzialaja w Velivo, i potrzebuja kanalu chrome.webview do programu.
         const string HideWebViewBrandScript = @"(() => {
+  if (location.protocol === 'chrome-extension:') return;
   try { if (window.chrome && 'webview' in window.chrome) delete window.chrome.webview; } catch (e) {}
   try {
     const P = window.NavigatorUAData && NavigatorUAData.prototype;

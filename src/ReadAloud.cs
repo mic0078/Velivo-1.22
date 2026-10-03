@@ -19,7 +19,7 @@ namespace Przegladarka
         const string ReaderScript = @"(() => {
   if (window.__velivoRead) return;
   const S = speechSynthesis;
-  const st = { items: [], i: 0, rate: 1, voice: null, active: false, paused: false, mark: null, lang: '' };
+  const st = { items: [], i: 0, rate: 1, volume: 1, external: false, pending: null, seq: 0, voice: null, active: false, paused: false, mark: null, lang: '' };
   const HL = 'velivo-czyta';
   const style = document.createElement('style');
   style.textContent = '.' + HL + '{background:rgba(255,213,0,.45)!important;outline:3px solid #f59e0b!important;border-radius:4px;transition:background .2s}';
@@ -54,7 +54,26 @@ namespace Przegladarka
     return out;
   };
   // dluzsze bloki dzielimy na zdania (krotsze wypowiedzi = plynniej, pauza dziala od razu)
-  const split = t => (t.match(/[^.!?…]+[.!?…]+[""')\]]*\s*|[^.!?…]+$/g) || [t]).map(s => s.trim()).filter(Boolean);
+  const splitSentences = t => (t.match(/[^.!?…]+[.!?…]+[""')\]]*\s*|[^.!?…]+$/g) || [t]).map(s => s.trim()).filter(Boolean);
+  // dlugie zdania dzielimy na przecinkach (do ~120 znakow) - zmiana glosnosci/predkosci szybciej wchodzi w zycie
+  const split = t => splitSentences(t).flatMap(z => {
+    if (z.length <= 140) return [z];
+    const out = []; let cur = '';
+    for (const part of z.split(/(?<=[,;:–—])\s+/)) {
+      if (cur && (cur + ' ' + part).length > 120) { out.push(cur); cur = part; } else cur = cur ? cur + ' ' + part : part;
+    }
+    if (cur) out.push(cur);
+    return out;
+  });
+  // Glos: wybrany przez uzytkownika, a przy 'Automatycznie' - w jezyku strony (polski/angielski),
+  // najchetniej naturalny glos online (Microsoft ... Online (Natural)), gdy silnik go udostepnia.
+  const pickVoice = (voices, name) => {
+    if (name) { const v = voices.find(x => x.name === name); if (v) return v; }
+    const pageLang = (document.documentElement.lang || '').toLowerCase().slice(0, 2) === 'en' ? 'en' : 'pl';
+    const inLang = voices.filter(x => (x.lang || '').toLowerCase().startsWith(pageLang));
+    return inLang.find(x => /natural/i.test(x.name)) || inLang.find(x => /paulina|aria|jenny/i.test(x.name)) || inLang[0] ||
+           voices.find(x => /^pl/i.test(x.lang)) || voices[0] || null;
+  };
   const unmark = () => { if (st.mark) st.mark.classList.remove(HL); st.mark = null; };
   const speakNext = () => {
     if (!st.active) return;
@@ -65,8 +84,14 @@ namespace Przegladarka
       const r = it.el.getBoundingClientRect();
       if (r.top < 60 || r.bottom > innerHeight - 60) it.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
+    // glos zewnetrzny (Piper w programie Velivo): zdanie odbiera program, ktory po odtworzeniu wola done()
+    if (st.external) {
+      const nx = st.items[st.i + 1];
+      st.pending = { seq: ++st.seq, i: st.i, text: it.text, next: nx ? nx.text : '' };
+      return;
+    }
     const u = new SpeechSynthesisUtterance(it.text);
-    u.rate = st.rate; if (st.voice) u.voice = st.voice; u.lang = st.voice ? st.voice.lang : 'pl-PL';
+    u.rate = st.rate; u.volume = st.volume; if (st.voice) u.voice = st.voice; u.lang = st.voice ? st.voice.lang : 'pl-PL';
     u.onend = () => { if (!st.active || st.paused) return; st.i++; speakNext(); };
     u.onerror = e => { if (e.error === 'interrupted' || e.error === 'canceled') return; st.i++; speakNext(); };
     S.speak(u);
@@ -76,7 +101,7 @@ namespace Przegladarka
       S.cancel(); unmark();
       const voices = S.getVoices();
       st.lang = (document.documentElement.lang || '').toLowerCase();
-      st.voice = voices.find(v => v.name === voiceName) || voices.find(v => /^pl/i.test(v.lang)) || voices[0] || null;
+      st.voice = pickVoice(voices, voiceName);
       st.rate = rate; st.i = 0; st.paused = false;
       const sel = getSelection(); const selText = sel ? sel.toString().replace(/\s+/g, ' ').trim() : '';
       let blocks;
@@ -91,13 +116,46 @@ namespace Przegladarka
       speakNext();
       return st.items.length;
     },
+    // czytanie od miejsca klikniecia: akapit pod mysza, od zdania, w ktore kliknieto
+    startAt(x, y, rate, voiceName) {
+      let node = null, off = 0;
+      if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
+      if (!node) return 0;
+      S.cancel(); unmark();
+      const voices = S.getVoices();
+      st.voice = pickVoice(voices, voiceName);
+      st.rate = rate; st.paused = false;
+      const blocks = collect(mainRoot());
+      st.items = [];
+      let startIdx = -1;
+      for (const b of blocks) {
+        const parts = split(b.text);
+        if (startIdx < 0 && b.el && b.el.contains(node)) {
+          let clicked = 0;
+          try { const r = document.createRange(); r.setStart(b.el, 0); r.setEnd(node, off); clicked = r.toString().replace(/\s+/g, ' ').length; } catch (e) {}
+          let pos = 0, k = 0;
+          for (; k < parts.length - 1; k++) { pos += parts[k].length + 1; if (pos > clicked) break; }
+          startIdx = st.items.length + k;
+        }
+        for (const s of parts) st.items.push({ el: b.el, text: s });
+      }
+      if (startIdx < 0) return 0;
+      st.i = startIdx;
+      st.active = st.items.length > 0;
+      speakNext();
+      return st.items.length - startIdx;
+    },
     // glosy Windows w silniku nie obsluguja speechSynthesis.pause() - pauza = zatrzymanie i zapamietanie
     // miejsca; wznowienie czyta przerwane zdanie od poczatku
     pause() { if (st.active && !st.paused) { st.paused = true; S.cancel(); } },
     resume() { if (st.active && st.paused) { st.paused = false; speakNext(); } },
     stop() { st.active = false; st.paused = false; S.cancel(); unmark(); },
+    volume(v) { st.volume = Math.max(0, Math.min(1, v)); }, // glosnosc 0-1: bez przerywania, dziala od nastepnego fragmentu (glos systemowy nie zmienia glosnosci w trakcie zdania)
     rate(r) { st.rate = r; if (st.active && !st.paused) { S.cancel(); speakNext(); } }, // od biezacego zdania
-    state() { return JSON.stringify({ active: st.active, paused: st.paused, i: st.i, n: st.items.length, lang: st.lang }); }
+    state() { return JSON.stringify({ active: st.active, paused: st.paused, i: st.i, n: st.items.length, lang: st.lang, seq: st.seq }); },
+    setExternal(b) { st.external = !!b; },
+    take() { const p = st.pending; st.pending = null; return p ? JSON.stringify(p) : ''; },
+    done(seq) { if (st.active && !st.paused && seq === st.seq) { st.i++; speakNext(); } }
   };
   addEventListener('pagehide', () => { try { window.__velivoRead.stop(); } catch (e) {} });
 })();";
@@ -107,10 +165,10 @@ namespace Przegladarka
 
         async void LoadVoiceNames(Microsoft.Web.WebView2.Core.CoreWebView2 core)
         {
-            if (_voiceNames.Count > 0 || core == null) return;
+            if (_voiceNames.Count > 1 || core == null) return;   // glosy online potrafia dojsc pozniej - probujemy, dopoki lista jest uboga
             try
             {
-                const string js = "new Promise(r => { const go = () => r(JSON.stringify(speechSynthesis.getVoices().filter(v => /^pl/i.test(v.lang)).map(v => v.name))); " +
+                const string js = "new Promise(r => { const go = () => r(JSON.stringify(speechSynthesis.getVoices().filter(v => /^(pl|en)/i.test(v.lang)).sort((a, b) => (/^pl/i.test(b.lang) - /^pl/i.test(a.lang)) || (/natural/i.test(b.name) - /natural/i.test(a.name))).map(v => v.name + '|' + v.lang + '|' + (v.localService ? 1 : 0)))); " +
                                   "if (speechSynthesis.getVoices().length) go(); else { speechSynthesis.onvoiceschanged = go; setTimeout(go, 3000); } })";
                 var res = await core.CallDevToolsProtocolMethodAsync("Runtime.evaluate", JsonSerializer.Serialize(new { expression = js, awaitPromise = true, returnByValue = true }));
                 using (var d = JsonDocument.Parse(res))
@@ -127,6 +185,8 @@ namespace Przegladarka
             var core = tab.View.CoreWebView2;
             if (core == null) return false;
             await core.ExecuteScriptAsync(ReaderScript);
+            await core.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
+            await PreparePiperReading(core);   // glos Piper (offline) - dzwiek z programu, nie z silnika
             return true;
         }
 
@@ -142,9 +202,6 @@ namespace Przegladarka
                 Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")");
             if (n == "0" || n == "null") { ShowToast("🔊 Nie znalazłem tekstu do przeczytania na tej stronie.", null); return; }
             _readTab = tab;
-            var lang = (await tab.View.CoreWebView2.ExecuteScriptAsync("(document.documentElement.lang||'').toLowerCase()")).Trim('"');
-            if (lang.Length > 0 && !lang.StartsWith("pl"))
-                ShowToast("🔊 Strona nie jest po polsku, a w systemie są tylko polskie głosy.\nLepiej najpierw: prawy klik → „Przetłumacz stronę na polski”, potem czytaj.", null);
             ShowReadControls(true, false);
             if (_readTimer == null)
             {

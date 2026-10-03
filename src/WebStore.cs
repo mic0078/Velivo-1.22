@@ -54,10 +54,16 @@ namespace Przegladarka
                     return;
                 }
 
+                // Szybki Dostep juz jest w profilu (rozpoznany po ID) - NIE usuwamy go. Usuniecie dodatku kasuje jego
+                // dane (skroty, grupy, ustawienia), przez co po aktualizacji Velivo wygladalo jak zainstalowane od zera.
                 if (installed != null)
                 {
-                    await installed.RemoveAsync();
-                    SaveExtPath(installed.Id, null);
+                    if (!installed.IsEnabled) await installed.EnableAsync(true);
+                    if (!paths.ContainsKey(installed.Id)) SaveExtPath(installed.Id, BundledQuickAccessDir);
+                    Directory.CreateDirectory(ExtensionsDir);
+                    File.WriteAllText(Path.Combine(ExtensionsDir, QuickAccessExtensionId + ".id"), installed.Id);
+                    EnsureSejfMostAllowedOrigins(new[] { installed.Id });
+                    return;
                 }
 
                 var added = await Core.Profile.AddBrowserExtensionAsync(BundledQuickAccessDir);

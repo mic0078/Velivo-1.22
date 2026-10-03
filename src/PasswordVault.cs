@@ -66,7 +66,16 @@ namespace Przegladarka
                         try { return Array.from(root.querySelectorAll('input:not([type=hidden]), textarea')).filter(isVisible); }
                         catch (_) { return []; }
                     };
-                    const isLoginField = (el) => !!el && isInput(el) && (el.type === 'email' || /username|email|login|user/i.test(`${el.name || ''} ${el.id || ''} ${el.autocomplete || ''} ${el.type || ''}`) || el.type === 'text');
+                    // pola wyszukiwania (Startpage, Google, sklepy) nie sa polami logowania
+                    const isSearchField = (el) => {
+                        try {
+                            return el.type === 'search' || (el.getAttribute('role') || '') === 'searchbox' || (el.getAttribute('role') || '') === 'combobox' ||
+                                /^(q|query|search|s|k|keyword|szukaj)$/i.test(el.name || '') || /search|szukaj|wyszuk/i.test(`${el.id || ''} ${el.placeholder || ''} ${el.getAttribute('aria-label') || ''}`) ||
+                                !!el.closest('form[role=search], [role=search]');
+                        } catch (_) { return false; }
+                    };
+                    const isLoginField = (el) => !!el && isInput(el) && !(el instanceof HTMLTextAreaElement) && !isSearchField(el) &&
+                        (el.type === 'email' || /username|email|e-mail|login|user|konto|uzytkownik/i.test(`${el.name || ''} ${el.id || ''} ${el.autocomplete || ''}`) || el.type === 'text');
                     const isPasswordField = (el) => !!el && isInput(el) && (el.type === 'password' || /current-password|new-password/i.test(el.autocomplete || ''));
                     const visiblePassword = (root) => allInputs(root).find(isPasswordField) || null;
                     const visibleLogin = (root, exclude) => allInputs(root).find(el => el !== exclude && isLoginField(el)) || null;
@@ -120,7 +129,7 @@ namespace Przegladarka
                                 panel = document.createElement('div');
                                 panel.id = '__velivoPwdPanel';
                                 panel.className = 'velivo-pwd-panel';
-                                panel.innerHTML = '<button type=button data-v=fill title="Wybierz wpis z lokalnej bazy">&#128273;</button><button type=button data-v=gen title="Wygeneruj haslo">&#9889;</button><div class=velivo-pwd-choices role=listbox></div>';
+                                panel.innerHTML = '<button type=button data-v=fill title="Wybierz wpis z lokalnej bazy">&#128273;</button><button type=button data-v=gen title="Wygeneruj haslo">&#9889;</button><div class=velivo-pwd-choices role=listbox style="display:none"></div>';
                                 (document.body || document.documentElement).appendChild(panel);
                             }
                             state.panel = panel;
@@ -134,7 +143,8 @@ namespace Przegladarka
                         let password = isPasswordField(anchor) ? anchor : visiblePassword(root);
                         let login = isLoginField(anchor) ? anchor : visibleLogin(root, password);
                         if (!login && password) login = visibleLogin(password.form || document, password);
-                        if (!password && !login && anchor && isInput(anchor)) login = anchor;
+                        // pole tekstowe bez hasla w poblizu to nie formularz logowania - chyba ze wprost wyglada na login
+                        if (!password && login && !(login.type === 'email' || /username|email|e-mail|login|user|uzytkownik/i.test(`${login.name || ''} ${login.id || ''} ${login.autocomplete || ''}`))) login = null;
                         return { login: login, password: password };
                     }
 
@@ -223,6 +233,9 @@ namespace Przegladarka
                         const generate = state.panel.querySelector('[data-v=gen]');
                         if (fill) fill.disabled = state.credentials.length === 0 || (!fields.login && !fields.password);
                         if (generate) generate.disabled = !fields.password;
+                        if (generate) generate.style.display = fields.password ? '' : 'none';
+                        // bez pola hasla panel ma sens tylko, gdy sa zapisane konta do wypelnienia
+                        if (!fields.password && (!fields.login || state.credentials.length === 0)) { state.panel.style.display = 'none'; return; }
                         positionPanel(fields.password || fields.login);
                         try {
                             document.querySelectorAll('iframe').forEach(updateFrameCredentials);
@@ -609,6 +622,43 @@ namespace Przegladarka
             return outList;
         }
 
+        // Caly plik jako rekordy CSV - pola w cudzyslowie moga zawierac nowe linie
+        // (np. notatki z KeePassXC), wiec nie wolno dzielic pliku na linie przed parsowaniem.
+        static List<List<string>> ParseCsvRecords(string text, char sep)
+        {
+            var records = new List<List<string>>();
+            var row = new List<string>();
+            var sb = new StringBuilder();
+            bool inQuotes = false, any = false;
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (inQuotes)
+                {
+                    if (c == '\"')
+                    {
+                        if (i + 1 < text.Length && text[i + 1] == '\"') { sb.Append('\"'); i++; }
+                        else inQuotes = false;
+                    }
+                    else sb.Append(c);
+                    continue;
+                }
+                if (c == '\"') { inQuotes = true; any = true; }
+                else if (c == sep) { row.Add(sb.ToString()); sb.Clear(); any = true; }
+                else if (c == '\r' || c == '\n')
+                {
+                    if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
+                    row.Add(sb.ToString()); sb.Clear();
+                    if (any || row.Count > 1 || row[0].Length > 0) records.Add(row);
+                    row = new List<string>(); any = false;
+                }
+                else { sb.Append(c); any = true; }
+            }
+            row.Add(sb.ToString());
+            if (any || row.Count > 1 || row[0].Length > 0) records.Add(row);
+            return records;
+        }
+
         static char DetectSeparator(string header)
         {
             int c = header.Count(ch => ch == ',');
@@ -694,7 +744,9 @@ namespace Przegladarka
             var existing = _passwordEntries.FirstOrDefault(x =>
                 string.Equals((x.Host ?? "").ToLowerInvariant(), host, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals((x.Username ?? "").Trim(), user, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals((x.Url ?? "").Trim(), url, StringComparison.OrdinalIgnoreCase));
+                string.Equals((x.Url ?? "").Trim(), url, StringComparison.OrdinalIgnoreCase) &&
+                // wpisy bez adresu (czeste w KeePassXC) rozrozniamy po nazwie - inaczej nadpisywaly sie nawzajem
+                (url.Length > 0 || string.Equals((x.Name ?? "").Trim(), (e.Name ?? "").Trim(), StringComparison.OrdinalIgnoreCase)));
 
             if (existing == null)
             {
@@ -712,40 +764,40 @@ namespace Przegladarka
 
         int ImportPasswordsFromCsv(string filePath)
         {
-            var text = File.ReadAllText(filePath, Encoding.UTF8);
-            var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n').Where(x => x != null).ToList();
-            if (lines.Count == 0) return 0;
+            var text = File.ReadAllText(filePath, Encoding.UTF8).TrimStart('\uFEFF');
+            int firstBreak = text.IndexOfAny(new[] { '\r', '\n' });
+            var sep = DetectSeparator(firstBreak >= 0 ? text.Substring(0, firstBreak) : text);
+            var records = ParseCsvRecords(text, sep).Where(rw => rw.Any(v => !string.IsNullOrWhiteSpace(v))).ToList();
+            if (records.Count == 0) return 0;
 
-            int h = 0;
-            while (h < lines.Count && string.IsNullOrWhiteSpace(lines[h])) h++;
-            if (h >= lines.Count) return 0;
-
-            var sep = DetectSeparator(lines[h]);
-            var header = ParseCsvLine(lines[h], sep);
+            var header = records[0];
             var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < header.Count; i++)
             {
                 var key = Canon(header[i]);
                 if (key.Length > 0 && !map.ContainsKey(key)) map[key] = i;
             }
+            // plik bez naglowka (url,uzytkownik,haslo)
+            bool hasHeader = map.ContainsKey("password") || map.ContainsKey("loginpassword") || map.ContainsKey("haslo") || map.ContainsKey("hasło");
+            if (!hasHeader) map.Clear();
 
             int added = 0;
-            for (int i = h + 1; i < lines.Count; i++)
+            for (int i = hasHeader ? 1 : 0; i < records.Count; i++)
             {
-                var ln = lines[i];
-                if (string.IsNullOrWhiteSpace(ln)) continue;
-                var row = ParseCsvLine(ln, sep);
+                var row = records[i];
+                // KeePass/KeePassXC: pomijamy wpisy z kosza
+                var group = GetCol(map, row, "group", "folder", "grupa");
+                if (group.IndexOf("Recycle Bin", StringComparison.OrdinalIgnoreCase) >= 0 || group.IndexOf("Kosz", StringComparison.OrdinalIgnoreCase) >= 0) continue;
 
-                var rawUrl = GetCol(map, row, "url", "website", "login_uri", "hostname", "origin", "formactionorigin", "form_action_origin");
+                var rawUrl = GetCol(map, row, "url", "website", "web site", "login_uri", "hostname", "origin", "formactionorigin", "form_action_origin", "adres");
                 var url = EnsureUrlScheme(rawUrl);
                 if (url.Length == 0) url = rawUrl;
-                var user = GetCol(map, row, "username", "login_username", "login", "user");
-                var pass = GetCol(map, row, "password", "login_password", "haslo");
-                var name = GetCol(map, row, "name", "title");
-                var notes = GetCol(map, row, "notes", "note");
+                var user = GetCol(map, row, "username", "user name", "login name", "login_username", "login", "user", "email", "uzytkownik", "użytkownik");
+                var pass = GetCol(map, row, "password", "login_password", "haslo", "hasło");
+                var name = GetCol(map, row, "name", "title", "account", "nazwa", "tytul", "tytuł");
+                var notes = GetCol(map, row, "notes", "note", "comments", "extra", "notatki");
 
-                // Fallback dla plikow prostych: url,username,password
-                if (pass.Length == 0 && row.Count >= 3 && map.Count == 0)
+                if (!hasHeader && row.Count >= 3)
                 {
                     url = EnsureUrlScheme((row[0] ?? "").Trim());
                     user = (row[1] ?? "").Trim();
@@ -753,11 +805,12 @@ namespace Przegladarka
                 }
 
                 if (pass.Length == 0) continue;
+                if (url.StartsWith("{", StringComparison.Ordinal) || url.StartsWith("cmd://", StringComparison.OrdinalIgnoreCase)) url = "";
                 var host = HostFromAnyUrl(url);
 
                 var entry = new SavedPasswordEntry
                 {
-                    Name = name,
+                    Name = name.Length > 0 ? name : host,
                     Url = url,
                     Host = host,
                     Username = user,

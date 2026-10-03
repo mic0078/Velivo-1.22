@@ -208,6 +208,9 @@ async function dodajSkrot(profilDocelowy, indeksGrupy, url, tytul) {
 }
 
 function pokazWynik(tekst, dobry) {
+  // Przegladarki na WebView2 (Velivo) nie maja ikonki dodatku na pasku - bez tego wyjatek przerywal dodawanie skrotu
+  if (!chrome.action || !chrome.action.setBadgeText) return;
+  try {
   chrome.action.setBadgeText({ text: dobry ? 'OK' : '!' });
   chrome.action.setBadgeBackgroundColor({ color: dobry ? '#16a34a' : '#b45309' });
   chrome.action.setTitle({ title: tekst });
@@ -215,6 +218,7 @@ function pokazWynik(tekst, dobry) {
     chrome.action.setBadgeText({ text: '' });
     chrome.action.setTitle({ title: 'Szybki Dostep' });
   }, 3000);
+  } catch (e) { /* brak paska dodatkow */ }
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -308,7 +312,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 // Klikniecie ikony na pasku otwiera nowa karte, czyli nasza tablice.
-chrome.action.onClicked.addListener(() => chrome.tabs.create({}));
+// Bez chrome.action (WebView2) wyjatek w tym miejscu zatrzymywal reszte procesu tla:
+// menu kontekstowe, PIN i hasla z Sejfu przestawaly dzialac.
+try { chrome.action.onClicked.addListener(() => chrome.tabs.create({})); } catch (e) { /* brak paska dodatkow */ }
 
 // ---------------------------------------------------------------------
 //  Aktualizacja z kopia.json przy starcie przegladarki

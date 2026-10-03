@@ -24,14 +24,14 @@ namespace Przegladarka
         // Bezposredni adres strony przetlumaczonej przez Tlumacza Google (jak w Chrome):
         // en.wikipedia.org/wiki/X -> en-wikipedia-org.translate.goog/wiki/X?_x_tr_sl=auto&_x_tr_tl=pl...
         // (myslnik w nazwie hosta zapisuje sie podwojnie, kropka jako myslnik)
-        static string TranslatedPageUrl(string url)
+        static string TranslatedPageUrl(string url, string to = "pl")
         {
             Uri u;
-            if (!Uri.TryCreate(url, UriKind.Absolute, out u)) return "https://translate.google.com/translate?sl=auto&tl=pl&u=" + Uri.EscapeDataString(url);
+            if (!Uri.TryCreate(url, UriKind.Absolute, out u)) return "https://translate.google.com/translate?sl=auto&tl=" + to + "&u=" + Uri.EscapeDataString(url);
             string host = u.IdnHost.Replace("-", "--").Replace(".", "-") + ".translate.goog";
             string port = u.IsDefaultPort ? "" : ":" + u.Port;
             string q = u.Query.TrimStart('?');
-            string tr = "_x_tr_sl=auto&_x_tr_tl=pl&_x_tr_hl=pl&_x_tr_pto=wapp" + (u.Scheme == "http" ? "&_x_tr_sch=http" : "");
+            string tr = "_x_tr_sl=auto&_x_tr_tl=" + to + "&_x_tr_hl=pl&_x_tr_pto=wapp" + (u.Scheme == "http" ? "&_x_tr_sch=http" : "");
             return "https://" + host + port + u.AbsolutePath + "?" + (q.Length > 0 ? q + "&" : "") + tr + u.Fragment;
         }
 
@@ -91,19 +91,40 @@ namespace Przegladarka
                     }
                 }
 
-                if (foreignPage)
+                // Tlumaczenie strony zawsze pod reka: obca -> na polski, polska -> na angielski,
+                // nieznany jezyk -> obie opcje (wczesniej opcja znikala, gdy strona nie podala jezyka albo podala bledny).
+                if (web && !alreadyTranslated)
                 {
-                    var trPage = _env.CreateContextMenuItem("Przetłumacz stronę na polski", null, CoreWebView2ContextMenuItemKind.Command);
-                    trPage.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() =>
+                    bool polish = lang.StartsWith("pl");
+                    bool unknown = lang.Length == 0;
+                    Action<string, string> addTranslate = (label, to) =>
                     {
-                        var c = Core;
-                        if (c != null) c.Navigate(TranslatedPageUrl(pageUrl));
-                    });
-                    add(trPage);
+                        var trPage = _env.CreateContextMenuItem(label, null, CoreWebView2ContextMenuItemKind.Command);
+                        trPage.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() =>
+                        {
+                            var c = Core;
+                            if (c != null) c.Navigate(TranslatedPageUrl(pageUrl, to));
+                        });
+                        add(trPage);
+                    };
+                    if (!polish || unknown) addTranslate("Przetłumacz stronę na polski", "pl");
+                    if (polish || unknown) addTranslate("Przetłumacz stronę na angielski", "en");
                 }
 
                 if (web)
                 {
+                    var tabForBlock = _current;
+                    double px = e.Location.X, py = e.Location.Y;
+                    var block = _env.CreateContextMenuItem("🚫 Blokuj element (reklamę)…", null, CoreWebView2ContextMenuItemKind.Command);
+                    block.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartElementPicker(tabForBlock, px, py));
+                    add(block);
+                    if (ElementSelectorsFor(pageUrl).Count > 0)
+                    {
+                        var unblock = _env.CreateContextMenuItem("Przywróć zablokowane elementy na tej stronie", null, CoreWebView2ContextMenuItemKind.Command);
+                        unblock.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => ClearElementRules(tabForBlock));
+                        add(unblock);
+                    }
+                    separator();
                     var reader = _env.CreateContextMenuItem("Tryb czytania i streszczenie", null, CoreWebView2ContextMenuItemKind.Command);
                     reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenReaderMode);
                     add(reader);

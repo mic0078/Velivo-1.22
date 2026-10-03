@@ -32,6 +32,9 @@ namespace Przegladarka
 
         List<ExtInfo> _extInfos = new List<ExtInfo>();
         const string QuickAccessExtensionId = "acniffmanfmekaehjjbbkiogoaehogpf";
+        // ID, pod ktorym Szybki Dostep jest zainstalowany u uzytkownika (chrome-extension://nkblpgfbidmbnemeecboimbnpkgmajfn/kod/newtab.html).
+        // Zawsze rozpoznawany i zaufany - niezaleznie od mapy ID, ktora moze byc pusta albo nieaktualna.
+        const string QuickAccessTrustedId = "nkblpgfbidmbnemeecboimbnpkgmajfn";
         static string ExtPathsFile { get { return Path.Combine(DataDir, "Dodatki", "sciezki.txt"); } }
         static string ExtensionsSyncListFile { get { return Path.Combine(DataDir, "Dodatki", "lista-sync.txt"); } }
 
@@ -54,6 +57,7 @@ namespace Przegladarka
         static IEnumerable<string> QuickAccessKnownIds()
         {
             yield return QuickAccessExtensionId;
+            yield return QuickAccessTrustedId;
             var installed = QuickAccessInstalledId;
             if (!string.Equals(installed, QuickAccessExtensionId, StringComparison.OrdinalIgnoreCase))
                 yield return installed;
@@ -452,6 +456,8 @@ namespace Przegladarka
             await popup.AddScriptToExecuteOnDocumentCreatedAsync(shim);
             popup.WebMessageReceived += async (s, e) =>
             {
+                // polecenia wykonania kodu przyjmujemy tylko od strony dodatku, nigdy od zwyklej strony WWW
+                if (!(e.Source ?? "").StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase)) return;
                 int k = 0;
                 try
                 {
@@ -525,7 +531,7 @@ namespace Przegladarka
                     core.NavigationStarting += (a, b) =>
                     {
                         core.Settings.IsWebMessageEnabled = IsQuickAccessUrl(b.Uri);
-                        core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(b.Uri);
+                        core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(b.Uri) && !IsTrustedUrl(b.Uri);
                     };
                     core.WindowCloseRequested += (a, b) => { closing = true; win.Close(); };
                     core.NewWindowRequested += (a, b) => OnNewWindowRequested(b, false);

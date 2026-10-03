@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -101,10 +101,10 @@ namespace Przegladarka
             double z = _current.View.ZoomFactor;
             int pct = (int)Math.Round(z * 100);
             ZoomBtn.Content = pct + "%";
-            ZoomBtn.Visibility = Math.Abs(z - 1.0) > 0.001 ? Visibility.Visible : Visibility.Collapsed;
+            ZoomBtn.Visibility = Visibility.Visible;   // zawsze widoczny - powiekszanie samym kolkiem myszy (np. przy telewizorze)
             ZoomBtn.ToolTip = L.En
-                ? "Zoom for this page: " + pct + "%\nClick: restore default (" + _settings.DefaultZoom + "%)\nRight-click: larger / smaller\nCtrl + mouse wheel also works"
-                : "Powiększenie tej strony: " + pct + "%\nKliknij: przywróć domyślne (" + _settings.DefaultZoom + "%)\nPrawy klik: większe / mniejsze\nCtrl + kółko myszy także działa";
+                ? "Zoom for this page: " + pct + "%\nMouse wheel over this button: larger / smaller\nClick: restore default (" + _settings.DefaultZoom + "%)\nRight-click: larger / smaller\nCtrl + mouse wheel also works"
+                : "Powiększenie tej strony: " + pct + "%\nKółko myszy nad tym przyciskiem: większe / mniejsze\nKliknij: przywróć domyślne (" + _settings.DefaultZoom + "%)\nPrawy klik: większe / mniejsze\nCtrl + kółko myszy także działa";
         }
 
         void ZoomBtn_Click(object sender, RoutedEventArgs e) { SetZoom(DefaultZoom); }
@@ -117,6 +117,7 @@ namespace Przegladarka
             var reset = new MenuItem { Header = L.T("Domyślne (Ctrl 0)") }; reset.Click += (s, e) => SetZoom(DefaultZoom);
             menu.Items.Add(plus); menu.Items.Add(minus); menu.Items.Add(reset);
             ZoomBtn.ContextMenu = menu;
+            ZoomBtn.PreviewMouseWheel += (s, e) => { e.Handled = true; StepZoom(e.Delta > 0 ? 1 : -1); };
         }
     }
 }

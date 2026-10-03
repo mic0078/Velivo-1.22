@@ -277,6 +277,7 @@ namespace Przegladarka
         void LoadSitePrivacyRules()
         {
             _privacyRules.Clear();
+            bool dropped = false;
             try
             {
                 if (!File.Exists(PrivacyRulesFile)) return;
@@ -294,10 +295,14 @@ namespace Przegladarka
                         AutoClearData = p[4] == "1",
                         Trusted = p.Length > 5 && p[5] == "1",
                     };
+                    // stare wpisy typu "chrome-extension://.../newtab.html" (adres dodatku zamiast domeny) usuwamy -
+                    // wygladaly jak blokada Szybkiego Dostepu
+                    if (rule.Domain.Contains("://") || rule.Domain.Contains("/") || rule.Domain.IndexOf('.') < 1) { dropped = true; continue; }
                     if (rule.Domain.Length > 0) _privacyRules[rule.Domain] = rule;
                 }
             }
             catch (IOException) { }
+            if (dropped) SaveSitePrivacyRules();
         }
 
         void SaveSitePrivacyRules()
@@ -515,7 +520,7 @@ namespace Przegladarka
             var ck = new CheckBox { Content = "Nie wysyłaj cookies dla domeny", Margin = new Thickness(0, 4, 0, 0) };
             var tr = new CheckBox { Content = "Wymuś blokowanie trackerów dla domeny", Margin = new Thickness(0, 4, 0, 0) };
             var cl = new CheckBox { Content = "Automatycznie czyść dane po wejściu na domenę", Margin = new Thickness(0, 4, 0, 0) };
-            var trusted = new CheckBox { Content = "Zaufana domena – nie blokuj reklam/trackerów i nie sprawdzaj SmartScreen", Margin = new Thickness(0, 8, 0, 0), FontWeight = FontWeights.SemiBold };
+            var trusted = new CheckBox { Content = "Zaufana domena (bez blokowania i SmartScreen)", Margin = new Thickness(0, 8, 0, 0), FontWeight = FontWeights.SemiBold };
             var info = new TextBlock
             {
                 Text = "Reguły działają per domena. Karty prywatne używają osobnego, izolowanego storage WebView2 (InPrivate).",
@@ -640,6 +645,38 @@ namespace Przegladarka
                 }
             });
 
+            Action<string> addTrusted = (text) =>
+            {
+                var d = NormalizeRuleDomain(text);
+                if (d.Length < 3 || d.IndexOf('.') < 1)
+                {
+                    MessageBox.Show(win, "Podaj poprawną domenę stron www, np. example.com", "Zaufane domeny");
+                    return;
+                }
+                SitePrivacyRule existing;
+                if (!_privacyRules.TryGetValue(d, out existing)) existing = new SitePrivacyRule { Domain = d };
+                existing.Trusted = true;
+                existing.BlockJs = false;
+                existing.StrictTrackers = false;
+                _privacyRules[d] = existing;
+                SaveSitePrivacyRules();
+                dom.Text = d;
+                refresh();
+                if (Core != null) Core.Reload();
+            };
+
+            var trustBtn = SmallButton("✔ Dodaj do zaufanych", () => addTrusted(dom.Text));
+            var trustLogBtn = SmallButton("✔ Zaznaczoną domenę do zaufanych", () =>
+            {
+                var row = logList.SelectedItem as PrivacyLogRow;
+                if (row == null || string.IsNullOrWhiteSpace(row.Domain))
+                {
+                    MessageBox.Show(win, "Najpierw zaznacz wpis na liście blokad.", "Zaufane domeny");
+                    return;
+                }
+                addTrusted(row.Domain);
+            });
+
             var clearLog = SmallButton("Wyczyść panel blokad", () =>
             {
                 _privacyBlocks.Clear();
@@ -664,6 +701,7 @@ namespace Przegladarka
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
             actions.Children.Add(save);
             actions.Children.Add(del);
+            actions.Children.Add(trustBtn);
 
             var leftHeader = new TextBlock { Text = "Reguły prywatności dla domen", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)) };
             var rulesCaption = new TextBlock { Text = "Zapisane reguły domen", Margin = new Thickness(0, 10, 0, 2), FontWeight = FontWeights.SemiBold };
@@ -697,9 +735,12 @@ namespace Przegladarka
             rightHeaderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var rightHeader = new TextBlock { Text = "Co zostało zablokowane i dlaczego", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)), VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(rightHeader, 0);
-            Grid.SetColumn(clearLog, 1);
+            var rightButtons = new StackPanel { Orientation = Orientation.Horizontal };
+            rightButtons.Children.Add(trustLogBtn);
+            rightButtons.Children.Add(clearLog);
+            Grid.SetColumn(rightButtons, 1);
             rightHeaderRow.Children.Add(rightHeader);
-            rightHeaderRow.Children.Add(clearLog);
+            rightHeaderRow.Children.Add(rightButtons);
 
             var rightHint = new TextBlock
             {

@@ -441,7 +441,9 @@ namespace Przegladarka
         void OpenPrivacyPanel()
         {
             Uri u;
-            string host = (Core != null && Uri.TryCreate(Core.Source, UriKind.Absolute, out u)) ? u.Host.ToLowerInvariant() : "";
+            string host = (Core != null && Uri.TryCreate(Core.Source, UriKind.Absolute, out u) &&
+                (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps)) ? u.Host.ToLowerInvariant() : "";
+            // Szybki Dostep (i inne strony dodatkow) nie jest domena - jest zaufany na stale, nie pokazujemy go tu wcale
 
             var win = new Window
             {
@@ -569,6 +571,12 @@ namespace Przegladarka
 
             Action loadCurrentDomain = () =>
             {
+                if (IsQuickAccessExtensionId((dom.Text ?? "").Trim()) || (dom.Text ?? "").Contains("chrome-extension"))
+                {
+                    dom.Text = "";
+                    MessageBox.Show(win, "Szybki Dostęp to wbudowany dodatek – jest zaufany na stałe i nic go nie blokuje. Nie trzeba dodawać reguły.", "Prywatność");
+                    return;
+                }
                 var d = NormalizeRuleDomain(dom.Text);
                 SitePrivacyRule r;
                 if (!_privacyRules.TryGetValue(d, out r)) r = new SitePrivacyRule { Domain = d };

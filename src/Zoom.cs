@@ -69,23 +69,31 @@ namespace Przegladarka
         void OnZoomChanged(BrowserTab tab)
         {
             if (tab.ApplyingZoom) { tab.ApplyingZoom = false; if (tab == _current) UpdateZoomButton(); return; }
+            RememberZoom(tab, tab.View.ZoomFactor);
+            if (tab == _current) UpdateZoomButton();
+        }
+
+        // Zapamietuje powiekszenie dla strony w karcie i przenosi je na inne karty z ta sama strona.
+        void RememberZoom(BrowserTab tab, double z)
+        {
             var host = tab.View.CoreWebView2 != null ? HostOf(tab.View.CoreWebView2.Source) : null;
             if (host != null && !tab.Private)
             {
-                if (Math.Abs(tab.View.ZoomFactor - DefaultZoom) < 0.001) _zoomByHost.Remove(host);
-                else _zoomByHost[host] = Math.Round(tab.View.ZoomFactor, 3);
+                if (Math.Abs(z - DefaultZoom) < 0.001) _zoomByHost.Remove(host);
+                else _zoomByHost[host] = Math.Round(z, 3);
                 SaveZoom();
             }
             // inne otwarte karty z ta sama strona dostaja to samo powiekszenie
             foreach (var t in _tabs) if (t != tab && t.View.CoreWebView2 != null && HostOf(t.View.CoreWebView2.Source) == host) ApplyZoom(t);
-            if (tab == _current) UpdateZoomButton();
         }
 
         void SetZoom(double z)
         {
             if (_current == null) return;
             z = Math.Max(0.25, Math.Min(5.0, z));
-            _current.View.ZoomFactor = z; // zapis zrobi OnZoomChanged
+            _current.ApplyingZoom = false;   // to zmiana uzytkownika, nie programu
+            _current.View.ZoomFactor = z;
+            RememberZoom(_current, z);      // zapis od razu - silnik nie zawsze zglasza zmiane ustawiona z programu
             ShowZoomValue(z);   // od razu - nie czekamy na potwierdzenie silnika
         }
 

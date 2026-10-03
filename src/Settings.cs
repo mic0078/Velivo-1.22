@@ -14,16 +14,16 @@ namespace Przegladarka
     // Ustawienia zapisywane w %LOCALAPPDATA%\Przegladarka\ustawienia.txt (klucz=wartosc).
     public sealed class AppSettings
     {
-        public string Search = "duckduckgo";
-        public string Home = "https://duckduckgo.com/";
+        public string Search = "startpage";
+        public string Home = "https://startpage.com";
         public bool SendDnt = true;            // naglowki DNT: 1 i Sec-GPC: 1
         public bool StrictTracking = true;     // ochrona przed sledzeniem: scisla
         public bool SaveHistory = true;
         public bool ClearOnExit = false;       // przy zamknieciu: historia + cache (bez wylogowywania kont)
-        public bool SavePasswords = false;
-        public bool Autofill = false;
+        public bool SavePasswords = true;
+        public bool Autofill = true;
         public bool SmartScreen = true;        // ostrzezenia o niebezpiecznych stronach
-        public bool AskDownload = false;       // pytaj, gdzie zapisac plik
+        public bool AskDownload = true;       // pytaj, gdzie zapisac plik
         public int Connections = 8;            // polaczen na jeden plik w menedzerze pobierania (1-16)
         public int DefaultZoom = 100;          // domyslne powiekszenie stron w %
         public bool DarkPages = false;         // tryb ciemny stron
@@ -31,15 +31,15 @@ namespace Przegladarka
         public bool FullFilterLists = true;    // pelne listy AdBlocka (EasyList, EasyPrivacy, polska)
         public bool SejfLogins = true;         // kluczyk z loginami z Sejfu na stronach logowania
         public bool QuickAccessNewTab = true;
-        public double ReadRate = 1.0;          // predkosc czytania na glos
+        public double ReadRate = 1.25;         // predkosc czytania na glos
         public string ReadVoice = "";          // glos (pusty = pierwszy polski)
         public string CacheDir = "";           // wlasny folder na smieci (pusty = w profilu)
         public bool CleanJunkOnStart = false;  // usuwaj smieci przy kazdym uruchomieniu
         public bool BlockThirdPartyPopups = true;
-        public bool LanSync = false;           // LAN wymaga jawnego skonfigurowania silnego klucza
+        public bool LanSync = true;            // bez sparowania dziala tryb zgodnosci (bez hasel); hasla tylko po sparowaniu
         public string LanSyncKey = "";
         public bool LanSyncSilent = false;     // bez dymkow przy automatycznym sync
-        public bool ToolbarAlwaysCompact = false; // zawsze kompaktowy pasek narzedzi
+        public bool ToolbarAlwaysCompact = true;  // zawsze kompaktowy pasek narzedzi
 
         static readonly byte[] LanSyncKeyEntropy = Encoding.UTF8.GetBytes("Velivo.LanSyncKey.v1");
 

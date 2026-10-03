@@ -464,6 +464,7 @@ namespace Przegladarka
                 if (e.IsSuccess) _ = ApplyAutoClearRule(tab);
                 if (e.IsSuccess) CheckSejfLogins(tab); // pole hasla? -> loginy z Sejfu dla tej strony
                 if (e.IsSuccess) LoadVoiceNames(core);  // raz: lista polskich glosow do ustawien
+                if (e.IsSuccess) _ = CapturePageThumbAsync(tab);   // miniatura strony dla Szybkiego Dostepu
             };
 
             if (pending != null)

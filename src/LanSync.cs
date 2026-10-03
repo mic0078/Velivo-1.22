@@ -121,7 +121,7 @@ namespace Przegladarka
             var privacy = ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt"));
             var profiles = ReadProfilesRegistry();
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
-            var passwords = ExportPasswordsForSync();
+            var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
             return Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + session + "\n--\n" + sessionActive + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
         }
 
@@ -558,7 +558,7 @@ namespace Przegladarka
             var privacy = ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt"));
             var profiles = ReadProfilesRegistry();
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
-            var passwords = ExportPasswordsForSync();
+            var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
 
             var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + session + "\n--\n" + sessionActive + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
             if (!force && fingerprint == _lastLanFingerprint) return;

@@ -77,7 +77,33 @@ let dane = { grupy: [{ nazwa: 'Start', skroty: [] }], aktywna: 0, zapisano: 0 };
 // Co idzie na konto Google: skroty, grupy i wyglad. Ikony i miniatury NIE -
 // nie miescilyby sie w limicie 100 KB i zostaja wylacznie na dysku.
 let ustawienia = { sync: true, pytajOPlik: true, rozmiar: 148, tlo: 'auto' };
-let ostrzezonoOKoncie = false;   // ostrzezenie o zapelnianiu konta - raz na sesje
+let ostrzezonoOKoncie = false;
+// W przegladarce Velivo (silnik WebView2) nie ma konta Google w przegladarce - logowanie na stronach
+// Google to nie to samo. Synchronizacje miedzy komputerami robi tam samo Velivo (siec LAN), wiec
+// opcja konta Google jest wylaczona i nie pokazujemy mylacych komunikatow.
+const W_VELIVO = !!(window.chrome && chrome.webview) || /Velivo/i.test(navigator.userAgent || '');
+
+// Kanal do programu Velivo (miniatury stron robione przez przegladarke).
+let velivoLicznik = 0;
+const velivoCzeka = {};
+if (window.chrome && chrome.webview) {
+  chrome.webview.addEventListener('message', (e) => {
+    const d = e.data;
+    if (d && d.typ === 'velivo-quick-access-odpowiedz' && velivoCzeka[d.id]) {
+      const f = velivoCzeka[d.id]; delete velivoCzeka[d.id]; f(d.odpowiedz);
+    }
+  });
+}
+function velivoZapytaj(zadanie) {
+  return new Promise((ok) => {
+    if (!(window.chrome && chrome.webview)) { ok(null); return; }
+    const id = ++velivoLicznik;
+    velivoCzeka[id] = ok;
+    try { chrome.webview.postMessage({ typ: 'velivo-quick-access', id, zadanie }); }
+    catch (e) { delete velivoCzeka[id]; ok(null); return; }
+    setTimeout(() => { if (velivoCzeka[id]) { delete velivoCzeka[id]; ok(null); } }, 5000);
+  });
+}   // ostrzezenie o zapelnianiu konta - raz na sesje
 let edytowany = null;   // indeks edytowanego skrotu albo null przy dodawaniu
 
 const $ = (id) => document.getElementById(id);
@@ -862,6 +888,7 @@ async function kontoPrzegladarki(odswiez) {
 // chciec synchronizacji, konto B nie - i jedno nie moze decydowac za drugie.
 // ustawienia.sync zostaje jako wartosc dla przypadku, gdy konta nie znamy.
 function syncWlaczony(konto) {
+  if (W_VELIVO) return false;
   if (konto && konto.znane && konto.zalogowany) {
     const wg = ustawienia.syncKonta || {};
     if (Object.prototype.hasOwnProperty.call(wg, konto.id)) return !!wg[konto.id];
@@ -879,6 +906,7 @@ function ustawSyncDlaKonta(konto, wlaczony) {
 
 // Jednym zdaniem: co naprawde dzieje sie z danymi.
 async function opisSynchronizacji() {
+  if (W_VELIVO) return { stan: 'velivo', tekst: 'Synchronizacja: przez Velivo (siec lokalna LAN)' };
   const k = await kontoPrzegladarki();
   if (k.znane && !k.zalogowany) {
     return { stan: 'brak-konta', tekst: 'Synchronizacja: brak konta w przegladarce - dane zostaja lokalnie' };
@@ -1300,6 +1328,33 @@ async function odbierzMiniature() {
       rysuj();
     }
   } catch (e) { /* nieudany zrzut - kafelek zostaje z ikona */ }
+}
+
+// W Velivo miniatury robi przegladarka przy kazdym otwarciu strony (dodatek nie moze
+// zrobic zrzutu karty w silniku WebView2). Pobieramy nowsze i zapisujemy jak zwykle miniatury.
+let miniaturyVelivoTrwa = false;
+async function miniaturyZVelivo(wymus) {
+  if (!W_VELIVO || miniaturyVelivoTrwa || wyglad().miniatury === false) return 0;
+  miniaturyVelivoTrwa = true;
+  let ile = 0;
+  try {
+    for (const g of dane.grupy) for (const s of g.skroty) {
+      if (!s.url || !/^https?:/i.test(s.url)) continue;
+      const o = await velivoZapytaj({ c: 'thumb', p: s.url });
+      if (!o || !o.ok || !o.b64) continue;
+      if (!wymus && s.miniatura && s.miniaturaVelivo && o.kiedy <= s.miniaturaVelivo) continue;
+      try {
+        const maly = await przytnijZrzut('data:image/jpeg;base64,' + o.b64);
+        let nazwa = await zapiszMiniatureNaDysk(s.url, maly);
+        if (!nazwa) { nazwa = nazwaPlikuMiniatury(s.url); miniaturyLokalne[nazwa] = maly; }
+        s.miniatura = nazwa;
+        s.miniaturaVelivo = o.kiedy;
+        ile++;
+      } catch (e) { /* zly zrzut - zostaje poprzednia miniatura */ }
+    }
+    if (ile) { await zapisz(); rysuj(); }
+  } finally { miniaturyVelivoTrwa = false; }
+  return ile;
 }
 
 // SAMONAPRAWA: wykrywa ikony, ktore nie pasuja do adresu skrotu. Powstaja,
@@ -2405,7 +2460,8 @@ async function dogrywajIkony() {
 // cicho          - nie prosimy o zgode i nie meldujemy niczego
 // bezNarzekania  - prosimy o zgode, ale milczymy gdy nic nie znaleziono
 async function uzupelnijIkony(skroty, cicho, bezNarzekania) {
-  if (!(await zapewnijFolder())) {
+  // w Velivo ikony jako adresy obrazkow dzialaja takze bez podlaczonego folderu
+  if (!W_VELIVO && !(await zapewnijFolder())) {
     if (!cicho && !bezNarzekania) pokazPasek('Bez podlaczonego folderu nie zapisze ikon jako plikow.');
     return 0;
   }
@@ -2449,6 +2505,23 @@ async function uzupelnijIkony(skroty, cicho, bezNarzekania) {
       }
     }
   }
+
+  // 3) bez zgody na dostep do witryn (np. w Velivo) - sam adres obrazka; do wyswietlenia zgoda nie jest potrzebna
+  let zAdresu = 0;
+  for (const s of nadalBrak) {
+    if (s.ikona || s.ikonaPlik) continue;
+    const host = hostZUrl(s.url);
+    if (!host) continue;
+    const kandydaci = [
+      'https://' + host + '/apple-touch-icon.png',
+      'https://' + host + '/favicon.ico',
+      'https://icons.duckduckgo.com/ip3/' + host.replace(/^www\./, '') + '.ico',
+      'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host)
+    ];
+    if (!cicho) pokazPasek('Szukam ikony: ' + host + '...');
+    for (const k of kandydaci) { if (await sprobujObrazek(k)) { s.ikona = k; bezIkony.delete(s.url); zAdresu++; break; } }
+  }
+  zSieci += zAdresu;
 
   if (zPamieci || zSieci) {
     await zapisz();
@@ -2758,6 +2831,11 @@ const obsluzMenu = async (e) => {
   }
 
   if (akcja === 'sync') {
+    if (W_VELIVO) {
+      pokazPasek('W Velivo skroty, grupy i ikony synchronizuje sama przegladarka przez siec lokalna (LAN) - ' +
+                 'Ustawienia Velivo > Synchronizacja w czasie rzeczywistym. Konto Google nie jest potrzebne.');
+      return;
+    }
     let konto = await kontoPrzegladarki();
     if (!syncWlaczony(konto)) {
       // Najpierw sprawdzamy, CZY jest co synchronizowac. Bez konta w
@@ -2967,7 +3045,11 @@ const obsluzMenu = async (e) => {
     const brakujace = dane.grupy
       .reduce((t, g) => t.concat(g.skroty), [])
       .filter((s) => !s.ikona && !s.ikonaPlik);
-    if (!brakujace.length) { pokazPasek('Wszystkie skroty maja juz ikony.'); return; }
+    if (W_VELIVO) {
+      const m = await miniaturyZVelivo(true);
+      if (m) pokazPasek('Odswiezono miniatury: ' + m + '.');
+    }
+    if (!brakujace.length) { if (!W_VELIVO) pokazPasek('Wszystkie skroty maja juz ikony.'); return; }
     await uzupelnijIkony(brakujace, false);
     return;
   }
@@ -3296,6 +3378,16 @@ $('profil').addEventListener('change', async (e) => {
   await odswiezStanSync();
   rysuj();
   $('szukaj').focus();
+  // Velivo: brakujace ikony i nowsze miniatury stron uzupelniamy po cichu przy kazdym otwarciu
+  if (W_VELIVO) {
+    setTimeout(async () => {
+      try {
+        await miniaturyZVelivo(false);
+        const brak = dane.grupy.reduce((t, g) => t.concat(g.skroty), []).filter((x) => !x.ikona && !x.ikonaPlik && !bezIkony.has(x.url));
+        if (brak.length) await uzupelnijIkony(brak, true);
+      } catch (e) { /* nastepnym razem */ }
+    }, 800);
+  }
 
   // Karta otwarta zaraz po dodaniu strony z menu kontekstowego: pokazujemy
   // potwierdzenie i pytamy, czy zostac tutaj, czy wrocic na strone.

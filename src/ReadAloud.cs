@@ -76,7 +76,7 @@ namespace Przegladarka
       S.cancel(); unmark();
       const voices = S.getVoices();
       st.lang = (document.documentElement.lang || '').toLowerCase();
-      st.voice = voices.find(v => v.name === voiceName) || voices.find(v => /^pl/i.test(v.lang)) || voices[0] || null;
+      st.voice = voices.find(v => v.name === voiceName) || voices.find(v => /paulina/i.test(v.name)) || voices.find(v => /^pl/i.test(v.lang)) || voices[0] || null;
       st.rate = rate; st.i = 0; st.paused = false;
       const sel = getSelection(); const selText = sel ? sel.toString().replace(/\s+/g, ' ').trim() : '';
       let blocks;

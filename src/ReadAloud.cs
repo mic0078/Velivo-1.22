@@ -65,6 +65,15 @@ namespace Przegladarka
     if (cur) out.push(cur);
     return out;
   });
+  // Glos: wybrany przez uzytkownika, a przy 'Automatycznie' - w jezyku strony (polski/angielski),
+  // najchetniej naturalny glos online (Microsoft ... Online (Natural)), gdy silnik go udostepnia.
+  const pickVoice = (voices, name) => {
+    if (name) { const v = voices.find(x => x.name === name); if (v) return v; }
+    const pageLang = (document.documentElement.lang || '').toLowerCase().slice(0, 2) === 'en' ? 'en' : 'pl';
+    const inLang = voices.filter(x => (x.lang || '').toLowerCase().startsWith(pageLang));
+    return inLang.find(x => /natural/i.test(x.name)) || inLang.find(x => /paulina|aria|jenny/i.test(x.name)) || inLang[0] ||
+           voices.find(x => /^pl/i.test(x.lang)) || voices[0] || null;
+  };
   const unmark = () => { if (st.mark) st.mark.classList.remove(HL); st.mark = null; };
   const speakNext = () => {
     if (!st.active) return;
@@ -86,7 +95,7 @@ namespace Przegladarka
       S.cancel(); unmark();
       const voices = S.getVoices();
       st.lang = (document.documentElement.lang || '').toLowerCase();
-      st.voice = voices.find(v => v.name === voiceName) || voices.find(v => /paulina/i.test(v.name)) || voices.find(v => /^pl/i.test(v.lang)) || voices[0] || null;
+      st.voice = pickVoice(voices, voiceName);
       st.rate = rate; st.i = 0; st.paused = false;
       const sel = getSelection(); const selText = sel ? sel.toString().replace(/\s+/g, ' ').trim() : '';
       let blocks;
@@ -108,7 +117,7 @@ namespace Przegladarka
       if (!node) return 0;
       S.cancel(); unmark();
       const voices = S.getVoices();
-      st.voice = voices.find(v => v.name === voiceName) || voices.find(v => /paulina/i.test(v.name)) || voices.find(v => /^pl/i.test(v.lang)) || voices[0] || null;
+      st.voice = pickVoice(voices, voiceName);
       st.rate = rate; st.paused = false;
       const blocks = collect(mainRoot());
       st.items = [];
@@ -147,10 +156,10 @@ namespace Przegladarka
 
         async void LoadVoiceNames(Microsoft.Web.WebView2.Core.CoreWebView2 core)
         {
-            if (_voiceNames.Count > 0 || core == null) return;
+            if (_voiceNames.Count > 1 || core == null) return;   // glosy online potrafia dojsc pozniej - probujemy, dopoki lista jest uboga
             try
             {
-                const string js = "new Promise(r => { const go = () => r(JSON.stringify(speechSynthesis.getVoices().filter(v => /^pl/i.test(v.lang)).map(v => v.name))); " +
+                const string js = "new Promise(r => { const go = () => r(JSON.stringify(speechSynthesis.getVoices().filter(v => /^(pl|en)/i.test(v.lang)).sort((a, b) => (/^pl/i.test(b.lang) - /^pl/i.test(a.lang)) || (/natural/i.test(b.name) - /natural/i.test(a.name))).map(v => v.name + '|' + v.lang + '|' + (v.localService ? 1 : 0)))); " +
                                   "if (speechSynthesis.getVoices().length) go(); else { speechSynthesis.onvoiceschanged = go; setTimeout(go, 3000); } })";
                 var res = await core.CallDevToolsProtocolMethodAsync("Runtime.evaluate", JsonSerializer.Serialize(new { expression = js, awaitPromise = true, returnByValue = true }));
                 using (var d = JsonDocument.Parse(res))

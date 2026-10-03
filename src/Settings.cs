@@ -310,8 +310,17 @@ namespace Przegladarka
             root.Children.Add(new TextBlock { Text = "Czytanie na głos – głos i prędkość:", Margin = new Thickness(0, 6, 0, 2) });
             var voiceRow = new StackPanel { Orientation = Orientation.Horizontal };
             var voice = new ComboBox { Width = 260, Margin = new Thickness(0, 0, 8, 0) };
-            voice.Items.Add(new ComboBoxItem { Content = "Automatycznie (pierwszy polski)", Tag = "" });
-            foreach (var vn in _voiceNames) voice.Items.Add(new ComboBoxItem { Content = vn.Replace("Microsoft ", "").Replace(" - Polish (Poland)", ""), Tag = vn });
+            voice.Items.Add(new ComboBoxItem { Content = "Automatycznie (język strony: polski/angielski)", Tag = "" });
+            foreach (var vn in _voiceNames)
+            {
+                // wpis: nazwa|jezyk|lokalny(1/0)
+                var parts = vn.Split('|');
+                string name = parts[0], lang = parts.Length > 1 ? parts[1] : "", local = parts.Length > 2 ? parts[2] : "1";
+                string short_ = System.Text.RegularExpressions.Regex.Replace(name.Replace("Microsoft ", ""), @"\s*-\s*.*$", "");
+                string label = short_ + (lang.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? " (angielski" : " (polski") +
+                               (local == "0" ? ", online – naturalny)" : ")");
+                voice.Items.Add(new ComboBoxItem { Content = label, Tag = name });
+            }
             voice.SelectedItem = System.Linq.Enumerable.FirstOrDefault(System.Linq.Enumerable.Cast<ComboBoxItem>(voice.Items), i => (string)i.Tag == (s.ReadVoice ?? "")) ?? voice.Items[0];
             var rate = new ComboBox { Width = 90 };
             foreach (var rv in ReadRates) { var it = new ComboBoxItem { Content = rv.ToString("0.##") + "×", Tag = rv }; rate.Items.Add(it); if (Math.Abs(rv - s.ReadRate) < 0.01) rate.SelectedItem = it; }

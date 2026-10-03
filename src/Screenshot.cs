@@ -22,9 +22,9 @@ namespace Przegladarka
         void ShotBtn_Click(object sender, RoutedEventArgs e)
         {
             var menu = new ContextMenu { PlacementTarget = ShotBtn, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
-            var visible = new MenuItem { Header = "Widoczna część strony" }; visible.Click += async (s, a) => await TakeScreenshot(false);
-            var full = new MenuItem { Header = "Cała strona (z przewijaniem)" }; full.Click += async (s, a) => await TakeScreenshot(true);
-            var folder = new MenuItem { Header = "Otwórz folder ze zrzutami" };
+            var visible = new MenuItem { Header = L.T("Widoczna część strony") }; visible.Click += async (s, a) => await TakeScreenshot(false);
+            var full = new MenuItem { Header = L.T("Cała strona (z przewijaniem)") }; full.Click += async (s, a) => await TakeScreenshot(true);
+            var folder = new MenuItem { Header = L.T("Otwórz folder ze zrzutami") };
             folder.Click += (s, a) => { Directory.CreateDirectory(ShotsDir); Process.Start("explorer.exe", ShotsDir); };
             menu.Items.Add(visible); menu.Items.Add(full); menu.Items.Add(new Separator()); menu.Items.Add(folder);
             menu.IsOpen = true;
@@ -77,12 +77,12 @@ namespace Przegladarka
                     copied = true;
                 }
                 catch (Exception) { }
-                ShowToast("📷 Zapisano zrzut " + (fullPage ? "całej strony" : "widocznej części") + (copied ? " i skopiowano do schowka." : "."), file);
+                ShowToast("📷 Zapisano zrzut " + (fullPage ? L.T("całej strony") : L.T("widocznej części")) + (copied ? L.T(" i skopiowano do schowka.") : "."), file);
             }
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(this, "Nie udało się zrobić zrzutu ekranu:\n" + ex.Message, "Velivo");
+                MessageBox.Show(this, L.T("Nie udało się zrobić zrzutu ekranu:\n") + ex.Message, "Velivo");
             }
         }
 
@@ -100,8 +100,8 @@ namespace Przegladarka
             };
             if (file != null)
             {
-                var open = SmallButton("Otwórz", () => { try { Process.Start(new ProcessStartInfo(file) { UseShellExecute = true }); } catch (Exception) { } toast.Close(); });
-                var show = SmallButton("Pokaż w folderze", () => { Process.Start("explorer.exe", "/select,\"" + file + "\""); toast.Close(); });
+                var open = SmallButton(L.T("Otwórz"), () => { try { Process.Start(new ProcessStartInfo(file) { UseShellExecute = true }); } catch (Exception) { } toast.Close(); });
+                var show = SmallButton(L.T("Pokaż w folderze"), () => { Process.Start("explorer.exe", "/select,\"" + file + "\""); toast.Close(); });
                 buttons.Children.Add(open); buttons.Children.Add(show);
                 panel.Children.Add(buttons);
             }

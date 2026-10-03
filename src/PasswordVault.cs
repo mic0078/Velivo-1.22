@@ -852,14 +852,14 @@ namespace Przegladarka
             {
                 var dlg = new OpenFileDialog
                 {
-                    Title = "Import haseł",
+                    Title = L.T("Import haseł"),
                     Filter = "Pliki CSV/TSV (*.csv;*.txt)|*.csv;*.txt|Wszystkie pliki (*.*)|*.*"
                 };
                 if (dlg.ShowDialog(owner ?? this) != true) return;
                 int n = ImportPasswordsFromCsv(dlg.FileName);
-                MessageBox.Show(owner ?? this, "Zaimportowano wpisów: " + n + ".", "Hasła");
+                MessageBox.Show(owner ?? this, L.T("Zaimportowano wpisów: ") + n + ".", L.T("Hasła"));
             }
-            catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, "Hasła"); }
+            catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, L.T("Hasła")); }
         }
 
         void ExportPasswordsCsvWithDialog(Window owner)
@@ -868,15 +868,15 @@ namespace Przegladarka
             {
                 var dlg = new SaveFileDialog
                 {
-                    Title = "Eksport haseł",
+                    Title = L.T("Eksport haseł"),
                     Filter = "CSV (*.csv)|*.csv",
                     FileName = "velivo-passwords.csv"
                 };
                 if (dlg.ShowDialog(owner ?? this) != true) return;
                 ExportPasswordsToCsv(dlg.FileName);
-                MessageBox.Show(owner ?? this, "Wyeksportowano.", "Hasła");
+                MessageBox.Show(owner ?? this, L.T("Wyeksportowano."), L.T("Hasła"));
             }
-            catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, "Hasła"); }
+            catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, L.T("Hasła")); }
         }
 
         int DeleteAllSavedPasswords()
@@ -1000,7 +1000,7 @@ namespace Przegladarka
                     if (url.Length == 0) url = EnsureUrlScheme(GetPasswordEntryHost(entry));
                     if (url.Length == 0)
                     {
-                        MessageBox.Show(this, "Ten wpis nie zawiera adresu strony WWW. Zaimportowany link aplikacji Android nie może być otwarty w przeglądarce. Uzupełnij pole URL adresem https://...", "Hasła", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show(this, L.T("Ten wpis nie zawiera adresu strony WWW. Zaimportowany link aplikacji Android nie może być otwarty w przeglądarce. Uzupełnij pole URL adresem https://..."), L.T("Hasła"), MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
 
@@ -1280,8 +1280,8 @@ namespace Przegladarka
                                         if (existing != null)
                                         {
                                                 if (MessageBox.Show(this,
-                                                        "Wykryto nowe hasło dla " + (user.Length > 0 ? user : "(bez loginu)") + " na " + host + ".\nZaktualizować wpis w bazie Velivo?",
-                                                        "Hasła", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                                                        L.T("Wykryto nowe hasło dla ") + (user.Length > 0 ? user : "(bez loginu)") + L.T(" na ") + host + L.T(".\nZaktualizować wpis w bazie Velivo?"),
+                                                        L.T("Hasła"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                                                 existing.Password = pass;
                                                 existing.Url = EnsureUrlScheme(url);
                                                 existing.Source = "captured";
@@ -1291,8 +1291,8 @@ namespace Przegladarka
                                         }
 
                                         if (MessageBox.Show(this,
-                                                "Wykryto hasło na stronie " + host + ".\nDodać do bazy Velivo?",
-                                                "Hasła", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                                                L.T("Wykryto hasło na stronie ") + host + L.T(".\nDodać do bazy Velivo?"),
+                                                L.T("Hasła"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
                                         UpsertPassword(new SavedPasswordEntry
                                         {
@@ -1365,7 +1365,7 @@ namespace Przegladarka
             var seed = ClonePassword(existing);
             var win = new Window
             {
-                Title = existing == null ? "Dodaj wpis hasła" : "Edytuj wpis hasła",
+                Title = existing == null ? L.T("Dodaj wpis hasła") : L.T("Edytuj wpis hasła"),
                 Width = 580,
                 Height = 460,
                 MinWidth = 540,
@@ -1392,8 +1392,8 @@ namespace Przegladarka
             var notes = new TextBox { Text = seed.Notes ?? "", AcceptsReturn = true, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, TextWrapping = TextWrapping.Wrap, Padding = new Thickness(6, 4, 6, 4) };
 
             var genRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            var genBtn = SmallButton("Generuj mocne hasło", () => pass.Text = GenerateStrongPassword(16));
-            var pasteBtn = SmallButton("Wklej ze schowka", () => { try { if (Clipboard.ContainsText()) pass.Text = Clipboard.GetText(); } catch (Exception) { } });
+            var genBtn = SmallButton(L.T("Generuj mocne hasło"), () => pass.Text = GenerateStrongPassword(16));
+            var pasteBtn = SmallButton(L.T("Wklej ze schowka"), () => { try { if (Clipboard.ContainsText()) pass.Text = Clipboard.GetText(); } catch (Exception) { } });
             genRow.Children.Add(genBtn);
             genRow.Children.Add(pasteBtn);
 
@@ -1404,10 +1404,10 @@ namespace Przegladarka
             var l1 = L("URL / strona:"); Grid.SetRow(l1, 1); Grid.SetColumn(l1, 0); root.Children.Add(l1);
             Grid.SetRow(url, 1); Grid.SetColumn(url, 1); root.Children.Add(url);
 
-            var l2 = L("Użytkownik:"); Grid.SetRow(l2, 2); Grid.SetColumn(l2, 0); root.Children.Add(l2);
+            var l2 = L(L.T("Użytkownik:")); Grid.SetRow(l2, 2); Grid.SetColumn(l2, 0); root.Children.Add(l2);
             Grid.SetRow(user, 2); Grid.SetColumn(user, 1); root.Children.Add(user);
 
-            var l3 = L("Hasło:"); Grid.SetRow(l3, 3); Grid.SetColumn(l3, 0); root.Children.Add(l3);
+            var l3 = L(L.T("Hasło:")); Grid.SetRow(l3, 3); Grid.SetColumn(l3, 0); root.Children.Add(l3);
             Grid.SetRow(pass, 3); Grid.SetColumn(pass, 1); root.Children.Add(pass);
 
             Grid.SetRow(genRow, 4); Grid.SetColumn(genRow, 1); root.Children.Add(genRow);
@@ -1417,8 +1417,8 @@ namespace Przegladarka
 
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
             bool ok = false;
-            var saveBtn = new Button { Content = "Zapisz", Width = 96, Height = 30, Margin = new Thickness(0, 0, 6, 0), IsDefault = true };
-            var cancelBtn = new Button { Content = "Anuluj", Width = 96, Height = 30, IsCancel = true };
+            var saveBtn = new Button { Content = L.T("Zapisz"), Width = 96, Height = 30, Margin = new Thickness(0, 0, 6, 0), IsDefault = true };
+            var cancelBtn = new Button { Content = L.T("Anuluj"), Width = 96, Height = 30, IsCancel = true };
             saveBtn.Click += (s, e) => { ok = true; win.Close(); };
             cancelBtn.Click += (s, e) => win.Close();
             btns.Children.Add(saveBtn);
@@ -1432,7 +1432,7 @@ namespace Przegladarka
             var p = (pass.Text ?? "").Trim();
             if (p.Length == 0)
             {
-                MessageBox.Show(owner ?? this, "Hasło nie może być puste.", "Hasła");
+                MessageBox.Show(owner ?? this, L.T("Hasło nie może być puste."), L.T("Hasła"));
                 return false;
             }
 
@@ -1458,7 +1458,7 @@ namespace Przegladarka
 
             var win = new Window
             {
-                Title = "Menedżer haseł Velivo",
+                Title = L.T("Menedżer haseł Velivo"),
                 Width = 920,
                 Height = 620,
                 MinWidth = 780,
@@ -1470,7 +1470,7 @@ namespace Przegladarka
             var root = new DockPanel();
             var top = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 8, 10, 8) };
             var info = new TextBlock { Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            var search = new TextBox { Width = 260, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "Szukaj po domenie, loginie lub nazwie" };
+            var search = new TextBox { Width = 260, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Szukaj po domenie, loginie lub nazwie") };
 
             var list = new ListView { Margin = new Thickness(10, 0, 10, 8), SelectionMode = SelectionMode.Extended };
             var gv = new GridView();
@@ -1523,7 +1523,7 @@ namespace Przegladarka
                         Entry = e
                     });
                 }
-                info.Text = "Wpisów: " + _passwordEntries.Count + " | Widoczne: " + list.Items.Count;
+                info.Text = L.T("Wpisów: ") + _passwordEntries.Count + " | Widoczne: " + list.Items.Count;
                 updateDetails();
             };
 
@@ -1541,15 +1541,15 @@ namespace Przegladarka
                     details.Text = "";
                     return;
                 }
-                details.Text = "Domena: " + (e.Host ?? "") +
+                details.Text = L.T("Domena: ") + (e.Host ?? "") +
                     "\nURL: " + (e.Url ?? "") +
-                    "\nUżytkownik: " + (e.Username ?? "") +
-                    "\nHasło: " + (reveal ? (e.Password ?? "") : MaskPassword(e.Password)) +
-                    "\nNazwa: " + (e.Name ?? "") +
-                    "\nNotatki: " + (e.Notes ?? "");
+                    L.T("\nUżytkownik: ") + (e.Username ?? "") +
+                    L.T("\nHasło: ") + (reveal ? (e.Password ?? "") : MaskPassword(e.Password)) +
+                    L.T("\nNazwa: ") + (e.Name ?? "") +
+                    L.T("\nNotatki: ") + (e.Notes ?? "");
             };
 
-            var addBtn = SmallButton("Dodaj", () =>
+            var addBtn = SmallButton(L.T("Dodaj"), () =>
             {
                 try
                 {
@@ -1560,10 +1560,10 @@ namespace Przegladarka
                     SavePasswordVault();
                     refresh();
                 }
-                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Hasła"); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Hasła")); }
             });
 
-            var editBtn = SmallButton("Edytuj", () =>
+            var editBtn = SmallButton(L.T("Edytuj"), () =>
             {
                 dynamic row = list.SelectedItem;
                 if (row == null) return;
@@ -1582,25 +1582,25 @@ namespace Przegladarka
                     }
                     refresh();
                 }
-                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Hasła"); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Hasła")); }
             });
 
-            var delSelBtn = SmallButton("Usuń zaznaczone", () =>
+            var delSelBtn = SmallButton(L.T("Usuń zaznaczone"), () =>
             {
                 var selected = list.SelectedItems.Cast<dynamic>().Select(x => x.Entry as SavedPasswordEntry).Where(x => x != null).ToList();
                 if (selected.Count == 0) return;
                 if (MessageBox.Show(win,
-                    "Usunąć zaznaczone wpisy: " + selected.Count + "?",
-                    "Hasła", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                    L.T("Usunąć zaznaczone wpisy: ") + selected.Count + "?",
+                    L.T("Hasła"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 try
                 {
                     DeleteSelectedPasswords(selected);
                     refresh();
                 }
-                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Hasła"); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Hasła")); }
             });
 
-            var copyUserBtn = SmallButton("Kopiuj login", () =>
+            var copyUserBtn = SmallButton(L.T("Kopiuj login"), () =>
             {
                 dynamic row = list.SelectedItem;
                 if (row == null) return;
@@ -1609,7 +1609,7 @@ namespace Przegladarka
                 try { Clipboard.SetText(e.Username); } catch (Exception) { }
             });
 
-            var copyPassBtn = SmallButton("Kopiuj hasło", () =>
+            var copyPassBtn = SmallButton(L.T("Kopiuj hasło"), () =>
             {
                 dynamic row = list.SelectedItem;
                 if (row == null) return;
@@ -1618,23 +1618,23 @@ namespace Przegladarka
                 try { Clipboard.SetText(e.Password); } catch (Exception) { }
             });
 
-            var revealBtn = SmallButton("Pokaż/ukryj hasło", () => { reveal = !reveal; updateDetails(); });
+            var revealBtn = SmallButton(L.T("Pokaż/ukryj hasło"), () => { reveal = !reveal; updateDetails(); });
 
-            var importBtn = SmallButton("Import CSV…", () => { ImportPasswordsCsvWithDialog(win); EnsurePasswordVaultLoaded(); refresh(); });
-            var exportBtn = SmallButton("Eksport CSV…", () => ExportPasswordsCsvWithDialog(win));
+            var importBtn = SmallButton(L.T("Import CSV…"), () => { ImportPasswordsCsvWithDialog(win); EnsurePasswordVaultLoaded(); refresh(); });
+            var exportBtn = SmallButton(L.T("Eksport CSV…"), () => ExportPasswordsCsvWithDialog(win));
 
-            var deleteAllBtn = SmallButton("Usuń wszystkie zapisane hasła", () =>
+            var deleteAllBtn = SmallButton(L.T("Usuń wszystkie zapisane hasła"), () =>
             {
                 if (MessageBox.Show(win,
-                    "Usunąć hurtowo wszystkie hasła z lokalnej bazy Velivo?\nOperacji nie da się cofnąć.",
-                    "Hasła", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                    L.T("Usunąć hurtowo wszystkie hasła z lokalnej bazy Velivo?\nOperacji nie da się cofnąć."),
+                    L.T("Hasła"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 try
                 {
                     int n = DeleteAllSavedPasswords();
                     refresh();
-                    MessageBox.Show(win, "Usunięto wpisów: " + n + ".", "Hasła");
+                    MessageBox.Show(win, L.T("Usunięto wpisów: ") + n + ".", L.T("Hasła"));
                 }
-                catch (Exception ex) { MessageBox.Show(win, ex.Message, "Hasła"); }
+                catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Hasła")); }
             });
 
             search.TextChanged += (s, e) => { currentFilter = search.Text ?? ""; refresh(); };

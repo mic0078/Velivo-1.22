@@ -166,13 +166,13 @@ namespace Przegladarka
                     if (countA >= 2)
                     {
                         var vals = ReadMap(root, "address");
-                        MaybePromptAndSave(host, "address", vals, "Wykryto wypełniony formularz adresowy.");
+                        MaybePromptAndSave(host, "address", vals, L.T("Wykryto wypełniony formularz adresowy."));
                     }
 
                     if (countC >= 2 && core.Source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                     {
                         var vals = ReadMap(root, "card");
-                        MaybePromptAndSave(host, "card", vals, "Wykryto dane karty płatniczej.");
+                        MaybePromptAndSave(host, "card", vals, L.T("Wykryto dane karty płatniczej."));
                     }
                 }
             }
@@ -206,9 +206,9 @@ namespace Przegladarka
             _autofillPrompted[key] = DateTime.UtcNow;
 
             var ans = MessageBox.Show(this,
-                title + "\n\nStrona: " + host +
-                "\nZapisać lokalnie w szyfrowanej bazie offline Velivo?\n\nHasła nadal obsługuje Sejf.",
-                "Autouzupełnianie", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                title + L.T("\n\nStrona: ") + host +
+                L.T("\nZapisać lokalnie w szyfrowanej bazie offline Velivo?\n\nHasła nadal obsługuje Sejf."),
+                L.T("Autouzupełnianie"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (ans != MessageBoxResult.Yes) return;
 
             UpsertAutofill(host, type, vals);
@@ -273,7 +273,7 @@ namespace Przegladarka
         {
             EnsureAutofillLoaded();
             if (_autofillEntries.Count == 0)
-                return "Brak zapisanych danych autouzupelniania.";
+                return L.T("Brak zapisanych danych autouzupelniania.");
 
             var sb = new StringBuilder();
             sb.AppendLine("Zapisane dane autouzupelniania (lokalnie, szyfrowane):");
@@ -286,7 +286,7 @@ namespace Przegladarka
 
             foreach (var e in byType)
             {
-                var typeName = string.Equals(e.Type, "card", StringComparison.OrdinalIgnoreCase) ? "Karta" : "Adres";
+                var typeName = string.Equals(e.Type, "card", StringComparison.OrdinalIgnoreCase) ? L.T("Karta") : L.T("Adres");
                 var updated = DateTimeOffset.FromUnixTimeSeconds(e.UpdatedUnix).LocalDateTime;
                 sb.AppendLine(typeName + " | " + e.Host + " | zapis: " + updated.ToString("yyyy-MM-dd HH:mm"));
                 foreach (var kv in e.Values.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
@@ -333,7 +333,7 @@ namespace Przegladarka
 
                 var w = new Window
                 {
-                    Title = "Zapisane dane autouzupelniania",
+                    Title = L.T("Zapisane dane autouzupelniania"),
                     Owner = owner ?? this,
                     WindowStartupLocation = WindowStartupLocation.CenterOwner,
                     Content = txt,
@@ -350,29 +350,29 @@ namespace Przegladarka
         void DeleteAutofillAddresses(Window owner)
         {
             if (MessageBox.Show(owner ?? this,
-                "Usunac wszystkie zapisane adresy z lokalnej bazy autouzupelniania?",
-                "Autouzupelnianie", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                L.T("Usunac wszystkie zapisane adresy z lokalnej bazy autouzupelniania?"),
+                L.T("Autouzupelnianie"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
             try
             {
                 int removed = DeleteAutofillEntriesByType("address");
-                MessageBox.Show(owner ?? this, "Usunieto pozycji adresowych: " + removed + ".", "Autouzupelnianie");
+                MessageBox.Show(owner ?? this, L.T("Usunieto pozycji adresowych: ") + removed + ".", L.T("Autouzupelnianie"));
             }
-            catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, "Autouzupelnianie"); }
+            catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, L.T("Autouzupelnianie")); }
         }
 
         void DeleteAutofillCards(Window owner)
         {
             if (MessageBox.Show(owner ?? this,
-                "Usunac wszystkie zapisane karty z lokalnej bazy autouzupelniania?",
-                "Autouzupelnianie", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                L.T("Usunac wszystkie zapisane karty z lokalnej bazy autouzupelniania?"),
+                L.T("Autouzupelnianie"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
             try
             {
                 int removed = DeleteAutofillEntriesByType("card");
-                MessageBox.Show(owner ?? this, "Usunieto pozycji kart: " + removed + ".", "Autouzupelnianie");
+                MessageBox.Show(owner ?? this, L.T("Usunieto pozycji kart: ") + removed + ".", L.T("Autouzupelnianie"));
             }
-            catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, "Autouzupelnianie"); }
+            catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, L.T("Autouzupelnianie")); }
         }
 
         async Task ApplyAutofillToPage(CoreWebView2 core)

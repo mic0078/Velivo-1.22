@@ -71,12 +71,12 @@ namespace Przegladarka
         {
             if (_settings.DarkPages == _darkEngineAtStart) return;
             string extra = "";
-            if (_tabs.Any(t => t.Private)) extra += "\n• karty prywatne zostaną zamknięte,";
-            if (_jobs.Any(j => j.State == JobState.Running)) extra += "\n• pobieranie zostanie wstrzymane (wznowisz je potem jednym kliknięciem),";
-            var msg = (_settings.DarkPages ? L.T("Tryb ciemny") : "Wyłączenie trybu ciemnego") +
-                      " zadziała na wszystkich stronach po ponownym uruchomieniu Velivo.\nKarty wrócą same." +
-                      (extra.Length > 0 ? "\n\nUwaga:" + extra.TrimEnd(',') + "." : "") +
-                      "\n\nUruchomić Velivo ponownie teraz?";
+            if (_tabs.Any(t => t.Private)) extra += L.T("\n• karty prywatne zostaną zamknięte,");
+            if (_jobs.Any(j => j.State == JobState.Running)) extra += L.T("\n• pobieranie zostanie wstrzymane (wznowisz je potem jednym kliknięciem),");
+            var msg = (_settings.DarkPages ? L.T("Tryb ciemny") : L.T("Wyłączenie trybu ciemnego")) +
+                      L.T(" zadziała na wszystkich stronach po ponownym uruchomieniu Velivo.\nKarty wrócą same.") +
+                      (extra.Length > 0 ? L.T("\n\nUwaga:") + extra.TrimEnd(',') + "." : "") +
+                      L.T("\n\nUruchomić Velivo ponownie teraz?");
             if (MessageBox.Show(this, msg, "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) RestartVelivo();
         }
 
@@ -96,7 +96,7 @@ namespace Przegladarka
                 Process.Start(psi);
                 Close();
             }
-            catch (Exception ex) { App.LogError(ex); MessageBox.Show(this, "Nie udało się uruchomić ponownie:\n" + ex.Message, "Velivo"); }
+            catch (Exception ex) { App.LogError(ex); MessageBox.Show(this, L.T("Nie udało się uruchomić ponownie:\n") + ex.Message, "Velivo"); }
         }
 
         void UpdateDarkButton()

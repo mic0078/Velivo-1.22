@@ -73,7 +73,7 @@ namespace Przegladarka
             {
                 var dlg = new Microsoft.Win32.SaveFileDialog
                 {
-                    Title = "Zapisz paczkę synchronizacji",
+                    Title = L.T("Zapisz paczkę synchronizacji"),
                     FileName = "velivo-sync-" + SelectedProfileName + "-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".vlsync",
                     Filter = "Velivo Sync (*.vlsync)|*.vlsync|Wszystkie pliki (*.*)|*.*"
                 };
@@ -104,7 +104,7 @@ namespace Przegladarka
                     var pkg = EncryptSync(plain, accessCode);
                     File.WriteAllText(tempFile, JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true }));
                     if (new FileInfo(tempFile).Length > MaxSyncPackageBytes)
-                        throw new InvalidDataException("Paczka przekracza limit 64 MB. Zmniejsz liczbę miniaturek w Szybkim Dostępie.");
+                        throw new InvalidDataException(L.T("Paczka przekracza limit 64 MB. Zmniejsz liczbę miniaturek w Szybkim Dostępie."));
                     File.Move(tempFile, dlg.FileName, true);
                     ShowSyncAccessCode(accessCode, dlg.FileName);
                 }
@@ -117,7 +117,7 @@ namespace Przegladarka
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(this, "Nie udało się wyeksportować synchronizacji:\n" + ex.Message, "Synchronizacja");
+                MessageBox.Show(this, L.T("Nie udało się wyeksportować synchronizacji:\n") + ex.Message, "Synchronizacja");
             }
         }
 
@@ -127,7 +127,7 @@ namespace Przegladarka
             {
                 var dlg = new Microsoft.Win32.OpenFileDialog
                 {
-                    Title = "Wczytaj paczkę synchronizacji",
+                    Title = L.T("Wczytaj paczkę synchronizacji"),
                     Filter = "Velivo Sync (*.vlsync)|*.vlsync|Wszystkie pliki (*.*)|*.*"
                 };
                 if (dlg.ShowDialog(this) != true) return;
@@ -142,18 +142,18 @@ namespace Przegladarka
                 try
                 {
                     var payload = JsonSerializer.Deserialize<SyncPayload>(Encoding.UTF8.GetString(plain));
-                    if (payload == null) throw new InvalidDataException("Niepoprawna zawartość paczki.");
+                    if (payload == null) throw new InvalidDataException(L.T("Niepoprawna zawartość paczki."));
 
-                    var peerName = string.IsNullOrWhiteSpace(payload.SenderName) ? "nieznane urządzenie" : payload.SenderName;
+                    var peerName = string.IsNullOrWhiteSpace(payload.SenderName) ? L.T("nieznane urządzenie") : payload.SenderName;
                     bool hasPeerId = Guid.TryParseExact(payload.SenderId, "N", out _);
                     bool knownPeer = hasPeerId && IsKnownSyncPeer(payload.SenderId);
                     var status = !hasPeerId
-                        ? "Ta starsza paczka nie zawiera identyfikatora urządzenia."
-                        : knownPeer ? "To urządzenie było już wcześniej rozpoznane." : "To nowe urządzenie zostanie zapamiętane po imporcie.";
+                        ? L.T("Ta starsza paczka nie zawiera identyfikatora urządzenia.")
+                        : knownPeer ? L.T("To urządzenie było już wcześniej rozpoznane.") : L.T("To nowe urządzenie zostanie zapamiętane po imporcie.");
                     if (MessageBox.Show(this,
-                        "Paczka od: " + peerName + "\nProfil: " + (payload.Profile ?? "-") + "\n" + status +
-                        "\n\nImport zastąpi lokalne ustawienia, zakładki, historię, sesję, reguły i sejf haseł. Skróty Szybkiego Dostępu Velivo i ich grafiki zostaną scalone z lokalnymi. Kontynuować?",
-                        "Potwierdź import synchronizacji", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                        L.T("Paczka od: ") + peerName + L.T("\nProfil: ") + (payload.Profile ?? "-") + "\n" + status +
+                        L.T("\n\nImport zastąpi lokalne ustawienia, zakładki, historię, sesję, reguły i sejf haseł. Skróty Szybkiego Dostępu Velivo i ich grafiki zostaną scalone z lokalnymi. Kontynuować?"),
+                        L.T("Potwierdź import synchronizacji"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
                     WriteIfNotEmpty(Path.Combine(DataDir, "ustawienia.txt"), payload.Settings);
                     WriteIfNotEmpty(Path.Combine(DataDir, "zakladki.txt"), payload.Bookmarks);
@@ -168,18 +168,18 @@ namespace Przegladarka
 
                     _ = ApplyExtensionsSyncListAsync();
 
-                    MessageBox.Show(this, "Wczytano paczkę od " + peerName + ". Urządzenie zostało zapamiętane. Dla pełnego efektu uruchom ponownie przeglądarkę.", "Synchronizacja");
+                    MessageBox.Show(this, L.T("Wczytano paczkę od ") + peerName + L.T(". Urządzenie zostało zapamiętane. Dla pełnego efektu uruchom ponownie przeglądarkę."), "Synchronizacja");
                 }
                 finally { CryptographicOperations.ZeroMemory(plain); }
             }
             catch (CryptographicException)
             {
-                MessageBox.Show(this, "Niepoprawny kod dostępu albo uszkodzona paczka.", "Synchronizacja");
+                MessageBox.Show(this, L.T("Niepoprawny kod dostępu albo uszkodzona paczka."), "Synchronizacja");
             }
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(this, "Nie udało się wczytać synchronizacji:\n" + ex.Message, "Synchronizacja");
+                MessageBox.Show(this, L.T("Nie udało się wczytać synchronizacji:\n") + ex.Message, "Synchronizacja");
             }
         }
 
@@ -270,19 +270,19 @@ namespace Przegladarka
                 Margin = new Thickness(12, 8, 12, 4),
                 HorizontalContentAlignment = HorizontalAlignment.Center
             };
-            var copy = SmallButton("Kopiuj kod", () =>
+            var copy = SmallButton(L.T("Kopiuj kod"), () =>
             {
                 try { Clipboard.SetText(accessCode); }
                 catch (Exception ex) { App.LogError(ex); }
             });
-            var done = new Button { Content = "Gotowe", Width = 88, Height = 30, Margin = new Thickness(6), IsDefault = true, IsCancel = true };
+            var done = new Button { Content = L.T("Gotowe"), Width = 88, Height = 30, Margin = new Thickness(6), IsDefault = true, IsCancel = true };
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8, 0, 8, 8) };
             buttons.Children.Add(copy);
             buttons.Children.Add(done);
             var panel = new StackPanel();
             panel.Children.Add(new TextBlock
             {
-                Text = "Paczka nie wygasa. Przenieś ją przez EchoSync; na drugim komputerze wybierz Importuj paczkę i wpisz ten kod. Zachowaj kod osobno, nie jest zapisany w pliku.",
+                Text = L.T("Paczka nie wygasa. Przenieś ją przez EchoSync; na drugim komputerze wybierz Importuj paczkę i wpisz ten kod. Zachowaj kod osobno, nie jest zapisany w pliku."),
                 Margin = new Thickness(12, 12, 12, 0),
                 TextWrapping = TextWrapping.Wrap
             });
@@ -291,7 +291,7 @@ namespace Przegladarka
             panel.Children.Add(buttons);
             var win = new Window
             {
-                Title = "Kod dostępu do paczki",
+                Title = L.T("Kod dostępu do paczki"),
                 Width = 480,
                 Height = 210,
                 ResizeMode = ResizeMode.NoResize,
@@ -305,18 +305,18 @@ namespace Przegladarka
         string PromptSyncAccessCode()
         {
             var input = new PasswordBox { Margin = new Thickness(12, 8, 12, 4), Padding = new Thickness(6), MinWidth = 340 };
-            var ok = new Button { Content = "Odszyfruj", Width = 88, Height = 30, Margin = new Thickness(6), IsDefault = true };
-            var cancel = new Button { Content = "Anuluj", Width = 88, Height = 30, Margin = new Thickness(6), IsCancel = true };
+            var ok = new Button { Content = L.T("Odszyfruj"), Width = 88, Height = 30, Margin = new Thickness(6), IsDefault = true };
+            var cancel = new Button { Content = L.T("Anuluj"), Width = 88, Height = 30, Margin = new Thickness(6), IsCancel = true };
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8, 0, 8, 8) };
             buttons.Children.Add(cancel);
             buttons.Children.Add(ok);
             var panel = new StackPanel();
-            panel.Children.Add(new TextBlock { Text = "Wpisz kod dostępu wyświetlony przy eksporcie paczki:", Margin = new Thickness(12, 12, 12, 0), TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(new TextBlock { Text = L.T("Wpisz kod dostępu wyświetlony przy eksporcie paczki:"), Margin = new Thickness(12, 12, 12, 0), TextWrapping = TextWrapping.Wrap });
             panel.Children.Add(input);
             panel.Children.Add(buttons);
             var win = new Window
             {
-                Title = "Import paczki synchronizacji",
+                Title = L.T("Import paczki synchronizacji"),
                 Width = 420,
                 Height = 170,
                 ResizeMode = ResizeMode.NoResize,
@@ -353,15 +353,15 @@ namespace Przegladarka
 
         static byte[] DecryptSync(EncryptedSync pkg, string pass)
         {
-            if (pkg.v != 1 && pkg.v != 2) throw new InvalidDataException("Nieobsługiwana wersja paczki synchronizacji.");
+            if (pkg.v != 1 && pkg.v != 2) throw new InvalidDataException(L.T("Nieobsługiwana wersja paczki synchronizacji."));
             int iterations = pkg.v == 1 ? 120000 : pkg.iterations;
-            if (iterations < 120000 || iterations > 1000000) throw new InvalidDataException("Nieprawidłowe parametry paczki synchronizacji.");
+            if (iterations < 120000 || iterations > 1000000) throw new InvalidDataException(L.T("Nieprawidłowe parametry paczki synchronizacji."));
             var salt = Convert.FromBase64String(pkg.salt);
             var nonce = Convert.FromBase64String(pkg.nonce);
             var tag = Convert.FromBase64String(pkg.tag);
             var cipher = Convert.FromBase64String(pkg.data);
             if (salt.Length != 16 || nonce.Length != 12 || tag.Length != 16 || cipher.Length == 0 || cipher.LongLength > MaxSyncPackageBytes)
-                throw new InvalidDataException("Nieprawidłowy rozmiar danych w paczce synchronizacji.");
+                throw new InvalidDataException(L.T("Nieprawidłowy rozmiar danych w paczce synchronizacji."));
             var key = Rfc2898DeriveBytes.Pbkdf2(pass, salt, iterations, HashAlgorithmName.SHA256, 32);
             var plain = new byte[cipher.Length];
             try

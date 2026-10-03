@@ -113,7 +113,7 @@ namespace Przegladarka
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Nie udało się uruchomić WebView2:\n" + ex.Message, "Velivo");
+                    MessageBox.Show(L.T("Nie udało się uruchomić WebView2:\n") + ex.Message, "Velivo");
                     Close();
                 }
             };
@@ -319,7 +319,7 @@ namespace Przegladarka
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Nie udało się otworzyć karty.\nJeśli działa jeszcze starsza wersja Velivo, zamknij ją i spróbuj ponownie.\n\n" + ex.Message, "Velivo");
+                MessageBox.Show(this, L.T("Nie udało się otworzyć karty.\nJeśli działa jeszcze starsza wersja Velivo, zamknij ją i spróbuj ponownie.\n\n") + ex.Message, "Velivo");
                 if (deferral != null) deferral.Complete();
                 if (_tabs.Contains(tab)) CloseTab(tab);
                 return;

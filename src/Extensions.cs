@@ -398,11 +398,11 @@ namespace Przegladarka
                     : new TextBlock { Text = string.IsNullOrEmpty(info.Name) ? "?" : info.Name.Substring(0, 1).ToUpperInvariant(), FontWeight = FontWeights.Bold };
                 btn.Click += (s, e) => OpenExtensionPopup(info, btn);
                 var menu = new ContextMenu();
-                if (info.Popup != null) { var m = new MenuItem { Header = "Otwórz okienko dodatku" }; m.Click += (s, e) => OpenExtensionPopup(info, btn); menu.Items.Add(m); }
-                if (info.Popup != null) { var m = new MenuItem { Header = "Otwórz okienko w karcie" }; m.Click += (s, e) => AddTab(ExtUrl(info, info.Popup)); menu.Items.Add(m); }
-                if (info.Options != null) { var m = new MenuItem { Header = "Opcje" }; m.Click += (s, e) => AddTab(ExtUrl(info, info.Options)); menu.Items.Add(m); }
-                if (info.NewTab != null) { var m = new MenuItem { Header = "Strona nowej karty" }; m.Click += (s, e) => AddTab(ExtUrl(info, info.NewTab)); menu.Items.Add(m); }
-                var manage = new MenuItem { Header = "Zarządzaj dodatkami…" }; manage.Click += (s, e) => Extensions_Click(null, null); menu.Items.Add(manage);
+                if (info.Popup != null) { var m = new MenuItem { Header = L.T("Otwórz okienko dodatku") }; m.Click += (s, e) => OpenExtensionPopup(info, btn); menu.Items.Add(m); }
+                if (info.Popup != null) { var m = new MenuItem { Header = L.T("Otwórz okienko w karcie") }; m.Click += (s, e) => AddTab(ExtUrl(info, info.Popup)); menu.Items.Add(m); }
+                if (info.Options != null) { var m = new MenuItem { Header = L.T("Opcje") }; m.Click += (s, e) => AddTab(ExtUrl(info, info.Options)); menu.Items.Add(m); }
+                if (info.NewTab != null) { var m = new MenuItem { Header = L.T("Strona nowej karty") }; m.Click += (s, e) => AddTab(ExtUrl(info, info.NewTab)); menu.Items.Add(m); }
+                var manage = new MenuItem { Header = L.T("Zarządzaj dodatkami…") }; manage.Click += (s, e) => Extensions_Click(null, null); menu.Items.Add(manage);
                 btn.ContextMenu = menu;
                 ExtBar.Children.Add(btn);
             }
@@ -469,7 +469,7 @@ namespace Przegladarka
                         string code = "(() => { try { return { ok: true, v: (" + r.GetProperty("func").GetString() + ").apply(null, " +
                                       r.GetProperty("args").GetRawText() + ") }; } catch (e) { return { ok: false, v: String(e && e.message || e) }; } })()";
                         var target = pageTab.View.CoreWebView2;
-                        if (target == null) throw new InvalidOperationException("Karta została zamknięta.");
+                        if (target == null) throw new InvalidOperationException(L.T("Karta została zamknięta."));
                         string res = await target.ExecuteScriptAsync(code);
                         using (var rd = JsonDocument.Parse(res))
                         {
@@ -496,7 +496,7 @@ namespace Przegladarka
             if (info.Popup == null)
             {
                 if (info.Options != null) AddTab(ExtUrl(info, info.Options));
-                else MessageBox.Show(this, "Dodatek „" + info.Name + "” nie ma własnego okienka.\nDziała w tle i na stronach.", "Dodatki");
+                else MessageBox.Show(this, L.T("Dodatek „") + info.Name + L.T("” nie ma własnego okienka.\nDziała w tle i na stronach."), L.T("Dodatki"));
                 return;
             }
             var pageTab = _current; // strona, dla ktorej otwieramy okienko (w Chrome: aktywna karta)
@@ -543,7 +543,7 @@ namespace Przegladarka
                 catch (Exception ex)
                 {
                     closing = true; win.Close();
-                    MessageBox.Show(this, "Nie udało się otworzyć okienka dodatku:\n" + ex.Message, "Dodatki");
+                    MessageBox.Show(this, L.T("Nie udało się otworzyć okienka dodatku:\n") + ex.Message, L.T("Dodatki"));
                 }
             };
             win.Show();

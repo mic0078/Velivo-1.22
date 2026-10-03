@@ -101,8 +101,8 @@ namespace Przegladarka
         {
             var today = DateTime.Today;
             string name = d.ToString("dddd, d MMMM yyyy", Pl);
-            if (d == today) return "Dziś – " + name;
-            if (d == today.AddDays(-1)) return "Wczoraj – " + name;
+            if (d == today) return L.T("Dziś – ") + name;
+            if (d == today.AddDays(-1)) return L.T("Wczoraj – ") + name;
             return char.ToUpper(name[0]) + name.Substring(1);
         }
 
@@ -110,21 +110,21 @@ namespace Przegladarka
         {
             if (n == 1) return "1 strona";
             int r10 = n % 10, r100 = n % 100;
-            return n + (r10 >= 2 && r10 <= 4 && (r100 < 12 || r100 > 14) ? " strony" : " stron");
+            return n + (r10 >= 2 && r10 <= 4 && (r100 < 12 || r100 > 14) ? L.T(" strony") : " stron");
         }
 
         void History_Click(object sender, RoutedEventArgs e)
         {
-            var win = new Window { Title = "Historia", Width = 820, Height = 620, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
-            var search = new TextBox { Padding = new Thickness(6, 3, 6, 3), Margin = new Thickness(8, 8, 8, 4), FontSize = 13, ToolTip = "Szukaj w tytułach i adresach" };
-            var hint = new TextBlock { Text = "🔍 Szukaj w historii…", Foreground = Brushes.Gray, Margin = new Thickness(16, 12, 0, 0), IsHitTestVisible = false };
+            var win = new Window { Title = L.T("Historia"), Width = 820, Height = 620, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var search = new TextBox { Padding = new Thickness(6, 3, 6, 3), Margin = new Thickness(8, 8, 8, 4), FontSize = 13, ToolTip = L.T("Szukaj w tytułach i adresach") };
+            var hint = new TextBlock { Text = L.T("🔍 Szukaj w historii…"), Foreground = Brushes.Gray, Margin = new Thickness(16, 12, 0, 0), IsHitTestVisible = false };
             var tree = new TreeView { BorderThickness = new Thickness(0), Margin = new Thickness(4, 0, 4, 0) };
             var status = new TextBlock { Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
 
             Action rebuild = null;
             Action<ICollection<int>> remove = lines =>
             {
-                try { DeleteHistoryLines(lines); } catch (IOException ex) { MessageBox.Show(win, ex.Message, "Historia"); }
+                try { DeleteHistoryLines(lines); } catch (IOException ex) { MessageBox.Show(win, ex.Message, L.T("Historia")); }
                 rebuild();
             };
 
@@ -136,9 +136,9 @@ namespace Przegladarka
                 row.Children.Add(new TextBlock { Text = "  " + h.Host, Foreground = Brushes.Gray });
                 var it = new TreeViewItem { Header = row, ToolTip = h.Url, Tag = h };
                 var menu = new ContextMenu();
-                var open = new MenuItem { Header = "Otwórz" }; open.Click += (a, b) => { if (_current != null) Navigate(_current, h.Url); };
-                var openNew = new MenuItem { Header = "Otwórz w nowej karcie" }; openNew.Click += (a, b) => AddTab(h.Url);
-                var del = new MenuItem { Header = "Usuń z historii" }; del.Click += (a, b) => remove(h.Lines.ToList());
+                var open = new MenuItem { Header = L.T("Otwórz") }; open.Click += (a, b) => { if (_current != null) Navigate(_current, h.Url); };
+                var openNew = new MenuItem { Header = L.T("Otwórz w nowej karcie") }; openNew.Click += (a, b) => AddTab(h.Url);
+                var del = new MenuItem { Header = L.T("Usuń z historii") }; del.Click += (a, b) => remove(h.Lines.ToList());
                 menu.Items.Add(open); menu.Items.Add(openNew); menu.Items.Add(new Separator()); menu.Items.Add(del);
                 it.ContextMenu = menu;
                 it.MouseDoubleClick += (a, b) =>
@@ -171,8 +171,8 @@ namespace Przegladarka
                     };
                     var dayLines = day.Select(h => h.Line).ToList();
                     var dayMenu = new ContextMenu();
-                    var delDay = new MenuItem { Header = filtering ? "Usuń znalezione wpisy z tego dnia" : "Usuń cały dzień z historii" };
-                    delDay.Click += (a, b) => { if (MessageBox.Show(win, "Usunąć historię z tego dnia?", "Historia", MessageBoxButton.YesNo) == MessageBoxResult.Yes) remove(dayLines); };
+                    var delDay = new MenuItem { Header = filtering ? L.T("Usuń znalezione wpisy z tego dnia") : L.T("Usuń cały dzień z historii") };
+                    delDay.Click += (a, b) => { if (MessageBox.Show(win, L.T("Usunąć historię z tego dnia?"), L.T("Historia"), MessageBoxButton.YesNo) == MessageBoxResult.Yes) remove(dayLines); };
                     dayMenu.Items.Add(delDay); dayItem.ContextMenu = dayMenu;
 
                     int si = 0;
@@ -182,20 +182,20 @@ namespace Przegladarka
                         var hosts = s.Entries.GroupBy(x => x.Host).OrderByDescending(g => g.Count()).Take(3).Select(g => g.Key);
                         bool now = s.Key == SessionId;
                         var header = new StackPanel { Orientation = Orientation.Horizontal };
-                        header.Children.Add(new TextBlock { Text = (now ? "● Bieżąca sesja  " : "Sesja  ") + first.Start.ToString("HH:mm") + "–" + last.Time.ToString("HH:mm"), FontWeight = FontWeights.SemiBold, Foreground = now ? Brushes.SeaGreen : Brushes.Black });
+                        header.Children.Add(new TextBlock { Text = (now ? L.T("● Bieżąca sesja  ") : L.T("Sesja  ")) + first.Start.ToString("HH:mm") + "–" + last.Time.ToString("HH:mm"), FontWeight = FontWeights.SemiBold, Foreground = now ? Brushes.SeaGreen : Brushes.Black });
                         header.Children.Add(new TextBlock { Text = "   " + Pages(s.Entries.Count) + "   ·   " + string.Join(", ", hosts), Foreground = Brushes.Gray, MaxWidth = 520, TextTrimming = TextTrimming.CharacterEllipsis });
                         var sItem = new TreeViewItem { Header = header, IsExpanded = filtering || (days == 0 && si == 0) };
                         var sMenu = new ContextMenu();
-                        var openAll = new MenuItem { Header = "Otwórz wszystkie w nowych kartach" };
+                        var openAll = new MenuItem { Header = L.T("Otwórz wszystkie w nowych kartach") };
                         var urls = s.Entries.Select(x => x.Url).Distinct().Reverse().ToList();
                         openAll.Click += (a, b) =>
                         {
-                            if (urls.Count > 15 && MessageBox.Show(win, "Otworzyć " + urls.Count + " kart?", "Historia", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                            if (urls.Count > 15 && MessageBox.Show(win, L.T("Otworzyć ") + urls.Count + L.T(" kart?"), L.T("Historia"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                             foreach (var u in urls) AddTab(u);
                         };
                         var sLines = s.Entries.SelectMany(x => x.Lines).ToList();
-                        var delS = new MenuItem { Header = "Usuń sesję z historii" };
-                        delS.Click += (a, b) => { if (MessageBox.Show(win, "Usunąć tę sesję z historii?", "Historia", MessageBoxButton.YesNo) == MessageBoxResult.Yes) remove(sLines); };
+                        var delS = new MenuItem { Header = L.T("Usuń sesję z historii") };
+                        delS.Click += (a, b) => { if (MessageBox.Show(win, L.T("Usunąć tę sesję z historii?"), L.T("Historia"), MessageBoxButton.YesNo) == MessageBoxResult.Yes) remove(sLines); };
                         sMenu.Items.Add(openAll); sMenu.Items.Add(new Separator()); sMenu.Items.Add(delS);
                         sItem.ContextMenu = sMenu;
                         foreach (var h in s.Entries) sItem.Items.Add(entryItem(h));
@@ -205,24 +205,24 @@ namespace Przegladarka
                     tree.Items.Add(dayItem);
                     days++;
                 }
-                status.Text = filtering ? "Znaleziono: " + Pages(shown.Count) : "Razem: " + Pages(all.Count);
+                status.Text = filtering ? L.T("Znaleziono: ") + Pages(shown.Count) : L.T("Razem: ") + Pages(all.Count);
                 if (tree.Items.Count == 0)
-                    tree.Items.Add(new TreeViewItem { Header = new TextBlock { Text = filtering ? "Nic nie znaleziono." : "Historia jest pusta.", Foreground = Brushes.Gray, Margin = new Thickness(6) } });
+                    tree.Items.Add(new TreeViewItem { Header = new TextBlock { Text = filtering ? L.T("Nic nie znaleziono.") : L.T("Historia jest pusta."), Foreground = Brushes.Gray, Margin = new Thickness(6) } });
             };
 
             search.TextChanged += (a, b) => { hint.Visibility = search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; rebuild(); };
             win.PreviewKeyDown += (a, b) => { if (b.Key == Key.Escape) win.Close(); };
 
-            var clearAll = SmallButton("Wyczyść całą historię", () =>
+            var clearAll = SmallButton(L.T("Wyczyść całą historię"), () =>
             {
-                if (MessageBox.Show(win, "Usunąć całą historię?", "Historia", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                if (MessageBox.Show(win, L.T("Usunąć całą historię?"), L.T("Historia"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 try { File.Delete(HistoryFile); } catch (IOException) { }
                 rebuild();
             });
             var bottom = new DockPanel { Margin = new Thickness(6) };
             DockPanel.SetDock(clearAll, Dock.Right);
             bottom.Children.Add(clearAll); bottom.Children.Add(status);
-            bottom.Children.Add(new TextBlock { Text = "Dwuklik otwiera stronę · prawy klik: więcej opcji", Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right });
+            bottom.Children.Add(new TextBlock { Text = L.T("Dwuklik otwiera stronę · prawy klik: więcej opcji"), Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right });
 
             var top = new Grid();
             top.Children.Add(search); top.Children.Add(hint);

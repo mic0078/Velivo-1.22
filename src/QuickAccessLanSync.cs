@@ -54,7 +54,7 @@ namespace Przegladarka
             {
                 _quickAccessLanListener = null;
                 App.LogError(ex);
-                LanLog("Transfer grafik Szybkiego Dostępu LAN niedostępny: " + ex.Message);
+                LanLog(L.T("Transfer grafik Szybkiego Dostępu LAN niedostępny: ") + ex.Message);
             }
         }
 
@@ -168,7 +168,7 @@ namespace Przegladarka
                     {
                         _quickAccessLanStamp = null;
                         var error = task.Exception?.GetBaseException();
-                        if (error != null) { App.LogError(error); LanLog("Nie udało się przygotować Szybkiego Dostępu do synchronizacji: " + error.Message); }
+                        if (error != null) { App.LogError(error); LanLog(L.T("Nie udało się przygotować Szybkiego Dostępu do synchronizacji: ") + error.Message); }
                         return;
                     }
                     if (task.IsCanceled) { _quickAccessLanStamp = null; return; }
@@ -270,7 +270,7 @@ namespace Przegladarka
                         if (!_quickAccessLanLastFailure.TryGetValue(peerId, out last) || DateTime.UtcNow - last > TimeSpan.FromMinutes(1))
                         {
                             _quickAccessLanLastFailure[peerId] = DateTime.UtcNow;
-                            LanLog("Nie udało się wysłać grafik Szybkiego Dostępu do " + peerId.Substring(0, Math.Min(8, peerId.Length)) + ". Sprawdź zaporę LAN.");
+                            LanLog(L.T("Nie udało się wysłać grafik Szybkiego Dostępu do ") + peerId.Substring(0, Math.Min(8, peerId.Length)) + L.T(". Sprawdź zaporę LAN."));
                         }
                     }
                 });
@@ -362,7 +362,7 @@ namespace Przegladarka
                         if (string.Equals(currentHash, header.Hash, StringComparison.Ordinal)) _quickAccessLanSent[header.Id] = currentHash;
                         else _quickAccessLanSent.Remove(header.Id);
                         _quickAccessLanPeerStamps[header.Id] = header.Timestamp;
-                        LanLog("Zsynchronizowano skróty i grafiki Szybkiego Dostępu z " + header.Device + ".");
+                        LanLog(L.T("Zsynchronizowano skróty i grafiki Szybkiego Dostępu z ") + header.Device + ".");
                     });
                     var ack = QuickAccessLanMac(authenticationKey, "ack\n" + header.Hash);
                     await stream.WriteAsync(ack, 0, ack.Length, token);

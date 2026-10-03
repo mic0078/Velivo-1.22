@@ -109,7 +109,7 @@ namespace Przegladarka
             {
                 button.IsEnabled = false;
                 oldContent = button.Content;
-                button.Content = "⏳ Instaluję…";
+                button.Content = L.T("⏳ Instaluję…");
             }
             string tmp = null;
             try
@@ -131,7 +131,7 @@ namespace Przegladarka
                 var meta = Path.Combine(tmp, "_metadata");
                 if (Directory.Exists(meta)) Directory.Delete(meta, true);
                 if (!File.Exists(Path.Combine(tmp, "manifest.json")))
-                    throw new InvalidDataException("Paczka nie zawiera pliku manifest.json.");
+                    throw new InvalidDataException(L.T("Paczka nie zawiera pliku manifest.json."));
 
                 // usun poprzednia wersje: dodatek z folderu ma w WebView2 inne ID niz w sklepie,
                 // wiec szukamy po ID zapamietanym przy instalacji (plik <id-sklepu>.id)
@@ -152,19 +152,19 @@ namespace Przegladarka
                 NotifyLanStateChanged();
                 await RefreshExtensions();
                 if (!silent)
-                    MessageBox.Show(owner, "Zainstalowano dodatek „" + added.Name + "”.\nOdśwież strony, na których ma działać.\nZarządzasz nim w oknie 🧩.", "Dodatki");
+                    MessageBox.Show(owner, L.T("Zainstalowano dodatek „") + added.Name + L.T("”.\nOdśwież strony, na których ma działać.\nZarządzasz nim w oknie 🧩."), L.T("Dodatki"));
                 return true;
             }
             catch (HttpRequestException ex)
             {
                 if (!silent)
-                    MessageBox.Show(owner, "Nie udało się pobrać dodatku ze sklepu.\nSprawdź połączenie z internetem – albo dodatek został wycofany.\n\n" + ex.Message, "Dodatki");
+                    MessageBox.Show(owner, L.T("Nie udało się pobrać dodatku ze sklepu.\nSprawdź połączenie z internetem – albo dodatek został wycofany.\n\n") + ex.Message, L.T("Dodatki"));
             }
             catch (Exception ex)
             {
                 if (!silent)
-                    MessageBox.Show(owner, "Nie udało się zainstalować dodatku:\n" + ex.Message +
-                        "\n\nNiektóre dodatki wymagają funkcji pełnego Chrome, których silnik WebView2 nie ma.", "Dodatki");
+                    MessageBox.Show(owner, L.T("Nie udało się zainstalować dodatku:\n") + ex.Message +
+                        L.T("\n\nNiektóre dodatki wymagają funkcji pełnego Chrome, których silnik WebView2 nie ma."), L.T("Dodatki"));
                 else App.LogError(ex);
             }
             finally
@@ -212,7 +212,7 @@ namespace Przegladarka
         {
             if (crx.Length > 4 && crx[0] == 'P' && crx[1] == 'K') return crx; // juz ZIP
             if (crx.Length < 16 || crx[0] != 'C' || crx[1] != 'r' || crx[2] != '2' || crx[3] != '4')
-                throw new InvalidDataException("Serwer nie zwrócił paczki dodatku (CRX).");
+                throw new InvalidDataException(L.T("Serwer nie zwrócił paczki dodatku (CRX)."));
             uint version = BitConverter.ToUInt32(crx, 4);
             long start;
             if (version == 3) start = 12L + BitConverter.ToUInt32(crx, 8);

@@ -378,8 +378,8 @@ namespace Przegladarka
                 };
                 _lanTick.Start();
                 LanLog(hasKey
-                    ? "LAN sync uruchomiona na porcie " + LanPort + " (profil: " + SelectedProfileName + ")."
-                    : "LAN sync uruchomiona w trybie zgodności bez klucza (profil: " + SelectedProfileName + ").");
+                    ? L.T("LAN sync uruchomiona na porcie ") + LanPort + " (profil: " + SelectedProfileName + ")."
+                    : L.T("LAN sync uruchomiona w trybie zgodności bez klucza (profil: ") + SelectedProfileName + ").");
                 if (hasKey)
                 {
                     LanBroadcastHello();
@@ -391,7 +391,7 @@ namespace Przegladarka
                     LanBroadcastState(true);
                 }
             }
-            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog("Błąd startu LAN sync: " + ex.Message); }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog(L.T("Błąd startu LAN sync: ") + ex.Message); }
         }
 
         void StopLanSync()
@@ -520,7 +520,7 @@ namespace Przegladarka
                 {
                     _lanErrors++;
                     App.LogError(ex);
-                    await Dispatcher.InvokeAsync(() => LanLog("Błąd odbioru LAN: " + ex.Message));
+                    await Dispatcher.InvokeAsync(() => LanLog(L.T("Błąd odbioru LAN: ") + ex.Message));
                     try { await Task.Delay(500, ct); } catch (Exception) { }
                 }
             }
@@ -535,7 +535,7 @@ namespace Przegladarka
             {
                 p = new LanPeerInfo { Id = pkt.id };
                 _lanPeers[pkt.id] = p;
-                LanLog("Wykryto urządzenie: " + pkt.id.Substring(0, 8));
+                LanLog(L.T("Wykryto urządzenie: ") + pkt.id.Substring(0, 8));
                 isNew = true;
             }
             var normalizedProfile = NormalizeProfileName(pkt.profile ?? "domyslny");
@@ -575,12 +575,12 @@ namespace Przegladarka
             if (_lanProfilePrompted.TryGetValue(key, out last) && DateTime.UtcNow - last < TimeSpan.FromMinutes(2)) return;
             _lanProfilePrompted[key] = DateTime.UtcNow;
 
-            string mode = joiningPrompt ? "Dołączyłeś do sieci z innym trybem pracy." : "Wykryto zmianę trybu pracy na innym urządzeniu.";
+            string mode = joiningPrompt ? L.T("Dołączyłeś do sieci z innym trybem pracy.") : L.T("Wykryto zmianę trybu pracy na innym urządzeniu.");
             var ans = MessageBox.Show(this,
-                mode + "\n\nUrządzenie: " + device +
-                "\nWykryty profil: " + target +
-                "\nAktualny profil: " + SelectedProfileName +
-                "\n\nPrzełączyć się na profil \"" + target + "\", aby zachować synchronizację LAN?",
+                mode + L.T("\n\nUrządzenie: ") + device +
+                L.T("\nWykryty profil: ") + target +
+                L.T("\nAktualny profil: ") + SelectedProfileName +
+                L.T("\n\nPrzełączyć się na profil \"") + target + L.T("\", aby zachować synchronizację LAN?"),
                 "Synchronizacja LAN", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (ans == MessageBoxResult.Yes)
                 SwitchProfile(target);
@@ -665,7 +665,7 @@ namespace Przegladarka
                 if (data.Length > 60000)
                 {
                     _lanErrors++;
-                    LanLog("Nie wysłano pakietu LAN: przekracza limit UDP (" + data.Length.ToString("N0") + " B).");
+                    LanLog(L.T("Nie wysłano pakietu LAN: przekracza limit UDP (") + data.Length.ToString("N0") + " B).");
                     return;
                 }
                 foreach (var target in LanBroadcastTargets())
@@ -674,7 +674,7 @@ namespace Przegladarka
                 _lanLastTxUtc = DateTime.UtcNow;
                 RefreshLanDiagnosticsUi();
             }
-            catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog("Błąd nadawania LAN: " + ex.Message); }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog(L.T("Błąd nadawania LAN: ") + ex.Message); }
         }
 
         void ApplyLanState(LanStatePacket pkt, LanSyncPayload state)
@@ -692,7 +692,7 @@ namespace Przegladarka
                 state.sessionActive == null || state.privacy == null || state.profiles == null ||
                 state.extensions == null || state.passwords == null)
             {
-                LanLog("Odrzucono niekompletny stan synchronizacji.");
+                LanLog(L.T("Odrzucono niekompletny stan synchronizacji."));
                 return;
             }
 
@@ -754,11 +754,11 @@ namespace Przegladarka
                 else _lastLanFingerprint = after;
                 if (incomingNewer || bookmarksChanged)
                 {
-                    if (ShouldShowLanToast()) ShowToast("🌐 Zsynchronizowano z Velivo w sieci lokalnej.", null);
-                    LanLog("Zsynchronizowano z " + pkt.id.Substring(0, 8) + (incomingNewer ? " (ustawienia przyjęte)" : " (ustawienia tu nowsze)") + (bookmarksChanged ? ", zakładki połączone." : "."));
+                    if (ShouldShowLanToast()) ShowToast(L.T("🌐 Zsynchronizowano z Velivo w sieci lokalnej."), null);
+                    LanLog(L.T("Zsynchronizowano z ") + pkt.id.Substring(0, 8) + (incomingNewer ? L.T(" (ustawienia przyjęte)") : " (ustawienia tu nowsze)") + (bookmarksChanged ? L.T(", zakładki połączone.") : "."));
                 }
             }
-            catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog("Błąd importu LAN: " + ex.Message); }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog(L.T("Błąd importu LAN: ") + ex.Message); }
             finally { _lanApplying = false; }
         }
 
@@ -817,9 +817,9 @@ namespace Przegladarka
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 var ans = MessageBox.Show(this,
-                    "W sieci jest drugi Velivo:\n\nUrządzenie: " + device + "\nProfil: " + SelectedProfileName +
-                    "\n\nPołączyć oba komputery i synchronizować wszystko – ustawienia, zakładki, karty, hasła i Szybki Dostęp?" +
-                    "\n\nNa obu ekranach pojawi się ten sam krótki kod do porównania. Dane będą szyfrowane.",
+                    L.T("W sieci jest drugi Velivo:\n\nUrządzenie: ") + device + L.T("\nProfil: ") + SelectedProfileName +
+                    L.T("\n\nPołączyć oba komputery i synchronizować wszystko – ustawienia, zakładki, karty, hasła i Szybki Dostęp?") +
+                    L.T("\n\nNa obu ekranach pojawi się ten sam krótki kod do porównania. Dane będą szyfrowane."),
                     "Synchronizacja LAN", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (ans == MessageBoxResult.Yes) BeginLanPairing();
             }));
@@ -834,8 +834,8 @@ namespace Przegladarka
             DateTime last;
             if (_lanClockSkewLogged.TryGetValue(device ?? "", out last) && DateTime.UtcNow - last < TimeSpan.FromMinutes(5)) return;
             _lanClockSkewLogged[device ?? ""] = DateTime.UtcNow;
-            LanLog("Odrzucono pakiety z " + device + ": zegar różni się o " + Math.Round(Math.Abs(skewMs) / 60000.0) +
-                " min. Ustaw automatyczny czas w Windows na obu komputerach.");
+            LanLog(L.T("Odrzucono pakiety z ") + device + L.T(": zegar różni się o ") + Math.Round(Math.Abs(skewMs) / 60000.0) +
+                L.T(" min. Ustaw automatyczny czas w Windows na obu komputerach."));
         }
 
         // 255.255.255.255 Windows wysyla tylko jedna karta sieciowa (czesto VPN / Hyper-V / VirtualBox),
@@ -906,8 +906,8 @@ namespace Przegladarka
             _lanDiagPeers = new ListBox { Margin = new Thickness(8), Height = 180 };
             _lanDiagLog = new ListBox { Margin = new Thickness(8) };
 
-            var ping = SmallButton("Odśwież teraz", () => { LanBroadcastHello(); LanBroadcastState(true); });
-            var clear = SmallButton("Wyczyść log", () => { _lanLog.Clear(); RefreshLanDiagnosticsUi(); });
+            var ping = SmallButton(L.T("Odśwież teraz"), () => { LanBroadcastHello(); LanBroadcastState(true); });
+            var clear = SmallButton(L.T("Wyczyść log"), () => { _lanLog.Clear(); RefreshLanDiagnosticsUi(); });
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8, 0, 8, 8) };
             bar.Children.Add(ping); bar.Children.Add(clear);
 
@@ -924,15 +924,15 @@ namespace Przegladarka
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            var tPeers = new TextBlock { Text = "Wykryte urządzenia", Margin = new Thickness(8, 0, 8, 2), FontWeight = FontWeights.SemiBold };
-            var tLog = new TextBlock { Text = "Log synchronizacji", Margin = new Thickness(8, 6, 8, 2), FontWeight = FontWeights.SemiBold };
+            var tPeers = new TextBlock { Text = L.T("Wykryte urządzenia"), Margin = new Thickness(8, 0, 8, 2), FontWeight = FontWeights.SemiBold };
+            var tLog = new TextBlock { Text = L.T("Log synchronizacji"), Margin = new Thickness(8, 6, 8, 2), FontWeight = FontWeights.SemiBold };
             Grid.SetRow(tPeers, 0); Grid.SetRow(_lanDiagPeers, 1); Grid.SetRow(tLog, 2); Grid.SetRow(_lanDiagLog, 3);
             grid.Children.Add(tPeers); grid.Children.Add(_lanDiagPeers); grid.Children.Add(tLog); grid.Children.Add(_lanDiagLog);
             root.Children.Add(grid);
 
             _lanDiagWindow = new Window
             {
-                Title = "Diagnostyka synchronizacji LAN",
+                Title = L.T("Diagnostyka synchronizacji LAN"),
                 Width = 760,
                 Height = 560,
                 Owner = this,
@@ -961,20 +961,20 @@ namespace Przegladarka
             var active = _lanPeers.Values.Where(p => now - p.LastSeenUtc < TimeSpan.FromSeconds(20)).OrderByDescending(p => p.LastSeenUtc).ToList();
 
             if (_settings == null || !_settings.LanSync)
-                _lanDiagStatus.Text = "Status: synchronizacja LAN wyłączona";
+                _lanDiagStatus.Text = L.T("Status: synchronizacja LAN wyłączona");
             else if (_lanRx == null)
-                _lanDiagStatus.Text = "Status: synchronizacja LAN nieaktywna";
+                _lanDiagStatus.Text = L.T("Status: synchronizacja LAN nieaktywna");
             else if (active.Count == 0)
-                _lanDiagStatus.Text = "Status: aktywna, ale brak połączonych urządzeń";
+                _lanDiagStatus.Text = L.T("Status: aktywna, ale brak połączonych urządzeń");
             else
-                _lanDiagStatus.Text = "Status: połączono z " + active.Count + " urządzeniem/urządzeniami";
+                _lanDiagStatus.Text = L.T("Status: połączono z ") + active.Count + L.T(" urządzeniem/urządzeniami");
 
-            _lanDiagCounters.Text = "Profil: " + SelectedProfileName +
+            _lanDiagCounters.Text = L.T("Profil: ") + SelectedProfileName +
                                     "   |   RX: " + _lanPacketsRx +
                                     "   TX: " + _lanPacketsTx +
-                                    "   Błędy: " + _lanErrors +
+                                    L.T("   Błędy: ") + _lanErrors +
                                     "   |   Ostatni RX: " + (_lanLastRxUtc == default ? "-" : _lanLastRxUtc.ToLocalTime().ToString("HH:mm:ss")) +
-                                    "   Ostatni TX: " + (_lanLastTxUtc == default ? "-" : _lanLastTxUtc.ToLocalTime().ToString("HH:mm:ss"));
+                                    L.T("   Ostatni TX: ") + (_lanLastTxUtc == default ? "-" : _lanLastTxUtc.ToLocalTime().ToString("HH:mm:ss"));
 
             _lanDiagPeers.Items.Clear();
             foreach (var p in active)
@@ -983,7 +983,7 @@ namespace Przegladarka
                 var device = string.IsNullOrWhiteSpace(p.Device) ? "?" : p.Device;
                 _lanDiagPeers.Items.Add(p.Id.Substring(0, Math.Min(8, p.Id.Length)) + "   " + device + "   " + p.Address + "   profil=" + p.Profile + "   typ=" + p.LastType + "   " + ago + " s temu");
             }
-            if (active.Count == 0) _lanDiagPeers.Items.Add("Brak aktywnych peerów.");
+            if (active.Count == 0) _lanDiagPeers.Items.Add(L.T("Brak aktywnych peerów."));
 
             _lanDiagLog.Items.Clear();
             foreach (var l in _lanLog.TakeLast(120).Reverse()) _lanDiagLog.Items.Add(l);

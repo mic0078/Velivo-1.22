@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 // =====================================================================
 //  Szybki Dostep - lokalny speed dial
@@ -2011,6 +2011,23 @@ function rysujGrupy() {
   });
 }
 
+// Pamiec dzialajacych adresow ikon (tylko w tej przegladarce, nie synchronizowana).
+let ikonyDzialajace = null;
+function ikonaDzialajaca(klucz) {
+  if (!ikonyDzialajace) {
+    try { ikonyDzialajace = JSON.parse(localStorage.getItem('sd-ikony-ok') || '{}') || {}; } catch (e) { ikonyDzialajace = {}; }
+  }
+  return ikonyDzialajace[klucz];
+}
+let zapisIkonCzeka = false;
+function zapamietajIkone(klucz, adres) {
+  if (!adres || /^data:/i.test(adres) || ikonaDzialajaca(klucz) === adres) return;
+  ikonyDzialajace[klucz] = adres;
+  if (zapisIkonCzeka) return;
+  zapisIkonCzeka = true;
+  setTimeout(() => { zapisIkonCzeka = false; try { localStorage.setItem('sd-ikony-ok', JSON.stringify(ikonyDzialajace)); } catch (e) {} }, 1000);
+}
+
 function rysujSkroty() {
   const cel = $('siatka');
   const filtr = $('szukaj').value.trim().toLowerCase();
@@ -2082,9 +2099,19 @@ function rysujSkroty() {
       a.appendChild(mini);
     }
 
+    // zrodlo, ktore ostatnio zadzialalo, idzie na poczatek - bez ponownego przechodzenia przez nieudane adresy
+    // (kazda proba to mrugniecie ikony przy kazdym przelaczeniu grupy)
+    const kluczIkony = s.url + '|' + (s.ikonaPlik || '');
+    const dobre = ikonaDzialajaca(kluczIkony);
+    if (dobre && zrodla.includes(dobre)) { zrodla.splice(zrodla.indexOf(dobre), 1); zrodla.unshift(dobre); }
     const ikona = document.createElement('img');
     ikona.alt = '';
+    ikona.style.visibility = 'hidden';   // pokazujemy dopiero wczytana - bez migania pustej ramki
     let nrZrodla = 0;
+    ikona.addEventListener('load', () => {
+      ikona.style.visibility = '';
+      zapamietajIkone(kluczIkony, zrodla[nrZrodla]);
+    });
     ikona.src = zrodla[0];
     ikona.addEventListener('error', () => {
       nrZrodla++;

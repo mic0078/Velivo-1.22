@@ -41,7 +41,9 @@ namespace Przegladarka
             public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
-            public bool Pinned;          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
+            public bool Pinned;
+            public DateTime NewTabIntentAt;   // ostatni Ctrl+klik / srodkowy klik na linku
+            public string PinnedUrl;     // adres zamrozony przy przypieciu - do niego karta wraca po uruchomieniu          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
             public Button CloseBtn;
             public TextBlock PinMark;
             public string StartUrl;      // adres, z ktorym karte otwarto (zanim silnik ruszy)
@@ -121,6 +123,7 @@ namespace Przegladarka
                     foreach (var u in session) AddTab(u);
                     if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
                     if (session.Count == 0 && pinned.Count == 0 && _startUrls.Length == 0) AddTab("");
+                    if (session.Count == 0 && pinned.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
                     foreach (var u in _startUrls) AddTab(u);
                     _sessionLoaded = true;
                     SaveSessionSoon();
@@ -355,6 +358,11 @@ namespace Przegladarka
             // chrome.webview jest potrzebny tylko w okienkach dodatkow (osobne widoki), w kartach go wylaczamy.
             core.Settings.IsWebMessageEnabled = true;   // kanal dla Szybkiego Dostepu; wiadomosci z innych stron sa ignorowane
             core.WebMessageReceived += async (s, e) => await HandleQuickAccessWebMessageAsync(core, e);
+            // Ctrl+klik / srodkowy klik na linku = swiadomie nowa karta. Silnik nie podaje, jakim klikiem otwarto okno,
+            // wiec strona zglasza to przy wcisnieciu przycisku (tylko znacznik, bez danych).
+            core.WebMessageReceived += (s, e) => { try { if (e.TryGetWebMessageAsString() == "velivo:nowa-karta") tab.NewTabIntentAt = DateTime.UtcNow; } catch (Exception) { } };
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(
+                "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button===1||e.ctrlKey||e.shiftKey||e.metaKey){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(a)pm('velivo:nowa-karta');}},true);}catch(x){}})();");
             await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
             if (!_extensionsLoaded)
@@ -403,7 +411,7 @@ namespace Przegladarka
                 AddPrivacyBlock("Tracker zablokowany (AdBlock)", e.Request.Uri, tab);
             };
 
-            core.NewWindowRequested += (s, e) => OnNewWindowRequested(e, tab.Private);
+            core.NewWindowRequested += (s, e) => { if (!OpenLinkInSameTab(tab, e)) OnNewWindowRequested(e, tab.Private); };
             core.DocumentTitleChanged += (s, e) =>
             {
                 tab.Title.Text = (tab.Private ? "🕶 " : "") + (string.IsNullOrEmpty(core.DocumentTitle) ? core.Source : core.DocumentTitle);
@@ -427,6 +435,14 @@ namespace Przegladarka
                         Dispatcher.BeginInvoke(new Action(() => core.Navigate(target)));
                         return;
                     }
+                }
+                // przypieta karta: klikniety link na inna strone otwiera sie w nowej karcie (logowania i przekierowania zostaja)
+                if (tab.Pinned && e.IsUserInitiated && !e.IsRedirected && !SameSite(e.Uri, tab.PinnedUrl))
+                {
+                    e.Cancel = true;
+                    var u = e.Uri;
+                    Dispatcher.BeginInvoke(new Action(() => AddTab(u)));
+                    return;
                 }
                 if (e.IsRedirected) return;
                 tab.Blocked = 0;
@@ -585,6 +601,27 @@ namespace Przegladarka
             {
                 return !navigationSucceeded;
             }
+        }
+
+        // Link "w nowej karcie" (target=_blank) otwierany w biezacej karcie - wtedy dziala Wstecz/Dalej.
+        // Nie dotyczy: okienek z wymiarami (logowanie, platnosci - potrzebuja okna-rodzica), Ctrl/Shift+klik, kart przypietych.
+        bool OpenLinkInSameTab(BrowserTab tab, CoreWebView2NewWindowRequestedEventArgs e)
+        {
+            try
+            {
+                if (!_settings.LinksInSameTab || tab.Pinned || !e.IsUserInitiated || tab.View.CoreWebView2 == null) return false;
+                if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl) || Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift)) return false;
+                if (Mouse.MiddleButton == MouseButtonState.Pressed) return false;
+                if ((DateTime.UtcNow - tab.NewTabIntentAt).TotalSeconds < 2) return false;
+                var f = e.WindowFeatures;
+                if (f != null && f.HasSize) return false;
+                Uri u;
+                if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out u) || (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps)) return false;
+                e.Handled = true;
+                tab.View.CoreWebView2.Navigate(e.Uri);
+                return true;
+            }
+            catch (Exception) { return false; }
         }
 
         void OnNewWindowRequested(CoreWebView2NewWindowRequestedEventArgs e, bool isPrivate)
@@ -815,6 +852,14 @@ namespace Przegladarka
         void Navigate(BrowserTab tab, string text)
         {
             if (tab.View.CoreWebView2 == null) return;
+            // przypieta karta jest zamrozona - nowy adres (z innej strony) idzie do nowej karty.
+            // Nie dotyczy pierwszego wczytania karty przy starcie (wtedy w karcie nie ma jeszcze strony).
+            if (tab.Pinned && Restorable(tab.View.CoreWebView2.Source))
+            {
+                string url;
+                try { url = ToUrl(text); } catch (ArgumentException) { url = _settings.SearchUrl(text); }
+                if (!SameSite(url, tab.PinnedUrl)) { AddTab(url); return; }
+            }
             try
             {
                 var target = ToUrl(text);

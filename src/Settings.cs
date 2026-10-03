@@ -27,6 +27,7 @@ namespace Przegladarka
         public int Connections = 8;            // polaczen na jeden plik w menedzerze pobierania (1-16)
         public int DefaultZoom = 100;          // domyslne powiekszenie stron w %
         public bool DarkPages = false;         // tryb ciemny stron
+        public bool LinksInSameTab = true;     // linki otwierane przez strone w nowej karcie (target=_blank) -> w tej samej karcie
         public bool RestoreTabs = true;        // przywracaj karty po ponownym uruchomieniu
         public bool FullFilterLists = true;    // pelne listy AdBlocka (EasyList, EasyPrivacy, polska)
         public bool SejfLogins = true;         // kluczyk z loginami z Sejfu na stronach logowania
@@ -116,6 +117,7 @@ namespace Przegladarka
                         case "zoom": int z; if (int.TryParse(v, out z)) s.DefaultZoom = Math.Max(50, Math.Min(300, z)); break;
                         case "dark": s.DarkPages = b; break;
                         case "restore": s.RestoreTabs = b; break;
+                        case "sameTab": s.LinksInSameTab = b; break;
                         case "fullLists": s.FullFilterLists = b; break;
                         case "sejfLogins": s.SejfLogins = b; break;
                         case "quickAccessTab": s.QuickAccessNewTab = b; break;
@@ -186,7 +188,7 @@ namespace Przegladarka
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "askDownload=" + B(AskDownload),
                 "popups=" + B(BlockThirdPartyPopups), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
-                "restore=" + B(RestoreTabs), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
+                "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
                 "toolbarCompact=" + B(ToolbarAlwaysCompact),
@@ -343,6 +345,8 @@ namespace Przegladarka
             root.Children.Add(voiceRow);
             var restore = Check(L.T("Po uruchomieniu przywracaj karty z poprzedniej sesji"), L.T("Karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T."), s.RestoreTabs);
             root.Children.Add(restore);
+            var sameTab = Check(L.T("Otwieraj linki w tej samej karcie"), L.T("Linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej - działa Wstecz i Dalej. Ctrl+klik dalej otwiera nową kartę. Wyłączone: jak w innych przeglądarkach."), s.LinksInSameTab);
+            root.Children.Add(sameTab);
 
             root.Children.Add(Header(L.T("Wyszukiwanie i start")));
             var engine = new ComboBox { Margin = new Thickness(0, 2, 0, 6) };
@@ -670,7 +674,7 @@ namespace Przegladarka
                 s.NightLight = night.IsChecked == true && !s.DarkPages;
                 if (oldNight != s.NightLight) { UpdateDarkButton(); darkChanged = true; }
                 s.ToolbarAlwaysCompact = compactBar.IsChecked == true;
-                s.RestoreTabs = restore.IsChecked == true;
+                s.RestoreTabs = restore.IsChecked == true; s.LinksInSameTab = sameTab.IsChecked == true;
                 if (quickAccess.IsEnabled) s.QuickAccessNewTab = quickAccess.IsChecked == true;
                 s.ReadVoice = (string)((ComboBoxItem)voice.SelectedItem).Tag;
                 s.ReadRate = (double)((ComboBoxItem)rate.SelectedItem).Tag;

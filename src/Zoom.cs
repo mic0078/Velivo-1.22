@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -69,22 +69,32 @@ namespace Przegladarka
         void OnZoomChanged(BrowserTab tab)
         {
             if (tab.ApplyingZoom) { tab.ApplyingZoom = false; if (tab == _current) UpdateZoomButton(); return; }
+            RememberZoom(tab, tab.View.ZoomFactor);
+            if (tab == _current) UpdateZoomButton();
+        }
+
+        // Zapamietuje powiekszenie dla strony w karcie i przenosi je na inne karty z ta sama strona.
+        void RememberZoom(BrowserTab tab, double z)
+        {
             var host = tab.View.CoreWebView2 != null ? HostOf(tab.View.CoreWebView2.Source) : null;
             if (host != null && !tab.Private)
             {
-                if (Math.Abs(tab.View.ZoomFactor - DefaultZoom) < 0.001) _zoomByHost.Remove(host);
-                else _zoomByHost[host] = Math.Round(tab.View.ZoomFactor, 3);
+                if (Math.Abs(z - DefaultZoom) < 0.001) _zoomByHost.Remove(host);
+                else _zoomByHost[host] = Math.Round(z, 3);
                 SaveZoom();
             }
             // inne otwarte karty z ta sama strona dostaja to samo powiekszenie
             foreach (var t in _tabs) if (t != tab && t.View.CoreWebView2 != null && HostOf(t.View.CoreWebView2.Source) == host) ApplyZoom(t);
-            if (tab == _current) UpdateZoomButton();
         }
 
         void SetZoom(double z)
         {
             if (_current == null) return;
-            _current.View.ZoomFactor = Math.Max(0.25, Math.Min(5.0, z)); // zapis zrobi OnZoomChanged
+            z = Math.Max(0.25, Math.Min(5.0, z));
+            _current.ApplyingZoom = false;   // to zmiana uzytkownika, nie programu
+            _current.View.ZoomFactor = z;
+            RememberZoom(_current, z);      // zapis od razu - silnik nie zawsze zglasza zmiane ustawiona z programu
+            ShowZoomValue(z);   // od razu - nie czekamy na potwierdzenie silnika
         }
 
         void StepZoom(int dir)
@@ -98,13 +108,17 @@ namespace Przegladarka
         void UpdateZoomButton()
         {
             if (_current == null) return;
-            double z = _current.View.ZoomFactor;
+            ShowZoomValue(_current.View.ZoomFactor);
+        }
+
+        void ShowZoomValue(double z)
+        {
             int pct = (int)Math.Round(z * 100);
             ZoomBtn.Content = pct + "%";
-            ZoomBtn.Visibility = Math.Abs(z - 1.0) > 0.001 ? Visibility.Visible : Visibility.Collapsed;
+            ZoomBtn.Visibility = Visibility.Visible;   // zawsze widoczny - powiekszanie samym kolkiem myszy (np. przy telewizorze)
             ZoomBtn.ToolTip = L.En
-                ? "Zoom for this page: " + pct + "%\nClick: restore default (" + _settings.DefaultZoom + "%)\nRight-click: larger / smaller\nCtrl + mouse wheel also works"
-                : "Powiększenie tej strony: " + pct + "%\nKliknij: przywróć domyślne (" + _settings.DefaultZoom + "%)\nPrawy klik: większe / mniejsze\nCtrl + kółko myszy także działa";
+                ? "Zoom for this page: " + pct + "%\nMouse wheel over this button: larger / smaller\nClick: restore default (" + _settings.DefaultZoom + "%)\nRight-click: larger / smaller\nCtrl + mouse wheel also works"
+                : "Powiększenie tej strony: " + pct + "%\nKółko myszy nad tym przyciskiem: większe / mniejsze\nKliknij: przywróć domyślne (" + _settings.DefaultZoom + "%)\nPrawy klik: większe / mniejsze\nCtrl + kółko myszy także działa";
         }
 
         void ZoomBtn_Click(object sender, RoutedEventArgs e) { SetZoom(DefaultZoom); }
@@ -117,6 +131,7 @@ namespace Przegladarka
             var reset = new MenuItem { Header = L.T("Domyślne (Ctrl 0)") }; reset.Click += (s, e) => SetZoom(DefaultZoom);
             menu.Items.Add(plus); menu.Items.Add(minus); menu.Items.Add(reset);
             ZoomBtn.ContextMenu = menu;
+            ZoomBtn.PreviewMouseWheel += (s, e) => { e.Handled = true; StepZoom(e.Delta > 0 ? 1 : -1); };
         }
     }
 }

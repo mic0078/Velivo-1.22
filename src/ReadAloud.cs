@@ -54,7 +54,17 @@ namespace Przegladarka
     return out;
   };
   // dluzsze bloki dzielimy na zdania (krotsze wypowiedzi = plynniej, pauza dziala od razu)
-  const split = t => (t.match(/[^.!?…]+[.!?…]+[""')\]]*\s*|[^.!?…]+$/g) || [t]).map(s => s.trim()).filter(Boolean);
+  const splitSentences = t => (t.match(/[^.!?…]+[.!?…]+[""')\]]*\s*|[^.!?…]+$/g) || [t]).map(s => s.trim()).filter(Boolean);
+  // dlugie zdania dzielimy na przecinkach (do ~120 znakow) - zmiana glosnosci/predkosci szybciej wchodzi w zycie
+  const split = t => splitSentences(t).flatMap(z => {
+    if (z.length <= 140) return [z];
+    const out = []; let cur = '';
+    for (const part of z.split(/(?<=[,;:–—])\s+/)) {
+      if (cur && (cur + ' ' + part).length > 120) { out.push(cur); cur = part; } else cur = cur ? cur + ' ' + part : part;
+    }
+    if (cur) out.push(cur);
+    return out;
+  });
   const unmark = () => { if (st.mark) st.mark.classList.remove(HL); st.mark = null; };
   const speakNext = () => {
     if (!st.active) return;
@@ -96,7 +106,7 @@ namespace Przegladarka
     pause() { if (st.active && !st.paused) { st.paused = true; S.cancel(); } },
     resume() { if (st.active && st.paused) { st.paused = false; speakNext(); } },
     stop() { st.active = false; st.paused = false; S.cancel(); unmark(); },
-    volume(v) { st.volume = Math.max(0, Math.min(1, v)); if (st.active && !st.paused) { S.cancel(); speakNext(); } }, // glosnosc 0-1 od biezacego zdania
+    volume(v) { st.volume = Math.max(0, Math.min(1, v)); }, // glosnosc 0-1: bez przerywania, dziala od nastepnego fragmentu (glos systemowy nie zmienia glosnosci w trakcie zdania)
     rate(r) { st.rate = r; if (st.active && !st.paused) { S.cancel(); speakNext(); } }, // od biezacego zdania
     state() { return JSON.stringify({ active: st.active, paused: st.paused, i: st.i, n: st.items.length, lang: st.lang }); }
   };

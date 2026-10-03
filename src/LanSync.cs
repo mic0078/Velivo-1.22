@@ -58,6 +58,7 @@ namespace Przegladarka
             public string profiles { get; set; }
             public string extensions { get; set; }
             public string passwords { get; set; }
+            public long changed { get; set; }   // kiedy dane na nadawcy ostatnio zmienil uzytkownik (ms UTC); nowsze wygrywa
         }
 
         static readonly HashSet<string> LanSettingsBlockedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -76,6 +77,31 @@ namespace Przegladarka
         UdpClient _lanTx;
         DispatcherTimer _lanTick;
         string _lastLanFingerprint = "";
+
+        // Znacznik "kiedy moje dane ostatnio zmienil uzytkownik" (nie import z sieci) - zapisany na dysku,
+        // zeby po ponownym uruchomieniu komputer nie udawal, ze ma najnowsze dane.
+        static string LanChangeFile { get { return Path.Combine(DataDir, "lan-zmiana.txt"); } }
+        long _lanLocalChanged = -1;
+        string _lanLocalChangedFp = "";
+        DateTime _lanLastPushBack = DateTime.MinValue;
+
+        void LoadLanChange()
+        {
+            if (_lanLocalChanged >= 0) return;
+            _lanLocalChanged = 0;
+            try
+            {
+                var lines = File.Exists(LanChangeFile) ? File.ReadAllLines(LanChangeFile) : new string[0];
+                if (lines.Length >= 2) { long.TryParse(lines[0], out _lanLocalChanged); _lanLocalChangedFp = lines[1]; }
+            }
+            catch (Exception) { }
+        }
+
+        void SaveLanChange(long stamp, string fingerprint)
+        {
+            _lanLocalChanged = stamp; _lanLocalChangedFp = fingerprint ?? "";
+            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(LanChangeFile, new[] { stamp.ToString(CultureInfo.InvariantCulture), _lanLocalChangedFp }); } catch (Exception) { }
+        }
         byte[] _lanEncryptionKey;
         byte[] _lanAuthenticationKey;
         bool _lanLegacyNoKeyMode;
@@ -562,6 +588,9 @@ namespace Przegladarka
             var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
 
             var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + session + "\n--\n" + sessionActive + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
+            // dane rozne od ostatnio zapamietanych = zmiana zrobiona tu, przez uzytkownika -> nowy znacznik czasu
+            LoadLanChange();
+            if (fingerprint != _lanLocalChangedFp) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), fingerprint);
             if (!force && fingerprint == _lastLanFingerprint) return;
             _lastLanFingerprint = fingerprint;
 
@@ -584,6 +613,7 @@ namespace Przegladarka
                 profiles = profiles,
                 extensions = extensions,
                 passwords = passwords,
+                changed = _lanLocalChanged,
             };
             if (_lanLegacyNoKeyMode)
             {
@@ -636,6 +666,25 @@ namespace Przegladarka
                 return;
             }
 
+            // Kto ma nowsze dane? Wczesniej oba komputery przyjmowaly stan od siebie nawzajem w tej samej chwili
+            // i dane zamienialy sie miejscami. Teraz przyjmujemy tylko nowsze; przy remisie decyduje identyfikator.
+            LoadLanChange();
+            if (localFingerprint != _lanLocalChangedFp) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), localFingerprint);
+            bool incomingNewer = state.changed > _lanLocalChanged ||
+                (state.changed == _lanLocalChanged && string.CompareOrdinal(pkt.id, _lanId) < 0);
+            if (!incomingNewer)
+            {
+                _lanPeerStamps[pkt.id] = pkt.ts;
+                // nasze dane sa nowsze - wysylamy je, zeby drugi komputer sie wyrownal (nie czesciej niz co 5 s)
+                if (DateTime.UtcNow - _lanLastPushBack > TimeSpan.FromSeconds(5))
+                {
+                    _lanLastPushBack = DateTime.UtcNow;
+                    LanLog("Pominięto starszy stan od " + pkt.id.Substring(0, 8) + " – tu są nowsze dane, wysyłam je.");
+                    LanBroadcastState(true);
+                }
+                return;
+            }
+
             try
             {
                 _lanApplying = true;
@@ -660,6 +709,7 @@ namespace Przegladarka
                 _ = RebuildBlocker();
                 _ = ApplyExtensionsSyncListAsync();
                 _lastLanFingerprint = CurrentLanFingerprint();
+                SaveLanChange(state.changed, _lastLanFingerprint);   // przyjete dane maja czas nadawcy - to nie nasza zmiana
                 _lanPeerStamps[pkt.id] = pkt.ts;
                 if (ShouldShowLanToast()) ShowToast("🌐 Zsynchronizowano profil z Velivo w sieci lokalnej.", null);
                 LanLog("Zaimportowano stan od " + pkt.id.Substring(0, 8) + ".");

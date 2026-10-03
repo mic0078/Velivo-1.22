@@ -41,6 +41,9 @@ namespace Przegladarka
             public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
+            public bool Pinned;          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
+            public Button CloseBtn;
+            public TextBlock PinMark;
             public string StartUrl;      // adres, z ktorym karte otwarto (zanim silnik ruszy)
             public bool ApplyingZoom;    // zmiana powiekszenia robiona przez program, nie przez uzytkownika
             public string LastRequestedUrl;
@@ -111,10 +114,12 @@ namespace Przegladarka
                     _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"),
                         new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
                     LoadBookmarks();
+                    var pinned = LoadPinnedTabs(); // karty przypiete - zawsze na poczatku
+                    foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }
                     var session = LoadSession(); // karty z poprzedniego uruchomienia
                     foreach (var u in session) AddTab(u);
-                    if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(LoadSessionActive(), _tabs.Count - 1)]);
-                    if (session.Count == 0 && _startUrls.Length == 0) AddTab("");
+                    if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
+                    if (session.Count == 0 && pinned.Count == 0 && _startUrls.Length == 0) AddTab("");
                     foreach (var u in _startUrls) AddTab(u);
                     _sessionLoaded = true;
                     SaveSessionSoon();
@@ -296,6 +301,9 @@ namespace Przegladarka
             var tab = new BrowserTab { Private = isPrivate, View = new WebView2(), Title = new TextBlock { Text = L.T("Nowa karta"), MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center } };
             var close = new Button { Content = "×", Width = 20, Height = 20, FontSize = 13, Margin = new Thickness(6, 0, 0, 0) };
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            tab.CloseBtn = close;
+            tab.PinMark = new TextBlock { Text = "📌", FontSize = 11, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            panel.Children.Add(tab.PinMark);
             panel.Children.Add(tab.Title);
             panel.Children.Add(close);
             tab.Header = new Button { Content = panel, Width = double.NaN, Padding = new Thickness(10, 0, 4, 0), Height = 32, Margin = new Thickness(1, 4, 0, 0) };
@@ -309,7 +317,7 @@ namespace Przegladarka
             tab.Header.ContextMenu = BuildTabMenu(tab);
             tab.Header.Click += (s, e) => SelectTab(tab);
             close.Click += (s, e) => { CloseTab(tab); e.Handled = true; };
-            tab.Header.MouseUp += (s, e) => { if (e.ChangedButton == MouseButton.Middle) CloseTab(tab); };
+            tab.Header.MouseUp += (s, e) => { if (e.ChangedButton == MouseButton.Middle && !tab.Pinned) CloseTab(tab); };
 
             _tabs.Add(tab);
             TabStrip.Children.Insert(TabStrip.Children.IndexOf(NewTabBtn), tab.Header);

@@ -692,6 +692,8 @@ namespace Przegladarka
             { "Odepnij z paska (dodatek dalej działa)", "Unpin from toolbar (extension keeps working)" },
             { "Przypnij do paska", "Pin to toolbar" },
             { "Brak włączonych dodatków", "No enabled extensions" },
+            { "Przypnij kartę", "Pin tab" },
+            { "Odepnij kartę", "Unpin tab" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

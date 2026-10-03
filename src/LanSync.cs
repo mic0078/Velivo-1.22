@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -59,6 +59,7 @@ namespace Przegladarka
             public string extensions { get; set; }
             public string passwords { get; set; }
             public long changed { get; set; }
+            public string pinned { get; set; }             // karty przypiete (adresy); null = starsza wersja bez tej funkcji
             public string bookmarksDeleted { get; set; }   // usuniete zakladki (url<TAB>czas), zeby usuniecie dzialalo na obu   // kiedy dane na nadawcy ostatnio zmienil uzytkownik (ms UTC); nowsze wygrywa
         }
 
@@ -114,7 +115,7 @@ namespace Przegladarka
                 .Where(l => { int i = l.IndexOf('='); return i <= 0 || !LanSettingsBlockedKeys.Contains(l.Substring(0, i).Trim()); }));
             return Sha256(settings + "\n--\n" + ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt")) + "\n--\n" +
                 ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt")) + "\n--\n" + ReadProfilesRegistry() + "\n--\n" +
-                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()));
+                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()) + "\n--\n" + ReadTextOrEmpty(PinnedFile));
         }
 
         // "Pusty" komputer: bez zakladek i bez hasel - jego dane nigdy nie nadpisuja pelnych
@@ -175,7 +176,7 @@ namespace Przegladarka
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
             var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
             // otwarte karty (sesja) nie sa synchronizowane - kazdy komputer ma swoje
-            return Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
+            return Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords + "\n--\n" + ReadTextOrEmpty(PinnedFile));
         }
 
         static string FilterLanSettingsForImport(string settingsText)
@@ -459,7 +460,18 @@ namespace Przegladarka
                     }
 
                     LanSyncPayload state = null;
-                    if (pkt.t == "hello")
+                    LanHistoryPayload hist = null;
+                    if (pkt.t == "hist")
+                    {
+                        if (_lanLegacyNoKeyMode) continue;
+                        try { hist = DecryptLanHistory(pkt); }
+                        catch (CryptographicException) { continue; }
+                        catch (FormatException) { continue; }
+                        catch (JsonException) { continue; }
+                        catch (InvalidDataException) { continue; }
+                        if (hist == null) continue;
+                    }
+                    else if (pkt.t == "hello")
                     {
                         if (_lanLegacyNoKeyMode) continue;
                         if (!VerifyLanHello(pkt)) continue;
@@ -503,9 +515,15 @@ namespace Przegladarka
 
                     if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase)) continue;
 
+                    if (pkt.t == "hist")
+                    {
+                        var h = hist;
+                        await Dispatcher.InvokeAsync(() => ApplyLanHistory(h));
+                        continue;
+                    }
                     if (pkt.t == "hello")
                     {
-                        await Dispatcher.InvokeAsync(() => LanBroadcastState(isNewPeer));
+                        await Dispatcher.InvokeAsync(() => { LanBroadcastState(isNewPeer); LanBroadcastHistory(isNewPeer); });
                         continue;
                     }
                     if (pkt.t == "state" || pkt.t == "state-plain")
@@ -615,7 +633,7 @@ namespace Przegladarka
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
             var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
 
-            var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords);
+            var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords + "\n--\n" + ReadTextOrEmpty(PinnedFile));
             // dane rozne od ostatnio zapamietanych = zmiana zrobiona tu, przez uzytkownika -> nowy znacznik czasu
             LoadLanChange();
             var contentFp = LanContentFingerprint();
@@ -644,6 +662,7 @@ namespace Przegladarka
                 passwords = passwords,
                 changed = _lanLocalChanged,
                 bookmarksDeleted = ReadTextOrEmpty(BookmarkTombstonesFile),
+                pinned = ReadTextOrEmpty(PinnedFile),
             };
             if (_lanLegacyNoKeyMode)
             {
@@ -737,6 +756,7 @@ namespace Przegladarka
                     UpdatePrivacyButton();
                     _ = RebuildBlocker();
                     _ = ApplyExtensionsSyncListAsync();
+                    if (state.pinned != null) ApplySyncedPinnedTabs(state.pinned);
                     SaveLanChange(state.changed, LanContentFingerprint());   // przyjete dane maja czas nadawcy
                 }
                 else SaveLanChange(_lanLocalChanged, LanContentFingerprint()); // polaczenie zakladek/hasel to nie zmiana ustawien

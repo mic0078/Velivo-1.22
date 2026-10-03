@@ -36,6 +36,28 @@ namespace Przegladarka
             catch (IOException) { }
         }
 
+        // Karty przypiete przyszle z drugiego komputera (LAN): brakujace otwieramy i przypinamy,
+        // przypiete tu, ktorych tam juz nie ma, odpinamy (karta zostaje otwarta jako zwykla).
+        void ApplySyncedPinnedTabs(string text)
+        {
+            try
+            {
+                var want = (text ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Where(Restorable).Take(30).ToList();
+                var have = _tabs.Where(t => t.Pinned).ToList();
+                if (want.SequenceEqual(have.Select(t => t.PinnedUrl))) return;
+                foreach (var t in have.Where(t => !want.Contains(t.PinnedUrl)).ToList()) SetTabPinned(t, false);
+                var current = _current;
+                foreach (var u in want.Where(u => !_tabs.Any(t => t.Pinned && t.PinnedUrl == u)).ToList())
+                {
+                    AddTab(u);
+                    SetTabPinned(_tabs[_tabs.Count - 1], true);
+                }
+                if (current != null && _tabs.Contains(current)) SelectTab(current);   // nie przeskakujemy uzytkownikowi na nowa karte
+                File.WriteAllLines(PinnedFile, want);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         // Przypiecie: karta przechodzi na poczatek paska (za inne przypiete), bez krzyzyka, wraca po ponownym uruchomieniu.
         void SetTabPinned(BrowserTab tab, bool pinned)
         {
@@ -53,7 +75,7 @@ namespace Przegladarka
             TabStrip.Children.Remove(tab.Header);
             var before = target + 1 < _tabs.Count ? (System.Windows.UIElement)_tabs[target + 1].Header : NewTabBtn;
             TabStrip.Children.Insert(TabStrip.Children.IndexOf(before), tab.Header);
-            if (_sessionLoaded) { SavePinnedTabs(); SaveSessionSoon(); }
+            if (_sessionLoaded) { SavePinnedTabs(); SaveSessionSoon(); NotifyLanStateChanged(); }
         }
 
         // ta sama strona = ta sama domena glowna (www.x.pl i m.x.pl to jedna strona)

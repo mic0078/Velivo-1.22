@@ -579,7 +579,7 @@ namespace Przegladarka
                     return;
                 }
 
-                try { await ClearBrowsingData(Core != null ? Core.Profile : null, kinds, clearHistoryFile); MessageBox.Show(win, L.T("Wyczyszczono zaznaczone dane."), L.T("Ustawienia")); }
+                try { await ClearBrowsingData(Core != null ? Core.Profile : null, kinds, clearHistoryFile); if (clearHistoryFile) RememberHistoryCleared(); MessageBox.Show(win, L.T("Wyczyszczono zaznaczone dane."), L.T("Ustawienia")); }
                 catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Ustawienia")); }
             };
             root.Children.Add(clearNow);

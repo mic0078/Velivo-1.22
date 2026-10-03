@@ -702,6 +702,7 @@ namespace Przegladarka
             { "Otwieraj linki w tej samej karcie", "Open links in the same tab" },
             { "Linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej - działa Wstecz i Dalej. Ctrl+klik dalej otwiera nową kartę. Wyłączone: jak w innych przeglądarkach.", "Links a page wants to open in a new tab open in the current one, so Back and Forward work. Ctrl+click still opens a new tab. Off: like other browsers." },
             { "Plik usunięty lub przeniesiony", "File deleted or moved" },
+            { "Usuń tę stronę z historii dnia", "Remove this site from the day's history" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

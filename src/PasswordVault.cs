@@ -161,8 +161,19 @@ namespace Przegladarka
                             const rect = anchor.getBoundingClientRect();
                             state.panel.style.display = 'inline-flex';
                             const width = state.panel.getBoundingClientRect().width || 96;
-                            const left = Math.max(6, Math.min(window.innerWidth - width - 6, rect.right - width));
-                            const top = Math.max(6, Math.min(window.innerHeight - 34, rect.bottom + 4));
+                            const height = state.panel.getBoundingClientRect().height || 30;
+                            // obok pola, po prawej stronie (nie zaslania pol ani przyciskow);
+                            // gdy po prawej brak miejsca - pod polem, przy jego prawej krawedzi
+                            let left, top;
+                            if (rect.right + 6 + width <= window.innerWidth - 6) {
+                                left = rect.right + 6;
+                                top = rect.top + (rect.height - height) / 2;
+                            } else {
+                                left = rect.right - width;
+                                top = rect.bottom + 4;
+                            }
+                            left = Math.max(6, Math.min(window.innerWidth - width - 6, left));
+                            top = Math.max(6, Math.min(window.innerHeight - height - 4, top));
                             state.panel.style.left = `${left}px`;
                             state.panel.style.top = `${top}px`;
                             const choices = state.panel.querySelector('.velivo-pwd-choices');

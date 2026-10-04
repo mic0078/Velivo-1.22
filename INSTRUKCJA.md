@@ -2,6 +2,8 @@
 
 ## Pełny opis i instrukcja obsługi
 
+*Stworzona z pasji. Autor: **Michael** ([github.com/mic0078](https://github.com/mic0078)).*
+
 **Polski** | [English](MANUAL.en.md) · [Strona główna projektu](README.md)
 
 Velivo to prywatna przeglądarka dla Windows. Twoje dane zostają u Ciebie: nie ma konta ani chmury, a historia i hasła nie trafiają na zewnętrzne serwery. Strony wyświetla silnik Microsoft Edge (WebView2), więc wyglądają i działają tak samo jak w Edge i Chrome. Wszystko wokół stron – okno, karty, menu, prywatność, pobieranie, synchronizacja – to własny kod Velivo.

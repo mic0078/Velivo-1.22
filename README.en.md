@@ -2,6 +2,8 @@
 
 [Polski](README.md) | **English**
 
+*Made with passion. Author: **Michael** ([github.com/mic0078](https://github.com/mic0078)).*
+
 A lightweight, private browser for Windows that keeps your data with you: no account, no cloud, no history or passwords sent to outside servers. It runs on the Microsoft Edge engine (WebView2), so pages look the same as in Edge and Chrome.
 
 Your computers share data through local network (LAN) sync, encrypted after the devices are paired. Velivo ships with the **Quick Access** add-on (a new tab page with shortcuts) and works with **Sejf**, a program that keeps passwords encrypted offline.

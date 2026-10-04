@@ -2,6 +2,8 @@
 
 ## Complete guide and user manual
 
+*Made with passion. Author: **Michael** ([github.com/mic0078](https://github.com/mic0078)).*
+
 [Polski](INSTRUKCJA.md) | **English** · [Project home](README.en.md)
 
 Velivo is a private browser for Windows that keeps your data with you. There is no account and no cloud, and your history and passwords are never sent to outside servers. Pages are displayed by the Microsoft Edge engine (WebView2), so they look and work exactly as in Edge and Chrome. Everything around the pages – the window, tabs, menus, privacy, downloads and sync – is Velivo's own code.

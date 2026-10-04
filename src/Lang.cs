@@ -833,6 +833,9 @@ namespace Przegladarka
             { "Wpisz", "Fill in" },
             { "Wygeneruj silne hasło", "Generate a strong password" },
             { "Generuj", "Generate" },
+            { "Inne konto z bazy Velivo…", "Another account from the Velivo vault…" },
+            { "Szukaj konta (nazwa, adres albo e-mail):", "Search for an account (name, address or e-mail):" },
+            { "Wybierz konto do wpisania", "Choose an account to fill in" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

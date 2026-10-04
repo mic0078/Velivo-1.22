@@ -248,6 +248,7 @@ try {
                 if (!tab.InPip && !_tabs.Contains(tab)) ReleaseParkedViews();
                 return;
             }
+            if (msg == "pwpick") { ShowPasswordPicker(tab); return; }
             if (msg == "cookie")
             {
                 NoteBlocked(tab, L.T("Ciasteczka"), (core != null ? core.Source : "") + L.T("  (baner zgody odrzucony)"));

@@ -242,11 +242,11 @@ namespace Przegladarka
                         state.activePassword = fields.password;
                         const fill = state.panel.querySelector('[data-v=fill]');
                         const generate = state.panel.querySelector('[data-v=gen]');
-                        if (fill) fill.disabled = state.credentials.length === 0 || (!fields.login && !fields.password);
+                        if (fill) fill.disabled = !fields.login && !fields.password;
                         if (generate) generate.disabled = !fields.password;
                         if (generate) generate.style.display = fields.password ? '' : 'none';
                         // bez pola hasla panel ma sens tylko, gdy sa zapisane konta do wypelnienia
-                        if (!fields.password && (!fields.login || state.credentials.length === 0)) { state.panel.style.display = 'none'; return; }
+                        if (!fields.password && !fields.login) { state.panel.style.display = 'none'; return; }
                         positionPanel(fields.password || fields.login);
                         try {
                             document.querySelectorAll('iframe').forEach(updateFrameCredentials);
@@ -257,6 +257,15 @@ namespace Przegladarka
                         if (state.refreshQueued) return;
                         state.refreshQueued = true;
                         try { requestAnimationFrame(refresh); } catch (_) { setTimeout(refresh, 0); }
+                    }
+
+                    // okno Velivo z cala baza i wyszukiwarka (gdy strona ma inna nazwe niz konto, np. Fender/PreSonus)
+                    function pickFromVault() {
+                        try {
+                            const choices = state.panel && state.panel.querySelector('.velivo-pwd-choices');
+                            if (choices) choices.style.display = 'none';
+                            if (window.chrome && chrome.webview) chrome.webview.postMessage('velivo:__VT_TOKEN__:pwpick');
+                        } catch (_) {}
                     }
 
                     function showCredentialChoices() {
@@ -282,6 +291,12 @@ namespace Przegladarka
                             button.append(name, user);
                             choices.appendChild(button);
                         }
+                        const other = document.createElement('button');
+                        other.type = 'button';
+                        other.className = 'velivo-pwd-choice';
+                        other.dataset.v = 'pick';
+                        other.textContent = '🔎 __VT_OTHER__';
+                        choices.appendChild(other);
                         choices.style.display = 'block';
                         positionPanel(state.activePassword || state.activeLogin);
                     }
@@ -395,10 +410,11 @@ namespace Przegladarka
                             const login = fields.login || state.activeLogin;
                             const password = fields.password || state.activePassword;
                             if (button.dataset.v === 'fill') {
-                                if (!state.credentials.length) return;
+                                if (!state.credentials.length) { pickFromVault(); return; }
                                 showCredentialChoices();
                                 return;
                             }
+                            if (button.dataset.v === 'pick') { pickFromVault(); return; }
                             if (button.dataset.v === 'choose') {
                                 const index = Number(button.dataset.index);
                                 const entry = Number.isInteger(index) ? state.credentials[index] : null;
@@ -450,7 +466,9 @@ namespace Przegladarka
             .Replace("__VT_FILL_TIP__", L.T("Wpisz zapisany login i hasło z Velivo"))
             .Replace("__VT_FILL__", L.T("Wpisz"))
             .Replace("__VT_GEN_TIP__", L.T("Wygeneruj silne hasło"))
-            .Replace("__VT_GEN__", L.T("Generuj"));
+            .Replace("__VT_GEN__", L.T("Generuj"))
+            .Replace("__VT_OTHER__", L.T("Inne konto z bazy Velivo…"))
+            .Replace("__VT_TOKEN__", PageToken);
 
         void EnsurePasswordVaultLoaded()
         {
@@ -729,6 +747,9 @@ namespace Przegladarka
             if (fromUrl.Length > 0) return NormalizeHostForMatch(fromUrl);
             var stored = NormalizeHostForMatch(entry.Host);
             if (stored == "localhost" || stored.Contains('.')) return stored;
+            // wpisy z telefonu/KeePassXC bez adresu: domena z pola Nazwa (np. "connect.presonus.com")
+            var name = (entry.Name ?? "").Trim().ToLowerInvariant();
+            if (name.Contains('.') && !name.Contains(' ') && Uri.CheckHostName(name) == UriHostNameType.Dns) return NormalizeHostForMatch(name);
             return "";
         }
 
@@ -969,6 +990,45 @@ namespace Przegladarka
                     host = (host ?? "").Trim().ToLowerInvariant();
                     if (host.StartsWith("www.")) host = host.Substring(4);
                     return host;
+                }
+
+                // okno wyboru konta z calej bazy - wypelnia formularz w karcie
+                void ShowPasswordPicker(BrowserTab tab)
+                {
+                    var core = tab?.View.CoreWebView2;
+                    if (core == null) return;
+                    EnsurePasswordVaultLoaded();
+                    var all = _passwordEntries.Where(e => !string.IsNullOrEmpty(e.Password))
+                        .OrderBy(e => e.Name ?? GetPasswordEntryHost(e), StringComparer.OrdinalIgnoreCase).ToList();
+                    var search = new TextBox { FontSize = 15, Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(0, 0, 0, 8) };
+                    var list = new ListBox { FontSize = 14, Height = 380 };
+                    Func<SavedPasswordEntry, string> label = e =>
+                        (string.IsNullOrWhiteSpace(e.Name) ? GetPasswordEntryHost(e) : e.Name) + "   —   " + (e.Username ?? "");
+                    Action refill = () =>
+                    {
+                        var q = search.Text.Trim().ToLowerInvariant();
+                        list.Items.Clear();
+                        foreach (var e in all.Where(e => q.Length == 0 || label(e).ToLowerInvariant().Contains(q) || (e.Url ?? "").ToLowerInvariant().Contains(q)).Take(300))
+                            list.Items.Add(new ListBoxItem { Content = label(e), Tag = e, Padding = new Thickness(6, 5, 6, 5) });
+                        if (list.Items.Count > 0) list.SelectedIndex = 0;
+                    };
+                    search.TextChanged += (a, b) => refill();
+                    var ok = new Button { Content = L.T("Wpisz"), IsDefault = true, Padding = new Thickness(18, 6, 18, 6), Margin = new Thickness(0, 0, 8, 0) };
+                    var cancel = new Button { Content = L.T("Anuluj"), IsCancel = true, Padding = new Thickness(18, 6, 18, 6) };
+                    var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+                    buttons.Children.Add(ok); buttons.Children.Add(cancel);
+                    var panel = new StackPanel { Margin = new Thickness(14) };
+                    panel.Children.Add(new TextBlock { Text = L.T("Szukaj konta (nazwa, adres albo e-mail):"), Margin = new Thickness(0, 0, 0, 4) });
+                    panel.Children.Add(search); panel.Children.Add(list); panel.Children.Add(buttons);
+                    var w = new Window { Title = L.T("Wybierz konto do wpisania"), Width = 560, SizeToContent = SizeToContent.Height, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel };
+                    SavedPasswordEntry chosen = null;
+                    Action accept = () => { chosen = (list.SelectedItem as ListBoxItem)?.Tag as SavedPasswordEntry; if (chosen != null) w.Close(); };
+                    ok.Click += (a, b) => accept();
+                    list.MouseDoubleClick += (a, b) => accept();
+                    refill();
+                    w.Loaded += (a, b) => search.Focus();
+                    w.ShowDialog();
+                    if (chosen != null) _ = core.ExecuteScriptAsync(BuildFillScript(chosen.Username, chosen.Password));
                 }
 
                 List<SavedPasswordEntry> FindPasswordsForHost(string host)

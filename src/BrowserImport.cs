@@ -111,6 +111,12 @@ namespace Przegladarka
             var panel = new StackPanel { Margin = new Thickness(18) };
             panel.Children.Add(new TextBlock { Text = L.T("Przenieś zakładki i hasła z innej przeglądarki"), FontSize = 17, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
 
+            panel.Children.Add(new TextBlock
+            {
+                Text = L.T("Ważne: zrób import, ZANIM odinstalujesz starą przeglądarkę – po jej usunięciu zakładek nie da się odczytać, a haseł wyeksportować. Hasła zapisane na koncie Google można też później pobrać ze strony passwords.google.com."),
+                TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DarkOrange, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8)
+            });
+
             // 1. zakladki
             panel.Children.Add(new TextBlock { Text = L.T("1. Zakładki – Velivo odczyta je samo"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 4) });
             var checks = new List<KeyValuePair<CheckBox, ImportSource>>();

@@ -83,7 +83,7 @@ try {
   var top = window === window.top;
   // Fade-in nowej strony (Ustawienia -> Wyglad). Animacja CSS (keyframes) startuje od pierwszej klatki, w ktorej strona
   // jest rysowana - niczego nie wstrzymuje ani nie opoznia (strona laduje sie normalnie, efekt jest tylko wizualny).
-  // Uwaga: zwykle przejscie CSS (transition) tu nie dziala - przed pierwszym rysowaniem nie ma stanu "przed".
+  // Uwaga: zwykle przejscie CSS (transition) tu nie dziala - przed pierwszym rysowaniem nie ma stanu przed animacja.
   if (C.fade > 0 && top) try {
     if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
       var fs = document.createElement('style');

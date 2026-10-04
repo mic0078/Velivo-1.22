@@ -123,6 +123,12 @@ namespace Przegladarka
                             string url;
                             if (!urls.TryGetValue(id, out url)) url = "";
                             urls.Remove(id);
+                            // tylko prawdziwe blokady: zasob zewnetrznej firmy (nie strona, na ktorej jestes),
+                            // nie plik samego dodatku i nie glowny dokument - silnik oznacza tak tez przerwane zadania
+                            if (r.TryGetProperty("type", out var ty) && ty.GetString() == "Document") return;
+                            if (!Uri.TryCreate(url, UriKind.Absolute, out var ru) || (ru.Scheme != Uri.UriSchemeHttp && ru.Scheme != Uri.UriSchemeHttps)) return;
+                            Uri.TryCreate(core.Source ?? "", UriKind.Absolute, out var pu);
+                            if (pu != null && string.Equals(ProtRegDomain(ru.Host), ProtRegDomain(pu.Host), StringComparison.OrdinalIgnoreCase)) return;
                             tab.UbolBlocked++;
                             NoteBlocked(tab, "uBlock Origin Lite", url);
                         }

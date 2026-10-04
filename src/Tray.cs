@@ -10,7 +10,8 @@ namespace Przegladarka
     public partial class MainWindow
     {
         System.Windows.Forms.NotifyIcon _tray;
-        System.Drawing.Icon _trayIcon, _trayIconDim;
+        System.Drawing.Icon _trayIcon;
+        System.Drawing.Icon[] _trayFrames;   // klatki lagodnego oddechu ikonki
         DispatcherTimer _trayPulse;
         DateTime _trayPulseUntil;
         bool _inTray, _reallyExit;
@@ -41,7 +42,8 @@ namespace Przegladarka
             try
             {
                 _trayIcon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath);
-                _trayIconDim = MakeDimIcon(_trayIcon);
+                // lagodny "oddech": 100% -> 65% -> 100% w 8 krokach (bez migania)
+                _trayFrames = new[] { 1f, 0.92f, 0.82f, 0.72f, 0.65f, 0.72f, 0.82f, 0.92f }.Select(a => MakeDimIcon(_trayIcon, a)).ToArray();
                 _tray = new System.Windows.Forms.NotifyIcon { Icon = _trayIcon, Text = "Velivo", Visible = true };
                 var menu = new System.Windows.Forms.ContextMenuStrip();
                 menu.Items.Add(L.T("Otwórz Velivo"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));
@@ -54,7 +56,7 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); }
         }
 
-        static System.Drawing.Icon MakeDimIcon(System.Drawing.Icon src)
+        static System.Drawing.Icon MakeDimIcon(System.Drawing.Icon src, float alpha)
         {
             try
             {
@@ -63,7 +65,7 @@ namespace Przegladarka
                 {
                     using (var g = System.Drawing.Graphics.FromImage(dim))
                     {
-                        var cm = new System.Drawing.Imaging.ColorMatrix { Matrix33 = 0.35f };
+                        var cm = new System.Drawing.Imaging.ColorMatrix { Matrix33 = alpha };
                         var ia = new System.Drawing.Imaging.ImageAttributes();
                         ia.SetColorMatrix(cm);
                         g.DrawImage(bmp, new System.Drawing.Rectangle(0, 0, bmp.Width, bmp.Height), 0, 0, bmp.Width, bmp.Height, System.Drawing.GraphicsUnit.Pixel, ia);
@@ -82,16 +84,16 @@ namespace Przegladarka
             _trayPulseUntil = DateTime.UtcNow.AddSeconds(seconds);
             _tray.Text = L.T("Velivo – synchronizacja…");
             if (_trayPulse != null) return;
-            bool dim = false;
-            _trayPulse = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+            int frame = 0;
+            _trayPulse = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             _trayPulse.Tick += (s, e) =>
             {
                 try
                 {
                     if (_tray == null) { _trayPulse.Stop(); _trayPulse = null; return; }
-                    if (DateTime.UtcNow > _trayPulseUntil) { _tray.Icon = _trayIcon; _tray.Text = "Velivo"; _trayPulse.Stop(); _trayPulse = null; return; }
-                    dim = !dim;
-                    _tray.Icon = dim ? _trayIconDim : _trayIcon;
+                    if (DateTime.UtcNow > _trayPulseUntil && frame == 0) { _tray.Icon = _trayIcon; _tray.Text = "Velivo"; _trayPulse.Stop(); _trayPulse = null; return; }
+                    frame = (frame + 1) % _trayFrames.Length;
+                    _tray.Icon = _trayFrames[frame];
                 }
                 catch (Exception) { }
             };

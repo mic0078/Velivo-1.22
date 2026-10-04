@@ -67,6 +67,7 @@ namespace Przegladarka
                 pipLabel = L.T("Obraz w obrazie"),
                 dlBtn = _settings.VideoDownloadButton,
                 dlLabel = L.T("Pobierz"),
+                floatLabel = L.T("Na wierzchu"),
                 dark = _settings.DarkPatterns,
                 receipt = _settings.PrivacyReceipt,
             });
@@ -170,13 +171,15 @@ try {
       h.style.cssText = 'position:fixed;z-index:2147483647;display:none;';
       var r = h.attachShadow({ mode: 'closed' });
       // bez innerHTML - YouTube (Trusted Types) blokuje wstawianie HTML z tekstu
-      function addB(a, label) { var b = document.createElement('button'); b.setAttribute('data-a', a); b.title = label; b.textContent = (a === 'dl' ? '⬇ ' : '⧉ ') + label; b.style.cssText = BST; r.appendChild(b); }
+      function addB(a, label) { var b = document.createElement('button'); b.setAttribute('data-a', a); b.title = label; b.textContent = (a === 'dl' ? '⬇ ' : a === 'float' ? '▣ ' : '⧉ ') + label; b.style.cssText = BST; r.appendChild(b); }
       if (C.dlBtn && pm) addB('dl', C.dlLabel);
+      if (C.pip && pm) addB('float', C.floatLabel);
       if (C.pip && document.pictureInPictureEnabled !== false) addB('pip', C.pipLabel);
       r.querySelectorAll('button').forEach(function (b) {
         b.addEventListener('click', function (e) {
           e.preventDefault(); e.stopPropagation();
           if (!cur) return;
+          if (b.getAttribute('data-a') === 'float') { send('float:' + JSON.stringify({ page: location.href, time: cur.currentTime || 0, title: document.title || '' })); return; }
           if (b.getAttribute('data-a') === 'dl') { send('dl:' + JSON.stringify({ page: location.href, src: cur.currentSrc || cur.src || '', title: document.title || '' })); return; }
           if (document.pictureInPictureElement === cur) document.exitPictureInPicture().catch(function () {});
           else { try { cur.disablePictureInPicture = false; } catch (x) {} cur.requestPictureInPicture().catch(function () {}); }
@@ -234,6 +237,7 @@ try {
             msg = msg.Substring(prefix.Length);
             var core = tab.View.CoreWebView2;
             if (msg.StartsWith("dark:", StringComparison.Ordinal)) { if (_settings.DarkPatterns) HandleDarkPatterns(tab, msg.Substring(5)); return; }
+            if (msg.StartsWith("float:", StringComparison.Ordinal)) { HandleFloatRequest(tab, msg.Substring(6)); return; }
             if (msg.StartsWith("dl:", StringComparison.Ordinal)) { HandleVideoDownloadRequest(tab, msg.Substring(3)); return; }
             if (msg.StartsWith("fp:", StringComparison.Ordinal)) { HandleFingerprintReport(tab, msg.Substring(3)); return; }
             if (msg == "pip:1" || msg == "pip:0")

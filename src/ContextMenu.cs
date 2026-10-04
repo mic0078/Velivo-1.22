@@ -133,6 +133,9 @@ namespace Przegladarka
                     }
                     if (target.Kind == CoreWebView2ContextMenuTargetKind.Video || IsYoutubeLikeHost(MediaHost(pageUrl)))
                     {
+                        var flt = _env.CreateContextMenuItem(MenuText(L.T("▣ Film na wierzchu (małe okienko)")), GlyphIcon("\uE8A7"), CoreWebView2ContextMenuItemKind.Command);
+                        flt.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => FloatVideoFromTab(tabForBlock));
+                        add(flt);
                         var dlv = _env.CreateContextMenuItem(MenuText(L.T("⬇ Pobierz film…")), GlyphIcon("\uE896"), CoreWebView2ContextMenuItemKind.Command);
                         dlv.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => DownloadVideoFromPage(tabForBlock));
                         add(dlv);

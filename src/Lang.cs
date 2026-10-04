@@ -805,6 +805,11 @@ namespace Przegladarka
             { "Zmień folder…", "Change folder…" },
             { "Gdzie zapisać film?", "Where to save the video?" },
             { "Zapisz w:", "Save to:" },
+            { "Na wierzchu", "On top" },
+            { "▣ Film na wierzchu (małe okienko)", "▣ Video on top (small window)" },
+            { "Film na wierzchu", "Video on top" },
+            { "Zamknij film", "Close video" },
+            { "Wróć do karty (otwórz stronę w Velivo)", "Back to a tab (open the page in Velivo)" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

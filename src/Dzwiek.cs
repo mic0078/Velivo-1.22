@@ -270,8 +270,12 @@ namespace Przegladarka
             // przy wyjsciu z programu: zadnego pozostawionego przypisania glosnikow w Windows
             try { System.Windows.Application.Current.Exit += (s3, e3) => { if (!string.IsNullOrEmpty(_audioRoutedTo) && string.IsNullOrEmpty(_settings?.AudioOut)) RouteVelivoAudio(null); }; } catch (Exception) { }
             // nowe procesy silnika (np. usluga dzwieku startuje dopiero przy pierwszym dzwieku) dostaja to samo wyjscie
-            try { _env.ProcessInfosChanged += (s2, e2) => { if (!string.IsNullOrEmpty(_audioRoutedTo)) RouteVelivoAudio(_audioRoutedTo); }; } catch (Exception) { }
-            if (_settings != null && !string.IsNullOrEmpty(_settings.AudioOut)) { RouteVelivoAudio(_settings.AudioOut); _audioRoutedTo = _settings.AudioOut; }
+            try { _env.ProcessInfosChanged += (s2, e2) => RouteVelivoAudio(_audioRoutedTo); } catch (Exception) { }
+            // start: wybrane glosniki albo wyczyszczenie przypisania pozostawionego po awarii (inaczej Velivo
+            // gralby na stale np. na laptopie, bo Windows pamieta przypisanie dla aplikacji)
+            var start = _settings != null && !string.IsNullOrEmpty(_settings.AudioOut) ? _settings.AudioOut : "";
+            RouteVelivoAudio(start);
+            _audioRoutedTo = start;
         }
     }
 }

@@ -66,6 +66,7 @@ namespace Przegladarka
         static readonly HashSet<string> LanSettingsBlockedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "lanSync",
+            "audioOut",          // glosniki to urzadzenie konkretnego komputera
             "lanSyncSilent",
             "lanSyncKey",
             "quickAccessTab",

@@ -92,7 +92,7 @@ namespace Przegladarka
         // Tarcza: zadania zablokowane przez uBOL silnik zglasza jako net::ERR_BLOCKED_BY_CLIENT (blokada Velivo daje 403, wiec bez dubli)
         async Task HookUbolShield(BrowserTab tab, CoreWebView2 core)
         {
-            if (tab == null || core == null) return;
+            if (tab == null || core == null || (_settings != null && !_settings.UbolLite)) return;
             try
             {
                 var urls = new Dictionary<string, string>();
@@ -100,13 +100,13 @@ namespace Przegladarka
                 {
                     try
                     {
-                        using (var d = JsonDocument.Parse(e.ParameterObjectAsJson))
-                        {
-                            var id = d.RootElement.GetProperty("requestId").GetString();
-                            var url = d.RootElement.GetProperty("request").GetProperty("url").GetString();
-                            if (urls.Count > 3000) urls.Clear();
-                            urls[id] = url;
-                        }
+                        // szybko, bez parsowania calego zdarzenia (naglowki, stos wywolan) - strony z setkami zadan nie zwalniaja
+                        var j = e.ParameterObjectAsJson;
+                        var id = JsonField(j, "requestId");
+                        var url = JsonField(j, "url");
+                        if (id == null || url == null) return;
+                        if (urls.Count > 3000) urls.Clear();
+                        urls[id] = url.Length > 300 ? url.Substring(0, 300) : url;
                     }
                     catch (Exception) { }
                 };
@@ -146,6 +146,22 @@ namespace Przegladarka
                 AddTab("chrome-extension://" + ext.Id + "/dashboard.html");
             }
             catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // pierwsze wystapienie "pole":"wartosc" (w zdarzeniu requestWillBeSent pierwszy "url" to adres zadania)
+        static string JsonField(string json, string name)
+        {
+            var key = "\"" + name + "\":\"";
+            int i = json.IndexOf(key, StringComparison.Ordinal);
+            if (i < 0) return null;
+            i += key.Length;
+            var sb = new System.Text.StringBuilder();
+            for (; i < json.Length && json[i] != '"'; i++)
+            {
+                if (json[i] == '\\' && i + 1 < json.Length) { i++; sb.Append(json[i] == 'u' ? '?' : json[i]); if (json[i] == 'u') i += 4; }
+                else sb.Append(json[i]);
+            }
+            return sb.ToString();
         }
 
         async Task EnsureBundledUbolAsync()

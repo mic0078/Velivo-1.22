@@ -1434,7 +1434,7 @@ namespace Przegladarka
                                             }
                                             return;
                                         }
-                                        if (tab == null || tab.Private || _settings == null || !_settings.SavePasswords || host.Length == 0) return;
+                                        if (tab == null || _settings == null || !_settings.SavePasswords || host.Length == 0) return;   // takze w prywatnych - tylko po pytaniu
 
                                         EnsurePasswordVaultLoaded();
                                         string key = host + "|" + user.ToLowerInvariant();

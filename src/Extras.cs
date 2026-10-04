@@ -249,6 +249,8 @@ try {
                 return;
             }
             // okno modalne nie wewnatrz zdarzenia WebView2 - inaczej potrafi sie zablokowac
+            if (msg.StartsWith("affill:", StringComparison.Ordinal)) { _ = HandleAutofillRequest(tab, msg.Substring(7)); return; }
+            if (msg.StartsWith("afsave:", StringComparison.Ordinal)) { var pl = msg.Substring(7); Dispatcher.BeginInvoke(new Action(() => HandleAutofillSave(tab, pl))); return; }
             if (msg == "pwpick") { Dispatcher.BeginInvoke(new Action(() => { try { ShowPasswordPicker(tab); } catch (Exception ex) { App.LogError(ex); } })); return; }
             if (msg.StartsWith("pwcand:", StringComparison.Ordinal)) { _ = PromptSavePasswordPayload(tab, core, msg.Substring(7)); return; }
             if (msg == "cookie")

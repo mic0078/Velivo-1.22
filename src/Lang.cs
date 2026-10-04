@@ -343,7 +343,7 @@ namespace Przegladarka
             { "\n\nSzczegóły zapisano w pliku bledy.log w folderze danych.", "\n\nDetails were saved to bledy.log in the data folder." },
             { "Wykryto wypełniony formularz adresowy.", "A filled-in address form was detected." },
             { "Wykryto dane karty płatniczej.", "Payment card data was detected." },
-            { "\nZapisać lokalnie w szyfrowanej bazie offline Velivo?\n\nHasła nadal obsługuje Sejf.", "\nSave locally in Velivo's encrypted offline database?\n\nPasswords are still handled by Sejf." },
+            { "\nZapisać lokalnie w szyfrowanej bazie offline Velivo?\n\nKod CVC nigdy nie jest zapisywany.", "\nSave locally in Velivo's encrypted offline database?\n\nThe CVC code is never saved." },
             { "Autouzupełnianie", "Autofill" },
             { "Brak zapisanych danych autouzupelniania.", "No saved autofill data." },
             { "Usunac wszystkie zapisane adresy z lokalnej bazy autouzupelniania?", "Delete all saved addresses from the local autofill database?" },
@@ -837,6 +837,8 @@ namespace Przegladarka
             { "Szukaj konta (nazwa, adres albo e-mail):", "Search for an account (name, address or e-mail):" },
             { "Wybierz konto do wpisania", "Choose an account to fill in" },
             { "Zmieniono", "Changed" },
+            { "Wykryto dane konta bankowego.", "Bank account details detected." },
+            { "Konto bankowe", "Bank account" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

@@ -93,13 +93,21 @@ namespace Przegladarka
 
             // gorny pasek: tytul (przeciaganie okienka), zamkniecie; reszta to film
             var titleText = new TextBlock { Text = string.IsNullOrWhiteSpace(title) ? "Velivo" : title, Foreground = Brushes.White, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
-            var close = new Button { Content = "✕", Width = 28, Height = 22, Foreground = Brushes.White, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 12, Cursor = Cursors.Hand, ToolTip = L.T("Zamknij film") };
-            var back = new Button { Content = "↩", Width = 28, Height = 22, Foreground = Brushes.White, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 13, Cursor = Cursors.Hand, ToolTip = L.T("Wróć do karty (otwórz stronę w Velivo)") };
+            var close = new Button { Content = "\uE8BB", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), Padding = new Thickness(0), MinHeight = 0, Width = 28, Height = 22, Foreground = Brushes.White, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 12, Cursor = Cursors.Hand, ToolTip = L.T("Zamknij film") };
+            var back = new Button { Content = "\uE7A7", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), Padding = new Thickness(0), MinHeight = 0, Width = 28, Height = 22, Foreground = Brushes.White, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 13, Cursor = Cursors.Hand, ToolTip = L.T("Wróć do karty (otwórz stronę w Velivo)") };
+            // wlasny, ciemny wyglad przyciskow paska (wspolny styl okien Velivo jest jasny i za szeroki na ten pasek)
+            var barStyle = (Style)System.Windows.Markup.XamlReader.Parse(@"<Style TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+  <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
+    <Border x:Name='Bd' Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
+    <ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='Bd' Property='Background' Value='#33FFFFFF'/></Trigger></ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter></Style>");
+            close.Style = barStyle; back.Style = barStyle;
             WindowChrome.SetIsHitTestVisibleInChrome(close, true);
             WindowChrome.SetIsHitTestVisibleInChrome(back, true);
             // przypinka: zawsze na wierzchu albo zwykle okno (pod innymi, gdy klikniesz gdzie indziej)
-            var pinBtn = new Button { Width = 28, Height = 22, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 12, Cursor = Cursors.Hand,
+            var pinBtn = new Button { Padding = new Thickness(0), MinHeight = 0, Width = 28, Height = 22, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 12, Cursor = Cursors.Hand,
                 FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets") };
+            pinBtn.Style = barStyle;
             WindowChrome.SetIsHitTestVisibleInChrome(pinBtn, true);
             var bar = new DockPanel { Height = 24, Background = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)) };
             DockPanel.SetDock(close, Dock.Right); DockPanel.SetDock(back, Dock.Right); DockPanel.SetDock(pinBtn, Dock.Right);

@@ -469,6 +469,22 @@ The connection status is in Settings → **LAN diagnostics panel…**.
 - **Translation:** the whole page or a selection (Google Translate).
 - **Detect media to download** on a page (Velivo tools).
 
+### Cache on a RAM disk
+
+If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own tool), Velivo can keep its page cache there. **You don't need any external tools**, symlinks or moved folders, as you would with Chrome. Just pick the folder in Velivo's settings.
+
+1. Settings → **Junk folder (empty = in the browser profile)** → **Choose…** and pick a folder on the RAM disk, for example `R:\`.
+2. Save the settings and restart Velivo.
+3. Velivo creates a `Velivo-smieci` subfolder there and when cleaning up deletes **only its contents**, never anything else on the RAM disk.
+4. The "Delete junk on every browser start" option clears it on every start.
+
+**What you gain:**
+- cached pages load from RAM, which is faster than from disk;
+- your SSD gets fewer writes;
+- the cache disappears by itself when you turn the computer off, which is a bonus for privacy.
+
+**What it doesn't cover:** the graphics cache (`GPUCache`) is always kept by the Edge engine in the browser profile. This is an engine requirement, not Velivo's choice. The **Default** button in settings restores the normal location.
+
 ---
 
 ## 19. Keyboard shortcuts

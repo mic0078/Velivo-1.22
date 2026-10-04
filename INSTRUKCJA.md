@@ -470,6 +470,22 @@ Stan połączenia pokazuje Ustawienia → **Panel diagnostyczny LAN…**.
 - **Tłumaczenie:** całej strony albo zaznaczenia (Tłumacz Google).
 - **Wykrywanie mediów do pobrania** na stronie (Narzędzia Velivo).
 
+### Pamięć podręczna na RAM dysku
+
+Jeśli masz RAM dysk (na przykład ImDisk, SoftPerfect RAM Disk albo własne narzędzie), Velivo może trzymać na nim pamięć podręczną stron, czyli cache. **Nie potrzebujesz do tego żadnych zewnętrznych narzędzi**, dowiązań ani przenoszenia folderów, jak przy Chrome. Wystarczy wskazać folder w ustawieniach Velivo.
+
+1. Ustawienia → **Folder na śmieci (puste = w profilu przeglądarki)** → **Wybierz…** i wskaż folder na RAM dysku, na przykład `R:\`.
+2. Zapisz ustawienia i uruchom Velivo ponownie.
+3. Velivo utworzy tam podfolder `Velivo-smieci` i przy porządkach czyści **tylko jego zawartość**, nigdy nic innego z RAM dysku.
+4. Opcja „Usuwaj śmieci przy każdym uruchomieniu przeglądarki” czyści go przy każdym starcie.
+
+**Co to daje:**
+- strony z pamięci podręcznej wczytują się z pamięci RAM, czyli szybciej niż z dysku;
+- dysk SSD dostaje mniej zapisów;
+- po wyłączeniu komputera cache znika sam, co jest dodatkowym plusem dla prywatności.
+
+**Czego nie obejmuje:** pamięć podręczną grafiki (`GPUCache`) silnik Edge zawsze trzyma w profilu przeglądarki. To wymóg silnika, nie wybór Velivo. Przycisk **Domyślny** w ustawieniach przywraca zwykłą lokalizację.
+
 ---
 
 ## 19. Skróty klawiszowe
@@ -509,7 +525,7 @@ Każdą z tych rzeczy zrobisz też samą myszką: przyciskiem, gestem albo prawy
 | **Pobieranie** | Pytanie o miejsce zapisu, liczba połączeń (1–16) |
 | **Synchronizacja** | Włączenie LAN, parowanie, panel diagnostyczny |
 | **Profile** | Profile użytkowników |
-| **Dane** | Czyszczenie danych, folder na pliki tymczasowe |
+| **Dane** | Czyszczenie danych, folder na śmieci, czyli cache (także na RAM dysku – patrz rozdział 18) |
 
 ---
 

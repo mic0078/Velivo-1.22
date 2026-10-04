@@ -96,9 +96,13 @@ namespace Przegladarka
             var back = new Button { Content = "↩", Width = 28, Height = 22, Foreground = Brushes.White, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 13, Cursor = Cursors.Hand, ToolTip = L.T("Wróć do karty (otwórz stronę w Velivo)") };
             WindowChrome.SetIsHitTestVisibleInChrome(close, true);
             WindowChrome.SetIsHitTestVisibleInChrome(back, true);
+            // przypinka: zawsze na wierzchu albo zwykle okno (pod innymi, gdy klikniesz gdzie indziej)
+            var pinBtn = new Button { Width = 28, Height = 22, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 12, Cursor = Cursors.Hand,
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets") };
+            WindowChrome.SetIsHitTestVisibleInChrome(pinBtn, true);
             var bar = new DockPanel { Height = 24, Background = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)) };
-            DockPanel.SetDock(close, Dock.Right); DockPanel.SetDock(back, Dock.Right);
-            bar.Children.Add(close); bar.Children.Add(back); bar.Children.Add(titleText);
+            DockPanel.SetDock(close, Dock.Right); DockPanel.SetDock(back, Dock.Right); DockPanel.SetDock(pinBtn, Dock.Right);
+            bar.Children.Add(close); bar.Children.Add(back); bar.Children.Add(pinBtn); bar.Children.Add(titleText);
             var root = new DockPanel { Background = Brushes.Black };
             DockPanel.SetDock(bar, Dock.Top);
             root.Children.Add(bar); root.Children.Add(view);
@@ -107,7 +111,7 @@ namespace Przegladarka
             var win = new Window
             {
                 Title = (string.IsNullOrWhiteSpace(title) ? "" : title + " – ") + L.T("Film na wierzchu"),
-                Topmost = true, ShowInTaskbar = true, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize,
+                Topmost = _settings.FloatTopmost, ShowInTaskbar = true, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize,
                 MinWidth = 160, MinHeight = 90 + 24, Width = 480, Height = 270 + 24, Background = Brushes.Black, Content = root,
                 Icon = Icon,
             };
@@ -129,6 +133,14 @@ namespace Przegladarka
                 win.Top = SystemParameters.WorkArea.Bottom - win.Height - 24;
             }
             close.Click += (s, e) => win.Close();
+            Action showPin = () =>
+            {
+                pinBtn.Content = win.Topmost ? "\uE840" : "\uE718";   // przypiete / nieprzypiete
+                pinBtn.Foreground = win.Topmost ? new SolidColorBrush(Color.FromRgb(0x60, 0xA5, 0xFA)) : Brushes.White;
+                pinBtn.ToolTip = win.Topmost ? L.T("Zawsze na wierzchu: WŁĄCZONE – kliknij, aby okienko mogło schować się pod inne") : L.T("Zawsze na wierzchu: wyłączone – kliknij, aby przypiąć nad wszystkim");
+            };
+            showPin();
+            pinBtn.Click += (s, e) => { win.Topmost = !win.Topmost; _settings.FloatTopmost = win.Topmost; showPin(); };
             // kolko myszy na gornym pasku = przezroczystosc (15-100%)
             int alpha = Math.Max(15, Math.Min(100, _settings.FloatOpacity));
             win.SourceInitialized += (s, e) => SetWindowAlpha(win, alpha);

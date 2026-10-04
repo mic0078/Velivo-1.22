@@ -811,6 +811,8 @@ namespace Przegladarka
             { "Zamknij film", "Close video" },
             { "Wróć do karty (otwórz stronę w Velivo)", "Back to a tab (open the page in Velivo)" },
             { "Przeciągnij, aby przesunąć · kółko myszy: przezroczystość", "Drag to move · mouse wheel: transparency" },
+            { "Zawsze na wierzchu: WŁĄCZONE – kliknij, aby okienko mogło schować się pod inne", "Always on top: ON – click to let the window go behind others" },
+            { "Zawsze na wierzchu: wyłączone – kliknij, aby przypiąć nad wszystkim", "Always on top: off – click to pin above everything" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

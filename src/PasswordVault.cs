@@ -1129,10 +1129,15 @@ namespace Przegladarka
                         const r = anchor.getBoundingClientRect();
                         if (!r || !isFinite(r.top) || r.width < 2 || r.height < 2) { panel.style.display = 'none'; return; }
                         panel.style.display = 'inline-flex';
-                        const top = Math.max(8, r.top + (r.height - 28) / 2);
-                        const left = Math.min(window.innerWidth - 120, r.right - 112);
-                        panel.style.top = `${top}px`;
-                        panel.style.left = `${Math.max(8, left)}px`;
+                        const pw = panel.getBoundingClientRect().width || 112;
+                        const ph = panel.getBoundingClientRect().height || 28;
+                        // obok pola po prawej (nie na polu - tam bywaja ikony innych programow, np. sejfu);
+                        // gdy brak miejsca - pod polem
+                        let top, left;
+                        if (r.right + 6 + pw <= window.innerWidth - 6) { left = r.right + 6; top = r.top + (r.height - ph) / 2; }
+                        else { left = r.right - pw; top = r.bottom + 4; }
+                        panel.style.top = `${Math.max(6, Math.min(window.innerHeight - ph - 4, top))}px`;
+                        panel.style.left = `${Math.max(6, Math.min(window.innerWidth - pw - 6, left))}px`;
                     }
 
                     function refreshState(anchorEl){

@@ -173,11 +173,21 @@ namespace Przegladarka
                         double.TryParse(await view.CoreWebView2.ExecuteScriptAsync("(function(){var v=document.querySelector('video.velivo-film');return v?v.currentTime:0;})()"), NumberStyles.Float, CultureInfo.InvariantCulture, out now);
                 }
                 catch (Exception) { }
-                var url = view.CoreWebView2 != null ? view.CoreWebView2.Source : page;
-                AddTab(url, isPrivate);
-                if (now > 0) _tabs[_tabs.Count - 1].PendingVideoTime = now;
+                var url = view.CoreWebView2 != null && !string.IsNullOrEmpty(view.CoreWebView2.Source) ? view.CoreWebView2.Source : page;
+                // YouTube: miejsce filmu w adresie (dziala tez, gdy Velivo trzeba uruchomic od nowa)
+                if (now > 5 && (url.Contains("youtube.com/watch") || url.Contains("youtu.be/")))
+                {
+                    url = System.Text.RegularExpressions.Regex.Replace(url, @"([?&])t=[^&]*&?", "$1").TrimEnd('&', '?');
+                    url += (url.Contains("?") ? "&" : "?") + "t=" + (int)now + "s";
+                }
                 win.Close();
+                if (_mainClosed) { OpenFromOutside(new[] { url }); return; }   // glowne okno zamkniete - Velivo startuje od nowa z ta strona
+                AddTab(url, isPrivate);
+                if (now > 5) _tabs[_tabs.Count - 1].PendingVideoTime = now;
+                if (WindowState == WindowState.Minimized) WindowState = WindowState.Maximized;
+                Show();
                 Activate();
+                Topmost = true; Topmost = false;   // wyciagnij okno Velivo na wierzch
             };
             win.Closed += (s, e) =>
             {

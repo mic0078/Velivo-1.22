@@ -748,8 +748,10 @@ namespace Przegladarka
             var labels = target.Split('.');
             var brand = labels.Length > 1 ? labels[labels.Length - 2] : labels[0];
             if (brand.Length < 4) return false;
-            var identity = CompactPasswordIdentity((entry.Name ?? "") + " " + (entry.Url ?? "") + " " + (entry.Host ?? ""));
-            return identity.Contains(CompactPasswordIdentity(brand), StringComparison.Ordinal);
+            // cale slowo, nie fragment: "fender" nie moze pasowac do "bitdefender"
+            var words = ((entry.Name ?? "") + " " + (entry.Url ?? "") + " " + (entry.Host ?? ""))
+                .ToLowerInvariant();
+            return System.Text.RegularExpressions.Regex.Split(words, @"[^\p{L}\p{Nd}]+").Contains(brand.ToLowerInvariant());
         }
 
         void UpsertPassword(SavedPasswordEntry e)

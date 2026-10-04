@@ -38,7 +38,7 @@ Przeglądarka jest projektowana tak, żeby dało się ją w pełni obsłużyć s
 
 ## 1. Czym Velivo różni się od innych przeglądarek
 
-Chrome, Edge, Firefox i Opera **nie mają wbudowanych** poniższych funkcji. Do części z nich trzeba szukać osobnych dodatków, części nie da się zrobić wcale. W Velivo działają od razu, bez dodatków i bez konta.
+**Velivo wykracza poza granice obecnych przeglądarek.** Chrome, Edge, Firefox i Opera **nie mają wbudowanych** poniższych funkcji. Do części z nich trzeba szukać osobnych dodatków, części nie da się zrobić wcale. W Velivo działają od razu, bez dodatków i bez konta.
 
 | Funkcja | Co robi |
 | --- | --- |
@@ -51,6 +51,10 @@ Chrome, Edge, Firefox i Opera **nie mają wbudowanych** poniższych funkcji. Do 
 | **⬇ Pobieranie filmów jak w IDM** | Przycisk „Pobierz” nad każdym filmem, także na YouTube. Do wyboru jakość, MP3 albo M4A i folder. |
 | **🔊 „Czytaj od tego miejsca”** | Prawy przycisk na akapicie i Velivo czyta od tego zdania. |
 | **🌅 Tryb nocny z natężeniem** | Jak „Światło nocne” w Windows, regulowany kółkiem myszy. |
+| **🛡 Ochrona przed oszustwami bez internetu** | Rozpoznaje fałszywe strony banków, sklepów i portali (`paypa1.com`, `ebay-weryfikacja.top`, litery z innych alfabetów) oraz podróbki stron, do których masz zapisane hasła – zanim strona się otworzy. |
+| **💳 Bezpieczne płatności** | Na stronach banków i płatności okno Velivo staje się niewidoczne dla programów nagrywających ekran. |
+| **🔐 Hasła odporne na podróbki** | Hasło trafia wyłącznie do prawdziwej domeny. Strona nie może podmienić pomocnika, „kliknąć” za Ciebie ani wyłudzić danych ukrytym polem. |
+| **📥 Przeprowadzka z innej przeglądarki** | Zakładki z Chrome, Edge, Brave, Opery i Vivaldi odczytywane wprost; hasła z KeePassXC i innych przez CSV. |
 | **🖱 Gesty myszy i obsługa samą myszką** | Wstecz, dalej, nowa karta, zamknięcie, odświeżanie i powiększenie – bez klawiatury. |
 
 ---
@@ -253,6 +257,26 @@ Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy 
 3. Okienko **gra dalej po zamknięciu karty, a nawet całego Velivo.** Kliknięcie ikony Velivo uruchamia przeglądarkę od nowa.
 4. Miejsce, wielkość, przezroczystość i przypinka są zapamiętywane.
 
+**Czysty widok filmu.** Okienko pokazuje **sam film** na całą swoją powierzchnię – bez reszty strony: bez menu, komentarzy, podpowiedzi, okienek i banerów. Na YouTube wygląda to jak osobny odtwarzacz. Blokada reklam Velivo działa jak w karcie.
+
+**Do czego to się przydaje:**
+- muzyka lub podcast w małym, półprzezroczystym okienku w rogu ekranu, podczas pracy w innych programach;
+- mecz albo transmisja na żywo nad dokumentem lub arkuszem – ustaw widoczność 40–60%, a tekst pod spodem zostaje czytelny;
+- poradnik wideo obok programu, w którym wykonujesz kroki;
+- film gra nawet po zamknięciu Velivo, więc przeglądarka nie zajmuje pamięci.
+
+**Obsługa samą myszką (podsumowanie):**
+
+| Co | Jak |
+| --- | --- |
+| Pauza / wznowienie | klik na film |
+| Przezroczystość 15–100% | kółko myszy nad okienkiem |
+| Przesuwanie | ciemny pasek u góry |
+| Wielkość (od 160×90) | krawędź lub róg |
+| Zawsze na wierzchu | 📌 (niebieska = włączone) |
+| Powrót do strony w tym samym miejscu | ↩ |
+| Zamknięcie | ✕ |
+
 Przezroczystość wymaga Windows 10 w wersji 1809 lub nowszej, bo okienko używa składnika Windows do rysowania obrazu.
 
 ### ⧉ Obraz w obrazie
@@ -297,8 +321,16 @@ Standardowe okienko silnika przeglądarki. Gra dalej po zamknięciu karty, aż z
 | **🧾 Paragon prywatności** | Na górze okna tarczy: ile zewnętrznych firm, w ilu krajach, brokerzy danych, próby rozpoznania komputera (canvas, karta graficzna, dźwięk) i najczęstsze firmy |
 | **„Nie śledź”** | Wysyła sygnały DNT i Global Privacy Control |
 | **SmartScreen** | Ochrona Microsoft przed groźnymi stronami i plikami, pomijana na zaufanych domenach |
-| **Karty prywatne** | Osobne, izolowane dane, które znikają po zamknięciu |
+| **🛡 Wykrywanie podróbek** (bez internetu) | Przed otwarciem strony sprawdza, czy adres nie udaje banku, sklepu lub portalu: marka na obcej domenie (`paypal-secure-login.com`, `ebay.co.uk.konto.top`), literówki i podmienione znaki (`paypa1.com`, `rnicrosoft.com`, `amaz0n.com`), adresy `xn--` z literami z innych alfabetów i podróbki stron, do których masz zapisane hasła. Pokazuje ostrzeżenie z domyślną odpowiedzią „Nie”. Jeśli to prawdziwa strona, wybierz „Tak” – Velivo zapamięta ją |
+| **🔒 Zawsze HTTPS** | Każde połączenie najpierw szyfrowane. Strona bez szyfrowania otwiera się dopiero po ostrzeżeniu, żeby nie wpisywać tam haseł ani karty |
+| **💳 Bezpieczne płatności** | Na stronach banków i płatności (PayPal, Monzo, Revolut, Barclays, HSBC, Lloyds, NatWest, Santander, PKO, mBank, Stripe i inne) okno Velivo jest niewidoczne dla programów nagrywających ekran. Pojawia się komunikat 🛡. Na tych stronach nie zrobisz zrzutu ekranu |
+| **🔐 Hasła i formularze odporne na ataki** | Hasło tylko dla prawdziwej domeny; pomocnik Velivo niepodmienialny przez stronę; działają tylko prawdziwe kliknięcia myszą; ukryte pola nie są wypełniane; przed wpisaniem karty lub konta bankowego Velivo pyta; kod CVC nigdy nie jest zapisywany |
+| **Karty prywatne** | Osobne, izolowane dane, które znikają po zamknięciu. Hasła i formularze działają, a zapis – tylko po Twojej zgodzie |
 | **Czyszczenie danych** | Przy zamknięciu albo ręcznie w ustawieniach |
+
+Wszystkie przełączniki są w Ustawieniach → „Bezpieczeństwo i pobieranie”. Testy ataków są w repozytorium w `testy/bezpieczenstwo/`.
+
+**Uczciwie:** Velivo chroni w przeglądarce. Wirusy i programy szpiegujące w samym systemie wykrywa antywirus (np. Windows Defender lub Bitdefender) – zostaw go włączonego.
 
 ---
 
@@ -406,7 +438,12 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - **Import i eksport CSV**, na przykład z KeePassXC albo Chrome.
 - **Import z Chrome/Edge/Brave/Opery/Vivaldi** (Ustawienia → „Importuj z Chrome/Edge/Brave…”): zakładki Velivo odczytuje samo, z każdego profilu. Hasła przenosisz przez plik CSV: przycisk otwiera stronę eksportu haseł w tamtej przeglądarce, potem „Wczytaj plik CSV…”, a na koniec usuń plik CSV.
 - **Ważne:** zrób import, **zanim** odinstalujesz starą przeglądarkę. Po jej usunięciu zakładek nie da się odczytać, a haseł wyeksportować. Hasła z konta Google można też pobrać później ze strony passwords.google.com. Logowania do stron się nie przenoszą – zaloguj się raz w Velivo.
-- **Autouzupełnianie** adresów i kart w lokalnej, szyfrowanej bazie.
+- **Przyciski przy polu logowania:** obok pola, po prawej, pojawia się plakietka **🔑 Wpisz · ⚡ Generuj**:
+  - **🔑 Wpisz** pokazuje listę kont tej strony (nazwa i e-mail); klik wpisuje login i hasło. Na końcu listy jest **🔎 Inne konto z bazy Velivo…** – okno z wyszukiwarką całej bazy (np. logowanie kontem PreSonus na stronie Fendera). Okno pokazuje adres strony i ostrzega przed podróbkami;
+  - **⚡ Generuj** wpisuje silne, losowe hasło.
+- **Pytanie o zapis:** po kliknięciu „Zaloguj”, Enterze lub wysłaniu formularza Velivo pyta, czy zapisać lub zaktualizować hasło. Działa też w kartach prywatnych.
+- **Menedżer haseł:** wyszukiwarka, kopiowanie loginu i hasła, edycja, eksport. Wpisy z KeePassXC i telefonu bez adresu dostają domenę z tytułu lub linku aplikacji (`android://…`), a dwuklik otwiera stronę i wypełnia formularz.
+- **Autouzupełnianie** (lokalna, szyfrowana baza): **adres** (imię, nazwisko, ulica, kod, miasto, telefon, e-mail), **karta** (bez CVC) i **konto bankowe** (IBAN, numer konta, sort code). Klik w puste pole wypełnia cały formularz – na każdej stronie https. Kartę i konto Velivo wpisuje dopiero po potwierdzeniu adresu strony.
 
 ---
 

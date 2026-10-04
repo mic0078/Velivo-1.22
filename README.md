@@ -10,6 +10,8 @@ Dane między Twoimi komputerami przenosi synchronizacja w sieci lokalnej (LAN), 
 
 ## Czego nie znajdziesz w innych przeglądarkach
 
+**Velivo wykracza poza granice obecnych przeglądarek** – także w ochronie: wykrywa fałszywe strony banków i sklepów bez internetu, ukrywa okno przed nagrywaniem ekranu przy płatnościach, a hasła podaje wyłącznie prawdziwym stronom.
+
 Popularne przeglądarki (Chrome, Edge, Firefox, Opera) nie mają tych funkcji wbudowanych, a w Velivo działają od razu, bez dodatków i bez konta:
 
 - **▣ Film na wierzchu** – własne okienko z filmem, które zmniejszysz prawie do znaczka (od 160×90), ustawisz **przezroczystość kółkiem myszy** (15–100%), przypniesz **zawsze na wierzchu** albo pozwolisz mu schować się pod inne okna. Gra dalej po zamknięciu karty, **a nawet całej przeglądarki**; przycisk ↩ wraca do strony w Velivo od tego samego miejsca.

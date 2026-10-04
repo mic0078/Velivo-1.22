@@ -12,6 +12,8 @@ The interface is available in **Polish and English**. The installer asks for the
 
 ## What no other browser has
 
+**Velivo goes beyond the limits of today's browsers** – in protection too: it detects fake bank and shop sites offline, hides the window from screen recording during payments, and gives passwords only to the real sites.
+
 Popular browsers (Chrome, Edge, Firefox, Opera) don't have these features built in – in Velivo they work right away, with no add-ons and no account:
 
 - **▣ Video on top** – Velivo's own video window you can shrink almost to an icon (from 160×90), make **transparent with the mouse wheel** (15–100%), pin **always on top** or let it go behind other windows. It keeps playing after you close the tab **and even the whole browser**; the ↩ button brings the page back into Velivo at the same moment.

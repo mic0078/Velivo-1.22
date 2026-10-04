@@ -77,7 +77,14 @@ namespace Przegladarka
   var seeked=false;
   function fix(){ var v=big(); if(!v) return; if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
     if(!seeked && v.readyState>0){ seeked=true; if(t>3 && Math.abs(v.currentTime-t)>3) try{v.currentTime=t;}catch(e){} }
-    if(v.paused && !v.__velivoUserPaused) v.play().catch(function(){}); }
+    if(v.paused && !v.__velivoUserPaused) playIt(v);
+    // straznik zawieszenia: film ma grac, a czas stoi (np. Omnisphere zresetowal karte dzwiekowa) - odblokuj
+    if(!v.paused && !v.ended && !v.__velivoUserPaused && v.readyState>0){ if(Math.abs(v.currentTime-(v.__vLast||-1))<0.05){ v.__vStuck=(v.__vStuck||0)+1; if(v.__vStuck>=4){ v.__vStuck=0; unstick(v); } } else v.__vStuck=0; v.__vLast=v.currentTime; } }
+  // YouTube ma wlasny odtwarzacz - wznawiamy przez niego, inaczej po bledzie dzwieku zostaje zawieszony
+  function yt(){ var mp=document.getElementById('movie_player'); return mp && typeof mp.playVideo==='function' ? mp : null; }
+  function playIt(v){ var mp=yt(); try{ if(mp){ mp.playVideo(); return; } }catch(e){} v.play().catch(function(){}); }
+  function unstick(v){ var mp=yt(); try{ if(mp && mp.seekTo){ mp.seekTo(mp.getCurrentTime ? mp.getCurrentTime() : v.currentTime, true); mp.playVideo(); return; } }catch(e){}
+    try{ var t0=v.currentTime; v.pause(); v.currentTime=t0; v.play().catch(function(){}); }catch(e){} }
   document.addEventListener('pause', function(e){ if(e.target && e.target.tagName==='VIDEO' && e.isTrusted && document.hasFocus()) e.target.__velivoUserPaused=true; }, true);
   document.addEventListener('play', function(e){ if(e.target && e.target.tagName==='VIDEO') e.target.__velivoUserPaused=false; }, true);
   fix(); setInterval(fix, 1000);
@@ -107,7 +114,7 @@ namespace Przegladarka
   if (!window.__velivoWheel && window.chrome && chrome.webview) { window.__velivoWheel = 1; addEventListener('wheel', function(e){ e.preventDefault(); e.stopPropagation();
     if (bar && bar.contains(e.target)) { var v=big(); if(v&&isFinite(v.duration)){ v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+(e.deltaY<0?5:-5))); show(); } return; }
     chrome.webview.postMessage('velivo-float-wheel:' + (e.deltaY < 0 ? 1 : -1)); }, { passive: false, capture: true }); }
-  document.addEventListener('click', function(e){ if(bar && bar.contains(e.target)) return; var v=big(); if(!v) return; e.preventDefault(); e.stopPropagation(); if(v.paused){ v.play(); } else { v.pause(); } }, true);
+  document.addEventListener('click', function(e){ if(bar && bar.contains(e.target)) return; var v=big(); if(!v) return; e.preventDefault(); e.stopPropagation(); if(v.paused){ v.__velivoUserPaused=false; playIt(v); } else { var mp=yt(); try{ if(mp&&mp.pauseVideo){ mp.pauseVideo(); } else v.pause(); }catch(x){ v.pause(); } v.__velivoUserPaused=true; } }, true);
 })";
 
         void ShowFloatingVideo(string page, double time, string title, bool isPrivate)

@@ -206,7 +206,7 @@ namespace Przegladarka
                 if (DateTime.UtcNow - _audioChangedAt > TimeSpan.FromSeconds(8)) continue;
                 try
                 {
-                    _ = t.View.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('video,audio').forEach(function(m){ if(m.paused && !m.ended && m.currentTime > 0 && !m.__velivoUserPaused) m.play().catch(function(){}); });");
+                    _ = t.View.CoreWebView2.ExecuteScriptAsync("(function(){ var mp=document.getElementById('movie_player'); document.querySelectorAll('video,audio').forEach(function(m){ if(m.paused && !m.ended && m.currentTime > 0 && !m.__velivoUserPaused){ try{ if(mp && mp.playVideo && mp.contains(m)){ mp.playVideo(); return; } }catch(e){} m.play().catch(function(){}); } }); })();");
                 }
                 catch (Exception) { }
             }

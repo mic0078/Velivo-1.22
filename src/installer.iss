@@ -119,11 +119,17 @@ Type: files; Name: "{app}\unins*.old-*"
 function HasDesktopRuntime10: Boolean;
 var FindRec: TFindRec;
 begin
+  // potrzebne OBA skladniki: Microsoft.NETCore.App i Microsoft.WindowsDesktop.App w wersji 10
+  // (sam WindowsDesktop bez NETCore konczyl sie bledem "You must install or update .NET")
   Result := False;
   if FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App\10.*'), FindRec) then
   begin
-    Result := True;
     FindClose(FindRec);
+    if FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.NETCore.App\10.*'), FindRec) then
+    begin
+      Result := True;
+      FindClose(FindRec);
+    end;
   end;
 end;
 

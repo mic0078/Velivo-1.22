@@ -14,6 +14,9 @@
 <h3 align="center">Przeglądarka, która wykracza poza granice obecnych przeglądarek.</h3>
 
 <p align="center">
+  ⚡ <b>Błyskawicznie szybka</b> i lekka – sam program to ok. 50–80 MB pamięci, strony bez reklam ładują się szybciej<br>
+  🎨 <b>Piękny, nowoczesny wygląd</b> jak Windows 11 – 10 motywów, tryb ciemny i nocny<br>
+  🧩 <b>Lekkie, wbudowane dodatki</b> – bez szukania w sklepie i bez spowalniania<br>
   🎬 Film w przezroczystym okienku nad wszystkim – gra nawet po zamknięciu przeglądarki<br>
   🛡 Wbudowany uBlock Origin Lite i wykrywanie fałszywych stron banków bez internetu<br>
   🔐 Hasła trafiają tylko do prawdziwych stron · 💳 bezpieczne płatności<br>

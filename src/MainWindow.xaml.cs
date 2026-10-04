@@ -42,6 +42,9 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Pinned;
+            public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
+            public bool Mobile;          // strona w wersji telefonu
+            public string DesktopUA;
             public readonly Dictionary<string, int> ThirdParties = new Dictionary<string, int>();   // paragon prywatnosci
             public readonly Dictionary<string, int> Fingerprint = new Dictionary<string, int>();
             public readonly List<string> Pressure = new List<string>();   // sztuczki presji w sklepie
@@ -52,7 +55,8 @@ namespace Przegladarka
             public System.Windows.Threading.DispatcherTimer RefreshTimer;
             public int RefreshMinutes;
             public TabGroup Group;
-            public string PageScriptId;   // wspolny skrypt stron (ciasteczka, gesty, obraz w obrazie)
+            public string PageScriptId;
+            public string HideScriptId;   // ukrywanie chrome.webview - zawsze PO skrypcie stron   // wspolny skrypt stron (ciasteczka, gesty, obraz w obrazie)
             public DateTime NewTabIntentAt;   // ostatni Ctrl+klik / srodkowy klik na linku
             public string PinnedUrl;     // adres zamrozony przy przypieciu - do niego karta wraca po uruchomieniu          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
             public Button CloseBtn;
@@ -102,7 +106,7 @@ namespace Przegladarka
             Closing += ConfirmCloseWithDownloads;        // trwa pobieranie? zapytaj i wstrzymaj
             Closing += (s, e) => { if (!e.Cancel) SaveSession(); }; // karty do przywrocenia przy nastepnym starcie
             Closing += OnClosingCleanup;
-            Closed += (s, e) => { StopMost(); StopLanSync(); };
+            Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); };
             LoadJobs(); // lista pobran z poprzedniego uruchomienia (przerwane mozna wznowic)
             LoadZoom();
             InitZoomMenu();
@@ -386,7 +390,7 @@ namespace Przegladarka
                 "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button===1||e.ctrlKey||e.shiftKey||e.metaKey){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(a)pm('velivo:nowa-karta');}},true);}catch(x){}})();");
             core.WebMessageReceived += (s, e) => { try { HandlePageMessage(tab, e.TryGetWebMessageAsString()); } catch (Exception) { } };
             await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
-            await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
+            tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
             if (!_extensionsLoaded)
             {
@@ -412,6 +416,7 @@ namespace Przegladarka
                     return;
 
                 RecordThirdParty(tab, requestUri);   // paragon prywatnosci - takze proby zablokowane
+                ApplyMobileHeaders(tab, e);          // strona w wersji telefonu
                 if (ApplyPrivacyRulesToRequest(e, tab)) return;
                 // zaufana domena (strona albo zasob) - nic nie blokujemy
                 if (IsTrustedUrl(e.Request.Uri) || IsTrustedUrl(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null))
@@ -449,6 +454,7 @@ namespace Przegladarka
                 core.Settings.IsWebMessageEnabled = true;   // zmiana dziala dopiero od nastepnej nawigacji - wiec stale wlaczone; odbiorca sprawdza nadawce (IsQuickAccessUrl)
                 core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri) && !IsTrustedUrl(e.Uri);
                 if (tab == _current) UpdateTrackingLevel(e.Uri);
+                ApplyMobileMode(tab, core, e.Uri);
                 // nowa karta przegladarki (np. chrome.tabs.create bez adresu) -> strona nowej karty z dodatku
                 if (IsInternalNewTabUrl(e.Uri))
                 {
@@ -719,6 +725,7 @@ namespace Przegladarka
                 t.Header.Background = t.Private
                     ? new SolidColorBrush(on ? Color.FromRgb(0x4C, 0x1D, 0x95) : Color.FromRgb(0x6D, 0x28, 0xD9))
                     : (on ? ActiveTabBrush : Brushes.Transparent);
+                ModernTabLook(t, on);
             }
         }
 
@@ -823,7 +830,7 @@ namespace Przegladarka
         void CloseTab(BrowserTab tab)
         {
             StopPasswordCapture(tab.View.CoreWebView2);
-            bool busy = HasActiveDownloads(tab.View.CoreWebView2);
+            bool busy = HasActiveDownloads(tab.View.CoreWebView2) || tab.InPip;   // okienko obrazu w obrazie gra dalej po zamknieciu karty
             if (tab.Private && busy)
             {
                 CancelEngineDownloads(tab.View.CoreWebView2);
@@ -856,11 +863,13 @@ namespace Przegladarka
             if (tab == _current) SelectTab(_tabs[Math.Min(idx, _tabs.Count - 1)]);
         }
 
+        readonly HashSet<WebView2> _pipViews = new HashSet<WebView2>();
+
         void ReleaseParkedViews()
         {
             foreach (var v in _parkedViews.ToList())
             {
-                if (HasActiveDownloads(v.CoreWebView2)) continue;
+                if (HasActiveDownloads(v.CoreWebView2) || _pipViews.Contains(v)) continue;
                 _parkedViews.Remove(v);
                 Host.Children.Remove(v);
                 try { v.Dispose(); } catch (Exception) { }
@@ -1011,6 +1020,7 @@ namespace Przegladarka
             AdIcon.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x15, 0x80, 0x3D)) : new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C));
             AdCounter.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x14, 0x53, 0x2D)) : new SolidColorBrush(Color.FromRgb(0x7F, 0x1D, 0x1D));
             AdToggle.Background = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0xDC, 0xFC, 0xE7)) : new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
+            ModernShield();
             AdToggle.ToolTip = L.En
                 ? "Blocked on this page: " + here + " (total " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " rules. Click to see the list."
                 : "Zablokowane na tej stronie: " + here + " (razem " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby zobaczyć listę.";

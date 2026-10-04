@@ -37,11 +37,27 @@ namespace Przegladarka
     return best || document.body;
   };
   const visible = el => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
-  const SKIP = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, [aria-hidden=true], .ad, .ads, .advert, .share, .social, .related, .comments';
+  // smieci stron: menu, reklamy, 'czytaj tez', polecane, komentarze, newslettery, podpisy zdjec, paski udostepniania
+  const JUNK_SEL = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, [aria-hidden=true], [hidden], ' +
+    '.ad, .ads, .advert, .share, .social, .related, .comments, [class*=related i], [class*=recommend i], [class*=polecam i], [class*=promo i], ' +
+    '[class*=newsletter i], [class*=cookie i], [class*=consent i], [class*=comment i], [id*=comment i], [class*=sponsor i], [class*=advert i], ' +
+    '[class*=reklam i], [class*=breadcrumb i], [class*=share i], [class*=social i], [class*=paywall i], [class*=subscribe i], [class*=author-box i], ' +
+    '[class*=tags i], [class*=see-also i], [class*=read-more i], [class*=readmore i], [id*=taboola i], [class*=taboola i], [class*=outbrain i]';
+  const JUNK_TXT = /^(czytaj (też|także|również|więcej|dalej)|zobacz (też|także|również|wideo|więcej)|polecamy|polecane|reklama|artykuł sponsorowany|materiał (sponsorowany|partnera)|advertisement|sponsored|tagi:|tags:|źródło:|fot\.|foto:|zdjęcie:|autor zdjęcia|udostępnij|share|subskrybuj|zapisz się|newsletter|komentarze|dodaj komentarz|dołącz do|pobierz aplikację|obserwuj nas|kup teraz|więcej na ten temat|read more|related|see also|follow us)/i;
+  const junk = (el, root) => {
+    for (let e = el; e && e !== root; e = e.parentElement) if (e.matches && e.matches(JUNK_SEL)) return true;
+    const t = (el.innerText || '').trim();
+    if (JUNK_TXT.test(t)) return true;
+    // blok zlozony glownie z linkow = nawigacja albo lista 'polecane'
+    let links = 0; for (const a of el.querySelectorAll('a')) links += (a.innerText || '').length;
+    if (t.length > 0 && t.length < 300 && links / t.length > 0.6) return true;
+    if (t.length < 60 && t === t.toUpperCase() && /[A-ZĄĆĘŁŃÓŚŹŻ]{4}/.test(t)) return true;   // krzyczace etykiety (ZOBACZ, REKLAMA)
+    return false;
+  };
   const collect = root => {
     const out = [];
     for (const el of root.querySelectorAll('h1, h2, h3, h4, p, li, blockquote, dd, figcaption, td')) {
-      if (el.closest(SKIP) && !root.matches(SKIP)) continue;
+      if (junk(el, root)) continue;
       if (el.querySelector('p, li, h1, h2, h3, h4, blockquote')) continue; // tylko najglebsze bloki
       const t = el.innerText.replace(/\s+/g, ' ').trim();
       if (t.length < 2 || !visible(el)) continue;
@@ -259,6 +275,7 @@ namespace Przegladarka
             ReadRateBtn.Content = _settings.ReadRate.ToString("0.##", CultureInfo.GetCultureInfo("pl-PL")) + "×";
             ReadBtn.Content = !reading ? "" : (paused ? "" : ""); // glosnik / odtworz / pauza
             if (!reading) ReadBtn.ToolTip = L.T("Czytaj stronę na głos (Ctrl+Shift+U)\nZaznacz tekst, aby przeczytać tylko fragment");
+            UpdateModernReadButtons();
         }
 
         async void ReadBtn_Click(object sender, RoutedEventArgs e)

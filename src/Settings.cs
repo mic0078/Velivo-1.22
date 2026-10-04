@@ -41,12 +41,19 @@ namespace Przegladarka
         public string CacheDir = "";           // wlasny folder na smieci (pusty = w profilu)
         public bool CleanJunkOnStart = false;  // usuwaj smieci przy kazdym uruchomieniu
         public bool BlockThirdPartyPopups = true;
+        public string UiStyle = "modern";
+        public int NightStrength = 40;          // natezenie trybu nocnego (5-100%)     // wyglad: modern (nowoczesny) / colorful (kolorowy)
         public bool AutoRejectCookies = true;
         public bool PageMemory = true;          // "Gdzie ja to czytalem?" - lokalna pamiec tresci stron
         public bool DarkPatterns = true;        // wykrywacz sztuczek presji w sklepach
         public bool PrivacyReceipt = true;      // paragon prywatnosci na tarczy   // samo klika "Odrzuc" / "Tylko niezbedne" na banerach zgod
         public bool MouseGestures = true;       // prawy przycisk + ruch myszy
-        public bool PipButton = true;           // przycisk "obraz w obrazie" nad filmami
+        public bool PipButton = true;
+        public bool VideoDownloadButton = true;
+        public string VideoDir = "";
+        public string FloatBounds = "";
+        public int FloatOpacity = 100;
+        public bool FloatTopmost = true;       // okienko filmu zawsze na wierzchu         // przezroczystosc okienka "film na wierzchu" (15-100%)      // miejsce i wielkosc okienka "film na wierzchu"          // ostatnio wybrany folder na filmy  // przycisk "Pobierz" nad filmami           // przycisk "obraz w obrazie" nad filmami
         public bool LanSync = true;            // bez sparowania dziala tryb zgodnosci (bez hasel); hasla tylko po sparowaniu
         public string LanSyncKey = "";
         public bool LanSyncSilent = false;     // bez dymkow przy automatycznym sync
@@ -135,11 +142,18 @@ namespace Przegladarka
                         case "language": s.Language = v; break;
                         case "popups": s.BlockThirdPartyPopups = b; break;
                         case "cookieReject": s.AutoRejectCookies = b; break;
+                        case "nightStrength": { int ns; if (int.TryParse(v, out ns)) s.NightStrength = Math.Max(5, Math.Min(100, ns)); } break;
+                        case "uiStyle": s.UiStyle = v == "colorful" ? "colorful" : "modern"; break;
                         case "pageMemory": s.PageMemory = b; break;
                         case "darkPatterns": s.DarkPatterns = b; break;
                         case "privacyReceipt": s.PrivacyReceipt = b; break;
                         case "gestures": s.MouseGestures = b; break;
                         case "pipBtn": s.PipButton = b; break;
+                        case "videoDlBtn": s.VideoDownloadButton = b; break;
+                        case "videoDir": s.VideoDir = v; break;
+                        case "floatBounds": s.FloatBounds = v; break;
+                        case "floatTop": s.FloatTopmost = b; break;
+                        case "floatOpacity": { int fo; if (int.TryParse(v, out fo)) s.FloatOpacity = Math.Max(15, Math.Min(100, fo)); } break;
                         case "cacheDir": s.CacheDir = v; break;
                         case "cleanJunk": s.CleanJunkOnStart = b; break;
                         case "lanSync": s.LanSync = b; lanSyncOverride = b; break;
@@ -199,7 +213,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "askDownload=" + B(AskDownload),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
@@ -318,6 +332,13 @@ namespace Przegladarka
             // podglad na zywo przy wyborze
             theme.SelectionChanged += (a, b) => { if (theme.SelectedItem is ComboBoxItem ci) { _settings.Theme = (string)ci.Tag; ApplyBrowserTheme(); } };
             root.Children.Add(theme);
+            root.Children.Add(new TextBlock { Text = L.T("Styl wyglądu:"), Margin = new Thickness(0, 6, 0, 2) });
+            var styleBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
+            styleBox.Items.Add(new ComboBoxItem { Content = L.T("Nowoczesny (spokojny, jak Windows 11)"), Tag = "modern" });
+            styleBox.Items.Add(new ComboBoxItem { Content = L.T("Kolorowy (kolorowe przyciski)"), Tag = "colorful" });
+            styleBox.SelectedIndex = s.UiStyle == "colorful" ? 1 : 0;
+            styleBox.SelectionChanged += (a, b) => { _settings.UiStyle = (string)((ComboBoxItem)styleBox.SelectedItem).Tag; ApplyUiStyle(); };
+            root.Children.Add(styleBox);
             root.Children.Add(new TextBlock { Text = L.T("Język interfejsu / Language:"), Margin = new Thickness(0, 6, 0, 2) });
             var langBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
             foreach (var opt in new[] { new[] { "auto", L.T("Automatycznie (język z instalatora / Windows)") }, new[] { "pl", "Polski" }, new[] { "en", "English" } })
@@ -375,7 +396,8 @@ namespace Przegladarka
             root.Children.Add(kwBtn);
             var gestures = Check(L.T("Gesty myszy (prawy przycisk + ruch)"), L.T("Przytrzymaj prawy przycisk i przesuń: ← wstecz, → dalej, ↑ nowa karta, ↓ zamknij kartę, ↓→ odśwież. Zwykły prawy klik otwiera menu jak zawsze."), s.MouseGestures);
             var pipBtn = Check(L.T("Przycisk „Obraz w obrazie” nad filmami"), L.T("Po najechaniu myszką na film pojawia się przycisk ⧉ – film przechodzi do małego okienka zawsze na wierzchu."), s.PipButton);
-            root.Children.Add(gestures); root.Children.Add(pipBtn);
+            var dlBtnBox = Check(L.T("Przycisk „Pobierz” nad filmami"), L.T("Jak Internet Download Manager: po najechaniu na film pojawia się ⬇ Pobierz. Zwykłe pliki pobiera menedżer Velivo (do 16 połączeń), YouTube i strumienie – darmowe narzędzie yt-dlp."), s.VideoDownloadButton);
+            root.Children.Add(gestures); root.Children.Add(pipBtn); root.Children.Add(dlBtnBox);
             root.Children.Add(new TextBlock { Text = L.T("Strona startowa:") });
             var home = new TextBox { Text = s.Home, Padding = new Thickness(4), Margin = new Thickness(0, 2, 0, 0) };
             root.Children.Add(home);
@@ -680,8 +702,8 @@ namespace Przegladarka
                 s.SavePasswords = pw.IsChecked == true; s.Autofill = af.IsChecked == true;
                 s.BlockThirdPartyPopups = pop.IsChecked == true;
                 bool scriptsChanged = s.AutoRejectCookies != (cookieRej.IsChecked == true) || s.MouseGestures != (gestures.IsChecked == true) || s.PipButton != (pipBtn.IsChecked == true)
-                    || s.DarkPatterns != (darkP.IsChecked == true) || s.PrivacyReceipt != (receiptBox.IsChecked == true);
-                s.PageMemory = memory.IsChecked == true; s.DarkPatterns = darkP.IsChecked == true; s.PrivacyReceipt = receiptBox.IsChecked == true;
+                    || s.DarkPatterns != (darkP.IsChecked == true) || s.VideoDownloadButton != (dlBtnBox.IsChecked == true) || s.PrivacyReceipt != (receiptBox.IsChecked == true);
+                s.PageMemory = memory.IsChecked == true; s.VideoDownloadButton = dlBtnBox.IsChecked == true; s.DarkPatterns = darkP.IsChecked == true; s.PrivacyReceipt = receiptBox.IsChecked == true;
                 s.AutoRejectCookies = cookieRej.IsChecked == true; s.MouseGestures = gestures.IsChecked == true; s.PipButton = pipBtn.IsChecked == true;
                 if (scriptsChanged) RefreshPageScripts();
                 s.SmartScreen = ss.IsChecked == true; s.AskDownload = ask.IsChecked == true;

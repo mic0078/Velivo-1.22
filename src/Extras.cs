@@ -65,6 +65,9 @@ namespace Przegladarka
                 gestures = _settings.MouseGestures,
                 pip = _settings.PipButton,
                 pipLabel = L.T("Obraz w obrazie"),
+                dlBtn = _settings.VideoDownloadButton,
+                dlLabel = L.T("Pobierz"),
+                floatLabel = L.T("Na wierzchu"),
                 dark = _settings.DarkPatterns,
                 receipt = _settings.PrivacyReceipt,
             });
@@ -154,20 +157,34 @@ try {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
   }
 
-  // ---------- przycisk ""obraz w obrazie"" nad filmem ----------
-  if (C.pip && document.pictureInPictureEnabled !== false) {
+  // obraz w obrazie: program musi wiedziec, zeby zamkniecie karty nie zamykalo okienka z filmem
+  if (top) {
+    document.addEventListener('enterpictureinpicture', function () { send('pip:1'); }, true);
+    document.addEventListener('leavepictureinpicture', function () { send('pip:0'); }, true);
+  }
+  // ---------- przyciski nad filmem: ""obraz w obrazie"" i ""pobierz"" ----------
+  if (C.pip || C.dlBtn) {
     var btn = null, cur = null, hideT = 0, last = 0;
+    var BST = 'all:initial;cursor:pointer;background:rgba(17,24,39,.82);color:#fff;font:600 13px Segoe UI,sans-serif;padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.4);margin-left:6px';
     function mk() {
       var h = document.createElement('div');
       h.style.cssText = 'position:fixed;z-index:2147483647;display:none;';
       var r = h.attachShadow({ mode: 'closed' });
-      r.innerHTML = '<button title=""' + C.pipLabel + '"" style=""all:initial;cursor:pointer;background:rgba(17,24,39,.82);color:#fff;font:600 13px Segoe UI,sans-serif;padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.4)"">⧉ ' + C.pipLabel + '</button>';
-      r.querySelector('button').addEventListener('click', function (e) {
-        e.preventDefault(); e.stopPropagation();
-        if (!cur) return;
-        if (document.pictureInPictureElement === cur) document.exitPictureInPicture().catch(function () {});
-        else { try { cur.disablePictureInPicture = false; } catch (x) {} cur.requestPictureInPicture().catch(function () {}); }
-      }, true);
+      // bez innerHTML - YouTube (Trusted Types) blokuje wstawianie HTML z tekstu
+      function addB(a, label) { var b = document.createElement('button'); b.setAttribute('data-a', a); b.title = label; b.textContent = (a === 'dl' ? '⬇ ' : a === 'float' ? '▣ ' : '⧉ ') + label; b.style.cssText = BST; r.appendChild(b); }
+      if (C.dlBtn && pm) addB('dl', C.dlLabel);
+      if (C.pip && pm) addB('float', C.floatLabel);
+      if (C.pip && document.pictureInPictureEnabled !== false) addB('pip', C.pipLabel);
+      r.querySelectorAll('button').forEach(function (b) {
+        b.addEventListener('click', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          if (!cur) return;
+          if (b.getAttribute('data-a') === 'float') { send('float:' + JSON.stringify({ page: location.href, time: cur.currentTime || 0, title: document.title || '' })); return; }
+          if (b.getAttribute('data-a') === 'dl') { send('dl:' + JSON.stringify({ page: location.href, src: cur.currentSrc || cur.src || '', title: document.title || '' })); return; }
+          if (document.pictureInPictureElement === cur) document.exitPictureInPicture().catch(function () {});
+          else { try { cur.disablePictureInPicture = false; } catch (x) {} cur.requestPictureInPicture().catch(function () {}); }
+        }, true);
+      });
       (document.documentElement || document.body).appendChild(h);
       return h;
     }
@@ -183,7 +200,8 @@ try {
       cur = hit;
       if (!btn) btn = mk();
       var rr = hit.getBoundingClientRect();
-      btn.style.left = Math.max(0, rr.right - 150) + 'px'; btn.style.top = Math.max(0, rr.top + 10) + 'px'; btn.style.display = 'block';
+      btn.style.display = 'block';
+      btn.style.left = Math.max(0, rr.right - btn.getBoundingClientRect().width - 12) + 'px'; btn.style.top = Math.max(0, rr.top + 10) + 'px';
     }, true);
   }
 } catch (x) {}";
@@ -195,6 +213,12 @@ try {
             {
                 if (tab.PageScriptId != null) { core.RemoveScriptToExecuteOnDocumentCreated(tab.PageScriptId); tab.PageScriptId = null; }
                 tab.PageScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageScript());
+                // skrypt stron musi dzialac PRZED ukryciem chrome.webview (inaczej przyciski Pobierz/gesty nie maja kanalu do programu)
+                if (tab.HideScriptId != null)
+                {
+                    core.RemoveScriptToExecuteOnDocumentCreated(tab.HideScriptId);
+                    tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
+                }
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -213,7 +237,17 @@ try {
             msg = msg.Substring(prefix.Length);
             var core = tab.View.CoreWebView2;
             if (msg.StartsWith("dark:", StringComparison.Ordinal)) { if (_settings.DarkPatterns) HandleDarkPatterns(tab, msg.Substring(5)); return; }
+            if (msg.StartsWith("float:", StringComparison.Ordinal)) { HandleFloatRequest(tab, msg.Substring(6)); return; }
+            if (msg.StartsWith("dl:", StringComparison.Ordinal)) { HandleVideoDownloadRequest(tab, msg.Substring(3)); return; }
             if (msg.StartsWith("fp:", StringComparison.Ordinal)) { HandleFingerprintReport(tab, msg.Substring(3)); return; }
+            if (msg == "pip:1" || msg == "pip:0")
+            {
+                tab.InPip = msg == "pip:1";
+                if (tab.InPip) _pipViews.Add(tab.View); else _pipViews.Remove(tab.View);
+                // karta byla juz zamknieta, a uzytkownik zamknal okienko - dopiero teraz zwalniamy film
+                if (!tab.InPip && !_tabs.Contains(tab)) ReleaseParkedViews();
+                return;
+            }
             if (msg == "cookie")
             {
                 NoteBlocked(tab, L.T("Ciasteczka"), (core != null ? core.Source : "") + L.T("  (baner zgody odrzucony)"));

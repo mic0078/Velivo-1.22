@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
@@ -89,8 +89,26 @@ namespace Przegladarka
             });
         }
 
+        bool _mainClosed;   // okno zamkniete, a "film na wierzchu" jeszcze gra - proces zyje
+
         void OpenFromOutside(string[] urls)
         {
+            // Velivo uruchomione ponownie, gdy gra juz tylko okienko z filmem: zamykamy je i startujemy pelne Velivo od nowa
+            if (_mainClosed)
+            {
+                try
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName) { UseShellExecute = false };
+                    psi.ArgumentList.Add("--czekaj-na");
+                    psi.ArgumentList.Add(Environment.ProcessId.ToString());
+                    foreach (var u in urls) psi.ArgumentList.Add(u);
+                    if (Environment.GetEnvironmentVariable("PRZEGLADARKA_DANE") != null) psi.Environment["PRZEGLADARKA_DANE"] = DataDir;
+                    System.Diagnostics.Process.Start(psi);
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                Application.Current.Shutdown();
+                return;
+            }
             if (urls.Length == 0) AddTab(NewTabUrl);
             foreach (var u in urls) AddTab(u);
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;

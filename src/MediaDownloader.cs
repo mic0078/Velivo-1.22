@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -191,14 +191,7 @@ namespace Przegladarka
             try
             {
                 var sourceHost = MediaHost(Core.Source);
-                if (IsYoutubeLikeHost(sourceHost))
-                {
-                    MessageBox.Show(this,
-                        L.T("Na YouTube Velivo nie udostępnia pobierania wideo/audio.\n\n") +
-                        L.T("Na innych stronach (bez DRM) wykrywanie i pobieranie działa normalnie."),
-                        L.T("Wykryte media na stronie"));
-                    return;
-                }
+                if (IsYoutubeLikeHost(sourceHost)) { ShowVideoDownloadDialog(Core.Source, Core.DocumentTitle); return; }
 
                 var raw = await Core.ExecuteScriptAsync(MediaScanScript);
                 var json = JsonSerializer.Deserialize<string>(raw);
@@ -293,14 +286,8 @@ namespace Przegladarka
                     return;
                 }
                 var host = MediaHost(url);
-                if (IsYoutubeLikeHost(host))
-                {
-                    MessageBox.Show(this,
-                        L.T("Dla YouTube pobieranie nie jest wspierane w Velivo z uwagi na zasady platformy i prawa autorskie.\n\n") +
-                        L.T("Na innych stronach (bez DRM) wykrywanie i pobieranie działa normalnie."),
-                        L.T("Pobrane"));
-                    return;
-                }
+                // YouTube i strumienie (m3u8/mpd) - przez yt-dlp, ze strony, na ktorej jest film
+                if (IsYoutubeLikeHost(host) || url.Contains(".m3u8") || url.Contains(".mpd")) { ShowVideoDownloadDialog(IsYoutubeLikeHost(host) ? core.Source : url, core.DocumentTitle); return; }
                 string dir = core.Profile.DefaultDownloadFolderPath;
                 if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) dir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 

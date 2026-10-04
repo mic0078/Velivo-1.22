@@ -70,6 +70,8 @@ namespace Przegladarka
             "lanSyncKey",
             "quickAccessTab",
             "language",          // jezyk interfejsu wybiera kazdy komputer sam
+            "videoDir",
+            "floatBounds",          // foldery sa rozne na kazdym komputerze
         };
 
         const int LanPort = 41919;

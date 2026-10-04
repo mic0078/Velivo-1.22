@@ -4,13 +4,32 @@
 
 *Made with passion. Author: **Michael** ([github.com/mic0078](https://github.com/mic0078)).*
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-2563eb?logo=windows" alt="Windows 10 | 11">
+  <img src="https://img.shields.io/badge/installer-13%20MB-16a34a" alt="installer 13 MB">
+  <img src="https://img.shields.io/badge/account%20%26%20cloud-not%20needed-0f172a" alt="no account, no cloud">
+  <img src="https://img.shields.io/badge/language-PL%20%7C%20EN-b45309" alt="PL | EN">
+</p>
+
+<h3 align="center">A browser that goes beyond the limits of today's browsers.</h3>
+
+<p align="center">
+  🎬 Video in a see-through window above everything – keeps playing even after the browser is closed<br>
+  🛡 Built-in uBlock Origin Lite and offline detection of fake bank sites<br>
+  🔐 Passwords go only to the real sites · 💳 safe payments<br>
+  🖱 Use all of it with the mouse alone · 🔒 no account, no cloud, no tracking
+</p>
+
+<p align="center"><b><a href="Instalator/Velivo-Setup-1.22.exe">⬇ Download Velivo for free</a></b> · <a href="MANUAL.en.md">📖 Manual</a> · ⭐ Star it if you like it</p>
+
+
 A lightweight, private browser for Windows that keeps your data with you: no account, no cloud, no history or passwords sent to outside servers. It runs on the Microsoft Edge engine (WebView2), so pages look the same as in Edge and Chrome.
 
 Your computers share data through local network (LAN) sync, encrypted after the devices are paired. Velivo ships with the **Quick Access** add-on (a new tab page with shortcuts) and works with **Sejf**, a program that keeps passwords encrypted offline.
 
 The interface is available in **Polish and English**. The installer asks for the language, and you can change it later in Settings → Appearance → Language.
 
-**[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (6.7 MB) · **[📖 Complete user manual](MANUAL.en.md)**
+**[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (about 13 MB, incl. uBlock Origin Lite) · **[📖 Complete user manual](MANUAL.en.md)**
 
 ![Velivo – the browser window, with the Video on top window playing in the bottom-right corner](docs/zrzuty/velivo-okno.png)
 

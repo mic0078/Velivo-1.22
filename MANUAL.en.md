@@ -64,7 +64,7 @@ Velivo is designed to be fully usable with the mouse alone, even from the sofa i
 
 | Item | Size |
 | --- | --- |
-| **Installer** `Velivo-Setup-1.22.exe` | **about 6.7 MB** |
+| **Installer** `Velivo-Setup-1.22.exe` | **about 13 MB** (about 6 MB of it are the rule lists of the built-in uBlock Origin Lite) |
 | **Installed program** | about 30–40 MB (including Windows components and the Quick Access add-on) |
 | **RAM used by Velivo itself** (`Velivo.exe`) | typically **50–80 MB** |
 | For comparison: Chrome or Firefox installer | about 100–130 MB |

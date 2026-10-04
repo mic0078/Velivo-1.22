@@ -4,11 +4,30 @@
 
 *Stworzona z pasji. Autor: **Michael** ([github.com/mic0078](https://github.com/mic0078)).*
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-2563eb?logo=windows" alt="Windows 10 | 11">
+  <img src="https://img.shields.io/badge/instalator-13%20MB-16a34a" alt="instalator 13 MB">
+  <img src="https://img.shields.io/badge/konto%20i%20chmura-niepotrzebne-0f172a" alt="bez konta i chmury">
+  <img src="https://img.shields.io/badge/j%C4%99zyk-PL%20%7C%20EN-b45309" alt="PL | EN">
+</p>
+
+<h3 align="center">Przeglądarka, która wykracza poza granice obecnych przeglądarek.</h3>
+
+<p align="center">
+  🎬 Film w przezroczystym okienku nad wszystkim – gra nawet po zamknięciu przeglądarki<br>
+  🛡 Wbudowany uBlock Origin Lite i wykrywanie fałszywych stron banków bez internetu<br>
+  🔐 Hasła trafiają tylko do prawdziwych stron · 💳 bezpieczne płatności<br>
+  🖱 Całą obsłużysz samą myszką · 🔒 bez konta, bez chmury, bez śledzenia
+</p>
+
+<p align="center"><b><a href="Instalator/Velivo-Setup-1.22.exe">⬇ Pobierz Velivo za darmo</a></b> · <a href="INSTRUKCJA.md">📖 Instrukcja</a> · ⭐ Dodaj gwiazdkę, jeśli Ci się podoba</p>
+
+
 Lekka, prywatna przeglądarka dla Windows, która trzyma Twoje dane u Ciebie: bez konta, bez chmury, bez wysyłania historii czy haseł na zewnętrzne serwery. Działa na silniku Microsoft Edge (WebView2), więc strony wyświetlają się tak samo jak w Edge i Chrome.
 
 Dane między Twoimi komputerami przenosi synchronizacja w sieci lokalnej (LAN), szyfrowana po sparowaniu urządzeń. W zestawie jest dodatek **Szybki Dostęp** (strona nowej karty ze skrótami) oraz współpraca z programem **Sejf**, który przechowuje hasła zaszyfrowane offline.
 
-**[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (6,7 MB) · **[📖 Pełna instrukcja obsługi](INSTRUKCJA.md)**
+**[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (ok. 13 MB, z uBlock Origin Lite) · **[📖 Pełna instrukcja obsługi](INSTRUKCJA.md)**
 
 ![Velivo – okno przeglądarki, w prawym dolnym rogu gra okienko Film na wierzchu](docs/zrzuty/velivo-okno.png)
 

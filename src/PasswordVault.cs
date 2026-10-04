@@ -55,6 +55,8 @@ namespace Przegladarka
                         return JSON.stringify(typeof helper.initialize === 'function' ? helper.initialize() : helper.status());
                     }
 
+                    // kanal do Velivo zapamietany ZANIM Velivo ukryje chrome.webview przed stronami
+                    const vpm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
                     const state = { credentials: [], panel: null, boundPanel: null, active: null, activeLogin: null, activePassword: null, observer: null, refreshQueued: false, pendingCandidate: null, pendingFill: null };
                     const isInput = (el) => !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement);
                     const isVisible = (el) => {
@@ -116,7 +118,7 @@ namespace Przegladarka
                         // od razu do Velivo - strona po zalogowaniu czesto przechodzi dalej, zanim Velivo zdazy zapytac
                         if (source === 'submit') {
                             try {
-                                if (window.chrome && chrome.webview) { chrome.webview.postMessage('velivo:__VT_TOKEN__:pwcand:' + JSON.stringify(state.pendingCandidate)); state.pendingCandidate = null; }
+                                if (vpm) { vpm('velivo:__VT_TOKEN__:pwcand:' + JSON.stringify(state.pendingCandidate)); state.pendingCandidate = null; }
                             } catch (_) {}
                         }
                     }
@@ -279,7 +281,7 @@ namespace Przegladarka
                         try {
                             const choices = state.panel && state.panel.querySelector('.velivo-pwd-choices');
                             if (choices) choices.style.display = 'none';
-                            if (window.chrome && chrome.webview) chrome.webview.postMessage('velivo:__VT_TOKEN__:pwpick');
+                            if (vpm) vpm('velivo:__VT_TOKEN__:pwpick');
                         } catch (_) {}
                     }
 
@@ -1483,7 +1485,16 @@ namespace Przegladarka
                         if (tab == null || core == null) return;
                         if (_passwordVaultScriptsRegistered.Add(core))
                         {
-                            try { await core.AddScriptToExecuteOnDocumentCreatedAsync(PasswordVaultScriptLocalized); }
+                            try
+                            {
+                                await core.AddScriptToExecuteOnDocumentCreatedAsync(PasswordVaultScriptLocalized);
+                                // ukrywanie chrome.webview musi byc PO skrypcie hasel - inaczej "Wpisz" i pytanie o zapis nie docieraja do Velivo
+                                if (tab.HideScriptId != null)
+                                {
+                                    core.RemoveScriptToExecuteOnDocumentCreated(tab.HideScriptId);
+                                    tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
+                                }
+                            }
                             catch (Exception ex)
                             {
                                 _passwordVaultScriptsRegistered.Remove(core);

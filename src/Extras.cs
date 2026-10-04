@@ -248,7 +248,8 @@ try {
                 if (!tab.InPip && !_tabs.Contains(tab)) ReleaseParkedViews();
                 return;
             }
-            if (msg == "pwpick") { ShowPasswordPicker(tab); return; }
+            // okno modalne nie wewnatrz zdarzenia WebView2 - inaczej potrafi sie zablokowac
+            if (msg == "pwpick") { Dispatcher.BeginInvoke(new Action(() => { try { ShowPasswordPicker(tab); } catch (Exception ex) { App.LogError(ex); } })); return; }
             if (msg.StartsWith("pwcand:", StringComparison.Ordinal)) { _ = PromptSavePasswordPayload(tab, core, msg.Substring(7)); return; }
             if (msg == "cookie")
             {

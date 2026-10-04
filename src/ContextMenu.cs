@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.RegularExpressions;
 using Microsoft.Web.WebView2.Core;
 
@@ -124,6 +124,19 @@ namespace Przegladarka
                         unblock.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => ClearElementRules(tabForBlock));
                         add(unblock);
                     }
+                    if (_settings.AutoRejectCookies)
+                    {
+                        bool rejecting = CookieRejectOn(pageUrl);
+                        var ck = _env.CreateContextMenuItem(rejecting ? L.T("🍪 Nie odrzucaj banerów ciasteczek na tej stronie") : L.T("🍪 Odrzucaj banery ciasteczek na tej stronie"), null, CoreWebView2ContextMenuItemKind.Command);
+                        ck.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SetCookieException(pageUrl, rejecting));
+                        add(ck);
+                    }
+                    if (target.Kind == CoreWebView2ContextMenuTargetKind.Video)
+                    {
+                        var pip = _env.CreateContextMenuItem(L.T("⧉ Obraz w obrazie"), null, CoreWebView2ContextMenuItemKind.Command);
+                        pip.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartPictureInPicture(tabForBlock));
+                        add(pip);
+                    }
                     separator();
                     var reader = _env.CreateContextMenuItem(L.T("Tryb czytania i streszczenie"), null, CoreWebView2ContextMenuItemKind.Command);
                     reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenReaderMode);
@@ -157,6 +170,13 @@ namespace Przegladarka
                 tProfileWork.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SwitchProfile("praca"));
                 var tUser = _env.CreateContextMenuItem(L.T("Przełącz użytkownika/profil…"), null, CoreWebView2ContextMenuItemKind.Command);
                 tUser.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenProfilesManager);
+                var tabForTools = _current;
+                var tPip = _env.CreateContextMenuItem(L.T("⧉ Obraz w obrazie"), null, CoreWebView2ContextMenuItemKind.Command);
+                tPip.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartPictureInPicture(tabForTools));
+                var tTabs = _env.CreateContextMenuItem(L.T("Szukaj w kartach (Ctrl+Shift+A)"), null, CoreWebView2ContextMenuItemKind.Command);
+                tTabs.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowTabSearch);
+                tools.Children.Add(tPip);
+                tools.Children.Add(tTabs);
                 tools.Children.Add(tPrivacy);
                 tools.Children.Add(tMedia);
                 tools.Children.Add(tDl);

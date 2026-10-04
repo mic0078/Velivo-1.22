@@ -41,6 +41,9 @@ namespace Przegladarka
         public string CacheDir = "";           // wlasny folder na smieci (pusty = w profilu)
         public bool CleanJunkOnStart = false;  // usuwaj smieci przy kazdym uruchomieniu
         public bool BlockThirdPartyPopups = true;
+        public bool AutoRejectCookies = true;   // samo klika "Odrzuc" / "Tylko niezbedne" na banerach zgod
+        public bool MouseGestures = true;       // prawy przycisk + ruch myszy
+        public bool PipButton = true;           // przycisk "obraz w obrazie" nad filmami
         public bool LanSync = true;            // bez sparowania dziala tryb zgodnosci (bez hasel); hasla tylko po sparowaniu
         public string LanSyncKey = "";
         public bool LanSyncSilent = false;     // bez dymkow przy automatycznym sync
@@ -128,6 +131,9 @@ namespace Przegladarka
                         case "theme": s.Theme = v; break;
                         case "language": s.Language = v; break;
                         case "popups": s.BlockThirdPartyPopups = b; break;
+                        case "cookieReject": s.AutoRejectCookies = b; break;
+                        case "gestures": s.MouseGestures = b; break;
+                        case "pipBtn": s.PipButton = b; break;
                         case "cacheDir": s.CacheDir = v; break;
                         case "cleanJunk": s.CleanJunkOnStart = b; break;
                         case "lanSync": s.LanSync = b; lanSyncOverride = b; break;
@@ -187,7 +193,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "askDownload=" + B(AskDownload),
-                "popups=" + B(BlockThirdPartyPopups), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
@@ -349,6 +355,8 @@ namespace Przegladarka
             root.Children.Add(sameTab);
 
             root.Children.Add(Header(L.T("Wyszukiwanie i start")));
+            var kwBtn = SmallButton(L.T("Skróty wyszukiwania (np. „yt koty”)…"), () => EditSearchKeywords(win));
+            kwBtn.HorizontalAlignment = HorizontalAlignment.Left; kwBtn.Margin = new Thickness(0, 0, 0, 6);
             var engine = new ComboBox { Margin = new Thickness(0, 2, 0, 6) };
             foreach (var kv in AppSettings.Engines)
             {
@@ -358,6 +366,10 @@ namespace Przegladarka
             }
             root.Children.Add(new TextBlock { Text = L.T("Wyszukiwarka w pasku adresu:") });
             root.Children.Add(engine);
+            root.Children.Add(kwBtn);
+            var gestures = Check(L.T("Gesty myszy (prawy przycisk + ruch)"), L.T("Przytrzymaj prawy przycisk i przesuń: ← wstecz, → dalej, ↑ nowa karta, ↓ zamknij kartę, ↓→ odśwież. Zwykły prawy klik otwiera menu jak zawsze."), s.MouseGestures);
+            var pipBtn = Check(L.T("Przycisk „Obraz w obrazie” nad filmami"), L.T("Po najechaniu myszką na film pojawia się przycisk ⧉ – film przechodzi do małego okienka zawsze na wierzchu."), s.PipButton);
+            root.Children.Add(gestures); root.Children.Add(pipBtn);
             root.Children.Add(new TextBlock { Text = L.T("Strona startowa:") });
             var home = new TextBox { Text = s.Home, Padding = new Thickness(4), Margin = new Thickness(0, 2, 0, 0) };
             root.Children.Add(home);
@@ -394,8 +406,9 @@ namespace Przegladarka
             var pw = Check(L.T("Proponuj zapisywanie haseł"), null, s.SavePasswords);
             var af = Check(L.T("Autouzupełnianie formularzy (adresy i karty, lokalna szyfrowana baza)"), L.T("Dane formularzy i kart są zapisywane lokalnie w szyfrowanej bazie offline. Hasła dalej obsługuje Sejf."), s.Autofill);
             var pop = Check(L.T("Blokuj wyskakujące okna otwierane bez kliknięcia"), null, s.BlockThirdPartyPopups);
+            var cookieRej = Check(L.T("Automatycznie odrzucaj banery z ciasteczkami (RODO)"), L.T("Velivo samo klika „Odrzuć” albo „Tylko niezbędne”. Gdy baner nie ma takiego przycisku, nic nie jest klikane. Wyjątek dla strony: prawy przycisk na stronie."), s.AutoRejectCookies);
             root.Children.Add(dnt); root.Children.Add(trackPanel);
-            foreach (var c in new[] { hist, clear, pw, af, pop }) root.Children.Add(c);
+            foreach (var c in new[] { hist, clear, pw, af, pop, cookieRej }) root.Children.Add(c);
 
             var autofillTools = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
             var afShow = SmallButton(L.T("Pokaż zapisane dane…"), null);
@@ -657,6 +670,9 @@ namespace Przegladarka
                 s.SaveHistory = hist.IsChecked == true; s.ClearOnExit = clear.IsChecked == true;
                 s.SavePasswords = pw.IsChecked == true; s.Autofill = af.IsChecked == true;
                 s.BlockThirdPartyPopups = pop.IsChecked == true;
+                bool scriptsChanged = s.AutoRejectCookies != (cookieRej.IsChecked == true) || s.MouseGestures != (gestures.IsChecked == true) || s.PipButton != (pipBtn.IsChecked == true);
+                s.AutoRejectCookies = cookieRej.IsChecked == true; s.MouseGestures = gestures.IsChecked == true; s.PipButton = pipBtn.IsChecked == true;
+                if (scriptsChanged) RefreshPageScripts();
                 s.SmartScreen = ss.IsChecked == true; s.AskDownload = ask.IsChecked == true;
                 s.CleanJunkOnStart = cleanStart.IsChecked == true;
                 s.Connections = (int)((ComboBoxItem)conns.SelectedItem).Tag;

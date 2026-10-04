@@ -42,6 +42,7 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Pinned;
+            public string PageScriptId;   // wspolny skrypt stron (ciasteczka, gesty, obraz w obrazie)
             public DateTime NewTabIntentAt;   // ostatni Ctrl+klik / srodkowy klik na linku
             public string PinnedUrl;     // adres zamrozony przy przypieciu - do niego karta wraca po uruchomieniu          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
             public Button CloseBtn;
@@ -363,6 +364,8 @@ namespace Przegladarka
             core.WebMessageReceived += (s, e) => { try { if (e.TryGetWebMessageAsString() == "velivo:nowa-karta") tab.NewTabIntentAt = DateTime.UtcNow; } catch (Exception) { } };
             await core.AddScriptToExecuteOnDocumentCreatedAsync(
                 "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button===1||e.ctrlKey||e.shiftKey||e.metaKey){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(a)pm('velivo:nowa-karta');}},true);}catch(x){}})();");
+            core.WebMessageReceived += (s, e) => { try { HandlePageMessage(tab, e.TryGetWebMessageAsString()); } catch (Exception) { } };
+            await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
             await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
             if (!_extensionsLoaded)
@@ -852,6 +855,8 @@ namespace Przegladarka
         void Navigate(BrowserTab tab, string text)
         {
             if (tab.View.CoreWebView2 == null) return;
+            var keyword = ExpandSearchKeyword(text);   // "yt koty" -> wyszukiwanie na YouTube
+            if (keyword != null) text = keyword;
             // przypieta karta jest zamrozona - nowy adres (z innej strony) idzie do nowej karty.
             // Nie dotyczy pierwszego wczytania karty przy starcie (wtedy w karcie nie ma jeszcze strony).
             if (tab.Pinned && Restorable(tab.View.CoreWebView2.Source))
@@ -941,6 +946,7 @@ namespace Przegladarka
             else if (key == Key.Escape && _fullScreen && !_pageFullScreen) SetFullScreen(false);
             else if (ctrl && shift && key == Key.N) AddTab(HomeUrl, true);
             else if (ctrl && shift && key == Key.T) ReopenClosedTab();
+            else if (ctrl && shift && key == Key.A) ShowTabSearch();
             else if (ctrl && shift && key == Key.U) { if (_readTab == null) StartReading(false); else ReadBtn_Click(null, null); }
             else if (ctrl && key == Key.T) AddTab(NewTabUrl);
             else if (ctrl && key == Key.W && _current != null) CloseTab(_current);

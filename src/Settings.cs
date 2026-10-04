@@ -23,7 +23,9 @@ namespace Przegladarka
         public bool SavePasswords = true;
         public bool Autofill = true;
         public bool SmartScreen = true;        // ostrzezenia o niebezpiecznych stronach
-        public bool UbolLite = true;           // wbudowany uBlock Origin Lite
+        public bool UbolLite = true;
+        public bool AudioGuard = true;         // dzwiek nie ginie, gdy program muzyczny zajmie karte
+        public string AudioOut = "";           // wybrane glosniki Velivo ("" = domyslne Windows)           // wbudowany uBlock Origin Lite
         public bool AntiPhishing = true;       // wykrywanie stron-podrobek (offline)
         public bool HttpsFirst = true;         // najpierw HTTPS, strony bez szyfrowania tylko po ostrzezeniu
         public bool SafePayments = true;       // banki i platnosci: okno niewidoczne dla nagrywania ekranu
@@ -130,6 +132,8 @@ namespace Przegladarka
                         case "autofill": s.Autofill = b; break;
                         case "smartscreen": s.SmartScreen = b; break;
                         case "ubol": s.UbolLite = b; break;
+                        case "audioGuard": s.AudioGuard = b; break;
+                        case "audioOut": s.AudioOut = v; break;
                         case "antiPhishing": s.AntiPhishing = b; break;
                         case "httpsFirst": s.HttpsFirst = b; break;
                         case "safePay": s.SafePayments = b; break;
@@ -220,7 +224,7 @@ namespace Przegladarka
             {
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
-                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload),
+                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload),
                 "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
@@ -518,9 +522,16 @@ namespace Przegladarka
             ubolOpts.HorizontalAlignment = HorizontalAlignment.Left;
             root.Children.Add(ubolBox); root.Children.Add(ubolOpts);
             root.Children.Add(ss); root.Children.Add(phishBox); root.Children.Add(httpsBox); root.Children.Add(payBox); root.Children.Add(ask);
-            var audioOut = SmallButton(L.T("🔊 Wybierz głośniki dla Velivo…"), OpenAppAudioSettings);
+            root.Children.Add(new TextBlock { Text = L.T("Głośniki Velivo:"), Margin = new Thickness(0, 8, 0, 2) });
+            var outBox = new ComboBox { Width = 360, HorizontalAlignment = HorizontalAlignment.Left };
+            outBox.Items.Add(new ComboBoxItem { Content = L.T("Domyślne wyjście Windows"), Tag = "" });
+            foreach (var d in ListAudioOutputs()) outBox.Items.Add(new ComboBoxItem { Content = d.Name, Tag = d.Id });
+            outBox.SelectedItem = outBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (s.AudioOut ?? "")) ?? outBox.Items[0];
+            root.Children.Add(outBox);
+            var guardBox = Check(L.T("Nie gub dźwięku: gdy program muzyczny (Ableton, Cubase) zajmie głośniki, graj na innym aktywnym wyjściu i wróć po ich zwolnieniu"), null, s.AudioGuard);
+            root.Children.Add(guardBox);
+            var audioOut = SmallButton(L.T("🔊 Mikser głośności Windows…"), OpenAppAudioSettings);
             audioOut.HorizontalAlignment = HorizontalAlignment.Left;
-            audioOut.ToolTip = L.T("Gdy inny program przełącza dźwięk Velivo na inne głośniki – przypnij Velivo do swoich głośników.");
             root.Children.Add(audioOut);
             root.Children.Add(new TextBlock { Text = L.T("Połączeń na jeden pobierany plik (więcej = zwykle szybciej):"), Margin = new Thickness(0, 6, 0, 2) });
             var conns = new ComboBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
@@ -740,6 +751,9 @@ namespace Przegladarka
                 if (scriptsChanged) RefreshPageScripts();
                 s.SmartScreen = ss.IsChecked == true; s.AskDownload = ask.IsChecked == true;
                 bool ubolChanged = s.UbolLite != (ubolBox.IsChecked == true); s.UbolLite = ubolBox.IsChecked == true; if (ubolChanged) _ = EnsureBundledUbolAsync();
+                s.AudioGuard = guardBox.IsChecked == true;
+                var newOut = (string)((ComboBoxItem)outBox.SelectedItem).Tag ?? "";
+                if (newOut != (s.AudioOut ?? "")) { s.AudioOut = newOut; RouteVelivoAudio(newOut); _audioRoutedTo = newOut; }
                 s.AntiPhishing = phishBox.IsChecked == true; s.HttpsFirst = httpsBox.IsChecked == true; s.SafePayments = payBox.IsChecked == true;
                 s.CleanJunkOnStart = cleanStart.IsChecked == true;
                 s.Connections = (int)((ComboBoxItem)conns.SelectedItem).Tag;

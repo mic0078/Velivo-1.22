@@ -404,6 +404,7 @@ namespace Przegladarka
             {
                 _extensionsLoaded = true;
                 await EnsureBundledUbolAsync();
+                StartAudioGuard();
                 _ = UpdateUbolAsync();
                 await RefreshExtensions();
                 await SaveExtensionsSyncListAsync();

@@ -1,0 +1,713 @@
+<title>Velivo Browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: strona produktu – pasek jak w Velivo, hero z żywym okienkiem "Film na wierzchu", potem wyróżniki, liczby, funkcje i instrukcja w rozwijanych rozdziałach */
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --muted: #55627a;
+  --line: #dbe2ee;
+  --accent: #2563eb;
+  --accent-soft: #e3ecff;
+  --night: #111827;
+  --ok: #16a34a;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+  --bad: #b91c1c;
+  --bad-soft: #fee2e2;
+  --ok-soft: #dcfce7;
+  --display: "Outfit", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1120; --surface: #121a2e; --ink: #e8edf7; --muted: #9aa8c1; --line: #24304a;
+    --accent: #60a5fa; --accent-soft: #172a4d; --night: #05080f; --ok: #4ade80; --warn: #fbbf24; --warn-soft: #3a2a08; --bad: #f87171; --bad-soft: #3b1212; --ok-soft: #0f2e1a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1120; --surface: #121a2e; --ink: #e8edf7; --muted: #9aa8c1; --line: #24304a;
+  --accent: #60a5fa; --accent-soft: #172a4d; --night: #05080f; --ok: #4ade80; --warn: #fbbf24; --warn-soft: #3a2a08; --bad: #f87171; --bad-soft: #3b1212; --ok-soft: #0f2e1a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.6; margin: 0; }
+body[data-lang="pl"] .en, body[data-lang="en"] .pl { display: none !important; }
+a { color: var(--accent); }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; text-wrap: balance; margin: 0; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; }
+kbd { font-family: var(--mono); font-size: .8em; background: var(--surface); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+code { font-family: var(--mono); font-size: .85em; background: var(--accent-soft); color: var(--ink); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
+
+/* pasek górny – jak pasek narzędzi Velivo */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 12px; padding-block: 10px; }
+.logo { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(140deg, #3b82f6, #1d4ed8); color: #fff; display: grid; place-items: center; font: 800 20px var(--display); flex: none; }
+.brand { font: 700 19px var(--display); }
+.addr { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lang { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; flex: none; }
+.lang button { font: 600 14px var(--body); background: transparent; color: var(--muted); border: 0; padding: 6px 12px; cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.lang button:focus-visible, .btn:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* hero */
+.hero { padding-block: 56px 40px; }
+.hero .wrap { display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: center; }
+.eyebrow { font: 600 13px var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.hero h1 { font-size: clamp(38px, 6vw, 64px); font-weight: 800; letter-spacing: -.02em; margin-top: 10px; }
+.hero h1 span { color: var(--accent); }
+.lead { font-size: 19px; color: var(--muted); max-width: 34em; margin: 18px 0 26px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font: 600 16px var(--body); border-radius: 12px; padding: 12px 20px; border: 1px solid var(--line); color: var(--ink); background: var(--surface); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn small { opacity: .8; font-weight: 400; }
+
+/* żywe okienko "Film na wierzchu" */
+.desk { position: relative; border-radius: 18px; border: 1px solid var(--line); background:
+  repeating-linear-gradient(0deg, transparent 0 27px, var(--line) 27px 28px), var(--surface); min-height: 330px; overflow: hidden; }
+.desk .page { padding: 22px 24px; color: var(--muted); font-size: 14px; }
+.desk .page b { color: var(--ink); font-family: var(--display); font-size: 18px; display: block; margin-bottom: 6px; }
+.float { position: absolute; right: 22px; bottom: 22px; width: 62%; max-width: 300px; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 18px 40px rgba(15,23,42,.35); cursor: ns-resize; transition: opacity .12s; touch-action: none; }
+.float .bar { display: flex; align-items: center; gap: 6px; background: #111827; color: #fff; font-size: 11px; padding: 4px 8px; }
+.float .bar .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.float .bar .pin { color: #60a5fa; }
+.float .video { aspect-ratio: 16 / 9; background: radial-gradient(circle at 30% 40%, #22d3ee55, transparent 45%), radial-gradient(circle at 70% 60%, #a78bfa66, transparent 50%), linear-gradient(120deg, #0b3d2e, #0f172a 55%, #1e1b4b); position: relative; }
+.float .video::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 18px, rgba(255,255,255,.05) 18px 19px); animation: drift 6s linear infinite; }
+@keyframes drift { to { background-position: 38px 0; } }
+@media (prefers-reduced-motion: reduce) { .float .video::after { animation: none; } }
+.hint { position: absolute; left: 24px; bottom: 22px; font-size: 13px; color: var(--muted); max-width: 30%; }
+.hint strong { display: block; font-family: var(--mono); font-size: 22px; color: var(--accent); }
+
+/* liczby */
+.stats { padding-block: 8px 40px; }
+.stats .wrap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.stat .n { font: 700 30px var(--display); font-variant-numeric: tabular-nums; }
+.stat .l { color: var(--muted); font-size: 14px; }
+
+section.block { padding-block: 44px; }
+section.block h2 { font-size: clamp(28px, 4vw, 40px); }
+.sub { color: var(--muted); max-width: 46em; margin: 10px 0 26px; }
+
+/* wyróżniki */
+.only { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.only article { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+.only article.big { grid-column: span 2; background: var(--night); color: #e5e7eb; border-color: var(--night); }
+.only article.big p { color: #b6c0d4; }
+.only h3 { font-size: 19px; display: flex; gap: 10px; align-items: baseline; }
+.only h3 i { font-style: normal; font-family: var(--mono); font-size: 15px; color: var(--accent); }
+.only article.big h3 i { color: #60a5fa; }
+.only p { margin: 8px 0 0; color: var(--muted); font-size: 15.5px; }
+
+/* dlaczego tak mało */
+.why { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.why > div { min-width: 0; }
+.why h3 { font-size: 21px; margin-bottom: 10px; }
+.why ol { margin: 0; padding-left: 22px; }
+.why li { margin-bottom: 10px; }
+.note { margin-top: 22px; border-left: 4px solid var(--warn); background: var(--warn-soft); padding: 12px 16px; border-radius: 0 10px 10px 0; font-size: 15.5px; }
+.bars { display: grid; gap: 8px; margin-top: 14px; }
+.barrow { display: grid; grid-template-columns: 130px 1fr 70px; gap: 10px; align-items: center; font-size: 14px; }
+.barrow .track { background: var(--accent-soft); border-radius: 6px; height: 14px; overflow: hidden; }
+.barrow .fill { height: 100%; background: var(--muted); border-radius: 6px; }
+.barrow.me .fill { background: var(--accent); }
+.barrow .v { font-family: var(--mono); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* tabele */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--display); font-weight: 600; background: var(--accent-soft); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+
+/* instrukcja */
+.manual { display: grid; gap: 10px; }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 20px; }
+details[open] { padding-bottom: 14px; }
+summary { cursor: pointer; padding: 15px 0; font: 600 18px var(--display); list-style: none; display: flex; gap: 12px; align-items: center; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; margin-left: auto; font: 500 22px var(--mono); color: var(--accent); }
+details[open] summary::after { content: "–"; }
+summary .num { font: 500 13px var(--mono); color: var(--muted); width: 26px; flex: none; }
+details ul, details ol { margin: 0; padding-left: 22px; }
+details li { margin-bottom: 6px; }
+details p { margin: 0 0 10px; }
+details .tbl { margin-top: 10px; }
+
+/* okienko: przyciski */
+.float .bar button { background: none; border: 0; color: #cbd5e1; font: inherit; font-size: 12px; cursor: pointer; padding: 0 3px; line-height: 1; }
+.float .bar button:hover { color: #fff; }
+.float .bar button.pin[aria-pressed="true"] { color: #60a5fa; }
+.float .bar button:focus-visible { outline: 2px solid #60a5fa; }
+.float.paused .video::after { animation-play-state: paused; }
+.float .state { position: absolute; left: 8px; bottom: 8px; color: #fff; font: 600 11px var(--body); background: rgba(0,0,0,.55); padding: 2px 7px; border-radius: 5px; }
+.restore { position: absolute; right: 22px; bottom: 22px; }
+
+/* ochrona: tester adresow */
+.guard { display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; align-items: start; }
+.guard > * { min-width: 0; }
+.tester { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+.tester label { font: 600 15px var(--display); display: block; margin-bottom: 8px; }
+.tester .row { display: flex; gap: 8px; }
+.tester input { flex: 1; min-width: 0; font: 500 16px var(--mono); padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
+.tester input:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chips button { font: 500 13px var(--mono); border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.chips button:hover { border-color: var(--accent); }
+.verdict { margin-top: 14px; border-radius: 10px; padding: 12px 14px; font-size: 15.5px; border: 1px solid var(--line); }
+.verdict b { font-family: var(--display); display: block; font-size: 17px; margin-bottom: 2px; }
+.verdict.bad { background: var(--bad-soft); border-color: var(--bad); }
+.verdict.bad b { color: var(--bad); }
+.verdict.good { background: var(--ok-soft); border-color: var(--ok); }
+.verdict.good b { color: var(--ok); }
+.layers { display: grid; gap: 10px; }
+.layers div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.layers b { font-family: var(--display); }
+.layers p { margin: 4px 0 0; color: var(--muted); font-size: 15px; }
+.filter { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.filter input { font: 500 16px var(--body); padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); width: min(100%, 360px); }
+.filter input:focus-visible { outline: 3px solid var(--accent); }
+.filter span { color: var(--muted); font-size: 14px; }
+@media (max-width: 860px) { .guard { grid-template-columns: 1fr; } }
+
+footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-top: 1px solid var(--line); margin-top: 30px; }
+
+@media (max-width: 860px) {
+  .hero .wrap, .why { grid-template-columns: 1fr; }
+  .stats .wrap { grid-template-columns: repeat(2, 1fr); }
+  .only article.big { grid-column: auto; }
+  .addr { display: none; }
+}
+@media (max-width: 480px) {
+  body { font-size: 16px; }
+  .hint { display: none; }
+  .float { width: 80%; }
+  .barrow { grid-template-columns: 90px 1fr 56px; }
+  td:first-child { white-space: normal; }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="logo" aria-hidden="true">V</div>
+    <div class="brand">Velivo</div>
+    <div class="addr">github.com/mic0078/Velivo-1.22</div>
+    <div class="lang" role="group" aria-label="Język / Language">
+      <button id="lang-pl" type="button" aria-pressed="true">PL</button>
+      <button id="lang-en" type="button" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow"><span class="pl">Prywatna przeglądarka dla Windows</span><span class="en">A private browser for Windows</span></div>
+      <h1><span class="pl">Velivo – <span>nowy poziom</span> przeglądarki</span><span class="en">Velivo – a <span>new level</span> of browsing</span></h1>
+      <p class="lead pl"><b>Wykracza poza granice obecnych przeglądarek.</b> Szybka, lekka i prywatna. Bez konta, bez chmury, bez wysyłania historii i haseł. Działa na silniku Edge, a dookoła ma funkcje, których popularne przeglądarki nie mają wbudowanych. Całą obsłużysz samą myszką, nawet z kanapy przy telewizorze.</p>
+      <p class="lead en"><b>It goes beyond the limits of today's browsers.</b> Fast, light and private. No account, no cloud, no history or passwords sent anywhere. It runs on the Edge engine and adds features popular browsers don't have built in. You can use all of it with the mouse alone, even from the sofa in front of the TV.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/mic0078/Velivo-1.22/raw/main/Instalator/Velivo-Setup-1.22.exe"><span class="pl">⬇ Pobierz Velivo</span><span class="en">⬇ Download Velivo</span> <small>6,7 MB</small></a>
+        <a class="btn" href="#manual"><span class="pl">📖 Instrukcja</span><span class="en">📖 Manual</span></a>
+        <a class="btn" href="https://github.com/mic0078/Velivo-1.22">GitHub</a>
+      </div>
+    </div>
+    <div class="desk" id="desk">
+      <div class="page">
+        <b class="pl">Przeglądasz dalej…</b><b class="en">Keep browsing…</b>
+        <span class="pl">…a film gra w okienku Velivo na wierzchu – sam film, bez reszty strony i bez reklam. Wypróbuj: kółko myszy na okienku = przezroczystość, klik na film = pauza, 📌 = zawsze na wierzchu, ↩ = powrót do karty.</span>
+        <span class="en">…while the video plays in Velivo's window on top – just the video, no page around it and no ads. Try it: mouse wheel on the window = transparency, click the video = pause, 📌 = always on top, ↩ = back to the tab.</span>
+      </div>
+      <div class="hint"><strong id="op-val">100%</strong><span class="pl">widoczności okienka</span><span class="en">window visibility</span></div>
+      <div class="float" id="float" tabindex="0" aria-label="Film na wierzchu – kółko myszy lub strzałki zmieniają przezroczystość">
+        <div class="bar"><span class="t">Klaus Schulze – Kontinuum</span><button type="button" class="pin" id="f-pin" aria-pressed="true" title="Zawsze na wierzchu">📌</button><button type="button" id="f-back" title="Wróć do karty">↩</button><button type="button" id="f-close" title="Zamknij">✕</button></div>
+        <div class="video" id="f-video"></div><span class="state" id="f-state"></span>
+      </div>
+      <button type="button" class="btn restore" id="f-restore" hidden><span class="pl">▣ Otwórz okienko ponownie</span><span class="en">▣ Open the window again</span></button>
+    </div>
+  </div>
+</section>
+
+<section class="stats" aria-label="Liczby">
+  <div class="wrap">
+    <div class="stat"><div class="n">6,7 MB</div><div class="l pl">instalator (Chrome ok. 100+ MB)</div><div class="l en">installer (Chrome about 100+ MB)</div></div>
+    <div class="stat"><div class="n">50–80 MB</div><div class="l pl">RAM samego programu Velivo</div><div class="l en">RAM used by Velivo itself</div></div>
+    <div class="stat"><div class="n">0</div><div class="l pl">kont, chmur i telemetrii</div><div class="l en">accounts, clouds and telemetry</div></div>
+    <div class="stat"><div class="n">PL · EN</div><div class="l pl">dwa języki, wybór w instalatorze</div><div class="l en">two languages, chosen in the installer</div></div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <h2 class="pl">Tylko w Velivo</h2><h2 class="en">Only in Velivo</h2>
+    <p class="sub pl">Chrome, Edge, Firefox i Opera nie mają tych funkcji wbudowanych. W Velivo działają od razu, bez dodatków i bez konta.</p>
+    <p class="sub en">Chrome, Edge, Firefox and Opera don't have these built in. In Velivo they work right away, with no add-ons and no account.</p>
+    <div class="only">
+      <article class="big">
+        <h3><i>▣</i><span class="pl">Film na wierzchu</span><span class="en">Video on top</span></h3>
+        <p class="pl">Własne okienko z filmem, które zmniejszysz prawie do znaczka (od 160×90). Przezroczystość ustawiasz kółkiem myszy, od 15 do 100%. Przypinka „zawsze na wierzchu” włącza się jednym kliknięciem. Film gra dalej po zamknięciu karty, a nawet całej przeglądarki. Przycisk ↩ wraca do strony od tego samego miejsca.</p>
+        <p class="en">Velivo's own video window you can shrink almost to an icon (from 160×90). Set transparency with the mouse wheel, from 15 to 100%. The "always on top" pin toggles with one click. The video keeps playing after you close the tab, and even the whole browser. The ↩ button returns to the page at the same moment.</p>
+      </article>
+      <article>
+        <h3><i>🧠</i><span class="pl">Gdzie ja to czytałem?</span><span class="en">Where did I read that?</span></h3>
+        <p class="pl">Znajduje przeczytany artykuł po słowach z jego treści, a nie tylko po tytule. Wszystko zostaje na Twoim komputerze.</p>
+        <p class="en">Finds an article you read by words from its content, not just the title. Everything stays on your computer.</p>
+      </article>
+      <article>
+        <h3><i>⚠</i><span class="pl">Wykrywacz sztuczek w sklepach</span><span class="en">Shop-trick detector</span></h3>
+        <p class="pl">Fałszywe liczniki, „ostatnie 2 sztuki”, „15 osób ogląda”, ukryte opłaty. Zaznaczone z góry ubezpieczenia i newslettery sam odznacza.</p>
+        <p class="en">Fake countdowns, "only 2 left", "15 people watching", hidden fees. Pre-ticked insurance and newsletters get unticked for you.</p>
+      </article>
+      <article>
+        <h3><i>🧾</i><span class="pl">Paragon prywatności</span><span class="en">Privacy receipt</span></h3>
+        <p class="pl">Z iloma firmami i krajami łączyła się strona, którzy z nich to brokerzy danych i ile było prób rozpoznania komputera.</p>
+        <p class="en">How many companies and countries the page contacted, which are data brokers, and how many fingerprinting attempts it made.</p>
+      </article>
+      <article>
+        <h3><i>📺</i><span class="pl">Wyślij kartę w domu</span><span class="en">Send a tab at home</span></h3>
+        <p class="pl">Strona otwiera się na drugim komputerze z Velivo, a film rusza w tym samym miejscu. Bez chmury i bez konta.</p>
+        <p class="en">The page opens on your other computer running Velivo, and the video continues at the same moment. No cloud, no account.</p>
+      </article>
+      <article>
+        <h3><i>⇄</i><span class="pl">Synchronizacja bez chmury</span><span class="en">Sync without the cloud</span></h3>
+        <p class="pl">Zakładki, hasła, historia, karty przypięte, Szybki Dostęp i ustawienia. Szyfrowane, przez Twoją sieć domową.</p>
+        <p class="en">Bookmarks, passwords, history, pinned tabs, Quick Access and settings. Encrypted, over your home network.</p>
+      </article>
+      <article>
+        <h3><i>⬇</i><span class="pl">Pobieranie filmów jak IDM</span><span class="en">IDM-style video downloads</span></h3>
+        <p class="pl">Przycisk „Pobierz” nad każdym filmem, także na YouTube: jakość do 1080p, MP3 albo M4A, wybór folderu. Zwykłe pliki pobiera do 16 połączeń naraz.</p>
+        <p class="en">A "Download" button over every video, YouTube included: up to 1080p, MP3 or M4A, folder choice. Regular files use up to 16 connections at once.</p>
+      </article>
+      <article>
+        <h3><i>🔊</i><span class="pl">Czytaj od tego miejsca</span><span class="en">Read from here</span></h3>
+        <p class="pl">Prawy przycisk na akapicie i Velivo czyta od tego zdania. Naturalne głosy offline, polskie i angielskie.</p>
+        <p class="en">Right-click a paragraph and Velivo reads from that sentence. Natural offline voices in Polish and English.</p>
+      </article>
+      <article>
+        <h3><i>🌅</i><span class="pl">Tryb nocny z natężeniem</span><span class="en">Night mode with strength</span></h3>
+        <p class="pl">Jak „Światło nocne” w Windows, regulowany kółkiem myszy na przycisku trybu.</p>
+        <p class="en">Like Windows "Night light", adjusted with the mouse wheel on the mode button.</p>
+      </article>
+      <article>
+        <h3><i>🖱</i><span class="pl">Wszystko samą myszką</span><span class="en">Everything with the mouse</span></h3>
+        <p class="pl">Gesty: ← wstecz, → dalej, ↑ nowa karta, ↓ zamknij, ↓→ odśwież. Powiększenie kółkiem na przycisku procentów.</p>
+        <p class="en">Gestures: ← back, → forward, ↑ new tab, ↓ close, ↓→ reload. Zoom with the wheel on the percent button.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="guard">
+  <div class="wrap">
+    <h2 class="pl">Ochrona przed oszustwami</h2><h2 class="en">Fraud protection</h2>
+    <p class="sub pl">Velivo sprawdza adres, zanim strona się otworzy – bez internetu, w ułamku milisekundy. Wpisz dowolny adres albo kliknij przykład. Ten tester używa tych samych reguł co Velivo.</p>
+    <p class="sub en">Velivo checks the address before the page opens – offline, in a fraction of a millisecond. Type any address or click an example. This tester uses the same rules as Velivo.</p>
+    <div class="guard">
+      <div class="tester">
+        <label for="g-host"><span class="pl">Adres strony</span><span class="en">Site address</span></label>
+        <div class="row"><input id="g-host" type="text" value="paypa1.com" autocomplete="off" spellcheck="false" inputmode="url"></div>
+        <div class="chips" id="g-chips">
+          <button type="button">paypa1.com</button><button type="button">www.paypal.com</button><button type="button">ebay.co.uk.konto-weryfikacja.top</button>
+          <button type="button">arnazon.co.uk</button><button type="button">royalmail-redelivery.com</button><button type="button">online.mbank.pl</button>
+          <button type="button">faceb00k.com</button><button type="button">xn--pypal-4ve.com</button><button type="button">www.bbc.co.uk</button>
+        </div>
+        <div class="verdict" id="g-out" aria-live="polite"></div>
+      </div>
+      <div class="layers">
+        <div><b class="pl">🛡 Wykrywanie podróbek</b><b class="en">🛡 Fake-site detection</b>
+          <p class="pl">Marka na obcej domenie, literówki, podmienione znaki (0→o, rn→m), litery z innych alfabetów i podróbki stron, do których masz zapisane hasła.</p>
+          <p class="en">A brand on a foreign domain, typos, swapped characters (0→o, rn→m), letters from other alphabets and fakes of sites you have saved passwords for.</p></div>
+        <div><b class="pl">🔒 Zawsze HTTPS</b><b class="en">🔒 Always HTTPS</b>
+          <p class="pl">Najpierw połączenie szyfrowane. Strona bez szyfrowania tylko po ostrzeżeniu.</p>
+          <p class="en">Encrypted connection first. An unencrypted site only after a warning.</p></div>
+        <div><b class="pl">💳 Bezpieczne płatności</b><b class="en">💳 Safe payments</b>
+          <p class="pl">Na stronach banków i płatności okno Velivo jest niewidoczne dla programów nagrywających ekran.</p>
+          <p class="en">On bank and payment sites the Velivo window is invisible to screen-recording programs.</p></div>
+        <div><b class="pl">🔐 Hasła odporne na podróbki</b><b class="en">🔐 Fake-proof passwords</b>
+          <p class="pl">Hasło tylko dla prawdziwej domeny. Strona nie „kliknie” za Ciebie, nie podmieni pomocnika, nie wyłudzi danych ukrytym polem. Karta i konto bankowe – zawsze z potwierdzeniem, CVC nigdy nie jest zapisywany.</p>
+          <p class="en">Passwords only for the real domain. A page can't "click" for you, swap the helper or steal data with a hidden field. Card and bank account always need confirmation; the CVC is never saved.</p></div>
+        <div><b class="pl">✅ Sprawdzone testami</b><b class="en">✅ Verified by tests</b>
+          <p class="pl">87 symulowanych ataków i podróbek, 0 nieudanych (kod wyjścia 0). Testy są w repozytorium.</p>
+          <p class="en">87 simulated attacks and fakes, 0 failures (exit code 0). The tests are in the repository.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="why">
+  <div class="wrap">
+    <h2 class="pl">Dlaczego tak lekko</h2><h2 class="en">Why it's so light</h2>
+    <p class="sub pl">Instalator ma 6,7 MB, a sam program Velivo zajmuje zwykle 50–80 MB pamięci.</p>
+    <p class="sub en">The installer is 6.7 MB, and the Velivo program itself typically uses 50–80 MB of memory.</p>
+    <div class="why">
+      <div>
+        <h3 class="pl">Mały instalator</h3><h3 class="en">A small installer</h3>
+        <ol class="pl">
+          <li><b>Bez własnej kopii silnika.</b> Chrome czy Opera wożą cały silnik Chromium, czyli ponad 100 MB. Velivo korzysta z silnika Edge (WebView2), który jest już w Windows i aktualizuje go Windows Update.</li>
+          <li><b>Natywny program Windows</b> (WPF, .NET), a nie strona udająca program jak w Electronie.</li>
+          <li><b>Duże dodatki tylko na życzenie:</b> głosy offline, narzędzie do pobierania filmów, FFmpeg. Każdy pobiera się raz i za Twoją zgodą.</li>
+        </ol>
+        <ol class="en">
+          <li><b>No bundled engine.</b> Chrome or Opera ship the whole Chromium engine, over 100 MB. Velivo uses the Edge engine (WebView2) already in Windows, updated by Windows Update.</li>
+          <li><b>A native Windows program</b> (WPF, .NET), not a web page pretending to be an app as in Electron.</li>
+          <li><b>Large extras only on request:</b> offline voices, the video download tool, FFmpeg. Each downloads once, with your consent.</li>
+        </ol>
+        <div class="bars" aria-label="Rozmiar instalatora">
+          <div class="barrow me"><span>Velivo</span><span class="track"><span class="fill" style="width:5.5%"></span></span><span class="v">6,7 MB</span></div>
+          <div class="barrow"><span>Chrome</span><span class="track"><span class="fill" style="width:85%"></span></span><span class="v">~105 MB</span></div>
+          <div class="barrow"><span>Firefox</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="v">~125 MB</span></div>
+        </div>
+      </div>
+      <div>
+        <h3 class="pl">Mało pamięci</h3><h3 class="en">Little memory</h3>
+        <ol class="pl">
+          <li><b>Natywne okno, karty i menu</b> zajmują dziesiątki, a nie setki MB.</li>
+          <li><b>Reklamy i trackery są blokowane przed pobraniem</b> (ok. 95 tys. reguł), więc strony są lżejsze i szybsze.</li>
+          <li><b>Karty w tle oddają pamięć,</b> a muzyka i czaty w nich działają dalej.</li>
+          <li><b>Żadnych usług w tle:</b> brak konta, chmury, telemetrii i reklam na stronie startowej.</li>
+          <li><b>Cache na RAM dysku:</b> jeśli masz RAM dysk, wskaż go w ustawieniach. Bez zewnętrznych narzędzi i dowiązań, jak przy Chrome.</li>
+        </ol>
+        <ol class="en">
+          <li><b>Native window, tabs and menus</b> take tens, not hundreds, of MB.</li>
+          <li><b>Ads and trackers are blocked before they download</b> (about 95k rules), so pages are lighter and faster.</li>
+          <li><b>Background tabs give memory back,</b> while music and chats in them keep working.</li>
+          <li><b>No background services:</b> no account, cloud, telemetry or ads on the start page.</li>
+          <li><b>Cache on a RAM disk:</b> if you have one, pick it in settings. No external tools or symlinks, unlike Chrome.</li>
+        </ol>
+      </div>
+    </div>
+    <p class="note pl">Uczciwie: 50–80 MB to sam program Velivo. Treść stron renderuje silnik Edge w osobnych procesach <code>msedgewebview2.exe</code>, które też zajmują pamięć, jak w każdej przeglądarce. Dzięki blokowaniu reklam i usypianiu kart w tle zwykle wychodzi mniej niż w Chrome przy tych samych stronach.</p>
+    <p class="note en">To be fair: the 50–80 MB is the Velivo program itself. Page content is rendered by the Edge engine in separate <code>msedgewebview2.exe</code> processes, which also use memory, as in any browser. Thanks to ad blocking and background-tab sleep it's usually less than Chrome uses for the same pages.</p>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <h2 class="pl">Wszystkie funkcje</h2><h2 class="en">All features</h2>
+    <p class="sub pl">Pełna lista, ułożona tematycznie.</p><p class="sub en">The full list, grouped by topic.</p>
+    <div class="filter"><input id="f-search" type="search" placeholder="Szukaj funkcji… / Search features…" aria-label="Szukaj funkcji / Search features"><span id="f-count"></span></div>
+    <div class="tbl">
+      <table class="pl">
+        <thead><tr><th>Obszar</th><th>Co oferuje</th></tr></thead>
+        <tbody>
+          <tr><td>Prywatność</td><td>Blokowanie reklam i trackerów (ok. 95 tys. reguł, w tym lista polska), automatyczne odrzucanie banerów ciasteczek (RODO, nigdy „Akceptuj”), ochrona przed śledzeniem zrównoważona lub ścisła, „Nie śledź”, SmartScreen, karty prywatne</td></tr>
+          <tr><td>Tarcza</td><td>Licznik i lista wszystkiego, co zablokowano, z paragonem prywatności; ręczne blokowanie dowolnego elementu strony</td></tr>
+          <tr><td>Reguły stron</td><td>Blokada JavaScriptu, ciasteczek, wymuszone blokowanie trackerów, czyszczenie danych, zaufane domeny</td></tr>
+          <tr><td>Karty</td><td>Przypięte (zamrożone na adresie), kolorowe grupy do zwijania, zestawy kart, wyciszanie 🔊, odświeżanie co 1–30 min, szukanie w kartach, linki w tej samej karcie</td></tr>
+          <tr><td>Filmy</td><td>⬇ Pobierz, ▣ Film na wierzchu (sam film, bez reklam, przezroczystość kółkiem, gra po zamknięciu Velivo), ⧉ Obraz w obrazie</td></tr>
+          <tr><td>Czytanie</td><td>Na głos (głosy Windows i naturalne offline), „Czytaj od tego miejsca”, tryb czytania z lokalnym streszczeniem bez AI, pomijanie reklam i „Czytaj także”</td></tr>
+          <tr><td>Historia</td><td>Dzień → witryna → strony, „Gdzie ja to czytałem?”, historia pobranych z datą i źródłem</td></tr>
+          <tr><td>Wyszukiwanie</td><td>Skróty <code>yt koty</code>, <code>allegro rower</code>, <code>wiki Kraków</code>, <code>mapy Gdańsk</code> i własne; „Wklej i przejdź”</td></tr>
+          <tr><td>Wygląd</td><td>Nowoczesny (jak Windows 11) albo Kolorowy, 10 motywów, tryb jasny → ciemny → nocny z natężeniem, powiększenie dla każdej strony, wersja telefonu dla strony</td></tr>
+          <tr><td>Synchronizacja</td><td>Zakładki, hasła, historia (60 dni), karty przypięte, Szybki Dostęp, ustawienia; wysyłanie kart</td></tr>
+          <tr><td>Ochrona</td><td>Wykrywanie stron-podróbek bez internetu, zawsze HTTPS, bezpieczne płatności (okno niewidoczne dla nagrywania ekranu), SmartScreen</td></tr>
+          <tr><td>Hasła</td><td>Przyciski 🔑 Wpisz · ⚡ Generuj obok pola, wyszukiwarka całej bazy, pytanie o zapis (też w kartach prywatnych), hasła tylko dla prawdziwej domeny, Sejf, import i eksport CSV (KeePassXC, Chrome)</td></tr>
+          <tr><td>Autouzupełnianie</td><td>Adres, karta (bez CVC) i konto bankowe (IBAN, numer konta, sort code) – klik w puste pole wypełnia formularz; karta i konto po potwierdzeniu</td></tr>
+          <tr><td>Przeprowadzka</td><td>Zakładki z Chrome, Edge, Brave, Opery i Vivaldi odczytywane wprost; hasła przez CSV z prowadzeniem krok po kroku</td></tr>
+          <tr><td>Narzędzia</td><td>Cache stron na RAM dysku (wystarczy wskazać folder, bez zewnętrznych narzędzi), menedżer pobrań (do 16 połączeń, wznawianie), zrzuty całej strony, tłumaczenie, dodatki Chrome z przypinaniem, profile użytkowników</td></tr>
+        </tbody>
+      </table>
+      <table class="en">
+        <thead><tr><th>Area</th><th>What it offers</th></tr></thead>
+        <tbody>
+          <tr><td>Privacy</td><td>Ad and tracker blocking (about 95k rules incl. a Polish list), automatic cookie-banner rejection (GDPR, never "Accept"), balanced or strict tracking prevention, "Do Not Track", SmartScreen, private tabs</td></tr>
+          <tr><td>Shield</td><td>Counter and list of everything blocked, with the privacy receipt; manual blocking of any page element</td></tr>
+          <tr><td>Site rules</td><td>Block JavaScript or cookies, force tracker blocking, clear data, trusted domains</td></tr>
+          <tr><td>Tabs</td><td>Pinned (frozen to their address), colored collapsible groups, tab sets, mute 🔊, refresh every 1–30 min, tab search, links in the same tab</td></tr>
+          <tr><td>Videos</td><td>⬇ Download, ▣ Video on top (just the video, no ads, wheel transparency, plays after Velivo closes), ⧉ Picture in picture</td></tr>
+          <tr><td>Reading</td><td>Read aloud (Windows and natural offline voices), "Read from here", reader mode with a local summary (no AI), skips ads and "Read also"</td></tr>
+          <tr><td>History</td><td>Day → site → pages, "Where did I read that?", download history with date and source</td></tr>
+          <tr><td>Search</td><td>Shortcuts <code>yt cats</code>, <code>allegro bike</code>, <code>wiki Kraków</code>, <code>mapy Gdańsk</code> and your own; "Paste and go"</td></tr>
+          <tr><td>Look</td><td>Modern (like Windows 11) or Colorful, 10 themes, light → dark → night with strength, per-site zoom, phone version per site</td></tr>
+          <tr><td>Sync</td><td>Bookmarks, passwords, history (60 days), pinned tabs, Quick Access, settings; send tabs</td></tr>
+          <tr><td>Protection</td><td>Offline fake-site detection, always HTTPS, safe payments (window invisible to screen recording), SmartScreen</td></tr>
+          <tr><td>Passwords</td><td>🔑 Fill in · ⚡ Generate buttons by the field, whole-vault search, save prompt (private tabs too), passwords only for the real domain, Sejf, CSV import and export (KeePassXC, Chrome)</td></tr>
+          <tr><td>Autofill</td><td>Address, card (no CVC) and bank account (IBAN, account number, sort code) – clicking an empty field fills the form; card and account after confirmation</td></tr>
+          <tr><td>Moving in</td><td>Bookmarks read directly from Chrome, Edge, Brave, Opera and Vivaldi; passwords via CSV with step-by-step guidance</td></tr>
+          <tr><td>Tools</td><td>Page cache on a RAM disk (just pick a folder, no external tools), download manager (up to 16 connections, resume), full-page screenshots, translation, Chrome extensions with pinning, user profiles</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="manual">
+  <div class="wrap">
+    <h2 class="pl">Instrukcja</h2><h2 class="en">Manual</h2>
+    <p class="sub pl">Kliknij rozdział, aby go rozwinąć. Pełna wersja jest w pliku <a href="https://github.com/mic0078/Velivo-1.22/blob/main/INSTRUKCJA.md">INSTRUKCJA.md</a>.</p>
+    <p class="sub en">Click a chapter to expand it. The full version is in <a href="https://github.com/mic0078/Velivo-1.22/blob/main/MANUAL.en.md">MANUAL.en.md</a>.</p>
+    <div class="manual">
+
+      <details open>
+        <summary><span class="num">01</span><span class="pl">Instalacja i aktualizacja</span><span class="en">Installing and updating</span></summary>
+        <div class="pl">
+          <p><b>Wymagania:</b> Windows 10 (1809+) albo 11, 64-bit, .NET 10 Desktop Runtime, WebView2 (w Windows 11 jest zawsze). Brakujące elementy instalator wykryje sam.</p>
+          <ol>
+            <li>Pobierz <code>Velivo-Setup-1.22.exe</code> (6,7 MB).</li>
+            <li>Przy „Nieznany wydawca” kliknij <b>Więcej informacji → Uruchom mimo to</b>.</li>
+            <li>Wybierz język: Polski albo English. Velivo uruchomi się w tym języku.</li>
+            <li>Przy aktualizacji wybierz <b>Zachowaj moje ustawienia i dane</b> albo <b>Czysta instalacja</b> (z kopią zapasową starych danych).</li>
+            <li>Bez uprawnień administratora; program trafia do <code>%LOCALAPPDATA%\Programs\Velivo</code>.</li>
+          </ol>
+        </div>
+        <div class="en">
+          <p><b>Requirements:</b> Windows 10 (1809+) or 11, 64-bit, .NET 10 Desktop Runtime, WebView2 (always present in Windows 11). The installer detects anything missing.</p>
+          <ol>
+            <li>Download <code>Velivo-Setup-1.22.exe</code> (6.7 MB).</li>
+            <li>At "Unknown publisher" click <b>More info → Run anyway</b>.</li>
+            <li>Choose the language: Polski or English. Velivo will start in that language.</li>
+            <li>When updating, choose <b>Keep my settings and data</b> or <b>Clean install</b> (old data is backed up).</li>
+            <li>No administrator rights needed; installs to <code>%LOCALAPPDATA%\Programs\Velivo</code>.</li>
+          </ol>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="num">02</span><span class="pl">Pasek narzędzi</span><span class="en">The toolbar</span></summary>
+        <div class="tbl">
+          <table class="pl"><tbody>
+            <tr><td>← → ⟳ ⌂</td><td>Wstecz, dalej, odśwież, strona startowa</td></tr>
+            <tr><td>Pasek adresu</td><td>Adres albo szukane słowa; prawy przycisk: Wklej i przejdź</td></tr>
+            <tr><td>125%</td><td>Powiększenie: kółko myszy zmienia, klik przywraca; pamiętane dla strony</td></tr>
+            <tr><td>☆ · 🔑</td><td>Zakładka (złota = zapisana) · logowanie z Sejfu</td></tr>
+            <tr><td>🛡 liczba</td><td>Co zablokowano + paragon prywatności; czerwona = AdBlock wyłączony</td></tr>
+            <tr><td>⚠ liczba</td><td>Sklep używa sztuczek presji – kliknij po listę</td></tr>
+            <tr><td>🌙</td><td>Jasny → ciemny → nocny; w nocnym kółko zmienia natężenie</td></tr>
+            <tr><td>📷 · Czytnik · 🔊</td><td>Zrzut ekranu · tryb czytania · czytanie na głos</td></tr>
+            <tr><td>⬇ · 🧩 · 🕘 · ⚙</td><td>Pobrane · dodatki z przypinaniem · historia · ustawienia</td></tr>
+          </tbody></table>
+          <table class="en"><tbody>
+            <tr><td>← → ⟳ ⌂</td><td>Back, forward, reload, home</td></tr>
+            <tr><td>Address bar</td><td>Address or search words; right-click: Paste and go</td></tr>
+            <tr><td>125%</td><td>Zoom: the mouse wheel changes it, a click restores it; remembered per site</td></tr>
+            <tr><td>☆ · 🔑</td><td>Bookmark (gold = saved) · sign-in from Sejf</td></tr>
+            <tr><td>🛡 number</td><td>What was blocked + privacy receipt; red = AdBlock off</td></tr>
+            <tr><td>⚠ number</td><td>The shop uses pressure tricks – click for the list</td></tr>
+            <tr><td>🌙</td><td>Light → dark → night; in night mode the wheel sets strength</td></tr>
+            <tr><td>📷 · Reader · 🔊</td><td>Screenshot · reader mode · read aloud</td></tr>
+            <tr><td>⬇ · 🧩 · 🕘 · ⚙</td><td>Downloads · extensions with pins · history · settings</td></tr>
+          </tbody></table>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="num">03</span><span class="pl">Obsługa samą myszką</span><span class="en">Mouse-only use</span></summary>
+        <div class="pl">
+          <p><b>Gesty:</b> przytrzymaj prawy przycisk, przesuń ok. 3 cm i puść. ← wstecz, → dalej, ↑ nowa karta, ↓ zamknij kartę, ↓ potem → odśwież. Zwykły prawy klik dalej otwiera menu.</p>
+          <p><b>Kółko na przyciskach:</b> powiększenie (przycisk procentów), natężenie trybu nocnego (🌙), przezroczystość okienka filmu.</p>
+          <p><b>Linki:</b> zwykły klik w tej samej karcie, środkowy przycisk albo Ctrl+klik w nowej.</p>
+        </div>
+        <div class="en">
+          <p><b>Gestures:</b> hold the right button, move about 3 cm and release. ← back, → forward, ↑ new tab, ↓ close tab, ↓ then → reload. A normal right-click still opens the menu.</p>
+          <p><b>Wheel on buttons:</b> zoom (percent button), night-mode strength (🌙), video-window transparency.</p>
+          <p><b>Links:</b> a normal click opens in the same tab, the middle button or Ctrl+click in a new one.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="num">04</span><span class="pl">Karty</span><span class="en">Tabs</span></summary>
+        <ul class="pl">
+          <li><b>Przypnij</b> (prawy przycisk na karcie): karta na początku paska, zamrożona na adresie, wraca po uruchomieniu i synchronizuje się.</li>
+          <li><b>Grupy:</b> Dodaj do grupy → Nowa grupa…; etykieta zwija grupę, prawy przycisk na niej zmienia nazwę i kolor.</li>
+          <li><b>Zestawy kart:</b> zapisz otwarte karty pod nazwą i otwórz je później jednym kliknięciem.</li>
+          <li><b>🔊 Wyciszanie</b>, <b>⟳ odświeżanie</b> co 1–30 min, <b>szukanie w kartach</b> <kbd>Ctrl+Shift+A</kbd>, przywracanie zamkniętej <kbd>Ctrl+Shift+T</kbd>.</li>
+        </ul>
+        <ul class="en">
+          <li><b>Pin</b> (right-click a tab): moves to the front, frozen to its address, returns on start and syncs.</li>
+          <li><b>Groups:</b> Add to group → New group…; the label collapses the group, right-click it to rename or recolor.</li>
+          <li><b>Tab sets:</b> save open tabs under a name and reopen them later in one click.</li>
+          <li><b>🔊 Mute</b>, <b>⟳ refresh</b> every 1–30 min, <b>tab search</b> <kbd>Ctrl+Shift+A</kbd>, reopen closed <kbd>Ctrl+Shift+T</kbd>.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">05</span><span class="pl">Filmy: na wierzchu, obraz w obrazie, pobieranie</span><span class="en">Videos: on top, picture in picture, downloads</span></summary>
+        <div class="pl">
+          <p>Najedź na film: w jego prawym górnym rogu pojawią się <b>⬇ Pobierz · ▣ Na wierzchu · ⧉ Obraz w obrazie</b>.</p>
+          <ul>
+            <li><b>▣ Na wierzchu:</b> przesuwasz za pasek, zmieniasz rozmiar za róg (od 160×90), kółko = przezroczystość, 📌 = zawsze na wierzchu, ↩ = wróć do strony, ✕ = zamknij. Gra po zamknięciu karty i przeglądarki.</li>
+            <li><b>⬇ Pobierz:</b> wybierasz jakość (do 1080p, szybka, M4A, MP3) i folder. YouTube pobiera darmowe narzędzie yt-dlp (raz, ok. 18 MB), najlepszą jakość i MP3 skleja FFmpeg (raz, ok. 140 MB). Treści z DRM (Netflix itp.) nie są obsługiwane.</li>
+          </ul>
+        </div>
+        <div class="en">
+          <p>Hover over a video: <b>⬇ Download · ▣ On top · ⧉ Picture in picture</b> appear in its top right corner.</p>
+          <ul>
+            <li><b>▣ On top:</b> move by the bar, resize by a corner (from 160×90), wheel = transparency, 📌 = always on top, ↩ = back to the page, ✕ = close. Keeps playing after closing the tab and the browser.</li>
+            <li><b>⬇ Download:</b> choose quality (up to 1080p, quick, M4A, MP3) and folder. YouTube uses the free yt-dlp tool (once, about 18 MB); best quality and MP3 use FFmpeg (once, about 140 MB). DRM content (Netflix etc.) isn't supported.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="num">06</span><span class="pl">Prywatność i zakupy</span><span class="en">Privacy and shopping</span></summary>
+        <ul class="pl">
+          <li><b>Blokowanie reklam</b> działa samo. Element, który przeszedł: prawy przycisk → 🚫 Blokuj element.</li>
+          <li><b>Banery ciasteczek</b> Velivo odrzuca samo; wyjątek: prawy przycisk → 🍪 Nie odrzucaj na tej stronie.</li>
+          <li><b>Przycisk Prywatność:</b> reguły dla domeny i „Dodaj do zaufanych”, gdy strona działa źle.</li>
+          <li><b>⚠ w sklepie</b> pokazuje fałszywe liczniki, presję i ukryte opłaty; zaznaczone dodatki Velivo odznacza.</li>
+        </ul>
+        <ul class="en">
+          <li><b>Ad blocking</b> works by itself. For an element that slipped through: right-click → 🚫 Block element.</li>
+          <li><b>Cookie banners</b> are rejected automatically; exception: right-click → 🍪 Don't reject on this site.</li>
+          <li><b>Privacy button:</b> rules for the domain and "Add to trusted" when a site misbehaves.</li>
+          <li><b>⚠ in a shop</b> lists fake countdowns, pressure and hidden fees; Velivo unticks pre-selected add-ons.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">07</span><span class="pl">Czytanie i „Gdzie ja to czytałem?”</span><span class="en">Reading and "Where did I read that?"</span></summary>
+        <ul class="pl">
+          <li><b>🔊</b> albo <kbd>Ctrl+Shift+U</kbd> czyta stronę; prawy przycisk → <b>Czytaj od tego miejsca</b>.</li>
+          <li><b>Czytnik:</b> czysty tekst i „Najważniejsze zdania” – streszczenie lokalne, bez AI i bez chmury.</li>
+          <li><b>🧠</b> <kbd>Ctrl+Shift+F</kbd> albo prawy przycisk: wpisz słowa z treści, Velivo znajdzie artykuł. Banki, poczta i karty prywatne są pomijane.</li>
+        </ul>
+        <ul class="en">
+          <li><b>🔊</b> or <kbd>Ctrl+Shift+U</kbd> reads the page; right-click → <b>Read from here</b>.</li>
+          <li><b>Reader:</b> clean text and "Key sentences" – a local summary, no AI and no cloud.</li>
+          <li><b>🧠</b> <kbd>Ctrl+Shift+F</kbd> or right-click: type words from the text and Velivo finds the article. Banks, mail and private tabs are skipped.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">08</span><span class="pl">Synchronizacja w domu</span><span class="en">Home sync</span></summary>
+        <ol class="pl">
+          <li>Ta sama wersja i ten sam profil na obu komputerach.</li>
+          <li>Ustawienia → włącz synchronizację; zapora musi przepuszczać Velivo (port 41919).</li>
+          <li>Potwierdź parowanie, porównując krótki kod na obu ekranach.</li>
+          <li>Od teraz wszystko idzie szyfrowane przez Twoją sieć. Kartę wyślesz prawym przyciskiem → 📺 Wyślij do….</li>
+        </ol>
+        <ol class="en">
+          <li>The same version and the same profile on both computers.</li>
+          <li>Settings → turn on sync; the firewall must allow Velivo (port 41919).</li>
+          <li>Confirm pairing by comparing the short code on both screens.</li>
+          <li>From now on everything goes encrypted over your network. Send a tab with right-click → 📺 Send to….</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary><span class="num">09</span><span class="pl">Skróty klawiszowe</span><span class="en">Keyboard shortcuts</span></summary>
+        <div class="tbl"><table><tbody>
+          <tr><td><kbd>Ctrl+T</kbd> · <kbd>Ctrl+W</kbd></td><td><span class="pl">Nowa karta · zamknij kartę</span><span class="en">New tab · close tab</span></td></tr>
+          <tr><td><kbd>Ctrl+Shift+N</kbd></td><td><span class="pl">Karta prywatna</span><span class="en">Private tab</span></td></tr>
+          <tr><td><kbd>Ctrl+Shift+T</kbd></td><td><span class="pl">Przywróć zamkniętą kartę</span><span class="en">Reopen closed tab</span></td></tr>
+          <tr><td><kbd>Ctrl+Shift+A</kbd></td><td><span class="pl">Szukaj w kartach</span><span class="en">Search tabs</span></td></tr>
+          <tr><td><kbd>Ctrl+Shift+F</kbd></td><td><span class="pl">Gdzie ja to czytałem?</span><span class="en">Where did I read that?</span></td></tr>
+          <tr><td><kbd>Ctrl+D</kbd> · <kbd>Ctrl+H</kbd> · <kbd>Ctrl+J</kbd></td><td><span class="pl">Zakładka · historia · pobrane</span><span class="en">Bookmark · history · downloads</span></td></tr>
+          <tr><td><kbd>Ctrl+Shift+U</kbd></td><td><span class="pl">Czytaj na głos / pauza</span><span class="en">Read aloud / pause</span></td></tr>
+          <tr><td><kbd>F5</kbd> · <kbd>F11</kbd></td><td><span class="pl">Odśwież · pełny ekran</span><span class="en">Reload · full screen</span></td></tr>
+        </tbody></table></div>
+      </details>
+
+      <details>
+        <summary><span class="num">10</span><span class="pl">Problemy i miejsce danych</span><span class="en">Troubleshooting and data</span></summary>
+        <ul class="pl">
+          <li><b>Strona blokuje coś, czego nie powinna:</b> Prywatność → Dodaj do zaufanych.</li>
+          <li><b>Komputery się nie widzą:</b> ten sam profil, zapora, automatyczny czas Windows na obu.</li>
+          <li><b>Błąd:</b> Velivo działa dalej, szczegóły są w <code>bledy.log</code>.</li>
+          <li><b>RAM dysk:</b> Ustawienia → Folder na śmieci → Wybierz… → np. <code>R:\</code>. Velivo czyści tylko swój podfolder <code>Velivo-smieci</code>. Cache grafiki silnik zawsze trzyma w profilu.</li>
+          <li><b>Dane:</b> program w <code>%LOCALAPPDATA%\Programs\Velivo</code>, ustawienia i historia w <code>%LOCALAPPDATA%\Przegladarka</code>. Wszystko tylko na Twoim komputerze.</li>
+        </ul>
+        <ul class="en">
+          <li><b>A site blocks something it shouldn't:</b> Privacy → Add to trusted.</li>
+          <li><b>Computers don't see each other:</b> same profile, firewall, automatic Windows time on both.</li>
+          <li><b>An error:</b> Velivo keeps running; details are in <code>bledy.log</code>.</li>
+          <li><b>RAM disk:</b> Settings → Junk folder → Choose… → e.g. <code>R:\</code>. Velivo only clears its own <code>Velivo-smieci</code> subfolder. The graphics cache always stays in the profile.</li>
+          <li><b>Data:</b> program in <code>%LOCALAPPDATA%\Programs\Velivo</code>, settings and history in <code>%LOCALAPPDATA%\Przegladarka</code>. Everything stays on your computer.</li>
+        </ul>
+      </details>
+
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="pl">Velivo 1.22 · prywatna przeglądarka dla Windows · stworzona z pasji · autor: Michael · kod źródłowy na <a href="https://github.com/mic0078/Velivo-1.22">GitHubie</a></p>
+    <p class="en">Velivo 1.22 · a private browser for Windows · made with passion · by Michael · source code on <a href="https://github.com/mic0078/Velivo-1.22">GitHub</a></p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var body = document.body;
+  function setLang(l) {
+    body.setAttribute('data-lang', l);
+    document.documentElement.lang = l;
+    document.getElementById('lang-pl').setAttribute('aria-pressed', l === 'pl');
+    document.getElementById('lang-en').setAttribute('aria-pressed', l === 'en');
+    try { localStorage.setItem('velivo-lang', l); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('velivo-lang'); } catch (e) {}
+  setLang(saved === 'en' ? 'en' : 'pl');
+  document.getElementById('lang-pl').addEventListener('click', function () { setLang('pl'); });
+  document.getElementById('lang-en').addEventListener('click', function () { setLang('en'); });
+
+  // okienko "Film na wierzchu": kółko myszy (albo strzałki) zmienia przezroczystość, jak w Velivo
+  var f = document.getElementById('float'), out = document.getElementById('op-val'), alpha = 100;
+  function apply() { f.style.opacity = alpha / 100; out.textContent = alpha + '%'; }
+  f.addEventListener('wheel', function (e) { e.preventDefault(); alpha = Math.max(15, Math.min(100, alpha + (e.deltaY < 0 ? 10 : -10))); apply(); }, { passive: false });
+  f.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); alpha = Math.max(15, Math.min(100, alpha + (e.key === 'ArrowUp' ? 10 : -10))); apply(); }
+  });
+  apply();
+  var pin = document.getElementById('f-pin'), st = document.getElementById('f-state'), restore = document.getElementById('f-restore');
+  function flash(t) { st.textContent = t; clearTimeout(flash.t); flash.t = setTimeout(function () { st.textContent = ''; }, 1600); }
+  var pl = function () { return body.getAttribute('data-lang') === 'pl'; };
+  pin.addEventListener('click', function () { var on = pin.getAttribute('aria-pressed') !== 'true'; pin.setAttribute('aria-pressed', on); flash(pl() ? (on ? 'Zawsze na wierzchu' : 'Zwykłe okno') : (on ? 'Always on top' : 'Normal window')); });
+  document.getElementById('f-video').addEventListener('click', function () { f.classList.toggle('paused'); flash(f.classList.contains('paused') ? (pl() ? '❚❚ Pauza' : '❚❚ Paused') : (pl() ? '▶ Gra' : '▶ Playing')); });
+  document.getElementById('f-back').addEventListener('click', function () { flash(pl() ? '↩ Wraca do karty od 12:41' : '↩ Back to the tab at 12:41'); });
+  document.getElementById('f-close').addEventListener('click', function () { f.hidden = true; restore.hidden = false; restore.focus(); });
+  restore.addEventListener('click', function () { f.hidden = false; restore.hidden = true; f.focus(); });
+
+  // tester podrobek - te same reguly co src/Ochrona.cs
+  var BR = {paypal:['paypal.com','paypal.me'],ebay:['ebay.com','ebay.co.uk','ebay.pl','ebay.de'],amazon:['amazon.com','amazon.co.uk','amazon.pl','amazon.de'],facebook:['facebook.com','fb.com'],instagram:['instagram.com'],whatsapp:['whatsapp.com'],google:['google.com','google.co.uk','google.pl','youtube.com','gmail.com'],gmail:['gmail.com'],microsoft:['microsoft.com','microsoftonline.com','live.com','outlook.com','office.com','bing.com'],outlook:['outlook.com','live.com'],apple:['apple.com','icloud.com'],icloud:['icloud.com'],twitter:['twitter.com','x.com'],netflix:['netflix.com'],spotify:['spotify.com'],allegro:['allegro.pl'],olx:['olx.pl'],vinted:['vinted.pl','vinted.co.uk'],inpost:['inpost.pl','inpost.co.uk'],pkobp:['pkobp.pl','ipko.pl'],ipko:['ipko.pl'],mbank:['mbank.pl'],santander:['santander.pl','santander.co.uk'],pekao:['pekao.com.pl'],millennium:['bankmillennium.pl'],revolut:['revolut.com'],monzo:['monzo.com'],starling:['starlingbank.com'],barclays:['barclays.co.uk','barclays.com'],hsbc:['hsbc.co.uk','hsbc.com'],lloyds:['lloydsbank.com','lloydsbank.co.uk'],natwest:['natwest.com'],halifax:['halifax.co.uk'],nationwide:['nationwide.co.uk'],royalmail:['royalmail.com'],evri:['evri.com'],hmrc:['gov.uk'],dvla:['gov.uk'],binance:['binance.com'],coinbase:['coinbase.com'],bitdefender:['bitdefender.com']};
+  var TWO = ['co.uk','org.uk','gov.uk','ac.uk','com.pl','net.pl','org.pl','com.au','co.nz','co.jp','com.br'];
+  var OFF = []; Object.keys(BR).forEach(function (k) { BR[k].forEach(function (d) { if (OFF.indexOf(d) < 0) OFF.push(d); }); });
+  function reg(h) { var p = h.split('.'); if (p.length <= 2) return h; var l2 = p[p.length-2] + '.' + p[p.length-1]; return TWO.indexOf(l2) >= 0 ? p[p.length-3] + '.' + l2 : l2; }
+  function dec(s) { s = s.replace(/rn/g,'m').replace(/vv/g,'w').replace(/cl/g,'d'); var m = {'0':'o','1':'l','3':'e','4':'a','5':'s','7':'t','8':'b','9':'g','i':'l'}; return s.split('').map(function (c) { return m[c] || c; }).join(''); }
+  function ed(a, b) { if (Math.abs(a.length-b.length) > 2) return 99; var d = []; for (var i = 0; i <= a.length; i++) { d[i] = [i]; } for (var j = 0; j <= b.length; j++) d[0][j] = j;
+    for (i = 1; i <= a.length; i++) for (j = 1; j <= b.length; j++) { d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1)); if (i > 1 && j > 1 && a[i-1] === b[j-2] && a[i-2] === b[j-1]) d[i][j] = Math.min(d[i][j], d[i-2][j-2]+1); } return d[a.length][b.length]; }
+  function check(host) {
+    host = host.trim().toLowerCase().replace(/^https?:\/\//, '').split(/[\/?#:]/)[0].replace(/\.$/, '');
+    if (!/^[a-z0-9.-]+\.[a-z0-9-]+$/.test(host)) return { host: host, bad: null };
+    var r = reg(host); if (OFF.indexOf(r) >= 0) return { host: host, bad: false };
+    if (host.split('.').some(function (l) { return l.indexOf('xn--') === 0; })) return { host: host, bad: 'xn' };
+    var toks = host.split(/[.-]/).filter(Boolean);
+    for (var b in BR) if (toks.some(function (t) { return t === b || (b.length >= 6 && t.indexOf(b) === 0); })) return { host: host, bad: BR[b][0] };
+    var lab = r.split('.')[0];
+    if (lab.length >= 4) for (var k = 0; k < OFF.length; k++) { var o = OFF[k].split('.')[0]; if (o.length < 4 || o === lab) continue;
+      if (dec(lab) === dec(o)) return { host: host, bad: OFF[k] }; if (o.length >= 6 && lab.length >= 5 && ed(lab, o) === 1) return { host: host, bad: OFF[k] }; }
+    return { host: host, bad: false };
+  }
+  var gi = document.getElementById('g-host'), go = document.getElementById('g-out');
+  function render() {
+    var r = check(gi.value), P = pl();
+    if (r.bad === null) { go.className = 'verdict'; go.innerHTML = ''; go.textContent = P ? 'Wpisz adres, np. paypal.com' : 'Type an address, e.g. paypal.com'; return; }
+    go.className = 'verdict ' + (r.bad ? 'bad' : 'good'); go.textContent = '';
+    var b = document.createElement('b'), t = document.createElement('span');
+    if (r.bad) { b.textContent = P ? '⚠ Velivo zatrzyma tę stronę' : '⚠ Velivo stops this site';
+      t.textContent = r.bad === 'xn' ? (P ? 'Adres zawiera litery z innych alfabetów udające zwykłe.' : 'The address uses letters from other alphabets posing as normal ones.')
+        : (P ? 'Udaje ' + r.bad + ', ale nie należy do tej firmy. Velivo pokaże ostrzeżenie z domyślnym „Nie”.' : 'It imitates ' + r.bad + ' but does not belong to that company. Velivo shows a warning with "No" as default.'); }
+    else { b.textContent = P ? '✓ Wygląda w porządku' : '✓ Looks fine'; t.textContent = (P ? 'Brak oznak podróbki: ' : 'No signs of a fake: ') + r.host; }
+    go.appendChild(b); go.appendChild(t);
+  }
+  gi.addEventListener('input', render);
+  document.getElementById('g-chips').addEventListener('click', function (e) { if (e.target.tagName === 'BUTTON') { gi.value = e.target.textContent; render(); } });
+  document.getElementById('lang-pl').addEventListener('click', render); document.getElementById('lang-en').addEventListener('click', render);
+  render();
+
+  // szukanie funkcji
+  var fs = document.getElementById('f-search'), fc = document.getElementById('f-count');
+  function filt() { var q = fs.value.trim().toLowerCase(), n = 0;
+    document.querySelectorAll('.tbl table tbody tr').forEach(function (tr) { var ok = !q || tr.textContent.toLowerCase().indexOf(q) >= 0; tr.hidden = !ok; if (ok && tr.closest('table').classList.contains(pl() ? 'pl' : 'en')) n++; });
+    fc.textContent = q ? (pl() ? 'Znaleziono: ' : 'Found: ') + n : ''; }
+  fs.addEventListener('input', filt);
+})();
+</script>

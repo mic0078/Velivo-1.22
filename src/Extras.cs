@@ -81,13 +81,26 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
-  // plynne rozjasnienie nowej strony (Ustawienia -> Wyglad); bez animacji, gdy system prosi o ograniczenie ruchu
+  // plynne pojawienie sie CALEJ strony (Ustawienia -> Wyglad): strona lekko przygaszona, az tresc bedzie gotowa,
+  // potem cala naraz sie rozjasnia - zamiast doskakujacych kawalkow. Najpozniej po 1,2 s pokazujemy ja i tak.
   if (C.fade > 0 && top) try {
     if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
       var fs = document.createElement('style');
-      fs.textContent = '@keyframes velivoFade{from{opacity:.25}to{opacity:1}}html{animation:velivoFade ' + C.fade + 'ms ease-out both}';
-      (document.head || document.documentElement).appendChild(fs);
-      setTimeout(function () { try { fs.remove(); } catch (x) {} }, C.fade + 100);
+      fs.textContent = 'html{opacity:.55!important;transition:opacity ' + C.fade + 'ms ease-out!important}html.velivo-ready{opacity:1!important}';
+      // skrypt startuje, zanim strona ma <html> - czekamy na niego
+      var put = function () { (document.head || document.documentElement).appendChild(fs); };
+      if (document.documentElement) put();
+      else { var mo = new MutationObserver(function () { if (document.documentElement) { mo.disconnect(); put(); } }); mo.observe(document, { childList: true }); }
+      var shown = false;
+      var show = function () {
+        if (shown) return; shown = true;
+        requestAnimationFrame(function () { requestAnimationFrame(function () {
+          document.documentElement.classList.add('velivo-ready');
+          setTimeout(function () { try { fs.remove(); document.documentElement.classList.remove('velivo-ready'); } catch (x) {} }, C.fade + 150);
+        }); });
+      };
+      if (document.readyState !== 'loading') show(); else document.addEventListener('DOMContentLoaded', show, { once: true });
+      setTimeout(show, 1200);
     }
   } catch (x) {}
   // pauza kliknieta przez uzytkownika - takiej Velivo nie wznawia po zmianie urzadzenia dzwieku

@@ -48,7 +48,7 @@ namespace Przegladarka
         public bool CleanJunkOnStart = false;  // usuwaj smieci przy kazdym uruchomieniu
         public bool BlockThirdPartyPopups = true;
         public string UiStyle = "modern";
-        public int PageFade = 0;               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)
+        public int PageFade = 300;               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)
         public int NightStrength = 40;          // natezenie trybu nocnego (5-100%)     // wyglad: modern (nowoczesny) / colorful (kolorowy)
         public bool AutoRejectCookies = true;
         public bool PageMemory = true;          // "Gdzie ja to czytalem?" - lokalna pamiec tresci stron

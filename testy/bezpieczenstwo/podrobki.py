@@ -4,7 +4,7 @@ src = open(__file__.rsplit('/',1)[0] + '/../../src/Ochrona.cs', encoding='utf-8'
 brands = {}
 for m in re.finditer(r'\{ "(\w+)", new\[\] \{ ([^}]*) \} \}', src):
     brands[m.group(1)] = re.findall(r'"([^"]+)"', m.group(2))
-two = re.findall(r'"([a-z]+\.[a-z]+)"', src[src.index('TwoLevelSuffixes'):src.index('static string RegistrableDomain')])
+two = re.findall(r'"([a-z]+\.[a-z]+)"', src[src.index('TwoLevelSuffixes'):src.index('static string ProtRegDomain')])
 def reg(h):
     p = h.strip('.').lower().split('.')
     if len(p) <= 2: return '.'.join(p)

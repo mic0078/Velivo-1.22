@@ -82,7 +82,7 @@ namespace Przegladarka
             "com.au", "net.au", "co.nz", "co.jp", "com.br", "co.in", "com.tr", "com.ua", "co.za", "com.mx", "com.ar", "com.cn"
         };
 
-        static string RegistrableDomain(string host)
+        static string ProtRegDomain(string host)
         {
             host = (host ?? "").Trim().TrimEnd('.').ToLowerInvariant();
             var p = host.Split('.');
@@ -122,23 +122,31 @@ namespace Przegladarka
         }
 
         // domeny, do ktorych masz zapisane hasla - ich podrobki tez wykrywamy
+        // liczone raz i odswiezane tylko, gdy zmieni sie liczba wpisow - sprawdzanie strony trwa ulamek milisekundy
+        List<string> _vaultDomainsCache; int _vaultDomainsCount = -1;
         IEnumerable<string> VaultDomains()
         {
             try
             {
                 EnsurePasswordVaultLoaded();
-                return _passwordEntries.Select(e => RegistrableDomain(GetPasswordEntryHost(e))).Where(d => d.Contains('.')).Distinct().ToList();
+                if (_vaultDomainsCache == null || _vaultDomainsCount != _passwordEntries.Count)
+                {
+                    _vaultDomainsCache = _passwordEntries.Select(e => ProtRegDomain(GetPasswordEntryHost(e))).Where(d => d.Contains('.')).Distinct().ToList();
+                    _vaultDomainsCount = _passwordEntries.Count;
+                }
+                return _vaultDomainsCache;
             }
             catch (Exception) { return Enumerable.Empty<string>(); }
         }
+        static readonly HashSet<string> OfficialDomains = new HashSet<string>(ProtectedBrands.Values.SelectMany(x => x), StringComparer.OrdinalIgnoreCase);
 
         // null = strona wyglada w porzadku; inaczej: co podrabia
         internal static string CheckLookalike(string host, IEnumerable<string> extraDomains)
         {
             host = (host ?? "").ToLowerInvariant().TrimEnd('.');
             if (host.Length == 0 || Uri.CheckHostName(host) != UriHostNameType.Dns) return null;
-            var reg = RegistrableDomain(host);
-            var official = new HashSet<string>(ProtectedBrands.Values.SelectMany(x => x), StringComparer.OrdinalIgnoreCase);
+            var reg = ProtRegDomain(host);
+            var official = OfficialDomains;
             var extra = (extraDomains ?? Enumerable.Empty<string>()).ToList();
             if (official.Contains(reg) || extra.Contains(reg, StringComparer.OrdinalIgnoreCase)) return null;
 
@@ -271,7 +279,7 @@ namespace Przegladarka
 
         static bool IsPaymentHost(string host)
         {
-            var reg = RegistrableDomain(host);
+            var reg = ProtRegDomain(host);
             return PaymentDomains.Contains(reg, StringComparer.OrdinalIgnoreCase) || PaymentDomains.Contains(host, StringComparer.OrdinalIgnoreCase);
         }
 

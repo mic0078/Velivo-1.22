@@ -40,7 +40,7 @@ Popularne przeglądarki (Chrome, Edge, Firefox, Opera) nie mają tych funkcji wb
 | Historia i pobrane | Historia dzień → witryna → strony, „Gdzie ja to czytałem?” (Ctrl+Shift+F), historia pobranych z datą i źródłem |
 | Wyszukiwanie | Skróty w pasku adresu: `yt koty`, `allegro rower`, `wiki Kraków`, `mapy Gdańsk` (własne do dopisania), „Wklej i przejdź” |
 | Wygląd | Nowoczesny (spokojny, jak Windows 11) albo Kolorowy, 10 motywów, tryb jasny → ciemny → nocny z natężeniem, powiększenie zapamiętywane dla każdej strony, wersja telefonu dla wybranej strony |
-| Narzędzia | Menedżer pobrań (do 16 połączeń), zrzuty ekranu (cała strona), tłumaczenie strony i zaznaczenia, przypinanie i odpinanie dodatków Chrome, profile użytkowników |
+| Narzędzia | Pamięć podręczna stron na RAM dysku (dowolny folder), menedżer pobrań (do 16 połączeń), zrzuty ekranu (cała strona), tłumaczenie strony i zaznaczenia, przypinanie i odpinanie dodatków Chrome, profile użytkowników |
 | Języki | Polski i angielski – do wyboru w instalatorze i w ustawieniach |
 
 ## Instalacja

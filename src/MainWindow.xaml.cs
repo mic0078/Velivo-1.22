@@ -42,6 +42,17 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Pinned;
+            public readonly Dictionary<string, int> ThirdParties = new Dictionary<string, int>();   // paragon prywatnosci
+            public readonly Dictionary<string, int> Fingerprint = new Dictionary<string, int>();
+            public readonly List<string> Pressure = new List<string>();   // sztuczki presji w sklepie
+            public string PageSite;
+            public double PendingVideoTime;   // karta z innego komputera: film od tej sekundy
+            public Button SoundBtn;              // 🔊 / 🔇 na karcie
+            public TextBlock RefreshMark, GroupDot;
+            public System.Windows.Threading.DispatcherTimer RefreshTimer;
+            public int RefreshMinutes;
+            public TabGroup Group;
+            public string PageScriptId;   // wspolny skrypt stron (ciasteczka, gesty, obraz w obrazie)
             public DateTime NewTabIntentAt;   // ostatni Ctrl+klik / srodkowy klik na linku
             public string PinnedUrl;     // adres zamrozony przy przypieciu - do niego karta wraca po uruchomieniu          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
             public Button CloseBtn;
@@ -83,6 +94,7 @@ namespace Przegladarka
             catch (Exception) { }
             L.TranslateTree(this);   // napisy okna z XAML (dymki, przyciski) - gdy wybrano angielski
             BuildAddressMenu();
+            InitInnovationsUi();
             UpdateProfileBadge();
             LoadSitePrivacyRules();
             LoadPrivacyLog();
@@ -121,6 +133,7 @@ namespace Przegladarka
                     foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }
                     var session = LoadSession(); // karty z poprzedniego uruchomienia
                     foreach (var u in session) AddTab(u);
+                    if (session.Count > 0) RestoreTabGroups(_tabs.Skip(pinned.Count).Take(session.Count).ToList());
                     if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
                     if (session.Count == 0 && pinned.Count == 0 && _startUrls.Length == 0) AddTab("");
                     if (session.Count == 0 && pinned.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
@@ -307,8 +320,15 @@ namespace Przegladarka
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             tab.CloseBtn = close;
             tab.PinMark = new TextBlock { Text = "📌", FontSize = 11, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            tab.GroupDot = new TextBlock { Text = "●", FontSize = 12, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            tab.SoundBtn = new Button { Content = "🔊", Width = 22, Height = 20, FontSize = 11, Padding = new Thickness(0), Margin = new Thickness(0, 0, 4, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Visibility = Visibility.Collapsed };
+            tab.SoundBtn.Click += (s, e) => { ToggleTabMute(tab); e.Handled = true; };
+            tab.RefreshMark = new TextBlock { Text = "⟳", FontSize = 12, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            panel.Children.Add(tab.GroupDot);
             panel.Children.Add(tab.PinMark);
+            panel.Children.Add(tab.SoundBtn);
             panel.Children.Add(tab.Title);
+            panel.Children.Add(tab.RefreshMark);
             panel.Children.Add(close);
             tab.Header = new Button { Content = panel, Width = double.NaN, Padding = new Thickness(10, 0, 4, 0), Height = 32, Margin = new Thickness(1, 4, 0, 0) };
             if (isPrivate)
@@ -353,6 +373,7 @@ namespace Przegladarka
             HookAutofill(tab, core);
             await HookPasswordVault(tab, core);
             tab.View.ZoomFactorChanged += (s, e) => OnZoomChanged(tab);
+            HookTabSound(tab, core);
             ApplyDarkMode(tab);
             // Strony nie musza wiedziec, ze to WebView2 - Google blokuje logowanie w "przegladarkach wbudowanych".
             // chrome.webview jest potrzebny tylko w okienkach dodatkow (osobne widoki), w kartach go wylaczamy.
@@ -363,6 +384,8 @@ namespace Przegladarka
             core.WebMessageReceived += (s, e) => { try { if (e.TryGetWebMessageAsString() == "velivo:nowa-karta") tab.NewTabIntentAt = DateTime.UtcNow; } catch (Exception) { } };
             await core.AddScriptToExecuteOnDocumentCreatedAsync(
                 "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button===1||e.ctrlKey||e.shiftKey||e.metaKey){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(a)pm('velivo:nowa-karta');}},true);}catch(x){}})();");
+            core.WebMessageReceived += (s, e) => { try { HandlePageMessage(tab, e.TryGetWebMessageAsString()); } catch (Exception) { } };
+            await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
             await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
             if (!_extensionsLoaded)
@@ -388,6 +411,7 @@ namespace Przegladarka
                     (requestUri.Scheme != Uri.UriSchemeHttp && requestUri.Scheme != Uri.UriSchemeHttps))
                     return;
 
+                RecordThirdParty(tab, requestUri);   // paragon prywatnosci - takze proby zablokowane
                 if (ApplyPrivacyRulesToRequest(e, tab)) return;
                 // zaufana domena (strona albo zasob) - nic nie blokujemy
                 if (IsTrustedUrl(e.Request.Uri) || IsTrustedUrl(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null))
@@ -448,6 +472,9 @@ namespace Przegladarka
                 tab.Blocked = 0;
                 tab.HiddenElements = 0;
                 tab.BlockedItems.Clear();
+                tab.ThirdParties.Clear(); tab.Fingerprint.Clear(); tab.Pressure.Clear();
+                { Uri nu; tab.PageSite = Uri.TryCreate(e.Uri, UriKind.Absolute, out nu) && (nu.Scheme == "http" || nu.Scheme == "https") ? RegistrableDomain(nu.Host) : null; }
+                if (tab == _current) UpdatePressureButton();
                 if (tab == _current) UpdateCounter();
             };
             core.SourceChanged += (s, e) =>
@@ -504,6 +531,7 @@ namespace Przegladarka
                 if (e.IsSuccess) CheckSejfLogins(tab); // pole hasla? -> loginy z Sejfu dla tej strony
                 if (e.IsSuccess) LoadVoiceNames(core);  // raz: lista polskich glosow do ustawien
                 if (e.IsSuccess) _ = CapturePageThumbAsync(tab);   // miniatura strony dla Szybkiego Dostepu
+                if (e.IsSuccess) { _ = RememberPageTextAsync(tab, core); _ = ApplyPendingVideoTime(tab, core); }
             };
 
             if (pending != null)
@@ -709,6 +737,8 @@ namespace Przegladarka
             CheckSejfLogins(tab);
             UpdateAdaptiveToolbarLayout();
             UpdateTrackingLevel(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null);
+            if (_groups.Count > 0) RefreshGroupsUi();   // zwinieta grupa pokazuje tylko aktywna karte
+            UpdatePressureButton();
         }
 
         void OverflowBtn_Click(object sender, RoutedEventArgs e)
@@ -821,6 +851,8 @@ namespace Przegladarka
                 tab.View.Dispose();
             }
             if (_tabs.Count == 0) { Close(); return; }
+            if (tab.RefreshTimer != null) { tab.RefreshTimer.Stop(); tab.RefreshTimer = null; }
+            if (tab.Group != null) RefreshGroupsUi();
             if (tab == _current) SelectTab(_tabs[Math.Min(idx, _tabs.Count - 1)]);
         }
 
@@ -852,6 +884,8 @@ namespace Przegladarka
         void Navigate(BrowserTab tab, string text)
         {
             if (tab.View.CoreWebView2 == null) return;
+            var keyword = ExpandSearchKeyword(text);   // "yt koty" -> wyszukiwanie na YouTube
+            if (keyword != null) text = keyword;
             // przypieta karta jest zamrozona - nowy adres (z innej strony) idzie do nowej karty.
             // Nie dotyczy pierwszego wczytania karty przy starcie (wtedy w karcie nie ma jeszcze strony).
             if (tab.Pinned && Restorable(tab.View.CoreWebView2.Source))
@@ -941,6 +975,8 @@ namespace Przegladarka
             else if (key == Key.Escape && _fullScreen && !_pageFullScreen) SetFullScreen(false);
             else if (ctrl && shift && key == Key.N) AddTab(HomeUrl, true);
             else if (ctrl && shift && key == Key.T) ReopenClosedTab();
+            else if (ctrl && shift && key == Key.A) ShowTabSearch();
+            else if (ctrl && shift && key == Key.F) ShowPageMemorySearch();
             else if (ctrl && shift && key == Key.U) { if (_readTab == null) StartReading(false); else ReadBtn_Click(null, null); }
             else if (ctrl && key == Key.T) AddTab(NewTabUrl);
             else if (ctrl && key == Key.W && _current != null) CloseTab(_current);
@@ -996,6 +1032,13 @@ namespace Przegladarka
             bottom.Children.Add(toggle);
             bottom.Children.Add(summary);
             var list = new ListBox();
+            if (_settings.PrivacyReceipt)
+            {
+                var receipt = BuildPrivacyReceipt(tab);
+                DockPanel.SetDock(receipt, Dock.Top);
+                root.Children.Add(receipt);
+                win.Height = 640;
+            }
             root.Children.Add(bottom);
             root.Children.Add(list);
             win.Content = root;

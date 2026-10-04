@@ -36,11 +36,34 @@ namespace Przegladarka
             catch (IOException) { }
         }
 
+        // Karty przypiete przyszle z drugiego komputera (LAN): brakujace otwieramy i przypinamy,
+        // przypiete tu, ktorych tam juz nie ma, odpinamy (karta zostaje otwarta jako zwykla).
+        void ApplySyncedPinnedTabs(string text)
+        {
+            try
+            {
+                var want = (text ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Where(Restorable).Take(30).ToList();
+                var have = _tabs.Where(t => t.Pinned).ToList();
+                if (want.SequenceEqual(have.Select(t => t.PinnedUrl))) return;
+                foreach (var t in have.Where(t => !want.Contains(t.PinnedUrl)).ToList()) SetTabPinned(t, false);
+                var current = _current;
+                foreach (var u in want.Where(u => !_tabs.Any(t => t.Pinned && t.PinnedUrl == u)).ToList())
+                {
+                    AddTab(u);
+                    SetTabPinned(_tabs[_tabs.Count - 1], true);
+                }
+                if (current != null && _tabs.Contains(current)) SelectTab(current);   // nie przeskakujemy uzytkownikowi na nowa karte
+                File.WriteAllLines(PinnedFile, want);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         // Przypiecie: karta przechodzi na poczatek paska (za inne przypiete), bez krzyzyka, wraca po ponownym uruchomieniu.
         void SetTabPinned(BrowserTab tab, bool pinned)
         {
             if (tab.Private) return;
             tab.Pinned = pinned;
+            if (pinned) tab.Group = null;   // przypieta karta nie nalezy do grupy
             tab.PinnedUrl = pinned ? (tab.View.CoreWebView2 != null && Restorable(tab.View.CoreWebView2.Source) ? tab.View.CoreWebView2.Source : tab.StartUrl) : null;
             tab.PinMark.Visibility = pinned ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
             tab.CloseBtn.Visibility = pinned ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
@@ -53,7 +76,8 @@ namespace Przegladarka
             TabStrip.Children.Remove(tab.Header);
             var before = target + 1 < _tabs.Count ? (System.Windows.UIElement)_tabs[target + 1].Header : NewTabBtn;
             TabStrip.Children.Insert(TabStrip.Children.IndexOf(before), tab.Header);
-            if (_sessionLoaded) { SavePinnedTabs(); SaveSessionSoon(); }
+            RefreshGroupsUi();
+            if (_sessionLoaded) { SavePinnedTabs(); SaveSessionSoon(); NotifyLanStateChanged(); }
         }
 
         // ta sama strona = ta sama domena glowna (www.x.pl i m.x.pl to jedna strona)
@@ -111,7 +135,10 @@ namespace Przegladarka
                     return;
                 }
                 var normal = _tabs.Where(t => !t.Private && !t.Pinned).ToList();
-                var urls = normal.Select(t => t.View.CoreWebView2 != null ? t.View.CoreWebView2.Source : t.StartUrl).Where(Restorable).ToList();
+                Func<BrowserTab, string> urlOf = t => t.View.CoreWebView2 != null ? t.View.CoreWebView2.Source : t.StartUrl;
+                var savedTabs = normal.Where(t => Restorable(urlOf(t))).ToList();
+                var urls = savedTabs.Select(urlOf).ToList();
+                SaveTabGroups(savedTabs);
                 File.WriteAllLines(SessionFile, urls);
                 File.WriteAllText(SessionFile + ".aktywna", Math.Max(0, normal.IndexOf(_current)).ToString());
                 NotifyLanStateChanged();
@@ -146,13 +173,22 @@ namespace Przegladarka
             right.Click += (s, e) => { int i = _tabs.IndexOf(tab); foreach (var t in _tabs.Skip(i + 1).Where(x => !x.Pinned).ToList()) CloseTab(t); };
             var pin = new MenuItem(); pin.Click += (s, e) => SetTabPinned(tab, !tab.Pinned);
             var reopen = new MenuItem { Header = L.T("Przywróć zamkniętą kartę (Ctrl+Shift+T)") }; reopen.Click += (s, e) => ReopenClosedTab();
+            var mute = new MenuItem(); mute.Click += (s, e) => ToggleTabMute(tab);
+            var refresh = BuildAutoRefreshMenu(tab);
+            var group = BuildGroupMenu(tab);
+            var sets = BuildTabSetsMenu();
+            var find = new MenuItem { Header = L.T("Szukaj w kartach (Ctrl+Shift+A)") }; find.Click += (s, e) => ShowTabSearch();
+            var sendTo = BuildSendTabMenu(tab);
             menu.Opened += (s, e) =>
             {
                 reopen.IsEnabled = _closedTabs.Count > 0; others.IsEnabled = _tabs.Count > 1; right.IsEnabled = _tabs.IndexOf(tab) < _tabs.Count - 1;
                 pin.Header = tab.Pinned ? L.T("Odepnij kartę") : L.T("Przypnij kartę");
                 pin.IsEnabled = !tab.Private;
+                bool muted = false; try { muted = tab.View.CoreWebView2 != null && tab.View.CoreWebView2.IsMuted; } catch (Exception) { }
+                mute.Header = muted ? L.T("Włącz dźwięk karty") : L.T("Wycisz kartę");
+                group.IsEnabled = !tab.Pinned;
             };
-            foreach (var m in new object[] { reload, dup, pin, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
+            foreach (var m in new object[] { reload, dup, pin, mute, refresh, sendTo, new Separator(), group, sets, find, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
             return menu;
         }
     }

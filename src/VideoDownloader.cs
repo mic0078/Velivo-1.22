@@ -70,6 +70,20 @@ namespace Przegladarka
                 Text = L.T("Pobieraj tylko materiały, do których masz prawo (np. na własny użytek). Treści zabezpieczone DRM (Netflix, Disney+ itp.) nie są obsługiwane."),
                 TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray, FontSize = 12, Margin = new Thickness(0, 10, 0, 10)
             });
+            // gdzie zapisac: ostatnio wybrany folder filmow, inaczej folder Pobrane
+            string folder = !string.IsNullOrWhiteSpace(_settings.VideoDir) && Directory.Exists(_settings.VideoDir) ? _settings.VideoDir : DefaultVideoDir();
+            var folderText = new TextBlock { Text = folder, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(6, 0, 8, 0), ToolTip = folder };
+            var change = new Button { Content = L.T("Zmień folder…"), Padding = new Thickness(10, 3, 10, 3) };
+            change.Click += (s, e) =>
+            {
+                var dlg = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = folder, Title = L.T("Gdzie zapisać film?") };
+                if (dlg.ShowDialog(this) == true) { folder = dlg.FolderName; folderText.Text = folder; folderText.ToolTip = folder; }
+            };
+            var where = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
+            var whereLabel = new TextBlock { Text = L.T("Zapisz w:"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(whereLabel, Dock.Left); DockPanel.SetDock(change, Dock.Right);
+            where.Children.Add(whereLabel); where.Children.Add(change); where.Children.Add(folderText);
+            panel.Children.Insert(panel.Children.Count - 1, where);
             var ok = new Button { Content = L.T("Pobierz"), IsDefault = true, Padding = new Thickness(16, 5, 16, 5), Margin = new Thickness(0, 0, 8, 0) };
             var cancel = new Button { Content = L.T("Anuluj"), IsCancel = true, Padding = new Thickness(16, 5, 16, 5) };
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
@@ -79,7 +93,9 @@ namespace Przegladarka
             string mode = null;
             ok.Click += (s, e) => { mode = best.IsChecked == true ? "best" : simple.IsChecked == true ? "simple" : m4a.IsChecked == true ? "m4a" : "mp3"; w.Close(); };
             w.ShowDialog();
-            if (mode != null) _ = StartYtDlpAsync(pageUrl, mode, title);
+            if (mode == null) return;
+            if (folder != _settings.VideoDir) { _settings.VideoDir = folder; try { _settings.Save(DataDir); } catch (Exception) { } }
+            _ = StartYtDlpAsync(pageUrl, mode, title, folder);
         }
 
         // ---------- narzedzia (pobierane raz) ----------
@@ -154,7 +170,14 @@ namespace Przegladarka
 
         // ---------- pobieranie ----------
 
-        async Task StartYtDlpAsync(string pageUrl, string mode, string title)
+        string DefaultVideoDir()
+        {
+            string dir = Core != null ? Core.Profile.DefaultDownloadFolderPath : null;
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            return dir;
+        }
+
+        async Task StartYtDlpAsync(string pageUrl, string mode, string title, string dir)
         {
             if (!await EnsureYtDlpAsync()) return;
             bool needFf = mode == "best" || mode == "mp3";
@@ -164,8 +187,7 @@ namespace Przegladarka
                 mode = "simple";   // bez FFmpeg - najlepsze, co jest w jednym pliku
                 needFf = false;
             }
-            string dir = Core != null ? Core.Profile.DefaultDownloadFolderPath : null;
-            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            if (string.IsNullOrWhiteSpace(dir)) dir = DefaultVideoDir();
             Directory.CreateDirectory(dir);
 
             var psi = new ProcessStartInfo(YtDlpPath)

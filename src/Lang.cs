@@ -802,6 +802,9 @@ namespace Przegladarka
             { "🎬 Pobrano: ", "🎬 Downloaded: " },
             { "Przycisk „Pobierz” nad filmami", "\"Download\" button over videos" },
             { "Jak Internet Download Manager: po najechaniu na film pojawia się ⬇ Pobierz. Zwykłe pliki pobiera menedżer Velivo (do 16 połączeń), YouTube i strumienie – darmowe narzędzie yt-dlp.", "Like Internet Download Manager: hover over a video to see ⬇ Download. Regular files go through Velivo's manager (up to 16 connections), YouTube and streams through the free yt-dlp tool." },
+            { "Zmień folder…", "Change folder…" },
+            { "Gdzie zapisać film?", "Where to save the video?" },
+            { "Zapisz w:", "Save to:" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

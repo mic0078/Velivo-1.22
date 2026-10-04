@@ -183,6 +183,7 @@ namespace Przegladarka
         readonly HashSet<string> _httpAllowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         readonly HashSet<string> _httpsTried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // proba https w toku
         readonly Dictionary<ulong, string> _httpsNav = new Dictionary<ulong, string>();               // id nawigacji -> host
+        readonly Dictionary<string, string> _httpOriginal = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // host -> pierwotny adres http
 
         HashSet<string> ProtectionAllowed
         {
@@ -242,6 +243,7 @@ namespace Przegladarka
                             return;
                         }
                         _httpsTried.Add(host);
+                        _httpOriginal[host] = e.Uri;
                         var b = new UriBuilder(u) { Scheme = Uri.UriSchemeHttps, Port = u.IsDefaultPort ? -1 : u.Port };
                         var https = b.Uri.ToString();
                         Dispatcher.BeginInvoke(new Action(() => { try { core.Navigate(https); } catch (Exception ex) { App.LogError(ex); } }));
@@ -261,8 +263,7 @@ namespace Przegladarka
                     // brak internetu albo strona nie istnieje - to nie jest brak szyfrowania
                     if (e.WebErrorStatus == CoreWebView2WebErrorStatus.Disconnected || e.WebErrorStatus == CoreWebView2WebErrorStatus.HostNameNotResolved ||
                         e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled || e.WebErrorStatus == CoreWebView2WebErrorStatus.ConnectionAborted) return;
-                    var plain = "http://" + host + "/";
-                    try { if (Uri.TryCreate(core.Source, UriKind.Absolute, out var cur) && cur.Host.Equals(host, StringComparison.OrdinalIgnoreCase)) plain = new UriBuilder(cur) { Scheme = Uri.UriSchemeHttp, Port = -1 }.Uri.ToString(); } catch (Exception) { }
+                    if (!_httpOriginal.TryGetValue(host, out var plain)) plain = "http://" + host + "/";
                     Dispatcher.BeginInvoke(new Action(() => AskOpenWithoutHttps(core, host, plain)));
                 }
                 catch (Exception ex) { App.LogError(ex); }

@@ -88,7 +88,8 @@ namespace Przegladarka
         void ShowFloatingVideo(string page, double time, string title, bool isPrivate)
         {
             if (string.IsNullOrEmpty(page) || !(page.StartsWith("http://") || page.StartsWith("https://"))) return;
-            var view = new WebView2 { DefaultBackgroundColor = System.Drawing.Color.Black };
+            // kontrolka rysowana w oknie WPF (nie osobne okno systemowe) - dzieki temu dziala przezroczystosc okienka
+            var view = new WebView2CompositionControl { DefaultBackgroundColor = System.Drawing.Color.Black };
 
             // gorny pasek: tytul (przeciaganie okienka), zamkniecie; reszta to film
             var titleText = new TextBlock { Text = string.IsNullOrWhiteSpace(title) ? "Velivo" : title, Foreground = Brushes.White, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
@@ -111,7 +112,7 @@ namespace Przegladarka
             var win = new Window
             {
                 Title = (string.IsNullOrWhiteSpace(title) ? "" : title + " – ") + L.T("Film na wierzchu"),
-                Topmost = _settings.FloatTopmost, ShowInTaskbar = true, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize,
+                Topmost = _settings.FloatTopmost, ShowInTaskbar = true, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, AllowsTransparency = true,
                 MinWidth = 160, MinHeight = 90 + 24, Width = 480, Height = 270 + 24, Background = Brushes.Black, Content = root,
                 Icon = Icon,
             };
@@ -143,15 +144,15 @@ namespace Przegladarka
             pinBtn.Click += (s, e) => { win.Topmost = !win.Topmost; _settings.FloatTopmost = win.Topmost; showPin(); };
             // kolko myszy na gornym pasku = przezroczystosc (15-100%)
             int alpha = Math.Max(15, Math.Min(100, _settings.FloatOpacity));
-            win.SourceInitialized += (s, e) => SetWindowAlpha(win, alpha);
+            win.Opacity = alpha / 100.0;
             bar.ToolTip = L.T("Przeciągnij, aby przesunąć · kółko myszy: przezroczystość");
             System.Windows.Threading.DispatcherTimer label = null;
             Action<int> step = null;
-            bar.PreviewMouseWheel += (s, e) => { e.Handled = true; step(e.Delta > 0 ? 1 : -1); };
+            win.PreviewMouseWheel += (s, e) => { e.Handled = true; step(e.Delta > 0 ? 1 : -1); };   // kolko w calym okienku
             step = dir =>
             {
                 alpha = Math.Max(15, Math.Min(100, alpha + (dir > 0 ? 10 : -10)));
-                SetWindowAlpha(win, alpha);
+                win.Opacity = alpha / 100.0;
                 _settings.FloatOpacity = alpha;
                 var keep = titleText.Text;
                 if (label == null)
@@ -188,7 +189,7 @@ namespace Przegladarka
             _ = InitFloatingView(view, page, time, isPrivate, titleText, d => step(d));
         }
 
-        async Task InitFloatingView(WebView2 view, string page, double time, bool isPrivate, TextBlock titleText, Action<int> wheel)
+        async Task InitFloatingView(WebView2CompositionControl view, string page, double time, bool isPrivate, TextBlock titleText, Action<int> wheel)
         {
             try
             {

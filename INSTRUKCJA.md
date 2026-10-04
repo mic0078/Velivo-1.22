@@ -573,6 +573,10 @@ Każdą z tych rzeczy zrobisz też samą myszką: przyciskiem, gestem albo prawy
 
 ## 20. Ustawienia – co gdzie jest
 
+![Ustawienia, część 1: import, wyszukiwanie, prywatność, wygląd, uBlock Origin Lite i bezpieczeństwo](docs/zrzuty/ustawienia-1.png)
+
+![Ustawienia, część 2: śmieci na RAM dysku, dane, profile i synchronizacja](docs/zrzuty/ustawienia-2.png)
+
 | Sekcja | Najważniejsze opcje |
 | --- | --- |
 | **Wygląd** | Styl (Nowoczesny / Kolorowy), motyw, język, tryb ciemny i nocny, domyślne powiększenie, kompaktowy pasek |

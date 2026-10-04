@@ -570,6 +570,14 @@ You can also do each of these with the mouse alone: a button, a gesture or the r
 
 ---
 
+### The Settings window
+
+![Settings, part 1: import, search, privacy, look, uBlock Origin Lite and security](docs/zrzuty/ustawienia-1.png)
+
+![Settings, part 2: junk on a RAM disk, data, profiles and sync](docs/zrzuty/ustawienia-2.png)
+
+---
+
 ## 20. Troubleshooting and where data is stored
 
 | Problem | What to do |

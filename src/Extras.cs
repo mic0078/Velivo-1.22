@@ -81,28 +81,33 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
-  // Fade-in nowej strony (Ustawienia -> Wyglad). Silnik trzyma na ekranie stara strone, az nowa narysuje pierwsza tresc,
-  // wiec animacje uruchamiamy dopiero w chwili pierwszego rysowania tresci (first-contentful-paint). Do tego momentu
-  // strona jest lekko przygaszona, ale jeszcze niewidoczna - ladowanie niczym nie jest opoznione, efekt jest tylko wizualny.
+  // Fade-in nowej strony (Ustawienia -> Wyglad): subtelne przygaszenie, ktore plynnie znika. Cienka ciemna warstwa nad
+  // strona (klikniecia przez nia przechodza) - widoczna na kazdej stronie, takze bialej i w trybie ciemnym/nocnym
+  // (zmiana przezroczystosci samej strony na bialym tle byla niewidoczna). Startuje w chwili pierwszego rysowania tresci,
+  // bo do tego momentu silnik pokazuje jeszcze poprzednia strone. Ladowanie niczym nie jest opoznione.
   if (C.fade > 0 && top) try {
     if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
-      var fs = document.createElement('style');
-      fs.textContent = 'html{opacity:.4!important}';
-      var put = function () { (document.head || document.documentElement).appendChild(fs); };
+      var veil = document.createElement('div');
+      veil.setAttribute('aria-hidden', 'true');
+      veil.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#000;opacity:.22;transition:none';
+      var put = function () { try { document.documentElement.appendChild(veil); } catch (x) {} };
       if (document.documentElement) put();
       else { var mo = new MutationObserver(function () { if (document.documentElement) { mo.disconnect(); put(); } }); mo.observe(document, { childList: true }); }
       var started = false;
       var go = function () {
         if (started) return; started = true;
-        fs.textContent = '@keyframes velivoFadeIn{from{opacity:.4}to{opacity:1}}html{animation:velivoFadeIn ' + C.fade + 'ms cubic-bezier(.2,.6,.3,1) both!important}';
-        setTimeout(function () { try { fs.remove(); } catch (x) {} }, C.fade + 300);
+        try {
+          var an = veil.animate([{ opacity: .22 }, { opacity: 0 }], { duration: C.fade, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
+          an.onfinish = function () { try { veil.remove(); } catch (x) {} };
+        } catch (x) { try { veil.remove(); } catch (y) {} }
+        setTimeout(function () { try { veil.remove(); } catch (x) {} }, C.fade + 500);
       };
       try {
         new PerformanceObserver(function (l) { if (l.getEntries().some(function (e) { return e.name === 'first-contentful-paint' || e.name === 'first-paint'; })) go(); })
           .observe({ type: 'paint', buffered: true });
       } catch (x) {}
-      addEventListener('load', go, { once: true });
-      setTimeout(go, 2500);   // zabezpieczenie: strona bez tresci tez sie pokaze
+      addEventListener('DOMContentLoaded', function () { setTimeout(go, 50); }, { once: true });
+      setTimeout(go, 2500);
     }
   } catch (x) {}
   // pauza kliknieta przez uzytkownika - takiej Velivo nie wznawia po zmianie urzadzenia dzwieku

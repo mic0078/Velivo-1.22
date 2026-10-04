@@ -81,11 +81,14 @@ namespace Przegladarka
         {
             if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(new Action(() => TrayPulse(seconds))); return; }
             if (_tray == null || !_tray.Visible) return;
-            _trayPulseUntil = DateTime.UtcNow.AddSeconds(seconds);
+            // synchronizacja trwa ulamek sekundy - pokazujemy co najmniej 2 pelne oddechy (ok. 2 s), zeby bylo widac
+            var until = DateTime.UtcNow.AddSeconds(Math.Max(seconds, 2));
+            if (until > _trayPulseUntil) _trayPulseUntil = until;
             _tray.Text = L.T("Velivo – synchronizacja…");
             if (_trayPulse != null) return;
-            int frame = 0;
-            _trayPulse = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            int frame = 1;
+            try { _tray.Icon = _trayFrames[frame]; } catch (Exception) { }   // od razu pierwszy krok - widac natychmiast
+            _trayPulse = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             _trayPulse.Tick += (s, e) =>
             {
                 try

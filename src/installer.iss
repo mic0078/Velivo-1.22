@@ -1,6 +1,12 @@
 ﻿; Instalator Velivo - kompilacja: ISCC.exe installer.iss (po dotnet publish do ..\build\velivo)
 #define AppName "Velivo"
 #define AppVer "1.22"
+#ifndef SrcDir
+  #define SrcDir "..\build\velivo"
+#endif
+#ifndef OutName
+  #define OutName "Velivo-Setup-" + AppVer
+#endif
 
 [Setup]
 ; AppId bez zmian od czasow nazwy "Przegladarka" - dzieki temu instalator aktualizuje stara wersje
@@ -14,7 +20,7 @@ UsePreviousAppDir=no
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
 OutputDir=..\Instalator
-OutputBaseFilename=Velivo-Setup-{#AppVer}
+OutputBaseFilename={#OutName}
 Compression=lzma2/ultra
 SolidCompression=yes
 WizardStyle=modern
@@ -72,7 +78,7 @@ Type: files; Name: "{autodesktop}\Tarcza.lnk"
 Type: files; Name: "{autoprograms}\Tarcza.lnk"
 
 [Files]
-Source: "..\build\velivo\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\Velivo.exe"
@@ -226,6 +232,7 @@ function InitializeSetup: Boolean;
 var Err: Integer;
 begin
   Result := True;
+#ifndef Pelny
   if not HasDesktopRuntime10 then
   begin
     if MsgBox(CustomMessage('NeedDotnet'), mbConfirmation, MB_YESNO) = IDYES then
@@ -233,6 +240,7 @@ begin
     Result := False;
     exit;
   end;
+#endif
   if not HasWebView2 then
     if MsgBox(CustomMessage('NeedWebView'), mbConfirmation, MB_YESNO) = IDYES then
       ShellExec('open', 'https://developer.microsoft.com/microsoft-edge/webview2/', '', '', SW_SHOWNORMAL, ewNoWait, Err);

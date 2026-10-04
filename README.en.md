@@ -55,3 +55,7 @@ Velivo installs from a single `Velivo-Setup-1.22.exe`, without administrator rig
 2. Run it and pick the language (Polski / English). Velivo will start in that language. If Windows shows "Unknown publisher", click "More info" → "Run anyway" (the installer is not digitally signed).
 3. If Velivo was already installed, choose **Keep my settings and data** (normal update, recommended) or **Clean install** (start from scratch; old data is backed up with a `.kopia-<date>` suffix).
 4. Optionally create a desktop shortcut and finish.
+
+## License and name
+
+Velivo™ – © 2026 andro ([github.com/mic0078](https://github.com/mic0078)). All rights reserved. You may download and use the program free of charge; copying the code, modifying it and using the Velivo name require the author's permission. Details: [LICENSE](LICENSE) and [TRADEMARKS.md](TRADEMARKS.md).

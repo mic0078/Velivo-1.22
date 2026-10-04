@@ -14,6 +14,9 @@
 <h3 align="center">A browser that goes beyond the limits of today's browsers.</h3>
 
 <p align="center">
+  ⚡ <b>Lightning fast</b> and light – the program itself uses about 50–80 MB of memory, ad-free pages load faster<br>
+  🎨 <b>Beautiful, modern look</b> like Windows 11 – 10 themes, dark and night mode<br>
+  🧩 <b>Light, built-in add-ons</b> – no store hunting and no slowdown<br>
   🎬 Video in a see-through window above everything – keeps playing even after the browser is closed<br>
   🛡 Built-in uBlock Origin Lite and offline detection of fake bank sites<br>
   🔐 Passwords go only to the real sites · 💳 safe payments<br>

@@ -304,6 +304,19 @@ namespace Przegladarka
                 root.Children.Add(makeDefault);
             }
 
+            // duze, dobrze widoczne przyciski importu - na gorze ustawien
+            root.Children.Add(Header(L.T("📥 Import haseł, loginów i zakładek")));
+            var importRow = new WrapPanel { Margin = new Thickness(0, 2, 0, 0) };
+            Func<string, Action, Button> BigButton = (t, act) =>
+            {
+                var b = new Button { Content = t, FontSize = 14, Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(0, 0, 8, 6) };
+                b.Click += (x, y) => act();
+                return b;
+            };
+            importRow.Children.Add(BigButton(L.T("🔑 Hasła i loginy z pliku (CSV: KeePassXC, Chrome, Edge…)"), () => ImportPasswordsCsvWithDialog(win)));
+            importRow.Children.Add(BigButton(L.T("🌐 Z Chrome / Edge / Brave / Opery"), () => ShowBrowserImport(win)));
+            root.Children.Add(importRow);
+
             root.Children.Add(Header(L.T("Wygląd i czytelność")));
             root.Children.Add(new TextBlock { Text = L.T("Domyślne powiększenie stron (każdą stronę możesz też powiększyć osobno: Ctrl + kółko myszy):") , TextWrapping = TextWrapping.Wrap });
             var zoom = new ComboBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 4) };
@@ -468,11 +481,6 @@ namespace Przegladarka
             passTools.Children.Add(passImport);
             passTools.Children.Add(passExport);
             root.Children.Add(passTools);
-            var browserImport = SmallButton(L.T("Importuj z Chrome/Edge/Brave…"), null);
-            browserImport.HorizontalAlignment = HorizontalAlignment.Left;
-            browserImport.Margin = new Thickness(0, 6, 0, 0);
-            browserImport.Click += (a, b) => ShowBrowserImport(win);
-            root.Children.Add(browserImport);
 
             root.Children.Add(Header(L.T("Blokowanie reklam")));
             var full = Check(L.T("Pełne listy filtrów (EasyList, EasyPrivacy, polska lista) – ok. 97 tys. reguł"), L.T("Listy pobierają się w tle i odświeżają co 4 dni."), s.FullFilterLists);

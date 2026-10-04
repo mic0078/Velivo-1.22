@@ -826,6 +826,9 @@ namespace Przegladarka
             { "Logowania do stron (np. konto Google) nie przenoszą się – zaloguj się raz w Velivo, a Velivo je zapamięta.", "Site logins (e.g. a Google account) don't transfer – sign in once in Velivo and Velivo will remember it." },
             { "Import z innej przeglądarki", "Import from another browser" },
             { "Ważne: zrób import, ZANIM odinstalujesz starą przeglądarkę – po jej usunięciu zakładek nie da się odczytać, a haseł wyeksportować. Hasła zapisane na koncie Google można też później pobrać ze strony passwords.google.com.", "Important: import BEFORE you uninstall the old browser – once it is removed, its bookmarks can't be read and its passwords can't be exported. Passwords saved in a Google account can also be downloaded later from passwords.google.com." },
+            { "📥 Import haseł, loginów i zakładek", "📥 Import passwords, logins and bookmarks" },
+            { "🔑 Hasła i loginy z pliku (CSV: KeePassXC, Chrome, Edge…)", "🔑 Passwords and logins from a file (CSV: KeePassXC, Chrome, Edge…)" },
+            { "🌐 Z Chrome / Edge / Brave / Opery", "🌐 From Chrome / Edge / Brave / Opera" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

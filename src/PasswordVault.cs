@@ -484,6 +484,13 @@ namespace Przegladarka
                 var vault = JsonSerializer.Deserialize<PasswordVaultData>(plain);
                 if (vault != null && vault.Entries != null)
                     _passwordEntries = vault.Entries.Where(x => x != null && !string.IsNullOrWhiteSpace(x.Password)).ToList();
+                // naprawa wczesniej zaimportowanych wpisow bez domeny
+                foreach (var e in _passwordEntries)
+                    if (string.IsNullOrWhiteSpace(e.Host) && HostFromAnyUrl(e.Url).Length == 0)
+                    {
+                        var h = DeriveWebHost(e.Name, e.Url);
+                        if (h.Length > 0) e.Host = h;
+                    }
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -695,6 +702,23 @@ namespace Przegladarka
             return records;
         }
 
+        // domena dla wpisu bez adresu WWW (KeePassXC/telefon): z tytulu ("connect.presonus.com")
+        // albo z linku aplikacji ("android://...@com.here.app.maps/", "androidapp://com.twitter.android")
+        static string DeriveWebHost(string name, string rawUrl)
+        {
+            var n = (name ?? "").Trim().ToLowerInvariant();
+            if (n.StartsWith("http://") || n.StartsWith("https://")) n = HostFromAnyUrl(n);
+            if (n.Contains('.') && !n.Contains(' ') && Uri.CheckHostName(n) == UriHostNameType.Dns) return n.StartsWith("www.") ? n.Substring(4) : n;
+            var u = (rawUrl ?? "").Trim();
+            int sch = u.IndexOf("://", StringComparison.Ordinal);
+            if (sch < 0 || !u.StartsWith("android", StringComparison.OrdinalIgnoreCase)) return "";
+            var pkg = u.Substring(u.LastIndexOf('@') >= 0 ? u.LastIndexOf('@') + 1 : sch + 3).Trim('/').ToLowerInvariant();
+            var parts = pkg.Split('.').Where(x => x.Length > 0 && x != "android" && x != "app").Reverse().ToArray();
+            if (parts.Length < 2) return "";
+            var host = string.Join(".", parts);
+            return Uri.CheckHostName(host) == UriHostNameType.Dns ? host : "";
+        }
+
         static char DetectSeparator(string header)
         {
             int c = header.Count(ch => ch == ',');
@@ -748,9 +772,7 @@ namespace Przegladarka
             var stored = NormalizeHostForMatch(entry.Host);
             if (stored == "localhost" || stored.Contains('.')) return stored;
             // wpisy z telefonu/KeePassXC bez adresu: domena z pola Nazwa (np. "connect.presonus.com")
-            var name = (entry.Name ?? "").Trim().ToLowerInvariant();
-            if (name.Contains('.') && !name.Contains(' ') && Uri.CheckHostName(name) == UriHostNameType.Dns) return NormalizeHostForMatch(name);
-            return "";
+            return DeriveWebHost(entry.Name, entry.Url);
         }
 
         static string CompactPasswordIdentity(string value)
@@ -848,6 +870,7 @@ namespace Przegladarka
                 if (pass.Length == 0) continue;
                 if (url.StartsWith("{", StringComparison.Ordinal) || url.StartsWith("cmd://", StringComparison.OrdinalIgnoreCase)) url = "";
                 var host = HostFromAnyUrl(url);
+                if (host.Length == 0) host = DeriveWebHost(name, rawUrl);
 
                 var entry = new SavedPasswordEntry
                 {
@@ -1577,11 +1600,11 @@ namespace Przegladarka
 
             var list = new ListView { Margin = new Thickness(10, 0, 10, 8), SelectionMode = SelectionMode.Extended };
             var gv = new GridView();
-            gv.Columns.Add(new GridViewColumn { Header = "Domena", DisplayMemberBinding = new System.Windows.Data.Binding("Host"), Width = 210 });
-            gv.Columns.Add(new GridViewColumn { Header = "Użytkownik", DisplayMemberBinding = new System.Windows.Data.Binding("Username"), Width = 210 });
-            gv.Columns.Add(new GridViewColumn { Header = "Nazwa", DisplayMemberBinding = new System.Windows.Data.Binding("Name"), Width = 210 });
-            gv.Columns.Add(new GridViewColumn { Header = "Źródło", DisplayMemberBinding = new System.Windows.Data.Binding("Source"), Width = 110 });
-            gv.Columns.Add(new GridViewColumn { Header = "Zmieniono", DisplayMemberBinding = new System.Windows.Data.Binding("Updated"), Width = 120 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Domena"), DisplayMemberBinding = new System.Windows.Data.Binding("Host"), Width = 210 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Użytkownik"), DisplayMemberBinding = new System.Windows.Data.Binding("Username"), Width = 210 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Nazwa"), DisplayMemberBinding = new System.Windows.Data.Binding("Name"), Width = 210 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Źródło"), DisplayMemberBinding = new System.Windows.Data.Binding("Source"), Width = 110 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Zmieniono"), DisplayMemberBinding = new System.Windows.Data.Binding("Updated"), Width = 120 });
             list.View = gv;
 
             var details = new TextBox

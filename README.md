@@ -150,3 +150,7 @@ Ręcznie (Windows, .NET 10 SDK, Inno Setup 6):
 dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained false -o build\velivo
 "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" src\installer.iss
 ```
+
+## Licencja i nazwa
+
+Velivo™ – © 2026 andro ([github.com/mic0078](https://github.com/mic0078)). Wszelkie prawa zastrzeżone. Program można bezpłatnie pobierać i używać; kopiowanie kodu, przerabianie i używanie nazwy Velivo wymaga zgody autora. Szczegóły: [LICENSE](LICENSE) i [TRADEMARKS.md](TRADEMARKS.md).

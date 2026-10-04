@@ -798,6 +798,7 @@ namespace Przegladarka
                 if (incomingNewer || bookmarksChanged)
                 {
                     if (ShouldShowLanToast()) ShowToast(L.T("🌐 Zsynchronizowano z Velivo w sieci lokalnej."), null);
+                    TrayPulse(3);
                     LanLog(L.T("Zsynchronizowano z ") + pkt.id.Substring(0, 8) + (incomingNewer ? L.T(" (ustawienia przyjęte)") : " (ustawienia tu nowsze)") + (bookmarksChanged ? L.T(", zakładki połączone.") : "."));
                 }
             }

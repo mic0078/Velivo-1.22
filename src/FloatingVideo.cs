@@ -208,6 +208,18 @@ namespace Przegladarka
             _ = InitFloatingView(view, page, time, isPrivate, titleText, d => step(d));
         }
 
+        const string FloatAdSkipScript = @"(function(){ if (!/(^|\.)youtube\.com$/.test(location.hostname)) return;
+  setInterval(function(){ try {
+    var p = document.querySelector('.html5-video-player');
+    var b = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button');
+    if (b) b.click();
+    if (p && p.classList.contains('ad-showing')) { var v = p.querySelector('video'); if (v) { v.muted = true; if (isFinite(v.duration) && v.duration > 0) v.currentTime = v.duration; } }
+    else { var v2 = p && p.querySelector('video'); if (v2 && v2.__velivoAdMuted) { v2.muted = false; v2.__velivoAdMuted = false; } }
+    if (p && p.classList.contains('ad-showing')) { var v3 = p.querySelector('video'); if (v3) v3.__velivoAdMuted = true; }
+    document.querySelectorAll('ytd-ad-slot-renderer, .ytp-ad-overlay-container, #player-ads').forEach(function(x){ x.style.display = 'none'; });
+  } catch (e) {} }, 300);
+})();";
+
         async Task InitFloatingView(WebView2CompositionControl view, string page, double time, bool isPrivate, TextBlock titleText, Action<int> wheel)
         {
             try
@@ -219,6 +231,19 @@ namespace Przegladarka
                 ApplyViewSettings(core);
                 core.Settings.AreDefaultContextMenusEnabled = false;
                 core.NewWindowRequested += (s, e) => e.Handled = true;   // reklamy i linki z okienka nie otwieraja okien
+                // blokada reklam i trackerow jak w karcie
+                core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All, CoreWebView2WebResourceRequestSourceKinds.All);
+                core.WebResourceRequested += (s, e) =>
+                {
+                    try
+                    {
+                        if (IsTrustedUrl(e.Request.Uri) || IsTrustedUrl(page)) return;
+                        if (_blocker.ShouldBlock(e.Request.Uri)) e.Response = _env.CreateWebResourceResponse(null, 403, "Blocked", "");
+                    }
+                    catch (Exception) { }
+                };
+                // reklamy wideo YouTube: pominiecie (przycisk "Pomin") albo przewiniecie do konca, bez dzwieku
+                await core.AddScriptToExecuteOnDocumentCreatedAsync(FloatAdSkipScript);
                 core.DocumentTitleChanged += (s, e) => titleText.Text = core.DocumentTitle;
                 core.Settings.IsWebMessageEnabled = true;
                 // kolko myszy nad filmem tez zmienia przezroczystosc

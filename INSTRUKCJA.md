@@ -247,6 +247,12 @@ Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy 
 
 ### ▣ Film na wierzchu (wyłącznie Velivo)
 
+![Przyciski nad filmem: Pobierz, Na wierzchu, Obraz w obrazie](docs/zrzuty/przyciski-filmu.png)
+
+| Okienko z filmem | Zmniejszone w rogu ekranu | Prawie przezroczyste nad pulpitem |
+| --- | --- | --- |
+| ![Okienko Film na wierzchu](docs/zrzuty/film-na-wierzchu.png) | ![Małe okienko przy zegarze](docs/zrzuty/film-maly-w-rogu.png) | ![Przezroczyste okienko – widać ikony pulpitu](docs/zrzuty/film-przezroczysty.png) |
+
 1. Kliknij **▣ Na wierzchu**. Film w karcie się zatrzyma, a w małym okienku ruszy od tego samego miejsca.
 2. Okienko obsługujesz tak:
    - **przesuwasz** za ciemny pasek u góry;
@@ -259,7 +265,7 @@ Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy 
 3. Okienko **gra dalej po zamknięciu karty, a nawet całego Velivo.** Kliknięcie ikony Velivo uruchamia przeglądarkę od nowa.
 4. Miejsce, wielkość, przezroczystość i przypinka są zapamiętywane.
 
-**Czysty widok filmu.** Okienko pokazuje **sam film** na całą swoją powierzchnię – bez reszty strony: bez menu, komentarzy, podpowiedzi, okienek i banerów. Na YouTube wygląda to jak osobny odtwarzacz. Blokada reklam Velivo działa jak w karcie.
+**Czysty widok filmu.** Okienko pokazuje **sam film** na całą swoją powierzchnię – bez reszty strony: bez menu, komentarzy, podpowiedzi, okienek i banerów. Na YouTube wygląda to jak osobny odtwarzacz. Blokada reklam i trackerów działa jak w karcie, a reklamy wideo YouTube są pomijane (klik „Pomiń” albo przewinięcie wyciszonej reklamy).
 
 **Do czego to się przydaje:**
 - muzyka lub podcast w małym, półprzezroczystym okienku w rogu ekranu, podczas pracy w innych programach;
@@ -510,6 +516,15 @@ Stan połączenia pokazuje Ustawienia → **Panel diagnostyczny LAN…**.
 - **Zrzuty ekranu:** widoczna część albo cała strona z przewijaniem.
 - **Tłumaczenie:** całej strony albo zaznaczenia (Tłumacz Google).
 - **Wykrywanie mediów do pobrania** na stronie (Narzędzia Velivo).
+
+### 🛡 uBlock Origin Lite (wbudowany)
+
+- Dołączony do instalatora i **włączany automatycznie** – nie trzeba go dodawać.
+- Ustawienia → „Bezpieczeństwo i pobieranie”: przełącznik i przycisk **„Ustawienia uBlock Origin Lite…”** (tryb filtrowania, listy, wyjątki dla stron).
+- To, co zablokuje, wlicza się do **licznika na tarczy** i pojawia się na jej liście. Podpowiedź tarczy pokazuje osobno „w tym uBlock Origin Lite: N”.
+- **Aktualizuje się sam** raz w tygodniu z oficjalnego GitHuba twórców. Przy podmianie wersji ustawienia uBOL wracają do domyślnych.
+- Licencja GPL-3.0, szczegóły w `THIRD-PARTY.md`. Gdy uBOL jest już dodany ze sklepu, Velivo go zostawia (bez dubli).
+- Okienka dodatków dopasowują się do zawartości, jak w Chrome.
 
 ### Pamięć podręczna na RAM dysku
 

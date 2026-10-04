@@ -89,6 +89,24 @@ namespace Przegladarka
                         Owner = this,
                         WindowStartupLocation = WindowStartupLocation.CenterOwner
                     };
+                    // ostatni rozmiar okna ustawiony przez uzytkownika
+                    try
+                    {
+                        var sz = (_settings.ReaderSize ?? "").Split(';');
+                        double rw, rh;
+                        if (sz.Length == 2 && double.TryParse(sz[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out rw) && double.TryParse(sz[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out rh))
+                        {
+                            win.Width = Math.Max(420, Math.Min(SystemParameters.VirtualScreenWidth, rw));
+                            win.Height = Math.Max(320, Math.Min(SystemParameters.VirtualScreenHeight, rh));
+                        }
+                    }
+                    catch (Exception) { }
+                    win.Closing += (a0, b0) =>
+                    {
+                        if (win.WindowState != WindowState.Normal) return;
+                        _settings.ReaderSize = win.ActualWidth.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + ";" + win.ActualHeight.ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+                        try { _settings.Save(DataDir); } catch (Exception) { }
+                    };
 
                     var view = new WebView2();
                     var readSummaryBtn = SmallButton(L.T("Czytaj podsumowanie"), null);
@@ -109,6 +127,30 @@ namespace Przegladarka
                         if (view.CoreWebView2 != null) await view.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.volume(" + Num(_settings.ReadVolume) + ")");
                     };
                     volume.ValueChanged += (s4, e4) => { volValue.Text = (int)volume.Value + "%"; volTimer.Stop(); volTimer.Start(); };
+                    // tryb czytnika: jasny / ciemny / nocny + natezenie trybu nocnego (jak w samym Velivo)
+                    var modeBox = new ComboBox { Width = 120, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Wygląd czytnika") };
+                    modeBox.Items.Add(new ComboBoxItem { Content = L.T("☀ Jasny"), Tag = "light" });
+                    modeBox.Items.Add(new ComboBoxItem { Content = L.T("🌙 Ciemny"), Tag = "dark" });
+                    modeBox.Items.Add(new ComboBoxItem { Content = L.T("🌅 Nocny"), Tag = "night" });
+                    modeBox.SelectedItem = modeBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _settings.ReaderTheme) ?? modeBox.Items[0];
+                    var nightLabel = new TextBlock { Text = "🌅", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), FontSize = 14, ToolTip = L.T("Natężenie trybu nocnego") };
+                    var night = new Slider { Minimum = 5, Maximum = 100, Value = _settings.ReaderNight, Width = 110, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), IsMoveToPointEnabled = true, ToolTip = L.T("Natężenie trybu nocnego") };
+                    var nightValue = new TextBlock { Text = _settings.ReaderNight + "%", Width = 40, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+                    Action applyLook = () =>
+                    {
+                        var mode = (string)((ComboBoxItem)modeBox.SelectedItem).Tag;
+                        bool isNight = mode == "night";
+                        nightLabel.Visibility = night.Visibility = nightValue.Visibility = isNight ? Visibility.Visible : Visibility.Collapsed;
+                        if (view.CoreWebView2 != null) _ = view.CoreWebView2.ExecuteScriptAsync("window.__velivoLook && window.__velivoLook('" + mode + "'," + (int)night.Value + ")");
+                    };
+                    var lookTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+                    lookTimer.Tick += (s5, e5) => { lookTimer.Stop(); try { _settings.Save(DataDir); } catch (Exception) { } };
+                    modeBox.SelectionChanged += (s5, e5) => { _settings.ReaderTheme = (string)((ComboBoxItem)modeBox.SelectedItem).Tag; applyLook(); lookTimer.Stop(); lookTimer.Start(); };
+                    night.ValueChanged += (s5, e5) => { nightValue.Text = (int)night.Value + "%"; _settings.ReaderNight = (int)night.Value; applyLook(); lookTimer.Stop(); lookTimer.Start(); };
+                    bar.Children.Add(modeBox);
+                    bar.Children.Add(nightLabel);
+                    bar.Children.Add(night);
+                    bar.Children.Add(nightValue);
                     bar.Children.Add(volLabel);
                     bar.Children.Add(volume);
                     bar.Children.Add(volValue);
@@ -134,6 +176,7 @@ namespace Przegladarka
                             {
                                 if (!e2.IsSuccess) return;
                                 await view.CoreWebView2.ExecuteScriptAsync(ReaderScript);
+                                applyLook();
                                 await view.CoreWebView2.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
                                 await PreparePiperReading(view.CoreWebView2);
                                 // klikniecie w tekst = czytaj od tego miejsca (przeciaganie/zaznaczanie i linki dzialaja jak zwykle)
@@ -185,7 +228,11 @@ namespace Przegladarka
             var body = T(text).Replace("\n\n", "</p><p>").Replace("\n", "<br/>");
             var sum = T(summary).Replace("\n", "<br/>");
             return "<!doctype html><html lang='pl'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'/>" +
-                   "<title>Tryb czytania</title><style>body{font-family:Georgia,serif;line-height:1.72;max-width:900px;margin:0 auto;padding:24px;background:#f8fafc;color:#111827}h1{font-size:34px;margin:0 0 8px}small{color:#6b7280}#velivo-summary{background:#ecfeff;border:1px solid #bae6fd;border-left:5px solid #0891b2;padding:14px;border-radius:10px;margin:14px 0 20px;font-size:18px}article{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}p{margin:0 0 14px;font-size:21px}</style></head><body>" +
+                   "<title>Tryb czytania</title><style>body{font-family:Georgia,serif;line-height:1.72;max-width:900px;margin:0 auto;padding:24px;background:#f8fafc;color:#111827}h1{font-size:34px;margin:0 0 8px}small{color:#6b7280}#velivo-summary{background:#ecfeff;border:1px solid #bae6fd;border-left:5px solid #0891b2;padding:14px;border-radius:10px;margin:14px 0 20px;font-size:18px}article{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}p{margin:0 0 14px;font-size:21px}" +
+                   "body,article,#velivo-summary{transition:background-color .25s,color .25s,border-color .25s}" +
+                   "body.dark{background:#111827;color:#e5e7eb}body.dark small{color:#9ca3af}body.dark article{background:#1f2937;border-color:#374151}body.dark #velivo-summary{background:#0f2a33;border-color:#155e75;color:#e5e7eb}body.dark a{color:#93c5fd}" +
+                   "#velivo-night{position:fixed;inset:0;pointer-events:none;background:#ff8a00;mix-blend-mode:multiply;opacity:0;transition:opacity .25s;z-index:2147483647}</style>" +
+                   "<script>window.__velivoLook=function(m,s){var b=document.body;if(!b)return;b.classList.toggle('dark',m==='dark');var n=document.getElementById('velivo-night');if(!n){n=document.createElement('div');n.id='velivo-night';document.documentElement.appendChild(n);}n.style.opacity=m==='night'?(Math.max(5,Math.min(100,s))/100*0.45).toFixed(3):'0';};</script></head><body>" +
                    "<h1>" + T(title) + "</h1><small>" + T(url) + "</small>" +
                    "<div id='velivo-summary'><strong>" + T(L.T("Najważniejsze zdania (streszczenie lokalne, bez AI):")) + "</strong><br/>" + sum + "</div>" +
                    "<article><p>" + body + "</p></article></body></html>";

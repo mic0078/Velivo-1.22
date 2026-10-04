@@ -178,6 +178,12 @@ namespace Przegladarka
                 }
                 var pids = new HashSet<uint>();
                 try { foreach (var pi in _env.GetProcessInfos()) pids.Add((uint)pi.ProcessId); } catch (Exception) { }
+                // zmiana wyjscia: wszystkie procesy; ten sam cel: tylko nowe procesy (inaczej kazdy nowy proces
+                // przestawial dzwiek wszystkim i dzwiek sie urywal)
+                var key = mmDeviceId ?? "";
+                if (key != _routedKey) { _routedKey = key; _routedPids.Clear(); }
+                pids.ExceptWith(_routedPids);
+                _routedPids.UnionWith(pids);
                 foreach (var pid in pids)
                 {
                     _setEndpoint(_policy, pid, eRender, 0, h);   // eConsole
@@ -188,6 +194,9 @@ namespace Przegladarka
             finally { if (h != IntPtr.Zero) WindowsDeleteString(h); }
         }
 
+        string _routedKey;
+        readonly HashSet<uint> _routedPids = new HashSet<uint>();
+        int _busyTicks, _freeTicks;   // przelaczamy dopiero po 2 zgodnych odczytach z rzedu (bez skakania)
         DispatcherTimer _audioGuard;
         string _audioRoutedTo = "";   // "" = domyslne Windows
         DateTime _audioChangedAt = DateTime.MinValue;   // ostatnia zmiana urzadzenia (zajecie, zwolnienie, nowe domyslne)
@@ -217,7 +226,7 @@ namespace Przegladarka
         void StartAudioGuard()
         {
             if (_audioGuard != null) return;
-            _audioGuard = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _audioGuard = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _audioGuard.Tick += (s, e) =>
             {
                 try
@@ -238,6 +247,8 @@ namespace Przegladarka
                     bool free = AudioOutputFree(wanted);
                     if (_lastWantedFree.HasValue && _lastWantedFree.Value != free) _audioChangedAt = DateTime.UtcNow;
                     _lastWantedFree = free;
+                    if (free) { _freeTicks++; _busyTicks = 0; } else { _busyTicks++; _freeTicks = 0; }
+                    if (free ? _freeTicks < 2 && _audioRoutedTo != "" && _audioRoutedTo != wanted : _busyTicks < 2) return;
                     if (free) target = string.IsNullOrEmpty(_settings.AudioOut) ? "" : wanted;
                     else
                     {

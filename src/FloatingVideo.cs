@@ -62,7 +62,7 @@ namespace Przegladarka
                 var r = JsonSerializer.Deserialize<FloatRequest>(json);
                 if (r == null) return;
                 var core = tab.View.CoreWebView2;
-                if (core != null) _ = core.ExecuteScriptAsync("(function(){var v=Array.prototype.slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];if(v)try{v.pause();}catch(e){}})()");
+                if (core != null) _ = core.ExecuteScriptAsync("(function(){var v=Array.prototype.slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];if(v)try{v.__velivoUserPaused=true;v.pause();}catch(e){}})()");
                 ShowFloatingVideo(r.page, r.time, r.title, tab.Private);
             }
             catch (Exception ex) { App.LogError(ex); }
@@ -77,16 +77,17 @@ namespace Przegladarka
   var seeked=false;
   function fix(){ var v=big(); if(!v) return; if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
     if(!seeked && v.readyState>0){ seeked=true; if(t>3 && Math.abs(v.currentTime-t)>3) try{v.currentTime=t;}catch(e){} }
-    if(v.paused && !v.__velivoUserPaused) playIt(v);
-    // straznik zawieszenia: film ma grac, a czas stoi (np. Omnisphere zresetowal karte dzwiekowa) - odblokuj
-    if(!v.paused && !v.ended && !v.__velivoUserPaused && v.readyState>0){ if(Math.abs(v.currentTime-(v.__vLast||-1))<0.05){ v.__vStuck=(v.__vStuck||0)+1; if(v.__vStuck>=4){ v.__vStuck=0; unstick(v); } } else v.__vStuck=0; v.__vLast=v.currentTime; } }
+    if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }
   // YouTube ma wlasny odtwarzacz - wznawiamy przez niego, inaczej po bledzie dzwieku zostaje zawieszony
   function yt(){ var mp=document.getElementById('movie_player'); return mp && typeof mp.playVideo==='function' ? mp : null; }
   function playIt(v){ var mp=yt(); try{ if(mp){ mp.playVideo(); return; } }catch(e){} v.play().catch(function(){}); }
-  function unstick(v){ var mp=yt(); try{ if(mp && mp.seekTo){ mp.seekTo(mp.getCurrentTime ? mp.getCurrentTime() : v.currentTime, true); mp.playVideo(); return; } }catch(e){}
-    try{ var t0=v.currentTime; v.pause(); v.currentTime=t0; v.play().catch(function(){}); }catch(e){} }
+  // automatyczne wznawianie z hamulcem: najwyzej raz na 2 s i 6 razy na minute - gdy karta dzwiekowa jest zajeta,
+  // nie walczymy z nia w petli (to powodowalo zacinanie); spokojnie probujemy dalej co 10 s
+  var tries=[];
+  function autoPlay(v){ var now=Date.now(); tries=tries.filter(function(x){return now-x<60000;});
+    if(tries.length && now-tries[tries.length-1]<(tries.length>=6?10000:2000)) return; tries.push(now); playIt(v); }
   // pauze uzytkownika ustawia TYLKO klik w okienko (nizej) - zatrzymanie przez silnik czy zmiane dzwieku zawsze wznawiamy
-  document.addEventListener('pause', function(e){ var v=e.target; if(!v || v.tagName!=='VIDEO' || v.__velivoUserPaused || v.ended) return; setTimeout(function(){ if(v.paused && !v.__velivoUserPaused && !v.ended) playIt(v); }, 150); }, true);
+  document.addEventListener('pause', function(e){ var v=e.target; if(!v || v.tagName!=='VIDEO' || v.__velivoUserPaused || v.ended) return; setTimeout(function(){ if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }, 150); }, true);
   document.addEventListener('play', function(e){ if(e.target && e.target.tagName==='VIDEO') e.target.__velivoUserPaused=false; }, true);
   fix(); setInterval(fix, 1000);
   // pasek czasu: klik/przeciaganie = skok, kolko nad paskiem = +-5 s (kolko nad filmem = przezroczystosc)

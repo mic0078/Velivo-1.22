@@ -393,6 +393,7 @@ namespace Przegladarka
             await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
             tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
+            await EnsureBundledUbolAsync();
             if (!_extensionsLoaded)
             {
                 _extensionsLoaded = true;

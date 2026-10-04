@@ -863,6 +863,8 @@ namespace Przegladarka
             { "Otworzyć mimo to? (wybierz Nie, jeśli nie masz pewności)", "Open anyway? (choose No if you are not sure)" },
             { "Ochrona przed oszustwem", "Fraud protection" },
             { "🛡 Bezpieczne płatności: okno Velivo jest niewidoczne dla programów nagrywających ekran.", "🛡 Safe payments: the Velivo window is invisible to screen-recording programs." },
+            { "uBlock Origin Lite – wbudowany bloker reklam (zalecany)", "uBlock Origin Lite – built-in ad blocker (recommended)" },
+            { "Dodatek open source (GPL-3.0) dołączony do Velivo. Działa razem z blokadą Velivo.", "Open-source add-on (GPL-3.0) bundled with Velivo. Works together with Velivo's blocking." },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

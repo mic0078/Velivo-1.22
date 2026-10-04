@@ -86,6 +86,7 @@ namespace Przegladarka
   function unstick(v){ var mp=yt(); try{ if(mp && mp.seekTo){ mp.seekTo(mp.getCurrentTime ? mp.getCurrentTime() : v.currentTime, true); mp.playVideo(); return; } }catch(e){}
     try{ var t0=v.currentTime; v.pause(); v.currentTime=t0; v.play().catch(function(){}); }catch(e){} }
   // pauze uzytkownika ustawia TYLKO klik w okienko (nizej) - zatrzymanie przez silnik czy zmiane dzwieku zawsze wznawiamy
+  document.addEventListener('pause', function(e){ var v=e.target; if(!v || v.tagName!=='VIDEO' || v.__velivoUserPaused || v.ended) return; setTimeout(function(){ if(v.paused && !v.__velivoUserPaused && !v.ended) playIt(v); }, 150); }, true);
   document.addEventListener('play', function(e){ if(e.target && e.target.tagName==='VIDEO') e.target.__velivoUserPaused=false; }, true);
   fix(); setInterval(fix, 1000);
   // pasek czasu: klik/przeciaganie = skok, kolko nad paskiem = +-5 s (kolko nad filmem = przezroczystosc)
@@ -114,7 +115,7 @@ namespace Przegladarka
   if (!window.__velivoWheel && window.chrome && chrome.webview) { window.__velivoWheel = 1; addEventListener('wheel', function(e){ e.preventDefault(); e.stopPropagation();
     if (bar && bar.contains(e.target)) { var v=big(); if(v&&isFinite(v.duration)){ v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+(e.deltaY<0?5:-5))); show(); } return; }
     chrome.webview.postMessage('velivo-float-wheel:' + (e.deltaY < 0 ? 1 : -1)); }, { passive: false, capture: true }); }
-  document.addEventListener('click', function(e){ if(bar && bar.contains(e.target)) return; var v=big(); if(!v) return; e.preventDefault(); e.stopPropagation(); if(v.paused){ v.__velivoUserPaused=false; playIt(v); } else { var mp=yt(); try{ if(mp&&mp.pauseVideo){ mp.pauseVideo(); } else v.pause(); }catch(x){ v.pause(); } v.__velivoUserPaused=true; } }, true);
+  document.addEventListener('click', function(e){ if(bar && bar.contains(e.target)) return; var v=big(); if(!v) return; e.preventDefault(); e.stopPropagation(); if(v.paused){ v.__velivoUserPaused=false; playIt(v); } else { v.__velivoUserPaused=true; var mp=yt(); try{ if(mp&&mp.pauseVideo){ mp.pauseVideo(); } else v.pause(); }catch(x){ v.pause(); } } }, true);
 })";
 
         void ShowFloatingVideo(string page, double time, string title, bool isPrivate)

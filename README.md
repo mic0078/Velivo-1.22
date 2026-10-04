@@ -6,7 +6,7 @@ Lekka, prywatna przeglądarka dla Windows, która trzyma Twoje dane u Ciebie: be
 
 Dane między Twoimi komputerami przenosi synchronizacja w sieci lokalnej (LAN), szyfrowana po sparowaniu urządzeń. W zestawie jest dodatek **Szybki Dostęp** (strona nowej karty ze skrótami) oraz współpraca z programem **Sejf**, który przechowuje hasła zaszyfrowane offline.
 
-**[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)**
+**[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (6,7 MB) · **[📖 Pełna instrukcja obsługi](INSTRUKCJA.md)**
 
 ## Czego nie znajdziesz w innych przeglądarkach
 

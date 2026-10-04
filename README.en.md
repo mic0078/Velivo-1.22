@@ -8,7 +8,7 @@ Your computers share data through local network (LAN) sync, encrypted after the 
 
 The interface is available in **Polish and English**. The installer asks for the language, and you can change it later in Settings → Appearance → Language.
 
-**[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)**
+**[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (6.7 MB) · **[📖 Complete user manual](MANUAL.en.md)**
 
 ## What no other browser has
 

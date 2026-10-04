@@ -24,6 +24,7 @@ namespace Przegladarka
         public bool Autofill = true;
         public bool SmartScreen = true;        // ostrzezenia o niebezpiecznych stronach
         public bool UbolLite = true;
+        public bool StayInTray = false;        // po zamknieciu okna zostan w zasobniku (synchronizacja w tle, szybki start)
         public bool AudioGuard = true;         // dzwiek nie ginie, gdy program muzyczny zajmie karte
         public string AudioOut = "";           // wybrane glosniki Velivo ("" = domyslne Windows)           // wbudowany uBlock Origin Lite
         public bool AntiPhishing = true;       // wykrywanie stron-podrobek (offline)
@@ -134,6 +135,7 @@ namespace Przegladarka
                         case "smartscreen": s.SmartScreen = b; break;
                         case "ubol": s.UbolLite = b; break;
                         case "audioGuard": s.AudioGuard = b; break;
+                        case "tray": s.StayInTray = b; break;
                         case "audioOut": s.AudioOut = v; break;
                         case "antiPhishing": s.AntiPhishing = b; break;
                         case "httpsFirst": s.HttpsFirst = b; break;
@@ -226,7 +228,7 @@ namespace Przegladarka
             {
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
-                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload),
+                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload),
                 "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
@@ -538,6 +540,8 @@ namespace Przegladarka
             root.Children.Add(outBox);
             var guardBox = Check(L.T("Nie gub dźwięku: gdy program muzyczny (Ableton, Cubase) zajmie głośniki, graj na innym aktywnym wyjściu i wróć po ich zwolnieniu"), null, s.AudioGuard);
             root.Children.Add(guardBox);
+            var trayBox = Check(L.T("Po zamknięciu okna zostań w zasobniku (synchronizacja w tle, natychmiastowy start)"), L.T("Ikonka Velivo przy zegarze pulsuje podczas synchronizacji. Prawy przycisk na ikonce: Otwórz, Synchronizuj teraz, Zamknij całkowicie."), s.StayInTray);
+            root.Children.Add(trayBox);
             var audioOut = SmallButton(L.T("🔊 Mikser głośności Windows…"), OpenAppAudioSettings);
             audioOut.HorizontalAlignment = HorizontalAlignment.Left;
             root.Children.Add(audioOut);
@@ -762,6 +766,7 @@ namespace Przegladarka
                 s.SmartScreen = ss.IsChecked == true; s.AskDownload = ask.IsChecked == true;
                 bool ubolChanged = s.UbolLite != (ubolBox.IsChecked == true); s.UbolLite = ubolBox.IsChecked == true; if (ubolChanged) _ = EnsureBundledUbolAsync();
                 s.AudioGuard = guardBox.IsChecked == true;
+                s.StayInTray = trayBox.IsChecked == true; UpdateTrayFromSettings();
                 var newOut = (string)((ComboBoxItem)outBox.SelectedItem).Tag ?? "";
                 if (newOut != (s.AudioOut ?? "")) { s.AudioOut = newOut; RouteVelivoAudio(newOut); _audioRoutedTo = newOut; }
                 s.AntiPhishing = phishBox.IsChecked == true; s.HttpsFirst = httpsBox.IsChecked == true; s.SafePayments = payBox.IsChecked == true;

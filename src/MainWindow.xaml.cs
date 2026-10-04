@@ -103,6 +103,7 @@ namespace Przegladarka
             UpdateProfileBadge();
             LoadSitePrivacyRules();
             LoadPrivacyLog();
+            Closing += TrayOnClosing;                    // tryb zasobnika: chowamy zamiast zamykac
             Closing += GuardAgainstWebViewClosingWindow; // musi byc pierwsze - anuluje zamkniecie okna przez strone
             Closing += ConfirmCloseWithDownloads;        // trwa pobieranie? zapytaj i wstrzymaj
             Closing += (s, e) => { if (!e.Cancel) SaveSession(); }; // karty do przywrocenia przy nastepnym starcie

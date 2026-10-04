@@ -883,6 +883,13 @@ namespace Przegladarka
             { "Szybkie rozjaśnienie (0,15 s)", "Quick fade-in (0.15 s)" },
             { "Delikatne rozjaśnienie (0,3 s)", "Gentle fade-in (0.3 s)" },
             { "Wolne rozjaśnienie (0,5 s)", "Slow fade-in (0.5 s)" },
+            { "Po zamknięciu okna zostań w zasobniku (synchronizacja w tle, natychmiastowy start)", "Stay in the system tray when the window is closed (background sync, instant start)" },
+            { "Ikonka Velivo przy zegarze pulsuje podczas synchronizacji. Prawy przycisk na ikonce: Otwórz, Synchronizuj teraz, Zamknij całkowicie.", "The Velivo icon by the clock pulses while syncing. Right-click the icon: Open, Sync now, Exit completely." },
+            { "Velivo działa w zasobniku i synchronizuje się w tle. Kliknij ikonkę, aby otworzyć.", "Velivo is running in the tray and syncing in the background. Click the icon to open it." },
+            { "Otwórz Velivo", "Open Velivo" },
+            { "Synchronizuj teraz", "Sync now" },
+            { "Zamknij Velivo całkowicie", "Exit Velivo completely" },
+            { "Velivo – synchronizacja…", "Velivo – syncing…" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

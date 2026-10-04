@@ -5,6 +5,8 @@
     <!-- skladniki Windows (WinRT) potrzebne okienku "Film na wierzchu" z przezroczystoscia; dziala od Windows 10 1809 -->
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
+    <!-- ikonka w zasobniku (NotifyIcon) -->
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>disable</Nullable>
     <AssemblyName>Velivo</AssemblyName>
     <Product>Velivo</Product>

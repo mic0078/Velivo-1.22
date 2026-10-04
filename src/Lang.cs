@@ -780,6 +780,9 @@ namespace Przegladarka
             { "Po kliknięciu tarczy: z iloma firmami i krajami łączyła się strona, brokerzy danych i próby rozpoznania komputera.", "Click the shield to see how many companies and countries the page connected to, data brokers and fingerprinting attempts." },
             { "🔊 Czytaj od tego miejsca", "🔊 Read from here" },
             { "🔊 W tym miejscu nie ma tekstu do przeczytania – kliknij prawym przyciskiem na akapicie.", "🔊 There is no text to read here – right-click on a paragraph." },
+            { "Styl wyglądu:", "Look:" },
+            { "Nowoczesny (spokojny, jak Windows 11)", "Modern (calm, like Windows 11)" },
+            { "Kolorowy (kolorowe przyciski)", "Colorful (colored buttons)" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

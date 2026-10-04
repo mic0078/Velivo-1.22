@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -238,6 +238,7 @@ namespace Przegladarka
                 KeyBtn.Content = "" + (logins.Count > 1 ? " " + logins.Count : "");
                 KeyBtn.ToolTip = "Sejf ma " + (logins.Count == 1 ? "login" : logins.Count + " loginy") + " dla " + host + L.T("\nKliknij, aby wypełnić formularz");
                 KeyBtn.Visibility = Visibility.Visible;
+                UpdateModernReadButtons();
             }
             catch (Exception ex) { App.LogError(ex); }
         }

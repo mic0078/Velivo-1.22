@@ -228,6 +228,7 @@ namespace Przegladarka
             int idx = Math.Abs((p ?? "").GetHashCode()) % palette.Length;
             ProfileBadgeBtn.Background = new SolidColorBrush(palette[idx].Bg);
             ProfileBadgeBtn.Foreground = new SolidColorBrush(palette[idx].Fg);
+            ModernProfileBadge();
         }
 
         SitePrivacyRule RuleForHost(string host)

@@ -719,6 +719,7 @@ namespace Przegladarka
                 t.Header.Background = t.Private
                     ? new SolidColorBrush(on ? Color.FromRgb(0x4C, 0x1D, 0x95) : Color.FromRgb(0x6D, 0x28, 0xD9))
                     : (on ? ActiveTabBrush : Brushes.Transparent);
+                ModernTabLook(t, on);
             }
         }
 
@@ -1011,6 +1012,7 @@ namespace Przegladarka
             AdIcon.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x15, 0x80, 0x3D)) : new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C));
             AdCounter.Foreground = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0x14, 0x53, 0x2D)) : new SolidColorBrush(Color.FromRgb(0x7F, 0x1D, 0x1D));
             AdToggle.Background = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0xDC, 0xFC, 0xE7)) : new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
+            ModernShield();
             AdToggle.ToolTip = L.En
                 ? "Blocked on this page: " + here + " (total " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " rules. Click to see the list."
                 : "Zablokowane na tej stronie: " + here + " (razem " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby zobaczyć listę.";

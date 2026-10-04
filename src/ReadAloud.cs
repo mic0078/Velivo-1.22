@@ -259,6 +259,7 @@ namespace Przegladarka
             ReadRateBtn.Content = _settings.ReadRate.ToString("0.##", CultureInfo.GetCultureInfo("pl-PL")) + "×";
             ReadBtn.Content = !reading ? "" : (paused ? "" : ""); // glosnik / odtworz / pauza
             if (!reading) ReadBtn.ToolTip = L.T("Czytaj stronę na głos (Ctrl+Shift+U)\nZaznacz tekst, aby przeczytać tylko fragment");
+            UpdateModernReadButtons();
         }
 
         async void ReadBtn_Click(object sender, RoutedEventArgs e)

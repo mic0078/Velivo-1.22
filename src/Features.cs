@@ -111,6 +111,7 @@ namespace Przegladarka
             bool marked = CurrentUrl != null && _bookmarks.Any(b => b.Url == CurrentUrl);
             StarBtn.Content = marked ? "\uE735" : "\uE734"; // pelna / pusta gwiazdka (Segoe Fluent Icons)
             StarBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xB4, 0x53, 0x09));
+            ModernStar(marked);
         }
 
         void Star_Click(object sender, RoutedEventArgs e)

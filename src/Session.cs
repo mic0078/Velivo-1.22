@@ -187,6 +187,11 @@ namespace Przegladarka
                 bool muted = false; try { muted = tab.View.CoreWebView2 != null && tab.View.CoreWebView2.IsMuted; } catch (Exception) { }
                 mute.Header = muted ? L.T("Włącz dźwięk karty") : L.T("Wycisz kartę");
                 group.IsEnabled = !tab.Pinned;
+                // nowoczesny wyglad: ikony Windows 11 zamiast emoji
+                var icons = new Dictionary<MenuItem, string> { { reload, "\uE72C" }, { dup, "\uE8C8" }, { pin, "\uE718" }, { mute, muted ? "\uE767" : "\uE74F" },
+                    { refresh, "\uE895" }, { sendTo, "\uE8A7" }, { group, "\uE8EC" }, { sets, "\uE8F1" }, { find, "\uE721" }, { close, "\uE711" }, { reopen, "\uE7A7" } };
+                foreach (var kv in icons) kv.Key.Icon = Modern ? MenuGlyph(kv.Value) : null;
+                sendTo.Header = MenuText(L.T("📺 Wyślij do…"));
             };
             foreach (var m in new object[] { reload, dup, pin, mute, refresh, sendTo, new Separator(), group, sets, find, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
             return menu;

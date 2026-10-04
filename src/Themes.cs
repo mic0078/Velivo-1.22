@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
@@ -57,6 +57,7 @@ namespace Przegladarka
                 Address.CaretBrush = ThemeBrush(t.Fg);
                 Address.BorderBrush = ThemeBrush(t.AddressBorder);
                 if (_current != null) SelectTabColors();
+                ApplyUiStyle();
             }
             catch (Exception ex) { App.LogError(ex); }
         }

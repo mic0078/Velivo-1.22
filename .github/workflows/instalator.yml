@@ -9,6 +9,11 @@ on:
 permissions:
   contents: write
 
+# nowsza wysylka anuluje starsza kompilacje (bez wyscigu przy zapisie instalatora)
+concurrency:
+  group: instalator-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest

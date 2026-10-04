@@ -165,6 +165,9 @@ namespace Przegladarka
         {
             var menu = new ContextMenu();
             var reload = new MenuItem { Header = L.T("Odśwież") }; reload.Click += (s, e) => { if (tab.View.CoreWebView2 != null) tab.View.CoreWebView2.Reload(); };
+            // ta sama strona w nowej karcie prywatnej (incognito) - bez historii i ciasteczek
+            var priv = new MenuItem { Header = L.T("🕶 Otwórz jako prywatną (incognito)"), IsEnabled = !tab.Private };
+            priv.Click += (s, e) => { if (tab.View.CoreWebView2 != null) AddTab(tab.View.CoreWebView2.Source, true); };
             var dup = new MenuItem { Header = L.T("Duplikuj kartę") }; dup.Click += (s, e) => { if (tab.View.CoreWebView2 != null) AddTab(tab.View.CoreWebView2.Source, tab.Private); };
             var close = new MenuItem { Header = L.T("Zamknij kartę (Ctrl+W)") }; close.Click += (s, e) => CloseTab(tab);
             var others = new MenuItem { Header = L.T("Zamknij inne karty") };
@@ -193,7 +196,7 @@ namespace Przegladarka
                 foreach (var kv in icons) kv.Key.Icon = Modern ? MenuGlyph(kv.Value) : null;
                 sendTo.Header = MenuText(L.T("📺 Wyślij do…"));
             };
-            foreach (var m in new object[] { reload, dup, pin, mute, refresh, sendTo, new Separator(), group, sets, find, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
+            foreach (var m in new object[] { reload, dup, priv, pin, mute, refresh, sendTo, new Separator(), group, sets, find, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
             return menu;
         }
     }

@@ -42,6 +42,11 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Pinned;
+            public Button SoundBtn;              // 🔊 / 🔇 na karcie
+            public TextBlock RefreshMark, GroupDot;
+            public System.Windows.Threading.DispatcherTimer RefreshTimer;
+            public int RefreshMinutes;
+            public TabGroup Group;
             public string PageScriptId;   // wspolny skrypt stron (ciasteczka, gesty, obraz w obrazie)
             public DateTime NewTabIntentAt;   // ostatni Ctrl+klik / srodkowy klik na linku
             public string PinnedUrl;     // adres zamrozony przy przypieciu - do niego karta wraca po uruchomieniu          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
@@ -122,6 +127,7 @@ namespace Przegladarka
                     foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }
                     var session = LoadSession(); // karty z poprzedniego uruchomienia
                     foreach (var u in session) AddTab(u);
+                    if (session.Count > 0) RestoreTabGroups(_tabs.Skip(pinned.Count).Take(session.Count).ToList());
                     if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
                     if (session.Count == 0 && pinned.Count == 0 && _startUrls.Length == 0) AddTab("");
                     if (session.Count == 0 && pinned.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
@@ -308,8 +314,15 @@ namespace Przegladarka
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             tab.CloseBtn = close;
             tab.PinMark = new TextBlock { Text = "📌", FontSize = 11, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            tab.GroupDot = new TextBlock { Text = "●", FontSize = 12, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            tab.SoundBtn = new Button { Content = "🔊", Width = 22, Height = 20, FontSize = 11, Padding = new Thickness(0), Margin = new Thickness(0, 0, 4, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Visibility = Visibility.Collapsed };
+            tab.SoundBtn.Click += (s, e) => { ToggleTabMute(tab); e.Handled = true; };
+            tab.RefreshMark = new TextBlock { Text = "⟳", FontSize = 12, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            panel.Children.Add(tab.GroupDot);
             panel.Children.Add(tab.PinMark);
+            panel.Children.Add(tab.SoundBtn);
             panel.Children.Add(tab.Title);
+            panel.Children.Add(tab.RefreshMark);
             panel.Children.Add(close);
             tab.Header = new Button { Content = panel, Width = double.NaN, Padding = new Thickness(10, 0, 4, 0), Height = 32, Margin = new Thickness(1, 4, 0, 0) };
             if (isPrivate)
@@ -354,6 +367,7 @@ namespace Przegladarka
             HookAutofill(tab, core);
             await HookPasswordVault(tab, core);
             tab.View.ZoomFactorChanged += (s, e) => OnZoomChanged(tab);
+            HookTabSound(tab, core);
             ApplyDarkMode(tab);
             // Strony nie musza wiedziec, ze to WebView2 - Google blokuje logowanie w "przegladarkach wbudowanych".
             // chrome.webview jest potrzebny tylko w okienkach dodatkow (osobne widoki), w kartach go wylaczamy.
@@ -712,6 +726,7 @@ namespace Przegladarka
             CheckSejfLogins(tab);
             UpdateAdaptiveToolbarLayout();
             UpdateTrackingLevel(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null);
+            if (_groups.Count > 0) RefreshGroupsUi();   // zwinieta grupa pokazuje tylko aktywna karte
         }
 
         void OverflowBtn_Click(object sender, RoutedEventArgs e)
@@ -824,6 +839,8 @@ namespace Przegladarka
                 tab.View.Dispose();
             }
             if (_tabs.Count == 0) { Close(); return; }
+            if (tab.RefreshTimer != null) { tab.RefreshTimer.Stop(); tab.RefreshTimer = null; }
+            if (tab.Group != null) RefreshGroupsUi();
             if (tab == _current) SelectTab(_tabs[Math.Min(idx, _tabs.Count - 1)]);
         }
 

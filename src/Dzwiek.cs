@@ -193,6 +193,7 @@ namespace Przegladarka
         DateTime _audioChangedAt = DateTime.MinValue;   // ostatnia zmiana urzadzenia (zajecie, zwolnienie, nowe domyslne)
         string _lastDefaultOut; bool? _lastWantedFree;
         readonly HashSet<BrowserTab> _wasPlaying = new HashSet<BrowserTab>();
+        readonly List<Microsoft.Web.WebView2.Core.CoreWebView2> _floatCores = new List<Microsoft.Web.WebView2.Core.CoreWebView2>();
 
         // film sam sie zatrzymal tuz po zmianie urzadzenia dzwieku (np. Omnisphere zmienil czestotliwosc) - wznawiamy
         void ResumeAfterAudioChange()
@@ -227,7 +228,9 @@ namespace Przegladarka
                     _lastDefaultOut = def;
                     ResumeAfterAudioChange();
                     // sprawdzamy tylko, gdy cos gra (oszczednie)
-                    bool playing = _tabs.Any(t => { try { return t.View.CoreWebView2 != null && t.View.CoreWebView2.IsDocumentPlayingAudio; } catch (Exception) { return false; } });
+                    // karty i okienka "Film na wierzchu" (graja takze po zamknieciu glownego okna)
+                    bool playing = _tabs.Any(t => { try { return t.View.CoreWebView2 != null && t.View.CoreWebView2.IsDocumentPlayingAudio; } catch (Exception) { return false; } })
+                        || _floatCores.ToList().Any(c => { try { return c.IsDocumentPlayingAudio; } catch (Exception) { _floatCores.Remove(c); return false; } });
                     if (!playing) return;
                     var wanted = string.IsNullOrEmpty(_settings.AudioOut) ? DefaultAudioOutputId() : _settings.AudioOut;
                     if (wanted == null) return;
@@ -253,6 +256,8 @@ namespace Przegladarka
                 catch (Exception ex) { App.LogError(ex); }
             };
             _audioGuard.Start();
+            // przy wyjsciu z programu: zadnego pozostawionego przypisania glosnikow w Windows
+            try { System.Windows.Application.Current.Exit += (s3, e3) => { if (!string.IsNullOrEmpty(_audioRoutedTo) && string.IsNullOrEmpty(_settings?.AudioOut)) RouteVelivoAudio(null); }; } catch (Exception) { }
             // nowe procesy silnika (np. usluga dzwieku startuje dopiero przy pierwszym dzwieku) dostaja to samo wyjscie
             try { _env.ProcessInfosChanged += (s2, e2) => { if (!string.IsNullOrEmpty(_audioRoutedTo)) RouteVelivoAudio(_audioRoutedTo); }; } catch (Exception) { }
             if (_settings != null && !string.IsNullOrEmpty(_settings.AudioOut)) { RouteVelivoAudio(_settings.AudioOut); _audioRoutedTo = _settings.AudioOut; }

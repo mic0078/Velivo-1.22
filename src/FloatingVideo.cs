@@ -85,7 +85,7 @@ namespace Przegladarka
   function playIt(v){ var mp=yt(); try{ if(mp){ mp.playVideo(); return; } }catch(e){} v.play().catch(function(){}); }
   function unstick(v){ var mp=yt(); try{ if(mp && mp.seekTo){ mp.seekTo(mp.getCurrentTime ? mp.getCurrentTime() : v.currentTime, true); mp.playVideo(); return; } }catch(e){}
     try{ var t0=v.currentTime; v.pause(); v.currentTime=t0; v.play().catch(function(){}); }catch(e){} }
-  document.addEventListener('pause', function(e){ if(e.target && e.target.tagName==='VIDEO' && e.isTrusted && document.hasFocus()) e.target.__velivoUserPaused=true; }, true);
+  // pauze uzytkownika ustawia TYLKO klik w okienko (nizej) - zatrzymanie przez silnik czy zmiane dzwieku zawsze wznawiamy
   document.addEventListener('play', function(e){ if(e.target && e.target.tagName==='VIDEO') e.target.__velivoUserPaused=false; }, true);
   fix(); setInterval(fix, 1000);
   // pasek czasu: klik/przeciaganie = skok, kolko nad paskiem = +-5 s (kolko nad filmem = przezroczystosc)
@@ -260,6 +260,8 @@ namespace Przegladarka
                 opts.IsInPrivateModeEnabled = isPrivate;
                 await view.EnsureCoreWebView2Async(_env, opts);
                 var core = view.CoreWebView2;
+                _floatCores.Add(core);
+                view.Unloaded += (s0, e0) => _floatCores.Remove(core);
                 ApplyViewSettings(core);
                 core.Settings.AreDefaultContextMenusEnabled = false;
                 core.NewWindowRequested += (s, e) => e.Handled = true;   // reklamy i linki z okienka nie otwieraja okien

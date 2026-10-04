@@ -113,6 +113,21 @@ namespace Przegladarka
                     function setCandidate(login, password, source) {
                         if (!password || String(password).length < 1) return;
                         state.pendingCandidate = { username: login || '', password: password, url: location.href, source: source || 'page' };
+                        // od razu do Velivo - strona po zalogowaniu czesto przechodzi dalej, zanim Velivo zdazy zapytac
+                        if (source === 'submit') {
+                            try {
+                                if (window.chrome && chrome.webview) { chrome.webview.postMessage('velivo:__VT_TOKEN__:pwcand:' + JSON.stringify(state.pendingCandidate)); state.pendingCandidate = null; }
+                            } catch (_) {}
+                        }
+                    }
+
+                    // logowanie przyciskiem albo Enterem (wiele stron nie wysyla formularza)
+                    function captureFrom(anchor) {
+                        try {
+                            const fields = locateFields(anchor);
+                            const password = fields.password;
+                            if (password && password.value && password.value.length >= 6) setCandidate(fields.login && fields.login.value, password.value, 'submit');
+                        } catch (_) {}
                     }
 
                     function ensurePanel() {
@@ -367,6 +382,18 @@ namespace Przegladarka
                             }
                             event.stopImmediatePropagation();
                         }, { capture: true, passive: false });
+                        document.addEventListener('click', event => {
+                            try {
+                                const t = event.target && event.target.closest ? event.target.closest('button,input[type=submit],input[type=button],[role=button]') : null;
+                                if (!t || (state.panel && state.panel.contains(t))) return;
+                                const text = (t.innerText || t.value || t.getAttribute('aria-label') || '').trim();
+                                if (t.type === 'submit' || /zaloguj|log\s*in|sign\s*in|login|dalej|next|continue|kontynuuj|zarejestruj|sign\s*up|register|utw[oó]rz|create|zapisz|save|wy[sś]lij|submit/i.test(text))
+                                    captureFrom(t.form ? (visiblePassword(t.form) || t) : (state.activePassword || t));
+                            } catch (_) {}
+                        }, true);
+                        document.addEventListener('keydown', event => {
+                            try { if (event.key === 'Enter' && isPasswordField(event.target)) captureFrom(event.target); } catch (_) {}
+                        }, true);
                         document.addEventListener('submit', event => {
                             try {
                                 const form = event.target;
@@ -1366,6 +1393,22 @@ namespace Przegladarka
 
                                 var raw = await core.ExecuteScriptAsync(js);
                                 var payload = JsonSerializer.Deserialize<string>(raw);
+                                HandlePasswordCandidate(tab, core, payload);
+                        }
+                        catch (Exception ex) { App.LogError(ex); }
+                        finally { if (captureLockAcquired && core != null) _passwordCaptureInProgress.Remove(core); }
+                }
+
+                // kandydat wyslany przez strone od razu przy logowaniu
+                async System.Threading.Tasks.Task PromptSavePasswordPayload(BrowserTab tab, CoreWebView2 core, string payload)
+                {
+                        await System.Threading.Tasks.Task.Yield();
+                        try { if (core != null) HandlePasswordCandidate(tab, core, payload); }
+                        catch (Exception ex) { App.LogError(ex); }
+                }
+
+                void HandlePasswordCandidate(BrowserTab tab, CoreWebView2 core, string payload)
+                {
                                 if (string.IsNullOrWhiteSpace(payload)) return;
                                 using (var doc = JsonDocument.Parse(payload))
                                 {
@@ -1433,9 +1476,6 @@ namespace Przegladarka
                                         });
                                         SavePasswordVault();
                                 }
-                        }
-                        catch (Exception ex) { App.LogError(ex); }
-                        finally { if (captureLockAcquired && core != null) _passwordCaptureInProgress.Remove(core); }
                 }
 
                     async System.Threading.Tasks.Task HookPasswordVault(BrowserTab tab, CoreWebView2 core)

@@ -249,6 +249,7 @@ try {
                 return;
             }
             if (msg == "pwpick") { ShowPasswordPicker(tab); return; }
+            if (msg.StartsWith("pwcand:", StringComparison.Ordinal)) { _ = PromptSavePasswordPayload(tab, core, msg.Substring(7)); return; }
             if (msg == "cookie")
             {
                 NoteBlocked(tab, L.T("Ciasteczka"), (core != null ? core.Source : "") + L.T("  (baner zgody odrzucony)"));

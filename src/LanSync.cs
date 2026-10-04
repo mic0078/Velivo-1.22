@@ -644,6 +644,7 @@ namespace Przegladarka
         {
             if (_lanTx == null || _lanApplying) return;
             if (!_lanLegacyNoKeyMode && (_lanEncryptionKey == null || _lanAuthenticationKey == null)) return;
+            TrayPulse(2);
             var settings = ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt"));
             var bookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
             var session = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt"));
@@ -718,6 +719,7 @@ namespace Przegladarka
 
         void ApplyLanState(LanStatePacket pkt, LanSyncPayload state)
         {
+            TrayPulse(3);   // ikonka w zasobniku pulsuje przy synchronizacji
             long lastStamp;
             if (_lanPeerStamps.TryGetValue(pkt.id, out lastStamp) && pkt.ts <= lastStamp) return;
             var localFingerprint = CurrentLanFingerprint();

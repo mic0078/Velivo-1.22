@@ -109,6 +109,7 @@ namespace Przegladarka
                 Application.Current.Shutdown();
                 return;
             }
+            if (_inTray) { ShowFromTray(); if (urls.Length == 0) return; }
             if (urls.Length == 0) AddTab(NewTabUrl);
             foreach (var u in urls) AddTab(u);
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;

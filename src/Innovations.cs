@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -143,7 +143,7 @@ namespace Przegladarka
                     case 'ą': c = 'a'; break; case 'ć': c = 'c'; break; case 'ę': c = 'e'; break; case 'ł': c = 'l'; break;
                     case 'ń': c = 'n'; break; case 'ó': c = 'o'; break; case 'ś': c = 's'; break; case 'ź': case 'ż': c = 'z'; break;
                     default:
-                        if (c > 127)
+                        if (c > 127 && !char.IsSurrogate(c))   // emoji to pary znakow - polowki nie wolno normalizowac
                         {
                             var d = c.ToString().Normalize(NormalizationForm.FormD);
                             if (d.Length > 0 && d[0] < 128) c = d[0];

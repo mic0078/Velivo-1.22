@@ -778,6 +778,8 @@ namespace Przegladarka
             { "Fałszywe liczniki, „ostatnie sztuki”, „X osób ogląda”, zaznaczone z góry dodatki (Velivo je odznacza) i ukryte opłaty.", "Fake countdowns, \"last items\", \"X people are watching\", pre-ticked add-ons (Velivo unticks them) and hidden fees." },
             { "Paragon prywatności na tarczy", "Privacy receipt on the shield" },
             { "Po kliknięciu tarczy: z iloma firmami i krajami łączyła się strona, brokerzy danych i próby rozpoznania komputera.", "Click the shield to see how many companies and countries the page connected to, data brokers and fingerprinting attempts." },
+            { "🔊 Czytaj od tego miejsca", "🔊 Read from here" },
+            { "🔊 W tym miejscu nie ma tekstu do przeczytania – kliknij prawym przyciskiem na akapicie.", "🔊 There is no text to read here – right-click on a paragraph." },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

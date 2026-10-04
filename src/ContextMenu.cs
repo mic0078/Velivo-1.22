@@ -144,6 +144,14 @@ namespace Przegladarka
                     var readPage = _env.CreateContextMenuItem(_readTab != null ? L.T("Zatrzymaj czytanie") : L.T("Czytaj stronę na głos (Ctrl+Shift+U)"), null, CoreWebView2ContextMenuItemKind.Command);
                     readPage.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => { if (_readTab != null) StopReading(); else StartReading(false); });
                     add(readPage);
+                    if (!target.HasSelection)
+                    {
+                        var tabForRead = _current;
+                        double rx = e.Location.X, ry = e.Location.Y;
+                        var readHere = _env.CreateContextMenuItem(L.T("🔊 Czytaj od tego miejsca"), null, CoreWebView2ContextMenuItemKind.Command);
+                        readHere.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => StartReadingAt(tabForRead, rx, ry));
+                        add(readHere);
+                    }
                     var memSearch = _env.CreateContextMenuItem(L.T("🧠 Gdzie ja to czytałem?"), null, CoreWebView2ContextMenuItemKind.Command);
                     memSearch.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowPageMemorySearch);
                     add(memSearch);

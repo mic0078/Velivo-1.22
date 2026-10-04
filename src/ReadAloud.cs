@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -201,6 +201,25 @@ namespace Przegladarka
             var n = await tab.View.CoreWebView2.ExecuteScriptAsync("window.__velivoRead.start(" + (onlySelection ? "true" : "false") + "," +
                 Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")");
             if (n == "0" || n == "null") { ShowToast(L.T("🔊 Nie znalazłem tekstu do przeczytania na tej stronie."), null); return; }
+            _readTab = tab;
+            ShowReadControls(true, false);
+            if (_readTimer == null)
+            {
+                _readTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+                _readTimer.Tick += async (s, e) => await PollReading();
+            }
+            _readTimer.Start();
+        }
+
+        // Czytanie od miejsca, w ktore kliknieto prawym przyciskiem (bez zaznaczania tekstu).
+        async void StartReadingAt(BrowserTab tab, double x, double y)
+        {
+            if (tab == null || !await EnsureReader(tab)) return;
+            if (_readTab != null && _readTab != tab) StopReading();
+            double zoom = tab.View.ZoomFactor > 0 ? tab.View.ZoomFactor : 1;
+            var n = await tab.View.CoreWebView2.ExecuteScriptAsync("window.__velivoRead.startAt(" + Num(x / zoom) + "," + Num(y / zoom) + "," +
+                Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")");
+            if (n == "0" || n == "null") { ShowToast(L.T("🔊 W tym miejscu nie ma tekstu do przeczytania – kliknij prawym przyciskiem na akapicie."), null); return; }
             _readTab = tab;
             ShowReadControls(true, false);
             if (_readTimer == null)

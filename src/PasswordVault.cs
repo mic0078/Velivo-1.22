@@ -432,6 +432,8 @@ namespace Przegladarka
                     }
 
                     state.panelClick = event => {
+                        // tylko prawdziwe klikniecie myszka - strona nie moze sama "kliknac" w Wpisz ani w konto
+                        if (!event.isTrusted) return;
                         try {
                             const button = event.target && event.target.closest ? event.target.closest('button[data-v]') : null;
                             if (!button || !state.panel || !state.panel.contains(button)) return;
@@ -476,13 +478,17 @@ namespace Przegladarka
                         return status();
                     }
 
-                    window.__velivoPasswordHelper = {
-                        version: 4,
-                        initialize: initialize,
-                        setCredentials: setCredentials,
-                        takeCandidate: takeCandidate,
-                        status: status
-                    };
+                    // nie do podmienienia przez strone (inaczej moglaby przechwycic hasla przekazywane przez Velivo)
+                    Object.defineProperty(window, '__velivoPasswordHelper', {
+                        value: Object.freeze({
+                            version: 4,
+                            initialize: initialize,
+                            setCredentials: setCredentials,
+                            takeCandidate: takeCandidate,
+                            status: status
+                        }),
+                        writable: false, configurable: false, enumerable: false
+                    });
                     return JSON.stringify(initialize());
                 } catch (_) {
                     return JSON.stringify({ panelCreated: false, inputsSeen: 0, activeCandidateDetected: false });
@@ -817,13 +823,9 @@ namespace Przegladarka
                 (entryHost == target || target.EndsWith("." + entryHost, StringComparison.OrdinalIgnoreCase) || entryHost.EndsWith("." + target, StringComparison.OrdinalIgnoreCase)))
                 return true;
 
-            var labels = target.Split('.');
-            var brand = labels.Length > 1 ? labels[labels.Length - 2] : labels[0];
-            if (brand.Length < 4) return false;
-            // cale slowo, nie fragment: "fender" nie moze pasowac do "bitdefender"
-            var words = ((entry.Name ?? "") + " " + (entry.Url ?? "") + " " + (entry.Host ?? ""))
-                .ToLowerInvariant();
-            return System.Text.RegularExpressions.Regex.Split(words, @"[^\p{L}\p{Nd}]+").Contains(brand.ToLowerInvariant());
+            // BEZPIECZENSTWO: tylko prawdziwa domena. Zadnego dopasowania po nazwie - strona-podrobka
+            // "facebook.xyz" nie moze dostac hasla do Facebooka. Inne konto wybierasz recznie (Wpisz -> wyszukiwarka).
+            return false;
         }
 
         void UpsertPassword(SavedPasswordEntry e)
@@ -1070,6 +1072,12 @@ namespace Przegladarka
                     var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
                     buttons.Children.Add(ok); buttons.Children.Add(cancel);
                     var panel = new StackPanel { Margin = new Thickness(14) };
+                    var pageHost = HostFromAnyUrl(core.Source);
+                    panel.Children.Add(new TextBlock
+                    {
+                        Text = L.T("Strona: ") + pageHost + "\n" + L.T("Upewnij się, że to prawdziwa strona tego konta – oszuści podrabiają adresy (np. faceb00k.com)."),
+                        TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.DarkOrange, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8)
+                    });
                     panel.Children.Add(new TextBlock { Text = L.T("Szukaj konta (nazwa, adres albo e-mail):"), Margin = new Thickness(0, 0, 0, 4) });
                     panel.Children.Add(search); panel.Children.Add(list); panel.Children.Add(buttons);
                     var w = new Window { Title = L.T("Wybierz konto do wpisania"), Width = 560, SizeToContent = SizeToContent.Height, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel };

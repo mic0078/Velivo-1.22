@@ -839,6 +839,13 @@ namespace Przegladarka
             { "Zmieniono", "Changed" },
             { "Wykryto dane konta bankowego.", "Bank account details detected." },
             { "Konto bankowe", "Bank account" },
+            { "Strona: ", "Site: " },
+            { "Upewnij się, że to prawdziwa strona tego konta – oszuści podrabiają adresy (np. faceb00k.com).", "Make sure this is the real site of this account – scammers fake addresses (e.g. faceb00k.com)." },
+            { "dane karty", "card details" },
+            { "dane konta bankowego", "bank account details" },
+            { "Wpisać ", "Fill in " },
+            { " na stronie:", " on the site:" },
+            { "Upewnij się, że to prawdziwy sklep lub bank.", "Make sure this is the real shop or bank." },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

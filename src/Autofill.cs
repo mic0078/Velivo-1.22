@@ -89,7 +89,7 @@ namespace Przegladarka
         // Dziala tez w kartach prywatnych; zapis zawsze dopiero po pytaniu.
         const string AutofillPageScript = @"(() => {
 try {
-  if (window.__velivoAutofillFill || location.protocol !== 'https:') return;
+  if ('__velivoAutofillFill' in window || location.protocol !== 'https:') return;
   const vpm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   if (!vpm) return;
   const send = m => { try { vpm('velivo:__VT_TOKEN__:' + m); } catch (_) {} };
@@ -125,7 +125,15 @@ try {
     if (ac.includes('organization') || /firma|company/.test(n)) return ['address', 'company'];
     return null;
   }
-  const visible = i => { try { const r = i.getBoundingClientRect(); const cs = getComputedStyle(i); return !i.disabled && !i.readOnly && r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'; } catch (_) { return false; } };
+  // BEZPIECZENSTWO: tylko pola naprawde widoczne dla czlowieka - strona nie wyciagnie danych ukrytym polem
+  const visible = i => { try {
+    const r = i.getBoundingClientRect(); const cs = getComputedStyle(i);
+    if (i.disabled || i.readOnly || r.width < 20 || r.height < 10 || cs.display === 'none' || cs.visibility === 'hidden') return false;
+    if (r.right < 0 || r.bottom < 0 || r.left > innerWidth || r.top > innerHeight + 4000) return false;
+    for (let e = i; e && e.nodeType === 1; e = e.parentElement) { const c = getComputedStyle(e); if (parseFloat(c.opacity) < 0.2 || c.visibility === 'hidden') return false; }
+    return true;
+  } catch (_) { return false; } };
+  let anchor = null;
   const fields = root => Array.from((root || document).querySelectorAll('input, textarea, select')).filter(visible);
   function setVal(i, v) {
     v = String(v);
@@ -152,7 +160,7 @@ try {
     return null;
   }
   // wywolywane przez Velivo z danymi jednego rodzaju; wypelnia tylko puste pola
-  window.__velivoAutofillFill = (type, data, anchor) => {
+  const fillFn = (type, data) => {
     try {
       const root = (anchor && anchor.form) || document;
       for (const i of fields(root)) {
@@ -163,14 +171,15 @@ try {
       }
     } catch (_) {}
   };
+  Object.defineProperty(window, '__velivoAutofillFill', { value: fillFn, writable: false, configurable: false, enumerable: false });
   let lastAsk = '';
   document.addEventListener('focusin', e => {
     const k = keyFor(e.target);
-    if (!k || (e.target.value || '').trim()) return;
+    if (!e.isTrusted || !k || (e.target.value || '').trim() || !visible(e.target)) return;
     const tag = k[0] + '|' + location.pathname;
     if (tag === lastAsk) return;
     lastAsk = tag;
-    window.__velivoAutofillAnchor = e.target;
+    anchor = e.target;
     send('affill:' + k[0]);
   }, true);
   function collect(root) {
@@ -223,8 +232,18 @@ try {
                 if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return;
                 var entry = FindAutofillEntry(u.Host.ToLowerInvariant(), type);
                 if (entry == null || entry.Values == null || entry.Values.Count == 0) return;
+                if (type != "address")
+                {
+                    // karta i konto bankowe - zawsze pytamy, na jakiej stronie wpisac
+                    string tail = "";
+                    string num;
+                    if (entry.Values.TryGetValue(type == "card" ? "number" : "account", out num) && num.Length >= 4) tail = " •••• " + num.Substring(num.Length - 4);
+                    var what = type == "card" ? L.T("dane karty") : L.T("dane konta bankowego");
+                    if (MessageBox.Show(this, L.T("Wpisać ") + what + tail + L.T(" na stronie:") + "\n\n" + u.Host + "\n\n" + L.T("Upewnij się, że to prawdziwy sklep lub bank."),
+                            L.T("Autouzupełnianie"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                }
                 var json = JsonSerializer.Serialize(entry.Values);
-                await core.ExecuteScriptAsync("window.__velivoAutofillFill && window.__velivoAutofillFill(" + JsonSerializer.Serialize(type) + ", " + json + ", window.__velivoAutofillAnchor);");
+                await core.ExecuteScriptAsync("window.__velivoAutofillFill && window.__velivoAutofillFill(" + JsonSerializer.Serialize(type) + ", " + json + ");");
             }
             catch (Exception ex) { App.LogError(ex); }
         }

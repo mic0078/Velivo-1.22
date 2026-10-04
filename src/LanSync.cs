@@ -644,7 +644,6 @@ namespace Przegladarka
         {
             if (_lanTx == null || _lanApplying) return;
             if (!_lanLegacyNoKeyMode && (_lanEncryptionKey == null || _lanAuthenticationKey == null)) return;
-            TrayPulse(2);
             var settings = ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt"));
             var bookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
             var session = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt"));
@@ -660,6 +659,8 @@ namespace Przegladarka
             var contentFp = LanContentFingerprint();
             if (contentFp != _lanLocalChangedFp) SaveLanChange(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), contentFp);
             if (!force && fingerprint == _lastLanFingerprint) return;
+            // pulsujemy tylko, gdy wysylamy rzeczywista zmiane (nie przy okresowym przypomnieniu tego samego stanu)
+            if (fingerprint != _lastLanFingerprint) TrayPulse(2);
             _lastLanFingerprint = fingerprint;
 
             var pkt = new LanStatePacket
@@ -719,7 +720,6 @@ namespace Przegladarka
 
         void ApplyLanState(LanStatePacket pkt, LanSyncPayload state)
         {
-            TrayPulse(3);   // ikonka w zasobniku pulsuje przy synchronizacji
             long lastStamp;
             if (_lanPeerStamps.TryGetValue(pkt.id, out lastStamp) && pkt.ts <= lastStamp) return;
             var localFingerprint = CurrentLanFingerprint();
@@ -736,6 +736,7 @@ namespace Przegladarka
                 LanLog(L.T("Odrzucono niekompletny stan synchronizacji."));
                 return;
             }
+            TrayPulse(3);   // przyszly NOWE dane z drugiego komputera - ikonka w zasobniku lagodnie pulsuje
 
             // Kto ma nowsze dane? Wczesniej oba komputery przyjmowaly stan od siebie nawzajem w tej samej chwili
             // i dane zamienialy sie miejscami. Teraz przyjmujemy tylko nowsze; przy remisie decyduje identyfikator.

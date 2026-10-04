@@ -81,18 +81,28 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
-  // Fade-in nowej strony (Ustawienia -> Wyglad). Animacja CSS (keyframes) startuje od pierwszej klatki, w ktorej strona
-  // jest rysowana - niczego nie wstrzymuje ani nie opoznia (strona laduje sie normalnie, efekt jest tylko wizualny).
-  // Uwaga: zwykle przejscie CSS (transition) tu nie dziala - przed pierwszym rysowaniem nie ma stanu przed animacja.
+  // Fade-in nowej strony (Ustawienia -> Wyglad). Silnik trzyma na ekranie stara strone, az nowa narysuje pierwsza tresc,
+  // wiec animacje uruchamiamy dopiero w chwili pierwszego rysowania tresci (first-contentful-paint). Do tego momentu
+  // strona jest lekko przygaszona, ale jeszcze niewidoczna - ladowanie niczym nie jest opoznione, efekt jest tylko wizualny.
   if (C.fade > 0 && top) try {
     if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
       var fs = document.createElement('style');
-      fs.textContent = '@keyframes velivoFadeIn{from{opacity:.4}to{opacity:1}}html{animation:velivoFadeIn ' + C.fade + 'ms cubic-bezier(.2,.6,.3,1) both!important}';
+      fs.textContent = 'html{opacity:.4!important}';
       var put = function () { (document.head || document.documentElement).appendChild(fs); };
       if (document.documentElement) put();
       else { var mo = new MutationObserver(function () { if (document.documentElement) { mo.disconnect(); put(); } }); mo.observe(document, { childList: true }); }
-      // po zakonczeniu usuwamy styl (zadnego wplywu na strone potem)
-      setTimeout(function () { try { fs.remove(); } catch (x) {} }, C.fade + 1500);
+      var started = false;
+      var go = function () {
+        if (started) return; started = true;
+        fs.textContent = '@keyframes velivoFadeIn{from{opacity:.4}to{opacity:1}}html{animation:velivoFadeIn ' + C.fade + 'ms cubic-bezier(.2,.6,.3,1) both!important}';
+        setTimeout(function () { try { fs.remove(); } catch (x) {} }, C.fade + 300);
+      };
+      try {
+        new PerformanceObserver(function (l) { if (l.getEntries().some(function (e) { return e.name === 'first-contentful-paint' || e.name === 'first-paint'; })) go(); })
+          .observe({ type: 'paint', buffered: true });
+      } catch (x) {}
+      addEventListener('load', go, { once: true });
+      setTimeout(go, 2500);   // zabezpieczenie: strona bez tresci tez sie pokaze
     }
   } catch (x) {}
   // pauza kliknieta przez uzytkownika - takiej Velivo nie wznawia po zmianie urzadzenia dzwieku

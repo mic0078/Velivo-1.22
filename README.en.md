@@ -1,4 +1,4 @@
-# Velivo
+# Velivo – a new level of browsing
 
 [Polski](README.md) | **English**
 

@@ -1,4 +1,4 @@
-# Velivo
+# Velivo – nowy poziom przeglądarki
 
 **Polski** | [English](README.en.md)
 

@@ -42,7 +42,7 @@ Popular browsers (Chrome, Edge, Firefox, Opera) don't have these features built 
 | History & downloads | History by day → site → pages, "Where did I read that?" (Ctrl+Shift+F), download history with date and source |
 | Search | Address bar shortcuts: `yt cats`, `allegro bike`, `wiki Kraków`, `mapy Gdańsk` (add your own), "Paste and go" |
 | Look | Modern (calm, like Windows 11) or Colorful, 10 themes, light → dark → night mode with strength, zoom remembered per site, phone version for a chosen site |
-| Tools | Page cache on a RAM disk (any folder), download manager (up to 16 connections), full-page screenshots, page and selection translation, pin/unpin Chrome extensions, user profiles |
+| Tools | Page cache on a RAM disk – just pick a folder, no external tools, download manager (up to 16 connections), full-page screenshots, page and selection translation, pin/unpin Chrome extensions, user profiles |
 | Languages | Polish and English – chosen in the installer and in settings |
 
 ## Installation

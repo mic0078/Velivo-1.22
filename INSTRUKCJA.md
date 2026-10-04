@@ -472,7 +472,7 @@ Stan połączenia pokazuje Ustawienia → **Panel diagnostyczny LAN…**.
 
 ### Pamięć podręczna na RAM dysku
 
-Jeśli masz RAM dysk (na przykład ImDisk, SoftPerfect RAM Disk albo własne narzędzie), Velivo może trzymać na nim pamięć podręczną stron, czyli cache.
+Jeśli masz RAM dysk (na przykład ImDisk, SoftPerfect RAM Disk albo własne narzędzie), Velivo może trzymać na nim pamięć podręczną stron, czyli cache. **Nie potrzebujesz do tego żadnych zewnętrznych narzędzi**, dowiązań ani przenoszenia folderów, jak przy Chrome. Wystarczy wskazać folder w ustawieniach Velivo.
 
 1. Ustawienia → **Folder na śmieci (puste = w profilu przeglądarki)** → **Wybierz…** i wskaż folder na RAM dysku, na przykład `R:\`.
 2. Zapisz ustawienia i uruchom Velivo ponownie.

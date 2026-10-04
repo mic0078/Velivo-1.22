@@ -471,7 +471,7 @@ The connection status is in Settings → **LAN diagnostics panel…**.
 
 ### Cache on a RAM disk
 
-If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own tool), Velivo can keep its page cache there.
+If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own tool), Velivo can keep its page cache there. **You don't need any external tools**, symlinks or moved folders, as you would with Chrome. Just pick the folder in Velivo's settings.
 
 1. Settings → **Junk folder (empty = in the browser profile)** → **Choose…** and pick a folder on the RAM disk, for example `R:\`.
 2. Save the settings and restart Velivo.

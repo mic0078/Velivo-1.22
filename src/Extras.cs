@@ -81,33 +81,65 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
-  // Fade-in nowej strony (Ustawienia -> Wyglad): subtelne przygaszenie, ktore plynnie znika. Cienka ciemna warstwa nad
-  // strona (klikniecia przez nia przechodza) - widoczna na kazdej stronie, takze bialej i w trybie ciemnym/nocnym
-  // (zmiana przezroczystosci samej strony na bialym tle byla niewidoczna). Startuje w chwili pierwszego rysowania tresci,
-  // bo do tego momentu silnik pokazuje jeszcze poprzednia strone. Ladowanie niczym nie jest opoznione.
+  // Plynne przejscie stron (Ustawienia -> Wyglad), jak na nagraniu uzytkownika: po kliknieciu linku tresc na chwile
+  // lagodnie jasnieje (jasna mgielka), a gdy pojawi sie nowa tresc - mgielka plynnie znika. Dziala przy pelnym
+  // wczytaniu strony i na stronach, ktore podmieniaja tresc bez przeladowania (Google, YouTube, Facebook).
+  // Mgielka nie blokuje klikniec ani przewijania i niczego nie opoznia.
   if (C.fade > 0 && top) try {
     if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
-      var veil = document.createElement('div');
-      veil.setAttribute('aria-hidden', 'true');
-      veil.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#000;opacity:.22;transition:none';
-      var put = function () { try { document.documentElement.appendChild(veil); } catch (x) {} };
-      if (document.documentElement) put();
-      else { var mo = new MutationObserver(function () { if (document.documentElement) { mo.disconnect(); put(); } }); mo.observe(document, { childList: true }); }
-      var started = false;
-      var go = function () {
-        if (started) return; started = true;
-        try {
-          var an = veil.animate([{ opacity: .22 }, { opacity: 0 }], { duration: C.fade, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
-          an.onfinish = function () { try { veil.remove(); } catch (x) {} };
-        } catch (x) { try { veil.remove(); } catch (y) {} }
-        setTimeout(function () { try { veil.remove(); } catch (x) {} }, C.fade + 500);
+      var VEIL = .14, veil = null, anim = null, fallT = 0;
+      var getVeil = function () {
+        if (veil && veil.isConnected) return veil;
+        veil = document.createElement('div');
+        veil.setAttribute('aria-hidden', 'true');
+        veil.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#fff;opacity:0';
+        try { document.documentElement.appendChild(veil); } catch (x) {}
+        return veil;
       };
+      var to = function (target, ms, done) {
+        var v = getVeil(), from = parseFloat(getComputedStyle(v).opacity) || 0;
+        try { if (anim) anim.cancel(); } catch (x) {}
+        v.style.opacity = String(from);
+        anim = v.animate([{ opacity: from }, { opacity: target }], { duration: ms, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
+        anim.onfinish = function () { v.style.opacity = String(target); if (done) done(); };
+      };
+      var fall = function () { clearTimeout(fallT); to(0, C.fade, function () { try { if (veil && parseFloat(veil.style.opacity) === 0) veil.remove(); } catch (x) {} }); };
+      var rise = function () { to(VEIL, 150); clearTimeout(fallT); fallT = setTimeout(fall, 1600); };   // zabezpieczenie
+
+      // 1) nowo wczytana strona: startuje z mgielka, ktora znika w chwili pierwszego rysowania tresci
+      var startNew = function () { var v = getVeil(); v.style.opacity = String(VEIL); };
+      if (document.documentElement) startNew();
+      else { var mo = new MutationObserver(function () { if (document.documentElement) { mo.disconnect(); startNew(); } }); mo.observe(document, { childList: true }); }
+      var started = false;
+      var go = function () { if (started) return; started = true; fall(); };
       try {
         new PerformanceObserver(function (l) { if (l.getEntries().some(function (e) { return e.name === 'first-contentful-paint' || e.name === 'first-paint'; })) go(); })
           .observe({ type: 'paint', buffered: true });
       } catch (x) {}
       addEventListener('DOMContentLoaded', function () { setTimeout(go, 50); }, { once: true });
       setTimeout(go, 2500);
+
+      // 2) klikniecie linku w tej karcie: tresc lagodnie jasnieje
+      addEventListener('click', function (e) {
+        try {
+          if (e.defaultPrevented && !e.isTrusted) return;
+          if (e.button !== 0 || e.ctrlKey || e.shiftKey || e.metaKey || e.altKey) return;
+          var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+          if (!a || (a.target && a.target !== '_self')) return;
+          var h = a.getAttribute('href') || '';
+          if (!h || h.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(h)) return;
+          rise();
+        } catch (x) {}
+      }, true);
+      // 3) strony podmieniajace tresc bez przeladowania: po zmianie adresu mgielka znika (gdy nowa tresc juz jest)
+      var spa = function () { clearTimeout(fallT); fallT = setTimeout(fall, 220); };
+      try {
+        ['pushState', 'replaceState'].forEach(function (n) {
+          var o = history[n];
+          history[n] = function () { var r = o.apply(this, arguments); if (n === 'pushState') spa(); return r; };
+        });
+      } catch (x) {}
+      addEventListener('popstate', function () { rise(); spa(); });
     }
   } catch (x) {}
   // pauza kliknieta przez uzytkownika - takiej Velivo nie wznawia po zmianie urzadzenia dzwieku

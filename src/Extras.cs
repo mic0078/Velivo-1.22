@@ -70,6 +70,7 @@ namespace Przegladarka
                 floatLabel = L.T("Na wierzchu"),
                 dark = _settings.DarkPatterns,
                 receipt = _settings.PrivacyReceipt,
+                fade = _settings.PageFade,
             });
             return "(function(C){" + PageScriptBody + DarkPatternScript + FingerprintScript + "})(" + cfg + ");";
         }
@@ -80,6 +81,15 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
+  // plynne rozjasnienie nowej strony (Ustawienia -> Wyglad); bez animacji, gdy system prosi o ograniczenie ruchu
+  if (C.fade > 0 && top) try {
+    if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      var fs = document.createElement('style');
+      fs.textContent = '@keyframes velivoFade{from{opacity:.25}to{opacity:1}}html{animation:velivoFade ' + C.fade + 'ms ease-out both}';
+      (document.head || document.documentElement).appendChild(fs);
+      setTimeout(function () { try { fs.remove(); } catch (x) {} }, C.fade + 100);
+    }
+  } catch (x) {}
   // pauza kliknieta przez uzytkownika - takiej Velivo nie wznawia po zmianie urzadzenia dzwieku
   document.addEventListener('pause', function (e) { var m = e.target; if (m && /^(VIDEO|AUDIO)$/.test(m.tagName) && e.isTrusted && document.hasFocus()) m.__velivoUserPaused = true; }, true);
   document.addEventListener('play', function (e) { var m = e.target; if (m && /^(VIDEO|AUDIO)$/.test(m.tagName)) m.__velivoUserPaused = false; }, true);

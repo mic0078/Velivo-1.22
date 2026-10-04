@@ -878,6 +878,11 @@ namespace Przegladarka
             { "🔊 Mikser głośności Windows…", "🔊 Windows volume mixer…" },
             { "Dźwięk Velivo: ", "Velivo sound: " },
             { "domyślne wyjście Windows", "Windows default output" },
+            { "Płynne przejście między stronami:", "Smooth transition between pages:" },
+            { "Naturalne (silnik Edge)", "Natural (Edge engine)" },
+            { "Szybkie rozjaśnienie (0,15 s)", "Quick fade-in (0.15 s)" },
+            { "Delikatne rozjaśnienie (0,3 s)", "Gentle fade-in (0.3 s)" },
+            { "Wolne rozjaśnienie (0,5 s)", "Slow fade-in (0.5 s)" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

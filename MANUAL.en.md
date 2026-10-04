@@ -2,6 +2,8 @@
 
 ## Complete guide and user manual
 
+*Made with passion. Author: **Michael** ([github.com/mic0078](https://github.com/mic0078)).*
+
 [Polski](INSTRUKCJA.md) | **English** · [Project home](README.en.md)
 
 Velivo is a private browser for Windows that keeps your data with you. There is no account and no cloud, and your history and passwords are never sent to outside servers. Pages are displayed by the Microsoft Edge engine (WebView2), so they look and work exactly as in Edge and Chrome. Everything around the pages – the window, tabs, menus, privacy, downloads and sync – is Velivo's own code.
@@ -37,7 +39,7 @@ Velivo is designed to be fully usable with the mouse alone, even from the sofa i
 
 ## 1. What makes Velivo different
 
-Chrome, Edge, Firefox and Opera **do not have these features built in**. Some need separate extensions, some can't be done at all. In Velivo they work right away, with no add-ons and no account.
+**Velivo goes beyond the limits of today's browsers.** Chrome, Edge, Firefox and Opera **do not have these features built in**. Some need separate extensions, some can't be done at all. In Velivo they work right away, with no add-ons and no account.
 
 | Feature | What it does |
 | --- | --- |
@@ -50,6 +52,10 @@ Chrome, Edge, Firefox and Opera **do not have these features built in**. Some ne
 | **⬇ IDM-style video downloads** | A "Download" button over every video, YouTube included, with quality, MP3/M4A and folder choice. |
 | **🔊 "Read from here"** | Right-click a paragraph and Velivo reads from that sentence. |
 | **🌅 Night mode with strength** | Like Windows "Night light", adjusted with the mouse wheel. |
+| **🛡 Offline fraud protection** | Recognises fake bank, shop and portal sites (`paypa1.com`, `ebay-verify.top`, letters from other alphabets) and fakes of sites you have saved passwords for – before the page opens. |
+| **💳 Safe payments** | On bank and payment sites the Velivo window becomes invisible to screen-recording programs. |
+| **🔐 Fake-proof passwords** | A password goes only to the real domain. A page cannot swap the helper, "click" for you or steal data with a hidden field. |
+| **📥 Moving from another browser** | Bookmarks read directly from Chrome, Edge, Brave, Opera and Vivaldi; passwords from KeePassXC and others via CSV. |
 | **🖱 Gestures and mouse-only use** | Back, forward, new tab, close, reload and zoom without a keyboard. |
 
 ---
@@ -252,6 +258,26 @@ Hover over a video and three buttons appear in its top right corner: **⬇ Downl
 3. The window **keeps playing after you close the tab, and even the whole of Velivo.** Clicking the Velivo icon then starts the browser again.
 4. Position, size, transparency and pin are remembered.
 
+**Clean video view.** The window shows **only the video**, filling the whole window – none of the rest of the page: no menus, comments, suggestions, pop-ups or banners. On YouTube it feels like a separate player. Velivo's ad blocking works as in a tab.
+
+**What it's great for:**
+- music or a podcast in a small, see-through window in a corner while you work in other programs;
+- a match or live stream over a document or spreadsheet – set visibility to 40–60% and the text underneath stays readable;
+- a video tutorial next to the program you're following it in;
+- the video keeps playing even after Velivo is closed, so the browser uses no memory.
+
+**Mouse-only summary:**
+
+| What | How |
+| --- | --- |
+| Pause / resume | click the video |
+| Transparency 15–100% | mouse wheel over the window |
+| Move | dark bar at the top |
+| Size (from 160×90) | edge or corner |
+| Always on top | 📌 (blue = on) |
+| Back to the page at the same moment | ↩ |
+| Close | ✕ |
+
 Transparency needs Windows 10 version 1809 or newer, because the window uses a Windows component to draw the picture.
 
 ### ⧉ Picture in picture
@@ -296,8 +322,16 @@ The standard window of the browser engine. It keeps playing after you close the 
 | **🧾 Privacy receipt** | At the top of the shield window: how many outside companies, in how many countries, data brokers, fingerprinting attempts (canvas, graphics card, audio) and the most contacted companies |
 | **"Do Not Track"** | Sends DNT and Global Privacy Control signals |
 | **SmartScreen** | Microsoft protection against dangerous sites and files, skipped on trusted domains |
-| **Private tabs** | Separate, isolated data that disappears when closed |
+| **🛡 Fake-site detection** (offline) | Before a page opens, checks whether the address imitates a bank, shop or portal: a brand on a foreign domain (`paypal-secure-login.com`, `ebay.co.uk.account.top`), typos and swapped characters (`paypa1.com`, `rnicrosoft.com`, `amaz0n.com`), `xn--` addresses with letters from other alphabets, and fakes of sites you have saved passwords for. Shows a warning with "No" as the default. If it's the real site, choose "Yes" – Velivo remembers it |
+| **🔒 Always HTTPS** | Every connection is tried encrypted first. An unencrypted site opens only after a warning, so you don't type passwords or card details there |
+| **💳 Safe payments** | On bank and payment sites (PayPal, Monzo, Revolut, Barclays, HSBC, Lloyds, NatWest, Santander, PKO, mBank, Stripe and more) the Velivo window is invisible to screen-recording programs. A 🛡 message appears. You can't take screenshots on those sites |
+| **🔐 Attack-proof passwords and forms** | Passwords only for the real domain; the Velivo helper can't be swapped by a page; only real mouse clicks work; hidden fields are never filled; Velivo asks before filling a card or bank account; the CVC is never saved |
+| **Private tabs** | Separate, isolated data that disappears when closed. Passwords and forms work; saving only with your consent |
 | **Clearing data** | On exit or by hand in settings |
+
+All switches are in Settings → "Security and downloads". Attack tests are in the repository under `testy/bezpieczenstwo/`.
+
+**Honestly:** Velivo protects you in the browser. Viruses and spyware on the system itself are caught by an antivirus (e.g. Windows Defender or Bitdefender) – keep it on.
 
 ---
 
@@ -405,7 +439,12 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - **CSV import and export**, for example from KeePassXC or Chrome.
 - **Import from Chrome/Edge/Brave/Opera/Vivaldi** (Settings → “Import from Chrome/Edge/Brave…”): Velivo reads bookmarks by itself, from every profile. Passwords move via a CSV file: a button opens the password export page in that browser, then “Load CSV file…”, and finally delete the CSV file.
 - **Important:** import **before** you uninstall the old browser. Once it is removed, its bookmarks can't be read and its passwords can't be exported. Passwords from a Google account can also be downloaded later from passwords.google.com. Site logins don't transfer – sign in once in Velivo.
-- **Autofill** for addresses and cards in a local, encrypted store.
+- **Buttons by the login field:** a **🔑 Fill in · ⚡ Generate** badge appears to the right of the field:
+  - **🔑 Fill in** lists this site's accounts (name and e-mail); a click fills in login and password. At the end of the list, **🔎 Another account from the Velivo vault…** opens a window that searches the whole vault (e.g. signing in with a PreSonus account on Fender's site). The window shows the site address and warns about fakes;
+  - **⚡ Generate** types a strong random password.
+- **Save prompt:** after you click "Sign in", press Enter or submit a form, Velivo asks whether to save or update the password. Works in private tabs too.
+- **Password manager:** search, copy login and password, edit, export. Entries from KeePassXC and phones without an address get a domain from the title or app link (`android://…`), and a double-click opens the site and fills the form.
+- **Autofill** (local, encrypted store): **address** (first and last name, street, postcode, city, phone, e-mail), **card** (no CVC) and **bank account** (IBAN, account number, sort code). Clicking an empty field fills the whole form – on any https site. Card and bank details are filled only after you confirm the site address.
 
 ---
 

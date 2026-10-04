@@ -2,6 +2,8 @@
 
 **Polski** | [English](README.en.md)
 
+*Stworzona z pasji. Autor: **Michael** ([github.com/mic0078](https://github.com/mic0078)).*
+
 Lekka, prywatna przeglądarka dla Windows, która trzyma Twoje dane u Ciebie: bez konta, bez chmury, bez wysyłania historii czy haseł na zewnętrzne serwery. Działa na silniku Microsoft Edge (WebView2), więc strony wyświetlają się tak samo jak w Edge i Chrome.
 
 Dane między Twoimi komputerami przenosi synchronizacja w sieci lokalnej (LAN), szyfrowana po sparowaniu urządzeń. W zestawie jest dodatek **Szybki Dostęp** (strona nowej karty ze skrótami) oraz współpraca z programem **Sejf**, który przechowuje hasła zaszyfrowane offline.
@@ -9,6 +11,8 @@ Dane między Twoimi komputerami przenosi synchronizacja w sieci lokalnej (LAN), 
 **[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (6,7 MB) · **[📖 Pełna instrukcja obsługi](INSTRUKCJA.md)**
 
 ## Czego nie znajdziesz w innych przeglądarkach
+
+**Velivo wykracza poza granice obecnych przeglądarek** – także w ochronie: wykrywa fałszywe strony banków i sklepów bez internetu, ukrywa okno przed nagrywaniem ekranu przy płatnościach, a hasła podaje wyłącznie prawdziwym stronom.
 
 Popularne przeglądarki (Chrome, Edge, Firefox, Opera) nie mają tych funkcji wbudowanych, a w Velivo działają od razu, bez dodatków i bez konta:
 

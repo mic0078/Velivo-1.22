@@ -513,7 +513,10 @@ namespace Przegladarka
             var phishBox = Check(L.T("Wykrywaj fałszywe strony banków, sklepów i portali (działa bez internetu)"), L.T("Ostrzega przed adresami typu paypa1.com, ebay-weryfikacja.top i podróbkami stron, do których masz zapisane hasła."), s.AntiPhishing);
             var httpsBox = Check(L.T("Zawsze szyfrowane połączenie (HTTPS) – ostrzegaj przed stronami bez szyfrowania"), null, s.HttpsFirst);
             var payBox = Check(L.T("Bezpieczne płatności – na stronach banków i płatności ukrywaj okno przed programami nagrywającymi ekran"), L.T("Chroni przed złośliwymi programami, które podglądają ekran. Na tych stronach nie zrobisz też zrzutu ekranu."), s.SafePayments);
-            root.Children.Add(new TextBlock { Text = L.T("🛡 uBlock Origin Lite jest wbudowany na stałe – wyniki widać na tarczy."), Foreground = System.Windows.Media.Brushes.SeaGreen, Margin = new Thickness(0, 2, 0, 4), TextWrapping = TextWrapping.Wrap });
+            var ubolBox = Check(L.T("uBlock Origin Lite – wbudowany bloker reklam (zalecany)"), L.T("Wbudowany w Velivo, wyniki widać na tarczy. Możesz go wyłączyć."), s.UbolLite);
+            var ubolOpts = SmallButton(L.T("Ustawienia uBlock Origin Lite…"), () => { _ = OpenUbolSettingsAsync(); win.Close(); });
+            ubolOpts.HorizontalAlignment = HorizontalAlignment.Left;
+            root.Children.Add(ubolBox); root.Children.Add(ubolOpts);
             root.Children.Add(ss); root.Children.Add(phishBox); root.Children.Add(httpsBox); root.Children.Add(payBox); root.Children.Add(ask);
             root.Children.Add(new TextBlock { Text = L.T("Połączeń na jeden pobierany plik (więcej = zwykle szybciej):"), Margin = new Thickness(0, 6, 0, 2) });
             var conns = new ComboBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
@@ -732,6 +735,7 @@ namespace Przegladarka
                 s.AutoRejectCookies = cookieRej.IsChecked == true; s.MouseGestures = gestures.IsChecked == true; s.PipButton = pipBtn.IsChecked == true;
                 if (scriptsChanged) RefreshPageScripts();
                 s.SmartScreen = ss.IsChecked == true; s.AskDownload = ask.IsChecked == true;
+                bool ubolChanged = s.UbolLite != (ubolBox.IsChecked == true); s.UbolLite = ubolBox.IsChecked == true; if (ubolChanged) _ = EnsureBundledUbolAsync();
                 s.AntiPhishing = phishBox.IsChecked == true; s.HttpsFirst = httpsBox.IsChecked == true; s.SafePayments = payBox.IsChecked == true;
                 s.CleanJunkOnStart = cleanStart.IsChecked == true;
                 s.Connections = (int)((ComboBoxItem)conns.SelectedItem).Tag;

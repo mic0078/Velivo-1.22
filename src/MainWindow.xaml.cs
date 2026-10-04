@@ -38,6 +38,7 @@ namespace Przegladarka
             public Button Header;
             public TextBlock Title;
             public int Blocked;
+            public int UbolBlocked;   // z tego: uBlock Origin Lite
             public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
@@ -394,10 +395,11 @@ namespace Przegladarka
             await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
             tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
-            await EnsureBundledUbolAsync();
             if (!_extensionsLoaded)
             {
                 _extensionsLoaded = true;
+                await EnsureBundledUbolAsync();
+                _ = UpdateUbolAsync();
                 await RefreshExtensions();
                 await SaveExtensionsSyncListAsync();
                 await ApplyExtensionsSyncListAsync();
@@ -478,7 +480,7 @@ namespace Przegladarka
                     return;
                 }
                 if (e.IsRedirected) return;
-                tab.Blocked = 0;
+                tab.Blocked = 0; tab.UbolBlocked = 0;
                 tab.HiddenElements = 0;
                 tab.BlockedItems.Clear();
                 tab.ThirdParties.Clear(); tab.Fingerprint.Clear(); tab.Pressure.Clear();
@@ -1025,8 +1027,8 @@ namespace Przegladarka
             AdToggle.Background = _blocker.Enabled ? new SolidColorBrush(Color.FromRgb(0xDC, 0xFC, 0xE7)) : new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
             ModernShield();
             AdToggle.ToolTip = L.En
-                ? "Blocked on this page: " + here + " (total " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " rules. Click to see the list."
-                : "Zablokowane na tej stronie: " + here + " (razem " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby zobaczyć listę.";
+                ? "Blocked on this page: " + here + " (uBlock Origin Lite: " + (_current != null ? _current.UbolBlocked : 0) + ", total " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " rules. Click to see the list."
+                : "Zablokowane na tej stronie: " + here + " (w tym uBlock Origin Lite: " + (_current != null ? _current.UbolBlocked : 0) + ", razem " + _totalBlocked + "). AdBlock: " + _blocker.RuleCount + " reguł. Kliknij, aby zobaczyć listę.";
         }
 
         void AdToggle_Click(object sender, RoutedEventArgs e)

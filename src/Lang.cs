@@ -866,6 +866,9 @@ namespace Przegladarka
             { "uBlock Origin Lite – wbudowany bloker reklam (zalecany)", "uBlock Origin Lite – built-in ad blocker (recommended)" },
             { "Dodatek open source (GPL-3.0) dołączony do Velivo. Działa razem z blokadą Velivo.", "Open-source add-on (GPL-3.0) bundled with Velivo. Works together with Velivo's blocking." },
             { "🛡 uBlock Origin Lite jest wbudowany na stałe – wyniki widać na tarczy.", "🛡 uBlock Origin Lite is permanently built in – its results show on the shield." },
+            { "Wbudowany w Velivo, wyniki widać na tarczy. Możesz go wyłączyć.", "Built into Velivo, its results show on the shield. You can turn it off." },
+            { "Ustawienia uBlock Origin Lite…", "uBlock Origin Lite settings…" },
+            { "uBlock Origin Lite nie jest włączony.", "uBlock Origin Lite is not enabled." },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

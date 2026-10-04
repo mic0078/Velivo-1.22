@@ -403,6 +403,8 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - **Saving to Sejf:** after you log in, Velivo asks whether to save or update the password.
 - **Velivo's own encrypted store** (Local password manager) with a **strong password generator**.
 - **CSV import and export**, for example from KeePassXC or Chrome.
+- **Import from Chrome/Edge/Brave/Opera/Vivaldi** (Settings → “Import from Chrome/Edge/Brave…”): Velivo reads bookmarks by itself, from every profile. Passwords move via a CSV file: a button opens the password export page in that browser, then “Load CSV file…”, and finally delete the CSV file.
+- **Important:** import **before** you uninstall the old browser. Once it is removed, its bookmarks can't be read and its passwords can't be exported. Passwords from a Google account can also be downloaded later from passwords.google.com. Site logins don't transfer – sign in once in Velivo.
 - **Autofill** for addresses and cards in a local, encrypted store.
 
 ---

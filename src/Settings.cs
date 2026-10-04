@@ -23,6 +23,9 @@ namespace Przegladarka
         public bool SavePasswords = true;
         public bool Autofill = true;
         public bool SmartScreen = true;        // ostrzezenia o niebezpiecznych stronach
+        public bool AntiPhishing = true;       // wykrywanie stron-podrobek (offline)
+        public bool HttpsFirst = true;         // najpierw HTTPS, strony bez szyfrowania tylko po ostrzezeniu
+        public bool SafePayments = true;       // banki i platnosci: okno niewidoczne dla nagrywania ekranu
         public bool AskDownload = true;       // pytaj, gdzie zapisac plik
         public int Connections = 8;            // polaczen na jeden plik w menedzerze pobierania (1-16)
         public int DefaultZoom = 100;          // domyslne powiekszenie stron w %
@@ -125,6 +128,9 @@ namespace Przegladarka
                         case "passwords": s.SavePasswords = b; break;
                         case "autofill": s.Autofill = b; break;
                         case "smartscreen": s.SmartScreen = b; break;
+                        case "antiPhishing": s.AntiPhishing = b; break;
+                        case "httpsFirst": s.HttpsFirst = b; break;
+                        case "safePay": s.SafePayments = b; break;
                         case "askDownload": s.AskDownload = b; break;
                         case "connections": int c; if (int.TryParse(v, out c)) s.Connections = Math.Max(1, Math.Min(16, c)); break;
                         case "zoom": int z; if (int.TryParse(v, out z)) s.DefaultZoom = Math.Max(50, Math.Min(300, z)); break;
@@ -212,7 +218,7 @@ namespace Przegladarka
             {
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
-                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "askDownload=" + B(AskDownload),
+                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload),
                 "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
@@ -303,6 +309,19 @@ namespace Przegladarka
                 makeDefault.HorizontalAlignment = HorizontalAlignment.Left; makeDefault.Margin = new Thickness(0);
                 root.Children.Add(makeDefault);
             }
+
+            // duze, dobrze widoczne przyciski importu - na gorze ustawien
+            root.Children.Add(Header(L.T("📥 Import haseł, loginów i zakładek")));
+            var importRow = new WrapPanel { Margin = new Thickness(0, 2, 0, 0) };
+            Func<string, Action, Button> BigButton = (t, act) =>
+            {
+                var b = new Button { Content = t, FontSize = 14, Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(0, 0, 8, 6) };
+                b.Click += (x, y) => act();
+                return b;
+            };
+            importRow.Children.Add(BigButton(L.T("🔑 Hasła i loginy z pliku (CSV: KeePassXC, Chrome, Edge…)"), () => ImportPasswordsCsvWithDialog(win)));
+            importRow.Children.Add(BigButton(L.T("🌐 Z Chrome / Edge / Brave / Opery"), () => ShowBrowserImport(win)));
+            root.Children.Add(importRow);
 
             root.Children.Add(Header(L.T("Wygląd i czytelność")));
             root.Children.Add(new TextBlock { Text = L.T("Domyślne powiększenie stron (każdą stronę możesz też powiększyć osobno: Ctrl + kółko myszy):") , TextWrapping = TextWrapping.Wrap });
@@ -489,7 +508,10 @@ namespace Przegladarka
             root.Children.Add(Header(L.T("Bezpieczeństwo i pobieranie")));
             var ss = Check(L.T("Ostrzegaj przed niebezpiecznymi stronami i plikami (SmartScreen)"), L.T("Sprawdzanie adresów wysyła je do Microsoft. Zalecane – chroni przed wyłudzeniami."), s.SmartScreen);
             var ask = Check(L.T("Pytaj, gdzie zapisać każdy pobierany plik"), null, s.AskDownload);
-            root.Children.Add(ss); root.Children.Add(ask);
+            var phishBox = Check(L.T("Wykrywaj fałszywe strony banków, sklepów i portali (działa bez internetu)"), L.T("Ostrzega przed adresami typu paypa1.com, ebay-weryfikacja.top i podróbkami stron, do których masz zapisane hasła."), s.AntiPhishing);
+            var httpsBox = Check(L.T("Zawsze szyfrowane połączenie (HTTPS) – ostrzegaj przed stronami bez szyfrowania"), null, s.HttpsFirst);
+            var payBox = Check(L.T("Bezpieczne płatności – na stronach banków i płatności ukrywaj okno przed programami nagrywającymi ekran"), L.T("Chroni przed złośliwymi programami, które podglądają ekran. Na tych stronach nie zrobisz też zrzutu ekranu."), s.SafePayments);
+            root.Children.Add(ss); root.Children.Add(phishBox); root.Children.Add(httpsBox); root.Children.Add(payBox); root.Children.Add(ask);
             root.Children.Add(new TextBlock { Text = L.T("Połączeń na jeden pobierany plik (więcej = zwykle szybciej):"), Margin = new Thickness(0, 6, 0, 2) });
             var conns = new ComboBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
             foreach (var n in new[] { 1, 2, 4, 8, 12, 16 })
@@ -707,6 +729,7 @@ namespace Przegladarka
                 s.AutoRejectCookies = cookieRej.IsChecked == true; s.MouseGestures = gestures.IsChecked == true; s.PipButton = pipBtn.IsChecked == true;
                 if (scriptsChanged) RefreshPageScripts();
                 s.SmartScreen = ss.IsChecked == true; s.AskDownload = ask.IsChecked == true;
+                s.AntiPhishing = phishBox.IsChecked == true; s.HttpsFirst = httpsBox.IsChecked == true; s.SafePayments = payBox.IsChecked == true;
                 s.CleanJunkOnStart = cleanStart.IsChecked == true;
                 s.Connections = (int)((ComboBoxItem)conns.SelectedItem).Tag;
                 int oldZoom = s.DefaultZoom; bool oldDark = s.DarkPages; bool oldFull = s.FullFilterLists;

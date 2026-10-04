@@ -84,96 +84,188 @@ namespace Przegladarka
             return "";
         }
 
-        void HookAutofill(BrowserTab tab, CoreWebView2 core)
+        // Skrypt formularzy: rozpoznaje pola adresu, karty i konta bankowego. Gdy klikniesz puste pole - prosi Velivo
+        // o dane tego rodzaju (dane nie siedza na stronie na zapas); przy wysylaniu formularza - proponuje zapis.
+        // Dziala tez w kartach prywatnych; zapis zawsze dopiero po pytaniu.
+        const string AutofillPageScript = @"(() => {
+try {
+  if ('__velivoAutofillFill' in window || location.protocol !== 'https:') return;
+  const vpm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
+  if (!vpm) return;
+  const send = m => { try { vpm('velivo:__VT_TOKEN__:' + m); } catch (_) {} };
+  function keyFor(i) {
+    if (!i || !(i instanceof HTMLInputElement || i instanceof HTMLTextAreaElement || i instanceof HTMLSelectElement)) return null;
+    const t = (i.type || '').toLowerCase();
+    if (t === 'password' || t === 'hidden' || t === 'checkbox' || t === 'radio' || t === 'submit' || t === 'button' || t === 'file' || t === 'search') return null;
+    const ac = (i.autocomplete || '').toLowerCase();
+    let lab = '';
+    try { if (i.labels && i.labels.length) lab = Array.from(i.labels).map(l => l.textContent).join(' '); } catch (_) {}
+    const n = ((i.name || '') + ' ' + (i.id || '') + ' ' + (i.placeholder || '') + ' ' + (i.getAttribute('aria-label') || '') + ' ' + lab).toLowerCase();
+    if (/cvc|cvv|csc|security.?code|kod.?zabezp/.test(ac + ' ' + n)) return null;   // CVC nigdy
+    if (ac.includes('cc-number') || /card.?number|cardnumber|nr.?karty|numer.?karty/.test(n)) return ['card', 'number'];
+    if (ac.includes('cc-name') || /name.?on.?card|card.?holder|cardholder|w[lł]a[sś]ciciel.?karty/.test(n)) return ['card', 'holder'];
+    if (ac.includes('cc-exp-month') || /exp.{0,6}month|month.{0,6}exp|miesi[aą]c.?wa[zż]n/.test(n)) return ['card', 'expMonth'];
+    if (ac.includes('cc-exp-year') || /exp.{0,6}year|year.{0,6}exp|rok.?wa[zż]n/.test(n)) return ['card', 'expYear'];
+    if (ac.includes('cc-exp') || /expir|expiry|exp.?date|data.?wa[zż]n|wa[zż]na.?do/.test(n)) return ['card', 'exp'];
+    if (/\biban\b/.test(n)) return ['bank', 'iban'];
+    if (/sort.?code|sortcode/.test(n)) return ['bank', 'sortCode'];
+    if (/account.?number|accountnumber|nr.?konta|numer.?konta|rachunk/.test(n)) return ['bank', 'account'];
+    if (/swift|\bbic\b/.test(n)) return ['bank', 'swift'];
+    if (ac.includes('email') || t === 'email' || /e-?mail/.test(n)) return ['address', 'email'];
+    if (ac.includes('tel') || t === 'tel' || /telefon|phone|mobile|kom[oó]rk/.test(n)) return ['address', 'phone'];
+    if (ac.includes('postal-code') || /kod.?poczt|zip|postal|postcode|post.?code/.test(n)) return ['address', 'postal'];
+    if (ac.includes('address-line2') || /line.?2|address2|nr.?lokalu|mieszkani|\bapt\b|flat/.test(n)) return ['address', 'line2'];
+    if (ac.includes('address-line1') || ac.includes('street-address') || /address.?1|line.?1|adres|street|ulic|address/.test(n)) return ['address', 'line1'];
+    if (ac.includes('address-level2') || /miasto|miejscowo|city|town/.test(n)) return ['address', 'city'];
+    if (ac.includes('address-level1') || /wojew|county|region|state|province/.test(n)) return ['address', 'region'];
+    if (ac.includes('country') || /kraj|country/.test(n)) return ['address', 'country'];
+    if (ac.includes('given-name') || /first.?name|firstname|given|imi[eę](?!.*nazw)/.test(n)) return ['address', 'first'];
+    if (ac.includes('family-name') || /last.?name|lastname|surname|nazwisk/.test(n)) return ['address', 'last'];
+    if (ac === 'name' || /full.?name|fullname|imi[eę].{0,3}i.{0,3}nazw/.test(n)) return ['address', 'name'];
+    if (ac.includes('organization') || /firma|company/.test(n)) return ['address', 'company'];
+    return null;
+  }
+  // BEZPIECZENSTWO: tylko pola naprawde widoczne dla czlowieka - strona nie wyciagnie danych ukrytym polem
+  const visible = i => { try {
+    const r = i.getBoundingClientRect(); const cs = getComputedStyle(i);
+    if (i.disabled || i.readOnly || r.width < 20 || r.height < 10 || cs.display === 'none' || cs.visibility === 'hidden') return false;
+    if (r.right < 0 || r.bottom < 0 || r.left > innerWidth || r.top > innerHeight + 4000) return false;
+    for (let e = i; e && e.nodeType === 1; e = e.parentElement) { const c = getComputedStyle(e); if (parseFloat(c.opacity) < 0.2 || c.visibility === 'hidden') return false; }
+    return true;
+  } catch (_) { return false; } };
+  let anchor = null;
+  const fields = root => Array.from((root || document).querySelectorAll('input, textarea, select')).filter(visible);
+  function setVal(i, v) {
+    v = String(v);
+    if (i instanceof HTMLSelectElement) {
+      const norm = v.trim().toLowerCase();
+      let o = Array.from(i.options).find(x => x.value.trim().toLowerCase() === norm || x.textContent.trim().toLowerCase() === norm);
+      if (!o && /^\d+$/.test(norm)) { const num = String(parseInt(norm, 10)); o = Array.from(i.options).find(x => /^\d+$/.test(x.value.trim()) && String(parseInt(x.value.trim(), 10)) === num); }
+      if (!o) return;
+      v = o.value;
+    }
+    const proto = i instanceof HTMLSelectElement ? HTMLSelectElement.prototype : i instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (setter) setter.call(i, v); else i.value = v;
+    i.dispatchEvent(new Event('input', { bubbles: true }));
+    i.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function valueFor(type, key, data) {
+    if (data[key] != null && String(data[key]).trim()) return data[key];
+    if (type === 'address' && key === 'name' && (data.first || data.last)) return ((data.first || '') + ' ' + (data.last || '')).trim();
+    if (type === 'address' && (key === 'first' || key === 'last') && data.name) { const p = String(data.name).trim().split(/\s+/); return key === 'first' ? p[0] : p.slice(1).join(' '); }
+    if (type === 'card' && key === 'exp' && data.expMonth && data.expYear) return String(data.expMonth).padStart(2, '0') + '/' + String(data.expYear).slice(-2);
+    if (type === 'card' && key === 'expMonth' && data.exp) return String(data.exp).split(/[\/\-. ]/)[0];
+    if (type === 'card' && key === 'expYear' && data.exp) return String(data.exp).split(/[\/\-. ]/).pop();
+    return null;
+  }
+  // wywolywane przez Velivo z danymi jednego rodzaju; wypelnia tylko puste pola
+  const fillFn = (type, data) => {
+    try {
+      const root = (anchor && anchor.form) || document;
+      for (const i of fields(root)) {
+        const k = keyFor(i);
+        if (!k || k[0] !== type || (i.value || '').trim()) continue;
+        const v = valueFor(type, k[1], data || {});
+        if (v != null && String(v).trim()) setVal(i, v);
+      }
+    } catch (_) {}
+  };
+  Object.defineProperty(window, '__velivoAutofillFill', { value: fillFn, writable: false, configurable: false, enumerable: false });
+  let lastAsk = '';
+  document.addEventListener('focusin', e => {
+    const k = keyFor(e.target);
+    if (!e.isTrusted || !k || (e.target.value || '').trim() || !visible(e.target)) return;
+    const tag = k[0] + '|' + location.pathname;
+    if (tag === lastAsk) return;
+    lastAsk = tag;
+    anchor = e.target;
+    send('affill:' + k[0]);
+  }, true);
+  function collect(root) {
+    const out = { address: {}, card: {}, bank: {} };
+    for (const i of fields(root)) {
+      const k = keyFor(i);
+      if (!k) continue;
+      let v = (i instanceof HTMLSelectElement ? (i.value || '') : (i.value || '')).trim();
+      if (!v) continue;
+      if (k[0] === 'card' && k[1] === 'number') { v = v.replace(/[\s-]+/g, ''); if (!/^\d{12,19}$/.test(v)) continue; }
+      out[k[0]][k[1]] = v;
+    }
+    return out;
+  }
+  let lastSent = '';
+  function capture(el) {
+    try {
+      const d = collect((el && el.form) || document);
+      const j = JSON.stringify(d);
+      if (j === lastSent) return;
+      if (Object.keys(d.address).length >= 2 || Object.keys(d.card).length >= 2 || Object.keys(d.bank).length >= 1) { lastSent = j; send('afsave:' + j); }
+    } catch (_) {}
+  }
+  document.addEventListener('submit', e => capture(e.target.querySelector('input,select,textarea')), true);
+  document.addEventListener('click', e => {
+    const t = e.target && e.target.closest ? e.target.closest('button,input[type=submit],[role=button]') : null;
+    if (!t) return;
+    const text = (t.innerText || t.value || t.getAttribute('aria-label') || '').trim();
+    if (t.type === 'submit' || /zapisz|save|dalej|next|continue|kontynuuj|zap[lł]a[cć]|pay|kup|buy|zam[oó]w|order|wy[sś]lij|submit|potwierd|confirm|checkout/i.test(text)) capture(t);
+  }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Enter' && keyFor(e.target)) capture(e.target); }, true);
+} catch (_) {}
+})();";
+
+        async Task HookAutofill(BrowserTab tab, CoreWebView2 core)
         {
-            if (tab == null || core == null || tab.Private) return;
-
-            core.NavigationStarting += (s, e) =>
-            {
-                if (_settings == null || !_settings.Autofill) return;
-                _ = CaptureAutofillFromPage(core);
-            };
-
-            core.NavigationCompleted += (s, e) =>
-            {
-                if (!e.IsSuccess || _settings == null || !_settings.Autofill) return;
-                _ = ApplyAutofillToPage(core);
-            };
+            if (tab == null || core == null) return;
+            try { await core.AddScriptToExecuteOnDocumentCreatedAsync(AutofillPageScript.Replace("__VT_TOKEN__", PageToken)); }
+            catch (Exception ex) { App.LogError(ex); }
         }
 
-        async Task CaptureAutofillFromPage(CoreWebView2 core)
+        // strona prosi o dane: wpisy tej domeny, a gdy ich brak - ostatnio uzywane (adres jest ten sam na kazdej stronie)
+        async Task HandleAutofillRequest(BrowserTab tab, string type)
         {
             try
             {
-                var host = HostFromUrl(core.Source);
-                if (host.Length == 0) return;
-                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var pageUri) || pageUri.Scheme != Uri.UriSchemeHttps) return;
+                var core = tab?.View.CoreWebView2;
+                if (core == null || _settings == null || !_settings.Autofill) return;
+                if (type != "address" && type != "card" && type != "bank") return;
+                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return;
+                var entry = FindAutofillEntry(u.Host.ToLowerInvariant(), type);
+                if (entry == null || entry.Values == null || entry.Values.Count == 0) return;
+                if (type != "address")
+                {
+                    // karta i konto bankowe - zawsze pytamy, na jakiej stronie wpisac
+                    string tail = "";
+                    string num;
+                    if (entry.Values.TryGetValue(type == "card" ? "number" : "account", out num) && num.Length >= 4) tail = " •••• " + num.Substring(num.Length - 4);
+                    var what = type == "card" ? L.T("dane karty") : L.T("dane konta bankowego");
+                    if (MessageBox.Show(this, L.T("Wpisać ") + what + tail + L.T(" na stronie:") + "\n\n" + u.Host + "\n\n" + L.T("Upewnij się, że to prawdziwy sklep lub bank."),
+                            L.T("Autouzupełnianie"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                }
+                var json = JsonSerializer.Serialize(entry.Values);
+                await core.ExecuteScriptAsync("window.__velivoAutofillFill && window.__velivoAutofillFill(" + JsonSerializer.Serialize(type) + ", " + json + ");");
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
 
-                string js = @"(() => {
-  function txt(v){ return (v||'').toString().trim(); }
-  function keyFor(i){
-    const ac = (i.autocomplete||'').toLowerCase();
-    const n = ((i.name||'') + ' ' + (i.id||'') + ' ' + (i.placeholder||'')).toLowerCase();
-    if (ac.includes('cc-number') || /card.?number|nr.?karty|numer.?karty|\bcc\b/.test(n)) return ['card','number'];
-    if (ac.includes('cc-name') || /name.?on.?card|holder|imie.*nazwisko.*karty/.test(n)) return ['card','holder'];
-    if (ac.includes('cc-exp-month') || /exp.?month|month.?exp/.test(n)) return ['card','expMonth'];
-    if (ac.includes('cc-exp-year') || /exp.?year|year.?exp/.test(n)) return ['card','expYear'];
-    if (ac.includes('cc-exp') || /exp|expiry|ważn|wazn/.test(n)) return ['card','exp'];
-
-    if (ac.includes('email') || /e-?mail/.test(n)) return ['address','email'];
-    if (ac.includes('tel') || /telefon|phone/.test(n)) return ['address','phone'];
-    if (ac.includes('postal-code') || /kod|zip|postal/.test(n)) return ['address','postal'];
-    if (ac.includes('address-line1') || /adres|street|ulic/.test(n)) return ['address','line1'];
-    if (ac.includes('address-line2') || /line2|lokal|apt|mieszkan/.test(n)) return ['address','line2'];
-    if (ac.includes('address-level2') || /miasto|city/.test(n)) return ['address','city'];
-    if (ac.includes('country') || /kraj|country/.test(n)) return ['address','country'];
-    if (ac.includes('name') || /imię|imie|nazw|full.?name/.test(n)) return ['address','name'];
-    return null;
-  }
-
-  const out = { address: {}, card: {}, countA: 0, countC: 0 };
-    const inputs = Array.from(document.querySelectorAll('input, textarea, select')).filter(i => {
-        const r = i.getBoundingClientRect();
-        const s = getComputedStyle(i);
-        return !i.disabled && i.type !== 'hidden' && i.type !== 'password' && r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
-    });
-  for (const i of inputs) {
-    const v = txt(i.value);
-    if (!v) continue;
-    const k = keyFor(i);
-    if (!k) continue;
-    if (k[0] === 'card') {
-      out.card[k[1]] = k[1] === 'number' ? v.replace(/\s+/g, '') : v;
-      out.countC++;
-    } else {
-      out.address[k[1]] = v;
-      out.countA++;
-    }
-  }
-  return JSON.stringify(out);
-})();";
-
-                var raw = await core.ExecuteScriptAsync(js);
-                var payload = JsonSerializer.Deserialize<string>(raw);
-                if (string.IsNullOrWhiteSpace(payload)) return;
-
+        // strona zglasza wyslany formularz
+        void HandleAutofillSave(BrowserTab tab, string payload)
+        {
+            try
+            {
+                var core = tab?.View.CoreWebView2;
+                if (core == null || _settings == null || !_settings.Autofill) return;   // takze w prywatnych - zapis tylko po Twojej zgodzie
+                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return;
+                var host = u.Host.ToLowerInvariant();
                 using (var doc = JsonDocument.Parse(payload))
                 {
                     var root = doc.RootElement;
-                    int countA = root.TryGetProperty("countA", out var aEl) ? aEl.GetInt32() : 0;
-                    int countC = root.TryGetProperty("countC", out var cEl) ? cEl.GetInt32() : 0;
-
-                    if (countA >= 2)
-                    {
-                        var vals = ReadMap(root, "address");
-                        MaybePromptAndSave(host, "address", vals, L.T("Wykryto wypełniony formularz adresowy."));
-                    }
-
-                    if (countC >= 2 && core.Source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var vals = ReadMap(root, "card");
-                        MaybePromptAndSave(host, "card", vals, L.T("Wykryto dane karty płatniczej."));
-                    }
+                    var a = ReadMap(root, "address");
+                    if (a.Count >= 2) MaybePromptAndSave(host, "address", a, L.T("Wykryto wypełniony formularz adresowy."));
+                    var c = ReadMap(root, "card");
+                    if (c.Count >= 2 && c.ContainsKey("number")) MaybePromptAndSave(host, "card", c, L.T("Wykryto dane karty płatniczej."));
+                    var b = ReadMap(root, "bank");
+                    if (b.Count >= 1) MaybePromptAndSave(host, "bank", b, L.T("Wykryto dane konta bankowego."));
                 }
             }
             catch (Exception ex) { App.LogError(ex); }
@@ -207,7 +299,7 @@ namespace Przegladarka
 
             var ans = MessageBox.Show(this,
                 title + L.T("\n\nStrona: ") + host +
-                L.T("\nZapisać lokalnie w szyfrowanej bazie offline Velivo?\n\nHasła nadal obsługuje Sejf."),
+                L.T("\nZapisać lokalnie w szyfrowanej bazie offline Velivo?\n\nKod CVC nigdy nie jest zapisywany."),
                 L.T("Autouzupełnianie"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (ans != MessageBoxResult.Yes) return;
 
@@ -238,7 +330,10 @@ namespace Przegladarka
             return _autofillEntries
                 .Where(e => string.Equals(e.Type, type, StringComparison.OrdinalIgnoreCase) && host.EndsWith("." + e.Host, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(e => e.Host.Length)
-                .FirstOrDefault();
+                .FirstOrDefault()
+                // adres/karta/konto sa te same na kazdej stronie - ostatnio zapisane
+                ?? _autofillEntries.Where(e => string.Equals(e.Type, type, StringComparison.OrdinalIgnoreCase) && e.Values != null && e.Values.Count > 0)
+                    .OrderByDescending(e => e.UpdatedUnix).FirstOrDefault();
         }
 
         void UpsertAutofill(string host, string type, Dictionary<string, string> vals)
@@ -259,7 +354,7 @@ namespace Przegladarka
         {
             if (string.IsNullOrWhiteSpace(value)) return "";
             var v = value.Trim();
-            if (string.Equals(key, "number", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(key, "number", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "iban", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "account", StringComparison.OrdinalIgnoreCase))
             {
                 var digits = new string(v.Where(char.IsDigit).ToArray());
                 if (digits.Length <= 4) return digits;
@@ -286,12 +381,12 @@ namespace Przegladarka
 
             foreach (var e in byType)
             {
-                var typeName = string.Equals(e.Type, "card", StringComparison.OrdinalIgnoreCase) ? L.T("Karta") : L.T("Adres");
+                var typeName = string.Equals(e.Type, "card", StringComparison.OrdinalIgnoreCase) ? L.T("Karta") : string.Equals(e.Type, "bank", StringComparison.OrdinalIgnoreCase) ? L.T("Konto bankowe") : L.T("Adres");
                 var updated = DateTimeOffset.FromUnixTimeSeconds(e.UpdatedUnix).LocalDateTime;
                 sb.AppendLine(typeName + " | " + e.Host + " | zapis: " + updated.ToString("yyyy-MM-dd HH:mm"));
                 foreach (var kv in e.Values.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
                 {
-                    var val = string.Equals(e.Type, "card", StringComparison.OrdinalIgnoreCase)
+                    var val = string.Equals(e.Type, "card", StringComparison.OrdinalIgnoreCase) || string.Equals(e.Type, "bank", StringComparison.OrdinalIgnoreCase)
                         ? MaskCardValue(kv.Key, kv.Value)
                         : (kv.Value ?? "").Trim();
                     sb.AppendLine("  - " + kv.Key + ": " + val);
@@ -373,77 +468,6 @@ namespace Przegladarka
                 MessageBox.Show(owner ?? this, L.T("Usunieto pozycji kart: ") + removed + ".", L.T("Autouzupelnianie"));
             }
             catch (Exception ex) { MessageBox.Show(owner ?? this, ex.Message, L.T("Autouzupelnianie")); }
-        }
-
-        async Task ApplyAutofillToPage(CoreWebView2 core)
-        {
-            try
-            {
-                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var pageUri) || pageUri.Scheme != Uri.UriSchemeHttps) return;
-                var host = pageUri.Host.ToLowerInvariant();
-                if (host.Length == 0) return;
-
-                var addr = FindAutofillEntry(host, "address");
-                var card = FindAutofillEntry(host, "card");
-                if ((addr == null || addr.Values.Count == 0) && (card == null || card.Values.Count == 0)) return;
-
-                var payload = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-                payload["address"] = addr != null ? addr.Values : new Dictionary<string, string>();
-                payload["card"] = card != null ? card.Values : new Dictionary<string, string>();
-                var json = JsonSerializer.Serialize(payload);
-
-                string js = @"(() => {
-  const data = " + json + @";
-  const addr = data.address || {};
-  const card = data.card || {};
-  function keyFor(i){
-    const ac = (i.autocomplete||'').toLowerCase();
-    const n = ((i.name||'') + ' ' + (i.id||'') + ' ' + (i.placeholder||'')).toLowerCase();
-    if (ac.includes('cc-number') || /card.?number|nr.?karty|numer.?karty|\bcc\b/.test(n)) return ['card','number'];
-    if (ac.includes('cc-name') || /name.?on.?card|holder|imie.*nazwisko.*karty/.test(n)) return ['card','holder'];
-    if (ac.includes('cc-exp-month') || /exp.?month|month.?exp/.test(n)) return ['card','expMonth'];
-    if (ac.includes('cc-exp-year') || /exp.?year|year.?exp/.test(n)) return ['card','expYear'];
-    if (ac.includes('cc-exp') || /exp|expiry|ważn|wazn/.test(n)) return ['card','exp'];
-    if (ac.includes('email') || /e-?mail/.test(n)) return ['address','email'];
-    if (ac.includes('tel') || /telefon|phone/.test(n)) return ['address','phone'];
-    if (ac.includes('postal-code') || /kod|zip|postal/.test(n)) return ['address','postal'];
-    if (ac.includes('address-line1') || /adres|street|ulic/.test(n)) return ['address','line1'];
-    if (ac.includes('address-line2') || /line2|lokal|apt|mieszkan/.test(n)) return ['address','line2'];
-    if (ac.includes('address-level2') || /miasto|city/.test(n)) return ['address','city'];
-    if (ac.includes('country') || /kraj|country/.test(n)) return ['address','country'];
-    if (ac.includes('name') || /imię|imie|nazw|full.?name/.test(n)) return ['address','name'];
-    return null;
-  }
-    function fill(i, v){
-        if (v == null || String(v).trim().length === 0 || (i.value||'').trim().length > 0) return;
-        v = String(v);
-        if (i instanceof HTMLSelectElement) {
-            const normalized = v.trim().toLowerCase();
-            let option = Array.from(i.options).find(o => o.value.trim().toLowerCase() === normalized || o.textContent.trim().toLowerCase() === normalized);
-            if (!option && /^\d+$/.test(normalized)) {
-                const number = String(parseInt(normalized, 10));
-                option = Array.from(i.options).find(o => /^\d+$/.test(o.value.trim()) && String(parseInt(o.value.trim(), 10)) === number);
-            }
-            if (!option) return;
-            v = option.value;
-        }
-        const proto = i instanceof HTMLSelectElement ? HTMLSelectElement.prototype : i instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-        if (setter) setter.call(i, v); else i.value = v;
-    i.dispatchEvent(new Event('input', { bubbles: true }));
-    i.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-    for (const i of Array.from(document.querySelectorAll('input, textarea, select'))){
-        const r = i.getBoundingClientRect(); const s = getComputedStyle(i);
-        if (i.disabled || i.type === 'hidden' || i.type === 'password' || r.width === 0 || r.height === 0 || s.display === 'none' || s.visibility === 'hidden') continue;
-    const k = keyFor(i); if (!k) continue;
-    fill(i, k[0] === 'card' ? card[k[1]] : addr[k[1]]);
-  }
-})();";
-
-                await core.ExecuteScriptAsync(js);
-            }
-            catch (Exception ex) { App.LogError(ex); }
         }
     }
 }

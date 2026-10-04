@@ -74,7 +74,8 @@ namespace Przegladarka
         void RenderBookmarkBar()
         {
             BookmarkBar.Children.Clear();
-            foreach (var b in _bookmarks)
+            const int barMax = 25;   // po imporcie setek zakladek pasek pokazuje tylko pierwsze
+            foreach (var b in _bookmarks.Take(barMax))
             {
                 var bm = b;
                 var btn = new Button
@@ -100,6 +101,12 @@ namespace Przegladarka
                 menu.Items.Add(openNew); menu.Items.Add(rename); menu.Items.Add(del);
                 btn.ContextMenu = menu;
                 BookmarkBar.Children.Add(btn);
+            }
+            if (_bookmarks.Count > barMax)
+            {
+                var more = new Button { Content = "» " + (_bookmarks.Count - barMax), Height = 24, FontSize = 12, Padding = new Thickness(6, 0, 6, 0), ToolTip = L.T("Wszystkie zakładki") };
+                more.Click += (s, e) => Bookmarks_Click(null, null);
+                BookmarkBar.Children.Add(more);
             }
             BookmarkBar.Visibility = _bookmarks.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }

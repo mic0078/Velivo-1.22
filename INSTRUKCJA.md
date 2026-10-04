@@ -404,6 +404,8 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - **Zapis do Sejfu:** po zalogowaniu Velivo pyta, czy zapisać albo zaktualizować hasło.
 - **Własna zaszyfrowana baza Velivo** (Menedżer haseł lokalnych) z **generatorem silnych haseł**.
 - **Import i eksport CSV**, na przykład z KeePassXC albo Chrome.
+- **Import z Chrome/Edge/Brave/Opery/Vivaldi** (Ustawienia → „Importuj z Chrome/Edge/Brave…”): zakładki Velivo odczytuje samo, z każdego profilu. Hasła przenosisz przez plik CSV: przycisk otwiera stronę eksportu haseł w tamtej przeglądarce, potem „Wczytaj plik CSV…”, a na koniec usuń plik CSV.
+- **Ważne:** zrób import, **zanim** odinstalujesz starą przeglądarkę. Po jej usunięciu zakładek nie da się odczytać, a haseł wyeksportować. Hasła z konta Google można też pobrać później ze strony passwords.google.com. Logowania do stron się nie przenoszą – zaloguj się raz w Velivo.
 - **Autouzupełnianie** adresów i kart w lokalnej, szyfrowanej bazie.
 
 ---

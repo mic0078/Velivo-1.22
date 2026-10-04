@@ -55,6 +55,8 @@ namespace Przegladarka
                         return JSON.stringify(typeof helper.initialize === 'function' ? helper.initialize() : helper.status());
                     }
 
+                    // kanal do Velivo zapamietany ZANIM Velivo ukryje chrome.webview przed stronami
+                    const vpm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
                     const state = { credentials: [], panel: null, boundPanel: null, active: null, activeLogin: null, activePassword: null, observer: null, refreshQueued: false, pendingCandidate: null, pendingFill: null };
                     const isInput = (el) => !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement);
                     const isVisible = (el) => {
@@ -113,6 +115,21 @@ namespace Przegladarka
                     function setCandidate(login, password, source) {
                         if (!password || String(password).length < 1) return;
                         state.pendingCandidate = { username: login || '', password: password, url: location.href, source: source || 'page' };
+                        // od razu do Velivo - strona po zalogowaniu czesto przechodzi dalej, zanim Velivo zdazy zapytac
+                        if (source === 'submit') {
+                            try {
+                                if (vpm) { vpm('velivo:__VT_TOKEN__:pwcand:' + JSON.stringify(state.pendingCandidate)); state.pendingCandidate = null; }
+                            } catch (_) {}
+                        }
+                    }
+
+                    // logowanie przyciskiem albo Enterem (wiele stron nie wysyla formularza)
+                    function captureFrom(anchor) {
+                        try {
+                            const fields = locateFields(anchor);
+                            const password = fields.password;
+                            if (password && password.value && password.value.length >= 6) setCandidate(fields.login && fields.login.value, password.value, 'submit');
+                        } catch (_) {}
                     }
 
                     function ensurePanel() {
@@ -121,7 +138,7 @@ namespace Przegladarka
                             if (!document.getElementById('__velivoPwdIconsStyle')) {
                                 const style = document.createElement('style');
                                 style.id = '__velivoPwdIconsStyle';
-                                style.textContent = '.velivo-pwd-panel{position:fixed!important;z-index:2147483647!important;display:none;gap:6px;align-items:center;background:rgba(16,24,40,.96);border:1px solid #64748b;border-radius:9px;padding:4px;box-shadow:0 6px 22px rgba(0,0,0,.32);font:13px sans-serif;line-height:1}.velivo-pwd-panel button{border:1px solid #94a3b8;background:#f8fafc;color:#0f172a;border-radius:6px;padding:4px 8px;cursor:pointer;font:inherit}.velivo-pwd-panel button:disabled{opacity:.45;cursor:default}.velivo-pwd-choices{display:none;position:absolute;z-index:2147483647;width:280px;max-width:calc(100vw - 12px);max-height:220px;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;touch-action:pan-y;pointer-events:auto;background:#fff;color:#111827;border:1px solid #94a3b8;border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:3px}.velivo-pwd-choice{display:block;width:100%;text-align:left;white-space:normal;border:0!important;border-radius:4px!important;background:#fff!important;padding:7px 9px!important;color:#111827!important}.velivo-pwd-choice:hover,.velivo-pwd-choice:focus{background:#e8f0fe!important}.velivo-pwd-choice-name{display:block;font-weight:600}.velivo-pwd-choice-user{display:block;margin-top:3px;color:#475569;font-size:11px}';
+                                style.textContent = '.velivo-pwd-panel{position:fixed!important;z-index:2147483647!important;display:none;gap:2px;align-items:center;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:2px;box-shadow:0 2px 10px rgba(15,23,42,.18);font:12px/1 Segoe UI,sans-serif}.velivo-pwd-panel>button{display:inline-flex;align-items:center;gap:5px;height:26px;border:0;background:transparent;color:#1e293b;border-radius:999px;padding:0 10px;cursor:pointer;font:inherit;font-weight:600;white-space:nowrap}.velivo-pwd-panel>button:hover{background:#e0ecff;color:#1d4ed8}.velivo-pwd-panel>button:disabled{opacity:.4;cursor:default;background:transparent}.velivo-pwd-choices{display:none;position:absolute;z-index:2147483647;width:280px;max-width:calc(100vw - 12px);max-height:220px;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;touch-action:pan-y;pointer-events:auto;background:#fff;color:#111827;border:1px solid #94a3b8;border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:3px}.velivo-pwd-choice{display:block;width:100%;text-align:left;white-space:normal;border:0!important;border-radius:4px!important;background:#fff!important;padding:7px 9px!important;color:#111827!important}.velivo-pwd-choice:hover,.velivo-pwd-choice:focus{background:#e8f0fe!important}.velivo-pwd-choice-name{display:block;font-weight:600}.velivo-pwd-choice-user{display:block;margin-top:3px;color:#475569;font-size:11px}';
                                 document.documentElement.appendChild(style);
                             }
                             let panel = document.getElementById('__velivoPwdPanel');
@@ -129,7 +146,7 @@ namespace Przegladarka
                                 panel = document.createElement('div');
                                 panel.id = '__velivoPwdPanel';
                                 panel.className = 'velivo-pwd-panel';
-                                panel.innerHTML = '<button type=button data-v=fill title="Wybierz wpis z lokalnej bazy">&#128273;</button><button type=button data-v=gen title="Wygeneruj haslo">&#9889;</button><div class=velivo-pwd-choices role=listbox style="display:none"></div>';
+                                panel.innerHTML = '<button type=button data-v=fill title="__VT_FILL_TIP__">&#128273; __VT_FILL__</button><button type=button data-v=gen title="__VT_GEN_TIP__">&#9889; __VT_GEN__</button><div class=velivo-pwd-choices role=listbox style="display:none"></div>';
                                 (document.body || document.documentElement).appendChild(panel);
                             }
                             state.panel = panel;
@@ -161,8 +178,19 @@ namespace Przegladarka
                             const rect = anchor.getBoundingClientRect();
                             state.panel.style.display = 'inline-flex';
                             const width = state.panel.getBoundingClientRect().width || 96;
-                            const left = Math.max(6, Math.min(window.innerWidth - width - 6, rect.right - width));
-                            const top = Math.max(6, Math.min(window.innerHeight - 34, rect.bottom + 4));
+                            const height = state.panel.getBoundingClientRect().height || 30;
+                            // obok pola, po prawej stronie (nie zaslania pol ani przyciskow);
+                            // gdy po prawej brak miejsca - pod polem, przy jego prawej krawedzi
+                            let left, top;
+                            if (rect.right + 6 + width <= window.innerWidth - 6) {
+                                left = rect.right + 6;
+                                top = rect.top + (rect.height - height) / 2;
+                            } else {
+                                left = rect.right - width;
+                                top = rect.bottom + 4;
+                            }
+                            left = Math.max(6, Math.min(window.innerWidth - width - 6, left));
+                            top = Math.max(6, Math.min(window.innerHeight - height - 4, top));
                             state.panel.style.left = `${left}px`;
                             state.panel.style.top = `${top}px`;
                             const choices = state.panel.querySelector('.velivo-pwd-choices');
@@ -231,11 +259,11 @@ namespace Przegladarka
                         state.activePassword = fields.password;
                         const fill = state.panel.querySelector('[data-v=fill]');
                         const generate = state.panel.querySelector('[data-v=gen]');
-                        if (fill) fill.disabled = state.credentials.length === 0 || (!fields.login && !fields.password);
+                        if (fill) fill.disabled = !fields.login && !fields.password;
                         if (generate) generate.disabled = !fields.password;
                         if (generate) generate.style.display = fields.password ? '' : 'none';
                         // bez pola hasla panel ma sens tylko, gdy sa zapisane konta do wypelnienia
-                        if (!fields.password && (!fields.login || state.credentials.length === 0)) { state.panel.style.display = 'none'; return; }
+                        if (!fields.password && !fields.login) { state.panel.style.display = 'none'; return; }
                         positionPanel(fields.password || fields.login);
                         try {
                             document.querySelectorAll('iframe').forEach(updateFrameCredentials);
@@ -246,6 +274,15 @@ namespace Przegladarka
                         if (state.refreshQueued) return;
                         state.refreshQueued = true;
                         try { requestAnimationFrame(refresh); } catch (_) { setTimeout(refresh, 0); }
+                    }
+
+                    // okno Velivo z cala baza i wyszukiwarka (gdy strona ma inna nazwe niz konto, np. Fender/PreSonus)
+                    function pickFromVault() {
+                        try {
+                            const choices = state.panel && state.panel.querySelector('.velivo-pwd-choices');
+                            if (choices) choices.style.display = 'none';
+                            if (vpm) vpm('velivo:__VT_TOKEN__:pwpick');
+                        } catch (_) {}
                     }
 
                     function showCredentialChoices() {
@@ -271,6 +308,12 @@ namespace Przegladarka
                             button.append(name, user);
                             choices.appendChild(button);
                         }
+                        const other = document.createElement('button');
+                        other.type = 'button';
+                        other.className = 'velivo-pwd-choice';
+                        other.dataset.v = 'pick';
+                        other.textContent = '🔎 __VT_OTHER__';
+                        choices.appendChild(other);
                         choices.style.display = 'block';
                         positionPanel(state.activePassword || state.activeLogin);
                     }
@@ -341,6 +384,18 @@ namespace Przegladarka
                             }
                             event.stopImmediatePropagation();
                         }, { capture: true, passive: false });
+                        document.addEventListener('click', event => {
+                            try {
+                                const t = event.target && event.target.closest ? event.target.closest('button,input[type=submit],input[type=button],[role=button]') : null;
+                                if (!t || (state.panel && state.panel.contains(t))) return;
+                                const text = (t.innerText || t.value || t.getAttribute('aria-label') || '').trim();
+                                if (t.type === 'submit' || /zaloguj|log\s*in|sign\s*in|login|dalej|next|continue|kontynuuj|zarejestruj|sign\s*up|register|utw[oó]rz|create|zapisz|save|wy[sś]lij|submit/i.test(text))
+                                    captureFrom(t.form ? (visiblePassword(t.form) || t) : (state.activePassword || t));
+                            } catch (_) {}
+                        }, true);
+                        document.addEventListener('keydown', event => {
+                            try { if (event.key === 'Enter' && isPasswordField(event.target)) captureFrom(event.target); } catch (_) {}
+                        }, true);
                         document.addEventListener('submit', event => {
                             try {
                                 const form = event.target;
@@ -377,6 +432,8 @@ namespace Przegladarka
                     }
 
                     state.panelClick = event => {
+                        // tylko prawdziwe klikniecie myszka - strona nie moze sama "kliknac" w Wpisz ani w konto
+                        if (!event.isTrusted) return;
                         try {
                             const button = event.target && event.target.closest ? event.target.closest('button[data-v]') : null;
                             if (!button || !state.panel || !state.panel.contains(button)) return;
@@ -384,10 +441,11 @@ namespace Przegladarka
                             const login = fields.login || state.activeLogin;
                             const password = fields.password || state.activePassword;
                             if (button.dataset.v === 'fill') {
-                                if (!state.credentials.length) return;
+                                if (!state.credentials.length) { pickFromVault(); return; }
                                 showCredentialChoices();
                                 return;
                             }
+                            if (button.dataset.v === 'pick') { pickFromVault(); return; }
                             if (button.dataset.v === 'choose') {
                                 const index = Number(button.dataset.index);
                                 const entry = Number.isInteger(index) ? state.credentials[index] : null;
@@ -420,19 +478,32 @@ namespace Przegladarka
                         return status();
                     }
 
-                    window.__velivoPasswordHelper = {
-                        version: 4,
-                        initialize: initialize,
-                        setCredentials: setCredentials,
-                        takeCandidate: takeCandidate,
-                        status: status
-                    };
+                    // nie do podmienienia przez strone (inaczej moglaby przechwycic hasla przekazywane przez Velivo)
+                    Object.defineProperty(window, '__velivoPasswordHelper', {
+                        value: Object.freeze({
+                            version: 4,
+                            initialize: initialize,
+                            setCredentials: setCredentials,
+                            takeCandidate: takeCandidate,
+                            status: status
+                        }),
+                        writable: false, configurable: false, enumerable: false
+                    });
                     return JSON.stringify(initialize());
                 } catch (_) {
                     return JSON.stringify({ panelCreated: false, inputsSeen: 0, activeCandidateDetected: false });
                 }
             })();
             """;
+
+        // napisy przyciskow panelu hasel w jezyku Velivo
+        static string PasswordVaultScriptLocalized => PasswordVaultDocumentCreatedScript
+            .Replace("__VT_FILL_TIP__", L.T("Wpisz zapisany login i hasło z Velivo"))
+            .Replace("__VT_FILL__", L.T("Wpisz"))
+            .Replace("__VT_GEN_TIP__", L.T("Wygeneruj silne hasło"))
+            .Replace("__VT_GEN__", L.T("Generuj"))
+            .Replace("__VT_OTHER__", L.T("Inne konto z bazy Velivo…"))
+            .Replace("__VT_TOKEN__", PageToken);
 
         void EnsurePasswordVaultLoaded()
         {
@@ -448,6 +519,13 @@ namespace Przegladarka
                 var vault = JsonSerializer.Deserialize<PasswordVaultData>(plain);
                 if (vault != null && vault.Entries != null)
                     _passwordEntries = vault.Entries.Where(x => x != null && !string.IsNullOrWhiteSpace(x.Password)).ToList();
+                // naprawa wczesniej zaimportowanych wpisow bez domeny
+                foreach (var e in _passwordEntries)
+                    if (string.IsNullOrWhiteSpace(e.Host) && HostFromAnyUrl(e.Url).Length == 0)
+                    {
+                        var h = DeriveWebHost(e.Name, e.Url);
+                        if (h.Length > 0) e.Host = h;
+                    }
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -659,6 +737,23 @@ namespace Przegladarka
             return records;
         }
 
+        // domena dla wpisu bez adresu WWW (KeePassXC/telefon): z tytulu ("connect.presonus.com")
+        // albo z linku aplikacji ("android://...@com.here.app.maps/", "androidapp://com.twitter.android")
+        static string DeriveWebHost(string name, string rawUrl)
+        {
+            var n = (name ?? "").Trim().ToLowerInvariant();
+            if (n.StartsWith("http://") || n.StartsWith("https://")) n = HostFromAnyUrl(n);
+            if (n.Contains('.') && !n.Contains(' ') && Uri.CheckHostName(n) == UriHostNameType.Dns) return n.StartsWith("www.") ? n.Substring(4) : n;
+            var u = (rawUrl ?? "").Trim();
+            int sch = u.IndexOf("://", StringComparison.Ordinal);
+            if (sch < 0 || !u.StartsWith("android", StringComparison.OrdinalIgnoreCase)) return "";
+            var pkg = u.Substring(u.LastIndexOf('@') >= 0 ? u.LastIndexOf('@') + 1 : sch + 3).Trim('/').ToLowerInvariant();
+            var parts = pkg.Split('.').Where(x => x.Length > 0 && x != "android" && x != "app").Reverse().ToArray();
+            if (parts.Length < 2) return "";
+            var host = string.Join(".", parts);
+            return Uri.CheckHostName(host) == UriHostNameType.Dns ? host : "";
+        }
+
         static char DetectSeparator(string header)
         {
             int c = header.Count(ch => ch == ',');
@@ -711,7 +806,8 @@ namespace Przegladarka
             if (fromUrl.Length > 0) return NormalizeHostForMatch(fromUrl);
             var stored = NormalizeHostForMatch(entry.Host);
             if (stored == "localhost" || stored.Contains('.')) return stored;
-            return "";
+            // wpisy z telefonu/KeePassXC bez adresu: domena z pola Nazwa (np. "connect.presonus.com")
+            return DeriveWebHost(entry.Name, entry.Url);
         }
 
         static string CompactPasswordIdentity(string value)
@@ -727,11 +823,9 @@ namespace Przegladarka
                 (entryHost == target || target.EndsWith("." + entryHost, StringComparison.OrdinalIgnoreCase) || entryHost.EndsWith("." + target, StringComparison.OrdinalIgnoreCase)))
                 return true;
 
-            var labels = target.Split('.');
-            var brand = labels.Length > 1 ? labels[labels.Length - 2] : labels[0];
-            if (brand.Length < 4) return false;
-            var identity = CompactPasswordIdentity((entry.Name ?? "") + " " + (entry.Url ?? "") + " " + (entry.Host ?? ""));
-            return identity.Contains(CompactPasswordIdentity(brand), StringComparison.Ordinal);
+            // BEZPIECZENSTWO: tylko prawdziwa domena. Zadnego dopasowania po nazwie - strona-podrobka
+            // "facebook.xyz" nie moze dostac hasla do Facebooka. Inne konto wybierasz recznie (Wpisz -> wyszukiwarka).
+            return false;
         }
 
         void UpsertPassword(SavedPasswordEntry e)
@@ -807,6 +901,7 @@ namespace Przegladarka
                 if (pass.Length == 0) continue;
                 if (url.StartsWith("{", StringComparison.Ordinal) || url.StartsWith("cmd://", StringComparison.OrdinalIgnoreCase)) url = "";
                 var host = HostFromAnyUrl(url);
+                if (host.Length == 0) host = DeriveWebHost(name, rawUrl);
 
                 var entry = new SavedPasswordEntry
                 {
@@ -951,6 +1046,51 @@ namespace Przegladarka
                     return host;
                 }
 
+                // okno wyboru konta z calej bazy - wypelnia formularz w karcie
+                void ShowPasswordPicker(BrowserTab tab)
+                {
+                    var core = tab?.View.CoreWebView2;
+                    if (core == null) return;
+                    EnsurePasswordVaultLoaded();
+                    var all = _passwordEntries.Where(e => !string.IsNullOrEmpty(e.Password))
+                        .OrderBy(e => e.Name ?? GetPasswordEntryHost(e), StringComparer.OrdinalIgnoreCase).ToList();
+                    var search = new TextBox { FontSize = 15, Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(0, 0, 0, 8) };
+                    var list = new ListBox { FontSize = 14, Height = 380 };
+                    Func<SavedPasswordEntry, string> label = e =>
+                        (string.IsNullOrWhiteSpace(e.Name) ? GetPasswordEntryHost(e) : e.Name) + "   —   " + (e.Username ?? "");
+                    Action refill = () =>
+                    {
+                        var q = search.Text.Trim().ToLowerInvariant();
+                        list.Items.Clear();
+                        foreach (var e in all.Where(e => q.Length == 0 || label(e).ToLowerInvariant().Contains(q) || (e.Url ?? "").ToLowerInvariant().Contains(q)).Take(300))
+                            list.Items.Add(new ListBoxItem { Content = label(e), Tag = e, Padding = new Thickness(6, 5, 6, 5) });
+                        if (list.Items.Count > 0) list.SelectedIndex = 0;
+                    };
+                    search.TextChanged += (a, b) => refill();
+                    var ok = new Button { Content = L.T("Wpisz"), IsDefault = true, Padding = new Thickness(18, 6, 18, 6), Margin = new Thickness(0, 0, 8, 0) };
+                    var cancel = new Button { Content = L.T("Anuluj"), IsCancel = true, Padding = new Thickness(18, 6, 18, 6) };
+                    var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+                    buttons.Children.Add(ok); buttons.Children.Add(cancel);
+                    var panel = new StackPanel { Margin = new Thickness(14) };
+                    var pageHost = HostFromAnyUrl(core.Source);
+                    panel.Children.Add(new TextBlock
+                    {
+                        Text = L.T("Strona: ") + pageHost + "\n" + L.T("Upewnij się, że to prawdziwa strona tego konta – oszuści podrabiają adresy (np. faceb00k.com)."),
+                        TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.DarkOrange, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8)
+                    });
+                    panel.Children.Add(new TextBlock { Text = L.T("Szukaj konta (nazwa, adres albo e-mail):"), Margin = new Thickness(0, 0, 0, 4) });
+                    panel.Children.Add(search); panel.Children.Add(list); panel.Children.Add(buttons);
+                    var w = new Window { Title = L.T("Wybierz konto do wpisania"), Width = 560, SizeToContent = SizeToContent.Height, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel };
+                    SavedPasswordEntry chosen = null;
+                    Action accept = () => { chosen = (list.SelectedItem as ListBoxItem)?.Tag as SavedPasswordEntry; if (chosen != null) w.Close(); };
+                    ok.Click += (a, b) => accept();
+                    list.MouseDoubleClick += (a, b) => accept();
+                    refill();
+                    w.Loaded += (a, b) => search.Focus();
+                    w.ShowDialog();
+                    if (chosen != null) _ = core.ExecuteScriptAsync(BuildFillScript(chosen.Username, chosen.Password));
+                }
+
                 List<SavedPasswordEntry> FindPasswordsForHost(string host)
                 {
                     EnsurePasswordVaultLoaded();
@@ -993,11 +1133,29 @@ namespace Przegladarka
 })(" + JsonSerializer.Serialize(user ?? "") + "," + JsonSerializer.Serialize(pass ?? "") + ");";
                 }
 
+                // wpis z linkiem aplikacji Android (android://...@com.firma.app/): strona z pola Nazwa
+                // (np. "maps.app.here.com"), a gdy jej brak - z odwroconej nazwy pakietu, jak robi to KeePassXC
+                static string WebUrlForAndroidEntry(SavedPasswordEntry entry)
+                {
+                    var name = (entry.Name ?? "").Trim();
+                    if (name.Length > 0 && !name.Contains(" ") && name.Contains(".") && Uri.CheckHostName(name.Split('/')[0]) == UriHostNameType.Dns)
+                        return "https://" + name;
+                    var raw = (entry.Url ?? "").Trim();
+                    if (!raw.StartsWith("android://", StringComparison.OrdinalIgnoreCase)) return "";
+                    var pkg = raw.Substring(raw.LastIndexOf('@') + 1).Trim('/');
+                    if (pkg.StartsWith("android://", StringComparison.OrdinalIgnoreCase)) pkg = pkg.Substring(10);
+                    var parts = pkg.Split('.').Where(x => x.Length > 0).Reverse().ToArray();
+                    if (parts.Length < 2) return "";
+                    var host = string.Join(".", parts);
+                    return Uri.CheckHostName(host) == UriHostNameType.Dns ? "https://" + host : "";
+                }
+
                 void OpenPasswordEntryAndFill(SavedPasswordEntry entry)
                 {
                         if (entry == null) return;
                         var url = EnsureUrlScheme((entry.Url ?? "").Trim());
                     if (url.Length == 0) url = EnsureUrlScheme(GetPasswordEntryHost(entry));
+                    if (url.Length == 0) url = WebUrlForAndroidEntry(entry);
                     if (url.Length == 0)
                     {
                         MessageBox.Show(this, Przegladarka.L.T("Ten wpis nie zawiera adresu strony WWW. Zaimportowany link aplikacji Android nie może być otwarty w przeglądarce. Uzupełnij pole URL adresem https://..."), Przegladarka.L.T("Hasła"), MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1100,10 +1258,15 @@ namespace Przegladarka
                         const r = anchor.getBoundingClientRect();
                         if (!r || !isFinite(r.top) || r.width < 2 || r.height < 2) { panel.style.display = 'none'; return; }
                         panel.style.display = 'inline-flex';
-                        const top = Math.max(8, r.top + (r.height - 28) / 2);
-                        const left = Math.min(window.innerWidth - 120, r.right - 112);
-                        panel.style.top = `${top}px`;
-                        panel.style.left = `${Math.max(8, left)}px`;
+                        const pw = panel.getBoundingClientRect().width || 112;
+                        const ph = panel.getBoundingClientRect().height || 28;
+                        // obok pola po prawej (nie na polu - tam bywaja ikony innych programow, np. sejfu);
+                        // gdy brak miejsca - pod polem
+                        let top, left;
+                        if (r.right + 6 + pw <= window.innerWidth - 6) { left = r.right + 6; top = r.top + (r.height - ph) / 2; }
+                        else { left = r.right - pw; top = r.bottom + 4; }
+                        panel.style.top = `${Math.max(6, Math.min(window.innerHeight - ph - 4, top))}px`;
+                        panel.style.left = `${Math.max(6, Math.min(window.innerWidth - pw - 6, left))}px`;
                     }
 
                     function refreshState(anchorEl){
@@ -1178,7 +1341,7 @@ namespace Przegladarka
                             .ToList();
                         var credentialsJson = JsonSerializer.Serialize(credentials);
 
-                        var initResult = await core.ExecuteScriptAsync(PasswordVaultDocumentCreatedScript);
+                        var initResult = await core.ExecuteScriptAsync(PasswordVaultScriptLocalized);
                         if (!TryLogPasswordHelperStatus(initResult, "initialization")) return;
 
                         var updateScript = """
@@ -1240,6 +1403,22 @@ namespace Przegladarka
 
                                 var raw = await core.ExecuteScriptAsync(js);
                                 var payload = JsonSerializer.Deserialize<string>(raw);
+                                HandlePasswordCandidate(tab, core, payload);
+                        }
+                        catch (Exception ex) { App.LogError(ex); }
+                        finally { if (captureLockAcquired && core != null) _passwordCaptureInProgress.Remove(core); }
+                }
+
+                // kandydat wyslany przez strone od razu przy logowaniu
+                async System.Threading.Tasks.Task PromptSavePasswordPayload(BrowserTab tab, CoreWebView2 core, string payload)
+                {
+                        await System.Threading.Tasks.Task.Yield();
+                        try { if (core != null) HandlePasswordCandidate(tab, core, payload); }
+                        catch (Exception ex) { App.LogError(ex); }
+                }
+
+                void HandlePasswordCandidate(BrowserTab tab, CoreWebView2 core, string payload)
+                {
                                 if (string.IsNullOrWhiteSpace(payload)) return;
                                 using (var doc = JsonDocument.Parse(payload))
                                 {
@@ -1263,7 +1442,7 @@ namespace Przegladarka
                                             }
                                             return;
                                         }
-                                        if (tab == null || tab.Private || _settings == null || !_settings.SavePasswords || host.Length == 0) return;
+                                        if (tab == null || _settings == null || !_settings.SavePasswords || host.Length == 0) return;   // takze w prywatnych - tylko po pytaniu
 
                                         EnsurePasswordVaultLoaded();
                                         string key = host + "|" + user.ToLowerInvariant();
@@ -1307,9 +1486,6 @@ namespace Przegladarka
                                         });
                                         SavePasswordVault();
                                 }
-                        }
-                        catch (Exception ex) { App.LogError(ex); }
-                        finally { if (captureLockAcquired && core != null) _passwordCaptureInProgress.Remove(core); }
                 }
 
                     async System.Threading.Tasks.Task HookPasswordVault(BrowserTab tab, CoreWebView2 core)
@@ -1317,7 +1493,16 @@ namespace Przegladarka
                         if (tab == null || core == null) return;
                         if (_passwordVaultScriptsRegistered.Add(core))
                         {
-                            try { await core.AddScriptToExecuteOnDocumentCreatedAsync(PasswordVaultDocumentCreatedScript); }
+                            try
+                            {
+                                await core.AddScriptToExecuteOnDocumentCreatedAsync(PasswordVaultScriptLocalized);
+                                // ukrywanie chrome.webview musi byc PO skrypcie hasel - inaczej "Wpisz" i pytanie o zapis nie docieraja do Velivo
+                                if (tab.HideScriptId != null)
+                                {
+                                    core.RemoveScriptToExecuteOnDocumentCreated(tab.HideScriptId);
+                                    tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
+                                }
+                            }
                             catch (Exception ex)
                             {
                                 _passwordVaultScriptsRegistered.Remove(core);
@@ -1474,11 +1659,11 @@ namespace Przegladarka
 
             var list = new ListView { Margin = new Thickness(10, 0, 10, 8), SelectionMode = SelectionMode.Extended };
             var gv = new GridView();
-            gv.Columns.Add(new GridViewColumn { Header = "Domena", DisplayMemberBinding = new System.Windows.Data.Binding("Host"), Width = 210 });
-            gv.Columns.Add(new GridViewColumn { Header = "Użytkownik", DisplayMemberBinding = new System.Windows.Data.Binding("Username"), Width = 210 });
-            gv.Columns.Add(new GridViewColumn { Header = "Nazwa", DisplayMemberBinding = new System.Windows.Data.Binding("Name"), Width = 210 });
-            gv.Columns.Add(new GridViewColumn { Header = "Źródło", DisplayMemberBinding = new System.Windows.Data.Binding("Source"), Width = 110 });
-            gv.Columns.Add(new GridViewColumn { Header = "Zmieniono", DisplayMemberBinding = new System.Windows.Data.Binding("Updated"), Width = 120 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Domena"), DisplayMemberBinding = new System.Windows.Data.Binding("Host"), Width = 210 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Użytkownik"), DisplayMemberBinding = new System.Windows.Data.Binding("Username"), Width = 210 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Nazwa"), DisplayMemberBinding = new System.Windows.Data.Binding("Name"), Width = 210 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Źródło"), DisplayMemberBinding = new System.Windows.Data.Binding("Source"), Width = 110 });
+            gv.Columns.Add(new GridViewColumn { Header = Przegladarka.L.T("Zmieniono"), DisplayMemberBinding = new System.Windows.Data.Binding("Updated"), Width = 120 });
             list.View = gv;
 
             var details = new TextBox

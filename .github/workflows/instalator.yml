@@ -53,10 +53,19 @@ jobs:
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" src\installer.iss
           Get-ChildItem Instalator
 
+      - name: Wersja przenosna (skompilowany program bez instalatora)
+        shell: pwsh
+        run: |
+          Remove-Item Instalator\Velivo-1.22-portable.zip -ErrorAction SilentlyContinue
+          Compress-Archive -Path build\velivo\* -DestinationPath Instalator\Velivo-1.22-portable.zip -CompressionLevel Optimal
+          Get-Item Instalator\Velivo-1.22-portable.zip | Select-Object Name, Length
+
       - uses: actions/upload-artifact@v4
         with:
           name: Velivo-Setup
-          path: Instalator/Velivo-Setup-*.exe
+          path: |
+            Instalator/Velivo-Setup-*.exe
+            Instalator/Velivo-1.22-portable.zip
 
       - name: Nadpisanie Instalator/Velivo-Setup-1.22.exe w repozytorium
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -64,7 +73,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          git add -f Instalator/Velivo-Setup-1.22.exe
+          git add -f Instalator/Velivo-Setup-1.22.exe Instalator/Velivo-1.22-portable.zip
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
             git commit -m "Nowy instalator Velivo-Setup-1.22.exe [skip ci]"

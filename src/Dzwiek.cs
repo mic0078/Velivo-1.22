@@ -190,23 +190,52 @@ namespace Przegladarka
 
         DispatcherTimer _audioGuard;
         string _audioRoutedTo = "";   // "" = domyslne Windows
+        DateTime _audioChangedAt = DateTime.MinValue;   // ostatnia zmiana urzadzenia (zajecie, zwolnienie, nowe domyslne)
+        string _lastDefaultOut; bool? _lastWantedFree;
+        readonly HashSet<BrowserTab> _wasPlaying = new HashSet<BrowserTab>();
+
+        // film sam sie zatrzymal tuz po zmianie urzadzenia dzwieku (np. Omnisphere zmienil czestotliwosc) - wznawiamy
+        void ResumeAfterAudioChange()
+        {
+            foreach (var t in _tabs.ToList())
+            {
+                bool now;
+                try { now = t.View.CoreWebView2 != null && t.View.CoreWebView2.IsDocumentPlayingAudio; } catch (Exception) { continue; }
+                if (now) { _wasPlaying.Add(t); continue; }
+                if (!_wasPlaying.Remove(t)) continue;
+                if (DateTime.UtcNow - _audioChangedAt > TimeSpan.FromSeconds(8)) continue;
+                try
+                {
+                    _ = t.View.CoreWebView2.ExecuteScriptAsync("document.querySelectorAll('video,audio').forEach(function(m){ if(m.paused && !m.ended && m.currentTime > 0 && !m.__velivoUserPaused) m.play().catch(function(){}); });");
+                }
+                catch (Exception) { }
+            }
+            _wasPlaying.RemoveWhere(t => !_tabs.Contains(t));
+        }
 
         void StartAudioGuard()
         {
             if (_audioGuard != null) return;
-            _audioGuard = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _audioGuard = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _audioGuard.Tick += (s, e) =>
             {
                 try
                 {
                     if (_settings == null || !_settings.AudioGuard) { if (_audioRoutedTo != "") { RouteVelivoAudio(null); _audioRoutedTo = ""; } return; }
+                    var def = DefaultAudioOutputId();
+                    if (_lastDefaultOut != null && def != _lastDefaultOut) _audioChangedAt = DateTime.UtcNow;
+                    _lastDefaultOut = def;
+                    ResumeAfterAudioChange();
                     // sprawdzamy tylko, gdy cos gra (oszczednie)
                     bool playing = _tabs.Any(t => { try { return t.View.CoreWebView2 != null && t.View.CoreWebView2.IsDocumentPlayingAudio; } catch (Exception) { return false; } });
                     if (!playing) return;
                     var wanted = string.IsNullOrEmpty(_settings.AudioOut) ? DefaultAudioOutputId() : _settings.AudioOut;
                     if (wanted == null) return;
                     string target;
-                    if (AudioOutputFree(wanted)) target = string.IsNullOrEmpty(_settings.AudioOut) ? "" : wanted;
+                    bool free = AudioOutputFree(wanted);
+                    if (_lastWantedFree.HasValue && _lastWantedFree.Value != free) _audioChangedAt = DateTime.UtcNow;
+                    _lastWantedFree = free;
+                    if (free) target = string.IsNullOrEmpty(_settings.AudioOut) ? "" : wanted;
                     else
                     {
                         // zajete (np. Ableton/Cubase) - pierwsze inne wolne wyjscie
@@ -217,6 +246,7 @@ namespace Przegladarka
                     if (target == _audioRoutedTo) return;
                     RouteVelivoAudio(target);
                     _audioRoutedTo = target;
+                    _audioChangedAt = DateTime.UtcNow;
                     var name = target == "" ? null : ListAudioOutputs().FirstOrDefault(d => d.Id == target)?.Name;
                     ShowToast("🔊 " + L.T("Dźwięk Velivo: ") + (name ?? L.T("domyślne wyjście Windows")), null);
                 }

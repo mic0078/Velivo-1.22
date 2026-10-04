@@ -80,6 +80,9 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
+  // pauza kliknieta przez uzytkownika - takiej Velivo nie wznawia po zmianie urzadzenia dzwieku
+  document.addEventListener('pause', function (e) { var m = e.target; if (m && /^(VIDEO|AUDIO)$/.test(m.tagName) && e.isTrusted && document.hasFocus()) m.__velivoUserPaused = true; }, true);
+  document.addEventListener('play', function (e) { var m = e.target; if (m && /^(VIDEO|AUDIO)$/.test(m.tagName)) m.__velivoUserPaused = false; }, true);
 
   // ---------- gesty myszy (prawy przycisk + ruch) ----------
   if (C.gestures && top) {

@@ -176,6 +176,12 @@ details .tbl { margin-top: 10px; }
 .filter span { color: var(--muted); font-size: 14px; }
 @media (max-width: 860px) { .guard { grid-template-columns: 1fr; } }
 
+.shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.shots img { width: 100%; border-radius: 8px; display: block; }
+.shotwin { padding-block: 0 10px; }
+.shotwin img { width: 100%; border-radius: 14px; border: 1px solid var(--line); display: block; }
+@media (max-width: 480px) { .shots { grid-template-columns: 1fr; } }
+
 footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-top: 1px solid var(--line); margin-top: 30px; }
 
 @media (max-width: 860px) {
@@ -210,10 +216,10 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
     <div>
       <div class="eyebrow"><span class="pl">Prywatna przeglądarka dla Windows</span><span class="en">A private browser for Windows</span></div>
       <h1><span class="pl">Velivo – <span>nowy poziom</span> przeglądarki</span><span class="en">Velivo – a <span>new level</span> of browsing</span></h1>
-      <p class="lead pl"><b>Wykracza poza granice obecnych przeglądarek.</b> Szybka, lekka i prywatna. Bez konta, bez chmury, bez wysyłania historii i haseł. Działa na silniku Edge, a dookoła ma funkcje, których popularne przeglądarki nie mają wbudowanych. Całą obsłużysz samą myszką, nawet z kanapy przy telewizorze.</p>
-      <p class="lead en"><b>It goes beyond the limits of today's browsers.</b> Fast, light and private. No account, no cloud, no history or passwords sent anywhere. It runs on the Edge engine and adds features popular browsers don't have built in. You can use all of it with the mouse alone, even from the sofa in front of the TV.</p>
+      <p class="lead pl"><b>Wykracza poza granice obecnych przeglądarek.</b> Błyskawicznie szybka, lekka, piękna jak Windows 11 i prywatna. Ma wbudowany uBlock Origin Lite i lekkie dodatki, bez szukania w sklepie. Bez konta, bez chmury, bez wysyłania historii i haseł. Działa na silniku Edge, a dookoła ma funkcje, których popularne przeglądarki nie mają wbudowanych. Całą obsłużysz samą myszką, nawet z kanapy przy telewizorze.</p>
+      <p class="lead en"><b>It goes beyond the limits of today's browsers.</b> Lightning fast, light, beautiful like Windows 11 and private. It has uBlock Origin Lite and light add-ons built in, no store hunting. No account, no cloud, no history or passwords sent anywhere. It runs on the Edge engine and adds features popular browsers don't have built in. You can use all of it with the mouse alone, even from the sofa in front of the TV.</p>
       <div class="cta">
-        <a class="btn primary" href="https://github.com/mic0078/Velivo-1.22/raw/main/Instalator/Velivo-Setup-1.22.exe"><span class="pl">⬇ Pobierz Velivo</span><span class="en">⬇ Download Velivo</span> <small>6,7 MB</small></a>
+        <a class="btn primary" href="https://github.com/mic0078/Velivo-1.22/raw/main/Instalator/Velivo-Setup-1.22.exe"><span class="pl">⬇ Pobierz Velivo</span><span class="en">⬇ Download Velivo</span> <small>13 MB</small></a>
         <a class="btn" href="#manual"><span class="pl">📖 Instrukcja</span><span class="en">📖 Manual</span></a>
         <a class="btn" href="https://github.com/mic0078/Velivo-1.22">GitHub</a>
       </div>
@@ -236,11 +242,15 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
 
 <section class="stats" aria-label="Liczby">
   <div class="wrap">
-    <div class="stat"><div class="n">6,7 MB</div><div class="l pl">instalator (Chrome ok. 100+ MB)</div><div class="l en">installer (Chrome about 100+ MB)</div></div>
+    <div class="stat"><div class="n">13 MB</div><div class="l pl">instalator z uBlock Origin Lite (Chrome ok. 100+ MB)</div><div class="l en">installer incl. uBlock Origin Lite (Chrome about 100+ MB)</div></div>
     <div class="stat"><div class="n">50–80 MB</div><div class="l pl">RAM samego programu Velivo</div><div class="l en">RAM used by Velivo itself</div></div>
     <div class="stat"><div class="n">0</div><div class="l pl">kont, chmur i telemetrii</div><div class="l en">accounts, clouds and telemetry</div></div>
     <div class="stat"><div class="n">PL · EN</div><div class="l pl">dwa języki, wybór w instalatorze</div><div class="l en">two languages, chosen in the installer</div></div>
   </div>
+</section>
+
+<section class="block shotwin">
+  <div class="wrap"><img src="zrzuty/velivo-okno.png" alt="Okno Velivo z okienkiem Film na wierzchu w rogu"></div>
 </section>
 
 <section class="block">
@@ -251,8 +261,9 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
     <div class="only">
       <article class="big">
         <h3><i>▣</i><span class="pl">Film na wierzchu</span><span class="en">Video on top</span></h3>
-        <p class="pl">Własne okienko z filmem, które zmniejszysz prawie do znaczka (od 160×90). Przezroczystość ustawiasz kółkiem myszy, od 15 do 100%. Przypinka „zawsze na wierzchu” włącza się jednym kliknięciem. Film gra dalej po zamknięciu karty, a nawet całej przeglądarki. Przycisk ↩ wraca do strony od tego samego miejsca.</p>
-        <p class="en">Velivo's own video window you can shrink almost to an icon (from 160×90). Set transparency with the mouse wheel, from 15 to 100%. The "always on top" pin toggles with one click. The video keeps playing after you close the tab, and even the whole browser. The ↩ button returns to the page at the same moment.</p>
+        <p class="pl">Własne okienko z filmem, które zmniejszysz prawie do znaczka (od 160×90). Przezroczystość ustawiasz kółkiem myszy, od 15 do 100%. Przypinka „zawsze na wierzchu” włącza się jednym kliknięciem. Film gra dalej po zamknięciu karty, a nawet całej przeglądarki. Przycisk ↩ wraca do strony od tego samego miejsca. Sam film – reklamy zablokowane, a reklamy wideo YouTube pomijane.</p>
+        <p class="en">Velivo's own video window you can shrink almost to an icon (from 160×90). Set transparency with the mouse wheel, from 15 to 100%. The "always on top" pin toggles with one click. The video keeps playing after you close the tab, and even the whole browser. The ↩ button returns to the page at the same moment. Just the video, with ads blocked and YouTube video ads skipped.</p>
+        <div class="shots"><img src="zrzuty/film-na-wierzchu.png" alt="Okienko Film na wierzchu"><img src="zrzuty/film-maly-w-rogu.png" alt="Okienko w rogu ekranu"><img src="zrzuty/film-przezroczysty.png" alt="Przezroczyste okienko nad pulpitem"></div>
       </article>
       <article>
         <h3><i>🧠</i><span class="pl">Gdzie ja to czytałem?</span><span class="en">Where did I read that?</span></h3>
@@ -293,6 +304,16 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
         <h3><i>🌅</i><span class="pl">Tryb nocny z natężeniem</span><span class="en">Night mode with strength</span></h3>
         <p class="pl">Jak „Światło nocne” w Windows, regulowany kółkiem myszy na przycisku trybu.</p>
         <p class="en">Like Windows "Night light", adjusted with the mouse wheel on the mode button.</p>
+      </article>
+      <article>
+        <h3><i>🛡</i><span class="pl">Wbudowany uBlock Origin Lite</span><span class="en">Built-in uBlock Origin Lite</span></h3>
+        <p class="pl">Słynny bloker reklam od razu w środku, razem z blokadą Velivo. Jego wyniki widać na tarczy, aktualizuje się sam co tydzień, a Ty możesz go wyłączyć jednym kliknięciem.</p>
+        <p class="en">The famous ad blocker built right in, alongside Velivo's own blocking. Its results show on the shield, it updates itself weekly, and you can turn it off with one click.</p>
+      </article>
+      <article>
+        <h3><i>⚡</i><span class="pl">Szybka, piękna, lekka</span><span class="en">Fast, beautiful, light</span></h3>
+        <p class="pl">Natywny program Windows na silniku Edge: ok. 50–80 MB pamięci, strony bez reklam ładują się szybciej. Nowoczesny wygląd jak Windows 11, 10 motywów, tryb ciemny i nocny.</p>
+        <p class="en">A native Windows program on the Edge engine: about 50–80 MB of memory, ad-free pages load faster. A modern Windows 11 look, 10 themes, dark and night mode.</p>
       </article>
       <article>
         <h3><i>🖱</i><span class="pl">Wszystko samą myszką</span><span class="en">Everything with the mouse</span></h3>
@@ -343,8 +364,8 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
 <section class="block" id="why">
   <div class="wrap">
     <h2 class="pl">Dlaczego tak lekko</h2><h2 class="en">Why it's so light</h2>
-    <p class="sub pl">Instalator ma 6,7 MB, a sam program Velivo zajmuje zwykle 50–80 MB pamięci.</p>
-    <p class="sub en">The installer is 6.7 MB, and the Velivo program itself typically uses 50–80 MB of memory.</p>
+    <p class="sub pl">Instalator ma ok. 13 MB (razem z wbudowanym uBlock Origin Lite), a sam program Velivo zajmuje zwykle 50–80 MB pamięci.</p>
+    <p class="sub en">The installer is about 13 MB (including the built-in uBlock Origin Lite), and the Velivo program itself typically uses 50–80 MB of memory.</p>
     <div class="why">
       <div>
         <h3 class="pl">Mały instalator</h3><h3 class="en">A small installer</h3>
@@ -359,7 +380,7 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
           <li><b>Large extras only on request:</b> offline voices, the video download tool, FFmpeg. Each downloads once, with your consent.</li>
         </ol>
         <div class="bars" aria-label="Rozmiar instalatora">
-          <div class="barrow me"><span>Velivo</span><span class="track"><span class="fill" style="width:5.5%"></span></span><span class="v">6,7 MB</span></div>
+          <div class="barrow me"><span>Velivo</span><span class="track"><span class="fill" style="width:10.5%"></span></span><span class="v">13 MB</span></div>
           <div class="barrow"><span>Chrome</span><span class="track"><span class="fill" style="width:85%"></span></span><span class="v">~105 MB</span></div>
           <div class="barrow"><span>Firefox</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="v">~125 MB</span></div>
         </div>
@@ -406,6 +427,7 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
           <tr><td>Wyszukiwanie</td><td>Skróty <code>yt koty</code>, <code>allegro rower</code>, <code>wiki Kraków</code>, <code>mapy Gdańsk</code> i własne; „Wklej i przejdź”</td></tr>
           <tr><td>Wygląd</td><td>Nowoczesny (jak Windows 11) albo Kolorowy, 10 motywów, tryb jasny → ciemny → nocny z natężeniem, powiększenie dla każdej strony, wersja telefonu dla strony</td></tr>
           <tr><td>Synchronizacja</td><td>Zakładki, hasła, historia (60 dni), karty przypięte, Szybki Dostęp, ustawienia; wysyłanie kart</td></tr>
+          <tr><td>uBlock Origin Lite</td><td>Wbudowany na stałe, wyniki na tarczy, przełącznik i ustawienia, aktualizacja co tydzień</td></tr>
           <tr><td>Ochrona</td><td>Wykrywanie stron-podróbek bez internetu, zawsze HTTPS, bezpieczne płatności (okno niewidoczne dla nagrywania ekranu), SmartScreen</td></tr>
           <tr><td>Hasła</td><td>Przyciski 🔑 Wpisz · ⚡ Generuj obok pola, wyszukiwarka całej bazy, pytanie o zapis (też w kartach prywatnych), hasła tylko dla prawdziwej domeny, Sejf, import i eksport CSV (KeePassXC, Chrome)</td></tr>
           <tr><td>Autouzupełnianie</td><td>Adres, karta (bez CVC) i konto bankowe (IBAN, numer konta, sort code) – klik w puste pole wypełnia formularz; karta i konto po potwierdzeniu</td></tr>
@@ -426,6 +448,7 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
           <tr><td>Search</td><td>Shortcuts <code>yt cats</code>, <code>allegro bike</code>, <code>wiki Kraków</code>, <code>mapy Gdańsk</code> and your own; "Paste and go"</td></tr>
           <tr><td>Look</td><td>Modern (like Windows 11) or Colorful, 10 themes, light → dark → night with strength, per-site zoom, phone version per site</td></tr>
           <tr><td>Sync</td><td>Bookmarks, passwords, history (60 days), pinned tabs, Quick Access, settings; send tabs</td></tr>
+          <tr><td>uBlock Origin Lite</td><td>Permanently built in, results on the shield, switch and settings, weekly updates</td></tr>
           <tr><td>Protection</td><td>Offline fake-site detection, always HTTPS, safe payments (window invisible to screen recording), SmartScreen</td></tr>
           <tr><td>Passwords</td><td>🔑 Fill in · ⚡ Generate buttons by the field, whole-vault search, save prompt (private tabs too), passwords only for the real domain, Sejf, CSV import and export (KeePassXC, Chrome)</td></tr>
           <tr><td>Autofill</td><td>Address, card (no CVC) and bank account (IBAN, account number, sort code) – clicking an empty field fills the form; card and account after confirmation</td></tr>
@@ -449,7 +472,7 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
         <div class="pl">
           <p><b>Wymagania:</b> Windows 10 (1809+) albo 11, 64-bit, .NET 10 Desktop Runtime, WebView2 (w Windows 11 jest zawsze). Brakujące elementy instalator wykryje sam.</p>
           <ol>
-            <li>Pobierz <code>Velivo-Setup-1.22.exe</code> (6,7 MB).</li>
+            <li>Pobierz <code>Velivo-Setup-1.22.exe</code> (ok. 13 MB).</li>
             <li>Przy „Nieznany wydawca” kliknij <b>Więcej informacji → Uruchom mimo to</b>.</li>
             <li>Wybierz język: Polski albo English. Velivo uruchomi się w tym języku.</li>
             <li>Przy aktualizacji wybierz <b>Zachowaj moje ustawienia i dane</b> albo <b>Czysta instalacja</b> (z kopią zapasową starych danych).</li>
@@ -459,7 +482,7 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
         <div class="en">
           <p><b>Requirements:</b> Windows 10 (1809+) or 11, 64-bit, .NET 10 Desktop Runtime, WebView2 (always present in Windows 11). The installer detects anything missing.</p>
           <ol>
-            <li>Download <code>Velivo-Setup-1.22.exe</code> (6.7 MB).</li>
+            <li>Download <code>Velivo-Setup-1.22.exe</code> (about 13 MB).</li>
             <li>At "Unknown publisher" click <b>More info → Run anyway</b>.</li>
             <li>Choose the language: Polski or English. Velivo will start in that language.</li>
             <li>When updating, choose <b>Keep my settings and data</b> or <b>Clean install</b> (old data is backed up).</li>

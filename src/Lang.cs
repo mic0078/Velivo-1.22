@@ -869,6 +869,9 @@ namespace Przegladarka
             { "Wbudowany w Velivo, wyniki widać na tarczy. Możesz go wyłączyć.", "Built into Velivo, its results show on the shield. You can turn it off." },
             { "Ustawienia uBlock Origin Lite…", "uBlock Origin Lite settings…" },
             { "uBlock Origin Lite nie jest włączony.", "uBlock Origin Lite is not enabled." },
+            { "🔊 Wybierz głośniki dla Velivo…", "🔊 Choose speakers for Velivo…" },
+            { "Przy „Velivo” lub „Microsoft Edge WebView2” wybierz swoje głośniki zamiast „Domyślne” – Windows zapamięta to na stałe.", "Next to “Velivo” or “Microsoft Edge WebView2” choose your speakers instead of “Default” – Windows remembers it permanently." },
+            { "Gdy inny program przełącza dźwięk Velivo na inne głośniki – przypnij Velivo do swoich głośników.", "When another program moves Velivo's sound to other speakers – pin Velivo to your speakers." },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

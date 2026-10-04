@@ -518,6 +518,10 @@ namespace Przegladarka
             ubolOpts.HorizontalAlignment = HorizontalAlignment.Left;
             root.Children.Add(ubolBox); root.Children.Add(ubolOpts);
             root.Children.Add(ss); root.Children.Add(phishBox); root.Children.Add(httpsBox); root.Children.Add(payBox); root.Children.Add(ask);
+            var audioOut = SmallButton(L.T("🔊 Wybierz głośniki dla Velivo…"), OpenAppAudioSettings);
+            audioOut.HorizontalAlignment = HorizontalAlignment.Left;
+            audioOut.ToolTip = L.T("Gdy inny program przełącza dźwięk Velivo na inne głośniki – przypnij Velivo do swoich głośników.");
+            root.Children.Add(audioOut);
             root.Children.Add(new TextBlock { Text = L.T("Połączeń na jeden pobierany plik (więcej = zwykle szybciej):"), Margin = new Thickness(0, 6, 0, 2) });
             var conns = new ComboBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
             foreach (var n in new[] { 1, 2, 4, 8, 12, 16 })

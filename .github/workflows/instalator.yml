@@ -53,6 +53,16 @@ jobs:
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" src\installer.iss
           Get-ChildItem Instalator
 
+      - name: Samodzielny plik Velivo-1.22.exe (bez instalacji i bez .NET)
+        shell: pwsh
+        run: |
+          dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\single `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          Copy-Item build\single\Velivo.exe Instalator\Velivo-1.22.exe -Force
+          $mb = (Get-Item Instalator\Velivo-1.22.exe).Length / 1MB
+          Write-Host ("Velivo-1.22.exe: {0:N1} MB" -f $mb)
+          if ($mb -gt 95) { Write-Warning "Za duzy dla repozytorium - tylko w artefaktach"; Move-Item Instalator\Velivo-1.22.exe build\Velivo-1.22.exe -Force }
+
       - name: Wersja przenosna (skompilowany program bez instalatora)
         shell: pwsh
         run: |
@@ -66,6 +76,8 @@ jobs:
           path: |
             Instalator/Velivo-Setup-*.exe
             Instalator/Velivo-1.22-portable.zip
+            Instalator/Velivo-1.22.exe
+            build/Velivo-1.22.exe
 
       - name: Nadpisanie Instalator/Velivo-Setup-1.22.exe w repozytorium
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -74,6 +86,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git add -f Instalator/Velivo-Setup-1.22.exe Instalator/Velivo-1.22-portable.zip
+          if (Test-Path Instalator/Velivo-1.22.exe) { git add -f Instalator/Velivo-1.22.exe }
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
             git commit -m "Nowy instalator Velivo-Setup-1.22.exe [skip ci]"

@@ -375,6 +375,7 @@ namespace Przegladarka
             if (!tab.Private && _profile == null) _profile = core.Profile;
             ApplyViewSettings(core);
             await HookAutofill(tab, core);   // przed ukryciem chrome.webview
+            HookProtection(tab, core);
             await HookPasswordVault(tab, core);
             tab.View.ZoomFactorChanged += (s, e) => OnZoomChanged(tab);
             HookTabSound(tab, core);

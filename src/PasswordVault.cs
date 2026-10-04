@@ -121,7 +121,7 @@ namespace Przegladarka
                             if (!document.getElementById('__velivoPwdIconsStyle')) {
                                 const style = document.createElement('style');
                                 style.id = '__velivoPwdIconsStyle';
-                                style.textContent = '.velivo-pwd-panel{position:fixed!important;z-index:2147483647!important;display:none;gap:6px;align-items:center;background:rgba(16,24,40,.96);border:1px solid #64748b;border-radius:9px;padding:4px;box-shadow:0 6px 22px rgba(0,0,0,.32);font:13px sans-serif;line-height:1}.velivo-pwd-panel button{border:1px solid #94a3b8;background:#f8fafc;color:#0f172a;border-radius:6px;padding:4px 8px;cursor:pointer;font:inherit}.velivo-pwd-panel button:disabled{opacity:.45;cursor:default}.velivo-pwd-choices{display:none;position:absolute;z-index:2147483647;width:280px;max-width:calc(100vw - 12px);max-height:220px;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;touch-action:pan-y;pointer-events:auto;background:#fff;color:#111827;border:1px solid #94a3b8;border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:3px}.velivo-pwd-choice{display:block;width:100%;text-align:left;white-space:normal;border:0!important;border-radius:4px!important;background:#fff!important;padding:7px 9px!important;color:#111827!important}.velivo-pwd-choice:hover,.velivo-pwd-choice:focus{background:#e8f0fe!important}.velivo-pwd-choice-name{display:block;font-weight:600}.velivo-pwd-choice-user{display:block;margin-top:3px;color:#475569;font-size:11px}';
+                                style.textContent = '.velivo-pwd-panel{position:fixed!important;z-index:2147483647!important;display:none;gap:2px;align-items:center;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:2px;box-shadow:0 2px 10px rgba(15,23,42,.18);font:12px/1 'Segoe UI',sans-serif}.velivo-pwd-panel>button{display:inline-flex;align-items:center;gap:5px;height:26px;border:0;background:transparent;color:#1e293b;border-radius:999px;padding:0 10px;cursor:pointer;font:inherit;font-weight:600;white-space:nowrap}.velivo-pwd-panel>button:hover{background:#e0ecff;color:#1d4ed8}.velivo-pwd-panel>button:disabled{opacity:.4;cursor:default;background:transparent}.velivo-pwd-choices{display:none;position:absolute;z-index:2147483647;width:280px;max-width:calc(100vw - 12px);max-height:220px;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;touch-action:pan-y;pointer-events:auto;background:#fff;color:#111827;border:1px solid #94a3b8;border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:3px}.velivo-pwd-choice{display:block;width:100%;text-align:left;white-space:normal;border:0!important;border-radius:4px!important;background:#fff!important;padding:7px 9px!important;color:#111827!important}.velivo-pwd-choice:hover,.velivo-pwd-choice:focus{background:#e8f0fe!important}.velivo-pwd-choice-name{display:block;font-weight:600}.velivo-pwd-choice-user{display:block;margin-top:3px;color:#475569;font-size:11px}';
                                 document.documentElement.appendChild(style);
                             }
                             let panel = document.getElementById('__velivoPwdPanel');
@@ -129,7 +129,7 @@ namespace Przegladarka
                                 panel = document.createElement('div');
                                 panel.id = '__velivoPwdPanel';
                                 panel.className = 'velivo-pwd-panel';
-                                panel.innerHTML = '<button type=button data-v=fill title="Wybierz wpis z lokalnej bazy">&#128273;</button><button type=button data-v=gen title="Wygeneruj haslo">&#9889;</button><div class=velivo-pwd-choices role=listbox style="display:none"></div>';
+                                panel.innerHTML = '<button type=button data-v=fill title="__VT_FILL_TIP__">&#128273; __VT_FILL__</button><button type=button data-v=gen title="__VT_GEN_TIP__">&#9889; __VT_GEN__</button><div class=velivo-pwd-choices role=listbox style="display:none"></div>';
                                 (document.body || document.documentElement).appendChild(panel);
                             }
                             state.panel = panel;
@@ -444,6 +444,13 @@ namespace Przegladarka
                 }
             })();
             """;
+
+        // napisy przyciskow panelu hasel w jezyku Velivo
+        static string PasswordVaultScriptLocalized => PasswordVaultDocumentCreatedScript
+            .Replace("__VT_FILL_TIP__", L.T("Wpisz zapisany login i hasło z Velivo"))
+            .Replace("__VT_FILL__", L.T("Wpisz"))
+            .Replace("__VT_GEN_TIP__", L.T("Wygeneruj silne hasło"))
+            .Replace("__VT_GEN__", L.T("Generuj"));
 
         void EnsurePasswordVaultLoaded()
         {
@@ -1212,7 +1219,7 @@ namespace Przegladarka
                             .ToList();
                         var credentialsJson = JsonSerializer.Serialize(credentials);
 
-                        var initResult = await core.ExecuteScriptAsync(PasswordVaultDocumentCreatedScript);
+                        var initResult = await core.ExecuteScriptAsync(PasswordVaultScriptLocalized);
                         if (!TryLogPasswordHelperStatus(initResult, "initialization")) return;
 
                         var updateScript = """
@@ -1351,7 +1358,7 @@ namespace Przegladarka
                         if (tab == null || core == null) return;
                         if (_passwordVaultScriptsRegistered.Add(core))
                         {
-                            try { await core.AddScriptToExecuteOnDocumentCreatedAsync(PasswordVaultDocumentCreatedScript); }
+                            try { await core.AddScriptToExecuteOnDocumentCreatedAsync(PasswordVaultScriptLocalized); }
                             catch (Exception ex)
                             {
                                 _passwordVaultScriptsRegistered.Remove(core);

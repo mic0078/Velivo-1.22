@@ -829,6 +829,10 @@ namespace Przegladarka
             { "📥 Import haseł, loginów i zakładek", "📥 Import passwords, logins and bookmarks" },
             { "🔑 Hasła i loginy z pliku (CSV: KeePassXC, Chrome, Edge…)", "🔑 Passwords and logins from a file (CSV: KeePassXC, Chrome, Edge…)" },
             { "🌐 Z Chrome / Edge / Brave / Opery", "🌐 From Chrome / Edge / Brave / Opera" },
+            { "Wpisz zapisany login i hasło z Velivo", "Fill in the saved login and password from Velivo" },
+            { "Wpisz", "Fill in" },
+            { "Wygeneruj silne hasło", "Generate a strong password" },
+            { "Generuj", "Generate" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

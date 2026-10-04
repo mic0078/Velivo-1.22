@@ -461,7 +461,18 @@ namespace Przegladarka
 
                     LanSyncPayload state = null;
                     LanHistoryPayload hist = null;
-                    if (pkt.t == "hist")
+                    LanTabPayload sentTab = null;
+                    if (pkt.t == "tab")
+                    {
+                        if (_lanLegacyNoKeyMode) continue;
+                        try { sentTab = DecryptLanBlob<LanTabPayload>(pkt); }
+                        catch (CryptographicException) { continue; }
+                        catch (FormatException) { continue; }
+                        catch (JsonException) { continue; }
+                        catch (InvalidDataException) { continue; }
+                        if (sentTab == null) continue;
+                    }
+                    else if (pkt.t == "hist")
                     {
                         if (_lanLegacyNoKeyMode) continue;
                         try { hist = DecryptLanHistory(pkt); }
@@ -515,6 +526,12 @@ namespace Przegladarka
 
                     if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase)) continue;
 
+                    if (pkt.t == "tab")
+                    {
+                        var st = sentTab; var sp = pkt;
+                        await Dispatcher.InvokeAsync(() => ReceiveLanTab(sp, st));
+                        continue;
+                    }
                     if (pkt.t == "hist")
                     {
                         var h = hist;

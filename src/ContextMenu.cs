@@ -177,6 +177,9 @@ namespace Przegladarka
                 tTabs.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowTabSearch);
                 tools.Children.Add(tPip);
                 tools.Children.Add(tTabs);
+                var tMem = _env.CreateContextMenuItem(L.T("🧠 Gdzie ja to czytałem? (Ctrl+Shift+F)"), null, CoreWebView2ContextMenuItemKind.Command);
+                tMem.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowPageMemorySearch);
+                tools.Children.Add(tMem);
                 tools.Children.Add(tPrivacy);
                 tools.Children.Add(tMedia);
                 tools.Children.Add(tDl);

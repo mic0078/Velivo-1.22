@@ -233,11 +233,15 @@ namespace Przegladarka
                 if (MessageBox.Show(win, L.T("Usunąć całą historię?"), L.T("Historia"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 try { File.Delete(HistoryFile); } catch (IOException) { }
                 RememberHistoryCleared();
+                ForgetAllPageMemory();
                 rebuild();
             });
             var bottom = new DockPanel { Margin = new Thickness(6) };
             DockPanel.SetDock(clearAll, Dock.Right);
-            bottom.Children.Add(clearAll); bottom.Children.Add(status);
+            var memBtn = SmallButton(L.T("🧠 Szukaj w treści stron…"), ShowPageMemorySearch);
+            memBtn.Margin = new Thickness(0, 0, 6, 0);
+            DockPanel.SetDock(memBtn, Dock.Right);
+            bottom.Children.Add(clearAll); bottom.Children.Add(memBtn); bottom.Children.Add(status);
             bottom.Children.Add(new TextBlock { Text = L.T("Dwuklik otwiera stronę · prawy klik: więcej opcji"), Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right });
 
             var top = new Grid();

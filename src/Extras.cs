@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -65,8 +65,10 @@ namespace Przegladarka
                 gestures = _settings.MouseGestures,
                 pip = _settings.PipButton,
                 pipLabel = L.T("Obraz w obrazie"),
+                dark = _settings.DarkPatterns,
+                receipt = _settings.PrivacyReceipt,
             });
-            return "(function(C){" + PageScriptBody + "})(" + cfg + ");";
+            return "(function(C){" + PageScriptBody + DarkPatternScript + FingerprintScript + "})(" + cfg + ");";
         }
 
         const string PageScriptBody = @"
@@ -210,6 +212,8 @@ try {
             if (msg == null || !msg.StartsWith(prefix, StringComparison.Ordinal)) return;
             msg = msg.Substring(prefix.Length);
             var core = tab.View.CoreWebView2;
+            if (msg.StartsWith("dark:", StringComparison.Ordinal)) { if (_settings.DarkPatterns) HandleDarkPatterns(tab, msg.Substring(5)); return; }
+            if (msg.StartsWith("fp:", StringComparison.Ordinal)) { HandleFingerprintReport(tab, msg.Substring(3)); return; }
             if (msg == "cookie")
             {
                 NoteBlocked(tab, L.T("Ciasteczka"), (core != null ? core.Source : "") + L.T("  (baner zgody odrzucony)"));

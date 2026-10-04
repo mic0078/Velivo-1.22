@@ -42,6 +42,11 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Pinned;
+            public readonly Dictionary<string, int> ThirdParties = new Dictionary<string, int>();   // paragon prywatnosci
+            public readonly Dictionary<string, int> Fingerprint = new Dictionary<string, int>();
+            public readonly List<string> Pressure = new List<string>();   // sztuczki presji w sklepie
+            public string PageSite;
+            public double PendingVideoTime;   // karta z innego komputera: film od tej sekundy
             public Button SoundBtn;              // 🔊 / 🔇 na karcie
             public TextBlock RefreshMark, GroupDot;
             public System.Windows.Threading.DispatcherTimer RefreshTimer;
@@ -89,6 +94,7 @@ namespace Przegladarka
             catch (Exception) { }
             L.TranslateTree(this);   // napisy okna z XAML (dymki, przyciski) - gdy wybrano angielski
             BuildAddressMenu();
+            InitInnovationsUi();
             UpdateProfileBadge();
             LoadSitePrivacyRules();
             LoadPrivacyLog();
@@ -405,6 +411,7 @@ namespace Przegladarka
                     (requestUri.Scheme != Uri.UriSchemeHttp && requestUri.Scheme != Uri.UriSchemeHttps))
                     return;
 
+                RecordThirdParty(tab, requestUri);   // paragon prywatnosci - takze proby zablokowane
                 if (ApplyPrivacyRulesToRequest(e, tab)) return;
                 // zaufana domena (strona albo zasob) - nic nie blokujemy
                 if (IsTrustedUrl(e.Request.Uri) || IsTrustedUrl(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null))
@@ -465,6 +472,9 @@ namespace Przegladarka
                 tab.Blocked = 0;
                 tab.HiddenElements = 0;
                 tab.BlockedItems.Clear();
+                tab.ThirdParties.Clear(); tab.Fingerprint.Clear(); tab.Pressure.Clear();
+                { Uri nu; tab.PageSite = Uri.TryCreate(e.Uri, UriKind.Absolute, out nu) && (nu.Scheme == "http" || nu.Scheme == "https") ? RegistrableDomain(nu.Host) : null; }
+                if (tab == _current) UpdatePressureButton();
                 if (tab == _current) UpdateCounter();
             };
             core.SourceChanged += (s, e) =>
@@ -521,6 +531,7 @@ namespace Przegladarka
                 if (e.IsSuccess) CheckSejfLogins(tab); // pole hasla? -> loginy z Sejfu dla tej strony
                 if (e.IsSuccess) LoadVoiceNames(core);  // raz: lista polskich glosow do ustawien
                 if (e.IsSuccess) _ = CapturePageThumbAsync(tab);   // miniatura strony dla Szybkiego Dostepu
+                if (e.IsSuccess) { _ = RememberPageTextAsync(tab, core); _ = ApplyPendingVideoTime(tab, core); }
             };
 
             if (pending != null)
@@ -727,6 +738,7 @@ namespace Przegladarka
             UpdateAdaptiveToolbarLayout();
             UpdateTrackingLevel(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null);
             if (_groups.Count > 0) RefreshGroupsUi();   // zwinieta grupa pokazuje tylko aktywna karte
+            UpdatePressureButton();
         }
 
         void OverflowBtn_Click(object sender, RoutedEventArgs e)
@@ -964,6 +976,7 @@ namespace Przegladarka
             else if (ctrl && shift && key == Key.N) AddTab(HomeUrl, true);
             else if (ctrl && shift && key == Key.T) ReopenClosedTab();
             else if (ctrl && shift && key == Key.A) ShowTabSearch();
+            else if (ctrl && shift && key == Key.F) ShowPageMemorySearch();
             else if (ctrl && shift && key == Key.U) { if (_readTab == null) StartReading(false); else ReadBtn_Click(null, null); }
             else if (ctrl && key == Key.T) AddTab(NewTabUrl);
             else if (ctrl && key == Key.W && _current != null) CloseTab(_current);
@@ -1019,6 +1032,13 @@ namespace Przegladarka
             bottom.Children.Add(toggle);
             bottom.Children.Add(summary);
             var list = new ListBox();
+            if (_settings.PrivacyReceipt)
+            {
+                var receipt = BuildPrivacyReceipt(tab);
+                DockPanel.SetDock(receipt, Dock.Top);
+                root.Children.Add(receipt);
+                win.Height = 640;
+            }
             root.Children.Add(bottom);
             root.Children.Add(list);
             win.Content = root;

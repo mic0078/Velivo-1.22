@@ -178,6 +178,7 @@ namespace Przegladarka
             var group = BuildGroupMenu(tab);
             var sets = BuildTabSetsMenu();
             var find = new MenuItem { Header = L.T("Szukaj w kartach (Ctrl+Shift+A)") }; find.Click += (s, e) => ShowTabSearch();
+            var sendTo = BuildSendTabMenu(tab);
             menu.Opened += (s, e) =>
             {
                 reopen.IsEnabled = _closedTabs.Count > 0; others.IsEnabled = _tabs.Count > 1; right.IsEnabled = _tabs.IndexOf(tab) < _tabs.Count - 1;
@@ -187,7 +188,7 @@ namespace Przegladarka
                 mute.Header = muted ? L.T("Włącz dźwięk karty") : L.T("Wycisz kartę");
                 group.IsEnabled = !tab.Pinned;
             };
-            foreach (var m in new object[] { reload, dup, pin, mute, refresh, new Separator(), group, sets, find, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
+            foreach (var m in new object[] { reload, dup, pin, mute, refresh, sendTo, new Separator(), group, sets, find, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
             return menu;
         }
     }

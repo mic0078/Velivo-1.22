@@ -993,11 +993,29 @@ namespace Przegladarka
 })(" + JsonSerializer.Serialize(user ?? "") + "," + JsonSerializer.Serialize(pass ?? "") + ");";
                 }
 
+                // wpis z linkiem aplikacji Android (android://...@com.firma.app/): strona z pola Nazwa
+                // (np. "maps.app.here.com"), a gdy jej brak - z odwroconej nazwy pakietu, jak robi to KeePassXC
+                static string WebUrlForAndroidEntry(SavedPasswordEntry entry)
+                {
+                    var name = (entry.Name ?? "").Trim();
+                    if (name.Length > 0 && !name.Contains(" ") && name.Contains(".") && Uri.CheckHostName(name.Split('/')[0]) == UriHostNameType.Dns)
+                        return "https://" + name;
+                    var raw = (entry.Url ?? "").Trim();
+                    if (!raw.StartsWith("android://", StringComparison.OrdinalIgnoreCase)) return "";
+                    var pkg = raw.Substring(raw.LastIndexOf('@') + 1).Trim('/');
+                    if (pkg.StartsWith("android://", StringComparison.OrdinalIgnoreCase)) pkg = pkg.Substring(10);
+                    var parts = pkg.Split('.').Where(x => x.Length > 0).Reverse().ToArray();
+                    if (parts.Length < 2) return "";
+                    var host = string.Join(".", parts);
+                    return Uri.CheckHostName(host) == UriHostNameType.Dns ? "https://" + host : "";
+                }
+
                 void OpenPasswordEntryAndFill(SavedPasswordEntry entry)
                 {
                         if (entry == null) return;
                         var url = EnsureUrlScheme((entry.Url ?? "").Trim());
                     if (url.Length == 0) url = EnsureUrlScheme(GetPasswordEntryHost(entry));
+                    if (url.Length == 0) url = WebUrlForAndroidEntry(entry);
                     if (url.Length == 0)
                     {
                         MessageBox.Show(this, Przegladarka.L.T("Ten wpis nie zawiera adresu strony WWW. Zaimportowany link aplikacji Android nie może być otwarty w przeglądarce. Uzupełnij pole URL adresem https://..."), Przegladarka.L.T("Hasła"), MessageBoxButton.OK, MessageBoxImage.Information);

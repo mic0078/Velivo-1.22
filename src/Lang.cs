@@ -896,6 +896,10 @@ namespace Przegladarka
             { "🌅 Nocny", "🌅 Night" },
             { "Natężenie trybu nocnego", "Night mode strength" },
             { "🕶 Otwórz jako prywatną (incognito)", "🕶 Open as private (incognito)" },
+            { "Spokojne rozjaśnienie (1 s)", "Calm fade-in (1 s)" },
+            { "Bardzo spokojne (2 s)", "Very calm (2 s)" },
+            { "Senne (3 s)", "Dreamy (3 s)" },
+            { "Najwolniejsze (4 s)", "Slowest (4 s)" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

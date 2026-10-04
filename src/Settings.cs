@@ -163,7 +163,7 @@ namespace Przegladarka
                         case "language": s.Language = v; break;
                         case "popups": s.BlockThirdPartyPopups = b; break;
                         case "cookieReject": s.AutoRejectCookies = b; break;
-                        case "pageFade": { int pf; if (int.TryParse(v, out pf)) s.PageFade = Math.Max(0, Math.Min(800, pf)); } break;
+                        case "pageFade": { int pf; if (int.TryParse(v, out pf)) s.PageFade = Math.Max(0, Math.Min(4000, pf)); } break;
                         case "nightStrength": { int ns; if (int.TryParse(v, out ns)) s.NightStrength = Math.Max(5, Math.Min(100, ns)); } break;
                         case "uiStyle": s.UiStyle = v == "colorful" ? "colorful" : "modern"; break;
                         case "pageMemory": s.PageMemory = b; break;
@@ -356,7 +356,7 @@ namespace Przegladarka
             root.Children.Add(night);
             root.Children.Add(new TextBlock { Text = L.T("Płynne przejście między stronami:"), Margin = new Thickness(0, 6, 0, 2) });
             var fadeBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
-            foreach (var f in new[] { new { ms = 0, t = L.T("Naturalne (silnik Edge)") }, new { ms = 150, t = L.T("Szybkie rozjaśnienie (0,15 s)") }, new { ms = 300, t = L.T("Delikatne rozjaśnienie (0,3 s)") }, new { ms = 500, t = L.T("Wolne rozjaśnienie (0,5 s)") } })
+            foreach (var f in new[] { new { ms = 0, t = L.T("Naturalne (silnik Edge)") }, new { ms = 150, t = L.T("Szybkie rozjaśnienie (0,15 s)") }, new { ms = 300, t = L.T("Delikatne rozjaśnienie (0,3 s)") }, new { ms = 500, t = L.T("Wolne rozjaśnienie (0,5 s)") }, new { ms = 1000, t = L.T("Spokojne rozjaśnienie (1 s)") }, new { ms = 2000, t = L.T("Bardzo spokojne (2 s)") }, new { ms = 3000, t = L.T("Senne (3 s)") }, new { ms = 4000, t = L.T("Najwolniejsze (4 s)") } })
                 fadeBox.Items.Add(new ComboBoxItem { Content = f.t, Tag = f.ms });
             fadeBox.SelectedItem = fadeBox.Items.Cast<ComboBoxItem>().OrderBy(i => Math.Abs((int)i.Tag - s.PageFade)).First();
             root.Children.Add(fadeBox);

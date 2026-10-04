@@ -890,6 +890,11 @@ namespace Przegladarka
             { "Synchronizuj teraz", "Sync now" },
             { "Zamknij Velivo całkowicie", "Exit Velivo completely" },
             { "Velivo – synchronizacja…", "Velivo – syncing…" },
+            { "Wygląd czytnika", "Reader look" },
+            { "☀ Jasny", "☀ Light" },
+            { "🌙 Ciemny", "🌙 Dark" },
+            { "🌅 Nocny", "🌅 Night" },
+            { "Natężenie trybu nocnego", "Night mode strength" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

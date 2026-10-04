@@ -24,7 +24,10 @@ namespace Przegladarka
         public bool Autofill = true;
         public bool SmartScreen = true;        // ostrzezenia o niebezpiecznych stronach
         public bool UbolLite = true;
-        public bool StayInTray = false;        // po zamknieciu okna zostan w zasobniku (synchronizacja w tle, szybki start)
+        public bool StayInTray = false;
+        public string ReaderTheme = "light";     // czytnik: light / dark / night
+        public int ReaderNight = 40;            // natezenie trybu nocnego czytnika (5-100%)
+        public string ReaderSize = "";          // ostatni rozmiar okna czytnika "szer;wys"        // po zamknieciu okna zostan w zasobniku (synchronizacja w tle, szybki start)
         public bool AudioGuard = true;         // dzwiek nie ginie, gdy program muzyczny zajmie karte
         public string AudioOut = "";           // wybrane glosniki Velivo ("" = domyslne Windows)           // wbudowany uBlock Origin Lite
         public bool AntiPhishing = true;       // wykrywanie stron-podrobek (offline)
@@ -136,6 +139,9 @@ namespace Przegladarka
                         case "ubol": s.UbolLite = b; break;
                         case "audioGuard": s.AudioGuard = b; break;
                         case "tray": s.StayInTray = b; break;
+                        case "readerTheme": if (v == "light" || v == "dark" || v == "night") s.ReaderTheme = v; break;
+                        case "readerNight": { int rn; if (int.TryParse(v, out rn)) s.ReaderNight = Math.Max(5, Math.Min(100, rn)); } break;
+                        case "readerSize": s.ReaderSize = v; break;
                         case "audioOut": s.AudioOut = v; break;
                         case "antiPhishing": s.AntiPhishing = b; break;
                         case "httpsFirst": s.HttpsFirst = b; break;
@@ -228,7 +234,7 @@ namespace Przegladarka
             {
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
-                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload),
+                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload),
                 "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),

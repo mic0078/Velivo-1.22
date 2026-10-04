@@ -180,8 +180,9 @@ namespace Przegladarka
                     url = System.Text.RegularExpressions.Regex.Replace(url, @"([?&])t=[^&]*&?", "$1").TrimEnd('&', '?');
                     url += (url.Contains("?") ? "&" : "?") + "t=" + (int)now + "s";
                 }
+                // glowne okno zamkniete - najpierw uruchamiamy Velivo od nowa z ta strona, dopiero potem zamykamy okienko
+                if (_mainClosed) { OpenFromOutside(new[] { url }); win.Close(); return; }
                 win.Close();
-                if (_mainClosed) { OpenFromOutside(new[] { url }); return; }   // glowne okno zamkniete - Velivo startuje od nowa z ta strona
                 AddTab(url, isPrivate);
                 if (now > 5) _tabs[_tabs.Count - 1].PendingVideoTime = now;
                 if (WindowState == WindowState.Minimized) WindowState = WindowState.Maximized;

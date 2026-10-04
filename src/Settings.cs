@@ -468,6 +468,11 @@ namespace Przegladarka
             passTools.Children.Add(passImport);
             passTools.Children.Add(passExport);
             root.Children.Add(passTools);
+            var browserImport = SmallButton(L.T("Importuj z Chrome/Edge/Brave…"), null);
+            browserImport.HorizontalAlignment = HorizontalAlignment.Left;
+            browserImport.Margin = new Thickness(0, 6, 0, 0);
+            browserImport.Click += (a, b) => ShowBrowserImport(win);
+            root.Children.Add(browserImport);
 
             root.Children.Add(Header(L.T("Blokowanie reklam")));
             var full = Check(L.T("Pełne listy filtrów (EasyList, EasyPrivacy, polska lista) – ok. 97 tys. reguł"), L.T("Listy pobierają się w tle i odświeżają co 4 dni."), s.FullFilterLists);

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,6 +19,26 @@ namespace Przegladarka
     // Dziala niezaleznie od kart - zamkniecie karty nie zatrzymuje filmu; zamkniecie okienka - tak.
     public partial class MainWindow
     {
+        // Przezroczystosc calego okienka (razem z filmem) - przez Windows (warstwa okna), bo zwykla
+        // przezroczystosc WPF nie dziala z wbudowana przegladarka.
+        [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+        [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+        [DllImport("user32.dll")] static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+        const int GWL_EXSTYLE = -20, WS_EX_LAYERED = 0x80000;
+        const uint LWA_ALPHA = 0x2;
+
+        static void SetWindowAlpha(Window w, int percent)
+        {
+            try
+            {
+                var h = new WindowInteropHelper(w).Handle;
+                if (h == IntPtr.Zero) return;
+                SetWindowLong(h, GWL_EXSTYLE, GetWindowLong(h, GWL_EXSTYLE) | WS_EX_LAYERED);
+                SetLayeredWindowAttributes(h, 0, (byte)Math.Round(Math.Max(15, Math.Min(100, percent)) * 2.55), LWA_ALPHA);
+            }
+            catch (Exception) { }
+        }
+
         sealed class FloatRequest { public string page { get; set; } public double time { get; set; } public string title { get; set; } }
 
         // z karty: biezacy film (strona + miejsce), film w karcie pauzujemy
@@ -59,6 +81,7 @@ namespace Przegladarka
   document.addEventListener('pause', function(e){ if(e.target && e.target.tagName==='VIDEO' && e.isTrusted && document.hasFocus()) e.target.__velivoUserPaused=true; }, true);
   document.addEventListener('play', function(e){ if(e.target && e.target.tagName==='VIDEO') e.target.__velivoUserPaused=false; }, true);
   fix(); setInterval(fix, 1000);
+  if (!window.__velivoWheel && window.chrome && chrome.webview) { window.__velivoWheel = 1; addEventListener('wheel', function(e){ e.preventDefault(); e.stopPropagation(); chrome.webview.postMessage('velivo-float-wheel:' + (e.deltaY < 0 ? 1 : -1)); }, { passive: false, capture: true }); }
   document.addEventListener('click', function(e){ var v=big(); if(!v) return; e.preventDefault(); e.stopPropagation(); if(v.paused){ v.play(); } else { v.pause(); } }, true);
 })";
 
@@ -106,6 +129,28 @@ namespace Przegladarka
                 win.Top = SystemParameters.WorkArea.Bottom - win.Height - 24;
             }
             close.Click += (s, e) => win.Close();
+            // kolko myszy na gornym pasku = przezroczystosc (15-100%)
+            int alpha = Math.Max(15, Math.Min(100, _settings.FloatOpacity));
+            win.SourceInitialized += (s, e) => SetWindowAlpha(win, alpha);
+            bar.ToolTip = L.T("Przeciągnij, aby przesunąć · kółko myszy: przezroczystość");
+            System.Windows.Threading.DispatcherTimer label = null;
+            Action<int> step = null;
+            bar.PreviewMouseWheel += (s, e) => { e.Handled = true; step(e.Delta > 0 ? 1 : -1); };
+            step = dir =>
+            {
+                alpha = Math.Max(15, Math.Min(100, alpha + (dir > 0 ? 10 : -10)));
+                SetWindowAlpha(win, alpha);
+                _settings.FloatOpacity = alpha;
+                var keep = titleText.Text;
+                if (label == null)
+                {
+                    label = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+                    label.Tick += (a, b2) => { label.Stop(); titleText.Text = (string)titleText.Tag ?? titleText.Text; };
+                }
+                if (!label.IsEnabled) titleText.Tag = keep;
+                titleText.Text = (L.En ? "Visibility " : "Widoczność ") + alpha + "%";
+                label.Stop(); label.Start();
+            };
             back.Click += async (s, e) =>
             {
                 double now = 0;
@@ -128,10 +173,10 @@ namespace Przegladarka
                 try { view.Dispose(); } catch (Exception) { }
             };
             win.Show();
-            _ = InitFloatingView(view, page, time, isPrivate, titleText);
+            _ = InitFloatingView(view, page, time, isPrivate, titleText, d => step(d));
         }
 
-        async Task InitFloatingView(WebView2 view, string page, double time, bool isPrivate, TextBlock titleText)
+        async Task InitFloatingView(WebView2 view, string page, double time, bool isPrivate, TextBlock titleText, Action<int> wheel)
         {
             try
             {
@@ -143,6 +188,13 @@ namespace Przegladarka
                 core.Settings.AreDefaultContextMenusEnabled = false;
                 core.NewWindowRequested += (s, e) => e.Handled = true;   // reklamy i linki z okienka nie otwieraja okien
                 core.DocumentTitleChanged += (s, e) => titleText.Text = core.DocumentTitle;
+                core.Settings.IsWebMessageEnabled = true;
+                // kolko myszy nad filmem tez zmienia przezroczystosc
+                core.WebMessageReceived += (s, e) =>
+                {
+                    string m = null; try { m = e.TryGetWebMessageAsString(); } catch (Exception) { }
+                    if (m == "velivo-float-wheel:1") wheel(1); else if (m == "velivo-float-wheel:-1") wheel(-1);
+                };
                 core.NavigationCompleted += async (s, e) =>
                 {
                     try { await core.ExecuteScriptAsync(FloatPageScript + "(" + time.ToString(CultureInfo.InvariantCulture) + ")"); } catch (Exception) { }

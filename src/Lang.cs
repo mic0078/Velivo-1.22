@@ -810,6 +810,7 @@ namespace Przegladarka
             { "Film na wierzchu", "Video on top" },
             { "Zamknij film", "Close video" },
             { "Wróć do karty (otwórz stronę w Velivo)", "Back to a tab (open the page in Velivo)" },
+            { "Przeciągnij, aby przesunąć · kółko myszy: przezroczystość", "Drag to move · mouse wheel: transparency" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

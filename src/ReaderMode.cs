@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -25,10 +25,30 @@ namespace Przegladarka
     }
     return best || document.body;
   };
+  // smieci stron: menu, reklamy, 'czytaj tez', polecane, komentarze, newslettery, podpisy zdjec, paski udostepniania
+  const JUNK_SEL = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, [aria-hidden=true], [hidden], ' +
+    '.ad, .ads, .advert, .share, .social, .related, .comments, [class*=related i], [class*=recommend i], [class*=polecam i], [class*=promo i], ' +
+    '[class*=newsletter i], [class*=cookie i], [class*=consent i], [class*=comment i], [id*=comment i], [class*=sponsor i], [class*=advert i], ' +
+    '[class*=reklam i], [class*=breadcrumb i], [class*=share i], [class*=social i], [class*=paywall i], [class*=subscribe i], [class*=author-box i], ' +
+    '[class*=tags i], [class*=see-also i], [class*=read-more i], [class*=readmore i], [id*=taboola i], [class*=taboola i], [class*=outbrain i]';
+  const JUNK_TXT = /^(czytaj (też|także|również|więcej|dalej)|zobacz (też|także|również|wideo|więcej)|polecamy|polecane|reklama|artykuł sponsorowany|materiał (sponsorowany|partnera)|advertisement|sponsored|tagi:|tags:|źródło:|fot\.|foto:|zdjęcie:|autor zdjęcia|udostępnij|share|subskrybuj|zapisz się|newsletter|komentarze|dodaj komentarz|dołącz do|pobierz aplikację|obserwuj nas|kup teraz|więcej na ten temat|read more|related|see also|follow us)/i;
+  const junk = (el, root) => {
+    for (let e = el; e && e !== root; e = e.parentElement) if (e.matches && e.matches(JUNK_SEL)) return true;
+    const t = (el.innerText || '').trim();
+    if (JUNK_TXT.test(t)) return true;
+    // blok zlozony glownie z linkow = nawigacja albo lista 'polecane'
+    let links = 0; for (const a of el.querySelectorAll('a')) links += (a.innerText || '').length;
+    if (t.length > 0 && t.length < 300 && links / t.length > 0.6) return true;
+    if (t.length < 60 && t === t.toUpperCase() && /[A-ZĄĆĘŁŃÓŚŹŻ]{4}/.test(t)) return true;   // krzyczace etykiety (ZOBACZ, REKLAMA)
+    return false;
+  };
+  const visible = el => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
   const root = mainRoot();
+  const seen = new Set();
   const blocks = [...root.querySelectorAll('h1,h2,h3,p,li,blockquote')]
+    .filter(x => !x.querySelector('p,li,h1,h2,h3,blockquote') && visible(x) && !junk(x, root))
     .map(x => x.innerText.replace(/\s+/g, ' ').trim())
-    .filter(x => x.length > 40);
+    .filter(x => x.length > 40 && !seen.has(x) && seen.add(x));
   const text = blocks.join('\n\n');
   return JSON.stringify({ title: document.title || '', url: location.href, text });
 })();";
@@ -59,7 +79,7 @@ namespace Przegladarka
                         return;
                     }
 
-                    var summary = LocalSummary(text, 5);
+                    var summary = LocalSummary(text, 5, title);
 
                     var win = new Window
                     {
@@ -167,50 +187,56 @@ namespace Przegladarka
             return "<!doctype html><html lang='pl'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'/>" +
                    "<title>Tryb czytania</title><style>body{font-family:Georgia,serif;line-height:1.72;max-width:900px;margin:0 auto;padding:24px;background:#f8fafc;color:#111827}h1{font-size:34px;margin:0 0 8px}small{color:#6b7280}#velivo-summary{background:#ecfeff;border:1px solid #bae6fd;border-left:5px solid #0891b2;padding:14px;border-radius:10px;margin:14px 0 20px;font-size:18px}article{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}p{margin:0 0 14px;font-size:21px}</style></head><body>" +
                    "<h1>" + T(title) + "</h1><small>" + T(url) + "</small>" +
-                   "<div id='velivo-summary'><strong>Podsumowanie:</strong><br/>" + sum + "</div>" +
+                   "<div id='velivo-summary'><strong>" + T(L.T("Najważniejsze zdania (streszczenie lokalne, bez AI):")) + "</strong><br/>" + sum + "</div>" +
                    "<article><p>" + body + "</p></article></body></html>";
         }
 
-        static string LocalSummary(string text, int maxSentences)
+        // Streszczenie LOKALNE (bez chmury i bez AI): wybiera najwazniejsze zdania artykulu.
+        // Waga zdania: czeste slowa kluczowe tekstu + slowa z tytulu + premia za poczatek artykulu (tam zwykle jest sedno).
+        static string LocalSummary(string text, int maxSentences, string title = null)
         {
-            var sentences = Regex.Split(text, @"(?<=[\.!\?…])\s+")
+            var sentences = Regex.Split(text, @"(?<=[\.!\?…])\s+|\n+")
                 .Select(s => s.Trim())
-                .Where(s => s.Length > 40)
-                .Take(120)
+                .Where(s => s.Length > 50 && s.Length < 450 && !s.EndsWith("?"))
+                .Take(200)
                 .ToList();
             if (sentences.Count == 0) return L.T("Brak danych do streszczenia.");
 
-            var stop = new HashSet<string>(new[]
-            {
-                "i","oraz","a","w","z","na","do","o","że","to","ten","ta","to","się","jest","są","jak","dla","po","od","przez","nie","tak","lub","ale"
-            }, StringComparer.OrdinalIgnoreCase);
+            var stop = new HashSet<string>(("i oraz a w z na do o że to ten ta te tego tej tym się jest są był była było były być jak dla po od przez nie tak lub ale " +
+                "czy też także jeszcze już tylko może można który która które którzy których jego jej ich nim nią tu tam gdy kiedy gdzie co kto " +
+                "jako przy pod nad bez przed między albo więc jednak bardzo który mają ma mieć będzie będą został została zostały około roku lat " +
+                "the and of to in is are was were for on with that this it as by at from be or an have has not but they their which will can").Split(' '),
+                StringComparer.OrdinalIgnoreCase);
+            Func<string, IEnumerable<string>> words = s => Regex.Matches(s.ToLowerInvariant(), "[a-ząćęłńóśźż0-9]{4,}").Cast<Match>()
+                .Select(m => m.Value.Length > 6 ? m.Value.Substring(0, 6) : m.Value)   // prosty rdzen: "rządu", "rządzie" -> "rządu"/"rządz"
+                .Where(w => !stop.Contains(w));
 
-            var freq = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var s in sentences)
-            {
-                foreach (Match m in Regex.Matches(s.ToLowerInvariant(), "[a-ząćęłńóśźż0-9]{3,}"))
-                {
-                    var w = m.Value;
-                    if (stop.Contains(w)) continue;
-                    int n;
-                    freq[w] = freq.TryGetValue(w, out n) ? n + 1 : 1;
-                }
-            }
+            var freq = new Dictionary<string, int>();
+            foreach (var s in sentences) foreach (var w in words(s).Distinct()) { int n; freq[w] = freq.TryGetValue(w, out n) ? n + 1 : 1; }
+            var titleWords = new HashSet<string>(words(title ?? ""));
 
             var scored = new List<(int Index, string Text, double Score)>();
             for (int i = 0; i < sentences.Count; i++)
             {
-                double sc = 0;
-                foreach (Match m in Regex.Matches(sentences[i].ToLowerInvariant(), "[a-ząćęłńóśźż0-9]{3,}"))
-                {
-                    int n;
-                    if (freq.TryGetValue(m.Value, out n)) sc += n;
-                }
-                scored.Add((i, sentences[i], sc / Math.Max(1, sentences[i].Length / 80.0)));
+                var ws = words(sentences[i]).ToList();
+                if (ws.Count == 0) continue;
+                double sc = ws.Distinct().Sum(w => { int n; return freq.TryGetValue(w, out n) && n > 1 ? Math.Log(1 + n) : 0; });
+                sc += ws.Distinct().Count(w => titleWords.Contains(w)) * 2.0;
+                sc /= Math.Sqrt(ws.Count);
+                if (i < 3) sc *= 1.35;   // lead artykulu
+                scored.Add((i, sentences[i], sc));
             }
 
-            var best = scored.OrderByDescending(x => x.Score).Take(Math.Min(maxSentences, scored.Count)).OrderBy(x => x.Index).ToList();
-            return string.Join("\n", best.Select(x => "• " + x.Text));
+            var best = new List<(int Index, string Text, double Score)>();
+            foreach (var c in scored.OrderByDescending(x => x.Score))
+            {
+                if (best.Count >= maxSentences) break;
+                // bez powtorzen: pomijamy zdanie bardzo podobne do juz wybranego
+                var cw = new HashSet<string>(words(c.Text));
+                if (best.Any(b => { var bw = new HashSet<string>(words(b.Text)); return cw.Count > 0 && cw.Count(w => bw.Contains(w)) > cw.Count * 0.6; })) continue;
+                best.Add(c);
+            }
+            return string.Join("\n", best.OrderBy(x => x.Index).Select(x => "• " + x.Text));
         }
     }
 }

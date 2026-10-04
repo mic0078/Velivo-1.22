@@ -608,6 +608,30 @@ namespace Przegladarka
                     if (pageTab != null && pageTab.View.CoreWebView2 != null)
                         await InstallActiveTabBridge(core, pageTab);
                     core.DocumentTitleChanged += (a, b) => { if (!string.IsNullOrEmpty(core.DocumentTitle)) win.Title = core.DocumentTitle; };
+                    // jak w Chrome: okienko dopasowane do zawartosci dodatku (bez pustego miejsca i bez paska przewijania)
+                    core.NavigationCompleted += async (a, b) =>
+                    {
+                        foreach (var delay in new[] { 0, 250, 800 })
+                        {
+                            try
+                            {
+                                if (delay > 0) await System.Threading.Tasks.Task.Delay(delay);
+                                if (view.CoreWebView2 == null) return;
+                                var r = await core.ExecuteScriptAsync("(function(){var e=document.documentElement,b=document.body;if(!b)return '';e.style.width='max-content';e.style.overflowX='hidden';b.style.margin=getComputedStyle(b).margin;var w=Math.ceil(Math.max(e.scrollWidth,b.scrollWidth,e.getBoundingClientRect().width));var h=Math.ceil(Math.max(e.scrollHeight,b.scrollHeight));return w+'x'+h;})()");
+                                var t = System.Text.Json.JsonSerializer.Deserialize<string>(r) ?? "";
+                                var parts = t.Split('x');
+                                double w, h;
+                                if (parts.Length != 2 || !double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out w) || !double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out h)) continue;
+                                var z = view.ZoomFactor;
+                                w = Math.Max(160, Math.Min(800, w)) * z;
+                                h = Math.Max(60, Math.Min(600, h)) * z;
+                                view.Width = w; view.Height = h;
+                                win.SizeToContent = SizeToContent.WidthAndHeight;
+                                win.Left = Math.Max(0, pt.X - win.ActualWidth);
+                            }
+                            catch (Exception) { }
+                        }
+                    };
                     core.Navigate(ExtUrl(info, info.Popup));
                 }
                 catch (Exception ex)

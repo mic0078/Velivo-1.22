@@ -10,7 +10,13 @@ Dane między Twoimi komputerami przenosi synchronizacja w sieci lokalnej (LAN), 
 
 **[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (6,7 MB) · **[📖 Pełna instrukcja obsługi](INSTRUKCJA.md)**
 
+![Velivo – okno przeglądarki, w prawym dolnym rogu gra okienko Film na wierzchu](docs/zrzuty/velivo-okno.png)
+
 ## Czego nie znajdziesz w innych przeglądarkach
+
+| ![](docs/zrzuty/film-na-wierzchu.png) | ![](docs/zrzuty/film-maly-w-rogu.png) | ![](docs/zrzuty/film-przezroczysty.png) |
+| --- | --- | --- |
+| ▣ Film na wierzchu | zmniejszony w rogu | przezroczysty nad pulpitem |
 
 **Velivo wykracza poza granice obecnych przeglądarek** – także w ochronie: wykrywa fałszywe strony banków i sklepów bez internetu, ukrywa okno przed nagrywaniem ekranu przy płatnościach, a hasła podaje wyłącznie prawdziwym stronom.
 

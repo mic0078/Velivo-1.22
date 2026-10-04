@@ -12,7 +12,13 @@ The interface is available in **Polish and English**. The installer asks for the
 
 **[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (6.7 MB) · **[📖 Complete user manual](MANUAL.en.md)**
 
+![Velivo – the browser window, with the Video on top window playing in the bottom-right corner](docs/zrzuty/velivo-okno.png)
+
 ## What no other browser has
+
+| ![](docs/zrzuty/film-na-wierzchu.png) | ![](docs/zrzuty/film-maly-w-rogu.png) | ![](docs/zrzuty/film-przezroczysty.png) |
+| --- | --- | --- |
+| ▣ Video on top | shrunk in a corner | transparent over the desktop |
 
 **Velivo goes beyond the limits of today's browsers** – in protection too: it detects fake bank and shop sites offline, hides the window from screen recording during payments, and gives passwords only to the real sites.
 

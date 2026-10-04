@@ -19,6 +19,19 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: uBlock Origin Lite (najnowsze wydanie, GPL-3.0)
+        shell: pwsh
+        run: |
+          $rel = Invoke-RestMethod -Headers @{ 'User-Agent' = 'velivo-ci'; Authorization = "Bearer ${{ github.token }}" } https://api.github.com/repos/uBlockOrigin/uBOL-home/releases/latest
+          $asset = $rel.assets | Where-Object { $_.name -match 'chromium' -and $_.name -match '\.zip$' } | Select-Object -First 1
+          if (-not $asset) { Write-Warning "Brak paczki uBOL dla Chromium - instalator bez uBOL"; exit 0 }
+          Invoke-WebRequest $asset.browser_download_url -OutFile ubol.zip
+          Remove-Item -Recurse -Force src\UbolExtension -ErrorAction SilentlyContinue
+          Expand-Archive ubol.zip -DestinationPath ubol-tmp -Force
+          $m = Get-ChildItem ubol-tmp -Recurse -Filter manifest.json | Select-Object -First 1
+          Move-Item $m.Directory.FullName src\UbolExtension
+          Write-Host "uBOL $($rel.tag_name) dolaczony"
+
       - name: Kompilacja programu
         shell: pwsh
         run: |

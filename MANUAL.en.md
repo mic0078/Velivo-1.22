@@ -117,6 +117,8 @@ No administrator rights are needed. The program goes to `%LOCALAPPDATA%\Programs
 
 ## 4. Getting started – the toolbar
 
+![The Velivo window: tabs, toolbar, shield with counter, and the Video on top window in the corner](docs/zrzuty/velivo-okno.png)
+
 Velivo starts maximized. From the left:
 
 | Item | What it does |
@@ -246,6 +248,12 @@ Hover over a video and three buttons appear in its top right corner: **⬇ Downl
 
 ### ▣ Video on top (Velivo only)
 
+![Buttons over a video: Download, On top, Picture in picture](docs/zrzuty/przyciski-filmu.png)
+
+| The video window | Shrunk in a screen corner | Almost transparent over the desktop |
+| --- | --- | --- |
+| ![Video on top window](docs/zrzuty/film-na-wierzchu.png) | ![Small window by the clock](docs/zrzuty/film-maly-w-rogu.png) | ![Transparent window – desktop icons show through](docs/zrzuty/film-przezroczysty.png) |
+
 1. Click **▣ On top**. The video in the tab pauses and continues in a small window from the same moment.
 2. Using the window:
    - **move** it by the dark bar at the top;
@@ -258,7 +266,7 @@ Hover over a video and three buttons appear in its top right corner: **⬇ Downl
 3. The window **keeps playing after you close the tab, and even the whole of Velivo.** Clicking the Velivo icon then starts the browser again.
 4. Position, size, transparency and pin are remembered.
 
-**Clean video view.** The window shows **only the video**, filling the whole window – none of the rest of the page: no menus, comments, suggestions, pop-ups or banners. On YouTube it feels like a separate player. Velivo's ad blocking works as in a tab.
+**Clean video view.** The window shows **only the video**, filling the whole window – none of the rest of the page: no menus, comments, suggestions, pop-ups or banners. On YouTube it feels like a separate player. Ad and tracker blocking works as in a tab, and YouTube video ads are skipped (clicking "Skip" or fast-forwarding the muted ad).
 
 **What it's great for:**
 - music or a podcast in a small, see-through window in a corner while you work in other programs;
@@ -510,6 +518,15 @@ The connection status is in Settings → **LAN diagnostics panel…**.
 - **Translation:** the whole page or a selection (Google Translate).
 - **Detect media to download** on a page (Velivo tools).
 
+### 🛡 uBlock Origin Lite (built in)
+
+- Included in the installer and **enabled automatically** – no need to add it.
+- Settings → "Security and downloads": a switch and a **"uBlock Origin Lite settings…"** button (filtering mode, lists, site exceptions).
+- What it blocks adds to the **shield counter** and shows on its list. The shield tooltip shows "of which uBlock Origin Lite: N".
+- **Updates itself** weekly from the developers' official GitHub. When the version is replaced, uBOL settings return to defaults.
+- GPL-3.0 licence, details in `THIRD-PARTY.md`. If uBOL is already added from the store, Velivo keeps it (no duplicates).
+- Add-on pop-ups fit their content, like in Chrome.
+
 ### Cache on a RAM disk
 
 If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own tool), Velivo can keep its page cache there. **You don't need any external tools**, symlinks or moved folders, as you would with Chrome. Just pick the folder in Velivo's settings.
@@ -550,6 +567,14 @@ If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own too
 | Ctrl + mouse wheel | Zoom |
 
 You can also do each of these with the mouse alone: a button, a gesture or the right-click menu.
+
+---
+
+### The Settings window
+
+![Settings, part 1: import, search, privacy, look, uBlock Origin Lite and security](docs/zrzuty/ustawienia-1.png)
+
+![Settings, part 2: junk on a RAM disk, data, profiles and sync](docs/zrzuty/ustawienia-2.png)
 
 ---
 

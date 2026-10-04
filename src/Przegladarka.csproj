@@ -20,6 +20,10 @@
   <ItemGroup>
     <Resource Include="app.ico" />
     <None Include="filters.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="UbolExtension\**\*" Condition="Exists('UbolExtension\manifest.json')">
+      <Link>Dodatki\uBlock Origin Lite\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="QuickAccessExtension\**\*">
       <Link>Dodatki\Szybki Dostęp\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

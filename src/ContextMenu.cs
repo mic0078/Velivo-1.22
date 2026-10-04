@@ -137,6 +137,12 @@ namespace Przegladarka
                         pip.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartPictureInPicture(tabForBlock));
                         add(pip);
                     }
+                    var tabForMobile = _current;
+                    bool mobileNow = IsMobileSite(pageUrl);
+                    var mob = _env.CreateContextMenuItem(MenuText(mobileNow ? L.T("🖥 Wróć do wersji komputerowej tej strony") : L.T("📱 Pokaż wersję telefonu tej strony")),
+                        GlyphIcon(mobileNow ? "\uE7F4" : "\uE8EA"), CoreWebView2ContextMenuItemKind.Command);
+                    mob.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SetMobileSite(tabForMobile, pageUrl, !mobileNow));
+                    add(mob);
                     separator();
                     var reader = _env.CreateContextMenuItem(MenuText(L.T("Tryb czytania i streszczenie")), GlyphIcon("\uE736"), CoreWebView2ContextMenuItemKind.Command);
                     reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenReaderMode);

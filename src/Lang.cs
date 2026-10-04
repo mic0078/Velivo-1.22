@@ -784,6 +784,8 @@ namespace Przegladarka
             { "Nowoczesny (spokojny, jak Windows 11)", "Modern (calm, like Windows 11)" },
             { "Kolorowy (kolorowe przyciski)", "Colorful (colored buttons)" },
             { "Najważniejsze zdania (streszczenie lokalne, bez AI):", "Key sentences (local summary, no AI):" },
+            { "🖥 Wróć do wersji komputerowej tej strony", "🖥 Back to the desktop version of this site" },
+            { "📱 Pokaż wersję telefonu tej strony", "📱 Show the phone version of this site" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

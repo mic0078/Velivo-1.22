@@ -42,6 +42,8 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Pinned;
+            public bool Mobile;          // strona w wersji telefonu
+            public string DesktopUA;
             public readonly Dictionary<string, int> ThirdParties = new Dictionary<string, int>();   // paragon prywatnosci
             public readonly Dictionary<string, int> Fingerprint = new Dictionary<string, int>();
             public readonly List<string> Pressure = new List<string>();   // sztuczki presji w sklepie
@@ -412,6 +414,7 @@ namespace Przegladarka
                     return;
 
                 RecordThirdParty(tab, requestUri);   // paragon prywatnosci - takze proby zablokowane
+                ApplyMobileHeaders(tab, e);          // strona w wersji telefonu
                 if (ApplyPrivacyRulesToRequest(e, tab)) return;
                 // zaufana domena (strona albo zasob) - nic nie blokujemy
                 if (IsTrustedUrl(e.Request.Uri) || IsTrustedUrl(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null))
@@ -449,6 +452,7 @@ namespace Przegladarka
                 core.Settings.IsWebMessageEnabled = true;   // zmiana dziala dopiero od nastepnej nawigacji - wiec stale wlaczone; odbiorca sprawdza nadawce (IsQuickAccessUrl)
                 core.Settings.IsReputationCheckingRequired = _settings.SmartScreen && ShouldUseReputationCheck(e.Uri) && !IsTrustedUrl(e.Uri);
                 if (tab == _current) UpdateTrackingLevel(e.Uri);
+                ApplyMobileMode(tab, core, e.Uri);
                 // nowa karta przegladarki (np. chrome.tabs.create bez adresu) -> strona nowej karty z dodatku
                 if (IsInternalNewTabUrl(e.Uri))
                 {

@@ -37,6 +37,15 @@ namespace Przegladarka
             tab.SoundBtn.ToolTip = muted ? L.T("Włącz dźwięk karty") : L.T("Wycisz kartę");
         }
 
+        // Windows: urzadzenie wyjsciowe dla kazdej aplikacji osobno (Mikser glosnosci). Przegladarka nie moze sama
+        // wybrac glosnikow - tu ustawiasz Velivo / Microsoft Edge WebView2 na stale na wybrane glosniki.
+        void OpenAppAudioSettings()
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:apps-volume") { UseShellExecute = true }); }
+            catch (Exception) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("sndvol.exe") { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } }
+            ShowToast(L.T("Przy „Velivo” lub „Microsoft Edge WebView2” wybierz swoje głośniki zamiast „Domyślne” – Windows zapamięta to na stałe."), null);
+        }
+
         void ToggleTabMute(BrowserTab tab)
         {
             var core = tab.View.CoreWebView2;

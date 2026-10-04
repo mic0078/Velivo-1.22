@@ -181,7 +181,9 @@ namespace Przegladarka
         static string ProtectionAllowFile { get { return Path.Combine(DataDir, "ochrona-dozwolone.txt"); } }
         HashSet<string> _protectionAllowed;
         readonly HashSet<string> _httpAllowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        readonly HashSet<string> _httpsTried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        readonly HashSet<string> _httpsTried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // proba https w toku
+        readonly Dictionary<ulong, string> _httpsNav = new Dictionary<ulong, string>();               // id nawigacji -> host
+        readonly Dictionary<string, string> _httpOriginal = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // host -> pierwotny adres http
 
         HashSet<string> ProtectionAllowed
         {
@@ -228,10 +230,20 @@ namespace Przegladarka
                     }
 
                     // najpierw HTTPS
+                    if (_settings.HttpsFirst && u.Scheme == Uri.UriSchemeHttps && _httpsTried.Contains(host)) _httpsNav[e.NavigationId] = host;
                     if (_settings.HttpsFirst && u.Scheme == Uri.UriSchemeHttp && !_httpAllowed.Contains(host))
                     {
                         e.Cancel = true;
+                        // https przekierowuje z powrotem na http - strona nie ma szyfrowania (bez petli)
+                        if (_httpsTried.Contains(host) && e.IsRedirected)
+                        {
+                            _httpsTried.Remove(host);
+                            var plain = e.Uri;
+                            Dispatcher.BeginInvoke(new Action(() => AskOpenWithoutHttps(core, host, plain)));
+                            return;
+                        }
                         _httpsTried.Add(host);
+                        _httpOriginal[host] = e.Uri;
                         var b = new UriBuilder(u) { Scheme = Uri.UriSchemeHttps, Port = u.IsDefaultPort ? -1 : u.Port };
                         var https = b.Uri.ToString();
                         Dispatcher.BeginInvoke(new Action(() => { try { core.Navigate(https); } catch (Exception ex) { App.LogError(ex); } }));
@@ -243,21 +255,30 @@ namespace Przegladarka
             {
                 try
                 {
+                    // tylko nasza proba https (po id nawigacji) - nie anulowane przejscia ani inne strony
+                    if (!_httpsNav.TryGetValue(e.NavigationId, out var host)) return;
+                    _httpsNav.Remove(e.NavigationId);
+                    _httpsTried.Remove(host);
                     if (e.IsSuccess || _settings == null || !_settings.HttpsFirst) return;
-                    if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return;
-                    var host = u.Host.ToLowerInvariant();
-                    if (!_httpsTried.Remove(host)) return;
-                    // strona nie ma szyfrowania - tylko za zgoda
-                    if (MessageBox.Show(this,
-                            L.T("Ta strona nie obsługuje szyfrowania (HTTPS):") + "\n\n" + host + "\n\n" +
-                            L.T("Wszystko, co tu wpiszesz, może zostać podejrzane po drodze. Nie wpisuj haseł, danych karty ani adresu.") + "\n\n" + L.T("Otworzyć mimo to?"),
-                            L.T("Brak szyfrowania"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-                    _httpAllowed.Add(host);
-                    var b = new UriBuilder(u) { Scheme = Uri.UriSchemeHttp, Port = -1 };
-                    core.Navigate(b.Uri.ToString());
+                    // brak internetu albo strona nie istnieje - to nie jest brak szyfrowania
+                    if (e.WebErrorStatus == CoreWebView2WebErrorStatus.Disconnected || e.WebErrorStatus == CoreWebView2WebErrorStatus.HostNameNotResolved ||
+                        e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled || e.WebErrorStatus == CoreWebView2WebErrorStatus.ConnectionAborted) return;
+                    if (!_httpOriginal.TryGetValue(host, out var plain)) plain = "http://" + host + "/";
+                    Dispatcher.BeginInvoke(new Action(() => AskOpenWithoutHttps(core, host, plain)));
                 }
                 catch (Exception ex) { App.LogError(ex); }
             };
+        }
+
+        // strona nie ma szyfrowania - otwieramy tylko za zgoda (okno poza zdarzeniem silnika)
+        void AskOpenWithoutHttps(CoreWebView2 core, string host, string httpUrl)
+        {
+            if (MessageBox.Show(this,
+                    L.T("Ta strona nie obsługuje szyfrowania (HTTPS):") + "\n\n" + host + "\n\n" +
+                    L.T("Wszystko, co tu wpiszesz, może zostać podejrzane po drodze. Nie wpisuj haseł, danych karty ani adresu.") + "\n\n" + L.T("Otworzyć mimo to?"),
+                    L.T("Brak szyfrowania"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            _httpAllowed.Add(host);
+            try { core.Navigate(httpUrl); } catch (Exception ex) { App.LogError(ex); }
         }
 
         void WarnLookalike(CoreWebView2 core, string host, string fake, string target)

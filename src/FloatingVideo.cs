@@ -62,7 +62,7 @@ namespace Przegladarka
                 var r = JsonSerializer.Deserialize<FloatRequest>(json);
                 if (r == null) return;
                 var core = tab.View.CoreWebView2;
-                if (core != null) _ = core.ExecuteScriptAsync("(function(){var v=Array.prototype.slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];if(v)try{v.pause();}catch(e){}})()");
+                if (core != null) _ = core.ExecuteScriptAsync("(function(){var v=Array.prototype.slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];if(v)try{v.__velivoUserPaused=true;v.pause();}catch(e){}})()");
                 ShowFloatingVideo(r.page, r.time, r.title, tab.Private);
             }
             catch (Exception ex) { App.LogError(ex); }
@@ -77,12 +77,46 @@ namespace Przegladarka
   var seeked=false;
   function fix(){ var v=big(); if(!v) return; if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
     if(!seeked && v.readyState>0){ seeked=true; if(t>3 && Math.abs(v.currentTime-t)>3) try{v.currentTime=t;}catch(e){} }
-    if(v.paused && !v.__velivoUserPaused) v.play().catch(function(){}); }
-  document.addEventListener('pause', function(e){ if(e.target && e.target.tagName==='VIDEO' && e.isTrusted && document.hasFocus()) e.target.__velivoUserPaused=true; }, true);
+    if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }
+  // YouTube ma wlasny odtwarzacz - wznawiamy przez niego, inaczej po bledzie dzwieku zostaje zawieszony
+  function yt(){ var mp=document.getElementById('movie_player'); return mp && typeof mp.playVideo==='function' ? mp : null; }
+  function playIt(v){ var mp=yt(); try{ if(mp){ mp.playVideo(); return; } }catch(e){} v.play().catch(function(){}); }
+  // automatyczne wznawianie z hamulcem: najwyzej raz na 2 s i 6 razy na minute - gdy karta dzwiekowa jest zajeta,
+  // nie walczymy z nia w petli (to powodowalo zacinanie); spokojnie probujemy dalej co 10 s
+  var tries=[];
+  function autoPlay(v){ var now=Date.now(); tries=tries.filter(function(x){return now-x<60000;});
+    if(tries.length && now-tries[tries.length-1]<(tries.length>=6?10000:2000)) return; tries.push(now); playIt(v); }
+  // pauze uzytkownika ustawia TYLKO klik w okienko (nizej) - zatrzymanie przez silnik czy zmiane dzwieku zawsze wznawiamy
+  document.addEventListener('pause', function(e){ var v=e.target; if(!v || v.tagName!=='VIDEO' || v.__velivoUserPaused || v.ended) return; setTimeout(function(){ if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }, 150); }, true);
   document.addEventListener('play', function(e){ if(e.target && e.target.tagName==='VIDEO') e.target.__velivoUserPaused=false; }, true);
   fix(); setInterval(fix, 1000);
-  if (!window.__velivoWheel && window.chrome && chrome.webview) { window.__velivoWheel = 1; addEventListener('wheel', function(e){ e.preventDefault(); e.stopPropagation(); chrome.webview.postMessage('velivo-float-wheel:' + (e.deltaY < 0 ? 1 : -1)); }, { passive: false, capture: true }); }
-  document.addEventListener('click', function(e){ var v=big(); if(!v) return; e.preventDefault(); e.stopPropagation(); if(v.paused){ v.play(); } else { v.pause(); } }, true);
+  // pasek czasu: klik/przeciaganie = skok, kolko nad paskiem = +-5 s (kolko nad filmem = przezroczystosc)
+  var bar=document.getElementById('velivo-seek');
+  if(!bar){
+    bar=document.createElement('div'); bar.id='velivo-seek';
+    var tr=document.createElement('div'), fl=document.createElement('div'), tx=document.createElement('div');
+    tr.id='velivo-seek-track'; fl.id='velivo-seek-fill'; tx.id='velivo-seek-time';
+    tr.appendChild(fl); bar.appendChild(tr); bar.appendChild(tx); document.documentElement.appendChild(bar);
+    st.textContent+='#velivo-seek,#velivo-seek *{visibility:visible!important}#velivo-seek{position:fixed;left:0;right:0;bottom:0;height:30px;z-index:2147483647;display:flex;align-items:center;gap:8px;padding:0 8px;background:linear-gradient(transparent,rgba(0,0,0,.75));opacity:0;transition:opacity .25s;cursor:pointer;font:600 11px Segoe UI,sans-serif;color:#fff}'+
+      '#velivo-seek.on{opacity:1}#velivo-seek-track{flex:1;height:5px;background:rgba(255,255,255,.3);border-radius:3px;position:relative}#velivo-seek:hover #velivo-seek-track{height:8px}#velivo-seek-fill{position:absolute;left:0;top:0;bottom:0;background:#60a5fa;border-radius:3px}#velivo-seek-time{white-space:nowrap;font-variant-numeric:tabular-nums}';
+  }
+  function fmt(x){ if(!isFinite(x)) return '--:--'; x=Math.max(0,Math.floor(x)); var h=Math.floor(x/3600),m=Math.floor(x%3600/60),sec=x%60; return (h?h+':'+(m<10?'0':''):'')+m+':'+(sec<10?'0':'')+sec; }
+  function upd(){ var v=big(); if(!v) return; var d=v.duration; document.getElementById('velivo-seek-fill').style.width=(isFinite(d)&&d>0?Math.min(100,v.currentTime/d*100):0)+'%'; document.getElementById('velivo-seek-time').textContent=fmt(v.currentTime)+' / '+fmt(d); }
+  var hideT=null; function show(){ bar.classList.add('on'); upd(); clearTimeout(hideT); hideT=setTimeout(function(){ if(!dragging) bar.classList.remove('on'); },2000); }
+  function seekTo(clientX){ var v=big(), r=document.getElementById('velivo-seek-track').getBoundingClientRect(); if(!v||!isFinite(v.duration)||r.width<=0) return; v.currentTime=Math.max(0,Math.min(1,(clientX-r.left)/r.width))*v.duration; upd(); }
+  var dragging=false;
+  if(!window.__velivoSeek){ window.__velivoSeek=1;
+    setInterval(function(){ if(bar.classList.contains('on')) upd(); },500);
+    addEventListener('mousemove', show, true);
+    bar.addEventListener('mousedown', function(e){ if(e.button!==0) return; dragging=true; seekTo(e.clientX); e.preventDefault(); e.stopPropagation(); }, true);
+    addEventListener('mousemove', function(e){ if(dragging) seekTo(e.clientX); }, true);
+    addEventListener('mouseup', function(){ if(dragging){ dragging=false; show(); } }, true);
+    bar.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); }, true);
+  }
+  if (!window.__velivoWheel && window.chrome && chrome.webview) { window.__velivoWheel = 1; addEventListener('wheel', function(e){ e.preventDefault(); e.stopPropagation();
+    if (bar && bar.contains(e.target)) { var v=big(); if(v&&isFinite(v.duration)){ v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+(e.deltaY<0?5:-5))); show(); } return; }
+    chrome.webview.postMessage('velivo-float-wheel:' + (e.deltaY < 0 ? 1 : -1)); }, { passive: false, capture: true }); }
+  document.addEventListener('click', function(e){ if(bar && bar.contains(e.target)) return; var v=big(); if(!v) return; e.preventDefault(); e.stopPropagation(); if(v.paused){ v.__velivoUserPaused=false; playIt(v); } else { v.__velivoUserPaused=true; var mp=yt(); try{ if(mp&&mp.pauseVideo){ mp.pauseVideo(); } else v.pause(); }catch(x){ v.pause(); } } }, true);
 })";
 
         void ShowFloatingVideo(string page, double time, string title, bool isPrivate)
@@ -228,6 +262,8 @@ namespace Przegladarka
                 opts.IsInPrivateModeEnabled = isPrivate;
                 await view.EnsureCoreWebView2Async(_env, opts);
                 var core = view.CoreWebView2;
+                _floatCores.Add(core);
+                view.Unloaded += (s0, e0) => _floatCores.Remove(core);
                 ApplyViewSettings(core);
                 core.Settings.AreDefaultContextMenusEnabled = false;
                 core.NewWindowRequested += (s, e) => e.Handled = true;   // reklamy i linki z okienka nie otwieraja okien

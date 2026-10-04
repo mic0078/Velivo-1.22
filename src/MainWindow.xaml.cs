@@ -328,6 +328,11 @@ namespace Przegladarka
             tab.GroupDot = new TextBlock { Text = "●", FontSize = 12, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
             tab.SoundBtn = new Button { Content = "🔊", Width = 22, Height = 20, FontSize = 11, Padding = new Thickness(0), Margin = new Thickness(0, 0, 4, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Visibility = Visibility.Collapsed };
             tab.SoundBtn.Click += (s, e) => { ToggleTabMute(tab); e.Handled = true; };
+            var soundMenu = new ContextMenu();
+            var pickOut = new MenuItem { Header = L.T("🔊 Wybierz głośniki dla Velivo…") };
+            pickOut.Click += (s, e) => OpenAppAudioSettings();
+            soundMenu.Items.Add(pickOut);
+            tab.SoundBtn.ContextMenu = soundMenu;
             tab.RefreshMark = new TextBlock { Text = "⟳", FontSize = 12, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
             panel.Children.Add(tab.GroupDot);
             panel.Children.Add(tab.PinMark);
@@ -399,6 +404,7 @@ namespace Przegladarka
             {
                 _extensionsLoaded = true;
                 await EnsureBundledUbolAsync();
+                StartAudioGuard();
                 _ = UpdateUbolAsync();
                 await RefreshExtensions();
                 await SaveExtensionsSyncListAsync();

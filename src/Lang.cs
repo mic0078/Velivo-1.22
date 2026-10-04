@@ -865,6 +865,7 @@ namespace Przegladarka
             { "🛡 Bezpieczne płatności: okno Velivo jest niewidoczne dla programów nagrywających ekran.", "🛡 Safe payments: the Velivo window is invisible to screen-recording programs." },
             { "uBlock Origin Lite – wbudowany bloker reklam (zalecany)", "uBlock Origin Lite – built-in ad blocker (recommended)" },
             { "Dodatek open source (GPL-3.0) dołączony do Velivo. Działa razem z blokadą Velivo.", "Open-source add-on (GPL-3.0) bundled with Velivo. Works together with Velivo's blocking." },
+            { "🛡 uBlock Origin Lite jest wbudowany na stałe – wyniki widać na tarczy.", "🛡 uBlock Origin Lite is permanently built in – its results show on the shield." },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

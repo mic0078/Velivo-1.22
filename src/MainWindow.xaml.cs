@@ -376,6 +376,7 @@ namespace Przegladarka
             ApplyViewSettings(core);
             await HookAutofill(tab, core);   // przed ukryciem chrome.webview
             HookProtection(tab, core);
+            await HookUbolShield(tab, core);
             await HookPasswordVault(tab, core);
             tab.View.ZoomFactorChanged += (s, e) => OnZoomChanged(tab);
             HookTabSound(tab, core);

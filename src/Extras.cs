@@ -164,10 +164,10 @@ try {
       var h = document.createElement('div');
       h.style.cssText = 'position:fixed;z-index:2147483647;display:none;';
       var r = h.attachShadow({ mode: 'closed' });
-      var html = '';
-      if (C.dlBtn && pm) html += '<button data-a=""dl"" title=""' + C.dlLabel + '"" style=""' + BST + '"">⬇ ' + C.dlLabel + '</button>';
-      if (C.pip && document.pictureInPictureEnabled !== false) html += '<button data-a=""pip"" title=""' + C.pipLabel + '"" style=""' + BST + '"">⧉ ' + C.pipLabel + '</button>';
-      r.innerHTML = html;
+      // bez innerHTML - YouTube (Trusted Types) blokuje wstawianie HTML z tekstu
+      function addB(a, label) { var b = document.createElement('button'); b.setAttribute('data-a', a); b.title = label; b.textContent = (a === 'dl' ? '⬇ ' : '⧉ ') + label; b.style.cssText = BST; r.appendChild(b); }
+      if (C.dlBtn && pm) addB('dl', C.dlLabel);
+      if (C.pip && document.pictureInPictureEnabled !== false) addB('pip', C.pipLabel);
       r.querySelectorAll('button').forEach(function (b) {
         b.addEventListener('click', function (e) {
           e.preventDefault(); e.stopPropagation();
@@ -205,6 +205,12 @@ try {
             {
                 if (tab.PageScriptId != null) { core.RemoveScriptToExecuteOnDocumentCreated(tab.PageScriptId); tab.PageScriptId = null; }
                 tab.PageScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageScript());
+                // skrypt stron musi dzialac PRZED ukryciem chrome.webview (inaczej przyciski Pobierz/gesty nie maja kanalu do programu)
+                if (tab.HideScriptId != null)
+                {
+                    core.RemoveScriptToExecuteOnDocumentCreated(tab.HideScriptId);
+                    tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
+                }
             }
             catch (Exception ex) { App.LogError(ex); }
         }

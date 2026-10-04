@@ -54,7 +54,8 @@ namespace Przegladarka
             public System.Windows.Threading.DispatcherTimer RefreshTimer;
             public int RefreshMinutes;
             public TabGroup Group;
-            public string PageScriptId;   // wspolny skrypt stron (ciasteczka, gesty, obraz w obrazie)
+            public string PageScriptId;
+            public string HideScriptId;   // ukrywanie chrome.webview - zawsze PO skrypcie stron   // wspolny skrypt stron (ciasteczka, gesty, obraz w obrazie)
             public DateTime NewTabIntentAt;   // ostatni Ctrl+klik / srodkowy klik na linku
             public string PinnedUrl;     // adres zamrozony przy przypieciu - do niego karta wraca po uruchomieniu          // karta przypieta: na poczatku paska, wraca po kazdym uruchomieniu
             public Button CloseBtn;
@@ -388,7 +389,7 @@ namespace Przegladarka
                 "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button===1||e.ctrlKey||e.shiftKey||e.metaKey){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(a)pm('velivo:nowa-karta');}},true);}catch(x){}})();");
             core.WebMessageReceived += (s, e) => { try { HandlePageMessage(tab, e.TryGetWebMessageAsString()); } catch (Exception) { } };
             await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
-            await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
+            tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
             if (!_extensionsLoaded)
             {

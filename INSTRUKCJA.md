@@ -65,7 +65,7 @@ Przeglądarka jest projektowana tak, żeby dało się ją w pełni obsłużyć s
 
 | Co | Ile |
 | --- | --- |
-| **Instalator** `Velivo-Setup-1.22.exe` | **ok. 6,7 MB** |
+| **Instalator** `Velivo-Setup-1.22.exe` | **ok. 13 MB** (z czego ok. 6 MB to listy reguł wbudowanego uBlock Origin Lite) |
 | **Program po instalacji** | ok. 30–40 MB (wraz ze składnikami Windows i dodatkiem Szybki Dostęp) |
 | **Pamięć RAM samego programu Velivo** (proces `Velivo.exe`) | zwykle **50–80 MB** |
 | Dla porównania: instalator Chrome lub Firefoksa | ok. 100–130 MB |

@@ -156,6 +156,11 @@ try {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
   }
 
+  // obraz w obrazie: program musi wiedziec, zeby zamkniecie karty nie zamykalo okienka z filmem
+  if (top) {
+    document.addEventListener('enterpictureinpicture', function () { send('pip:1'); }, true);
+    document.addEventListener('leavepictureinpicture', function () { send('pip:0'); }, true);
+  }
   // ---------- przyciski nad filmem: ""obraz w obrazie"" i ""pobierz"" ----------
   if (C.pip || C.dlBtn) {
     var btn = null, cur = null, hideT = 0, last = 0;
@@ -231,6 +236,14 @@ try {
             if (msg.StartsWith("dark:", StringComparison.Ordinal)) { if (_settings.DarkPatterns) HandleDarkPatterns(tab, msg.Substring(5)); return; }
             if (msg.StartsWith("dl:", StringComparison.Ordinal)) { HandleVideoDownloadRequest(tab, msg.Substring(3)); return; }
             if (msg.StartsWith("fp:", StringComparison.Ordinal)) { HandleFingerprintReport(tab, msg.Substring(3)); return; }
+            if (msg == "pip:1" || msg == "pip:0")
+            {
+                tab.InPip = msg == "pip:1";
+                if (tab.InPip) _pipViews.Add(tab.View); else _pipViews.Remove(tab.View);
+                // karta byla juz zamknieta, a uzytkownik zamknal okienko - dopiero teraz zwalniamy film
+                if (!tab.InPip && !_tabs.Contains(tab)) ReleaseParkedViews();
+                return;
+            }
             if (msg == "cookie")
             {
                 NoteBlocked(tab, L.T("Ciasteczka"), (core != null ? core.Source : "") + L.T("  (baner zgody odrzucony)"));

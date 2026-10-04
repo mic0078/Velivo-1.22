@@ -42,6 +42,7 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Pinned;
+            public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
             public bool Mobile;          // strona w wersji telefonu
             public string DesktopUA;
             public readonly Dictionary<string, int> ThirdParties = new Dictionary<string, int>();   // paragon prywatnosci
@@ -829,7 +830,7 @@ namespace Przegladarka
         void CloseTab(BrowserTab tab)
         {
             StopPasswordCapture(tab.View.CoreWebView2);
-            bool busy = HasActiveDownloads(tab.View.CoreWebView2);
+            bool busy = HasActiveDownloads(tab.View.CoreWebView2) || tab.InPip;   // okienko obrazu w obrazie gra dalej po zamknieciu karty
             if (tab.Private && busy)
             {
                 CancelEngineDownloads(tab.View.CoreWebView2);
@@ -862,11 +863,13 @@ namespace Przegladarka
             if (tab == _current) SelectTab(_tabs[Math.Min(idx, _tabs.Count - 1)]);
         }
 
+        readonly HashSet<WebView2> _pipViews = new HashSet<WebView2>();
+
         void ReleaseParkedViews()
         {
             foreach (var v in _parkedViews.ToList())
             {
-                if (HasActiveDownloads(v.CoreWebView2)) continue;
+                if (HasActiveDownloads(v.CoreWebView2) || _pipViews.Contains(v)) continue;
                 _parkedViews.Remove(v);
                 Host.Children.Remove(v);
                 try { v.Dispose(); } catch (Exception) { }

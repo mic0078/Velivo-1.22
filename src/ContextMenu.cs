@@ -131,6 +131,12 @@ namespace Przegladarka
                         ck.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SetCookieException(pageUrl, rejecting));
                         add(ck);
                     }
+                    if (target.Kind == CoreWebView2ContextMenuTargetKind.Video || IsYoutubeLikeHost(MediaHost(pageUrl)))
+                    {
+                        var dlv = _env.CreateContextMenuItem(MenuText(L.T("⬇ Pobierz film…")), GlyphIcon("\uE896"), CoreWebView2ContextMenuItemKind.Command);
+                        dlv.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => DownloadVideoFromPage(tabForBlock));
+                        add(dlv);
+                    }
                     if (target.Kind == CoreWebView2ContextMenuTargetKind.Video)
                     {
                         var pip = _env.CreateContextMenuItem(MenuText(L.T("⧉ Obraz w obrazie")), GlyphIcon("\uE8A7"), CoreWebView2ContextMenuItemKind.Command);

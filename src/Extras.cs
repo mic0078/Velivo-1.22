@@ -65,6 +65,8 @@ namespace Przegladarka
                 gestures = _settings.MouseGestures,
                 pip = _settings.PipButton,
                 pipLabel = L.T("Obraz w obrazie"),
+                dlBtn = _settings.VideoDownloadButton,
+                dlLabel = L.T("Pobierz"),
                 dark = _settings.DarkPatterns,
                 receipt = _settings.PrivacyReceipt,
             });
@@ -154,20 +156,27 @@ try {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
   }
 
-  // ---------- przycisk ""obraz w obrazie"" nad filmem ----------
-  if (C.pip && document.pictureInPictureEnabled !== false) {
+  // ---------- przyciski nad filmem: ""obraz w obrazie"" i ""pobierz"" ----------
+  if (C.pip || C.dlBtn) {
     var btn = null, cur = null, hideT = 0, last = 0;
+    var BST = 'all:initial;cursor:pointer;background:rgba(17,24,39,.82);color:#fff;font:600 13px Segoe UI,sans-serif;padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.4);margin-left:6px';
     function mk() {
       var h = document.createElement('div');
       h.style.cssText = 'position:fixed;z-index:2147483647;display:none;';
       var r = h.attachShadow({ mode: 'closed' });
-      r.innerHTML = '<button title=""' + C.pipLabel + '"" style=""all:initial;cursor:pointer;background:rgba(17,24,39,.82);color:#fff;font:600 13px Segoe UI,sans-serif;padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.4)"">⧉ ' + C.pipLabel + '</button>';
-      r.querySelector('button').addEventListener('click', function (e) {
-        e.preventDefault(); e.stopPropagation();
-        if (!cur) return;
-        if (document.pictureInPictureElement === cur) document.exitPictureInPicture().catch(function () {});
-        else { try { cur.disablePictureInPicture = false; } catch (x) {} cur.requestPictureInPicture().catch(function () {}); }
-      }, true);
+      var html = '';
+      if (C.dlBtn && pm) html += '<button data-a=""dl"" title=""' + C.dlLabel + '"" style=""' + BST + '"">⬇ ' + C.dlLabel + '</button>';
+      if (C.pip && document.pictureInPictureEnabled !== false) html += '<button data-a=""pip"" title=""' + C.pipLabel + '"" style=""' + BST + '"">⧉ ' + C.pipLabel + '</button>';
+      r.innerHTML = html;
+      r.querySelectorAll('button').forEach(function (b) {
+        b.addEventListener('click', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          if (!cur) return;
+          if (b.getAttribute('data-a') === 'dl') { send('dl:' + JSON.stringify({ page: location.href, src: cur.currentSrc || cur.src || '', title: document.title || '' })); return; }
+          if (document.pictureInPictureElement === cur) document.exitPictureInPicture().catch(function () {});
+          else { try { cur.disablePictureInPicture = false; } catch (x) {} cur.requestPictureInPicture().catch(function () {}); }
+        }, true);
+      });
       (document.documentElement || document.body).appendChild(h);
       return h;
     }
@@ -183,7 +192,8 @@ try {
       cur = hit;
       if (!btn) btn = mk();
       var rr = hit.getBoundingClientRect();
-      btn.style.left = Math.max(0, rr.right - 150) + 'px'; btn.style.top = Math.max(0, rr.top + 10) + 'px'; btn.style.display = 'block';
+      btn.style.display = 'block';
+      btn.style.left = Math.max(0, rr.right - btn.getBoundingClientRect().width - 12) + 'px'; btn.style.top = Math.max(0, rr.top + 10) + 'px';
     }, true);
   }
 } catch (x) {}";
@@ -213,6 +223,7 @@ try {
             msg = msg.Substring(prefix.Length);
             var core = tab.View.CoreWebView2;
             if (msg.StartsWith("dark:", StringComparison.Ordinal)) { if (_settings.DarkPatterns) HandleDarkPatterns(tab, msg.Substring(5)); return; }
+            if (msg.StartsWith("dl:", StringComparison.Ordinal)) { HandleVideoDownloadRequest(tab, msg.Substring(3)); return; }
             if (msg.StartsWith("fp:", StringComparison.Ordinal)) { HandleFingerprintReport(tab, msg.Substring(3)); return; }
             if (msg == "cookie")
             {

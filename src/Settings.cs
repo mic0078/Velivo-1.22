@@ -48,7 +48,8 @@ namespace Przegladarka
         public bool DarkPatterns = true;        // wykrywacz sztuczek presji w sklepach
         public bool PrivacyReceipt = true;      // paragon prywatnosci na tarczy   // samo klika "Odrzuc" / "Tylko niezbedne" na banerach zgod
         public bool MouseGestures = true;       // prawy przycisk + ruch myszy
-        public bool PipButton = true;           // przycisk "obraz w obrazie" nad filmami
+        public bool PipButton = true;
+        public bool VideoDownloadButton = true;  // przycisk "Pobierz" nad filmami           // przycisk "obraz w obrazie" nad filmami
         public bool LanSync = true;            // bez sparowania dziala tryb zgodnosci (bez hasel); hasla tylko po sparowaniu
         public string LanSyncKey = "";
         public bool LanSyncSilent = false;     // bez dymkow przy automatycznym sync
@@ -144,6 +145,7 @@ namespace Przegladarka
                         case "privacyReceipt": s.PrivacyReceipt = b; break;
                         case "gestures": s.MouseGestures = b; break;
                         case "pipBtn": s.PipButton = b; break;
+                        case "videoDlBtn": s.VideoDownloadButton = b; break;
                         case "cacheDir": s.CacheDir = v; break;
                         case "cleanJunk": s.CleanJunkOnStart = b; break;
                         case "lanSync": s.LanSync = b; lanSyncOverride = b; break;
@@ -203,7 +205,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "askDownload=" + B(AskDownload),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
@@ -386,7 +388,8 @@ namespace Przegladarka
             root.Children.Add(kwBtn);
             var gestures = Check(L.T("Gesty myszy (prawy przycisk + ruch)"), L.T("Przytrzymaj prawy przycisk i przesuń: ← wstecz, → dalej, ↑ nowa karta, ↓ zamknij kartę, ↓→ odśwież. Zwykły prawy klik otwiera menu jak zawsze."), s.MouseGestures);
             var pipBtn = Check(L.T("Przycisk „Obraz w obrazie” nad filmami"), L.T("Po najechaniu myszką na film pojawia się przycisk ⧉ – film przechodzi do małego okienka zawsze na wierzchu."), s.PipButton);
-            root.Children.Add(gestures); root.Children.Add(pipBtn);
+            var dlBtnBox = Check(L.T("Przycisk „Pobierz” nad filmami"), L.T("Jak Internet Download Manager: po najechaniu na film pojawia się ⬇ Pobierz. Zwykłe pliki pobiera menedżer Velivo (do 16 połączeń), YouTube i strumienie – darmowe narzędzie yt-dlp."), s.VideoDownloadButton);
+            root.Children.Add(gestures); root.Children.Add(pipBtn); root.Children.Add(dlBtnBox);
             root.Children.Add(new TextBlock { Text = L.T("Strona startowa:") });
             var home = new TextBox { Text = s.Home, Padding = new Thickness(4), Margin = new Thickness(0, 2, 0, 0) };
             root.Children.Add(home);
@@ -691,8 +694,8 @@ namespace Przegladarka
                 s.SavePasswords = pw.IsChecked == true; s.Autofill = af.IsChecked == true;
                 s.BlockThirdPartyPopups = pop.IsChecked == true;
                 bool scriptsChanged = s.AutoRejectCookies != (cookieRej.IsChecked == true) || s.MouseGestures != (gestures.IsChecked == true) || s.PipButton != (pipBtn.IsChecked == true)
-                    || s.DarkPatterns != (darkP.IsChecked == true) || s.PrivacyReceipt != (receiptBox.IsChecked == true);
-                s.PageMemory = memory.IsChecked == true; s.DarkPatterns = darkP.IsChecked == true; s.PrivacyReceipt = receiptBox.IsChecked == true;
+                    || s.DarkPatterns != (darkP.IsChecked == true) || s.VideoDownloadButton != (dlBtnBox.IsChecked == true) || s.PrivacyReceipt != (receiptBox.IsChecked == true);
+                s.PageMemory = memory.IsChecked == true; s.VideoDownloadButton = dlBtnBox.IsChecked == true; s.DarkPatterns = darkP.IsChecked == true; s.PrivacyReceipt = receiptBox.IsChecked == true;
                 s.AutoRejectCookies = cookieRej.IsChecked == true; s.MouseGestures = gestures.IsChecked == true; s.PipButton = pipBtn.IsChecked == true;
                 if (scriptsChanged) RefreshPageScripts();
                 s.SmartScreen = ss.IsChecked == true; s.AskDownload = ask.IsChecked == true;

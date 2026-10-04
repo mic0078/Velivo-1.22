@@ -12,6 +12,8 @@ The interface is available in **Polish and English**. The installer asks for the
 
 **[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (6.7 MB) · **[📖 Complete user manual](MANUAL.en.md)**
 
+![Velivo – the browser window, with the Video on top window playing in the bottom-right corner](docs/zrzuty/velivo-okno.png)
+
 ## What no other browser has
 
 | ![](docs/zrzuty/film-na-wierzchu.png) | ![](docs/zrzuty/film-maly-w-rogu.png) | ![](docs/zrzuty/film-przezroczysty.png) |

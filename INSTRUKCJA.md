@@ -118,6 +118,8 @@ Instalacja nie wymaga uprawnień administratora. Program trafia do `%LOCALAPPDAT
 
 ## 4. Pierwsze kroki – pasek narzędzi
 
+![Okno Velivo: karty, pasek narzędzi, tarcza z licznikiem, a w rogu okienko Film na wierzchu](docs/zrzuty/velivo-okno.png)
+
 Velivo startuje na pełnym ekranie. Od lewej:
 
 | Element | Działanie |

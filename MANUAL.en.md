@@ -117,6 +117,8 @@ No administrator rights are needed. The program goes to `%LOCALAPPDATA%\Programs
 
 ## 4. Getting started – the toolbar
 
+![The Velivo window: tabs, toolbar, shield with counter, and the Video on top window in the corner](docs/zrzuty/velivo-okno.png)
+
 Velivo starts maximized. From the left:
 
 | Item | What it does |

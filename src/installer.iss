@@ -233,6 +233,7 @@ function InstallPrereqs: String;
 var Code: Integer; F: String;
 begin
   Result := '';
+#ifndef Pelny
   if not HasDesktopRuntime10 then
   begin
     WizardForm.StatusLabel.Caption := CustomMessage('GetDotnet');
@@ -246,6 +247,7 @@ begin
     end;
     if Result <> '' then exit;
   end;
+#endif
   if not HasWebView2 then
   begin
     WizardForm.StatusLabel.Caption := CustomMessage('GetWebView');

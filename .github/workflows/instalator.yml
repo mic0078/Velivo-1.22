@@ -41,7 +41,7 @@ jobs:
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
-          dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained false -o build\velivo
+          dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\velivo
 
       - name: Inno Setup
         shell: pwsh
@@ -50,7 +50,7 @@ jobs:
       - name: Budowa instalatora
         shell: pwsh
         run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" src\installer.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DPelny src\installer.iss
           Get-ChildItem Instalator
 
       - name: Samodzielny plik Velivo-1.22.exe (bez instalacji i bez .NET)
@@ -62,13 +62,6 @@ jobs:
           $mb = (Get-Item Instalator\Velivo-1.22.exe).Length / 1MB
           Write-Host ("Velivo-1.22.exe: {0:N1} MB" -f $mb)
           if ($mb -gt 95) { Write-Warning "Za duzy dla repozytorium - tylko w artefaktach"; Move-Item Instalator\Velivo-1.22.exe build\Velivo-1.22.exe -Force }
-
-      - name: Kompletny instalator (z .NET w srodku)
-        shell: pwsh
-        run: |
-          dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\velivo-pelny
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DPelny /DSrcDir=..\build\velivo-pelny "/DOutName=Velivo-Setup-1.22-kompletny" src\installer.iss
-          Get-Item Instalator\Velivo-Setup-1.22-kompletny.exe | Select-Object Name, Length
 
       - name: Wersja przenosna (skompilowany program bez instalatora)
         shell: pwsh
@@ -85,7 +78,6 @@ jobs:
             Instalator/Velivo-1.22-portable.zip
             Instalator/Velivo-1.22.exe
             build/Velivo-1.22.exe
-            Instalator/Velivo-Setup-1.22-kompletny.exe
 
       - name: Nadpisanie Instalator/Velivo-Setup-1.22.exe w repozytorium
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -95,7 +87,6 @@ jobs:
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git add -f Instalator/Velivo-Setup-1.22.exe Instalator/Velivo-1.22-portable.zip
           if (Test-Path Instalator/Velivo-1.22.exe) { git add -f Instalator/Velivo-1.22.exe }
-          git add -f Instalator/Velivo-Setup-1.22-kompletny.exe
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
             git commit -m "Nowy instalator Velivo-Setup-1.22.exe [skip ci]"

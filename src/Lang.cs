@@ -1182,6 +1182,16 @@ namespace Przegladarka
             { "W Excelu: Plik → Zapisz jako → CSV. Pierwsza kolumna = miesiąc, nagłówki = nazwy rachunków.", "In Excel: File → Save as → CSV. First column = month, headers = bill names." },
             { "Nie znaleziono miesięcy w pierwszej kolumnie.", "No months found in the first column." },
             { "Waluta:", "Currency:" },
+            { "📊 Arkusz rachunków (w karcie)", "📊 Bills sheet (in a tab)" },
+            { "Usuń kolumnę", "Delete column" },
+            { "Usuń wiersz", "Delete row" },
+            { "Nowy rachunek", "New bill" },
+            { "Arkusz rachunków", "Bills sheet" },
+            { "Wiersz (miesiąc)", "Row (month)" },
+            { "Kolumna (rachunek)", "Column (bill)" },
+            { "Wpisz kwoty – sumy liczą się same. Nowy wiersz kopiuje kwoty z poprzedniego.", "Enter amounts – totals are calculated automatically. A new row copies the previous amounts." },
+            { "Zapisz i zamknij", "Save and close" },
+            { "💾 Arkusz rachunków zapisany (zaszyfrowany)", "💾 Bills sheet saved (encrypted)" },
         };
     }
 }

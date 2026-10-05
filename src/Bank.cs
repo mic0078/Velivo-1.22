@@ -139,6 +139,13 @@ namespace Przegladarka
             try { return Wrap(plain, key); } finally { CryptographicOperations.ZeroMemory(plain); }
         }
 
+        // skroty adresu i domeny glownej kazdej strony (rozpoznanie takze pod innym adresem tej samej firmy)
+        static List<string> SiteHostsFor(List<BankSite> list)
+        {
+            return list.Select(x => HostOf(x.Url)).Where(h => h != null)
+                .SelectMany(h => new[] { HostHash(h), HostHash("reg:" + RegDomain(h)) }).Distinct().ToList();
+        }
+
         static string HostHash(string host) { return Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes("velivo-bank|" + (host ?? "").ToLowerInvariant().TrimStart('.').Replace("www.", "")))); }
 
         static byte[] CardKey(string pass, BankConfig c) { return BankHash(pass, Convert.FromBase64String(c.CardSalt), c.Iter); }
@@ -371,6 +378,8 @@ namespace Przegladarka
             {
                 if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
                 AddBankLog(c, how, true);
+                // lista rozpoznawanych stron przeliczona na nowo (starsze wpisy znaly tylko dokladny adres)
+                if (_bankKey != null) try { c.SiteHosts = SiteHostsFor(LoadSealed<BankSite>(c.Sites)); } catch (Exception) { }
                 SaveBank(c); _bankFails = 0; _bankUnlocked = true; result = true;
                 _bankIdleMinutes = c.IdleMinutes > 0 ? c.IdleMinutes : 10;
                 w.Close();
@@ -878,7 +887,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                         var cc = LoadBank(); if (cc == null || _bankKey == null) return;
                         var l = LoadSealed<BankSite>(cc.Sites); l.RemoveAll(x => x.Url == st.Url);
                         cc.Sites = SealList(_bankKey, l);
-                        cc.SiteHosts = l.Select(x => HostHash(HostOf(x.Url))).Distinct().ToList();
+                        cc.SiteHosts = SiteHostsFor(l);
                         SaveBank(cc);
                     };
                     del.Items.Add(d);
@@ -1012,7 +1021,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 if (list.Any(x => HostOf(x.Url) == host)) { err.Text = L.T("Ta strona już jest na liście"); return; }
                 list.Add(new BankSite { Name = string.IsNullOrWhiteSpace(name.Text) ? host : name.Text.Trim(), Url = u, Kind = shop ? "shop" : "bank" });
                 c.Sites = SealList(_bankKey, list);
-                c.SiteHosts = list.Select(x => HostHash(HostOf(x.Url))).Distinct().ToList();
+                c.SiteHosts = SiteHostsFor(list);
                 SaveBank(c); w.Close();
                 ShowToast((shop ? L.T("🛒 Dodano do Moich sklepów: ") : L.T("🏦 Dodano do Moich banków: ")) + (string.IsNullOrWhiteSpace(name.Text) ? host : name.Text.Trim()), null);
             };
@@ -1040,7 +1049,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             if (name.Length > 40) name = name.Substring(0, 40) + "…";
             list.Add(new BankSite { Name = name, Url = url, Kind = shop ? "shop" : "bank" });
             c.Sites = SealList(_bankKey, list);
-            c.SiteHosts = list.Select(x => HostHash(HostOf(x.Url))).Distinct().ToList();
+            c.SiteHosts = SiteHostsFor(list);
             SaveBank(c);
             ShowToast((shop ? L.T("🛒 Dodano do Moich sklepów: ") : L.T("🏦 Dodano do Moich banków: ")) + name, null);
         }
@@ -1055,10 +1064,11 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 if (tab == null || tab.Bank) return;
                 var host = HostOf(url); if (host == null) return;
                 var hh = HostHash(host);
+                var hreg = HostHash("reg:" + RegDomain(host));   // ta sama domena glowna (np. secure.bank.com i www.bank.com)
                 bool known = false;
                 foreach (var p in BankProfiles())   // strony ze wszystkich profili bankowych
                 {
-                    try { var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(p))); if (c != null && c.SiteHosts != null && c.SiteHosts.Contains(hh)) { known = true; break; } } catch (Exception) { }
+                    try { var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(p))); if (c != null && c.SiteHosts != null && (c.SiteHosts.Contains(hh) || c.SiteHosts.Contains(hreg))) { known = true; break; } } catch (Exception) { }
                 }
                 if (!known || !_bankWarned.Add(host)) return;
                 ShowToast(L.T("🏦 To Twoja strona bankowa – bezpieczniej otworzyć ją w trybie bankowym (przycisk 🏦)"), null);

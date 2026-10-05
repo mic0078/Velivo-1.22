@@ -202,6 +202,8 @@ namespace Przegladarka
             search.Click += (s, e) => BankSearch();
             var fillLogin = new MenuItem { Header = L.T("🔑 Wpisz login z notatki na tej stronie") };
             fillLogin.Click += (s, e) => BankFillLoginMenu();
+            var partial = new MenuItem { Header = L.T("🔢 Wpisz wybrane znaki (passcode / hasło, np. RBS, NatWest)") };
+            partial.Click += (s, e) => BankFillPartialMenu();
             var backup = new MenuItem { Header = L.T("💾 Kopia zapasowa bazy…") };
             backup.Click += (s, e) => BankBackup();
             var restore = new MenuItem { Header = L.T("📂 Przywróć bazę z kopii…") };
@@ -212,11 +214,11 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 addSite.IsEnabled = _bankUnlocked && _bankKey != null && _current != null && _current.Bank && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
                 addShop.IsEnabled = addSite.IsEnabled;
-                fillLogin.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
+                fillLogin.IsEnabled = fill.IsEnabled; partial.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
                 log.IsEnabled = _bankUnlocked; backup.IsEnabled = BankProfiles().Count > 0;
                 profMenu.Items.Clear();
                 foreach (var p in BankProfiles())
@@ -277,7 +279,9 @@ namespace Przegladarka
 
         void LockBank(string toast)
         {
+            // blokada zamyka WSZYSTKIE okienka trybu bankowego (notatki, karty, wyszukiwarka, znaki hasla, ustawienia)
             foreach (var t in _bankTools.Values.ToList()) { try { t.Close(); } catch (Exception) { } }
+            foreach (Window t in OwnedWindows.Cast<Window>().ToList()) { try { if ((t.Tag as string) == "velivo-bank") t.Close(); } catch (Exception) { } }
             _bankUnlocked = false; ForgetBankKey();
             ClearBankTraces();
             foreach (var t in _tabs.Where(t => t.Bank).ToList()) CloseTab(t);
@@ -780,7 +784,7 @@ var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+'
 if(/cc-csc|cvv|cvc|csc|security/.test(a))return;
 if(/cc-number|cardnumber|card-number|card_number|numer.?karty|ccnum/.test(a))set(el,d.n);
 else if(/cc-exp-month|exp.?month|miesi/.test(a))set(el,mm);
-else if(/cc-exp-year|exp.?year|rok/.test(a))set(el,el.maxLength==4?'20'+yy:yy);
+else if(/cc-exp-year|exp.?year|\brok\b/.test(a))set(el,el.maxLength==4?'20'+yy:yy);
 else if(/cc-exp|expir|wazn|ważn|mm.?\/.?yy|mm.?\/.?rr/.test(a))set(el,d.e);
 else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a))set(el,d.h);
 });});}catch(x){}})(__D__);";
@@ -1293,6 +1297,69 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             menu.IsOpen = true;
         }
 
+        // Banki pytajace o WYBRANE znaki (np. RBS: 3 cyfry passcode/PIN i 3 litery hasla): strona pokazuje
+        // "Enter the 2nd, 4th and 6th digit" - skrypt czyta numery przy polach i wpisuje odpowiednie znaki.
+        void BankFillPartialMenu()
+        {
+            if (_current == null || !_current.Bank || _bankKey == null) return;
+            var c = LoadBank(); if (c == null) return;
+            List<BankNote> notes;
+            try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { return; }
+            var menu = new ContextMenu { PlacementTarget = _bankBtn };
+            foreach (var n in notes.OrderBy(x => x.Category == "Login" ? 0 : 1))
+            {
+                var note = n;
+                var mi = new MenuItem { Header = (string.IsNullOrEmpty(note.Category) ? "" : "[" + L.T(note.Category) + "]  ") + note.Title };
+                mi.Click += async (s, e) =>
+                {
+                    string pin = null, pwd = null;
+                    foreach (var l in (note.Text ?? "").Replace("\r", "").Split('\n'))
+                    {
+                        int i = l.IndexOf(':'); if (i <= 0) continue;
+                        var k = l.Substring(0, i).Trim().ToLowerInvariant(); var v = l.Substring(i + 1).Trim();
+                        if (pin == null && (k.StartsWith("passcode") || k.StartsWith("pin") || k.StartsWith("kod"))) pin = v;
+                        else if (pwd == null && (k.StartsWith("has") || k.StartsWith("password"))) pwd = v;
+                    }
+                    var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
+                    if (core == null) return;
+                    var data = JsonSerializer.Serialize(new { pin = pin ?? "", pwd = pwd ?? "" });
+                    string r = "0";
+                    try { r = await core.ExecuteScriptAsync(PartialFillScript.Replace("__D__", data)); } catch (Exception) { }
+                    int filled; int.TryParse((r ?? "0").Trim('"'), out filled);
+                    ShowToast(filled > 0 ? (L.En ? "🔢 Filled in characters: " : "🔢 Wpisano znaki: ") + filled
+                        : L.T("Nie rozpoznano pól na tej stronie – użyj „🔢 Znaki z numerami” w notatkach"), null);
+                };
+                menu.Items.Add(mi);
+            }
+            if (menu.Items.Count == 0) { BankNotes(); return; }
+            menu.IsOpen = true;
+        }
+
+        const string PartialFillScript = @"(function(d){var n=0;try{
+var ord={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12,thirteenth:13,fourteenth:14,fifteenth:15,sixteenth:16,seventeenth:17,eighteenth:18,nineteenth:19,twentieth:20,
+pierwszy:1,pierwsza:1,drugi:2,druga:2,trzeci:3,trzecia:3,czwarty:4,czwarta:4,piaty:5,piata:5,szosty:6,szosta:6,siodmy:7,siodma:7,osmy:8,osma:8,dziewiaty:9,dziewiata:9,dziesiaty:10,dziesiata:10};
+var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
+function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}
+function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
+el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('blur',{bubbles:true}));n++;}
+function norm(t){return (t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+function labelOf(el,doc){var t='';if(el.id){var l=doc.querySelector('label[for='+JSON.stringify(el.id)+']');if(l)t+=' '+l.textContent;}
+t+=' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('title')||'')+' '+(el.name||'')+' '+(el.id||'');
+var lab=el.closest('label');if(lab)t+=' '+lab.textContent;
+var prev=el.previousElementSibling;if(prev&&prev.textContent.length<60)t+=' '+prev.textContent;
+var par=el.parentElement;if(par&&par.textContent.length<80)t+=' '+par.textContent;return norm(t);}
+function posOf(t){var m=t.match(/(\d{1,2})\s*(st|nd|rd|th|\.)?\s*(digit|character|char|letter|znak|cyfr|litera)/)||t.match(/(digit|character|char|letter|znak|cyfr|litera)\w*\s*(no\.?|nr\.?|number|numer)?\s*(\d{1,2})/)||t.match(/\b(\d{1,2})(st|nd|rd|th)\b/);
+if(m){for(var i=1;i<m.length;i++){if(/^\d+$/.test(m[i]||''))return parseInt(m[i],10);}}
+for(var w in ord){if(new RegExp('\b'+w+'\b').test(t))return ord[w];}return 0;}
+function kind(el){var c=el;for(var i=0;i<6&&c;i++){var t=norm(c.textContent||'');if(/passcode|pin|kod|digit|cyfr/.test(t)&&!/password|haslo|character|letter|litera/.test(t))return 'pin';if(/password|haslo|character|letter|litera/.test(t)&&!/passcode|pin\b|digit|cyfr/.test(t))return 'pwd';c=c.parentElement;}
+var a=norm((el.name||'')+' '+(el.id||''));if(/pin|pass.?code|digit/.test(a))return 'pin';if(/pass|pwd|char/.test(a))return 'pwd';return el.inputMode==='numeric'||el.type==='tel'||el.type==='number'?'pin':'pwd';}
+docs.forEach(function(doc){
+var ins=Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).filter(function(i){return i.tagName==='SELECT'||/^(text|password|tel|number|)$/.test(i.type||'');});
+ins.forEach(function(el){if(el.tagName!=='SELECT'&&el.maxLength>2)return;
+var p=posOf(labelOf(el,doc));if(!p)return;var k=kind(el);var src=k==='pin'?d.pin:d.pwd;if(!src||p>src.length)return;var ch=src.charAt(p-1);
+if(el.tagName==='SELECT'){for(var o=0;o<el.options.length;o++){if(el.options[o].value===ch||el.options[o].text.trim()===ch){el.selectedIndex=o;el.dispatchEvent(new Event('change',{bubbles:true}));n++;break;}}}else set(el,ch);});
+});}catch(x){}return String(n);})(__D__);";
+
         // "login: xxx" / "hasło: yyy" (albo: 1. linia = login, 2. linia = haslo)
         static void ParseLoginNote(string text, out string user, out string pass)
         {
@@ -1428,7 +1495,7 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
             var w = new Window
             {
                 Title = title, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner, SizeToContent = SizeToContent.WidthAndHeight,
-                ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
+                ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Tag = "velivo-bank",
                 Content = new StackPanel { Margin = new Thickness(18) }
             };
             w.PreviewKeyDown += (s, e) => { if (e.Key == Key.Escape) w.Close(); };

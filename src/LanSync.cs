@@ -60,6 +60,7 @@ namespace Przegladarka
             public string passwords { get; set; }
             public long changed { get; set; }
             public string pinned { get; set; }             // karty przypiete (adresy); null = starsza wersja bez tej funkcji
+            public string banks { get; set; }              // wszystkie profile bankowe (plik -> zawartosc)
             public string bank { get; set; }               // tryb bankowy: haslo (skrot), klucze, karty zaszyfrowane; null = starsza wersja
             public string bookmarksDeleted { get; set; }   // usuniete zakladki (url<TAB>czas), zeby usuniecie dzialalo na obu   // kiedy dane na nadawcy ostatnio zmienil uzytkownik (ms UTC); nowsze wygrywa
         }
@@ -175,8 +176,11 @@ namespace Przegladarka
         string BankSyncTerm()
         {
             if (_lanLegacyNoKeyMode) return "";
-            var b = ReadTextOrEmpty(BankFile);
-            return b.Length == 0 ? "" : "\n--bank--\n" + b;
+            var main = ReadTextOrEmpty(BankFileFor(""));
+            var all = ExportBanksForSync();
+            if (all.Length == 0) return "";
+            // tylko profil glowny -> ten sam odcisk co wczesniej (zgodnosc ze starsza wersja)
+            return BankProfiles().Count == 1 && main.Length > 0 ? "\n--bank--\n" + main : "\n--banks--\n" + all;
         }
 
         string CurrentLanFingerprint()
@@ -696,7 +700,8 @@ namespace Przegladarka
                 changed = _lanLocalChanged,
                 bookmarksDeleted = ReadTextOrEmpty(BookmarkTombstonesFile),
                 pinned = ReadTextOrEmpty(PinnedFile),
-                bank = _lanLegacyNoKeyMode ? null : ReadTextOrEmpty(BankFile),   // tylko w zaszyfrowanym pakiecie
+                bank = _lanLegacyNoKeyMode ? null : ReadTextOrEmpty(BankFileFor("")),   // tylko w zaszyfrowanym pakiecie
+                banks = _lanLegacyNoKeyMode ? null : ExportBanksForSync(),               // wszystkie profile bankowe
             };
             if (_lanLegacyNoKeyMode)
             {
@@ -792,7 +797,11 @@ namespace Przegladarka
                     _ = RebuildBlocker();
                     _ = ApplyExtensionsSyncListAsync();
                     if (state.pinned != null) ApplySyncedPinnedTabs(state.pinned);
-                    if (!string.IsNullOrEmpty(state.bank) && pkt.t != "state-plain") ApplySyncedBank(state.bank);
+                    if (pkt.t != "state-plain")
+                    {
+                        if (!string.IsNullOrEmpty(state.banks)) ApplySyncedBanks(state.banks);
+                        else if (!string.IsNullOrEmpty(state.bank)) ApplySyncedBank(state.bank);
+                    }
                     SaveLanChange(state.changed, LanContentFingerprint());   // przyjete dane maja czas nadawcy
                 }
                 else SaveLanChange(_lanLocalChanged, LanContentFingerprint()); // polaczenie zakladek/hasel to nie zmiana ustawien

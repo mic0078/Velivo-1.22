@@ -1011,6 +1011,14 @@ namespace Przegladarka
             { "🏦 Dodano do Moich banków: ", "🏦 Added to My banks: " },
             { "(pusto)", "(empty)" },
             { "📝 Moje notatki (loginy, hasła, numery klienta)", "📝 My notes (logins, passwords, customer numbers)" },
+            { "Główny", "Main" },
+            { "Tryb bankowy – wybierz profil", "Banking mode – choose a profile" },
+            { "Czyj tryb bankowy otworzyć?", "Whose banking mode should be opened?" },
+            { "Nowy profil bankowy", "New banking profile" },
+            { "Nazwa profilu (np. imię drugiego użytkownika):", "Profile name (e.g. the other user's name):" },
+            { "Każdy profil ma własne hasło lub klucz, osobne logowania w bankach i osobne karty, banki, sklepy i notatki.", "Each profile has its own password or key, separate bank logins and separate cards, banks, shops and notes." },
+            { "👤 Profile bankowe", "👤 Banking profiles" },
+            { "➕ Nowy profil bankowy (inny użytkownik)…", "➕ New banking profile (another user)…" },
         };
     }
 }

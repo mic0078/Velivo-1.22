@@ -230,7 +230,8 @@ namespace Przegladarka
             reset.Click += (s, e) => ResetBank();
             menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
-                addSite.IsEnabled = _bankUnlocked && _bankKey != null && _current != null && _current.Bank && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
+                // dodac strone mozna z kazdej karty (takze zwyklej) - gdy tryb zamkniety, najpierw klucz / haslo
+                addSite.IsEnabled = _current != null && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
                 addShop.IsEnabled = addSite.IsEnabled;
                 fillLogin.IsEnabled = fill.IsEnabled; partial.IsEnabled = fill.IsEnabled; diag.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
                 log.IsEnabled = _bankUnlocked; backup.IsEnabled = BankProfiles().Count > 0;
@@ -310,22 +311,26 @@ namespace Przegladarka
 
         void OpenBankTab() { OpenBankTabAt(HomeUrl); }
 
+        // Odblokowanie trybu bankowego bez otwierania karty (wybor profilu, ustawienie przy pierwszym razie, klucz / haslo)
+        async Task<bool> EnsureBankUnlocked()
+        {
+            if (_bankUnlocked) return true;
+            var profs = BankProfiles();
+            if (profs.Count > 1)
+            {
+                var pick = ChooseBankProfile(profs);
+                if (pick == null) return false;
+                _bankProfile = pick;
+            }
+            else if (profs.Count == 1) _bankProfile = profs[0];
+            var c = LoadBank();
+            if (c == null) { if (!BankSetup(null)) return false; return LoadBank() != null; }
+            return await BankUnlock(c);
+        }
+
         async void OpenBankTabAt(string url)
         {
-            if (!_bankUnlocked)
-            {
-                var profs = BankProfiles();
-                if (profs.Count > 1)
-                {
-                    var pick = ChooseBankProfile(profs);
-                    if (pick == null) return;
-                    _bankProfile = pick;
-                }
-                else if (profs.Count == 1) _bankProfile = profs[0];
-                var c = LoadBank();
-                if (c == null) { if (!BankSetup(null)) return; c = LoadBank(); if (c == null) return; }
-                else if (!await BankUnlock(c)) return;
-            }
+            if (!await EnsureBankUnlocked()) return;
             _bankLastInput = DateTime.UtcNow;
             _creatingBank = true;
             try { AddTab(url, true); } finally { _creatingBank = false; }
@@ -1035,17 +1040,20 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             OpenBankTabAt(url);
         }
 
-        void BankAddCurrentSite(bool shop)
+        async void BankAddCurrentSite(bool shop)
         {
-            if (_current == null || !_current.Bank || _bankKey == null) return;
+            if (_current == null) return;
             var core = _current.View.CoreWebView2; if (core == null) return;
             var host = HostOf(core.Source); if (host == null) return;
+            string src = core.Source, title = core.DocumentTitle;   // zapamietane przed pytaniem o klucz / haslo
+            if (!await EnsureBankUnlocked()) return;
+            if (_bankKey == null) { ShowToast(L.T("Ten klucz otwiera tryb, ale nie odszyfrowuje kart – użyj klucza, który szyfruje karty"), null); return; }
             var c = LoadBank(); if (c == null) return;
             var list = LoadSealed<BankSite>(c.Sites);
-            var u = new Uri(core.Source);
+            var u = new Uri(src);
             string url = u.Scheme + "://" + u.Host + "/";
             if (list.Any(x => HostOf(x.Url) == host)) { ShowToast(L.T("Ta strona już jest na liście"), null); return; }
-            string name = string.IsNullOrWhiteSpace(core.DocumentTitle) ? host : core.DocumentTitle.Trim();
+            string name = string.IsNullOrWhiteSpace(title) ? host : title.Trim();
             if (name.Length > 40) name = name.Substring(0, 40) + "…";
             list.Add(new BankSite { Name = name, Url = url, Kind = shop ? "shop" : "bank" });
             c.Sites = SealList(_bankKey, list);

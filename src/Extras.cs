@@ -160,9 +160,9 @@ try {
           if (bAnim) { try { bAnim.cancel(); } catch (x) {} }
           var f = C.entrance === 'blur' ? [{ filter: 'blur(3px)', opacity: .75 }, { filter: 'blur(0)', opacity: 1 }]
                 : C.entrance === 'zoom' ? [{ transform: 'scale(.985)', opacity: .8 }, { transform: 'none', opacity: 1 }]
-                : C.entrance === 'cinema' ? [{ filter: 'brightness(0)' }, { filter: 'brightness(1)' }]
+                : C.entrance === 'cinema' ? [{ filter: 'brightness(.3)' }, { filter: 'brightness(1)' }]
                 : [{ transform: 'translateY(12px)', opacity: .75 }, { transform: 'none', opacity: 1 }];
-          bAnim = b.animate(f, { duration: C.entrance === 'cinema' ? cinemaMs() : (C.entMs > 0 ? C.entMs : Math.max(280, Math.min(1400, C.fade * 1.3))), easing: C.entrance === 'cinema' ? 'ease-out' : 'cubic-bezier(.16,.84,.3,1)' });
+          bAnim = b.animate(f, { duration: C.entrance === 'cinema' ? cinemaMs() * .6 : (C.entMs > 0 ? C.entMs : Math.max(280, Math.min(1400, C.fade * 1.3))), easing: C.entrance === 'cinema' ? 'ease-out' : 'cubic-bezier(.16,.84,.3,1)' });
           bAnim.onfinish = bAnim.oncancel = function () { bAnim = null; };
         } catch (x) {}
       };
@@ -369,6 +369,8 @@ try {
             try
             {
                 if (tab.PageScriptId != null) { core.RemoveScriptToExecuteOnDocumentCreated(tab.PageScriptId); tab.PageScriptId = null; }
+                // kinowe wejscie: pusta strona (zanim cokolwiek sie narysuje) czarna zamiast bialej - bez bialego blysku
+                try { tab.View.DefaultBackgroundColor = _settings.PageEntrance == "cinema" && _settings.PageFade > 0 ? System.Drawing.Color.Black : System.Drawing.Color.White; } catch (Exception) { }
                 tab.PageScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageScript(tab));
                 // skrypt stron musi dzialac PRZED ukryciem chrome.webview (inaczej przyciski Pobierz/gesty nie maja kanalu do programu)
                 if (tab.HideScriptId != null)

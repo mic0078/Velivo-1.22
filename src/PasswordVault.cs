@@ -172,10 +172,23 @@ namespace Przegladarka
                         }
                     }
 
+                    function velivoFieldRect(el){
+                        // prawa krawedz CALEGO pola: strony trzymaja w ramce obok inputu wlasne przyciski (Pokaz/Ukryj, klodka) -
+                        // panel Velivo stawiamy dopiero za ramka, zeby ich nie zaslanial
+                        let r = el.getBoundingClientRect(); let right = r.right, bottom = r.bottom;
+                        let c = el.parentElement;
+                        for (let i = 0; i < 5 && c; i++, c = c.parentElement) {
+                            const cr = c.getBoundingClientRect();
+                            if (cr.height > r.height + 48 || cr.width > r.width + 220 || cr.left > r.left + 2) break;
+                            right = Math.max(right, cr.right); bottom = Math.max(bottom, cr.bottom);
+                        }
+                        return { left: r.left, top: r.top, width: right - r.left, height: r.height, right: right, bottom: bottom };
+                    }
+
                     function positionPanel(anchor) {
                         try {
                             if (!state.panel || !anchor || !isVisible(anchor)) { if (state.panel) state.panel.style.display = 'none'; return; }
-                            const rect = anchor.getBoundingClientRect();
+                            const rect = velivoFieldRect(anchor);
                             state.panel.style.display = 'inline-flex';
                             const width = state.panel.getBoundingClientRect().width || 96;
                             const height = state.panel.getBoundingClientRect().height || 30;
@@ -1253,9 +1266,22 @@ namespace Przegladarka
                     let activePass = null;
                     let activeAnchor = null;
 
+                    function velivoFieldRect(el){
+                        // prawa krawedz CALEGO pola: strony trzymaja w ramce obok inputu wlasne przyciski (Pokaz/Ukryj, klodka) -
+                        // panel Velivo stawiamy dopiero za ramka, zeby ich nie zaslanial
+                        let r = el.getBoundingClientRect(); let right = r.right, bottom = r.bottom;
+                        let c = el.parentElement;
+                        for (let i = 0; i < 5 && c; i++, c = c.parentElement) {
+                            const cr = c.getBoundingClientRect();
+                            if (cr.height > r.height + 48 || cr.width > r.width + 220 || cr.left > r.left + 2) break;
+                            right = Math.max(right, cr.right); bottom = Math.max(bottom, cr.bottom);
+                        }
+                        return { left: r.left, top: r.top, width: right - r.left, height: r.height, right: right, bottom: bottom };
+                    }
+
                     function placePanel(anchor){
                         if (!anchor) { panel.style.display = 'none'; return; }
-                        const r = anchor.getBoundingClientRect();
+                        const r = velivoFieldRect(anchor);
                         if (!r || !isFinite(r.top) || r.width < 2 || r.height < 2) { panel.style.display = 'none'; return; }
                         panel.style.display = 'inline-flex';
                         const pw = panel.getBoundingClientRect().width || 112;

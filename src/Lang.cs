@@ -1146,7 +1146,7 @@ namespace Przegladarka
             { "📋 Kopiuj", "📋 Copy" },
             { "🔐 Zapisano (zaszyfrowane)", "🔐 Saved (encrypted)" },
             { "🧾 Rachunki do opłacenia", "🧾 Bills to pay" },
-            { "🪪 Poufne dane (dokumenty)", "🪪 Confidential data (documents)" },
+            { "📄 Poufne dane (dokumenty)", "📄 Confidential data (documents)" },
             { "🔑 Moje loginy i hasła", "🔑 My logins and passwords" },
             { "Nazwa (np. Poczta, Facebook, Netflix):", "Name (e.g. Mail, Facebook, Netflix):" },
             { "Login:", "Login:" },

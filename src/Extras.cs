@@ -140,17 +140,14 @@ try {
         poke();
       };
 
-      // 1) nowo wczytana strona: startuje z mgielka, przejscie konczy sie przy pierwszym rysowaniu tresci
-      var startNew = function () { busy = true; getVeil().style.opacity = String(VEIL); };
-      if (document.documentElement) startNew();
-      else { var mo0 = new MutationObserver(function () { if (document.documentElement) { mo0.disconnect(); startNew(); } }); mo0.observe(document, { childList: true }); }
-      var go = function () { finish(); };
+      // 1) nowo wczytana strona: bez mgielki (potrafila zostac na dluzej) - tylko lagodne wejscie tresci, raz
+      var entered = false;
+      var go = function () { if (entered) return; entered = true; enter(); };
       try {
-        new PerformanceObserver(function (l) { if (l.getEntries().some(function (e) { return e.name === 'first-contentful-paint' || e.name === 'first-paint'; })) go(); })
+        new PerformanceObserver(function (l) { if (l.getEntries().some(function (e) { return e.name === 'first-contentful-paint'; })) go(); })
           .observe({ type: 'paint', buffered: true });
       } catch (x) {}
       addEventListener('DOMContentLoaded', function () { setTimeout(go, 50); }, { once: true });
-      setTimeout(go, 2500);
 
       // 2) klikniecie linku w tej karcie
       addEventListener('click', function (e) {

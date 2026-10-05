@@ -1056,6 +1056,13 @@ namespace Przegladarka
             { "Nie wpisuj tu loginu, hasła ani danych karty. Otwórz bank z listy „Moje banki”.", "Do not enter your login, password or card details here. Open your bank from “My banks”." },
             { "🛡 Tryb bankowy: okno Velivo jest niewidoczne dla zrzutów i nagrywania ekranu.", "🛡 Banking mode: the Velivo window is hidden from screenshots and screen recording." },
             { "❓ Instrukcja trybu bankowego", "❓ Banking mode guide" },
+            { "Ukrywaj okno przed zrzutami i nagrywaniem ekranu (wyłącz, jeśli myszka przycina)", "Hide the window from screenshots and screen recording (turn off if the mouse stutters)" },
+            { "🔢 Znaki z numerami", "🔢 Numbered characters" },
+            { "Gdy bank prosi o wybrane znaki hasła (np. 3., 7. i 12.)\nZaznacz hasło w treści albo zostanie użyta linia „hasło:”", "When the bank asks for selected password characters (e.g. 3rd, 7th and 12th)\nSelect the password in the content, or the “password:” line is used" },
+            { "🔢 Znaki hasła", "🔢 Password characters" },
+            { "Numer znaku nad literą. Okienko nie blokuje strony – przepisz znaki, o które prosi bank.", "The character number is above each letter. This window does not block the page – type the characters your bank asks for." },
+            { "🔢 Wpisz wybrane znaki (passcode / hasło, np. RBS, NatWest)", "🔢 Fill in selected characters (passcode / password, e.g. RBS, NatWest)" },
+            { "Nie rozpoznano pól na tej stronie – użyj „🔢 Znaki z numerami” w notatkach", "No matching fields recognised on this page – use “🔢 Numbered characters” in notes" },
         };
     }
 }

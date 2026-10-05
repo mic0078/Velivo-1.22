@@ -64,7 +64,8 @@ namespace Przegladarka
         sealed class BankConfig
         {
             public string Owner { get; set; }      // nazwa profilu bankowego (np. imie uzytkownika)
-            public int IdleMinutes { get; set; } = 10;   // blokada po bezczynnosci (minuty)
+            public int IdleMinutes { get; set; } = 10;
+            public bool AllowCapture { get; set; }   // true = nie ukrywaj okna przed nagrywaniem (gdy na danym komputerze przycina)   // blokada po bezczynnosci (minuty)
             public List<BankLogEntry> Log { get; set; } = new List<BankLogEntry>();   // dziennik otwarc (bez danych wrazliwych)
             public string Salt { get; set; }
             public string Hash { get; set; }
@@ -201,6 +202,8 @@ namespace Przegladarka
             search.Click += (s, e) => BankSearch();
             var fillLogin = new MenuItem { Header = L.T("🔑 Wpisz login z notatki na tej stronie") };
             fillLogin.Click += (s, e) => BankFillLoginMenu();
+            var partial = new MenuItem { Header = L.T("🔢 Wpisz wybrane znaki (passcode / hasło, np. RBS, NatWest)") };
+            partial.Click += (s, e) => BankFillPartialMenu();
             var backup = new MenuItem { Header = L.T("💾 Kopia zapasowa bazy…") };
             backup.Click += (s, e) => BankBackup();
             var restore = new MenuItem { Header = L.T("📂 Przywróć bazę z kopii…") };
@@ -211,11 +214,11 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 addSite.IsEnabled = _bankUnlocked && _bankKey != null && _current != null && _current.Bank && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
                 addShop.IsEnabled = addSite.IsEnabled;
-                fillLogin.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
+                fillLogin.IsEnabled = fill.IsEnabled; partial.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
                 log.IsEnabled = _bankUnlocked; backup.IsEnabled = BankProfiles().Count > 0;
                 profMenu.Items.Clear();
                 foreach (var p in BankProfiles())
@@ -247,6 +250,18 @@ namespace Przegladarka
         }
 
         int _bankIdleMinutes = 10;
+        bool _bankAllowCapture;
+        readonly Dictionary<string, Window> _bankTools = new Dictionary<string, Window>();
+
+        // Notatki i wyszukiwarka jako zwykle okienka (nie blokuja strony) - mozna przepisywac znaki do formularza banku
+        void ShowBankTool(Window w, string id)
+        {
+            Window old;
+            if (_bankTools.TryGetValue(id, out old) && old.IsLoaded) old.Close();
+            _bankTools[id] = w;
+            w.Closed += (s, e) => { Window cur; if (_bankTools.TryGetValue(id, out cur) && cur == w) _bankTools.Remove(id); };
+            w.Show();
+        }
         Microsoft.Web.WebView2.Core.CoreWebView2Profile _bankCoreProfile;
 
         // Po zamknieciu trybu: czyscimy pamiec podreczna i historie profilu bankowego (logowania / "zapamietaj mnie" zostaja)
@@ -264,6 +279,9 @@ namespace Przegladarka
 
         void LockBank(string toast)
         {
+            // blokada zamyka WSZYSTKIE okienka trybu bankowego (notatki, karty, wyszukiwarka, znaki hasla, ustawienia)
+            foreach (var t in _bankTools.Values.ToList()) { try { t.Close(); } catch (Exception) { } }
+            foreach (Window t in OwnedWindows.Cast<Window>().ToList()) { try { if ((t.Tag as string) == "velivo-bank") t.Close(); } catch (Exception) { } }
             _bankUnlocked = false; ForgetBankKey();
             ClearBankTraces();
             foreach (var t in _tabs.Where(t => t.Bank).ToList()) CloseTab(t);
@@ -348,6 +366,7 @@ namespace Przegladarka
                 AddBankLog(c, how, true);
                 SaveBank(c); _bankFails = 0; _bankUnlocked = true; result = true;
                 _bankIdleMinutes = c.IdleMinutes > 0 ? c.IdleMinutes : 10;
+                _bankAllowCapture = c.AllowCapture;
                 w.Close();
                 CheckCardExpiry(c);
             };
@@ -547,6 +566,8 @@ namespace Przegladarka
             foreach (var m in idleOpts) idleBox.Items.Add(m + " min");
             idleBox.SelectedIndex = Math.Max(0, Array.IndexOf(idleOpts, c.IdleMinutes > 0 ? c.IdleMinutes : 10));
             sp.Children.Add(idleBox);
+            var capture = new CheckBox { Content = L.T("Ukrywaj okno przed zrzutami i nagrywaniem ekranu (wyłącz, jeśli myszka przycina)"), IsChecked = !c.AllowCapture, Margin = new Thickness(0, 0, 0, 10) };
+            sp.Children.Add(capture);
             var useKey = new CheckBox { Content = L.T("Dodatkowo wymagaj klucza sprzętowego (YubiKey, Google Titan…)"), IsChecked = c.UseKey, Margin = new Thickness(0, 4, 0, 4) };
             sp.Children.Add(useKey);
             var keyPanel = new StackPanel { Margin = new Thickness(20, 0, 0, 0) };
@@ -634,6 +655,7 @@ namespace Przegladarka
                 _bankUnlocked = true;
                 c.UseKey = withKey; c.Keys = keys;
                 c.IdleMinutes = idleOpts[Math.Max(0, idleBox.SelectedIndex)]; _bankIdleMinutes = c.IdleMinutes;
+                c.AllowCapture = capture.IsChecked != true; _bankAllowCapture = c.AllowCapture;
                 SaveBank(c); saved = true; w.Close();
                 ShowToast(L.T("🏦 Tryb bankowy zapisany"), null);
             };
@@ -762,7 +784,7 @@ var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+'
 if(/cc-csc|cvv|cvc|csc|security/.test(a))return;
 if(/cc-number|cardnumber|card-number|card_number|numer.?karty|ccnum/.test(a))set(el,d.n);
 else if(/cc-exp-month|exp.?month|miesi/.test(a))set(el,mm);
-else if(/cc-exp-year|exp.?year|rok/.test(a))set(el,el.maxLength==4?'20'+yy:yy);
+else if(/cc-exp-year|exp.?year|\brok\b/.test(a))set(el,el.maxLength==4?'20'+yy:yy);
 else if(/cc-exp|expir|wazn|ważn|mm.?\/.?yy|mm.?\/.?rr/.test(a))set(el,d.e);
 else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a))set(el,d.h);
 });});}catch(x){}})(__D__);";
@@ -936,8 +958,22 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 ShowToast(L.T("🎲 Wygenerowano mocne hasło (skopiowane – schowek wyczyści się za 30 s)"), null);
                 ClearClipboardLater(pw);
             };
+            var chars = new Button { Content = L.T("🔢 Znaki z numerami"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0), ToolTip = L.T("Gdy bank prosi o wybrane znaki hasła (np. 3., 7. i 12.)\nZaznacz hasło w treści albo zostanie użyta linia „hasło:”") };
+            chars.Click += (s, e) =>
+            {
+                string v = text.SelectedText;
+                if (string.IsNullOrEmpty(v))
+                {
+                    string u2, p2; ParseLoginNote(text.Text, out u2, out p2);
+                    v = p2 ?? (text.Text ?? "").Trim();
+                }
+                if (!string.IsNullOrEmpty(v)) ShowPasswordChars(v);
+            };
             row.Children.Add(add); row.Children.Add(upd); row.Children.Add(del); row.Children.Add(copy); row.Children.Add(gen);
+            var row2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+            row2.Children.Add(chars);
             sp.Children.Add(row);
+            sp.Children.Add(row2);
             add.Click += (s, e) =>
             {
                 if (string.IsNullOrWhiteSpace(title.Text) && string.IsNullOrWhiteSpace(text.Text)) return;
@@ -965,7 +1001,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 cc.Notes = SealList(_bankKey, notes);
                 SaveBank(cc); w.Close(); ShowToast(L.T("📝 Notatki zapisane (zaszyfrowane)"), null);
             };
-            w.ShowDialog();
+            ShowBankTool(w, "notes");
         }
 
         // ---------- instrukcja ----------
@@ -1074,6 +1110,30 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             w.Show();
         }
 
+        // Okienko z numerowanymi znakami hasla - dla bankow pytajacych o wybrane znaki (nie blokuje strony)
+        void ShowPasswordChars(string pw)
+        {
+            var w = BankDialog(L.T("🔢 Znaki hasła"));
+            var sp = (StackPanel)w.Content;
+            w.Topmost = true;
+            sp.Children.Add(new TextBlock { Text = L.T("Numer znaku nad literą. Okienko nie blokuje strony – przepisz znaki, o które prosi bank."), TextWrapping = TextWrapping.Wrap, MaxWidth = 520, Margin = new Thickness(0, 0, 0, 8) });
+            var wrap = new WrapPanel { MaxWidth = 560 };
+            for (int i = 0; i < pw.Length; i++)
+            {
+                var cell = new StackPanel { Margin = new Thickness(2), MinWidth = 30 };
+                cell.Children.Add(new TextBlock { Text = (i + 1).ToString(), FontSize = 11, Foreground = Brushes.Gray, HorizontalAlignment = HorizontalAlignment.Center });
+                cell.Children.Add(new Border
+                {
+                    BorderBrush = Brushes.LightGray, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(4, 2, 4, 2),
+                    Child = new TextBlock { Text = pw[i] == ' ' ? "␣" : pw[i].ToString(), FontFamily = new FontFamily("Consolas"), FontSize = 20, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center }
+                });
+                wrap.Children.Add(cell);
+            }
+            sp.Children.Add(wrap);
+            BankButtons(sp, w, L.T("Zamknij")).Click += (s, e) => w.Close();
+            ShowBankTool(w, "chars");
+        }
+
         // ---------- drobne narzedzia ----------
         static string StrongPassword(int len)
         {
@@ -1177,7 +1237,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             sp.Children.Add(copy);
             BankButtons(sp, w, L.T("Zamknij")).Click += (s, e) => w.Close();
             run(); q.Focus();
-            w.ShowDialog();
+            ShowBankTool(w, "search");
         }
 
         // ---------- kopia zapasowa ----------
@@ -1236,6 +1296,69 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             if (menu.Items.Count == 0) { BankNotes(); return; }
             menu.IsOpen = true;
         }
+
+        // Banki pytajace o WYBRANE znaki (np. RBS: 3 cyfry passcode/PIN i 3 litery hasla): strona pokazuje
+        // "Enter the 2nd, 4th and 6th digit" - skrypt czyta numery przy polach i wpisuje odpowiednie znaki.
+        void BankFillPartialMenu()
+        {
+            if (_current == null || !_current.Bank || _bankKey == null) return;
+            var c = LoadBank(); if (c == null) return;
+            List<BankNote> notes;
+            try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { return; }
+            var menu = new ContextMenu { PlacementTarget = _bankBtn };
+            foreach (var n in notes.OrderBy(x => x.Category == "Login" ? 0 : 1))
+            {
+                var note = n;
+                var mi = new MenuItem { Header = (string.IsNullOrEmpty(note.Category) ? "" : "[" + L.T(note.Category) + "]  ") + note.Title };
+                mi.Click += async (s, e) =>
+                {
+                    string pin = null, pwd = null;
+                    foreach (var l in (note.Text ?? "").Replace("\r", "").Split('\n'))
+                    {
+                        int i = l.IndexOf(':'); if (i <= 0) continue;
+                        var k = l.Substring(0, i).Trim().ToLowerInvariant(); var v = l.Substring(i + 1).Trim();
+                        if (pin == null && (k.StartsWith("passcode") || k.StartsWith("pin") || k.StartsWith("kod"))) pin = v;
+                        else if (pwd == null && (k.StartsWith("has") || k.StartsWith("password"))) pwd = v;
+                    }
+                    var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
+                    if (core == null) return;
+                    var data = JsonSerializer.Serialize(new { pin = pin ?? "", pwd = pwd ?? "" });
+                    string r = "0";
+                    try { r = await core.ExecuteScriptAsync(PartialFillScript.Replace("__D__", data)); } catch (Exception) { }
+                    int filled; int.TryParse((r ?? "0").Trim('"'), out filled);
+                    ShowToast(filled > 0 ? (L.En ? "🔢 Filled in characters: " : "🔢 Wpisano znaki: ") + filled
+                        : L.T("Nie rozpoznano pól na tej stronie – użyj „🔢 Znaki z numerami” w notatkach"), null);
+                };
+                menu.Items.Add(mi);
+            }
+            if (menu.Items.Count == 0) { BankNotes(); return; }
+            menu.IsOpen = true;
+        }
+
+        const string PartialFillScript = @"(function(d){var n=0;try{
+var ord={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12,thirteenth:13,fourteenth:14,fifteenth:15,sixteenth:16,seventeenth:17,eighteenth:18,nineteenth:19,twentieth:20,
+pierwszy:1,pierwsza:1,drugi:2,druga:2,trzeci:3,trzecia:3,czwarty:4,czwarta:4,piaty:5,piata:5,szosty:6,szosta:6,siodmy:7,siodma:7,osmy:8,osma:8,dziewiaty:9,dziewiata:9,dziesiaty:10,dziesiata:10};
+var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
+function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}
+function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
+el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('blur',{bubbles:true}));n++;}
+function norm(t){return (t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+function labelOf(el,doc){var t='';if(el.id){var l=doc.querySelector('label[for='+JSON.stringify(el.id)+']');if(l)t+=' '+l.textContent;}
+t+=' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('title')||'')+' '+(el.name||'')+' '+(el.id||'');
+var lab=el.closest('label');if(lab)t+=' '+lab.textContent;
+var prev=el.previousElementSibling;if(prev&&prev.textContent.length<60)t+=' '+prev.textContent;
+var par=el.parentElement;if(par&&par.textContent.length<80)t+=' '+par.textContent;return norm(t);}
+function posOf(t){var m=t.match(/(\d{1,2})\s*(st|nd|rd|th|\.)?\s*(digit|character|char|letter|znak|cyfr|litera)/)||t.match(/(digit|character|char|letter|znak|cyfr|litera)\w*\s*(no\.?|nr\.?|number|numer)?\s*(\d{1,2})/)||t.match(/\b(\d{1,2})(st|nd|rd|th)\b/);
+if(m){for(var i=1;i<m.length;i++){if(/^\d+$/.test(m[i]||''))return parseInt(m[i],10);}}
+for(var w in ord){if(new RegExp('\b'+w+'\b').test(t))return ord[w];}return 0;}
+function kind(el){var c=el;for(var i=0;i<6&&c;i++){var t=norm(c.textContent||'');if(/passcode|pin|kod|digit|cyfr/.test(t)&&!/password|haslo|character|letter|litera/.test(t))return 'pin';if(/password|haslo|character|letter|litera/.test(t)&&!/passcode|pin\b|digit|cyfr/.test(t))return 'pwd';c=c.parentElement;}
+var a=norm((el.name||'')+' '+(el.id||''));if(/pin|pass.?code|digit/.test(a))return 'pin';if(/pass|pwd|char/.test(a))return 'pwd';return el.inputMode==='numeric'||el.type==='tel'||el.type==='number'?'pin':'pwd';}
+docs.forEach(function(doc){
+var ins=Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).filter(function(i){return i.tagName==='SELECT'||/^(text|password|tel|number|)$/.test(i.type||'');});
+ins.forEach(function(el){if(el.tagName!=='SELECT'&&el.maxLength>2)return;
+var p=posOf(labelOf(el,doc));if(!p)return;var k=kind(el);var src=k==='pin'?d.pin:d.pwd;if(!src||p>src.length)return;var ch=src.charAt(p-1);
+if(el.tagName==='SELECT'){for(var o=0;o<el.options.length;o++){if(el.options[o].value===ch||el.options[o].text.trim()===ch){el.selectedIndex=o;el.dispatchEvent(new Event('change',{bubbles:true}));n++;break;}}}else set(el,ch);});
+});}catch(x){}return String(n);})(__D__);";
 
         // "login: xxx" / "hasło: yyy" (albo: 1. linia = login, 2. linia = haslo)
         static void ParseLoginNote(string text, out string user, out string pass)
@@ -1372,7 +1495,7 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
             var w = new Window
             {
                 Title = title, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner, SizeToContent = SizeToContent.WidthAndHeight,
-                ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
+                ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Tag = "velivo-bank",
                 Content = new StackPanel { Margin = new Thickness(18) }
             };
             w.PreviewKeyDown += (s, e) => { if (e.Key == Key.Escape) w.Close(); };

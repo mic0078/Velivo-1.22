@@ -483,6 +483,33 @@ Tryb bankowy to osobny, odizolowany profil przeglądarki na banki, płatności i
 - **📝 Moje notatki** – loginy, hasła, numery klienta, z kategoriami (Login, PIN, Przelewy, Kody odzyskiwania, Inne). **🎲 Wygeneruj hasło** wstawia mocne hasło, **🔢 Znaki z numerami** pokazuje hasło znak po znaku z numerami. Okienka notatek i wyszukiwarki nie blokują strony.
 - **🔍 Szukaj w mojej bazie** – jedno pole dla banków, sklepów, kart i notatek.
 
+**🧾 Rachunki do opłacenia**
+
+Lista stałych i jednorazowych opłat (czynsz, prąd, ogrzewanie, council tax, internet, raty…) – zaszyfrowana razem z resztą bazy. Otwierasz ją z menu **🏦 → 🧾 Rachunki do opłacenia**.
+
+- **Pola rachunku:** *Za co* (nazwa), *Kwota*, *Termin płatności* (DD.MM.RRRR), *Powtarzanie* (co tydzień, co 2 tygodnie, co 4 tygodnie, co miesiąc, co 2 miesiące, co kwartał, co pół roku, co rok, jednorazowo – albo wpisz własne, np. „co 10 dni”), *Przypominaj dni wcześniej*, *Numer klienta / referencja*, *Strona do płatności*, *Notatka*. Przy każdym polu jest **📋** do skopiowania (schowek czyści się po 30 s).
+- **Nazwa z arkusza:** pole *Za co* ma rozwijaną listę nazw kolumn z arkusza rachunków (np. „Housing Rata 1”, „Council Rata 2”). Wybieraj nazwę z listy – dzięki temu zapłacone rachunki trafiają do właściwej kolumny arkusza. Inna nazwa (nawet literówka) = nowa kolumna w arkuszu.
+- **➕ Dodaj jako nową / ✔ Zmień zaznaczoną / Usuń zaznaczoną / Wyczyść pola** – zwykła edycja listy. Na końcu kliknij **Zapisz** – dopiero wtedy zmiany (także oznaczone płatności) trafiają do zaszyfrowanej bazy.
+- **✔ Zapłacone (następny termin)** – zaznacz rachunek i kliknij: płatność zapisuje się w historii (miesiąc = miesiąc terminu, kwota z rachunku), a termin przesuwa się wg powtarzania. Rachunek jednorazowy po opłaceniu znika z listy. Kliknięcie dwa razy w tym samym miesiącu doda kwotę dwa razy – pomyłkę poprawisz w arkuszu.
+- **➕ Dodaj rachunki z arkusza** – dodaje na listę każdą kolumnę arkusza, której jeszcze nie ma: kwota z ostatniego miesiąca, powtarzanie *co miesiąc*, termin 1. dnia następnego miesiąca. **Popraw potem dzień terminu** na prawdziwy i kliknij **Zapisz**.
+- **🌐 Otwórz stronę płatności** – otwiera adres z pola *Strona do płatności* w karcie bankowej.
+- **Przypomnienia:** przy otwarciu trybu bankowego Velivo pokazuje rachunki z terminem w ciągu kilku dni i po terminie – codziennie, aż oznaczysz je jako zapłacone.
+- Velivo **nie łączy się z bankiem** – nie wie samo, że zapłaciłeś. Płatność oznaczasz przyciskiem *Zapłacone*.
+
+**📊 Arkusz rachunków**
+
+Zestawienie wszystkich zapłaconych rachunków jak w Excelu, otwierane w karcie bankowej (lokalnie, bez internetu). Przycisk **📊 Arkusz rachunków (w karcie)** w okienku *Rachunki do opłacenia*.
+
+- **Jak czytać:** każdy **wiersz** to miesiąc, każda **kolumna** to rachunek, w komórce kwota zapłacona w tym miesiącu. Kolumna **Razem** po prawej = suma miesiąca, wiersz **Razem** na dole = suma każdego rachunku ze wszystkich miesięcy, w prawym dolnym rogu suma całości.
+- **Wpisywanie:** klikasz komórkę i wpisujesz kwotę – sumy liczą się od razu. Miesiąc wpisujesz słownie lub liczbowo: „październik 2026”, „October 2026”, „10.2026”, „2026-10”.
+- **➕ Wiersz (miesiąc)** – dodaje miesiąc następny po najpóźniejszym w tabeli (po wrześniu 2026 → październik 2026) i kopiuje kwoty z ostatniego wiersza (stałe opłaty nie trzeba wpisywać od nowa).
+- **➕ Kolumna (rachunek)** – nowy rachunek; nazwę zmieniasz klikając w nagłówek. **✕** pod nazwą usuwa kolumnę, **✕** na końcu wiersza usuwa miesiąc.
+- **📤 Wczytaj z Excela (CSV)** – w Excelu: *Plik → Zapisz jako → CSV (rozdzielany przecinkami/średnikami)*. Układ pliku: **pierwsza kolumna = miesiąc**, **pierwszy wiersz = nazwy rachunków**, w środku kwoty. Separator (`;`, `,` lub tabulator) Velivo rozpoznaje samo. Kolumny i wiersze o nazwie *Razem / Suma / Total* są pomijane (żeby sumy nie liczyły się podwójnie). Miesiące, które już są w arkuszu, zostają uzupełnione (puste komórki z pliku nie kasują Twoich kwot), nowe rachunki dochodzą jako nowe kolumny, a wiersze układają się chronologicznie. Po wczytaniu pojawia się liczba wczytanych wierszy.
+- **Waluta, w której wpisujesz kwoty** – £, zł, €, $, CHF, kr, Kč, Ft, lei, ₴, ¥. To tylko **symbol** – kwoty **nie są przeliczane** po kursie. Domyślnie waluta z ustawień regionalnych Windows; wybór zapamiętuje się po *Zapisz i zamknij*.
+- **💾 Zapisz i zamknij** – dane szyfrują się w bazie i karta się zamyka. Wiersze bez kwot są pomijane, wiersze bez poprawnego miesiąca też (Velivo poda ile). **Anuluj** zamyka bez zapisywania.
+- **Związek z Rachunkami do opłacenia:** arkusz i przycisk *Zapłacone* korzystają z tej samej historii. Każde *Zapłacone* pojawia się w arkuszu w miesiącu terminu i w kolumnie o tej samej nazwie.
+- Starsze okienko **📊 Zestawienie płatności** pokazuje te same dane jako tabelę, z ręcznym dopisywaniem/usuwaniem płatności i **📥 Zapisz do Excela (CSV)** (eksport).
+
 **Ochrona**
 
 - **Fałszywe strony:** gdy przy otwartym trybie bankowym wejdziesz na stronę podobną do Twojego banku (np. inny adres z nazwą banku), pojawi się duże ostrzeżenie.

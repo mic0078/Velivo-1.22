@@ -1966,6 +1966,8 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 📄 Poufne dane – dokumenty (dowód, paszport, prawo jazdy, PESEL, NI number): numer, ważność z przypomnieniem, notatka.
 🏦 Rachunki bankowe – Twoje konta i konta odbiorców (IBAN, sort code, właściciel) z kopiowaniem do przelewów.
 🧾 Rachunki do opłacenia – kwota, termin z przypomnieniem, powtarzanie, „Zapłacone” przesuwa termin, link do strony płatności.
+   Nazwę wybieraj z listy (nazwy kolumn arkusza) – „Zapłacone” wpisze kwotę do arkusza w miesiącu terminu. „➕ Dodaj rachunki z arkusza” tworzy brakujące rachunki.
+📊 Arkusz rachunków – miesiące × rachunki z sumami jak w Excelu; „Wczytaj z Excela (CSV)” (1. kolumna = miesiąc, nagłówki = rachunki), wybór waluty (tylko symbol, bez przeliczania).
 🏦 Moje banki / 🛒 Moje sklepy online – kliknij, aby otworzyć stronę. Na liście jest też „Dodaj bank/sklep (nazwa i adres)”.
 ➕ Dodaj tę stronę do Moich banków / sklepów – na otwartej karcie bankowej.
 ✏ Dane logowania (w Moich bankach) – login, passcode/PIN, hasło, memorable information osobno dla każdego banku.
@@ -2016,6 +2018,8 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 📄 Confidential data – documents (ID, passport, driving licence, PESEL, NI number): number, expiry with reminders, note.
 🏦 Bank accounts – your accounts and payees (IBAN, sort code, holder) with copying for transfers.
 🧾 Bills to pay – amount, due date with reminders, repeat, “Paid” moves the date on, link to the payment site.
+   Pick the name from the list (sheet column names) – “Paid” puts the amount into the sheet in the due-date month. “➕ Add bills from the sheet” creates missing bills.
+📊 Bills sheet – months × bills with totals like Excel; “Load from Excel (CSV)” (1st column = month, headers = bills), currency choice (symbol only, no conversion).
 🏦 My banks / 🛒 My online shops – click to open the site; “Add a bank/shop (name and address)” is in the list.
 ➕ Add this site to My banks / shops – on an open banking tab.
 ✏ Login details (in My banks) – login, passcode/PIN, password and memorable information for each bank.

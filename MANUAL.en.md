@@ -482,6 +482,33 @@ Banking mode is a separate, isolated browser profile for banking, payments and s
 - **📝 My notes** – logins, passwords, customer numbers, with categories (Login, PIN, Transfers, Recovery codes, Other). **🎲 Generate password** inserts a strong password, **🔢 Numbered characters** shows the password character by character with numbers. The notes and search windows don't block the page.
 - **🔍 Search my vault** – one field for banks, shops, cards and notes.
 
+**🧾 Bills to pay**
+
+A list of regular and one-off payments (rent, electricity, heating, council tax, internet, instalments…), encrypted with the rest of the vault. Open it from **🏦 → 🧾 Bills to pay**.
+
+- **Bill fields:** *What for* (name), *Amount*, *Due date* (DD.MM.YYYY), *Repeat* (weekly, every 2 weeks, every 4 weeks, monthly, every 2 months, quarterly, every half year, yearly, one-off – or type your own, e.g. "every 10 days"), *Remind days before*, *Customer number / reference*, *Payment website*, *Note*. Each field has **📋** to copy (clipboard cleared after 30 s).
+- **Name from the sheet:** the *What for* field has a drop-down with the column names from the bills sheet (e.g. "Housing Rata 1", "Council Rata 2"). Pick the name from the list so paid bills land in the right sheet column. A different name (even a typo) = a new column in the sheet.
+- **➕ Add as new / ✔ Change selected / Delete selected / Clear fields** – normal list editing. Finally click **Save** – only then are changes (including payments marked as paid) written to the encrypted vault.
+- **✔ Paid (next due date)** – select a bill and click: the payment is recorded in the history (month = due-date month, amount from the bill) and the due date moves on by the repeat interval. A one-off bill disappears from the list once paid. Clicking twice in the same month adds the amount twice – fix mistakes in the sheet.
+- **➕ Add bills from the sheet** – adds every sheet column that is not on the list yet: amount from the latest month, repeat *monthly*, due on the 1st of the following month. **Then correct the due day** and click **Save**.
+- **🌐 Open payment site** – opens the *Payment website* address in a banking tab.
+- **Reminders:** when banking mode opens, Velivo shows bills due within a few days and overdue ones – every day until you mark them as paid.
+- Velivo **does not connect to your bank** – it cannot know you paid. You mark payments with *Paid*.
+
+**📊 Bills sheet**
+
+An Excel-like overview of all paid bills, opened in a banking tab (local, offline). Button **📊 Bills sheet (in a tab)** in the *Bills to pay* window.
+
+- **How to read it:** each **row** is a month, each **column** is a bill, a cell holds the amount paid that month. The **Total** column on the right = month total, the **Total** row at the bottom = total of each bill across all months, bottom-right = grand total.
+- **Typing:** click a cell and type the amount – totals update at once. Months can be written as words or numbers: "October 2026", "październik 2026", "10.2026", "2026-10".
+- **➕ Row (month)** – adds the month after the latest one in the table (after September 2026 → October 2026) and copies amounts from the last row (fixed bills need not be retyped).
+- **➕ Column (bill)** – a new bill; click the header to rename it. **✕** under the name deletes the column, **✕** at the end of a row deletes the month.
+- **📤 Load from Excel (CSV)** – in Excel: *File → Save as → CSV (comma/semicolon delimited)*. Layout: **first column = month**, **first row = bill names**, amounts inside. The separator (`;`, `,` or tab) is detected automatically. Columns and rows named *Total / Sum / Razem / Suma* are skipped (so totals are not counted twice). Months already in the sheet are filled in (empty cells in the file do not erase your amounts), new bills become new columns and rows are sorted chronologically. The number of loaded rows is shown afterwards.
+- **Currency you type amounts in** – £, zł, €, $, CHF, kr, Kč, Ft, lei, ₴, ¥. It is only a **symbol** – amounts are **not converted** by exchange rate. Default comes from Windows regional settings; the choice is remembered on *Save and close*.
+- **💾 Save and close** – the data is encrypted in the vault and the tab closes. Rows without amounts are skipped, as are rows without a valid month (Velivo tells you how many). **Cancel** closes without saving.
+- **Link with Bills to pay:** the sheet and the *Paid* button share the same history. Every *Paid* shows up in the sheet in the due-date month, in the column with the same name.
+- The older **📊 Payment summary** window shows the same data as a table, with manual adding/removing of payments and **📥 Save to Excel (CSV)** (export).
+
 **Protection**
 
 - **Fake sites:** while banking mode is open, a site that looks like your bank (e.g. another address with the bank's name) shows a big warning.

@@ -963,6 +963,11 @@ namespace Przegladarka
             { "🔒 Tryb bankowy zablokowany", "🔒 Banking mode locked" },
             { "🔒 Tryb bankowy zablokowany po 10 minutach bezczynności", "🔒 Banking mode locked after 10 minutes of inactivity" },
             { "🔒 Zablokuj teraz", "🔒 Lock now" },
+            { "Ten klucz otwiera tryb, ale nie odszyfrowuje kart – użyj klucza, który szyfruje karty", "This key opens the mode but cannot decrypt the cards – use a key that encrypts them" },
+            { "Karty są zamknięte – otwórz tryb bankowy kluczem, który szyfruje karty, i wtedy zmień ustawienia.", "The cards are locked – open banking mode with a key that encrypts them, then change the settings." },
+            { "\n🔐 = klucz szyfruje karty (bez niego karty się nie otworzą)", "\n🔐 = the key encrypts the cards (they won't open without it)" },
+            { "Dotknij klucza jeszcze raz – przygotowanie szyfrowania kart…", "Touch the key again – setting up card encryption…" },
+            { "Ten klucz nie potrafi szyfrować – będzie tylko otwierał tryb bankowy.", "This key cannot encrypt – it will only open banking mode." },
         };
     }
 }

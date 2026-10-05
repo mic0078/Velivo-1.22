@@ -27,7 +27,11 @@ namespace Przegladarka
         const string BankRpId = "velivo.local";
         static string BankFile { get { return Path.Combine(DataDir, "bank.json"); } }
 
-        sealed class BankKey { public string Id { get; set; } public string X { get; set; } public string Y { get; set; } public string Name { get; set; } }
+        sealed class BankKey
+        {
+            public string Id { get; set; } public string X { get; set; } public string Y { get; set; } public string Name { get; set; }
+            public string WrapK { get; set; }   // czesc klucza kart zaszyfrowana sekretem z tego klucza sprzetowego (null = klucz tylko otwiera tryb)
+        }
         sealed class BankConfig
         {
             public string Salt { get; set; }
@@ -36,7 +40,9 @@ namespace Przegladarka
             public bool UseKey { get; set; }
             public List<BankKey> Keys { get; set; } = new List<BankKey>();
             public string CardSalt { get; set; }   // sol klucza sejfu kart (inna niz hasla)
-            public string Cards { get; set; }      // karty zaszyfrowane AES-GCM kluczem z hasla
+            public string Cards { get; set; }      // karty zaszyfrowane AES-GCM
+            public string WrapP { get; set; }      // czesc hasla klucza kart (Kp) zaszyfrowana kluczem z hasla
+            public string HmacSalt { get; set; }   // sol dla sekretu z klucza sprzetowego (hmac-secret)
         }
 
         bool _bankUnlocked, _creatingBank;
@@ -45,6 +51,28 @@ namespace Przegladarka
         int _bankFails;
         Button _bankBtn;
         byte[] _bankKey;   // klucz sejfu kart - tylko w pamieci, gdy tryb jest odblokowany
+        // Klucz kart = Kp (z hasla) albo SHA256(Kp + Kk), gdy karty chroni tez klucz sprzetowy (Kk odszyfrowuje
+        // tylko sekret z fizycznego klucza - samo haslo wtedy nie wystarczy).
+        byte[] _bankKp, _bankKk;
+
+        static byte[] CardKeyFrom(byte[] kp, byte[] kk) { return kk == null ? (byte[])kp.Clone() : SHA256.HashData(kp.Concat(kk).ToArray()); }
+        static byte[] KekFromHmac(byte[] hmac) { return HKDF.DeriveKey(HashAlgorithmName.SHA256, hmac, 32, null, Encoding.UTF8.GetBytes("velivo-bank-kk")); }
+
+        static string Wrap(byte[] data, byte[] key)
+        {
+            var nonce = RandomNumberGenerator.GetBytes(12); var ct = new byte[data.Length]; var tag = new byte[16];
+            using (var g = new AesGcm(key, 16)) g.Encrypt(nonce, data, ct, tag);
+            return Convert.ToBase64String(nonce.Concat(ct).Concat(tag).ToArray());
+        }
+
+        static byte[] Unwrap(string b64, byte[] key)
+        {
+            var all = Convert.FromBase64String(b64);
+            var nonce = all.Take(12).ToArray(); var tag = all.Skip(all.Length - 16).ToArray(); var ct = all.Skip(12).Take(all.Length - 28).ToArray();
+            var plain = new byte[ct.Length];
+            using (var g = new AesGcm(key, 16)) g.Decrypt(nonce, ct, tag, plain);
+            return plain;
+        }
         static string BankWipeFlag { get { return Path.Combine(DataDir, "bank.wipe"); } }
 
         sealed class BankCard { public string Label { get; set; } public string Number { get; set; } public string Exp { get; set; } public string Holder { get; set; } }
@@ -54,20 +82,14 @@ namespace Przegladarka
         List<BankCard> LoadCards(BankConfig c)
         {
             if (_bankKey == null || string.IsNullOrEmpty(c.Cards)) return new List<BankCard>();
-            var all = Convert.FromBase64String(c.Cards);
-            var nonce = all.Take(12).ToArray(); var tag = all.Skip(all.Length - 16).ToArray(); var ct = all.Skip(12).Take(all.Length - 28).ToArray();
-            var plain = new byte[ct.Length];
-            using (var g = new AesGcm(_bankKey, 16)) g.Decrypt(nonce, ct, tag, plain);
+            var plain = Unwrap(c.Cards, _bankKey);
             return JsonSerializer.Deserialize<List<BankCard>>(plain) ?? new List<BankCard>();
         }
 
         static string SealCards(byte[] key, List<BankCard> cards)
         {
             var plain = JsonSerializer.SerializeToUtf8Bytes(cards);
-            var nonce = RandomNumberGenerator.GetBytes(12); var ct = new byte[plain.Length]; var tag = new byte[16];
-            using (var g = new AesGcm(key, 16)) g.Encrypt(nonce, plain, ct, tag);
-            CryptographicOperations.ZeroMemory(plain);
-            return Convert.ToBase64String(nonce.Concat(ct).Concat(tag).ToArray());
+            try { return Wrap(plain, key); } finally { CryptographicOperations.ZeroMemory(plain); }
         }
 
         static BankConfig LoadBank()
@@ -133,7 +155,11 @@ namespace Przegladarka
             ShowToast(toast ?? L.T("🔒 Tryb bankowy zablokowany"), null);
         }
 
-        void ForgetBankKey() { if (_bankKey != null) CryptographicOperations.ZeroMemory(_bankKey); _bankKey = null; }
+        void ForgetBankKey()
+        {
+            foreach (var k in new[] { _bankKey, _bankKp, _bankKk }) if (k != null) CryptographicOperations.ZeroMemory(k);
+            _bankKey = _bankKp = _bankKk = null;
+        }
 
         async void OpenBankTab()
         {
@@ -191,14 +217,45 @@ namespace Przegladarka
                         if (wait > 0) await Task.Delay(wait * 1000);
                         return;
                     }
+                    byte[] hmac = null; BankKey used = null;
                     if (needKey)
                     {
                         err.Text = L.T("Dotknij klucza sprzętowego (okienko Windows)…");
-                        string why = await BankCheckKey(c, w);
-                        if (why != null) { err.Text = why; return; }
+                        try
+                        {
+                            var hwnd = new WindowInteropHelper(w).Handle;
+                            var allowed = c.Keys.ToList();
+                            var salt2 = string.IsNullOrEmpty(c.HmacSalt) ? null : Convert.FromBase64String(c.HmacSalt);
+                            var r = await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, allowed, salt2));
+                            if (r.Key == null) { err.Text = L.T("Ten klucz nie jest dodany do trybu bankowego."); return; }
+                            used = r.Key; hmac = r.Hmac;
+                        }
+                        catch (Exception ex) { err.Text = ex.Message; return; }
                     }
-                    if (string.IsNullOrEmpty(c.CardSalt)) { c.CardSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16)); SaveBank(c); }
-                    _bankKey = await Task.Run(() => CardKey(pw, c));
+                    if (string.IsNullOrEmpty(c.CardSalt)) c.CardSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+                    var pwKey = await Task.Run(() => CardKey(pw, c));
+                    ForgetBankKey();
+                    if (string.IsNullOrEmpty(c.WrapP))
+                    {
+                        // starszy zapis (karty zaszyfrowane samym kluczem z hasla) - przejscie na nowy uklad
+                        _bankKey = pwKey; var old = LoadCards(c);
+                        _bankKp = RandomNumberGenerator.GetBytes(32);
+                        c.WrapP = Wrap(_bankKp, pwKey);
+                        _bankKey = CardKeyFrom(_bankKp, null);
+                        c.Cards = old.Count > 0 ? SealCards(_bankKey, old) : null;
+                        foreach (var k in c.Keys) k.WrapK = null;
+                    }
+                    else _bankKp = Unwrap(c.WrapP, pwKey);
+                    if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+                    SaveBank(c);
+                    bool cardsNeedKey = c.UseKey && c.Keys.Any(k => k.WrapK != null);
+                    if (cardsNeedKey)
+                    {
+                        if (used != null && used.WrapK != null && hmac != null) { try { _bankKk = Unwrap(used.WrapK, KekFromHmac(hmac)); } catch (Exception) { _bankKk = null; } }
+                        _bankKey = _bankKk != null ? CardKeyFrom(_bankKp, _bankKk) : null;
+                        if (_bankKey == null) ShowToast(L.T("Ten klucz otwiera tryb, ale nie odszyfrowuje kart – użyj klucza, który szyfruje karty"), null);
+                    }
+                    else _bankKey = CardKeyFrom(_bankKp, null);
                     _bankFails = 0; _bankUnlocked = true; result = true; w.Close();
                 }
                 catch (Exception ex) { err.Text = ex.Message; }
@@ -221,7 +278,14 @@ namespace Przegladarka
         bool BankSetup(BankConfig existing)
         {
             var c = existing ?? new BankConfig { Iter = 600000 };
-            var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name }).ToList();
+            var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK }).ToList();
+            if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+            if (existing != null && !string.IsNullOrEmpty(c.Cards) && _bankKey == null)
+            {
+                MessageBox.Show(this, L.T("Karty są zamknięte – otwórz tryb bankowy kluczem, który szyfruje karty, i wtedy zmień ustawienia."), "Velivo");
+                return false;
+            }
+            byte[] kk = _bankKk != null ? (byte[])_bankKk.Clone() : null;   // czesc klucza kart z kluczy sprzetowych
             var w = BankDialog(L.T("Tryb bankowy – ustawienia"));
             var sp = (StackPanel)w.Content;
             sp.Children.Add(new TextBlock
@@ -252,7 +316,8 @@ namespace Przegladarka
                 keyPanel.IsEnabled = useKey.IsChecked == true;
                 keyPanel.Opacity = keyPanel.IsEnabled ? 1 : .5;
                 list.Text = keys.Count == 0 ? L.T("Nie dodano jeszcze żadnego klucza.")
-                    : (L.En ? "Registered keys: " : "Dodane klucze: ") + string.Join(", ", keys.Select(k => k.Name));
+                    : (L.En ? "Registered keys: " : "Dodane klucze: ") + string.Join(", ", keys.Select(k => k.Name + (k.WrapK != null ? " 🔐" : ""))) +
+                      L.T("\n🔐 = klucz szyfruje karty (bez niego karty się nie otworzą)");
                 clear.IsEnabled = keys.Count > 0;
             };
             useKey.Checked += (s, e) => refresh(); useKey.Unchecked += (s, e) => refresh();
@@ -264,15 +329,28 @@ namespace Przegladarka
                 add.IsEnabled = false; err.Text = L.T("Dotknij klucza sprzętowego (okienko Windows)…");
                 try
                 {
-                    var k = await Task.Run(() => WebAuthn.Register(new WindowInteropHelper(w).Handle, BankRpId, keys.Select(x => Convert.FromBase64String(x.Id)).ToList()));
+                    var hwnd = new WindowInteropHelper(w).Handle;
+                    var k = await Task.Run(() => WebAuthn.Register(hwnd, BankRpId, keys.Select(x => Convert.FromBase64String(x.Id)).ToList()));
                     k.Name = (L.En ? "Key " : "Klucz ") + (keys.Count + 1);
-                    keys.Add(k); err.Text = ""; refresh();
+                    // drugie dotkniecie: sekret z klucza (hmac-secret) - z niego powstaje szyfr kart
+                    err.Text = L.T("Dotknij klucza jeszcze raz – przygotowanie szyfrowania kart…");
+                    byte[] hmac = null;
+                    try { var salt = Convert.FromBase64String(c.HmacSalt); var r = await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, new List<BankKey> { k }, salt)); hmac = r.Key != null ? r.Hmac : null; }
+                    catch (Exception) { }
+                    if (hmac != null)
+                    {
+                        if (kk == null) kk = RandomNumberGenerator.GetBytes(32);
+                        k.WrapK = Wrap(kk, KekFromHmac(hmac));
+                        err.Text = "";
+                    }
+                    else err.Text = L.T("Ten klucz nie potrafi szyfrować – będzie tylko otwierał tryb bankowy.");
+                    keys.Add(k); refresh();
                     UpdateKeyPresence(presence, false);
                 }
                 catch (Exception ex) { err.Text = ex.Message; }
                 finally { add.IsEnabled = true; }
             };
-            clear.Click += (s, e) => { keys.Clear(); refresh(); };
+            clear.Click += (s, e) => { keys.Clear(); kk = null; refresh(); };
             refresh();
 
             var ok = BankButtons(sp, w, L.T("Zapisz"));
@@ -286,20 +364,25 @@ namespace Przegladarka
                     if (a != b) { err.Text = L.T("Hasła się różnią."); return; }
                 }
                 if (useKey.IsChecked == true && keys.Count == 0) { err.Text = L.T("Dodaj co najmniej jeden klucz albo odznacz opcję klucza."); return; }
-                List<BankCard> oldCards = null;
-                if (a.Length > 0 && existing != null) { try { oldCards = LoadCards(c); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
+                List<BankCard> oldCards = new List<BankCard>();
+                if (existing != null) { try { oldCards = LoadCards(c); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
+                byte[] kp = _bankKp != null ? (byte[])_bankKp.Clone() : RandomNumberGenerator.GetBytes(32);
                 if (a.Length > 0)
                 {
                     var salt = RandomNumberGenerator.GetBytes(16);
                     c.Salt = Convert.ToBase64String(salt); c.Iter = 600000;
                     c.Hash = Convert.ToBase64String(BankHash(a, salt, c.Iter));
-                    // nowe haslo = nowy klucz sejfu kart (karty przeszyfrowane)
                     c.CardSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
-                    ForgetBankKey(); _bankKey = CardKey(a, c);
-                    c.Cards = oldCards != null && oldCards.Count > 0 ? SealCards(_bankKey, oldCards) : null;
-                    _bankUnlocked = true;
+                    c.WrapP = Wrap(kp, CardKey(a, c));
                 }
-                c.UseKey = useKey.IsChecked == true; c.Keys = keys;
+                bool withKey = useKey.IsChecked == true;
+                if (!withKey || !keys.Any(k => k.WrapK != null)) { kk = null; foreach (var k in keys) k.WrapK = null; }
+                // karty przeszyfrowane nowym kluczem (haslo + ewentualnie klucz sprzetowy)
+                ForgetBankKey();
+                _bankKp = kp; _bankKk = kk; _bankKey = CardKeyFrom(kp, kk);
+                c.Cards = oldCards.Count > 0 ? SealCards(_bankKey, oldCards) : null;
+                _bankUnlocked = true;
+                c.UseKey = withKey; c.Keys = keys;
                 SaveBank(c); saved = true; w.Close();
                 ShowToast(L.T("🏦 Tryb bankowy zapisany"), null);
             };
@@ -316,18 +399,6 @@ namespace Przegladarka
         }
 
         // ---------- klucz sprzetowy ----------
-        async Task<string> BankCheckKey(BankConfig c, Window owner)
-        {
-            try
-            {
-                var hwnd = new WindowInteropHelper(owner).Handle;
-                var allowed = c.Keys.ToList();
-                bool good = await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, allowed));
-                return good ? null : L.T("Ten klucz nie jest dodany do trybu bankowego.");
-            }
-            catch (Exception ex) { return ex.Message; }
-        }
-
         // Czy podlaczony jest jakis klucz sprzetowy (urzadzenie FIDO na USB) - tylko informacja dla uzytkownika.
         async void UpdateKeyPresence(TextBlock target, bool forUnlock)
         {
@@ -476,12 +547,27 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             [StructLayout(LayoutKind.Sequential)] struct Extensions { public uint Count; public IntPtr Items; }
             [StructLayout(LayoutKind.Sequential)]
             struct MakeOpts { public uint Ver; public uint Timeout; public Credentials Exclude; public Extensions Ext; public uint Attachment; public int RequireResident; public uint UserVerification; public uint Attestation; public uint Flags; }
+            // wersja 6 opcji: dochodza m.in. sole hmac-secret (sekret z klucza sprzetowego)
             [StructLayout(LayoutKind.Sequential)]
-            struct GetOpts { public uint Ver; public uint Timeout; public Credentials Allow; public Extensions Ext; public uint Attachment; public uint UserVerification; public uint Flags; }
+            struct GetOpts
+            {
+                public uint Ver; public uint Timeout; public Credentials Allow; public Extensions Ext; public uint Attachment; public uint UserVerification; public uint Flags;
+                public IntPtr U2fAppId; public IntPtr U2fAppIdUsed; public IntPtr CancellationId; public IntPtr AllowList;
+                public uint LargeBlobOp; public uint CbLargeBlob; public IntPtr PbLargeBlob; public IntPtr HmacSaltValues; public int InPrivate;
+            }
+            [StructLayout(LayoutKind.Sequential)] struct Extension { public IntPtr Id; public uint Cb; public IntPtr Pv; }
+            [StructLayout(LayoutKind.Sequential)] struct HmacSalt { public uint CbFirst; public IntPtr PbFirst; public uint CbSecond; public IntPtr PbSecond; }
+            [StructLayout(LayoutKind.Sequential)] struct HmacSaltValues { public IntPtr Global; public uint CredCount; public IntPtr CredList; }
             [StructLayout(LayoutKind.Sequential)]
             struct Attestation { public uint Ver; public IntPtr Format; public uint CbAuthData; public IntPtr PbAuthData; public uint CbAtt; public IntPtr PbAtt; public uint DecodeType; public IntPtr Decode; public uint CbAttObj; public IntPtr PbAttObj; public uint CbCredId; public IntPtr PbCredId; }
             [StructLayout(LayoutKind.Sequential)]
-            struct Assertion { public uint Ver; public uint CbAuthData; public IntPtr PbAuthData; public uint CbSig; public IntPtr PbSig; public Credential Cred; }
+            struct Assertion
+            {
+                public uint Ver; public uint CbAuthData; public IntPtr PbAuthData; public uint CbSig; public IntPtr PbSig; public Credential Cred;
+                public uint CbUserId; public IntPtr PbUserId;
+                public Extensions Ext; public uint CbLargeBlob; public IntPtr PbLargeBlob; public uint LargeBlobStatus;   // od wersji 2
+                public IntPtr HmacSecret;                                                                                 // od wersji 3
+            }
 
             [DllImport("webauthn.dll")] static extern int WebAuthNAuthenticatorMakeCredential(IntPtr hwnd, ref RpInfo rp, ref UserInfo user, ref CoseParams pubKeyParams, ref ClientData cd, ref MakeOpts opts, out IntPtr attestation);
             [DllImport("webauthn.dll")] static extern int WebAuthNAuthenticatorGetAssertion(IntPtr hwnd, [MarshalAs(UnmanagedType.LPWStr)] string rpId, ref ClientData cd, ref GetOpts opts, out IntPtr assertion);
@@ -535,13 +621,18 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                     var json = ClientJson("webauthn.create", RandomNumberGenerator.GetBytes(32));
                     var cd = new ClientData { Ver = 1, Cb = (uint)json.Length, Pb = m.Bytes(json), HashAlg = m.Str("SHA-256") };
                     var ex = exclude.Select(id => new Credential { Ver = 1, CbId = (uint)id.Length, PbId = m.Bytes(id), Type = m.Str("public-key") }).ToList();
+                    // rozszerzenie hmac-secret: klucz bedzie umial oddac sekret do szyfrowania kart
+                    var on = m.Bytes(BitConverter.GetBytes(1));
+                    var ext = new[] { new Extension { Id = m.Str("hmac-secret"), Cb = 4, Pv = on } };
                     var opts = new MakeOpts
                     {
                         Ver = 1, Timeout = 60000, Exclude = new Credentials { Count = (uint)ex.Count, Items = ex.Count > 0 ? m.Array(ex) : IntPtr.Zero },
+                        Ext = new Extensions { Count = 1, Items = m.Array(ext) },
                         Attachment = CrossPlatform, UserVerification = UvDiscouraged, Attestation = AttestationNone
                     };
                     IntPtr res;
                     int hr = WebAuthNAuthenticatorMakeCredential(hwnd, ref rp, ref user, ref cp, ref cd, ref opts, out res);
+                    if (hr == unchecked((int)0x80070057)) { opts.Ext = new Extensions(); hr = WebAuthNAuthenticatorMakeCredential(hwnd, ref rp, ref user, ref cp, ref cd, ref opts, out res); }
                     if (hr != 0) throw Fail(hr);
                     try
                     {
@@ -571,8 +662,11 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 return x != null && y != null && x.Length == 32 && y.Length == 32;
             }
 
+            public sealed class VerifyResult { public BankKey Key; public byte[] Hmac; }
+
             // Prosi o dotkniecie klucza i sprawdza podpis jednym z zarejestrowanych kluczy publicznych.
-            public static bool Verify(IntPtr hwnd, string rpId, List<BankKey> keys)
+            // Z sola (hmacSalt) prosi tez o sekret hmac-secret - wtedy Hmac = 32 bajty (null, gdy klucz/Windows nie umie).
+            public static VerifyResult Verify(IntPtr hwnd, string rpId, List<BankKey> keys, byte[] hmacSalt)
             {
                 using (var m = new Mem())
                 {
@@ -581,8 +675,20 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                     var cd = new ClientData { Ver = 1, Cb = (uint)json.Length, Pb = m.Bytes(json), HashAlg = m.Str("SHA-256") };
                     var allow = keys.Select(k => { var id = Convert.FromBase64String(k.Id); return new Credential { Ver = 1, CbId = (uint)id.Length, PbId = m.Bytes(id), Type = m.Str("public-key") }; }).ToList();
                     var opts = new GetOpts { Ver = 1, Timeout = 60000, Allow = new Credentials { Count = (uint)allow.Count, Items = m.Array(allow) }, Attachment = CrossPlatform, UserVerification = UvDiscouraged };
+                    if (hmacSalt != null && hmacSalt.Length == 32)
+                    {
+                        var g = new[] { new HmacSalt { CbFirst = 32, PbFirst = m.Bytes(hmacSalt) } };
+                        var vals = new[] { new HmacSaltValues { Global = m.Array(g) } };
+                        opts.Ver = 6; opts.HmacSaltValues = m.Array(vals);
+                    }
                     IntPtr res;
                     int hr = WebAuthNAuthenticatorGetAssertion(hwnd, rpId, ref cd, ref opts, out res);
+                    if (hr == unchecked((int)0x80070057) && opts.Ver == 6)
+                    {
+                        // starszy Windows nie zna wersji 6 - samo sprawdzenie klucza, bez sekretu
+                        opts.Ver = 1; opts.HmacSaltValues = IntPtr.Zero;
+                        hr = WebAuthNAuthenticatorGetAssertion(hwnd, rpId, ref cd, ref opts, out res);
+                    }
                     if (hr != 0) throw Fail(hr);
                     try
                     {
@@ -591,13 +697,21 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                         var sig = Read(a.PbSig, a.CbSig);
                         var credId = Convert.ToBase64String(Read(a.Cred.PbId, a.Cred.CbId));
                         var key = keys.FirstOrDefault(k => k.Id == credId);
-                        if (key == null || authData.Length < 37) return false;
+                        var none = new VerifyResult();
+                        if (key == null || authData.Length < 37) return none;
                         // podpis musi dotyczyc tej aplikacji i potwierdzac obecnosc (dotkniecie)
-                        if (!authData.Take(32).SequenceEqual(SHA256.HashData(Encoding.UTF8.GetBytes(rpId)))) return false;
-                        if ((authData[32] & 0x01) == 0) return false;
+                        if (!authData.Take(32).SequenceEqual(SHA256.HashData(Encoding.UTF8.GetBytes(rpId)))) return none;
+                        if ((authData[32] & 0x01) == 0) return none;
                         var signed = authData.Concat(SHA256.HashData(json)).ToArray();
                         using (var ec = ECDsa.Create(new ECParameters { Curve = ECCurve.NamedCurves.nistP256, Q = new ECPoint { X = Convert.FromBase64String(key.X), Y = Convert.FromBase64String(key.Y) } }))
-                            return ec.VerifyData(signed, sig, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+                            if (!ec.VerifyData(signed, sig, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence)) return none;
+                        byte[] hmac = null;
+                        if (opts.Ver == 6 && a.Ver >= 3 && a.HmacSecret != IntPtr.Zero)
+                        {
+                            var hs = Marshal.PtrToStructure<HmacSalt>(a.HmacSecret);
+                            if (hs.CbFirst == 32 && hs.PbFirst != IntPtr.Zero) hmac = Read(hs.PbFirst, hs.CbFirst);
+                        }
+                        return new VerifyResult { Key = key, Hmac = hmac };
                     }
                     finally { WebAuthNFreeAssertion(res); }
                 }

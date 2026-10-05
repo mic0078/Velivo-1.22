@@ -1160,6 +1160,16 @@ namespace Przegladarka
             { "Co 4 tygodnie", "Every 4 weeks" },
             { "Co 2 miesiące", "Every 2 months" },
             { "Co pół roku", "Every 6 months" },
+            { "Przypominaj dni wcześniej (codziennie aż do zapłaty):", "Remind days before (daily until paid):" },
+            { "📊 Zestawienie płatności", "📊 Payment summary" },
+            { "🧾 Masz zaległy rachunek do opłacenia – otwórz tryb bankowy 🏦 i oznacz go jako zapłacony", "🧾 You have an overdue bill – open banking mode 🏦 and mark it as paid" },
+            { "🧾 Zbliża się termin rachunku: ", "🧾 A bill is due soon: " },
+            { " – szczegóły w trybie bankowym 🏦", " – details in banking mode 🏦" },
+            { "Miesiąc", "Month" },
+            { "Razem", "Total" },
+            { "📥 Zapisz do Excela (CSV)", "📥 Save for Excel (CSV)" },
+            { "📥 Zapisano zestawienie", "📥 Summary saved" },
+            { "Każde „✔ Zapłacone” dopisuje kwotę do miesiąca terminu.", "Each “✔ Paid” adds the amount to the month of the due date." },
         };
     }
 }

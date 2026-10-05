@@ -79,6 +79,8 @@ namespace Przegladarka
             public string Docs { get; set; }       // poufne dane (dokumenty) - zaszyfrowane
             public string Accounts { get; set; }   // rachunki bankowe (moje i odbiorcow) - zaszyfrowane
             public string Bills { get; set; }      // rachunki do oplacenia - zaszyfrowane
+            public string BillLog { get; set; }    // historia zaplaconych rachunkow (zestawienie miesieczne) - zaszyfrowana
+            public List<string> BillDue { get; set; } = new List<string>();   // same daty terminow i wyprzedzenie ("rrrr-mm-dd|3"), bez nazw i kwot - do przypomnien przy zamknietym trybie
             public string Logins { get; set; }     // moje loginy i hasla (login, haslo, adres strony) - zaszyfrowane
             public List<string> SiteHosts { get; set; } = new List<string>();   // skroty SHA-256 hostow (rozpoznanie strony bez ujawniania listy)
             public string WrapP { get; set; }      // czesc hasla klucza kart (Kp) zaszyfrowana kluczem z hasla
@@ -268,6 +270,7 @@ namespace Przegladarka
             _bankTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
             _bankTimer.Tick += (s, e) =>
             {
+                CheckBillNag();   // przypomnienie o rachunkach (raz dziennie, takze przy zamknietym trybie)
                 if (!_bankUnlocked) return;
                 if (!_tabs.Any(t => t.Bank)) { _bankUnlocked = false; ForgetBankKey(); ClearBankTraces(); return; }   // ostatnia karta bankowa zamknieta
                 int idle = _bankIdleMinutes > 0 ? _bankIdleMinutes : 10;
@@ -665,8 +668,8 @@ namespace Przegladarka
                     if (a != b) { err.Text = L.T("Hasła się różnią."); return; }
                 }
                 if (useKey.IsChecked == true && keys.Count == 0) { err.Text = L.T("Dodaj co najmniej jeden klucz albo odznacz opcję klucza."); return; }
-                List<BankCard> oldCards = new List<BankCard>(); List<BankNote> oldNotes = new List<BankNote>(); List<BankSite> oldSites = new List<BankSite>(); List<BankItem> oldDocs = new List<BankItem>(), oldAcc = new List<BankItem>(), oldBills = new List<BankItem>(), oldLogins = new List<BankItem>();
-                if (existing != null) { try { oldCards = LoadCards(c); oldNotes = LoadSealed<BankNote>(c.Notes); oldSites = LoadSealed<BankSite>(c.Sites); oldDocs = LoadSealed<BankItem>(c.Docs); oldAcc = LoadSealed<BankItem>(c.Accounts); oldBills = LoadSealed<BankItem>(c.Bills); oldLogins = LoadSealed<BankItem>(c.Logins); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
+                List<BankCard> oldCards = new List<BankCard>(); List<BankNote> oldNotes = new List<BankNote>(); List<BankSite> oldSites = new List<BankSite>(); List<BankItem> oldDocs = new List<BankItem>(), oldAcc = new List<BankItem>(), oldBills = new List<BankItem>(), oldLogins = new List<BankItem>(), oldBillLog = new List<BankItem>();
+                if (existing != null) { try { oldCards = LoadCards(c); oldNotes = LoadSealed<BankNote>(c.Notes); oldSites = LoadSealed<BankSite>(c.Sites); oldDocs = LoadSealed<BankItem>(c.Docs); oldAcc = LoadSealed<BankItem>(c.Accounts); oldBills = LoadSealed<BankItem>(c.Bills); oldLogins = LoadSealed<BankItem>(c.Logins); oldBillLog = LoadSealed<BankItem>(c.BillLog); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
                 if (a.Length > 0)
                 {
                     var salt = RandomNumberGenerator.GetBytes(16);
@@ -683,7 +686,7 @@ namespace Przegladarka
                 _bankKp = kp; _bankKk = kk; _bankKey = CardKeyFrom(kp, kk);
                 c.Cards = oldCards.Count > 0 ? SealCards(_bankKey, oldCards) : null;
                 c.Notes = SealList(_bankKey, oldNotes); c.Sites = SealList(_bankKey, oldSites);
-                c.Docs = SealList(_bankKey, oldDocs); c.Accounts = SealList(_bankKey, oldAcc); c.Bills = SealList(_bankKey, oldBills); c.Logins = SealList(_bankKey, oldLogins);
+                c.Docs = SealList(_bankKey, oldDocs); c.Accounts = SealList(_bankKey, oldAcc); c.Bills = SealList(_bankKey, oldBills); c.Logins = SealList(_bankKey, oldLogins); c.BillLog = SealList(_bankKey, oldBillLog);
                 _bankUnlocked = true;
                 c.UseKey = withKey; c.Keys = keys;
                 c.IdleMinutes = idleOpts[Math.Max(0, idleBox.SelectedIndex)]; _bankIdleMinutes = c.IdleMinutes;
@@ -1164,11 +1167,103 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             { "bills", new ItemDef { Title = "🧾 Rachunki do opłacenia", Icon = "🧾", Fields = new[] {
                 Fd("name", "Za co (np. Prąd, Internet, Czynsz):"), Fd("amount", "Kwota:"), Fd("due", "Termin płatności (DD.MM.RRRR):", date: true),
                 Fd("repeat", "Powtarzanie (albo wpisz np. co 10 dni):", choices: new[] { "Co tydzień", "Co 2 tygodnie", "Co 4 tygodnie", "Co miesiąc", "Co 2 miesiące", "Co kwartał", "Co pół roku", "Co rok", "Jednorazowo" }),
-                Fd("customer", "Numer klienta / referencja:"), Fd("url", "Strona do płatności:"), Fd("note", "Notatka:") } } },
+                Fd("remind", "Przypominaj dni wcześniej (codziennie aż do zapłaty):"), Fd("customer", "Numer klienta / referencja:"), Fd("url", "Strona do płatności:"), Fd("note", "Notatka:") } } },
         };
 
         static string ItemStore(BankConfig c, string kind) { return kind == "logins" ? c.Logins : kind == "docs" ? c.Docs : kind == "acc" ? c.Accounts : c.Bills; }
         static void SetItemStore(BankConfig c, string kind, string v) { if (kind == "logins") c.Logins = v; else if (kind == "docs") c.Docs = v; else if (kind == "acc") c.Accounts = v; else c.Bills = v; }
+
+        static int BillLead(BankItem b) { int n; return int.TryParse(b.Get("remind"), out n) ? Math.Max(0, Math.Min(60, n)) : 3; }
+
+        static List<string> BillDueList(List<BankItem> bills)
+        {
+            return bills.Select(b => { var d = ParseDay(b.Get("due")); return d == null ? null : d.Value.ToString("yyyy-MM-dd") + "|" + BillLead(b); }).Where(x => x != null).ToList();
+        }
+
+        // Przypomnienie takze przy ZAMKNIETYM trybie: w pliku sa tylko daty (bez nazw i kwot). Raz dziennie, az do "Zaplacone".
+        string _billNagDay = "";
+        DateTime _billNagChecked = DateTime.MinValue;
+        void CheckBillNag()
+        {
+            try
+            {
+                var today = DateTime.Today; if (_billNagDay == today.ToString("yyyy-MM-dd")) return;
+                if (DateTime.UtcNow - _billNagChecked < TimeSpan.FromMinutes(10)) return;   // sprawdzamy co 10 min
+                _billNagChecked = DateTime.UtcNow;
+                DateTime? nearest = null;
+                foreach (var p in BankProfiles())
+                {
+                    BankConfig c; try { c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(p))); } catch (Exception) { continue; }
+                    if (c == null || c.BillDue == null) continue;
+                    foreach (var e in c.BillDue)
+                    {
+                        var parts = e.Split('|'); DateTime d; int lead = 3;
+                        if (!DateTime.TryParseExact(parts[0], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out d)) continue;
+                        if (parts.Length > 1) int.TryParse(parts[1], out lead);
+                        if ((d - today).TotalDays <= lead && (nearest == null || d < nearest)) nearest = d;
+                    }
+                }
+                if (nearest == null) return;
+                _billNagDay = today.ToString("yyyy-MM-dd");
+                ShowToast(nearest.Value < today
+                    ? L.T("🧾 Masz zaległy rachunek do opłacenia – otwórz tryb bankowy 🏦 i oznacz go jako zapłacony")
+                    : L.T("🧾 Zbliża się termin rachunku: ") + nearest.Value.ToString("dd.MM") + L.T(" – szczegóły w trybie bankowym 🏦"), null);
+            }
+            catch (Exception) { }
+        }
+
+        // Zestawienie jak w arkuszu: miesiace x rachunki, suma miesiaca; eksport CSV do Excela
+        void ShowBillHistory(List<BankItem> log)
+        {
+            Func<string, decimal> amt = t =>
+            {
+                var clean = new string((t ?? "").Where(ch => char.IsDigit(ch) || ch == ',' || ch == '.' || ch == '-').ToArray()).Replace(',', '.');
+                decimal v; return decimal.TryParse(clean, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0m;
+            };
+            var names = log.Select(x => x.Get("name")).Distinct().ToList();
+            var months = log.Select(x => x.Get("month")).Distinct().OrderBy(x => x).ToList();
+            var w = new Window { Title = L.T("📊 Zestawienie płatności"), Owner = this, Width = 900, Height = 520, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "velivo-bank" };
+            var dock = new DockPanel { Margin = new Thickness(12) };
+            var grid = new DataGrid { AutoGenerateColumns = false, IsReadOnly = true, HeadersVisibility = DataGridHeadersVisibility.Column, CanUserAddRows = false };
+            grid.Columns.Add(new DataGridTextColumn { Header = L.T("Miesiąc"), Binding = new System.Windows.Data.Binding("[0]") });
+            for (int i = 0; i < names.Count; i++) grid.Columns.Add(new DataGridTextColumn { Header = names[i], Binding = new System.Windows.Data.Binding("[" + (i + 1) + "]") });
+            grid.Columns.Add(new DataGridTextColumn { Header = L.T("Razem"), Binding = new System.Windows.Data.Binding("[" + (names.Count + 1) + "]"), FontWeight = FontWeights.Bold });
+            var rows = new List<string[]>();
+            var culture = System.Globalization.CultureInfo.CurrentCulture;
+            foreach (var m in months)
+            {
+                var r = new string[names.Count + 2];
+                DateTime md; r[0] = DateTime.TryParseExact(m + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out md) ? md.ToString("MMMM yyyy", culture) : m;
+                decimal sum = 0;
+                for (int i = 0; i < names.Count; i++)
+                {
+                    var v = log.Where(x => x.Get("month") == m && x.Get("name") == names[i]).Sum(x => amt(x.Get("amount")));
+                    sum += v; r[i + 1] = v == 0 ? "" : v.ToString("0.00", culture);
+                }
+                r[names.Count + 1] = sum.ToString("0.00", culture);
+                rows.Add(r);
+            }
+            grid.ItemsSource = rows;
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            DockPanel.SetDock(bar, Dock.Bottom);
+            var csv = new Button { Content = L.T("📥 Zapisz do Excela (CSV)"), Padding = new Thickness(10, 4, 10, 4) };
+            csv.Click += (a, b) =>
+            {
+                var dlg = new Microsoft.Win32.SaveFileDialog { FileName = "Velivo-rachunki.csv", Filter = "CSV (*.csv)|*.csv" };
+                if (dlg.ShowDialog(w) != true) return;
+                var sb = new StringBuilder();
+                Func<string, string> q = v => "\"" + (v ?? "").Replace("\"", "\"\"") + "\"";
+                sb.AppendLine(string.Join(";", new[] { L.T("Miesiąc") }.Concat(names).Concat(new[] { L.T("Razem") }).Select(q)));
+                foreach (var r in rows) sb.AppendLine(string.Join(";", r.Select(q)));
+                try { File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(true)); ShowToast(L.T("📥 Zapisano zestawienie"), dlg.FileName); } catch (Exception ex) { MessageBox.Show(w, ex.Message, "Velivo"); }
+            };
+            bar.Children.Add(csv);
+            bar.Children.Add(new TextBlock { Text = L.T("Każde „✔ Zapłacone” dopisuje kwotę do miesiąca terminu."), Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
+            dock.Children.Add(bar);
+            dock.Children.Add(grid);
+            w.Content = dock;
+            w.Show();
+        }
 
         // Nastepny termin wg powtarzania: gotowe opcje (PL/EN) albo wlasne "co 10 dni", "co 3 tygodnie", "every 2 weeks"...
         static DateTime? NextDue(DateTime due, string rep)
@@ -1200,7 +1295,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             if (d == ItemDefs["docs"]) { var n = it.Get("number"); return L.T(it.Get("type")) + "  " + it.Get("owner") + (n.Length >= 3 ? "   ••• " + n.Substring(n.Length - 3) : "") + (it.Get("expiry").Length > 0 ? "   " + it.Get("expiry") : ""); }
             if (d == ItemDefs["acc"]) { var n = it.Get("number").Replace(" ", ""); return it.Get("name") + (n.Length >= 4 ? "   •••• " + n.Substring(n.Length - 4) : "") + (it.Get("bank").Length > 0 ? "   " + it.Get("bank") : ""); }
             var due = ParseDay(it.Get("due"));
-            string state = due == null ? "" : due.Value.Date < DateTime.Today ? L.T("   ⚠ po terminie") : (due.Value.Date - DateTime.Today).TotalDays <= 5 ? L.T("   ⏰ wkrótce") : "";
+            string state = due == null ? "" : due.Value.Date < DateTime.Today ? L.T("   ⚠ po terminie") : (due.Value.Date - DateTime.Today).TotalDays <= BillLead(it) ? L.T("   ⏰ wkrótce") : "";
             return it.Get("name") + (it.Get("amount").Length > 0 ? "   " + it.Get("amount") : "") + (it.Get("due").Length > 0 ? "   " + it.Get("due") : "") + state;
         }
 
@@ -1309,6 +1404,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 rowL.Children.Add(openL); rowL.Children.Add(fillL); rowL.Children.Add(genL);
                 sp.Children.Add(rowL);
             }
+            var paidLog = kind == "bills" ? LoadSealed<BankItem>(c.BillLog) : null;
             if (kind == "bills")
             {
                 var rowC = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
@@ -1317,6 +1413,8 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 {
                     int i = list.SelectedIndex; if (i < 0) { err.Text = L.T("Zaznacz pozycję na liście."); return; }
                     var it = items[i]; var due = ParseDay(it.Get("due")); var rep = it.Get("repeat");
+                    paidLog.Add(new BankItem { F = new Dictionary<string, string> { { "name", it.Get("name") }, { "amount", it.Get("amount") },
+                        { "month", (due ?? DateTime.Today).ToString("yyyy-MM") }, { "paid", DateTime.Today.ToString("dd.MM.yyyy") } } });
                     var next = due == null ? (DateTime?)null : NextDue(due.Value, rep);
                     if (next == null) { items.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); return; }   // jednorazowy - oplacony, znika z listy
                     it.F["due"] = next.Value.ToString("dd.MM.yyyy"); fillList(); list.SelectedIndex = i;
@@ -1329,7 +1427,9 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                     if (!u.Contains("://")) u = "https://" + u;
                     if (HostOf(u) != null) OpenBankSite(u);
                 };
-                rowC.Children.Add(paid); rowC.Children.Add(open);
+                var hist = new Button { Content = L.T("📊 Zestawienie płatności"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+                hist.Click += (a, b) => ShowBillHistory(paidLog);
+                rowC.Children.Add(paid); rowC.Children.Add(open); rowC.Children.Add(hist);
                 sp.Children.Add(rowC);
             }
             var ok = BankButtons(sp, w, L.T("Zapisz"));
@@ -1343,6 +1443,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 }
                 var cc = LoadBank(); if (cc == null || _bankKey == null) { w.Close(); return; }
                 SetItemStore(cc, kind, SealList(_bankKey, items));
+                if (kind == "bills") { cc.BillLog = SealList(_bankKey, paidLog); cc.BillDue = BillDueList(items); }
                 SaveBank(cc); w.Close(); ShowToast(L.T("🔐 Zapisano (zaszyfrowane)"), null);
             };
             ShowBankTool(w, "items-" + kind);
@@ -1367,7 +1468,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                     var e = ParseDay(b.Get("due")); if (e == null) continue;
                     var days = (e.Value.Date - DateTime.Today).TotalDays;
                     if (days < 0) msgs.Add("🧾 " + b.Get("name") + " – " + L.T("po terminie!"));
-                    else if (days <= 5) msgs.Add("🧾 " + b.Get("name") + " " + b.Get("amount") + " – " + L.T("termin ") + b.Get("due"));
+                    else if (days <= BillLead(b)) msgs.Add("🧾 " + b.Get("name") + " " + b.Get("amount") + " – " + L.T("termin ") + b.Get("due"));
                 }
                 if (msgs.Count > 0) ShowToast(string.Join("\n", msgs), null);
             }

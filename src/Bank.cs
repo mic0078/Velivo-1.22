@@ -112,7 +112,7 @@ namespace Przegladarka
         }
         string BankWipeFlag { get { return Path.Combine(DataDir, string.IsNullOrEmpty(_bankProfile) ? "bank.wipe" : "bank-" + _bankProfile + ".wipe"); } }
 
-        sealed class BankCard { public string Label { get; set; } public string Number { get; set; } public string Exp { get; set; } public string Holder { get; set; } }
+        sealed class BankCard { public string Label { get; set; } public string Number { get; set; } public string Exp { get; set; } public string Holder { get; set; } public string Cvv { get; set; } }
 
         sealed class BankNote { public string Title { get; set; } public string Text { get; set; } public string Category { get; set; } }
         sealed class BankLogEntry { public long T { get; set; } public string Device { get; set; } public string How { get; set; } public bool Ok { get; set; } }
@@ -693,6 +693,7 @@ namespace Przegladarka
 
         // ---------- karty bankowe (zaszyfrowane haslem trybu bankowego) ----------
         // Kodu CVV/CVC nie zapisujemy celowo - to on chroni karte, gdy ktos pozna jej numer.
+        // Karty: lista, podglad (dane ukryte do klikniecia "Pokaz"), edycja, CVV (opcjonalnie, ukryty)
         void BankCards()
         {
             if (!_bankUnlocked || _bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); OpenBankTab(); return; }
@@ -701,45 +702,91 @@ namespace Przegladarka
             try { cards = LoadCards(c); } catch (Exception) { MessageBox.Show(this, L.T("Nie udało się odczytać kart."), "Velivo"); return; }
             var w = BankDialog(L.T("💳 Moje karty"));
             var sp = (StackPanel)w.Content;
-            var list = new ListBox { MinWidth = 380, Height = 150, Margin = new Thickness(0, 0, 0, 8) };
-            Action fillList = () => { list.Items.Clear(); foreach (var k in cards) list.Items.Add(CardLine(k)); };
+            var list = new ListBox { MinWidth = 400, Height = 140, Margin = new Thickness(0, 0, 0, 8) };
+            Action fillList = () => { int sel = list.SelectedIndex; list.Items.Clear(); foreach (var k in cards) list.Items.Add(CardLine(k)); if (sel >= 0 && sel < list.Items.Count) list.SelectedIndex = sel; };
             fillList();
             sp.Children.Add(list);
-            var del = new Button { Content = L.T("Usuń zaznaczoną"), Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Left };
-            del.Click += (s, e) => { int i = list.SelectedIndex; if (i >= 0) { cards.RemoveAt(i); fillList(); } };
-            sp.Children.Add(del);
-            sp.Children.Add(new TextBlock { Text = L.T("Dodaj kartę:"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
+
+            var boxes = new List<Tuple<PasswordBox, TextBox>>();
+            Func<string, Tuple<PasswordBox, TextBox>> secret = lbl =>
+            {
+                sp.Children.Add(new TextBlock { Text = lbl });
+                var g = new Grid { Margin = new Thickness(0, 1, 0, 5) };
+                var pb = new PasswordBox { Padding = new Thickness(4) };
+                var tb = new TextBox { Padding = new Thickness(4), Visibility = Visibility.Collapsed, FontFamily = new FontFamily("Consolas") };
+                pb.PasswordChanged += (a, b) => { if (tb.Text != pb.Password) tb.Text = pb.Password; };
+                tb.TextChanged += (a, b) => { if (pb.Password != tb.Text) pb.Password = tb.Text; };
+                g.Children.Add(pb); g.Children.Add(tb); sp.Children.Add(g);
+                var t = Tuple.Create(pb, tb); boxes.Add(t); return t;
+            };
             Func<string, TextBox> field = lbl => { sp.Children.Add(new TextBlock { Text = lbl }); var t = new TextBox { Padding = new Thickness(4), Margin = new Thickness(0, 1, 0, 5) }; sp.Children.Add(t); return t; };
             var label = field(L.T("Nazwa (np. Visa PKO):"));
-            var number = field(L.T("Numer karty:"));
+            var number = secret(L.T("Numer karty:"));
             var exp = field(L.T("Ważna do (MM/RR):"));
             var holder = field(L.T("Imię i nazwisko na karcie:"));
-            sp.Children.Add(new TextBlock { Text = L.T("Kodu CVV nie zapisujemy – wpiszesz go sam przy płatności."), Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap, MaxWidth = 380 });
-            var err = new TextBlock { Foreground = Brushes.Firebrick, Margin = new Thickness(0, 6, 0, 0) };
+            var cvv = secret(L.T("CVV / CVC (opcjonalnie):"));
+            var show = new CheckBox { Content = L.T("👁 Pokaż numer i CVV"), Margin = new Thickness(0, 2, 0, 6) };
+            show.Checked += (a, b) => { foreach (var x in boxes) { x.Item1.Visibility = Visibility.Collapsed; x.Item2.Visibility = Visibility.Visible; } };
+            show.Unchecked += (a, b) => { foreach (var x in boxes) { x.Item1.Visibility = Visibility.Visible; x.Item2.Visibility = Visibility.Collapsed; } };
+            sp.Children.Add(show);
+            Action clearForm = () => { label.Text = exp.Text = holder.Text = ""; number.Item1.Password = ""; cvv.Item1.Password = ""; };
+            list.SelectionChanged += (a, b) =>
+            {
+                int i = list.SelectedIndex; if (i < 0) return;
+                var k = cards[i];
+                label.Text = k.Label; number.Item1.Password = k.Number ?? ""; exp.Text = k.Exp ?? ""; holder.Text = k.Holder ?? ""; cvv.Item1.Password = k.Cvv ?? "";
+            };
+            var err = new TextBlock { Foreground = Brushes.Firebrick, Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 400 };
             sp.Children.Add(err);
-            var add = new Button { Content = L.T("➕ Dodaj"), Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0) };
-            add.Click += (s, e) =>
+            Func<BankCard> read = () =>
             {
-                string num = new string((number.Text ?? "").Where(char.IsDigit).ToArray());
-                if (num.Length < 12 || num.Length > 19 || !Luhn(num)) { err.Text = L.T("Nieprawidłowy numer karty."); return; }
-                cards.Add(new BankCard { Label = string.IsNullOrWhiteSpace(label.Text) ? L.T("Karta") : label.Text.Trim(), Number = num, Exp = (exp.Text ?? "").Trim(), Holder = (holder.Text ?? "").Trim() });
-                label.Text = number.Text = exp.Text = holder.Text = ""; err.Text = ""; fillList();
+                string num = new string((number.Item1.Password ?? "").Where(char.IsDigit).ToArray());
+                if (num.Length < 12 || num.Length > 19 || !Luhn(num)) { err.Text = L.T("Nieprawidłowy numer karty."); return null; }
+                string cv = new string((cvv.Item1.Password ?? "").Where(char.IsDigit).ToArray());
+                if (cv.Length != 0 && (cv.Length < 3 || cv.Length > 4)) { err.Text = L.T("CVV ma 3 lub 4 cyfry."); return null; }
+                err.Text = "";
+                return new BankCard { Label = string.IsNullOrWhiteSpace(label.Text) ? L.T("Karta") : label.Text.Trim(), Number = num, Exp = (exp.Text ?? "").Trim(), Holder = (holder.Text ?? "").Trim(), Cvv = cv.Length > 0 ? cv : null };
             };
-            sp.Children.Add(add);
-            var ok = BankButtons(sp, w, L.T("Zapisz"));
-            ok.Click += (s, e) =>
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+            var add = new Button { Content = L.T("➕ Dodaj jako nową"), Padding = new Thickness(10, 3, 10, 3) };
+            var upd = new Button { Content = L.T("✔ Zmień zaznaczoną"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            var del = new Button { Content = L.T("Usuń zaznaczoną"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            var newBtn = new Button { Content = L.T("Wyczyść pola"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            row.Children.Add(add); row.Children.Add(upd); row.Children.Add(del); row.Children.Add(newBtn);
+            sp.Children.Add(row);
+            var row2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+            Action<string, string> copyBtn = (text, val) =>
             {
-                // wpisana, a nie dodana karta - dodajemy ja przy zapisie
-                if (!string.IsNullOrWhiteSpace(number.Text))
+                var b = new Button { Content = text, Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 0, 6, 0) };
+                b.Click += (a, e) =>
                 {
-                    int before = cards.Count;
-                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    if (cards.Count == before) return;   // zly numer - komunikat juz widoczny
-                }
-                c.Cards = cards.Count > 0 ? SealCards(_bankKey, cards) : null;
-                SaveBank(c); w.Close(); ShowToast(L.T("💳 Karty zapisane (zaszyfrowane)"), null);
+                    string v = val == "n" ? number.Item1.Password : val == "c" ? cvv.Item1.Password : exp.Text;
+                    if (string.IsNullOrEmpty(v)) return;
+                    try { Clipboard.SetText(v); } catch (Exception) { return; }
+                    ShowToast(L.T("📋 Skopiowano – schowek wyczyści się za 30 s"), null); ClearClipboardLater(v);
+                };
+                row2.Children.Add(b);
             };
-            w.ShowDialog();
+            copyBtn(L.T("📋 Kopiuj numer"), "n"); copyBtn(L.T("📋 Kopiuj datę"), "e"); copyBtn(L.T("📋 Kopiuj CVV"), "c");
+            sp.Children.Add(row2);
+            add.Click += (a, b) => { var k = read(); if (k == null) return; cards.Add(k); clearForm(); list.SelectedIndex = -1; fillList(); };
+            upd.Click += (a, b) => { int i = list.SelectedIndex; if (i < 0) { err.Text = L.T("Zaznacz kartę na liście."); return; } var k = read(); if (k == null) return; cards[i] = k; fillList(); };
+            del.Click += (a, b) => { int i = list.SelectedIndex; if (i < 0) return; cards.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); };
+            newBtn.Click += (a, b) => { list.SelectedIndex = -1; clearForm(); };
+            var ok = BankButtons(sp, w, L.T("Zapisz"));
+            ok.Click += (a, b) =>
+            {
+                // wpisane, a niezapisane dane: zaznaczona karta -> zmiana, brak zaznaczenia -> nowa karta
+                if (!string.IsNullOrWhiteSpace(number.Item1.Password))
+                {
+                    int i = list.SelectedIndex; var k = read(); if (k == null) return;
+                    if (i >= 0) cards[i] = k; else cards.Add(k);
+                }
+                var cc = LoadBank(); if (cc == null || _bankKey == null) { w.Close(); return; }
+                cc.Cards = cards.Count > 0 ? SealCards(_bankKey, cards) : null;
+                SaveBank(cc); w.Close(); ShowToast(L.T("💳 Karty zapisane (zaszyfrowane)"), null);
+            };
+            ShowBankTool(w, "cards");
         }
 
         static string CardLine(BankCard k) { return k.Label + "   •••• " + (k.Number.Length >= 4 ? k.Number.Substring(k.Number.Length - 4) : "") + (string.IsNullOrEmpty(k.Exp) ? "" : "   " + k.Exp); }
@@ -768,9 +815,9 @@ namespace Przegladarka
                 {
                     var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
                     if (core == null) return;
-                    var data = JsonSerializer.Serialize(new { n = card.Number, e = card.Exp, h = card.Holder });
+                    var data = JsonSerializer.Serialize(new { n = card.Number, e = card.Exp, h = card.Holder, c = card.Cvv ?? "" });
                     try { await core.ExecuteScriptAsync(CardFillScript.Replace("__D__", data)); } catch (Exception) { }
-                    ShowToast(L.T("💳 Wpisano dane karty – CVV wpisz sam"), null);
+                    ShowToast(string.IsNullOrEmpty(card.Cvv) ? L.T("💳 Wpisano dane karty – CVV wpisz sam") : L.T("💳 Wpisano dane karty"), null);
                 };
                 menu.Items.Add(mi);
             }
@@ -784,7 +831,7 @@ el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('
 var mm=(d.e||'').split(/[\/\-. ]/)[0]||'',yy=(d.e||'').split(/[\/\-. ]/)[1]||'';
 docs.forEach(function(doc){doc.querySelectorAll('input,select').forEach(function(el){
 var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('aria-label')||'')).toLowerCase();
-if(/cc-csc|cvv|cvc|csc|security/.test(a))return;
+if(/cc-csc|cvv|cvc|csc|security.?code/.test(a)){set(el,d.c);return;}
 if(/cc-number|cardnumber|card-number|card_number|numer.?karty|ccnum/.test(a))set(el,d.n);
 else if(/cc-exp-month|exp.?month|miesi/.test(a))set(el,mm);
 else if(/cc-exp-year|exp.?year|\brok\b/.test(a))set(el,el.maxLength==4?'20'+yy:yy);
@@ -1132,7 +1179,7 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 ➕ Dodaj tę stronę do Moich banków / sklepów – na otwartej karcie bankowej.
 ✏ Dane logowania (w Moich bankach) – login, passcode/PIN, hasło, memorable information osobno dla każdego banku.
 🔢 Wpisz wybrane znaki – na stronie banku wpisuje znaki, o które pyta bank (np. 2., 5. i 9.), z danych tego banku.
-💳 Moje karty – wpisz nazwę, numer, datę (MM/RR) i nazwisko, potem „Zapisz”. CVV nie jest zapisywany.
+💳 Moje karty – kliknij kartę, aby zobaczyć i zmienić dane („👁 Pokaż” odsłania numer i CVV). CVV jest opcjonalne i zaszyfrowane.
 💳 Wypełnij kartę na tej stronie – wpisuje dane karty w formularzu płatności.
 📝 Moje notatki – loginy, hasła, numery klienta. Wybierz kategorię, wpisz tytuł i treść, potem „Zapisz”. 🎲 generuje mocne hasło, 📋 kopiuje (schowek czyści się po 30 s).
 🔑 Wpisz login z notatki – wypełnia logowanie na stronie banku. Notatka powinna mieć linie:  login: …  oraz  hasło: …
@@ -1178,7 +1225,7 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 ➕ Add this site to My banks / shops – on an open banking tab.
 ✏ Login details (in My banks) – login, passcode/PIN, password and memorable information for each bank.
 🔢 Fill in selected characters – types the characters the bank asks for (e.g. 2nd, 5th, 9th) from that bank's details.
-💳 My cards – name, number, expiry (MM/YY), holder, then “Save”. The CVV is never stored.
+💳 My cards – click a card to view and edit it (“👁 Show” reveals the number and CVV). The CVV is optional and encrypted.
 💳 Fill in a card on this page – fills the payment form.
 📝 My notes – logins, passwords, customer numbers. Choose a category, type title and content, then “Save”. 🎲 generates a strong password, 📋 copies (clipboard cleared after 30 s).
 🔑 Fill in a login from a note – note lines:  login: …  and  password: …

@@ -385,7 +385,8 @@ namespace Przegladarka
                     ExpireLanPairings();
                     if (_lanLegacyNoKeyMode)
                     {
-                        LanBroadcastState(false);
+                        // przed sparowaniem: tylko informacja "jestem, mozna mnie sparowac" - zadnych danych uzytkownika
+                        if (DateTime.UtcNow - _lastAnnounce > TimeSpan.FromSeconds(10)) LanBroadcastAnnounce();
                         return;
                     }
                     if (_lanAuthenticationKey != null && DateTime.UtcNow - _lastHello > TimeSpan.FromSeconds(12)) LanBroadcastHello();
@@ -398,7 +399,7 @@ namespace Przegladarka
                 _lanTick.Start();
                 LanLog(hasKey
                     ? L.T("LAN sync uruchomiona na porcie ") + LanPort + " (profil: " + SelectedProfileName + ")."
-                    : L.T("LAN sync uruchomiona w trybie zgodności bez klucza (profil: ") + SelectedProfileName + ").");
+                    : L.T("LAN sync czeka na sparowanie – dane nie są wysyłane (profil: ") + SelectedProfileName + ").");
                 if (hasKey)
                 {
                     LanBroadcastHello();
@@ -407,7 +408,7 @@ namespace Przegladarka
                 }
                 else
                 {
-                    LanBroadcastState(true);
+                    LanBroadcastAnnounce();
                 }
             }
             catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog(L.T("Błąd startu LAN sync: ") + ex.Message); }
@@ -463,7 +464,7 @@ namespace Przegladarka
                         continue;
                     }
 
-                    if (pkt.t == "hello" || pkt.t == "state" || pkt.t == "state-plain")
+                    if (pkt.t == "hello" || pkt.t == "state" || pkt.t == "state-plain" || pkt.t == "announce")
                     {
                         await Dispatcher.InvokeAsync(() =>
                         {
@@ -515,21 +516,7 @@ namespace Przegladarka
                         catch (InvalidDataException) { continue; }
                         if (state == null) continue;
                     }
-                    else if (pkt.t == "state-plain")
-                    {
-                        if (!_lanLegacyNoKeyMode) continue;
-                        if (string.IsNullOrWhiteSpace(pkt.data)) continue;
-                        try
-                        {
-                            var plainBytes = Convert.FromBase64String(pkt.data);
-                            if (plainBytes.Length == 0 || plainBytes.Length > 50000) continue;
-                            state = JsonSerializer.Deserialize<LanSyncPayload>(plainBytes);
-                        }
-                        catch (FormatException) { continue; }
-                        catch (JsonException) { continue; }
-                        if (state == null) continue;
-                    }
-                    else continue;
+                    else continue;   // announce i jawne state-plain (starsze wersje): tylko propozycja parowania, danych nie przyjmujemy
 
                     _lanPacketsRx++;
                     _lanLastRxUtc = DateTime.UtcNow;
@@ -655,10 +642,28 @@ namespace Przegladarka
             LanSend(pkt);
         }
 
+        DateTime _lastAnnounce;
+
+        // Jedyny pakiet wysylany przed sparowaniem: identyfikator, nazwa komputera i profil - bez ustawien, zakladek, kart i hasel.
+        void LanBroadcastAnnounce()
+        {
+            if (_lanTx == null || !_lanLegacyNoKeyMode) return;
+            _lastAnnounce = DateTime.UtcNow;
+            LanSend(new LanStatePacket
+            {
+                t = "announce",
+                id = _lanId,
+                device = _lanDeviceName,
+                profile = SelectedProfileName,
+                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            });
+        }
+
         void LanBroadcastState(bool force)
         {
             if (_lanTx == null || _lanApplying) return;
-            if (!_lanLegacyNoKeyMode && (_lanEncryptionKey == null || _lanAuthenticationKey == null)) return;
+            // bez sparowania nie wysylamy zadnych danych (dawniej jawny pakiet state-plain) - tylko LanBroadcastAnnounce
+            if (_lanLegacyNoKeyMode || _lanEncryptionKey == null || _lanAuthenticationKey == null) return;
             var settings = ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt"));
             var bookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
             var session = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt"));
@@ -737,6 +742,8 @@ namespace Przegladarka
 
         void ApplyLanState(LanStatePacket pkt, LanSyncPayload state)
         {
+            // dane przyjmujemy tylko z zaszyfrowanego i uwierzytelnionego pakietu od sparowanego komputera
+            if (pkt == null || pkt.t != "state" || _lanLegacyNoKeyMode || _lanEncryptionKey == null) return;
             long lastStamp;
             if (_lanPeerStamps.TryGetValue(pkt.id, out lastStamp) && pkt.ts <= lastStamp) return;
             var localFingerprint = CurrentLanFingerprint();
@@ -868,8 +875,8 @@ namespace Przegladarka
 
         readonly HashSet<string> _lanPairOffered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Drugi komputer z tym samym profilem, ale bez sparowania: synchronizuja sie tylko ustawienia i zakladki
-        // (jawnym pakietem, bez hasel). Proponujemy pelne polaczenie - szyfrowane, z haslami i Szybkim Dostepem.
+        // Drugi komputer z tym samym profilem, ale bez sparowania: nic sie nie synchronizuje (tylko pakiet announce)
+        // Proponujemy pelne polaczenie - szyfrowane, z haslami i Szybkim Dostepem.
         // Pyta tylko jeden z dwoch komputerow (mniejszy identyfikator), zeby nie wyslaly dwoch ofert naraz;
         // drugi dostaje zwykle okno potwierdzenia parowania z kodem.
         void OfferLanPairing(LanStatePacket pkt)
@@ -877,7 +884,7 @@ namespace Przegladarka
             if (!_lanLegacyNoKeyMode || pkt == null || string.IsNullOrEmpty(pkt.id)) return;
             if (!string.Equals(NormalizeProfileName(pkt.profile ?? "domyslny"), SelectedProfileName, StringComparison.OrdinalIgnoreCase)) return;
             // oba niesparowane: pyta tylko jeden (mniejszy identyfikator); drugi sparowany (hello/state) - pytamy zawsze my
-            if (pkt.t == "state-plain" && string.CompareOrdinal(_lanId, pkt.id) > 0) return;
+            if ((pkt.t == "state-plain" || pkt.t == "announce") && string.CompareOrdinal(_lanId, pkt.id) > 0) return;
             if (!_lanPairOffered.Add(pkt.id)) return;
             var device = string.IsNullOrWhiteSpace(pkt.device) ? pkt.id.Substring(0, 8) : pkt.device.Trim();
             Dispatcher.BeginInvoke(new Action(() =>

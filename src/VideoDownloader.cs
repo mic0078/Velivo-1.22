@@ -23,6 +23,8 @@ namespace Przegladarka
         static string FfmpegPath { get { return Path.Combine(ToolsDir, "ffmpeg.exe"); } }
 
         const string YtDlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+        const string YtDlpSumsUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS";
+        const string FfmpegSumsUrl = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/checksums.sha256";
         const string FfmpegZipUrl = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip";
 
         static readonly HttpClient ToolHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(20) };
@@ -118,7 +120,7 @@ namespace Przegladarka
                 return true;
             }
             if (MessageBox.Show(this, L.T("Do pobierania z YouTube i innych serwisów Velivo używa darmowego narzędzia yt-dlp (ok. 18 MB, z serwisu GitHub).\n\nPobrać je teraz? To jednorazowe."), L.T("Pobierz film"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
-            return await DownloadToolAsync(YtDlpUrl, YtDlpPath, "yt-dlp", null);
+            return await DownloadToolAsync(YtDlpUrl, YtDlpPath, "yt-dlp", YtDlpSumsUrl);
         }
 
         async Task<bool> EnsureFfmpegAsync()
@@ -126,7 +128,7 @@ namespace Przegladarka
             if (File.Exists(FfmpegPath)) return true;
             if (MessageBox.Show(this, L.T("Najlepsza jakość i MP3 wymagają darmowego dodatku FFmpeg (ok. 140 MB do pobrania, po rozpakowaniu ok. 130 MB).\n\nPobrać go teraz? To jednorazowe."), L.T("Pobierz film"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
             var zip = Path.Combine(ToolsDir, "ffmpeg.zip");
-            if (!await DownloadToolAsync(FfmpegZipUrl, zip, "FFmpeg", null)) return false;
+            if (!await DownloadToolAsync(FfmpegZipUrl, zip, "FFmpeg", FfmpegSumsUrl)) return false;
             try
             {
                 await Task.Run(() =>
@@ -145,7 +147,7 @@ namespace Przegladarka
             finally { try { File.Delete(zip); } catch (Exception) { } }
         }
 
-        async Task<bool> DownloadToolAsync(string url, string target, string name, object unused)
+        async Task<bool> DownloadToolAsync(string url, string target, string name, string sumsUrl)
         {
             ShowToast((L.En ? "⬇ Downloading " : "⬇ Pobieram narzędzie ") + name + "…", null);
             try
@@ -157,6 +159,9 @@ namespace Przegladarka
                     resp.EnsureSuccessStatusCode();
                     using (var fs = File.Create(tmp)) await resp.Content.CopyToAsync(fs);
                 }
+                // suma SHA-256 z pliku sum tego samego wydania - niezgodny plik nie zostanie uruchomiony
+                try { await Integrity.VerifyAgainstSumsAsync(ToolHttp, sumsUrl, Path.GetFileName(new Uri(url).AbsolutePath), tmp); }
+                catch (Exception) { try { File.Delete(tmp); } catch (Exception) { } throw; }
                 File.Move(tmp, target, true);
                 return true;
             }
@@ -209,6 +214,7 @@ namespace Przegladarka
                 case "mp3": foreach (var a in new[] { "-f", "ba", "-x", "--audio-format", "mp3", "--audio-quality", "0" }) psi.ArgumentList.Add(a); break;
             }
             if (needFf) { psi.ArgumentList.Add("--ffmpeg-location"); psi.ArgumentList.Add(FfmpegPath); }
+            psi.ArgumentList.Add("--");   // wszystko dalej to adres, nie opcja yt-dlp (np. adres zaczynajacy sie od "-")
             psi.ArgumentList.Add(pageUrl);
 
             // wiersz na liscie pobranych
@@ -256,6 +262,7 @@ namespace Przegladarka
             bar.IsIndeterminate = false;
             if (!canceled && finalFile != null && File.Exists(finalFile))
             {
+                Integrity.MarkFromInternet(finalFile);
                 bar.Value = 100; bar.Visibility = Visibility.Collapsed;
                 name.Text = Path.GetFileName(finalFile);
                 DlPanel.Children.Remove(row);

@@ -41,6 +41,9 @@ namespace Przegladarka
             public List<BankKey> Keys { get; set; } = new List<BankKey>();
             public string CardSalt { get; set; }   // sol klucza sejfu kart (inna niz hasla)
             public string Cards { get; set; }      // karty zaszyfrowane AES-GCM
+            public string Notes { get; set; }      // notatki (loginy, hasla, numery klienta) - tak samo zaszyfrowane
+            public string Sites { get; set; }      // strony bankowe / sklepy (nazwa + adres) - zaszyfrowane
+            public List<string> SiteHosts { get; set; } = new List<string>();   // skroty SHA-256 hostow (rozpoznanie strony bez ujawniania listy)
             public string WrapP { get; set; }      // czesc hasla klucza kart (Kp) zaszyfrowana kluczem z hasla
             public string HmacSalt { get; set; }   // sol dla sekretu z klucza sprzetowego (hmac-secret)
         }
@@ -76,6 +79,25 @@ namespace Przegladarka
         static string BankWipeFlag { get { return Path.Combine(DataDir, "bank.wipe"); } }
 
         sealed class BankCard { public string Label { get; set; } public string Number { get; set; } public string Exp { get; set; } public string Holder { get; set; } }
+
+        sealed class BankNote { public string Title { get; set; } public string Text { get; set; } }
+        sealed class BankSite { public string Name { get; set; } public string Url { get; set; } }
+
+        List<T> LoadSealed<T>(string sealedText)
+        {
+            if (_bankKey == null || string.IsNullOrEmpty(sealedText)) return new List<T>();
+            var plain = Unwrap(sealedText, _bankKey);
+            try { return JsonSerializer.Deserialize<List<T>>(plain) ?? new List<T>(); } finally { CryptographicOperations.ZeroMemory(plain); }
+        }
+
+        static string SealList<T>(byte[] key, List<T> items)
+        {
+            if (items == null || items.Count == 0) return null;
+            var plain = JsonSerializer.SerializeToUtf8Bytes(items);
+            try { return Wrap(plain, key); } finally { CryptographicOperations.ZeroMemory(plain); }
+        }
+
+        static string HostHash(string host) { return Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes("velivo-bank|" + (host ?? "").ToLowerInvariant().TrimStart('.').Replace("www.", "")))); }
 
         static byte[] CardKey(string pass, BankConfig c) { return BankHash(pass, Convert.FromBase64String(c.CardSalt), c.Iter); }
 
@@ -128,12 +150,19 @@ namespace Przegladarka
             cards.Click += (s, e) => BankCards();
             var fill = new MenuItem { Header = L.T("💳 Wypełnij kartę na tej stronie") };
             fill.Click += (s, e) => BankFillMenu();
+            var notes = new MenuItem { Header = L.T("📝 Notatki (loginy, hasła, numery klienta)…") };
+            notes.Click += (s, e) => BankNotes();
+            var sites = new MenuItem { Header = L.T("🔖 Moje strony bankowe i sklepy") };
+            var addSite = new MenuItem { Header = L.T("➕ Dodaj tę stronę do moich stron bankowych") };
+            addSite.Click += (s, e) => BankAddCurrentSite();
             var lockNow = new MenuItem { Header = L.T("🔒 Zablokuj teraz") };
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(cfg); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
-            menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null; };
+            menu.Items.Add(sites); menu.Items.Add(addSite); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
+                addSite.IsEnabled = _bankUnlocked && _bankKey != null && _current != null && _current.Bank && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
+                FillBankSitesMenu(sites); };
             _bankBtn.ContextMenu = menu;
             TabBarPanel.Children.Insert(1, _bankBtn);
 
@@ -162,7 +191,9 @@ namespace Przegladarka
             _bankKey = _bankKp = _bankKk = null;
         }
 
-        async void OpenBankTab()
+        void OpenBankTab() { OpenBankTabAt(HomeUrl); }
+
+        async void OpenBankTabAt(string url)
         {
             if (!_bankUnlocked)
             {
@@ -172,7 +203,7 @@ namespace Przegladarka
             }
             _bankLastInput = DateTime.UtcNow;
             _creatingBank = true;
-            try { AddTab(HomeUrl, true); } finally { _creatingBank = false; }
+            try { AddTab(url, true); } finally { _creatingBank = false; }
         }
 
         // wywolywane z InitView dla karty bankowej - jednorazowe czyszczenie po resecie
@@ -281,7 +312,7 @@ namespace Przegladarka
             var c = existing ?? new BankConfig { Iter = 600000 };
             var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK }).ToList();
             if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-            if (existing != null && !string.IsNullOrEmpty(c.Cards) && _bankKey == null)
+            if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites)) && _bankKey == null)
             {
                 MessageBox.Show(this, L.T("Karty są zamknięte – otwórz tryb bankowy kluczem, który szyfruje karty, i wtedy zmień ustawienia."), "Velivo");
                 return false;
@@ -365,8 +396,8 @@ namespace Przegladarka
                     if (a != b) { err.Text = L.T("Hasła się różnią."); return; }
                 }
                 if (useKey.IsChecked == true && keys.Count == 0) { err.Text = L.T("Dodaj co najmniej jeden klucz albo odznacz opcję klucza."); return; }
-                List<BankCard> oldCards = new List<BankCard>();
-                if (existing != null) { try { oldCards = LoadCards(c); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
+                List<BankCard> oldCards = new List<BankCard>(); List<BankNote> oldNotes = new List<BankNote>(); List<BankSite> oldSites = new List<BankSite>();
+                if (existing != null) { try { oldCards = LoadCards(c); oldNotes = LoadSealed<BankNote>(c.Notes); oldSites = LoadSealed<BankSite>(c.Sites); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
                 byte[] kp = _bankKp != null ? (byte[])_bankKp.Clone() : RandomNumberGenerator.GetBytes(32);
                 if (a.Length > 0)
                 {
@@ -382,6 +413,7 @@ namespace Przegladarka
                 ForgetBankKey();
                 _bankKp = kp; _bankKk = kk; _bankKey = CardKeyFrom(kp, kk);
                 c.Cards = oldCards.Count > 0 ? SealCards(_bankKey, oldCards) : null;
+                c.Notes = SealList(_bankKey, oldNotes); c.Sites = SealList(_bankKey, oldSites);
                 _bankUnlocked = true;
                 c.UseKey = withKey; c.Keys = keys;
                 SaveBank(c); saved = true; w.Close();
@@ -509,6 +541,143 @@ else if(/cc-exp-year|exp.?year|rok/.test(a))set(el,el.maxLength==4?'20'+yy:yy)
 else if(/cc-exp|expir|wazn|ważn|mm.?\/.?yy|mm.?\/.?rr/.test(a))set(el,d.e);
 else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a))set(el,d.h);
 });});}catch(x){}})(__D__);";
+
+        // ---------- strony bankowe i sklepy ----------
+        void FillBankSitesMenu(MenuItem parent)
+        {
+            parent.Items.Clear();
+            var c = LoadBank();
+            List<BankSite> list = null;
+            if (_bankUnlocked && _bankKey != null && c != null) { try { list = LoadSealed<BankSite>(c.Sites); } catch (Exception) { } }
+            if (list == null)
+            {
+                var info = new MenuItem { Header = L.T("Otwórz tryb bankowy, aby zobaczyć listę") };
+                info.Click += (s, e) => OpenBankTab();
+                parent.Items.Add(info); return;
+            }
+            if (list.Count == 0) { parent.Items.Add(new MenuItem { Header = L.T("(pusto – otwórz stronę w karcie bankowej i wybierz „Dodaj tę stronę”)"), IsEnabled = false }); }
+            foreach (var site in list)
+            {
+                var st = site;
+                var mi = new MenuItem { Header = st.Name, ToolTip = st.Url };
+                mi.Click += (s, e) => OpenBankSite(st.Url);
+                parent.Items.Add(mi);
+            }
+            if (list.Count > 0)
+            {
+                parent.Items.Add(new Separator());
+                var del = new MenuItem { Header = L.T("Usuń stronę z listy") };
+                foreach (var site in list)
+                {
+                    var st = site;
+                    var d = new MenuItem { Header = st.Name };
+                    d.Click += (s, e) =>
+                    {
+                        var cc = LoadBank(); if (cc == null || _bankKey == null) return;
+                        var l = LoadSealed<BankSite>(cc.Sites); l.RemoveAll(x => x.Url == st.Url);
+                        cc.Sites = SealList(_bankKey, l);
+                        cc.SiteHosts = l.Select(x => HostHash(HostOf(x.Url))).Distinct().ToList();
+                        SaveBank(cc);
+                    };
+                    del.Items.Add(d);
+                }
+                parent.Items.Add(del);
+            }
+        }
+
+        void OpenBankSite(string url)
+        {
+            if (_current != null && _current.Bank) { Navigate(_current, url); return; }
+            OpenBankTabAt(url);
+        }
+
+        void BankAddCurrentSite()
+        {
+            if (_current == null || !_current.Bank || _bankKey == null) return;
+            var core = _current.View.CoreWebView2; if (core == null) return;
+            var host = HostOf(core.Source); if (host == null) return;
+            var c = LoadBank(); if (c == null) return;
+            var list = LoadSealed<BankSite>(c.Sites);
+            var u = new Uri(core.Source);
+            string url = u.Scheme + "://" + u.Host + "/";
+            if (list.Any(x => HostOf(x.Url) == host)) { ShowToast(L.T("Ta strona już jest na liście"), null); return; }
+            string name = string.IsNullOrWhiteSpace(core.DocumentTitle) ? host : core.DocumentTitle.Trim();
+            if (name.Length > 40) name = name.Substring(0, 40) + "…";
+            list.Add(new BankSite { Name = name, Url = url });
+            c.Sites = SealList(_bankKey, list);
+            c.SiteHosts = list.Select(x => HostHash(HostOf(x.Url))).Distinct().ToList();
+            SaveBank(c);
+            ShowToast(L.T("🔖 Dodano do moich stron bankowych: ") + name, null);
+        }
+
+        // Strona z listy bankowej otwarta w ZWYKLEJ karcie -> przypomnienie (raz na strone w tej sesji)
+        readonly HashSet<string> _bankWarned = new HashSet<string>();
+        void CheckBankSiteInNormalTab(BrowserTab tab, string url)
+        {
+            try
+            {
+                if (tab == null || tab.Bank) return;
+                var host = HostOf(url); if (host == null) return;
+                var c = LoadBank(); if (c == null || c.SiteHosts == null || c.SiteHosts.Count == 0) return;
+                if (!c.SiteHosts.Contains(HostHash(host)) || !_bankWarned.Add(host)) return;
+                ShowToast(L.T("🏦 To Twoja strona bankowa – bezpieczniej otworzyć ją w trybie bankowym (przycisk 🏦)"), null);
+            }
+            catch (Exception) { }
+        }
+
+        // ---------- notatki (zaszyfrowane jak karty) ----------
+        void BankNotes()
+        {
+            if (!_bankUnlocked || _bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); OpenBankTab(); return; }
+            var c = LoadBank(); if (c == null) return;
+            List<BankNote> notes;
+            try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { MessageBox.Show(this, L.T("Nie udało się odczytać kart."), "Velivo"); return; }
+            var w = BankDialog(L.T("📝 Notatki trybu bankowego"));
+            var sp = (StackPanel)w.Content;
+            var list = new ListBox { MinWidth = 420, Height = 130, Margin = new Thickness(0, 0, 0, 8) };
+            Action fillList = () => { list.Items.Clear(); foreach (var n in notes) list.Items.Add(n.Title); };
+            fillList();
+            sp.Children.Add(list);
+            sp.Children.Add(new TextBlock { Text = L.T("Tytuł (np. Bank – login):") });
+            var title = new TextBox { Padding = new Thickness(4), Margin = new Thickness(0, 1, 0, 6) };
+            sp.Children.Add(title);
+            sp.Children.Add(new TextBlock { Text = L.T("Treść (login, hasło, numer klienta…):") });
+            var text = new TextBox { Padding = new Thickness(4), Height = 110, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 1, 0, 6) };
+            sp.Children.Add(text);
+            list.SelectionChanged += (s, e) => { int i = list.SelectedIndex; if (i >= 0) { title.Text = notes[i].Title; text.Text = notes[i].Text; } };
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var add = new Button { Content = L.T("➕ Dodaj nową"), Padding = new Thickness(10, 3, 10, 3) };
+            var upd = new Button { Content = L.T("✔ Zmień zaznaczoną"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            var del = new Button { Content = L.T("Usuń zaznaczoną"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            var copy = new Button { Content = L.T("📋 Kopiuj treść"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            row.Children.Add(add); row.Children.Add(upd); row.Children.Add(del); row.Children.Add(copy);
+            sp.Children.Add(row);
+            add.Click += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(title.Text) && string.IsNullOrWhiteSpace(text.Text)) return;
+                notes.Add(new BankNote { Title = string.IsNullOrWhiteSpace(title.Text) ? L.T("Notatka") : title.Text.Trim(), Text = text.Text ?? "" });
+                title.Text = text.Text = ""; fillList();
+            };
+            upd.Click += (s, e) => { int i = list.SelectedIndex; if (i < 0) return; notes[i].Title = title.Text.Trim(); notes[i].Text = text.Text ?? ""; fillList(); list.SelectedIndex = i; };
+            del.Click += (s, e) => { int i = list.SelectedIndex; if (i < 0) return; notes.RemoveAt(i); title.Text = text.Text = ""; fillList(); };
+            copy.Click += (s, e) =>
+            {
+                var t = text.Text ?? ""; if (t.Length == 0) return;
+                try { Clipboard.SetText(t); } catch (Exception) { return; }
+                ShowToast(L.T("📋 Skopiowano – schowek wyczyści się za 30 s"), null);
+                var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+                timer.Tick += (a, b) => { timer.Stop(); try { if (Clipboard.ContainsText() && Clipboard.GetText() == t) Clipboard.Clear(); } catch (Exception) { } };
+                timer.Start();
+            };
+            var ok = BankButtons(sp, w, L.T("Zapisz"));
+            ok.Click += (s, e) =>
+            {
+                var cc = LoadBank(); if (cc == null || _bankKey == null) { w.Close(); return; }
+                cc.Notes = SealList(_bankKey, notes);
+                SaveBank(cc); w.Close(); ShowToast(L.T("📝 Notatki zapisane (zaszyfrowane)"), null);
+            };
+            w.ShowDialog();
+        }
 
         // ---------- synchronizacja w sieci (LAN) ----------
         // Przesylany jest tylko bank.json: skrot hasla, klucze publiczne kluczy sprzetowych i karty ZASZYFROWANE

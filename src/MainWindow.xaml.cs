@@ -111,6 +111,7 @@ namespace Przegladarka
             Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); };
             LoadJobs(); // lista pobran z poprzedniego uruchomienia (przerwane mozna wznowic)
             LoadZoom();
+            LoadSiteModes();
             InitZoomMenu();
             UpdateDarkButton();
             ApplyBrowserTheme();

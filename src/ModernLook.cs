@@ -115,9 +115,10 @@ namespace Przegladarka
         void ModernDarkButton()
         {
             if (!Modern) return;
-            DarkBtn.Background = _settings.NightLight || _settings.DarkPages ? AccentTint : Brushes.Transparent;
-            if (_settings.NightLight) DarkBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xEA, 0x8A, 0x1A));
-            else if (_settings.DarkPages) DarkBtn.Foreground = AccentBrush;
+            var m = CurrentPageMode();
+            DarkBtn.Background = m.Night || m.Dark ? AccentTint : Brushes.Transparent;
+            if (m.Night) DarkBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xEA, 0x8A, 0x1A));
+            else if (m.Dark) DarkBtn.Foreground = AccentBrush;
             else DarkBtn.SetResourceReference(Control.ForegroundProperty, "VelivoFg");
         }
 

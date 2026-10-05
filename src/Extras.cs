@@ -154,6 +154,8 @@ try {
       var cinemaMs = function () { return C.entMs > 0 ? C.entMs : Math.max(500, Math.min(4000, C.fade * 1.5)); };
       var enter = function () {
         if (C.entrance === 'none' || Date.now() - lastEnter < 600) return;
+        // kinowe: zaraz po wejsciu na strone (zanim skonczy sie pierwsze wylanianie) nie przyciemniamy drugi raz
+        if (C.entrance === 'cinema' && performance.now() < cinemaMs() + 2500) return;
         lastEnter = Date.now();
         try {
           var b = document.body; if (!b) return;
@@ -218,7 +220,7 @@ try {
       // 2) klikniecie linku w tej karcie
       addEventListener('click', function (e) {
         try {
-          if (e.button !== 0 || e.ctrlKey || e.shiftKey || e.metaKey || e.altKey) return;
+          if (!e.isTrusted || e.button !== 0 || e.ctrlKey || e.shiftKey || e.metaKey || e.altKey) return;   // tylko prawdziwe klikniecie (nie np. samo-zamykanie banerow)
           var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
           if (!a || (a.target && a.target !== '_self')) return;
           var h = a.getAttribute('href') || '';

@@ -176,7 +176,7 @@ try {
       var begin = function () {
         if (busy) return;               // przejscie juz trwa - nie zaczynamy od nowa
         busy = true;
-        veilTo(VEIL, 150);
+        if (C.entrance !== 'cinema') veilTo(VEIL, 150);   // kinowe wejscie robi cale przejscie samo - bez podwojnego przyciemnienia
         clearTimeout(safety); safety = setTimeout(finish, 1800);   // zabezpieczenie: nic sie nie zmienilo
       };
       // czekamy, az nowa tresc sie ustabilizuje (120 ms bez zmian, najwyzej 800 ms)

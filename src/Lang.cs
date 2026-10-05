@@ -999,6 +999,18 @@ namespace Przegladarka
             { "Nazwa (np. mBank, Allegro):", "Name (e.g. My bank, Amazon):" },
             { "Adres strony (np. https://www.mbank.pl):", "Website address (e.g. https://www.mybank.com):" },
             { "Nieprawidłowy adres strony.", "Invalid website address." },
+            { "🏦 Moje banki", "🏦 My banks" },
+            { "🛒 Moje sklepy online", "🛒 My online shops" },
+            { "➕ Dodaj tę stronę do Moich banków", "➕ Add this site to My banks" },
+            { "➕ Dodaj tę stronę do Moich sklepów", "➕ Add this site to My shops" },
+            { "➕ Dodaj sklep (nazwa i adres)…", "➕ Add a shop (name and address)…" },
+            { "➕ Dodaj bank (nazwa i adres)…", "➕ Add a bank (name and address)…" },
+            { "🛒 Dodaj sklep online", "🛒 Add an online shop" },
+            { "🏦 Dodaj bank", "🏦 Add a bank" },
+            { "🛒 Dodano do Moich sklepów: ", "🛒 Added to My shops: " },
+            { "🏦 Dodano do Moich banków: ", "🏦 Added to My banks: " },
+            { "(pusto)", "(empty)" },
+            { "📝 Moje notatki (loginy, hasła, numery klienta)", "📝 My notes (logins, passwords, customer numbers)" },
         };
     }
 }

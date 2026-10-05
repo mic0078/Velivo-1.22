@@ -68,6 +68,7 @@ namespace Przegladarka
             "lanSync",
             "audioOut",
             "readerSize",        // rozmiar okna zalezy od ekranu komputera          // glosniki to urzadzenie konkretnego komputera
+            "lastDlDir",         // folder (np. dysk Z:) istnieje tylko na tym komputerze
             "lanSyncSilent",
             "lanSyncKey",
             "quickAccessTab",

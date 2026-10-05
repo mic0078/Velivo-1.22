@@ -80,7 +80,7 @@ Wynik 'B. Brak wyjatku PasswordVault.cs:1430 w bledy.log' ($po -eq 0) "wpisy prz
 
 # ---- C
 $wszystkie = if (Test-Path $log) { @(Get-Content $log) } else { @() }
-$inne = @($wszystkie | Where-Object { $_ -match 'Exception' -and $_ -notmatch $wzor -and $_ -notmatch 'COMException \(0x8007139F\)' })
+$inne = @($wszystkie | Where-Object { $_ -cmatch '^[\w\.]+Exception\b' -and $_ -notmatch $wzor })
 "=== bledy.log: $($wszystkie.Count) linii (pierwsze 40)"; $wszystkie | Select-Object -First 40
 Wynik 'C. Brak innych wyjatkow w bledy.log' ($inne.Count -eq 0) "linii: $($wszystkie.Count), innych wyjatkow: $($inne.Count)"
 "=== PODSUMOWANIE"; $wyniki

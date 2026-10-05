@@ -94,9 +94,13 @@ namespace Przegladarka
                 {
                     if (_settings.AskDownload)
                     {
-                        var dlg = new Microsoft.Win32.SaveFileDialog { FileName = Path.GetFileName(e.ResultFilePath), InitialDirectory = Path.GetDirectoryName(e.ResultFilePath) };
+                        // startujemy w ostatnio wybranym folderze (np. Z:\), jesli nadal istnieje
+                        string startDir = Path.GetDirectoryName(e.ResultFilePath);
+                        try { if (!string.IsNullOrEmpty(_settings.LastDownloadDir) && Directory.Exists(_settings.LastDownloadDir)) startDir = _settings.LastDownloadDir; } catch (Exception) { }
+                        var dlg = new Microsoft.Win32.SaveFileDialog { FileName = Path.GetFileName(e.ResultFilePath), InitialDirectory = startDir };
                         if (dlg.ShowDialog(this) != true) { e.Cancel = true; return; }
                         e.ResultFilePath = dlg.FileName;
+                        try { _settings.LastDownloadDir = Path.GetDirectoryName(dlg.FileName); _settings.Save(DataDir); } catch (Exception) { }
                     }
                     var job = await ProbeDownload(e.DownloadOperation.Uri, e.ResultFilePath, e.DownloadOperation.MimeType, core);
                     if (job != null)

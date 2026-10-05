@@ -200,6 +200,13 @@ namespace Przegladarka
                 var cookie = await CookieHeader(job, url);
                 if (cookie != null) req.Headers.TryAddWithoutValidation("Cookie", cookie);
                 if (from.HasValue) req.Headers.Range = new RangeHeaderValue(from, to);
+                // naglowki jak z przegladarki - bez nich czesc serwerow (CDN, ochrona przed botami) odmawia pliku
+                req.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                req.Headers.TryAddWithoutValidation("Accept-Language", "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7");
+                req.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "document");
+                req.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "navigate");
+                req.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
+                req.Headers.TryAddWithoutValidation("Upgrade-Insecure-Requests", "1");
                 var resp = await DlHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
                 int code = (int)resp.StatusCode;
                 if (code >= 300 && code < 400 && resp.Headers.Location != null)
@@ -216,7 +223,7 @@ namespace Przegladarka
         // Sprawdzenie, czy plik da sie pobrac samodzielnie. null = nie (pobierze silnik).
         async Task<Job> ProbeDownload(string uri, string file, string mime, CoreWebView2 core)
         {
-            if (uri == null || !(uri.StartsWith("http://") || uri.StartsWith("https://"))) return null;
+            if (uri == null || !(uri.StartsWith("http://") || uri.StartsWith("https://"))) { LogEngineFallback(uri, "nie http (blob/data)"); return null; }
             var tab = _tabs.FirstOrDefault(t => t.View.CoreWebView2 == core);
             var job = new Job
             {
@@ -230,13 +237,16 @@ namespace Przegladarka
             {
                 try
                 {
-                    using (var resp = await Task.Run(() => DlSend(job, uri, 0, null, cts.Token)))
+                    var resp = await Task.Run(() => DlSend(job, uri, 0, null, cts.Token));
+                    // niektore serwery odrzucaja zapytanie z zakresem - druga proba bez niego
+                    if ((int)resp.StatusCode != 200 && (int)resp.StatusCode != 206) { resp.Dispose(); resp = await Task.Run(() => DlSend(job, uri, null, null, cts.Token)); }
+                    using (resp)
                     {
                         int code = (int)resp.StatusCode;
-                        if (code != 200 && code != 206) return null;
+                        if (code != 200 && code != 206) { LogEngineFallback(uri, "HTTP " + code); return null; }
                         var type = resp.Content.Headers.ContentType != null ? resp.Content.Headers.ContentType.MediaType : "";
                         // serwer oddal strone zamiast pliku (np. plik tylko z formularza POST) - niech pobierze silnik
-                        if (type == "text/html" && (mime ?? "").IndexOf("html", StringComparison.OrdinalIgnoreCase) < 0) return null;
+                        if (type == "text/html" && (mime ?? "").IndexOf("html", StringComparison.OrdinalIgnoreCase) < 0) { LogEngineFallback(uri, "text/html"); return null; }
                         job.FinalUrl = resp.RequestMessage.RequestUri.AbsoluteUri;
                         if (code == 206 && resp.Content.Headers.ContentRange != null && resp.Content.Headers.ContentRange.Length.HasValue)
                         {
@@ -250,10 +260,23 @@ namespace Przegladarka
                         }
                     }
                 }
-                catch (Exception) { return null; }
+                catch (Exception ex) { LogEngineFallback(uri, ex.GetType().Name + ": " + ex.Message); return null; }
             }
             job.File = UniqueFile(job.File);
             return job;
+        }
+
+        // Dziennik: dlaczego plik pobral silnik WebView2 zamiast Velivo (bez parametrow adresu - moga zawierac tokeny)
+        static void LogEngineFallback(string uri, string why)
+        {
+            try
+            {
+                string u = uri ?? "";
+                int q = u.IndexOfAny(new[] { '?', '#' }); if (q >= 0) u = u.Substring(0, q);
+                if (u.StartsWith("data:")) u = "data:";
+                File.AppendAllText(Path.Combine(DataDir, "pobieranie-silnik.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + why + "  " + u + Environment.NewLine);
+            }
+            catch (Exception) { }
         }
 
         static string UniqueFile(string path)

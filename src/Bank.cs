@@ -651,6 +651,13 @@ namespace Przegladarka
             var ok = BankButtons(sp, w, L.T("Zapisz"));
             ok.Click += (s, e) =>
             {
+                // wpisana, a nie dodana karta - dodajemy ja przy zapisie
+                if (!string.IsNullOrWhiteSpace(number.Text))
+                {
+                    int before = cards.Count;
+                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    if (cards.Count == before) return;   // zly numer - komunikat juz widoczny
+                }
                 c.Cards = cards.Count > 0 ? SealCards(_bankKey, cards) : null;
                 SaveBank(c); w.Close(); ShowToast(L.T("💳 Karty zapisane (zaszyfrowane)"), null);
             };
@@ -880,6 +887,11 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             var ok = BankButtons(sp, w, L.T("Zapisz"));
             ok.Click += (s, e) =>
             {
+                // wpisana, a nie dodana notatka - dodajemy ja (albo zmieniamy zaznaczona) przy zapisie
+                int sel = list.SelectedIndex;
+                if (sel >= 0) { notes[sel].Title = title.Text.Trim(); notes[sel].Text = text.Text ?? ""; }
+                else if (!string.IsNullOrWhiteSpace(title.Text) || !string.IsNullOrWhiteSpace(text.Text))
+                    notes.Add(new BankNote { Title = string.IsNullOrWhiteSpace(title.Text) ? L.T("Notatka") : title.Text.Trim(), Text = text.Text ?? "" });
                 var cc = LoadBank(); if (cc == null || _bankKey == null) { w.Close(); return; }
                 cc.Notes = SealList(_bankKey, notes);
                 SaveBank(cc); w.Close(); ShowToast(L.T("📝 Notatki zapisane (zaszyfrowane)"), null);

@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-2563eb?logo=windows" alt="Windows 10 | 11">
-  <img src="https://img.shields.io/badge/installer-13%20MB-16a34a" alt="installer 13 MB">
+  <img src="https://img.shields.io/badge/installer-64%20MB%20(.NET%20included)-16a34a" alt="installer 64 MB with .NET">
   <img src="https://img.shields.io/badge/account%20%26%20cloud-not%20needed-0f172a" alt="no account, no cloud">
   <img src="https://img.shields.io/badge/language-PL%20%7C%20EN-b45309" alt="PL | EN">
 </p>
@@ -18,6 +18,8 @@
   🎨 <b>Beautiful, modern look</b> like Windows 11 – 10 themes, dark and night mode<br>
   🧩 <b>Light, built-in add-ons</b> – no store hunting and no slowdown<br>
   🎬 Video in a see-through window above everything – keeps playing even after the browser is closed<br>
+  🏦 <b>Banking mode</b> – a separate, encrypted vault for banks, shops, cards and passwords, opened with a <b>hardware security key</b> (YubiKey, Google Titan) or a password<br>
+  ✨ Page entrance effects (cinematic from darkness, focus-in) and <b>pages that start loading when you hover a link</b><br>
   🛡 Built-in uBlock Origin Lite and offline detection of fake bank sites<br>
   🔐 Passwords go only to the real sites · 💳 safe payments<br>
   🖱 Use all of it with the mouse alone · 🔒 no account, no cloud, no tracking
@@ -32,7 +34,7 @@ Your computers share data through local network (LAN) sync, encrypted after the 
 
 The interface is available in **Polish and English**. The installer asks for the language, and you can change it later in Settings → Appearance → Language.
 
-**[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (about 13 MB, incl. uBlock Origin Lite) · **[📖 Complete user manual](MANUAL.en.md)**
+**[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (about 64 MB – .NET and uBlock Origin Lite included, nothing else to install) · **[📖 Complete user manual](MANUAL.en.md)**
 
 ![Velivo – the browser window, with the Video on top window playing in the bottom-right corner](docs/zrzuty/velivo-okno.png)
 
@@ -57,6 +59,18 @@ Popular browsers (Chrome, Edge, Firefox, Opera) don't have these features built 
 - **🌅 Night mode with strength** like Windows "Night light" – adjusted with the mouse wheel on the button.
 - **🖱 Mouse gestures and mouse-only use** – great on the sofa in front of the TV: ← back, → forward, ↑ new tab, ↓ close, ↓→ reload; page zoom with the wheel on the percent button.
 
+## 🏦 Banking mode
+
+A separate, isolated browser profile for banking, payments and shopping – with its own **encrypted vault**:
+
+- **Opened with a hardware key or a password** – YubiKey, Google Titan and other FIDO2 keys. Key plugged in = one touch and you're in; the password is a backup when the key isn't with you. The key can also **encrypt the whole vault** (hmac-secret) – without it the data can't be read even if the files are copied.
+- **🏦 My banks and 🛒 My online shops** – your sites, opened in banking mode with one click.
+- **✏ Login details for each bank** – login / customer number, passcode / PIN, password and memorable information. Velivo **fills in the selected characters** your bank asks for (e.g. the 2nd, 5th and 9th – RBS, NatWest, Bank of Scotland, TSB, Lloyds, Halifax), drop-down lists included.
+- **💳 My cards** – view, edit, CVV hidden until revealed, copying with a self-clearing clipboard, payment-form filling and expiry reminders.
+- **📝 Notes** with categories (logins, PINs, transfers, recovery codes), **🎲 strong password generator**, **🔢 numbered password characters** and 🔍 vault search.
+- **Protection**: warnings about **fake sites impersonating your bank**, a "Switch to banking mode" prompt when a listed bank or shop is opened in a normal tab, no extensions and no history, traces cleared on close, auto-lock after inactivity (1–60 min), access log.
+- **Several banking profiles** (e.g. for another family member), **vault backup** to a `.vbank` file and **sync with your computers** on the home network – all encrypted.
+
 ## Features
 
 | Area | What it offers |
@@ -68,12 +82,14 @@ Popular browsers (Chrome, Edge, Firefox, Opera) don't have these features built 
 | Tabs | Pinned tabs (frozen to their address), colored collapsible tab groups, saved tab sets, mute tab 🔊, auto refresh every 1–30 min, tab search (Ctrl+Shift+A), links in the same tab (Ctrl+click and middle click open a new tab) |
 | Videos | ⬇ Download, ▣ Video on top, ⧉ Picture in picture (keeps playing after closing the tab) – buttons over every video |
 | Quick Access | New tab page: shortcuts in groups, icons, page thumbnails made in the background, PIN-protected profiles, background themes |
+| Banking mode | Separate profile for banking and shopping, hardware key (YubiKey, Titan) or password, encrypted vault: banks, shops, cards, notes, login details with selected-character filling, fake-site warnings, backup, LAN sync |
+| Speed | Pages load when you hover a link, background page preparation, early server connections, selectable cache size; images don't burden the window (smooth scrolling e.g. on eBay) |
 | Passwords | Sign-in from Sejf (key icon next to login fields), Velivo's own encrypted store, password generator, CSV import and export |
 | LAN sync | Settings, bookmarks, passwords, history, pinned tabs and Quick Access; send tabs to another computer |
 | Reading | Read aloud (Windows voices and natural Piper offline voices), "Read from here", reader mode with a local summary (no AI, no cloud), skips ads and "Read also" blocks |
 | History & downloads | History by day → site → pages, "Where did I read that?" (Ctrl+Shift+F), download history with date and source |
 | Search | Address bar shortcuts: `yt cats`, `allegro bike`, `wiki Kraków`, `mapy Gdańsk` (add your own), "Paste and go" |
-| Look | Modern (calm, like Windows 11) or Colorful, 10 themes, light → dark → night mode with strength, zoom remembered per site, phone version for a chosen site |
+| Look | Modern (calm, like Windows 11) or Colorful, 10 themes, light → dark → night mode with strength – **remembered per site** (like zoom), page entrance effects (from darkness, focus-in, dim) with a speed slider, phone version for a chosen site |
 | Tools | Page cache on a RAM disk – just pick a folder, no external tools, download manager (up to 16 connections), full-page screenshots, page and selection translation, pin/unpin Chrome extensions, user profiles |
 | Languages | Polish and English – chosen in the installer and in settings |
 
@@ -81,7 +97,7 @@ Popular browsers (Chrome, Edge, Firefox, Opera) don't have these features built 
 
 Velivo installs from a single `Velivo-Setup-1.22.exe`, without administrator rights, into `%LOCALAPPDATA%\Programs\Velivo`.
 
-**Requirements:** Windows 10 (version 1809 or newer) or 11, 64-bit, .NET 10 Desktop Runtime (x64) and Microsoft Edge WebView2 Runtime (usually already in Windows 11). If something is missing, the installer detects it and opens the download page.
+**Requirements:** Windows 10 (version 1809 or newer) or 11, 64-bit. **.NET is built into the installer** – nothing else to install. Microsoft Edge WebView2 Runtime is usually already in Windows; if it is missing, the installer downloads it.
 
 1. Download `Velivo-Setup-1.22.exe` from the [`Instalator`](Instalator) folder.
 2. Run it and pick the language (Polski / English). Velivo will start in that language. If Windows shows "Unknown publisher", click "More info" → "Run anyway" (the installer is not digitally signed).

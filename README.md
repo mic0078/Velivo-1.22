@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-2563eb?logo=windows" alt="Windows 10 | 11">
-  <img src="https://img.shields.io/badge/instalator-13%20MB-16a34a" alt="instalator 13 MB">
+  <img src="https://img.shields.io/badge/instalator-64%20MB%20(z%20.NET)-16a34a" alt="instalator 64 MB z .NET">
   <img src="https://img.shields.io/badge/konto%20i%20chmura-niepotrzebne-0f172a" alt="bez konta i chmury">
   <img src="https://img.shields.io/badge/j%C4%99zyk-PL%20%7C%20EN-b45309" alt="PL | EN">
 </p>
@@ -18,6 +18,8 @@
   🎨 <b>Piękny, nowoczesny wygląd</b> jak Windows 11 – 10 motywów, tryb ciemny i nocny<br>
   🧩 <b>Lekkie, wbudowane dodatki</b> – bez szukania w sklepie i bez spowalniania<br>
   🎬 Film w przezroczystym okienku nad wszystkim – gra nawet po zamknięciu przeglądarki<br>
+  🏦 <b>Tryb bankowy</b> – osobny, zaszyfrowany sejf na banki, sklepy, karty i hasła, otwierany <b>kluczem sprzętowym</b> (YubiKey, Google Titan) albo hasłem<br>
+  ✨ Efekty wejścia stron (kinowe z ciemności, wyostrzenie) i <b>wczytywanie strony już przy najechaniu na link</b><br>
   🛡 Wbudowany uBlock Origin Lite i wykrywanie fałszywych stron banków bez internetu<br>
   🔐 Hasła trafiają tylko do prawdziwych stron · 💳 bezpieczne płatności<br>
   🖱 Całą obsłużysz samą myszką · 🔒 bez konta, bez chmury, bez śledzenia
@@ -30,7 +32,7 @@ Lekka, prywatna przeglądarka dla Windows, która trzyma Twoje dane u Ciebie: be
 
 Dane między Twoimi komputerami przenosi synchronizacja w sieci lokalnej (LAN), szyfrowana po sparowaniu urządzeń. W zestawie jest dodatek **Szybki Dostęp** (strona nowej karty ze skrótami) oraz współpraca z programem **Sejf**, który przechowuje hasła zaszyfrowane offline.
 
-**[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (ok. 13 MB, z uBlock Origin Lite) · **[📖 Pełna instrukcja obsługi](INSTRUKCJA.md)**
+**[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (ok. 64 MB – .NET i uBlock Origin Lite są w środku, nic nie trzeba doinstalowywać) · **[📖 Pełna instrukcja obsługi](INSTRUKCJA.md)**
 
 ![Velivo – okno przeglądarki, w prawym dolnym rogu gra okienko Film na wierzchu](docs/zrzuty/velivo-okno.png)
 
@@ -55,6 +57,18 @@ Popularne przeglądarki (Chrome, Edge, Firefox, Opera) nie mają tych funkcji wb
 - **🌅 Tryb nocny z natężeniem** jak „Światło nocne” w Windows – regulowany kółkiem myszy na przycisku.
 - **🖱 Gesty myszy i obsługa samą myszką** – idealne przy telewizorze i na kanapie: ← wstecz, → dalej, ↑ nowa karta, ↓ zamknij, ↓→ odśwież; powiększenie strony kółkiem na przycisku procentów.
 
+## 🏦 Tryb bankowy
+
+Osobny, odizolowany profil przeglądarki na banki, płatności i zakupy – z własną, **zaszyfrowaną bazą danych**:
+
+- **Otwierany kluczem sprzętowym albo hasłem** – YubiKey, Google Titan i inne klucze FIDO2. Klucz w porcie = jedno dotknięcie i gotowe; hasło działa zapasowo, gdy klucza nie masz przy sobie. Klucz może też **szyfrować całą bazę** (hmac-secret) – bez niego danych nie da się odczytać nawet po skopiowaniu plików.
+- **🏦 Moje banki i 🛒 Moje sklepy online** – lista Twoich stron, otwieranych jednym kliknięciem w trybie bankowym.
+- **✏ Dane logowania dla każdego banku** – login / numer klienta, passcode / PIN, hasło i *memorable information*. Velivo **samo wpisuje wybrane znaki**, o które prosi bank (np. 2., 5. i 9. znak hasła – RBS, NatWest, Bank of Scotland, TSB, Lloyds, Halifax), także z list wyboru.
+- **💳 Moje karty** – podgląd, edycja, CVV ukryte z możliwością odsłonięcia, kopiowanie z samoczyszczącym się schowkiem, wypełnianie formularza płatności i przypomnienie o wygasającej karcie.
+- **📝 Notatki** z kategoriami (loginy, PIN-y, przelewy, kody odzyskiwania), **🎲 generator mocnych haseł**, **🔢 znaki hasła z numerami** i 🔍 wyszukiwarka całej bazy.
+- **Ochrona**: ostrzeżenie przed **fałszywymi stronami podszywającymi się pod Twój bank**, okienko z pytaniem „Przełącz na tryb bankowy”, gdy bank lub sklep z listy otworzysz w zwykłej karcie, brak dodatków i historii, czyszczenie śladów po zamknięciu, blokada po bezczynności (1–60 min), dziennik otwarć.
+- **Kilka profili bankowych** (np. dla innego domownika), **kopia zapasowa** bazy do pliku `.vbank` i **synchronizacja z Twoimi komputerami** w sieci domowej – wszystko zaszyfrowane.
+
 ## Funkcje
 
 | Obszar | Co oferuje |
@@ -66,12 +80,14 @@ Popularne przeglądarki (Chrome, Edge, Firefox, Opera) nie mają tych funkcji wb
 | Karty | Przypinanie kart (zamrożone na swoim adresie), kolorowe grupy kart do zwijania, zapisane zestawy kart, wyciszanie karty 🔊, automatyczne odświeżanie co 1–30 min, szukanie w kartach (Ctrl+Shift+A), linki w tej samej karcie (Ctrl+klik i środkowy przycisk – nowa karta) |
 | Filmy | ⬇ Pobierz, ▣ Film na wierzchu, ⧉ Obraz w obrazie (gra dalej po zamknięciu karty) – przyciski nad każdym filmem |
 | Szybki Dostęp | Strona nowej karty: skróty w grupach, ikony, miniatury stron robione w tle, profile z PIN-em, motywy tła |
+| Tryb bankowy | Osobny profil na banki i zakupy, klucz sprzętowy (YubiKey, Titan) lub hasło, zaszyfrowana baza: banki, sklepy, karty, notatki, dane logowania z wpisywaniem wybranych znaków, ostrzeżenia o fałszywych stronach, kopia zapasowa, synchronizacja LAN |
+| Szybkość | Wczytywanie strony przy najechaniu na link, przygotowanie strony w tle, wcześniejsze łączenie z serwerami, rozmiar pamięci podręcznej do wyboru; zdjęcia nie obciążają okna (płynne przewijanie np. eBay) |
 | Hasła | Logowanie z Sejfu (kluczyk przy polach logowania), własna zaszyfrowana baza Velivo, generator haseł, import i eksport CSV |
 | Synchronizacja LAN | Ustawienia, zakładki, hasła, historia, karty przypięte i Szybki Dostęp; wysyłanie kart na inny komputer |
 | Czytanie | Czytanie na głos (głosy Windows i naturalne głosy offline Piper), „Czytaj od tego miejsca”, tryb czytania z lokalnym streszczeniem bez AI i bez chmury, pomijanie reklam i „Czytaj także” |
 | Historia i pobrane | Historia dzień → witryna → strony, „Gdzie ja to czytałem?” (Ctrl+Shift+F), historia pobranych z datą i źródłem |
 | Wyszukiwanie | Skróty w pasku adresu: `yt koty`, `allegro rower`, `wiki Kraków`, `mapy Gdańsk` (własne do dopisania), „Wklej i przejdź” |
-| Wygląd | Nowoczesny (spokojny, jak Windows 11) albo Kolorowy, 10 motywów, tryb jasny → ciemny → nocny z natężeniem, powiększenie zapamiętywane dla każdej strony, wersja telefonu dla wybranej strony |
+| Wygląd | Nowoczesny (spokojny, jak Windows 11) albo Kolorowy, 10 motywów, tryb jasny → ciemny → nocny z natężeniem – **zapamiętywany dla każdej strony** (jak powiększenie), efekty wejścia stron (z ciemności, wyostrzenie, przyciemnienie) z suwakiem szybkości, wersja telefonu dla wybranej strony |
 | Narzędzia | Pamięć podręczna stron na RAM dysku – wystarczy wskazać folder, bez zewnętrznych narzędzi, menedżer pobrań (do 16 połączeń), zrzuty ekranu (cała strona), tłumaczenie strony i zaznaczenia, przypinanie i odpinanie dodatków Chrome, profile użytkowników |
 | Języki | Polski i angielski – do wyboru w instalatorze i w ustawieniach |
 
@@ -79,7 +95,7 @@ Popularne przeglądarki (Chrome, Edge, Firefox, Opera) nie mają tych funkcji wb
 
 Velivo instaluje się jednym plikiem `Velivo-Setup-1.22.exe`, bez uprawnień administratora, do folderu `%LOCALAPPDATA%\Programs\Velivo`.
 
-**Wymagania:** Windows 10 (wersja 1809 lub nowsza) albo 11, 64-bit, .NET 10 Desktop Runtime (x64) oraz Microsoft Edge WebView2 Runtime (zwykle jest już w Windows 11). Gdy czegoś brakuje, instalator sam to wykryje i otworzy stronę pobierania.
+**Wymagania:** Windows 10 (wersja 1809 lub nowsza) albo 11, 64-bit. **.NET jest wbudowany w instalator** – nic nie trzeba doinstalowywać. Microsoft Edge WebView2 Runtime jest zwykle już w Windows; gdy go brakuje, instalator sam go pobierze.
 
 1. Pobierz `Velivo-Setup-1.22.exe` z folderu [`Instalator`](Instalator).
 2. Uruchom instalator. Gdy Windows pokaże „Nieznany wydawca”, kliknij „Więcej informacji” → „Uruchom mimo to” (instalator nie ma podpisu cyfrowego).

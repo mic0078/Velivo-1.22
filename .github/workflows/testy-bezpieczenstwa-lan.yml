@@ -1,0 +1,106 @@
+name: Testy bezpieczeństwa (fix/lan-sync-udp-limit)
+
+on:
+  push:
+    branches: ['fix/lan-sync-udp-limit']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testy-lan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testy:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Testy jednostkowe (prawdziwy kod Velivo - Integrity, Mark-of-the-Web)
+        shell: pwsh
+        run: dotnet test testy\Velivo.Tests\Velivo.Tests.csproj -c Release --logger "console;verbosity=detailed"
+
+      - name: Kompilacja Velivo PO poprawkach
+        shell: pwsh
+        run: dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\po
+
+      - name: Kompilacja Velivo PRZED poprawkami (main 285d73b) - wersja odniesienia
+        shell: pwsh
+        run: |
+          git worktree add przed 285d73b
+          dotnet publish przed\src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\przed
+
+      - name: LAN end-to-end (przed i po, bez sparowania i sparowany)
+        timeout-minutes: 25
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory wyniki -Force | Out-Null
+          foreach ($w in 'przed', 'po') { foreach ($m in 'unpaired', 'paired') {
+            Write-Host "=== $w / $m ==="
+            ./testy/bezpieczenstwo/lan-e2e.ps1 -Exe "build\$w\Velivo.exe" -Mode $m -Out "wyniki\lan-$w-$m.json"
+          } }
+
+      - name: yt-dlp - separator argumentow "--"
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -OutFile yt-dlp.exe
+          # adres "--version" udajacy opcje: bez "--" yt-dlp wykona opcje, z "--" potraktuje go jako adres
+          $bez = (& .\yt-dlp.exe --simulate --version 2>&1 | Out-String).Trim()
+          $z = (& .\yt-dlp.exe --simulate -- --version 2>&1 | Out-String).Trim()
+          @{ bezSeparatora = $bez; zSeparatorem = $z } | ConvertTo-Json | Set-Content wyniki\ytdlp.json
+          Get-Content wyniki\ytdlp.json
+          exit 0   # yt-dlp konczy sie bledem przy niepoprawnym adresie - to oczekiwane, ocena w kroku "Ocena wynikow"
+
+      - name: uBlock Origin Lite - czy GitHub podaje sume SHA-256 (digest) i czy sie zgadza
+        shell: pwsh
+        run: |
+          $rel = Invoke-RestMethod -Headers @{ 'User-Agent' = 'velivo-ci'; Authorization = "Bearer ${{ github.token }}" } https://api.github.com/repos/uBlockOrigin/uBOL-home/releases/latest
+          $a = $rel.assets | Where-Object { $_.name -match 'chromium' -and $_.name -match '\.zip$' } | Select-Object -First 1
+          Invoke-WebRequest $a.browser_download_url -OutFile ubol.zip
+          $hash = (Get-FileHash ubol.zip -Algorithm SHA256).Hash.ToLower()
+          @{ tag = $rel.tag_name; asset = $a.name; digest = $a.digest; sha256 = $hash; zgodne = ($a.digest -eq "sha256:$hash") } | ConvertTo-Json | Set-Content wyniki\ubol.json
+          Get-Content wyniki\ubol.json
+
+      - name: Ocena wynikow
+        if: always()
+        shell: pwsh
+        run: |
+          $ok = $true
+          function Check($name, $cond) { $s = if ($cond) { 'OK  ' } else { 'BLAD'; $script:ok = $false }; Write-Host "[$s] $name" }
+          $pu = Get-Content wyniki\lan-po-unpaired.json | ConvertFrom-Json
+          $pp = Get-Content wyniki\lan-po-paired.json | ConvertFrom-Json
+          $bu = Get-Content wyniki\lan-przed-unpaired.json | ConvertFrom-Json
+          $bp = Get-Content wyniki\lan-przed-paired.json | ConvertFrom-Json
+          Write-Host "--- wersja odniesienia (PRZED poprawka) ---"
+          Write-Host ("przed/bez sparowania: falszywa zakladka={0}, zmiana ustawien={1}, jawne pakiety z danymi={2}, typy={3}" -f $bu.injectedBookmark, $bu.injectedSettings, $bu.sentPlainDataPackets, ($bu.sentPacketTypes | ConvertTo-Json -Compress))
+          Write-Host ("przed/sparowany:     zakladka z sparowanego={0}, ustawienia={1}" -f $bp.injectedBookmark, $bp.injectedSettings)
+          Write-Host "--- PO poprawce ---"
+          Check "po: Velivo uruchomione i dziala (bez sparowania)" ($pu.started -and $pu.stillRunning)
+          Check "po: obcy jawny pakiet NIE dodal zakladki" (-not $pu.injectedBookmark)
+          Check "po: obcy jawny pakiet NIE zmienil ustawien" (-not $pu.injectedSettings)
+          Check "po: Velivo NIE wysyla jawnych danych przed sparowaniem" ($pu.sentPlainDataPackets -eq 0 -and $pu.sentPacketsWithReadableSettings -eq 0)
+          Check "po: przed sparowaniem wysyla tylko 'announce'" ((@($pu.sentPacketTypes.PSObject.Properties.Name) | Where-Object { $_ -ne 'announce' }).Count -eq 0)
+          Write-Host ("INFO po/bez sparowania: odebrane typy pakietow = {0} (pusto = nasluch nie odebral rozgloszen na tym komputerze)" -f ($pu.sentPacketTypes | ConvertTo-Json -Compress))
+          Check "po: sparowany komputer nadal synchronizuje zakladki" ($pp.injectedBookmark)
+          Check "po: sparowany komputer nadal synchronizuje ustawienia" ($pp.injectedSettings)
+          Check "kontrola: test wykrywa luke w wersji PRZED (zakladka wstrzyknieta)" ($bu.injectedBookmark)
+          $u = Get-Content wyniki\ubol.json | ConvertFrom-Json
+          Check "uBOL: GitHub podaje digest i zgadza sie z plikiem" ($u.zgodne)
+          $y = Get-Content wyniki\ytdlp.json | ConvertFrom-Json
+          Check "yt-dlp: bez '--' wykonuje opcje (--version)" ($y.bezSeparatora -match '^\d{4}\.\d')
+          Check "yt-dlp: z '--' NIE wykonuje opcji" ($y.zSeparatorem -notmatch '^\d{4}\.\d')
+          if (-not $ok) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wyniki-testow-bezpieczenstwa
+          path: wyniki/

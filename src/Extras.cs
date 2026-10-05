@@ -150,6 +150,7 @@ try {
         vAnim = v.animate([{ opacity: from }, { opacity: target }], { duration: ms, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
         vAnim.onfinish = function () { v.style.opacity = String(target); vAnim = null; if (done) done(); };
       };
+      var cinemaMs = function () { return Math.max(500, Math.min(4000, C.fade * 1.5)); };
       var enter = function () {
         if (C.entrance === 'none' || Date.now() - lastEnter < 600) return;
         lastEnter = Date.now();
@@ -158,8 +159,9 @@ try {
           if (bAnim) { try { bAnim.cancel(); } catch (x) {} }
           var f = C.entrance === 'blur' ? [{ filter: 'blur(3px)', opacity: .75 }, { filter: 'blur(0)', opacity: 1 }]
                 : C.entrance === 'zoom' ? [{ transform: 'scale(.985)', opacity: .8 }, { transform: 'none', opacity: 1 }]
+                : C.entrance === 'cinema' ? [{ filter: 'brightness(0)' }, { filter: 'brightness(1)' }]
                 : [{ transform: 'translateY(12px)', opacity: .75 }, { transform: 'none', opacity: 1 }];
-          bAnim = b.animate(f, { duration: Math.max(280, Math.min(1400, C.fade * 1.3)), easing: 'cubic-bezier(.16,.84,.3,1)' });
+          bAnim = b.animate(f, { duration: C.entrance === 'cinema' ? cinemaMs() : Math.max(280, Math.min(1400, C.fade * 1.3)), easing: C.entrance === 'cinema' ? 'ease-out' : 'cubic-bezier(.16,.84,.3,1)' });
           bAnim.onfinish = bAnim.oncancel = function () { bAnim = null; };
         } catch (x) {}
       };
@@ -188,7 +190,24 @@ try {
 
       // 1) nowo wczytana strona: bez mgielki (potrafila zostac na dluzej) - tylko lagodne wejscie tresci, raz
       var entered = false;
-      var go = function () { if (entered) return; entered = true; enter(); };
+      // kinowe wejscie: strona startuje z ciemnosci i powoli sie rozjasnia (czarna zaslona od pierwszej chwili,
+      // zeby nie mignela jasna strona); zaslona znika najpozniej po 1,5 s, nawet gdy strona dlugo sie wczytuje
+      var cin = null;
+      if (C.entrance === 'cinema') try {
+        cin = document.createElement('div'); cin.setAttribute('aria-hidden', 'true');
+        cin.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#000;opacity:1';
+        document.documentElement.appendChild(cin);
+      } catch (x) { cin = null; }
+      var go = function () {
+        if (entered) return; entered = true;
+        if (!cin) { enter(); return; }
+        lastEnter = Date.now();
+        try {
+          var a = cin.animate([{ opacity: 1 }, { opacity: 0 }], { duration: cinemaMs(), easing: 'ease-out', fill: 'forwards' });
+          a.onfinish = function () { try { cin.remove(); } catch (x) {} };
+        } catch (x) { try { cin.remove(); } catch (y) {} }
+      };
+      setTimeout(go, 1500);
       try {
         new PerformanceObserver(function (l) { if (l.getEntries().some(function (e) { return e.name === 'first-contentful-paint'; })) go(); })
           .observe({ type: 'paint', buffered: true });

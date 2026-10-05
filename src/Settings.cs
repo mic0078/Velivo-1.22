@@ -168,7 +168,7 @@ namespace Przegladarka
                         case "language": s.Language = v; break;
                         case "popups": s.BlockThirdPartyPopups = b; break;
                         case "cookieReject": s.AutoRejectCookies = b; break;
-                        case "pageEntrance": if (v == "slide" || v == "blur" || v == "zoom" || v == "none") s.PageEntrance = v; break;
+                        case "pageEntrance": if (v == "slide" || v == "blur" || v == "zoom" || v == "cinema" || v == "none") s.PageEntrance = v; break;
                         case "pageFade": { int pf; if (int.TryParse(v, out pf)) s.PageFade = Math.Max(0, Math.Min(4000, pf)); } break;
                         case "nightStrength": { int ns; if (int.TryParse(v, out ns)) s.NightStrength = Math.Max(5, Math.Min(100, ns)); } break;
                         case "uiStyle": s.UiStyle = v == "colorful" ? "colorful" : "modern"; break;
@@ -370,7 +370,7 @@ namespace Przegladarka
             root.Children.Add(fadeBox);
             root.Children.Add(new TextBlock { Text = L.T("Efekt wejścia treści:"), Margin = new Thickness(0, 6, 0, 2) });
             var entBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
-            foreach (var en in new[] { new { k = "slide", t = L.T("Wysunięcie z wyostrzeniem (jak Gemini)") }, new { k = "blur", t = L.T("Wyostrzenie") }, new { k = "zoom", t = L.T("Delikatne przybliżenie") }, new { k = "none", t = L.T("Brak") } })
+            foreach (var en in new[] { new { k = "slide", t = L.T("Wysunięcie z wyostrzeniem (jak Gemini)") }, new { k = "blur", t = L.T("Wyostrzenie") }, new { k = "zoom", t = L.T("Delikatne przybliżenie") }, new { k = "cinema", t = L.T("Z ciemności (kinowe)") }, new { k = "none", t = L.T("Brak") } })
                 entBox.Items.Add(new ComboBoxItem { Content = en.t, Tag = en.k });
             entBox.SelectedItem = entBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (s.PageEntrance ?? "slide")) ?? entBox.Items[0];
             root.Children.Add(entBox);

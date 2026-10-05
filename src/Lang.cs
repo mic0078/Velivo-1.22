@@ -1080,6 +1080,16 @@ namespace Przegladarka
             { "Velivo zaczyna pobierać stronę, gdy najedziesz myszką na link, i z wyprzedzeniem łączy się z serwerami widocznych linków. Wyłączone w kartach prywatnych i bankowych. Przy limicie danych lepiej wyłączyć.", "Velivo starts loading a page when you hover over a link and connects early to the servers of visible links. Off in private and banking tabs. Better turned off on a data limit." },
             { "Rozmiar pamięci podręcznej (po ponownym uruchomieniu):", "Cache size (after restart):" },
             { "Automatycznie", "Automatic" },
+            { "CVV / CVC (opcjonalnie):", "CVV / CVC (optional):" },
+            { "👁 Pokaż numer i CVV", "👁 Show number and CVV" },
+            { "CVV ma 3 lub 4 cyfry.", "The CVV has 3 or 4 digits." },
+            { "➕ Dodaj jako nową", "➕ Add as new" },
+            { "Wyczyść pola", "Clear fields" },
+            { "📋 Kopiuj numer", "📋 Copy number" },
+            { "📋 Kopiuj datę", "📋 Copy expiry" },
+            { "📋 Kopiuj CVV", "📋 Copy CVV" },
+            { "Zaznacz kartę na liście.", "Select a card in the list." },
+            { "💳 Wpisano dane karty", "💳 Card details filled in" },
         };
     }
 }

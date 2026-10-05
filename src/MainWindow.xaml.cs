@@ -42,7 +42,8 @@ namespace Przegladarka
             public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
-            public bool Bank;            // karta trybu bankowego (osobny profil; Private=true, zeby nic nie zapisywac)
+            public bool Bank;
+            public string BankAsked;     // strona bankowa (domena), o ktora juz zapytano w tej karcie            // karta trybu bankowego (osobny profil; Private=true, zeby nic nie zapisywac)
             public bool Pinned;
             public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
             public bool Mobile;          // strona w wersji telefonu

@@ -83,7 +83,8 @@ namespace Przegladarka
         sealed class BankCard { public string Label { get; set; } public string Number { get; set; } public string Exp { get; set; } public string Holder { get; set; } }
 
         sealed class BankNote { public string Title { get; set; } public string Text { get; set; } }
-        sealed class BankSite { public string Name { get; set; } public string Url { get; set; } }
+        sealed class BankSite { public string Name { get; set; } public string Url { get; set; } public string Kind { get; set; } }   // Kind: "bank" / "shop"
+        static bool IsShop(BankSite x) { return x.Kind == "shop"; }
 
         List<T> LoadSealed<T>(string sealedText)
         {
@@ -148,23 +149,27 @@ namespace Przegladarka
             var menu = new ContextMenu();
             var cfg = new MenuItem { Header = L.T("⚙ Ustawienia trybu bankowego…") };
             cfg.Click += (s, e) => BankSettings();
-            var cards = new MenuItem { Header = L.T("💳 Moje karty…") };
+            var cards = new MenuItem { Header = L.T("💳 Moje karty") };
             cards.Click += (s, e) => BankCards();
             var fill = new MenuItem { Header = L.T("💳 Wypełnij kartę na tej stronie") };
             fill.Click += (s, e) => BankFillMenu();
-            var notes = new MenuItem { Header = L.T("📝 Notatki (loginy, hasła, numery klienta)…") };
+            var notes = new MenuItem { Header = L.T("📝 Moje notatki (loginy, hasła, numery klienta)") };
             notes.Click += (s, e) => BankNotes();
-            var sites = new MenuItem { Header = L.T("🔖 Moje strony bankowe i sklepy") };
-            var addSite = new MenuItem { Header = L.T("➕ Dodaj tę stronę do moich stron bankowych") };
-            addSite.Click += (s, e) => BankAddCurrentSite();
+            var sites = new MenuItem { Header = L.T("🏦 Moje banki") };
+            var shops = new MenuItem { Header = L.T("🛒 Moje sklepy online") };
+            var addSite = new MenuItem { Header = L.T("➕ Dodaj tę stronę do Moich banków") };
+            addSite.Click += (s, e) => BankAddCurrentSite(false);
+            var addShop = new MenuItem { Header = L.T("➕ Dodaj tę stronę do Moich sklepów") };
+            addShop.Click += (s, e) => BankAddCurrentSite(true);
             var lockNow = new MenuItem { Header = L.T("🔒 Zablokuj teraz") };
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(sites); menu.Items.Add(addSite); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 addSite.IsEnabled = _bankUnlocked && _bankKey != null && _current != null && _current.Bank && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
-                FillBankSitesMenu(sites); };
+                addShop.IsEnabled = addSite.IsEnabled;
+                FillBankSitesMenu(sites, false); FillBankSitesMenu(shops, true); };
             _bankBtn.ContextMenu = menu;
             TabBarPanel.Children.Insert(1, _bankBtn);
 
@@ -600,7 +605,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
 });});}catch(x){}})(__D__);";
 
         // ---------- strony bankowe i sklepy ----------
-        void FillBankSitesMenu(MenuItem parent)
+        void FillBankSitesMenu(MenuItem parent, bool shop)
         {
             parent.Items.Clear();
             var c = LoadBank();
@@ -612,11 +617,12 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 info.Click += (s, e) => OpenBankTab();
                 parent.Items.Add(info); return;
             }
-            var addManual = new MenuItem { Header = L.T("➕ Dodaj bank lub sklep (nazwa i adres)…") };
-            addManual.Click += (s, e) => BankAddSiteManual();
+            list = list.Where(x => IsShop(x) == shop).ToList();
+            var addManual = new MenuItem { Header = shop ? L.T("➕ Dodaj sklep (nazwa i adres)…") : L.T("➕ Dodaj bank (nazwa i adres)…") };
+            addManual.Click += (s, e) => BankAddSiteManual(shop);
             parent.Items.Add(addManual);
             parent.Items.Add(new Separator());
-            if (list.Count == 0) { parent.Items.Add(new MenuItem { Header = L.T("(pusto – otwórz stronę w karcie bankowej i wybierz „Dodaj tę stronę”)"), IsEnabled = false }); }
+            if (list.Count == 0) { parent.Items.Add(new MenuItem { Header = L.T("(pusto)"), IsEnabled = false }); }
             foreach (var site in list)
             {
                 var st = site;
@@ -646,10 +652,10 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             }
         }
 
-        void BankAddSiteManual()
+        void BankAddSiteManual(bool shop)
         {
             if (!_bankUnlocked || _bankKey == null) return;
-            var w = BankDialog(L.T("🔖 Dodaj bank lub sklep"));
+            var w = BankDialog(shop ? L.T("🛒 Dodaj sklep online") : L.T("🏦 Dodaj bank"));
             var sp = (StackPanel)w.Content;
             sp.Children.Add(new TextBlock { Text = L.T("Nazwa (np. mBank, Allegro):") });
             var name = new TextBox { Padding = new Thickness(4), MinWidth = 340, Margin = new Thickness(0, 1, 0, 6) };
@@ -669,11 +675,11 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 var c = LoadBank(); if (c == null || _bankKey == null) return;
                 var list = LoadSealed<BankSite>(c.Sites);
                 if (list.Any(x => HostOf(x.Url) == host)) { err.Text = L.T("Ta strona już jest na liście"); return; }
-                list.Add(new BankSite { Name = string.IsNullOrWhiteSpace(name.Text) ? host : name.Text.Trim(), Url = u });
+                list.Add(new BankSite { Name = string.IsNullOrWhiteSpace(name.Text) ? host : name.Text.Trim(), Url = u, Kind = shop ? "shop" : "bank" });
                 c.Sites = SealList(_bankKey, list);
                 c.SiteHosts = list.Select(x => HostHash(HostOf(x.Url))).Distinct().ToList();
                 SaveBank(c); w.Close();
-                ShowToast(L.T("🔖 Dodano do moich stron bankowych: ") + (string.IsNullOrWhiteSpace(name.Text) ? host : name.Text.Trim()), null);
+                ShowToast((shop ? L.T("🛒 Dodano do Moich sklepów: ") : L.T("🏦 Dodano do Moich banków: ")) + (string.IsNullOrWhiteSpace(name.Text) ? host : name.Text.Trim()), null);
             };
             name.Focus();
             w.ShowDialog();
@@ -685,7 +691,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             OpenBankTabAt(url);
         }
 
-        void BankAddCurrentSite()
+        void BankAddCurrentSite(bool shop)
         {
             if (_current == null || !_current.Bank || _bankKey == null) return;
             var core = _current.View.CoreWebView2; if (core == null) return;
@@ -697,11 +703,11 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             if (list.Any(x => HostOf(x.Url) == host)) { ShowToast(L.T("Ta strona już jest na liście"), null); return; }
             string name = string.IsNullOrWhiteSpace(core.DocumentTitle) ? host : core.DocumentTitle.Trim();
             if (name.Length > 40) name = name.Substring(0, 40) + "…";
-            list.Add(new BankSite { Name = name, Url = url });
+            list.Add(new BankSite { Name = name, Url = url, Kind = shop ? "shop" : "bank" });
             c.Sites = SealList(_bankKey, list);
             c.SiteHosts = list.Select(x => HostHash(HostOf(x.Url))).Distinct().ToList();
             SaveBank(c);
-            ShowToast(L.T("🔖 Dodano do moich stron bankowych: ") + name, null);
+            ShowToast((shop ? L.T("🛒 Dodano do Moich sklepów: ") : L.T("🏦 Dodano do Moich banków: ")) + name, null);
         }
 
         // Strona z listy bankowej otwarta w ZWYKLEJ karcie -> przypomnienie (raz na strone w tej sesji)

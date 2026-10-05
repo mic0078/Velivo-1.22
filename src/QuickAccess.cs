@@ -161,6 +161,15 @@ namespace Przegladarka
                     string command = commandElement.GetString();
                     string path = request.TryGetProperty("p", out var pathElement) && pathElement.ValueKind == JsonValueKind.String ? pathElement.GetString() : null;
                     string b64 = request.TryGetProperty("b64", out var dataElement) && dataElement.ValueKind == JsonValueKind.String ? dataElement.GetString() : null;
+                    if (command == "backToSource")
+                    {
+                        // "Wroc na strone" po dodaniu skrotu: zamykamy karte Szybkiego dostepu i wracamy do poprzedniej karty
+                        var qaTab = _tabs.FirstOrDefault(t => t.View.CoreWebView2 == core);
+                        var back = _prevTab != null && _prevTab != qaTab && _tabs.Contains(_prevTab) ? _prevTab : _tabs.LastOrDefault(t => t != qaTab);
+                        ReplyQuickAccess(core, id, new { ok = back != null, id });
+                        if (qaTab != null && back != null) { SelectTab(back); CloseTab(qaTab); }
+                        return;
+                    }
                     if (command == "thumbsQueue")
                     {
                         // lista adresow skrotow bez miniatury - Velivo zrobi je w tle

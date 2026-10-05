@@ -759,8 +759,11 @@ namespace Przegladarka
             }
         }
 
+        BrowserTab _prevTab;   // poprzednio ogladana karta (np. powrot z Szybkiego dostepu)
+
         void SelectTab(BrowserTab tab)
         {
+            if (_current != null && _current != tab) _prevTab = _current;
             _current = tab;
             SelectTabColors();
             Address.Text = tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : "";

@@ -3476,6 +3476,11 @@ $('profil').addEventListener('change', async (e) => {
         przyciski.unshift({
           napis: 'Wroc na strone',
           akcja: async () => {
+            // w Velivo: program sam wraca do poprzedniej karty i zamyka te (bez chowania okna)
+            if (window.chrome && chrome.webview) {
+              const r = await velivoZapytaj({ c: 'backToSource' });
+              if (r && r.ok) return;
+            }
             try {
               await chrome.tabs.update(inf.zrodloTab, { active: true });
               const ta = await chrome.tabs.getCurrent();

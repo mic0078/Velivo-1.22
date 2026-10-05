@@ -109,6 +109,7 @@ namespace Przegladarka
         {
             if (_current == null) return;
             ShowZoomValue(_current.View.ZoomFactor);
+            UpdateDarkButton();   // tryb (jasny/ciemny/nocny) tez jest zapamietany dla strony - przycisk pokazuje tryb biezacej
         }
 
         void ShowZoomValue(double z)

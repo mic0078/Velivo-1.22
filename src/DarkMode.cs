@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -29,25 +30,75 @@ namespace Przegladarka
 
         void DarkBtn_Click(object sender, RoutedEventArgs e)
         {
-            // trzy tryby po kolei: jasny -> ciemny -> nocny -> jasny
-            if (_settings.DarkPages) { _settings.DarkPages = false; _settings.NightLight = true; }
-            else if (_settings.NightLight) _settings.NightLight = false;
-            else _settings.DarkPages = true;
-            try { _settings.Save(DataDir); } catch (Exception) { }
-            foreach (var t in _tabs) { ApplyDarkMode(t); ApplyLiveDarkCss(t.View.CoreWebView2); }
+            // trzy tryby po kolei: jasny -> ciemny -> nocny -> jasny; zapamietane dla biezacej strony (jak powiekszenie)
+            var m = CurrentPageMode();
+            string next = m.Dark ? "night" : m.Night ? "light" : "dark";
+            var host = _current != null && !_current.Private && _current.View.CoreWebView2 != null ? HostOf(_current.View.CoreWebView2.Source) : null;
+            if (host != null) SetSiteMode(host, next, m.Strength);
+            else
+            {
+                // strona wewnetrzna / karta prywatna - zmieniamy tryb domyslny jak dawniej
+                _settings.DarkPages = next == "dark"; _settings.NightLight = next == "night";
+                try { _settings.Save(DataDir); } catch (Exception) { }
+                foreach (var t in _tabs) ApplyDarkMode(t);
+            }
+            foreach (var t in _tabs) ApplyLiveDarkCss(t.View.CoreWebView2);
             UpdateDarkButton();
-            // Bez restartu: do nastepnego uruchomienia dziala przyciemnianie CSS (zdjecia odwracane z powrotem),
-            // a przy kolejnym starcie wlacza sie pelny tryb silnika.
-            ShowToast(_settings.DarkPages ? L.T("🌙 Tryb ciemny") : _settings.NightLight ? L.T("🌅 Tryb nocny – cieplejsze kolory") : L.T("☀ Tryb jasny"), null);
+            ShowToast(next == "dark" ? L.T("🌙 Tryb ciemny") : next == "night" ? L.T("🌅 Tryb nocny – cieplejsze kolory") : L.T("☀ Tryb jasny"), null);
+        }
+
+        // ---------- tryb zapamietany osobno dla kazdej strony (host -> light/dark/night + natezenie) ----------
+        readonly Dictionary<string, string> _modeByHost = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        static string ModeFile { get { return Path.Combine(DataDir, "tryb-stron.txt"); } }
+
+        struct PageMode { public bool Dark, Night; public int Strength; }
+
+        void LoadSiteModes()
+        {
+            try
+            {
+                if (!File.Exists(ModeFile)) return;
+                foreach (var line in File.ReadAllLines(ModeFile))
+                {
+                    var p = line.Split('\t');
+                    if (p.Length >= 2) _modeByHost[p[0]] = p[1] + (p.Length >= 3 ? "\t" + p[2] : "");
+                }
+            }
+            catch (Exception) { }
+        }
+
+        void SetSiteMode(string host, string mode, int strength)
+        {
+            _modeByHost[host] = mode + "\t" + Math.Max(5, Math.Min(100, strength));
+            try { File.WriteAllLines(ModeFile, _modeByHost.Select(kv => kv.Key + "\t" + kv.Value)); } catch (Exception) { }
+        }
+
+        PageMode ModeFor(string url, bool priv)
+        {
+            var m = new PageMode { Dark = _settings.DarkPages, Night = _settings.NightLight, Strength = _settings.NightStrength };
+            var host = priv ? null : HostOf(url);
+            string v;
+            if (host != null && _modeByHost.TryGetValue(host, out v))
+            {
+                var p = v.Split('\t');
+                m.Dark = p[0] == "dark"; m.Night = p[0] == "night";
+                int st; if (p.Length > 1 && int.TryParse(p[1], out st)) m.Strength = Math.Max(5, Math.Min(100, st));
+            }
+            return m;
+        }
+
+        PageMode CurrentPageMode()
+        {
+            var core = _current != null ? _current.View.CoreWebView2 : null;
+            return ModeFor(core != null ? core.Source : null, _current != null && _current.Private);
         }
 
         // Tryb nocny: ciepla, polprzezroczysta warstwa nad strona (mniej niebieskiego swiatla), bez wplywu na klikanie.
         // Natezenie (jak suwak "Swiatlo nocne" w Windows): 5-100%, zmieniane kolkiem myszy na przycisku trybu.
-        string NightLightCss
+        static string NightLightCss(int strength)
         {
-            get
             {
-                int s = Math.Max(5, Math.Min(100, _settings.NightStrength));
+                int s = Math.Max(5, Math.Min(100, strength));
                 double a = 0.04 + s / 100.0 * 0.46;                      // przezroczystosc warstwy
                 int g = (int)Math.Round(170 - s / 100.0 * 70);           // im mocniej, tym cieplej (mniej zieleni)
                 int b = (int)Math.Round(70 - s / 100.0 * 55);            // i mniej niebieskiego
@@ -61,13 +112,16 @@ namespace Przegladarka
 
         void DarkBtn_Wheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         {
-            if (!_settings.NightLight) return;   // natezenie dotyczy tylko trybu nocnego
+            var m = CurrentPageMode();
+            if (!m.Night) return;   // natezenie dotyczy tylko trybu nocnego
             e.Handled = true;
-            _settings.NightStrength = Math.Max(5, Math.Min(100, _settings.NightStrength + (e.Delta > 0 ? 5 : -5)));
+            int ns = Math.Max(5, Math.Min(100, m.Strength + (e.Delta > 0 ? 5 : -5)));
+            var host = _current != null && !_current.Private && _current.View.CoreWebView2 != null ? HostOf(_current.View.CoreWebView2.Source) : null;
+            if (host != null) SetSiteMode(host, "night", ns); else _settings.NightStrength = ns;
             foreach (var t in _tabs) ApplyLiveDarkCss(t.View.CoreWebView2);
             // chwilowo pokazujemy wartosc na przycisku
             DarkBtn.FontSize = 13;
-            DarkBtn.Content = _settings.NightStrength + "%";
+            DarkBtn.Content = ns + "%";
             if (_nightLabelTimer == null)
             {
                 _nightLabelTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1300) };
@@ -94,8 +148,10 @@ namespace Przegladarka
                 if (core == null || _settings == null) return;
                 var src = core.Source ?? "";
                 if (!(src.StartsWith("http://") || src.StartsWith("https://"))) return;
-                string css = _settings.DarkPages == _darkEngineAtStart ? "" : (_settings.DarkPages ? LiveDarkCss : LiveLightCss);
-                if (_settings.NightLight) css += NightLightCss;
+                var tab = _tabs.FirstOrDefault(t => t.View.CoreWebView2 == core);
+                var m = ModeFor(src, tab != null && tab.Private);
+                string css = m.Dark == _darkEngineAtStart ? "" : (m.Dark ? LiveDarkCss : LiveLightCss);
+                if (m.Night) css += NightLightCss(m.Strength);
                 await core.ExecuteScriptAsync("(function(){try{var id='velivo-tryb-ciemny';var st=document.getElementById(id);" +
                     "if(!" + System.Text.Json.JsonSerializer.Serialize(css) + "){if(st)st.remove();return;}" +
                     "if(!st){st=document.createElement('style');st.id=id;(document.head||document.documentElement).appendChild(st);}" +
@@ -139,14 +195,15 @@ namespace Przegladarka
 
         void UpdateDarkButton()
         {
-            bool on = _settings.DarkPages;
-            if (_settings.NightLight)
+            var m = CurrentPageMode();
+            bool on = m.Dark;
+            if (m.Night)
             {
                 DarkBtn.Content = "";
                 DarkBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xC2, 0x41, 0x0C));
                 DarkBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xD8, 0xA8));
                 DarkBtn.ToolTip = L.T("Tryb nocny: WŁĄCZONY (cieplejsze kolory)\nKliknij, aby wrócić do trybu jasnego") +
-                    (L.En ? "\nMouse wheel: strength " : "\nKółko myszy: natężenie ") + _settings.NightStrength + "%";
+                    (L.En ? "\nMouse wheel: strength " : "\nKółko myszy: natężenie ") + m.Strength + "%";
                 ModernDarkButton();
                 return;
             }

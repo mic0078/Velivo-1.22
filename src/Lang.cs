@@ -968,6 +968,7 @@ namespace Przegladarka
             { "\n🔐 = klucz szyfruje karty (bez niego karty się nie otworzą)", "\n🔐 = the key encrypts the cards (they won't open without it)" },
             { "Dotknij klucza jeszcze raz – przygotowanie szyfrowania kart…", "Touch the key again – setting up card encryption…" },
             { "Ten klucz nie potrafi szyfrować – będzie tylko otwierał tryb bankowy.", "This key cannot encrypt – it will only open banking mode." },
+            { "🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie", "🔒 Banking mode changed on another computer – open it again" },
         };
     }
 }

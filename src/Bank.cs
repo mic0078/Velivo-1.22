@@ -79,6 +79,7 @@ namespace Przegladarka
             public string Docs { get; set; }       // poufne dane (dokumenty) - zaszyfrowane
             public string Accounts { get; set; }   // rachunki bankowe (moje i odbiorcow) - zaszyfrowane
             public string Bills { get; set; }      // rachunki do oplacenia - zaszyfrowane
+            public string Logins { get; set; }     // moje loginy i hasla (login, haslo, adres strony) - zaszyfrowane
             public List<string> SiteHosts { get; set; } = new List<string>();   // skroty SHA-256 hostow (rozpoznanie strony bez ujawniania listy)
             public string WrapP { get; set; }      // czesc hasla klucza kart (Kp) zaszyfrowana kluczem z hasla
             public string WrapPK { get; set; }     // czesc z kluczy (Kk) zaszyfrowana Kp - samo haslo (zapasowo, bez klucza) tez otwiera
@@ -202,6 +203,8 @@ namespace Przegladarka
             cards.Click += (s, e) => BankCards();
             var fill = new MenuItem { Header = L.T("💳 Wypełnij kartę na tej stronie") };
             fill.Click += (s, e) => BankFillMenu();
+            var logins = new MenuItem { Header = L.T("🔑 Moje loginy i hasła") };
+            logins.Click += (s, e) => BankItems("logins");
             var docs = new MenuItem { Header = L.T("🪪 Poufne dane (dokumenty)") };
             docs.Click += (s, e) => BankItems("docs");
             var accs = new MenuItem { Header = L.T("🏦 Rachunki bankowe") };
@@ -237,7 +240,7 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 // dodac strone mozna z kazdej karty (takze zwyklej) - gdy tryb zamkniety, najpierw klucz / haslo
                 addSite.IsEnabled = _current != null && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
@@ -569,7 +572,7 @@ namespace Przegladarka
             var c = existing ?? new BankConfig { Iter = 600000, Owner = _bankNewOwner };
             var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK, WrapKp = k.WrapKp }).ToList();
             if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-            if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites) || !string.IsNullOrEmpty(c.Docs) || !string.IsNullOrEmpty(c.Accounts) || !string.IsNullOrEmpty(c.Bills)) && _bankKey == null)
+            if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites) || !string.IsNullOrEmpty(c.Docs) || !string.IsNullOrEmpty(c.Accounts) || !string.IsNullOrEmpty(c.Bills) || !string.IsNullOrEmpty(c.Logins)) && _bankKey == null)
             {
                 MessageBox.Show(this, L.T("Karty są zamknięte – otwórz tryb bankowy kluczem, który szyfruje karty, i wtedy zmień ustawienia."), "Velivo");
                 return false;
@@ -662,8 +665,8 @@ namespace Przegladarka
                     if (a != b) { err.Text = L.T("Hasła się różnią."); return; }
                 }
                 if (useKey.IsChecked == true && keys.Count == 0) { err.Text = L.T("Dodaj co najmniej jeden klucz albo odznacz opcję klucza."); return; }
-                List<BankCard> oldCards = new List<BankCard>(); List<BankNote> oldNotes = new List<BankNote>(); List<BankSite> oldSites = new List<BankSite>(); List<BankItem> oldDocs = new List<BankItem>(), oldAcc = new List<BankItem>(), oldBills = new List<BankItem>();
-                if (existing != null) { try { oldCards = LoadCards(c); oldNotes = LoadSealed<BankNote>(c.Notes); oldSites = LoadSealed<BankSite>(c.Sites); oldDocs = LoadSealed<BankItem>(c.Docs); oldAcc = LoadSealed<BankItem>(c.Accounts); oldBills = LoadSealed<BankItem>(c.Bills); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
+                List<BankCard> oldCards = new List<BankCard>(); List<BankNote> oldNotes = new List<BankNote>(); List<BankSite> oldSites = new List<BankSite>(); List<BankItem> oldDocs = new List<BankItem>(), oldAcc = new List<BankItem>(), oldBills = new List<BankItem>(), oldLogins = new List<BankItem>();
+                if (existing != null) { try { oldCards = LoadCards(c); oldNotes = LoadSealed<BankNote>(c.Notes); oldSites = LoadSealed<BankSite>(c.Sites); oldDocs = LoadSealed<BankItem>(c.Docs); oldAcc = LoadSealed<BankItem>(c.Accounts); oldBills = LoadSealed<BankItem>(c.Bills); oldLogins = LoadSealed<BankItem>(c.Logins); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
                 if (a.Length > 0)
                 {
                     var salt = RandomNumberGenerator.GetBytes(16);
@@ -680,7 +683,7 @@ namespace Przegladarka
                 _bankKp = kp; _bankKk = kk; _bankKey = CardKeyFrom(kp, kk);
                 c.Cards = oldCards.Count > 0 ? SealCards(_bankKey, oldCards) : null;
                 c.Notes = SealList(_bankKey, oldNotes); c.Sites = SealList(_bankKey, oldSites);
-                c.Docs = SealList(_bankKey, oldDocs); c.Accounts = SealList(_bankKey, oldAcc); c.Bills = SealList(_bankKey, oldBills);
+                c.Docs = SealList(_bankKey, oldDocs); c.Accounts = SealList(_bankKey, oldAcc); c.Bills = SealList(_bankKey, oldBills); c.Logins = SealList(_bankKey, oldLogins);
                 _bankUnlocked = true;
                 c.UseKey = withKey; c.Keys = keys;
                 c.IdleMinutes = idleOpts[Math.Max(0, idleBox.SelectedIndex)]; _bankIdleMinutes = c.IdleMinutes;
@@ -1149,6 +1152,9 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
 
         static readonly Dictionary<string, ItemDef> ItemDefs = new Dictionary<string, ItemDef>
         {
+            { "logins", new ItemDef { Title = "🔑 Moje loginy i hasła", Icon = "🔑", Fields = new[] {
+                Fd("name", "Nazwa (np. Poczta, Facebook, Netflix):"), Fd("login", "Login:"), Fd("password", "Hasło:", secret: true),
+                Fd("url", "Adres strony www:"), Fd("note", "Notatka:") } } },
             { "docs", new ItemDef { Title = "🪪 Poufne dane (dokumenty)", Icon = "🪪", Fields = new[] {
                 Fd("type", "Rodzaj dokumentu:", choices: new[] { "Dowód osobisty", "Paszport", "Prawo jazdy", "PESEL", "NI number", "Ubezpieczenie zdrowotne", "Inny dokument" }),
                 Fd("owner", "Imię i nazwisko:"), Fd("number", "Numer:", secret: true), Fd("expiry", "Ważny do (DD.MM.RRRR):", date: true), Fd("note", "Notatka:") } } },
@@ -1157,12 +1163,30 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 Fd("sort", "Sort code / BIC (SWIFT):"), Fd("bank", "Bank:"), Fd("note", "Tytuł przelewu / notatka:") } } },
             { "bills", new ItemDef { Title = "🧾 Rachunki do opłacenia", Icon = "🧾", Fields = new[] {
                 Fd("name", "Za co (np. Prąd, Internet, Czynsz):"), Fd("amount", "Kwota:"), Fd("due", "Termin płatności (DD.MM.RRRR):", date: true),
-                Fd("repeat", "Powtarzanie:", choices: new[] { "Co miesiąc", "Co kwartał", "Co rok", "Jednorazowo" }),
+                Fd("repeat", "Powtarzanie (albo wpisz np. co 10 dni):", choices: new[] { "Co tydzień", "Co 2 tygodnie", "Co 4 tygodnie", "Co miesiąc", "Co 2 miesiące", "Co kwartał", "Co pół roku", "Co rok", "Jednorazowo" }),
                 Fd("customer", "Numer klienta / referencja:"), Fd("url", "Strona do płatności:"), Fd("note", "Notatka:") } } },
         };
 
-        static string ItemStore(BankConfig c, string kind) { return kind == "docs" ? c.Docs : kind == "acc" ? c.Accounts : c.Bills; }
-        static void SetItemStore(BankConfig c, string kind, string v) { if (kind == "docs") c.Docs = v; else if (kind == "acc") c.Accounts = v; else c.Bills = v; }
+        static string ItemStore(BankConfig c, string kind) { return kind == "logins" ? c.Logins : kind == "docs" ? c.Docs : kind == "acc" ? c.Accounts : c.Bills; }
+        static void SetItemStore(BankConfig c, string kind, string v) { if (kind == "logins") c.Logins = v; else if (kind == "docs") c.Docs = v; else if (kind == "acc") c.Accounts = v; else c.Bills = v; }
+
+        // Nastepny termin wg powtarzania: gotowe opcje (PL/EN) albo wlasne "co 10 dni", "co 3 tygodnie", "every 2 weeks"...
+        static DateTime? NextDue(DateTime due, string rep)
+        {
+            var r = (rep ?? "").Trim().ToLowerInvariant();
+            if (r.Length == 0 || r.Contains("jednoraz") || r.Contains("one-off") || r.Contains("once")) return null;
+            int n = 1;
+            var m = System.Text.RegularExpressions.Regex.Match(r, @"\d+");
+            if (m.Success) n = Math.Max(1, Math.Min(999, int.Parse(m.Value)));
+            if (r.Contains("pół roku") || r.Contains("pol roku") || r.Contains("half")) return due.AddMonths(6);
+            if (r.Contains("kwarta") || r.Contains("quarter")) return due.AddMonths(3 * n);
+            if (r.Contains("dzie") || r.Contains("dni") || r.Contains("day")) return due.AddDays(n);
+            if (r.Contains("tydz") || r.Contains("tygod") || r.Contains("week")) return due.AddDays(7 * n);
+            if (r.Contains("rok") || r.Contains("lat") || r.Contains("year")) return due.AddYears(n);
+            return due.AddMonths(n);   // miesiac / month i domyslnie
+        }
+
+        static string FixUrl(string u) { u = (u ?? "").Trim(); return u.Length > 0 && !u.Contains("://") ? "https://" + u : u; }
 
         static DateTime? ParseDay(string t)
         {
@@ -1172,6 +1196,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
 
         static string ItemLine(ItemDef d, BankItem it)
         {
+            if (d == ItemDefs["logins"]) return it.Get("name") + (it.Get("login").Length > 0 ? "   " + it.Get("login") : "") + (HostOf(FixUrl(it.Get("url"))) != null ? "   " + HostOf(FixUrl(it.Get("url"))) : "");
             if (d == ItemDefs["docs"]) { var n = it.Get("number"); return L.T(it.Get("type")) + "  " + it.Get("owner") + (n.Length >= 3 ? "   ••• " + n.Substring(n.Length - 3) : "") + (it.Get("expiry").Length > 0 ? "   " + it.Get("expiry") : ""); }
             if (d == ItemDefs["acc"]) { var n = it.Get("number").Replace(" ", ""); return it.Get("name") + (n.Length >= 4 ? "   •••• " + n.Substring(n.Length - 4) : "") + (it.Get("bank").Length > 0 ? "   " + it.Get("bank") : ""); }
             var due = ParseDay(it.Get("due"));
@@ -1263,6 +1288,27 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             upd.Click += (a, b) => { int i = list.SelectedIndex; if (i < 0) { err.Text = L.T("Zaznacz pozycję na liście."); return; } var it = read(); if (it == null) return; items[i] = it; fillList(); };
             del.Click += (a, b) => { int i = list.SelectedIndex; if (i < 0) return; items.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); };
             clr.Click += (a, b) => { list.SelectedIndex = -1; clearForm(); };
+            if (kind == "logins")
+            {
+                var rowL = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+                var openL = new Button { Content = L.T("🌐 Otwórz stronę"), Padding = new Thickness(10, 3, 10, 3) };
+                openL.Click += (a, b) => { var u = FixUrl(getters["url"]()); if (HostOf(u) != null) { if (_current != null && _current.Bank) Navigate(_current, u); else AddTab(u); } };
+                var fillL = new Button { Content = L.T("🔑 Wpisz na otwartej stronie"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+                fillL.Click += async (a, b) =>
+                {
+                    // tylko na stronie z tym samym adresem (domena) - haslo nie trafi na obca / falszywa strone
+                    var core = _current != null ? _current.View.CoreWebView2 : null;
+                    var want = HostOf(FixUrl(getters["url"]())); var have = core != null ? HostOf(core.Source) : null;
+                    if (want == null || have == null || RegDomain(want) != RegDomain(have)) { err.Text = L.T("Otwórz najpierw tę stronę w karcie – Velivo wpisuje hasło tylko na stronie o tym samym adresie."); return; }
+                    var d0 = JsonSerializer.Serialize(new { u = getters["login"](), p = getters["password"]() });
+                    try { await core.ExecuteScriptAsync(LoginFillScript.Replace("__D__", d0)); } catch (Exception) { }
+                    ShowToast(L.T("🔑 Wpisano dane logowania: ") + getters["name"](), null);
+                };
+                var genL = new Button { Content = L.T("🎲 Wygeneruj hasło"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+                genL.Click += (a, b) => { var pw = StrongPassword(20); setters["password"](pw); try { Clipboard.SetText(pw); } catch (Exception) { } ShowToast(L.T("🎲 Wygenerowano mocne hasło (skopiowane – schowek wyczyści się za 30 s)"), null); ClearClipboardLater(pw); };
+                rowL.Children.Add(openL); rowL.Children.Add(fillL); rowL.Children.Add(genL);
+                sp.Children.Add(rowL);
+            }
             if (kind == "bills")
             {
                 var rowC = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
@@ -1271,9 +1317,9 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 {
                     int i = list.SelectedIndex; if (i < 0) { err.Text = L.T("Zaznacz pozycję na liście."); return; }
                     var it = items[i]; var due = ParseDay(it.Get("due")); var rep = it.Get("repeat");
-                    if (due == null || rep == L.T("Jednorazowo") || rep == "Jednorazowo" || rep.Length == 0) { items.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); return; }
-                    var next = rep == L.T("Co kwartał") || rep == "Co kwartał" ? due.Value.AddMonths(3) : rep == L.T("Co rok") || rep == "Co rok" ? due.Value.AddYears(1) : due.Value.AddMonths(1);
-                    it.F["due"] = next.ToString("dd.MM.yyyy"); fillList(); list.SelectedIndex = i;
+                    var next = due == null ? (DateTime?)null : NextDue(due.Value, rep);
+                    if (next == null) { items.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); return; }   // jednorazowy - oplacony, znika z listy
+                    it.F["due"] = next.Value.ToString("dd.MM.yyyy"); fillList(); list.SelectedIndex = i;
                     ShowToast(L.T("✔ Następny termin: ") + it.F["due"], null);
                 };
                 var open = new Button { Content = L.T("🌐 Otwórz stronę płatności"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
@@ -1437,6 +1483,7 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 
 3. MENU (prawy klik na 🏦)
 🔍 Szukaj w mojej bazie – przeszukuje banki, sklepy, karty i notatki.
+🔑 Moje loginy i hasła – nazwa, login, hasło, adres strony www; „Wpisz na otwartej stronie” działa tylko na stronie o tym samym adresie.
 🪪 Poufne dane – dokumenty (dowód, paszport, prawo jazdy, PESEL, NI number): numer, ważność z przypomnieniem, notatka.
 🏦 Rachunki bankowe – Twoje konta i konta odbiorców (IBAN, sort code, właściciel) z kopiowaniem do przelewów.
 🧾 Rachunki do opłacenia – kwota, termin z przypomnieniem, powtarzanie, „Zapłacone” przesuwa termin, link do strony płatności.
@@ -1486,6 +1533,7 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 
 3. MENU (right-click 🏦)
 🔍 Search my vault – searches banks, shops, cards and notes.
+🔑 My logins and passwords – name, login, password, website address; “Fill in on the open page” works only on a page with the same address.
 🪪 Confidential data – documents (ID, passport, driving licence, PESEL, NI number): number, expiry with reminders, note.
 🏦 Bank accounts – your accounts and payees (IBAN, sort code, holder) with copying for transfers.
 🧾 Bills to pay – amount, due date with reminders, repeat, “Paid” moves the date on, link to the payment site.
@@ -1632,7 +1680,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             try
             {
                 sites = LoadSealed<BankSite>(c.Sites); cards = LoadCards(c); notes = LoadSealed<BankNote>(c.Notes);
-                foreach (var k in new[] { "docs", "acc", "bills" }) items[k] = LoadSealed<BankItem>(ItemStore(c, k));
+                foreach (var k in new[] { "logins", "docs", "acc", "bills" }) items[k] = LoadSealed<BankItem>(ItemStore(c, k));
             }
             catch (Exception) { return; }
             var w = BankDialog(L.T("🔍 Szukaj w mojej bazie"));
@@ -1655,7 +1703,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
                 { var cd = x; res.Items.Add("💳 " + CardLine(cd)); hits.Add(() => detail.Text = CardLine(cd) + (string.IsNullOrEmpty(cd.Holder) ? "" : "\n" + cd.Holder)); }
                 foreach (var x in notes.Where(x => m(x.Title) || m(x.Text) || m(x.Category)))
                 { var nt = x; res.Items.Add("📝 " + nt.Title); hits.Add(() => detail.Text = nt.Text); }
-                foreach (var kind in new[] { "docs", "acc", "bills" })
+                foreach (var kind in new[] { "logins", "docs", "acc", "bills" })
                 {
                     var def = ItemDefs[kind];
                     foreach (var x in items[kind].Where(x => x.F.Values.Any(v => m(v))))
@@ -1707,6 +1755,20 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
         {
             if (_current == null || !_current.Bank || _bankKey == null) return;
             var site = SiteForCurrent();
+            // najpierw "Moje loginy i hasla" z adresem tej strony
+            try
+            {
+                var cfgL = LoadBank(); var hostL = HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
+                var hit = cfgL == null || hostL == null ? null : LoadSealed<BankItem>(cfgL.Logins).FirstOrDefault(x => { var h = HostOf(FixUrl(x.Get("url"))); return h != null && RegDomain(h) == RegDomain(hostL); });
+                if (hit != null)
+                {
+                    var dL = JsonSerializer.Serialize(new { u = hit.Get("login"), p = hit.Get("password") });
+                    _ = _current.View.CoreWebView2.ExecuteScriptAsync(LoginFillScript.Replace("__D__", dL));
+                    ShowToast(L.T("🔑 Wpisano dane logowania: ") + hit.Get("name"), null);
+                    return;
+                }
+            }
+            catch (Exception) { }
             if (site != null && !string.IsNullOrEmpty(site.Login))
             {
                 var core0 = _current.View.CoreWebView2;

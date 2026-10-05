@@ -1147,6 +1147,19 @@ namespace Przegladarka
             { "🔐 Zapisano (zaszyfrowane)", "🔐 Saved (encrypted)" },
             { "🧾 Rachunki do opłacenia", "🧾 Bills to pay" },
             { "🪪 Poufne dane (dokumenty)", "🪪 Confidential data (documents)" },
+            { "🔑 Moje loginy i hasła", "🔑 My logins and passwords" },
+            { "Nazwa (np. Poczta, Facebook, Netflix):", "Name (e.g. Mail, Facebook, Netflix):" },
+            { "Login:", "Login:" },
+            { "Adres strony www:", "Website address:" },
+            { "🌐 Otwórz stronę", "🌐 Open website" },
+            { "🔑 Wpisz na otwartej stronie", "🔑 Fill in on the open page" },
+            { "Otwórz najpierw tę stronę w karcie – Velivo wpisuje hasło tylko na stronie o tym samym adresie.", "Open this website in a tab first – Velivo fills the password only on a page with the same address." },
+            { "Powtarzanie (albo wpisz np. co 10 dni):", "Repeats (or type e.g. every 10 days):" },
+            { "Co tydzień", "Every week" },
+            { "Co 2 tygodnie", "Every 2 weeks" },
+            { "Co 4 tygodnie", "Every 4 weeks" },
+            { "Co 2 miesiące", "Every 2 months" },
+            { "Co pół roku", "Every 6 months" },
         };
     }
 }

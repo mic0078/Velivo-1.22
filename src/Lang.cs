@@ -1097,6 +1097,7 @@ namespace Przegladarka
             { "Delikatne (0,3 s)", "Gentle (0.3 s)" },
             { "Wolne (0,5 s)", "Slow (0.5 s)" },
             { "Spokojne (1 s)", "Calm (1 s)" },
+            { "Delikatne przyciemnienie", "Gentle dim" },
         };
     }
 }

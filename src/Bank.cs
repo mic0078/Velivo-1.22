@@ -79,6 +79,7 @@ namespace Przegladarka
             public string Docs { get; set; }       // poufne dane (dokumenty) - zaszyfrowane
             public string Accounts { get; set; }   // rachunki bankowe (moje i odbiorcow) - zaszyfrowane
             public string Bills { get; set; }      // rachunki do oplacenia - zaszyfrowane
+            public string Currency { get; set; }   // waluta rachunkow i zestawienia (np. £, zł, €, $); pusta = wg ustawien Windows
             public string BillLog { get; set; }    // historia zaplaconych rachunkow (zestawienie miesieczne) - zaszyfrowana
             public List<string> BillDue { get; set; } = new List<string>();   // same daty terminow i wyprzedzenie ("rrrr-mm-dd|3"), bez nazw i kwot - do przypomnien przy zamknietym trybie
             public string Logins { get; set; }     // moje loginy i hasla (login, haslo, adres strony) - zaszyfrowane
@@ -1213,6 +1214,20 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
         }
 
         // Zestawienie jak w arkuszu: miesiace x rachunki, suma miesiaca; reczne dopisywanie, import z Excela (CSV), eksport CSV
+        // waluta: z ustawien profilu bankowego, a domyslnie z regionu Windows
+        string BankCurrency()
+        {
+            try { var c = LoadBank(); if (c != null && !string.IsNullOrWhiteSpace(c.Currency)) return c.Currency.Trim(); } catch (Exception) { }
+            try { return new System.Globalization.RegionInfo(System.Globalization.CultureInfo.CurrentCulture.Name).CurrencySymbol; } catch (Exception) { return "£"; }
+        }
+
+        // £186.00 / $5.00 / €5,00 przed kwota; 186,00 zł / 5,00 kr za kwota
+        static string Money(decimal v, string cur)
+        {
+            var num = v.ToString("#,0.00", System.Globalization.CultureInfo.CurrentCulture);
+            return cur == "£" || cur == "$" || cur == "€" || cur == "¥" ? cur + num : num + " " + cur;
+        }
+
         static decimal Amt(string t)
         {
             var clean = new string((t ?? "").Where(ch => char.IsDigit(ch) || ch == ',' || ch == '.' || ch == '-').ToArray());
@@ -1257,6 +1272,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             var dock = new DockPanel { Margin = new Thickness(12) };
             var grid = new DataGrid { AutoGenerateColumns = false, IsReadOnly = true, HeadersVisibility = DataGridHeadersVisibility.Column, CanUserAddRows = false };
             var rows = new List<string[]>(); var names = new List<string>();
+            string cur = BankCurrency();
             Action rebuild = () =>
             {
                 names.Clear(); names.AddRange(log.Select(x => x.Get("name")).Distinct());
@@ -1273,9 +1289,9 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                     for (int i = 0; i < names.Count; i++)
                     {
                         var v = log.Where(x => x.Get("month") == m && x.Get("name") == names[i]).Sum(x => Amt(x.Get("amount")));
-                        sum += v; r[i + 1] = v == 0 ? "" : v.ToString("0.00", culture);
+                        sum += v; r[i + 1] = v == 0 ? "" : Money(v, cur);
                     }
-                    r[names.Count + 1] = sum.ToString("0.00", culture);
+                    r[names.Count + 1] = Money(sum, cur);
                     rows.Add(r);
                 }
                 grid.ItemsSource = rows.ToList();
@@ -1368,6 +1384,19 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 try { File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(true)); ShowToast(L.T("📥 Zapisano zestawienie"), dlg.FileName); } catch (Exception ex) { MessageBox.Show(w, ex.Message, "Velivo"); }
             };
             bar.Children.Add(imp); bar.Children.Add(csv);
+            bar.Children.Add(new TextBlock { Text = L.T("Waluta:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 4, 0) });
+            var curBox = new ComboBox { IsEditable = true, Width = 70, Text = cur };
+            foreach (var cc0 in new[] { "£", "zł", "€", "$", "CHF", "kr", "Kč", "Ft", "lei", "₴", "¥" }) curBox.Items.Add(cc0);
+            curBox.Text = cur;
+            Action applyCur = () =>
+            {
+                var nv = (curBox.Text ?? "").Trim(); if (nv.Length == 0 || nv == cur) return;
+                cur = nv; var cfg = LoadBank(); if (cfg != null) { cfg.Currency = nv; SaveBank(cfg); }
+                rebuild();
+            };
+            curBox.SelectionChanged += (a, b) => { if (curBox.SelectedItem != null) { curBox.Text = (string)curBox.SelectedItem; applyCur(); } };
+            curBox.LostFocus += (a, b) => applyCur();
+            bar.Children.Add(curBox);
             bar.Children.Add(new TextBlock { Text = L.T("W Excelu: Plik → Zapisz jako → CSV. Pierwsza kolumna = miesiąc, nagłówki = nazwy rachunków."), Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 460 });
             dock.Children.Add(bar);
             dock.Children.Add(msg);
@@ -1401,6 +1430,8 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             return DateTime.TryParseExact((t ?? "").Trim(), new[] { "d.M.yyyy", "d/M/yyyy", "d-M-yyyy", "yyyy-M-d", "d.M.yy", "d/M/yy" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out d) ? d : (DateTime?)null;
         }
 
+        static string _currencyCache;   // waluta do wyswietlania kwot na listach (ustawiana przy otwarciu okienka)
+
         static string ItemLine(ItemDef d, BankItem it)
         {
             if (d == ItemDefs["logins"]) return it.Get("name") + (it.Get("login").Length > 0 ? "   " + it.Get("login") : "") + (HostOf(FixUrl(it.Get("url"))) != null ? "   " + HostOf(FixUrl(it.Get("url"))) : "");
@@ -1408,7 +1439,9 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             if (d == ItemDefs["acc"]) { var n = it.Get("number").Replace(" ", ""); return it.Get("name") + (n.Length >= 4 ? "   •••• " + n.Substring(n.Length - 4) : "") + (it.Get("bank").Length > 0 ? "   " + it.Get("bank") : ""); }
             var due = ParseDay(it.Get("due"));
             string state = due == null ? "" : due.Value.Date < DateTime.Today ? L.T("   ⚠ po terminie") : (due.Value.Date - DateTime.Today).TotalDays <= BillLead(it) ? L.T("   ⏰ wkrótce") : "";
-            return it.Get("name") + (it.Get("amount").Length > 0 ? "   " + it.Get("amount") : "") + (it.Get("due").Length > 0 ? "   " + it.Get("due") : "") + state;
+            var am = it.Get("amount"); var amd = Amt(am);
+            if (amd != 0 && am.All(ch => char.IsDigit(ch) || ch == ',' || ch == '.' || ch == ' ')) am = Money(amd, _currencyCache ?? "");
+            return it.Get("name") + (am.Length > 0 ? "   " + am : "") + (it.Get("due").Length > 0 ? "   " + it.Get("due") : "") + state;
         }
 
         void BankItems(string kind)
@@ -1416,6 +1449,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             if (!_bankUnlocked || _bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); OpenBankTab(); return; }
             var c = LoadBank(); if (c == null) return;
             var def = ItemDefs[kind];
+            _currencyCache = BankCurrency();
             List<BankItem> items;
             try { items = LoadSealed<BankItem>(ItemStore(c, kind)); } catch (Exception) { MessageBox.Show(this, L.T("Nie udało się odczytać kart."), "Velivo"); return; }
             var w = BankDialog(L.T(def.Title));

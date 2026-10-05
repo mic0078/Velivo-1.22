@@ -1181,6 +1181,7 @@ namespace Przegladarka
             { "📤 Wczytano płatności: ", "📤 Payments loaded: " },
             { "W Excelu: Plik → Zapisz jako → CSV. Pierwsza kolumna = miesiąc, nagłówki = nazwy rachunków.", "In Excel: File → Save as → CSV. First column = month, headers = bill names." },
             { "Nie znaleziono miesięcy w pierwszej kolumnie.", "No months found in the first column." },
+            { "Waluta:", "Currency:" },
         };
     }
 }

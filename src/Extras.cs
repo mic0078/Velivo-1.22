@@ -151,32 +151,63 @@ try {
         vAnim = v.animate([{ opacity: from }, { opacity: target }], { duration: ms, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
         vAnim.onfinish = function () { v.style.opacity = String(target); vAnim = null; if (done) done(); };
       };
+      // Efekty wejscia dzialaja na CALE okno strony naraz (wczesniej na body - tlo strony i przypiete menu zostawaly bez zmian):
+      //  kinowe = czarna zaslona, wyostrzenie = zaslona rozmywajaca (backdrop-filter), wysuniecie/przyblizenie = ruch calego html.
+      //  Stan poczatkowy jest od pierwszej chwili (nowa strona) albo zaraz po kliknieciu (strony bez przeladowania),
+      //  wiec nigdy nie widac najpierw gotowej strony, a potem efektu.
+      var E = C.entrance, ov = null, ovAnim = null, hAnim = null;
       var cinemaMs = function () { return C.entMs > 0 ? C.entMs : Math.max(500, Math.min(4000, C.fade * 1.5)); };
-      var enter = function () {
-        if (C.entrance === 'none' || Date.now() - lastEnter < 600) return;
-        lastEnter = Date.now();
+      var entMs = function () { return E === 'cinema' ? cinemaMs() : (C.entMs > 0 ? C.entMs : Math.max(280, Math.min(1400, C.fade * 1.3))); };
+      var useOv = E === 'cinema' || E === 'blur';
+      var hFrames = E === 'zoom' ? [{ transform: 'scale(.985)', opacity: .7 }, { transform: 'none', opacity: 1 }]
+                  : [{ transform: 'translateY(14px)', opacity: .6 }, { transform: 'none', opacity: 1 }];
+      var getOv = function () {
+        if (ov && ov.isConnected) return ov;
+        ov = document.createElement('div'); ov.setAttribute('aria-hidden', 'true');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;opacity:0;' +
+          (E === 'cinema' ? 'background:#000' : 'background:rgba(255,255,255,.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)');
+        try { document.documentElement.appendChild(ov); } catch (x) {}
+        return ov;
+      };
+      var ovTo = function (target, ms, remove) {
+        var o = getOv(), from = parseFloat(getComputedStyle(o).opacity) || 0;
+        try { if (ovAnim) ovAnim.cancel(); } catch (x) {}
+        o.style.opacity = String(from);
+        ovAnim = o.animate([{ opacity: from }, { opacity: target }], { duration: ms, easing: target > from ? 'ease-in' : 'ease-out', fill: 'forwards' });
+        ovAnim.onfinish = function () { o.style.opacity = String(target); ovAnim = null; if (remove) { try { o.remove(); } catch (x) {} } };
+      };
+      var hide = function () {   // stan poczatkowy efektu - szybko, zaraz po kliknieciu
+        if (E === 'none') return;
         try {
-          var b = document.body; if (!b) return;
-          if (bAnim) { try { bAnim.cancel(); } catch (x) {} }
-          var f = C.entrance === 'blur' ? [{ filter: 'blur(3px)', opacity: .75 }, { filter: 'blur(0)', opacity: 1 }]
-                : C.entrance === 'zoom' ? [{ transform: 'scale(.985)', opacity: .8 }, { transform: 'none', opacity: 1 }]
-                : C.entrance === 'cinema' ? [{ filter: 'brightness(.3)' }, { filter: 'brightness(1)' }]
-                : [{ transform: 'translateY(12px)', opacity: .75 }, { transform: 'none', opacity: 1 }];
-          bAnim = b.animate(f, { duration: C.entrance === 'cinema' ? cinemaMs() * .6 : (C.entMs > 0 ? C.entMs : Math.max(280, Math.min(1400, C.fade * 1.3))), easing: C.entrance === 'cinema' ? 'ease-out' : 'cubic-bezier(.16,.84,.3,1)' });
-          bAnim.onfinish = bAnim.oncancel = function () { bAnim = null; };
+          if (useOv) { ovTo(E === 'cinema' ? .75 : 1, 140, false); return; }
+          var h = document.documentElement;
+          if (hAnim) { try { hAnim.cancel(); } catch (x) {} }
+          hAnim = h.animate([hFrames[1], hFrames[0]], { duration: 140, easing: 'ease-in', fill: 'forwards' });
         } catch (x) {}
       };
-      // koniec przejscia: mgielka znika, tresc wchodzi - tylko raz na przejscie
+      var enter = function () {   // wejscie tresci: ze stanu poczatkowego do normalnego
+        if (E === 'none') return;
+        lastEnter = Date.now();
+        try {
+          if (useOv) { ovTo(0, E === 'cinema' ? entMs() * .6 : entMs(), true); return; }
+          var h = document.documentElement;
+          if (hAnim) { try { hAnim.cancel(); } catch (x) {} }
+          hAnim = h.animate(hFrames, { duration: entMs(), easing: 'cubic-bezier(.16,.84,.3,1)' });
+          hAnim.onfinish = hAnim.oncancel = function () { hAnim = null; };
+        } catch (x) {}
+      };
+      // koniec przejscia: tresc wchodzi - tylko raz na przejscie
       var finish = function () {
         clearTimeout(safety);
         if (!busy) return; busy = false;
         enter();
-        veilTo(0, C.fade, function () { try { if (veil && !busy) veil.remove(); } catch (x) {} });
+        if (veil) veilTo(0, C.fade, function () { try { if (veil && !busy) veil.remove(); } catch (x) {} });
       };
       var begin = function () {
         if (busy) return;               // przejscie juz trwa - nie zaczynamy od nowa
         busy = true;
-        if (C.fade > 0 && C.entrance !== 'cinema') veilTo(VEIL, 150);   // kinowe wejscie robi cale przejscie samo - bez podwojnego przyciemnienia
+        if (C.fade > 0 && E === 'none') veilTo(VEIL, 150);   // samo przyciemnienie po kliknieciu, gdy nie ma efektu wejscia
+        hide();
         clearTimeout(safety); safety = setTimeout(finish, 1800);   // zabezpieczenie: nic sie nie zmienilo
       };
       // czekamy, az nowa tresc sie ustabilizuje (120 ms bez zmian, najwyzej 800 ms)
@@ -189,24 +220,28 @@ try {
         poke();
       };
 
-      // 1) nowo wczytana strona: bez mgielki (potrafila zostac na dluzej) - tylko lagodne wejscie tresci, raz
-      var entered = false;
-      // kinowe wejscie: strona startuje z ciemnosci i powoli sie rozjasnia (czarna zaslona od pierwszej chwili,
-      // zeby nie mignela jasna strona); zaslona znika najpozniej po 1,5 s, nawet gdy strona dlugo sie wczytuje
-      var cin = null;
-      if (C.entrance === 'cinema') try {
-        cin = document.createElement('div'); cin.setAttribute('aria-hidden', 'true');
-        cin.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#000;opacity:1';
-        document.documentElement.appendChild(cin);
-      } catch (x) { cin = null; }
+      // 1) nowo wczytana strona: stan poczatkowy od pierwszej chwili, wejscie przy pierwszym rysowaniu (najpozniej po 1,5 s)
+      var entered = false, startCss = null;
+      var startState = function () {
+        if (entered) return;
+        try {
+          if (useOv) { var o0 = getOv(); o0.style.opacity = '1'; }
+          else {
+            startCss = document.createElement('style');
+            startCss.textContent = 'html{' + (E === 'zoom' ? 'transform:scale(.985);opacity:.7' : 'transform:translateY(14px);opacity:.6') + '}';
+            document.documentElement.appendChild(startCss);
+          }
+        } catch (x) {}
+      };
+      if (E !== 'none') {
+        // skrypt startuje, zanim powstanie element html - czekamy na niego (to ulamki milisekundy, przed pierwszym rysowaniem)
+        if (document.documentElement) startState();
+        else try { var mo0 = new MutationObserver(function () { if (document.documentElement) { mo0.disconnect(); startState(); } }); mo0.observe(document, { childList: true }); } catch (x) {}
+      }
       var go = function () {
         if (entered) return; entered = true;
-        if (!cin) { enter(); return; }
-        lastEnter = Date.now();
-        try {
-          var a = cin.animate([{ opacity: 1 }, { opacity: 0 }], { duration: cinemaMs(), easing: 'ease-out', fill: 'forwards' });
-          a.onfinish = function () { try { cin.remove(); } catch (x) {} };
-        } catch (x) { try { cin.remove(); } catch (y) {} }
+        enter();
+        if (startCss) { var sc = startCss; startCss = null; requestAnimationFrame(function () { try { sc.remove(); } catch (x) {} }); }
       };
       setTimeout(go, 1500);
       try {
@@ -218,7 +253,7 @@ try {
       // 2) klikniecie linku w tej karcie
       addEventListener('click', function (e) {
         try {
-          if (e.button !== 0 || e.ctrlKey || e.shiftKey || e.metaKey || e.altKey) return;
+          if (!e.isTrusted || e.button !== 0 || e.ctrlKey || e.shiftKey || e.metaKey || e.altKey) return;   // tylko prawdziwe klikniecie (nie np. samo-zamykanie banerow)
           var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
           if (!a || (a.target && a.target !== '_self')) return;
           var h = a.getAttribute('href') || '';

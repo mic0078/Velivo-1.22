@@ -1073,6 +1073,8 @@ namespace Przegladarka
             { "Memorable information (np. Bank of Scotland, TSB):", "Memorable information (e.g. Bank of Scotland, TSB):" },
             { "🔐 Dane logowania zapisane (zaszyfrowane)", "🔐 Login details saved (encrypted)" },
             { "🔑 Wpisano dane logowania: ", "🔑 Login details filled in: " },
+            { "🧪 Skopiuj opis formularza logowania (bez Twoich danych)", "🧪 Copy a description of the login form (without your data)" },
+            { "🧪 Skopiowano opis formularza – wklej go w wiadomości do pomocy", "🧪 Form description copied – paste it into your help message" },
         };
     }
 }

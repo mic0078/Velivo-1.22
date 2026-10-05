@@ -209,6 +209,8 @@ namespace Przegladarka
             fillLogin.Click += (s, e) => BankFillLoginMenu();
             var partial = new MenuItem { Header = L.T("🔢 Wpisz wybrane znaki (passcode / hasło, np. RBS, NatWest)") };
             partial.Click += (s, e) => BankFillPartialMenu();
+            var diag = new MenuItem { Header = L.T("🧪 Skopiuj opis formularza logowania (bez Twoich danych)") };
+            diag.Click += async (s, e) => await BankCopyFormDiag();
             var backup = new MenuItem { Header = L.T("💾 Kopia zapasowa bazy…") };
             backup.Click += (s, e) => BankBackup();
             var restore = new MenuItem { Header = L.T("📂 Przywróć bazę z kopii…") };
@@ -219,11 +221,11 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 addSite.IsEnabled = _bankUnlocked && _bankKey != null && _current != null && _current.Bank && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
                 addShop.IsEnabled = addSite.IsEnabled;
-                fillLogin.IsEnabled = fill.IsEnabled; partial.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
+                fillLogin.IsEnabled = fill.IsEnabled; partial.IsEnabled = fill.IsEnabled; diag.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
                 log.IsEnabled = _bankUnlocked; backup.IsEnabled = BankProfiles().Count > 0;
                 profMenu.Items.Clear();
                 foreach (var p in BankProfiles())
@@ -908,6 +910,23 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             catch (Exception) { return null; }
         }
 
+        // Opis pol formularza (podpisy, numery, rodzaj) - BEZ wartosci; do wklejenia przy zglaszaniu problemu
+        async Task BankCopyFormDiag()
+        {
+            var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
+            if (core == null) return;
+            try
+            {
+                var r = await core.ExecuteScriptAsync(PartialFillScript.Replace("__D__", "{pin:'',pwd:'',mem:'',diag:true}"));
+                var text = JsonSerializer.Deserialize<string>(r) ?? "";
+                var host = HostOf(core.Source) ?? "";
+                text = "Velivo – " + host + "\n" + text;
+                Clipboard.SetText(text);
+                ShowToast(L.T("🧪 Skopiowano opis formularza – wklej go w wiadomości do pomocy"), null);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         async Task<int> RunPartialFill(string pin, string pwd, string mem)
         {
             var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
@@ -1426,30 +1445,50 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             menu.IsOpen = true;
         }
 
-        const string PartialFillScript = @"(function(d){var n=0;try{
+        const string PartialFillScript = @"(function(d){var n=0,diag=[];try{
 var ord={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12,thirteenth:13,fourteenth:14,fifteenth:15,sixteenth:16,seventeenth:17,eighteenth:18,nineteenth:19,twentieth:20,
 pierwszy:1,pierwsza:1,drugi:2,druga:2,trzeci:3,trzecia:3,czwarty:4,czwarta:4,piaty:5,piata:5,szosty:6,szosta:6,siodmy:7,siodma:7,osmy:8,osma:8,dziewiaty:9,dziewiata:9,dziesiaty:10,dziesiata:10};
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
+function norm(t){return (t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
+function txt(e){return e?norm(e.textContent||''):'';}
 function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}
 function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
 el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('blur',{bubbles:true}));n++;}
-function norm(t){return (t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
-function labelOf(el,doc){var t='';if(el.id){var l=doc.querySelector('label[for='+JSON.stringify(el.id)+']');if(l)t+=' '+l.textContent;}
-t+=' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('title')||'')+' '+(el.name||'')+' '+(el.id||'');
-var lab=el.closest('label');if(lab)t+=' '+lab.textContent;
-var prev=el.previousElementSibling;if(prev&&prev.textContent.length<60)t+=' '+prev.textContent;
-var par=el.parentElement;if(par&&par.textContent.length<80)t+=' '+par.textContent;return norm(t);}
-function posOf(t){var m=t.match(/(\d{1,2})\s*(st|nd|rd|th|\.)?\s*(digit|character|char|letter|znak|cyfr|litera)/)||t.match(/(digit|character|char|letter|znak|cyfr|litera)\w*\s*(no\.?|nr\.?|number|numer)?\s*(\d{1,2})/)||t.match(/\b(\d{1,2})(st|nd|rd|th)\b/);
-if(m){for(var i=1;i<m.length;i++){if(/^\d+$/.test(m[i]||''))return parseInt(m[i],10);}}
-for(var w in ord){if(new RegExp('\b'+w+'\b').test(t))return ord[w];}return 0;}
-function kind(el){var c=el;for(var i=0;i<6&&c;i++){var t=norm(c.textContent||'');if(/memorable|zapamietan/.test(t))return 'mem';if(/passcode|pin|kod|digit|cyfr/.test(t)&&!/password|haslo|character|letter|litera/.test(t))return 'pin';if(/password|haslo|character|letter|litera/.test(t)&&!/passcode|pin\b|digit|cyfr/.test(t))return 'pwd';c=c.parentElement;}
-var a=norm((el.name||'')+' '+(el.id||''));if(/pin|pass.?code|digit/.test(a))return 'pin';if(/pass|pwd|char/.test(a))return 'pwd';return el.inputMode==='numeric'||el.type==='tel'||el.type==='number'?'pin':'pwd';}
+function posIn(t){var m=t.match(/(digit|character|char|letter|number|znak|cyfr|litera|liczb)\w*\s*(no\.?|nr\.?|number|numer)?\s*(\d{1,2})\b/)||t.match(/\b(\d{1,2})\s*(st|nd|rd|th|\.)?\s*(digit|character|char|letter|number|znak|cyfr|litera)/)||t.match(/\b(\d{1,2})(st|nd|rd|th)\b/);
+if(m){for(var i=1;i<m.length;i++){if(/^\d+$/.test(m[i]||''))return parseInt(m[i],10);}}return 0;}
+function posWord(t){for(var w in ord){if(new RegExp('\\b'+w+'\\b').test(t))return ord[w];}return 0;}
+function labelTexts(el,doc){var a=[];
+if(el.id){var l=doc.querySelector('label[for='+JSON.stringify(el.id)+']');if(l)a.push(txt(l));}
+var lb=el.getAttribute('aria-labelledby');if(lb)lb.split(/\s+/).forEach(function(id){var e=doc.getElementById(id);if(e)a.push(txt(e));});
+a.push(norm(el.getAttribute('aria-label')));a.push(norm(el.getAttribute('title')));a.push(norm(el.getAttribute('placeholder')));
+var cl=el.closest('label');if(cl){var c0=cl.cloneNode(true);c0.querySelectorAll('option,select').forEach(function(o){o.remove();});a.push(txt(c0).slice(0,80));}
+var pr=el.previousElementSibling;if(pr&&(pr.textContent||'').length<80)a.push(txt(pr));
+var pa=el.parentElement;if(pa){var c=pa.cloneNode(true);c.querySelectorAll('option,select,input').forEach(function(o){o.remove();});var t=txt(c);if(t.length<80)a.push(t);}
+return a.filter(function(x){return x;});}
+function pos(el,doc){var a=labelTexts(el,doc);for(var i=0;i<a.length;i++){var p=posIn(a[i]);if(p)return p;}return 0;}
+function posW(el,doc){var a=labelTexts(el,doc);for(var i=0;i<a.length;i++){var p=posWord(a[i]);if(p)return p;}return 0;}
+function ctx(el){var c=el.parentElement;for(var i=0;i<8&&c;i++){var cc=c.cloneNode(true);cc.querySelectorAll('option').forEach(function(o){o.remove();});var t=txt(cc);if(t.length>25)return t.slice(0,400);c=c.parentElement;}return '';}
+function kind(el,doc,page){var lt=labelTexts(el,doc).join(' ');var cx=lt+' '+ctx(el);
+if(/memorable|zapamietan/.test(cx))return 'mem';
+if(/passcode|\bpin\b|digit|cyfr|security number/.test(cx)&&!/password|haslo|character|letter|litera/.test(lt))return 'pin';
+if(/password|haslo/.test(cx))return 'pwd';
+if(page.mem&&d.mem)return 'mem';
+var a=norm((el.name||'')+' '+(el.id||''));if(/mem/.test(a))return 'mem';if(/pin|pass.?code|digit/.test(a))return 'pin';if(/pass|pwd/.test(a))return 'pwd';
+return el.inputMode==='numeric'||el.type==='tel'||el.type==='number'?'pin':'pwd';}
 docs.forEach(function(doc){
-var ins=Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).filter(function(i){return i.tagName==='SELECT'||/^(text|password|tel|number|)$/.test(i.type||'');});
-ins.forEach(function(el){if(el.tagName!=='SELECT'&&el.maxLength>2)return;
-var p=posOf(labelOf(el,doc));if(!p)return;var k=kind(el);var src=k==='pin'?d.pin:(k==='mem'?(d.mem||d.pwd):(d.pwd||d.mem));if(!src||p>src.length)return;var ch=src.charAt(p-1);
-if(el.tagName==='SELECT'){for(var o=0;o<el.options.length;o++){if(el.options[o].value===ch||el.options[o].text.trim()===ch){el.selectedIndex=o;el.dispatchEvent(new Event('change',{bubbles:true}));n++;break;}}}else set(el,ch);});
-});}catch(x){}return String(n);})(__D__);";
+var body=norm((doc.body&&(doc.body.innerText||doc.body.textContent))||'');var page={mem:/memorable|zapamietan/.test(body)};
+var seq=[];var m=body.match(/(characters?|digits?|letters?|numbers?|znak\w*|cyfr\w*)\s+((\d{1,2})(st|nd|rd|th)?(\s*(,|and|&|i|oraz)\s*(\d{1,2})(st|nd|rd|th)?)+)/);
+if(m)seq=(m[2].match(/\d{1,2}/g)||[]).map(Number);
+var ins=Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).filter(function(i){return i.tagName==='SELECT'||(/^(text|password|tel|number|)$/.test(i.type||'')&&i.maxLength>0&&i.maxLength<=2);});
+var groups={};
+ins.forEach(function(el){var k=kind(el,doc,page);var p=pos(el,doc);var how='label';
+if(!p){var gi=groups[k]||0;groups[k]=gi+1;if(seq.length>gi){p=seq[gi];how='sentence';}}
+if(!p){p=posW(el,doc);how='word';}
+if(d.diag){diag.push(el.tagName.toLowerCase()+' type='+(el.type||'')+' max='+(el.maxLength||'')+' kind='+k+' pos='+p+'('+how+') labels=['+labelTexts(el,doc).join(' | ').slice(0,160)+'] ctx=['+ctx(el).slice(0,120)+']');return;}
+if(!p)return;var src=k==='pin'?d.pin:(k==='mem'?(d.mem||d.pwd):(d.pwd||d.mem));if(!src||p>src.length)return;var ch=src.charAt(p-1);
+if(el.tagName==='SELECT'){for(var o=0;o<el.options.length;o++){var ov=(el.options[o].value||'').replace(/ |&nbsp;/g,'').trim(),ot=(el.options[o].text||'').trim();if(ov===ch||ot===ch){el.selectedIndex=o;el.dispatchEvent(new Event('change',{bubbles:true}));n++;break;}}}else set(el,ch);});
+if(d.diag)diag.push('page: memorable='+page.mem+' sentence='+JSON.stringify(seq));
+});}catch(x){diag.push('error '+x);}return d.diag?diag.join('\n'):String(n);})(__D__);";
 
         // "login: xxx" / "hasło: yyy" (albo: 1. linia = login, 2. linia = haslo)
         static void ParseLoginNote(string text, out string user, out string pass)

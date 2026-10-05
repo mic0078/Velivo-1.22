@@ -117,7 +117,12 @@ namespace Przegladarka
         sealed class BankNote { public string Title { get; set; } public string Text { get; set; } public string Category { get; set; } }
         sealed class BankLogEntry { public long T { get; set; } public string Device { get; set; } public string How { get; set; } public bool Ok { get; set; } }
         static readonly string[] NoteCategories = { "Login", "PIN", "Przelewy", "Kody odzyskiwania", "Inne" };
-        sealed class BankSite { public string Name { get; set; } public string Url { get; set; } public string Kind { get; set; } }   // Kind: "bank" / "shop"
+        sealed class BankSite
+        {
+            public string Name { get; set; } public string Url { get; set; } public string Kind { get; set; }
+            // dane logowania do tego banku / sklepu (w zaszyfrowanej bazie)
+            public string Login { get; set; } public string Pin { get; set; } public string Password { get; set; } public string Memorable { get; set; }
+        }   // Kind: "bank" / "shop"
         static bool IsShop(BankSite x) { return x.Kind == "shop"; }
 
         List<T> LoadSealed<T>(string sealedText)
@@ -366,7 +371,6 @@ namespace Przegladarka
                 AddBankLog(c, how, true);
                 SaveBank(c); _bankFails = 0; _bankUnlocked = true; result = true;
                 _bankIdleMinutes = c.IdleMinutes > 0 ? c.IdleMinutes : 10;
-                _bankAllowCapture = c.AllowCapture;
                 w.Close();
                 CheckCardExpiry(c);
             };
@@ -566,8 +570,6 @@ namespace Przegladarka
             foreach (var m in idleOpts) idleBox.Items.Add(m + " min");
             idleBox.SelectedIndex = Math.Max(0, Array.IndexOf(idleOpts, c.IdleMinutes > 0 ? c.IdleMinutes : 10));
             sp.Children.Add(idleBox);
-            var capture = new CheckBox { Content = L.T("Ukrywaj okno przed zrzutami i nagrywaniem ekranu (wyłącz, jeśli myszka przycina)"), IsChecked = !c.AllowCapture, Margin = new Thickness(0, 0, 0, 10) };
-            sp.Children.Add(capture);
             var useKey = new CheckBox { Content = L.T("Dodatkowo wymagaj klucza sprzętowego (YubiKey, Google Titan…)"), IsChecked = c.UseKey, Margin = new Thickness(0, 4, 0, 4) };
             sp.Children.Add(useKey);
             var keyPanel = new StackPanel { Margin = new Thickness(20, 0, 0, 0) };
@@ -655,7 +657,6 @@ namespace Przegladarka
                 _bankUnlocked = true;
                 c.UseKey = withKey; c.Keys = keys;
                 c.IdleMinutes = idleOpts[Math.Max(0, idleBox.SelectedIndex)]; _bankIdleMinutes = c.IdleMinutes;
-                c.AllowCapture = capture.IsChecked != true; _bankAllowCapture = c.AllowCapture;
                 SaveBank(c); saved = true; w.Close();
                 ShowToast(L.T("🏦 Tryb bankowy zapisany"), null);
             };
@@ -834,7 +835,90 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                     del.Items.Add(d);
                 }
                 parent.Items.Add(del);
+                var edit = new MenuItem { Header = L.T("✏ Dane logowania…") };
+                foreach (var site in list)
+                {
+                    var st = site;
+                    var ei = new MenuItem { Header = st.Name };
+                    ei.Click += (s, e) => EditSiteCreds(st.Url);
+                    edit.Items.Add(ei);
+                }
+                parent.Items.Insert(parent.Items.IndexOf(del), edit);
             }
+        }
+
+        // Dane logowania jednego banku/sklepu: login, passcode/PIN, haslo, memorable information
+        void EditSiteCreds(string url)
+        {
+            if (!_bankUnlocked || _bankKey == null) return;
+            var c = LoadBank(); if (c == null) return;
+            var list = LoadSealed<BankSite>(c.Sites);
+            var st = list.FirstOrDefault(x => x.Url == url); if (st == null) return;
+            var w = BankDialog(L.T("✏ Dane logowania – ") + st.Name);
+            var sp = (StackPanel)w.Content;
+            sp.Children.Add(new TextBlock { Text = L.T("Wpisz tylko to, czego używa ten bank. Velivo wpisze dane na stronie banku – także wybrane znaki (np. 2., 5. i 9.)."), TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Margin = new Thickness(0, 0, 0, 8), Foreground = Brushes.Gray });
+            var boxes = new List<Tuple<PasswordBox, TextBox>>();
+            var show = new CheckBox { Content = L.T("Pokaż znaki"), Margin = new Thickness(0, 0, 0, 6) };
+            Func<string, string, Tuple<PasswordBox, TextBox>> field = (lbl, val) =>
+            {
+                sp.Children.Add(new TextBlock { Text = lbl });
+                var g = new Grid { Margin = new Thickness(0, 1, 0, 6) };
+                var pb = new PasswordBox { Padding = new Thickness(4), Password = val ?? "", MinWidth = 340 };
+                var tb = new TextBox { Padding = new Thickness(4), Text = val ?? "", Visibility = Visibility.Collapsed, FontFamily = new FontFamily("Consolas") };
+                pb.PasswordChanged += (a, b) => { if (tb.Text != pb.Password) tb.Text = pb.Password; };
+                tb.TextChanged += (a, b) => { if (pb.Password != tb.Text) pb.Password = tb.Text; };
+                g.Children.Add(pb); g.Children.Add(tb);
+                sp.Children.Add(g);
+                var t = Tuple.Create(pb, tb); boxes.Add(t); return t;
+            };
+            sp.Children.Add(new TextBlock { Text = L.T("Login / numer klienta / customer number:") });
+            var login = new TextBox { Padding = new Thickness(4), Text = st.Login ?? "", Margin = new Thickness(0, 1, 0, 6) };
+            sp.Children.Add(login);
+            var pin = field(L.T("Passcode / PIN (cyfry):"), st.Pin);
+            var pwd = field(L.T("Hasło / password:"), st.Password);
+            var mem = field(L.T("Memorable information (np. Bank of Scotland, TSB):"), st.Memorable);
+            sp.Children.Add(show);
+            show.Checked += (a, b) => { foreach (var x in boxes) { x.Item1.Visibility = Visibility.Collapsed; x.Item2.Visibility = Visibility.Visible; } };
+            show.Unchecked += (a, b) => { foreach (var x in boxes) { x.Item1.Visibility = Visibility.Visible; x.Item2.Visibility = Visibility.Collapsed; } };
+            var ok = BankButtons(sp, w, L.T("Zapisz"));
+            ok.Click += (a, b) =>
+            {
+                var cc = LoadBank(); if (cc == null || _bankKey == null) { w.Close(); return; }
+                var l2 = LoadSealed<BankSite>(cc.Sites);
+                var s2 = l2.FirstOrDefault(x => x.Url == url); if (s2 == null) { w.Close(); return; }
+                s2.Login = login.Text.Trim(); s2.Pin = pin.Item1.Password; s2.Password = pwd.Item1.Password; s2.Memorable = mem.Item1.Password;
+                cc.Sites = SealList(_bankKey, l2);
+                SaveBank(cc); w.Close();
+                ShowToast(L.T("🔐 Dane logowania zapisane (zaszyfrowane)"), null);
+            };
+            ShowBankTool(w, "creds");
+        }
+
+        // bank/sklep z listy pasujacy do strony otwartej w karcie
+        BankSite SiteForCurrent()
+        {
+            try
+            {
+                var host = HostOf(_current != null && _current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
+                if (host == null || _bankKey == null) return null;
+                var c = LoadBank(); if (c == null) return null;
+                var reg = RegDomain(host);
+                return LoadSealed<BankSite>(c.Sites).FirstOrDefault(x => { var h = HostOf(x.Url); return h != null && RegDomain(h) == reg; });
+            }
+            catch (Exception) { return null; }
+        }
+
+        async Task<int> RunPartialFill(string pin, string pwd, string mem)
+        {
+            var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
+            if (core == null) return 0;
+            var data = JsonSerializer.Serialize(new { pin = pin ?? "", pwd = pwd ?? "", mem = mem ?? "" });
+            string r = "0";
+            try { r = await core.ExecuteScriptAsync(PartialFillScript.Replace("__D__", data)); } catch (Exception) { }
+            int filled; int.TryParse((r ?? "0").Trim('"'), out filled);
+            ShowToast(filled > 0 ? (L.En ? "🔢 Filled in characters: " : "🔢 Wpisano znaki: ") + filled
+                : L.T("Nie rozpoznano pól na tej stronie – użyj „🔢 Znaki z numerami” w notatkach"), null);
+            return filled;
         }
 
         void BankAddSiteManual(bool shop)
@@ -1027,6 +1111,8 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 🔍 Szukaj w mojej bazie – przeszukuje banki, sklepy, karty i notatki.
 🏦 Moje banki / 🛒 Moje sklepy online – kliknij, aby otworzyć stronę. Na liście jest też „Dodaj bank/sklep (nazwa i adres)”.
 ➕ Dodaj tę stronę do Moich banków / sklepów – na otwartej karcie bankowej.
+✏ Dane logowania (w Moich bankach) – login, passcode/PIN, hasło, memorable information osobno dla każdego banku.
+🔢 Wpisz wybrane znaki – na stronie banku wpisuje znaki, o które pyta bank (np. 2., 5. i 9.), z danych tego banku.
 💳 Moje karty – wpisz nazwę, numer, datę (MM/RR) i nazwisko, potem „Zapisz”. CVV nie jest zapisywany.
 💳 Wypełnij kartę na tej stronie – wpisuje dane karty w formularzu płatności.
 📝 Moje notatki – loginy, hasła, numery klienta. Wybierz kategorię, wpisz tytuł i treść, potem „Zapisz”. 🎲 generuje mocne hasło, 📋 kopiuje (schowek czyści się po 30 s).
@@ -1038,7 +1124,6 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 🔒 Zablokuj teraz – natychmiast zamyka tryb.
 
 4. OCHRONA (działa sama)
-• Okno jest niewidoczne dla zrzutów i nagrywania ekranu, gdy patrzysz na kartę bankową.
 • Strona podobna do Twojego banku (np. fałszywy adres) → duże ostrzeżenie.
 • Bank z listy otwarty w zwykłej karcie → przypomnienie, żeby użyć trybu bankowego.
 • Po zamknięciu trybu znika pamięć podręczna i historia (logowania zostają).
@@ -1072,6 +1157,8 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 🔍 Search my vault – searches banks, shops, cards and notes.
 🏦 My banks / 🛒 My online shops – click to open the site; “Add a bank/shop (name and address)” is in the list.
 ➕ Add this site to My banks / shops – on an open banking tab.
+✏ Login details (in My banks) – login, passcode/PIN, password and memorable information for each bank.
+🔢 Fill in selected characters – types the characters the bank asks for (e.g. 2nd, 5th, 9th) from that bank's details.
 💳 My cards – name, number, expiry (MM/YY), holder, then “Save”. The CVV is never stored.
 💳 Fill in a card on this page – fills the payment form.
 📝 My notes – logins, passwords, customer numbers. Choose a category, type title and content, then “Save”. 🎲 generates a strong password, 📋 copies (clipboard cleared after 30 s).
@@ -1083,7 +1170,6 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 🔒 Lock now – closes the mode immediately.
 
 4. PROTECTION (automatic)
-• The window is hidden from screenshots and screen recording on banking tabs.
 • A site that looks like your bank (fake address) → big warning.
 • A listed bank opened in a normal tab → reminder to use banking mode.
 • Cache and history are cleared when the mode closes (logins stay).
@@ -1274,6 +1360,15 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
         void BankFillLoginMenu()
         {
             if (_current == null || !_current.Bank || _bankKey == null) return;
+            var site = SiteForCurrent();
+            if (site != null && !string.IsNullOrEmpty(site.Login))
+            {
+                var core0 = _current.View.CoreWebView2;
+                var d0 = JsonSerializer.Serialize(new { u = site.Login, p = site.Password ?? "" });
+                _ = core0.ExecuteScriptAsync(LoginFillScript.Replace("__D__", d0));
+                ShowToast(L.T("🔑 Wpisano dane logowania: ") + site.Name, null);
+                return;
+            }
             var c = LoadBank(); if (c == null) return;
             List<BankNote> notes;
             try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { return; }
@@ -1302,6 +1397,9 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
         void BankFillPartialMenu()
         {
             if (_current == null || !_current.Bank || _bankKey == null) return;
+            var site = SiteForCurrent();
+            if (site != null && (!string.IsNullOrEmpty(site.Pin) || !string.IsNullOrEmpty(site.Password) || !string.IsNullOrEmpty(site.Memorable)))
+            { _ = RunPartialFill(site.Pin, site.Password, site.Memorable); return; }   // dane tego banku - od razu
             var c = LoadBank(); if (c == null) return;
             List<BankNote> notes;
             try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { return; }
@@ -1320,14 +1418,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
                         if (pin == null && (k.StartsWith("passcode") || k.StartsWith("pin") || k.StartsWith("kod"))) pin = v;
                         else if (pwd == null && (k.StartsWith("has") || k.StartsWith("password"))) pwd = v;
                     }
-                    var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
-                    if (core == null) return;
-                    var data = JsonSerializer.Serialize(new { pin = pin ?? "", pwd = pwd ?? "" });
-                    string r = "0";
-                    try { r = await core.ExecuteScriptAsync(PartialFillScript.Replace("__D__", data)); } catch (Exception) { }
-                    int filled; int.TryParse((r ?? "0").Trim('"'), out filled);
-                    ShowToast(filled > 0 ? (L.En ? "🔢 Filled in characters: " : "🔢 Wpisano znaki: ") + filled
-                        : L.T("Nie rozpoznano pól na tej stronie – użyj „🔢 Znaki z numerami” w notatkach"), null);
+                    await RunPartialFill(pin, pwd, null);
                 };
                 menu.Items.Add(mi);
             }
@@ -1351,12 +1442,12 @@ var par=el.parentElement;if(par&&par.textContent.length<80)t+=' '+par.textConten
 function posOf(t){var m=t.match(/(\d{1,2})\s*(st|nd|rd|th|\.)?\s*(digit|character|char|letter|znak|cyfr|litera)/)||t.match(/(digit|character|char|letter|znak|cyfr|litera)\w*\s*(no\.?|nr\.?|number|numer)?\s*(\d{1,2})/)||t.match(/\b(\d{1,2})(st|nd|rd|th)\b/);
 if(m){for(var i=1;i<m.length;i++){if(/^\d+$/.test(m[i]||''))return parseInt(m[i],10);}}
 for(var w in ord){if(new RegExp('\b'+w+'\b').test(t))return ord[w];}return 0;}
-function kind(el){var c=el;for(var i=0;i<6&&c;i++){var t=norm(c.textContent||'');if(/passcode|pin|kod|digit|cyfr/.test(t)&&!/password|haslo|character|letter|litera/.test(t))return 'pin';if(/password|haslo|character|letter|litera/.test(t)&&!/passcode|pin\b|digit|cyfr/.test(t))return 'pwd';c=c.parentElement;}
+function kind(el){var c=el;for(var i=0;i<6&&c;i++){var t=norm(c.textContent||'');if(/memorable|zapamietan/.test(t))return 'mem';if(/passcode|pin|kod|digit|cyfr/.test(t)&&!/password|haslo|character|letter|litera/.test(t))return 'pin';if(/password|haslo|character|letter|litera/.test(t)&&!/passcode|pin\b|digit|cyfr/.test(t))return 'pwd';c=c.parentElement;}
 var a=norm((el.name||'')+' '+(el.id||''));if(/pin|pass.?code|digit/.test(a))return 'pin';if(/pass|pwd|char/.test(a))return 'pwd';return el.inputMode==='numeric'||el.type==='tel'||el.type==='number'?'pin':'pwd';}
 docs.forEach(function(doc){
 var ins=Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).filter(function(i){return i.tagName==='SELECT'||/^(text|password|tel|number|)$/.test(i.type||'');});
 ins.forEach(function(el){if(el.tagName!=='SELECT'&&el.maxLength>2)return;
-var p=posOf(labelOf(el,doc));if(!p)return;var k=kind(el);var src=k==='pin'?d.pin:d.pwd;if(!src||p>src.length)return;var ch=src.charAt(p-1);
+var p=posOf(labelOf(el,doc));if(!p)return;var k=kind(el);var src=k==='pin'?d.pin:(k==='mem'?(d.mem||d.pwd):(d.pwd||d.mem));if(!src||p>src.length)return;var ch=src.charAt(p-1);
 if(el.tagName==='SELECT'){for(var o=0;o<el.options.length;o++){if(el.options[o].value===ch||el.options[o].text.trim()===ch){el.selectedIndex=o;el.dispatchEvent(new Event('change',{bubbles:true}));n++;break;}}}else set(el,ch);});
 });}catch(x){}return String(n);})(__D__);";
 

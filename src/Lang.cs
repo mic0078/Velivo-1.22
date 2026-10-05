@@ -1063,6 +1063,16 @@ namespace Przegladarka
             { "Numer znaku nad literą. Okienko nie blokuje strony – przepisz znaki, o które prosi bank.", "The character number is above each letter. This window does not block the page – type the characters your bank asks for." },
             { "🔢 Wpisz wybrane znaki (passcode / hasło, np. RBS, NatWest)", "🔢 Fill in selected characters (passcode / password, e.g. RBS, NatWest)" },
             { "Nie rozpoznano pól na tej stronie – użyj „🔢 Znaki z numerami” w notatkach", "No matching fields recognised on this page – use “🔢 Numbered characters” in notes" },
+            { "✏ Dane logowania…", "✏ Login details…" },
+            { "✏ Dane logowania – ", "✏ Login details – " },
+            { "Wpisz tylko to, czego używa ten bank. Velivo wpisze dane na stronie banku – także wybrane znaki (np. 2., 5. i 9.).", "Fill in only what this bank uses. Velivo fills it in on the bank's page – including selected characters (e.g. 2nd, 5th and 9th)." },
+            { "Pokaż znaki", "Show characters" },
+            { "Login / numer klienta / customer number:", "Login / customer number:" },
+            { "Passcode / PIN (cyfry):", "Passcode / PIN (digits):" },
+            { "Hasło / password:", "Password:" },
+            { "Memorable information (np. Bank of Scotland, TSB):", "Memorable information (e.g. Bank of Scotland, TSB):" },
+            { "🔐 Dane logowania zapisane (zaszyfrowane)", "🔐 Login details saved (encrypted)" },
+            { "🔑 Wpisano dane logowania: ", "🔑 Login details filled in: " },
         };
     }
 }

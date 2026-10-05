@@ -29,11 +29,12 @@ Velivo is designed to be fully usable with the mouse alone, even from the sofa i
 13. [Look: styles, themes, dark and night mode, zoom](#13-look-styles-themes-dark-and-night-mode-zoom)
 14. [Quick Access – the new tab page](#14-quick-access--the-new-tab-page)
 15. [Passwords and Sejf](#15-passwords-and-sejf)
-16. [Home network sync (no cloud)](#16-home-network-sync-no-cloud)
-17. [History and downloads](#17-history-and-downloads)
-18. [Extensions, profiles and tools](#18-extensions-profiles-and-tools)
-19. [Keyboard shortcuts](#19-keyboard-shortcuts)
-20. [Troubleshooting and where data is stored](#20-troubleshooting-and-where-data-is-stored)
+16. [Banking mode](#16-banking-mode)
+17. [Home network sync (no cloud)](#17-home-network-sync-no-cloud)
+18. [History and downloads](#18-history-and-downloads)
+19. [Extensions, profiles and tools](#19-extensions-profiles-and-tools)
+20. [Keyboard shortcuts](#20-keyboard-shortcuts)
+21. [Troubleshooting and where data is stored](#21-troubleshooting-and-where-data-is-stored)
 
 ---
 
@@ -456,7 +457,47 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 
 ---
 
-## 16. Home network sync (no cloud)
+## 16. Banking mode
+
+Banking mode is a separate, isolated browser profile for banking, payments and shopping, with its own **encrypted vault**. Normal tabs can't see anything from it and vice versa. It has no extensions and no history, and the cache is cleared when it closes (logins and "remember me" stay).
+
+**Opening and settings**
+
+- The green **🏦** button on the tab bar. The first time you set a **password** (min. 8 characters) and, optionally, a **hardware key** (YubiKey, Google Titan and other FIDO2 keys): tick "Also require a hardware security key", insert the key and click **"➕ Add key"** – Windows asks you to touch it twice. Add all your keys in the same window, then **"Save"**.
+- **Key plugged in** – Velivo asks you to touch it right away, no password needed. **No key** – enter the password. A key marked **🔐** opens the mode on its own and encrypts the vault.
+- Banking tabs are green and show 🏦. The mode **locks itself** after inactivity (1–60 min, your choice) and closes all its windows.
+- Everything is under **right-click on 🏦**, including **❓ Banking mode guide**.
+
+**My banks and My online shops**
+
+- **🏦 My banks / 🛒 My online shops** – your sites; a click opens the site in banking mode.
+- Adding: **"➕ Add this site to My banks / shops"** on an open banking tab, or **"➕ Add a bank / shop (name and address)…"** in the list.
+- **✏ Login details** (in My banks): login / customer number, passcode / PIN, password and memorable information – separately for each bank. Always enter the **full** password and passcode.
+- **🔑 Fill in a login** – fills the login and password on the bank's page.
+- **🔢 Fill in selected characters** – when the bank asks e.g. for the 2nd, 5th and 9th character (RBS, NatWest, Bank of Scotland, TSB, Lloyds, Halifax), Velivo reads the numbers and types the right characters, drop-down lists included. If a page doesn't work, **🧪 Copy a description of the login form** copies only the field description (without your data) for a report.
+
+**Cards, notes and search**
+
+- **💳 My cards** – click a card to view and edit it; **"👁 Show number and CVV"** reveals the hidden fields. The CVV is optional. **📋 Copy number / expiry / CVV** – the clipboard clears itself after 30 s. **💳 Fill in a card on this page** fills the payment form. When the mode opens, Velivo reminds you of cards that expire soon.
+- **📝 My notes** – logins, passwords, customer numbers, with categories (Login, PIN, Transfers, Recovery codes, Other). **🎲 Generate password** inserts a strong password, **🔢 Numbered characters** shows the password character by character with numbers. The notes and search windows don't block the page.
+- **🔍 Search my vault** – one field for banks, shops, cards and notes.
+
+**Protection**
+
+- **Fake sites:** while banking mode is open, a site that looks like your bank (e.g. another address with the bank's name) shows a big warning.
+- **Bank in a normal tab:** when you open a listed bank, shop or payment site in a normal tab, a prompt above the taskbar asks **"Switch to banking mode"** / **"Stay here"**. Recognition works by the main domain, including other addresses of the same company.
+- **📜 Access log** – when, on which computer and how the mode was opened (wrong passwords included).
+
+**Profiles, backup and sync**
+
+- **👤 Banking profiles** – a separate mode for another person: own password or key, separate logins and data.
+- **💾 Back up** and **📂 Restore** – a `.vbank` file with all profiles, still encrypted (e.g. on a USB stick).
+- **Sync** – banks, shops, cards, notes and mode settings go to paired computers in an encrypted package. Bank logins (cookies) stay on each computer.
+- **Forgotten password:** without the password and the key the data can't be read. **"Forgot password – clear banking mode"** removes the mode and its data on this computer – so keep a second key and a backup.
+
+---
+
+## 17. Home network sync (no cloud)
 
 ### Pairing (once)
 
@@ -490,7 +531,7 @@ The connection status is in Settings → **LAN diagnostics panel…**.
 
 ---
 
-## 17. History and downloads
+## 18. History and downloads
 
 ### History (Ctrl+H)
 
@@ -508,7 +549,7 @@ The connection status is in Settings → **LAN diagnostics panel…**.
 
 ---
 
-## 18. Extensions, profiles and tools
+## 19. Extensions, profiles and tools
 
 - **Chrome extensions:** install from the Chrome Web Store, from a link or from an unpacked folder.
   - the 🧩 button lists extensions with pins: pinned ones have an icon on the toolbar, unpinned ones keep working without the icon;
@@ -545,7 +586,7 @@ If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own too
 
 ---
 
-## 19. Keyboard shortcuts
+## 20. Keyboard shortcuts
 
 | Shortcut | Action |
 | --- | --- |
@@ -578,7 +619,7 @@ You can also do each of these with the mouse alone: a button, a gesture or the r
 
 ---
 
-## 20. Troubleshooting and where data is stored
+## 21. Troubleshooting and where data is stored
 
 | Problem | What to do |
 | --- | --- |

@@ -1452,8 +1452,11 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             DateTime start = DateTime.Today;
             if (months.Count > 0) DateTime.TryParseExact(months.Last() + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out start);
             var next = Enumerable.Range(1, 60).Select(i => new DateTime(start.Year, start.Month, 1).AddMonths(i).ToString("MMMM yyyy", culture)).ToArray();
+            // jednorazowy znacznik tej strony arkusza - dane przyjmujemy tylko od niej (nie od innej strony otwartej w tej karcie)
+            var sheetToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
             var data = JsonSerializer.Serialize(new
             {
+                tok = sheetToken,
                 cur = BankCurrency(), dec = culture.NumberFormat.NumberDecimalSeparator, cols, rows, next, mnames = culture.DateTimeFormat.MonthNames.Take(12).ToArray(),
                 monthLabel = L.T("Miesiąc"), totalLabel = L.T("Razem"), delCol = L.T("Usuń kolumnę"), delRow = L.T("Usuń wiersz"), newCol = L.T("Nowy rachunek"),
                 impOk = L.T("Wczytano wierszy:"), impBad = L.T("Plik jest pusty albo ma zły format. W Excelu: Plik → Zapisz jako → CSV; pierwsza kolumna = miesiąc, nagłówki = nazwy rachunków.")
@@ -1478,6 +1481,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 try { ok = await core.ExecuteScriptAsync("typeof window.addRow"); } catch (Exception) { }
                 if (ok == "\"function\"") break;
             }
+            string sheetSource = core.Source;   // adres strony arkusza (about:blank) - inny adres = uzytkownik wyszedl z arkusza
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
             bool busy = false;
             timer.Tick += async (s, e) =>
@@ -1487,14 +1491,19 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 busy = true;
                 try
                 {
+                    // w karcie arkusza otwarto inna strone - konczymy bez zapisu (ta strona nie moze podmienic historii rachunkow)
+                    if (!string.Equals(core.Source, sheetSource, StringComparison.Ordinal)) { timer.Stop(); return; }
                     var raw = await core.ExecuteScriptAsync("(typeof window.addRow==='function')?JSON.stringify(window.__velivoSheet||null):'gone'");
                     var json = JsonSerializer.Deserialize<string>(raw);
                     if (json == "gone") { try { core.NavigateToString(html); } catch (Exception) { } return; }   // strona arkusza zniknela - wczytujemy ponownie
                     if (string.IsNullOrEmpty(json) || json == "null") return;
+                    if (!string.Equals(core.Source, sheetSource, StringComparison.Ordinal)) { timer.Stop(); return; }
                     timer.Stop();
                     using (var doc = JsonDocument.Parse(json))
                     {
                         var root = doc.RootElement;
+                        JsonElement tk;
+                        if (!root.TryGetProperty("tok", out tk) || tk.ValueKind != JsonValueKind.String || tk.GetString() != sheetToken) return;   // nie nasza strona
                         if (root.GetProperty("save").GetBoolean())
                         {
                             if (_bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); return; }
@@ -1583,7 +1592,7 @@ function nextMonth(){var best=0;D.rows.forEach(function(r){var k=mkey(r.m);if(k<
   if(!best||!D.mnames)return (D.next&&D.next.length?D.next.shift():'');var y=Math.floor(best/100),m=best%100+1;if(m>12){m=1;y++;}return D.mnames[m-1]+' '+y;}
 function addRow(){var last=D.rows.length?D.rows[D.rows.length-1]:null;D.rows.push({m:nextMonth(),v:last?last.v.slice():D.cols.map(function(){return '';})});draw();var ins=document.querySelectorAll('tr td:first-child input');if(ins.length)ins[ins.length-1].focus();}
 function addCol(){D.cols.push(D.newCol);D.rows.forEach(function(r){r.v.push('');});draw();}
-function done(save){window.__velivoSheet={save:!!save,cols:D.cols,rows:D.rows,cur:D.cur};}
+function done(save){window.__velivoSheet={tok:D.tok,save:!!save,cols:D.cols,rows:D.rows,cur:D.cur};}
 var MN=[['sty','jan'],['lut','feb'],['mar'],['kwi','apr'],['maj','may'],['cze','jun'],['lip','jul'],['sie','aug'],['wrz','sep'],['paź','paz','oct'],['lis','nov'],['gru','dec']];
 function mkey(t){t=String(t||'').trim().toLowerCase();var y=t.match(/(19|20)\d\d/);if(!y)return 999999;var m=0;
   for(var i=0;i<12&&!m;i++)for(var j=0;j<MN[i].length;j++)if(t.indexOf(MN[i][j])==0){m=i+1;break;}

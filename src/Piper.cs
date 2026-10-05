@@ -104,6 +104,7 @@ namespace Przegladarka
                     {
                         var zip = Path.Combine(PiperRoot, "piper.zip");
                         await DownloadFile(http, PiperZipUrl, zip, (d, t) => report("program Piper", d, t));
+                        if (!Integrity.Matches(zip, Integrity.PiperZipSha256)) { File.Delete(zip); throw new InvalidDataException("Suma kontrolna programu Piper się nie zgadza – plik odrzucony."); }
                         var dir = Path.Combine(PiperRoot, "piper");
                         if (Directory.Exists(dir)) Directory.Delete(dir, true);
                         ZipFile.ExtractToDirectory(zip, PiperRoot);   // paczka zawiera folder "piper"

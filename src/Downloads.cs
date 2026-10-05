@@ -369,6 +369,7 @@ namespace Przegladarka
                     var final = job.File;
                     if (File.Exists(final)) final = UniqueFile(final);
                     File.Move(job.PartFile, final);
+                    Integrity.MarkFromInternet(final);
                     job.File = final;
                     job.State = JobState.Done;
                     job.Finished = DateTime.Now;
@@ -688,7 +689,11 @@ namespace Przegladarka
             BuildDownloadRow(row);
             AddRowToPanel((UIElement)row.Bar.Tag);
             e.DownloadOperation.BytesReceivedChanged += (s, a) => Dispatcher.BeginInvoke(new Action(() => RefreshDownload(row)));
-            e.DownloadOperation.StateChanged += (s, a) => Dispatcher.BeginInvoke(new Action(() => { RefreshDownload(row); ReleaseParkedViews(); }));
+            e.DownloadOperation.StateChanged += (s, a) => Dispatcher.BeginInvoke(new Action(() =>
+            {
+                RefreshDownload(row); ReleaseParkedViews();
+                if (row.State == CoreWebView2DownloadState.Completed) Integrity.MarkFromInternet(row.File);   // silnik zwykle oznacza sam - to zabezpieczenie
+            }));
             RefreshDownload(row);
             Downloads_Click(null, null);
         }

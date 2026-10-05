@@ -17,6 +17,10 @@
     <Version>1.22</Version>
   </PropertyGroup>
   <ItemGroup>
+    <!-- testy bezpieczenstwa (testy/Velivo.Tests) wywoluja wewnetrzne funkcje programu -->
+    <InternalsVisibleTo Include="Velivo.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
   </ItemGroup>
   <ItemGroup>

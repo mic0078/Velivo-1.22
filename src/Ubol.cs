@@ -53,23 +53,31 @@ namespace Przegladarka
                 req.Headers.UserAgent.ParseAdd("Velivo");
                 string json;
                 using (var resp = await UbolHttp.SendAsync(req)) { if (!resp.IsSuccessStatusCode) return; json = await resp.Content.ReadAsStringAsync(); }
-                string zipUrl = null, tag;
+                string zipUrl = null, zipDigest = null, tag;
                 using (var d = JsonDocument.Parse(json))
                 {
                     tag = d.RootElement.GetProperty("tag_name").GetString() ?? "";
                     foreach (var a in d.RootElement.GetProperty("assets").EnumerateArray())
                     {
                         var n = a.GetProperty("name").GetString() ?? "";
-                        if (n.IndexOf("chromium", StringComparison.OrdinalIgnoreCase) >= 0 && n.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) { zipUrl = a.GetProperty("browser_download_url").GetString(); break; }
+                        if (n.IndexOf("chromium", StringComparison.OrdinalIgnoreCase) >= 0 && n.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                        {
+                            zipUrl = a.GetProperty("browser_download_url").GetString();
+                            JsonElement dg; if (a.TryGetProperty("digest", out dg) && dg.ValueKind == JsonValueKind.String) zipDigest = dg.GetString();
+                            break;
+                        }
                     }
                 }
                 if (zipUrl == null || !zipUrl.StartsWith("https://github.com/uBlockOrigin/", StringComparison.OrdinalIgnoreCase)) return;
+                // bez sumy SHA-256 od GitHuba nie aktualizujemy - zostaje wersja z instalatora
+                if (zipDigest == null || !zipDigest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)) return;
                 var cur = BestUbolDir();
                 Version newV;
                 if (!Version.TryParse(new string(tag.Where(c => char.IsDigit(c) || c == '.').ToArray()).Trim('.'), out newV)) return;
                 if (cur != null && ManifestVersion(cur) >= newV) return;
                 var tmp = Path.Combine(Path.GetTempPath(), "velivo-ubol-" + Guid.NewGuid().ToString("N") + ".zip");
                 using (var resp = await UbolHttp.GetAsync(zipUrl)) { if (!resp.IsSuccessStatusCode) return; using (var f = File.Create(tmp)) await resp.Content.CopyToAsync(f); }
+                if (!Integrity.Matches(tmp, zipDigest)) { File.Delete(tmp); App.LogError(new InvalidDataException("uBOL: suma SHA-256 się nie zgadza – aktualizacja odrzucona.")); return; }
                 var unpack = Path.Combine(UpdatedUbolRoot, "tmp-" + Guid.NewGuid().ToString("N"));
                 ZipFile.ExtractToDirectory(tmp, unpack);
                 File.Delete(tmp);

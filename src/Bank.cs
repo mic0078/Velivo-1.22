@@ -235,6 +235,8 @@ namespace Przegladarka
             accs.Click += (s, e) => BankItems("acc");
             var bills = new MenuItem { Header = L.T("🧾 Rachunki do opłacenia") };
             bills.Click += (s, e) => BankItems("bills");
+            var sheet = new MenuItem { Header = L.T("📊 Arkusz rachunków (w karcie)") };
+            sheet.Click += (s, e) => OpenBillSheet();
             var notes = new MenuItem { Header = L.T("📝 Moje notatki (loginy, hasła, numery klienta)") };
             notes.Click += (s, e) => BankNotes();
             var sites = new MenuItem { Header = L.T("🏦 Moje banki") };
@@ -264,7 +266,7 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(sheet); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 // dodac strone mozna z kazdej karty (takze zwyklej) - gdy tryb zamkniety, najpierw klucz / haslo
                 addSite.IsEnabled = _current != null && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
@@ -1428,6 +1430,141 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             w.Show();
         }
 
+        // ---------- arkusz rachunkow na stronie w karcie bankowej (lokalnie, bez internetu) ----------
+        // Dane trafiaja do strony przy otwarciu; Zapisz -> Velivo odbiera je ze strony, szyfruje w bazie i zamyka karte.
+        async void OpenBillSheet()
+        {
+            if (!await EnsureBankUnlocked() || _bankKey == null) return;
+            var c = LoadBank(); if (c == null) return;
+            var culture = System.Globalization.CultureInfo.CurrentCulture;
+            var log = LoadSealed<BankItem>(c.BillLog);
+            var cols = log.Select(x => x.Get("name")).Where(x => x.Length > 0).Distinct().ToList();
+            foreach (var b in LoadSealed<BankItem>(c.Bills)) { var n = b.Get("name"); if (n.Length > 0 && !cols.Contains(n)) cols.Add(n); }
+            var months = log.Select(x => x.Get("month")).Where(x => x.Length > 0).Distinct().OrderBy(x => x).ToList();
+            var rows = months.Select(m =>
+            {
+                DateTime md; var label = DateTime.TryParseExact(m + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out md) ? md.ToString("MMMM yyyy", culture) : m;
+                var v = cols.Select(name => { var sum = log.Where(x => x.Get("month") == m && x.Get("name") == name).Sum(x => Amt(x.Get("amount"))); return sum == 0 ? "" : sum.ToString("0.00", culture); }).ToArray();
+                return new { m = label, v };
+            }).ToList();
+            if (rows.Count == 0) rows.Add(new { m = DateTime.Today.ToString("MMMM yyyy", culture), v = cols.Select(x => "").ToArray() });
+            // kolejne miesiace dla przycisku "Wiersz (miesiac)" - nowy wiersz dostaje nastepny miesiac sam
+            DateTime start = DateTime.Today;
+            if (months.Count > 0) DateTime.TryParseExact(months.Last() + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out start);
+            var next = Enumerable.Range(1, 60).Select(i => new DateTime(start.Year, start.Month, 1).AddMonths(i).ToString("MMMM yyyy", culture)).ToArray();
+            var data = JsonSerializer.Serialize(new
+            {
+                cur = BankCurrency(), dec = culture.NumberFormat.NumberDecimalSeparator, cols, rows, next,
+                monthLabel = L.T("Miesiąc"), totalLabel = L.T("Razem"), delCol = L.T("Usuń kolumnę"), delRow = L.T("Usuń wiersz"), newCol = L.T("Nowy rachunek")
+            }).Replace("</", "<\\/");
+            var html = BillSheetHtml.Replace("__DATA__", data).Replace("__TITLE__", L.T("Arkusz rachunków")).Replace("__ADDROW__", L.T("Wiersz (miesiąc)"))
+                .Replace("__ADDCOL__", L.T("Kolumna (rachunek)")).Replace("__HINT__", L.T("Wpisz kwoty – sumy liczą się same. Nowy wiersz kopiuje kwoty z poprzedniego."))
+                .Replace("__CANCEL__", L.T("Anuluj")).Replace("__SAVE__", L.T("Zapisz i zamknij"));
+            _creatingBank = true;
+            try { AddTab("about:blank", true); } finally { _creatingBank = false; }
+            var tab = _current;
+            for (int i = 0; i < 100 && tab.View.CoreWebView2 == null; i++) await Task.Delay(100);
+            var core = tab.View.CoreWebView2; if (core == null) return;
+            core.NavigateToString(html);
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            bool busy = false;
+            timer.Tick += async (s, e) =>
+            {
+                if (busy) return;
+                if (!_tabs.Contains(tab) || tab.View.CoreWebView2 == null) { timer.Stop(); return; }
+                busy = true;
+                try
+                {
+                    var raw = await core.ExecuteScriptAsync("JSON.stringify(window.__velivoSheet||null)");
+                    var json = JsonSerializer.Deserialize<string>(raw);
+                    if (string.IsNullOrEmpty(json) || json == "null") return;
+                    timer.Stop();
+                    using (var doc = JsonDocument.Parse(json))
+                    {
+                        var root = doc.RootElement;
+                        if (root.GetProperty("save").GetBoolean())
+                        {
+                            if (_bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); return; }
+                            var names = root.GetProperty("cols").EnumerateArray().Select(x => (x.GetString() ?? "").Trim()).ToList();
+                            var newLog = new List<BankItem>(); int bad = 0;
+                            foreach (var r in root.GetProperty("rows").EnumerateArray())
+                            {
+                                var vals = r.GetProperty("v").EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() : x.ToString()).ToList();
+                                if (vals.All(x => Amt(x) == 0)) continue;
+                                var mo = ParseMonth(r.GetProperty("m").GetString());
+                                if (mo == null) { bad++; continue; }
+                                for (int i = 0; i < names.Count && i < vals.Count; i++)
+                                    if (names[i].Length > 0 && Amt(vals[i]) != 0)
+                                        newLog.Add(new BankItem { F = new Dictionary<string, string> { { "name", names[i] }, { "amount", vals[i] }, { "month", mo }, { "paid", "" } } });
+                            }
+                            SaveBillLog(newLog);
+                            ShowToast(L.T("💾 Arkusz rachunków zapisany (zaszyfrowany)") + (bad > 0 ? (L.En ? " – rows without a valid month skipped: " : " – pominięto wiersze bez poprawnego miesiąca: ") + bad : ""), null);
+                        }
+                    }
+                    if (_tabs.Contains(tab)) CloseTab(tab);
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                finally { busy = false; }
+            };
+            timer.Start();
+        }
+
+        const string BillSheetHtml = @"<!doctype html><html><head><meta charset='utf-8'><title>__TITLE__</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--line:#d7dbe2;--head:#eef1f5;--txt:#1f2937;--mut:#6b7280;--acc:#0f766e;--sum:#ecfdf5}
+@media (prefers-color-scheme:dark){:root{--bg:#111827;--card:#1f2937;--line:#374151;--head:#273244;--txt:#e5e7eb;--mut:#9ca3af;--acc:#34d399;--sum:#0f2f2a}}
+body{margin:0;font:14px Segoe UI,sans-serif;background:var(--bg);color:var(--txt)}
+header{display:flex;gap:10px;align-items:center;padding:14px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+h1{font-size:18px;margin:0 12px 0 0}
+button{font:inherit;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--txt);cursor:pointer}
+button.main{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}
+.wrap{padding:16px 20px;overflow:auto}
+table{border-collapse:collapse;background:var(--card)}
+th,td{border:1px solid var(--line);padding:0;min-width:110px}
+th{background:var(--head);font-weight:600}
+th input{font-weight:600;text-align:center}
+input{width:100%;box-sizing:border-box;border:0;background:transparent;color:var(--txt);font:inherit;padding:7px 8px;outline:none}
+input:focus{background:rgba(52,211,153,.15)}
+td.num input{text-align:right}
+td.sum,th.sum{background:var(--sum);font-weight:700;text-align:right;padding:7px 10px}
+td.del,th.del{min-width:28px;width:28px;text-align:center}
+.x{border:0;background:none;color:var(--mut);padding:2px 6px;cursor:pointer}
+.x:hover{color:#ef4444}
+.hint{color:var(--mut);margin-left:auto;font-size:12px}
+</style></head><body>
+<header><h1>📊 __TITLE__</h1>
+<button onclick='addRow()'>➕ __ADDROW__</button><button onclick='addCol()'>➕ __ADDCOL__</button>
+<span class='hint'>__HINT__</span>
+<button onclick='done(0)'>__CANCEL__</button><button class='main' onclick='done(1)'>💾 __SAVE__</button></header>
+<div class='wrap'><table id='t'></table></div>
+<script>
+var D=__DATA__;
+function num(t){t=String(t||'').replace(/[^\d,.\-]/g,'');if(t.indexOf(',')>=0&&t.indexOf('.')>=0)t=t.replace(/,/g,'');else t=t.replace(',','.');var v=parseFloat(t);return isNaN(v)?0:v;}
+function money(v){var s=v.toFixed(2).replace('.',D.dec);return ['£','$','€','¥'].indexOf(D.cur)>=0?D.cur+s:s+' '+D.cur;}
+function el(tag,cls){var e=document.createElement(tag);if(cls)e.className=cls;return e;}
+function draw(){
+  var t=document.getElementById('t');t.textContent='';
+  var hr=el('tr');var h0=el('th');h0.textContent=D.monthLabel;hr.appendChild(h0);
+  D.cols.forEach(function(c,ci){var th=el('th');var i=el('input');i.value=c;i.oninput=function(){D.cols[ci]=i.value;};th.appendChild(i);
+    var x=el('button','x');x.textContent='✕';x.title=D.delCol;x.onclick=function(){D.cols.splice(ci,1);D.rows.forEach(function(r){r.v.splice(ci,1);});draw();};th.appendChild(x);hr.appendChild(th);});
+  var hs=el('th','sum');hs.textContent=D.totalLabel;hr.appendChild(hs);hr.appendChild(el('th','del'));t.appendChild(hr);
+  D.rows.forEach(function(r,ri){var tr=el('tr');var td=el('td');var mi=el('input');mi.value=r.m;mi.placeholder='05.2026';mi.oninput=function(){r.m=mi.value;};td.appendChild(mi);tr.appendChild(td);
+    D.cols.forEach(function(c,ci){var tdv=el('td','num');var vi=el('input');vi.value=r.v[ci]||'';vi.oninput=function(){r.v[ci]=vi.value;sums();};tdv.appendChild(vi);tr.appendChild(tdv);});
+    var s=el('td','sum');s.setAttribute('data-r',ri);tr.appendChild(s);
+    var d=el('td','del');var x=el('button','x');x.textContent='✕';x.title=D.delRow;x.onclick=function(){D.rows.splice(ri,1);draw();};d.appendChild(x);tr.appendChild(d);t.appendChild(tr);});
+  var fr=el('tr');var f0=el('td','sum');f0.textContent=D.totalLabel;f0.style.textAlign='left';fr.appendChild(f0);
+  D.cols.forEach(function(c,ci){var f=el('td','sum');f.setAttribute('data-c',ci);fr.appendChild(f);});
+  var fg=el('td','sum');fg.id='grand';fr.appendChild(fg);fr.appendChild(el('td','del'));t.appendChild(fr);sums();}
+function sums(){var g=0;D.rows.forEach(function(r,ri){var s=0;D.cols.forEach(function(c,ci){s+=num(r.v[ci]);});g+=s;var c=document.querySelector('td[data-r=\''+ri+'\']');if(c)c.textContent=money(s);});
+  D.cols.forEach(function(c,ci){var s=0;D.rows.forEach(function(r){s+=num(r.v[ci]);});var e=document.querySelector('td[data-c=\''+ci+'\']');if(e)e.textContent=money(s);});
+  var ge=document.getElementById('grand');if(ge)ge.textContent=money(g);}
+function addRow(){var last=D.rows.length?D.rows[D.rows.length-1]:null;D.rows.push({m:(D.next&&D.next.length?D.next.shift():''),v:last?last.v.slice():D.cols.map(function(){return '';})});draw();var ins=document.querySelectorAll('tr td:first-child input');if(ins.length)ins[ins.length-1].focus();}
+function addCol(){D.cols.push(D.newCol);D.rows.forEach(function(r){r.v.push('');});draw();}
+function done(save){window.__velivoSheet={save:!!save,cols:D.cols,rows:D.rows};}
+draw();
+</script></body></html>
+";
+
         // Nastepny termin wg powtarzania: gotowe opcje (PL/EN) albo wlasne "co 10 dni", "co 3 tygodnie", "every 2 weeks"...
         static DateTime? NextDue(DateTime due, string rep)
         {
@@ -1596,6 +1733,9 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                     if (HostOf(u) != null) OpenBankSite(u);
                 };
                 var hist = new Button { Content = L.T("📊 Zestawienie płatności"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+                var sheetBtn = new Button { Content = L.T("📊 Arkusz rachunków (w karcie)"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+                sheetBtn.Click += (a, b) => { w.Close(); OpenBillSheet(); };
+                rowC.Children.Add(sheetBtn);
                 hist.Click += (a, b) => ShowBillHistory(paidLog);
                 rowC.Children.Add(paid); rowC.Children.Add(open); rowC.Children.Add(hist);
                 sp.Children.Add(rowC);

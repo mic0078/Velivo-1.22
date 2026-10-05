@@ -1093,6 +1093,10 @@ namespace Przegladarka
             { "Z ciemności (kinowe)", "From darkness (cinematic)" },
             { "Szybkość efektu wejścia: ", "Entrance effect speed: " },
             { "automatycznie", "automatic" },
+            { "Szybkie (0,15 s)", "Quick (0.15 s)" },
+            { "Delikatne (0,3 s)", "Gentle (0.3 s)" },
+            { "Wolne (0,5 s)", "Slow (0.5 s)" },
+            { "Spokojne (1 s)", "Calm (1 s)" },
         };
     }
 }

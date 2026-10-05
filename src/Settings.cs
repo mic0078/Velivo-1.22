@@ -366,7 +366,7 @@ namespace Przegladarka
             root.Children.Add(night);
             root.Children.Add(new TextBlock { Text = L.T("Płynne przejście między stronami:"), Margin = new Thickness(0, 6, 0, 2) });
             var fadeBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
-            foreach (var f in new[] { new { ms = 0, t = L.T("Naturalne (silnik Edge)") }, new { ms = 150, t = L.T("Szybkie rozjaśnienie (0,15 s)") }, new { ms = 300, t = L.T("Delikatne rozjaśnienie (0,3 s)") }, new { ms = 500, t = L.T("Wolne rozjaśnienie (0,5 s)") }, new { ms = 1000, t = L.T("Spokojne rozjaśnienie (1 s)") }, new { ms = 2000, t = L.T("Bardzo spokojne (2 s)") }, new { ms = 3000, t = L.T("Senne (3 s)") }, new { ms = 4000, t = L.T("Najwolniejsze (4 s)") } })
+            foreach (var f in new[] { new { ms = 0, t = L.T("Wyłączone") }, new { ms = 150, t = L.T("Szybkie (0,15 s)") }, new { ms = 300, t = L.T("Delikatne (0,3 s)") }, new { ms = 500, t = L.T("Wolne (0,5 s)") }, new { ms = 1000, t = L.T("Spokojne (1 s)") }, new { ms = 2000, t = L.T("Bardzo spokojne (2 s)") }, new { ms = 3000, t = L.T("Senne (3 s)") }, new { ms = 4000, t = L.T("Najwolniejsze (4 s)") } })
                 fadeBox.Items.Add(new ComboBoxItem { Content = f.t, Tag = f.ms });
             fadeBox.SelectedItem = fadeBox.Items.Cast<ComboBoxItem>().OrderBy(i => Math.Abs((int)i.Tag - s.PageFade)).First();
             root.Children.Add(fadeBox);

@@ -42,6 +42,7 @@ namespace Przegladarka
             public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
+            public bool Bank;            // karta trybu bankowego (osobny profil; Private=true, zeby nic nie zapisywac)
             public bool Pinned;
             public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
             public bool Mobile;          // strona w wersji telefonu
@@ -112,6 +113,7 @@ namespace Przegladarka
             LoadJobs(); // lista pobran z poprzedniego uruchomienia (przerwane mozna wznowic)
             LoadZoom();
             LoadSiteModes();
+            InitBankMode();
             InitZoomMenu();
             UpdateDarkButton();
             ApplyBrowserTheme();
@@ -322,7 +324,7 @@ namespace Przegladarka
         // nowy widok trzeba oddac przez e.NewWindow, inaczej dodatek nie dostanie uchwytu karty.
         void AddTab(string url, bool isPrivate, CoreWebView2NewWindowRequestedEventArgs pending, CoreWebView2Deferral deferral)
         {
-            var tab = new BrowserTab { Private = isPrivate, View = new WebView2(), Title = new TextBlock { Text = L.T("Nowa karta"), MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center } };
+            var tab = new BrowserTab { Private = isPrivate || _creatingBank, Bank = _creatingBank, View = new WebView2(), Title = new TextBlock { Text = L.T("Nowa karta"), MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center } };
             var close = new Button { Content = "×", Width = 20, Height = 20, FontSize = 13, Margin = new Thickness(6, 0, 0, 0) };
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             tab.CloseBtn = close;
@@ -347,7 +349,7 @@ namespace Przegladarka
             {
                 tab.Title.Foreground = Brushes.White;
                 close.Foreground = Brushes.White;
-                tab.Title.Text = L.T("🕶 Prywatna");
+                tab.Title.Text = tab.Bank ? L.T("🏦 Bankowa") : L.T("🕶 Prywatna");
             }
             tab.StartUrl = url;
             tab.Header.ContextMenu = BuildTabMenu(tab);
@@ -368,7 +370,8 @@ namespace Przegladarka
             try
             {
                 var opts = _env.CreateCoreWebView2ControllerOptions();
-                opts.IsInPrivateModeEnabled = tab.Private;
+                opts.IsInPrivateModeEnabled = tab.Private && !tab.Bank;
+                if (tab.Bank) opts.ProfileName = BankProfileName;   // osobny, trwaly profil trybu bankowego
                 await tab.View.EnsureCoreWebView2Async(_env, opts);
             }
             catch (Exception ex)
@@ -380,6 +383,7 @@ namespace Przegladarka
             }
             var core = tab.View.CoreWebView2;
             core.Settings.IsStatusBarEnabled = false;
+            if (tab.Bank) await BankAfterInit(core);
             if (!tab.Private && _profile == null) _profile = core.Profile;
             ApplyViewSettings(core);
             await HookAutofill(tab, core);   // przed ukryciem chrome.webview
@@ -453,10 +457,10 @@ namespace Przegladarka
                 AddPrivacyBlock("Tracker zablokowany (AdBlock)", e.Request.Uri, tab);
             };
 
-            core.NewWindowRequested += (s, e) => { if (!OpenLinkInSameTab(tab, e)) OnNewWindowRequested(e, tab.Private); };
+            core.NewWindowRequested += (s, e) => { if (!OpenLinkInSameTab(tab, e)) { _creatingBank = tab.Bank; try { OnNewWindowRequested(e, tab.Private); } finally { _creatingBank = false; } } };
             core.DocumentTitleChanged += (s, e) =>
             {
-                tab.Title.Text = (tab.Private ? "🕶 " : "") + (string.IsNullOrEmpty(core.DocumentTitle) ? core.Source : core.DocumentTitle);
+                tab.Title.Text = (tab.Bank ? "🏦 " : tab.Private ? "🕶 " : "") + (string.IsNullOrEmpty(core.DocumentTitle) ? core.Source : core.DocumentTitle);
                 tab.Header.ToolTip = tab.Title.Text;
                 if (tab == _current) Title = BuildWindowTitle(tab.Title.Text);
             };
@@ -693,6 +697,7 @@ namespace Przegladarka
         async void OpenPopupWindow(CoreWebView2NewWindowRequestedEventArgs e, CoreWebView2Deferral deferral, bool isPrivate)
         {
             var f = e.WindowFeatures;
+            bool bank = _creatingBank;   // okienko otwarte z karty bankowej zostaje w profilu bankowym
             var view = new WebView2();
             var win = new Window { Title = AppTitleLabel, Width = f.Width + 16, Height = f.Height + 39, Content = view, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             if (f.HasPosition) { win.WindowStartupLocation = WindowStartupLocation.Manual; win.Left = f.Left; win.Top = f.Top; }
@@ -701,7 +706,8 @@ namespace Przegladarka
             try
             {
                 var opts = _env.CreateCoreWebView2ControllerOptions();
-                opts.IsInPrivateModeEnabled = isPrivate;
+                opts.IsInPrivateModeEnabled = isPrivate && !bank;
+                if (bank) opts.ProfileName = BankProfileName;
                 await view.EnsureCoreWebView2Async(_env, opts);
                 var core = view.CoreWebView2;
                 ApplyViewSettings(core);
@@ -712,7 +718,7 @@ namespace Przegladarka
                 };
                 core.WindowCloseRequested += (s, a) => win.Close();
                 core.DocumentTitleChanged += (s, a) => win.Title = BuildWindowTitle(core.DocumentTitle);
-                core.NewWindowRequested += (s, a) => OnNewWindowRequested(a, isPrivate);
+                core.NewWindowRequested += (s, a) => { _creatingBank = bank; try { OnNewWindowRequested(a, isPrivate); } finally { _creatingBank = false; } };
                 core.DownloadStarting += OnDownloadStarting;
                 e.NewWindow = core;
                 e.Handled = true;
@@ -735,7 +741,9 @@ namespace Przegladarka
                     if (c != null && c.MemoryUsageTargetLevel != lvl) c.MemoryUsageTargetLevel = lvl;
                 }
                 catch (Exception) { }
-                t.Header.Background = t.Private
+                t.Header.Background = t.Bank
+                    ? new SolidColorBrush(on ? Color.FromRgb(0x06, 0x5F, 0x46) : Color.FromRgb(0x05, 0x96, 0x69))
+                    : t.Private
                     ? new SolidColorBrush(on ? Color.FromRgb(0x4C, 0x1D, 0x95) : Color.FromRgb(0x6D, 0x28, 0xD9))
                     : (on ? ActiveTabBrush : Brushes.Transparent);
                 ModernTabLook(t, on);

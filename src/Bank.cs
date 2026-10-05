@@ -1212,41 +1212,151 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             catch (Exception) { }
         }
 
-        // Zestawienie jak w arkuszu: miesiace x rachunki, suma miesiaca; eksport CSV do Excela
+        // Zestawienie jak w arkuszu: miesiace x rachunki, suma miesiaca; reczne dopisywanie, import z Excela (CSV), eksport CSV
+        static decimal Amt(string t)
+        {
+            var clean = new string((t ?? "").Where(ch => char.IsDigit(ch) || ch == ',' || ch == '.' || ch == '-').ToArray());
+            if (clean.Contains(',') && clean.Contains('.')) clean = clean.Replace(",", "");   // 1,234.56
+            else clean = clean.Replace(',', '.');                                            // 44,51
+            decimal v; return decimal.TryParse(clean, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0m;
+        }
+
+        static readonly string[][] MonthNames =
+        {
+            new[] { "sty", "jan" }, new[] { "lut", "feb" }, new[] { "mar" }, new[] { "kwi", "apr" }, new[] { "maj", "may" }, new[] { "cze", "jun" },
+            new[] { "lip", "jul" }, new[] { "sie", "aug" }, new[] { "wrz", "sep" }, new[] { "paź", "paz", "oct" }, new[] { "lis", "nov" }, new[] { "gru", "dec" }
+        };
+
+        // "maj 2026", "Październik 2026", "May 2026", "05.2026", "2026-05", "05/2026" -> "2026-05"
+        static string ParseMonth(string t)
+        {
+            t = (t ?? "").Trim().ToLowerInvariant();
+            var y = System.Text.RegularExpressions.Regex.Match(t, @"(19|20)\d\d");
+            if (!y.Success) return null;
+            int m = 0;
+            for (int i = 0; i < 12 && m == 0; i++) foreach (var n in MonthNames[i]) if (t.StartsWith(n)) { m = i + 1; break; }
+            if (m == 0)
+            {
+                var rest = t.Replace(y.Value, " ");
+                var mm = System.Text.RegularExpressions.Regex.Match(rest, @"\b(\d{1,2})\b");
+                if (mm.Success) { int v = int.Parse(mm.Groups[1].Value); if (v >= 1 && v <= 12) m = v; }
+            }
+            return m == 0 ? null : y.Value + "-" + m.ToString("00");
+        }
+
+        void SaveBillLog(List<BankItem> log)
+        {
+            var cc = LoadBank(); if (cc == null || _bankKey == null) return;
+            cc.BillLog = SealList(_bankKey, log); SaveBank(cc);
+        }
+
         void ShowBillHistory(List<BankItem> log)
         {
-            Func<string, decimal> amt = t =>
-            {
-                var clean = new string((t ?? "").Where(ch => char.IsDigit(ch) || ch == ',' || ch == '.' || ch == '-').ToArray()).Replace(',', '.');
-                decimal v; return decimal.TryParse(clean, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0m;
-            };
-            var names = log.Select(x => x.Get("name")).Distinct().ToList();
-            var months = log.Select(x => x.Get("month")).Distinct().OrderBy(x => x).ToList();
-            var w = new Window { Title = L.T("📊 Zestawienie płatności"), Owner = this, Width = 900, Height = 520, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "velivo-bank" };
+            var culture = System.Globalization.CultureInfo.CurrentCulture;
+            var w = new Window { Title = L.T("📊 Zestawienie płatności"), Owner = this, Width = 960, Height = 600, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "velivo-bank" };
             var dock = new DockPanel { Margin = new Thickness(12) };
             var grid = new DataGrid { AutoGenerateColumns = false, IsReadOnly = true, HeadersVisibility = DataGridHeadersVisibility.Column, CanUserAddRows = false };
-            grid.Columns.Add(new DataGridTextColumn { Header = L.T("Miesiąc"), Binding = new System.Windows.Data.Binding("[0]") });
-            for (int i = 0; i < names.Count; i++) grid.Columns.Add(new DataGridTextColumn { Header = names[i], Binding = new System.Windows.Data.Binding("[" + (i + 1) + "]") });
-            grid.Columns.Add(new DataGridTextColumn { Header = L.T("Razem"), Binding = new System.Windows.Data.Binding("[" + (names.Count + 1) + "]"), FontWeight = FontWeights.Bold });
-            var rows = new List<string[]>();
-            var culture = System.Globalization.CultureInfo.CurrentCulture;
-            foreach (var m in months)
+            var rows = new List<string[]>(); var names = new List<string>();
+            Action rebuild = () =>
             {
-                var r = new string[names.Count + 2];
-                DateTime md; r[0] = DateTime.TryParseExact(m + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out md) ? md.ToString("MMMM yyyy", culture) : m;
-                decimal sum = 0;
-                for (int i = 0; i < names.Count; i++)
+                names.Clear(); names.AddRange(log.Select(x => x.Get("name")).Distinct());
+                var months = log.Select(x => x.Get("month")).Distinct().OrderBy(x => x).ToList();
+                grid.Columns.Clear(); grid.ItemsSource = null; rows.Clear();
+                grid.Columns.Add(new DataGridTextColumn { Header = L.T("Miesiąc"), Binding = new System.Windows.Data.Binding("[0]") });
+                for (int i = 0; i < names.Count; i++) grid.Columns.Add(new DataGridTextColumn { Header = names[i], Binding = new System.Windows.Data.Binding("[" + (i + 1) + "]") });
+                grid.Columns.Add(new DataGridTextColumn { Header = L.T("Razem"), Binding = new System.Windows.Data.Binding("[" + (names.Count + 1) + "]"), FontWeight = FontWeights.Bold });
+                foreach (var m in months)
                 {
-                    var v = log.Where(x => x.Get("month") == m && x.Get("name") == names[i]).Sum(x => amt(x.Get("amount")));
-                    sum += v; r[i + 1] = v == 0 ? "" : v.ToString("0.00", culture);
+                    var r = new string[names.Count + 2];
+                    DateTime md; r[0] = DateTime.TryParseExact(m + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out md) ? md.ToString("MMMM yyyy", culture) : m;
+                    decimal sum = 0;
+                    for (int i = 0; i < names.Count; i++)
+                    {
+                        var v = log.Where(x => x.Get("month") == m && x.Get("name") == names[i]).Sum(x => Amt(x.Get("amount")));
+                        sum += v; r[i + 1] = v == 0 ? "" : v.ToString("0.00", culture);
+                    }
+                    r[names.Count + 1] = sum.ToString("0.00", culture);
+                    rows.Add(r);
                 }
-                r[names.Count + 1] = sum.ToString("0.00", culture);
-                rows.Add(r);
-            }
-            grid.ItemsSource = rows;
+                grid.ItemsSource = rows.ToList();
+            };
+            rebuild();
+
+            // --- reczne dopisanie / usuniecie platnosci za wybrany miesiac ---
+            var add = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            DockPanel.SetDock(add, Dock.Bottom);
+            add.Children.Add(new TextBlock { Text = L.T("Rachunek:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
+            var nameBox = new ComboBox { IsEditable = true, Width = 170 };
+            try { var cfg0 = LoadBank(); if (cfg0 != null) foreach (var b in LoadSealed<BankItem>(cfg0.Bills)) if (!nameBox.Items.Contains(b.Get("name"))) nameBox.Items.Add(b.Get("name")); } catch (Exception) { }
+            foreach (var n in names) if (!nameBox.Items.Contains(n)) nameBox.Items.Add(n);
+            add.Children.Add(nameBox);
+            add.Children.Add(new TextBlock { Text = L.T("Miesiąc (np. 05.2026 albo maj 2026):"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 4, 0) });
+            var monthBox = new TextBox { Width = 110, Padding = new Thickness(3), Text = DateTime.Today.ToString("MM.yyyy") };
+            add.Children.Add(monthBox);
+            add.Children.Add(new TextBlock { Text = L.T("Kwota:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 4, 0) });
+            var amtBox = new TextBox { Width = 90, Padding = new Thickness(3) };
+            add.Children.Add(amtBox);
+            var addBtn = new Button { Content = L.T("➕ Dopisz płatność"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(10, 0, 0, 0) };
+            var delBtn = new Button { Content = L.T("Usuń płatności tego rachunku z miesiąca"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            add.Children.Add(addBtn); add.Children.Add(delBtn);
+            var msg = new TextBlock { Foreground = Brushes.Firebrick, Margin = new Thickness(0, 4, 0, 0) };
+            DockPanel.SetDock(msg, Dock.Bottom);
+            addBtn.Click += (a, b) =>
+            {
+                var nm = (nameBox.Text ?? "").Trim(); var mo = ParseMonth(monthBox.Text); var am = (amtBox.Text ?? "").Trim();
+                if (nm.Length == 0 || mo == null || Amt(am) == 0) { msg.Text = L.T("Wpisz rachunek, miesiąc i kwotę."); return; }
+                log.Add(new BankItem { F = new Dictionary<string, string> { { "name", nm }, { "amount", am }, { "month", mo }, { "paid", "" } } });
+                SaveBillLog(log); rebuild(); amtBox.Text = ""; msg.Text = "";
+                if (!nameBox.Items.Contains(nm)) nameBox.Items.Add(nm);
+            };
+            delBtn.Click += (a, b) =>
+            {
+                var nm = (nameBox.Text ?? "").Trim(); var mo = ParseMonth(monthBox.Text);
+                if (nm.Length == 0 || mo == null) { msg.Text = L.T("Wpisz rachunek i miesiąc."); return; }
+                int n = log.RemoveAll(x => x.Get("name") == nm && x.Get("month") == mo);
+                SaveBillLog(log); rebuild(); msg.Text = n == 0 ? L.T("Nie było takiej płatności.") : "";
+            };
+
+            // --- import z Excela (CSV) i eksport ---
             var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
             DockPanel.SetDock(bar, Dock.Bottom);
-            var csv = new Button { Content = L.T("📥 Zapisz do Excela (CSV)"), Padding = new Thickness(10, 4, 10, 4) };
+            var imp = new Button { Content = L.T("📤 Wczytaj z Excela (CSV)…"), Padding = new Thickness(10, 4, 10, 4) };
+            imp.Click += (a, b) =>
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "CSV (*.csv;*.txt)|*.csv;*.txt" };
+                if (dlg.ShowDialog(w) != true) return;
+                try
+                {
+                    var lines = File.ReadAllLines(dlg.FileName).Where(l => l.Trim().Length > 0).ToList();
+                    if (lines.Count < 2) return;
+                    char sep = lines[0].Count(ch => ch == ';') >= lines[0].Count(ch => ch == ',') ? ';' : ',';
+                    if (lines[0].Contains('\t')) sep = '\t';
+                    Func<string, string[]> split = l => l.Split(sep).Select(x => x.Trim().Trim('"').Trim()).ToArray();
+                    // naglowki = wiersz tuz nad pierwszym wierszem z miesiacem (arkusz moze miec tytul nad tabela)
+                    int first = lines.FindIndex(l => { var c0 = split(l); return c0.Length > 0 && ParseMonth(c0[0]) != null; });
+                    if (first < 1) { MessageBox.Show(w, L.T("Nie znaleziono miesięcy w pierwszej kolumnie."), "Velivo"); return; }
+                    var head = split(lines[first - 1]);
+                    int added = 0;
+                    foreach (var l in lines.Skip(first))
+                    {
+                        var cells = split(l); var mo = cells.Length > 0 ? ParseMonth(cells[0]) : null;
+                        if (mo == null) continue;
+                        for (int ci = 1; ci < cells.Length && ci < head.Length; ci++)
+                        {
+                            var h = head[ci].Trim(); var hl = h.ToLowerInvariant();
+                            if (h.Length == 0 || hl.StartsWith("razem") || hl.StartsWith("suma") || hl.StartsWith("total")) continue;
+                            if (Amt(cells[ci]) == 0) continue;
+                            if (log.Any(x => x.Get("name") == h && x.Get("month") == mo)) continue;   // juz jest - bez podwajania
+                            log.Add(new BankItem { F = new Dictionary<string, string> { { "name", h }, { "amount", cells[ci] }, { "month", mo }, { "paid", "" } } });
+                            added++;
+                        }
+                    }
+                    SaveBillLog(log); rebuild();
+                    ShowToast(L.T("📤 Wczytano płatności: ") + added, null);
+                }
+                catch (Exception ex) { MessageBox.Show(w, ex.Message, "Velivo"); }
+            };
+            var csv = new Button { Content = L.T("📥 Zapisz do Excela (CSV)"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(6, 0, 0, 0) };
             csv.Click += (a, b) =>
             {
                 var dlg = new Microsoft.Win32.SaveFileDialog { FileName = "Velivo-rachunki.csv", Filter = "CSV (*.csv)|*.csv" };
@@ -1257,9 +1367,11 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 foreach (var r in rows) sb.AppendLine(string.Join(";", r.Select(q)));
                 try { File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(true)); ShowToast(L.T("📥 Zapisano zestawienie"), dlg.FileName); } catch (Exception ex) { MessageBox.Show(w, ex.Message, "Velivo"); }
             };
-            bar.Children.Add(csv);
-            bar.Children.Add(new TextBlock { Text = L.T("Każde „✔ Zapłacone” dopisuje kwotę do miesiąca terminu."), Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
+            bar.Children.Add(imp); bar.Children.Add(csv);
+            bar.Children.Add(new TextBlock { Text = L.T("W Excelu: Plik → Zapisz jako → CSV. Pierwsza kolumna = miesiąc, nagłówki = nazwy rachunków."), Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 460 });
             dock.Children.Add(bar);
+            dock.Children.Add(msg);
+            dock.Children.Add(add);
             dock.Children.Add(grid);
             w.Content = dock;
             w.Show();

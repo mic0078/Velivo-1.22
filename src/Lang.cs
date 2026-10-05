@@ -1170,6 +1170,17 @@ namespace Przegladarka
             { "📥 Zapisz do Excela (CSV)", "📥 Save for Excel (CSV)" },
             { "📥 Zapisano zestawienie", "📥 Summary saved" },
             { "Każde „✔ Zapłacone” dopisuje kwotę do miesiąca terminu.", "Each “✔ Paid” adds the amount to the month of the due date." },
+            { "Rachunek:", "Bill:" },
+            { "Miesiąc (np. 05.2026 albo maj 2026):", "Month (e.g. 05.2026 or May 2026):" },
+            { "➕ Dopisz płatność", "➕ Add payment" },
+            { "Usuń płatności tego rachunku z miesiąca", "Remove this bill's payments for the month" },
+            { "Wpisz rachunek, miesiąc i kwotę.", "Enter the bill, month and amount." },
+            { "Wpisz rachunek i miesiąc.", "Enter the bill and month." },
+            { "Nie było takiej płatności.", "There was no such payment." },
+            { "📤 Wczytaj z Excela (CSV)…", "📤 Load from Excel (CSV)…" },
+            { "📤 Wczytano płatności: ", "📤 Payments loaded: " },
+            { "W Excelu: Plik → Zapisz jako → CSV. Pierwsza kolumna = miesiąc, nagłówki = nazwy rachunków.", "In Excel: File → Save as → CSV. First column = month, headers = bill names." },
+            { "Nie znaleziono miesięcy w pierwszej kolumnie.", "No months found in the first column." },
         };
     }
 }

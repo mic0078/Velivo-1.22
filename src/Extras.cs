@@ -82,13 +82,13 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
-  // Plynne przejscie stron (Ustawienia -> Wyglad), jak na nagraniu uzytkownika: po kliknieciu linku tresc na chwile
-  // lagodnie jasnieje (jasna mgielka), a gdy pojawi sie nowa tresc - mgielka plynnie znika. Dziala przy pelnym
-  // wczytaniu strony i na stronach, ktore podmieniaja tresc bez przeladowania (Google, YouTube, Facebook).
-  // Mgielka nie blokuje klikniec ani przewijania i niczego nie opoznia.
+  // Plynne przejscie stron (Ustawienia -> Wyglad): po kliknieciu linku jasna mgielka, a gdy nowa tresc juz jest -
+  // mgielka znika i tresc lagodnie wchodzi (jak w Gemini). Jedno przejscie na jedno klikniecie (strony zmieniaja adres
+  // kilka razy - kolejne sygnaly w trakcie sa pomijane, wiec animacja nie zaczyna sie od nowa w polowie). Na stronach
+  // bez przeladowania czekamy, az nowa tresc przestanie sie zmieniac. Nic nie blokuje klikniec ani ladowania.
   if (C.fade > 0 && top) try {
     if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
-      var VEIL = .14, veil = null, anim = null, fallT = 0;
+      var VEIL = .14, veil = null, vAnim = null, bAnim = null, busy = false, lastEnter = 0, safety = 0;
       var getVeil = function () {
         if (veil && veil.isConnected) return veil;
         veil = document.createElement('div');
@@ -97,32 +97,54 @@ try {
         try { document.documentElement.appendChild(veil); } catch (x) {}
         return veil;
       };
-      var to = function (target, ms, done) {
+      var veilTo = function (target, ms, done) {
         var v = getVeil(), from = parseFloat(getComputedStyle(v).opacity) || 0;
-        try { if (anim) anim.cancel(); } catch (x) {}
+        try { if (vAnim) vAnim.cancel(); } catch (x) {}
         v.style.opacity = String(from);
-        anim = v.animate([{ opacity: from }, { opacity: target }], { duration: ms, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
-        anim.onfinish = function () { v.style.opacity = String(target); if (done) done(); };
+        vAnim = v.animate([{ opacity: from }, { opacity: target }], { duration: ms, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
+        vAnim.onfinish = function () { v.style.opacity = String(target); vAnim = null; if (done) done(); };
       };
-      // efekt wejscia tresci (jak w Gemini): lagodne wysuniecie od dolu z wyostrzeniem / wyostrzenie / przyblizenie
       var enter = function () {
+        if (C.entrance === 'none' || Date.now() - lastEnter < 600) return;
+        lastEnter = Date.now();
         try {
-          var b = document.body; if (!b || C.entrance === 'none') return;
-          var f = C.entrance === 'blur' ? [{ filter: 'blur(4px)', opacity: .7 }, { filter: 'blur(0)', opacity: 1 }]
-                : C.entrance === 'zoom' ? [{ transform: 'scale(.985)', opacity: .75 }, { transform: 'none', opacity: 1 }]
-                : [{ transform: 'translateY(14px)', filter: 'blur(1.5px)', opacity: .7 }, { transform: 'none', filter: 'blur(0)', opacity: 1 }];
-          b.animate(f, { duration: Math.max(260, Math.min(1400, C.fade * 1.3)), easing: 'cubic-bezier(.16,.84,.3,1)' });
+          var b = document.body; if (!b) return;
+          if (bAnim) { try { bAnim.cancel(); } catch (x) {} }
+          var f = C.entrance === 'blur' ? [{ filter: 'blur(3px)', opacity: .75 }, { filter: 'blur(0)', opacity: 1 }]
+                : C.entrance === 'zoom' ? [{ transform: 'scale(.985)', opacity: .8 }, { transform: 'none', opacity: 1 }]
+                : [{ transform: 'translateY(12px)', opacity: .75 }, { transform: 'none', opacity: 1 }];
+          bAnim = b.animate(f, { duration: Math.max(280, Math.min(1400, C.fade * 1.3)), easing: 'cubic-bezier(.16,.84,.3,1)' });
+          bAnim.onfinish = bAnim.oncancel = function () { bAnim = null; };
         } catch (x) {}
       };
-      var fall = function () { enter(); clearTimeout(fallT); to(0, C.fade, function () { try { if (veil && parseFloat(veil.style.opacity) === 0) veil.remove(); } catch (x) {} }); };
-      var rise = function () { to(VEIL, 150); clearTimeout(fallT); fallT = setTimeout(fall, 1600); };   // zabezpieczenie
+      // koniec przejscia: mgielka znika, tresc wchodzi - tylko raz na przejscie
+      var finish = function () {
+        clearTimeout(safety);
+        if (!busy) return; busy = false;
+        enter();
+        veilTo(0, C.fade, function () { try { if (veil && !busy) veil.remove(); } catch (x) {} });
+      };
+      var begin = function () {
+        if (busy) return;               // przejscie juz trwa - nie zaczynamy od nowa
+        busy = true;
+        veilTo(VEIL, 150);
+        clearTimeout(safety); safety = setTimeout(finish, 1800);   // zabezpieczenie: nic sie nie zmienilo
+      };
+      // czekamy, az nowa tresc sie ustabilizuje (120 ms bez zmian, najwyzej 800 ms)
+      var settle = function () {
+        if (!busy) return;
+        var t = 0, start = Date.now(), mo;
+        var done = function () { try { mo.disconnect(); } catch (x) {} finish(); };
+        var poke = function () { clearTimeout(t); if (Date.now() - start > 800) return done(); t = setTimeout(done, 120); };
+        try { mo = new MutationObserver(poke); mo.observe(document.body || document.documentElement, { childList: true, subtree: true }); } catch (x) {}
+        poke();
+      };
 
-      // 1) nowo wczytana strona: startuje z mgielka, ktora znika w chwili pierwszego rysowania tresci
-      var startNew = function () { var v = getVeil(); v.style.opacity = String(VEIL); };
+      // 1) nowo wczytana strona: startuje z mgielka, przejscie konczy sie przy pierwszym rysowaniu tresci
+      var startNew = function () { busy = true; getVeil().style.opacity = String(VEIL); };
       if (document.documentElement) startNew();
-      else { var mo = new MutationObserver(function () { if (document.documentElement) { mo.disconnect(); startNew(); } }); mo.observe(document, { childList: true }); }
-      var started = false;
-      var go = function () { if (started) return; started = true; fall(); };
+      else { var mo0 = new MutationObserver(function () { if (document.documentElement) { mo0.disconnect(); startNew(); } }); mo0.observe(document, { childList: true }); }
+      var go = function () { finish(); };
       try {
         new PerformanceObserver(function (l) { if (l.getEntries().some(function (e) { return e.name === 'first-contentful-paint' || e.name === 'first-paint'; })) go(); })
           .observe({ type: 'paint', buffered: true });
@@ -130,27 +152,23 @@ try {
       addEventListener('DOMContentLoaded', function () { setTimeout(go, 50); }, { once: true });
       setTimeout(go, 2500);
 
-      // 2) klikniecie linku w tej karcie: tresc lagodnie jasnieje
+      // 2) klikniecie linku w tej karcie
       addEventListener('click', function (e) {
         try {
-          if (e.defaultPrevented && !e.isTrusted) return;
           if (e.button !== 0 || e.ctrlKey || e.shiftKey || e.metaKey || e.altKey) return;
           var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
           if (!a || (a.target && a.target !== '_self')) return;
           var h = a.getAttribute('href') || '';
           if (!h || h.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(h)) return;
-          rise();
+          begin();
         } catch (x) {}
       }, true);
-      // 3) strony podmieniajace tresc bez przeladowania: po zmianie adresu mgielka znika (gdy nowa tresc juz jest)
-      var spa = function () { clearTimeout(fallT); fallT = setTimeout(fall, 220); };
+      // 3) strony bez przeladowania: zmiana adresu -> czekamy na nowa tresc
       try {
-        ['pushState', 'replaceState'].forEach(function (n) {
-          var o = history[n];
-          history[n] = function () { var r = o.apply(this, arguments); if (n === 'pushState') spa(); return r; };
-        });
+        var oPush = history.pushState;
+        history.pushState = function () { var r = oPush.apply(this, arguments); setTimeout(settle, 0); return r; };
       } catch (x) {}
-      addEventListener('popstate', function () { rise(); spa(); });
+      addEventListener('popstate', function () { begin(); setTimeout(settle, 0); });
     }
   } catch (x) {}
   // pauza kliknieta przez uzytkownika - takiej Velivo nie wznawia po zmianie urzadzenia dzwieku

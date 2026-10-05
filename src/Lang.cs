@@ -900,6 +900,11 @@ namespace Przegladarka
             { "Bardzo spokojne (2 s)", "Very calm (2 s)" },
             { "Senne (3 s)", "Dreamy (3 s)" },
             { "Najwolniejsze (4 s)", "Slowest (4 s)" },
+            { "Efekt wejścia treści:", "Content entrance effect:" },
+            { "Wysunięcie z wyostrzeniem (jak Gemini)", "Slide up with focus (like Gemini)" },
+            { "Wyostrzenie", "Focus in" },
+            { "Delikatne przybliżenie", "Gentle zoom" },
+            { "Brak", "None" },
             // ---- ustawienia: jezyk ----
             { "Język interfejsu / Language:", "Language / Język interfejsu:" },
             { "Automatycznie (język z instalatora / Windows)", "Automatic (installer / Windows language)" },

@@ -1658,6 +1658,9 @@ draw();
             sp.Children.Add(list);
             var getters = new Dictionary<string, Func<string>>(); var setters = new Dictionary<string, Action<string>>();
             var secrets = new List<Tuple<PasswordBox, TextBox>>();
+            var paidLog = kind == "bills" ? LoadSealed<BankItem>(c.BillLog) : null;
+            // nazwy rachunkow z arkusza - zeby zaplacone trafialy do tej samej kolumny
+            var sheetNames = paidLog == null ? new List<string>() : paidLog.Select(x => x.Get("name")).Where(x => x.Length > 0).Distinct().ToList();
             foreach (var f in def.Fields)
             {
                 var fd = f;
@@ -1665,7 +1668,14 @@ draw();
                 var row = new DockPanel { Margin = new Thickness(0, 1, 0, 5) };
                 var copy = new Button { Content = "📋", Width = 30, Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📋 Kopiuj") };
                 DockPanel.SetDock(copy, Dock.Right); row.Children.Add(copy);
-                if (fd.Choices != null)
+                if (kind == "bills" && fd.Key == "name" && sheetNames.Count > 0)
+                {
+                    var cb = new ComboBox { IsEditable = true, ToolTip = L.T("Wybierz nazwę z arkusza rachunków – zapłacone trafią do tej kolumny") };
+                    foreach (var n in sheetNames) cb.Items.Add(n);
+                    row.Children.Add(cb);
+                    getters[fd.Key] = () => cb.Text ?? ""; setters[fd.Key] = v => cb.Text = v ?? "";
+                }
+                else if (fd.Choices != null)
                 {
                     var cb = new ComboBox { IsEditable = true };
                     foreach (var ch in fd.Choices) cb.Items.Add(L.T(ch));
@@ -1748,7 +1758,6 @@ draw();
                 rowL.Children.Add(openL); rowL.Children.Add(fillL); rowL.Children.Add(genL);
                 sp.Children.Add(rowL);
             }
-            var paidLog = kind == "bills" ? LoadSealed<BankItem>(c.BillLog) : null;
             if (kind == "bills")
             {
                 var rowC = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
@@ -1778,6 +1787,28 @@ draw();
                 hist.Click += (a, b) => ShowBillHistory(paidLog);
                 rowC.Children.Add(paid); rowC.Children.Add(open); rowC.Children.Add(hist);
                 sp.Children.Add(rowC);
+                // rachunki z kolumn arkusza, ktorych jeszcze nie ma na liscie: kwota z ostatniego miesiaca, termin 1. dnia kolejnego miesiaca
+                var fromSheet = new Button { Content = L.T("➕ Dodaj rachunki z arkusza"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
+                    ToolTip = L.T("Dodaje każdą kolumnę arkusza, której nie ma na liście (kwota z ostatniego miesiąca, powtarzanie co miesiąc). Potem popraw dzień terminu.") };
+                fromSheet.Click += (a, b) =>
+                {
+                    int added = 0;
+                    foreach (var n in sheetNames)
+                    {
+                        if (items.Any(x => string.Equals(x.Get("name").Trim(), n.Trim(), StringComparison.OrdinalIgnoreCase))) continue;
+                        var last = paidLog.Where(x => x.Get("name") == n && x.Get("month").Length > 0).OrderBy(x => x.Get("month")).LastOrDefault();
+                        if (last == null) continue;
+                        DateTime m;
+                        var due = DateTime.TryParseExact(last.Get("month") + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out m) ? m.AddMonths(1) : new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1);
+                        var amount = paidLog.Where(x => x.Get("name") == n && x.Get("month") == last.Get("month")).Sum(x => Amt(x.Get("amount")));
+                        items.Add(new BankItem { F = new Dictionary<string, string> { { "name", n }, { "amount", amount.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture) },
+                            { "due", due.ToString("dd.MM.yyyy") }, { "repeat", L.T("Co miesiąc") } } });
+                        added++;
+                    }
+                    fillList();
+                    err.Text = added == 0 ? L.T("Wszystkie rachunki z arkusza są już na liście.") : L.T("Dodano rachunków: ") + added + L.T(" – sprawdź dzień terminu i kliknij Zapisz.");
+                };
+                sp.Children.Add(fromSheet);
             }
             var ok = BankButtons(sp, w, L.T("Zapisz"));
             ok.Click += (a, b) =>

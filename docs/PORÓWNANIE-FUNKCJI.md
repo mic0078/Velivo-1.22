@@ -103,7 +103,7 @@ Legenda: 🟢 jest · ⚠️ częściowo, inaczej, zależnie od ustawień albo p
 | Przypinanie „zawsze na wierzchu” (wł./wył.) | 🟢 | ⚠️ zawsze na wierzchu | ⚠️ zawsze na wierzchu | ⚠️ zawsze na wierzchu | 🟢 |
 | Zapamiętywanie pozycji, rozmiaru i przezroczystości | 🟢 | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
 | Pasek przewijania filmu w okienku | 🟢 | 🔴 | ⚠️ | 🔴 | ⚠️ |
-| Film gra dalej po zamknięciu głównego okna | ⚠️ gdy włączone „Zostań w zasobniku” | 🔴 | 🔴 | 🔴 | 🔴 |
+| Film gra dalej po zamknięciu głównego okna | 🟢 | 🔴 | 🔴 | 🔴 | 🔴 |
 | Obraz w obrazie (PiP) z przyciskiem ⧉ nad filmem | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
 
 ## 6. Pobieranie
@@ -197,7 +197,6 @@ Legenda: 🟢 jest · ⚠️ częściowo, inaczej, zależnie od ustawień albo p
 - **Pobieranie napisów** do filmów – w kodzie nie ma takiej opcji (yt-dlp nie jest wywoływany z napisami).
 - **„Wspólny panel środowiska”** dla wielu komputerów – nie istnieje jako osobna funkcja. Jest panel diagnostyczny LAN (urządzenia, status, log).
 - **Fałszowanie odczytów fingerprintingu** – Velivo wykrywa i raportuje próby (paragon prywatności), ale nie zmienia odczytów jak Brave czy Firefox.
-- **Film po zamknięciu głównego okna** – działa tylko z opcją „Zostań w zasobniku”. Bez niej zamknięcie okna kończy program.
 - **Podpis cyfrowy programu** – brak (patrz `PODPIS-CYFROWY.md`).
 
 ## Co wyróżnia Velivo?

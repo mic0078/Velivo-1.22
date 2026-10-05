@@ -16,7 +16,7 @@ Przeglądarka jest projektowana tak, żeby dało się ją w pełni obsłużyć s
 
 Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-FUNKCJONALNY.md](docs/AUDYT-FUNKCJONALNY.md), porównanie z innymi przeglądarkami: [docs/PORÓWNANIE-FUNKCJI.md](docs/PORÓWNANIE-FUNKCJI.md)). **UI** = dostępne z interfejsu, **Sys.** = działa samo w tle.
 
-## A. Tryb bankowy (`Bank.cs`)
+### A. Tryb bankowy (`Bank.cs`)
 | Funkcja | Opis | Kod | Impl. | UI | Sys. |
 |---|---|---|:-:|:-:|:-:|
 | Przycisk 🏦 na pasku kart | otwiera tryb, prawy klik = menu | Bank.cs ~212 | ✔ | ✔ | – |
@@ -131,7 +131,7 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 |---|---|---|:-:|:-:|:-:|
 | ▣ Film na wierzchu | osobne okno z widokiem filmu, reszta strony ukryta | FloatingVideo.cs | ✔ | ✔ | – |
 | Działa niezależnie od karty | zamknięcie karty nie zatrzymuje filmu | FloatingVideo.cs 19 | ✔ | ✔ | ✔ |
-| Gra po zamknięciu głównego okna | ⚠ tylko z „Zostań w zasobniku” | Tray.cs 25 | ⚠ | ✔ | ✔ |
+| Gra po zamknięciu głównego okna | okienko jest osobnym oknem – proces żyje, dopóki ono jest otwarte (także bez zasobnika); okno główne zamknięte, połączenia LAN i Sejfu zatrzymane | DefaultBrowser.cs 92, MainWindow.xaml.cs 113 | ✔ | ✔ | ✔ |
 | Ponowne uruchomienie Velivo przy grającym tylko okienku | zamyka okienko i startuje pełne Velivo | DefaultBrowser.cs 96 | ✔ | – | ✔ |
 | Zmiana rozmiaru, przeciąganie za pasek | | FloatingVideo.cs | ✔ | ✔ | – |
 | Przypinka „zawsze na wierzchu” | przełącznik, zapamiętywany | FloatingVideo.cs 141 | ✔ | ✔ | – |

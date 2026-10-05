@@ -34,7 +34,8 @@ Velivo is designed to be fully usable with the mouse alone, even from the sofa i
 18. [History and downloads](#18-history-and-downloads)
 19. [Extensions, profiles and tools](#19-extensions-profiles-and-tools)
 20. [Keyboard shortcuts](#20-keyboard-shortcuts)
-21. [Troubleshooting and where data is stored](#21-troubleshooting-and-where-data-is-stored)
+21. [Settings – every option explained](#21-settings--every-option-explained)
+22. [Troubleshooting and where data is stored](#22-troubleshooting-and-where-data-is-stored)
 
 ---
 
@@ -427,6 +428,8 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - **Zoom** remembered per site, changed with the wheel on the percent button or with Ctrl+wheel.
 - **Phone version** for a chosen site (right-click), remembered.
 - **Language:** Polish or English (Settings → Look → Language).
+- **Content entrance effect:** a new page appears from a focus-in blur, from darkness (cinematic), with a gentle dim or instantly; speed 0 to 5 s (Settings → Look). Details in chapter 21.
+- **Reader mode** has its own look: ☀ light, 🌙 dark or 🌅 night with a strength slider.
 
 ---
 
@@ -660,7 +663,99 @@ You can also do each of these with the mouse alone: a button, a gesture or the r
 
 ---
 
-## 21. Troubleshooting and where data is stored
+## 21. Settings – every option explained
+
+Open the settings with the **⚙** button on the toolbar. Below is **every option in order**, as in the window.
+
+### Default browser
+- Status: "✓ Velivo is the default browser" or "Velivo is not the default browser right now".
+- **Set Velivo as the default browser…** – registers Velivo with Windows and opens the default-apps window.
+
+### 📥 Import passwords, logins and bookmarks
+- **🔑 Passwords and logins from a file** (CSV from KeePassXC, Chrome, Edge and other programs).
+- **🌐 From Chrome / Edge / Brave / Opera** – bookmarks and passwords straight from an installed browser.
+
+### Look and readability
+- **Default page zoom** – for all pages; each page can also be zoomed separately (Ctrl + wheel) and Velivo remembers it.
+- **Dark page mode** – pages with their own dark look switch to it, other pages are dimmed (photos keep their real colours).
+- **Night mode** – warmer colours and less blue light (like Windows Night light). The 🌙 button cycles light → dark → night; change the strength with the mouse wheel on the button.
+- **Content entrance effect** – how a new page appears on screen:
+  - **Focus in** (default) – content emerges from a slight blur;
+  - **From darkness (cinematic)** – the page brightens from a dark screen, like in a cinema;
+  - **Gentle dim** – a short, subtle dim and back;
+  - **None** – the page appears instantly.
+- **Entrance effect speed** – slider from 0 to 5 s in 0.1 s steps (0 = automatic). Example values: quick 0.15 s, gentle 0.3 s, slow 0.5 s, calm 1 s, very calm 2 s, dreamy 3 s, slowest 4 s.
+- **Browser theme** – colours of bars and tabs: Light, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
+- **Style** – **Modern** (calm, like Windows 11: Windows icons, one blue accent) or **Colourful** (coloured buttons and emoji).
+- **Interface language** – automatic (installer / Windows), Polish or English. Takes effect after a restart.
+- **Always compact toolbar** – smaller labels, some buttons move into the "…" menu even on a wide window.
+
+### Read aloud
+- **Voice and speed** – automatic (by page language: Polish/English), Windows voices, natural online voices or **natural offline voices** (Piper – downloads about 60 MB, then works without internet).
+
+### Tabs
+- **Restore tabs from the previous session on start** – private tabs are never saved. Ctrl+Shift+T also restores a closed tab.
+- **Open links in the same tab** – links a page wants to open in a new tab open in the current one (Back and Forward work). Ctrl+click still opens a new tab.
+
+### Search and start
+- **Search shortcuts** – e.g. "yt cats" searches YouTube; add your own in the window.
+- **Search engine in the address bar**.
+- **Mouse gestures** – hold the right button and move: ← back, → forward, ↑ new tab, ↓ close tab, ↓→ reload. A normal right-click still opens the menu.
+- **"Picture in picture" button over videos** – hovering a video shows ⧉; the video moves to a small always-on-top window.
+- **"Download" button over videos** – like Internet Download Manager: ⬇ Download over the video. Normal files go to the Velivo download manager (up to 16 connections), YouTube and streams to the free yt-dlp tool.
+- **Start page** and **Quick Access as the new tab page** (separate Velivo data; Sejf's Quick Access in other browsers stays separate).
+- **Extension folder for manual installation in other browsers** – a path to paste into "Load unpacked".
+
+### Privacy
+- **Send "Do Not Track" signals** (DNT and Global Privacy Control).
+- **Tracking protection** – **balanced** (recommended: blocks known trackers, embedded content like X posts or videos works) or **strict** (also blocks embedded social content; on trusted domains it acts as balanced unless you tick "Force tracker blocking" for the domain).
+- **Save browsing history**.
+- **Clear data on close** – history and cache; accounts stay logged in.
+- **Logins from Sejf: key on the toolbar on login pages** – clicking the key fills the form with a Sejf login.
+- **Offer to save passwords**.
+- **Form autofill** – addresses and cards in a local, encrypted offline vault. **Show saved data…**, **Delete saved cards**, **Delete saved addresses**.
+- **Local password manager…**, **Import passwords CSV…**, **Export passwords CSV…**.
+- **Block pop-ups opened without a click**.
+- **Automatically reject cookie banners (GDPR)** – Velivo clicks "Reject" / "Necessary only"; it never clicks "Accept". Exception for a site: right-click on the page.
+- **Remember the content of pages you read** – the "Where did I read that?" search (Ctrl+Shift+F), only on this computer.
+- **Warn about pressure tricks in shops** – fake timers, "last items", "X people are viewing", pre-ticked extras (Velivo unticks them), hidden fees.
+- **Privacy receipt on the shield** – how many companies and countries the page contacted, data brokers, attempts to fingerprint the computer.
+
+### Ad blocking
+- **Full filter lists** (EasyList, EasyPrivacy, Polish list – about 97k rules). Downloaded in the background and refreshed every 4 days; **Update lists now** fetches them at once.
+
+### Security and downloads
+- **Warn about dangerous sites and files (SmartScreen)** – addresses are checked with Microsoft.
+- **Ask where to save each download**.
+- **Detect fake bank, shop and portal sites** – works offline (paypa1.com, ebay-verification.top, fakes of sites you have saved passwords for).
+- **Always encrypted connection (HTTPS)** – warns about unencrypted sites.
+- **Safe payments** – on bank and payment sites the window is invisible to screen-recording programs (no screenshots there either).
+- **uBlock Origin Lite** – built-in ad blocker (recommended, can be turned off), **uBlock Origin Lite settings…**.
+- **Velivo speakers** – choose a specific sound output instead of the Windows default. **Don't lose sound** – when a music program (Ableton, Cubase) takes the speakers, Velivo plays on another active output and returns when they are free. **🔊 Windows volume mixer…** – pin Velivo to your speakers permanently.
+- **Stay in the system tray when the window is closed** – background sync and instant start; the icon by the clock pulses while syncing, right-click: Open, Sync now, Exit completely.
+- **Connections per download** – 1 (no splitting) to 16; more is usually faster.
+
+### Browser junk (cache)
+- Page cache, compiled scripts and graphics cache – can be deleted without losing logins. **Junk folder** (e.g. on a RAM disk), **Default**, **Delete junk on every start**, **Currently uses: …**, **Clear junk now**.
+
+### Page loading speed
+- **Faster page opening** – Velivo starts loading a page when you hover a link and pre-connects to servers of visible links (off in private and banking tabs; better off on a data cap).
+- **Cache size** – automatic or a chosen size (after a restart).
+
+### Data
+- **Clear browsing data now…** – tick: browsing history, cache, download history, cookies and sessions (logs you out), engine form and card data, passwords saved in the engine.
+- **Per-site privacy → Privacy and anti-fingerprinting panel…** – domain rules: block JavaScript, send no cookies, force tracker blocking, clear data automatically on visit; a **trusted domains** list; a "What was blocked and why" log with full address and reason.
+
+### User profiles
+- Active profile (e.g. Work, Private) and **Manage users/profiles…** – add, switch, delete, custom profile icon. Each profile has its own logins, history and settings.
+
+### Sync
+- **E2E sync** – **Export / Import package…**: an encrypted file (password + AES-GCM) to move to another device.
+- **Real-time sync (LAN)** – settings, bookmarks, passwords, privacy rules and Quick Access between home computers. **Pair a device on the network…** (compare a short code), **Save recovery file…** / **Restore pairing…** (password of at least 12 characters), **Quiet LAN mode** (no pop-ups), **LAN diagnostic panel…** (devices, status, log).
+
+---
+
+## 22. Troubleshooting and where data is stored
 
 | Problem | What to do |
 | --- | --- |

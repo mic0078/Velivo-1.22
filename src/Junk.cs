@@ -31,6 +31,7 @@ namespace Przegladarka
             if (!string.IsNullOrWhiteSpace(env)) args.Add(env.Trim());
             if (CustomJunkDir != null) args.Add("--disk-cache-dir=\"" + CustomJunkDir + "\"");
             if (DarkBrowserArgument != null) args.Add(DarkBrowserArgument); // tryb ciemny stron silnika
+            if (_settings.CacheMb > 0) args.Add("--disk-cache-size=" + ((long)_settings.CacheMb * 1024 * 1024)); // wieksza pamiec podreczna
             _darkEngineAtStart = _settings.DarkPages;
             return string.Join(" ", args);
         }

@@ -51,6 +51,8 @@ namespace Przegladarka
         public string ReadVoice = "";          // glos (pusty = pierwszy polski)
         public string CacheDir = "";           // wlasny folder na smieci (pusty = w profilu)
         public bool CleanJunkOnStart = false;  // usuwaj smieci przy kazdym uruchomieniu
+        public bool SpeedUp = true;            // szybsze wczytywanie: pobieranie strony przy najechaniu na link, laczenie z wyprzedzeniem
+        public int CacheMb = 0;                // rozmiar pamieci podrecznej (0 = automatycznie)
         public bool BlockThirdPartyPopups = true;
         public string UiStyle = "modern";
         public int PageFade = 300;
@@ -182,6 +184,8 @@ namespace Przegladarka
                         case "floatOpacity": { int fo; if (int.TryParse(v, out fo)) s.FloatOpacity = Math.Max(15, Math.Min(100, fo)); } break;
                         case "cacheDir": s.CacheDir = v; break;
                         case "cleanJunk": s.CleanJunkOnStart = b; break;
+                        case "speedUp": s.SpeedUp = b; break;
+                        case "cacheMb": { int cm; if (int.TryParse(v, out cm)) s.CacheMb = Math.Max(0, Math.Min(8192, cm)); } break;
                         case "lanSync": s.LanSync = b; lanSyncOverride = b; break;
                         case "lanSyncKey": legacyLanSyncKey = v; break;
                         case "lanSyncSilent": s.LanSyncSilent = b; break;
@@ -239,7 +243,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "slide"), "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "slide"), "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
@@ -614,6 +618,16 @@ namespace Przegladarka
             root.Children.Add(junkInfo);
             root.Children.Add(cleanJunk);
 
+            root.Children.Add(Header(L.T("Szybkość wczytywania stron")));
+            var speedBox = Check(L.T("Szybsze otwieranie stron (wczytywanie przy najechaniu na link)"), L.T("Velivo zaczyna pobierać stronę, gdy najedziesz myszką na link, i z wyprzedzeniem łączy się z serwerami widocznych linków. Wyłączone w kartach prywatnych i bankowych. Przy limicie danych lepiej wyłączyć."), s.SpeedUp);
+            root.Children.Add(speedBox);
+            root.Children.Add(new TextBlock { Text = L.T("Rozmiar pamięci podręcznej (po ponownym uruchomieniu):"), Margin = new Thickness(0, 6, 0, 0) });
+            var cacheSize = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 4) };
+            int[] cacheOpts = { 0, 512, 1024, 2048, 4096 };
+            foreach (var cm in cacheOpts) cacheSize.Items.Add(cm == 0 ? L.T("Automatycznie") : (cm >= 1024 ? (cm / 1024) + " GB" : cm + " MB"));
+            cacheSize.SelectedIndex = Math.Max(0, Array.IndexOf(cacheOpts, s.CacheMb));
+            root.Children.Add(cacheSize);
+
             root.Children.Add(Header(L.T("Dane")));
             var clearNow = SmallButton(L.T("Wyczyść dane przeglądania teraz…"), null);
             clearNow.HorizontalAlignment = HorizontalAlignment.Left; clearNow.Margin = new Thickness(0);
@@ -788,6 +802,10 @@ namespace Przegladarka
                 if (newOut != (s.AudioOut ?? "")) { s.AudioOut = newOut; RouteVelivoAudio(newOut); _audioRoutedTo = newOut; }
                 s.AntiPhishing = phishBox.IsChecked == true; s.HttpsFirst = httpsBox.IsChecked == true; s.SafePayments = payBox.IsChecked == true;
                 s.CleanJunkOnStart = cleanStart.IsChecked == true;
+                bool speedChanged = s.SpeedUp != (speedBox.IsChecked == true);
+                s.SpeedUp = speedBox.IsChecked == true;
+                s.CacheMb = cacheOpts[Math.Max(0, cacheSize.SelectedIndex)];
+                if (speedChanged) foreach (var t in _tabs) if (t.View.CoreWebView2 != null) _ = InstallPageScript(t, t.View.CoreWebView2);
                 s.Connections = (int)((ComboBoxItem)conns.SelectedItem).Tag;
                 int oldZoom = s.DefaultZoom; bool oldDark = s.DarkPages; bool oldFull = s.FullFilterLists;
                 s.DefaultZoom = (int)((ComboBoxItem)zoom.SelectedItem).Tag;

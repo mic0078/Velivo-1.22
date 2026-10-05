@@ -1075,6 +1075,11 @@ namespace Przegladarka
             { "🔑 Wpisano dane logowania: ", "🔑 Login details filled in: " },
             { "🧪 Skopiuj opis formularza logowania (bez Twoich danych)", "🧪 Copy a description of the login form (without your data)" },
             { "🧪 Skopiowano opis formularza – wklej go w wiadomości do pomocy", "🧪 Form description copied – paste it into your help message" },
+            { "Szybkość wczytywania stron", "Page loading speed" },
+            { "Szybsze otwieranie stron (wczytywanie przy najechaniu na link)", "Faster page opening (load on link hover)" },
+            { "Velivo zaczyna pobierać stronę, gdy najedziesz myszką na link, i z wyprzedzeniem łączy się z serwerami widocznych linków. Wyłączone w kartach prywatnych i bankowych. Przy limicie danych lepiej wyłączyć.", "Velivo starts loading a page when you hover over a link and connects early to the servers of visible links. Off in private and banking tabs. Better turned off on a data limit." },
+            { "Rozmiar pamięci podręcznej (po ponownym uruchomieniu):", "Cache size (after restart):" },
+            { "Automatycznie", "Automatic" },
         };
     }
 }

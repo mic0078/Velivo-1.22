@@ -71,7 +71,7 @@ namespace Przegladarka
                 dark = _settings.DarkPatterns,
                 receipt = _settings.PrivacyReceipt,
                 fade = _settings.PageFade,
-                entrance = _settings.PageEntrance ?? "slide",
+                entrance = _settings.PageEntrance ?? "blur",
                 entMs = _settings.PageEntranceMs,
                 speed = _settings.SpeedUp && (tab == null || !tab.Private),   // karty prywatne i bankowe: bez wczytywania z wyprzedzeniem
             });

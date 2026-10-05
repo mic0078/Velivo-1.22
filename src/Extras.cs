@@ -82,18 +82,18 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
-  // Plynne przejscie stron (Ustawienia -> Wyglad): po kliknieciu linku jasna mgielka, a gdy nowa tresc juz jest -
+  // Plynne przejscie stron (Ustawienia -> Wyglad): po kliknieciu linku lekkie przyciemnienie, a gdy nowa tresc juz jest -
   // mgielka znika i tresc lagodnie wchodzi (jak w Gemini). Jedno przejscie na jedno klikniecie (strony zmieniaja adres
   // kilka razy - kolejne sygnaly w trakcie sa pomijane, wiec animacja nie zaczyna sie od nowa w polowie). Na stronach
   // bez przeladowania czekamy, az nowa tresc przestanie sie zmieniac. Nic nie blokuje klikniec ani ladowania.
   if (C.fade > 0 && top) try {
     if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
-      var VEIL = .14, veil = null, vAnim = null, bAnim = null, busy = false, lastEnter = 0, safety = 0;
+      var VEIL = .2, veil = null, vAnim = null, bAnim = null, busy = false, lastEnter = 0, safety = 0;
       var getVeil = function () {
         if (veil && veil.isConnected) return veil;
         veil = document.createElement('div');
         veil.setAttribute('aria-hidden', 'true');
-        veil.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#fff;opacity:0';
+        veil.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#000;opacity:0';
         try { document.documentElement.appendChild(veil); } catch (x) {}
         return veil;
       };

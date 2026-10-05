@@ -133,7 +133,7 @@ try {
   // mgielka znika i tresc lagodnie wchodzi (jak w Gemini). Jedno przejscie na jedno klikniecie (strony zmieniaja adres
   // kilka razy - kolejne sygnaly w trakcie sa pomijane, wiec animacja nie zaczyna sie od nowa w polowie). Na stronach
   // bez przeladowania czekamy, az nowa tresc przestanie sie zmieniac. Nic nie blokuje klikniec ani ladowania.
-  if (C.fade > 0 && top) try {
+  if ((C.fade > 0 || C.entrance !== 'none') && top) try {   // przejscie i efekt wejscia wlaczane niezaleznie
     if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
       var VEIL = .2, veil = null, vAnim = null, bAnim = null, busy = false, lastEnter = 0, safety = 0;
       var getVeil = function () {
@@ -176,7 +176,7 @@ try {
       var begin = function () {
         if (busy) return;               // przejscie juz trwa - nie zaczynamy od nowa
         busy = true;
-        if (C.entrance !== 'cinema') veilTo(VEIL, 150);   // kinowe wejscie robi cale przejscie samo - bez podwojnego przyciemnienia
+        if (C.fade > 0 && C.entrance !== 'cinema') veilTo(VEIL, 150);   // kinowe wejscie robi cale przejscie samo - bez podwojnego przyciemnienia
         clearTimeout(safety); safety = setTimeout(finish, 1800);   // zabezpieczenie: nic sie nie zmienilo
       };
       // czekamy, az nowa tresc sie ustabilizuje (120 ms bez zmian, najwyzej 800 ms)
@@ -370,7 +370,7 @@ try {
             {
                 if (tab.PageScriptId != null) { core.RemoveScriptToExecuteOnDocumentCreated(tab.PageScriptId); tab.PageScriptId = null; }
                 // kinowe wejscie: pusta strona (zanim cokolwiek sie narysuje) czarna zamiast bialej - bez bialego blysku
-                try { tab.View.DefaultBackgroundColor = _settings.PageEntrance == "cinema" && _settings.PageFade > 0 ? System.Drawing.Color.Black : System.Drawing.Color.White; } catch (Exception) { }
+                try { tab.View.DefaultBackgroundColor = _settings.PageEntrance == "cinema" ? System.Drawing.Color.Black : System.Drawing.Color.White; } catch (Exception) { }
                 tab.PageScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageScript(tab));
                 // skrypt stron musi dzialac PRZED ukryciem chrome.webview (inaczej przyciski Pobierz/gesty nie maja kanalu do programu)
                 if (tab.HideScriptId != null)

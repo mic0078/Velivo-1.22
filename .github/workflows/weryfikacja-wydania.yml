@@ -1,0 +1,119 @@
+name: Weryfikacja wydania (podpis, SHA-256, uruchomienie)
+
+# Sprawdza GOTOWE pliki wydania z podanego commita (domyslnie finalny instalator 1.22: 1f08f31).
+# Niczego nie buduje i nie zmienia - tylko mierzy: Authenticode, certyfikat, SHA-256, uruchomienie programu i instalatora.
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Commit z plikami w Instalator/'
+        default: '1f08f313c1f2d9cd0655bc801f11fbf7c7627d3c'
+  push:
+    branches: ['claude/**']
+    paths: ['.github/workflows/weryfikacja-wydania.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  weryfikacja:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      COMMIT: ${{ github.event.inputs.commit || '1f08f313c1f2d9cd0655bc801f11fbf7c7627d3c' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT }}
+
+      - name: Jakie certyfikaty Code Signing sa dostepne (repozytorium, sekrety, magazyny Windows)
+        shell: pwsh
+        env:
+          CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+        run: |
+          Write-Host "Commit plikow: $(git rev-parse HEAD)"
+          $pliki = Get-ChildItem -Recurse -Include *.pfx, *.p12, *.cer, *.spc, *.pvk -ErrorAction SilentlyContinue
+          Write-Host "Pliki certyfikatow w repozytorium: $(@($pliki).Count)"
+          Write-Host "Sekret CODESIGN_PFX_BASE64 ustawiony: $([bool]$env:CODESIGN_PFX_BASE64)"
+          foreach ($s in 'Cert:\CurrentUser\My', 'Cert:\LocalMachine\My') {
+            $c = @(Get-ChildItem $s -CodeSigningCert -ErrorAction SilentlyContinue)
+            Write-Host "Certyfikaty Code Signing w ${s}: $($c.Count)"
+            $c | ForEach-Object { Write-Host "  $($_.Subject) | $($_.Issuer) | $($_.Thumbprint)" }
+          }
+
+      - name: Authenticode i SHA-256 plikow wydania
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          Write-Host "signtool: $($signtool.FullName)"
+          foreach ($f in 'Instalator\Velivo-1.22.exe', 'Instalator\Velivo-Setup-1.22.exe') {
+            $sig = Get-AuthenticodeSignature $f
+            $h = (Get-FileHash $f -Algorithm SHA256).Hash
+            Write-Host "=== $f"
+            Write-Host "SHA-256: $h"
+            Write-Host "Rozmiar: $((Get-Item $f).Length) B"
+            Write-Host "Authenticode Status: $($sig.Status)"
+            Write-Host "StatusMessage: $($sig.StatusMessage)"
+            if ($sig.SignerCertificate) {
+              Write-Host "Subject: $($sig.SignerCertificate.Subject)"
+              Write-Host "Issuer: $($sig.SignerCertificate.Issuer)"
+              Write-Host "Thumbprint: $($sig.SignerCertificate.Thumbprint)"
+              Write-Host "Waznosc: $($sig.SignerCertificate.NotBefore) - $($sig.SignerCertificate.NotAfter)"
+            } else { Write-Host "Certyfikat podpisujacy: BRAK" }
+            Write-Host "--- signtool verify /pa /v:"
+            & $signtool.FullName verify /pa /v $f 2>&1 | ForEach-Object { Write-Host "  $_" }
+            Write-Host "signtool kod wyjscia: $LASTEXITCODE"
+          }
+          $global:LASTEXITCODE = 0
+
+      - name: Uruchomienie Velivo-1.22.exe (wersja bez instalacji)
+        shell: pwsh
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP 'velivo-portable'
+          New-Item -ItemType Directory $data -Force | Out-Null
+          $env:PRZEGLADARKA_DANE = $data
+          $p = Start-Process 'Instalator\Velivo-1.22.exe' -PassThru
+          Start-Sleep -Seconds 45
+          $p.Refresh()
+          Write-Host "Dziala po 45 s: $(-not $p.HasExited)"
+          Write-Host "Tytul okna: '$($p.MainWindowTitle)'"
+          Write-Host "Procesy WebView2 (silnik stron): $(@(Get-Process msedgewebview2 -ErrorAction SilentlyContinue).Count)"
+          Write-Host "Profil WebView2 utworzony: $(Test-Path (Join-Path $data 'Profil'))"
+          $log = Join-Path $data 'bledy.log'
+          Write-Host "bledy.log: $(if (Test-Path $log) { Get-Content $log -Raw } else { 'brak (zero bledow)' })"
+          if ($p.HasExited) { Write-Host "BLAD: program zakonczyl sie, kod $($p.ExitCode)"; exit 1 }
+          $p.Kill($true); Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 3
+
+      - name: Cicha instalacja Velivo-Setup-1.22.exe, uruchomienie zainstalowanego programu, odinstalowanie
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'Velivo-instalacja'
+          $i = Start-Process 'Instalator\Velivo-Setup-1.22.exe' -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/LANG=pl', "/DIR=$dir", "/LOG=$env:RUNNER_TEMP\setup.log" -PassThru -Wait
+          Write-Host "Instalator kod wyjscia: $($i.ExitCode)"
+          $exe = Join-Path $dir 'Velivo.exe'
+          Write-Host "Zainstalowany Velivo.exe: $(Test-Path $exe)"
+          if (-not (Test-Path $exe)) { Get-Content "$env:RUNNER_TEMP\setup.log" -Tail 40; exit 1 }
+          $sig = Get-AuthenticodeSignature $exe
+          Write-Host "Zainstalowany Velivo.exe SHA-256: $((Get-FileHash $exe -Algorithm SHA256).Hash)"
+          Write-Host "Zainstalowany Velivo.exe Authenticode: $($sig.Status)"
+          Write-Host "Plikow zainstalowanych: $(@(Get-ChildItem $dir -Recurse -File).Count)"
+          $data = Join-Path $env:RUNNER_TEMP 'velivo-zainstalowany'
+          New-Item -ItemType Directory $data -Force | Out-Null
+          $env:PRZEGLADARKA_DANE = $data
+          $p = Start-Process $exe -PassThru
+          Start-Sleep -Seconds 45
+          $p.Refresh()
+          Write-Host "Zainstalowany Velivo dziala po 45 s: $(-not $p.HasExited)"
+          Write-Host "Tytul okna: '$($p.MainWindowTitle)'"
+          Write-Host "Profil WebView2 utworzony: $(Test-Path (Join-Path $data 'Profil'))"
+          $log = Join-Path $data 'bledy.log'
+          Write-Host "bledy.log: $(if (Test-Path $log) { Get-Content $log -Raw } else { 'brak (zero bledow)' })"
+          $ok = -not $p.HasExited
+          try { $p.Kill($true) } catch {}
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 3
+          $u = Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -PassThru -Wait
+          Start-Sleep -Seconds 5
+          Write-Host "Odinstalowanie kod wyjscia: $($u.ExitCode); Velivo.exe usuniety: $(-not (Test-Path $exe))"
+          if (-not $ok) { exit 1 }

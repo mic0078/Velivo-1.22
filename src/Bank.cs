@@ -1465,7 +1465,17 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             var tab = _current;
             for (int i = 0; i < 100 && tab.View.CoreWebView2 == null; i++) await Task.Delay(100);
             var core = tab.View.CoreWebView2; if (core == null) return;
-            core.NavigateToString(html);
+            // karta sama laduje najpierw pusta strone (about:blank) - gdyby zrobila to PO arkuszu, arkusz by znikl.
+            // Dlatego wczytujemy go i sprawdzamy, czy naprawde jest na stronie (kilka prob).
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                if (!_tabs.Contains(tab)) return;
+                try { core.NavigateToString(html); } catch (Exception) { }
+                await Task.Delay(attempt == 0 ? 600 : 900);
+                string ok = "";
+                try { ok = await core.ExecuteScriptAsync("typeof window.addRow"); } catch (Exception) { }
+                if (ok == "\"function\"") break;
+            }
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
             bool busy = false;
             timer.Tick += async (s, e) =>
@@ -1475,8 +1485,9 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 busy = true;
                 try
                 {
-                    var raw = await core.ExecuteScriptAsync("JSON.stringify(window.__velivoSheet||null)");
+                    var raw = await core.ExecuteScriptAsync("(typeof window.addRow==='function')?JSON.stringify(window.__velivoSheet||null):'gone'");
                     var json = JsonSerializer.Deserialize<string>(raw);
+                    if (json == "gone") { try { core.NavigateToString(html); } catch (Exception) { } return; }   // strona arkusza zniknela - wczytujemy ponownie
                     if (string.IsNullOrEmpty(json) || json == "null") return;
                     timer.Stop();
                     using (var doc = JsonDocument.Parse(json))

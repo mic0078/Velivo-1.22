@@ -35,6 +35,7 @@ namespace Przegladarka
         // wszystkie profile bankowe na tym komputerze: slug -> plik
         static List<string> BankProfiles()
         {
+            if (_profCache != null && DateTime.UtcNow - _profCacheAt < TimeSpan.FromSeconds(3)) return _profCache.ToList();
             var list = new List<string>();
             try
             {
@@ -46,12 +47,33 @@ namespace Przegladarka
                 }
             }
             catch (Exception) { }
-            return list.OrderBy(x => x).ToList();
+            _profCache = list.OrderBy(x => x).ToList(); _profCacheAt = DateTime.UtcNow;
+            return _profCache.ToList();
         }
+
+        // Odczyt pliku profilu z pamieci (ponownie tylko, gdy plik sie zmienil) - bez czytania dysku przy kazdym kliknieciu i stronie
+        static readonly Dictionary<string, Tuple<DateTime, BankConfig>> _bankCache = new Dictionary<string, Tuple<DateTime, BankConfig>>(StringComparer.OrdinalIgnoreCase);
+        static BankConfig ReadBankCached(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                var t = File.GetLastWriteTimeUtc(path);
+                Tuple<DateTime, BankConfig> hit;
+                lock (_bankCache)
+                    if (_bankCache.TryGetValue(path, out hit) && hit.Item1 == t) return JsonSerializer.Deserialize<BankConfig>(JsonSerializer.Serialize(hit.Item2));
+                var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(path));
+                lock (_bankCache) _bankCache[path] = Tuple.Create(t, c);
+                return c == null ? null : JsonSerializer.Deserialize<BankConfig>(JsonSerializer.Serialize(c));
+            }
+            catch (Exception) { return null; }
+        }
+
+        static List<string> _profCache; static DateTime _profCacheAt;
 
         static string BankOwnerOf(string slug)
         {
-            try { var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(slug))); if (c != null && !string.IsNullOrWhiteSpace(c.Owner)) return c.Owner; } catch (Exception) { }
+            try { var c = ReadBankCached(BankFileFor(slug)); if (c != null && !string.IsNullOrWhiteSpace(c.Owner)) return c.Owner; } catch (Exception) { }
             return string.IsNullOrEmpty(slug) ? L.T("Główny") : slug;
         }
 
@@ -172,14 +194,13 @@ namespace Przegladarka
 
         BankConfig LoadBank()
         {
-            try { if (File.Exists(BankFile)) return JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFile)); }
-            catch (Exception) { }
-            return null;
+            return ReadBankCached(BankFile);
         }
 
         void SaveBank(BankConfig c)
         {
             try { File.WriteAllText(BankFile, JsonSerializer.Serialize(c)); } catch (Exception ex) { App.LogError(ex); }
+            _profCache = null;
             try { NotifyLanStateChanged(); } catch (Exception) { }   // wyslij zmiane do sparowanych komputerow
         }
 
@@ -704,6 +725,7 @@ namespace Przegladarka
                 "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             LockBank(L.T("Tryb bankowy wyczyszczony"));
             try { File.Delete(BankFile); File.WriteAllText(BankWipeFlag, "1"); } catch (Exception) { }
+            _profCache = null;
         }
 
         // ---------- klucz sprzetowy ----------
@@ -1093,7 +1115,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 bool known = false;
                 foreach (var p in BankProfiles())   // strony ze wszystkich profili bankowych
                 {
-                    try { var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(p))); if (c != null && c.SiteHosts != null && (c.SiteHosts.Contains(hh) || c.SiteHosts.Contains(hreg))) { known = true; break; } } catch (Exception) { }
+                    try { var c = ReadBankCached(BankFileFor(p)); if (c != null && c.SiteHosts != null && (c.SiteHosts.Contains(hh) || c.SiteHosts.Contains(hreg))) { known = true; break; } } catch (Exception) { }
                 }
                 // raz na wejscie na strone w danej karcie: podstrony tego samego banku nie pytaja ponownie,
                 // ale ponowne otwarcie (nowa karta / powrot z innej strony) - znow pyta
@@ -1194,7 +1216,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 DateTime? nearest = null;
                 foreach (var p in BankProfiles())
                 {
-                    BankConfig c; try { c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(p))); } catch (Exception) { continue; }
+                    var c = ReadBankCached(BankFileFor(p));
                     if (c == null || c.BillDue == null) continue;
                     foreach (var e in c.BillDue)
                     {
@@ -1991,6 +2013,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
                 if (MessageBox.Show(this, L.T("Przywrócić tryb bankowy z kopii? Obecne dane trybu bankowego zostaną zastąpione."), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 if (_bankUnlocked) LockBank(null);
                 foreach (var kv in d) { var c = JsonSerializer.Deserialize<BankConfig>(kv.Value); if (c != null && !string.IsNullOrEmpty(c.Hash)) File.WriteAllText(Path.Combine(DataDir, kv.Key), kv.Value); }
+                _profCache = null;
                 try { NotifyLanStateChanged(); } catch (Exception) { }
                 ShowToast(L.T("📂 Przywrócono tryb bankowy z kopii"), null);
             }
@@ -2248,7 +2271,7 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
                 var c = JsonSerializer.Deserialize<BankConfig>(json);
                 if (c == null || string.IsNullOrEmpty(c.Hash) || string.IsNullOrEmpty(c.Salt)) return;
                 if (json == ReadTextOrEmpty(file)) return;
-                File.WriteAllText(file, json);
+                File.WriteAllText(file, json); _profCache = null;
                 // haslo / klucze / karty mogly sie zmienic - otwarty tryb zamykamy, otworzysz go ponownie
                 if (_bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
             }

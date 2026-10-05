@@ -71,6 +71,7 @@ namespace Przegladarka
                 dark = _settings.DarkPatterns,
                 receipt = _settings.PrivacyReceipt,
                 fade = _settings.PageFade,
+                entrance = _settings.PageEntrance ?? "slide",
             });
             return "(function(C){" + PageScriptBody + DarkPatternScript + FingerprintScript + "})(" + cfg + ");";
         }
@@ -103,7 +104,17 @@ try {
         anim = v.animate([{ opacity: from }, { opacity: target }], { duration: ms, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
         anim.onfinish = function () { v.style.opacity = String(target); if (done) done(); };
       };
-      var fall = function () { clearTimeout(fallT); to(0, C.fade, function () { try { if (veil && parseFloat(veil.style.opacity) === 0) veil.remove(); } catch (x) {} }); };
+      // efekt wejscia tresci (jak w Gemini): lagodne wysuniecie od dolu z wyostrzeniem / wyostrzenie / przyblizenie
+      var enter = function () {
+        try {
+          var b = document.body; if (!b || C.entrance === 'none') return;
+          var f = C.entrance === 'blur' ? [{ filter: 'blur(4px)', opacity: .7 }, { filter: 'blur(0)', opacity: 1 }]
+                : C.entrance === 'zoom' ? [{ transform: 'scale(.985)', opacity: .75 }, { transform: 'none', opacity: 1 }]
+                : [{ transform: 'translateY(14px)', filter: 'blur(1.5px)', opacity: .7 }, { transform: 'none', filter: 'blur(0)', opacity: 1 }];
+          b.animate(f, { duration: Math.max(260, Math.min(1400, C.fade * 1.3)), easing: 'cubic-bezier(.16,.84,.3,1)' });
+        } catch (x) {}
+      };
+      var fall = function () { enter(); clearTimeout(fallT); to(0, C.fade, function () { try { if (veil && parseFloat(veil.style.opacity) === 0) veil.remove(); } catch (x) {} }); };
       var rise = function () { to(VEIL, 150); clearTimeout(fallT); fallT = setTimeout(fall, 1600); };   // zabezpieczenie
 
       // 1) nowo wczytana strona: startuje z mgielka, ktora znika w chwili pierwszego rysowania tresci

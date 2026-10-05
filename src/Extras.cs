@@ -55,7 +55,7 @@ namespace Przegladarka
             RefreshPageScripts();
         }
 
-        string BuildPageScript()
+        string BuildPageScript(BrowserTab tab = null)
         {
             var cfg = JsonSerializer.Serialize(new
             {
@@ -72,6 +72,7 @@ namespace Przegladarka
                 receipt = _settings.PrivacyReceipt,
                 fade = _settings.PageFade,
                 entrance = _settings.PageEntrance ?? "slide",
+                speed = _settings.SpeedUp && (tab == null || !tab.Private),   // karty prywatne i bankowe: bez wczytywania z wyprzedzeniem
             });
             return "(function(C){" + PageScriptBody + DarkPatternScript + FingerprintScript + "})(" + cfg + ");";
         }
@@ -82,6 +83,51 @@ try {
   var pm = (window.chrome && chrome.webview && chrome.webview.postMessage) ? chrome.webview.postMessage.bind(chrome.webview) : null;
   function send(m) { try { if (pm) pm('velivo:' + C.token + ':' + m); } catch (x) {} }
   var top = window === window.top;
+  // Szybsze wczytywanie: najechanie na link = pobieranie strony po cichu (zanim klikniesz), dla linkow tej samej strony
+  // po chwili cala strona gotowa w tle; z serwerami widocznych linkow laczymy sie z wyprzedzeniem. Tylko zwykle karty.
+  if (C.speed && top) try {
+    var spDone = {}, spOrigins = {}, spOriginN = 0, spCount = 0;
+    var canSpec = !!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules'));
+    var spUrl = function (a) {
+      if (!a || !a.href || a.hasAttribute('download')) return null;
+      var u; try { u = new URL(a.href, location.href); } catch (x) { return null; }
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+      if (u.origin === location.origin && u.pathname === location.pathname && u.search === location.search) return null;
+      if (/logout|log-out|signout|sign-out|wyloguj|delete|remove|unsubscribe|add-?to-?cart|addtocart|cart\/add/i.test(u.href)) return null;
+      return u;
+    };
+    var spAdd = function (kind, href) {
+      if (spDone[kind + href] || spCount > 40) return; spDone[kind + href] = 1; spCount++;
+      var head = document.head || document.documentElement;
+      if (canSpec) {
+        var s = document.createElement('script'); s.type = 'speculationrules';
+        var r = {}; r[kind] = [{ source: 'list', urls: [href] }];
+        s.textContent = JSON.stringify(r); head.appendChild(s);
+      } else if (kind === 'prefetch') {
+        var l = document.createElement('link'); l.rel = 'prefetch'; l.href = href; head.appendChild(l);
+      }
+    };
+    var spT1 = 0, spT2 = 0;
+    document.addEventListener('mouseover', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      var u = spUrl(a); if (!u) return;
+      clearTimeout(spT1); clearTimeout(spT2);
+      spT1 = setTimeout(function () { spAdd('prefetch', u.href); }, 65);
+      if (u.origin === location.origin) spT2 = setTimeout(function () { spAdd('prerender', u.href); }, 250);
+    }, { passive: true, capture: true });
+    document.addEventListener('mouseout', function () { clearTimeout(spT1); clearTimeout(spT2); }, { passive: true, capture: true });
+    if (window.IntersectionObserver) {
+      var spPre = function (origin) {
+        if (spOrigins[origin] || origin === location.origin || spOriginN >= 6) return; spOrigins[origin] = 1; spOriginN++;
+        var l = document.createElement('link'); l.rel = 'preconnect'; l.href = origin; (document.head || document.documentElement).appendChild(l);
+      };
+      var spIo = new IntersectionObserver(function (ents) {
+        ents.forEach(function (en) { if (en.isIntersecting) { var u = spUrl(en.target); if (u) spPre(u.origin); spIo.unobserve(en.target); } });
+      });
+      addEventListener('load', function () { setTimeout(function () { var as = document.querySelectorAll('a[href]'); for (var i = 0; i < as.length && i < 300; i++) spIo.observe(as[i]); }, 800); }, { once: true });
+    }
+  } catch (x) {}
+
   // Plynne przejscie stron (Ustawienia -> Wyglad): po kliknieciu linku lekkie przyciemnienie, a gdy nowa tresc juz jest -
   // mgielka znika i tresc lagodnie wchodzi (jak w Gemini). Jedno przejscie na jedno klikniecie (strony zmieniaja adres
   // kilka razy - kolejne sygnaly w trakcie sa pomijane, wiec animacja nie zaczyna sie od nowa w polowie). Na stronach
@@ -303,7 +349,7 @@ try {
             try
             {
                 if (tab.PageScriptId != null) { core.RemoveScriptToExecuteOnDocumentCreated(tab.PageScriptId); tab.PageScriptId = null; }
-                tab.PageScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageScript());
+                tab.PageScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageScript(tab));
                 // skrypt stron musi dzialac PRZED ukryciem chrome.webview (inaczej przyciski Pobierz/gesty nie maja kanalu do programu)
                 if (tab.HideScriptId != null)
                 {

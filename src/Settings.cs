@@ -57,7 +57,7 @@ namespace Przegladarka
         public string UiStyle = "modern";
         public int PageFade = 300;
         public int PageEntranceMs = 0;         // szybkosc efektu wejscia w ms (0 = wg plynnego przejscia)
-        public string PageEntrance = "slide";  // efekt wejscia tresci: slide / blur / zoom / none               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)
+        public string PageEntrance = "blur";  // efekt wejscia tresci: slide / blur / zoom / none               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)
         public int NightStrength = 40;          // natezenie trybu nocnego (5-100%)     // wyglad: modern (nowoczesny) / colorful (kolorowy)
         public bool AutoRejectCookies = true;
         public bool PageMemory = true;          // "Gdzie ja to czytalem?" - lokalna pamiec tresci stron
@@ -170,7 +170,7 @@ namespace Przegladarka
                         case "popups": s.BlockThirdPartyPopups = b; break;
                         case "cookieReject": s.AutoRejectCookies = b; break;
                         case "pageEntranceMs": { int em; if (int.TryParse(v, out em)) s.PageEntranceMs = Math.Max(0, Math.Min(5000, em)); } break;
-                        case "pageEntrance": if (v == "slide" || v == "blur" || v == "zoom" || v == "cinema" || v == "dim" || v == "none") s.PageEntrance = v; break;
+                        case "pageEntrance": if (v == "slide" || v == "zoom") s.PageEntrance = "blur"; else if (v == "blur" || v == "cinema" || v == "dim" || v == "none") s.PageEntrance = v; break;   // wysuniecie i przyblizenie usuniete
                         case "pageFade": { int pf; if (int.TryParse(v, out pf)) s.PageFade = Math.Max(0, Math.Min(4000, pf)); } break;
                         case "nightStrength": { int ns; if (int.TryParse(v, out ns)) s.NightStrength = Math.Max(5, Math.Min(100, ns)); } break;
                         case "uiStyle": s.UiStyle = v == "colorful" ? "colorful" : "modern"; break;
@@ -245,7 +245,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "slide"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
@@ -366,9 +366,9 @@ namespace Przegladarka
             root.Children.Add(night);
             root.Children.Add(new TextBlock { Text = L.T("Efekt wejścia treści:"), Margin = new Thickness(0, 6, 0, 2) });
             var entBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
-            foreach (var en in new[] { new { k = "slide", t = L.T("Wysunięcie z wyostrzeniem (jak Gemini)") }, new { k = "blur", t = L.T("Wyostrzenie") }, new { k = "zoom", t = L.T("Delikatne przybliżenie") }, new { k = "cinema", t = L.T("Z ciemności (kinowe)") }, new { k = "dim", t = L.T("Delikatne przyciemnienie") }, new { k = "none", t = L.T("Brak") } })
+            foreach (var en in new[] { new { k = "blur", t = L.T("Wyostrzenie") }, new { k = "cinema", t = L.T("Z ciemności (kinowe)") }, new { k = "dim", t = L.T("Delikatne przyciemnienie") }, new { k = "none", t = L.T("Brak") } })
                 entBox.Items.Add(new ComboBoxItem { Content = en.t, Tag = en.k });
-            entBox.SelectedItem = entBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (s.PageEntrance ?? "slide")) ?? entBox.Items[0];
+            entBox.SelectedItem = entBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (s.PageEntrance ?? "blur")) ?? entBox.Items[0];
             root.Children.Add(entBox);
             // suwak szybkosci efektu wejscia: 0 = automatycznie (wg plynnego przejscia), dalej 0,2 - 5 s
             var entLbl = new TextBlock { Margin = new Thickness(0, 6, 0, 0) };

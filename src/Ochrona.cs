@@ -315,11 +315,13 @@ namespace Przegladarka
                     var src = _current?.View.CoreWebView2?.Source;
                     bool on = _settings != null && _settings.SafePayments && Uri.TryCreate(src ?? "", UriKind.Absolute, out var u)
                               && u.Scheme == Uri.UriSchemeHttps && IsPaymentHost(u.Host);
+                    bool bankTab = _current != null && _current.Bank;   // karta trybu bankowego: zawsze chroniona przed nagrywaniem
+                    on = on || bankTab;
                     if (on == _safePayOn) return;
                     _safePayOn = on;
                     var h = new WindowInteropHelper(this).Handle;
                     if (h != IntPtr.Zero) SetWindowDisplayAffinity(h, on ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
-                    if (on) ShowToast(L.T("🛡 Bezpieczne płatności: okno Velivo jest niewidoczne dla programów nagrywających ekran."), null);
+                    if (on) ShowToast(bankTab ? L.T("🛡 Tryb bankowy: okno Velivo jest niewidoczne dla zrzutów i nagrywania ekranu.") : L.T("🛡 Bezpieczne płatności: okno Velivo jest niewidoczne dla programów nagrywających ekran."), null);
                 }
                 catch (Exception ex) { App.LogError(ex); }
             };

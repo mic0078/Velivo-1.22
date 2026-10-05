@@ -1460,7 +1460,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             }).Replace("</", "<\\/");
             var html = BillSheetHtml.Replace("__DATA__", data).Replace("__TITLE__", L.T("Arkusz rachunków")).Replace("__ADDROW__", L.T("Wiersz (miesiąc)"))
                 .Replace("__ADDCOL__", L.T("Kolumna (rachunek)")).Replace("__HINT__", L.T("Wpisz kwoty – sumy liczą się same. Nowy wiersz kopiuje kwoty z poprzedniego."))
-                .Replace("__IMPORT__", L.T("Wczytaj z Excela (CSV)")).Replace("__CUR__", L.T("Waluta:"))
+                .Replace("__IMPORT__", L.T("Wczytaj z Excela (CSV)")).Replace("__CUR__", L.T("Waluta, w której wpisujesz kwoty:"))
                 .Replace("__CANCEL__", L.T("Anuluj")).Replace("__SAVE__", L.T("Zapisz i zamknij"));
             _creatingBank = true;
             try { AddTab("about:blank", true); } finally { _creatingBank = false; }

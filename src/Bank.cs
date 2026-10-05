@@ -1080,7 +1080,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
         void ShowBankSuggest(BrowserTab tab, string url, string host)
         {
             var panel = new StackPanel { Margin = new Thickness(16, 14, 16, 14), MaxWidth = 380 };
-            panel.Children.Add(new TextBlock { Text = L.T("🏦 To Twoja strona bankowa / płatności"), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold });
+            panel.Children.Add(new TextBlock { Text = L.T("🏦 To Twoja strona bankowa / płatności / zakupy"), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold });
             panel.Children.Add(new TextBlock
             {
                 Text = host + "\n" + L.T("Jest otwarta w zwykłej karcie. W trybie bankowym jest bezpieczniej: osobne logowania, bez dodatków i historii."),
@@ -1106,14 +1106,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 SizeToContent = SizeToContent.WidthAndHeight, ShowActivated = false, Content = panel,
                 Background = new SolidColorBrush(Color.FromRgb(0x06, 0x4E, 0x3B)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)), BorderThickness = new Thickness(1)
             };
-            toast.Loaded += (s, e) =>
-            {
-                var r = PointToScreen(new Point(ActualWidth, ActualHeight));
-                var src = PresentationSource.FromVisual(this);
-                if (src != null && src.CompositionTarget != null) r = src.CompositionTarget.TransformFromDevice.Transform(r);
-                toast.Left = r.X - toast.ActualWidth - 24;
-                toast.Top = r.Y - toast.ActualHeight - 24;
-            };
+            toast.Loaded += (s, e) => PlaceToast(toast);
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
             timer.Tick += (s, e) => { timer.Stop(); try { toast.Close(); } catch (Exception) { } };
             toast.Closed += (s, e) => timer.Stop();

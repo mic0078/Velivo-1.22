@@ -86,7 +86,29 @@ namespace Przegladarka
             }
         }
 
-        // Dymek w prawym dolnym rogu okna (osobne okienko - nad strona WWW nie da sie nic narysowac).
+        // Komunikaty Velivo: na srodku okna, tuz NAD paskiem zadan Windows (nigdy na nim) - takze przy oknie zmaksymalizowanym
+        void PlaceToast(Window toast)
+        {
+            try
+            {
+                var src = PresentationSource.FromVisual(this);
+                var tl = PointToScreen(new Point(0, 0)); var br = PointToScreen(new Point(ActualWidth, ActualHeight));
+                var wa = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle).WorkingArea;
+                Point waTl = new Point(wa.Left, wa.Top), waBr = new Point(wa.Right, wa.Bottom);
+                if (src != null && src.CompositionTarget != null)
+                {
+                    var m = src.CompositionTarget.TransformFromDevice;
+                    tl = m.Transform(tl); br = m.Transform(br); waTl = m.Transform(waTl); waBr = m.Transform(waBr);
+                }
+                double left = Math.Max(tl.X, waTl.X), right = Math.Min(br.X, waBr.X), bottom = Math.Min(br.Y, waBr.Y);
+                if (right - left < toast.ActualWidth) { left = waTl.X; right = waBr.X; }
+                toast.Left = left + (right - left - toast.ActualWidth) / 2;
+                toast.Top = Math.Max(waTl.Y, bottom - toast.ActualHeight - 16);
+            }
+            catch (Exception) { }
+        }
+
+        // Dymek na dole okna, nad paskiem zadan (osobne okienko - nad strona WWW nie da sie nic narysowac).
         void ShowToast(string text, string file)
         {
             var panel = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
@@ -105,13 +127,7 @@ namespace Przegladarka
                 buttons.Children.Add(open); buttons.Children.Add(show);
                 panel.Children.Add(buttons);
             }
-            toast.Loaded += (s, e) =>
-            {
-                var r = PointToScreen(new Point(ActualWidth, ActualHeight));
-                var src = PresentationSource.FromVisual(this);
-                if (src != null && src.CompositionTarget != null) r = src.CompositionTarget.TransformFromDevice.Transform(r);
-                toast.Left = r.X - toast.ActualWidth - 24; toast.Top = r.Y - toast.ActualHeight - 24;
-            };
+            toast.Loaded += (s, e) => PlaceToast(toast);
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
             timer.Tick += (s, e) => { timer.Stop(); try { toast.Close(); } catch (InvalidOperationException) { } };
             toast.Closed += (s, e) => timer.Stop();

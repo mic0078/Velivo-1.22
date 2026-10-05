@@ -169,14 +169,7 @@ namespace Przegladarka
                 Content = panel
             };
 
-            toast.Loaded += (s, e) =>
-            {
-                var r = PointToScreen(new Point(ActualWidth, ActualHeight));
-                var src = PresentationSource.FromVisual(this);
-                if (src != null && src.CompositionTarget != null) r = src.CompositionTarget.TransformFromDevice.Transform(r);
-                toast.Left = r.X - toast.ActualWidth - 24;
-                toast.Top = r.Y - toast.ActualHeight - 24;
-            };
+            toast.Loaded += (s, e) => PlaceToast(toast);
 
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
             timer.Tick += (s, e) => { timer.Stop(); try { toast.Close(); } catch (InvalidOperationException) { } };

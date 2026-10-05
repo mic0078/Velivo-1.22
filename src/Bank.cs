@@ -1533,7 +1533,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
 :root{--bg:#f6f7f9;--card:#fff;--line:#d7dbe2;--head:#eef1f5;--txt:#1f2937;--mut:#6b7280;--acc:#0f766e;--sum:#ecfdf5}
 @media (prefers-color-scheme:dark){:root{--bg:#111827;--card:#1f2937;--line:#374151;--head:#273244;--txt:#e5e7eb;--mut:#9ca3af;--acc:#34d399;--sum:#0f2f2a}}
 body{margin:0;font:14px Segoe UI,sans-serif;background:var(--bg);color:var(--txt)}
-header{display:flex;gap:10px;align-items:center;padding:14px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
 h1{font-size:18px;margin:0 12px 0 0}
 button{font:inherit;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--txt);cursor:pointer}
 button.main{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}
@@ -1549,7 +1549,7 @@ td.sum,th.sum{background:var(--sum);font-weight:700;text-align:right;padding:7px
 td.del,th.del{min-width:28px;width:28px;text-align:center}
 .x{border:0;background:none;color:var(--mut);padding:2px 6px;cursor:pointer}
 .x:hover{color:#ef4444}
-.hint{color:var(--mut);margin-left:auto;font-size:12px}
+.hint{color:var(--mut);margin-left:auto;font-size:12px;flex:1 1 220px;min-width:0}
 </style></head><body>
 <header><h1>📊 __TITLE__</h1>
 <button onclick='addRow()'>➕ __ADDROW__</button><button onclick='addCol()'>➕ __ADDCOL__</button>

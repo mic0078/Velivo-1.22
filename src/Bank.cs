@@ -1071,9 +1071,54 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                     try { var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(p))); if (c != null && c.SiteHosts != null && (c.SiteHosts.Contains(hh) || c.SiteHosts.Contains(hreg))) { known = true; break; } } catch (Exception) { }
                 }
                 if (!known || !_bankWarned.Add(host)) return;
-                ShowToast(L.T("🏦 To Twoja strona bankowa – bezpieczniej otworzyć ją w trybie bankowym (przycisk 🏦)"), null);
+                ShowBankSuggest(tab, url, host);
             }
             catch (Exception) { }
+        }
+
+        // Okienko w rogu (nie blokuje strony): strona z listy bankowej otwarta w zwyklej karcie -> pytanie o tryb bankowy
+        void ShowBankSuggest(BrowserTab tab, string url, string host)
+        {
+            var panel = new StackPanel { Margin = new Thickness(16, 14, 16, 14), MaxWidth = 380 };
+            panel.Children.Add(new TextBlock { Text = L.T("🏦 To Twoja strona bankowa / płatności"), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold });
+            panel.Children.Add(new TextBlock
+            {
+                Text = host + "\n" + L.T("Jest otwarta w zwykłej karcie. W trybie bankowym jest bezpieczniej: osobne logowania, bez dodatków i historii."),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xD1, 0xFA, 0xE5)), FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0)
+            });
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
+            Window toast = null;
+            var go = new Button { Content = L.T("🏦 Przełącz na tryb bankowy"), Padding = new Thickness(12, 5, 12, 5), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
+            go.Click += (s, e) =>
+            {
+                try { toast.Close(); } catch (Exception) { }
+                // zwykla karte z bankiem zamykamy (jesli nie jest ostatnia) i otwieramy ten sam adres w trybie bankowym
+                if (tab != null && _tabs.Contains(tab) && _tabs.Count > 1) CloseTab(tab);
+                OpenBankTabAt(url);
+            };
+            var stay = new Button { Content = L.T("Zostań tutaj"), Padding = new Thickness(12, 5, 12, 5) };
+            stay.Click += (s, e) => { try { toast.Close(); } catch (Exception) { } };
+            buttons.Children.Add(go); buttons.Children.Add(stay);
+            panel.Children.Add(buttons);
+            toast = new Window
+            {
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = this, Topmost = true,
+                SizeToContent = SizeToContent.WidthAndHeight, ShowActivated = false, Content = panel,
+                Background = new SolidColorBrush(Color.FromRgb(0x06, 0x4E, 0x3B)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)), BorderThickness = new Thickness(1)
+            };
+            toast.Loaded += (s, e) =>
+            {
+                var r = PointToScreen(new Point(ActualWidth, ActualHeight));
+                var src = PresentationSource.FromVisual(this);
+                if (src != null && src.CompositionTarget != null) r = src.CompositionTarget.TransformFromDevice.Transform(r);
+                toast.Left = r.X - toast.ActualWidth - 24;
+                toast.Top = r.Y - toast.ActualHeight - 24;
+            };
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+            timer.Tick += (s, e) => { timer.Stop(); try { toast.Close(); } catch (Exception) { } };
+            toast.Closed += (s, e) => timer.Stop();
+            toast.Show();
+            timer.Start();
         }
 
         // ---------- notatki (zaszyfrowane jak karty) ----------

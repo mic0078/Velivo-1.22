@@ -1098,6 +1098,10 @@ namespace Przegladarka
             { "Wolne (0,5 s)", "Slow (0.5 s)" },
             { "Spokojne (1 s)", "Calm (1 s)" },
             { "Delikatne przyciemnienie", "Gentle dim" },
+            { "🏦 To Twoja strona bankowa / płatności", "🏦 This is your banking / payment site" },
+            { "Jest otwarta w zwykłej karcie. W trybie bankowym jest bezpieczniej: osobne logowania, bez dodatków i historii.", "It is open in a normal tab. Banking mode is safer: separate logins, no extensions, no history." },
+            { "🏦 Przełącz na tryb bankowy", "🏦 Switch to banking mode" },
+            { "Zostań tutaj", "Stay here" },
         };
     }
 }

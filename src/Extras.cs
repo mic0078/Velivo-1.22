@@ -372,11 +372,14 @@ try {
   }
   // ---------- przyciski nad filmem: ""obraz w obrazie"" i ""pobierz"" ----------
   if (C.pip || C.dlBtn) {
-    var btn = null, cur = null, hideT = 0, last = 0;
+    var btn = null, cur = null, hideT = 0, idleT = 0, last = 0;
+    // przyciski znikaja same po kilku sekundach bez ruchu myszki (film leci dalej), ruch myszki od razu je przywraca
+    var IDLE_MS = 4000;
+    function fadeOut() { if (!btn) return; btn.style.opacity = '0'; setTimeout(function () { if (btn && btn.style.opacity === '0') btn.style.display = 'none'; }, 260); }
     var BST = 'all:initial;cursor:pointer;background:rgba(17,24,39,.82);color:#fff;font:600 13px Segoe UI,sans-serif;padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.4);margin-left:6px';
     function mk() {
       var h = document.createElement('div');
-      h.style.cssText = 'position:fixed;z-index:2147483647;display:none;';
+      h.style.cssText = 'position:fixed;z-index:2147483647;display:none;opacity:1;transition:opacity .25s ease;';
       var r = h.attachShadow({ mode: 'closed' });
       // bez innerHTML - YouTube (Trusted Types) blokuje wstawianie HTML z tekstu
       function addB(a, label) { var b = document.createElement('button'); b.setAttribute('data-a', a); b.title = label; b.textContent = (a === 'dl' ? '⬇ ' : a === 'float' ? '▣ ' : '⧉ ') + label; b.style.cssText = BST; r.appendChild(b); }
@@ -408,7 +411,8 @@ try {
       cur = hit;
       if (!btn) btn = mk();
       var rr = hit.getBoundingClientRect();
-      btn.style.display = 'block';
+      btn.style.display = 'block'; btn.style.opacity = '1';
+      clearTimeout(idleT); idleT = setTimeout(fadeOut, IDLE_MS);
       btn.style.left = Math.max(0, rr.right - btn.getBoundingClientRect().width - 12) + 'px'; btn.style.top = Math.max(0, rr.top + 10) + 'px';
     }, true);
   }

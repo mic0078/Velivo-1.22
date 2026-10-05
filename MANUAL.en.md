@@ -482,6 +482,20 @@ Banking mode is a separate, isolated browser profile for banking, payments and s
 - **📝 My notes** – logins, passwords, customer numbers, with categories (Login, PIN, Transfers, Recovery codes, Other). **🎲 Generate password** inserts a strong password, **🔢 Numbered characters** shows the password character by character with numbers. The notes and search windows don't block the page.
 - **🔍 Search my vault** – one field for banks, shops, cards and notes.
 
+**🔑 My logins and passwords**
+
+- For any non-bank service (email, shops, Netflix, government sites…): *Name*, *Login*, *Password* (hidden – "👁 Show hidden data" reveals it), *Website address*, *Note*. **📋** next to each field copies it (clipboard cleared after 30 s).
+- **🌐 Open site** – opens the address in a tab. **🔑 Fill in on the open page** – types login and password, but **only on a page with the same address (domain)** – a password never reaches a fake site. **🎲 Generate password** – inserts and copies a strong 20-character password.
+
+**📄 Confidential data (documents)**
+
+- *Document type* (ID card, passport, driving licence, PESEL, NI number, health insurance, other), *Full name*, *Number* (hidden), *Valid until* (DD.MM.YYYY), *Note*.
+- When banking mode opens, Velivo **reminds you about documents expiring within 60 days**.
+
+**🏦 Bank accounts**
+
+- Your accounts and payees (e.g. your landlord): *Name*, *Account holder*, *Account number / IBAN* (hidden), *Sort code / BIC (SWIFT)*, *Bank*, *Payment reference / note*. **📋** buttons let you copy details into a transfer without mistakes.
+
 **🧾 Bills to pay**
 
 A list of regular and one-off payments (rent, electricity, heating, council tax, internet, instalments…), encrypted with the rest of the vault. Open it from **🏦 → 🧾 Bills to pay**.

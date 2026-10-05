@@ -483,6 +483,20 @@ Tryb bankowy to osobny, odizolowany profil przeglądarki na banki, płatności i
 - **📝 Moje notatki** – loginy, hasła, numery klienta, z kategoriami (Login, PIN, Przelewy, Kody odzyskiwania, Inne). **🎲 Wygeneruj hasło** wstawia mocne hasło, **🔢 Znaki z numerami** pokazuje hasło znak po znaku z numerami. Okienka notatek i wyszukiwarki nie blokują strony.
 - **🔍 Szukaj w mojej bazie** – jedno pole dla banków, sklepów, kart i notatek.
 
+**🔑 Moje loginy i hasła**
+
+- Dla każdej usługi spoza banków (poczta, sklepy, Netflix, urzędy…): *Nazwa*, *Login*, *Hasło* (ukryte – odsłania je „👁 Pokaż ukryte dane”), *Adres strony www*, *Notatka*. Przy każdym polu **📋** kopiuje (schowek czyści się po 30 s).
+- **🌐 Otwórz stronę** – otwiera adres w karcie. **🔑 Wpisz na otwartej stronie** – wpisuje login i hasło, ale **tylko na stronie o tym samym adresie (domenie)** – na fałszywą stronę hasło nie trafi. **🎲 Wygeneruj hasło** – wstawia mocne, 20-znakowe hasło i kopiuje je.
+
+**📄 Poufne dane (dokumenty)**
+
+- *Rodzaj dokumentu* (dowód osobisty, paszport, prawo jazdy, PESEL, NI number, ubezpieczenie zdrowotne, inny), *Imię i nazwisko*, *Numer* (ukryty), *Ważny do* (DD.MM.RRRR), *Notatka*.
+- Przy otwarciu trybu bankowego Velivo **przypomina o dokumentach, którym ważność kończy się w ciągu 60 dni**.
+
+**🏦 Rachunki bankowe**
+
+- Twoje konta i konta odbiorców (np. właściciel mieszkania): *Nazwa*, *Właściciel rachunku*, *Numer rachunku / IBAN* (ukryty), *Sort code / BIC (SWIFT)*, *Bank*, *Tytuł przelewu / notatka*. Przyciski **📋** pozwalają przepisać dane do przelewu bez pomyłek.
+
 **🧾 Rachunki do opłacenia**
 
 Lista stałych i jednorazowych opłat (czynsz, prąd, ogrzewanie, council tax, internet, raty…) – zaszyfrowana razem z resztą bazy. Otwierasz ją z menu **🏦 → 🧾 Rachunki do opłacenia**.

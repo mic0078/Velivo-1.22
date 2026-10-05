@@ -29,12 +29,13 @@ Przeglądarka jest projektowana tak, żeby dało się ją w pełni obsłużyć s
 13. [Wygląd: style, motywy, tryb ciemny i nocny, powiększenie](#13-wygląd-style-motywy-tryb-ciemny-i-nocny-powiększenie)
 14. [Szybki Dostęp – strona nowej karty](#14-szybki-dostęp--strona-nowej-karty)
 15. [Hasła i Sejf](#15-hasła-i-sejf)
-16. [Synchronizacja w sieci domowej (bez chmury)](#16-synchronizacja-w-sieci-domowej-bez-chmury)
-17. [Historia i pobrane pliki](#17-historia-i-pobrane-pliki)
-18. [Dodatki, profile i narzędzia](#18-dodatki-profile-i-narzędzia)
-19. [Skróty klawiszowe](#19-skróty-klawiszowe)
-20. [Ustawienia – co gdzie jest](#20-ustawienia--co-gdzie-jest)
-21. [Rozwiązywanie problemów i miejsce danych](#21-rozwiązywanie-problemów-i-miejsce-danych)
+16. [Tryb bankowy](#16-tryb-bankowy)
+17. [Synchronizacja w sieci domowej (bez chmury)](#17-synchronizacja-w-sieci-domowej-bez-chmury)
+18. [Historia i pobrane pliki](#18-historia-i-pobrane-pliki)
+19. [Dodatki, profile i narzędzia](#19-dodatki-profile-i-narzędzia)
+20. [Skróty klawiszowe](#20-skróty-klawiszowe)
+21. [Ustawienia – co gdzie jest](#21-ustawienia--co-gdzie-jest)
+22. [Rozwiązywanie problemów i miejsce danych](#22-rozwiązywanie-problemów-i-miejsce-danych)
 
 ---
 
@@ -457,7 +458,47 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 
 ---
 
-## 16. Synchronizacja w sieci domowej (bez chmury)
+## 16. Tryb bankowy
+
+Tryb bankowy to osobny, odizolowany profil przeglądarki na banki, płatności i zakupy, z własną **zaszyfrowaną bazą**. Zwykłe karty nic z niego nie widzą i odwrotnie. Nie ma w nim dodatków ani historii, a po zamknięciu znika pamięć podręczna (logowania i „zapamiętaj mnie” zostają).
+
+**Otwieranie i ustawienia**
+
+- Zielony przycisk **🏦** na pasku kart. Za pierwszym razem ustawiasz **hasło** (min. 8 znaków), a opcjonalnie **klucz sprzętowy** (YubiKey, Google Titan i inne klucze FIDO2): zaznacz „Dodatkowo wymagaj klucza sprzętowego”, włóż klucz i kliknij **„➕ Dodaj klucz”** – Windows poprosi o dotknięcie dwa razy. Wszystkie swoje klucze dodaj w tym samym okienku, potem **„Zapisz”**.
+- **Klucz w porcie** – Velivo od razu prosi o dotknięcie, hasło niepotrzebne. **Bez klucza** – wpisujesz hasło. Klucz oznaczony **🔐** sam otwiera tryb i szyfruje bazę.
+- Karty bankowe są zielone i mają ikonę 🏦. Tryb **blokuje się sam** po bezczynności (do wyboru 1–60 min) i zamyka wtedy wszystkie swoje okienka.
+- Wszystko jest pod **prawym przyciskiem na 🏦**. Tam też jest **❓ Instrukcja trybu bankowego**.
+
+**Moje banki i Moje sklepy online**
+
+- **🏦 Moje banki / 🛒 Moje sklepy online** – lista Twoich stron; kliknięcie otwiera stronę w trybie bankowym.
+- Dodawanie: **„➕ Dodaj tę stronę do Moich banków / sklepów”** na otwartej karcie bankowej albo **„➕ Dodaj bank / sklep (nazwa i adres)…”** na liście.
+- **✏ Dane logowania** (w Moich bankach): login / numer klienta, passcode / PIN, hasło i memorable information – osobno dla każdego banku. Wpisuj zawsze **pełne** hasło i passcode.
+- **🔑 Wpisz login** – wypełnia login i hasło na stronie banku.
+- **🔢 Wpisz wybrane znaki** – gdy bank prosi np. o 2., 5. i 9. znak (RBS, NatWest, Bank of Scotland, TSB, Lloyds, Halifax), Velivo samo odczytuje numery i wpisuje właściwe znaki, także w listach wyboru. Gdy na jakiejś stronie się nie uda, **🧪 Skopiuj opis formularza** kopiuje sam opis pól (bez Twoich danych) do zgłoszenia.
+
+**Karty, notatki i wyszukiwarka**
+
+- **💳 Moje karty** – kliknij kartę, żeby zobaczyć i zmienić dane; **„👁 Pokaż numer i CVV”** odsłania ukryte pola. CVV jest opcjonalne. Przyciski **📋 Kopiuj numer / datę / CVV** – schowek czyści się sam po 30 s. **💳 Wypełnij kartę na tej stronie** wpisuje dane w formularzu płatności. Przy otwarciu trybu Velivo przypomina o kartach, które niedługo wygasają.
+- **📝 Moje notatki** – loginy, hasła, numery klienta, z kategoriami (Login, PIN, Przelewy, Kody odzyskiwania, Inne). **🎲 Wygeneruj hasło** wstawia mocne hasło, **🔢 Znaki z numerami** pokazuje hasło znak po znaku z numerami. Okienka notatek i wyszukiwarki nie blokują strony.
+- **🔍 Szukaj w mojej bazie** – jedno pole dla banków, sklepów, kart i notatek.
+
+**Ochrona**
+
+- **Fałszywe strony:** gdy przy otwartym trybie bankowym wejdziesz na stronę podobną do Twojego banku (np. inny adres z nazwą banku), pojawi się duże ostrzeżenie.
+- **Bank w zwykłej karcie:** gdy otworzysz bank, sklep lub stronę płatności z listy w zwykłej karcie, w okienku nad paskiem zadań pojawi się pytanie **„Przełącz na tryb bankowy”** / **„Zostań tutaj”**. Rozpoznawanie działa po domenie głównej, także dla innych adresów tej samej firmy.
+- **📜 Dziennik otwarć** – kiedy, na którym komputerze i czym otwarto tryb (także złe hasła).
+
+**Profile, kopia i synchronizacja**
+
+- **👤 Profile bankowe** – osobny tryb dla innej osoby: własne hasło lub klucz, osobne logowania i dane.
+- **💾 Kopia zapasowa** i **📂 Przywróć z kopii** – plik `.vbank` ze wszystkimi profilami, nadal zaszyfrowany (np. na pendrive).
+- **Synchronizacja** – banki, sklepy, karty, notatki i ustawienia trybu przechodzą na sparowane komputery w szyfrowanym pakiecie. Logowania do banków (ciasteczka) zostają na każdym komputerze osobno.
+- **Zapomniane hasło:** bez hasła i bez klucza danych nie da się odczytać. **„Zapomniałem hasła – wyczyść tryb bankowy”** usuwa tryb i jego dane na tym komputerze – dlatego warto mieć drugi klucz i kopię zapasową.
+
+---
+
+## 17. Synchronizacja w sieci domowej (bez chmury)
 
 ### Parowanie (raz)
 
@@ -491,7 +532,7 @@ Stan połączenia pokazuje Ustawienia → **Panel diagnostyczny LAN…**.
 
 ---
 
-## 17. Historia i pobrane pliki
+## 18. Historia i pobrane pliki
 
 ### Historia (Ctrl+H)
 
@@ -509,7 +550,7 @@ Stan połączenia pokazuje Ustawienia → **Panel diagnostyczny LAN…**.
 
 ---
 
-## 18. Dodatki, profile i narzędzia
+## 19. Dodatki, profile i narzędzia
 
 - **Dodatki Chrome:** instalacja z Chrome Web Store, z linku albo rozpakowanego folderu.
   - przycisk 🧩 pokazuje listę dodatków z pinezką: przypięte mają ikonkę na pasku, odpięte działają dalej, tylko bez ikonki;
@@ -546,7 +587,7 @@ Jeśli masz RAM dysk (na przykład ImDisk, SoftPerfect RAM Disk albo własne nar
 
 ---
 
-## 19. Skróty klawiszowe
+## 20. Skróty klawiszowe
 
 | Skrót | Działanie |
 | --- | --- |
@@ -571,7 +612,7 @@ Każdą z tych rzeczy zrobisz też samą myszką: przyciskiem, gestem albo prawy
 
 ---
 
-## 20. Ustawienia – co gdzie jest
+## 21. Ustawienia – co gdzie jest
 
 ![Ustawienia, część 1: import, wyszukiwanie, prywatność, wygląd, uBlock Origin Lite i bezpieczeństwo](docs/zrzuty/ustawienia-1.png)
 
@@ -587,11 +628,11 @@ Każdą z tych rzeczy zrobisz też samą myszką: przyciskiem, gestem albo prawy
 | **Pobieranie** | Pytanie o miejsce zapisu, liczba połączeń (1–16) |
 | **Synchronizacja** | Włączenie LAN, parowanie, panel diagnostyczny |
 | **Profile** | Profile użytkowników |
-| **Dane** | Czyszczenie danych, folder na śmieci, czyli cache (także na RAM dysku – patrz rozdział 18) |
+| **Dane** | Czyszczenie danych, folder na śmieci, czyli cache (także na RAM dysku – patrz rozdział 19) |
 
 ---
 
-## 21. Rozwiązywanie problemów i miejsce danych
+## 22. Rozwiązywanie problemów i miejsce danych
 
 | Problem | Co zrobić |
 | --- | --- |

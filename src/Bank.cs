@@ -99,9 +99,10 @@ namespace Przegladarka
             return null;
         }
 
-        static void SaveBank(BankConfig c)
+        void SaveBank(BankConfig c)
         {
             try { File.WriteAllText(BankFile, JsonSerializer.Serialize(c)); } catch (Exception ex) { App.LogError(ex); }
+            try { NotifyLanStateChanged(); } catch (Exception) { }   // wyslij zmiane do sparowanych komputerow
         }
 
         static byte[] BankHash(string pass, byte[] salt, int iter)
@@ -508,6 +509,24 @@ else if(/cc-exp-year|exp.?year|rok/.test(a))set(el,el.maxLength==4?'20'+yy:yy)
 else if(/cc-exp|expir|wazn|ważn|mm.?\/.?yy|mm.?\/.?rr/.test(a))set(el,d.e);
 else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a))set(el,d.h);
 });});}catch(x){}})(__D__);";
+
+        // ---------- synchronizacja w sieci (LAN) ----------
+        // Przesylany jest tylko bank.json: skrot hasla, klucze publiczne kluczy sprzetowych i karty ZASZYFROWANE
+        // (haslem, a przy kluczu sprzetowym takze jego sekretem). Pakiet sieciowy jest dodatkowo szyfrowany parowaniem.
+        // Logowania i ciasteczka banku zostaja na kazdym komputerze osobno.
+        void ApplySyncedBank(string json)
+        {
+            try
+            {
+                var c = JsonSerializer.Deserialize<BankConfig>(json);
+                if (c == null || string.IsNullOrEmpty(c.Hash) || string.IsNullOrEmpty(c.Salt)) return;
+                if (json == ReadTextOrEmpty(BankFile)) return;
+                File.WriteAllText(BankFile, json);
+                // haslo / klucze / karty mogly sie zmienic - otwarty tryb zamykamy, otworzysz go ponownie
+                if (_bankUnlocked) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
 
         // ---------- wspolne okienko ----------
         Window BankDialog(string title)

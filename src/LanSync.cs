@@ -60,6 +60,7 @@ namespace Przegladarka
             public string passwords { get; set; }
             public long changed { get; set; }
             public string pinned { get; set; }             // karty przypiete (adresy); null = starsza wersja bez tej funkcji
+            public string bank { get; set; }               // tryb bankowy: haslo (skrot), klucze, karty zaszyfrowane; null = starsza wersja
             public string bookmarksDeleted { get; set; }   // usuniete zakladki (url<TAB>czas), zeby usuniecie dzialalo na obu   // kiedy dane na nadawcy ostatnio zmienil uzytkownik (ms UTC); nowsze wygrywa
         }
 
@@ -120,7 +121,7 @@ namespace Przegladarka
                 .Where(l => { int i = l.IndexOf('='); return i <= 0 || !LanSettingsBlockedKeys.Contains(l.Substring(0, i).Trim()); }));
             return Sha256(settings + "\n--\n" + ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt")) + "\n--\n" +
                 ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt")) + "\n--\n" + ReadProfilesRegistry() + "\n--\n" +
-                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()) + "\n--\n" + ReadTextOrEmpty(PinnedFile));
+                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()) + "\n--\n" + ReadTextOrEmpty(PinnedFile) + BankSyncTerm());
         }
 
         // "Pusty" komputer: bez zakladek i bez hasel - jego dane nigdy nie nadpisuja pelnych
@@ -170,6 +171,14 @@ namespace Przegladarka
             return Convert.ToHexString(bytes);
         }
 
+        // Tryb bankowy w odcisku tylko, gdy jest ustawiony (starsze wersje bez trybu bankowego licza to samo co dawniej)
+        string BankSyncTerm()
+        {
+            if (_lanLegacyNoKeyMode) return "";
+            var b = ReadTextOrEmpty(BankFile);
+            return b.Length == 0 ? "" : "\n--bank--\n" + b;
+        }
+
         string CurrentLanFingerprint()
         {
             var settings = ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt"));
@@ -181,7 +190,7 @@ namespace Przegladarka
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
             var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
             // otwarte karty (sesja) nie sa synchronizowane - kazdy komputer ma swoje
-            return Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords + "\n--\n" + ReadTextOrEmpty(PinnedFile));
+            return Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords + "\n--\n" + ReadTextOrEmpty(PinnedFile) + BankSyncTerm());
         }
 
         static string FilterLanSettingsForImport(string settingsText)
@@ -655,7 +664,7 @@ namespace Przegladarka
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
             var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
 
-            var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords + "\n--\n" + ReadTextOrEmpty(PinnedFile));
+            var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords + "\n--\n" + ReadTextOrEmpty(PinnedFile) + BankSyncTerm());
             // dane rozne od ostatnio zapamietanych = zmiana zrobiona tu, przez uzytkownika -> nowy znacznik czasu
             LoadLanChange();
             var contentFp = LanContentFingerprint();
@@ -687,6 +696,7 @@ namespace Przegladarka
                 changed = _lanLocalChanged,
                 bookmarksDeleted = ReadTextOrEmpty(BookmarkTombstonesFile),
                 pinned = ReadTextOrEmpty(PinnedFile),
+                bank = _lanLegacyNoKeyMode ? null : ReadTextOrEmpty(BankFile),   // tylko w zaszyfrowanym pakiecie
             };
             if (_lanLegacyNoKeyMode)
             {
@@ -782,6 +792,7 @@ namespace Przegladarka
                     _ = RebuildBlocker();
                     _ = ApplyExtensionsSyncListAsync();
                     if (state.pinned != null) ApplySyncedPinnedTabs(state.pinned);
+                    if (!string.IsNullOrEmpty(state.bank) && pkt.t != "state-plain") ApplySyncedBank(state.bank);
                     SaveLanChange(state.changed, LanContentFingerprint());   // przyjete dane maja czas nadawcy
                 }
                 else SaveLanChange(_lanLocalChanged, LanContentFingerprint()); // polaczenie zakladek/hasel to nie zmiana ustawien

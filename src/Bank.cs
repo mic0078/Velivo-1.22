@@ -1455,10 +1455,12 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             var data = JsonSerializer.Serialize(new
             {
                 cur = BankCurrency(), dec = culture.NumberFormat.NumberDecimalSeparator, cols, rows, next,
-                monthLabel = L.T("Miesiąc"), totalLabel = L.T("Razem"), delCol = L.T("Usuń kolumnę"), delRow = L.T("Usuń wiersz"), newCol = L.T("Nowy rachunek")
+                monthLabel = L.T("Miesiąc"), totalLabel = L.T("Razem"), delCol = L.T("Usuń kolumnę"), delRow = L.T("Usuń wiersz"), newCol = L.T("Nowy rachunek"),
+                impOk = L.T("Wczytano wierszy:"), impBad = L.T("Plik jest pusty albo ma zły format. W Excelu: Plik → Zapisz jako → CSV; pierwsza kolumna = miesiąc, nagłówki = nazwy rachunków.")
             }).Replace("</", "<\\/");
             var html = BillSheetHtml.Replace("__DATA__", data).Replace("__TITLE__", L.T("Arkusz rachunków")).Replace("__ADDROW__", L.T("Wiersz (miesiąc)"))
                 .Replace("__ADDCOL__", L.T("Kolumna (rachunek)")).Replace("__HINT__", L.T("Wpisz kwoty – sumy liczą się same. Nowy wiersz kopiuje kwoty z poprzedniego."))
+                .Replace("__IMPORT__", L.T("Wczytaj z Excela (CSV)")).Replace("__CUR__", L.T("Waluta:"))
                 .Replace("__CANCEL__", L.T("Anuluj")).Replace("__SAVE__", L.T("Zapisz i zamknij"));
             _creatingBank = true;
             try { AddTab("about:blank", true); } finally { _creatingBank = false; }
@@ -1509,6 +1511,12 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                                         newLog.Add(new BankItem { F = new Dictionary<string, string> { { "name", names[i] }, { "amount", vals[i] }, { "month", mo }, { "paid", "" } } });
                             }
                             SaveBillLog(newLog);
+                            JsonElement curEl;
+                            if (root.TryGetProperty("cur", out curEl) && curEl.ValueKind == JsonValueKind.String)
+                            {
+                                var nc = (curEl.GetString() ?? "").Trim(); var cfg = LoadBank();
+                                if (nc.Length > 0 && cfg != null && nc != cfg.Currency) { cfg.Currency = nc; SaveBank(cfg); }
+                            }
                             ShowToast(L.T("💾 Arkusz rachunków zapisany (zaszyfrowany)") + (bad > 0 ? (L.En ? " – rows without a valid month skipped: " : " – pominięto wiersze bez poprawnego miesiąca: ") + bad : ""), null);
                         }
                     }
@@ -1545,6 +1553,8 @@ td.del,th.del{min-width:28px;width:28px;text-align:center}
 </style></head><body>
 <header><h1>📊 __TITLE__</h1>
 <button onclick='addRow()'>➕ __ADDROW__</button><button onclick='addCol()'>➕ __ADDCOL__</button>
+<button onclick='document.getElementById(""f"").click()'>📤 __IMPORT__</button><input type='file' id='f' accept='.csv,.txt' style='display:none' onchange='imp(this)'>
+<label>__CUR__ <select id='cur' onchange='D.cur=this.value;sums()'></select></label>
 <span class='hint'>__HINT__</span>
 <button onclick='done(0)'>__CANCEL__</button><button class='main' onclick='done(1)'>💾 __SAVE__</button></header>
 <div class='wrap'><table id='t'></table></div>
@@ -1571,7 +1581,18 @@ function sums(){var g=0;D.rows.forEach(function(r,ri){var s=0;D.cols.forEach(fun
   var ge=document.getElementById('grand');if(ge)ge.textContent=money(g);}
 function addRow(){var last=D.rows.length?D.rows[D.rows.length-1]:null;D.rows.push({m:(D.next&&D.next.length?D.next.shift():''),v:last?last.v.slice():D.cols.map(function(){return '';})});draw();var ins=document.querySelectorAll('tr td:first-child input');if(ins.length)ins[ins.length-1].focus();}
 function addCol(){D.cols.push(D.newCol);D.rows.forEach(function(r){r.v.push('');});draw();}
-function done(save){window.__velivoSheet={save:!!save,cols:D.cols,rows:D.rows};}
+function done(save){window.__velivoSheet={save:!!save,cols:D.cols,rows:D.rows,cur:D.cur};}
+function csvLines(txt){var sep=';',first=txt.split(/\r?\n/)[0]||'';if(first.indexOf(';')<0)sep=first.indexOf('\t')>=0?'\t':',';
+  return txt.split(/\r?\n/).filter(function(l){return l.trim().length;}).map(function(l){var out=[],cur='',q=false;for(var i=0;i<l.length;i++){var ch=l[i];
+    if(q){if(ch=='""'){if(l[i+1]=='""'){cur+='""';i++;}else q=false;}else cur+=ch;}else if(ch=='""')q=true;else if(ch==sep){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out.map(function(x){return x.trim();});});}
+function imp(inp){var file=inp.files[0];if(!file)return;var rd=new FileReader();rd.onload=function(){var L=csvLines(String(rd.result).replace(/^\uFEFF/,''));inp.value='';if(L.length<2){alert(D.impBad);return;}
+  var hdr=L[0],map=[];for(var c=1;c<hdr.length;c++){var n=hdr[c];if(!n||/^(razem|suma|total|sum)$/i.test(n)){map.push(-1);continue;}var ix=D.cols.indexOf(n);if(ix<0){D.cols.push(n);D.rows.forEach(function(r){r.v.push('');});ix=D.cols.length-1;}map.push(ix);}
+  var cnt=0;L.slice(1).forEach(function(r){var m=r[0];if(!m||/^(razem|suma|total|sum)$/i.test(m))return;var row=null;D.rows.forEach(function(x){if(x.m.toLowerCase()==m.toLowerCase())row=x;});
+    if(!row){row={m:m,v:D.cols.map(function(){return '';})};D.rows.push(row);}while(row.v.length<D.cols.length)row.v.push('');
+    for(var c=1;c<r.length&&c-1<map.length;c++){if(map[c-1]>=0&&r[c]!=='')row.v[map[c-1]]=r[c];}cnt++;});
+  D.rows=D.rows.filter(function(x){return x.m||x.v.some(function(v){return num(v)!=0;});});draw();alert(D.impOk+' '+cnt);};rd.readAsText(file);}
+(function(){var s=document.getElementById('cur');var list=['£','zł','€','$','CHF','kr','Kč','Ft','lei','₴','¥'];if(list.indexOf(D.cur)<0)list.unshift(D.cur);
+  list.forEach(function(c){var o=document.createElement('option');o.value=o.textContent=c;if(c==D.cur)o.selected=true;s.appendChild(o);});})();
 draw();
 </script></body></html>
 ";

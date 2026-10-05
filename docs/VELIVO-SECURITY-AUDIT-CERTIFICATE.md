@@ -89,6 +89,16 @@ the repository, the CI secrets or the build environment. The Authenticode certif
 PE header of both files is empty. No self-signed or test certificate was used. Windows SmartScreen
 may therefore show "Unknown publisher".
 
+Verified on Windows (workflow "Weryfikacja wydania" run #1, `windows-latest`, files from `1f08f31`):
+
+| Check | `Velivo-1.22.exe` | `Velivo-Setup-1.22.exe` |
+|---|---|---|
+| `Get-AuthenticodeSignature` | `NotSigned` | `NotSigned` |
+| `signtool verify /pa /v` (SDK 10.0.26100.0) | `No signature found` | `No signature found` |
+| SHA-256 on Windows | `A65A74A8…3672D494` (matches section 4) | `01919B13…7671C9975` (matches section 4) |
+| Code Signing certificates found (repository, `CODESIGN_PFX_BASE64` secret, `CurrentUser\My`, `LocalMachine\My`) | 0 | 0 |
+| Start of the program (45 s) | runs, window "New tab – Velivo 1.22", 6 WebView2 processes, `bledy.log` empty | silent install exit code 0, 1,426 files; installed `Velivo.exe` (SHA-256 `C5E9A18A…56D8417F`, `NotSigned`) runs, window "Nowa karta – Velivo 1.22", `bledy.log` empty; uninstall exit code 0 |
+
 Signing with a genuine certificate is prepared in `.github/workflows/podpisane-wydanie.yml`; see
 `docs/PODPIS-CYFROWY.md`.
 

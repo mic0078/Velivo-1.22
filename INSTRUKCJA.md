@@ -34,7 +34,7 @@ Przeglądarka jest projektowana tak, żeby dało się ją w pełni obsłużyć s
 18. [Historia i pobrane pliki](#18-historia-i-pobrane-pliki)
 19. [Dodatki, profile i narzędzia](#19-dodatki-profile-i-narzędzia)
 20. [Skróty klawiszowe](#20-skróty-klawiszowe)
-21. [Ustawienia – co gdzie jest](#21-ustawienia--co-gdzie-jest)
+21. [Ustawienia – co gdzie jest (każda opcja)](#21-ustawienia--co-gdzie-jest-każda-opcja)
 22. [Rozwiązywanie problemów i miejsce danych](#22-rozwiązywanie-problemów-i-miejsce-danych)
 
 ---
@@ -428,6 +428,8 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - **Powiększenie** zapamiętywane dla każdej strony, zmieniane kółkiem na przycisku procentów albo Ctrl+kółkiem.
 - **Wersja telefonu** dla wybranej strony (prawy przycisk), zapamiętywana.
 - **Język:** polski albo angielski (Ustawienia → Wygląd → Język).
+- **Efekt wejścia treści:** nowa strona pojawia się z wyostrzenia, z ciemności (kinowo), z delikatnym przyciemnieniem albo od razu; szybkość od 0 do 5 s (Ustawienia → Wygląd). Szczegóły w rozdziale 21.
+- **Tryb czytania** ma własny wygląd: ☀ jasny, 🌙 ciemny albo 🌅 nocny z suwakiem natężenia.
 
 ---
 
@@ -653,23 +655,99 @@ Każdą z tych rzeczy zrobisz też samą myszką: przyciskiem, gestem albo prawy
 
 ---
 
-## 21. Ustawienia – co gdzie jest
+## 21. Ustawienia – co gdzie jest (każda opcja)
 
 ![Ustawienia, część 1: import, wyszukiwanie, prywatność, wygląd, uBlock Origin Lite i bezpieczeństwo](docs/zrzuty/ustawienia-1.png)
 
 ![Ustawienia, część 2: śmieci na RAM dysku, dane, profile i synchronizacja](docs/zrzuty/ustawienia-2.png)
 
-| Sekcja | Najważniejsze opcje |
-| --- | --- |
-| **Wygląd** | Styl (Nowoczesny / Kolorowy), motyw, język, tryb ciemny i nocny, domyślne powiększenie, kompaktowy pasek |
-| **Karty** | Przywracanie kart po uruchomieniu, linki w tej samej karcie |
-| **Wyszukiwanie i start** | Wyszukiwarka, strona startowa, skróty wyszukiwania, gesty myszy, przyciski „Obraz w obrazie” i „Pobierz” nad filmami, Szybki Dostęp jako nowa karta |
-| **Prywatność** | „Nie śledź”, ochrona przed śledzeniem, historia, czyszczenie przy zamknięciu, Sejf, hasła, autouzupełnianie, wyskakujące okna, banery ciasteczek, pamięć treści stron, wykrywacz sztuczek, paragon prywatności |
-| **Czytanie** | Głos, prędkość, głośność, naturalne głosy offline |
-| **Pobieranie** | Pytanie o miejsce zapisu, liczba połączeń (1–16) |
-| **Synchronizacja** | Włączenie LAN, parowanie, panel diagnostyczny |
-| **Profile** | Profile użytkowników |
-| **Dane** | Czyszczenie danych, folder na śmieci, czyli cache (także na RAM dysku – patrz rozdział 19) |
+Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po kolei**, w tej samej kolejności co w oknie.
+
+### Domyślna przeglądarka
+- Stan: „✓ Velivo jest domyślną przeglądarką” albo „Velivo nie jest teraz domyślną przeglądarką”.
+- **Ustaw Velivo jako domyślną przeglądarkę…** – rejestruje Velivo w Windows i otwiera okno wyboru aplikacji domyślnych.
+
+### 📥 Import haseł, loginów i zakładek
+- **🔑 Hasła i loginy z pliku** (CSV z KeePassXC, Chrome, Edge i innych programów).
+- **🌐 Z Chrome / Edge / Brave / Opery** – zakładki i hasła prosto z zainstalowanej przeglądarki.
+
+### Wygląd i czytelność
+- **Domyślne powiększenie stron** – dla wszystkich stron; każdą stronę możesz też powiększyć osobno (Ctrl + kółko), a Velivo to zapamięta.
+- **Tryb ciemny stron** – strony z własnym ciemnym wyglądem przełączają się na niego, pozostałe są przyciemniane (zdjęcia zostają w prawdziwych kolorach).
+- **Tryb nocny** – cieplejsze kolory i mniej niebieskiego światła (jak Światło nocne w Windows). Przycisk 🌙 przełącza: jasny → ciemny → nocny; natężenie zmieniasz kółkiem myszy na przycisku.
+- **Efekt wejścia treści** – jak nowa strona pojawia się na ekranie:
+  - **Wyostrzenie** (domyślne) – treść wyłania się z lekkiego rozmycia;
+  - **Z ciemności (kinowe)** – strona rozjaśnia się z ciemnego ekranu, jak w kinie;
+  - **Delikatne przyciemnienie** – krótkie, subtelne przyciemnienie i powrót;
+  - **Brak** – strona pojawia się od razu.
+- **Szybkość efektu wejścia** – suwak od 0 do 5 s co 0,1 s (0 = automatycznie). Przykładowe wartości: szybkie 0,15 s, delikatne 0,3 s, wolne 0,5 s, spokojne 1 s, bardzo spokojne 2 s, senne 3 s, najwolniejsze 4 s.
+- **Motyw przeglądarki** – kolory pasków i kart: Jasny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
+- **Styl wyglądu** – **Nowoczesny** (spokojny, jak Windows 11: ikony Windows, jeden niebieski akcent) albo **Kolorowy** (kolorowe przyciski i emoji).
+- **Język interfejsu** – automatycznie (z instalatora / Windows), polski albo angielski. Zmiana działa po ponownym uruchomieniu.
+- **Zawsze kompaktowy pasek narzędzi** – mniejsze etykiety, część przycisków w menu „…”, nawet na szerokim oknie.
+
+### Czytanie na głos
+- **Głos i prędkość** – automatycznie (wg języka strony: polski/angielski), głosy Windows, naturalne głosy online albo **naturalne głosy offline** (Piper – pobiera ok. 60 MB, potem działa bez internetu).
+
+### Karty
+- **Po uruchomieniu przywracaj karty z poprzedniej sesji** – karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T.
+- **Otwieraj linki w tej samej karcie** – linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej (działa Wstecz i Dalej). Ctrl+klik nadal otwiera nową kartę.
+
+### Wyszukiwanie i start
+- **Skróty wyszukiwania** – np. „yt koty” szuka na YouTube; własne skróty dodajesz w okienku.
+- **Wyszukiwarka w pasku adresu** – wybór domyślnej wyszukiwarki.
+- **Gesty myszy** – przytrzymaj prawy przycisk i przesuń: ← wstecz, → dalej, ↑ nowa karta, ↓ zamknij kartę, ↓→ odśwież. Zwykły prawy klik otwiera menu jak zawsze.
+- **Przycisk „Obraz w obrazie” nad filmami** – po najechaniu na film pojawia się ⧉, film przechodzi do małego okienka zawsze na wierzchu.
+- **Przycisk „Pobierz” nad filmami** – jak Internet Download Manager: ⬇ Pobierz nad filmem. Zwykłe pliki pobiera menedżer Velivo (do 16 połączeń), YouTube i strumienie – darmowe narzędzie yt-dlp.
+- **Strona startowa** i **Szybki Dostęp jako strona nowej karty** (osobne dane Velivo; Szybki Dostęp Sejfu w innych przeglądarkach zostaje osobny).
+- **Folder rozszerzenia do ręcznej instalacji w innych przeglądarkach** – ścieżka do skopiowania w oknie „Załaduj rozpakowane”.
+
+### Prywatność
+- **Wysyłaj sygnały „Nie śledź”** (DNT i Global Privacy Control).
+- **Ochrona przed śledzeniem** – **zrównoważona** (zalecana: blokuje znane trackery, osadzone treści jak wpisy z X czy filmy działają) albo **ścisła** (blokuje też osadzone treści serwisów społecznościowych; na zaufanych domenach działa jak zrównoważona, chyba że dla domeny zaznaczysz „Wymuś blokowanie trackerów”).
+- **Zapisuj historię przeglądania**.
+- **Czyść dane przy zamknięciu** – historia i pamięć podręczna; konta zostają zalogowane.
+- **Loginy z Sejfu: kluczyk na pasku na stronach logowania** – kliknięcie kluczyka wypełnia formularz loginem z Sejfu.
+- **Proponuj zapisywanie haseł**.
+- **Autouzupełnianie formularzy** – adresy i karty w lokalnej, szyfrowanej bazie offline. **Pokaż zapisane dane…**, **Usuń zapisane karty**, **Usuń zapisane adresy**.
+- **Menedżer haseł lokalnych…**, **Import haseł CSV…**, **Eksport haseł CSV…**.
+- **Blokuj wyskakujące okna otwierane bez kliknięcia**.
+- **Automatycznie odrzucaj banery z ciasteczkami (RODO)** – Velivo klika „Odrzuć” / „Tylko niezbędne”; nigdy nie klika „Akceptuj”. Wyjątek dla strony: prawy przycisk na stronie.
+- **Zapamiętuj treść przeczytanych stron** – wyszukiwanie „Gdzie ja to czytałem?” (Ctrl+Shift+F), tylko na tym komputerze.
+- **Ostrzegaj przed sztuczkami presji w sklepach** – fałszywe liczniki, „ostatnie sztuki”, „X osób ogląda”, zaznaczone z góry dodatki (Velivo je odznacza), ukryte opłaty.
+- **Paragon prywatności na tarczy** – z iloma firmami i krajami łączyła się strona, brokerzy danych, próby rozpoznania komputera.
+
+### Blokowanie reklam
+- **Pełne listy filtrów** (EasyList, EasyPrivacy, polska lista – ok. 97 tys. reguł). Pobierają się w tle i odświeżają co 4 dni; **Aktualizuj listy teraz** pobiera je od razu.
+
+### Bezpieczeństwo i pobieranie
+- **Ostrzegaj przed niebezpiecznymi stronami i plikami (SmartScreen)** – sprawdzanie adresów w Microsoft.
+- **Pytaj, gdzie zapisać każdy pobierany plik**.
+- **Wykrywaj fałszywe strony banków, sklepów i portali** – działa bez internetu (paypa1.com, ebay-weryfikacja.top, podróbki stron z zapisanymi hasłami).
+- **Zawsze szyfrowane połączenie (HTTPS)** – ostrzega przed stronami bez szyfrowania.
+- **Bezpieczne płatności** – na stronach banków i płatności okno jest niewidoczne dla programów nagrywających ekran (nie zrobisz tam też zrzutu ekranu).
+- **uBlock Origin Lite** – wbudowany bloker reklam (zalecany, można wyłączyć), **Ustawienia uBlock Origin Lite…**.
+- **Głośniki Velivo** – wybierz konkretne wyjście dźwięku zamiast domyślnego Windows. **Nie gub dźwięku** – gdy program muzyczny (Ableton, Cubase) zajmie głośniki, Velivo gra na innym aktywnym wyjściu i wraca, gdy się zwolnią. **🔊 Mikser głośności Windows…** – przypięcie Velivo do głośników na stałe.
+- **Po zamknięciu okna zostań w zasobniku** – synchronizacja w tle i natychmiastowy start; ikonka przy zegarze pulsuje podczas synchronizacji, prawy klik: Otwórz, Synchronizuj teraz, Zamknij całkowicie.
+- **Połączeń na jeden pobierany plik** – od 1 (bez dzielenia) do 16; więcej = zwykle szybciej.
+
+### Śmieci przeglądarki (pamięć podręczna)
+- Cache stron, skompilowane skrypty i cache grafiki – można je usuwać bez utraty logowań. **Folder na śmieci** (np. na RAM dysku – zob. rozdział 19), **Domyślny**, **Usuwaj śmieci przy każdym uruchomieniu**, **Teraz zajmują: …**, **Wyczyść śmieci teraz**.
+
+### Szybkość wczytywania stron
+- **Szybsze otwieranie stron** – Velivo zaczyna pobierać stronę, gdy najedziesz na link, i z wyprzedzeniem łączy się z serwerami widocznych linków (wyłączone w kartach prywatnych i bankowych; przy limicie danych lepiej wyłączyć).
+- **Rozmiar pamięci podręcznej** – automatycznie albo wybrany rozmiar (po ponownym uruchomieniu).
+
+### Dane
+- **Wyczyść dane przeglądania teraz…** – zaznaczasz: historia przeglądania, pamięć podręczna, historia pobrań, cookies i sesje (wyloguje konta), dane formularzy i kart silnika, hasła zapisane w silniku.
+- **Prywatność per-strona → Panel prywatności i antyfingerprinting…** – reguły dla domen: blokuj JavaScript, nie wysyłaj cookies, wymuś blokowanie trackerów, automatycznie czyść dane po wejściu na domenę; lista **zaufanych domen**; dziennik „Co zostało zablokowane i dlaczego” z pełnym adresem i powodem.
+
+### Profile użytkownika
+- Aktywny profil (np. Praca, Prywatny) i **Zarządzaj użytkownikami/profilami…** – dodawanie, przełączanie, usuwanie, własna ikonka profilu. Każdy profil ma osobne logowania, historię i ustawienia.
+
+### Synchronizacja
+- **Synchronizacja E2E** – **Eksportuj / Importuj paczkę…**: zaszyfrowany plik (hasło + AES-GCM) do przeniesienia na inne urządzenie.
+- **Synchronizacja w czasie rzeczywistym (LAN)** – ustawienia, zakładki, hasła, reguły prywatności i Szybki Dostęp między komputerami w domu. **Sparuj urządzenie w sieci…** (porównanie krótkiego kodu), **Zapisz plik odzyskiwania…** / **Odtwórz parowanie…** (hasło min. 12 znaków), **Tryb cichy LAN** (bez dymków), **Panel diagnostyczny LAN…** (urządzenia, status, log).
 
 ---
 

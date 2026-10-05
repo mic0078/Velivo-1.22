@@ -550,6 +550,7 @@ namespace Przegladarka
                 }
                 if (blockedQuickAccess) return;
                 if (e.IsSuccess && !tab.Private && _settings.SaveHistory) AppendHistory(core.Source, core.DocumentTitle);
+                if (e.IsSuccess) CheckBankSiteInNormalTab(tab, core.Source);
                 if (e.IsSuccess) _ = ApplyAutoClearRule(tab);
                 if (e.IsSuccess) CheckSejfLogins(tab); // pole hasla? -> loginy z Sejfu dla tej strony
                 if (e.IsSuccess) LoadVoiceNames(core);  // raz: lista polskich glosow do ustawien

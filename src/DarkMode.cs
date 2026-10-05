@@ -152,6 +152,20 @@ namespace Przegladarka
                 var m = ModeFor(src, tab != null && tab.Private);
                 string css = m.Dark == _darkEngineAtStart ? "" : (m.Dark ? LiveDarkCss : LiveLightCss);
                 if (m.Night) css += NightLightCss(m.Strength);
+                // Silnik nie przyciemnia stron, ktore same deklaruja ciemny motyw (np. GitHub z motywem jasnym ustawionym
+                // na koncie) - zostaja jasne. Gdy taka strona mimo trybu ciemnego jest jasna, przyciemniamy ja jak w trybie na zywo.
+                if (m.Dark && _darkEngineAtStart)
+                {
+                    var fix = System.Text.Json.JsonSerializer.Serialize(LiveDarkCss);
+                    var check = "(function(){function run(){try{var h=document.documentElement;if(!h||document.getElementById('velivo-ciemny-wymuszony'))return;" +
+                        "var cs=getComputedStyle(h).colorScheme||'';var me=document.querySelector('meta[name=color-scheme]');" +
+                        "if(!/dark/.test(cs)&&!(me&&/dark/.test(me.content||'')))return;" +
+                        "var els=[document.body,h],lum=1;for(var i=0;i<els.length;i++){if(!els[i])continue;var m=getComputedStyle(els[i]).backgroundColor.match(/[\\d.]+/g);" +
+                        "if(!m||m.length<3||(m.length>3&&parseFloat(m[3])<.5))continue;lum=(0.299*m[0]+0.587*m[1]+0.114*m[2])/255;break;}" +
+                        "if(lum<.6)return;var st=document.createElement('style');st.id='velivo-ciemny-wymuszony';st.textContent=" + fix + ";(document.head||h).appendChild(st);}catch(e){}}" +
+                        "run();setTimeout(run,1200);})();";
+                    await core.ExecuteScriptAsync(check);
+                }
                 await core.ExecuteScriptAsync("(function(){try{var id='velivo-tryb-ciemny';var st=document.getElementById(id);" +
                     "if(!" + System.Text.Json.JsonSerializer.Serialize(css) + "){if(st)st.remove();return;}" +
                     "if(!st){st=document.createElement('style');st.id=id;(document.head||document.documentElement).appendChild(st);}" +

@@ -229,7 +229,7 @@ namespace Przegladarka
             fill.Click += (s, e) => BankFillMenu();
             var logins = new MenuItem { Header = L.T("🔑 Moje loginy i hasła") };
             logins.Click += (s, e) => BankItems("logins");
-            var docs = new MenuItem { Header = L.T("🪪 Poufne dane (dokumenty)") };
+            var docs = new MenuItem { Header = L.T("📄 Poufne dane (dokumenty)") };
             docs.Click += (s, e) => BankItems("docs");
             var accs = new MenuItem { Header = L.T("🏦 Rachunki bankowe") };
             accs.Click += (s, e) => BankItems("acc");
@@ -1183,7 +1183,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             { "logins", new ItemDef { Title = "🔑 Moje loginy i hasła", Icon = "🔑", Fields = new[] {
                 Fd("name", "Nazwa (np. Poczta, Facebook, Netflix):"), Fd("login", "Login:"), Fd("password", "Hasło:", secret: true),
                 Fd("url", "Adres strony www:"), Fd("note", "Notatka:") } } },
-            { "docs", new ItemDef { Title = "🪪 Poufne dane (dokumenty)", Icon = "🪪", Fields = new[] {
+            { "docs", new ItemDef { Title = "📄 Poufne dane (dokumenty)", Icon = "📄", Fields = new[] {
                 Fd("type", "Rodzaj dokumentu:", choices: new[] { "Dowód osobisty", "Paszport", "Prawo jazdy", "PESEL", "NI number", "Ubezpieczenie zdrowotne", "Inny dokument" }),
                 Fd("owner", "Imię i nazwisko:"), Fd("number", "Numer:", secret: true), Fd("expiry", "Ważny do (DD.MM.RRRR):", date: true), Fd("note", "Notatka:") } } },
             { "acc", new ItemDef { Title = "🏦 Rachunki bankowe", Icon = "🏦", Fields = new[] {
@@ -1807,8 +1807,8 @@ draw();
                 {
                     var e = ParseDay(d.Get("expiry")); if (e == null) continue;
                     var days = (e.Value.Date - DateTime.Today).TotalDays;
-                    if (days < 0) msgs.Add("🪪 " + L.T(d.Get("type")) + " – " + L.T("wygasł"));
-                    else if (days <= 60) msgs.Add("🪪 " + L.T(d.Get("type")) + " – " + L.T("wygasa ") + d.Get("expiry"));
+                    if (days < 0) msgs.Add("📄 " + L.T(d.Get("type")) + " – " + L.T("wygasł"));
+                    else if (days <= 60) msgs.Add("📄 " + L.T(d.Get("type")) + " – " + L.T("wygasa ") + d.Get("expiry"));
                 }
                 foreach (var b in LoadSealed<BankItem>(c.Bills))
                 {
@@ -1932,7 +1932,7 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 3. MENU (prawy klik na 🏦)
 🔍 Szukaj w mojej bazie – przeszukuje banki, sklepy, karty i notatki.
 🔑 Moje loginy i hasła – nazwa, login, hasło, adres strony www; „Wpisz na otwartej stronie” działa tylko na stronie o tym samym adresie.
-🪪 Poufne dane – dokumenty (dowód, paszport, prawo jazdy, PESEL, NI number): numer, ważność z przypomnieniem, notatka.
+📄 Poufne dane – dokumenty (dowód, paszport, prawo jazdy, PESEL, NI number): numer, ważność z przypomnieniem, notatka.
 🏦 Rachunki bankowe – Twoje konta i konta odbiorców (IBAN, sort code, właściciel) z kopiowaniem do przelewów.
 🧾 Rachunki do opłacenia – kwota, termin z przypomnieniem, powtarzanie, „Zapłacone” przesuwa termin, link do strony płatności.
 🏦 Moje banki / 🛒 Moje sklepy online – kliknij, aby otworzyć stronę. Na liście jest też „Dodaj bank/sklep (nazwa i adres)”.
@@ -1982,7 +1982,7 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 3. MENU (right-click 🏦)
 🔍 Search my vault – searches banks, shops, cards and notes.
 🔑 My logins and passwords – name, login, password, website address; “Fill in on the open page” works only on a page with the same address.
-🪪 Confidential data – documents (ID, passport, driving licence, PESEL, NI number): number, expiry with reminders, note.
+📄 Confidential data – documents (ID, passport, driving licence, PESEL, NI number): number, expiry with reminders, note.
 🏦 Bank accounts – your accounts and payees (IBAN, sort code, holder) with copying for transfers.
 🧾 Bills to pay – amount, due date with reminders, repeat, “Paid” moves the date on, link to the payment site.
 🏦 My banks / 🛒 My online shops – click to open the site; “Add a bank/shop (name and address)” is in the list.

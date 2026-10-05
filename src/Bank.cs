@@ -31,6 +31,7 @@ namespace Przegladarka
         {
             public string Id { get; set; } public string X { get; set; } public string Y { get; set; } public string Name { get; set; }
             public string WrapK { get; set; }   // czesc klucza kart zaszyfrowana sekretem z tego klucza sprzetowego (null = klucz tylko otwiera tryb)
+            public string WrapKp { get; set; }  // czesc z hasla (Kp) zaszyfrowana tym samym sekretem - sam klucz wystarcza do otwarcia
         }
         sealed class BankConfig
         {
@@ -45,6 +46,7 @@ namespace Przegladarka
             public string Sites { get; set; }      // strony bankowe / sklepy (nazwa + adres) - zaszyfrowane
             public List<string> SiteHosts { get; set; } = new List<string>();   // skroty SHA-256 hostow (rozpoznanie strony bez ujawniania listy)
             public string WrapP { get; set; }      // czesc hasla klucza kart (Kp) zaszyfrowana kluczem z hasla
+            public string WrapPK { get; set; }     // czesc z kluczy (Kk) zaszyfrowana Kp - samo haslo (zapasowo, bez klucza) tez otwiera
             public string HmacSalt { get; set; }   // sol dla sekretu z klucza sprzetowego (hmac-secret)
         }
 
@@ -214,28 +216,68 @@ namespace Przegladarka
         }
 
         // ---------- odblokowanie ----------
+        // Otwieranie: klucz sprzetowy ALBO haslo. Z kluczem (jesli dodany i podlaczony) haslo nie jest potrzebne;
+        // haslo jest zapasowe - gdy klucza nie ma pod reka.
         async Task<bool> BankUnlock(BankConfig c)
         {
             var w = BankDialog(L.T("Tryb bankowy"));
             var sp = (StackPanel)w.Content;
-            sp.Children.Add(new TextBlock { Text = L.T("Podaj hasło trybu bankowego:"), Margin = new Thickness(0, 0, 0, 6) });
+            bool hasKeys = c.UseKey && c.Keys.Count > 0;
+            Button keyBtn = null;
+            TextBlock keyInfo = null;
+            if (hasKeys)
+            {
+                keyBtn = new Button { Content = L.T("🔑 Otwórz kluczem sprzętowym"), Padding = new Thickness(12, 6, 12, 6), FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Left };
+                sp.Children.Add(keyBtn);
+                keyInfo = new TextBlock { Margin = new Thickness(0, 6, 0, 12), TextWrapping = TextWrapping.Wrap, MaxWidth = 340, Text = L.T("Sprawdzam klucz sprzętowy…") };
+                sp.Children.Add(keyInfo);
+                sp.Children.Add(new TextBlock { Text = L.T("Nie masz klucza? Podaj hasło:"), Margin = new Thickness(0, 0, 0, 6) });
+            }
+            else sp.Children.Add(new TextBlock { Text = L.T("Podaj hasło trybu bankowego:"), Margin = new Thickness(0, 0, 0, 6) });
             var pass = new PasswordBox { Padding = new Thickness(6), MinWidth = 320 };
             sp.Children.Add(pass);
-            bool needKey = c.UseKey && c.Keys.Count > 0;
-            TextBlock keyInfo = null;
-            if (needKey)
-            {
-                keyInfo = new TextBlock { Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 340, Text = L.T("Sprawdzam klucz sprzętowy…") };
-                sp.Children.Add(keyInfo);
-                UpdateKeyPresence(keyInfo, true);
-            }
             var err = new TextBlock { Foreground = Brushes.Firebrick, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 340 };
             sp.Children.Add(err);
-            var ok = BankButtons(sp, w, L.T("Otwórz"));
-            bool result = false;
+            var ok = BankButtons(sp, w, L.T("Otwórz hasłem"));
+            bool result = false, busy = false;
+            var hmacSalt = string.IsNullOrEmpty(c.HmacSalt) ? null : Convert.FromBase64String(c.HmacSalt);
+
+            Func<Task<WebAuthn.VerifyResult>> touch = async () =>
+            {
+                var hwnd = new WindowInteropHelper(w).Handle;
+                var allowed = c.Keys.ToList();
+                var r = await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, allowed, hmacSalt));
+                if (r.Key == null) throw new InvalidOperationException(L.T("Ten klucz nie jest dodany do trybu bankowego."));
+                return r;
+            };
+            Action done = () => { if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)); SaveBank(c); _bankFails = 0; _bankUnlocked = true; result = true; w.Close(); };
+
+            // --- samym kluczem ---
+            Func<Task> byKey = async () =>
+            {
+                if (busy) return; busy = true; if (keyBtn != null) keyBtn.IsEnabled = false; ok.IsEnabled = false;
+                err.Text = L.T("Dotknij klucza sprzętowego (okienko Windows)…");
+                try
+                {
+                    var r = await touch();
+                    if (r.Key.WrapKp == null || r.Key.WrapK == null || r.Hmac == null || string.IsNullOrEmpty(c.WrapPK))
+                    { err.Text = L.T("Ten klucz jeszcze nie otwiera trybu sam – podaj raz hasło (z kluczem), potem wystarczy sam klucz."); return; }
+                    var kek = KekFromHmac(r.Hmac);
+                    ForgetBankKey();
+                    _bankKp = Unwrap(r.Key.WrapKp, kek);
+                    _bankKk = Unwrap(r.Key.WrapK, kek);
+                    _bankKey = CardKeyFrom(_bankKp, _bankKk);
+                    done();
+                }
+                catch (Exception ex) { err.Text = ex.Message; }
+                finally { busy = false; if (keyBtn != null) keyBtn.IsEnabled = true; ok.IsEnabled = true; }
+            };
+            if (keyBtn != null) keyBtn.Click += async (s, e) => await byKey();
+
+            // --- haslem (zapasowo) ---
             ok.Click += async (s, e) =>
             {
-                ok.IsEnabled = false; err.Text = "";
+                if (busy) return; busy = true; ok.IsEnabled = false; if (keyBtn != null) keyBtn.IsEnabled = false; err.Text = "";
                 try
                 {
                     var salt = Convert.FromBase64String(c.Salt);
@@ -249,53 +291,65 @@ namespace Przegladarka
                         if (wait > 0) await Task.Delay(wait * 1000);
                         return;
                     }
-                    byte[] hmac = null; BankKey used = null;
-                    if (needKey)
-                    {
-                        err.Text = L.T("Dotknij klucza sprzętowego (okienko Windows)…");
-                        try
-                        {
-                            var hwnd = new WindowInteropHelper(w).Handle;
-                            var allowed = c.Keys.ToList();
-                            var salt2 = string.IsNullOrEmpty(c.HmacSalt) ? null : Convert.FromBase64String(c.HmacSalt);
-                            var r = await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, allowed, salt2));
-                            if (r.Key == null) { err.Text = L.T("Ten klucz nie jest dodany do trybu bankowego."); return; }
-                            used = r.Key; hmac = r.Hmac;
-                        }
-                        catch (Exception ex) { err.Text = ex.Message; return; }
-                    }
                     if (string.IsNullOrEmpty(c.CardSalt)) c.CardSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
                     var pwKey = await Task.Run(() => CardKey(pw, c));
                     ForgetBankKey();
                     if (string.IsNullOrEmpty(c.WrapP))
                     {
-                        // starszy zapis (karty zaszyfrowane samym kluczem z hasla) - przejscie na nowy uklad
+                        // najstarszy zapis (karty zaszyfrowane samym kluczem z hasla) - przejscie na nowy uklad
                         _bankKey = pwKey; var old = LoadCards(c);
                         _bankKp = RandomNumberGenerator.GetBytes(32);
                         c.WrapP = Wrap(_bankKp, pwKey);
                         _bankKey = CardKeyFrom(_bankKp, null);
                         c.Cards = old.Count > 0 ? SealCards(_bankKey, old) : null;
-                        foreach (var k in c.Keys) k.WrapK = null;
+                        foreach (var k in c.Keys) { k.WrapK = null; k.WrapKp = null; }
+                        c.WrapPK = null;
                     }
                     else _bankKp = Unwrap(c.WrapP, pwKey);
-                    if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-                    SaveBank(c);
-                    bool cardsNeedKey = c.UseKey && c.Keys.Any(k => k.WrapK != null);
-                    if (cardsNeedKey)
+                    bool keyPart = c.UseKey && c.Keys.Any(k => k.WrapK != null);
+                    if (!keyPart) _bankKey = CardKeyFrom(_bankKp, null);
+                    else if (!string.IsNullOrEmpty(c.WrapPK)) { _bankKk = Unwrap(c.WrapPK, _bankKp); _bankKey = CardKeyFrom(_bankKp, _bankKk); }
+                    else
                     {
-                        if (used != null && used.WrapK != null && hmac != null) { try { _bankKk = Unwrap(used.WrapK, KekFromHmac(hmac)); } catch (Exception) { _bankKk = null; } }
-                        _bankKey = _bankKk != null ? CardKeyFrom(_bankKp, _bankKk) : null;
-                        if (_bankKey == null) ShowToast(L.T("Ten klucz otwiera tryb, ale nie odszyfrowuje kart – użyj klucza, który szyfruje karty"), null);
+                        // poprzednia wersja (karty tylko z kluczem): ostatni raz haslo + klucz, potem kazde z osobna wystarczy
+                        err.Text = L.T("Dotknij klucza sprzętowego (okienko Windows)…");
+                        var r = await touch();
+                        if (r.Key.WrapK == null || r.Hmac == null) { err.Text = L.T("Ten klucz otwiera tryb, ale nie odszyfrowuje kart – użyj klucza, który szyfruje karty"); ForgetBankKey(); return; }
+                        var kek = KekFromHmac(r.Hmac);
+                        _bankKk = Unwrap(r.Key.WrapK, kek);
+                        _bankKey = CardKeyFrom(_bankKp, _bankKk);
+                        c.WrapPK = Wrap(_bankKk, _bankKp);
+                        r.Key.WrapKp = Wrap(_bankKp, kek);
+                        ShowToast(L.T("🔑 Od teraz ten klucz sam otwiera tryb bankowy (inne klucze: otwórz nimi raz z hasłem)"), null);
                     }
-                    else _bankKey = CardKeyFrom(_bankKp, null);
-                    _bankFails = 0; _bankUnlocked = true; result = true; w.Close();
+                    // klucz bez WrapKp, ktory wlasnie uzyto z haslem? (inne klucze uzupelnia sie przy ich uzyciu z haslem)
+                    done();
                 }
                 catch (Exception ex) { err.Text = ex.Message; }
-                finally { ok.IsEnabled = true; }
+                finally { busy = false; ok.IsEnabled = true; if (keyBtn != null) keyBtn.IsEnabled = true; }
             };
-            pass.Focus();
+
+            // klucz juz w porcie -> od razu prosimy o dotkniecie (haslo niepotrzebne)
+            w.Loaded += async (s, e) =>
+            {
+                if (!hasKeys) { pass.Focus(); return; }
+                int n = await CountFidoKeys();
+                if (n > 0) { keyInfo.Text = L.T("✔ Wykryto podłączony klucz sprzętowy."); await byKey(); }
+                else { keyInfo.Text = n == 0 ? L.T("Nie wykryto klucza – włóż go i kliknij przycisk albo podaj hasło.") : L.T("Kliknij przycisk i dotknij klucza albo podaj hasło."); pass.Focus(); }
+            };
             w.ShowDialog();
             return result;
+        }
+
+        static async Task<int> CountFidoKeys()
+        {
+            try
+            {
+                var sel = Windows.Devices.HumanInterfaceDevice.HidDevice.GetDeviceSelector(0xF1D0, 0x0001);
+                var found = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(sel);
+                return found.Count;
+            }
+            catch (Exception) { return -1; }
         }
 
         // ---------- pierwsze ustawienie / zmiana ustawien ----------
@@ -310,7 +364,7 @@ namespace Przegladarka
         bool BankSetup(BankConfig existing)
         {
             var c = existing ?? new BankConfig { Iter = 600000 };
-            var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK }).ToList();
+            var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK, WrapKp = k.WrapKp }).ToList();
             if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
             if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites)) && _bankKey == null)
             {
@@ -318,6 +372,7 @@ namespace Przegladarka
                 return false;
             }
             byte[] kk = _bankKk != null ? (byte[])_bankKk.Clone() : null;   // czesc klucza kart z kluczy sprzetowych
+            byte[] kp = _bankKp != null ? (byte[])_bankKp.Clone() : RandomNumberGenerator.GetBytes(32);   // czesc z hasla
             var w = BankDialog(L.T("Tryb bankowy – ustawienia"));
             var sp = (StackPanel)w.Content;
             sp.Children.Add(new TextBlock
@@ -372,7 +427,9 @@ namespace Przegladarka
                     if (hmac != null)
                     {
                         if (kk == null) kk = RandomNumberGenerator.GetBytes(32);
-                        k.WrapK = Wrap(kk, KekFromHmac(hmac));
+                        var kek = KekFromHmac(hmac);
+                        k.WrapK = Wrap(kk, kek);
+                        k.WrapKp = Wrap(kp, kek);   // sam klucz otworzy tryb (bez hasla)
                         err.Text = "";
                     }
                     else err.Text = L.T("Ten klucz nie potrafi szyfrować – będzie tylko otwierał tryb bankowy.");
@@ -398,7 +455,6 @@ namespace Przegladarka
                 if (useKey.IsChecked == true && keys.Count == 0) { err.Text = L.T("Dodaj co najmniej jeden klucz albo odznacz opcję klucza."); return; }
                 List<BankCard> oldCards = new List<BankCard>(); List<BankNote> oldNotes = new List<BankNote>(); List<BankSite> oldSites = new List<BankSite>();
                 if (existing != null) { try { oldCards = LoadCards(c); oldNotes = LoadSealed<BankNote>(c.Notes); oldSites = LoadSealed<BankSite>(c.Sites); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
-                byte[] kp = _bankKp != null ? (byte[])_bankKp.Clone() : RandomNumberGenerator.GetBytes(32);
                 if (a.Length > 0)
                 {
                     var salt = RandomNumberGenerator.GetBytes(16);
@@ -408,7 +464,8 @@ namespace Przegladarka
                     c.WrapP = Wrap(kp, CardKey(a, c));
                 }
                 bool withKey = useKey.IsChecked == true;
-                if (!withKey || !keys.Any(k => k.WrapK != null)) { kk = null; foreach (var k in keys) k.WrapK = null; }
+                if (!withKey || !keys.Any(k => k.WrapK != null)) { kk = null; foreach (var k in keys) { k.WrapK = null; k.WrapKp = null; } }
+                c.WrapPK = kk != null ? Wrap(kk, kp) : null;   // haslo zapasowo tez otwiera karty
                 // karty przeszyfrowane nowym kluczem (haslo + ewentualnie klucz sprzetowy)
                 ForgetBankKey();
                 _bankKp = kp; _bankKk = kk; _bankKey = CardKeyFrom(kp, kk);
@@ -555,6 +612,10 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 info.Click += (s, e) => OpenBankTab();
                 parent.Items.Add(info); return;
             }
+            var addManual = new MenuItem { Header = L.T("➕ Dodaj bank lub sklep (nazwa i adres)…") };
+            addManual.Click += (s, e) => BankAddSiteManual();
+            parent.Items.Add(addManual);
+            parent.Items.Add(new Separator());
             if (list.Count == 0) { parent.Items.Add(new MenuItem { Header = L.T("(pusto – otwórz stronę w karcie bankowej i wybierz „Dodaj tę stronę”)"), IsEnabled = false }); }
             foreach (var site in list)
             {
@@ -583,6 +644,39 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 }
                 parent.Items.Add(del);
             }
+        }
+
+        void BankAddSiteManual()
+        {
+            if (!_bankUnlocked || _bankKey == null) return;
+            var w = BankDialog(L.T("🔖 Dodaj bank lub sklep"));
+            var sp = (StackPanel)w.Content;
+            sp.Children.Add(new TextBlock { Text = L.T("Nazwa (np. mBank, Allegro):") });
+            var name = new TextBox { Padding = new Thickness(4), MinWidth = 340, Margin = new Thickness(0, 1, 0, 6) };
+            sp.Children.Add(name);
+            sp.Children.Add(new TextBlock { Text = L.T("Adres strony (np. https://www.mbank.pl):") });
+            var addr = new TextBox { Padding = new Thickness(4), Margin = new Thickness(0, 1, 0, 6) };
+            sp.Children.Add(addr);
+            var err = new TextBlock { Foreground = Brushes.Firebrick };
+            sp.Children.Add(err);
+            var ok = BankButtons(sp, w, L.T("➕ Dodaj"));
+            ok.Click += (s, e) =>
+            {
+                string u = (addr.Text ?? "").Trim();
+                if (u.Length > 0 && !u.Contains("://")) u = "https://" + u;
+                var host = HostOf(u);
+                if (host == null || !host.Contains('.')) { err.Text = L.T("Nieprawidłowy adres strony."); return; }
+                var c = LoadBank(); if (c == null || _bankKey == null) return;
+                var list = LoadSealed<BankSite>(c.Sites);
+                if (list.Any(x => HostOf(x.Url) == host)) { err.Text = L.T("Ta strona już jest na liście"); return; }
+                list.Add(new BankSite { Name = string.IsNullOrWhiteSpace(name.Text) ? host : name.Text.Trim(), Url = u });
+                c.Sites = SealList(_bankKey, list);
+                c.SiteHosts = list.Select(x => HostHash(HostOf(x.Url))).Distinct().ToList();
+                SaveBank(c); w.Close();
+                ShowToast(L.T("🔖 Dodano do moich stron bankowych: ") + (string.IsNullOrWhiteSpace(name.Text) ? host : name.Text.Trim()), null);
+            };
+            name.Focus();
+            w.ShowDialog();
         }
 
         void OpenBankSite(string url)

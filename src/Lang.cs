@@ -987,6 +987,18 @@ namespace Przegladarka
             { "📋 Skopiowano – schowek wyczyści się za 30 s", "📋 Copied – the clipboard will be cleared in 30 s" },
             { "Notatka", "Note" },
             { "📝 Notatki zapisane (zaszyfrowane)", "📝 Notes saved (encrypted)" },
+            { "🔑 Otwórz kluczem sprzętowym", "🔑 Open with security key" },
+            { "Nie masz klucza? Podaj hasło:", "No key? Enter the password:" },
+            { "Otwórz hasłem", "Open with password" },
+            { "Ten klucz jeszcze nie otwiera trybu sam – podaj raz hasło (z kluczem), potem wystarczy sam klucz.", "This key cannot open the mode on its own yet – enter the password once (with the key), then the key alone is enough." },
+            { "🔑 Od teraz ten klucz sam otwiera tryb bankowy (inne klucze: otwórz nimi raz z hasłem)", "🔑 From now on this key alone opens banking mode (other keys: open once with them and the password)" },
+            { "Nie wykryto klucza – włóż go i kliknij przycisk albo podaj hasło.", "No key detected – insert it and click the button, or enter the password." },
+            { "Kliknij przycisk i dotknij klucza albo podaj hasło.", "Click the button and touch the key, or enter the password." },
+            { "➕ Dodaj bank lub sklep (nazwa i adres)…", "➕ Add a bank or shop (name and address)…" },
+            { "🔖 Dodaj bank lub sklep", "🔖 Add a bank or shop" },
+            { "Nazwa (np. mBank, Allegro):", "Name (e.g. My bank, Amazon):" },
+            { "Adres strony (np. https://www.mbank.pl):", "Website address (e.g. https://www.mybank.com):" },
+            { "Nieprawidłowy adres strony.", "Invalid website address." },
         };
     }
 }

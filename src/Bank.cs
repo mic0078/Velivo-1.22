@@ -195,6 +195,8 @@ namespace Przegladarka
             var addShop = new MenuItem { Header = L.T("➕ Dodaj tę stronę do Moich sklepów") };
             addShop.Click += (s, e) => BankAddCurrentSite(true);
             var profMenu = new MenuItem { Header = L.T("👤 Profile bankowe") };
+            var help = new MenuItem { Header = L.T("❓ Instrukcja trybu bankowego") };
+            help.Click += (s, e) => BankHelp();
             var search = new MenuItem { Header = L.T("🔍 Szukaj w mojej bazie…") };
             search.Click += (s, e) => BankSearch();
             var fillLogin = new MenuItem { Header = L.T("🔑 Wpisz login z notatki na tej stronie") };
@@ -209,7 +211,7 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 addSite.IsEnabled = _bankUnlocked && _bankKey != null && _current != null && _current.Bank && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
                 addShop.IsEnabled = addSite.IsEnabled;
@@ -964,6 +966,112 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 SaveBank(cc); w.Close(); ShowToast(L.T("📝 Notatki zapisane (zaszyfrowane)"), null);
             };
             w.ShowDialog();
+        }
+
+        // ---------- instrukcja ----------
+        const string BankHelpPl =
+@"TRYB BANKOWY – INSTRUKCJA
+
+Co to jest?
+Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania i ciasteczka, nie ma dodatków i nie zapisuje historii. Zwykłe karty nic z niego nie widzą.
+
+1. PIERWSZE URUCHOMIENIE
+• Kliknij zielony przycisk 🏦 na pasku kart.
+• Ustaw hasło (min. 8 znaków).
+• (Opcjonalnie) zaznacz „Dodatkowo wymagaj klucza sprzętowego”, włóż klucz (YubiKey, Titan) i kliknij „Dodaj klucz”. Windows poprosi o dotknięcie DWA razy. Klucz z 🔐 sam otwiera tryb i szyfruje bazę.
+• Dodaj wszystkie swoje klucze w tym samym okienku, a potem kliknij „Zapisz”.
+• Wybierz, po ilu minutach bezczynności tryb ma się zablokować.
+
+2. OTWIERANIE
+• Klucz w porcie → Velivo od razu prosi o dotknięcie klucza. Hasło niepotrzebne.
+• Nie masz klucza → wpisz hasło.
+• Karty bankowe są zielone i mają ikonę 🏦.
+
+3. MENU (prawy klik na 🏦)
+🔍 Szukaj w mojej bazie – przeszukuje banki, sklepy, karty i notatki.
+🏦 Moje banki / 🛒 Moje sklepy online – kliknij, aby otworzyć stronę. Na liście jest też „Dodaj bank/sklep (nazwa i adres)”.
+➕ Dodaj tę stronę do Moich banków / sklepów – na otwartej karcie bankowej.
+💳 Moje karty – wpisz nazwę, numer, datę (MM/RR) i nazwisko, potem „Zapisz”. CVV nie jest zapisywany.
+💳 Wypełnij kartę na tej stronie – wpisuje dane karty w formularzu płatności.
+📝 Moje notatki – loginy, hasła, numery klienta. Wybierz kategorię, wpisz tytuł i treść, potem „Zapisz”. 🎲 generuje mocne hasło, 📋 kopiuje (schowek czyści się po 30 s).
+🔑 Wpisz login z notatki – wypełnia logowanie na stronie banku. Notatka powinna mieć linie:  login: …  oraz  hasło: …
+⚙ Ustawienia – hasło, klucze, czas blokady.
+📜 Dziennik otwarć – kto i kiedy otwierał tryb (także złe hasła).
+💾 Kopia zapasowa / 📂 Przywróć – plik .vbank (zaszyfrowany) np. na pendrive.
+👤 Profile bankowe – osobny tryb dla innej osoby (własne hasło/klucz i dane).
+🔒 Zablokuj teraz – natychmiast zamyka tryb.
+
+4. OCHRONA (działa sama)
+• Okno jest niewidoczne dla zrzutów i nagrywania ekranu, gdy patrzysz na kartę bankową.
+• Strona podobna do Twojego banku (np. fałszywy adres) → duże ostrzeżenie.
+• Bank z listy otwarty w zwykłej karcie → przypomnienie, żeby użyć trybu bankowego.
+• Po zamknięciu trybu znika pamięć podręczna i historia (logowania zostają).
+• Przypomnienie o kartach, które niedługo wygasają.
+
+5. SYNCHRONIZACJA
+Banki, sklepy, karty, notatki i ustawienia trybu przechodzą na sparowane komputery (zaszyfrowane). Logowania w bankach (ciasteczka) zostają na każdym komputerze osobno.
+
+6. ZAPOMNIANE HASŁO
+Bez klucza i bez hasła danych nie da się odzyskać. „Zapomniałem hasła – wyczyść tryb bankowy” usuwa tryb i jego dane. Dlatego warto mieć kopię zapasową i drugi klucz.";
+
+        const string BankHelpEn =
+@"BANKING MODE – GUIDE
+
+What is it?
+A separate, closed browser profile for banking and shopping. It has its own logins and cookies, no extensions and no history. Normal tabs cannot see anything from it.
+
+1. FIRST START
+• Click the green 🏦 button on the tab bar.
+• Set a password (min. 8 characters).
+• (Optional) tick “Also require a hardware security key”, insert the key (YubiKey, Titan) and click “Add key”. Windows asks you to touch it TWICE. A key marked 🔐 opens the mode on its own and encrypts the vault.
+• Add all your keys in the same window, then click “Save”.
+• Choose after how many idle minutes the mode locks.
+
+2. OPENING
+• Key plugged in → Velivo asks you to touch it right away. No password needed.
+• No key → enter the password.
+• Banking tabs are green and show 🏦.
+
+3. MENU (right-click 🏦)
+🔍 Search my vault – searches banks, shops, cards and notes.
+🏦 My banks / 🛒 My online shops – click to open the site; “Add a bank/shop (name and address)” is in the list.
+➕ Add this site to My banks / shops – on an open banking tab.
+💳 My cards – name, number, expiry (MM/YY), holder, then “Save”. The CVV is never stored.
+💳 Fill in a card on this page – fills the payment form.
+📝 My notes – logins, passwords, customer numbers. Choose a category, type title and content, then “Save”. 🎲 generates a strong password, 📋 copies (clipboard cleared after 30 s).
+🔑 Fill in a login from a note – note lines:  login: …  and  password: …
+⚙ Settings – password, keys, lock time.
+📜 Access log – who opened the mode and when (including wrong passwords).
+💾 Back up / 📂 Restore – an encrypted .vbank file, e.g. on a USB stick.
+👤 Banking profiles – a separate mode for another person.
+🔒 Lock now – closes the mode immediately.
+
+4. PROTECTION (automatic)
+• The window is hidden from screenshots and screen recording on banking tabs.
+• A site that looks like your bank (fake address) → big warning.
+• A listed bank opened in a normal tab → reminder to use banking mode.
+• Cache and history are cleared when the mode closes (logins stay).
+• Reminder about cards that expire soon.
+
+5. SYNC
+Banks, shops, cards, notes and settings go to paired computers (encrypted). Bank logins (cookies) stay on each computer.
+
+6. FORGOTTEN PASSWORD
+Without the key and the password the data cannot be recovered. “Forgot password – clear banking mode” removes the mode and its data, so keep a backup and a second key.";
+
+        void BankHelp()
+        {
+            var w = new Window
+            {
+                Title = L.T("❓ Instrukcja trybu bankowego"), Owner = this, Width = 640, Height = 640, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new ScrollViewer
+                {
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Content = new TextBox { Text = L.En ? BankHelpEn : BankHelpPl, IsReadOnly = true, BorderThickness = new Thickness(0), TextWrapping = TextWrapping.Wrap, Padding = new Thickness(18), FontSize = 14 }
+                }
+            };
+            w.PreviewKeyDown += (s, e) => { if (e.Key == Key.Escape) w.Close(); };
+            w.Show();
         }
 
         // ---------- drobne narzedzia ----------

@@ -1055,6 +1055,7 @@ namespace Przegladarka
             { "Twoja prawdziwa strona: ", "Your real site: " },
             { "Nie wpisuj tu loginu, hasła ani danych karty. Otwórz bank z listy „Moje banki”.", "Do not enter your login, password or card details here. Open your bank from “My banks”." },
             { "🛡 Tryb bankowy: okno Velivo jest niewidoczne dla zrzutów i nagrywania ekranu.", "🛡 Banking mode: the Velivo window is hidden from screenshots and screen recording." },
+            { "❓ Instrukcja trybu bankowego", "❓ Banking mode guide" },
         };
     }
 }

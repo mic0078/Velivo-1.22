@@ -154,8 +154,6 @@ try {
       var cinemaMs = function () { return C.entMs > 0 ? C.entMs : Math.max(500, Math.min(4000, C.fade * 1.5)); };
       var enter = function () {
         if (C.entrance === 'none' || Date.now() - lastEnter < 600) return;
-        // kinowe: zaraz po wejsciu na strone (zanim skonczy sie pierwsze wylanianie) nie przyciemniamy drugi raz
-        if (C.entrance === 'cinema' && performance.now() < cinemaMs() + 2500) return;
         lastEnter = Date.now();
         try {
           var b = document.body; if (!b) return;
@@ -179,6 +177,11 @@ try {
         if (busy) return;               // przejscie juz trwa - nie zaczynamy od nowa
         busy = true;
         if (C.fade > 0 && C.entrance !== 'cinema') veilTo(VEIL, 150);   // kinowe wejscie robi cale przejscie samo - bez podwojnego przyciemnienia
+        // kinowe: sciemniamy OD RAZU po kliknieciu (zanim strona podmieni tresc), nowa tresc wylania sie z ciemnosci w finish()
+        if (C.entrance === 'cinema') try {
+          var b0 = document.body;
+          if (b0) { if (bAnim) { try { bAnim.cancel(); } catch (x) {} } bAnim = b0.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(.3)' }], { duration: 140, easing: 'ease-in', fill: 'forwards' }); lastEnter = 0; }
+        } catch (x) {}
         clearTimeout(safety); safety = setTimeout(finish, 1800);   // zabezpieczenie: nic sie nie zmienilo
       };
       // czekamy, az nowa tresc sie ustabilizuje (120 ms bez zmian, najwyzej 800 ms)

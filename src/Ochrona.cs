@@ -314,7 +314,8 @@ namespace Przegladarka
                 {
                     var src = _current?.View.CoreWebView2?.Source;
                     bool on = _settings != null && _settings.SafePayments && Uri.TryCreate(src ?? "", UriKind.Absolute, out var u)
-                              && u.Scheme == Uri.UriSchemeHttps && IsPaymentHost(u.Host);
+                              && u.Scheme == Uri.UriSchemeHttps && IsPaymentHost(u.Host)
+                              && !(_current != null && _current.Bank);   // tryb bankowy: bez ukrywania okna (banki chronia sie same, a powodowalo przycinanie)
                     if (on == _safePayOn) return;
                     _safePayOn = on;
                     var h = new WindowInteropHelper(this).Handle;

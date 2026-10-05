@@ -1163,12 +1163,28 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 Fd("sort", "Sort code / BIC (SWIFT):"), Fd("bank", "Bank:"), Fd("note", "Tytuł przelewu / notatka:") } } },
             { "bills", new ItemDef { Title = "🧾 Rachunki do opłacenia", Icon = "🧾", Fields = new[] {
                 Fd("name", "Za co (np. Prąd, Internet, Czynsz):"), Fd("amount", "Kwota:"), Fd("due", "Termin płatności (DD.MM.RRRR):", date: true),
-                Fd("repeat", "Powtarzanie:", choices: new[] { "Co miesiąc", "Co kwartał", "Co rok", "Jednorazowo" }),
+                Fd("repeat", "Powtarzanie (albo wpisz np. co 10 dni):", choices: new[] { "Co tydzień", "Co 2 tygodnie", "Co 4 tygodnie", "Co miesiąc", "Co 2 miesiące", "Co kwartał", "Co pół roku", "Co rok", "Jednorazowo" }),
                 Fd("customer", "Numer klienta / referencja:"), Fd("url", "Strona do płatności:"), Fd("note", "Notatka:") } } },
         };
 
         static string ItemStore(BankConfig c, string kind) { return kind == "logins" ? c.Logins : kind == "docs" ? c.Docs : kind == "acc" ? c.Accounts : c.Bills; }
         static void SetItemStore(BankConfig c, string kind, string v) { if (kind == "logins") c.Logins = v; else if (kind == "docs") c.Docs = v; else if (kind == "acc") c.Accounts = v; else c.Bills = v; }
+
+        // Nastepny termin wg powtarzania: gotowe opcje (PL/EN) albo wlasne "co 10 dni", "co 3 tygodnie", "every 2 weeks"...
+        static DateTime? NextDue(DateTime due, string rep)
+        {
+            var r = (rep ?? "").Trim().ToLowerInvariant();
+            if (r.Length == 0 || r.Contains("jednoraz") || r.Contains("one-off") || r.Contains("once")) return null;
+            int n = 1;
+            var m = System.Text.RegularExpressions.Regex.Match(r, @"\d+");
+            if (m.Success) n = Math.Max(1, Math.Min(999, int.Parse(m.Value)));
+            if (r.Contains("pół roku") || r.Contains("pol roku") || r.Contains("half")) return due.AddMonths(6);
+            if (r.Contains("kwarta") || r.Contains("quarter")) return due.AddMonths(3 * n);
+            if (r.Contains("dzie") || r.Contains("dni") || r.Contains("day")) return due.AddDays(n);
+            if (r.Contains("tydz") || r.Contains("tygod") || r.Contains("week")) return due.AddDays(7 * n);
+            if (r.Contains("rok") || r.Contains("lat") || r.Contains("year")) return due.AddYears(n);
+            return due.AddMonths(n);   // miesiac / month i domyslnie
+        }
 
         static string FixUrl(string u) { u = (u ?? "").Trim(); return u.Length > 0 && !u.Contains("://") ? "https://" + u : u; }
 
@@ -1301,9 +1317,9 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 {
                     int i = list.SelectedIndex; if (i < 0) { err.Text = L.T("Zaznacz pozycję na liście."); return; }
                     var it = items[i]; var due = ParseDay(it.Get("due")); var rep = it.Get("repeat");
-                    if (due == null || rep == L.T("Jednorazowo") || rep == "Jednorazowo" || rep.Length == 0) { items.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); return; }
-                    var next = rep == L.T("Co kwartał") || rep == "Co kwartał" ? due.Value.AddMonths(3) : rep == L.T("Co rok") || rep == "Co rok" ? due.Value.AddYears(1) : due.Value.AddMonths(1);
-                    it.F["due"] = next.ToString("dd.MM.yyyy"); fillList(); list.SelectedIndex = i;
+                    var next = due == null ? (DateTime?)null : NextDue(due.Value, rep);
+                    if (next == null) { items.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); return; }   // jednorazowy - oplacony, znika z listy
+                    it.F["due"] = next.Value.ToString("dd.MM.yyyy"); fillList(); list.SelectedIndex = i;
                     ShowToast(L.T("✔ Następny termin: ") + it.F["due"], null);
                 };
                 var open = new Button { Content = L.T("🌐 Otwórz stronę płatności"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };

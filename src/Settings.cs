@@ -170,7 +170,7 @@ namespace Przegladarka
                         case "popups": s.BlockThirdPartyPopups = b; break;
                         case "cookieReject": s.AutoRejectCookies = b; break;
                         case "pageEntranceMs": { int em; if (int.TryParse(v, out em)) s.PageEntranceMs = Math.Max(0, Math.Min(5000, em)); } break;
-                        case "pageEntrance": if (v == "slide" || v == "blur" || v == "zoom" || v == "cinema" || v == "none") s.PageEntrance = v; break;
+                        case "pageEntrance": if (v == "slide" || v == "blur" || v == "zoom" || v == "cinema" || v == "dim" || v == "none") s.PageEntrance = v; break;
                         case "pageFade": { int pf; if (int.TryParse(v, out pf)) s.PageFade = Math.Max(0, Math.Min(4000, pf)); } break;
                         case "nightStrength": { int ns; if (int.TryParse(v, out ns)) s.NightStrength = Math.Max(5, Math.Min(100, ns)); } break;
                         case "uiStyle": s.UiStyle = v == "colorful" ? "colorful" : "modern"; break;
@@ -364,15 +364,9 @@ namespace Przegladarka
             root.Children.Add(dark);
             var night = Check(L.T("Tryb nocny – cieplejsze kolory stron (jak Światło nocne w Windows)"), L.T("Mniej niebieskiego światła wieczorem. Przycisk z księżycem przełącza: jasny → ciemny → nocny."), s.NightLight);
             root.Children.Add(night);
-            root.Children.Add(new TextBlock { Text = L.T("Płynne przejście między stronami:"), Margin = new Thickness(0, 6, 0, 2) });
-            var fadeBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
-            foreach (var f in new[] { new { ms = 0, t = L.T("Wyłączone") }, new { ms = 150, t = L.T("Szybkie (0,15 s)") }, new { ms = 300, t = L.T("Delikatne (0,3 s)") }, new { ms = 500, t = L.T("Wolne (0,5 s)") }, new { ms = 1000, t = L.T("Spokojne (1 s)") }, new { ms = 2000, t = L.T("Bardzo spokojne (2 s)") }, new { ms = 3000, t = L.T("Senne (3 s)") }, new { ms = 4000, t = L.T("Najwolniejsze (4 s)") } })
-                fadeBox.Items.Add(new ComboBoxItem { Content = f.t, Tag = f.ms });
-            fadeBox.SelectedItem = fadeBox.Items.Cast<ComboBoxItem>().OrderBy(i => Math.Abs((int)i.Tag - s.PageFade)).First();
-            root.Children.Add(fadeBox);
             root.Children.Add(new TextBlock { Text = L.T("Efekt wejścia treści:"), Margin = new Thickness(0, 6, 0, 2) });
             var entBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
-            foreach (var en in new[] { new { k = "slide", t = L.T("Wysunięcie z wyostrzeniem (jak Gemini)") }, new { k = "blur", t = L.T("Wyostrzenie") }, new { k = "zoom", t = L.T("Delikatne przybliżenie") }, new { k = "cinema", t = L.T("Z ciemności (kinowe)") }, new { k = "none", t = L.T("Brak") } })
+            foreach (var en in new[] { new { k = "slide", t = L.T("Wysunięcie z wyostrzeniem (jak Gemini)") }, new { k = "blur", t = L.T("Wyostrzenie") }, new { k = "zoom", t = L.T("Delikatne przybliżenie") }, new { k = "cinema", t = L.T("Z ciemności (kinowe)") }, new { k = "dim", t = L.T("Delikatne przyciemnienie") }, new { k = "none", t = L.T("Brak") } })
                 entBox.Items.Add(new ComboBoxItem { Content = en.t, Tag = en.k });
             entBox.SelectedItem = entBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (s.PageEntrance ?? "slide")) ?? entBox.Items[0];
             root.Children.Add(entBox);
@@ -794,7 +788,7 @@ namespace Przegladarka
                 s.SaveHistory = hist.IsChecked == true; s.ClearOnExit = clear.IsChecked == true;
                 s.SavePasswords = pw.IsChecked == true; s.Autofill = af.IsChecked == true;
                 s.BlockThirdPartyPopups = pop.IsChecked == true;
-                int newFade = (int)((ComboBoxItem)fadeBox.SelectedItem).Tag;
+                int newFade = s.PageFade;   // lista "Plynne przejscie" zastapiona efektem "Delikatne przyciemnienie"
                 var newEnt = (string)((ComboBoxItem)entBox.SelectedItem).Tag;
                 int newEntMs = entSlider.Value < 100 ? 0 : (int)entSlider.Value;
                 bool scriptsChanged = s.PageFade != newFade || s.PageEntrance != newEnt || s.PageEntranceMs != newEntMs || s.AutoRejectCookies != (cookieRej.IsChecked == true) || s.MouseGestures != (gestures.IsChecked == true) || s.PipButton != (pipBtn.IsChecked == true)

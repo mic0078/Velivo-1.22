@@ -158,7 +158,7 @@ try {
       var E = C.entrance, ov = null, ovAnim = null, hAnim = null;
       var cinemaMs = function () { return C.entMs > 0 ? C.entMs : Math.max(500, Math.min(4000, C.fade * 1.5)); };
       var entMs = function () { return E === 'cinema' ? cinemaMs() : (C.entMs > 0 ? C.entMs : Math.max(280, Math.min(1400, C.fade * 1.3))); };
-      var useOv = E === 'cinema' || E === 'blur';
+      var useOv = E === 'cinema' || E === 'blur' || E === 'dim';
       var hFrames = E === 'zoom' ? [{ transform: 'scale(.985)', opacity: .7 }, { transform: 'none', opacity: 1 }]
                   : [{ transform: 'translateY(14px)', opacity: .6 }, { transform: 'none', opacity: 1 }];
       // mgielka rozmycia w kolorze strony: ciemna na ciemnych stronach, jasna na jasnych (bez szarej poswiaty)
@@ -179,7 +179,7 @@ try {
         if (ov && ov.isConnected) return ov;
         ov = document.createElement('div'); ov.setAttribute('aria-hidden', 'true');
         ov.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;opacity:0;' +
-          (E === 'cinema' ? 'background:#000' : 'background:' + tint() + ';backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)');
+          (E === 'cinema' || E === 'dim' ? 'background:#000' : 'background:' + tint() + ';backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)');
         try { document.documentElement.appendChild(ov); } catch (x) {}
         return ov;
       };
@@ -193,7 +193,7 @@ try {
       var hide = function () {   // stan poczatkowy efektu - szybko, zaraz po kliknieciu
         if (E === 'none') return;
         try {
-          if (useOv) { ovTo(E === 'cinema' ? .75 : 1, 140, false); return; }
+          if (useOv) { ovTo(E === 'cinema' ? .75 : E === 'dim' ? .3 : 1, 140, false); return; }
           var h = document.documentElement;
           if (hAnim) { try { hAnim.cancel(); } catch (x) {} }
           hAnim = h.animate([hFrames[1], hFrames[0]], { duration: 140, easing: 'ease-in', fill: 'forwards' });
@@ -223,7 +223,6 @@ try {
       var begin = function () {
         if (busy) return;               // przejscie juz trwa - nie zaczynamy od nowa
         busy = true;
-        if (C.fade > 0 && E === 'none') veilTo(VEIL, 150);   // samo przyciemnienie po kliknieciu, gdy nie ma efektu wejscia
         hide();
         clearTimeout(safety); safety = setTimeout(finish, 1800);   // zabezpieczenie: nic sie nie zmienilo
       };
@@ -242,7 +241,7 @@ try {
       var startState = function () {
         if (entered) return;
         try {
-          if (useOv) { var o0 = getOv(); o0.style.opacity = '1'; }
+          if (useOv) { var o0 = getOv(); o0.style.opacity = E === 'dim' ? '.3' : '1'; }
           else {
             startCss = document.createElement('style');
             startCss.textContent = 'html{' + (E === 'zoom' ? 'transform:scale(.985);opacity:.7' : 'transform:translateY(14px);opacity:.6') + '}';

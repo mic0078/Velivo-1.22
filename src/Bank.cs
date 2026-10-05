@@ -76,6 +76,9 @@ namespace Przegladarka
             public string Cards { get; set; }      // karty zaszyfrowane AES-GCM
             public string Notes { get; set; }      // notatki (loginy, hasla, numery klienta) - tak samo zaszyfrowane
             public string Sites { get; set; }      // strony bankowe / sklepy (nazwa + adres) - zaszyfrowane
+            public string Docs { get; set; }       // poufne dane (dokumenty) - zaszyfrowane
+            public string Accounts { get; set; }   // rachunki bankowe (moje i odbiorcow) - zaszyfrowane
+            public string Bills { get; set; }      // rachunki do oplacenia - zaszyfrowane
             public List<string> SiteHosts { get; set; } = new List<string>();   // skroty SHA-256 hostow (rozpoznanie strony bez ujawniania listy)
             public string WrapP { get; set; }      // czesc hasla klucza kart (Kp) zaszyfrowana kluczem z hasla
             public string WrapPK { get; set; }     // czesc z kluczy (Kk) zaszyfrowana Kp - samo haslo (zapasowo, bez klucza) tez otwiera
@@ -199,6 +202,12 @@ namespace Przegladarka
             cards.Click += (s, e) => BankCards();
             var fill = new MenuItem { Header = L.T("💳 Wypełnij kartę na tej stronie") };
             fill.Click += (s, e) => BankFillMenu();
+            var docs = new MenuItem { Header = L.T("🪪 Poufne dane (dokumenty)") };
+            docs.Click += (s, e) => BankItems("docs");
+            var accs = new MenuItem { Header = L.T("🏦 Rachunki bankowe") };
+            accs.Click += (s, e) => BankItems("acc");
+            var bills = new MenuItem { Header = L.T("🧾 Rachunki do opłacenia") };
+            bills.Click += (s, e) => BankItems("bills");
             var notes = new MenuItem { Header = L.T("📝 Moje notatki (loginy, hasła, numery klienta)") };
             notes.Click += (s, e) => BankNotes();
             var sites = new MenuItem { Header = L.T("🏦 Moje banki") };
@@ -228,7 +237,7 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 // dodac strone mozna z kazdej karty (takze zwyklej) - gdy tryb zamkniety, najpierw klucz / haslo
                 addSite.IsEnabled = _current != null && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
@@ -389,6 +398,7 @@ namespace Przegladarka
                 _bankIdleMinutes = c.IdleMinutes > 0 ? c.IdleMinutes : 10;
                 w.Close();
                 CheckCardExpiry(c);
+                CheckItemReminders(c);
             };
 
             // --- samym kluczem ---
@@ -559,7 +569,7 @@ namespace Przegladarka
             var c = existing ?? new BankConfig { Iter = 600000, Owner = _bankNewOwner };
             var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK, WrapKp = k.WrapKp }).ToList();
             if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-            if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites)) && _bankKey == null)
+            if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites) || !string.IsNullOrEmpty(c.Docs) || !string.IsNullOrEmpty(c.Accounts) || !string.IsNullOrEmpty(c.Bills)) && _bankKey == null)
             {
                 MessageBox.Show(this, L.T("Karty są zamknięte – otwórz tryb bankowy kluczem, który szyfruje karty, i wtedy zmień ustawienia."), "Velivo");
                 return false;
@@ -652,8 +662,8 @@ namespace Przegladarka
                     if (a != b) { err.Text = L.T("Hasła się różnią."); return; }
                 }
                 if (useKey.IsChecked == true && keys.Count == 0) { err.Text = L.T("Dodaj co najmniej jeden klucz albo odznacz opcję klucza."); return; }
-                List<BankCard> oldCards = new List<BankCard>(); List<BankNote> oldNotes = new List<BankNote>(); List<BankSite> oldSites = new List<BankSite>();
-                if (existing != null) { try { oldCards = LoadCards(c); oldNotes = LoadSealed<BankNote>(c.Notes); oldSites = LoadSealed<BankSite>(c.Sites); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
+                List<BankCard> oldCards = new List<BankCard>(); List<BankNote> oldNotes = new List<BankNote>(); List<BankSite> oldSites = new List<BankSite>(); List<BankItem> oldDocs = new List<BankItem>(), oldAcc = new List<BankItem>(), oldBills = new List<BankItem>();
+                if (existing != null) { try { oldCards = LoadCards(c); oldNotes = LoadSealed<BankNote>(c.Notes); oldSites = LoadSealed<BankSite>(c.Sites); oldDocs = LoadSealed<BankItem>(c.Docs); oldAcc = LoadSealed<BankItem>(c.Accounts); oldBills = LoadSealed<BankItem>(c.Bills); } catch (Exception) { err.Text = L.T("Nie udało się odczytać kart."); return; } }
                 if (a.Length > 0)
                 {
                     var salt = RandomNumberGenerator.GetBytes(16);
@@ -670,6 +680,7 @@ namespace Przegladarka
                 _bankKp = kp; _bankKk = kk; _bankKey = CardKeyFrom(kp, kk);
                 c.Cards = oldCards.Count > 0 ? SealCards(_bankKey, oldCards) : null;
                 c.Notes = SealList(_bankKey, oldNotes); c.Sites = SealList(_bankKey, oldSites);
+                c.Docs = SealList(_bankKey, oldDocs); c.Accounts = SealList(_bankKey, oldAcc); c.Bills = SealList(_bankKey, oldBills);
                 _bankUnlocked = true;
                 c.UseKey = withKey; c.Keys = keys;
                 c.IdleMinutes = idleOpts[Math.Max(0, idleBox.SelectedIndex)]; _bankIdleMinutes = c.IdleMinutes;
@@ -1126,6 +1137,197 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             timer.Start();
         }
 
+        // ---------- poufne dane, rachunki bankowe, rachunki do oplacenia (zaszyfrowane jak karty) ----------
+        sealed class BankItem
+        {
+            public Dictionary<string, string> F { get; set; } = new Dictionary<string, string>();
+            public string Get(string k) { string v; return F != null && F.TryGetValue(k, out v) ? v ?? "" : ""; }
+        }
+        sealed class ItemField { public string Key, Label; public bool Secret, Date; public string[] Choices; }
+        sealed class ItemDef { public string Title, Icon, Store; public ItemField[] Fields; }
+        static ItemField Fd(string k, string label, bool secret = false, bool date = false, string[] choices = null) { return new ItemField { Key = k, Label = label, Secret = secret, Date = date, Choices = choices }; }
+
+        static readonly Dictionary<string, ItemDef> ItemDefs = new Dictionary<string, ItemDef>
+        {
+            { "docs", new ItemDef { Title = "🪪 Poufne dane (dokumenty)", Icon = "🪪", Fields = new[] {
+                Fd("type", "Rodzaj dokumentu:", choices: new[] { "Dowód osobisty", "Paszport", "Prawo jazdy", "PESEL", "NI number", "Ubezpieczenie zdrowotne", "Inny dokument" }),
+                Fd("owner", "Imię i nazwisko:"), Fd("number", "Numer:", secret: true), Fd("expiry", "Ważny do (DD.MM.RRRR):", date: true), Fd("note", "Notatka:") } } },
+            { "acc", new ItemDef { Title = "🏦 Rachunki bankowe", Icon = "🏦", Fields = new[] {
+                Fd("name", "Nazwa (np. Moje konto, Czynsz – właściciel):"), Fd("owner", "Właściciel rachunku:"), Fd("number", "Numer rachunku / IBAN:", secret: true),
+                Fd("sort", "Sort code / BIC (SWIFT):"), Fd("bank", "Bank:"), Fd("note", "Tytuł przelewu / notatka:") } } },
+            { "bills", new ItemDef { Title = "🧾 Rachunki do opłacenia", Icon = "🧾", Fields = new[] {
+                Fd("name", "Za co (np. Prąd, Internet, Czynsz):"), Fd("amount", "Kwota:"), Fd("due", "Termin płatności (DD.MM.RRRR):", date: true),
+                Fd("repeat", "Powtarzanie:", choices: new[] { "Co miesiąc", "Co kwartał", "Co rok", "Jednorazowo" }),
+                Fd("customer", "Numer klienta / referencja:"), Fd("url", "Strona do płatności:"), Fd("note", "Notatka:") } } },
+        };
+
+        static string ItemStore(BankConfig c, string kind) { return kind == "docs" ? c.Docs : kind == "acc" ? c.Accounts : c.Bills; }
+        static void SetItemStore(BankConfig c, string kind, string v) { if (kind == "docs") c.Docs = v; else if (kind == "acc") c.Accounts = v; else c.Bills = v; }
+
+        static DateTime? ParseDay(string t)
+        {
+            DateTime d;
+            return DateTime.TryParseExact((t ?? "").Trim(), new[] { "d.M.yyyy", "d/M/yyyy", "d-M-yyyy", "yyyy-M-d", "d.M.yy", "d/M/yy" }, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out d) ? d : (DateTime?)null;
+        }
+
+        static string ItemLine(ItemDef d, BankItem it)
+        {
+            if (d == ItemDefs["docs"]) { var n = it.Get("number"); return L.T(it.Get("type")) + "  " + it.Get("owner") + (n.Length >= 3 ? "   ••• " + n.Substring(n.Length - 3) : "") + (it.Get("expiry").Length > 0 ? "   " + it.Get("expiry") : ""); }
+            if (d == ItemDefs["acc"]) { var n = it.Get("number").Replace(" ", ""); return it.Get("name") + (n.Length >= 4 ? "   •••• " + n.Substring(n.Length - 4) : "") + (it.Get("bank").Length > 0 ? "   " + it.Get("bank") : ""); }
+            var due = ParseDay(it.Get("due"));
+            string state = due == null ? "" : due.Value.Date < DateTime.Today ? L.T("   ⚠ po terminie") : (due.Value.Date - DateTime.Today).TotalDays <= 5 ? L.T("   ⏰ wkrótce") : "";
+            return it.Get("name") + (it.Get("amount").Length > 0 ? "   " + it.Get("amount") : "") + (it.Get("due").Length > 0 ? "   " + it.Get("due") : "") + state;
+        }
+
+        void BankItems(string kind)
+        {
+            if (!_bankUnlocked || _bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); OpenBankTab(); return; }
+            var c = LoadBank(); if (c == null) return;
+            var def = ItemDefs[kind];
+            List<BankItem> items;
+            try { items = LoadSealed<BankItem>(ItemStore(c, kind)); } catch (Exception) { MessageBox.Show(this, L.T("Nie udało się odczytać kart."), "Velivo"); return; }
+            var w = BankDialog(L.T(def.Title));
+            var sp = (StackPanel)w.Content;
+            var list = new ListBox { MinWidth = 440, Height = 130, Margin = new Thickness(0, 0, 0, 8) };
+            Action fillList = () => { int sel = list.SelectedIndex; list.Items.Clear(); foreach (var it in items) list.Items.Add(ItemLine(def, it)); if (sel >= 0 && sel < list.Items.Count) list.SelectedIndex = sel; };
+            fillList();
+            sp.Children.Add(list);
+            var getters = new Dictionary<string, Func<string>>(); var setters = new Dictionary<string, Action<string>>();
+            var secrets = new List<Tuple<PasswordBox, TextBox>>();
+            foreach (var f in def.Fields)
+            {
+                var fd = f;
+                sp.Children.Add(new TextBlock { Text = L.T(fd.Label) });
+                var row = new DockPanel { Margin = new Thickness(0, 1, 0, 5) };
+                var copy = new Button { Content = "📋", Width = 30, Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📋 Kopiuj") };
+                DockPanel.SetDock(copy, Dock.Right); row.Children.Add(copy);
+                if (fd.Choices != null)
+                {
+                    var cb = new ComboBox { IsEditable = true };
+                    foreach (var ch in fd.Choices) cb.Items.Add(L.T(ch));
+                    row.Children.Add(cb);
+                    getters[fd.Key] = () => cb.Text ?? ""; setters[fd.Key] = v => cb.Text = v ?? "";
+                }
+                else if (fd.Secret)
+                {
+                    var g = new Grid();
+                    var pb = new PasswordBox { Padding = new Thickness(4) };
+                    var tb = new TextBox { Padding = new Thickness(4), Visibility = Visibility.Collapsed, FontFamily = new FontFamily("Consolas") };
+                    pb.PasswordChanged += (a, b) => { if (tb.Text != pb.Password) tb.Text = pb.Password; };
+                    tb.TextChanged += (a, b) => { if (pb.Password != tb.Text) pb.Password = tb.Text; };
+                    g.Children.Add(pb); g.Children.Add(tb); row.Children.Add(g);
+                    secrets.Add(Tuple.Create(pb, tb));
+                    getters[fd.Key] = () => pb.Password ?? ""; setters[fd.Key] = v => pb.Password = v ?? "";
+                }
+                else
+                {
+                    var tb = new TextBox { Padding = new Thickness(4) };
+                    row.Children.Add(tb);
+                    getters[fd.Key] = () => tb.Text ?? ""; setters[fd.Key] = v => tb.Text = v ?? "";
+                }
+                copy.Click += (a, b) =>
+                {
+                    var v = getters[fd.Key](); if (string.IsNullOrEmpty(v)) return;
+                    try { Clipboard.SetText(v); } catch (Exception) { return; }
+                    ShowToast(L.T("📋 Skopiowano – schowek wyczyści się za 30 s"), null); ClearClipboardLater(v);
+                };
+                sp.Children.Add(row);
+            }
+            if (secrets.Count > 0)
+            {
+                var show = new CheckBox { Content = L.T("👁 Pokaż ukryte dane"), Margin = new Thickness(0, 2, 0, 6) };
+                show.Checked += (a, b) => { foreach (var x in secrets) { x.Item1.Visibility = Visibility.Collapsed; x.Item2.Visibility = Visibility.Visible; } };
+                show.Unchecked += (a, b) => { foreach (var x in secrets) { x.Item1.Visibility = Visibility.Visible; x.Item2.Visibility = Visibility.Collapsed; } };
+                sp.Children.Add(show);
+            }
+            var err = new TextBlock { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, MaxWidth = 440 };
+            sp.Children.Add(err);
+            Action clearForm = () => { foreach (var f in def.Fields) setters[f.Key](""); };
+            list.SelectionChanged += (a, b) => { int i = list.SelectedIndex; if (i < 0) return; foreach (var f in def.Fields) setters[f.Key](items[i].Get(f.Key)); };
+            Func<BankItem> read = () =>
+            {
+                var it = new BankItem();
+                foreach (var f in def.Fields) { var v = getters[f.Key]().Trim(); if (v.Length > 0) it.F[f.Key] = v; }
+                foreach (var f in def.Fields.Where(x => x.Date)) if (it.Get(f.Key).Length > 0 && ParseDay(it.Get(f.Key)) == null) { err.Text = L.T("Nieprawidłowa data – wpisz np. 15.03.2027"); return null; }
+                if (it.F.Count == 0) return null;
+                err.Text = ""; return it;
+            };
+            var rowB = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+            var add = new Button { Content = L.T("➕ Dodaj jako nową"), Padding = new Thickness(10, 3, 10, 3) };
+            var upd = new Button { Content = L.T("✔ Zmień zaznaczoną"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            var del = new Button { Content = L.T("Usuń zaznaczoną"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            var clr = new Button { Content = L.T("Wyczyść pola"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+            rowB.Children.Add(add); rowB.Children.Add(upd); rowB.Children.Add(del); rowB.Children.Add(clr);
+            sp.Children.Add(rowB);
+            add.Click += (a, b) => { var it = read(); if (it == null) return; items.Add(it); clearForm(); list.SelectedIndex = -1; fillList(); };
+            upd.Click += (a, b) => { int i = list.SelectedIndex; if (i < 0) { err.Text = L.T("Zaznacz pozycję na liście."); return; } var it = read(); if (it == null) return; items[i] = it; fillList(); };
+            del.Click += (a, b) => { int i = list.SelectedIndex; if (i < 0) return; items.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); };
+            clr.Click += (a, b) => { list.SelectedIndex = -1; clearForm(); };
+            if (kind == "bills")
+            {
+                var rowC = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+                var paid = new Button { Content = L.T("✔ Zapłacone (następny termin)"), Padding = new Thickness(10, 3, 10, 3) };
+                paid.Click += (a, b) =>
+                {
+                    int i = list.SelectedIndex; if (i < 0) { err.Text = L.T("Zaznacz pozycję na liście."); return; }
+                    var it = items[i]; var due = ParseDay(it.Get("due")); var rep = it.Get("repeat");
+                    if (due == null || rep == L.T("Jednorazowo") || rep == "Jednorazowo" || rep.Length == 0) { items.RemoveAt(i); clearForm(); list.SelectedIndex = -1; fillList(); return; }
+                    var next = rep == L.T("Co kwartał") || rep == "Co kwartał" ? due.Value.AddMonths(3) : rep == L.T("Co rok") || rep == "Co rok" ? due.Value.AddYears(1) : due.Value.AddMonths(1);
+                    it.F["due"] = next.ToString("dd.MM.yyyy"); fillList(); list.SelectedIndex = i;
+                    ShowToast(L.T("✔ Następny termin: ") + it.F["due"], null);
+                };
+                var open = new Button { Content = L.T("🌐 Otwórz stronę płatności"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
+                open.Click += (a, b) =>
+                {
+                    var u = getters["url"]().Trim(); if (u.Length == 0) return;
+                    if (!u.Contains("://")) u = "https://" + u;
+                    if (HostOf(u) != null) OpenBankSite(u);
+                };
+                rowC.Children.Add(paid); rowC.Children.Add(open);
+                sp.Children.Add(rowC);
+            }
+            var ok = BankButtons(sp, w, L.T("Zapisz"));
+            ok.Click += (a, b) =>
+            {
+                // wpisane, a niezapisane dane: zaznaczona pozycja -> zmiana, brak zaznaczenia -> nowa
+                if (def.Fields.Any(f => getters[f.Key]().Trim().Length > 0))
+                {
+                    int i = list.SelectedIndex; var it = read(); if (it == null && err.Text.Length > 0) return;
+                    if (it != null) { if (i >= 0) items[i] = it; else items.Add(it); }
+                }
+                var cc = LoadBank(); if (cc == null || _bankKey == null) { w.Close(); return; }
+                SetItemStore(cc, kind, SealList(_bankKey, items));
+                SaveBank(cc); w.Close(); ShowToast(L.T("🔐 Zapisano (zaszyfrowane)"), null);
+            };
+            ShowBankTool(w, "items-" + kind);
+        }
+
+        // przy otwarciu trybu: dokumenty wygasajace w ciagu 60 dni i rachunki z terminem w ciagu 5 dni / po terminie
+        void CheckItemReminders(BankConfig c)
+        {
+            try
+            {
+                if (_bankKey == null) return;
+                var msgs = new List<string>();
+                foreach (var d in LoadSealed<BankItem>(c.Docs))
+                {
+                    var e = ParseDay(d.Get("expiry")); if (e == null) continue;
+                    var days = (e.Value.Date - DateTime.Today).TotalDays;
+                    if (days < 0) msgs.Add("🪪 " + L.T(d.Get("type")) + " – " + L.T("wygasł"));
+                    else if (days <= 60) msgs.Add("🪪 " + L.T(d.Get("type")) + " – " + L.T("wygasa ") + d.Get("expiry"));
+                }
+                foreach (var b in LoadSealed<BankItem>(c.Bills))
+                {
+                    var e = ParseDay(b.Get("due")); if (e == null) continue;
+                    var days = (e.Value.Date - DateTime.Today).TotalDays;
+                    if (days < 0) msgs.Add("🧾 " + b.Get("name") + " – " + L.T("po terminie!"));
+                    else if (days <= 5) msgs.Add("🧾 " + b.Get("name") + " " + b.Get("amount") + " – " + L.T("termin ") + b.Get("due"));
+                }
+                if (msgs.Count > 0) ShowToast(string.Join("\n", msgs), null);
+            }
+            catch (Exception) { }
+        }
+
         // ---------- notatki (zaszyfrowane jak karty) ----------
         void BankNotes()
         {
@@ -1235,6 +1437,9 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 
 3. MENU (prawy klik na 🏦)
 🔍 Szukaj w mojej bazie – przeszukuje banki, sklepy, karty i notatki.
+🪪 Poufne dane – dokumenty (dowód, paszport, prawo jazdy, PESEL, NI number): numer, ważność z przypomnieniem, notatka.
+🏦 Rachunki bankowe – Twoje konta i konta odbiorców (IBAN, sort code, właściciel) z kopiowaniem do przelewów.
+🧾 Rachunki do opłacenia – kwota, termin z przypomnieniem, powtarzanie, „Zapłacone” przesuwa termin, link do strony płatności.
 🏦 Moje banki / 🛒 Moje sklepy online – kliknij, aby otworzyć stronę. Na liście jest też „Dodaj bank/sklep (nazwa i adres)”.
 ➕ Dodaj tę stronę do Moich banków / sklepów – na otwartej karcie bankowej.
 ✏ Dane logowania (w Moich bankach) – login, passcode/PIN, hasło, memorable information osobno dla każdego banku.
@@ -1281,6 +1486,9 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 
 3. MENU (right-click 🏦)
 🔍 Search my vault – searches banks, shops, cards and notes.
+🪪 Confidential data – documents (ID, passport, driving licence, PESEL, NI number): number, expiry with reminders, note.
+🏦 Bank accounts – your accounts and payees (IBAN, sort code, holder) with copying for transfers.
+🧾 Bills to pay – amount, due date with reminders, repeat, “Paid” moves the date on, link to the payment site.
 🏦 My banks / 🛒 My online shops – click to open the site; “Add a bank/shop (name and address)” is in the list.
 ➕ Add this site to My banks / shops – on an open banking tab.
 ✏ Login details (in My banks) – login, passcode/PIN, password and memorable information for each bank.
@@ -1420,7 +1628,13 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             if (!_bankUnlocked || _bankKey == null) { OpenBankTab(); return; }
             var c = LoadBank(); if (c == null) return;
             List<BankSite> sites; List<BankCard> cards; List<BankNote> notes;
-            try { sites = LoadSealed<BankSite>(c.Sites); cards = LoadCards(c); notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { return; }
+            var items = new Dictionary<string, List<BankItem>>();
+            try
+            {
+                sites = LoadSealed<BankSite>(c.Sites); cards = LoadCards(c); notes = LoadSealed<BankNote>(c.Notes);
+                foreach (var k in new[] { "docs", "acc", "bills" }) items[k] = LoadSealed<BankItem>(ItemStore(c, k));
+            }
+            catch (Exception) { return; }
             var w = BankDialog(L.T("🔍 Szukaj w mojej bazie"));
             var sp = (StackPanel)w.Content;
             var q = new TextBox { Padding = new Thickness(6), MinWidth = 440 };
@@ -1441,6 +1655,12 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
                 { var cd = x; res.Items.Add("💳 " + CardLine(cd)); hits.Add(() => detail.Text = CardLine(cd) + (string.IsNullOrEmpty(cd.Holder) ? "" : "\n" + cd.Holder)); }
                 foreach (var x in notes.Where(x => m(x.Title) || m(x.Text) || m(x.Category)))
                 { var nt = x; res.Items.Add("📝 " + nt.Title); hits.Add(() => detail.Text = nt.Text); }
+                foreach (var kind in new[] { "docs", "acc", "bills" })
+                {
+                    var def = ItemDefs[kind];
+                    foreach (var x in items[kind].Where(x => x.F.Values.Any(v => m(v))))
+                    { var it = x; var d = def; res.Items.Add(d.Icon + " " + ItemLine(d, it)); hits.Add(() => detail.Text = string.Join("\n", d.Fields.Where(f => !string.IsNullOrEmpty(it.Get(f.Key))).Select(f => L.T(f.Label).TrimEnd(':') + ": " + it.Get(f.Key)))); }
+                }
             };
             q.TextChanged += (s, e) => run();
             res.SelectionChanged += (s, e) => { int i = res.SelectedIndex; if (i >= 0 && i < hits.Count) hits[i](); };

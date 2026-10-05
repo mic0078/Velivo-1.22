@@ -57,12 +57,16 @@ CDP nav $czesc ($base + 'film.html') | Out-Null; Start-Sleep -Seconds 5
 $v = (CDP eval 'film.html' '(()=>{const r=document.getElementById("v").getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2].map(Math.round).join(" ")})()').Split(' ')
 $glowne = Okna $p.Id | Where-Object { $_.Tytul -match 'Velivo 1\.22$' } | Select-Object -First 1
 $film = $null
-foreach ($frac in 0.45, 0.15, 0.75) {
+# pasek nad filmem: [Pobierz][Film na wierzchu][Obraz w obrazie] - szukamy srodkowego; okno pobierania zamykamy
+foreach ($frac in 0.55, 0.62, 0.5, 0.68, 0.45) {
   CDP hover 'film.html' ([int]$v[0] - 20) $v[1] | Out-Null; Start-Sleep -Milliseconds 300; CDP hover 'film.html' $v[0] $v[1] | Out-Null; Start-Sleep -Milliseconds 600
   $b = CDP eval 'film.html' "(()=>{const h=[...document.documentElement.children].find(e=>e.tagName==='DIV'&&e.style.zIndex==='2147483647');if(!h)return '';const r=h.getBoundingClientRect();return [r.x+r.width*$frac,r.y+r.height/2].map(Math.round).join(' ')})()"
   if (-not $b) { continue }
   $b = $b.Split(' '); CDP click 'film.html' $b[0] $b[1] | Out-Null; Start-Sleep -Seconds 6
-  $film = Okna $p.Id | Where-Object { $_.H -ne $glowne.H -and $_.Tytul -and $_.Klasa -ne '#32770' } | Select-Object -First 1
+  $nowe = @(Okna $p.Id | Where-Object { $_.H -ne $glowne.H -and $_.Tytul -and $_.Klasa -ne '#32770' })
+  $film = $nowe | Where-Object { $_.Tytul -notmatch 'Downloads|Pobieran' } | Select-Object -First 1
+  $nowe | Where-Object { $_.Tytul -match 'Downloads|Pobieran' } | ForEach-Object { [Okna]::SendMessage($_.H, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null }
+  "  klik ${frac}: $(($nowe | ForEach-Object Tytul) -join ' / ')"
   if ($film) { break }
 }
 "--- okna procesu przed zamknieciem glownego:"; Okna $p.Id | ForEach-Object { "$($_.Klasa) | $($_.Tytul)" }

@@ -23,9 +23,37 @@ namespace Przegladarka
     //  - blokuje sie sam po 10 min bezczynnosci i po zamknieciu ostatniej karty bankowej.
     public partial class MainWindow
     {
-        const string BankProfileName = "VelivoBank";
         const string BankRpId = "velivo.local";
-        static string BankFile { get { return Path.Combine(DataDir, "bank.json"); } }
+        // Kilka profili bankowych (np. dla innego uzytkownika): kazdy ma wlasny plik, wlasne haslo/klucze,
+        // wlasna zaszyfrowana baze i wlasny profil przegladarki (osobne logowania w bankach).
+        string _bankProfile = "";   // "" = profil glowny (bank.json)
+        static string BankFileFor(string slug) { return Path.Combine(DataDir, string.IsNullOrEmpty(slug) ? "bank.json" : "bank-" + slug + ".json"); }
+        string BankFile { get { return BankFileFor(_bankProfile); } }
+        string BankProfileName { get { return string.IsNullOrEmpty(_bankProfile) ? "VelivoBank" : "VelivoBank-" + _bankProfile; } }
+        static readonly System.Text.RegularExpressions.Regex BankFileRx = new System.Text.RegularExpressions.Regex(@"^bank(-[a-z0-9]{1,24})?\.json$");
+
+        // wszystkie profile bankowe na tym komputerze: slug -> plik
+        static List<string> BankProfiles()
+        {
+            var list = new List<string>();
+            try
+            {
+                foreach (var f in Directory.GetFiles(DataDir, "bank*.json"))
+                {
+                    var n = Path.GetFileName(f);
+                    if (!BankFileRx.IsMatch(n)) continue;
+                    list.Add(n == "bank.json" ? "" : n.Substring(5, n.Length - 10));
+                }
+            }
+            catch (Exception) { }
+            return list.OrderBy(x => x).ToList();
+        }
+
+        static string BankOwnerOf(string slug)
+        {
+            try { var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(slug))); if (c != null && !string.IsNullOrWhiteSpace(c.Owner)) return c.Owner; } catch (Exception) { }
+            return string.IsNullOrEmpty(slug) ? L.T("Główny") : slug;
+        }
 
         sealed class BankKey
         {
@@ -35,6 +63,7 @@ namespace Przegladarka
         }
         sealed class BankConfig
         {
+            public string Owner { get; set; }      // nazwa profilu bankowego (np. imie uzytkownika)
             public string Salt { get; set; }
             public string Hash { get; set; }
             public int Iter { get; set; }
@@ -78,7 +107,7 @@ namespace Przegladarka
             using (var g = new AesGcm(key, 16)) g.Decrypt(nonce, ct, tag, plain);
             return plain;
         }
-        static string BankWipeFlag { get { return Path.Combine(DataDir, "bank.wipe"); } }
+        string BankWipeFlag { get { return Path.Combine(DataDir, string.IsNullOrEmpty(_bankProfile) ? "bank.wipe" : "bank-" + _bankProfile + ".wipe"); } }
 
         sealed class BankCard { public string Label { get; set; } public string Number { get; set; } public string Exp { get; set; } public string Holder { get; set; } }
 
@@ -117,7 +146,7 @@ namespace Przegladarka
             try { return Wrap(plain, key); } finally { CryptographicOperations.ZeroMemory(plain); }
         }
 
-        static BankConfig LoadBank()
+        BankConfig LoadBank()
         {
             try { if (File.Exists(BankFile)) return JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFile)); }
             catch (Exception) { }
@@ -161,14 +190,27 @@ namespace Przegladarka
             addSite.Click += (s, e) => BankAddCurrentSite(false);
             var addShop = new MenuItem { Header = L.T("➕ Dodaj tę stronę do Moich sklepów") };
             addShop.Click += (s, e) => BankAddCurrentSite(true);
+            var profMenu = new MenuItem { Header = L.T("👤 Profile bankowe") };
             var lockNow = new MenuItem { Header = L.T("🔒 Zablokuj teraz") };
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(notes); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 addSite.IsEnabled = _bankUnlocked && _bankKey != null && _current != null && _current.Bank && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
                 addShop.IsEnabled = addSite.IsEnabled;
+                profMenu.Items.Clear();
+                foreach (var p in BankProfiles())
+                {
+                    var slug = p;
+                    var mi = new MenuItem { Header = "👤 " + BankOwnerOf(slug), IsCheckable = true, IsChecked = _bankUnlocked && slug == _bankProfile };
+                    mi.Click += (a, b) => SwitchBankProfile(slug);
+                    profMenu.Items.Add(mi);
+                }
+                if (profMenu.Items.Count > 0) profMenu.Items.Add(new Separator());
+                var np = new MenuItem { Header = L.T("➕ Nowy profil bankowy (inny użytkownik)…") };
+                np.Click += (a, b) => NewBankProfile();
+                profMenu.Items.Add(np);
                 FillBankSitesMenu(sites, false); FillBankSitesMenu(shops, true); };
             _bankBtn.ContextMenu = menu;
             TabBarPanel.Children.Insert(1, _bankBtn);
@@ -204,6 +246,14 @@ namespace Przegladarka
         {
             if (!_bankUnlocked)
             {
+                var profs = BankProfiles();
+                if (profs.Count > 1)
+                {
+                    var pick = ChooseBankProfile(profs);
+                    if (pick == null) return;
+                    _bankProfile = pick;
+                }
+                else if (profs.Count == 1) _bankProfile = profs[0];
                 var c = LoadBank();
                 if (c == null) { if (!BankSetup(null)) return; c = LoadBank(); if (c == null) return; }
                 else if (!await BankUnlock(c)) return;
@@ -357,6 +407,59 @@ namespace Przegladarka
             catch (Exception) { return -1; }
         }
 
+        // ---------- profile bankowe ----------
+        string ChooseBankProfile(List<string> profs)
+        {
+            var w = BankDialog(L.T("Tryb bankowy – wybierz profil"));
+            var sp = (StackPanel)w.Content;
+            sp.Children.Add(new TextBlock { Text = L.T("Czyj tryb bankowy otworzyć?"), Margin = new Thickness(0, 0, 0, 8) });
+            string chosen = null;
+            foreach (var p in profs)
+            {
+                var slug = p;
+                var b = new Button { Content = "👤 " + BankOwnerOf(slug), MinWidth = 260, Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 0, 6), HorizontalContentAlignment = HorizontalAlignment.Left };
+                b.Click += (s, e) => { chosen = slug; w.Close(); };
+                sp.Children.Add(b);
+            }
+            BankButtons(sp, w, L.T("Anuluj")).Click += (s, e) => w.Close();
+            w.ShowDialog();
+            return chosen;
+        }
+
+        void SwitchBankProfile(string slug)
+        {
+            if (_bankUnlocked) LockBank(null);
+            _bankProfile = slug ?? "";
+            OpenBankTabAt(HomeUrl);
+        }
+
+        void NewBankProfile()
+        {
+            var w = BankDialog(L.T("Nowy profil bankowy"));
+            var sp = (StackPanel)w.Content;
+            sp.Children.Add(new TextBlock { Text = L.T("Nazwa profilu (np. imię drugiego użytkownika):"), Margin = new Thickness(0, 0, 0, 4) });
+            var name = new TextBox { Padding = new Thickness(4), MinWidth = 300 };
+            sp.Children.Add(name);
+            sp.Children.Add(new TextBlock { Text = L.T("Każdy profil ma własne hasło lub klucz, osobne logowania w bankach i osobne karty, banki, sklepy i notatki."), TextWrapping = TextWrapping.Wrap, MaxWidth = 340, Foreground = Brushes.Gray, Margin = new Thickness(0, 6, 0, 0) });
+            string owner = null;
+            BankButtons(sp, w, L.T("Dalej")).Click += (s, e) => { if (!string.IsNullOrWhiteSpace(name.Text)) { owner = name.Text.Trim(); w.Close(); } };
+            name.Focus();
+            w.ShowDialog();
+            if (owner == null) return;
+            string slug = new string(owner.ToLowerInvariant().Normalize(NormalizationForm.FormD).Where(ch => (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')).ToArray());
+            if (slug.Length == 0) slug = "u" + Convert.ToHexString(RandomNumberGenerator.GetBytes(3)).ToLowerInvariant();
+            if (slug.Length > 20) slug = slug.Substring(0, 20);
+            var existing = BankProfiles(); var baseSlug = slug; int i = 2;
+            while (existing.Contains(slug)) slug = baseSlug + i++;
+            if (_bankUnlocked) LockBank(null);
+            _bankProfile = slug;
+            _bankNewOwner = owner;
+            if (BankSetup(null)) OpenBankTabAt(HomeUrl);
+            else _bankProfile = "";
+            _bankNewOwner = null;
+        }
+        string _bankNewOwner;
+
         // ---------- pierwsze ustawienie / zmiana ustawien ----------
         void BankSettings()
         {
@@ -368,7 +471,7 @@ namespace Przegladarka
 
         bool BankSetup(BankConfig existing)
         {
-            var c = existing ?? new BankConfig { Iter = 600000 };
+            var c = existing ?? new BankConfig { Iter = 600000, Owner = _bankNewOwner };
             var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK, WrapKp = k.WrapKp }).ToList();
             if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
             if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites)) && _bankKey == null)
@@ -718,8 +821,13 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             {
                 if (tab == null || tab.Bank) return;
                 var host = HostOf(url); if (host == null) return;
-                var c = LoadBank(); if (c == null || c.SiteHosts == null || c.SiteHosts.Count == 0) return;
-                if (!c.SiteHosts.Contains(HostHash(host)) || !_bankWarned.Add(host)) return;
+                var hh = HostHash(host);
+                bool known = false;
+                foreach (var p in BankProfiles())   // strony ze wszystkich profili bankowych
+                {
+                    try { var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(p))); if (c != null && c.SiteHosts != null && c.SiteHosts.Contains(hh)) { known = true; break; } } catch (Exception) { }
+                }
+                if (!known || !_bankWarned.Add(host)) return;
                 ShowToast(L.T("🏦 To Twoja strona bankowa – bezpieczniej otworzyć ją w trybie bankowym (przycisk 🏦)"), null);
             }
             catch (Exception) { }
@@ -783,16 +891,37 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
         // Przesylany jest tylko bank.json: skrot hasla, klucze publiczne kluczy sprzetowych i karty ZASZYFROWANE
         // (haslem, a przy kluczu sprzetowym takze jego sekretem). Pakiet sieciowy jest dodatkowo szyfrowany parowaniem.
         // Logowania i ciasteczka banku zostaja na kazdym komputerze osobno.
-        void ApplySyncedBank(string json)
+        // wszystkie profile bankowe jako jeden tekst: nazwa pliku -> zawartosc
+        static string ExportBanksForSync()
+        {
+            var d = new SortedDictionary<string, string>(StringComparer.Ordinal);
+            foreach (var p in BankProfiles()) { var f = BankFileFor(p); d[Path.GetFileName(f)] = ReadTextOrEmpty(f); }
+            return d.Count == 0 ? "" : JsonSerializer.Serialize(d);
+        }
+
+        void ApplySyncedBanks(string all)
+        {
+            try
+            {
+                var d = JsonSerializer.Deserialize<Dictionary<string, string>>(all);
+                if (d == null) return;
+                foreach (var kv in d) if (BankFileRx.IsMatch(kv.Key ?? "")) ApplySyncedBank(Path.Combine(DataDir, kv.Key), kv.Value);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
+        void ApplySyncedBank(string json) { ApplySyncedBank(BankFileFor(""), json); }
+
+        void ApplySyncedBank(string file, string json)
         {
             try
             {
                 var c = JsonSerializer.Deserialize<BankConfig>(json);
                 if (c == null || string.IsNullOrEmpty(c.Hash) || string.IsNullOrEmpty(c.Salt)) return;
-                if (json == ReadTextOrEmpty(BankFile)) return;
-                File.WriteAllText(BankFile, json);
+                if (json == ReadTextOrEmpty(file)) return;
+                File.WriteAllText(file, json);
                 // haslo / klucze / karty mogly sie zmienic - otwarty tryb zamykamy, otworzysz go ponownie
-                if (_bankUnlocked) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
+                if (_bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
             }
             catch (Exception ex) { App.LogError(ex); }
         }

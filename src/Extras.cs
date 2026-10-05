@@ -72,6 +72,7 @@ namespace Przegladarka
                 receipt = _settings.PrivacyReceipt,
                 fade = _settings.PageFade,
                 entrance = _settings.PageEntrance ?? "slide",
+                entMs = _settings.PageEntranceMs,
                 speed = _settings.SpeedUp && (tab == null || !tab.Private),   // karty prywatne i bankowe: bez wczytywania z wyprzedzeniem
             });
             return "(function(C){" + PageScriptBody + DarkPatternScript + FingerprintScript + "})(" + cfg + ");";
@@ -150,7 +151,7 @@ try {
         vAnim = v.animate([{ opacity: from }, { opacity: target }], { duration: ms, easing: 'cubic-bezier(.2,.6,.3,1)', fill: 'forwards' });
         vAnim.onfinish = function () { v.style.opacity = String(target); vAnim = null; if (done) done(); };
       };
-      var cinemaMs = function () { return Math.max(500, Math.min(4000, C.fade * 1.5)); };
+      var cinemaMs = function () { return C.entMs > 0 ? C.entMs : Math.max(500, Math.min(4000, C.fade * 1.5)); };
       var enter = function () {
         if (C.entrance === 'none' || Date.now() - lastEnter < 600) return;
         lastEnter = Date.now();
@@ -161,7 +162,7 @@ try {
                 : C.entrance === 'zoom' ? [{ transform: 'scale(.985)', opacity: .8 }, { transform: 'none', opacity: 1 }]
                 : C.entrance === 'cinema' ? [{ filter: 'brightness(0)' }, { filter: 'brightness(1)' }]
                 : [{ transform: 'translateY(12px)', opacity: .75 }, { transform: 'none', opacity: 1 }];
-          bAnim = b.animate(f, { duration: C.entrance === 'cinema' ? cinemaMs() : Math.max(280, Math.min(1400, C.fade * 1.3)), easing: C.entrance === 'cinema' ? 'ease-out' : 'cubic-bezier(.16,.84,.3,1)' });
+          bAnim = b.animate(f, { duration: C.entrance === 'cinema' ? cinemaMs() : (C.entMs > 0 ? C.entMs : Math.max(280, Math.min(1400, C.fade * 1.3))), easing: C.entrance === 'cinema' ? 'ease-out' : 'cubic-bezier(.16,.84,.3,1)' });
           bAnim.onfinish = bAnim.oncancel = function () { bAnim = null; };
         } catch (x) {}
       };

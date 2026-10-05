@@ -1091,6 +1091,8 @@ namespace Przegladarka
             { "Zaznacz kartę na liście.", "Select a card in the list." },
             { "💳 Wpisano dane karty", "💳 Card details filled in" },
             { "Z ciemności (kinowe)", "From darkness (cinematic)" },
+            { "Szybkość efektu wejścia: ", "Entrance effect speed: " },
+            { "automatycznie", "automatic" },
         };
     }
 }

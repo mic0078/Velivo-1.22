@@ -483,7 +483,7 @@ namespace Przegladarka
             { "Hasło jest nieprawidłowe albo plik odzyskiwania jest uszkodzony.", "The password is wrong or the recovery file is damaged." },
             { "Nie udało się odtworzyć parowania:\n", "Could not restore pairing:\n" },
             { "LAN sync uruchomiona na porcie ", "LAN sync started on port " },
-            { "LAN sync uruchomiona w trybie zgodności bez klucza (profil: ", "LAN sync started in compatibility mode without a key (profile: " },
+            { "LAN sync czeka na sparowanie – dane nie są wysyłane (profil: ", "LAN sync is waiting for pairing – no data is sent (profile: " },
             { "Błąd startu LAN sync: ", "LAN sync start error: " },
             { "Błąd odbioru LAN: ", "LAN receive error: " },
             { "Wykryto urządzenie: ", "Device detected: " },

@@ -90,5 +90,17 @@ jobs:
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
             git commit -m "Nowy instalator Velivo-Setup-1.22.exe [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
+            # w czasie budowania na galaz mogl trafic nowszy commit (np. scalona dokumentacja) - dolaczamy go i wysylamy ponownie
+            for ($i = 1; $i -le 3; $i++) {
+              git push origin HEAD:${{ github.ref_name }}
+              if ($LASTEXITCODE -eq 0) { break }
+              git fetch origin ${{ github.ref_name }}
+              git rebase origin/${{ github.ref_name }}
+              if ($LASTEXITCODE -ne 0) {
+                # nowszy instalator z innego budowania juz jest na galezi - on wygrywa
+                git rebase --abort
+                Write-Host "Na galezi jest juz nowszy instalator - pomijam wysylke."
+                exit 0
+              }
+            }
           }

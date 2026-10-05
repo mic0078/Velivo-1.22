@@ -399,7 +399,7 @@ namespace Przegladarka
                 _lanTick.Start();
                 LanLog(hasKey
                     ? L.T("LAN sync uruchomiona na porcie ") + LanPort + " (profil: " + SelectedProfileName + ")."
-                    : L.T("LAN sync uruchomiona w trybie zgodności bez klucza (profil: ") + SelectedProfileName + ").");
+                    : L.T("LAN sync czeka na sparowanie – dane nie są wysyłane (profil: ") + SelectedProfileName + ").");
                 if (hasKey)
                 {
                     LanBroadcastHello();
@@ -875,8 +875,8 @@ namespace Przegladarka
 
         readonly HashSet<string> _lanPairOffered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Drugi komputer z tym samym profilem, ale bez sparowania: synchronizuja sie tylko ustawienia i zakladki
-        // (jawnym pakietem, bez hasel). Proponujemy pelne polaczenie - szyfrowane, z haslami i Szybkim Dostepem.
+        // Drugi komputer z tym samym profilem, ale bez sparowania: nic sie nie synchronizuje (tylko pakiet announce)
+        // Proponujemy pelne polaczenie - szyfrowane, z haslami i Szybkim Dostepem.
         // Pyta tylko jeden z dwoch komputerow (mniejszy identyfikator), zeby nie wyslaly dwoch ofert naraz;
         // drugi dostaje zwykle okno potwierdzenia parowania z kodem.
         void OfferLanPairing(LanStatePacket pkt)

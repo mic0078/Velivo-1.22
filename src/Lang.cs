@@ -1102,6 +1102,7 @@ namespace Przegladarka
             { "Jest otwarta w zwykłej karcie. W trybie bankowym jest bezpieczniej: osobne logowania, bez dodatków i historii.", "It is open in a normal tab. Banking mode is safer: separate logins, no extensions, no history." },
             { "🏦 Przełącz na tryb bankowy", "🏦 Switch to banking mode" },
             { "Zostań tutaj", "Stay here" },
+            { "🏦 To Twoja strona bankowa / płatności / zakupy", "🏦 This is your banking / payment / shopping site" },
         };
     }
 }

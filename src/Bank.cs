@@ -1454,7 +1454,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             var next = Enumerable.Range(1, 60).Select(i => new DateTime(start.Year, start.Month, 1).AddMonths(i).ToString("MMMM yyyy", culture)).ToArray();
             var data = JsonSerializer.Serialize(new
             {
-                cur = BankCurrency(), dec = culture.NumberFormat.NumberDecimalSeparator, cols, rows, next,
+                cur = BankCurrency(), dec = culture.NumberFormat.NumberDecimalSeparator, cols, rows, next, mnames = culture.DateTimeFormat.MonthNames.Take(12).ToArray(),
                 monthLabel = L.T("Miesiąc"), totalLabel = L.T("Razem"), delCol = L.T("Usuń kolumnę"), delRow = L.T("Usuń wiersz"), newCol = L.T("Nowy rachunek"),
                 impOk = L.T("Wczytano wierszy:"), impBad = L.T("Plik jest pusty albo ma zły format. W Excelu: Plik → Zapisz jako → CSV; pierwsza kolumna = miesiąc, nagłówki = nazwy rachunków.")
             }).Replace("</", "<\\/");
@@ -1579,7 +1579,9 @@ function draw(){
 function sums(){var g=0;D.rows.forEach(function(r,ri){var s=0;D.cols.forEach(function(c,ci){s+=num(r.v[ci]);});g+=s;var c=document.querySelector('td[data-r=\''+ri+'\']');if(c)c.textContent=money(s);});
   D.cols.forEach(function(c,ci){var s=0;D.rows.forEach(function(r){s+=num(r.v[ci]);});var e=document.querySelector('td[data-c=\''+ci+'\']');if(e)e.textContent=money(s);});
   var ge=document.getElementById('grand');if(ge)ge.textContent=money(g);}
-function addRow(){var last=D.rows.length?D.rows[D.rows.length-1]:null;D.rows.push({m:(D.next&&D.next.length?D.next.shift():''),v:last?last.v.slice():D.cols.map(function(){return '';})});draw();var ins=document.querySelectorAll('tr td:first-child input');if(ins.length)ins[ins.length-1].focus();}
+function nextMonth(){var best=0;D.rows.forEach(function(r){var k=mkey(r.m);if(k<999999&&k>best)best=k;});
+  if(!best||!D.mnames)return (D.next&&D.next.length?D.next.shift():'');var y=Math.floor(best/100),m=best%100+1;if(m>12){m=1;y++;}return D.mnames[m-1]+' '+y;}
+function addRow(){var last=D.rows.length?D.rows[D.rows.length-1]:null;D.rows.push({m:nextMonth(),v:last?last.v.slice():D.cols.map(function(){return '';})});draw();var ins=document.querySelectorAll('tr td:first-child input');if(ins.length)ins[ins.length-1].focus();}
 function addCol(){D.cols.push(D.newCol);D.rows.forEach(function(r){r.v.push('');});draw();}
 function done(save){window.__velivoSheet={save:!!save,cols:D.cols,rows:D.rows,cur:D.cur};}
 var MN=[['sty','jan'],['lut','feb'],['mar'],['kwi','apr'],['maj','may'],['cze','jun'],['lip','jul'],['sie','aug'],['wrz','sep'],['paź','paz','oct'],['lis','nov'],['gru','dec']];

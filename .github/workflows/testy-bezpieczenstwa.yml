@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: testy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   testy:
     runs-on: windows-latest
@@ -37,6 +41,7 @@ jobs:
           dotnet publish przed\src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\przed
 
       - name: LAN end-to-end (przed i po, bez sparowania i sparowany)
+        timeout-minutes: 25
         shell: pwsh
         run: |
           New-Item -ItemType Directory wyniki -Force | Out-Null
@@ -54,6 +59,7 @@ jobs:
           $z = (& .\yt-dlp.exe --simulate -- --version 2>&1 | Out-String).Trim()
           @{ bezSeparatora = $bez; zSeparatorem = $z } | ConvertTo-Json | Set-Content wyniki\ytdlp.json
           Get-Content wyniki\ytdlp.json
+          exit 0   # yt-dlp konczy sie bledem przy niepoprawnym adresie - to oczekiwane, ocena w kroku "Ocena wynikow"
 
       - name: uBlock Origin Lite - czy GitHub podaje sume SHA-256 (digest) i czy sie zgadza
         shell: pwsh
@@ -66,6 +72,7 @@ jobs:
           Get-Content wyniki\ubol.json
 
       - name: Ocena wynikow
+        if: always()
         shell: pwsh
         run: |
           $ok = $true

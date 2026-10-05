@@ -10,6 +10,7 @@ param(
     [Parameter(Mandatory)] [string] $Out
 )
 $ErrorActionPreference = 'Stop'
+function Log($m) { Write-Host ((Get-Date -Format 'HH:mm:ss') + " [$Mode] $m") }
 $port = 41919
 $key = 'velivo-test-klucz-lan-1234567890'          # >= 24 znaki = "silny" klucz (tryb sparowany)
 $evilUrl = 'https://evil-velivo-test.example/'
@@ -22,8 +23,9 @@ Set-Content -Path (Join-Path $data 'ustawienia.txt') -Value $settings -NoNewline
 $env:PRZEGLADARKA_DANE = $data
 $env:VELIVO_PROFILE = 'domyslny'
 $proc = Start-Process -FilePath $Exe -PassThru
-Write-Host "Velivo PID $($proc.Id), dane: $data"
+Log "Velivo PID $($proc.Id), dane: $data"
 Start-Sleep -Seconds 40   # start okna + WebView2 + LAN
+Log "po starcie: dziala=$(-not $proc.HasExited)"
 
 $result = [ordered]@{ mode = $Mode; started = -not $proc.HasExited }
 
@@ -61,6 +63,7 @@ for ($i = 0; $i -lt 3; $i++) {
     Start-Sleep -Seconds 2
 }
 $udp.Dispose()
+Log 'wyslano 3 pakiety'
 Start-Sleep -Seconds 8
 
 $bm = Join-Path $data 'zakladki.txt'; $st = Join-Path $data 'ustawienia.txt'
@@ -86,9 +89,10 @@ while ((Get-Date) -lt $deadline) {
             try { $d = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($j.data)); if ($d.TrimStart().StartsWith('{')) { $plainData++ } } catch {}
         }
         if ([Text.Encoding]::UTF8.GetString($buf) -match 'Startpage|startpage|lanSync=') { $leak++ }
-    } catch [Net.Sockets.SocketException] { }
+    } catch { if ($_.Exception.InnerException -isnot [Net.Sockets.SocketException] -and $_.Exception -isnot [Net.Sockets.SocketException]) { Log "odbior: $($_.Exception.Message)" } }
 }
 $rx.Dispose()
+Log "nasluch zakonczony: $($types.Keys -join ',')"
 $result.sentPacketTypes = $types
 $result.sentPlainDataPackets = $plainData
 $result.sentPacketsWithReadableSettings = $leak

@@ -56,6 +56,7 @@ namespace Przegladarka
         public bool BlockThirdPartyPopups = true;
         public string UiStyle = "modern";
         public int PageFade = 300;
+        public int PageEntranceMs = 0;         // szybkosc efektu wejscia w ms (0 = wg plynnego przejscia)
         public string PageEntrance = "slide";  // efekt wejscia tresci: slide / blur / zoom / none               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)
         public int NightStrength = 40;          // natezenie trybu nocnego (5-100%)     // wyglad: modern (nowoczesny) / colorful (kolorowy)
         public bool AutoRejectCookies = true;
@@ -168,6 +169,7 @@ namespace Przegladarka
                         case "language": s.Language = v; break;
                         case "popups": s.BlockThirdPartyPopups = b; break;
                         case "cookieReject": s.AutoRejectCookies = b; break;
+                        case "pageEntranceMs": { int em; if (int.TryParse(v, out em)) s.PageEntranceMs = Math.Max(0, Math.Min(5000, em)); } break;
                         case "pageEntrance": if (v == "slide" || v == "blur" || v == "zoom" || v == "cinema" || v == "none") s.PageEntrance = v; break;
                         case "pageFade": { int pf; if (int.TryParse(v, out pf)) s.PageFade = Math.Max(0, Math.Min(4000, pf)); } break;
                         case "nightStrength": { int ns; if (int.TryParse(v, out ns)) s.NightStrength = Math.Max(5, Math.Min(100, ns)); } break;
@@ -243,7 +245,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "slide"), "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "slide"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
@@ -374,6 +376,12 @@ namespace Przegladarka
                 entBox.Items.Add(new ComboBoxItem { Content = en.t, Tag = en.k });
             entBox.SelectedItem = entBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (s.PageEntrance ?? "slide")) ?? entBox.Items[0];
             root.Children.Add(entBox);
+            // suwak szybkosci efektu wejscia: 0 = automatycznie (wg plynnego przejscia), dalej 0,2 - 5 s
+            var entLbl = new TextBlock { Margin = new Thickness(0, 6, 0, 0) };
+            var entSlider = new Slider { Minimum = 0, Maximum = 5000, TickFrequency = 100, IsSnapToTickEnabled = true, Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Value = s.PageEntranceMs };
+            Action entText = () => entLbl.Text = L.T("Szybkość efektu wejścia: ") + (entSlider.Value < 100 ? L.T("automatycznie") : (entSlider.Value / 1000.0).ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + " s");
+            entSlider.ValueChanged += (a, b) => entText(); entText();
+            root.Children.Add(entLbl); root.Children.Add(entSlider);
             root.Children.Add(new TextBlock { Text = L.T("Motyw przeglądarki (kolory pasków i kart):"), Margin = new Thickness(0, 6, 0, 2) });
             string origTheme = s.Theme; bool themeSaved = false;
             var theme = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
@@ -788,9 +796,10 @@ namespace Przegladarka
                 s.BlockThirdPartyPopups = pop.IsChecked == true;
                 int newFade = (int)((ComboBoxItem)fadeBox.SelectedItem).Tag;
                 var newEnt = (string)((ComboBoxItem)entBox.SelectedItem).Tag;
-                bool scriptsChanged = s.PageFade != newFade || s.PageEntrance != newEnt || s.AutoRejectCookies != (cookieRej.IsChecked == true) || s.MouseGestures != (gestures.IsChecked == true) || s.PipButton != (pipBtn.IsChecked == true)
+                int newEntMs = entSlider.Value < 100 ? 0 : (int)entSlider.Value;
+                bool scriptsChanged = s.PageFade != newFade || s.PageEntrance != newEnt || s.PageEntranceMs != newEntMs || s.AutoRejectCookies != (cookieRej.IsChecked == true) || s.MouseGestures != (gestures.IsChecked == true) || s.PipButton != (pipBtn.IsChecked == true)
                     || s.DarkPatterns != (darkP.IsChecked == true) || s.VideoDownloadButton != (dlBtnBox.IsChecked == true) || s.PrivacyReceipt != (receiptBox.IsChecked == true);
-                s.PageFade = newFade; s.PageEntrance = newEnt;
+                s.PageFade = newFade; s.PageEntrance = newEnt; s.PageEntranceMs = newEntMs;
                 s.PageMemory = memory.IsChecked == true; s.VideoDownloadButton = dlBtnBox.IsChecked == true; s.DarkPatterns = darkP.IsChecked == true; s.PrivacyReceipt = receiptBox.IsChecked == true;
                 s.AutoRejectCookies = cookieRej.IsChecked == true; s.MouseGestures = gestures.IsChecked == true; s.PipButton = pipBtn.IsChecked == true;
                 if (scriptsChanged) RefreshPageScripts();

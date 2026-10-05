@@ -1055,7 +1055,6 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
         }
 
         // Strona z listy bankowej otwarta w ZWYKLEJ karcie -> przypomnienie (raz na strone w tej sesji)
-        readonly HashSet<string> _bankWarned = new HashSet<string>();
         void CheckBankSiteInNormalTab(BrowserTab tab, string url)
         {
             CheckBankLookalike(tab, url);
@@ -1070,7 +1069,12 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 {
                     try { var c = JsonSerializer.Deserialize<BankConfig>(File.ReadAllText(BankFileFor(p))); if (c != null && c.SiteHosts != null && (c.SiteHosts.Contains(hh) || c.SiteHosts.Contains(hreg))) { known = true; break; } } catch (Exception) { }
                 }
-                if (!known || !_bankWarned.Add(host)) return;
+                // raz na wejscie na strone w danej karcie: podstrony tego samego banku nie pytaja ponownie,
+                // ale ponowne otwarcie (nowa karta / powrot z innej strony) - znow pyta
+                var reg = RegDomain(host);
+                if (!known) { tab.BankAsked = null; return; }
+                if (tab.BankAsked == reg) return;
+                tab.BankAsked = reg;
                 ShowBankSuggest(tab, url, host);
             }
             catch (Exception) { }

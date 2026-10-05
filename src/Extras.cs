@@ -161,11 +161,25 @@ try {
       var useOv = E === 'cinema' || E === 'blur';
       var hFrames = E === 'zoom' ? [{ transform: 'scale(.985)', opacity: .7 }, { transform: 'none', opacity: 1 }]
                   : [{ transform: 'translateY(14px)', opacity: .6 }, { transform: 'none', opacity: 1 }];
+      // mgielka rozmycia w kolorze strony: ciemna na ciemnych stronach, jasna na jasnych (bez szarej poswiaty)
+      var tint = function () {
+        try {
+          var els = [document.body, document.documentElement];
+          for (var i = 0; i < els.length; i++) {
+            if (!els[i]) continue;
+            var m = getComputedStyle(els[i]).backgroundColor.match(/[\d.]+/g);
+            if (!m || m.length < 3 || (m.length > 3 && parseFloat(m[3]) < .5)) continue;
+            var lum = (0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]) / 255;
+            return lum < .45 ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.18)';
+          }
+        } catch (x) {}
+        return (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.18)';
+      };
       var getOv = function () {
         if (ov && ov.isConnected) return ov;
         ov = document.createElement('div'); ov.setAttribute('aria-hidden', 'true');
         ov.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;opacity:0;' +
-          (E === 'cinema' ? 'background:#000' : 'background:rgba(255,255,255,.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)');
+          (E === 'cinema' ? 'background:#000' : 'background:' + tint() + ';backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)');
         try { document.documentElement.appendChild(ov); } catch (x) {}
         return ov;
       };
@@ -189,7 +203,10 @@ try {
         if (E === 'none') return;
         lastEnter = Date.now();
         try {
-          if (useOv) { ovTo(0, E === 'cinema' ? entMs() * .6 : entMs(), true); return; }
+          if (useOv) {
+            if (E === 'blur' && ov) try { ov.style.background = tint(); } catch (x) {}   // strona juz ma kolory - poprawiamy odcien mgielki
+            ovTo(0, E === 'cinema' ? entMs() * .6 : entMs(), true); return;
+          }
           var h = document.documentElement;
           if (hAnim) { try { hAnim.cancel(); } catch (x) {} }
           hAnim = h.animate(hFrames, { duration: entMs(), easing: 'cubic-bezier(.16,.84,.3,1)' });

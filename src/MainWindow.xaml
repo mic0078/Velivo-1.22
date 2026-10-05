@@ -68,7 +68,7 @@
     <DockPanel>
         <!-- pasek kart -->
         <DockPanel x:Name="TabBarPanel" DockPanel.Dock="Top" Background="#E5E7EB">
-            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" Content="&#xE72E;" Foreground="#5B21B6" Background="#EDE9FE" Margin="2,3,6,0"
+            <Button DockPanel.Dock="Right" Style="{StaticResource Icon}" Content="🕶" FontFamily="Segoe UI Emoji" FontSize="17" Foreground="#5B21B6" Background="#EDE9FE" Margin="2,3,6,0"
                     ToolTip="Nowa karta prywatna (Ctrl+Shift+N) – nic nie zapisuje" Click="PrivateTab_Click"/>
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <!-- karty, a zaraz za ostatnia przycisk "+" (jak w Chrome); nowe karty wstawiamy przed nim -->

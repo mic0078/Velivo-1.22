@@ -2533,13 +2533,14 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
             if (incomingJson == localJson) return localJson;
             BankConfig local = null;
             try { if (!string.IsNullOrEmpty(localJson)) local = JsonSerializer.Deserialize<BankConfig>(localJson); } catch (JsonException) { }
+            var localNorm = local != null ? JsonSerializer.Serialize(local) : "";   // ten sam format zapisu co wynik - do porownania danych
             var result = local != null && local.Changed > c.Changed ? local : c;
             result.Log = (local != null && local.Log != null ? local.Log : new List<BankLogEntry>()).Concat(c.Log ?? new List<BankLogEntry>())
                 .GroupBy(x => x.T + "|" + x.Device + "|" + x.How + "|" + x.Ok).Select(g => g.First())
                 .OrderBy(x => x.T).ToList();
             if (result.Log.Count > 60) result.Log.RemoveRange(0, result.Log.Count - 60);
             var merged = JsonSerializer.Serialize(result);
-            dataReplaced = BankDataKey(merged) != BankDataKey(localJson ?? "");
+            dataReplaced = BankDataKey(merged) != BankDataKey(localNorm);
             return merged;
         }
 

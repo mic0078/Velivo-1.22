@@ -78,6 +78,8 @@ namespace Przegladarka
         int _totalBlocked;
         // Profil przegladarki bierzemy z karty otwartej w tej chwili - obiekt z zamknietej karty jest juz zwolniony
         // (wczesniej zapamietany z pierwszej karty: po jej zamknieciu "Wyczysc smieci" konczylo sie bledem).
+        static string ClearOnExitPendingFile { get { return Path.Combine(DataDir, "czysc-przy-starcie.flag"); } }
+
         CoreWebView2Profile LiveProfile
         {
             get
@@ -397,6 +399,10 @@ namespace Przegladarka
             var core = tab.View.CoreWebView2;
             core.Settings.IsStatusBarEnabled = false;
             if (tab.Bank) await BankAfterInit(core);
+            if (!tab.Private && !tab.Bank && File.Exists(ClearOnExitPendingFile))
+            {
+                try { await ClearBrowsingDataOnExit(core.Profile, false); File.Delete(ClearOnExitPendingFile); } catch (Exception) { }   // zaleglosc z zamkniecia
+            }
             ApplyViewSettings(core);
             await HookAutofill(tab, core);   // przed ukryciem chrome.webview
             HookProtection(tab, core);
@@ -1020,7 +1026,10 @@ namespace Przegladarka
             e.Cancel = true;
             _cleanedUp = true;
             Hide();
-            try { await ClearBrowsingDataOnExit(LiveProfile); } catch (Exception) { }
+            var prof = LiveProfile;
+            try { await ClearBrowsingDataOnExit(prof); } catch (Exception) { }
+            // otwarte byly tylko karty prywatne / bankowe - dane silnika zwyklego profilu wyczyscimy przy nastepnym starcie
+            if (prof == null) { try { File.WriteAllText(ClearOnExitPendingFile, "1"); } catch (Exception) { } }
             Close();
         }
 

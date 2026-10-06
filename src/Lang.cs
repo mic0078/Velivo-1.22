@@ -968,6 +968,7 @@ namespace Przegladarka
             { "🔢 Wpisz wybrane znaki", "🔢 Fill in selected characters" },
             { "🏦 Masz te dane w swojej bazie", "🏦 You have this data in your vault" },
             { "Nie teraz", "Not now" },
+            { "Strona w karcie się zmieniła – nic nie wpisano.", "The page in the tab has changed – nothing was filled in." },
             { "🔒 Tryb bankowy zablokowany", "🔒 Banking mode locked" },
             { "🔒 Tryb bankowy zablokowany po 10 minutach bezczynności", "🔒 Banking mode locked after 10 minutes of inactivity" },
             { "🔒 Zablokuj teraz", "🔒 Lock now" },

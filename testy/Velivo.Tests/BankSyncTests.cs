@@ -19,7 +19,7 @@ public class BankSyncTests
     {
         var local = Bank(100, "KARTY", (1, "PC-A"));
         var incoming = Bank(100, "KARTY", (1, "PC-A"), (2, "PC-B"));   // na PC-B tylko otwarto tryb
-        var merged = MainWindow.MergeSyncedBank(local, incoming, out bool replaced);
+        var merged = MainWindow.MergeSyncedBank(local, incoming, 0, out bool replaced);
         Assert.False(replaced);                                        // dane te same - bez blokady trybu
         Assert.Equal(2, Parse(merged).GetProperty("Log").GetArrayLength());
     }
@@ -29,7 +29,7 @@ public class BankSyncTests
     {
         var local = Bank(200, "NOWA-KARTA", (3, "PC-A"));
         var incoming = Bank(100, "STARE", (4, "PC-B"));
-        var merged = MainWindow.MergeSyncedBank(local, incoming, out bool replaced);
+        var merged = MainWindow.MergeSyncedBank(local, incoming, 0, out bool replaced);
         Assert.False(replaced);
         Assert.Equal("NOWA-KARTA", Parse(merged).GetProperty("Cards").GetString());
         Assert.Equal(2, Parse(merged).GetProperty("Log").GetArrayLength());   // wpis z PC-B nie ginie
@@ -40,7 +40,7 @@ public class BankSyncTests
     {
         var local = Bank(100, "STARE", (1, "PC-A"));
         var incoming = Bank(300, "NOWE", (5, "PC-B"));
-        var merged = MainWindow.MergeSyncedBank(local, incoming, out bool replaced);
+        var merged = MainWindow.MergeSyncedBank(local, incoming, 0, out bool replaced);
         Assert.True(replaced);
         Assert.Equal("NOWE", Parse(merged).GetProperty("Cards").GetString());
         Assert.Equal(2, Parse(merged).GetProperty("Log").GetArrayLength());   // tutejszy wpis tez zostaje
@@ -49,7 +49,32 @@ public class BankSyncTests
     [Fact]
     public void Uszkodzone_dane_z_sieci_sa_odrzucane()
     {
-        Assert.Null(MainWindow.MergeSyncedBank(Bank(1, "X"), "{to nie json", out _));
-        Assert.Null(MainWindow.MergeSyncedBank(Bank(1, "X"), "{\"Owner\":\"bez hasla\"}", out _));
+        Assert.Null(MainWindow.MergeSyncedBank(Bank(1, "X"), "{to nie json", 0, out _));
+        Assert.Null(MainWindow.MergeSyncedBank(Bank(1, "X"), "{\"Owner\":\"bez hasla\"}", 0, out _));
+    }
+
+    [Fact]
+    public void Usuniety_tu_profil_nie_wraca_ze_starszymi_danymi_z_drugiego_komputera()
+    {
+        // "Zapomnialem hasla - wyczysc" tutaj o czasie 500; drugi komputer ma dane z czasu 300
+        Assert.Null(MainWindow.MergeSyncedBank("", Bank(300, "STARE"), 500, out _));
+    }
+
+    [Fact]
+    public void Nowy_profil_z_drugiego_komputera_po_usunieciu_jest_przyjmowany()
+    {
+        var merged = MainWindow.MergeSyncedBank("", Bank(700, "NOWY"), 500, out bool replaced);
+        Assert.True(replaced);
+        Assert.Equal("NOWY", Parse(merged).GetProperty("Cards").GetString());
+    }
+
+    [Fact]
+    public void Remis_znacznikow_rozstrzygany_tak_samo_na_obu_komputerach()
+    {
+        var a = Bank(0, "DANE-A");   // pliki sprzed tej wersji: Changed = 0 na obu komputerach
+        var b = Bank(0, "DANE-B");
+        var naA = Parse(MainWindow.MergeSyncedBank(a, b, 0, out _)).GetProperty("Cards").GetString();
+        var naB = Parse(MainWindow.MergeSyncedBank(b, a, 0, out _)).GetProperty("Cards").GetString();
+        Assert.Equal(naA, naB);   // oba komputery koncza z tymi samymi danymi (bez zamiany miejscami)
     }
 }

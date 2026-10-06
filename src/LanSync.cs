@@ -100,10 +100,17 @@ namespace Przegladarka
             var files = new List<string>
             {
                 Path.Combine(DataDir, "ustawienia.txt"), Path.Combine(DataDir, "zakladki.txt"), BookmarkTombstonesFile,
-                Path.Combine(DataDir, "sesja.txt"), Path.Combine(DataDir, "sesja.txt.aktywna"), Path.Combine(DataDir, "prywatnosc.txt"),
-                ProfilesFile, ExtensionsSyncListFile, PinnedFile, PasswordVaultFile,
-            };
-            try { if (Directory.Exists(DataDir)) files.AddRange(Directory.GetFiles(DataDir, "bank*.json")); } catch (Exception) { }
+                Path.Combine(DataDir, "prywatnosc.txt"), ProfilesFile, ExtensionsSyncListFile, PinnedFile, PasswordVaultFile,
+            };   // bez plikow sesji: zmieniaja sie przy kazdej nawigacji, a nie sa czescia odcisku
+            try
+            {
+                if (Directory.Exists(DataDir))
+                {
+                    files.AddRange(Directory.GetFiles(DataDir, "bank*.json"));
+                    files.AddRange(Directory.GetFiles(DataDir, "bank*" + BankTombstoneExt));
+                }
+            }
+            catch (Exception) { }
             foreach (var f in files)
             {
                 try { var fi = new FileInfo(f); sb.Append(fi.Exists ? fi.LastWriteTimeUtc.Ticks + ":" + fi.Length : "-").Append('|'); }
@@ -134,6 +141,9 @@ namespace Przegladarka
                 }
                 var lines = File.ReadAllLines(LanChangeFile);
                 if (lines.Length >= 2) { long.TryParse(lines[0], out _lanLocalChanged); _lanLocalChangedFp = lines[1]; }
+                // odcisk z poprzedniej wersji (inny sklad: bank, cacheDir/cacheMb) - przeliczamy go bez podbijania znacznika,
+                // inaczej kazdy komputer po aktualizacji uznalby sie za "zmieniony teraz" i nadpisal drugi
+                if (lines.Length < 3 || lines[2] != LanContentFingerprintVersion) SaveLanChange(_lanLocalChanged, LanContentFingerprint());
             }
             catch (Exception) { }
         }
@@ -142,6 +152,8 @@ namespace Przegladarka
         // (zmieniaja sie ciagle) i bez ustawien samej synchronizacji (wlaczenie sync to nie jest zmiana danych).
         // Bez trybu bankowego: ma wlasny znacznik zmian (BankConfig.Changed) - otwarcie banku na jednym komputerze
         // nie moze robic go "nowszym" dla ustawien, prywatnosci, profili i dodatkow drugiego komputera.
+        const string LanContentFingerprintVersion = "2";   // zmiana skladu LanContentFingerprint = nowa wersja (migracja w LoadLanChange)
+
         string LanContentFingerprint()
         {
             var settings = string.Join("\n", ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt")).Split('\n')
@@ -160,7 +172,7 @@ namespace Przegladarka
         void SaveLanChange(long stamp, string fingerprint)
         {
             _lanLocalChanged = stamp; _lanLocalChangedFp = fingerprint ?? "";
-            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(LanChangeFile, new[] { stamp.ToString(CultureInfo.InvariantCulture), _lanLocalChangedFp }); } catch (Exception) { }
+            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(LanChangeFile, new[] { stamp.ToString(CultureInfo.InvariantCulture), _lanLocalChangedFp, LanContentFingerprintVersion }); } catch (Exception) { }
         }
         byte[] _lanEncryptionKey;
         byte[] _lanAuthenticationKey;
@@ -785,6 +797,7 @@ namespace Przegladarka
         }
 
         const int LanStateTcpLimit = 8 * 1024 * 1024;
+        int _lanTcpReceiving;   // ile duzych stanow LAN jest wlasnie odbieranych przez TCP
 
         // Stan za duzy na UDP: ten sam zaszyfrowany pakiet idzie TCP (port LAN, sluchacz Szybkiego Dostepu)
         // do komputerow widzianych w ostatnich 30 s. Odbiorca sprawdza go tak samo jak pakiet UDP.
@@ -846,21 +859,37 @@ namespace Przegladarka
         {
             if (!Guid.TryParseExact(header.Id, "N", out _) || header.Id == _lanId || header.Length <= 60000 || header.Length > LanStateTcpLimit) return;
             // duze dane (do 8 MB) przyjmujemy tylko od komputera, ktory w ostatnich 30 s przyslal poprawnie podpisany pakiet
-            // (sparowany) - obcy komputer w sieci nie zajmie pamieci wieloma polaczeniami; tresc i tak jest potem sprawdzana kluczem
+            // (sparowany) i z tego samego adresu - id jest jawne w pakietach, wiec samo id nie wystarcza; tresc i tak jest potem
+            // sprawdzana kluczem. Najwyzej 2 odbiory naraz - obcy komputer nie zajmie pamieci wieloma polaczeniami.
             bool known = false;
             await Dispatcher.InvokeAsync(() =>
             {
                 LanPeerInfo peer;
-                known = _lanEncryptionKey != null && _lanPeers.TryGetValue(header.Id, out peer) && DateTime.UtcNow - peer.LastSeenUtc < TimeSpan.FromSeconds(30);
+                known = _lanEncryptionKey != null && remote != null && _lanPeers.TryGetValue(header.Id, out peer) &&
+                    DateTime.UtcNow - peer.LastSeenUtc < TimeSpan.FromSeconds(30) &&
+                    (peer.Address ?? "").StartsWith(remote.Address + ":", StringComparison.Ordinal);
             });
             if (!known) return;
-            var data = new byte[header.Length];
-            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            if (Interlocked.Increment(ref _lanTcpReceiving) > 2) { Interlocked.Decrement(ref _lanTcpReceiving); return; }
+            byte[] data;
+            try
             {
-                timeout.CancelAfter(TimeSpan.FromSeconds(20));   // bez zawieszania odbioru przez polaczenie, ktore nic nie wysyla
-                try { if (!await ReadExactAsync(stream, data, data.Length, timeout.Token)) return; }
-                catch (OperationCanceledException) { return; }
+                data = new byte[header.Length];
+                int got = 0;
+                while (got < data.Length)
+                {
+                    using (var idle = CancellationTokenSource.CreateLinkedTokenSource(token))
+                    {
+                        idle.CancelAfter(TimeSpan.FromSeconds(15));   // limit BEZCZYNNOSCI: wolne lacze dziala, zawieszone polaczenie nie
+                        int n;
+                        try { n = await stream.ReadAsync(data, got, data.Length - got, idle.Token); }
+                        catch (OperationCanceledException) { return; }
+                        if (n <= 0) return;
+                        got += n;
+                    }
+                }
             }
+            finally { Interlocked.Decrement(ref _lanTcpReceiving); }
             await HandleLanPacketAsync(data, remote, true);
         }
 
@@ -912,11 +941,8 @@ namespace Przegladarka
                 if (bookmarksChanged) File.WriteAllText(Path.Combine(DataDir, "zakladki.txt"), mergedBookmarks);
                 ImportPasswordsFromSync(state.passwords, true);
                 // tryb bankowy: niezaleznie od ustawien - kazdy profil bankowy ma wlasny znacznik zmian
-                if (pkt.t != "state-plain")
-                {
-                    if (!string.IsNullOrEmpty(state.banks)) ApplySyncedBanks(state.banks);
-                    else if (!string.IsNullOrEmpty(state.bank)) ApplySyncedBank(state.bank);
-                }
+                if (!string.IsNullOrEmpty(state.banks)) ApplySyncedBanks(state.banks);
+                else if (!string.IsNullOrEmpty(state.bank)) ApplySyncedBank(state.bank);
 
                 if (incomingNewer)
                 {

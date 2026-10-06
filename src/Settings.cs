@@ -285,13 +285,13 @@ namespace Przegladarka
                 try { File.Delete(HistoryFile); } catch (IOException) { }
         }
 
-        async System.Threading.Tasks.Task ClearBrowsingDataOnExit(CoreWebView2Profile profile)
+        async System.Threading.Tasks.Task ClearBrowsingDataOnExit(CoreWebView2Profile profile, bool includeHistoryFile = true)
         {
             await ClearBrowsingData(profile,
                 CoreWebView2BrowsingDataKinds.DiskCache |
                 CoreWebView2BrowsingDataKinds.DownloadHistory |
                 CoreWebView2BrowsingDataKinds.BrowsingHistory,
-                true);
+                includeHistoryFile);
         }
 
         async System.Threading.Tasks.Task ClearBrowsingDataFull(CoreWebView2Profile profile)

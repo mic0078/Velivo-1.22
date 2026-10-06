@@ -198,6 +198,31 @@ namespace Przegladarka
             return ReadBankCached(BankFile);
         }
 
+        // Dziennik otwarc z dwoch zrodel (ten komputer + drugi): bez powtorzen, wg czasu, ostatnie 60 wpisow.
+        static List<BankLogEntry> MergeBankLogs(List<BankLogEntry> a, List<BankLogEntry> b)
+        {
+            var log = (a ?? new List<BankLogEntry>()).Concat(b ?? new List<BankLogEntry>())
+                .GroupBy(x => x.T + "|" + x.Device + "|" + x.How + "|" + x.Ok).Select(g => g.First())
+                .OrderBy(x => x.T).ToList();
+            if (log.Count > 60) log.RemoveRange(0, log.Count - 60);
+            return log;
+        }
+
+        // Znacznik usuniecia profilu bankowego ("Zapomnialem hasla - wyczysc"): bank.usuniety obok bank.json, z czasem usuniecia.
+        // Synchronizacja przenosi usuniecie na sparowane komputery i nie przywraca starszych danych z drugiego komputera.
+        const string BankTombstoneExt = ".usuniety";
+        static string BankTombstoneFor(string bankFile) { return Path.ChangeExtension(bankFile, BankTombstoneExt); }
+        static long ReadBankTombstone(string bankFile)
+        {
+            try { long t; var f = BankTombstoneFor(bankFile); return File.Exists(f) && long.TryParse(File.ReadAllText(f).Trim(), out t) ? t : 0; }
+            catch (Exception) { return 0; }
+        }
+        sealed class BankDeleted { public long Deleted { get; set; } }
+        static long BankDeletedAt(string json)
+        {
+            try { var d = JsonSerializer.Deserialize<BankDeleted>(json); return d != null ? d.Deleted : 0; } catch (JsonException) { return 0; }
+        }
+
         // Dane profilu bankowego bez dziennika otwarc i znacznika zmian - do porownan przy zapisie i synchronizacji.
         static string BankDataKey(string json)
         {
@@ -213,13 +238,27 @@ namespace Przegladarka
 
         void SaveBank(BankConfig c)
         {
-            var json = JsonSerializer.Serialize(c);
-            if (BankDataKey(json) != BankDataKey(ReadTextOrEmpty(BankFile)))
+            var diskJson = ReadTextOrEmpty(BankFile);
+            BankConfig disk = null;
+            try { if (diskJson.Length > 0) disk = JsonSerializer.Deserialize<BankConfig>(diskJson); } catch (JsonException) { }
+            string json;
+            if (disk != null && disk.Changed > c.Changed)
             {
-                c.Changed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();   // zmienily sie dane, nie tylko dziennik
-                json = JsonSerializer.Serialize(c);
+                // c wczytano, zanim przyszly nowsze dane z drugiego komputera (np. podczas okienka odblokowania) -
+                // nowsze dane zostaja, dokladamy tylko wpisy dziennika
+                disk.Log = MergeBankLogs(disk.Log, c.Log);
+                json = JsonSerializer.Serialize(disk);
             }
-            try { File.WriteAllText(BankFile, json); } catch (Exception ex) { App.LogError(ex); }
+            else
+            {
+                json = JsonSerializer.Serialize(c);
+                if (BankDataKey(json) != BankDataKey(diskJson))
+                {
+                    c.Changed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();   // zmienily sie dane, nie tylko dziennik
+                    json = JsonSerializer.Serialize(c);
+                }
+            }
+            try { File.WriteAllText(BankFile, json); File.Delete(BankTombstoneFor(BankFile)); } catch (Exception ex) { App.LogError(ex); }   // nowe dane = koniec usuniecia
             _profCache = null;
             try { NotifyLanStateChanged(); } catch (Exception) { }   // wyslij zmiane do sparowanych komputerow
         }
@@ -316,7 +355,7 @@ namespace Przegladarka
             {
                 CheckBillNag();   // przypomnienie o rachunkach (raz dziennie, takze przy zamknietym trybie)
                 if (!_bankUnlocked) return;
-                if (!_tabs.Any(t => t.Bank)) { _bankUnlocked = false; ForgetBankKey(); ClearBankTraces(); return; }   // ostatnia karta bankowa zamknieta
+                if (!_tabs.Any(t => t.Bank)) { _bankUnlocked = false; ForgetBankKey(); return; }   // ostatnia karta bankowa zamknieta (slady czysci CloseTab)
                 int idle = _bankIdleMinutes > 0 ? _bankIdleMinutes : 10;
                 if (DateTime.UtcNow - _bankLastInput > TimeSpan.FromMinutes(idle)) LockBank(L.T("🔒 Tryb bankowy zablokowany po bezczynności") + " (" + idle + " min)");
             };
@@ -354,7 +393,7 @@ namespace Przegladarka
             try
             {
                 await prof.ClearBrowsingDataAsync(BankTraceKinds);
-                try { File.Delete(flag); } catch (Exception) { }
+                if (!_tabs.Any(t => t.Bank)) { try { File.Delete(flag); } catch (Exception) { } }   // w miedzyczasie mogla ruszyc nowa sesja trybu
             }
             catch (Exception) { }   // profil juz zwolniony - znacznik zostaje, wyczyscimy przy nastepnym otwarciu
         }
@@ -365,8 +404,7 @@ namespace Przegladarka
             foreach (var t in _bankTools.Values.ToList()) { try { t.Close(); } catch (Exception) { } }
             foreach (Window t in OwnedWindows.Cast<Window>().ToList()) { try { if ((t.Tag as string) == "velivo-bank") t.Close(); } catch (Exception) { } }
             _bankUnlocked = false; ForgetBankKey();
-            ClearBankTraces();
-            foreach (var t in _tabs.Where(t => t.Bank).ToList()) CloseTab(t);
+            foreach (var t in _tabs.Where(t => t.Bank).ToList()) CloseTab(t);   // ostatnia zamykana karta czysci slady (CloseTab)
             ShowToast(toast ?? L.T("🔒 Tryb bankowy zablokowany"), null);
         }
 
@@ -411,7 +449,9 @@ namespace Przegladarka
             {
                 try { await core.Profile.ClearBrowsingDataAsync(); File.Delete(BankWipeFlag); } catch (Exception) { }
             }
-            // slady z poprzedniej sesji trybu, ktorych nie udalo sie wyczyscic przy zamknieciu
+            // tylko pierwsza karta sesji trybu: slady z poprzedniej sesji (niewyczyszczone przy zamknieciu) i znacznik nowej sesji.
+            // Kolejne karty tej samej sesji (np. okienko 3-D Secure) nie moga czyscic pamieci zalogowanej sesji.
+            if (_tabs.Any(t => t.Bank && t.View.CoreWebView2 != null && t.View.CoreWebView2 != core)) return;
             if (File.Exists(BankTracesFlag)) { try { await core.Profile.ClearBrowsingDataAsync(BankTraceKinds); } catch (Exception) { } }
             try { Directory.CreateDirectory(DataDir); File.WriteAllText(BankTracesFlag, DateTime.UtcNow.ToString("s")); } catch (Exception) { }
         }
@@ -629,7 +669,7 @@ namespace Przegladarka
 
         bool BankSetup(BankConfig existing)
         {
-            var c = existing ?? new BankConfig { Iter = 600000, Owner = _bankNewOwner };
+            var c = existing ?? new BankConfig { Iter = 600000, Owner = _bankNewOwner, Changed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
             var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK, WrapKp = k.WrapKp }).ToList();
             if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
             if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites) || !string.IsNullOrEmpty(c.Docs) || !string.IsNullOrEmpty(c.Accounts) || !string.IsNullOrEmpty(c.Bills) || !string.IsNullOrEmpty(c.Logins)) && _bankKey == null)
@@ -759,7 +799,13 @@ namespace Przegladarka
             if (MessageBox.Show(this, L.T("Usunąć hasło i klucze trybu bankowego oraz wyczyścić jego dane (logowania, ciasteczka)?\nUstawisz go od nowa."),
                 "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             LockBank(L.T("Tryb bankowy wyczyszczony"));
-            try { File.Delete(BankFile); File.WriteAllText(BankWipeFlag, "1"); } catch (Exception) { }
+            try
+            {
+                File.Delete(BankFile); File.WriteAllText(BankWipeFlag, "1");
+                File.WriteAllText(BankTombstoneFor(BankFile), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture));
+                NotifyLanStateChanged();   // usuniecie idzie do sparowanych komputerow
+            }
+            catch (Exception) { }
             _profCache = null;
         }
 
@@ -1041,11 +1087,22 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             {
                 var host = HostOf(_current != null && _current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
                 if (host == null || _bankKey == null) return null;
-                var c = LoadBank(); if (c == null) return null;
-                var reg = RegDomain(host);
-                return LoadSealed<BankSite>(c.Sites).FirstOrDefault(x => { var h = HostOf(x.Url); return h != null && RegDomain(h) == reg; });
+                var c = LoadBank(); return c == null ? null : SiteFor(c, host);
             }
             catch (Exception) { return null; }
+        }
+
+        // Jedna regula dopasowania danych z bazy do otwartej strony (ta sama domena glowna) - dla menu 🏦 i asystenta wypelniania.
+        BankSite SiteFor(BankConfig c, string host)
+        {
+            var reg = RegDomain(host);
+            return LoadSealed<BankSite>(c.Sites).FirstOrDefault(x => { var h = HostOf(x.Url); return h != null && RegDomain(h) == reg; });
+        }
+
+        BankItem LoginFor(BankConfig c, string host)
+        {
+            var reg = RegDomain(host);
+            return LoadSealed<BankItem>(c.Logins).FirstOrDefault(x => { var h = HostOf(FixUrl(x.Get("url"))); return h != null && RegDomain(h) == reg; });
         }
 
         // Opis pol formularza (podpisy, numery, rodzaj) - BEZ wartosci; do wklejenia przy zglaszaniu problemu
@@ -1172,15 +1229,18 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
         const string BankPageDetectScript = @"(function(){var r={login:false,partial:false,card:false};try{
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
 function vis(el){var b=el.getBoundingClientRect();return b.width>0&&b.height>0&&!el.disabled&&!el.readOnly;}
+var cardRx=/cc-|card|karty|cvv|cvc|csc|security.?code|expir|exp.?(month|year|date)|wazn|miesiac|month|\byear\b|\byy\b|\bmm\b/;
 docs.forEach(function(doc){var small=0;
 Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).forEach(function(el){
 var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('aria-label')||'')).toLowerCase();
-if(el.tagName==='SELECT'||(el.maxLength>0&&el.maxLength<=2)){small++;return;}
 if(/cc-number|cardnumber|card-number|card_number|numer.?karty|ccnum/.test(a)){r.card=true;return;}
+if(cardRx.test(a))return;
+if(el.tagName==='SELECT'||(el.maxLength>0&&el.maxLength<=2)){small++;return;}
 if(el.type==='password')r.login=true;
 else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|customer|klient|ident/.test(a))r.login=true;});
 var body=((doc.body&&doc.body.innerText)||'').toLowerCase();
-if(small>=2&&/digit|character|letter|passcode|znak|cyfr|liter/.test(body))r.partial=true;});
+if(small>=2&&/\b\d{1,2}(st|nd|rd|th)\b|(character|digit|letter|znak|cyfr|liter)\w*\s*(no\.?|nr\.?|number|numer)?\s*\d{1,2}\b|\b\d{1,2}\.?\s*(znak|cyfr|liter)/.test(body))r.partial=true;});
+if(r.card)r.partial=false;
 }catch(x){}return JSON.stringify(r);})()";
 
         sealed class BankPageKinds { public bool login { get; set; } public bool partial { get; set; } public bool card { get; set; } }
@@ -1194,6 +1254,7 @@ if(small>=2&&/digit|character|letter|passcode|znak|cyfr|liter/.test(body))r.part
                 var url = core.Source; var host = HostOf(url); if (host == null) return;
                 var pageKey = url.Split('#')[0];
                 if (tab.BankFillOffered == pageKey) return;
+                tab.BankFillOffered = pageKey;   // od razu - ponowne wczytanie tej samej strony w trakcie rozpoznawania nie da drugiego okienka
                 BankPageKinds kinds = null;
                 for (int attempt = 0; attempt < 2; attempt++)
                 {
@@ -1205,12 +1266,11 @@ if(small>=2&&/digit|character|letter|passcode|znak|cyfr|liter/.test(body))r.part
                 }
                 if (kinds == null || !(kinds.login || kinds.partial || kinds.card)) return;
                 var c = LoadBank(); if (c == null) return;
-                var reg = RegDomain(host);
-                var site = LoadSealed<BankSite>(c.Sites).FirstOrDefault(x => { var h = HostOf(x.Url); return h != null && RegDomain(h) == reg; });
+                var site = SiteFor(c, host);
                 var offers = new List<KeyValuePair<string, Action>>();
                 if (kinds.login)
                 {
-                    var hit = LoadSealed<BankItem>(c.Logins).FirstOrDefault(x => { var h = HostOf(FixUrl(x.Get("url"))); return h != null && RegDomain(h) == reg; });
+                    var hit = LoginFor(c, host);
                     if (hit != null) offers.Add(new KeyValuePair<string, Action>(L.T("🔑 Wpisz login i hasło") + " – " + hit.Get("name"), BankFillLoginMenu));
                     else if (site != null && !string.IsNullOrEmpty(site.Login)) offers.Add(new KeyValuePair<string, Action>(L.T("🔑 Wpisz login i hasło") + " – " + site.Name, BankFillLoginMenu));
                 }
@@ -1222,7 +1282,6 @@ if(small>=2&&/digit|character|letter|passcode|znak|cyfr|liter/.test(body))r.part
                     if (cards.Count > 0) offers.Add(new KeyValuePair<string, Action>(L.T("💳 Wypełnij kartę") + (cards.Count == 1 ? " – " + cards[0].Label : "…"), BankFillMenu));
                 }
                 if (offers.Count == 0) return;
-                tab.BankFillOffered = pageKey;
                 ShowBankFillOffer(tab, host, offers);
             }
             catch (Exception ex) { App.LogError(ex); }
@@ -1242,6 +1301,9 @@ if(small>=2&&/digit|character|letter|passcode|znak|cyfr|liter/.test(body))r.part
                 {
                     try { toast.Close(); } catch (Exception) { }
                     if (!_tabs.Contains(tab) || _bankKey == null) return;
+                    // karta mogla w miedzyczasie przejsc na inna strone - dane tylko na te, dla ktorej powstala propozycja
+                    var now = HostOf(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null);
+                    if (now == null || RegDomain(now) != RegDomain(host)) { ShowToast(L.T("Strona w karcie się zmieniła – nic nie wpisano."), null); return; }
                     if (_current != tab) SelectTab(tab);   // funkcje wypelniania dzialaja na biezacej karcie
                     act();
                 };
@@ -2388,7 +2450,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             try
             {
                 var cfgL = LoadBank(); var hostL = HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
-                var hit = cfgL == null || hostL == null ? null : LoadSealed<BankItem>(cfgL.Logins).FirstOrDefault(x => { var h = HostOf(FixUrl(x.Get("url"))); return h != null && RegDomain(h) == RegDomain(hostL); });
+                var hit = cfgL == null || hostL == null ? null : LoginFor(cfgL, hostL);
                 if (hit != null)
                 {
                     var dL = JsonSerializer.Serialize(new { u = hit.Get("login"), p = hit.Get("password") });
@@ -2607,6 +2669,16 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
         {
             var d = new SortedDictionary<string, string>(StringComparer.Ordinal);
             foreach (var p in BankProfiles()) { var f = BankFileFor(p); d[Path.GetFileName(f)] = ReadTextOrEmpty(f); }
+            try
+            {
+                foreach (var t in Directory.GetFiles(DataDir, "bank*" + BankTombstoneExt))
+                {
+                    var name = Path.GetFileName(Path.ChangeExtension(t, ".json"));
+                    long at = ReadBankTombstone(Path.ChangeExtension(t, ".json"));
+                    if (BankFileRx.IsMatch(name) && at > 0 && !d.ContainsKey(name)) d[name] = JsonSerializer.Serialize(new BankDeleted { Deleted = at });
+                }
+            }
+            catch (Exception) { }
             return d.Count == 0 ? "" : JsonSerializer.Serialize(d);
         }
 
@@ -2628,19 +2700,36 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
             try
             {
                 var localJson = ReadTextOrEmpty(file);
+                long deleted = BankDeletedAt(json);
+                if (deleted > 0)
+                {
+                    // profil usuniety na drugim komputerze ("Zapomnialem hasla") - usuwamy tu, chyba ze tu sa nowsze dane
+                    BankConfig local = null;
+                    try { if (localJson.Length > 0) local = JsonSerializer.Deserialize<BankConfig>(localJson); } catch (JsonException) { }
+                    if (local != null && local.Changed >= deleted) return;
+                    if (local == null && ReadBankTombstone(file) >= deleted) return;
+                    bool wasOpen = local != null && _bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase);
+                    File.WriteAllText(BankTombstoneFor(file), deleted.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    if (File.Exists(file)) File.Delete(file);
+                    _profCache = null;
+                    if (wasOpen) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
+                    return;
+                }
                 bool dataReplaced;
-                var merged = MergeSyncedBank(localJson, json, out dataReplaced);
+                var merged = MergeSyncedBank(localJson, json, ReadBankTombstone(file), out dataReplaced);
                 if (merged == null || merged == localJson) return;
                 File.WriteAllText(file, merged); _profCache = null;
+                try { File.Delete(BankTombstoneFor(file)); } catch (Exception) { }   // nowsze dane niz usuniecie
                 // haslo / klucze / karty mogly sie zmienic - otwarty tryb zamykamy, otworzysz go ponownie (sam dziennik - nie)
                 if (dataReplaced && _bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
             }
             catch (Exception ex) { App.LogError(ex); }
         }
 
-        // Profil bankowy z drugiego komputera + tutejszy: dane - wygrywa nowsza zmiana danych (Changed),
-        // dziennik otwarc - laczony z obu komputerow. Zwraca null, gdy przychodzace dane sa niepoprawne.
-        internal static string MergeSyncedBank(string localJson, string incomingJson, out bool dataReplaced)
+        // Profil bankowy z drugiego komputera + tutejszy: dane - wygrywa nowsza zmiana danych (Changed), przy remisie -
+        // ta sama, deterministyczna regula na obu komputerach; dziennik otwarc - laczony. Dane starsze niz tutejsze usuniecie
+        // profilu (deletedAt) sa ignorowane. Zwraca null, gdy przychodzacych danych nie nalezy przyjac.
+        internal static string MergeSyncedBank(string localJson, string incomingJson, long deletedAt, out bool dataReplaced)
         {
             dataReplaced = false;
             BankConfig c;
@@ -2649,12 +2738,12 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
             if (incomingJson == localJson) return localJson;
             BankConfig local = null;
             try { if (!string.IsNullOrEmpty(localJson)) local = JsonSerializer.Deserialize<BankConfig>(localJson); } catch (JsonException) { }
+            if (local == null && deletedAt > 0 && c.Changed <= deletedAt) return null;   // profil tu usunieto pozniej
             var localNorm = local != null ? JsonSerializer.Serialize(local) : "";   // ten sam format zapisu co wynik - do porownania danych
-            var result = local != null && local.Changed > c.Changed ? local : c;
-            result.Log = (local != null && local.Log != null ? local.Log : new List<BankLogEntry>()).Concat(c.Log ?? new List<BankLogEntry>())
-                .GroupBy(x => x.T + "|" + x.Device + "|" + x.How + "|" + x.Ok).Select(g => g.First())
-                .OrderBy(x => x.T).ToList();
-            if (result.Log.Count > 60) result.Log.RemoveRange(0, result.Log.Count - 60);
+            bool keepLocal = local != null && (local.Changed > c.Changed ||
+                (local.Changed == c.Changed && string.CompareOrdinal(BankDataKey(localNorm), BankDataKey(JsonSerializer.Serialize(c))) >= 0));
+            var result = keepLocal ? local : c;
+            result.Log = MergeBankLogs(local != null ? local.Log : null, c.Log);
             var merged = JsonSerializer.Serialize(result);
             dataReplaced = BankDataKey(merged) != BankDataKey(localNorm);
             return merged;

@@ -16,6 +16,7 @@ function wyciagnij(nazwa) {
 const detect = wyciagnij('BankPageDetectScript');
 const partial = wyciagnij('PartialFillScript');
 const login = wyciagnij('LoginFillScript');
+const karta = wyciagnij('CardFillScript');
 
 const litery = 'abcdefghijklmnopqrstuvwxyz';
 const sel = '<select><option value="">-</option>' + [...litery].map(c => `<option>${c}</option>`).join('') + '</select>';
@@ -110,5 +111,12 @@ await page.evaluate(login.replace('__D__', JSON.stringify({ u: 'jan', p: 'dlugie
 const w4 = await page.evaluate(() => [...document.querySelectorAll('input')].map(e => e.value).join('|'));
 const p4 = w4 === 'jan|'; ok &&= p4;
 console.log(`${p4 ? 'PASS' : 'FAIL'} haslo dluzsze niz pole - nie wpisane (${w4})`);
+// karta: tylko widoczne pola - ukryte pole numeru / CVV nie dostaje danych
+await page.setContent('<!doctype html><html><body><input autocomplete="cc-number" id="n"><input autocomplete="cc-csc" id="c">' +
+  '<input type="hidden" name="cardnumber" id="hn"><input name="cvv" id="hc" style="display:none"></body></html>');
+await page.evaluate(karta.replace('__D__', JSON.stringify({ n: '4111111111111111', e: '12/29', c: '123', h: 'JAN KOWALSKI' })));
+const w5 = await page.evaluate(() => ['n', 'c', 'hn', 'hc'].map(i => document.getElementById(i).value).join('|'));
+const p5 = w5 === '4111111111111111|123||'; ok &&= p5;
+console.log(`${p5 ? 'PASS' : 'FAIL'} karta: ukryte pola nic nie dostaja (${w5})`);
 await browser.close();
 process.exit(ok ? 0 : 1);

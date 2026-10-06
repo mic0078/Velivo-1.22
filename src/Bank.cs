@@ -1011,7 +1011,8 @@ var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{
 function set(el,v){if(!el||!v)return;var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
 el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
 var mm=(d.e||'').split(/[\/\-. ]/)[0]||'',yy=(d.e||'').split(/[\/\-. ]/)[1]||'';
-docs.forEach(function(doc){doc.querySelectorAll('input,select').forEach(function(el){
+function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}   // tylko widoczne pola - ukryte nie zbieraja danych karty
+docs.forEach(function(doc){Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).forEach(function(el){
 var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('aria-label')||'')).toLowerCase();
 if(/cc-csc|cvv|cvc|csc|security.?code/.test(a)){set(el,d.c);return;}
 if(/cc-number|cardnumber|card-number|card_number|numer.?karty|ccnum/.test(a))set(el,d.n);

@@ -338,17 +338,25 @@ namespace Przegladarka
         }
         Microsoft.Web.WebView2.Core.CoreWebView2Profile _bankCoreProfile;
 
-        // Po zamknieciu trybu: czyscimy pamiec podreczna i historie profilu bankowego (logowania / "zapamietaj mnie" zostaja)
+        // Po zamknieciu trybu: czyscimy pamiec podreczna i historie profilu bankowego (logowania / "zapamietaj mnie" zostaja).
+        // Znacznik na dysku powstaje przy otwarciu trybu i znika dopiero po udanym czyszczeniu - gdy czyszczenie sie nie uda
+        // (karta juz zamknieta, awaria, zamkniecie programu), slady sa czyszczone przed nastepnym otwarciem trybu bankowego.
+        const Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds BankTraceKinds =
+            Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.DiskCache | Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.CacheStorage |
+            Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.BrowsingHistory | Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.DownloadHistory;
+        string BankTracesFlag { get { return Path.Combine(DataDir, string.IsNullOrEmpty(_bankProfile) ? "bank.slady" : "bank-" + _bankProfile + ".slady"); } }
+
         async void ClearBankTraces()
         {
             var prof = _bankCoreProfile; _bankCoreProfile = null;
             if (prof == null) return;
+            var flag = BankTracesFlag;
             try
             {
-                await prof.ClearBrowsingDataAsync(Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.DiskCache | Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.CacheStorage |
-                    Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.BrowsingHistory | Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.DownloadHistory);
+                await prof.ClearBrowsingDataAsync(BankTraceKinds);
+                try { File.Delete(flag); } catch (Exception) { }
             }
-            catch (Exception) { }
+            catch (Exception) { }   // profil juz zwolniony - znacznik zostaje, wyczyscimy przy nastepnym otwarciu
         }
 
         void LockBank(string toast)
@@ -399,8 +407,13 @@ namespace Przegladarka
         async Task BankAfterInit(Microsoft.Web.WebView2.Core.CoreWebView2 core)
         {
             _bankCoreProfile = core.Profile;
-            if (!File.Exists(BankWipeFlag)) return;
-            try { await core.Profile.ClearBrowsingDataAsync(); File.Delete(BankWipeFlag); } catch (Exception) { }
+            if (File.Exists(BankWipeFlag))
+            {
+                try { await core.Profile.ClearBrowsingDataAsync(); File.Delete(BankWipeFlag); } catch (Exception) { }
+            }
+            // slady z poprzedniej sesji trybu, ktorych nie udalo sie wyczyscic przy zamknieciu
+            if (File.Exists(BankTracesFlag)) { try { await core.Profile.ClearBrowsingDataAsync(BankTraceKinds); } catch (Exception) { } }
+            try { Directory.CreateDirectory(DataDir); File.WriteAllText(BankTracesFlag, DateTime.UtcNow.ToString("s")); } catch (Exception) { }
         }
 
         // ---------- odblokowanie ----------

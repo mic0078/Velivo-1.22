@@ -874,6 +874,12 @@ namespace Przegladarka
         void CloseTab(BrowserTab tab)
         {
             StopPasswordCapture(tab.View.CoreWebView2);
+            // ostatnia karta bankowa: slady (cache, historia) czyscimy teraz, poki jej profil jeszcze istnieje
+            if (tab.Bank && !_tabs.Any(t => t != tab && t.Bank))
+            {
+                if (tab.View.CoreWebView2 != null) _bankCoreProfile = tab.View.CoreWebView2.Profile;   // profil tej karty - na pewno jeszcze zywy
+                ClearBankTraces();
+            }
             bool busy = HasActiveDownloads(tab.View.CoreWebView2) || tab.InPip;   // okienko obrazu w obrazie gra dalej po zamknieciu karty
             if (tab.Private && busy)
             {

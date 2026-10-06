@@ -2493,10 +2493,29 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
             {
                 var c = JsonSerializer.Deserialize<BankConfig>(json);
                 if (c == null || string.IsNullOrEmpty(c.Hash) || string.IsNullOrEmpty(c.Salt)) return;
-                if (json == ReadTextOrEmpty(file)) return;
-                File.WriteAllText(file, json); _profCache = null;
-                // haslo / klucze / karty mogly sie zmienic - otwarty tryb zamykamy, otworzysz go ponownie
-                if (_bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
+                var localJson = ReadTextOrEmpty(file);
+                if (json == localJson) return;
+                BankConfig local = null;
+                try { if (localJson.Length > 0) local = JsonSerializer.Deserialize<BankConfig>(localJson); } catch (JsonException) { }
+                // dziennik otwarc laczymy z obu komputerow - kazde otwarcie trybu na drugim komputerze zmienia dziennik,
+                // a dawniej nadpisywalo tutejszy dziennik i zamykalo otwarty tu tryb bankowy
+                var localLog = local != null && local.Log != null ? local.Log : new List<BankLogEntry>();
+                c.Log = localLog.Concat(c.Log ?? new List<BankLogEntry>())
+                    .GroupBy(x => x.T + "|" + x.Device + "|" + x.How + "|" + x.Ok).Select(g => g.First())
+                    .OrderBy(x => x.T).ToList();
+                if (c.Log.Count > 60) c.Log.RemoveRange(0, c.Log.Count - 60);
+                bool onlyLog = false;
+                if (local != null)
+                {
+                    var a = JsonSerializer.Deserialize<BankConfig>(localJson); a.Log = null;
+                    var b = JsonSerializer.Deserialize<BankConfig>(json); b.Log = null;
+                    onlyLog = JsonSerializer.Serialize(a) == JsonSerializer.Serialize(b);
+                }
+                var merged = JsonSerializer.Serialize(c);
+                if (merged == localJson) return;
+                File.WriteAllText(file, merged); _profCache = null;
+                // haslo / klucze / karty mogly sie zmienic - otwarty tryb zamykamy, otworzysz go ponownie (sam dziennik - nie)
+                if (!onlyLog && _bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
             }
             catch (Exception ex) { App.LogError(ex); }
         }

@@ -921,6 +921,7 @@ namespace Przegladarka
                 if (incomingNewer)
                 {
                     var settingsPath = Path.Combine(DataDir, "ustawienia.txt");
+                    bool oldFullLists = _settings.FullFilterLists;
                     File.WriteAllText(settingsPath, MergeLanSettingsForImport(state.settings, settingsPath));
                     File.WriteAllText(Path.Combine(DataDir, "prywatnosc.txt"), state.privacy);
                     WriteProfilesRegistry(state.profiles);
@@ -931,7 +932,8 @@ namespace Przegladarka
                     ApplyBrowserTheme();
                     LoadSitePrivacyRules();
                     UpdatePrivacyButton();
-                    _ = RebuildBlocker();
+                    // filtr reklam (ok. 100 tys. regul) przebudowujemy tylko, gdy zmienila sie lista filtrow - jak w Ustawieniach
+                    if (oldFullLists != _settings.FullFilterLists) { if (_settings.FullFilterLists) StartFilterLists(); else _ = RebuildBlocker(); }
                     _ = ApplyExtensionsSyncListAsync();
                     if (state.pinned != null) ApplySyncedPinnedTabs(state.pinned);
                     SaveLanChange(state.changed, LanContentFingerprint());   // przyjete dane maja czas nadawcy

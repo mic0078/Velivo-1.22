@@ -39,7 +39,7 @@ namespace Przegladarka
         public int DefaultZoom = 100;          // domyslne powiekszenie stron w %
         public bool DarkPages = false;         // tryb ciemny stron
         public bool LinksInSameTab = true;     // linki otwierane przez strone w nowej karcie (target=_blank) -> w tej samej karcie
-        public bool RestoreTabs = true;        // przywracaj karty po ponownym uruchomieniu
+        public bool RestoreTabs = false;       // przywracaj karty po ponownym uruchomieniu
         public bool FullFilterLists = true;    // pelne listy AdBlocka (EasyList, EasyPrivacy, polska)
         public bool SejfLogins = true;         // kluczyk z loginami z Sejfu na stronach logowania
         public bool QuickAccessNewTab = true;
@@ -56,8 +56,8 @@ namespace Przegladarka
         public bool BlockThirdPartyPopups = true;
         public string UiStyle = "modern";
         public int PageFade = 300;
-        public int PageEntranceMs = 0;         // szybkosc efektu wejscia w ms (0 = wg plynnego przejscia)
-        public string PageEntrance = "blur";  // efekt wejscia tresci: slide / blur / zoom / none               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)
+        public int PageEntranceMs = 1000;       // szybkosc efektu wejscia w ms (0 = wg plynnego przejscia)
+        public string PageEntrance = "cinema";  // efekt wejscia tresci: slide / blur / zoom / none               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)
         public int NightStrength = 40;          // natezenie trybu nocnego (5-100%)     // wyglad: modern (nowoczesny) / colorful (kolorowy)
         public bool AutoRejectCookies = true;
         public bool PageMemory = true;          // "Gdzie ja to czytalem?" - lokalna pamiec tresci stron
@@ -73,7 +73,7 @@ namespace Przegladarka
         public bool LanSync = true;            // bez sparowania dziala tryb zgodnosci (bez hasel); hasla tylko po sparowaniu
         public string LanSyncKey = "";
         public bool LanSyncSilent = false;     // bez dymkow przy automatycznym sync
-        public bool ToolbarAlwaysCompact = true;  // zawsze kompaktowy pasek narzedzi
+        public bool ToolbarAlwaysCompact = false;  // zawsze kompaktowy pasek narzedzi
 
         static readonly byte[] LanSyncKeyEntropy = Encoding.UTF8.GetBytes("Velivo.LanSyncKey.v1");
 

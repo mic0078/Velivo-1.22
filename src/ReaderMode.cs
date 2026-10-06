@@ -14,42 +14,62 @@ namespace Przegladarka
     // Tryb czytania + lokalne streszczenie (bez wysyłania treści do chmury).
     public partial class MainWindow
     {
-        const string ReaderExtractScript = @"(() => {
-  const mainRoot = () => {
-    const cand = [...document.querySelectorAll('article, main, [role=main], #content, .content, .article, .post')];
-    let best = null, bestLen = 0;
-    const score = el => [...el.querySelectorAll('p')].reduce((n, p) => n + p.innerText.length, 0);
-    for (const c of cand) { const s = score(c); if (s > bestLen) { best = c; bestLen = s; } }
-    if (!best || bestLen < 500) {
-      for (const d of document.querySelectorAll('div, section')) { const s = score(d); if (s > bestLen) { best = d; bestLen = s; } }
-    }
-    return best || document.body;
-  };
-  // smieci stron: menu, reklamy, 'czytaj tez', polecane, komentarze, newslettery, podpisy zdjec, paski udostepniania
-  const JUNK_SEL = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, [aria-hidden=true], [hidden], ' +
+        // Jeden madry wykrywacz artykulu (czytanie na glos, tryb czytania, "Gdzie ja to czytalem?"): kazdy akapit strony daje punkty
+        // swojemu blokowi (dlugosc, przecinki; linki odejmuja), wygrywa blok z prawdziwa trescia - takze gdy strona nie oznacza go
+        // jako <article>. Menu, polecane, podpisy zdjec, reklamy, komentarze, "czytaj tez" i listy linkow odpadaja. Wszystko lokalnie.
+        const string ArticleCoreScript = @"const velivoArticle = () => {
+  const JUNK_SEL = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, figcaption, [aria-hidden=true], [hidden], ' +
     '.ad, .ads, .advert, .share, .social, .related, .comments, [class*=related i], [class*=recommend i], [class*=polecam i], [class*=promo i], ' +
     '[class*=newsletter i], [class*=cookie i], [class*=consent i], [class*=comment i], [id*=comment i], [class*=sponsor i], [class*=advert i], ' +
     '[class*=reklam i], [class*=breadcrumb i], [class*=share i], [class*=social i], [class*=paywall i], [class*=subscribe i], [class*=author-box i], ' +
-    '[class*=tags i], [class*=see-also i], [class*=read-more i], [class*=readmore i], [id*=taboola i], [class*=taboola i], [class*=outbrain i]';
+    '[class*=tags i], [class*=see-also i], [class*=read-more i], [class*=readmore i], [id*=taboola i], [class*=taboola i], [class*=outbrain i], ' +
+    '[class*=caption i], [class*=credit i], [class*=gallery i], [class*=video i], [class*=player i], [role=navigation], [role=complementary]';
   const JUNK_TXT = /^(czytaj (też|także|również|więcej|dalej)|zobacz (też|także|również|wideo|więcej)|polecamy|polecane|reklama|artykuł sponsorowany|materiał (sponsorowany|partnera)|advertisement|sponsored|tagi:|tags:|źródło:|fot\.|foto:|zdjęcie:|autor zdjęcia|udostępnij|share|subskrybuj|zapisz się|newsletter|komentarze|dodaj komentarz|dołącz do|pobierz aplikację|obserwuj nas|kup teraz|więcej na ten temat|read more|related|see also|follow us)/i;
-  const junk = (el, root) => {
-    for (let e = el; e && e !== root; e = e.parentElement) if (e.matches && e.matches(JUNK_SEL)) return true;
+  const visible = el => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+  const linkLen = el => { let n = 0; for (const a of el.querySelectorAll('a')) n += (a.innerText || '').length; return n; };
+  const inJunk = (el, stop) => { for (let e = el; e && e !== stop; e = e.parentElement) if (e.matches && e.matches(JUNK_SEL)) return true; return false; };
+  const scores = new Map();
+  for (const p of document.querySelectorAll('p, pre, blockquote')) {
+    const t = (p.innerText || '').trim();
+    if (t.length < 25 || linkLen(p) > t.length * 0.5 || inJunk(p, null) || !visible(p)) continue;
+    const pts = 1 + (t.match(/,/g) || []).length + Math.min(3, Math.floor(t.length / 100));
+    const par = p.parentElement, gp = par && par.parentElement;
+    if (par) scores.set(par, (scores.get(par) || 0) + pts);
+    if (gp) scores.set(gp, (scores.get(gp) || 0) + pts / 2);   // tresc w kilku blokach - wspolny rodzic tez zbiera punkty
+  }
+  let root = null, best = 0;
+  for (const [el, s0] of scores) {
+    let s = s0;
+    if (el.matches('article, main, [role=main], [itemprop=articleBody], [class*=article-body i], [class*=article__body i]')) s *= 1.5;
+    s *= 1 - Math.min(0.9, linkLen(el) / ((el.innerText || '').length || 1));
+    if (s > best) { best = s; root = el; }
+  }
+  root = root || document.querySelector('article, main, [role=main]') || document.body;
+  const junk = el => {
+    if (inJunk(el, root)) return true;
     const t = (el.innerText || '').trim();
     if (JUNK_TXT.test(t)) return true;
-    // blok zlozony glownie z linkow = nawigacja albo lista 'polecane'
-    let links = 0; for (const a of el.querySelectorAll('a')) links += (a.innerText || '').length;
-    if (t.length > 0 && t.length < 300 && links / t.length > 0.6) return true;
+    const l = linkLen(el);
+    if (t.length > 0 && t.length < 300 && l / t.length > 0.6) return true;   // blok glownie z linkow = nawigacja / polecane
     if (t.length < 60 && t === t.toUpperCase() && /[A-ZĄĆĘŁŃÓŚŹŻ]{4}/.test(t)) return true;   // krzyczace etykiety (ZOBACZ, REKLAMA)
     return false;
   };
-  const visible = el => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
-  const root = mainRoot();
-  const seen = new Set();
-  const blocks = [...root.querySelectorAll('h1,h2,h3,p,li,blockquote')]
-    .filter(x => !x.querySelector('p,li,h1,h2,h3,blockquote') && visible(x) && !junk(x, root))
-    .map(x => x.innerText.replace(/\s+/g, ' ').trim())
-    .filter(x => x.length > 40 && !seen.has(x) && seen.add(x));
-  const text = blocks.join('\n\n');
+  const blocks = [], seen = new Set();
+  for (const el of root.querySelectorAll('h1, h2, h3, h4, p, li, blockquote, pre, dd')) {
+    if (el.querySelector('p, li, h1, h2, h3, h4, blockquote')) continue;   // tylko najglebsze bloki
+    if (junk(el) || !visible(el)) continue;
+    const t = el.innerText.replace(/\s+/g, ' ').trim();
+    if (t.length < 2 || seen.has(t)) continue;
+    seen.add(t); blocks.push({ el, text: t });
+  }
+  if (blocks.length === 0) { const t = (root.innerText || '').replace(/\s+/g, ' ').trim(); if (t) blocks.push({ el: root, text: t }); }
+  const h1 = document.querySelector('h1');   // tytul na poczatek, jesli jest poza trescia
+  if (h1 && !root.contains(h1) && visible(h1)) blocks.unshift({ el: h1, text: h1.innerText.replace(/\s+/g, ' ').trim() });
+  return { root, blocks };
+};";
+
+        const string ReaderExtractScript = @"(() => {" + ArticleCoreScript + @"
+  const text = velivoArticle().blocks.map(b => b.text).filter(x => x.length > 40).join('\n\n');
   return JSON.stringify({ title: document.title || '', url: location.href, text });
 })();";
 

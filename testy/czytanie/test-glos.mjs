@@ -1,15 +1,12 @@
 // Test: czytanie na glos uzywa glosu wybranego w ustawieniach, nawet gdy silnik podaje liste glosow
 // z opoznieniem (pierwsze speechSynthesis.getVoices() zwraca pusta liste - tak bywa w Chromium/Edge).
 // Skrypt czytnika (ReaderScript) jest brany z src/ReadAloud.cs. Uruchom: node testy/czytanie/test-glos.mjs
-import { readFileSync } from 'node:fs';
+import { skrypt } from '../wspolne/skrypt-cs.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 let pw; try { pw = require('playwright'); } catch { pw = require(process.env.PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright'); }
 
-const src = readFileSync(new URL('../../src/ReadAloud.cs', import.meta.url), 'utf8');
-const m = src.match(/const string ReaderScript = @"([\s\S]*?)(?<!")";\s*\n/);
-if (!m) { console.log('FAIL nie znaleziono ReaderScript'); process.exit(1); }
-const reader = m[1].replace(/""/g, '"');
+const reader = skrypt('ReaderScript');
 
 // udawany syntezator: lista glosow pojawia sie dopiero po 300 ms (jak w prawdziwej przegladarce)
 const fake = `(() => {

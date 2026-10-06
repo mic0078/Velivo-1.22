@@ -1,13 +1,10 @@
 // Test "Gdzie ja to czytalem?" (MemoryTextScript z src/Innovations.cs): zapamietywana jest wlasciwa tresc strony,
 // bez menu, naglowkow, stopek, reklam i blokow linkow. Uruchom: node testy/pamiec-stron/test-tresc.mjs
-import { readFileSync } from 'node:fs';
+import { skrypt } from '../wspolne/skrypt-cs.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 let pw; try { pw = require('playwright'); } catch { pw = require(process.env.PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright'); }
-const src = readFileSync(new URL('../../src/Innovations.cs', import.meta.url), 'utf8');
-const m = src.match(/const string MemoryTextScript = @"([\s\S]*?)(?<!")";\s*\n/);
-if (!m) { console.log('FAIL nie znaleziono MemoryTextScript'); process.exit(1); }
-const script = m[1].replace(/""/g, '"');
+const script = skrypt('MemoryTextScript');
 const art = 'Iga Świątek pokonała rywalkę w dwóch setach i awansowała do półfinału turnieju China Open w Pekinie.';
 const strony = [
   { n: 'portal: menu, artykul, polecane, stopka', h: `<header><nav><a href=#>Pogoda Poznań</a> <a href=#>Pogoda Wrocław</a> <a href=#>Sport</a></nav></header>

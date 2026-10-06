@@ -63,20 +63,9 @@ namespace Przegladarka
             return engine && (path == "/search" || path.StartsWith("/search/") || path == "/");
         }
 
-        // Wlasciwa tresc strony (jak tryb czytania): bez menu, naglowkow, stopek, reklam, banerow, "polecanych" i blokow
-        // samych linkow - zostaja akapity artykulu. Wszystko lokalnie, nic nie wychodzi z komputera. Strona z polem hasla - nic.
-        const string MemoryTextScript = @"(function(){try{if(!document.body||document.querySelector('input[type=password]'))return '';
-var junk='nav,header,footer,aside,form,script,style,noscript,iframe,svg,button,select,[role=navigation],[role=banner],[role=contentinfo],[role=complementary],[aria-hidden=true]';
-var bad=/(^|[\s_-])(nav|menu|footer|header|sidebar|comment|cookie|consent|banner|share|social|related|recommend|promo|advert|ads?|sponsor|newsletter|breadcrumb|popup|modal|teaser|polecane|reklama)([\s_-]|$)/i;
-var root=document.querySelector('article')||document.querySelector('main,[role=main]')||document.body;
-var c=root.cloneNode(true);c.querySelectorAll(junk).forEach(function(e){e.remove();});
-c.querySelectorAll('[class],[id]').forEach(function(e){if(bad.test((e.className&&e.className.baseVal!==undefined?e.className.baseVal:e.className)+' '+e.id))e.remove();});
-var out=[],seen={};
-c.querySelectorAll('h1,h2,h3,p,li,blockquote,pre,td,dd').forEach(function(e){if(e.querySelector('p,li,blockquote'))return;
-var t=(e.textContent||'').replace(/\s+/g,' ').trim();if(t.length<(e.tagName.charAt(0)==='H'?8:40)||seen[t])return;
-var l=0;e.querySelectorAll('a').forEach(function(a){l+=(a.textContent||'').length;});if(l>t.length*0.5)return;seen[t]=1;out.push(t);});
-var r=out.join('\n');if(!r)r=(c.innerText||c.textContent||'').replace(/[ \t]+/g,' ').replace(/\n\s*\n+/g,'\n');
-return r.slice(0,12000);}catch(e){return '';}})()";
+        // Wlasciwa tresc strony - ten sam wykrywacz artykulu co czytanie na glos i tryb czytania (lokalnie). Strona z polem hasla - nic.
+        const string MemoryTextScript = @"(() => { try { if (!document.body || document.querySelector('input[type=password]')) return '';" + ArticleCoreScript + @"
+  return velivoArticle().blocks.map(b => b.text).join('\n').slice(0, 12000); } catch (e) { return ''; } })()";
 
         static List<MemPage> MemoryPages()
         {

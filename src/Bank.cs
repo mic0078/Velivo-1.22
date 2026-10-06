@@ -359,6 +359,26 @@ namespace Przegladarka
                 addSite.IsEnabled = _current != null && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
                 addShop.IsEnabled = addSite.IsEnabled;
                 fillLogin.IsEnabled = fill.IsEnabled; partial.IsEnabled = fill.IsEnabled; transfer.IsEnabled = fill.IsEnabled; diag.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
+                // wypelnianie widoczne tylko, gdy baza ma dane pasujace do tej strony - jak nie, to nie
+                bool fk = false, fl = false, fp = false, ft = false;
+                try
+                {
+                    var fc = fill.IsEnabled && _bankKey != null ? LoadBank() : null;
+                    var fh = fc != null ? HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) : null;
+                    if (fc != null && fh != null)
+                    {
+                        bool notes = !string.IsNullOrEmpty(fc.Notes);
+                        string p1, p2, p3; List<(string Label, string User, string Pass)> ch;
+                        fk = LoadCards(fc).Count > 0;
+                        fl = LoginsFor(fc, fh).Count > 0 || notes;
+                        fp = PartialDataFor(fc, fh, out p1, out p2, out p3, out ch) || notes;
+                        ft = LoadSealed<BankItem>(fc.Accounts).Any(x => x.Get("number").Length > 0);
+                    }
+                }
+                catch (Exception) { }
+                fill.Visibility = fk ? Visibility.Visible : Visibility.Collapsed; fillLogin.Visibility = fl ? Visibility.Visible : Visibility.Collapsed;
+                partial.Visibility = fp ? Visibility.Visible : Visibility.Collapsed; transfer.Visibility = ft ? Visibility.Visible : Visibility.Collapsed;
+                diag.Visibility = fill.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
                 log.IsEnabled = _bankUnlocked; backup.IsEnabled = BankProfiles().Count > 0;
                 profMenu.Items.Clear();
                 foreach (var p in BankProfiles())
@@ -986,14 +1006,8 @@ namespace Przegladarka
             List<BankCard> cards;
             try { cards = LoadCards(c); } catch (Exception) { return; }
             if (cards.Count == 0) { BankCards(); return; }
-            Func<BankCard, Task> fill = async card =>
-            {
-                var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
-                if (core == null) return;
-                var data = JsonSerializer.Serialize(new { n = card.Number, e = card.Exp, h = card.Holder, c = card.Cvv ?? "" });
-                try { await core.ExecuteScriptAsync(CardFillScript.Replace("__D__", data)); } catch (Exception) { }
-                ShowToast(string.IsNullOrEmpty(card.Cvv) ? L.T("💳 Wpisano dane karty – CVV wpisz sam") : L.T("💳 Wpisano dane karty"), null);
-            };
+            var host = HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
+            Func<BankCard, Task> fill = card => BankFillCard(card, host);
             if (cards.Count == 1) { _ = fill(cards[0]); return; }   // jedna karta - od razu, bez dodatkowego menu
             var menu = new ContextMenu { PlacementTarget = _bankBtn };
             foreach (var k in cards)
@@ -1006,7 +1020,18 @@ namespace Przegladarka
             menu.IsOpen = true;
         }
 
+        // site = strona, dla ktorej wybrano karte - skrypt nic nie wpisze, jesli karta przegladarki jest juz na innej stronie
+        async Task BankFillCard(BankCard card, string site)
+        {
+            var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
+            if (core == null || site == null) return;
+            var data = JsonSerializer.Serialize(new { n = card.Number, e = card.Exp, h = card.Holder, c = card.Cvv ?? "", site });
+            try { await core.ExecuteScriptAsync(CardFillScript.Replace("__D__", data)); } catch (Exception) { }
+            ShowToast(string.IsNullOrEmpty(card.Cvv) ? L.T("💳 Wpisano dane karty – CVV wpisz sam") : L.T("💳 Wpisano dane karty"), null);
+        }
+
         const string CardFillScript = @"(function(d){try{
+if(d.site&&location.hostname.toLowerCase()!==String(d.site).toLowerCase())return;
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
 function set(el,v){if(!el||!v)return;var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
 el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}

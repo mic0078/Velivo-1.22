@@ -415,6 +415,7 @@ namespace Przegladarka
             {
                 await BankAfterInit(core);
                 await core.AddScriptToExecuteOnDocumentCreatedAsync(TransferGuardScript.Replace("__VT__", PageToken));   // przed ukryciem chrome.webview
+                await core.AddScriptToExecuteOnDocumentCreatedAsync(BankFieldHintScript.Replace("__VT__", PageToken));   // propozycja pod polem
             }
             if (!tab.Private && !tab.Bank && (_pendingClear != null || File.Exists(ClearOnExitPendingFile)))
             {

@@ -463,6 +463,8 @@ try {
                 if (!tab.InPip && !_tabs.Contains(tab)) ReleaseParkedViews();
                 return;
             }
+            if (msg.StartsWith("bfocus:", StringComparison.Ordinal)) { if (tab.Bank) HandleBankFocus(tab, msg.Substring(7)); return; }
+            if (msg == "bblur:") { BankFieldBlur(); return; }
             if (msg.StartsWith("acct:", StringComparison.Ordinal)) { if (tab.Bank) HandleAccountCheck(tab, msg.Substring(5)); return; }
             // zwykle hasla i autouzupelnianie - nigdy dla karty bankowej (izolacja trybu bankowego)
             if (tab.Bank && (msg.StartsWith("affill:", StringComparison.Ordinal) || msg.StartsWith("afsave:", StringComparison.Ordinal) ||

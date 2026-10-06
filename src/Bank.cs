@@ -1404,6 +1404,89 @@ else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|custom
             return true;
         }
 
+        // ---------- straznik przelewu (karta bankowa) ----------
+        // Wklejony / wpisany numer rachunku: suma kontrolna (IBAN, NRB) i porownanie z Twoimi Rachunkami bankowymi - literowka,
+        // podmieniony w schowku numer (wirus) albo obcy odbiorca widac od razu. Pola hasel i kart nigdy nie sa czytane.
+        const string TransferGuardScript = @"(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);
+function check(el){try{if(!el||el.tagName!=='INPUT'||!/^(text|tel|number|search|)$/.test(el.type||''))return;
+var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('aria-label')||'')).toLowerCase();
+if(/cc-|card|karty|cvv|cvc|pass|hasl|pin|otp|code|kod/.test(a))return;
+var v=(el.value||'').replace(/[\s.\-]/g,'');if(!/^[A-Za-z0-9]{8,34}$/.test(v)||!/\d{6}/.test(v))return;
+pm('velivo:__VT__:acct:'+JSON.stringify({v:v,hint:/acc|konto|rachun|iban|nrb|benef|payee|odbior/.test(a)}));}catch(x){}}
+document.addEventListener('paste',function(e){var el=e.target;setTimeout(function(){check(el);},0);},true);
+document.addEventListener('change',function(e){check(e.target);},true);}catch(x){}})();";
+
+        sealed class AcctMessage { public string v { get; set; } public bool hint { get; set; } }
+
+        // Numer rachunku w jednej postaci (wielkie litery, bez spacji, kropek, myslnikow); polski NRB (26 cyfr) = IBAN PL;
+        // brytyjski numer konta = 8 cyfr. null = to nie numer rachunku.
+        internal static string CanonicalAccount(string s)
+        {
+            if (s == null) return null;
+            var t = new string(s.Where(ch => !char.IsWhiteSpace(ch) && ch != '-' && ch != '.').ToArray()).ToUpperInvariant();
+            Func<char, bool> digit = ch => ch >= '0' && ch <= '9';
+            Func<char, bool> letter = ch => ch >= 'A' && ch <= 'Z';
+            if (t.Length == 26 && t.All(digit)) return "PL" + t;
+            if (t.Length == 8 && t.All(digit)) return t;
+            if (t.Length >= 15 && t.Length <= 34 && letter(t[0]) && letter(t[1]) && digit(t[2]) && digit(t[3]) && t.All(ch => digit(ch) || letter(ch))) return t;
+            return null;
+        }
+
+        // Suma kontrolna IBAN (mod 97): true = poprawny, false = bledny (literowka), null = numer bez sumy (brytyjskie 8 cyfr).
+        internal static bool? AccountChecksumOk(string canonical)
+        {
+            if (string.IsNullOrEmpty(canonical) || canonical.Length < 15) return null;
+            int mod = 0;
+            foreach (var ch in canonical.Substring(4) + canonical.Substring(0, 4))
+            {
+                int v = ch <= '9' ? ch - '0' : ch - 'A' + 10;
+                mod = v >= 10 ? (mod * 100 + v) % 97 : (mod * 10 + v) % 97;
+            }
+            return mod == 1;
+        }
+
+        // Ten sam rachunek: identyczny numer albo brytyjski numer konta (8 cyfr) = koncowka zapisanego IBAN GB (i odwrotnie).
+        internal static bool SameAccount(string a, string b)
+        {
+            if (a == null || b == null) return false;
+            if (a == b) return true;
+            return (a.Length == 8 && b.StartsWith("GB", StringComparison.Ordinal) && b.EndsWith(a, StringComparison.Ordinal)) ||
+                   (b.Length == 8 && a.StartsWith("GB", StringComparison.Ordinal) && a.EndsWith(b, StringComparison.Ordinal));
+        }
+
+        static string FormatAccount(string a)
+        {
+            return string.Join(" ", Enumerable.Range(0, (a.Length + 3) / 4).Select(i => a.Substring(i * 4, Math.Min(4, a.Length - i * 4))));
+        }
+
+        void HandleAccountCheck(BrowserTab tab, string json)
+        {
+            try
+            {
+                if (tab == null || !tab.Bank || !_tabs.Contains(tab)) return;
+                var m = JsonSerializer.Deserialize<AcctMessage>(json);
+                var acc = CanonicalAccount(m != null ? m.v : null);
+                if (acc == null || (acc.Length == 8 && !m.hint)) return;   // 8 cyfr w polu bez podpisu "konto" - to moze byc cokolwiek
+                if (tab.AcctChecked == acc) return;   // ten sam numer raz (wklejenie i zmiana pola)
+                tab.AcctChecked = acc;
+                var shown = FormatAccount(acc);
+                if (AccountChecksumOk(acc) == false) { ShowToast(L.T("❌ Błędny numer rachunku – suma kontrolna się nie zgadza. Sprawdź cyfry:\n") + shown, null); return; }
+                var saved = new List<BankItem>();
+                if (_bankUnlocked && _bankKey != null) { var c = LoadBank(); if (c != null) saved = LoadSealed<BankItem>(c.Accounts); }
+                var hit = saved.FirstOrDefault(x => SameAccount(acc, CanonicalAccount(x.Get("number"))));
+                if (hit != null)
+                {
+                    var who = hit.Get("name");
+                    if (hit.Get("owner").Length > 0 && hit.Get("owner") != who) who += " – " + hit.Get("owner");
+                    if (hit.Get("sort").Length > 0) who += " · " + hit.Get("sort");
+                    ShowToast(L.T("✅ Odbiorca z Twojej bazy: ") + who + "\n" + shown, null);
+                }
+                else if (saved.Count > 0) ShowToast(L.T("⚠ Tego numeru nie ma w Twoich Rachunkach bankowych – upewnij się, że to właściwy odbiorca:\n") + shown, null);
+                else if (acc.Length > 8) ShowToast(L.T("✔ Numer rachunku poprawny (suma kontrolna):\n") + shown, null);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         void ShowBankFillOffer(BrowserTab tab, string host, List<KeyValuePair<string, Action>> offers)
         {
             var panel = new StackPanel { Margin = new Thickness(16, 14, 16, 14), MaxWidth = 380 };
@@ -2311,6 +2394,7 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 • Przypomnienie o kartach, które niedługo wygasają.
 • Dane skojarzone ze stroną: na stronie z Twojej bazy Velivo samo wpisuje login, hasło i wybrane znaki (gdy pasuje jedno konto; formularza nie wysyła). Kilka kont – wybór jednym kliknięciem; karta płatnicza – zawsze po kliknięciu. Wyłączysz to w Ustawieniach trybu bankowego.
 • Izolacja: w trybie bankowym działa tylko jego zaszyfrowana baza – zwykłe hasła i autouzupełnianie przeglądarki nie są tu podpowiadane ani zapisywane.
+• Strażnik przelewu: wklejony lub wpisany numer rachunku Velivo sprawdza (suma kontrolna IBAN/NRB) i porównuje z Twoimi Rachunkami bankowymi – literówka, numer podmieniony w schowku albo obcy odbiorca widać od razu.
 
 5. SYNCHRONIZACJA
 Banki, sklepy, karty, notatki i ustawienia trybu przechodzą na sparowane komputery (zaszyfrowane). Logowania w bankach (ciasteczka) zostają na każdym komputerze osobno.
@@ -2365,6 +2449,7 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 • Reminder about cards that expire soon.
 • Data linked to the page: on a page from your vault Velivo fills in the login, password and selected characters by itself (when one account matches; the form is not submitted). Several accounts – choose with one click; payment card – always after a click. You can turn this off in Bank mode settings.
 • Isolation: bank mode uses only its own encrypted vault – the browser's regular passwords and autofill are neither suggested nor saved here.
+• Transfer guard: a pasted or typed account number is checked (IBAN/NRB checksum) and compared with your Bank accounts – a typo, a number swapped in the clipboard or an unknown payee shows up at once.
 
 5. SYNC
 Banks, shops, cards, notes and settings go to paired computers (encrypted). Bank logins (cookies) stay on each computer.

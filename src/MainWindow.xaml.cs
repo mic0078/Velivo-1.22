@@ -44,6 +44,7 @@ namespace Przegladarka
             public bool Private;
             public bool Bank;
             public string BankFillOffered;   // tryb bankowy: strona, dla ktorej asystent juz zaproponowal wypelnienie
+            public string AcctChecked;   // tryb bankowy: ostatnio sprawdzony numer rachunku (straznik przelewu - raz na numer)
             public string BankAsked;     // strona bankowa (domena), o ktora juz zapytano w tej karcie            // karta trybu bankowego (osobny profil; Private=true, zeby nic nie zapisywac)
             public bool Pinned;
             public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
@@ -410,7 +411,11 @@ namespace Przegladarka
             }
             var core = tab.View.CoreWebView2;
             core.Settings.IsStatusBarEnabled = false;
-            if (tab.Bank) await BankAfterInit(core);
+            if (tab.Bank)
+            {
+                await BankAfterInit(core);
+                await core.AddScriptToExecuteOnDocumentCreatedAsync(TransferGuardScript.Replace("__VT__", PageToken));   // przed ukryciem chrome.webview
+            }
             if (!tab.Private && !tab.Bank && (_pendingClear != null || File.Exists(ClearOnExitPendingFile)))
             {
                 // zaleglosc z zamkniecia - raz; kazda zwykla karta czeka na nie, zanim wczyta strone

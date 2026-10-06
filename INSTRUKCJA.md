@@ -49,7 +49,10 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | Przypomnienie o dokumentach (60 dni) | przy otwarciu trybu | Bank.cs ~1799 | ✔ | ✔ | ✔ |
 | 🏦 Rachunki bankowe | właściciel, IBAN, sort code / BIC, bank, tytuł przelewu, 📋 | Bank.cs 1189 | ✔ | ✔ | – |
 | 📝 Moje notatki | kategorie (Login, PIN, Przelewy, Kody odzyskiwania, Inne), 🎲, 🔢 znaki z numerami; okienko nie blokuje strony | Bank.cs 310 | ✔ | ✔ | – |
-| 🔑 Wpisz login z notatki | linie `login:` i `hasło:` | Bank.cs | ✔ | ✔ | – |
+| 🔑 Wpisz login i hasło | z Moich loginów i haseł / Moich banków (kilka kont – wybór), gdy brak – z notatki (`login:`, `hasło:`) | Bank.cs | ✔ | ✔ | – |
+| 🔗 Dane skojarzone ze stroną | login, hasło i wybrane znaki wpisywane same (jedno konto); opcja w Ustawieniach trybu | Bank.cs | ✔ | ✔ | – |
+| 🛡 Strażnik przelewu | suma kontrolna IBAN / NRB, porównanie z Rachunkami bankowymi | Bank.cs | ✔ | ✔ | – |
+| 💸 Wypełnij przelew | odbiorca, numer, sort code, tytuł; kwota z Rachunku do opłacenia | Bank.cs | ✔ | ✔ | – |
 | 🔍 Szukaj w mojej bazie | banki, sklepy, karty, notatki | Bank.cs ~2136 | ✔ | ✔ | – |
 | 🧾 Rachunki do opłacenia | kwota, termin, powtarzanie, przypomnienie, numer klienta, strona płatności, notatka | Bank.cs 1192 | ✔ | ✔ | – |
 | Powtarzanie rachunków | od tygodnia do roku, jednorazowo, własne („co 10 dni”) | Bank.cs NextDue | ✔ | ✔ | ✔ |
@@ -743,6 +746,10 @@ Tryb bankowy to osobny, odizolowany profil przeglądarki na banki, płatności i
 - **✏ Dane logowania** (w Moich bankach): login / numer klienta, passcode / PIN, hasło i memorable information – osobno dla każdego banku. Wpisuj zawsze **pełne** hasło i passcode.
 - **🔑 Wpisz login** – wypełnia login i hasło na stronie banku.
 - **🔢 Wpisz wybrane znaki** – gdy bank prosi np. o 2., 5. i 9. znak (RBS, NatWest, Bank of Scotland, TSB, Lloyds, Halifax), Velivo samo odczytuje numery i wpisuje właściwe znaki, także w listach wyboru. Gdy na jakiejś stronie się nie uda, **🧪 Skopiuj opis formularza** kopiuje sam opis pól (bez Twoich danych) do zgłoszenia.
+- **🔗 Dane skojarzone ze stroną** – na stronie z Twojej bazy login, hasło i wybrane znaki wpisują się same (gdy pasuje jedno konto; formularza Velivo nie wysyła). Kilka kont (np. prywatne i firmowe) – wybór jednym kliknięciem; karta płatnicza – zawsze po kliknięciu. Można wyłączyć w Ustawieniach trybu bankowego.
+- **🔒 Pełna izolacja** – tryb bankowy używa tylko własnej zaszyfrowanej bazy: zwykłe hasła i autouzupełnianie przeglądarki nie są w nim podpowiadane ani zapisywane, a dane z bazy trafiają wyłącznie do kart bankowych (bez dodatków).
+- **🛡 Strażnik przelewu** – wklejony lub wpisany numer rachunku Velivo sprawdza (suma kontrolna IBAN / NRB) i porównuje z Twoimi Rachunkami bankowymi: literówka, numer podmieniony w schowku przez wirusa albo obcy odbiorca widać od razu.
+- **💸 Przelew z bazy** – na formularzu przelewu Velivo wpisuje odbiorcę, numer rachunku (NRB / IBAN / sort code + 8 cyfr), tytuł, a kwotę i numer klienta z Rachunku do opłacenia o tej samej nazwie. Zatwierdzasz zawsze sam.
 
 **Karty, notatki i wyszukiwarka**
 

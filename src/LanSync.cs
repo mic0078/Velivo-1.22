@@ -845,8 +845,22 @@ namespace Przegladarka
         async Task ReceiveLanStateTcpAsync(NetworkStream stream, QuickAccessLanHeader header, IPEndPoint remote, CancellationToken token)
         {
             if (!Guid.TryParseExact(header.Id, "N", out _) || header.Id == _lanId || header.Length <= 60000 || header.Length > LanStateTcpLimit) return;
+            // duze dane (do 8 MB) przyjmujemy tylko od komputera, ktory w ostatnich 30 s przyslal poprawnie podpisany pakiet
+            // (sparowany) - obcy komputer w sieci nie zajmie pamieci wieloma polaczeniami; tresc i tak jest potem sprawdzana kluczem
+            bool known = false;
+            await Dispatcher.InvokeAsync(() =>
+            {
+                LanPeerInfo peer;
+                known = _lanEncryptionKey != null && _lanPeers.TryGetValue(header.Id, out peer) && DateTime.UtcNow - peer.LastSeenUtc < TimeSpan.FromSeconds(30);
+            });
+            if (!known) return;
             var data = new byte[header.Length];
-            if (!await ReadExactAsync(stream, data, data.Length, token)) return;
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(20));   // bez zawieszania odbioru przez polaczenie, ktore nic nie wysyla
+                try { if (!await ReadExactAsync(stream, data, data.Length, timeout.Token)) return; }
+                catch (OperationCanceledException) { return; }
+            }
             await HandleLanPacketAsync(data, remote, true);
         }
 

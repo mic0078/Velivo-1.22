@@ -2596,22 +2596,23 @@ function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);
 el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('blur',{bubbles:true}));n++;}
 function posIn(t){var m=t.match(/(digit|character|char|letter|number|znak|cyfr|litera|liczb)\w*\s*(no\.?|nr\.?|number|numer)?\s*(\d{1,2})\b/)||t.match(/\b(\d{1,2})\s*(st|nd|rd|th|\.)?\s*(digit|character|char|letter|number|znak|cyfr|litera)/)||t.match(/\b(\d{1,2})(st|nd|rd|th)\b/);
 if(m){for(var i=1;i<m.length;i++){if(/^\d+$/.test(m[i]||''))return parseInt(m[i],10);}}return 0;}
-function posWord(t){for(var w in ord){if(new RegExp('\\b'+w+'\\b').test(t))return ord[w];}return 0;}
-function seqOf(t){var w=t.replace(new RegExp('\\b('+Object.keys(ord).join('|')+')\\b','g'),function(x){return ord[x]+'.';});
+var ow='\\b('+Object.keys(ord).join('|')+')\\b',ordRx=new RegExp(ow),ordRxG=new RegExp(ow,'g');
+function posWord(t){var m=t.match(ordRx);return m?ord[m[1]]:0;}
+function seqOf(t){var w=t.replace(ordRxG,function(x){return ord[x]+'.';});
 var a=w.match(/(characters?|digits?|letters?|numbers?|znak\w*|cyfr\w*)(\s+[^\s\d]+){0,3}?\s*:?\s*(\d{1,2})(st|nd|rd|th|\.)?(\s*(,|and|&|i|oraz)\s*(\d{1,2})(st|nd|rd|th|\.)?)+/),
 b=w.match(/(\d{1,2})(st|nd|rd|th|\.)?(\s*(,|and|&|i|oraz)\s*(\d{1,2})(st|nd|rd|th|\.)?)+\s*(characters?|digits?|letters?|numbers?|znak\w*|cyfr\w*)/);
 var m=a&&b?(a.index<=b.index?a:b):(a||b);return m?(m[0].match(/\d{1,2}/g)||[]).map(Number):[];}
-function labelTexts(el,doc){var a=[];
+var lts=new Map();function labelTexts(el,doc){if(lts.has(el))return lts.get(el);var a=[];
 if(el.id){var l=doc.querySelector('label[for='+JSON.stringify(el.id)+']');if(l)a.push(txt(l));}
 var lb=el.getAttribute('aria-labelledby');if(lb)lb.split(/\s+/).forEach(function(id){var e=doc.getElementById(id);if(e)a.push(txt(e));});
 a.push(norm(el.getAttribute('aria-label')));a.push(norm(el.getAttribute('title')));a.push(norm(el.getAttribute('placeholder')));
 var cl=el.closest('label');if(cl){var c0=cl.cloneNode(true);c0.querySelectorAll('option,select').forEach(function(o){o.remove();});a.push(txt(c0).slice(0,80));}
 var pr=el.previousElementSibling;if(pr&&(pr.textContent||'').length<80)a.push(txt(pr));
 var pa=el.parentElement;if(pa){var c=pa.cloneNode(true);c.querySelectorAll('option,select,input').forEach(function(o){o.remove();});var t=txt(c);if(t.length<80)a.push(t);}
-return a.filter(function(x){return x;});}
+a=a.filter(function(x){return x;});lts.set(el,a);return a;}
 function pos(el,doc){var a=labelTexts(el,doc);for(var i=0;i<a.length;i++){if(seqOf(a[i]).length>1)continue;var p=posIn(a[i]);if(p)return p;}return 0;}
 function posW(el,doc){var a=labelTexts(el,doc);for(var i=0;i<a.length;i++){if(seqOf(a[i]).length>1)continue;var p=posWord(a[i]);if(p)return p;}return 0;}
-function ctx(el){var c=el.parentElement;for(var i=0;i<8&&c;i++){var cc=c.cloneNode(true);cc.querySelectorAll('option').forEach(function(o){o.remove();});var t=txt(cc);if(t.length>25)return t.slice(0,400);c=c.parentElement;}return '';}
+var ctxs=new Map();function ctx(el){if(ctxs.has(el))return ctxs.get(el);var t='',c=el.parentElement;for(var i=0;i<8&&c;i++){var cc=c.cloneNode(true);cc.querySelectorAll('option').forEach(function(o){o.remove();});var x=txt(cc);if(x.length>25){t=x.slice(0,400);break;}c=c.parentElement;}ctxs.set(el,t);return t;}
 function kind(el,doc,page){var lt=labelTexts(el,doc).join(' ');var cx=lt+' '+ctx(el);
 if(/memorable|zapamietan/.test(cx))return 'mem';
 if(/passcode|\bpin\b|digit|cyfr|security number/.test(cx)&&!/password|haslo|character|letter|litera/.test(lt))return 'pin';
@@ -2636,12 +2637,12 @@ info.forEach(function(x){if(!x.p&&!x.otp){x.p=posW(x.el,doc);if(x.p)x.how='word'
 uniq();
 if(d.diag){info.forEach(function(x){var el=x.el;diag.push(el.tagName.toLowerCase()+' type='+(el.type||'')+' max='+(el.maxLength||'')+' kind='+x.k+(x.otp?' otp':'')+' pos='+x.p+'('+x.how+') labels=['+labelTexts(el,doc).join(' | ').slice(0,160)+'] ctx=['+ctx(el).slice(0,120)+']');});
 diag.push('page: memorable='+page.mem+' sentence='+JSON.stringify(seq));return;}
-if(d.count){info.forEach(function(x){if(x.p)seen[x.p]=1;});return;}
+if(d.count){info.forEach(function(x){if(x.p)(seen[x.k]=seen[x.k]||{})[x.p]=1;});return;}
 info.forEach(function(x){var el=x.el,p=x.p,k=x.k;
 if(!p)return;var src=k==='pin'?d.pin:(k==='mem'?(d.mem||d.pwd):(d.pwd||d.mem));if(!src||p>src.length)return;var ch=src.charAt(p-1);
 if(el.tagName==='SELECT'){for(var o=0;o<el.options.length;o++){var ov=(el.options[o].value||'').replace(/ |&nbsp;/g,'').trim(),ot=(el.options[o].text||'').trim();if(ov===ch||ot===ch){el.selectedIndex=o;el.dispatchEvent(new Event('change',{bubbles:true}));n++;break;}}}else set(el,ch);});
 });}catch(x){diag.push('error '+x);}
-function cnt(){var k=Object.keys(seen).map(Number).sort(function(a,b){return a-b;});return k.length>=4&&k[0]===1&&k[k.length-1]===k.length?0:k.length;}
+function cnt(){var t=0;for(var k in seen){var v=Object.keys(seen[k]).map(Number).sort(function(a,b){return a-b;});if(!(v.length>=4&&v[0]===1&&v[v.length-1]===v.length))t+=v.length;}return t;}
 return d.diag?diag.join('\n'):d.count?String(cnt()):String(n);})(__D__);";
 
         // "login: xxx" / "hasło: yyy" (albo: 1. linia = login, 2. linia = haslo)

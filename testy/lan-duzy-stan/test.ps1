@@ -60,28 +60,33 @@ if ($tcp) {
 }
 Wynik 'S. Velivo wysyla stan > 60 000 B do sparowanego komputera' (($null -ne $odebrano) -and ($odebrano.banks -match 'bank-duzy\.json')) $(if ($odebrano) { "banks zawiera bank-duzy.json: $($odebrano.banks -match 'bank-duzy\.json')" } else { 'nic nie dotarlo w 25 s' })
 
-# ---- R. odbior duzego stanu
-$marker = 'https://duzy-stan-test.example/'
-$zakl = "$marker`tDUZY STAN`n" + ((1..60 | ForEach-Object { "https://x$_.example/`t$(Losowy 1200)" }) -join "`n")
-$payload = [ordered]@{ settings = "lanSync=1`r`n"; bookmarks = $zakl; session = ''; sessionActive = ''; privacy = ''; profiles = ''; extensions = '[]'; passwords = '[]'
-  changed = 1; bookmarksDeleted = ''; pinned = '' }
-$plain = [Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Compress))
-$pk = [ordered]@{ t = 'state'; id = $peerId; device = 'SPAROWANY'; profile = 'domyslny'; ts = (Now-Ms); hash = [guid]::NewGuid().ToString('N') }
-$nonce = [Security.Cryptography.RandomNumberGenerator]::GetBytes(12); $cipher = New-Object byte[] $plain.Length; $tag = New-Object byte[] 16
-$g = [Security.Cryptography.AesGcm]::new($enc, 16); $g.Encrypt($nonce, $plain, $cipher, $tag, (AD $pk))
-$pk.nonce = [Convert]::ToBase64String($nonce); $pk.tag = [Convert]::ToBase64String($tag); $pk.data = [Convert]::ToBase64String($cipher)
-$pb = [Text.Encoding]::UTF8.GetBytes(($pk | ConvertTo-Json -Compress))
-Write-Host "stan do wyslania: $($pb.Length) B"
-# UDP (tak jak wysylaja starsze wersje) - za duzy, Velivo go odrzuca; TCP - nowa droga
-try {
-  $c = [Net.Sockets.TcpClient]::new(); $c.Connect('127.0.0.1', $port); $s = $c.GetStream()
-  $hb = [Text.Encoding]::UTF8.GetBytes((@{ Type = 'lan-state'; Id = $peerId; Length = $pb.Length } | ConvertTo-Json -Compress))
-  $s.Write([BitConverter]::GetBytes($hb.Length), 0, 4); $s.Write($hb, 0, $hb.Length); $s.Write($pb, 0, $pb.Length); $s.Flush(); Start-Sleep -Seconds 1; $c.Dispose()
-} catch { Write-Host "wysylanie TCP: $($_.Exception.Message)" }
-Start-Sleep -Seconds 8
-$zf = Join-Path $data 'zakladki.txt'
-$jest = (Test-Path $zf) -and ((Get-Content $zf -Raw) -match [regex]::Escape($marker))
+# ---- R. odbior duzego stanu (TCP)
+function Wyslij-Duzy($marker, $zrodlo) {
+  $zakl = "$marker`tDUZY STAN`n" + ((1..60 | ForEach-Object { "https://x$_.example/`t$(Losowy 1200)" }) -join "`n")
+  $payload = [ordered]@{ settings = "lanSync=1`r`n"; bookmarks = $zakl; session = ''; sessionActive = ''; privacy = ''; profiles = ''; extensions = '[]'; passwords = '[]'
+    changed = 1; bookmarksDeleted = ''; pinned = '' }
+  $plain = [Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Compress))
+  $pk = [ordered]@{ t = 'state'; id = $peerId; device = 'SPAROWANY'; profile = 'domyslny'; ts = (Now-Ms); hash = [guid]::NewGuid().ToString('N') }
+  $nonce = [Security.Cryptography.RandomNumberGenerator]::GetBytes(12); $cipher = New-Object byte[] $plain.Length; $tag = New-Object byte[] 16
+  $g = [Security.Cryptography.AesGcm]::new($enc, 16); $g.Encrypt($nonce, $plain, $cipher, $tag, (AD $pk))
+  $pk.nonce = [Convert]::ToBase64String($nonce); $pk.tag = [Convert]::ToBase64String($tag); $pk.data = [Convert]::ToBase64String($cipher)
+  $pb = [Text.Encoding]::UTF8.GetBytes(($pk | ConvertTo-Json -Compress))
+  Write-Host "stan do wyslania: $($pb.Length) B z $zrodlo"
+  try {
+    $c = [Net.Sockets.TcpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Parse($zrodlo), 0)); $c.Connect("127.0.0.1", $port); $s = $c.GetStream()
+    $hb = [Text.Encoding]::UTF8.GetBytes((@{ Type = 'lan-state'; Id = $peerId; Length = $pb.Length } | ConvertTo-Json -Compress))
+    $s.Write([BitConverter]::GetBytes($hb.Length), 0, 4); $s.Write($hb, 0, $hb.Length); $s.Write($pb, 0, $pb.Length); $s.Flush(); Start-Sleep -Seconds 1; $c.Dispose()
+  } catch { Write-Host "wysylanie TCP: $($_.Exception.Message)" }
+  Start-Sleep -Seconds 8
+  $zf = Join-Path $data 'zakladki.txt'
+  (Test-Path $zf) -and ((Get-Content $zf -Raw) -match [regex]::Escape($marker))
+}
+# sparowany komputer - z adresu, z ktorego sie przedstawil (hello)
+$jest = Wyslij-Duzy 'https://duzy-stan-test.example/' '127.0.0.2'
 Wynik 'R. Velivo przyjmuje stan > 60 000 B od sparowanego komputera' $jest "zakladka z duzego stanu w zakladki.txt: $jest"
+# obcy komputer podszywa sie pod id sparowanego (id jest jawne w pakietach) - inny adres
+$obcy = Wyslij-Duzy 'https://obcy-duzy-stan.example/' '127.0.0.3'
+Wynik 'R2. Duzy stan z obcego adresu (podszyte id) jest odrzucany' (-not $obcy) "zakladka od obcego w zakladki.txt: $obcy"
 
 # ---- L
 $log = Join-Path $data 'bledy.log'

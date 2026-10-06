@@ -106,7 +106,7 @@ namespace Przegladarka
         async Task<long> CleanJunkNow()
         {
             long before = JunkSize();
-            var profile = _profile ?? (Core != null ? Core.Profile : null);
+            var profile = LiveProfile;
             if (profile != null) await profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);
             try { Directory.CreateDirectory(DataDir); File.WriteAllText(JunkFlagFile, DateTime.Now.ToString("s")); } catch (IOException) { }
             return Math.Max(0, before - JunkSize());

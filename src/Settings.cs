@@ -285,13 +285,13 @@ namespace Przegladarka
                 try { File.Delete(HistoryFile); } catch (IOException) { }
         }
 
-        async System.Threading.Tasks.Task ClearBrowsingDataOnExit(CoreWebView2Profile profile)
+        async System.Threading.Tasks.Task ClearBrowsingDataOnExit(CoreWebView2Profile profile, bool includeHistoryFile = true)
         {
             await ClearBrowsingData(profile,
                 CoreWebView2BrowsingDataKinds.DiskCache |
                 CoreWebView2BrowsingDataKinds.DownloadHistory |
                 CoreWebView2BrowsingDataKinds.BrowsingHistory,
-                true);
+                includeHistoryFile);
         }
 
         async System.Threading.Tasks.Task ClearBrowsingDataFull(CoreWebView2Profile profile)
@@ -810,7 +810,7 @@ namespace Przegladarka
                 s.CacheMb = cacheOpts[Math.Max(0, cacheSize.SelectedIndex)];
                 if (speedChanged) foreach (var t in _tabs) if (t.View.CoreWebView2 != null) _ = InstallPageScript(t, t.View.CoreWebView2);
                 s.Connections = (int)((ComboBoxItem)conns.SelectedItem).Tag;
-                int oldZoom = s.DefaultZoom; bool oldDark = s.DarkPages; bool oldFull = s.FullFilterLists;
+                int oldZoom = s.DefaultZoom; bool oldDark = s.DarkPages; bool oldFull = s.FullFilterLists; bool oldLan = s.LanSync;
                 s.DefaultZoom = (int)((ComboBoxItem)zoom.SelectedItem).Tag;
                 s.DarkPages = dark.IsChecked == true;
                 s.Theme = (string)((ComboBoxItem)theme.SelectedItem).Tag;
@@ -855,8 +855,9 @@ namespace Przegladarka
                 try { s.Save(DataDir); }
                 catch (Exception ex) { MessageBox.Show(win, L.T("Nie zapisano ustawień:\n") + ex.Message, L.T("Ustawienia")); return; }
                 ApplySettingsToAllTabs();
-                StopLanSync();
-                StartLanSync();
+                // synchronizacje LAN restartujemy tylko, gdy dotyczy jej zmiana (albo nie dziala, a powinna) - restart liczy
+                // klucz od nowa (PBKDF2 na watku okna), zamyka gniazda i zapomina wykryte komputery
+                if (oldLan != s.LanSync || (s.LanSync && _lanTx == null)) { StopLanSync(); StartLanSync(); }
                 UpdateAdaptiveToolbarLayout();
                 win.Close();
                 if (dirChanged)

@@ -8,7 +8,7 @@ const m = src.match(/LanSettingsBlockedKeys = new HashSet<string>\([^)]*\)\s*\{(
 if (!m) { console.log('FAIL nie znaleziono LanSettingsBlockedKeys'); process.exit(1); }
 const blocked = new Set([...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1].toLowerCase()));
 let ok = true;
-for (const [k, why] of [['readVoice', 'glos czytania (glosy Windows sa rozne na kazdym komputerze)'], ['audioOut', 'glosniki'], ['language', 'jezyk interfejsu']]) {
+for (const [k, why] of [['readVoice', 'glos czytania (glosy Windows sa rozne na kazdym komputerze)'], ['cacheDir', 'folder na smieci (sciezka z tego komputera)'], ['cacheMb', 'rozmiar pamieci podrecznej (dysk tego komputera)'], ['audioOut', 'glosniki'], ['language', 'jezyk interfejsu']]) {
   const p = blocked.has(k.toLowerCase()); ok &&= p;
   console.log(`${p ? 'PASS' : 'FAIL'} ${k} – ${why}: ${p ? 'zostaje na tym komputerze' : 'NADPISYWANY przez drugi komputer'}`);
 }

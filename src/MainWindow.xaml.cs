@@ -43,6 +43,7 @@ namespace Przegladarka
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
             public bool Private;
             public bool Bank;
+            public string BankFillOffered;   // tryb bankowy: strona, dla ktorej asystent juz zaproponowal wypelnienie
             public string BankAsked;     // strona bankowa (domena), o ktora juz zapytano w tej karcie            // karta trybu bankowego (osobny profil; Private=true, zeby nic nie zapisywac)
             public bool Pinned;
             public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
@@ -75,7 +76,19 @@ namespace Przegladarka
         CoreWebView2Environment _env;
         BrowserTab _current;
         int _totalBlocked;
-        CoreWebView2Profile _profile;
+        // Profil przegladarki bierzemy z karty otwartej w tej chwili - obiekt z zamknietej karty jest juz zwolniony
+        // (wczesniej zapamietany z pierwszej karty: po jej zamknieciu "Wyczysc smieci" konczylo sie bledem).
+        static string ClearOnExitPendingFile { get { return Path.Combine(DataDir, "czysc-przy-starcie.flag"); } }
+
+        CoreWebView2Profile LiveProfile
+        {
+            get
+            {
+                foreach (var t in _tabs)
+                    if (!t.Private && !t.Bank && t.View.CoreWebView2 != null) return t.View.CoreWebView2.Profile;   // tryb bankowy ma osobny profil
+                return null;
+            }
+        }
         bool _cleanedUp;
         bool _extensionsLoaded;
         bool _toolbarCompact;
@@ -386,7 +399,12 @@ namespace Przegladarka
             var core = tab.View.CoreWebView2;
             core.Settings.IsStatusBarEnabled = false;
             if (tab.Bank) await BankAfterInit(core);
-            if (!tab.Private && _profile == null) _profile = core.Profile;
+            if (!tab.Private && !tab.Bank && File.Exists(ClearOnExitPendingFile))
+            {
+                // zaleglosc z zamkniecia - raz (znacznik usuwany od razu) i tylko gdy opcja nadal jest wlaczona
+                try { File.Delete(ClearOnExitPendingFile); } catch (Exception) { }
+                if (_settings.ClearOnExit) { try { await ClearBrowsingDataOnExit(core.Profile, false); } catch (Exception) { } }
+            }
             ApplyViewSettings(core);
             await HookAutofill(tab, core);   // przed ukryciem chrome.webview
             HookProtection(tab, core);
@@ -865,6 +883,12 @@ namespace Przegladarka
         void CloseTab(BrowserTab tab)
         {
             StopPasswordCapture(tab.View.CoreWebView2);
+            // ostatnia karta bankowa: slady (cache, historia) czyscimy teraz, poki jej profil jeszcze istnieje
+            if (tab.Bank && !_tabs.Any(t => t != tab && t.Bank))
+            {
+                if (tab.View.CoreWebView2 != null) _bankCoreProfile = tab.View.CoreWebView2.Profile;   // profil tej karty - na pewno jeszcze zywy
+                ClearBankTraces();
+            }
             bool busy = HasActiveDownloads(tab.View.CoreWebView2) || tab.InPip;   // okienko obrazu w obrazie gra dalej po zamknieciu karty
             if (tab.Private && busy)
             {
@@ -1004,7 +1028,10 @@ namespace Przegladarka
             e.Cancel = true;
             _cleanedUp = true;
             Hide();
-            try { await ClearBrowsingDataOnExit(_profile); } catch (Exception) { }
+            var prof = LiveProfile;
+            try { await ClearBrowsingDataOnExit(prof); } catch (Exception) { }
+            // otwarte byly tylko karty prywatne / bankowe - dane silnika zwyklego profilu wyczyscimy przy nastepnym starcie
+            if (prof == null) { try { File.WriteAllText(ClearOnExitPendingFile, "1"); } catch (Exception) { } }
             Close();
         }
 

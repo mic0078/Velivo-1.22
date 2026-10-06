@@ -168,11 +168,13 @@ namespace Przegladarka
 
         async Task SaveExtensionsSyncListAsync()
         {
-            if (Core == null) return;
+            // zawsze zwykly profil: karta bankowa / prywatna nie ma dodatkow - ich (pusta) lista poszlaby do innych komputerow
+            var prof = LiveProfile;
+            if (prof == null) return;
             try
             {
                 var byInstalled = LoadInstalledToStoreMap();
-                var exts = await Core.Profile.GetBrowserExtensionsAsync();
+                var exts = await prof.GetBrowserExtensionsAsync();
                 var items = exts.Where(x => !BuiltInExtensions.Contains(x.Id))
                     .Where(x => !IsQuickAccessExtensionId(x.Id))
                     .Select(x =>
@@ -194,13 +196,13 @@ namespace Przegladarka
 
         async Task ApplyExtensionsSyncListAsync()
         {
-            if (Core == null) return;
+            if (LiveProfile == null) return;   // dodatki z innych komputerow - tylko do zwyklego profilu (nigdy do trybu bankowego)
             var desired = LoadSyncedExtensionsList();
             if (desired.Count == 0) return;
 
             try
             {
-                var exts = await Core.Profile.GetBrowserExtensionsAsync();
+                var exts = await LiveProfile.GetBrowserExtensionsAsync();
                 var byId = exts.Where(x => !BuiltInExtensions.Contains(x.Id)).ToDictionary(x => x.Id, x => x, StringComparer.OrdinalIgnoreCase);
                 var storeToInstalled = LoadStoreToInstalledMap();
 
@@ -215,7 +217,8 @@ namespace Przegladarka
                     if (!have)
                     {
                         await InstallFromStore(kv.Key, this, true);
-                        exts = await Core.Profile.GetBrowserExtensionsAsync();
+                        var prof = LiveProfile; if (prof == null) return;   // karta zwykla zamknieta w trakcie instalacji
+                        exts = await prof.GetBrowserExtensionsAsync();
                         byId = exts.Where(x => !BuiltInExtensions.Contains(x.Id)).ToDictionary(x => x.Id, x => x, StringComparer.OrdinalIgnoreCase);
                         storeToInstalled = LoadStoreToInstalledMap();
                     }
@@ -364,9 +367,10 @@ namespace Przegladarka
 
         async Task RefreshExtensions()
         {
-            if (Core == null) return;
+            var prof = LiveProfile;   // dodatki zwyklej przegladarki (tryb bankowy jest bez dodatkow)
+            if (prof == null) return;
             IReadOnlyList<CoreWebView2BrowserExtension> exts;
-            try { exts = await Core.Profile.GetBrowserExtensionsAsync(); }
+            try { exts = await prof.GetBrowserExtensionsAsync(); }
             catch (Exception) { return; }
             var paths = LoadExtPaths();
             if (!_extensionsReloadChecked)

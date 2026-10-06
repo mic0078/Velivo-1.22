@@ -703,7 +703,8 @@ namespace Przegladarka
                     return;
                 }
 
-                try { await ClearBrowsingData(Core != null ? Core.Profile : null, kinds, clearHistoryFile); if (clearHistoryFile) { RememberHistoryCleared(); ForgetAllPageMemory(); } MessageBox.Show(win, L.T("Wyczyszczono zaznaczone dane."), L.T("Ustawienia")); }
+                if (kinds != 0 && LiveProfile == null) { MessageBox.Show(win, L.T("Otwórz najpierw zwykłą kartę (dotyczy zwykłej przeglądarki, nie trybu bankowego ani prywatnego)."), L.T("Ustawienia")); return; }
+                try { await ClearBrowsingData(LiveProfile, kinds, clearHistoryFile);   // zwykla przegladarka - nie profil karty bankowej if (clearHistoryFile) { RememberHistoryCleared(); ForgetAllPageMemory(); } MessageBox.Show(win, L.T("Wyczyszczono zaznaczone dane."), L.T("Ustawienia")); }
                 catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Ustawienia")); }
             };
             root.Children.Add(clearNow);

@@ -299,7 +299,7 @@ namespace Przegladarka
             var nonce = Convert.FromBase64String(pkt.nonce);
             var tag = Convert.FromBase64String(pkt.tag);
             var cipher = Convert.FromBase64String(pkt.data);
-            if (nonce.Length != 12 || tag.Length != 16 || cipher.Length == 0 || cipher.Length > 60000) return null;
+            if (nonce.Length != 12 || tag.Length != 16 || cipher.Length == 0 || cipher.Length > LanStateTcpLimit) return null;   // wiekszy niz UDP przychodzi tylko TCP
             var plain = new byte[cipher.Length];
             try
             {
@@ -446,114 +446,7 @@ namespace Przegladarka
                 {
                     var res = await _lanRx.ReceiveAsync(ct);
                     if (res.Buffer == null || res.Buffer.Length == 0 || res.Buffer.Length > 60000) continue;
-                    var msg = Encoding.UTF8.GetString(res.Buffer);
-                    var pkt = JsonSerializer.Deserialize<LanStatePacket>(msg);
-                    Guid senderId;
-                    if (pkt == null || pkt.id == _lanId || !Guid.TryParseExact(pkt.id, "N", out senderId)) continue;
-                    long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    if (pkt.ts < now - 300000 || pkt.ts > now + 300000)
-                    {
-                        var skewed = pkt;
-                        await Dispatcher.InvokeAsync(() => LogLanClockSkew(skewed.device ?? skewed.id, skewed.ts - now));
-                        continue;
-                    }
-
-                    if (pkt.t != null && pkt.t.StartsWith("pair-", StringComparison.Ordinal))
-                    {
-                        await Dispatcher.InvokeAsync(() => HandleLanPairPacket(pkt, res.RemoteEndPoint.Address.ToString()));
-                        continue;
-                    }
-
-                    if (pkt.t == "hello" || pkt.t == "state" || pkt.t == "state-plain" || pkt.t == "announce")
-                    {
-                        await Dispatcher.InvokeAsync(() =>
-                        {
-                            var device = string.IsNullOrWhiteSpace(pkt.device) ? pkt.id : pkt.device.Trim();
-                            string previousProfile;
-                            bool profileChanged = _lanDeviceProfile.TryGetValue(device, out previousProfile) &&
-                                !string.Equals(previousProfile, NormalizeProfileName(pkt.profile ?? "domyslny"), StringComparison.OrdinalIgnoreCase);
-                            TryPromptProfileSwitch(pkt, !_lanPeers.ContainsKey(pkt.id), profileChanged);
-                            // niesparowany komputer (np. po czystej instalacji) widzi drugi Velivo - proponujemy polaczenie
-                            if (_lanLegacyNoKeyMode) OfferLanPairing(pkt);
-                        });
-                    }
-
-                    LanSyncPayload state = null;
-                    LanHistoryPayload hist = null;
-                    LanTabPayload sentTab = null;
-                    if (pkt.t == "tab")
-                    {
-                        if (_lanLegacyNoKeyMode) continue;
-                        try { sentTab = DecryptLanBlob<LanTabPayload>(pkt); }
-                        catch (CryptographicException) { continue; }
-                        catch (FormatException) { continue; }
-                        catch (JsonException) { continue; }
-                        catch (InvalidDataException) { continue; }
-                        if (sentTab == null) continue;
-                    }
-                    else if (pkt.t == "hist")
-                    {
-                        if (_lanLegacyNoKeyMode) continue;
-                        try { hist = DecryptLanHistory(pkt); }
-                        catch (CryptographicException) { continue; }
-                        catch (FormatException) { continue; }
-                        catch (JsonException) { continue; }
-                        catch (InvalidDataException) { continue; }
-                        if (hist == null) continue;
-                    }
-                    else if (pkt.t == "hello")
-                    {
-                        if (_lanLegacyNoKeyMode) continue;
-                        if (!VerifyLanHello(pkt)) continue;
-                    }
-                    else if (pkt.t == "state")
-                    {
-                        if (_lanLegacyNoKeyMode) continue;
-                        try { state = DecryptLanState(pkt); }
-                        catch (CryptographicException) { continue; }
-                        catch (FormatException) { continue; }
-                        catch (JsonException) { continue; }
-                        catch (InvalidDataException) { continue; }
-                        if (state == null) continue;
-                    }
-                    else continue;   // announce i jawne state-plain (starsze wersje): tylko propozycja parowania, danych nie przyjmujemy
-
-                    _lanPacketsRx++;
-                    _lanLastRxUtc = DateTime.UtcNow;
-                    bool isNewPeer = false;
-                    bool profileChanged = false;
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        isNewPeer = TouchLanPeer(pkt, res.RemoteEndPoint, out profileChanged);
-                        if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
-                            TryPromptProfileSwitch(pkt, isNewPeer, profileChanged);
-                    });
-
-                    if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase)) continue;
-
-                    if (pkt.t == "tab")
-                    {
-                        var st = sentTab; var sp = pkt;
-                        await Dispatcher.InvokeAsync(() => ReceiveLanTab(sp, st));
-                        continue;
-                    }
-                    if (pkt.t == "hist")
-                    {
-                        var h = hist;
-                        await Dispatcher.InvokeAsync(() => ApplyLanHistory(h));
-                        continue;
-                    }
-                    if (pkt.t == "hello")
-                    {
-                        await Dispatcher.InvokeAsync(() => { LanBroadcastState(isNewPeer); LanBroadcastHistory(isNewPeer); });
-                        continue;
-                    }
-                    if (pkt.t == "state" || pkt.t == "state-plain")
-                    {
-                        var statePacket = pkt;
-                        var statePayload = state;
-                        await Dispatcher.InvokeAsync(() => ApplyLanState(statePacket, statePayload));
-                    }
+                    await HandleLanPacketAsync(res.Buffer, res.RemoteEndPoint, false);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
@@ -563,6 +456,121 @@ namespace Przegladarka
                     await Dispatcher.InvokeAsync(() => LanLog(L.T("Błąd odbioru LAN: ") + ex.Message));
                     try { await Task.Delay(500, ct); } catch (Exception) { }
                 }
+            }
+        }
+
+        // Jeden pakiet LAN - z UDP albo (gdy stan jest za duzy na UDP) z polaczenia TCP od sparowanego komputera.
+        // Pakiet jest sprawdzany tak samo w obu przypadkach (szyfrowanie i uwierzytelnienie parowaniem).
+        async Task HandleLanPacketAsync(byte[] buffer, IPEndPoint remote, bool viaTcp)
+        {
+            var msg = Encoding.UTF8.GetString(buffer);
+            var pkt = JsonSerializer.Deserialize<LanStatePacket>(msg);
+            Guid senderId;
+            if (pkt == null || pkt.id == _lanId || !Guid.TryParseExact(pkt.id, "N", out senderId)) return;
+            if (viaTcp && pkt.t != "state") return;   // TCP tylko dla zaszyfrowanego stanu za duzego na UDP
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (pkt.ts < now - 300000 || pkt.ts > now + 300000)
+            {
+                var skewed = pkt;
+                await Dispatcher.InvokeAsync(() => LogLanClockSkew(skewed.device ?? skewed.id, skewed.ts - now));
+                return;
+            }
+
+            if (pkt.t != null && pkt.t.StartsWith("pair-", StringComparison.Ordinal))
+            {
+                await Dispatcher.InvokeAsync(() => HandleLanPairPacket(pkt, remote.Address.ToString()));
+                return;
+            }
+
+            if (pkt.t == "hello" || pkt.t == "state" || pkt.t == "state-plain" || pkt.t == "announce")
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    var device = string.IsNullOrWhiteSpace(pkt.device) ? pkt.id : pkt.device.Trim();
+                    string previousProfile;
+                    bool profileChanged = _lanDeviceProfile.TryGetValue(device, out previousProfile) &&
+                        !string.Equals(previousProfile, NormalizeProfileName(pkt.profile ?? "domyslny"), StringComparison.OrdinalIgnoreCase);
+                    TryPromptProfileSwitch(pkt, !_lanPeers.ContainsKey(pkt.id), profileChanged);
+                    // niesparowany komputer (np. po czystej instalacji) widzi drugi Velivo - proponujemy polaczenie
+                    if (_lanLegacyNoKeyMode) OfferLanPairing(pkt);
+                });
+            }
+
+            LanSyncPayload state = null;
+            LanHistoryPayload hist = null;
+            LanTabPayload sentTab = null;
+            if (pkt.t == "tab")
+            {
+                if (_lanLegacyNoKeyMode) return;
+                try { sentTab = DecryptLanBlob<LanTabPayload>(pkt); }
+                catch (CryptographicException) { return; }
+                catch (FormatException) { return; }
+                catch (JsonException) { return; }
+                catch (InvalidDataException) { return; }
+                if (sentTab == null) return;
+            }
+            else if (pkt.t == "hist")
+            {
+                if (_lanLegacyNoKeyMode) return;
+                try { hist = DecryptLanHistory(pkt); }
+                catch (CryptographicException) { return; }
+                catch (FormatException) { return; }
+                catch (JsonException) { return; }
+                catch (InvalidDataException) { return; }
+                if (hist == null) return;
+            }
+            else if (pkt.t == "hello")
+            {
+                if (_lanLegacyNoKeyMode) return;
+                if (!VerifyLanHello(pkt)) return;
+            }
+            else if (pkt.t == "state")
+            {
+                if (_lanLegacyNoKeyMode) return;
+                try { state = DecryptLanState(pkt); }
+                catch (CryptographicException) { return; }
+                catch (FormatException) { return; }
+                catch (JsonException) { return; }
+                catch (InvalidDataException) { return; }
+                if (state == null) return;
+            }
+            else return;   // announce i jawne state-plain (starsze wersje): tylko propozycja parowania, danych nie przyjmujemy
+
+            _lanPacketsRx++;
+            _lanLastRxUtc = DateTime.UtcNow;
+            bool isNewPeer = false;
+            bool profileChanged = false;
+            await Dispatcher.InvokeAsync(() =>
+            {
+                isNewPeer = TouchLanPeer(pkt, remote, out profileChanged);
+                if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
+                    TryPromptProfileSwitch(pkt, isNewPeer, profileChanged);
+            });
+
+            if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase)) return;
+
+            if (pkt.t == "tab")
+            {
+                var st = sentTab; var sp = pkt;
+                await Dispatcher.InvokeAsync(() => ReceiveLanTab(sp, st));
+                return;
+            }
+            if (pkt.t == "hist")
+            {
+                var h = hist;
+                await Dispatcher.InvokeAsync(() => ApplyLanHistory(h));
+                return;
+            }
+            if (pkt.t == "hello")
+            {
+                await Dispatcher.InvokeAsync(() => { LanBroadcastState(isNewPeer); LanBroadcastHistory(isNewPeer); });
+                return;
+            }
+            if (pkt.t == "state" || pkt.t == "state-plain")
+            {
+                var statePacket = pkt;
+                var statePayload = state;
+                await Dispatcher.InvokeAsync(() => ApplyLanState(statePacket, statePayload));
             }
         }
 
@@ -725,6 +733,12 @@ namespace Przegladarka
             try
             {
                 var data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(pkt));
+                if (data.Length > 60000 && pkt.t == "state")
+                {
+                    // zaszyfrowany stan (np. z trybem bankowym) jest za duzy na jeden pakiet UDP - wysylamy go TCP do sparowanych komputerow
+                    SendLanStateOverTcp(data);
+                    return;
+                }
                 if (data.Length > 60000)
                 {
                     _lanErrors++;
@@ -738,6 +752,72 @@ namespace Przegladarka
                 RefreshLanDiagnosticsUi();
             }
             catch (Exception ex) { _lanErrors++; App.LogError(ex); LanLog(L.T("Błąd nadawania LAN: ") + ex.Message); }
+        }
+
+        const int LanStateTcpLimit = 8 * 1024 * 1024;
+
+        // Stan za duzy na UDP: ten sam zaszyfrowany pakiet idzie TCP (port LAN, sluchacz Szybkiego Dostepu)
+        // do komputerow widzianych w ostatnich 30 s. Odbiorca sprawdza go tak samo jak pakiet UDP.
+        void SendLanStateOverTcp(byte[] data)
+        {
+            if (data.Length > LanStateTcpLimit)
+            {
+                _lanErrors++;
+                LanLog(L.T("Nie wysłano pakietu LAN: przekracza limit UDP (") + data.Length.ToString("N0") + " B).");
+                return;
+            }
+            var token = _lanCts != null ? _lanCts.Token : CancellationToken.None;
+            var header = JsonSerializer.SerializeToUtf8Bytes(new QuickAccessLanHeader { Type = "lan-state", Id = _lanId, Length = data.Length });
+            int sent = 0;
+            foreach (var peer in _lanPeers.Values.Where(peer => DateTime.UtcNow - peer.LastSeenUtc < TimeSpan.FromSeconds(30)).ToList())
+            {
+                int separator = (peer.Address ?? "").LastIndexOf(':');
+                IPAddress address;
+                if (separator <= 0 || !IPAddress.TryParse(peer.Address.Substring(0, separator), out address)) continue;
+                _ = SendLanStateTcpAsync(address, header, data, token);
+                sent++;
+            }
+            if (sent == 0) return;
+            _lanPacketsTx++;
+            _lanLastTxUtc = DateTime.UtcNow;
+            RefreshLanDiagnosticsUi();
+        }
+
+        async Task SendLanStateTcpAsync(IPAddress address, byte[] header, byte[] data, CancellationToken token)
+        {
+            try
+            {
+                using (var client = new TcpClient(AddressFamily.InterNetwork))
+                {
+                    using (var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+                    {
+                        connectTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+                        await client.ConnectAsync(address, LanPort, connectTimeout.Token);
+                    }
+                    using (var stream = client.GetStream())
+                    {
+                        var length = BitConverter.GetBytes(header.Length);
+                        await stream.WriteAsync(length, 0, length.Length, token);
+                        await stream.WriteAsync(header, 0, header.Length, token);
+                        await stream.WriteAsync(data, 0, data.Length, token);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (token.IsCancellationRequested) return;
+                _lanErrors++;
+                App.LogError(ex);
+                await Dispatcher.InvokeAsync(() => LanLog(L.T("Błąd nadawania LAN: ") + ex.Message));
+            }
+        }
+
+        async Task ReceiveLanStateTcpAsync(NetworkStream stream, QuickAccessLanHeader header, IPEndPoint remote, CancellationToken token)
+        {
+            if (!Guid.TryParseExact(header.Id, "N", out _) || header.Id == _lanId || header.Length <= 60000 || header.Length > LanStateTcpLimit) return;
+            var data = new byte[header.Length];
+            if (!await ReadExactAsync(stream, data, data.Length, token)) return;
+            await HandleLanPacketAsync(data, remote, true);
         }
 
         void ApplyLanState(LanStatePacket pkt, LanSyncPayload state)

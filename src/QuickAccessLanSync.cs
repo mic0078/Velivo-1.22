@@ -296,6 +296,11 @@ namespace Przegladarka
                     var headerBytes = new byte[headerLength];
                     if (!await ReadExactAsync(stream, headerBytes, headerBytes.Length, token)) return;
                     header = JsonSerializer.Deserialize<QuickAccessLanHeader>(headerBytes);
+                    if (header != null && header.Type == "lan-state")
+                    {
+                        await ReceiveLanStateTcpAsync(stream, header, client.Client.RemoteEndPoint as IPEndPoint, token);
+                        return;
+                    }
                     if (header == null || header.Type != "quick-access" || !Guid.TryParseExact(header.Id, "N", out _) ||
                         header.Id == _lanId || header.Length <= 0 || header.Length > QuickAccessArchiveLimitBytes) return;
                     long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

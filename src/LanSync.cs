@@ -143,7 +143,8 @@ namespace Przegladarka
                 if (lines.Length >= 2) { long.TryParse(lines[0], out _lanLocalChanged); _lanLocalChangedFp = lines[1]; }
                 // odcisk z poprzedniej wersji (inny sklad: bank, cacheDir/cacheMb) - przeliczamy go bez podbijania znacznika,
                 // inaczej kazdy komputer po aktualizacji uznalby sie za "zmieniony teraz" i nadpisal drugi
-                if (lines.Length < 3 || lines[2] != LanContentFingerprintVersion) SaveLanChange(_lanLocalChanged, LanContentFingerprint());
+                if (lines.Length < 3 || lines[2] != LanContentFingerprintVersion)
+                    SaveLanChange(LanFingerprintMatchesOldVersion(_lanLocalChangedFp) ? _lanLocalChanged : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), LanContentFingerprint());   // niezapisana prawdziwa zmiana - teraz
             }
             catch (Exception) { }
         }
@@ -154,13 +155,28 @@ namespace Przegladarka
         // nie moze robic go "nowszym" dla ustawien, prywatnosci, profili i dodatkow drugiego komputera.
         const string LanContentFingerprintVersion = "2";   // zmiana skladu LanContentFingerprint = nowa wersja (migracja w LoadLanChange)
 
-        string LanContentFingerprint()
+        string LanContentFingerprint() { return LanContentFingerprint(LanSettingsBlockedKeys, false); }
+
+        // withBank / inny zestaw kluczy - tylko do rozpoznania odcisku zapisanego przez starsza wersje (migracja)
+        string LanContentFingerprint(ICollection<string> blockedKeys, bool withBank)
         {
             var settings = string.Join("\n", ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt")).Split('\n')
-                .Where(l => { int i = l.IndexOf('='); return i <= 0 || !LanSettingsBlockedKeys.Contains(l.Substring(0, i).Trim()); }));
+                .Where(l => { int i = l.IndexOf('='); return i <= 0 || !blockedKeys.Contains(l.Substring(0, i).Trim()); }));
             return Sha256(settings + "\n--\n" + ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt")) + "\n--\n" +
                 ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt")) + "\n--\n" + ReadProfilesRegistry() + "\n--\n" +
-                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()) + "\n--\n" + ReadTextOrEmpty(PinnedFile));
+                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()) + "\n--\n" + ReadTextOrEmpty(PinnedFile) +
+                (withBank ? BankSyncTerm() : ""));
+        }
+
+        // Odcisk zapisany przez starsza wersje = obecne dane w starym skladzie (z trybem bankowym, bez nowszych blokad kluczy)?
+        bool LanFingerprintMatchesOldVersion(string stored)
+        {
+            foreach (var added in new[] { new[] { "cacheDir", "cacheMb" }, new[] { "cacheDir", "cacheMb", "readVoice" } })
+            {
+                var old = new HashSet<string>(LanSettingsBlockedKeys.Where(k => !added.Contains(k, StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
+                if (LanContentFingerprint(old, true) == stored) return true;
+            }
+            return false;
         }
 
         // "Pusty" komputer: bez zakladek i bez hasel - jego dane nigdy nie nadpisuja pelnych
@@ -876,8 +892,10 @@ namespace Przegladarka
             {
                 data = new byte[header.Length];
                 int got = 0;
+                var started = DateTime.UtcNow;
                 while (got < data.Length)
                 {
+                    if (DateTime.UtcNow - started > TimeSpan.FromMinutes(3)) return;   // calosc: 8 MB w 3 min = ok. 370 kb/s - wystarczy nawet dla slabego Wi-Fi
                     using (var idle = CancellationTokenSource.CreateLinkedTokenSource(token))
                     {
                         idle.CancelAfter(TimeSpan.FromSeconds(15));   // limit BEZCZYNNOSCI: wolne lacze dziala, zawieszone polaczenie nie

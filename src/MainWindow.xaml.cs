@@ -401,7 +401,9 @@ namespace Przegladarka
             if (tab.Bank) await BankAfterInit(core);
             if (!tab.Private && !tab.Bank && File.Exists(ClearOnExitPendingFile))
             {
-                try { await ClearBrowsingDataOnExit(core.Profile, false); File.Delete(ClearOnExitPendingFile); } catch (Exception) { }   // zaleglosc z zamkniecia
+                // zaleglosc z zamkniecia - raz (znacznik usuwany od razu) i tylko gdy opcja nadal jest wlaczona
+                try { File.Delete(ClearOnExitPendingFile); } catch (Exception) { }
+                if (_settings.ClearOnExit) { try { await ClearBrowsingDataOnExit(core.Profile, false); } catch (Exception) { } }
             }
             ApplyViewSettings(core);
             await HookAutofill(tab, core);   // przed ukryciem chrome.webview

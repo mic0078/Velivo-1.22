@@ -90,6 +90,27 @@ namespace Przegladarka
         UdpClient _lanTx;
         DispatcherTimer _lanTick;
         string _lastLanFingerprint = "";
+        string _lanFilesStamp;   // czas zapisu i rozmiar plikow ze stanem - bez zmian = nie liczymy odcisku od nowa
+
+        // Tani odcisk "czy cokolwiek sie zmienilo": czas zapisu i rozmiar plikow, z ktorych sklada sie stan LAN.
+        // Pozwala co 2 s nie czytac wszystkich plikow, nie serializowac hasel i nie liczyc SHA-256, gdy nic sie nie zmienilo.
+        string LanFilesStamp()
+        {
+            var sb = new StringBuilder();
+            var files = new List<string>
+            {
+                Path.Combine(DataDir, "ustawienia.txt"), Path.Combine(DataDir, "zakladki.txt"), BookmarkTombstonesFile,
+                Path.Combine(DataDir, "sesja.txt"), Path.Combine(DataDir, "sesja.txt.aktywna"), Path.Combine(DataDir, "prywatnosc.txt"),
+                ProfilesFile, ExtensionsSyncListFile, PinnedFile, PasswordVaultFile,
+            };
+            try { if (Directory.Exists(DataDir)) files.AddRange(Directory.GetFiles(DataDir, "bank*.json")); } catch (Exception) { }
+            foreach (var f in files)
+            {
+                try { var fi = new FileInfo(f); sb.Append(fi.Exists ? fi.LastWriteTimeUtc.Ticks + ":" + fi.Length : "-").Append('|'); }
+                catch (Exception) { sb.Append("?|"); }
+            }
+            return sb.ToString();
+        }
 
         // Znacznik "kiedy moje dane ostatnio zmienil uzytkownik" (nie import z sieci) - zapisany na dysku,
         // zeby po ponownym uruchomieniu komputer nie udawal, ze ma najnowsze dane.
@@ -677,6 +698,10 @@ namespace Przegladarka
             if (_lanTx == null || _lanApplying) return;
             // bez sparowania nie wysylamy zadnych danych (dawniej jawny pakiet state-plain) - tylko LanBroadcastAnnounce
             if (_lanLegacyNoKeyMode || _lanEncryptionKey == null || _lanAuthenticationKey == null) return;
+            // nic sie nie zmienilo od ostatniego wyslania - pomijamy czytanie plikow i liczenie odcisku (co 2 s)
+            var filesStamp = LanFilesStamp();
+            if (!force && _lastLanFingerprint.Length > 0 && filesStamp == _lanFilesStamp) return;
+            _lanFilesStamp = filesStamp;
             var settings = ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt"));
             var bookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
             var session = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt"));

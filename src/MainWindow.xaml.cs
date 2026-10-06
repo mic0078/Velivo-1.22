@@ -125,6 +125,7 @@ namespace Przegladarka
             _blocker.Load(Path.Combine(DataDir, "filters.txt")); // wlasne reguly uzytkownika (opcjonalne)
             StartFilterLists(); // pelne listy (EasyList itd.) wczytywane i odswiezane w tle
             SizeChanged += (s, e) => UpdateAdaptiveToolbarLayout();
+            SizeChanged += (s, e) => FitBookmarkBar();   // pasek zakladek w jednym wierszu - przelicz po zmianie szerokosci
             Loaded += (s, e) => UpdateAdaptiveToolbarLayout();
             Loaded += async (s, e) =>
             {

@@ -610,6 +610,7 @@ namespace Przegladarka
                 var r = rulesList.SelectedItem as SitePrivacyRule;
                 if (r == null) return;
                 dom.Text = r.Domain;
+                loadCurrentDomain();   // takze gdy w polu byla juz ta sama domena (wtedy TextChanged sie nie wywola)
             };
 
             logList.SelectionChanged += (s, e) =>
@@ -691,6 +692,23 @@ namespace Przegladarka
             };
 
             var trustBtn = SmallButton(L.T("✔ Dodaj do zaufanych"), () => addTrusted(dom.Text));
+            // zdjecie zaufania: inne ustawienia reguly zostaja; regula bez zadnych ustawien znika z listy
+            var untrustBtn = SmallButton(L.T("✖ Usuń z zaufanych"), () =>
+            {
+                var d = NormalizeRuleDomain(dom.Text);
+                SitePrivacyRule existing;
+                if (!_privacyRules.TryGetValue(d, out existing) || !existing.Trusted)
+                {
+                    MessageBox.Show(win, L.T("Tej domeny nie ma na liście zaufanych."), L.T("Zaufane domeny"));
+                    return;
+                }
+                existing.Trusted = false;
+                if (!existing.BlockJs && !existing.BlockCookies && !existing.StrictTrackers && !existing.AutoClearData) _privacyRules.Remove(d);
+                SaveSitePrivacyRules();
+                trusted.IsChecked = false;
+                refresh();
+                if (Core != null) Core.Reload();
+            });
             var trustLogBtn = SmallButton(L.T("✔ Zaznaczoną domenę do zaufanych"), () =>
             {
                 var row = logList.SelectedItem as PrivacyLogRow;
@@ -723,10 +741,11 @@ namespace Przegladarka
             profBtns.Children.Add(SmallButton("Dev", () => SwitchProfile("dev")));
             profBtns.Children.Add(SmallButton(L.T("Więcej…"), OpenProfilesManager));
 
-            var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+            var actions = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
             actions.Children.Add(save);
             actions.Children.Add(del);
             actions.Children.Add(trustBtn);
+            actions.Children.Add(untrustBtn);
 
             var leftHeader = new TextBlock { Text = L.T("Reguły prywatności dla domen"), FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)) };
             var rulesCaption = new TextBlock { Text = L.T("Zapisane reguły domen"), Margin = new Thickness(0, 10, 0, 2), FontWeight = FontWeights.SemiBold };

@@ -98,5 +98,17 @@ let p2 = (await wartosci()) === '2|4|jan|tajne';
 console.log(`${p1 ? 'PASS' : 'FAIL'} inna strona (h) - nic nie wpisano`);
 console.log(`${p2 ? 'PASS' : 'FAIL'} ta sama strona (h=${host}) - wpisano: ${await wartosci()}`);
 ok &&= p1 && p2;
+// logowanie na stronie z polami wybranych znakow: haslo NIGDY w pola na pojedyncze znaki (cale haslo trafiloby do banku)
+await page.setContent('<!doctype html><html><body><input name="customerNumber" aria-label="Customer number"><p>Enter the 2nd and 4th characters of your password</p>' + pole('type="password"').repeat(2) + '</body></html>');
+await page.evaluate(login.replace('__D__', JSON.stringify({ u: '12345678', p: 'tajnehaslo' })));
+const w3 = await page.evaluate(() => [...document.querySelectorAll('input')].map(e => e.value).join('|'));
+const p3 = w3 === '12345678||'; ok &&= p3;
+console.log(`${p3 ? 'PASS' : 'FAIL'} login + pola wybranych znakow: haslo nie trafia do pol 1-znakowych (${w3})`);
+// pole hasla krotsze niz haslo (np. PIN) - nie wpisujemy
+await page.setContent('<!doctype html><html><body><input name="username"><input type="password" name="pin" maxlength="6"></body></html>');
+await page.evaluate(login.replace('__D__', JSON.stringify({ u: 'jan', p: 'dlugie-haslo-123' })));
+const w4 = await page.evaluate(() => [...document.querySelectorAll('input')].map(e => e.value).join('|'));
+const p4 = w4 === 'jan|'; ok &&= p4;
+console.log(`${p4 ? 'PASS' : 'FAIL'} haslo dluzsze niz pole - nie wpisane (${w4})`);
 await browser.close();
 process.exit(ok ? 0 : 1);

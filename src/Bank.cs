@@ -2923,13 +2923,16 @@ function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&
 function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
 el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
 docs.forEach(function(doc){
-var ins=Array.prototype.slice.call(doc.querySelectorAll('input')).filter(vis);
+var ins=Array.prototype.slice.call(doc.querySelectorAll('input')).filter(vis).filter(function(i){
+var a=((i.getAttribute('autocomplete')||'')+' '+(i.name||'')+' '+(i.id||'')).toLowerCase();
+return !(i.maxLength>0&&i.maxLength<=2)&&!/one-time-code|cc-|card|cvv|cvc/.test(a);});
 var pw=ins.filter(function(i){return i.type==='password';})[0];
 var cand=ins.filter(function(i){return /^(text|email|tel|number|)$/.test(i.type||'');});
 var user=cand.filter(function(i){var a=((i.getAttribute('autocomplete')||'')+' '+(i.name||'')+' '+(i.id||'')+' '+(i.getAttribute('placeholder')||'')+' '+(i.getAttribute('aria-label')||'')).toLowerCase();
 return /user|login|email|mail|klient|customer|nik|ident|id/.test(a);})[0];
 if(!user&&pw){var idx=ins.indexOf(pw);for(var i=idx-1;i>=0;i--){if(cand.indexOf(ins[i])>=0){user=ins[i];break;}}}
 if(!user&&!pw&&cand.length===1)user=cand[0];
+if(pw&&pw.maxLength>0&&String(d.p||'').length>pw.maxLength)pw=null;if(user&&user.maxLength>0&&String(d.u||'').length>user.maxLength)user=null;
 if(user)set(user,d.u);if(pw)set(pw,d.p);
 });}catch(x){}})(__D__);";
 

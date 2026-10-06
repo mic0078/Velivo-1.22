@@ -75,7 +75,17 @@ namespace Przegladarka
         CoreWebView2Environment _env;
         BrowserTab _current;
         int _totalBlocked;
-        CoreWebView2Profile _profile;
+        // Profil przegladarki bierzemy z karty otwartej w tej chwili - obiekt z zamknietej karty jest juz zwolniony
+        // (wczesniej zapamietany z pierwszej karty: po jej zamknieciu "Wyczysc smieci" konczylo sie bledem).
+        CoreWebView2Profile LiveProfile
+        {
+            get
+            {
+                foreach (var t in _tabs)
+                    if (!t.Private && !t.Bank && t.View.CoreWebView2 != null) return t.View.CoreWebView2.Profile;   // tryb bankowy ma osobny profil
+                return null;
+            }
+        }
         bool _cleanedUp;
         bool _extensionsLoaded;
         bool _toolbarCompact;
@@ -386,7 +396,6 @@ namespace Przegladarka
             var core = tab.View.CoreWebView2;
             core.Settings.IsStatusBarEnabled = false;
             if (tab.Bank) await BankAfterInit(core);
-            if (!tab.Private && _profile == null) _profile = core.Profile;
             ApplyViewSettings(core);
             await HookAutofill(tab, core);   // przed ukryciem chrome.webview
             HookProtection(tab, core);
@@ -1004,7 +1013,7 @@ namespace Przegladarka
             e.Cancel = true;
             _cleanedUp = true;
             Hide();
-            try { await ClearBrowsingDataOnExit(_profile); } catch (Exception) { }
+            try { await ClearBrowsingDataOnExit(LiveProfile); } catch (Exception) { }
             Close();
         }
 

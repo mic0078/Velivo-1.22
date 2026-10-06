@@ -1549,6 +1549,7 @@ namespace Przegladarka
                             var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
                             timer.Tick += (s, e) =>
                             {
+                                if (_mainClosed) { StopPasswordCapture(core); return; }   // glowne okno zamkniete (karty zwolnione), a proces zyje dla "film na wierzchu"
                                 if (tab == _current && !_passwordCaptureInProgress.Contains(core))
                                     _ = CapturePasswordCandidateAndPrompt(tab, core);
                             };

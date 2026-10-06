@@ -8,7 +8,7 @@
 
 ## Instalator testowy
 - Każdy push na `rozwoj` ze zmianą w `src/` buduje instalator testowy (workflow `instalator-rozwoj.yml`) – tylko jako artefakt w GitHub Actions, bez zapisu do repozytorium.
-- Link do artefaktu podawaj właścicielowi do testów.
+- Po każdej zmianie SAM poczekaj na zbudowanie instalatora i od razu podaj właścicielowi link do artefaktu (właściciel nie powinien sprawdzać, czy już gotowe).
 
 ## Procedura poprawki
 1. Najpierw test odtwarzający problem (wynik „przed poprawką”).

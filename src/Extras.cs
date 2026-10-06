@@ -297,7 +297,8 @@ try {
       if (!G) return;
       if (!(e.buttons & 2)) { G = null; return; }
       var dx = e.clientX - G.x, dy = e.clientY - G.y;
-      if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
+      var min = G.p.length ? 15 : 30;   // skret wykrywany wczesniej: krotkie 'w dol, potem w prawo' to odswiezenie, a nie zamkniecie karty
+      if (Math.abs(dx) < min && Math.abs(dy) < min) return;
       var d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
       if (G.p[G.p.length - 1] !== d) G.p.push(d);
       G.x = e.clientX; G.y = e.clientY;
@@ -483,7 +484,7 @@ try {
                     case "L": if (core.CanGoBack) core.GoBack(); break;
                     case "R": if (core.CanGoForward) core.GoForward(); break;
                     case "U": AddTab(NewTabUrl); break;
-                    case "D": CloseTab(tab); break;
+                    case "D": if (tab.Pinned) ShowToast(L.T("📌 Karta przypięta – gest jej nie zamyka (odepnij, aby zamknąć)."), null); else CloseTab(tab); break;
                     case "DR": core.Reload(); break;
                     case "UD": core.Reload(); break;
                 }

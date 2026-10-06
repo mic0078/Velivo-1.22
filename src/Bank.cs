@@ -2170,7 +2170,7 @@ draw();
                 var fd = f;
                 sp.Children.Add(new TextBlock { Text = L.T(fd.Label) });
                 var row = new DockPanel { Margin = new Thickness(0, 1, 0, 5) };
-                var copy = new Button { Content = "📋", Width = 30, Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📋 Kopiuj") };
+                var copy = new Button { Content = "📋", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📋 Kopiuj") };   // bez sztywnej szerokosci - ikonka nie jest ucinana do "|"
                 DockPanel.SetDock(copy, Dock.Right); row.Children.Add(copy);
                 if (kind == "bills" && fd.Key == "name" && sheetNames.Count > 0)
                 {

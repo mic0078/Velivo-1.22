@@ -1032,6 +1032,7 @@ namespace Przegladarka
             { "Osobny, odizolowany profil na banki i zakupy: własne logowania i ciasteczka, bez dodatków, bez historii. Blokuje się sam po bezczynności.", "A separate, isolated profile for banking and shopping: its own logins and cookies, no extensions, no history. Locks itself after inactivity." },
             { "🔍 Szukaj w mojej bazie…", "🔍 Search my vault…" },
             { "🔑 Wpisz login i hasło na tej stronie", "🔑 Fill in login and password on this page" },
+            { "📌 Karta przypięta – gest jej nie zamyka (odepnij, aby zamknąć).", "📌 Pinned tab – the gesture does not close it (unpin it to close)." },
             { "💸 Wypełnij przelew na tej stronie (odbiorca z Rachunków bankowych)", "💸 Fill in a transfer on this page (payee from Bank accounts)" },
             { "💸 Przelew do: ", "💸 Transfer to: " },
             { "💸 Wpisano dane przelewu: ", "💸 Transfer details filled in: " },

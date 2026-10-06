@@ -102,13 +102,53 @@ namespace Przegladarka
                 btn.ContextMenu = menu;
                 BookmarkBar.Children.Add(btn);
             }
-            if (_bookmarks.Count > barMax)
+            // jeden wiersz jak w Edge: co sie nie miesci, chowa sie pod "»" (lista rozwijana)
+            if (_bookmarks.Count > 0)
             {
-                var more = new Button { Content = "» " + (_bookmarks.Count - barMax), Height = 24, FontSize = 12, Padding = new Thickness(6, 0, 6, 0), ToolTip = L.T("Wszystkie zakładki") };
-                more.Click += (s, e) => Bookmarks_Click(null, null);
+                var more = new Button { Content = "»", Height = 24, FontSize = 12, Padding = new Thickness(6, 0, 6, 0), ToolTip = L.T("Wszystkie zakładki"), Tag = "more" };
+                more.Click += (s, e) =>
+                {
+                    var menu = new ContextMenu { PlacementTarget = more, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                    int shown = BookmarkBar.Children.OfType<Button>().Count(b => b.Tag == null && b.Visibility == Visibility.Visible);
+                    foreach (var bm in _bookmarks.Skip(shown).Take(60))
+                    {
+                        var b2 = bm;
+                        var mi = new MenuItem { Header = new TextBlock { Text = b2.Title, MaxWidth = 360, TextTrimming = TextTrimming.CharacterEllipsis }, ToolTip = b2.Url };
+                        mi.Click += (s2, e2) => { if (_current != null) Navigate(_current, b2.Url); };
+                        menu.Items.Add(mi);
+                    }
+                    if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+                    var all = new MenuItem { Header = L.T("Wszystkie zakładki…") };
+                    all.Click += (s2, e2) => Bookmarks_Click(null, null);
+                    menu.Items.Add(all);
+                    menu.IsOpen = true;
+                };
                 BookmarkBar.Children.Add(more);
             }
+            Dispatcher.BeginInvoke(new Action(FitBookmarkBar), System.Windows.Threading.DispatcherPriority.Loaded);
             BookmarkBar.Visibility = _bookmarks.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // Pasek zakladek w jednym wierszu: chowamy przyciski, ktore sie nie mieszcza (miejsce na "»" zawsze zostaje).
+        void FitBookmarkBar()
+        {
+            var buttons = BookmarkBar.Children.OfType<Button>().ToList();
+            var more = buttons.FirstOrDefault(b => (b.Tag as string) == "more");
+            if (more == null) return;
+            more.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double avail = BookmarkBar.ActualWidth - more.DesiredSize.Width - 4, used = 0;
+            int hidden = 0;
+            foreach (var b in buttons)
+            {
+                if (b == more) continue;
+                b.Visibility = Visibility.Visible;
+                b.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                used += b.DesiredSize.Width;
+                if (hidden > 0 || used > avail) { b.Visibility = Visibility.Collapsed; hidden++; }
+            }
+            hidden += Math.Max(0, _bookmarks.Count - (buttons.Count - 1));
+            more.Visibility = hidden > 0 ? Visibility.Visible : Visibility.Collapsed;
+            more.Content = "» " + hidden;
         }
 
         string CurrentUrl { get { return Core != null ? Core.Source : null; } }

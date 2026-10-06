@@ -79,6 +79,7 @@ namespace Przegladarka
             { "Ustawienia", "Settings" },
             { "Więcej narzędzi", "More tools" },
             { "Wszystkie zakładki", "All bookmarks" },
+            { "Wszystkie zakładki…", "All bookmarks…" },
             { "Włącz/wyłącz AdBlock", "Turn AdBlock on/off" },
             { "Zatrzymaj czytanie", "Stop reading" },
             { "Zrzut ekranu strony (widoczna część lub cała strona)", "Page screenshot (visible part or full page)" },

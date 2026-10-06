@@ -138,7 +138,9 @@ namespace Przegladarka
 
         // Tryb wybrany w tej sesji rozni sie od trybu, z ktorym wystartowal silnik -> poprawka CSS na stronie.
         const string LiveDarkCss = "html{filter:invert(1) hue-rotate(180deg)!important;background:#fff!important}" +
-            "img,video,picture,canvas,svg image,iframe,embed,object,[style*='background-image']{filter:invert(1) hue-rotate(180deg)!important}";
+            // drugi raz odwracamy tylko najbardziej zewnetrzny element (np. <picture>, a nie jeszcze <img> w nim) - inaczej negatyw
+            ":is(img,video,picture,canvas,svg image,iframe,embed,object,[style*='background-image'])" +
+            ":not(:is(picture,iframe,embed,object,[style*='background-image']) *){filter:invert(1) hue-rotate(180deg)!important}";
         const string LiveLightCss = ":root{color-scheme:only light!important}";
 
         async void ApplyLiveDarkCss(CoreWebView2 core)

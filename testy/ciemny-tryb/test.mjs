@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 let pw; try { pw = require('playwright'); } catch { pw = require(process.env.PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright'); }
 
 const src = readFileSync(new URL('../../src/DarkMode.cs', import.meta.url), 'utf8');
-const m = src.match(/const string LiveDarkCss = ((?:"(?:[^"\\]|\\.)*"\s*\+?\s*)+);/);
+const m = src.match(/const string LiveDarkCss =((?:\s*(?:\/\/[^\n]*\n|"(?:[^"\\]|\\.)*"|\+))+)\s*;/);
 if (!m) { console.log('FAIL nie znaleziono LiveDarkCss'); process.exit(1); }
 const css = [...m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(x => JSON.parse('"' + x[1] + '"')).join('');
 

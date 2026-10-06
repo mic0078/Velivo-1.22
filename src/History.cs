@@ -11,7 +11,7 @@ using System.Windows.Media;
 namespace Przegladarka
 {
     // Historia pogrupowana jak w Chrome: dzien -> sesja (jedno uruchomienie przegladarki) -> strony.
-    // Plik historia.txt: czas \t adres \t tytul \t sesja  (starsze wpisy bez sesji dzielimy po 30 min przerwy).
+    // Plik historia.txt: czas \t adres \t tytul \t sesja (znacznik uruchomienia - zostaje w formacie pliku: synchronizacja LAN ze starszymi wersjami).
     public partial class MainWindow
     {
         static readonly string SessionId = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
@@ -34,15 +34,12 @@ namespace Przegladarka
             public int Line;          // numer linii w pliku (do usuwania)
             public List<int> Lines = new List<int>(); // ta linia + zwiniete odswiezenia tej samej strony
             public DateTime Time;     // ostatnia wizyta (po zwinieciu odswiezen)
-            public DateTime Start;    // pierwsza wizyta
-            public string Url, Title, Session;
+            public string Url, Title;
             public string Host
             {
                 get { Uri u; return Uri.TryCreate(Url, UriKind.Absolute, out u) ? u.Host : Url; }
             }
         }
-
-        sealed class HistSession { public string Key; public List<HistEntry> Entries = new List<HistEntry>(); }
 
         static List<HistEntry> LoadHistory()
         {
@@ -58,35 +55,11 @@ namespace Przegladarka
                     DateTime t;
                     if (p.Length < 2 || !DateTime.TryParseExact(p[0], new[] { "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm" },
                             CultureInfo.InvariantCulture, DateTimeStyles.None, out t)) continue;
-                    list.Add(new HistEntry { Line = n, Time = t, Url = p[1], Title = p.Length > 2 ? p[2] : "", Session = p.Length > 3 ? p[3] : null });
+                    list.Add(new HistEntry { Line = n, Time = t, Url = p[1], Title = p.Length > 2 ? p[2] : "" });
                 }
             }
             catch (IOException) { }
             return list;
-        }
-
-        // Sesje w obrebie dnia: wg zapisanego numeru sesji, a dla starych wpisow - przerwa > 30 minut.
-        static List<HistSession> SplitSessions(IEnumerable<HistEntry> dayEntries)
-        {
-            var sessions = new List<HistSession>();
-            HistSession cur = null; HistEntry prev = null;
-            foreach (var e in dayEntries.OrderBy(x => x.Time).ThenBy(x => x.Line))
-            {
-                bool newSession = cur == null ||
-                    (e.Session != null ? e.Session != cur.Key : (prev.Session != null || (e.Time - prev.Time).TotalMinutes > 30));
-                if (newSession) { cur = new HistSession { Key = e.Session ?? ("~" + e.Time.Ticks) }; sessions.Add(cur); }
-                // kolejne odswiezenia tej samej strony pokazujemy raz (najnowszy czas, wszystkie linie do usuwania)
-                var shownPrev = cur.Entries.Count > 0 ? cur.Entries[cur.Entries.Count - 1] : null;
-                if (!newSession && shownPrev != null && shownPrev.Url == e.Url)
-                {
-                    shownPrev.Lines.Add(e.Line); shownPrev.Time = e.Time; prev = e; continue;
-                }
-                e.Lines.Clear(); e.Lines.Add(e.Line); e.Start = e.Time;
-                cur.Entries.Add(e); prev = e;
-            }
-            sessions.Reverse();
-            foreach (var s in sessions) s.Entries.Reverse();
-            return sessions;
         }
 
         static void DeleteHistoryLines(ICollection<int> lines)
@@ -178,7 +151,7 @@ namespace Przegladarka
                     var pages = day.GroupBy(h => h.Url).Select(g =>
                     {
                         var newest = g.OrderByDescending(x => x.Time).First();
-                        return new HistEntry { Url = g.Key, Title = g.Select(x => x.Title).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "", Time = newest.Time, Start = g.Min(x => x.Time), Lines = g.Select(x => x.Line).ToList(), Line = g.Count() };
+                        return new HistEntry { Url = g.Key, Title = g.Select(x => x.Title).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "", Time = newest.Time, Lines = g.Select(x => x.Line).ToList(), Line = g.Count() };
                     }).ToList();
                     var sites = pages.GroupBy(h => SiteName(h.Host)).OrderByDescending(g => g.Max(x => x.Time)).ToList();
                     var dayItem = new TreeViewItem

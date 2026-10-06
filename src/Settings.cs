@@ -294,13 +294,6 @@ namespace Przegladarka
                 includeHistoryFile);
         }
 
-        async System.Threading.Tasks.Task ClearBrowsingDataFull(CoreWebView2Profile profile)
-        {
-            await ClearBrowsingData(profile,
-                CoreWebView2BrowsingDataKinds.AllProfile & ~CoreWebView2BrowsingDataKinds.Settings,
-                true);
-        }
-
         void Settings_Click(object sender, RoutedEventArgs e)
         {
             var s = _settings;

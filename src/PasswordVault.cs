@@ -684,35 +684,6 @@ namespace Przegladarka
             return v;
         }
 
-        static List<string> ParseCsvLine(string line, char sep)
-        {
-            var outList = new List<string>();
-            if (line == null) { outList.Add(""); return outList; }
-            var sb = new StringBuilder();
-            bool inQuotes = false;
-            for (int i = 0; i < line.Length; i++)
-            {
-                char c = line[i];
-                if (inQuotes)
-                {
-                    if (c == '\"')
-                    {
-                        if (i + 1 < line.Length && line[i + 1] == '\"') { sb.Append('\"'); i++; }
-                        else inQuotes = false;
-                    }
-                    else sb.Append(c);
-                }
-                else
-                {
-                    if (c == '\"') inQuotes = true;
-                    else if (c == sep) { outList.Add(sb.ToString()); sb.Clear(); }
-                    else sb.Append(c);
-                }
-            }
-            outList.Add(sb.ToString());
-            return outList;
-        }
-
         // Caly plik jako rekordy CSV - pola w cudzyslowie moga zawierac nowe linie
         // (np. notatki z KeePassXC), wiec nie wolno dzielic pliku na linie przed parsowaniem.
         static List<List<string>> ParseCsvRecords(string text, char sep)
@@ -821,11 +792,6 @@ namespace Przegladarka
             if (stored == "localhost" || stored.Contains('.')) return stored;
             // wpisy z telefonu/KeePassXC bez adresu: domena z pola Nazwa (np. "connect.presonus.com")
             return DeriveWebHost(entry.Name, entry.Url);
-        }
-
-        static string CompactPasswordIdentity(string value)
-        {
-            return new string((value ?? "").Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
         }
 
         static bool PasswordEntryMatchesHost(SavedPasswordEntry entry, string host)
@@ -1207,150 +1173,6 @@ namespace Przegladarka
                                     }
                                     await System.Threading.Tasks.Task.Delay(350);
                                 }
-                        }
-                        catch (Exception ex) { App.LogError(ex); }
-                }
-
-                async System.Threading.Tasks.Task InjectPasswordIcons(CoreWebView2 core)
-                {
-                        try
-                        {
-                                if (core == null) return;
-                                var host = NormalizeHostForMatch(HostFromAnyUrl(core.Source));
-                                if (host.Length == 0) return;
-                                var creds = FindPasswordsForHost(host).Select(x => new { u = x.Username ?? "", p = x.Password ?? "" }).Take(24).ToList();
-                                var credsJson = JsonSerializer.Serialize(creds);
-
-                                var js = @"(() => {
-                    const creds = " + credsJson + @";
-                    if (!Array.isArray(creds)) return;
-
-                    if (!document.getElementById('__velivoPwdIconsStyle')) {
-                        const st = document.createElement('style');
-                        st.id = '__velivoPwdIconsStyle';
-                        st.textContent = '.velivo-pwd-panel{position:fixed;z-index:2147483647;display:none;gap:6px;align-items:center;background:rgba(16,24,40,.95);border:1px solid #334155;border-radius:10px;padding:4px;box-shadow:0 6px 22px rgba(0,0,0,.28);}'+
-                                         '.velivo-pwd-btn{border:1px solid #475569;background:#f8fafc;color:#0f172a;border-radius:8px;padding:2px 8px;font-size:12px;line-height:16px;cursor:pointer;}'+
-                                         '.velivo-pwd-btn[disabled]{opacity:.45;cursor:default;}';
-                        document.documentElement.appendChild(st);
-                    }
-
-                    let panel = document.getElementById('__velivoPwdPanel');
-                    if (!panel) {
-                        panel = document.createElement('div');
-                        panel.id = '__velivoPwdPanel';
-                        panel.className = 'velivo-pwd-panel';
-                        panel.innerHTML = '<button type=button class=velivo-pwd-btn data-v=fill title=Wypelnij_z_bazy_Velivo>🔑</button><button type=button class=velivo-pwd-btn data-v=gen title=Wygeneruj_haslo>⚡</button>';
-                        document.documentElement.appendChild(panel);
-                    }
-
-                    function fire(el){ if(!el) return; el.dispatchEvent(new Event('input',{bubbles:true,composed:true})); el.dispatchEvent(new Event('change',{bubbles:true,composed:true})); }
-                    function setVal(el, v){ if(!el) return; const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; const set = Object.getOwnPropertyDescriptor(proto,'value')?.set; if(set) set.call(el,v); else el.value=v; fire(el); }
-                    function gen(len){ const chars='abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*()-_=+[]{};:,.?'; let out=''; for(let i=0;i<len;i++) out += chars[Math.floor(Math.random()*chars.length)]; return out; }
-
-                    function inFormInputs(ref){
-                        const root = ref?.form || document;
-                        return Array.from(root.querySelectorAll('input:not([type=hidden]), textarea'));
-                    }
-                    function findPassByContext(ref){
-                        if (!ref) return null;
-                        if (ref.type === 'password' || /password/i.test(ref.autocomplete || '')) return ref;
-                        const arr = inFormInputs(ref);
-                        return arr.find(i => i.type === 'password' || /password/i.test(i.autocomplete || '')) || null;
-                    }
-                    function findUser(pass){
-                        const root = pass?.form || document;
-                        const arr = Array.from(root.querySelectorAll('input:not([type=hidden])')).filter(x => x !== pass);
-                        return arr.find(i => /username|email|login|user/i.test(`${i.name} ${i.id} ${i.autocomplete} ${i.type}`)) || arr.find(i => i.type === 'email' || i.type === 'text') || null;
-                    }
-
-                    let activePass = null;
-                    let activeAnchor = null;
-
-                    function velivoFieldRect(el){
-                        // prawa krawedz CALEGO pola: strony trzymaja w ramce obok inputu wlasne przyciski (Pokaz/Ukryj, klodka) -
-                        // panel Velivo stawiamy dopiero za ramka, zeby ich nie zaslanial
-                        let r = el.getBoundingClientRect(); let right = r.right, bottom = r.bottom;
-                        let c = el.parentElement;
-                        for (let i = 0; i < 5 && c; i++, c = c.parentElement) {
-                            const cr = c.getBoundingClientRect();
-                            if (cr.height > r.height + 48 || cr.width > r.width + 220 || cr.left > r.left + 2) break;
-                            right = Math.max(right, cr.right); bottom = Math.max(bottom, cr.bottom);
-                        }
-                        return { left: r.left, top: r.top, width: right - r.left, height: r.height, right: right, bottom: bottom };
-                    }
-
-                    function placePanel(anchor){
-                        if (!anchor) { panel.style.display = 'none'; return; }
-                        const r = velivoFieldRect(anchor);
-                        if (!r || !isFinite(r.top) || r.width < 2 || r.height < 2) { panel.style.display = 'none'; return; }
-                        panel.style.display = 'inline-flex';
-                        const pw = panel.getBoundingClientRect().width || 112;
-                        const ph = panel.getBoundingClientRect().height || 28;
-                        // obok pola po prawej (nie na polu - tam bywaja ikony innych programow, np. sejfu);
-                        // gdy brak miejsca - pod polem
-                        let top, left;
-                        if (r.right + 6 + pw <= window.innerWidth - 6) { left = r.right + 6; top = r.top + (r.height - ph) / 2; }
-                        else { left = r.right - pw; top = r.bottom + 4; }
-                        panel.style.top = `${Math.max(6, Math.min(window.innerHeight - ph - 4, top))}px`;
-                        panel.style.left = `${Math.max(6, Math.min(window.innerWidth - pw - 6, left))}px`;
-                    }
-
-                    function refreshState(anchorEl){
-                        activeAnchor = anchorEl || document.activeElement;
-                        activePass = findPassByContext(activeAnchor);
-                        const fillBtn = panel.querySelector('[data-v=fill]');
-                        if (fillBtn) {
-                            fillBtn.disabled = creds.length === 0 || !activePass;
-                            fillBtn.title = creds.length === 0 ? 'Brak zapisanych haseł dla tej domeny' : 'Wypełnij z bazy Velivo';
-                        }
-                        placePanel(activeAnchor && activePass ? activeAnchor : null);
-                    }
-
-                    panel.onclick = (ev) => {
-                        const btn = ev.target && ev.target.closest('button[data-v]');
-                        if (!btn || !activePass) return;
-                        if (btn.dataset.v === 'fill') {
-                            const u = findUser(activePass);
-                            const current = (u?.value || '').trim().toLowerCase();
-                            const picked = creds.find(c => current && (c.u||'').trim().toLowerCase() === current) || creds[0] || null;
-                            if (!picked) return;
-                            if (u && picked.u) setVal(u, picked.u);
-                            setVal(activePass, picked.p || '');
-                            try {
-                                const uu = u ? (u.value || '') : '';
-                                const pp = activePass.value || '';
-                                if (pp) window.__velivoPwdCandidate = JSON.stringify({ username: uu, password: pp, url: location.href, source: 'icon-fill' });
-                            } catch(e) {}
-                            return;
-                        }
-                        if (btn.dataset.v === 'gen') {
-                            const v = gen(16);
-                            setVal(activePass, v);
-                            const u = findUser(activePass);
-                            const uu = u ? (u.value || '') : '';
-                            try { window.__velivoPwdCandidate = JSON.stringify({ username: uu, password: v, url: location.href, source: 'generator' }); } catch(e) {}
-                        }
-                    };
-
-                    document.addEventListener('focusin', (ev) => {
-                        const el = ev.target;
-                        if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) { panel.style.display = 'none'; return; }
-                        refreshState(el);
-                    }, true);
-
-                    document.addEventListener('click', (ev) => {
-                        const el = ev.target;
-                        if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
-                        refreshState(el);
-                    }, true);
-
-                    window.addEventListener('scroll', () => placePanel(activeAnchor && activePass ? activeAnchor : null), true);
-                    window.addEventListener('resize', () => placePanel(activeAnchor && activePass ? activeAnchor : null), true);
-
-                    refreshState(document.activeElement);
-                })();";
-
-                                await core.ExecuteScriptAsync(js);
                         }
                         catch (Exception ex) { App.LogError(ex); }
                 }

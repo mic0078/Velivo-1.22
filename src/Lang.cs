@@ -519,8 +519,6 @@ namespace Przegladarka
             { "Brak aktywnych peerów.", "No active peers." },
             { "Nie udało się uruchomić WebView2:\n", "Could not start WebView2:\n" },
             { "Nie udało się otworzyć karty.\nJeśli działa jeszcze starsza wersja Velivo, zamknij ją i spróbuj ponownie.\n\n", "Could not open the tab.\nIf an older version of Velivo is still running, close it and try again.\n\n" },
-            { "Wykryto media do pobrania na stronie: ", "Downloadable media detected on the page: " },
-            { "Pokaż", "Show" },
             { "Zamknij", "Close" },
             { "Na YouTube Velivo nie udostępnia pobierania wideo/audio.\n\n", "Velivo does not offer video/audio downloads on YouTube.\n\n" },
             { "Na innych stronach (bez DRM) wykrywanie i pobieranie działa normalnie.", "On other sites (without DRM) detection and downloading work normally." },

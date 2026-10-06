@@ -73,17 +73,6 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); }
         }
 
-        static string HostFromUrl(string url)
-        {
-            try
-            {
-                Uri u;
-                if (Uri.TryCreate(url, UriKind.Absolute, out u)) return (u.Host ?? "").ToLowerInvariant();
-            }
-            catch (Exception) { }
-            return "";
-        }
-
         // Skrypt formularzy: rozpoznaje pola adresu, karty i konta bankowego. Gdy klikniesz puste pole - prosi Velivo
         // o dane tego rodzaju (dane nie siedza na stronie na zapas); przy wysylaniu formularza - proponuje zapis.
         // Dziala tez w kartach prywatnych; zapis zawsze dopiero po pytaniu.

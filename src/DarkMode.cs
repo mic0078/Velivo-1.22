@@ -161,7 +161,9 @@ namespace Przegladarka
                     var fix = System.Text.Json.JsonSerializer.Serialize(LiveDarkCss);
                     var check = "(function(){function run(){try{var h=document.documentElement;if(!h||document.getElementById('velivo-ciemny-wymuszony'))return;" +
                         "var cs=getComputedStyle(h).colorScheme||'';var me=document.querySelector('meta[name=color-scheme]');" +
-                        "if(!/dark/.test(cs)&&!(me&&/dark/.test(me.content||'')))return;" +
+                        // uzywany schemat: wlasciwosc CSS color-scheme wygrywa z meta (meta tylko gdy CSS = normal);
+                        // "light" = silnik juz przyciemnil strone - drugie odwrocenie zrobiloby ja z powrotem jasna
+                        "var eff=(cs&&cs!=='normal')?cs:(me?me.content||'':'');if(!/dark/.test(eff))return;" +
                         "var els=[document.body,h],lum=1;for(var i=0;i<els.length;i++){if(!els[i])continue;var m=getComputedStyle(els[i]).backgroundColor.match(/[\\d.]+/g);" +
                         "if(!m||m.length<3||(m.length>3&&parseFloat(m[3])<.5))continue;lum=(0.299*m[0]+0.587*m[1]+0.114*m[2])/255;break;}" +
                         "if(lum<.6)return;var st=document.createElement('style');st.id='velivo-ciemny-wymuszony';st.textContent=" + fix + ";(document.head||h).appendChild(st);}catch(e){}}" +

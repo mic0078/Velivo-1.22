@@ -958,6 +958,7 @@ namespace Przegladarka
             win.ShowDialog();
             if (!themeSaved && _settings.Theme != origTheme) { _settings.Theme = origTheme; ApplyBrowserTheme(); }   // zamknieto bez zapisu
             if (darkChanged) foreach (var t in _tabs) ApplyLiveDarkCss(t.View.CoreWebView2); // od razu, bez restartu
+            if (darkChanged) OfferRestartForDarkMode();   // pelny tryb ciemny (silnik) dziala dopiero po ponownym uruchomieniu - pytamy
         }
     }
 }

@@ -106,6 +106,18 @@ namespace Przegladarka
       st.pending = { seq: ++st.seq, i: st.i, text: it.text, next: nx ? nx.text : '' };
       return;
     }
+    // wybrany glos: silnik czesto podaje liste glosow z opoznieniem (pierwsze getVoices() = pusta lista) -
+    // szukamy go jeszcze raz, a gdy listy wciaz nie ma, czekamy na nia chwile, zamiast czytac glosem domyslnym
+    if (st.voiceName && (!st.voice || st.voice.name !== st.voiceName)) {
+      const v = S.getVoices().find(x => x.name === st.voiceName);
+      if (v) st.voice = v;
+      else if (!st.waited) {
+        st.waited = true;
+        const go = () => { if (S.onvoiceschanged === go) S.onvoiceschanged = null; if (st.active && !st.paused) speakNext(); };
+        S.onvoiceschanged = go; setTimeout(() => { if (S.onvoiceschanged === go) go(); }, 1500);
+        return;
+      }
+    }
     const u = new SpeechSynthesisUtterance(it.text);
     u.rate = st.rate; u.volume = st.volume; if (st.voice) u.voice = st.voice; u.lang = st.voice ? st.voice.lang : 'pl-PL';
     u.onend = () => { if (!st.active || st.paused) return; st.i++; speakNext(); };
@@ -117,7 +129,7 @@ namespace Przegladarka
       S.cancel(); unmark();
       const voices = S.getVoices();
       st.lang = (document.documentElement.lang || '').toLowerCase();
-      st.voice = pickVoice(voices, voiceName);
+      st.voice = pickVoice(voices, voiceName); st.voiceName = voiceName || ''; st.waited = false;
       st.rate = rate; st.i = 0; st.paused = false;
       const sel = getSelection(); const selText = sel ? sel.toString().replace(/\s+/g, ' ').trim() : '';
       let blocks;
@@ -139,7 +151,7 @@ namespace Przegladarka
       if (!node) return 0;
       S.cancel(); unmark();
       const voices = S.getVoices();
-      st.voice = pickVoice(voices, voiceName);
+      st.voice = pickVoice(voices, voiceName); st.voiceName = voiceName || ''; st.waited = false;
       st.rate = rate; st.paused = false;
       const blocks = collect(mainRoot());
       st.items = [];

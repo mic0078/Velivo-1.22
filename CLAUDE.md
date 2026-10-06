@@ -12,7 +12,7 @@
 
 ## Procedura poprawki
 1. Najpierw test odtwarzający problem (wynik „przed poprawką”).
-2. Minimalna poprawka – bez zmian „na wszelki wypadek”.
+2. Minimalna poprawka – bez zmian „na wszelki wypadek”. Poprawiaj istniejący kod w miejscu (nadpisuj), nie dopisuj nowej wersji obok starej – żadnego martwego kodu.
 3. Test „po poprawce” + istniejące testy bezpieczeństwa.
 4. Uczciwy raport: co sprawdzone, a czego nie.
 

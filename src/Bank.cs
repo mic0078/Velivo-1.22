@@ -339,6 +339,8 @@ namespace Przegladarka
             fillLogin.Click += (s, e) => BankFillLoginMenu();
             var partial = new MenuItem { Header = L.T("🔢 Wpisz wybrane znaki (passcode / hasło, np. RBS, NatWest)") };
             partial.Click += (s, e) => BankFillPartialMenu();
+            var transfer = new MenuItem { Header = L.T("💸 Wypełnij przelew na tej stronie (odbiorca z Rachunków bankowych)") };
+            transfer.Click += (s, e) => BankFillTransferMenu();
             var diag = new MenuItem { Header = L.T("🧪 Skopiuj opis formularza logowania (bez Twoich danych)") };
             diag.Click += async (s, e) => await BankCopyFormDiag();
             var backup = new MenuItem { Header = L.T("💾 Kopia zapasowa bazy…") };
@@ -351,12 +353,12 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(sheet); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(sheet); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(transfer); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 // dodac strone mozna z kazdej karty (takze zwyklej) - gdy tryb zamkniety, najpierw klucz / haslo
                 addSite.IsEnabled = _current != null && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
                 addShop.IsEnabled = addSite.IsEnabled;
-                fillLogin.IsEnabled = fill.IsEnabled; partial.IsEnabled = fill.IsEnabled; diag.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
+                fillLogin.IsEnabled = fill.IsEnabled; partial.IsEnabled = fill.IsEnabled; transfer.IsEnabled = fill.IsEnabled; diag.IsEnabled = fill.IsEnabled; search.IsEnabled = _bankUnlocked && _bankKey != null;
                 log.IsEnabled = _bankUnlocked; backup.IsEnabled = BankProfiles().Count > 0;
                 profMenu.Items.Clear();
                 foreach (var p in BankProfiles())
@@ -1325,7 +1327,7 @@ if(el.type==='password')r.login=true;
 else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|customer|klient|ident/.test(a))r.login=true;});});
 }catch(x){}return JSON.stringify(r);})()";
 
-        sealed class BankPageKinds { public bool login { get; set; } public bool partial { get; set; } public bool card { get; set; } }
+        sealed class BankPageKinds { public bool login { get; set; } public bool partial { get; set; } public bool card { get; set; } public bool transfer { get; set; } }
 
         async void OfferBankFill(BrowserTab tab)
         {
@@ -1362,10 +1364,13 @@ else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|custom
                     int positions;
                     int.TryParse(JsonSerializer.Deserialize<string>(await core.ExecuteScriptAsync(PartialFillScript.Replace("__D__", "{pin:'',pwd:'',mem:'',count:true}"))), out positions);
                     kinds.partial = positions >= 2;   // co najmniej 2 rozne numery znakow (np. 2., 5. i 7.) - nie kod SMS ani reguly hasla
+                    int accFields;   // formularz przelewu: pole rachunku i kwota / odbiorca / tytul (logowanie numerem konta to nie przelew)
+                    int.TryParse(JsonSerializer.Deserialize<string>(await core.ExecuteScriptAsync(TransferFillScript.Replace("__D__", "{count:true}"))), out accFields);
+                    kinds.transfer = accFields > 0;
                 }
-                if (kinds.login || kinds.partial || kinds.card) break;
+                if (kinds.login || kinds.partial || kinds.card || kinds.transfer) break;
             }
-            if (kinds == null || !(kinds.login || kinds.partial || kinds.card)) return false;
+            if (kinds == null || !(kinds.login || kinds.partial || kinds.card || kinds.transfer)) return false;
             var c = LoadBank(); if (c == null) return false;
             var now = tab.View.CoreWebView2;   // po rozpoznawaniu (await) karta nadal na tej samej stronie?
             if (!_tabs.Contains(tab) || now == null || (now.Source ?? "").Split('#')[0] != pageKey) return false;
@@ -1394,6 +1399,12 @@ else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|custom
                     offers.Add(new KeyValuePair<string, Action>(L.T("🔢 Wpisz wybrane znaki") + " – " + acc.Label, () => { _ = RunPartialFill(pin, acc.Pass, mem, host); }));
                 }
             }
+            if (kinds.transfer)   // odbiorce wybierasz sam - zawsze po kliknieciu
+                foreach (var a in LoadSealed<BankItem>(c.Accounts).Where(x => x.Get("number").Length > 0).Take(5))
+                {
+                    var acc = a;
+                    offers.Add(new KeyValuePair<string, Action>(L.T("💸 Przelew do: ") + acc.Get("name"), () => { _ = BankFillTransfer(acc, host); }));
+                }
             if (kinds.card)
             {
                 var cards = LoadCards(c);
@@ -1417,6 +1428,93 @@ document.addEventListener('paste',function(e){var el=e.target;setTimeout(functio
 document.addEventListener('change',function(e){check(e.target);},true);}catch(x){}})();";
 
         sealed class AcctMessage { public string v { get; set; } public bool hint { get; set; } }
+
+        // Formularz przelewu: rachunek, sort code (1 pole albo 3 po 2 cyfry), odbiorca, kwota, tytul - pola rozpoznawane po
+        // podpisach. d.count = tylko liczba pol rachunku (formularz z kwota / odbiorca / tytulem), d.h = strona, dla ktorej dane.
+        const string TransferFillScript = @"(function(d){var n=0;try{
+if(d.h&&location.hostname.toLowerCase()!==String(d.h).toLowerCase())return '0';
+var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
+function vis(el){var b=el.getBoundingClientRect();return b.width>0&&b.height>0&&!el.disabled&&!el.readOnly;}
+function lab(el,doc){var t=[el.getAttribute('autocomplete')||'',el.name||'',el.id||'',el.getAttribute('placeholder')||'',el.getAttribute('aria-label')||''];
+if(el.id){var l=doc.querySelector('label[for='+JSON.stringify(el.id)+']');if(l)t.push(l.textContent||'');}
+var cl=el.closest('label');if(cl)t.push(cl.textContent||'');
+var lb=el.getAttribute('aria-labelledby');if(lb)lb.split(/\s+/).forEach(function(i){var e=doc.getElementById(i);if(e)t.push(e.textContent||'');});
+return t.join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u0142/g,'l');}
+function kindOf(a){if(/cc-|card|karty|cvv|cvc|expir|pass|hasl|pin\b/.test(a))return null;
+if(/sort.?code|sortcode/.test(a))return 'sort';
+if(/iban|nrb|account.?(no|num)|accountnumber|acc.?no|numer.?(rachunku|konta)|nr.?(rachunku|konta)|rachun|konto/.test(a)&&!/name|nazwa/.test(a))return 'acc';
+if(/payee|beneficiar|recipient|odbiorc|account.?name|name.?on.?account/.test(a)&&!/adres|address|ulica|street|miasto|city|post|kraj|country/.test(a))return 'name';
+if(/amount|kwota/.test(a))return 'amount';
+if(/reference|tytul|title|opis|description/.test(a))return 'ref';return null;}
+function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
+el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));el.dispatchEvent(new Event('blur',{bubbles:true}));n++;}
+function fit(x,v){var el=x.el;v=String(v||'');var c=v.replace(/[\s\-.]/g,'').toUpperCase();
+if(!/iban/.test(x.a)){if(/^PL\d{26}$/.test(c))return c.slice(2);if(/^GB\d{2}[A-Z]{4}\d{14}$/.test(c))return c.slice(-8);}
+return el.maxLength>0&&v.length>el.maxLength?c:v;}
+docs.forEach(function(doc){
+var f={acc:[],sort:[],name:[],amount:[],ref:[]};
+Array.prototype.slice.call(doc.querySelectorAll('input,textarea')).filter(vis).filter(function(el){return el.tagName==='TEXTAREA'||/^(text|tel|number|search|)$/.test(el.type||'');})
+.forEach(function(el){var a=lab(el,doc),k=kindOf(a);if(k)f[k].push({el:el,a:a});});
+if(d.count){if(f.amount.length||f.name.length||f.ref.length)n+=f.acc.length;return;}
+f.acc.forEach(function(x){set(x.el,fit(x,d.number));});
+f.name.slice(0,1).forEach(function(x){set(x.el,d.name);});
+f.amount.slice(0,1).forEach(function(x){set(x.el,d.amount);});
+f.ref.slice(0,1).forEach(function(x){set(x.el,d.ref);});
+var s=String(d.sort||'').replace(/\D/g,''),so=f.sort.map(function(x){return x.el;});
+if(s.length===6&&so.length===3){set(so[0],s.slice(0,2));set(so[1],s.slice(2,4));set(so[2],s.slice(4,6));}
+else if(s.length===6&&so.length)set(so[0],so[0].maxLength>0&&so[0].maxLength<8?s:s.slice(0,2)+'-'+s.slice(2,4)+'-'+s.slice(4,6));
+});}catch(x){}return String(n);})(__D__);";
+
+        // Sort code do formularza: z pola "Sort code / BIC" (gdy to 6 cyfr), a gdy tam BIC albo pusto - z IBAN GB (cyfry 9-14).
+        internal static string SortCodeFor(string sortField, string number)
+        {
+            var digits = new string((sortField ?? "").Where(ch => ch >= '0' && ch <= '9').ToArray());
+            if (digits.Length == 6 && (sortField ?? "").Trim().All(ch => (ch >= '0' && ch <= '9') || ch == '-' || ch == ' ')) return digits;
+            var acc = CanonicalAccount(number);
+            return acc != null && acc.Length == 22 && acc.StartsWith("GB", StringComparison.Ordinal) ? acc.Substring(8, 6) : "";
+        }
+
+        // Przelew do odbiorcy z Rachunkow bankowych; kwota i numer klienta z Rachunku do oplacenia o tej samej nazwie.
+        async Task BankFillTransfer(BankItem acc, string host)
+        {
+            var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
+            if (core == null || host == null || _bankKey == null) return;
+            var c = LoadBank(); if (c == null) return;
+            var name = acc.Get("name").Trim();
+            var bill = LoadSealed<BankItem>(c.Bills).FirstOrDefault(b => name.Length > 0 && string.Equals(b.Get("name").Trim(), name, StringComparison.OrdinalIgnoreCase));
+            var data = JsonSerializer.Serialize(new
+            {
+                number = acc.Get("number"),
+                sort = SortCodeFor(acc.Get("sort"), acc.Get("number")),
+                name = acc.Get("owner").Length > 0 ? acc.Get("owner") : name,
+                amount = bill != null ? bill.Get("amount") : "",
+                @ref = bill != null && bill.Get("customer").Length > 0 ? bill.Get("customer") : acc.Get("note"),
+                h = host
+            });
+            string r = "0";
+            try { r = await core.ExecuteScriptAsync(TransferFillScript.Replace("__D__", data)); } catch (Exception) { }
+            int filled; int.TryParse((r ?? "0").Trim('"'), out filled);
+            ShowToast(filled > 0 ? L.T("💸 Wpisano dane przelewu: ") + name + L.T(" – sprawdź odbiorcę i kwotę przed zatwierdzeniem.")
+                : L.T("Nie rozpoznano pól przelewu na tej stronie."), null);
+        }
+
+        void BankFillTransferMenu()
+        {
+            if (_current == null || !_current.Bank || _bankKey == null) return;
+            var host = HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
+            var c = LoadBank(); if (c == null || host == null) return;
+            var accs = LoadSealed<BankItem>(c.Accounts).Where(x => x.Get("number").Length > 0).ToList();
+            if (accs.Count == 0) { BankItems("acc"); return; }   // brak odbiorcow - okno Rachunkow bankowych
+            var menu = new ContextMenu { PlacementTarget = _bankBtn };
+            foreach (var a in accs)
+            {
+                var acc = a;
+                var it = new MenuItem { Header = "💸 " + acc.Get("name") };
+                it.Click += async (s, e) => await BankFillTransfer(acc, host);
+                menu.Items.Add(it);
+            }
+            menu.IsOpen = true;
+        }
 
         // Numer rachunku w jednej postaci (wielkie litery, bez spacji, kropek, myslnikow); polski NRB (26 cyfr) = IBAN PL;
         // brytyjski numer konta = 8 cyfr. null = to nie numer rachunku.
@@ -2395,6 +2493,7 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 • Dane skojarzone ze stroną: na stronie z Twojej bazy Velivo samo wpisuje login, hasło i wybrane znaki (gdy pasuje jedno konto; formularza nie wysyła). Kilka kont – wybór jednym kliknięciem; karta płatnicza – zawsze po kliknięciu. Wyłączysz to w Ustawieniach trybu bankowego.
 • Izolacja: w trybie bankowym działa tylko jego zaszyfrowana baza – zwykłe hasła i autouzupełnianie przeglądarki nie są tu podpowiadane ani zapisywane.
 • Strażnik przelewu: wklejony lub wpisany numer rachunku Velivo sprawdza (suma kontrolna IBAN/NRB) i porównuje z Twoimi Rachunkami bankowymi – literówka, numer podmieniony w schowku albo obcy odbiorca widać od razu.
+• Przelew z bazy: na formularzu przelewu Velivo proponuje odbiorców z Rachunków bankowych – wpisuje odbiorcę, numer, sort code i tytuł, a kwotę i numer klienta z Rachunku do opłacenia o tej samej nazwie. Zatwierdzasz zawsze sam.
 
 5. SYNCHRONIZACJA
 Banki, sklepy, karty, notatki i ustawienia trybu przechodzą na sparowane komputery (zaszyfrowane). Logowania w bankach (ciasteczka) zostają na każdym komputerze osobno.
@@ -2450,6 +2549,7 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 • Data linked to the page: on a page from your vault Velivo fills in the login, password and selected characters by itself (when one account matches; the form is not submitted). Several accounts – choose with one click; payment card – always after a click. You can turn this off in Bank mode settings.
 • Isolation: bank mode uses only its own encrypted vault – the browser's regular passwords and autofill are neither suggested nor saved here.
 • Transfer guard: a pasted or typed account number is checked (IBAN/NRB checksum) and compared with your Bank accounts – a typo, a number swapped in the clipboard or an unknown payee shows up at once.
+• Transfer from the vault: on a transfer form Velivo offers payees from your Bank accounts – fills in the payee, number, sort code and reference, and the amount and customer number from the Bill with the same name. You always confirm it yourself.
 
 5. SYNC
 Banks, shops, cards, notes and settings go to paired computers (encrypted). Bank logins (cookies) stay on each computer.

@@ -45,4 +45,15 @@ public class TransferGuardTests
         Assert.False(MainWindow.SameAccount("98765432", "DE89370400440532013000"));   // koncowka liczy sie tylko dla IBAN GB
         Assert.False(MainWindow.SameAccount(null, "12345678"));
     }
+
+    [Theory]
+    [InlineData("12-34-56", "", "123456")]                                  // sort code z pola
+    [InlineData("12 34 56", "98765432", "123456")]
+    [InlineData("", "GB82WEST12345698765432", "123456")]                    // brak - z IBAN GB (cyfry 9-14)
+    [InlineData("NWBKGB2L", "GB29NWBK60161331926819", "601613")]            // w polu BIC - sort code z IBAN GB
+    [InlineData("BPKOPLPW", "PL61109010140000071219812874", "")]            // polski rachunek - bez sort code
+    public void Sort_code_do_formularza_przelewu(string pole, string numer, string oczekiwany)
+    {
+        Assert.Equal(oczekiwany, MainWindow.SortCodeFor(pole, numer));
+    }
 }

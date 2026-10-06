@@ -86,8 +86,7 @@ namespace Przegladarka
         sealed class BankConfig
         {
             public string Owner { get; set; }      // nazwa profilu bankowego (np. imie uzytkownika)
-            public int IdleMinutes { get; set; } = 10;
-            public bool AllowCapture { get; set; }   // true = nie ukrywaj okna przed nagrywaniem (gdy na danym komputerze przycina)   // blokada po bezczynnosci (minuty)
+            public int IdleMinutes { get; set; } = 10;   // blokada po bezczynnosci (minuty)
             public List<BankLogEntry> Log { get; set; } = new List<BankLogEntry>();   // dziennik otwarc (bez danych wrazliwych)
             public string Salt { get; set; }
             public string Hash { get; set; }
@@ -389,7 +388,6 @@ namespace Przegladarka
         }
 
         int _bankIdleMinutes = 10;
-        bool _bankAllowCapture;
         readonly Dictionary<string, Window> _bankTools = new Dictionary<string, Window>();
 
         // Notatki i wyszukiwarka jako zwykle okienka (nie blokuja strony) - mozna przepisywac znaki do formularza banku
@@ -1428,7 +1426,7 @@ else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|custom
             public string Get(string k) { string v; return F != null && F.TryGetValue(k, out v) ? v ?? "" : ""; }
         }
         sealed class ItemField { public string Key, Label; public bool Secret, Date; public string[] Choices; }
-        sealed class ItemDef { public string Title, Icon, Store; public ItemField[] Fields; }
+        sealed class ItemDef { public string Title, Icon; public ItemField[] Fields; }
         static ItemField Fd(string k, string label, bool secret = false, bool date = false, string[] choices = null) { return new ItemField { Key = k, Label = label, Secret = secret, Date = date, Choices = choices }; }
 
         static readonly Dictionary<string, ItemDef> ItemDefs = new Dictionary<string, ItemDef>

@@ -108,12 +108,19 @@ jobs:
           Compress-Archive -Path build\velivo\* -DestinationPath Instalator\Velivo-1.22-portable.zip -CompressionLevel Optimal
           Get-Item Instalator\Velivo-1.22-portable.zip | Select-Object Name, Length
 
+      # do testu wystarczy sam instalator - osobna, mala paczka (plik juz skompresowany, bez ponownego pakowania)
       - uses: actions/upload-artifact@v4
         with:
           name: Velivo-Setup-TEST-rozwoj
+          path: Instalator/Velivo-Setup-*.exe
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Velivo-inne-wersje-TEST-rozwoj
           path: |
-            Instalator/Velivo-Setup-*.exe
             Instalator/Velivo-1.22-portable.zip
             Instalator/Velivo-1.22.exe
             build/Velivo-1.22.exe
+          compression-level: 0
       # gałąź robocza: instalator tylko jako artefakt do testów, bez zapisu do repozytorium

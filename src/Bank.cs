@@ -110,6 +110,7 @@ namespace Przegladarka
             public string WrapPK { get; set; }     // czesc z kluczy (Kk) zaszyfrowana Kp - samo haslo (zapasowo, bez klucza) tez otwiera
             public string HmacSalt { get; set; }   // sol dla sekretu z klucza sprzetowego (hmac-secret)
             public long Changed { get; set; }      // ostatnia zmiana DANYCH (ms UTC) - przy synchronizacji LAN wygrywa nowsza; dziennik sie nie liczy
+            [System.Text.Json.Serialization.JsonIgnore] public string LoadedDataKey { get; set; }   // dane z chwili wczytania (LoadBank); null = nowy profil
         }
 
         bool _bankUnlocked, _creatingBank;
@@ -140,7 +141,8 @@ namespace Przegladarka
             using (var g = new AesGcm(key, 16)) g.Decrypt(nonce, ct, tag, plain);
             return plain;
         }
-        string BankWipeFlag { get { return Path.Combine(DataDir, string.IsNullOrEmpty(_bankProfile) ? "bank.wipe" : "bank-" + _bankProfile + ".wipe"); } }
+        string BankWipeFlag { get { return BankWipeFlagFor(BankFile); } }
+        static string BankWipeFlagFor(string bankFile) { return Path.ChangeExtension(bankFile, ".wipe"); }   // bank.wipe / bank-<profil>.wipe
 
         sealed class BankCard { public string Label { get; set; } public string Number { get; set; } public string Exp { get; set; } public string Holder { get; set; } public string Cvv { get; set; } }
 
@@ -195,8 +197,19 @@ namespace Przegladarka
 
         BankConfig LoadBank()
         {
-            return ReadBankCached(BankFile);
+            var c = ReadBankCached(BankFile);
+            if (c != null) c.LoadedDataKey = BankLoadedKey(JsonSerializer.Serialize(c));   // do wykrycia zmian z drugiego komputera przy zapisie
+            return c;
         }
+
+        // Klucz danych profilu w jednym formacie zapisu (jak w pliku po serializacji BankConfig) - bez dziennika i znacznika zmian.
+        internal static string BankLoadedKey(string json)
+        {
+            try { var c = JsonSerializer.Deserialize<BankConfig>(json); return c == null ? "" : BankDataKey(JsonSerializer.Serialize(c)); }
+            catch (JsonException) { return ""; }
+        }
+
+        string BankChangedElsewhere { get { return L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"); } }
 
         // Dziennik otwarc z dwoch zrodel (ten komputer + drugi): bez powtorzen, wg czasu, ostatnie 60 wpisow.
         static List<BankLogEntry> MergeBankLogs(List<BankLogEntry> a, List<BankLogEntry> b)
@@ -236,37 +249,44 @@ namespace Przegladarka
             catch (JsonException) { return json ?? ""; }
         }
 
-        // Zapis profilu bankowego. Zwraca false, gdy c jest nieaktualne: w miedzyczasie (np. podczas okienka odblokowania)
-        // przyszly z drugiego komputera nowsze dane albo profil usunieto - wtedy dane na dysku zostaja (dokladany jest tylko
-        // dziennik), a wolajacy nie moze dalej pracowac na kluczach z c (odblokowanie / ustawienia trzeba powtorzyc).
+        // Zapis profilu bankowego. Zwraca false, gdy c jest nieaktualne (w miedzyczasie przyszly z drugiego komputera inne dane
+        // albo profil usunieto) - wtedy nic nie jest zapisywane, a wolajacy nie moze dalej pracowac na kluczach z c.
         bool SaveBank(BankConfig c)
         {
-            var diskJson = ReadTextOrEmpty(BankFile);
-            BankConfig disk = null;
-            try { if (diskJson.Length > 0) disk = JsonSerializer.Deserialize<BankConfig>(diskJson); } catch (JsonException) { }
-            long deletedAt = ReadBankTombstone(BankFile);
-            if (disk == null && deletedAt > 0 && c.Changed <= deletedAt) { _profCache = null; return false; }   // profil usunieto po wczytaniu c
-            bool stale = disk != null && disk.Changed > c.Changed && BankDataKey(JsonSerializer.Serialize(c)) != BankDataKey(diskJson);
-            string json;
-            if (stale)
-            {
-                disk.Log = MergeBankLogs(disk.Log, c.Log);
-                json = JsonSerializer.Serialize(disk);
-            }
-            else
-            {
-                if (disk != null && disk.Changed > c.Changed) c.Changed = disk.Changed;   // te same dane - przejmujemy nowszy znacznik
-                json = JsonSerializer.Serialize(c);
-                if (BankDataKey(json) != BankDataKey(diskJson))
-                {
-                    c.Changed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();   // zmienily sie dane, nie tylko dziennik
-                    json = JsonSerializer.Serialize(c);
-                }
-            }
-            try { File.WriteAllText(BankFile, json); File.Delete(BankTombstoneFor(BankFile)); } catch (Exception ex) { App.LogError(ex); }   // nowe dane = koniec usuniecia
+            bool ok;
+            var json = DecideBankSave(ReadTextOrEmpty(BankFile), ReadBankTombstone(BankFile), JsonSerializer.Serialize(c), c.LoadedDataKey,
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), out ok);
+            if (json == null) { _profCache = null; return false; }
+            try { File.WriteAllText(BankFile, json); File.Delete(BankTombstoneFor(BankFile)); } catch (Exception ex) { App.LogError(ex); return false; }   // nowe dane = koniec usuniecia
+            var saved = JsonSerializer.Deserialize<BankConfig>(json);
+            c.Changed = saved.Changed; c.Log = saved.Log; c.LoadedDataKey = BankLoadedKey(json);   // c dalej aktualne do kolejnych zapisow
             _profCache = null;
             try { NotifyLanStateChanged(); } catch (Exception) { }   // wyslij zmiane do sparowanych komputerow
-            return !stale;
+            return ok;
+        }
+
+        // Decyzja zapisu (czysta funkcja - testy). loadedKey: dane z chwili wczytania (null = nowy profil). Zwraca JSON do zapisu
+        // albo null, gdy zapisac nie wolno: dane na dysku zmienily sie od wczytania (synchronizacja), profil usunieto, albo
+        // w trakcie zakladania nowego profilu przyszedl profil z drugiego komputera (nie nadpisujemy go pustym).
+        internal static string DecideBankSave(string diskJson, long deletedAt, string cJson, string loadedKey, long now, out bool ok)
+        {
+            ok = false;
+            BankConfig c, disk = null;
+            try { c = JsonSerializer.Deserialize<BankConfig>(cJson); } catch (JsonException) { return null; }
+            if (c == null) return null;
+            try { if (!string.IsNullOrEmpty(diskJson)) disk = JsonSerializer.Deserialize<BankConfig>(diskJson); } catch (JsonException) { }
+            if (loadedKey == null)
+            {
+                if (disk != null) return null;
+                c.Changed = Math.Max(now, deletedAt + 1);   // nowszy niz usuniecie - takze gdy zegar drugiego komputera sie spieszy
+                ok = true;
+                return JsonSerializer.Serialize(c);
+            }
+            if (disk == null || BankLoadedKey(diskJson) != loadedKey) return null;
+            c.Log = MergeBankLogs(disk.Log, c.Log);   // wpisy, ktore w miedzyczasie przyszly z drugiego komputera, zostaja
+            c.Changed = BankLoadedKey(JsonSerializer.Serialize(c)) != loadedKey ? Math.Max(now, disk.Changed + 1) : disk.Changed;
+            ok = true;
+            return JsonSerializer.Serialize(c);
         }
 
         static byte[] BankHash(string pass, byte[] salt, int iter)
@@ -507,7 +527,7 @@ namespace Przegladarka
                 {
                     // haslo / klucze sprawdzone na nieaktualnych danych - nie otwieramy, uzytkownik otworzy tryb ponownie
                     ForgetBankKey(); w.Close();
-                    ShowToast(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"), null);
+                    ShowToast(BankChangedElsewhere, null);
                     return;
                 }
                 _bankFails = 0; _bankUnlocked = true; result = true;
@@ -552,7 +572,7 @@ namespace Przegladarka
                     {
                         _bankFails++;
                         AddBankLog(c, "password", false);
-                        if (!SaveBank(c)) { w.Close(); ShowToast(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"), null); return; }
+                        if (!SaveBank(c)) { w.Close(); ShowToast(BankChangedElsewhere, null); return; }
                         int wait = Math.Min(30, _bankFails >= 3 ? (_bankFails - 2) * 5 : 0);   // kolejne bledy = coraz dluzsze czekanie
                         err.Text = L.T("Złe hasło.") + (wait > 0 ? (L.En ? " Wait " : " Odczekaj ") + wait + " s." : "");
                         if (wait > 0) await Task.Delay(wait * 1000);
@@ -683,7 +703,7 @@ namespace Przegladarka
 
         bool BankSetup(BankConfig existing)
         {
-            var c = existing ?? new BankConfig { Iter = 600000, Owner = _bankNewOwner, Changed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+            var c = existing ?? new BankConfig { Iter = 600000, Owner = _bankNewOwner };
             var keys = c.Keys.Select(k => new BankKey { Id = k.Id, X = k.X, Y = k.Y, Name = k.Name, WrapK = k.WrapK, WrapKp = k.WrapKp }).ToList();
             if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
             if (existing != null && (!string.IsNullOrEmpty(c.Cards) || !string.IsNullOrEmpty(c.Notes) || !string.IsNullOrEmpty(c.Sites) || !string.IsNullOrEmpty(c.Docs) || !string.IsNullOrEmpty(c.Accounts) || !string.IsNullOrEmpty(c.Bills) || !string.IsNullOrEmpty(c.Logins)) && _bankKey == null)
@@ -803,9 +823,9 @@ namespace Przegladarka
                 c.IdleMinutes = idleOpts[Math.Max(0, idleBox.SelectedIndex)]; _bankIdleMinutes = c.IdleMinutes;
                 if (!SaveBank(c))
                 {
-                    // w trakcie ustawiania przyszly nowsze dane z drugiego komputera - nic nie nadpisujemy, klucze z tego okna odrzucamy
-                    ForgetBankKey(); _bankUnlocked = false; w.Close();
-                    ShowToast(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"), null);
+                    // w trakcie ustawiania przyszly inne dane z drugiego komputera - nic nie nadpisujemy; pelna blokada:
+                    // klucze z tego okna odrzucone, karty bankowe i okienka trybu zamkniete
+                    w.Close(); LockBank(BankChangedElsewhere);
                     return;
                 }
                 saved = true; w.Close();
@@ -1245,52 +1265,62 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
         }
 
         // ---------- asystent wypelniania (karta bankowa) ----------
-        // Po wczytaniu strony rozpoznajemy logowanie / wybrane znaki hasla / formularz karty i - jesli w bazie sa pasujace
-        // dane - proponujemy wypelnienie jednym kliknieciem (te same funkcje co w menu 🏦). Raz na strone w danej karcie.
-        const string BankPageDetectScript = @"(function(){var r={login:false,partial:false,card:false};try{
+        // Po wczytaniu strony rozpoznajemy logowanie / formularz karty (ponizej) i wybrane znaki hasla (PartialFillScript
+        // w trybie liczenia - ta sama logika, ktora potem wpisuje znaki) i - jesli w bazie sa pasujace dane - proponujemy
+        // wypelnienie jednym kliknieciem (te same funkcje co w menu 🏦). Raz na strone w danej karcie.
+        const string BankPageDetectScript = @"(function(){var r={login:false,card:false};try{
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
 function vis(el){var b=el.getBoundingClientRect();return b.width>0&&b.height>0&&!el.disabled&&!el.readOnly;}
 var cardRx=/cc-|card|karty|cvv|cvc|csc|security.?code|expir|exp.?(month|year|date)|wazn|miesiac|month|\byear\b|\byy\b|\bmm\b/;
-docs.forEach(function(doc){var small=0;
+docs.forEach(function(doc){
 Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).forEach(function(el){
 var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('aria-label')||'')).toLowerCase();
 if(/cc-number|cardnumber|card-number|card_number|numer.?karty|ccnum/.test(a)){r.card=true;return;}
 if(cardRx.test(a))return;
-if(el.tagName==='SELECT'||(el.maxLength>0&&el.maxLength<=2)){small++;return;}
+if(el.tagName==='SELECT'||(el.maxLength>0&&el.maxLength<=2))return;   // pola na pojedyncze znaki - liczy PartialFillScript
 if(el.type==='password')r.login=true;
-else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|customer|klient|ident/.test(a))r.login=true;});
-var body=((doc.body&&doc.body.innerText)||'').toLowerCase();
-if(small>=2&&/(character|digit|letter|znak|cyfr|liter)[^\d\n]{0,25}\d{1,2}\b|\b\d{1,2}(st|nd|rd|th)?\.?\s*(digit|character|letter|znak|cyfr|liter)|\b\d{1,2}(st|nd|rd|th)\s*(,|and|&)\s*\d{1,2}(st|nd|rd|th)/.test(body))r.partial=true;});
-if(r.card)r.partial=false;
+else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|customer|klient|ident/.test(a))r.login=true;});});
 }catch(x){}return JSON.stringify(r);})()";
 
         sealed class BankPageKinds { public bool login { get; set; } public bool partial { get; set; } public bool card { get; set; } }
 
         async void OfferBankFill(BrowserTab tab)
         {
-            var core = tab.View.CoreWebView2;
-            if (core == null || _bankKey == null) return;
-            var url = core.Source; var host = HostOf(url); if (host == null) return;
-            var pageKey = url.Split('#')[0];
-            if (tab.BankFillOffered == pageKey) return;
-            tab.BankFillOffered = pageKey;   // od razu - ponowne wczytanie tej samej strony w trakcie rozpoznawania nie da drugiego okienka
-            bool shown = false;
-            try { shown = await DetectAndOfferBankFill(tab, url, host); }
+            string pageKey = null; bool shown = false;
+            try
+            {
+                var core = tab.View.CoreWebView2;
+                if (core == null || _bankKey == null) return;
+                var url = core.Source; var host = HostOf(url); if (host == null) return;
+                if (tab.BankFillOffered == url.Split('#')[0]) return;
+                pageKey = url.Split('#')[0];
+                tab.BankFillOffered = pageKey;   // od razu - ponowne wczytanie tej samej strony w trakcie rozpoznawania nie da drugiego okienka
+                shown = await DetectAndOfferBankFill(tab, pageKey, host);
+            }
             catch (Exception ex) { App.LogError(ex); }
-            finally { if (!shown && tab.BankFillOffered == pageKey) tab.BankFillOffered = null; }   // nic nie pokazano - mozna sprobowac ponownie
+            finally { if (pageKey != null && !shown && tab.BankFillOffered == pageKey) tab.BankFillOffered = null; }   // nic nie pokazano - mozna sprobowac ponownie
         }
 
-        // true = pokazano propozycje wypelnienia
-        async Task<bool> DetectAndOfferBankFill(BrowserTab tab, string url, string host)
+        // true = pokazano propozycje wypelnienia; pageKey = adres bez #kotwicy (zmiana samej kotwicy to ta sama strona)
+        async Task<bool> DetectAndOfferBankFill(BrowserTab tab, string pageKey, string host)
         {
             BankPageKinds kinds = null;
             for (int attempt = 0; attempt < 2; attempt++)
             {
                 await Task.Delay(attempt == 0 ? 700 : 2000);   // strony logowania czesto dorysowuja pola chwile po wczytaniu
-                if (!_tabs.Contains(tab) || tab.View.CoreWebView2 == null || tab.View.CoreWebView2.Source != url || _bankKey == null) return false;
-                var raw = JsonSerializer.Deserialize<string>(await tab.View.CoreWebView2.ExecuteScriptAsync(BankPageDetectScript));
+                if (!_tabs.Contains(tab) || _bankKey == null) return false;
+                var core = tab.View.CoreWebView2;
+                if (core == null || (core.Source ?? "").Split('#')[0] != pageKey) return false;
+                var raw = JsonSerializer.Deserialize<string>(await core.ExecuteScriptAsync(BankPageDetectScript));
                 kinds = string.IsNullOrEmpty(raw) ? null : JsonSerializer.Deserialize<BankPageKinds>(raw);
-                if (kinds != null && (kinds.login || kinds.partial || kinds.card)) break;
+                if (kinds == null) continue;
+                if (!kinds.card)
+                {
+                    int positions;
+                    int.TryParse(JsonSerializer.Deserialize<string>(await core.ExecuteScriptAsync(PartialFillScript.Replace("__D__", "{pin:'',pwd:'',mem:'',count:true}"))), out positions);
+                    kinds.partial = positions >= 2;   // co najmniej 2 rozne numery znakow (np. 2., 5. i 7.) - nie kod SMS ani reguly hasla
+                }
+                if (kinds.login || kinds.partial || kinds.card) break;
             }
             if (kinds == null || !(kinds.login || kinds.partial || kinds.card)) return false;
             var c = LoadBank(); if (c == null) return false;
@@ -2552,11 +2582,14 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
             menu.IsOpen = true;
         }
 
-        const string PartialFillScript = @"(function(d){var n=0,diag=[];try{
+        // Wybrane znaki hasla / PIN: numer znaku z podpisu pola; gdy kilka pol ma wspolne zdanie ("podaj 2., 4. i 6. cyfre") -
+        // kolejne numery z najblizszego zdania. Pola kodow SMS / jednorazowych pomijane (tam nie wpisujemy tajnych znakow).
+        // d.count = tylko liczba roznych numerow (asystent wypelniania), d.diag = opis pol bez wartosci.
+        const string PartialFillScript = @"(function(d){var n=0,diag=[],seen={};try{
 var ord={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12,thirteenth:13,fourteenth:14,fifteenth:15,sixteenth:16,seventeenth:17,eighteenth:18,nineteenth:19,twentieth:20,
 pierwszy:1,pierwsza:1,drugi:2,druga:2,trzeci:3,trzecia:3,czwarty:4,czwarta:4,piaty:5,piata:5,szosty:6,szosta:6,siodmy:7,siodma:7,osmy:8,osma:8,dziewiaty:9,dziewiata:9,dziesiaty:10,dziesiata:10};
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
-function norm(t){return (t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
+function norm(t){return (t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/ł/g,'l').replace(/\s+/g,' ').trim();}
 function txt(e){return e?norm(e.textContent||''):'';}
 function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}
 function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;
@@ -2564,6 +2597,10 @@ el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('
 function posIn(t){var m=t.match(/(digit|character|char|letter|number|znak|cyfr|litera|liczb)\w*\s*(no\.?|nr\.?|number|numer)?\s*(\d{1,2})\b/)||t.match(/\b(\d{1,2})\s*(st|nd|rd|th|\.)?\s*(digit|character|char|letter|number|znak|cyfr|litera)/)||t.match(/\b(\d{1,2})(st|nd|rd|th)\b/);
 if(m){for(var i=1;i<m.length;i++){if(/^\d+$/.test(m[i]||''))return parseInt(m[i],10);}}return 0;}
 function posWord(t){for(var w in ord){if(new RegExp('\\b'+w+'\\b').test(t))return ord[w];}return 0;}
+function seqOf(t){var w=t.replace(new RegExp('\\b('+Object.keys(ord).join('|')+')\\b','g'),function(x){return ord[x]+'.';});
+var a=w.match(/(characters?|digits?|letters?|numbers?|znak\w*|cyfr\w*)(\s+[^\s\d]+){0,3}?\s*:?\s*(\d{1,2})(st|nd|rd|th|\.)?(\s*(,|and|&|i|oraz)\s*(\d{1,2})(st|nd|rd|th|\.)?)+/),
+b=w.match(/(\d{1,2})(st|nd|rd|th|\.)?(\s*(,|and|&|i|oraz)\s*(\d{1,2})(st|nd|rd|th|\.)?)+\s*(characters?|digits?|letters?|numbers?|znak\w*|cyfr\w*)/);
+var m=a&&b?(a.index<=b.index?a:b):(a||b);return m?(m[0].match(/\d{1,2}/g)||[]).map(Number):[];}
 function labelTexts(el,doc){var a=[];
 if(el.id){var l=doc.querySelector('label[for='+JSON.stringify(el.id)+']');if(l)a.push(txt(l));}
 var lb=el.getAttribute('aria-labelledby');if(lb)lb.split(/\s+/).forEach(function(id){var e=doc.getElementById(id);if(e)a.push(txt(e));});
@@ -2572,8 +2609,8 @@ var cl=el.closest('label');if(cl){var c0=cl.cloneNode(true);c0.querySelectorAll(
 var pr=el.previousElementSibling;if(pr&&(pr.textContent||'').length<80)a.push(txt(pr));
 var pa=el.parentElement;if(pa){var c=pa.cloneNode(true);c.querySelectorAll('option,select,input').forEach(function(o){o.remove();});var t=txt(c);if(t.length<80)a.push(t);}
 return a.filter(function(x){return x;});}
-function pos(el,doc){var a=labelTexts(el,doc);for(var i=0;i<a.length;i++){var p=posIn(a[i]);if(p)return p;}return 0;}
-function posW(el,doc){var a=labelTexts(el,doc);for(var i=0;i<a.length;i++){var p=posWord(a[i]);if(p)return p;}return 0;}
+function pos(el,doc){var a=labelTexts(el,doc);for(var i=0;i<a.length;i++){if(seqOf(a[i]).length>1)continue;var p=posIn(a[i]);if(p)return p;}return 0;}
+function posW(el,doc){var a=labelTexts(el,doc);for(var i=0;i<a.length;i++){if(seqOf(a[i]).length>1)continue;var p=posWord(a[i]);if(p)return p;}return 0;}
 function ctx(el){var c=el.parentElement;for(var i=0;i<8&&c;i++){var cc=c.cloneNode(true);cc.querySelectorAll('option').forEach(function(o){o.remove();});var t=txt(cc);if(t.length>25)return t.slice(0,400);c=c.parentElement;}return '';}
 function kind(el,doc,page){var lt=labelTexts(el,doc).join(' ');var cx=lt+' '+ctx(el);
 if(/memorable|zapamietan/.test(cx))return 'mem';
@@ -2584,18 +2621,28 @@ var a=norm((el.name||'')+' '+(el.id||''));if(/mem/.test(a))return 'mem';if(/pin|
 return el.inputMode==='numeric'||el.type==='tel'||el.type==='number'?'pin':'pwd';}
 docs.forEach(function(doc){
 var body=norm((doc.body&&(doc.body.innerText||doc.body.textContent))||'');var page={mem:/memorable|zapamietan/.test(body)};
-var seq=[];var m=body.match(/(characters?|digits?|letters?|numbers?|znak\w*|cyfr\w*)\s+((\d{1,2})(st|nd|rd|th)?(\s*(,|and|&|i|oraz)\s*(\d{1,2})(st|nd|rd|th)?)+)/);
-if(m)seq=(m[2].match(/\d{1,2}/g)||[]).map(Number);
+var seq=seqOf(body);
 var ins=Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).filter(function(i){return i.tagName==='SELECT'||(/^(text|password|tel|number|)$/.test(i.type||'')&&i.maxLength>0&&i.maxLength<=2);});
-var groups={};
-ins.forEach(function(el){var k=kind(el,doc,page);var p=pos(el,doc);var how='label';
-if(!p){var gi=groups[k]||0;groups[k]=gi+1;if(seq.length>gi){p=seq[gi];how='sentence';}}
-if(!p){p=posW(el,doc);how='word';}
-if(d.diag){diag.push(el.tagName.toLowerCase()+' type='+(el.type||'')+' max='+(el.maxLength||'')+' kind='+k+' pos='+p+'('+how+') labels=['+labelTexts(el,doc).join(' | ').slice(0,160)+'] ctx=['+ctx(el).slice(0,120)+']');return;}
+var otpRx=/one.?time|\botp\b|jednorazow|kod sms|sms code|verification code|kod weryfikac|\d.?digit code|\d.?cyfrowy kod/;
+var info=ins.map(function(el){var x={el:el,k:kind(el,doc,page),p:0,how:''};
+x.otp=/one-time-code/.test(el.getAttribute('autocomplete')||'')||otpRx.test(labelTexts(el,doc).join(' ')+' '+ctx(el));
+if(!x.otp){x.p=pos(el,doc);x.how='label';}return x;});
+function uniq(){var c={};info.forEach(function(x){if(x.p)c[x.k+x.p]=(c[x.k+x.p]||0)+1;});info.forEach(function(x){if(x.p&&c[x.k+x.p]>1){x.p=0;x.how='shared';}});}
+uniq();
+var taken={},gi={};info.forEach(function(x){if(x.p)taken[x.k+x.p]=1;});
+info.forEach(function(x){if(x.p||x.otp)return;var sq=seqOf(ctx(x.el));if(!sq.length)sq=seq;
+var q=sq.filter(function(v){return !taken[x.k+v];}),g=x.k+':'+sq.join(','),i=gi[g]||0;gi[g]=i+1;if(q.length>i){x.p=q[i];x.how='sentence';}});
+info.forEach(function(x){if(!x.p&&!x.otp){x.p=posW(x.el,doc);if(x.p)x.how='word';}});
+uniq();
+if(d.diag){info.forEach(function(x){var el=x.el;diag.push(el.tagName.toLowerCase()+' type='+(el.type||'')+' max='+(el.maxLength||'')+' kind='+x.k+(x.otp?' otp':'')+' pos='+x.p+'('+x.how+') labels=['+labelTexts(el,doc).join(' | ').slice(0,160)+'] ctx=['+ctx(el).slice(0,120)+']');});
+diag.push('page: memorable='+page.mem+' sentence='+JSON.stringify(seq));return;}
+if(d.count){info.forEach(function(x){if(x.p)seen[x.p]=1;});return;}
+info.forEach(function(x){var el=x.el,p=x.p,k=x.k;
 if(!p)return;var src=k==='pin'?d.pin:(k==='mem'?(d.mem||d.pwd):(d.pwd||d.mem));if(!src||p>src.length)return;var ch=src.charAt(p-1);
-if(el.tagName==='SELECT'){for(var o=0;o<el.options.length;o++){var ov=(el.options[o].value||'').replace(/ |&nbsp;/g,'').trim(),ot=(el.options[o].text||'').trim();if(ov===ch||ot===ch){el.selectedIndex=o;el.dispatchEvent(new Event('change',{bubbles:true}));n++;break;}}}else set(el,ch);});
-if(d.diag)diag.push('page: memorable='+page.mem+' sentence='+JSON.stringify(seq));
-});}catch(x){diag.push('error '+x);}return d.diag?diag.join('\n'):String(n);})(__D__);";
+if(el.tagName==='SELECT'){for(var o=0;o<el.options.length;o++){var ov=(el.options[o].value||'').replace(/ |&nbsp;/g,'').trim(),ot=(el.options[o].text||'').trim();if(ov===ch||ot===ch){el.selectedIndex=o;el.dispatchEvent(new Event('change',{bubbles:true}));n++;break;}}}else set(el,ch);});
+});}catch(x){diag.push('error '+x);}
+function cnt(){var k=Object.keys(seen).map(Number).sort(function(a,b){return a-b;});return k.length>=4&&k[0]===1&&k[k.length-1]===k.length?0:k.length;}
+return d.diag?diag.join('\n'):d.count?String(cnt()):String(n);})(__D__);";
 
         // "login: xxx" / "hasło: yyy" (albo: 1. linia = login, 2. linia = haslo)
         static void ParseLoginNote(string text, out string user, out string pass)
@@ -2737,10 +2784,10 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
                     if (local == null && ReadBankTombstone(file) >= deleted) return;
                     bool wasOpen = local != null && _bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase);
                     File.WriteAllText(BankTombstoneFor(file), deleted.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                    File.WriteAllText(Path.ChangeExtension(file, ".wipe"), "1");   // jak lokalny reset: logowania i ciasteczka profilu bankowego tez znikna
+                    File.WriteAllText(BankWipeFlagFor(file), "1");   // jak lokalny reset: logowania i ciasteczka profilu bankowego tez znikna
                     if (File.Exists(file)) File.Delete(file);
                     _profCache = null;
-                    if (wasOpen) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
+                    if (wasOpen) LockBank(BankChangedElsewhere);
                     return;
                 }
                 bool dataReplaced;
@@ -2749,7 +2796,7 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
                 File.WriteAllText(file, merged); _profCache = null;
                 try { File.Delete(BankTombstoneFor(file)); } catch (Exception) { }   // nowsze dane niz usuniecie
                 // haslo / klucze / karty mogly sie zmienic - otwarty tryb zamykamy, otworzysz go ponownie (sam dziennik - nie)
-                if (dataReplaced && _bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
+                if (dataReplaced && _bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(BankChangedElsewhere);
             }
             catch (Exception ex) { App.LogError(ex); }
         }

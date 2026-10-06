@@ -119,13 +119,15 @@ namespace Przegladarka
 
         // Odcisk TRESCI do znacznika zmian: zakladki, hasla, prywatnosc, profile, dodatki i ustawienia - bez kart
         // (zmieniaja sie ciagle) i bez ustawien samej synchronizacji (wlaczenie sync to nie jest zmiana danych).
+        // Bez trybu bankowego: ma wlasny znacznik zmian (BankConfig.Changed) - otwarcie banku na jednym komputerze
+        // nie moze robic go "nowszym" dla ustawien, prywatnosci, profili i dodatkow drugiego komputera.
         string LanContentFingerprint()
         {
             var settings = string.Join("\n", ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt")).Split('\n')
                 .Where(l => { int i = l.IndexOf('='); return i <= 0 || !LanSettingsBlockedKeys.Contains(l.Substring(0, i).Trim()); }));
             return Sha256(settings + "\n--\n" + ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt")) + "\n--\n" +
                 ReadTextOrEmpty(Path.Combine(DataDir, "prywatnosc.txt")) + "\n--\n" + ReadProfilesRegistry() + "\n--\n" +
-                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()) + "\n--\n" + ReadTextOrEmpty(PinnedFile) + BankSyncTerm());
+                ReadTextOrEmpty(ExtensionsSyncListFile) + "\n--\n" + (_lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync()) + "\n--\n" + ReadTextOrEmpty(PinnedFile));
         }
 
         // "Pusty" komputer: bez zakladek i bez hasel - jego dane nigdy nie nadpisuja pelnych
@@ -870,6 +872,12 @@ namespace Przegladarka
                 bool bookmarksChanged = mergedBookmarks != localBookmarks;
                 if (bookmarksChanged) File.WriteAllText(Path.Combine(DataDir, "zakladki.txt"), mergedBookmarks);
                 ImportPasswordsFromSync(state.passwords, true);
+                // tryb bankowy: niezaleznie od ustawien - kazdy profil bankowy ma wlasny znacznik zmian
+                if (pkt.t != "state-plain")
+                {
+                    if (!string.IsNullOrEmpty(state.banks)) ApplySyncedBanks(state.banks);
+                    else if (!string.IsNullOrEmpty(state.bank)) ApplySyncedBank(state.bank);
+                }
 
                 if (incomingNewer)
                 {
@@ -887,11 +895,6 @@ namespace Przegladarka
                     _ = RebuildBlocker();
                     _ = ApplyExtensionsSyncListAsync();
                     if (state.pinned != null) ApplySyncedPinnedTabs(state.pinned);
-                    if (pkt.t != "state-plain")
-                    {
-                        if (!string.IsNullOrEmpty(state.banks)) ApplySyncedBanks(state.banks);
-                        else if (!string.IsNullOrEmpty(state.bank)) ApplySyncedBank(state.bank);
-                    }
                     SaveLanChange(state.changed, LanContentFingerprint());   // przyjete dane maja czas nadawcy
                 }
                 else SaveLanChange(_lanLocalChanged, LanContentFingerprint()); // polaczenie zakladek/hasel to nie zmiana ustawien

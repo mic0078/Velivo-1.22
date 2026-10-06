@@ -60,6 +60,25 @@ jobs:
           Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
           dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\velivo
 
+      - name: Testy jednostkowe (prawdziwy kod Velivo)
+        shell: pwsh
+        run: dotnet test testy\Velivo.Tests\Velivo.Tests.csproj -c Release --logger "console;verbosity=normal"
+
+      - name: Test LAN end-to-end (duzy stan, sparowany komputer)
+        shell: pwsh
+        run: ./testy/lan-duzy-stan/test.ps1 -Exe "$PWD\build\velivo\Velivo.exe"
+
+      - name: Test LAN bezpieczenstwo (obcy pakiet nie zmienia danych, sparowany synchronizuje)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory wyniki -Force | Out-Null
+          ./testy/bezpieczenstwo/lan-e2e.ps1 -Exe "build\velivo\Velivo.exe" -Mode unpaired -Out wyniki\lan-unpaired.json
+          ./testy/bezpieczenstwo/lan-e2e.ps1 -Exe "build\velivo\Velivo.exe" -Mode paired -Out wyniki\lan-paired.json
+          $u = Get-Content wyniki\lan-unpaired.json | ConvertFrom-Json; $p = Get-Content wyniki\lan-paired.json | ConvertFrom-Json
+          $ok = $u.started -and $u.stillRunning -and -not $u.injectedBookmark -and -not $u.injectedSettings -and $p.injectedBookmark -and $p.injectedSettings
+          Write-Host "obcy: zakladka=$($u.injectedBookmark) ustawienia=$($u.injectedSettings) | sparowany: zakladka=$($p.injectedBookmark) ustawienia=$($p.injectedSettings)"
+          if (-not $ok) { exit 1 }
+
       - name: Inno Setup
         shell: pwsh
         run: choco install innosetup -y --no-progress

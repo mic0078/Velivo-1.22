@@ -109,6 +109,7 @@ namespace Przegladarka
             public string WrapP { get; set; }      // czesc hasla klucza kart (Kp) zaszyfrowana kluczem z hasla
             public string WrapPK { get; set; }     // czesc z kluczy (Kk) zaszyfrowana Kp - samo haslo (zapasowo, bez klucza) tez otwiera
             public string HmacSalt { get; set; }   // sol dla sekretu z klucza sprzetowego (hmac-secret)
+            public long Changed { get; set; }      // ostatnia zmiana DANYCH (ms UTC) - przy synchronizacji LAN wygrywa nowsza; dziennik sie nie liczy
         }
 
         bool _bankUnlocked, _creatingBank;
@@ -197,9 +198,28 @@ namespace Przegladarka
             return ReadBankCached(BankFile);
         }
 
+        // Dane profilu bankowego bez dziennika otwarc i znacznika zmian - do porownan przy zapisie i synchronizacji.
+        static string BankDataKey(string json)
+        {
+            try
+            {
+                var o = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
+                if (o == null) return json ?? "";
+                o.Remove("Log"); o.Remove("Changed");
+                return o.ToJsonString();
+            }
+            catch (JsonException) { return json ?? ""; }
+        }
+
         void SaveBank(BankConfig c)
         {
-            try { File.WriteAllText(BankFile, JsonSerializer.Serialize(c)); } catch (Exception ex) { App.LogError(ex); }
+            var json = JsonSerializer.Serialize(c);
+            if (BankDataKey(json) != BankDataKey(ReadTextOrEmpty(BankFile)))
+            {
+                c.Changed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();   // zmienily sie dane, nie tylko dziennik
+                json = JsonSerializer.Serialize(c);
+            }
+            try { File.WriteAllText(BankFile, json); } catch (Exception ex) { App.LogError(ex); }
             _profCache = null;
             try { NotifyLanStateChanged(); } catch (Exception) { }   // wyslij zmiane do sparowanych komputerow
         }
@@ -2235,7 +2255,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
                 if (d == null || d.Count == 0 || !d.Keys.All(k => BankFileRx.IsMatch(k ?? ""))) { MessageBox.Show(this, L.T("To nie jest kopia trybu bankowego."), "Velivo"); return; }
                 if (MessageBox.Show(this, L.T("Przywrócić tryb bankowy z kopii? Obecne dane trybu bankowego zostaną zastąpione."), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 if (_bankUnlocked) LockBank(null);
-                foreach (var kv in d) { var c = JsonSerializer.Deserialize<BankConfig>(kv.Value); if (c != null && !string.IsNullOrEmpty(c.Hash)) File.WriteAllText(Path.Combine(DataDir, kv.Key), kv.Value); }
+                foreach (var kv in d) { var c = JsonSerializer.Deserialize<BankConfig>(kv.Value); if (c != null && !string.IsNullOrEmpty(c.Hash)) { c.Changed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); File.WriteAllText(Path.Combine(DataDir, kv.Key), JsonSerializer.Serialize(c)); } }   // przywrocona kopia = najnowsze dane (synchronizacja jej nie cofnie)
                 _profCache = null;
                 try { NotifyLanStateChanged(); } catch (Exception) { }
                 ShowToast(L.T("📂 Przywrócono tryb bankowy z kopii"), null);
@@ -2491,33 +2511,36 @@ if(user)set(user,d.u);if(pw)set(pw,d.p);
         {
             try
             {
-                var c = JsonSerializer.Deserialize<BankConfig>(json);
-                if (c == null || string.IsNullOrEmpty(c.Hash) || string.IsNullOrEmpty(c.Salt)) return;
                 var localJson = ReadTextOrEmpty(file);
-                if (json == localJson) return;
-                BankConfig local = null;
-                try { if (localJson.Length > 0) local = JsonSerializer.Deserialize<BankConfig>(localJson); } catch (JsonException) { }
-                // dziennik otwarc laczymy z obu komputerow - kazde otwarcie trybu na drugim komputerze zmienia dziennik,
-                // a dawniej nadpisywalo tutejszy dziennik i zamykalo otwarty tu tryb bankowy
-                var localLog = local != null && local.Log != null ? local.Log : new List<BankLogEntry>();
-                c.Log = localLog.Concat(c.Log ?? new List<BankLogEntry>())
-                    .GroupBy(x => x.T + "|" + x.Device + "|" + x.How + "|" + x.Ok).Select(g => g.First())
-                    .OrderBy(x => x.T).ToList();
-                if (c.Log.Count > 60) c.Log.RemoveRange(0, c.Log.Count - 60);
-                bool onlyLog = false;
-                if (local != null)
-                {
-                    var a = JsonSerializer.Deserialize<BankConfig>(localJson); a.Log = null;
-                    var b = JsonSerializer.Deserialize<BankConfig>(json); b.Log = null;
-                    onlyLog = JsonSerializer.Serialize(a) == JsonSerializer.Serialize(b);
-                }
-                var merged = JsonSerializer.Serialize(c);
-                if (merged == localJson) return;
+                bool dataReplaced;
+                var merged = MergeSyncedBank(localJson, json, out dataReplaced);
+                if (merged == null || merged == localJson) return;
                 File.WriteAllText(file, merged); _profCache = null;
                 // haslo / klucze / karty mogly sie zmienic - otwarty tryb zamykamy, otworzysz go ponownie (sam dziennik - nie)
-                if (!onlyLog && _bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
+                if (dataReplaced && _bankUnlocked && string.Equals(file, BankFile, StringComparison.OrdinalIgnoreCase)) LockBank(L.T("🔒 Tryb bankowy zmieniony na innym komputerze – otwórz go ponownie"));
             }
             catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // Profil bankowy z drugiego komputera + tutejszy: dane - wygrywa nowsza zmiana danych (Changed),
+        // dziennik otwarc - laczony z obu komputerow. Zwraca null, gdy przychodzace dane sa niepoprawne.
+        internal static string MergeSyncedBank(string localJson, string incomingJson, out bool dataReplaced)
+        {
+            dataReplaced = false;
+            BankConfig c;
+            try { c = JsonSerializer.Deserialize<BankConfig>(incomingJson); } catch (JsonException) { return null; }
+            if (c == null || string.IsNullOrEmpty(c.Hash) || string.IsNullOrEmpty(c.Salt)) return null;
+            if (incomingJson == localJson) return localJson;
+            BankConfig local = null;
+            try { if (!string.IsNullOrEmpty(localJson)) local = JsonSerializer.Deserialize<BankConfig>(localJson); } catch (JsonException) { }
+            var result = local != null && local.Changed > c.Changed ? local : c;
+            result.Log = (local != null && local.Log != null ? local.Log : new List<BankLogEntry>()).Concat(c.Log ?? new List<BankLogEntry>())
+                .GroupBy(x => x.T + "|" + x.Device + "|" + x.How + "|" + x.Ok).Select(g => g.First())
+                .OrderBy(x => x.T).ToList();
+            if (result.Log.Count > 60) result.Log.RemoveRange(0, result.Log.Count - 60);
+            var merged = JsonSerializer.Serialize(result);
+            dataReplaced = BankDataKey(merged) != BankDataKey(localJson ?? "");
+            return merged;
         }
 
         // ---------- wspolne okienko ----------

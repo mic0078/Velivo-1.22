@@ -462,6 +462,9 @@ try {
                 if (!tab.InPip && !_tabs.Contains(tab)) ReleaseParkedViews();
                 return;
             }
+            // zwykle hasla i autouzupelnianie - nigdy dla karty bankowej (izolacja trybu bankowego)
+            if (tab.Bank && (msg.StartsWith("affill:", StringComparison.Ordinal) || msg.StartsWith("afsave:", StringComparison.Ordinal) ||
+                msg == "pwpick" || msg.StartsWith("pwcand:", StringComparison.Ordinal))) return;
             // okno modalne nie wewnatrz zdarzenia WebView2 - inaczej potrafi sie zablokowac
             if (msg.StartsWith("affill:", StringComparison.Ordinal)) { var ty = msg.Substring(7); Dispatcher.BeginInvoke(new Action(() => { _ = HandleAutofillRequest(tab, ty); })); return; }
             if (msg.StartsWith("afsave:", StringComparison.Ordinal)) { var pl = msg.Substring(7); Dispatcher.BeginInvoke(new Action(() => HandleAutofillSave(tab, pl))); return; }

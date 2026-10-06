@@ -87,6 +87,7 @@ namespace Przegladarka
         {
             public string Owner { get; set; }      // nazwa profilu bankowego (np. imie uzytkownika)
             public int IdleMinutes { get; set; } = 10;   // blokada po bezczynnosci (minuty)
+            public bool AutoFill { get; set; } = true;   // dane z bazy wpisywane same na stronie z bazy (gdy pasuje jedno konto); karty - zawsze po kliknieciu
             public List<BankLogEntry> Log { get; set; } = new List<BankLogEntry>();   // dziennik otwarc (bez danych wrazliwych)
             public string Salt { get; set; }
             public string Hash { get; set; }
@@ -334,7 +335,7 @@ namespace Przegladarka
             help.Click += (s, e) => BankHelp();
             var search = new MenuItem { Header = L.T("🔍 Szukaj w mojej bazie…") };
             search.Click += (s, e) => BankSearch();
-            var fillLogin = new MenuItem { Header = L.T("🔑 Wpisz login z notatki na tej stronie") };
+            var fillLogin = new MenuItem { Header = L.T("🔑 Wpisz login i hasło na tej stronie") };
             fillLogin.Click += (s, e) => BankFillLoginMenu();
             var partial = new MenuItem { Header = L.T("🔢 Wpisz wybrane znaki (passcode / hasło, np. RBS, NatWest)") };
             partial.Click += (s, e) => BankFillPartialMenu();
@@ -731,6 +732,8 @@ namespace Przegladarka
             foreach (var m in idleOpts) idleBox.Items.Add(m + " min");
             idleBox.SelectedIndex = Math.Max(0, Array.IndexOf(idleOpts, c.IdleMinutes > 0 ? c.IdleMinutes : 10));
             sp.Children.Add(idleBox);
+            var autoFill = new CheckBox { Content = L.T("Wpisuj dane z bazy samo na stronach z bazy (login, hasło, wybrane znaki; karta – po kliknięciu)"), IsChecked = c.AutoFill, Margin = new Thickness(0, 0, 0, 8) };
+            sp.Children.Add(autoFill);
             var useKey = new CheckBox { Content = L.T("Dodatkowo wymagaj klucza sprzętowego (YubiKey, Google Titan…)"), IsChecked = c.UseKey, Margin = new Thickness(0, 4, 0, 4) };
             sp.Children.Add(useKey);
             var keyPanel = new StackPanel { Margin = new Thickness(20, 0, 0, 0) };
@@ -819,6 +822,7 @@ namespace Przegladarka
                 _bankUnlocked = true;
                 c.UseKey = withKey; c.Keys = keys;
                 c.IdleMinutes = idleOpts[Math.Max(0, idleBox.SelectedIndex)]; _bankIdleMinutes = c.IdleMinutes;
+                c.AutoFill = autoFill.IsChecked == true;
                 if (!SaveBank(c))
                 {
                     // w trakcie ustawiania przyszly inne dane z drugiego komputera - nic nie nadpisujemy; pelna blokada:
@@ -1119,18 +1123,6 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             ShowBankTool(w, "creds");
         }
 
-        // bank/sklep z listy pasujacy do strony otwartej w karcie
-        BankSite SiteForCurrent()
-        {
-            try
-            {
-                var host = HostOf(_current != null && _current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
-                if (host == null || _bankKey == null) return null;
-                var c = LoadBank(); return c == null ? null : SiteFor(c, host);
-            }
-            catch (Exception) { return null; }
-        }
-
         // Jedna regula dopasowania danych z bazy do otwartej strony (ta sama domena glowna) - dla menu 🏦 i asystenta wypelniania.
         BankSite SiteFor(BankConfig c, string host)
         {
@@ -1138,10 +1130,62 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             return LoadSealed<BankSite>(c.Sites).FirstOrDefault(x => { var h = HostOf(x.Url); return h != null && RegDomain(h) == reg; });
         }
 
-        BankItem LoginFor(BankConfig c, string host)
+        // Wszystkie konta do tej strony z bazy trybu bankowego ("Moje loginy i hasla" + dane strony z Moich bankow) - kazde osobno
+        // (np. konto prywatne i firmowe). Tylko wlasna baza trybu: zwykle hasla Velivo sa osobne i tu nie trafiaja.
+        List<(string Label, string User, string Pass)> LoginsFor(BankConfig c, string host)
         {
+            var all = new List<(string Label, string User, string Pass)>();
             var reg = RegDomain(host);
-            return LoadSealed<BankItem>(c.Logins).FirstOrDefault(x => { var h = HostOf(FixUrl(x.Get("url"))); return h != null && RegDomain(h) == reg; });
+            foreach (var x in LoadSealed<BankItem>(c.Logins))
+            {
+                var h = HostOf(FixUrl(x.Get("url")));
+                if (h != null && RegDomain(h) == reg) all.Add((x.Get("name"), x.Get("login"), x.Get("password")));
+            }
+            var site = SiteFor(c, host);
+            if (site != null && !string.IsNullOrEmpty(site.Login)) all.Add((site.Name, site.Login, site.Password ?? ""));
+            return DistinctLogins(all);
+        }
+
+        // Bez powtorzen tego samego loginu (pierwszy wygrywa) i bez pustych wpisow.
+        internal static List<(string Label, string User, string Pass)> DistinctLogins(IEnumerable<(string Label, string User, string Pass)> all)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var list = new List<(string Label, string User, string Pass)>();
+            foreach (var l in all)
+            {
+                var user = (l.User ?? "").Trim();
+                if (user.Length == 0 && string.IsNullOrEmpty(l.Pass)) continue;
+                if (!seen.Add(user)) continue;
+                var label = string.IsNullOrWhiteSpace(l.Label) ? user : l.Label.Trim();
+                if (user.Length > 0 && !string.Equals(label, user, StringComparison.OrdinalIgnoreCase)) label += " (" + user + ")";
+                list.Add((label.Length > 0 ? label : "–", user, l.Pass ?? ""));
+            }
+            return list;
+        }
+
+        // Dane do wybranych znakow z bazy trybu: Moje banki (passcode/PIN, haslo, memorable); brak hasla - haslo z Moich loginow
+        // i hasel do tej strony. Kilka takich kont = trzeba wybrac (choices). false = brak danych.
+        bool PartialDataFor(BankConfig c, string host, out string pin, out string pwd, out string mem, out List<(string Label, string User, string Pass)> choices)
+        {
+            var site = SiteFor(c, host);
+            pin = site?.Pin; pwd = site?.Password; mem = site?.Memorable;
+            choices = new List<(string Label, string User, string Pass)>();
+            if (string.IsNullOrEmpty(pwd))
+            {
+                var withPass = LoginsFor(c, host).Where(x => x.Pass.Length > 0).ToList();
+                if (withPass.Count == 1) pwd = withPass[0].Pass;
+                else if (withPass.Count > 1) choices = withPass;
+            }
+            return !string.IsNullOrEmpty(pin) || !string.IsNullOrEmpty(pwd) || !string.IsNullOrEmpty(mem) || choices.Count > 0;
+        }
+
+        // host = strona, dla ktorej wybrano dane - skrypt nic nie wpisze, jesli karta jest juz na innej stronie
+        void BankFillLogin((string Label, string User, string Pass) l, string host)
+        {
+            var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
+            if (core == null || host == null) return;
+            _ = core.ExecuteScriptAsync(LoginFillScript.Replace("__D__", JsonSerializer.Serialize(new { u = l.User, p = l.Pass, h = host })));
+            ShowToast(L.T("🔑 Wpisano dane logowania: ") + l.Label, null);
         }
 
         // Opis pol formularza (podpisy, numery, rodzaj) - BEZ wartosci; do wklejenia przy zglaszaniu problemu
@@ -1161,11 +1205,12 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             catch (Exception ex) { App.LogError(ex); }
         }
 
-        async Task<int> RunPartialFill(string pin, string pwd, string mem)
+        // host = strona, dla ktorej wybrano dane (null = obecna strona karty) - skrypt nic nie wpisze na innej stronie
+        async Task<int> RunPartialFill(string pin, string pwd, string mem, string host = null)
         {
             var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
             if (core == null) return 0;
-            var data = JsonSerializer.Serialize(new { pin = pin ?? "", pwd = pwd ?? "", mem = mem ?? "" });
+            var data = JsonSerializer.Serialize(new { pin = pin ?? "", pwd = pwd ?? "", mem = mem ?? "", h = host ?? HostOf(core.Source) ?? "-" });
             string r = "0";
             try { r = await core.ExecuteScriptAsync(PartialFillScript.Replace("__D__", data)); } catch (Exception) { }
             int filled; int.TryParse((r ?? "0").Trim('"'), out filled);
@@ -1322,22 +1367,39 @@ else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|custom
             }
             if (kinds == null || !(kinds.login || kinds.partial || kinds.card)) return false;
             var c = LoadBank(); if (c == null) return false;
-            var site = SiteFor(c, host);
+            var now = tab.View.CoreWebView2;   // po rozpoznawaniu (await) karta nadal na tej samej stronie?
+            if (!_tabs.Contains(tab) || now == null || (now.Source ?? "").Split('#')[0] != pageKey) return false;
+            // dane skojarzone ze strona (jedno pasujace konto) wpisujemy same - tylko w ogladanej karcie i bez wysylania formularza;
+            // kilka kont = wybor jednym kliknieciem; karta platnicza zawsze dopiero po kliknieciu
+            bool auto = c.AutoFill && tab == _current, done = false;
             var offers = new List<KeyValuePair<string, Action>>();
             if (kinds.login)
             {
-                var hit = LoginFor(c, host);
-                if (hit != null) offers.Add(new KeyValuePair<string, Action>(L.T("🔑 Wpisz login i hasło") + " – " + hit.Get("name"), BankFillLoginMenu));
-                else if (site != null && !string.IsNullOrEmpty(site.Login)) offers.Add(new KeyValuePair<string, Action>(L.T("🔑 Wpisz login i hasło") + " – " + site.Name, BankFillLoginMenu));
+                var logins = LoginsFor(c, host);
+                if (auto && logins.Count == 1) { BankFillLogin(logins[0], host); done = true; }
+                else foreach (var l in logins.Take(5))   // kazde konto osobno (np. prywatne i firmowe)
+                {
+                    var acc = l;
+                    offers.Add(new KeyValuePair<string, Action>(L.T("🔑 Wpisz login i hasło") + " – " + acc.Label, () => BankFillLogin(acc, host)));
+                }
             }
-            if (kinds.partial && site != null && (!string.IsNullOrEmpty(site.Pin) || !string.IsNullOrEmpty(site.Password) || !string.IsNullOrEmpty(site.Memorable)))
-                offers.Add(new KeyValuePair<string, Action>(L.T("🔢 Wpisz wybrane znaki") + " – " + site.Name, BankFillPartialMenu));
+            string pin, pwd, mem; List<(string Label, string User, string Pass)> choices;
+            if (kinds.partial && PartialDataFor(c, host, out pin, out pwd, out mem, out choices))
+            {
+                if (choices.Count == 0 && auto) { await RunPartialFill(pin, pwd, mem, host); done = true; }
+                else if (choices.Count == 0) { var site = SiteFor(c, host); offers.Add(new KeyValuePair<string, Action>(L.T("🔢 Wpisz wybrane znaki") + " – " + (site != null ? site.Name : host), () => { _ = RunPartialFill(pin, pwd, mem, host); })); }
+                else foreach (var a in choices.Take(5))
+                {
+                    var acc = a;
+                    offers.Add(new KeyValuePair<string, Action>(L.T("🔢 Wpisz wybrane znaki") + " – " + acc.Label, () => { _ = RunPartialFill(pin, acc.Pass, mem, host); }));
+                }
+            }
             if (kinds.card)
             {
                 var cards = LoadCards(c);
                 if (cards.Count > 0) offers.Add(new KeyValuePair<string, Action>(L.T("💳 Wypełnij kartę") + (cards.Count == 1 ? " – " + cards[0].Label : "…"), BankFillMenu));
             }
-            if (offers.Count == 0) return false;
+            if (offers.Count == 0) return done;
             ShowBankFillOffer(tab, host, offers);
             return true;
         }
@@ -1358,7 +1420,7 @@ else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|custom
                     if (!_tabs.Contains(tab) || _bankKey == null) return;
                     // karta mogla w miedzyczasie przejsc na inna strone - dane tylko na te, dla ktorej powstala propozycja
                     var now = HostOf(tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : null);
-                    if (now == null || RegDomain(now) != RegDomain(host)) { ShowToast(L.T("Strona w karcie się zmieniła – nic nie wpisano."), null); return; }
+                    if (!string.Equals(now, host, StringComparison.OrdinalIgnoreCase)) { ShowToast(L.T("Strona w karcie się zmieniła – nic nie wpisano."), null); return; }
                     if (_current != tab) SelectTab(tab);   // funkcje wypelniania dzialaja na biezacej karcie
                     act();
                 };
@@ -2001,15 +2063,15 @@ draw();
             {
                 var rowL = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
                 var openL = new Button { Content = L.T("🌐 Otwórz stronę"), Padding = new Thickness(10, 3, 10, 3) };
-                openL.Click += (a, b) => { var u = FixUrl(getters["url"]()); if (HostOf(u) != null) { if (_current != null && _current.Bank) Navigate(_current, u); else AddTab(u); } };
+                openL.Click += (a, b) => { var u = FixUrl(getters["url"]()); if (HostOf(u) != null) OpenBankSite(u); };   // dane trybu bankowego - tylko w karcie bankowej
                 var fillL = new Button { Content = L.T("🔑 Wpisz na otwartej stronie"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(6, 0, 0, 0) };
                 fillL.Click += async (a, b) =>
                 {
                     // tylko na stronie z tym samym adresem (domena) - haslo nie trafi na obca / falszywa strone
-                    var core = _current != null ? _current.View.CoreWebView2 : null;
+                    var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;   // izolacja: tylko karta bankowa
                     var want = HostOf(FixUrl(getters["url"]())); var have = core != null ? HostOf(core.Source) : null;
-                    if (want == null || have == null || RegDomain(want) != RegDomain(have)) { err.Text = L.T("Otwórz najpierw tę stronę w karcie – Velivo wpisuje hasło tylko na stronie o tym samym adresie."); return; }
-                    var d0 = JsonSerializer.Serialize(new { u = getters["login"](), p = getters["password"]() });
+                    if (want == null || have == null || RegDomain(want) != RegDomain(have)) { err.Text = L.T("Otwórz najpierw tę stronę w karcie bankowej – Velivo wpisuje hasło tylko na stronie o tym samym adresie."); return; }
+                    var d0 = JsonSerializer.Serialize(new { u = getters["login"](), p = getters["password"](), h = have });
                     try { await core.ExecuteScriptAsync(LoginFillScript.Replace("__D__", d0)); } catch (Exception) { }
                     ShowToast(L.T("🔑 Wpisano dane logowania: ") + getters["name"](), null);
                 };
@@ -2231,11 +2293,11 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 🏦 Moje banki / 🛒 Moje sklepy online – kliknij, aby otworzyć stronę. Na liście jest też „Dodaj bank/sklep (nazwa i adres)”.
 ➕ Dodaj tę stronę do Moich banków / sklepów – na otwartej karcie bankowej.
 ✏ Dane logowania (w Moich bankach) – login, passcode/PIN, hasło, memorable information osobno dla każdego banku.
-🔢 Wpisz wybrane znaki – na stronie banku wpisuje znaki, o które pyta bank (np. 2., 5. i 9.), z danych tego banku.
+🔢 Wpisz wybrane znaki – na stronie banku wpisuje znaki, o które pyta bank (np. 2., 5. i 9.), z danych tego banku (brak hasła – hasło z Moich loginów i haseł).
 💳 Moje karty – kliknij kartę, aby zobaczyć i zmienić dane („👁 Pokaż” odsłania numer i CVV). CVV jest opcjonalne i zaszyfrowane.
 💳 Wypełnij kartę na tej stronie – wpisuje dane karty w formularzu płatności.
 📝 Moje notatki – loginy, hasła, numery klienta. Wybierz kategorię, wpisz tytuł i treść, potem „Zapisz”. 🎲 generuje mocne hasło, 📋 kopiuje (schowek czyści się po 30 s).
-🔑 Wpisz login z notatki – wypełnia logowanie na stronie banku. Notatka powinna mieć linie:  login: …  oraz  hasło: …
+🔑 Wpisz login i hasło – wypełnia logowanie danymi z Moich loginów i haseł albo z Moich banków (kilka kont – wybór); gdy ich brak – z notatki z liniami:  login: …  oraz  hasło: …
 ⚙ Ustawienia – hasło, klucze, czas blokady.
 📜 Dziennik otwarć – kto i kiedy otwierał tryb (także złe hasła).
 💾 Kopia zapasowa / 📂 Przywróć – plik .vbank (zaszyfrowany) np. na pendrive.
@@ -2247,7 +2309,8 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 • Bank z listy otwarty w zwykłej karcie → przypomnienie, żeby użyć trybu bankowego.
 • Po zamknięciu trybu znika pamięć podręczna i historia (logowania zostają).
 • Przypomnienie o kartach, które niedługo wygasają.
-• Asystent wypełniania: na stronie logowania, wyboru znaków hasła albo płatności kartą Velivo samo proponuje wypełnienie danymi z Twojej bazy – jedno kliknięcie, bez szukania w menu.
+• Dane skojarzone ze stroną: na stronie z Twojej bazy Velivo samo wpisuje login, hasło i wybrane znaki (gdy pasuje jedno konto; formularza nie wysyła). Kilka kont – wybór jednym kliknięciem; karta płatnicza – zawsze po kliknięciu. Wyłączysz to w Ustawieniach trybu bankowego.
+• Izolacja: w trybie bankowym działa tylko jego zaszyfrowana baza – zwykłe hasła i autouzupełnianie przeglądarki nie są tu podpowiadane ani zapisywane.
 
 5. SYNCHRONIZACJA
 Banki, sklepy, karty, notatki i ustawienia trybu przechodzą na sparowane komputery (zaszyfrowane). Logowania w bankach (ciasteczka) zostają na każdym komputerze osobno.
@@ -2284,11 +2347,11 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 🏦 My banks / 🛒 My online shops – click to open the site; “Add a bank/shop (name and address)” is in the list.
 ➕ Add this site to My banks / shops – on an open banking tab.
 ✏ Login details (in My banks) – login, passcode/PIN, password and memorable information for each bank.
-🔢 Fill in selected characters – types the characters the bank asks for (e.g. 2nd, 5th, 9th) from that bank's details.
+🔢 Fill in selected characters – types the characters the bank asks for (e.g. 2nd, 5th, 9th) from that bank's details (no password there – the one from My logins and passwords).
 💳 My cards – click a card to view and edit it (“👁 Show” reveals the number and CVV). The CVV is optional and encrypted.
 💳 Fill in a card on this page – fills the payment form.
 📝 My notes – logins, passwords, customer numbers. Choose a category, type title and content, then “Save”. 🎲 generates a strong password, 📋 copies (clipboard cleared after 30 s).
-🔑 Fill in a login from a note – note lines:  login: …  and  password: …
+🔑 Fill in login and password – from My logins and passwords or My banks (several accounts – you choose); otherwise from a note with lines:  login: …  and  password: …
 ⚙ Settings – password, keys, lock time.
 📜 Access log – who opened the mode and when (including wrong passwords).
 💾 Back up / 📂 Restore – an encrypted .vbank file, e.g. on a USB stick.
@@ -2300,7 +2363,8 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 • A listed bank opened in a normal tab → reminder to use banking mode.
 • Cache and history are cleared when the mode closes (logins stay).
 • Reminder about cards that expire soon.
-• Fill-in assistant: on a login, selected-characters or card payment page Velivo offers to fill in data from your vault – one click, no menu needed.
+• Data linked to the page: on a page from your vault Velivo fills in the login, password and selected characters by itself (when one account matches; the form is not submitted). Several accounts – choose with one click; payment card – always after a click. You can turn this off in Bank mode settings.
+• Isolation: bank mode uses only its own encrypted vault – the browser's regular passwords and autofill are neither suggested nor saved here.
 
 5. SYNC
 Banks, shops, cards, notes and settings go to paired computers (encrypted). Bank logins (cookies) stay on each computer.
@@ -2500,30 +2564,24 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
         void BankFillLoginMenu()
         {
             if (_current == null || !_current.Bank || _bankKey == null) return;
-            var site = SiteForCurrent();
-            // najpierw "Moje loginy i hasla" z adresem tej strony
-            try
+            var c = LoadBank(); if (c == null) return;
+            // najpierw konta zapisane w trybie bankowym dla tej strony: jedno - od razu, kilka - wybor
+            var host = HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
+            var logins = host == null ? new List<(string Label, string User, string Pass)>() : LoginsFor(c, host);
+            if (logins.Count == 1) { BankFillLogin(logins[0], host); return; }
+            if (logins.Count > 1)
             {
-                var cfgL = LoadBank(); var hostL = HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
-                var hit = cfgL == null || hostL == null ? null : LoginFor(cfgL, hostL);
-                if (hit != null)
+                var pick = new ContextMenu { PlacementTarget = _bankBtn };
+                foreach (var l in logins)
                 {
-                    var dL = JsonSerializer.Serialize(new { u = hit.Get("login"), p = hit.Get("password") });
-                    _ = _current.View.CoreWebView2.ExecuteScriptAsync(LoginFillScript.Replace("__D__", dL));
-                    ShowToast(L.T("🔑 Wpisano dane logowania: ") + hit.Get("name"), null);
-                    return;
+                    var acc = l;
+                    var it = new MenuItem { Header = "🔑 " + acc.Label };
+                    it.Click += (s, e) => BankFillLogin(acc, host);
+                    pick.Items.Add(it);
                 }
-            }
-            catch (Exception) { }
-            if (site != null && !string.IsNullOrEmpty(site.Login))
-            {
-                var core0 = _current.View.CoreWebView2;
-                var d0 = JsonSerializer.Serialize(new { u = site.Login, p = site.Password ?? "" });
-                _ = core0.ExecuteScriptAsync(LoginFillScript.Replace("__D__", d0));
-                ShowToast(L.T("🔑 Wpisano dane logowania: ") + site.Name, null);
+                pick.IsOpen = true;
                 return;
             }
-            var c = LoadBank(); if (c == null) return;
             List<BankNote> notes;
             try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { return; }
             var menu = new ContextMenu { PlacementTarget = _bankBtn };
@@ -2536,7 +2594,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
                     string user, pass; ParseLoginNote(note.Text, out user, out pass);
                     var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
                     if (core == null) return;
-                    var data = JsonSerializer.Serialize(new { u = user ?? "", p = pass ?? "" });
+                    var data = JsonSerializer.Serialize(new { u = user ?? "", p = pass ?? "", h = HostOf(core.Source) ?? "-" });
                     try { await core.ExecuteScriptAsync(LoginFillScript.Replace("__D__", data)); } catch (Exception) { }
                     ShowToast(L.T("🔑 Wpisano dane logowania z notatki"), null);
                 };
@@ -2551,10 +2609,23 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
         void BankFillPartialMenu()
         {
             if (_current == null || !_current.Bank || _bankKey == null) return;
-            var site = SiteForCurrent();
-            if (site != null && (!string.IsNullOrEmpty(site.Pin) || !string.IsNullOrEmpty(site.Password) || !string.IsNullOrEmpty(site.Memorable)))
-            { _ = RunPartialFill(site.Pin, site.Password, site.Memorable); return; }   // dane tego banku - od razu
             var c = LoadBank(); if (c == null) return;
+            var host = HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null);
+            string fPin, fPwd, fMem; List<(string Label, string User, string Pass)> choices;
+            if (host != null && PartialDataFor(c, host, out fPin, out fPwd, out fMem, out choices))
+            {
+                if (choices.Count == 0) { _ = RunPartialFill(fPin, fPwd, fMem, host); return; }   // dane tej strony - od razu
+                var pick = new ContextMenu { PlacementTarget = _bankBtn };   // kilka kont - wybor, ktorego hasla znaki wpisac
+                foreach (var a in choices)
+                {
+                    var acc = a;
+                    var it = new MenuItem { Header = "🔢 " + acc.Label };
+                    it.Click += (s, e) => { _ = RunPartialFill(fPin, acc.Pass, fMem, host); };
+                    pick.Items.Add(it);
+                }
+                pick.IsOpen = true;
+                return;
+            }
             List<BankNote> notes;
             try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { return; }
             var menu = new ContextMenu { PlacementTarget = _bankBtn };
@@ -2584,6 +2655,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
         // kolejne numery z najblizszego zdania. Pola kodow SMS / jednorazowych pomijane (tam nie wpisujemy tajnych znakow).
         // d.count = tylko liczba roznych numerow (asystent wypelniania), d.diag = opis pol bez wartosci.
         const string PartialFillScript = @"(function(d){var n=0,diag=[],seen={};try{
+if(d.h&&location.hostname.toLowerCase()!==String(d.h).toLowerCase())return '0';
 var ord={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12,thirteenth:13,fourteenth:14,fifteenth:15,sixteenth:16,seventeenth:17,eighteenth:18,nineteenth:19,twentieth:20,
 pierwszy:1,pierwsza:1,drugi:2,druga:2,trzeci:3,trzecia:3,czwarty:4,czwarta:4,piaty:5,piata:5,szosty:6,szosta:6,siodmy:7,siodma:7,osmy:8,osma:8,dziewiaty:9,dziewiata:9,dziesiaty:10,dziesiata:10};
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
@@ -2660,6 +2732,7 @@ return d.diag?diag.join('\n'):d.count?String(cnt()):String(n);})(__D__);";
         }
 
         const string LoginFillScript = @"(function(d){try{
+if(d.h&&location.hostname.toLowerCase()!==String(d.h).toLowerCase())return;
 var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
 function vis(el){var r=el.getBoundingClientRect();return r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}
 function set(el,v){if(!el||!v)return;el.focus();var p=Object.getPrototypeOf(el);var ds=Object.getOwnPropertyDescriptor(p,'value');if(ds&&ds.set)ds.set.call(el,v);else el.value=v;

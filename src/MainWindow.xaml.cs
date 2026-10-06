@@ -418,10 +418,12 @@ namespace Przegladarka
                 await _pendingClear;
             }
             ApplyViewSettings(core);
-            await HookAutofill(tab, core);   // przed ukryciem chrome.webview
+            // tryb bankowy jest izolowany: tylko wlasna zaszyfrowana baza - bez zwyklego menedzera hasel i autouzupelniania
+            // (nie podpowiada zwyklych danych i nie proponuje zapisu hasla banku / karty do zwyklej bazy)
+            if (!tab.Bank) await HookAutofill(tab, core);   // przed ukryciem chrome.webview
             HookProtection(tab, core);
             await HookUbolShield(tab, core);
-            await HookPasswordVault(tab, core);
+            if (!tab.Bank) await HookPasswordVault(tab, core);
             tab.View.ZoomFactorChanged += (s, e) => OnZoomChanged(tab);
             HookTabSound(tab, core);
             ApplyDarkMode(tab);
@@ -438,7 +440,7 @@ namespace Przegladarka
             await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
             tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
-            if (!_extensionsLoaded)
+            if (!_extensionsLoaded && LiveProfile != null)   // dopiero przy zwyklej karcie (karta bankowa / prywatna nie ma dodatkow)
             {
                 _extensionsLoaded = true;
                 await EnsureBundledUbolAsync();
@@ -625,7 +627,7 @@ namespace Przegladarka
 
         async Task RecoverQuickAccessFromBlockAsync(CoreWebView2 core, BrowserTab tab)
         {
-            if (core == null || tab == null) return;
+            if (core == null || tab == null || tab.Bank) return;   // tryb bankowy jest bez dodatkow
             try
             {
                 bool changed = false;

@@ -15,6 +15,7 @@ function wyciagnij(nazwa) {
 }
 const detect = wyciagnij('BankPageDetectScript');
 const partial = wyciagnij('PartialFillScript');
+const login = wyciagnij('LoginFillScript');
 
 const litery = 'abcdefghijklmnopqrstuvwxyz';
 const sel = '<select><option value="">-</option>' + [...litery].map(c => `<option>${c}</option>`).join('') + '</select>';
@@ -83,5 +84,19 @@ for (const s of strony) {
   ok &&= pass;
   console.log(`${pass ? 'PASS' : 'FAIL'} ${s.n}: ${opis}`);
 }
+// dane wpisujemy tylko na stronie, dla ktorej powstaly (h) - strona, ktora w tej chwili przeszla gdzie indziej, nic nie dostaje
+await page.route('https://bank.example/**', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body><p>Enter the 2nd and 4th digits</p>' + pole().repeat(2) + '<form><input name="username"><input type="password" name="pass"></form></body></html>' }));
+await page.goto('https://bank.example/login');
+const wartosci = () => page.evaluate(() => [...document.querySelectorAll('input')].map(e => e.value).join('|'));
+const host = await page.evaluate(() => location.hostname);
+await page.evaluate(partial.replace('__D__', JSON.stringify({ pin: '1234', pwd: '', mem: '', h: 'inny-bank.example' })));
+await page.evaluate(login.replace('__D__', JSON.stringify({ u: 'jan', p: 'tajne', h: 'inny-bank.example' })));
+let p1 = (await wartosci()) === '|||';
+await page.evaluate(partial.replace('__D__', JSON.stringify({ pin: '1234', pwd: '', mem: '', h: host })));
+await page.evaluate(login.replace('__D__', JSON.stringify({ u: 'jan', p: 'tajne', h: host })));
+let p2 = (await wartosci()) === '2|4|jan|tajne';
+console.log(`${p1 ? 'PASS' : 'FAIL'} inna strona (h) - nic nie wpisano`);
+console.log(`${p2 ? 'PASS' : 'FAIL'} ta sama strona (h=${host}) - wpisano: ${await wartosci()}`);
+ok &&= p1 && p2;
 await browser.close();
 process.exit(ok ? 0 : 1);

@@ -295,6 +295,8 @@ namespace Przegladarka
             { "Podaj poprawną domenę stron www, np. example.com", "Enter a valid website domain, e.g. example.com" },
             { "Zaufane domeny", "Trusted domains" },
             { "✔ Dodaj do zaufanych", "✔ Add to trusted" },
+            { "✖ Usuń z zaufanych", "✖ Remove from trusted" },
+            { "Tej domeny nie ma na liście zaufanych.", "This domain is not on the trusted list." },
             { "✔ Zaznaczoną domenę do zaufanych", "✔ Trust selected domain" },
             { "Najpierw zaznacz wpis na liście blokad.", "First select an entry in the block list." },
             { "Wyczyść panel blokad", "Clear block list" },

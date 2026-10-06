@@ -895,19 +895,21 @@ namespace Przegladarka
             List<BankCard> cards;
             try { cards = LoadCards(c); } catch (Exception) { return; }
             if (cards.Count == 0) { BankCards(); return; }
+            Func<BankCard, Task> fill = async card =>
+            {
+                var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
+                if (core == null) return;
+                var data = JsonSerializer.Serialize(new { n = card.Number, e = card.Exp, h = card.Holder, c = card.Cvv ?? "" });
+                try { await core.ExecuteScriptAsync(CardFillScript.Replace("__D__", data)); } catch (Exception) { }
+                ShowToast(string.IsNullOrEmpty(card.Cvv) ? L.T("💳 Wpisano dane karty – CVV wpisz sam") : L.T("💳 Wpisano dane karty"), null);
+            };
+            if (cards.Count == 1) { _ = fill(cards[0]); return; }   // jedna karta - od razu, bez dodatkowego menu
             var menu = new ContextMenu { PlacementTarget = _bankBtn };
             foreach (var k in cards)
             {
                 var card = k;
                 var mi = new MenuItem { Header = CardLine(card) };
-                mi.Click += async (s, e) =>
-                {
-                    var core = _current != null && _current.Bank ? _current.View.CoreWebView2 : null;
-                    if (core == null) return;
-                    var data = JsonSerializer.Serialize(new { n = card.Number, e = card.Exp, h = card.Holder, c = card.Cvv ?? "" });
-                    try { await core.ExecuteScriptAsync(CardFillScript.Replace("__D__", data)); } catch (Exception) { }
-                    ShowToast(string.IsNullOrEmpty(card.Cvv) ? L.T("💳 Wpisano dane karty – CVV wpisz sam") : L.T("💳 Wpisano dane karty"), null);
-                };
+                mi.Click += (s, e) => { _ = fill(card); };
                 menu.Items.Add(mi);
             }
             menu.IsOpen = true;
@@ -1141,6 +1143,7 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
         void CheckBankSiteInNormalTab(BrowserTab tab, string url)
         {
             CheckBankLookalike(tab, url);
+            if (tab != null && tab.Bank) { OfferBankFill(tab); return; }   // karta bankowa: asystent wypelniania danymi z bazy
             try
             {
                 if (tab == null || tab.Bank) return;
@@ -1161,6 +1164,104 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
                 ShowBankSuggest(tab, url, host);
             }
             catch (Exception) { }
+        }
+
+        // ---------- asystent wypelniania (karta bankowa) ----------
+        // Po wczytaniu strony rozpoznajemy logowanie / wybrane znaki hasla / formularz karty i - jesli w bazie sa pasujace
+        // dane - proponujemy wypelnienie jednym kliknieciem (te same funkcje co w menu 🏦). Raz na strone w danej karcie.
+        const string BankPageDetectScript = @"(function(){var r={login:false,partial:false,card:false};try{
+var docs=[document];document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument);}catch(x){}});
+function vis(el){var b=el.getBoundingClientRect();return b.width>0&&b.height>0&&!el.disabled&&!el.readOnly;}
+docs.forEach(function(doc){var small=0;
+Array.prototype.slice.call(doc.querySelectorAll('input,select')).filter(vis).forEach(function(el){
+var a=((el.getAttribute('autocomplete')||'')+' '+(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('placeholder')||'')+' '+(el.getAttribute('aria-label')||'')).toLowerCase();
+if(el.tagName==='SELECT'||(el.maxLength>0&&el.maxLength<=2)){small++;return;}
+if(/cc-number|cardnumber|card-number|card_number|numer.?karty|ccnum/.test(a)){r.card=true;return;}
+if(el.type==='password')r.login=true;
+else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|customer|klient|ident/.test(a))r.login=true;});
+var body=((doc.body&&doc.body.innerText)||'').toLowerCase();
+if(small>=2&&/digit|character|letter|passcode|znak|cyfr|liter/.test(body))r.partial=true;});
+}catch(x){}return JSON.stringify(r);})()";
+
+        sealed class BankPageKinds { public bool login { get; set; } public bool partial { get; set; } public bool card { get; set; } }
+
+        async void OfferBankFill(BrowserTab tab)
+        {
+            try
+            {
+                var core = tab.View.CoreWebView2;
+                if (core == null || _bankKey == null) return;
+                var url = core.Source; var host = HostOf(url); if (host == null) return;
+                var pageKey = url.Split('#')[0];
+                if (tab.BankFillOffered == pageKey) return;
+                BankPageKinds kinds = null;
+                for (int attempt = 0; attempt < 2; attempt++)
+                {
+                    await Task.Delay(attempt == 0 ? 700 : 2000);   // strony logowania czesto dorysowuja pola chwile po wczytaniu
+                    if (!_tabs.Contains(tab) || tab.View.CoreWebView2 == null || tab.View.CoreWebView2.Source != url || _bankKey == null) return;
+                    var raw = JsonSerializer.Deserialize<string>(await tab.View.CoreWebView2.ExecuteScriptAsync(BankPageDetectScript));
+                    kinds = string.IsNullOrEmpty(raw) ? null : JsonSerializer.Deserialize<BankPageKinds>(raw);
+                    if (kinds != null && (kinds.login || kinds.partial || kinds.card)) break;
+                }
+                if (kinds == null || !(kinds.login || kinds.partial || kinds.card)) return;
+                var c = LoadBank(); if (c == null) return;
+                var reg = RegDomain(host);
+                var site = LoadSealed<BankSite>(c.Sites).FirstOrDefault(x => { var h = HostOf(x.Url); return h != null && RegDomain(h) == reg; });
+                var offers = new List<KeyValuePair<string, Action>>();
+                if (kinds.login)
+                {
+                    var hit = LoadSealed<BankItem>(c.Logins).FirstOrDefault(x => { var h = HostOf(FixUrl(x.Get("url"))); return h != null && RegDomain(h) == reg; });
+                    if (hit != null) offers.Add(new KeyValuePair<string, Action>(L.T("🔑 Wpisz login i hasło") + " – " + hit.Get("name"), BankFillLoginMenu));
+                    else if (site != null && !string.IsNullOrEmpty(site.Login)) offers.Add(new KeyValuePair<string, Action>(L.T("🔑 Wpisz login i hasło") + " – " + site.Name, BankFillLoginMenu));
+                }
+                if (kinds.partial && site != null && (!string.IsNullOrEmpty(site.Pin) || !string.IsNullOrEmpty(site.Password) || !string.IsNullOrEmpty(site.Memorable)))
+                    offers.Add(new KeyValuePair<string, Action>(L.T("🔢 Wpisz wybrane znaki") + " – " + site.Name, BankFillPartialMenu));
+                if (kinds.card)
+                {
+                    var cards = LoadCards(c);
+                    if (cards.Count > 0) offers.Add(new KeyValuePair<string, Action>(L.T("💳 Wypełnij kartę") + (cards.Count == 1 ? " – " + cards[0].Label : "…"), BankFillMenu));
+                }
+                if (offers.Count == 0) return;
+                tab.BankFillOffered = pageKey;
+                ShowBankFillOffer(tab, host, offers);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
+        void ShowBankFillOffer(BrowserTab tab, string host, List<KeyValuePair<string, Action>> offers)
+        {
+            var panel = new StackPanel { Margin = new Thickness(16, 14, 16, 14), MaxWidth = 380 };
+            panel.Children.Add(new TextBlock { Text = L.T("🏦 Masz te dane w swojej bazie"), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold });
+            panel.Children.Add(new TextBlock { Text = host, Foreground = new SolidColorBrush(Color.FromRgb(0xD1, 0xFA, 0xE5)), FontSize = 13, Margin = new Thickness(0, 4, 0, 6) });
+            Window toast = null;
+            foreach (var o in offers)
+            {
+                var act = o.Value;
+                var b = new Button { Content = o.Key, Padding = new Thickness(12, 5, 12, 5), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 0), HorizontalContentAlignment = HorizontalAlignment.Left };
+                b.Click += (s, e) =>
+                {
+                    try { toast.Close(); } catch (Exception) { }
+                    if (!_tabs.Contains(tab) || _bankKey == null) return;
+                    if (_current != tab) SelectTab(tab);   // funkcje wypelniania dzialaja na biezacej karcie
+                    act();
+                };
+                panel.Children.Add(b);
+            }
+            var later = new Button { Content = L.T("Nie teraz"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
+            later.Click += (s, e) => { try { toast.Close(); } catch (Exception) { } };
+            panel.Children.Add(later);
+            toast = new Window
+            {
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = this, Topmost = true,
+                SizeToContent = SizeToContent.WidthAndHeight, ShowActivated = false, Content = panel, Tag = "velivo-bank",
+                Background = new SolidColorBrush(Color.FromRgb(0x06, 0x4E, 0x3B)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)), BorderThickness = new Thickness(1)
+            };
+            toast.Loaded += (s, e) => PlaceToast(toast);
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            timer.Tick += (s, e) => { timer.Stop(); try { toast.Close(); } catch (Exception) { } };
+            toast.Closed += (s, e) => timer.Stop();
+            toast.Show();
+            timer.Start();
         }
 
         // Okienko w rogu (nie blokuje strony): strona z listy bankowej otwarta w zwyklej karcie -> pytanie o tryb bankowy
@@ -2029,6 +2130,7 @@ Osobny, zamknięty profil przeglądarki na banki i zakupy. Ma własne logowania 
 • Bank z listy otwarty w zwykłej karcie → przypomnienie, żeby użyć trybu bankowego.
 • Po zamknięciu trybu znika pamięć podręczna i historia (logowania zostają).
 • Przypomnienie o kartach, które niedługo wygasają.
+• Asystent wypełniania: na stronie logowania, wyboru znaków hasła albo płatności kartą Velivo samo proponuje wypełnienie danymi z Twojej bazy – jedno kliknięcie, bez szukania w menu.
 
 5. SYNCHRONIZACJA
 Banki, sklepy, karty, notatki i ustawienia trybu przechodzą na sparowane komputery (zaszyfrowane). Logowania w bankach (ciasteczka) zostają na każdym komputerze osobno.
@@ -2081,6 +2183,7 @@ A separate, closed browser profile for banking and shopping. It has its own logi
 • A listed bank opened in a normal tab → reminder to use banking mode.
 • Cache and history are cleared when the mode closes (logins stay).
 • Reminder about cards that expire soon.
+• Fill-in assistant: on a login, selected-characters or card payment page Velivo offers to fill in data from your vault – one click, no menu needed.
 
 5. SYNC
 Banks, shops, cards, notes and settings go to paired computers (encrypted). Bank logins (cookies) stay on each computer.

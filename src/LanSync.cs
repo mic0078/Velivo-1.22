@@ -69,6 +69,8 @@ namespace Przegladarka
         {
             "lanSync",
             "audioOut",
+            "cacheDir",          // wlasny folder na smieci - sciezka istnieje tylko na tym komputerze
+            "cacheMb",           // rozmiar pamieci podrecznej zalezy od dysku tego komputera
             "readVoice",         // glos czytania - glosy zainstalowane w Windows sa rozne na kazdym komputerze
             "readerSize",        // rozmiar okna zalezy od ekranu komputera          // glosniki to urzadzenie konkretnego komputera
             "lastDlDir",         // folder (np. dysk Z:) istnieje tylko na tym komputerze

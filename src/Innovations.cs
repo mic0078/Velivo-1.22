@@ -47,13 +47,36 @@ namespace Przegladarka
             "podatki", "mail.", "poczta", "outlook.", "accounts.", "login.", "signin", "auth.", "konto.", "account.",
         };
 
-        static bool MemoryAllowed(string url)
+        internal static bool MemoryAllowed(string url)
         {
             Uri u;
             if (!Uri.TryCreate(url ?? "", UriKind.Absolute, out u) || (u.Scheme != "http" && u.Scheme != "https")) return false;
             var h = u.Host.ToLowerInvariant();
+            if (IsSearchResultsPage(h, u.AbsolutePath.ToLowerInvariant())) return false;   // lista wynikow to nie przeczytana strona
             return !MemoryExcluded.Any(x => h.Contains(x));
         }
+
+        static bool IsSearchResultsPage(string host, string path)
+        {
+            if (host.Contains("startpage.com") || host.Contains("duckduckgo.com") || host == "search.brave.com" || host.StartsWith("search.yahoo.")) return true;
+            bool engine = host.Contains("google.") || host.Contains("bing.com") || host.Contains("ecosia.org") || host.Contains("yandex.") || host.Contains("qwant.com");
+            return engine && (path == "/search" || path.StartsWith("/search/") || path == "/");
+        }
+
+        // Wlasciwa tresc strony (jak tryb czytania): bez menu, naglowkow, stopek, reklam, banerow, "polecanych" i blokow
+        // samych linkow - zostaja akapity artykulu. Wszystko lokalnie, nic nie wychodzi z komputera. Strona z polem hasla - nic.
+        const string MemoryTextScript = @"(function(){try{if(!document.body||document.querySelector('input[type=password]'))return '';
+var junk='nav,header,footer,aside,form,script,style,noscript,iframe,svg,button,select,[role=navigation],[role=banner],[role=contentinfo],[role=complementary],[aria-hidden=true]';
+var bad=/(^|[\s_-])(nav|menu|footer|header|sidebar|comment|cookie|consent|banner|share|social|related|recommend|promo|advert|ads?|sponsor|newsletter|breadcrumb|popup|modal|teaser|polecane|reklama)([\s_-]|$)/i;
+var root=document.querySelector('article')||document.querySelector('main,[role=main]')||document.body;
+var c=root.cloneNode(true);c.querySelectorAll(junk).forEach(function(e){e.remove();});
+c.querySelectorAll('[class],[id]').forEach(function(e){if(bad.test((e.className&&e.className.baseVal!==undefined?e.className.baseVal:e.className)+' '+e.id))e.remove();});
+var out=[],seen={};
+c.querySelectorAll('h1,h2,h3,p,li,blockquote,pre,td,dd').forEach(function(e){if(e.querySelector('p,li,blockquote'))return;
+var t=(e.textContent||'').replace(/\s+/g,' ').trim();if(t.length<(e.tagName.charAt(0)==='H'?8:40)||seen[t])return;
+var l=0;e.querySelectorAll('a').forEach(function(a){l+=(a.textContent||'').length;});if(l>t.length*0.5)return;seen[t]=1;out.push(t);});
+var r=out.join('\n');if(!r)r=(c.innerText||c.textContent||'').replace(/[ \t]+/g,' ').replace(/\n\s*\n+/g,'\n');
+return r.slice(0,12000);}catch(e){return '';}})()";
 
         static List<MemPage> MemoryPages()
         {
@@ -112,7 +135,7 @@ namespace Przegladarka
                 if (!MemoryAllowed(url)) return;
                 await Task.Delay(2500);   // tresc czesto dochodzi skryptami po zaladowaniu
                 if (!_tabs.Contains(tab) || tab.View.CoreWebView2 == null || tab.View.CoreWebView2.Source != url) return;
-                var json = await core.ExecuteScriptAsync("(function(){try{if(document.querySelector('input[type=password]'))return '';var t=(document.body&&document.body.innerText)||'';return t.replace(/[ \\t]+/g,' ').replace(/\\n\\s*\\n+/g,'\\n').slice(0,12000);}catch(e){return '';}})()");
+                var json = await core.ExecuteScriptAsync(MemoryTextScript);
                 var text = JsonSerializer.Deserialize<string>(json) ?? "";
                 if (text.Length < 200) return;
                 var page = new MemPage { Url = url, Title = core.DocumentTitle ?? "", Time = DateTime.Now, Text = text };
@@ -157,9 +180,31 @@ namespace Przegladarka
 
         sealed class MemHit { public MemPage Page; public int Score; public int Pos; }
 
+        static List<string> QueryWords(string query)
+        {
+            return Fold(query ?? "").Split(new[] { ' ', ',', '.', ';', ':', '"', '\'' }, StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 2).Distinct().ToList();
+        }
+
+        // fragment wyniku z pogrubionymi szukanymi slowami (Fold zachowuje dlugosc tekstu - pozycje sie zgadzaja)
+        static TextBlock SnippetBlock(string snippet, IList<string> words)
+        {
+            var tb = new TextBlock { Foreground = Brushes.DimGray, FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxHeight = 52 };
+            var f = Fold(snippet); int i = 0;
+            while (i < snippet.Length)
+            {
+                int best = -1, len = 0;
+                foreach (var w in words) { int j = f.IndexOf(w, i, StringComparison.Ordinal); if (j >= 0 && (best < 0 || j < best)) { best = j; len = w.Length; } }
+                if (best < 0) { tb.Inlines.Add(new System.Windows.Documents.Run(snippet.Substring(i))); break; }
+                if (best > i) tb.Inlines.Add(new System.Windows.Documents.Run(snippet.Substring(i, best - i)));
+                tb.Inlines.Add(new System.Windows.Documents.Run(snippet.Substring(best, len)) { FontWeight = FontWeights.Bold, Foreground = Brushes.Black });
+                i = best + len;
+            }
+            return tb;
+        }
+
         static List<MemHit> SearchPageMemory(string query)
         {
-            var words = Fold(query ?? "").Split(new[] { ' ', ',', '.', ';', ':', '"', '\'' }, StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 2).Distinct().ToList();
+            var words = QueryWords(query);
             var hits = new List<MemHit>();
             if (words.Count == 0) return hits;
             List<MemPage> pages;
@@ -221,7 +266,7 @@ namespace Przegladarka
                         int a = Math.Max(0, h.Pos - 90), b = Math.Min(full.Length, h.Pos + 180);
                         snippet = (a > 0 ? "…" : "") + full.Substring(a, b - a).Replace('\n', ' ') + (b < full.Length ? "…" : "");
                     }
-                    row.Children.Add(new TextBlock { Text = snippet, Foreground = Brushes.DimGray, FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxHeight = 52 });
+                    row.Children.Add(SnippetBlock(snippet, QueryWords(q)));
                     var item = new ListBoxItem { Content = row, Tag = p, ToolTip = p.Url };
                     var menu = new ContextMenu();
                     var open = new MenuItem { Header = L.T("Otwórz w nowej karcie") }; open.Click += (s, e) => AddTab(p.Url);

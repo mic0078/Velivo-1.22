@@ -76,10 +76,22 @@ namespace Przegladarka
         CoreWebView2Environment _env;
         BrowserTab _current;
         int _totalBlocked;
+        static string ClearOnExitPendingFile { get { return Path.Combine(DataDir, "czysc-przy-starcie.flag"); } }
+        Task _pendingClear;
+
+        // tylko gdy opcja nadal jest wlaczona; znacznik usuwamy dopiero po udanym czyszczeniu (nieudane - ponowimy przy nastepnym starcie)
+        async Task ClearPendingOnStart(CoreWebView2Profile profile)
+        {
+            try
+            {
+                if (_settings.ClearOnExit) await ClearBrowsingDataOnExit(profile, false);
+                File.Delete(ClearOnExitPendingFile);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         // Profil przegladarki bierzemy z karty otwartej w tej chwili - obiekt z zamknietej karty jest juz zwolniony
         // (wczesniej zapamietany z pierwszej karty: po jej zamknieciu "Wyczysc smieci" konczylo sie bledem).
-        static string ClearOnExitPendingFile { get { return Path.Combine(DataDir, "czysc-przy-starcie.flag"); } }
-
         CoreWebView2Profile LiveProfile
         {
             get
@@ -399,11 +411,11 @@ namespace Przegladarka
             var core = tab.View.CoreWebView2;
             core.Settings.IsStatusBarEnabled = false;
             if (tab.Bank) await BankAfterInit(core);
-            if (!tab.Private && !tab.Bank && File.Exists(ClearOnExitPendingFile))
+            if (!tab.Private && !tab.Bank && (_pendingClear != null || File.Exists(ClearOnExitPendingFile)))
             {
-                // zaleglosc z zamkniecia - raz (znacznik usuwany od razu) i tylko gdy opcja nadal jest wlaczona
-                try { File.Delete(ClearOnExitPendingFile); } catch (Exception) { }
-                if (_settings.ClearOnExit) { try { await ClearBrowsingDataOnExit(core.Profile, false); } catch (Exception) { } }
+                // zaleglosc z zamkniecia - raz; kazda zwykla karta czeka na nie, zanim wczyta strone
+                if (_pendingClear == null) _pendingClear = ClearPendingOnStart(core.Profile);
+                await _pendingClear;
             }
             ApplyViewSettings(core);
             await HookAutofill(tab, core);   // przed ukryciem chrome.webview

@@ -83,4 +83,12 @@ public class TorrentTests
         Assert.Equal(new[] { @"C:\T\ubuntu.iso" }, MainWindow.PartialEntries(dir, before, after));   // bez starych plikow i bez skonczonych
         Assert.Empty(MainWindow.PartialEntries(dir, after, after));
     }
+
+    [Fact]
+    public void Sciezka_pobieranego_pliku_z_linii_FILE()
+    {
+        Assert.Equal(@"D:\Filmy\film.avi", MainWindow.TorrentFileLine(@"FILE: D:\Filmy\film.avi"));
+        Assert.Null(MainWindow.TorrentFileLine("FILE: [METADATA]film"));
+        Assert.Null(MainWindow.TorrentFileLine("[#5d77cf SEED(0.0) CN:0 SD:0]"));
+    }
 }

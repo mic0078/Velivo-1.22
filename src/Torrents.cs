@@ -107,7 +107,7 @@ namespace Przegladarka
             AddRowToPanel(row);
             Downloads_Click(null, null);
 
-            string done = null, lastError = null; bool seeding = false, seedUi = false;
+            string done = null, file = null, lastError = null; bool seeding = false, seedUi = false;
             var before = DirEntries(dir);   // co bylo w folderze przed startem - po przerwaniu usuwamy tylko nowe czesci
             try
             {
@@ -117,6 +117,7 @@ namespace Przegladarka
                 {
                     var line = e.Data; if (line == null) return;
                     var fin = TorrentDoneFile(line); if (fin != null) { done = fin; return; }
+                    var f = TorrentFileLine(line); if (f != null) { file = f; return; }
                     var p = TorrentProgress(line); if (p == null) return;
                     seeding = p.Item4;
                     Dispatcher.BeginInvoke(new Action(() =>
@@ -126,7 +127,7 @@ namespace Przegladarka
                         {
                             seedUi = true;
                             stopBtn.Content = L.T("Zakończ udostępnianie");
-                            buttons.Children.Insert(0, SmallButton(L.T("Otwórz folder"), () => { try { Process.Start("explorer.exe", "\"" + dir + "\""); } catch (Exception) { } }));
+                            buttons.Children.Insert(0, SmallButton(L.T("Otwórz folder"), () => ShowInFolder(file ?? dir)));
                         }
                         status.Text = p.Item4 ? L.T("✔ Pobrane – udostępniam (limit w Ustawieniach → Torrenty)")
                             : p.Item1 + "%" + (p.Item2 != null ? "  ·  " + p.Item2 + "/s" : "") + (p.Item3 != null ? (L.En ? "  ·  left " : "  ·  zostało ") + p.Item3 : "");
@@ -146,9 +147,9 @@ namespace Przegladarka
             {
                 bar.Value = 100;
                 status.Text = L.T("✔ Pobrano") + (done != null ? ": " + done : "");
-                var target = done != null && (File.Exists(done) || Directory.Exists(done)) ? done : dir;
+                var target = new[] { done, file }.FirstOrDefault(x => x != null && (File.Exists(x) || Directory.Exists(x))) ?? dir;   // po "Zakoncz udostepnianie" aria2 nie podaje wyniku - zostaje sciezka z linii FILE:
                 MarkTorrentFiles(target);   // strefa: kazdy plik oznaczony jako z internetu (Windows sprawdzi go przed uruchomieniem)
-                buttons.Children.Add(SmallButton(L.T("Pokaż w folderze"), () => { try { Process.Start("explorer.exe", File.Exists(target) ? "/select,\"" + target + "\"" : "\"" + target + "\""); } catch (Exception) { } }));
+                buttons.Children.Add(SmallButton(L.T("Pokaż w folderze"), () => ShowInFolder(target)));
                 ShowToast(L.T("🧲 Pobrano torrent: ") + title, null);
             }
             else
@@ -224,6 +225,19 @@ namespace Przegladarka
             var eta = Regex.Match(line, @"\bETA:([0-9hms]+)");
             if (!pct.Success && !dl.Success) return null;
             return Tuple.Create(pct.Success ? int.Parse(pct.Groups[1].Value) : -1, dl.Success ? dl.Groups[1].Value : null, eta.Success ? eta.Groups[1].Value : null, false);
+        }
+
+        // linia aria2 "FILE: C:\Pobrane\film.avi" - pobierany plik (takze w trakcie udostepniania)
+        internal static string TorrentFileLine(string line)
+        {
+            if (line == null || !line.StartsWith("FILE: ", StringComparison.Ordinal)) return null;
+            var path = line.Substring(6).Trim();
+            return path.Length == 0 || path.Contains("[METADATA]") || path.Contains("[MEMORY]") ? null : path;
+        }
+
+        static void ShowInFolder(string path)
+        {
+            try { Process.Start("explorer.exe", File.Exists(path) ? "/select,\"" + path + "\"" : "\"" + path + "\""); } catch (Exception) { }
         }
 
         static void MarkTorrentFiles(string path)

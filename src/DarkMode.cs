@@ -212,17 +212,32 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); MessageBox.Show(this, L.T("Nie udało się uruchomić ponownie:\n") + ex.Message, "Velivo"); }
         }
 
-        static readonly FontFamily ModeIconFont = new FontFamily("Segoe UI Emoji, Segoe UI Symbol, Segoe UI");
+        // Ikony trybu stron rysowane wektorowo (cienka linia jak ikony Windows 11) - nie zaleza od czcionki, wiec nigdy prostokaty
+        static readonly string[] ModeIconPaths =
+        {
+            "M13.5,10 A3.5,3.5 0 1 1 6.5,10 A3.5,3.5 0 1 1 13.5,10 Z M10,1.8 V3.6 M10,16.4 V18.2 M1.8,10 H3.6 M16.4,10 H18.2 M4.2,4.2 L5.5,5.5 M14.5,14.5 L15.8,15.8 M4.2,15.8 L5.5,14.5 M14.5,5.5 L15.8,4.2",   // jasny: slonce
+            "M16.5,12.6 A7,7 0 1 1 7.4,3.5 A5.6,5.6 0 0 0 16.5,12.6 Z",   // ciemny: ksiezyc
+            "M2,14.5 H18 M5.8,14.5 A4.2,4.2 0 0 1 14.2,14.5 M10,5 V7 M3.6,8.4 L5,9.8 M16.4,8.4 L15,9.8 M5.5,17.5 H14.5",   // nocny: zachod slonca
+        };
+
+        UIElement ModeIcon(int kind)
+        {
+            var path = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse(ModeIconPaths[kind]), StrokeThickness = 1.5, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round,
+            };
+            path.SetBinding(System.Windows.Shapes.Shape.StrokeProperty, new System.Windows.Data.Binding("Foreground") { Source = DarkBtn });
+            var box = new System.Windows.Controls.Grid { Width = 20, Height = 20 }; box.Children.Add(path);
+            return new System.Windows.Controls.Viewbox { Width = 18, Height = 18, Child = box };
+        }
 
         void UpdateDarkButton()
         {
-            // znaki trybu (☀ 🌙 🌅) jak w powiadomieniu - czcionka ikon Windows ich nie ma (rysowalaby prostokaty)
-            DarkBtn.FontFamily = ModeIconFont; DarkBtn.FontSize = 17;
             var m = CurrentPageMode();
             bool on = m.Dark;
             if (m.Night)
             {
-                DarkBtn.Content = "🌅";
+                DarkBtn.Content = ModeIcon(2);
                 DarkBtn.Foreground = new SolidColorBrush(Color.FromRgb(0xC2, 0x41, 0x0C));
                 DarkBtn.Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xD8, 0xA8));
                 DarkBtn.ToolTip = L.T("Tryb nocny: WŁĄCZONY (cieplejsze kolory)\nKliknij, aby wrócić do trybu jasnego") +
@@ -230,7 +245,7 @@ namespace Przegladarka
                 ModernDarkButton();
                 return;
             }
-            DarkBtn.Content = on ? "🌙" : "☀"; // ikona = obecny tryb, te same znaki co w powiadomieniu: ☀ jasny, 🌙 ciemny, 🌅 nocny
+            DarkBtn.Content = ModeIcon(on ? 1 : 0); // ikona = obecny tryb, jak w powiadomieniu: slonce jasny, ksiezyc ciemny, zachod slonca nocny
             DarkBtn.Foreground = new SolidColorBrush(on ? Color.FromRgb(0xB4, 0x53, 0x09) : Color.FromRgb(0x1E, 0x29, 0x3B));
             DarkBtn.Background = new SolidColorBrush(on ? Color.FromRgb(0xFE, 0xF3, 0xC7) : Color.FromRgb(0xE2, 0xE8, 0xF0));
             ModernDarkButton();

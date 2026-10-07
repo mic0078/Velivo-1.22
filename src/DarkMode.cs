@@ -45,7 +45,7 @@ namespace Przegladarka
             foreach (var t in _tabs) ApplyLiveDarkCss(t.View.CoreWebView2);
             RefreshPageScripts();   // efekt wejscia i tlo przed narysowaniem znaja nowy tryb strony
             UpdateDarkButton();
-            ShowToast(next == "dark" ? L.T("🌙 Tryb ciemny") : next == "night" ? L.T("🌅 Tryb nocny – cieplejsze kolory") : L.T("☀ Tryb jasny"), null);
+            ShowToast(next == "dark" ? L.T("◐ Tryb ciemny") : next == "night" ? L.T("🌙 Tryb nocny – cieplejsze kolory") : L.T("☀ Tryb jasny"), null);
         }
 
         // ---------- tryb zapamietany osobno dla kazdej strony (host -> light/dark/night + natezenie) ----------
@@ -226,7 +226,7 @@ namespace Przegladarka
                 ModernDarkButton();
                 return;
             }
-            DarkBtn.Content = on ? "" : ""; // slonce (wylacz) / ksiezyc (wlacz)
+            DarkBtn.Content = on ? "◐" : ""; // ikona = obecny tryb: jasny slonce, ciemny pol-kolko, nocny ksiezyc
             DarkBtn.Foreground = new SolidColorBrush(on ? Color.FromRgb(0xB4, 0x53, 0x09) : Color.FromRgb(0x1E, 0x29, 0x3B));
             DarkBtn.Background = new SolidColorBrush(on ? Color.FromRgb(0xFE, 0xF3, 0xC7) : Color.FromRgb(0xE2, 0xE8, 0xF0));
             ModernDarkButton();

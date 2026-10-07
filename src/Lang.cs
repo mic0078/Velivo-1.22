@@ -1049,6 +1049,7 @@ namespace Przegladarka
             { "✔ Pobrane – udostępniam (limit w Ustawieniach → Torrenty)", "✔ Downloaded – sharing (limit in Settings → Torrents)" },
             { "Do torrentów Velivo używa darmowego programu aria2 (ok. 2,5 MB, z serwisu GitHub).\n\nWażne: w torrentach Twój adres IP widzą inni uczestnicy wymiany. Jeśli chcesz pozostać anonimowy, użyj VPN.\n\nPobrać aria2 teraz? To jednorazowe.", "For torrents Velivo uses the free aria2 program (about 2.5 MB, from GitHub).\n\nImportant: in torrents other participants can see your IP address. If you want to stay anonymous, use a VPN.\n\nDownload aria2 now? This is a one-off." },
             { "Torrenty", "Torrents" },
+            { "Torrenty są wyłączone – włącz je w Ustawieniach → Torrenty.", "Torrents are off – turn them on in Settings → Torrents." },
             { "Suma kontrolna pobranego pliku się nie zgadza – plik nie zostanie uruchomiony.", "The checksum of the downloaded file does not match – the file will not be run." },
             { "Nie udało się pobrać aria2:\n", "Could not download aria2:\n" },
             { "Szukam uczestników wymiany…", "Looking for peers…" },

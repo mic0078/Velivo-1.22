@@ -591,6 +591,7 @@ Standardowe okienko silnika przeglądarki. Gra dalej po zamknięciu karty, aż z
 
 Włączasz je w **Ustawienia → Torrenty** (domyślnie wyłączone). Wtedy:
 - **link magnet** (kliknięty albo wklejony w pasek adresu) i **pobrany plik .torrent** pobiera darmowy program **aria2** – doinstalowany przy pierwszym użyciu, za zgodą (ok. 2,5 MB), ze sprawdzoną sumą SHA-256;
+- **skojarzenie z Windows:** instalator kojarzy pliki `.torrent` i linki `magnet:` z Velivo – dwuklik na pliku albo link magnet z innego programu trafia od razu do pobierania (gdy torrenty są wyłączone, Velivo podpowie, gdzie je włączyć);
 - **wybór folderu:** przy każdym torrencie (gdy włączone „Pytaj, gdzie zapisać plik”) wybierasz folder – okno otwiera się w strefie torrentów;
 - **osobna strefa:** pliki trafiają do własnego folderu (domyślnie `Pobrane\Velivo-Torrenty`), są oznaczone jako pobrane z internetu (Windows sprawdzi je przed uruchomieniem), Velivo niczego z nich samo nie otwiera;
 - w ustawieniach: folder strefy, prędkość pobierania i wysyłania, udostępnianie po pobraniu (do jakiego współczynnika, jak długo), liczba uczestników;

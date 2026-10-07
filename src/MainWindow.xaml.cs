@@ -174,7 +174,8 @@ namespace Przegladarka
                     if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
                     if (session.Count == 0 && pinned.Count == 0 && _startUrls.Length == 0) AddTab("");
                     if (session.Count == 0 && pinned.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
-                    foreach (var u in _startUrls) AddTab(u);
+                    foreach (var u in _startUrls) OpenArg(u);
+                    if (_tabs.Count == 0) AddTab("");   // start samym torrentem
                     _sessionLoaded = true;
                     SaveSessionSoon();
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie

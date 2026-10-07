@@ -61,4 +61,14 @@ public class TorrentTests
         Assert.Null(MainWindow.TorrentDoneFile("2089b0|ERR |       0B/s|C:\\x"));
         Assert.Null(MainWindow.TorrentDoneFile("Status Legend:"));
     }
+
+    [Fact]
+    public void Skojarzenie_z_Windows_rozpoznaje_torrent()
+    {
+        Assert.Equal("magnet:?xt=urn:btih:abc", MainWindow.TorrentArg(" magnet:?xt=urn:btih:abc "));
+        Assert.Equal(@"C:\Pobrane\ubuntu.torrent", MainWindow.TorrentArg("file:///C:/Pobrane/ubuntu.torrent"));   // tak plik przychodzi po ArgToUrl
+        Assert.Null(MainWindow.TorrentArg("https://example.com/ubuntu.torrent"));   // adres w sieci to zwykla karta
+        Assert.Null(MainWindow.TorrentArg("file:///C:/Pobrane/strona.html"));
+        Assert.Null(MainWindow.TorrentArg("velivo.pl"));
+    }
 }

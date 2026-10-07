@@ -215,6 +215,28 @@ namespace Przegladarka
         }
 
         // pobrany plik .torrent - start pobierania (tylko gdy torrenty wlaczone)
+        // argument z Windows (skojarzenie .torrent / magnet:) -> zrodlo torrenta; null = zwykly adres
+        internal static string TorrentArg(string a)
+        {
+            if (IsMagnet(a)) return a.Trim();
+            try
+            {
+                Uri u;
+                if (Uri.TryCreate(a, UriKind.Absolute, out u) && u.IsFile && u.LocalPath.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase)) return u.LocalPath;
+            }
+            catch (Exception) { }
+            return null;
+        }
+
+        // otwarcie z zewnatrz: torrent trafia do pobran, reszta do nowej karty
+        void OpenArg(string a)
+        {
+            var t = TorrentArg(a);
+            if (t == null) AddTab(a);
+            else if (_settings.Torrents) _ = StartTorrentAsync(t);
+            else ShowToast(L.T("Torrenty są wyłączone – włącz je w Ustawieniach → Torrenty."), null);
+        }
+
         void OnFileDownloaded(string file)
         {
             if (_settings.Torrents && file != null && file.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase) && File.Exists(file))

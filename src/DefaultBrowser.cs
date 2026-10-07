@@ -111,7 +111,7 @@ namespace Przegladarka
             }
             if (_inTray) { ShowFromTray(); if (urls.Length == 0) return; }
             if (urls.Length == 0) AddTab(NewTabUrl);
-            foreach (var u in urls) AddTab(u);
+            foreach (var u in urls) OpenArg(u);
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
             Activate();
             Topmost = true; Topmost = false; // wyciagnij okno na wierzch

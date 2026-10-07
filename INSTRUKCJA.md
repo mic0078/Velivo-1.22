@@ -378,6 +378,7 @@ Gdy czegoś brakuje, instalator sam to wykryje i otworzy stronę pobierania.
    - **Zachowaj moje ustawienia i dane** – zwykła aktualizacja (zalecane);
    - **Czysta instalacja** – start od zera. Stare dane trafią do kopii zapasowej z dopiskiem `.kopia-<data>`.
 5. Opcjonalnie zaznacz skrót na pulpicie i zakończ.
+6. **Przy pierwszym uruchomieniu** Velivo jednorazowo pyta, czy ustawić je jako domyślną przeglądarkę (linki z innych programów i pliki PDF otworzą się w Velivo). „Nie” – pytanie się nie powtórzy, zmienisz to w Ustawieniach.
 
 Instalacja nie wymaga uprawnień administratora. Program trafia do `%LOCALAPPDATA%\Programs\Velivo`. Instalator sam zamyka działające w tle Velivo i omija pliki zablokowane przez antywirusa.
 
@@ -405,7 +406,7 @@ Velivo startuje na pełnym ekranie. Od lewej:
 | **🛡 + liczba** | Tarcza: ile zablokowano na stronie. Kliknięcie pokazuje listę i paragon prywatności. Czerwona tarcza oznacza wyłączony AdBlock |
 | **⚠ + liczba** (żółty) | Pojawia się w sklepie, który używa sztuczek presji |
 | **📚** | Wszystkie zakładki |
-| **🌙** | Tryb stron: jasny → ciemny → nocny. W trybie nocnym kółko myszy zmienia natężenie |
+| **☀ / 🌙 / 🌅** | Tryb stron – ikona pokazuje obecny: ☀ jasny → 🌙 ciemny → 🌅 nocny. W trybie nocnym kółko myszy zmienia natężenie |
 | **📷** | Zrzut ekranu: widoczna część albo cała strona |
 | **Czytnik** | Tryb czytania ze streszczeniem |
 | **🔊** | Czytaj stronę na głos. Podczas czytania pojawiają się pauza, stop i prędkość |
@@ -485,7 +486,7 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 | Gdzie | Działanie |
 | --- | --- |
 | Przycisk powiększenia (np. 125%) | Powiększa i pomniejsza stronę, zapamiętuje dla strony |
-| Przycisk trybu 🌙, gdy włączony jest tryb nocny | Natężenie ocieplenia 5–100% |
+| Przycisk trybu stron (🌅), gdy włączony jest tryb nocny | Natężenie ocieplenia 5–100% |
 | Okienko „Film na wierzchu” | Przezroczystość 15–100% |
 
 ### Klik myszką na linkach
@@ -559,6 +560,15 @@ Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy 
 | Zamknięcie | ✕ |
 
 Przezroczystość wymaga Windows 10 w wersji 1809 lub nowszej, bo okienko używa składnika Windows do rysowania obrazu.
+
+### 🎬 Odtwarzacz filmów z dysku (offline)
+
+- **Otwieranie:** dwuklik na pliku wideo w Windows (instalator dodaje Velivo do „Otwórz za pomocą” dla MP4, WebM, MKV, MOV, M4V, OGV; na stałe – w „Aplikacjach domyślnych” przy Velivo), **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **🎬 Otwórz film z dysku**.
+- Film otwiera się w karcie na całe okno, bez internetu. Na filmie działają **⧉ Obraz w obrazie** i **▣ Film na wierzchu** (okienko zawsze na wierzchu, przezroczystość kółkiem).
+- **Sterowanie:** pasek odtwarzacza (start/pauza, przewijanie, głośność, pełny ekran) oraz skróty: spacja albo klik – pauza, ← → – 5 s, ↑ ↓ – głośność, **F** – pełny ekran, **M** – wycisz.
+- **Gdy Velivo nie ma na liście „Otwórz za pomocą”:** uruchom Velivo raz (samo dopisuje się do Windows) albo użyj przycisku **Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”**.
+- **Ustawienia → Odtwarzacz filmów:** otwieranie filmów w Velivo, odtwarzanie od razu, wznawianie od miejsca, w którym skończyłeś (tylko na tym komputerze), powtarzanie w kółko.
+- **Formaty:** najpewniej MP4 (H.264) i WebM. Gdy kodek nie jest obsługiwany (np. HEVC/H.265), pojawia się komunikat.
 
 ### ⧉ Obraz w obrazie
 
@@ -711,7 +721,7 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
   - **Nowoczesny** (domyślny): spokojne przyciski bez kolorowych teł, ikony Windows 11, jeden niebieski akcent, a kolor tylko przy najechaniu albo gdy coś jest włączone;
   - **Kolorowy**: kolorowe przyciski i emoji.
 - **10 motywów:** Jasny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
-- **Tryby stron** (przycisk 🌙):
+- **Tryby stron** (przycisk trybu – ikona pokazuje obecny tryb: ☀ jasny, 🌙 ciemny, 🌅 nocny):
   - jasny;
   - **ciemny** – strony przyciemnione, a zdjęcia zostają w prawdziwych kolorach;
   - **nocny** – ciepłe kolory i mniej niebieskiego światła, **natężenie kółkiem myszy**.
@@ -939,6 +949,7 @@ Jeśli masz RAM dysk (na przykład ImDisk, SoftPerfect RAM Disk albo własne nar
 | Ctrl+Tab / Ctrl+Shift+Tab | Następna / poprzednia karta |
 | Ctrl+Shift+A | Szukaj w kartach |
 | Ctrl+Shift+F | 🧠 Gdzie ja to czytałem? |
+| Ctrl+O | 🎬 Otwórz film z dysku |
 | Ctrl+L | Pasek adresu |
 | Ctrl+D | Zakładka |
 | Ctrl+H | Historia |
@@ -964,6 +975,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 ### Domyślna przeglądarka
 - Stan: „✓ Velivo jest domyślną przeglądarką” albo „Velivo nie jest teraz domyślną przeglądarką”.
 - **Ustaw Velivo jako domyślną przeglądarkę…** – rejestruje Velivo w Windows i otwiera okno wyboru aplikacji domyślnych.
+- **PDF:** Velivo otwiera pliki PDF wbudowanym czytnikiem (powiększanie, wyszukiwanie, drukowanie, zapis). Instalator dodaje Velivo do „Otwórz za pomocą” dla `.pdf`; na stałe ustawisz to w „Aplikacjach domyślnych” przy Velivo.
 
 ### 📥 Import haseł, loginów i zakładek
 - **🔑 Hasła i loginy z pliku** (CSV z KeePassXC, Chrome, Edge i innych programów).
@@ -972,7 +984,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 ### Wygląd i czytelność
 - **Domyślne powiększenie stron** – dla wszystkich stron; każdą stronę możesz też powiększyć osobno (Ctrl + kółko), a Velivo to zapamięta.
 - **Tryb ciemny stron** – strony z własnym ciemnym wyglądem przełączają się na niego, pozostałe są przyciemniane (zdjęcia zostają w prawdziwych kolorach).
-- **Tryb nocny** – cieplejsze kolory i mniej niebieskiego światła (jak Światło nocne w Windows). Przycisk 🌙 przełącza: jasny → ciemny → nocny; natężenie zmieniasz kółkiem myszy na przycisku.
+- **Tryb nocny** – cieplejsze kolory i mniej niebieskiego światła (jak Światło nocne w Windows). Przycisk trybu stron (☀ / 🌙 / 🌅) przełącza: jasny → ciemny → nocny; natężenie zmieniasz kółkiem myszy na przycisku.
 - **Efekt wejścia treści** – jak nowa strona pojawia się na ekranie:
   - **Wyostrzenie** (domyślne) – treść wyłania się z lekkiego rozmycia;
   - **Z ciemności (kinowe)** – strona rozjaśnia się z ciemnego ekranu, jak w kinie;
@@ -1028,6 +1040,9 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 - **Głośniki Velivo** – wybierz konkretne wyjście dźwięku zamiast domyślnego Windows. **Nie gub dźwięku** – gdy program muzyczny (Ableton, Cubase) zajmie głośniki, Velivo gra na innym aktywnym wyjściu i wraca, gdy się zwolnią. **🔊 Mikser głośności Windows…** – przypięcie Velivo do głośników na stałe.
 - **Po zamknięciu okna zostań w zasobniku** – synchronizacja w tle i natychmiastowy start; ikonka przy zegarze pulsuje podczas synchronizacji, prawy klik: Otwórz, Synchronizuj teraz, Zamknij całkowicie.
 - **Połączeń na jeden pobierany plik** – od 1 (bez dzielenia) do 16; więcej = zwykle szybciej.
+
+### Odtwarzacz filmów
+- **Otwieraj filmy z dysku w odtwarzaczu Velivo**, **Odtwarzaj od razu po otwarciu**, **Wznawiaj od miejsca, w którym skończyłeś** (tylko ten komputer), **Powtarzaj film w kółko**. Szczegóły w rozdziale 8.
 
 ### Torrenty
 - **Pobieraj torrenty (magnet i .torrent) w Velivo** – domyślnie wyłączone; **Folder strefy torrentów** (Wybierz… / Domyślny), **Prędkość pobierania** i **wysyłania**, **Udostępniaj po pobraniu** (współczynnik, 0 = wcale) i **jak długo**, **Najwięcej uczestników**. Szczegóły w rozdziale 8.

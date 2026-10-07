@@ -68,6 +68,7 @@ namespace Przegladarka
         static readonly HashSet<string> LanSettingsBlockedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "lanSync",
+            "askedDefault",
             "audioOut",
             "cacheDir",          // wlasny folder na smieci - sciezka istnieje tylko na tym komputerze
             "cacheMb",           // rozmiar pamieci podrecznej zalezy od dysku tego komputera

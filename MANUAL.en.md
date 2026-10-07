@@ -137,7 +137,7 @@ Velivo starts maximized. From the left:
 | **🛡 + number** | Shield: how much was blocked on the page. A click shows the list and the privacy receipt. A red shield means AdBlock is off |
 | **⚠ + number** (yellow) | Appears in a shop that uses pressure tricks |
 | **📚** | All bookmarks |
-| **🌙** | Page mode: light → dark → night. In night mode the mouse wheel sets the strength |
+| **☀ / 🌙 / 🌅** | Page mode – the icon shows the current one: ☀ light → 🌙 dark → 🌅 night. In night mode the mouse wheel sets the strength |
 | **📷** | Screenshot: visible part or the whole page |
 | **Reader** | Reader mode with a summary |
 | **🔊** | Read the page aloud. While reading, pause, stop and speed buttons appear |
@@ -217,7 +217,7 @@ A **pinned tab** is not closed by the ↓ gesture (just like it has no close but
 | Where | Action |
 | --- | --- |
 | Zoom button (e.g. 125%) | Zooms the page in and out, remembered per site |
-| Mode button 🌙 in night mode | Warmth strength 5–100% |
+| Page mode button (🌅) in night mode | Warmth strength 5–100% |
 | "Video on top" window | Transparency 15–100% |
 
 ### Clicking links
@@ -291,6 +291,15 @@ Hover over a video and three buttons appear in its top right corner: **⬇ Downl
 | Close | ✕ |
 
 Transparency needs Windows 10 version 1809 or newer, because the window uses a Windows component to draw the picture.
+
+### 🎬 Offline video player
+
+- **Opening:** double-click a video file in Windows (the installer adds Velivo to "Open with" for MP4, WebM, MKV, MOV, M4V, OGV; make it permanent in Default apps → Velivo), **Ctrl+O** or right-click → Velivo tools → **🎬 Open a video file**.
+- The video opens in a tab, filling the window, with no internet needed. **⧉ Picture in picture** and **▣ Video on top** work on it.
+- **Controls:** the player bar (play/pause, seek, volume, full screen) and keys: Space or click – pause, ← → – 5 s, ↑ ↓ – volume, **F** – full screen, **M** – mute.
+- **If Velivo isn't in "Open with":** start Velivo once (it registers itself with Windows) or use **Settings → Video player → "Open videos and PDFs in Velivo (Windows)…"**.
+- **Settings → Video player:** open videos in Velivo, play right away, resume where you left off (this computer only), loop.
+- **Formats:** MP4 (H.264) and WebM work best. If the codec isn't supported (e.g. HEVC/H.265), a message appears.
 
 ### ⧉ Picture in picture
 
@@ -427,7 +436,7 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
   - **Modern** (default): calm buttons without colored backgrounds, Windows 11 icons, one blue accent, and color only on hover or when something is on;
   - **Colorful**: colored buttons and emoji.
 - **10 themes:** Light, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
-- **Page modes** (🌙 button):
+- **Page modes** (mode button – the icon shows the current mode: ☀ light, 🌙 dark, 🌅 night):
   - light;
   - **dark** – pages darkened while photos keep their true colors;
   - **night** – warm colors with less blue light, **strength set with the mouse wheel**.
@@ -668,6 +677,7 @@ If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own too
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
 | Ctrl+Shift+A | Search tabs |
 | Ctrl+Shift+F | 🧠 Where did I read that? |
+| Ctrl+O | 🎬 Open a video file |
 | Ctrl+L | Address bar |
 | Ctrl+D | Bookmark |
 | Ctrl+H | History |
@@ -697,6 +707,8 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 ### Default browser
 - Status: "✓ Velivo is the default browser" or "Velivo is not the default browser right now".
 - **Set Velivo as the default browser…** – registers Velivo with Windows and opens the default-apps window.
+- **On first start** (also right after installing) Velivo asks once whether to become the default browser; "No" – it won't ask again.
+- **PDF:** Velivo opens PDF files in its built-in viewer (zoom, search, print, save). The installer adds Velivo to "Open with" for `.pdf`; make it permanent in Default apps → Velivo.
 
 ### 📥 Import passwords, logins and bookmarks
 - **🔑 Passwords and logins from a file** (CSV from KeePassXC, Chrome, Edge and other programs).
@@ -705,7 +717,7 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 ### Look and readability
 - **Default page zoom** – for all pages; each page can also be zoomed separately (Ctrl + wheel) and Velivo remembers it.
 - **Dark page mode** – pages with their own dark look switch to it, other pages are dimmed (photos keep their real colours).
-- **Night mode** – warmer colours and less blue light (like Windows Night light). The 🌙 button cycles light → dark → night; change the strength with the mouse wheel on the button.
+- **Night mode** – warmer colours and less blue light (like Windows Night light). The page mode button (☀ / 🌙 / 🌅) cycles light → dark → night; change the strength with the mouse wheel on the button.
 - **Content entrance effect** – how a new page appears on screen:
   - **Focus in** (default) – content emerges from a slight blur;
   - **From darkness (cinematic)** – the page brightens from a dark screen, like in a cinema;
@@ -761,6 +773,9 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 - **Velivo speakers** – choose a specific sound output instead of the Windows default. **Don't lose sound** – when a music program (Ableton, Cubase) takes the speakers, Velivo plays on another active output and returns when they are free. **🔊 Windows volume mixer…** – pin Velivo to your speakers permanently.
 - **Stay in the system tray when the window is closed** – background sync and instant start; the icon by the clock pulses while syncing, right-click: Open, Sync now, Exit completely.
 - **Connections per download** – 1 (no splitting) to 16; more is usually faster.
+
+### Video player
+- **Open video files in the Velivo player**, **Play right after opening**, **Resume where you left off** (this computer only), **Loop the video**. Details in chapter 8.
 
 ### Torrents
 - **Download torrents (magnet and .torrent) in Velivo** – off by default; **Torrent zone folder** (Choose… / Default), **Download** and **upload speed**, **Share after download** (ratio, 0 = not at all) and **for how long**, **Most peers**. Details in chapter 8.

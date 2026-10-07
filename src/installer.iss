@@ -120,6 +120,39 @@ Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\File
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".xhtml"; ValueData: "VelivoHTML"
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".svg"; ValueData: "VelivoHTML"
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\StartMenu"; ValueType: string; ValueName: "StartMenuInternet"; ValueData: "Velivo"
+; PDF: Velivo na liscie "Otworz za pomoca" i w Aplikacjach domyslnych (wbudowany czytnik PDF silnika)
+Root: HKCU; Subkey: "Software\Classes\VelivoPDF"; ValueType: string; ValueName: ""; ValueData: "Velivo PDF Document"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\VelivoPDF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
+Root: HKCU; Subkey: "Software\Classes\VelivoPDF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: string; ValueName: "VelivoPDF"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".pdf"; ValueData: "VelivoPDF"
+; filmy z dysku: odtwarzacz Velivo w "Otworz za pomoca" i w Aplikacjach domyslnych
+Root: HKCU; Subkey: "Software\Classes\VelivoVideo"; ValueType: string; ValueName: ""; ValueData: "Velivo Video"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\VelivoVideo\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
+Root: HKCU; Subkey: "Software\Classes\VelivoVideo\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.mp4\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mp4"; ValueData: "VelivoVideo"
+Root: HKCU; Subkey: "Software\Classes\.m4v\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".m4v"; ValueData: "VelivoVideo"
+Root: HKCU; Subkey: "Software\Classes\.webm\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".webm"; ValueData: "VelivoVideo"
+Root: HKCU; Subkey: "Software\Classes\.mkv\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mkv"; ValueData: "VelivoVideo"
+Root: HKCU; Subkey: "Software\Classes\.mov\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mov"; ValueData: "VelivoVideo"
+Root: HKCU; Subkey: "Software\Classes\.ogv\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ogv"; ValueData: "VelivoVideo"
+; lista "Otworz za pomoca" w Eksploratorze (filmy i PDF)
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "Velivo"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".pdf"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mp4"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".m4v"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".webm"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mkv"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mov"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".ogv"; ValueData: ""
 ; torrenty: plik .torrent i linki magnet: (pobiera tylko, gdy torrenty sa wlaczone w Ustawieniach)
 Root: HKCU; Subkey: "Software\Classes\VelivoTorrent"; ValueType: string; ValueName: ""; ValueData: "Velivo Torrent"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\VelivoTorrent\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"

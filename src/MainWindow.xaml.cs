@@ -180,6 +180,8 @@ namespace Przegladarka
                     SaveSessionSoon();
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
                     StartLanSync();
+                    AskDefaultBrowserOnce();
+                    EnsureFileTypes();
                 }
                 catch (Exception ex)
                 {
@@ -1074,6 +1076,7 @@ namespace Przegladarka
             else if (ctrl && shift && key == Key.A) ShowTabSearch();
             else if (ctrl && shift && key == Key.F) ShowPageMemorySearch();
             else if (ctrl && shift && key == Key.U) { if (_readTab == null) StartReading(false); else ReadBtn_Click(null, null); }
+            else if (ctrl && !shift && key == Key.O) OpenVideoFile();
             else if (ctrl && key == Key.T) AddTab(NewTabUrl);
             else if (ctrl && key == Key.W && _current != null) CloseTab(_current);
             else if (ctrl && key == Key.L) { Address.Focus(); }

@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Globalization;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Windows.Interop;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -19,26 +17,6 @@ namespace Przegladarka
     // Dziala niezaleznie od kart - zamkniecie karty nie zatrzymuje filmu; zamkniecie okienka - tak.
     public partial class MainWindow
     {
-        // Przezroczystosc calego okienka (razem z filmem) - przez Windows (warstwa okna), bo zwykla
-        // przezroczystosc WPF nie dziala z wbudowana przegladarka.
-        [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-        [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-        [DllImport("user32.dll")] static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
-        const int GWL_EXSTYLE = -20, WS_EX_LAYERED = 0x80000;
-        const uint LWA_ALPHA = 0x2;
-
-        static void SetWindowAlpha(Window w, int percent)
-        {
-            try
-            {
-                var h = new WindowInteropHelper(w).Handle;
-                if (h == IntPtr.Zero) return;
-                SetWindowLong(h, GWL_EXSTYLE, GetWindowLong(h, GWL_EXSTYLE) | WS_EX_LAYERED);
-                SetLayeredWindowAttributes(h, 0, (byte)Math.Round(Math.Max(15, Math.Min(100, percent)) * 2.55), LWA_ALPHA);
-            }
-            catch (Exception) { }
-        }
-
         sealed class FloatRequest { public string page { get; set; } public double time { get; set; } public string title { get; set; } }
 
         // z karty: biezacy film (strona + miejsce), film w karcie pauzujemy

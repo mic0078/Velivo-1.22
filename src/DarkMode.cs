@@ -43,6 +43,7 @@ namespace Przegladarka
                 foreach (var t in _tabs) ApplyDarkMode(t);
             }
             foreach (var t in _tabs) ApplyLiveDarkCss(t.View.CoreWebView2);
+            RefreshPageScripts();   // efekt wejscia i tlo przed narysowaniem znaja nowy tryb strony
             UpdateDarkButton();
             ShowToast(next == "dark" ? L.T("🌙 Tryb ciemny") : next == "night" ? L.T("🌅 Tryb nocny – cieplejsze kolory") : L.T("☀ Tryb jasny"), null);
         }

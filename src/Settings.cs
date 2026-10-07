@@ -294,13 +294,6 @@ namespace Przegladarka
                 includeHistoryFile);
         }
 
-        async System.Threading.Tasks.Task ClearBrowsingDataFull(CoreWebView2Profile profile)
-        {
-            await ClearBrowsingData(profile,
-                CoreWebView2BrowsingDataKinds.AllProfile & ~CoreWebView2BrowsingDataKinds.Settings,
-                true);
-        }
-
         void Settings_Click(object sender, RoutedEventArgs e)
         {
             var s = _settings;
@@ -710,7 +703,9 @@ namespace Przegladarka
                     return;
                 }
 
-                try { await ClearBrowsingData(Core != null ? Core.Profile : null, kinds, clearHistoryFile); if (clearHistoryFile) { RememberHistoryCleared(); ForgetAllPageMemory(); } MessageBox.Show(win, L.T("Wyczyszczono zaznaczone dane."), L.T("Ustawienia")); }
+                if (kinds != 0 && LiveProfile == null) { MessageBox.Show(win, L.T("Otwórz najpierw zwykłą kartę (dotyczy zwykłej przeglądarki, nie trybu bankowego ani prywatnego)."), L.T("Ustawienia")); return; }
+                // zwykla przegladarka - nie profil karty bankowej
+                try { await ClearBrowsingData(LiveProfile, kinds, clearHistoryFile); if (clearHistoryFile) { RememberHistoryCleared(); ForgetAllPageMemory(); } MessageBox.Show(win, L.T("Wyczyszczono zaznaczone dane."), L.T("Ustawienia")); }
                 catch (Exception ex) { MessageBox.Show(win, ex.Message, L.T("Ustawienia")); }
             };
             root.Children.Add(clearNow);
@@ -828,6 +823,9 @@ namespace Przegladarka
                 if (quickAccess.IsEnabled) s.QuickAccessNewTab = quickAccess.IsChecked == true;
                 s.ReadVoice = (string)((ComboBoxItem)voice.SelectedItem).Tag;
                 s.ReadRate = (double)((ComboBoxItem)rate.SelectedItem).Tag;
+                // czytanie w toku - nowy glos / tempo / glosnosc od biezacego zdania
+                if (_readTab != null && _tabs.Contains(_readTab) && _readTab.View.CoreWebView2 != null)
+                    _ = _readTab.View.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.config(" + Num(s.ReadRate) + "," + System.Text.Json.JsonSerializer.Serialize(s.ReadVoice ?? "") + "," + Num(s.ReadVolume) + ")");
                 s.FullFilterLists = full.IsChecked == true;
                 s.LanSync = lanSync.IsChecked == true;
                 s.LanSyncSilent = lanSilent.IsChecked == true;

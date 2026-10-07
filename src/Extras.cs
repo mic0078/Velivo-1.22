@@ -55,6 +55,17 @@ namespace Przegladarka
             RefreshPageScripts();
         }
 
+        // tlo, zanim strona sie narysuje: czarne w kinowym wejsciu, ciemne w trybie ciemnym tej strony (bez bialego blysku), inaczej biale
+        void SetPageBackground(BrowserTab tab, string url)
+        {
+            try
+            {
+                tab.View.DefaultBackgroundColor = _settings.PageEntrance == "cinema" ? System.Drawing.Color.Black
+                    : ModeFor(url, tab.Private).Dark ? System.Drawing.Color.FromArgb(18, 18, 18) : System.Drawing.Color.White;
+            }
+            catch (Exception) { }
+        }
+
         string BuildPageScript(BrowserTab tab = null)
         {
             var cfg = JsonSerializer.Serialize(new
@@ -72,6 +83,10 @@ namespace Przegladarka
                 receipt = _settings.PrivacyReceipt,
                 fade = _settings.PageFade,
                 entrance = _settings.PageEntrance ?? "blur",
+                // tryb ciemny Velivo (ogolny i zapamietany dla stron): strona "mowi", ze ma jasne tlo, a przyciemniana jest dopiero przy rysowaniu
+                darkPages = _settings.DarkPages,
+                darkHosts = tab != null && tab.Private ? new string[0] : _modeByHost.Where(kv => kv.Value.StartsWith("dark")).Select(kv => kv.Key).ToArray(),
+                lightHosts = tab != null && tab.Private ? new string[0] : _modeByHost.Where(kv => !kv.Value.StartsWith("dark")).Select(kv => kv.Key).ToArray(),
                 entMs = _settings.PageEntranceMs,
                 speed = _settings.SpeedUp && (tab == null || !tab.Private),   // karty prywatne i bankowe: bez wczytywania z wyprzedzeniem
             });
@@ -163,6 +178,8 @@ try {
                   : [{ transform: 'translateY(14px)', opacity: .6 }, { transform: 'none', opacity: 1 }];
       // mgielka rozmycia w kolorze strony: ciemna na ciemnych stronach, jasna na jasnych (bez szarej poswiaty)
       var tint = function () {
+        var hn = location.hostname, dk = (C.darkHosts || []).indexOf(hn) >= 0 || ((C.lightHosts || []).indexOf(hn) < 0 && C.darkPages);
+        if (dk) return 'rgba(0,0,0,.18)';   // tryb ciemny tej strony - zawsze ciemna mgielka (kolor tla strony jest wtedy jeszcze jasny)
         try {
           var els = [document.body, document.documentElement];
           for (var i = 0; i < els.length; i++) {
@@ -297,7 +314,8 @@ try {
       if (!G) return;
       if (!(e.buttons & 2)) { G = null; return; }
       var dx = e.clientX - G.x, dy = e.clientY - G.y;
-      if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
+      var min = G.p.length ? 15 : 30;   // skret wykrywany wczesniej: krotkie 'w dol, potem w prawo' to odswiezenie, a nie zamkniecie karty
+      if (Math.abs(dx) < min && Math.abs(dy) < min) return;
       var d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
       if (G.p[G.p.length - 1] !== d) G.p.push(d);
       G.x = e.clientX; G.y = e.clientY;
@@ -424,8 +442,7 @@ try {
             try
             {
                 if (tab.PageScriptId != null) { core.RemoveScriptToExecuteOnDocumentCreated(tab.PageScriptId); tab.PageScriptId = null; }
-                // kinowe wejscie: pusta strona (zanim cokolwiek sie narysuje) czarna zamiast bialej - bez bialego blysku
-                try { tab.View.DefaultBackgroundColor = _settings.PageEntrance == "cinema" ? System.Drawing.Color.Black : System.Drawing.Color.White; } catch (Exception) { }
+                SetPageBackground(tab, core.Source);
                 tab.PageScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageScript(tab));
                 // skrypt stron musi dzialac PRZED ukryciem chrome.webview (inaczej przyciski Pobierz/gesty nie maja kanalu do programu)
                 if (tab.HideScriptId != null)
@@ -462,6 +479,12 @@ try {
                 if (!tab.InPip && !_tabs.Contains(tab)) ReleaseParkedViews();
                 return;
             }
+            if (msg.StartsWith("bfocus:", StringComparison.Ordinal)) { if (tab.Bank) HandleBankFocus(tab, msg.Substring(7)); return; }
+            if (msg == "bblur:") { BankFieldBlur(); return; }
+            if (msg.StartsWith("acct:", StringComparison.Ordinal)) { if (tab.Bank) HandleAccountCheck(tab, msg.Substring(5)); return; }
+            // zwykle hasla i autouzupelnianie - nigdy dla karty bankowej (izolacja trybu bankowego)
+            if (tab.Bank && (msg.StartsWith("affill:", StringComparison.Ordinal) || msg.StartsWith("afsave:", StringComparison.Ordinal) ||
+                msg == "pwpick" || msg.StartsWith("pwcand:", StringComparison.Ordinal))) return;
             // okno modalne nie wewnatrz zdarzenia WebView2 - inaczej potrafi sie zablokowac
             if (msg.StartsWith("affill:", StringComparison.Ordinal)) { var ty = msg.Substring(7); Dispatcher.BeginInvoke(new Action(() => { _ = HandleAutofillRequest(tab, ty); })); return; }
             if (msg.StartsWith("afsave:", StringComparison.Ordinal)) { var pl = msg.Substring(7); Dispatcher.BeginInvoke(new Action(() => HandleAutofillSave(tab, pl))); return; }
@@ -479,7 +502,7 @@ try {
                     case "L": if (core.CanGoBack) core.GoBack(); break;
                     case "R": if (core.CanGoForward) core.GoForward(); break;
                     case "U": AddTab(NewTabUrl); break;
-                    case "D": CloseTab(tab); break;
+                    case "D": if (tab.Pinned) ShowToast(L.T("📌 Karta przypięta – gest jej nie zamyka (odepnij, aby zamknąć)."), null); else CloseTab(tab); break;
                     case "DR": core.Reload(); break;
                     case "UD": core.Reload(); break;
                 }

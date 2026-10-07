@@ -1,6 +1,8 @@
 # pliki powstajace przy kompilacji - nie trzymamy ich w repozytorium
 src/bin/
 src/obj/
+testy/Velivo.Tests/bin/
+testy/Velivo.Tests/obj/
 build/
 *.user
 .vs/

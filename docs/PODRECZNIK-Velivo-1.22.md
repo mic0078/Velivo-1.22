@@ -763,9 +763,13 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Jak używać:** wybierz kategorię (Login, PIN, Przelewy, Kody odzyskiwania, Inne), wpisz tytuł i treść, „Zapisz”. „Wygeneruj hasło”, „Znaki z numerami” (hasło znak po znaku z numerami), 📋 kopiowanie.
 - **Co robi:** okienko notatek nie blokuje strony – możesz przepisywać do formularza banku.
 
-### 14.22 Wpisz login z notatki
-- **Gdzie:** menu 🏦 → „Wpisz login z notatki na tej stronie”.
-- **Ograniczenia:** notatka musi mieć linie `login: …` i `hasło: …`.
+### 14.22 Wpisz login i hasło (dane skojarzone ze stroną)
+- **Gdzie:** menu 🏦 → „Wpisz login i hasło na tej stronie”; na stronie z Twojej bazy – samo.
+- **Co robi:** bierze konta z Moich loginów i haseł oraz z Moich banków dla tej strony. Jedno konto – login, hasło i wybrane znaki wpisują się same (formularza Velivo nie wysyła); kilka kont – wybór jednym kliknięciem. Gdy kont brak – lista notatek (linie `login: …` i `hasło: …`).
+- **Ustawienia:** „Wpisuj dane z bazy samo…” w Ustawieniach trybu bankowego (synchronizowane).
+- **Izolacja:** tylko baza trybu bankowego – zwykłe hasła przeglądarki nie są tu używane; dane trafiają tylko do kart bankowych i tylko na stronę, dla której je wybrano.
+- **🛡 Strażnik przelewu:** wklejony / wpisany numer rachunku – suma kontrolna IBAN / NRB i porównanie z Rachunkami bankowymi (odbiorca z bazy / ostrzeżenie / błędny numer).
+- **💸 Wypełnij przelew:** menu 🏦 albo propozycja na formularzu przelewu – odbiorca, numer (NRB, IBAN, sort code + 8 cyfr), tytuł; kwota i numer klienta z Rachunku do opłacenia o tej samej nazwie. Zawsze po kliknięciu.
 
 ### 14.23 Szukaj w mojej bazie
 - **Gdzie:** menu 🏦 → „Szukaj w mojej bazie…”.
@@ -1524,7 +1528,7 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **14.19** Poufne dane (dokumenty)
 - **14.20** Rachunki bankowe
 - **14.21** Moje notatki
-- **14.22** Wpisz login z notatki
+- **14.22** Wpisz login i hasło (dane skojarzone ze stroną)
 - **14.23** Szukaj w mojej bazie
 - **14.24** Rachunki do opłacenia
 - **14.25** Rachunki cykliczne

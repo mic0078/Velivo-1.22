@@ -219,8 +219,8 @@ namespace Przegladarka
 
         async void Extensions_Click(object sender, RoutedEventArgs e)
         {
-            if (Core == null) return;
-            var profile = Core.Profile;
+            var profile = LiveProfile;   // dodatki zwyklej przegladarki - nie profil karty bankowej / prywatnej
+            if (profile == null) { MessageBox.Show(this, L.T("Otwórz najpierw zwykłą kartę (dotyczy zwykłej przeglądarki, nie trybu bankowego ani prywatnego)."), L.T("Dodatki")); return; }
             var list = new StackPanel();
             var win = new Window { Title = L.T("Dodatki – tryb dewelopera"), Width = 620, Height = 440, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
 

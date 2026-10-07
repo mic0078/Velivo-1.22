@@ -132,15 +132,15 @@ namespace Przegladarka
             _lanLocalChanged = 0;
             try
             {
-                if (!File.Exists(LanChangeFile))
+                var lines = File.Exists(LanChangeFile) ? File.ReadAllLines(LanChangeFile) : new string[0];
+                if (lines.Length < 2)
                 {
-                    // pierwsze uruchomienie z ta funkcja (np. swieza instalacja): obecne dane NIE sa "nowa zmiana" -
-                    // znacznik 0, zeby nie nadpisaly danych z drugiego komputera
+                    // pierwsze uruchomienie z ta funkcja (np. swieza instalacja) albo uszkodzony plik: obecne dane NIE sa
+                    // "nowa zmiana" - znacznik 0, zeby nie nadpisaly danych z drugiego komputera
                     SaveLanChange(0, LanContentFingerprint());
                     return;
                 }
-                var lines = File.ReadAllLines(LanChangeFile);
-                if (lines.Length >= 2) { long.TryParse(lines[0], out _lanLocalChanged); _lanLocalChangedFp = lines[1]; }
+                long.TryParse(lines[0], out _lanLocalChanged); _lanLocalChangedFp = lines[1];
                 // odcisk z poprzedniej wersji (inny sklad: bank, cacheDir/cacheMb) - przeliczamy go bez podbijania znacznika,
                 // inaczej kazdy komputer po aktualizacji uznalby sie za "zmieniony teraz" i nadpisal drugi
                 if (lines.Length < 3 || lines[2] != LanContentFingerprintVersion)
@@ -168,9 +168,10 @@ namespace Przegladarka
                 (withBank ? BankSyncTerm() : ""));
         }
 
-        // Odcisk zapisany przez starsza wersje = obecne dane w starym skladzie (z trybem bankowym, bez nowszych blokad kluczy)?
+        // Odcisk zapisany przez starsza wersje = obecne dane (w obecnym albo starym skladzie: z trybem bankowym, bez nowszych blokad kluczy)?
         bool LanFingerprintMatchesOldVersion(string stored)
         {
+            if (LanContentFingerprint() == stored) return true;
             foreach (var added in new[] { new[] { "cacheDir", "cacheMb" }, new[] { "cacheDir", "cacheMb", "readVoice" } })
             {
                 var old = new HashSet<string>(LanSettingsBlockedKeys.Where(k => !added.Contains(k, StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
@@ -892,18 +893,20 @@ namespace Przegladarka
             {
                 data = new byte[header.Length];
                 int got = 0;
-                var started = DateTime.UtcNow;
-                while (got < data.Length)
+                using (var total = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
-                    if (DateTime.UtcNow - started > TimeSpan.FromMinutes(3)) return;   // calosc: 8 MB w 3 min = ok. 370 kb/s - wystarczy nawet dla slabego Wi-Fi
-                    using (var idle = CancellationTokenSource.CreateLinkedTokenSource(token))
+                    total.CancelAfter(TimeSpan.FromMinutes(3));   // calosc: 8 MB w 3 min = ok. 370 kb/s - wystarczy nawet dla slabego Wi-Fi (licznik nie zalezy od zegara systemowego)
+                    while (got < data.Length)
                     {
-                        idle.CancelAfter(TimeSpan.FromSeconds(15));   // limit BEZCZYNNOSCI: wolne lacze dziala, zawieszone polaczenie nie
-                        int n;
-                        try { n = await stream.ReadAsync(data, got, data.Length - got, idle.Token); }
-                        catch (OperationCanceledException) { return; }
-                        if (n <= 0) return;
-                        got += n;
+                        using (var idle = CancellationTokenSource.CreateLinkedTokenSource(total.Token))
+                        {
+                            idle.CancelAfter(TimeSpan.FromSeconds(15));   // limit BEZCZYNNOSCI: wolne lacze dziala, zawieszone polaczenie nie
+                            int n;
+                            try { n = await stream.ReadAsync(data, got, data.Length - got, idle.Token); }
+                            catch (OperationCanceledException) { return; }
+                            if (n <= 0) return;
+                            got += n;
+                        }
                     }
                 }
             }
@@ -918,7 +921,7 @@ namespace Przegladarka
             long lastStamp;
             if (_lanPeerStamps.TryGetValue(pkt.id, out lastStamp) && pkt.ts <= lastStamp) return;
             var localFingerprint = CurrentLanFingerprint();
-            var localHash = pkt.t == "state-plain" ? Sha256(localFingerprint) : LanFingerprintMac(localFingerprint);
+            var localHash = LanFingerprintMac(localFingerprint);
             if (string.Equals(pkt.hash, localHash, StringComparison.Ordinal))
             {
                 _lanPeerStamps[pkt.id] = pkt.ts;
@@ -987,7 +990,7 @@ namespace Przegladarka
                 if (bookmarksChanged) LoadBookmarks();
                 _lanPeerStamps[pkt.id] = pkt.ts;
                 var after = CurrentLanFingerprint();
-                var sentHash = pkt.t == "state-plain" ? Sha256(after) : LanFingerprintMac(after);
+                var sentHash = LanFingerprintMac(after);
                 if (!string.Equals(sentHash, pkt.hash, StringComparison.Ordinal) && DateTime.UtcNow - _lanLastPushBack > TimeSpan.FromSeconds(3))
                 {
                     // mamy cos, czego drugi komputer nie ma (nowsze ustawienia albo dodatkowe zakladki) - odsylamy

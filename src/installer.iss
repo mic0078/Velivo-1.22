@@ -80,6 +80,19 @@ Type: files; Name: "{autodesktop}\Przeglądarka.lnk"
 Type: files; Name: "{autoprograms}\Przeglądarka.lnk"
 Type: files; Name: "{autodesktop}\Tarcza.lnk"
 Type: files; Name: "{autoprograms}\Tarcza.lnk"
+; tlumaczenia .NET na jezyki, ktorych Velivo nie uzywa (od wersji z SatelliteResourceLanguages=pl nie sa instalowane)
+Type: filesandordirs; Name: "{app}\cs"
+Type: filesandordirs; Name: "{app}\de"
+Type: filesandordirs; Name: "{app}\es"
+Type: filesandordirs; Name: "{app}\fr"
+Type: filesandordirs; Name: "{app}\it"
+Type: filesandordirs; Name: "{app}\ja"
+Type: filesandordirs; Name: "{app}\ko"
+Type: filesandordirs; Name: "{app}\pt-BR"
+Type: filesandordirs; Name: "{app}\ru"
+Type: filesandordirs; Name: "{app}\tr"
+Type: filesandordirs; Name: "{app}\zh-Hans"
+Type: filesandordirs; Name: "{app}\zh-Hant"
 
 [Files]
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

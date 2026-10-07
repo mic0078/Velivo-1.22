@@ -44,6 +44,7 @@ namespace Przegladarka
             public bool Private;
             public bool Bank;
             public string BankFillOffered;   // tryb bankowy: strona, dla ktorej asystent juz zaproponowal wypelnienie
+            public string AcctChecked;   // tryb bankowy: ostatnio sprawdzony numer rachunku (straznik przelewu - raz na numer)
             public string BankAsked;     // strona bankowa (domena), o ktora juz zapytano w tej karcie            // karta trybu bankowego (osobny profil; Private=true, zeby nic nie zapisywac)
             public bool Pinned;
             public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
@@ -76,10 +77,22 @@ namespace Przegladarka
         CoreWebView2Environment _env;
         BrowserTab _current;
         int _totalBlocked;
+        static string ClearOnExitPendingFile { get { return Path.Combine(DataDir, "czysc-przy-starcie.flag"); } }
+        Task _pendingClear;
+
+        // tylko gdy opcja nadal jest wlaczona; znacznik usuwamy dopiero po udanym czyszczeniu (nieudane - ponowimy przy nastepnym starcie)
+        async Task ClearPendingOnStart(CoreWebView2Profile profile)
+        {
+            try
+            {
+                if (_settings.ClearOnExit) await ClearBrowsingDataOnExit(profile, false);
+                File.Delete(ClearOnExitPendingFile);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         // Profil przegladarki bierzemy z karty otwartej w tej chwili - obiekt z zamknietej karty jest juz zwolniony
         // (wczesniej zapamietany z pierwszej karty: po jej zamknieciu "Wyczysc smieci" konczylo sie bledem).
-        static string ClearOnExitPendingFile { get { return Path.Combine(DataDir, "czysc-przy-starcie.flag"); } }
-
         CoreWebView2Profile LiveProfile
         {
             get
@@ -398,18 +411,25 @@ namespace Przegladarka
             }
             var core = tab.View.CoreWebView2;
             core.Settings.IsStatusBarEnabled = false;
-            if (tab.Bank) await BankAfterInit(core);
-            if (!tab.Private && !tab.Bank && File.Exists(ClearOnExitPendingFile))
+            if (tab.Bank)
             {
-                // zaleglosc z zamkniecia - raz (znacznik usuwany od razu) i tylko gdy opcja nadal jest wlaczona
-                try { File.Delete(ClearOnExitPendingFile); } catch (Exception) { }
-                if (_settings.ClearOnExit) { try { await ClearBrowsingDataOnExit(core.Profile, false); } catch (Exception) { } }
+                await BankAfterInit(core);
+                await core.AddScriptToExecuteOnDocumentCreatedAsync(TransferGuardScript.Replace("__VT__", PageToken));   // przed ukryciem chrome.webview
+                await core.AddScriptToExecuteOnDocumentCreatedAsync(BankFieldHintScript.Replace("__VT__", PageToken));   // propozycja pod polem
+            }
+            if (!tab.Private && !tab.Bank && (_pendingClear != null || File.Exists(ClearOnExitPendingFile)))
+            {
+                // zaleglosc z zamkniecia - raz; kazda zwykla karta czeka na nie, zanim wczyta strone
+                if (_pendingClear == null) _pendingClear = ClearPendingOnStart(core.Profile);
+                await _pendingClear;
             }
             ApplyViewSettings(core);
-            await HookAutofill(tab, core);   // przed ukryciem chrome.webview
+            // tryb bankowy jest izolowany: tylko wlasna zaszyfrowana baza - bez zwyklego menedzera hasel i autouzupelniania
+            // (nie podpowiada zwyklych danych i nie proponuje zapisu hasla banku / karty do zwyklej bazy)
+            if (!tab.Bank) await HookAutofill(tab, core);   // przed ukryciem chrome.webview
             HookProtection(tab, core);
             await HookUbolShield(tab, core);
-            await HookPasswordVault(tab, core);
+            if (!tab.Bank) await HookPasswordVault(tab, core);
             tab.View.ZoomFactorChanged += (s, e) => OnZoomChanged(tab);
             HookTabSound(tab, core);
             ApplyDarkMode(tab);
@@ -426,7 +446,7 @@ namespace Przegladarka
             await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
             tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
             await EnsureBundledQuickAccessAsync();
-            if (!_extensionsLoaded)
+            if (!_extensionsLoaded && LiveProfile != null)   // dopiero przy zwyklej karcie (karta bankowa / prywatna nie ma dodatkow)
             {
                 _extensionsLoaded = true;
                 await EnsureBundledUbolAsync();
@@ -485,6 +505,7 @@ namespace Przegladarka
                 AddPrivacyBlock("Tracker zablokowany (AdBlock)", e.Request.Uri, tab);
             };
 
+            core.NavigationStarting += (s, e) => { if (!e.IsRedirected) SetPageBackground(tab, e.Uri); };   // tlo w trybie strony docelowej
             core.NewWindowRequested += (s, e) => { if (!OpenLinkInSameTab(tab, e)) { _creatingBank = tab.Bank; try { OnNewWindowRequested(e, tab.Private); } finally { _creatingBank = false; } } };
             core.DocumentTitleChanged += (s, e) =>
             {
@@ -613,7 +634,7 @@ namespace Przegladarka
 
         async Task RecoverQuickAccessFromBlockAsync(CoreWebView2 core, BrowserTab tab)
         {
-            if (core == null || tab == null) return;
+            if (core == null || tab == null || tab.Bank) return;   // tryb bankowy jest bez dodatkow
             try
             {
                 bool changed = false;

@@ -154,8 +154,8 @@ namespace Przegladarka
         {
             try
             {
-                if (Core == null) return;
-                var ext = (await Core.Profile.GetBrowserExtensionsAsync()).FirstOrDefault(IsUbol);
+                var prof = LiveProfile; if (prof == null) return;
+                var ext = (await prof.GetBrowserExtensionsAsync()).FirstOrDefault(IsUbol);
                 if (ext == null) { System.Windows.MessageBox.Show(this, L.T("uBlock Origin Lite nie jest włączony."), "Velivo"); return; }
                 AddTab("chrome-extension://" + ext.Id + "/dashboard.html");
             }
@@ -181,13 +181,14 @@ namespace Przegladarka
         async Task EnsureBundledUbolAsync()
         {
             var dir = BestUbolDir();
-            if (Core == null || dir == null) return;
+            var prof = LiveProfile;   // zwykly profil - nigdy tryb bankowy
+            if (prof == null || dir == null) return;
             try
             {
                 var dirVer = ManifestVersion(dir).ToString();
                 string have = null;
                 try { if (File.Exists(UbolVersionFile)) have = File.ReadAllText(UbolVersionFile).Trim(); } catch (Exception) { }
-                var exts = await Core.Profile.GetBrowserExtensionsAsync();
+                var exts = await prof.GetBrowserExtensionsAsync();
                 var installed = exts.FirstOrDefault(IsUbol);
                 bool want = _settings == null || _settings.UbolLite;   // wbudowany, domyslnie wlaczony - uzytkownik moze wylaczyc
                 // nowsza wersja niz zainstalowana przez Velivo - podmiana dodatku
@@ -203,7 +204,7 @@ namespace Przegladarka
                     return;
                 }
                 if (!want) return;
-                var added = await Core.Profile.AddBrowserExtensionAsync(dir);
+                var added = await prof.AddBrowserExtensionAsync(dir);
                 if (!added.IsEnabled) await added.EnableAsync(true);
                 SaveExtPath(added.Id, dir);
                 Directory.CreateDirectory(Path.GetDirectoryName(UbolVersionFile));

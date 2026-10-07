@@ -47,13 +47,25 @@ namespace Przegladarka
             "podatki", "mail.", "poczta", "outlook.", "accounts.", "login.", "signin", "auth.", "konto.", "account.",
         };
 
-        static bool MemoryAllowed(string url)
+        internal static bool MemoryAllowed(string url)
         {
             Uri u;
             if (!Uri.TryCreate(url ?? "", UriKind.Absolute, out u) || (u.Scheme != "http" && u.Scheme != "https")) return false;
             var h = u.Host.ToLowerInvariant();
+            if (IsSearchResultsPage(h, u.AbsolutePath.ToLowerInvariant())) return false;   // lista wynikow to nie przeczytana strona
             return !MemoryExcluded.Any(x => h.Contains(x));
         }
+
+        static bool IsSearchResultsPage(string host, string path)
+        {
+            if (host.Contains("startpage.com") || host.Contains("duckduckgo.com") || host == "search.brave.com" || host.StartsWith("search.yahoo.")) return true;
+            bool engine = host.Contains("google.") || host.Contains("bing.com") || host.Contains("ecosia.org") || host.Contains("yandex.") || host.Contains("qwant.com");
+            return engine && (path == "/search" || path.StartsWith("/search/") || path == "/");
+        }
+
+        // Wlasciwa tresc strony - ten sam wykrywacz artykulu co czytanie na glos i tryb czytania (lokalnie). Strona z polem hasla - nic.
+        const string MemoryTextScript = @"(() => { try { if (!document.body || document.querySelector('input[type=password]')) return '';" + ArticleCoreScript + @"
+  return velivoArticle().blocks.map(b => b.text).join('\n').slice(0, 12000); } catch (e) { return ''; } })()";
 
         static List<MemPage> MemoryPages()
         {
@@ -112,7 +124,7 @@ namespace Przegladarka
                 if (!MemoryAllowed(url)) return;
                 await Task.Delay(2500);   // tresc czesto dochodzi skryptami po zaladowaniu
                 if (!_tabs.Contains(tab) || tab.View.CoreWebView2 == null || tab.View.CoreWebView2.Source != url) return;
-                var json = await core.ExecuteScriptAsync("(function(){try{if(document.querySelector('input[type=password]'))return '';var t=(document.body&&document.body.innerText)||'';return t.replace(/[ \\t]+/g,' ').replace(/\\n\\s*\\n+/g,'\\n').slice(0,12000);}catch(e){return '';}})()");
+                var json = await core.ExecuteScriptAsync(MemoryTextScript);
                 var text = JsonSerializer.Deserialize<string>(json) ?? "";
                 if (text.Length < 200) return;
                 var page = new MemPage { Url = url, Title = core.DocumentTitle ?? "", Time = DateTime.Now, Text = text };
@@ -157,9 +169,31 @@ namespace Przegladarka
 
         sealed class MemHit { public MemPage Page; public int Score; public int Pos; }
 
+        static List<string> QueryWords(string query)
+        {
+            return Fold(query ?? "").Split(new[] { ' ', ',', '.', ';', ':', '"', '\'' }, StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 2).Distinct().ToList();
+        }
+
+        // fragment wyniku z pogrubionymi szukanymi slowami (Fold zachowuje dlugosc tekstu - pozycje sie zgadzaja)
+        static TextBlock SnippetBlock(string snippet, IList<string> words)
+        {
+            var tb = new TextBlock { Foreground = Brushes.DimGray, FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxHeight = 52 };
+            var f = Fold(snippet); int i = 0;
+            while (i < snippet.Length)
+            {
+                int best = -1, len = 0;
+                foreach (var w in words) { int j = f.IndexOf(w, i, StringComparison.Ordinal); if (j >= 0 && (best < 0 || j < best)) { best = j; len = w.Length; } }
+                if (best < 0) { tb.Inlines.Add(new System.Windows.Documents.Run(snippet.Substring(i))); break; }
+                if (best > i) tb.Inlines.Add(new System.Windows.Documents.Run(snippet.Substring(i, best - i)));
+                tb.Inlines.Add(new System.Windows.Documents.Run(snippet.Substring(best, len)) { FontWeight = FontWeights.Bold, Foreground = Brushes.Black });
+                i = best + len;
+            }
+            return tb;
+        }
+
         static List<MemHit> SearchPageMemory(string query)
         {
-            var words = Fold(query ?? "").Split(new[] { ' ', ',', '.', ';', ':', '"', '\'' }, StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 2).Distinct().ToList();
+            var words = QueryWords(query);
             var hits = new List<MemHit>();
             if (words.Count == 0) return hits;
             List<MemPage> pages;
@@ -221,7 +255,7 @@ namespace Przegladarka
                         int a = Math.Max(0, h.Pos - 90), b = Math.Min(full.Length, h.Pos + 180);
                         snippet = (a > 0 ? "…" : "") + full.Substring(a, b - a).Replace('\n', ' ') + (b < full.Length ? "…" : "");
                     }
-                    row.Children.Add(new TextBlock { Text = snippet, Foreground = Brushes.DimGray, FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxHeight = 52 });
+                    row.Children.Add(SnippetBlock(snippet, QueryWords(q)));
                     var item = new ListBoxItem { Content = row, Tag = p, ToolTip = p.Url };
                     var menu = new ContextMenu();
                     var open = new MenuItem { Header = L.T("Otwórz w nowej karcie") }; open.Click += (s, e) => AddTab(p.Url);

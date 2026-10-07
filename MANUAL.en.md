@@ -478,6 +478,10 @@ Banking mode is a separate, isolated browser profile for banking, payments and s
 - **✏ Login details** (in My banks): login / customer number, passcode / PIN, password and memorable information – separately for each bank. Always enter the **full** password and passcode.
 - **🔑 Fill in a login** – fills the login and password on the bank's page.
 - **🔢 Fill in selected characters** – when the bank asks e.g. for the 2nd, 5th and 9th character (RBS, NatWest, Bank of Scotland, TSB, Lloyds, Halifax), Velivo reads the numbers and types the right characters, drop-down lists included. If a page doesn't work, **🧪 Copy a description of the login form** copies only the field description (without your data) for a report.
+- **🔗 Data linked to the page** – on a page from your vault the login, password and selected characters fill in by themselves (when one account matches; Velivo never submits the form). Several accounts (e.g. personal and business) – one click to choose; payment card – always after a click. Can be turned off in Bank mode settings.
+- **🔒 Full isolation** – bank mode uses only its own encrypted vault: the browser's regular passwords and autofill are neither suggested nor saved there, and vault data goes only into bank tabs (no extensions).
+- **🛡 Transfer guard** – a pasted or typed account number is checked (IBAN / NRB checksum) and compared with your Bank accounts: a typo, a number swapped in the clipboard by malware or an unknown payee shows up at once.
+- **💸 Transfer from the vault** – on a transfer form Velivo fills in the payee, account number (NRB / IBAN / sort code + 8 digits) and reference, and the amount and customer number from the Bill with the same name. You always confirm it yourself.
 
 **Cards, notes and search**
 

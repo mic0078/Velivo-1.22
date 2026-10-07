@@ -21,13 +21,14 @@ namespace Przegladarka
 
         async Task EnsureBundledQuickAccessAsync()
         {
-            if (Core == null || !File.Exists(Path.Combine(BundledQuickAccessDir, "manifest.json")))
+            var prof = LiveProfile;   // zwykly profil - nigdy tryb bankowy
+            if (prof == null || !File.Exists(Path.Combine(BundledQuickAccessDir, "manifest.json")))
                 return;
             if (_settings != null && !_settings.QuickAccessNewTab)
                 return;
             try
             {
-                var exts = await Core.Profile.GetBrowserExtensionsAsync();
+                var exts = await prof.GetBrowserExtensionsAsync();
                 CoreWebView2BrowserExtension installed = null;
                 var paths = LoadExtPaths();
                 foreach (var ext in exts)
@@ -66,7 +67,7 @@ namespace Przegladarka
                     return;
                 }
 
-                var added = await Core.Profile.AddBrowserExtensionAsync(BundledQuickAccessDir);
+                var added = await prof.AddBrowserExtensionAsync(BundledQuickAccessDir);
                 if (!added.IsEnabled && (_settings == null || _settings.QuickAccessNewTab))
                     await added.EnableAsync(true);
                 SaveExtPath(added.Id, BundledQuickAccessDir);
@@ -102,7 +103,7 @@ namespace Przegladarka
         // Zwraca true po udanej instalacji.
         async Task<bool> InstallFromStore(string id, Window owner, bool silent)
         {
-            if (Core == null || !Regex.IsMatch(id ?? "", "^[a-p]{32}$")) return false;
+            if (LiveProfile == null || !Regex.IsMatch(id ?? "", "^[a-p]{32}$")) return false;
             var button = StoreBtn;
             object oldContent = null;
             if (button != null)
@@ -137,7 +138,9 @@ namespace Przegladarka
                 // wiec szukamy po ID zapamietanym przy instalacji (plik <id-sklepu>.id)
                 string idFile = Path.Combine(ExtensionsDir, id + ".id");
                 string installedId = File.Exists(idFile) ? File.ReadAllText(idFile).Trim() : null;
-                foreach (var ext in await Core.Profile.GetBrowserExtensionsAsync())
+                var prof = LiveProfile;   // po pobraniu: zwykly profil (nigdy tryb bankowy)
+                if (prof == null) throw new InvalidOperationException(L.T("Otwórz najpierw zwykłą kartę (dotyczy zwykłej przeglądarki, nie trybu bankowego ani prywatnego)."));
+                foreach (var ext in await prof.GetBrowserExtensionsAsync())
                     if (string.Equals(ext.Id, installedId, StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(ext.Id, id, StringComparison.OrdinalIgnoreCase))
                         await ext.RemoveAsync();
@@ -145,7 +148,7 @@ namespace Przegladarka
                 Directory.Move(tmp, target);
                 tmp = null;
 
-                var added = await Core.Profile.AddBrowserExtensionAsync(target);
+                var added = await prof.AddBrowserExtensionAsync(target);
                 File.WriteAllText(idFile, added.Id);
                 SaveExtPath(added.Id, target);
                 await SaveExtensionsSyncListAsync();

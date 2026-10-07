@@ -16,7 +16,6 @@ namespace Przegladarka
     {
         readonly List<MediaItem> _sniffedMedia = new List<MediaItem>();
         readonly HashSet<string> _sniffedMediaSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        readonly Dictionary<string, DateTime> _mediaToastByHost = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
         const string MediaScanScript = @"(() => {
   const out = [];
@@ -130,52 +129,6 @@ namespace Przegladarka
                 if (!added) return;
             }
             catch (Exception ex) { App.LogError(ex); }
-        }
-
-        void ShowMediaDetectedToast(string host)
-        {
-            var panel = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
-            panel.Children.Add(new TextBlock
-            {
-                Text = L.T("Wykryto media do pobrania na stronie: ") + host,
-                Foreground = Brushes.White,
-                FontSize = 14,
-                TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 340
-            });
-
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            Window toast = null;
-            var open = SmallButton(L.T("Pokaż"), () =>
-            {
-                try { DetectPageMedia(); } catch (Exception) { }
-                if (toast != null) toast.Close();
-            });
-            var close = SmallButton(L.T("Zamknij"), () => { if (toast != null) toast.Close(); });
-            buttons.Children.Add(open);
-            buttons.Children.Add(close);
-            panel.Children.Add(buttons);
-
-            toast = new Window
-            {
-                WindowStyle = WindowStyle.None,
-                ResizeMode = ResizeMode.NoResize,
-                ShowInTaskbar = false,
-                Owner = this,
-                Topmost = true,
-                SizeToContent = SizeToContent.WidthAndHeight,
-                Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x29, 0x37)),
-                ShowActivated = false,
-                Content = panel
-            };
-
-            toast.Loaded += (s, e) => PlaceToast(toast);
-
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
-            timer.Tick += (s, e) => { timer.Stop(); try { toast.Close(); } catch (InvalidOperationException) { } };
-            toast.Closed += (s, e) => timer.Stop();
-            toast.Show();
-            timer.Start();
         }
 
         async void DetectPageMedia()

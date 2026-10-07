@@ -17,57 +17,20 @@ namespace Przegladarka
 
         // Czytnik wstrzykiwany do strony. Sterowanie: start(tylkoZaznaczenie, tempo, glos), pause, resume, stop, state.
         const string ReaderScript = @"(() => {
-  if (window.__velivoRead) return;
+  if (window.__velivoRead) return;" + ArticleCoreScript + @"
   const S = speechSynthesis;
-  const st = { items: [], i: 0, rate: 1, volume: 1, external: false, pending: null, seq: 0, voice: null, active: false, paused: false, mark: null, lang: '' };
+  const st = { items: [], i: 0, rate: 1, volume: 1, external: false, pending: null, seq: 0, voiceName: '', active: false, paused: false, mark: null, lang: '', href: '' };
   const HL = 'velivo-czyta';
   const style = document.createElement('style');
   style.textContent = '.' + HL + '{background:rgba(255,213,0,.45)!important;outline:3px solid #f59e0b!important;border-radius:4px;transition:background .2s}';
   (document.head || document.documentElement).appendChild(style);
 
-  // glowna tresc: article/main albo blok z najwieksza iloscia tekstu w akapitach
-  const mainRoot = () => {
-    const cand = [...document.querySelectorAll('article, main, [role=main], #content, .content, .article, .post')];
-    let best = null, bestLen = 0;
-    const score = el => [...el.querySelectorAll('p')].reduce((n, p) => n + p.innerText.length, 0);
-    for (const c of cand) { const s = score(c); if (s > bestLen) { best = c; bestLen = s; } }
-    if (!best || bestLen < 400) {
-      for (const d of document.querySelectorAll('div, section')) { const s = score(d); if (s > bestLen * 1.2 || (!best && s > 0)) { if (s > bestLen) { best = d; bestLen = s; } } }
-    }
-    return best || document.body;
-  };
-  const visible = el => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
-  // smieci stron: menu, reklamy, 'czytaj tez', polecane, komentarze, newslettery, podpisy zdjec, paski udostepniania
-  const JUNK_SEL = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, [aria-hidden=true], [hidden], ' +
-    '.ad, .ads, .advert, .share, .social, .related, .comments, [class*=related i], [class*=recommend i], [class*=polecam i], [class*=promo i], ' +
-    '[class*=newsletter i], [class*=cookie i], [class*=consent i], [class*=comment i], [id*=comment i], [class*=sponsor i], [class*=advert i], ' +
-    '[class*=reklam i], [class*=breadcrumb i], [class*=share i], [class*=social i], [class*=paywall i], [class*=subscribe i], [class*=author-box i], ' +
-    '[class*=tags i], [class*=see-also i], [class*=read-more i], [class*=readmore i], [id*=taboola i], [class*=taboola i], [class*=outbrain i]';
-  const JUNK_TXT = /^(czytaj (też|także|również|więcej|dalej)|zobacz (też|także|również|wideo|więcej)|polecamy|polecane|reklama|artykuł sponsorowany|materiał (sponsorowany|partnera)|advertisement|sponsored|tagi:|tags:|źródło:|fot\.|foto:|zdjęcie:|autor zdjęcia|udostępnij|share|subskrybuj|zapisz się|newsletter|komentarze|dodaj komentarz|dołącz do|pobierz aplikację|obserwuj nas|kup teraz|więcej na ten temat|read more|related|see also|follow us)/i;
-  const junk = (el, root) => {
-    for (let e = el; e && e !== root; e = e.parentElement) if (e.matches && e.matches(JUNK_SEL)) return true;
-    const t = (el.innerText || '').trim();
-    if (JUNK_TXT.test(t)) return true;
-    // blok zlozony glownie z linkow = nawigacja albo lista 'polecane'
-    let links = 0; for (const a of el.querySelectorAll('a')) links += (a.innerText || '').length;
-    if (t.length > 0 && t.length < 300 && links / t.length > 0.6) return true;
-    if (t.length < 60 && t === t.toUpperCase() && /[A-ZĄĆĘŁŃÓŚŹŻ]{4}/.test(t)) return true;   // krzyczace etykiety (ZOBACZ, REKLAMA)
-    return false;
-  };
-  const collect = root => {
-    const out = [];
-    for (const el of root.querySelectorAll('h1, h2, h3, h4, p, li, blockquote, dd, figcaption, td')) {
-      if (junk(el, root)) continue;
-      if (el.querySelector('p, li, h1, h2, h3, h4, blockquote')) continue; // tylko najglebsze bloki
-      const t = el.innerText.replace(/\s+/g, ' ').trim();
-      if (t.length < 2 || !visible(el)) continue;
-      out.push({ el, text: t });
-    }
-    if (out.length === 0) { const t = root.innerText.replace(/\s+/g, ' ').trim(); if (t) out.push({ el: root, text: t }); }
-    // tytul strony na poczatek, jesli nie ma go w tresci
-    const h1 = document.querySelector('h1');
-    if (h1 && !root.contains(h1) && visible(h1)) out.unshift({ el: h1, text: h1.innerText.trim() });
-    return out;
+  // jezyk akapitu (polskie litery i slowa / angielskie slowa) - kazdy akapit czyta glos w jego jezyku
+  const PLW = /(^|[^a-ząćęłńóśźż])(się|jest|nie|na|że|oraz|przez|który|która|które|są|dla|jak|po|od|ale|czy|już)(?=[^a-ząćęłńóśźż]|$)/gi;
+  const ENW = /\b(the|and|of|is|in|that|for|with|are|was|on|this|from|have|be)\b/gi;
+  const langOf = (t, fallback) => {
+    const pl = (t.match(/[ąćęłńóśźż]/gi) || []).length * 2 + (t.match(PLW) || []).length, en = (t.match(ENW) || []).length;
+    return pl > en ? 'pl' : en > pl ? 'en' : fallback;
   };
   // dluzsze bloki dzielimy na zdania (krotsze wypowiedzi = plynniej, pauza dziala od razu)
   const splitSentences = t => (t.match(/[^.!?…]+[.!?…]+[""')\]]*\s*|[^.!?…]+$/g) || [t]).map(s => s.trim()).filter(Boolean);
@@ -81,18 +44,22 @@ namespace Przegladarka
     if (cur) out.push(cur);
     return out;
   });
-  // Glos: wybrany przez uzytkownika, a przy 'Automatycznie' - w jezyku strony (polski/angielski),
-  // najchetniej naturalny glos online (Microsoft ... Online (Natural)), gdy silnik go udostepnia.
-  const pickVoice = (voices, name) => {
-    if (name) { const v = voices.find(x => x.name === name); if (v) return v; }
-    const pageLang = (document.documentElement.lang || '').toLowerCase().slice(0, 2) === 'en' ? 'en' : 'pl';
-    const inLang = voices.filter(x => (x.lang || '').toLowerCase().startsWith(pageLang));
-    return inLang.find(x => /natural/i.test(x.name)) || inLang.find(x => /paulina|aria|jenny/i.test(x.name)) || inLang[0] ||
-           voices.find(x => /^pl/i.test(x.lang)) || voices[0] || null;
+  // Glos dla jezyka akapitu: wybrany przez uzytkownika, gdy mowi tym jezykiem; inaczej najlepszy w tym jezyku
+  // (naturalny glos online, gdy silnik go udostepnia) - polski glos nie czyta angielskiego tekstu i odwrotnie.
+  const voiceFor = lang => {
+    const voices = S.getVoices();
+    const mine = st.voiceName ? voices.find(x => x.name === st.voiceName) : null;
+    if (mine && (mine.lang || '').toLowerCase().startsWith(lang)) return mine;
+    const inLang = voices.filter(x => (x.lang || '').toLowerCase().startsWith(lang));
+    return inLang.find(x => /natural/i.test(x.name)) || inLang.find(x => /paulina|marek|aria|jenny|libby|sonia|ryan/i.test(x.name)) || inLang[0] ||
+           mine || voices.find(x => /^pl/i.test(x.lang)) || voices[0] || null;
   };
   const unmark = () => { if (st.mark) st.mark.classList.remove(HL); st.mark = null; };
   const speakNext = () => {
     if (!st.active) return;
+    // strona przeszla na inny artykul (bez przeladowania) - koniec czytania, zamiast czytac stary tekst
+    if (location.pathname + location.search !== st.href) { st.active = false; unmark(); return; }
+    while (st.i < st.items.length && st.items[st.i].el && !st.items[st.i].el.isConnected) st.i++;   // akapit zniknal ze strony
     if (st.i >= st.items.length) { st.active = false; unmark(); return; }
     const it = st.items[st.i];
     if (it.el && st.mark !== it.el) {
@@ -108,10 +75,8 @@ namespace Przegladarka
     }
     // wybrany glos: silnik czesto podaje liste glosow z opoznieniem (pierwsze getVoices() = pusta lista) -
     // szukamy go jeszcze raz, a gdy listy wciaz nie ma, czekamy na nia chwile, zamiast czytac glosem domyslnym
-    if (st.voiceName && (!st.voice || st.voice.name !== st.voiceName)) {
-      const v = S.getVoices().find(x => x.name === st.voiceName);
-      if (v) st.voice = v;
-      else if (!st.waited) {
+    if (st.voiceName && !S.getVoices().some(x => x.name === st.voiceName)) {
+      if (!st.waited) {
         st.waited = true;
         const go = () => { if (S.onvoiceschanged === go) S.onvoiceschanged = null; if (st.active && !st.paused) speakNext(); };
         S.onvoiceschanged = go; setTimeout(() => { if (S.onvoiceschanged === go) go(); }, 1500);
@@ -119,27 +84,35 @@ namespace Przegladarka
       }
     }
     const u = new SpeechSynthesisUtterance(it.text);
-    u.rate = st.rate; u.volume = st.volume; if (st.voice) u.voice = st.voice; u.lang = st.voice ? st.voice.lang : 'pl-PL';
+    const v = voiceFor(it.lang);
+    u.rate = st.rate; u.volume = st.volume; if (v) u.voice = v; u.lang = v ? v.lang : (it.lang === 'en' ? 'en-GB' : 'pl-PL');
     u.onend = () => { if (!st.active || st.paused) return; st.i++; speakNext(); };
     u.onerror = e => { if (e.error === 'interrupted' || e.error === 'canceled') return; st.i++; speakNext(); };
     S.speak(u);
   };
+  // jezyk strony: z tresci (gdy jednoznaczny), inaczej z <html lang>
+  const prepare = (rate, voiceName) => {
+    S.cancel(); unmark();
+    st.voiceName = voiceName || ''; st.waited = false; st.rate = rate; st.paused = false;
+    st.href = location.pathname + location.search;
+    const htmlLang = (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'pl';
+    st.lang = langOf(velivoArticle().blocks.slice(0, 30).map(b => b.text).join(' ').slice(0, 4000), htmlLang);
+  };
+  const fill = blocks => {
+    st.items = [];
+    for (const b of blocks) { const lang = b.text.length >= 40 ? langOf(b.text, st.lang) : st.lang; for (const s of split(b.text)) st.items.push({ el: b.el, text: s, lang }); }
+  };
   window.__velivoRead = {
     start(onlySelection, rate, voiceName) {
-      S.cancel(); unmark();
-      const voices = S.getVoices();
-      st.lang = (document.documentElement.lang || '').toLowerCase();
-      st.voice = pickVoice(voices, voiceName); st.voiceName = voiceName || ''; st.waited = false;
-      st.rate = rate; st.i = 0; st.paused = false;
+      prepare(rate, voiceName); st.i = 0;
       const sel = getSelection(); const selText = sel ? sel.toString().replace(/\s+/g, ' ').trim() : '';
       let blocks;
       if (onlySelection && selText.length > 0) {
         const anchor = sel && sel.rangeCount ? sel.getRangeAt(0).commonAncestorContainer : null;
         const el = anchor ? (anchor.nodeType === 1 ? anchor : anchor.parentElement) : null;
         blocks = [{ el, text: selText }];
-      } else blocks = collect(mainRoot());
-      st.items = [];
-      for (const b of blocks) for (const s of split(b.text)) st.items.push({ el: b.el, text: s });
+      } else blocks = velivoArticle().blocks;
+      fill(blocks);
       st.active = st.items.length > 0;
       speakNext();
       return st.items.length;
@@ -149,15 +122,12 @@ namespace Przegladarka
       let node = null, off = 0;
       if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
       if (!node) return 0;
-      S.cancel(); unmark();
-      const voices = S.getVoices();
-      st.voice = pickVoice(voices, voiceName); st.voiceName = voiceName || ''; st.waited = false;
-      st.rate = rate; st.paused = false;
-      const blocks = collect(mainRoot());
-      st.items = [];
+      prepare(rate, voiceName);
+      const blocks = velivoArticle().blocks;
+      fill([]);
       let startIdx = -1;
       for (const b of blocks) {
-        const parts = split(b.text);
+        const parts = split(b.text), lang = langOf(b.text, st.lang);
         if (startIdx < 0 && b.el && b.el.contains(node)) {
           let clicked = 0;
           try { const r = document.createRange(); r.setStart(b.el, 0); r.setEnd(node, off); clicked = r.toString().replace(/\s+/g, ' ').length; } catch (e) {}
@@ -165,7 +135,7 @@ namespace Przegladarka
           for (; k < parts.length - 1; k++) { pos += parts[k].length + 1; if (pos > clicked) break; }
           startIdx = st.items.length + k;
         }
-        for (const s of parts) st.items.push({ el: b.el, text: s });
+        for (const s of parts) st.items.push({ el: b.el, text: s, lang });
       }
       if (startIdx < 0) return 0;
       st.i = startIdx;
@@ -180,6 +150,7 @@ namespace Przegladarka
     stop() { st.active = false; st.paused = false; S.cancel(); unmark(); },
     volume(v) { st.volume = Math.max(0, Math.min(1, v)); }, // glosnosc 0-1: bez przerywania, dziala od nastepnego fragmentu (glos systemowy nie zmienia glosnosci w trakcie zdania)
     rate(r) { st.rate = r; if (st.active && !st.paused) { S.cancel(); speakNext(); } }, // od biezacego zdania
+    config(r, voiceName, v) { st.rate = r; st.voiceName = voiceName || ''; st.waited = false; st.volume = Math.max(0, Math.min(1, v)); if (st.active && !st.paused) { S.cancel(); speakNext(); } },   // zmiana w Ustawieniach - od biezacego zdania
     state() { return JSON.stringify({ active: st.active, paused: st.paused, i: st.i, n: st.items.length, lang: st.lang, seq: st.seq }); },
     setExternal(b) { st.external = !!b; },
     take() { const p = st.pending; st.pending = null; return p ? JSON.stringify(p) : ''; },

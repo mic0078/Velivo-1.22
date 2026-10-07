@@ -151,6 +151,7 @@ namespace Przegladarka
 
             // tylko w pamieci
             public bool Private;
+            public bool Bank;   // pobrane w karcie bankowej - nigdy nie uruchamia torrenta
             public CoreWebView2CookieManager Cookies;
             public CancellationTokenSource Cts;
             public Task Worker;
@@ -235,6 +236,7 @@ namespace Przegladarka
                 Referer = core != null ? core.Source : null,
                 UserAgent = core != null ? core.Settings.UserAgent : null,
                 Private = tab != null && tab.Private,
+                Bank = tab != null && tab.Bank,
                 Cookies = core != null ? core.CookieManager : null,
             };
             using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25)))
@@ -391,7 +393,7 @@ namespace Przegladarka
                 }
             }
             if (job.State == JobState.Canceled) DeletePart(job);
-            await Dispatcher.InvokeAsync(() => { RefreshJob(job); SaveJobs(); UpdateDownloadsButton(); if (job.State == JobState.Done) OnFileDownloaded(job.File); });
+            await Dispatcher.InvokeAsync(() => { RefreshJob(job); SaveJobs(); UpdateDownloadsButton(); if (job.State == JobState.Done) OnFileDownloaded(job.File, job.Bank); });
         }
 
         async Task RunSingle(Job job, CancellationToken ct)
@@ -675,7 +677,7 @@ namespace Przegladarka
             public long Got, Total;
             public bool CanResume, Dead;
             public string Reason;
-            public string Url; public DateTime Added; public bool Private; public bool Converted;
+            public string Url; public DateTime Added; public bool Private; public bool Bank; public bool Converted;
         }
 
         readonly List<DownloadRow> _downloads = new List<DownloadRow>();
@@ -684,7 +686,7 @@ namespace Przegladarka
         {
             var ownerCore = owner as CoreWebView2;
             var ownerTab = _tabs.FirstOrDefault(t => t.View.CoreWebView2 == ownerCore);
-            var row = new DownloadRow { Op = e.DownloadOperation, File = e.ResultFilePath, Owner = ownerCore, Url = e.DownloadOperation.Uri, Added = DateTime.Now, Private = ownerTab != null && ownerTab.Private };
+            var row = new DownloadRow { Op = e.DownloadOperation, File = e.ResultFilePath, Owner = ownerCore, Url = e.DownloadOperation.Uri, Added = DateTime.Now, Private = ownerTab != null && ownerTab.Private, Bank = ownerTab != null && ownerTab.Bank };
             _downloads.Insert(0, row);
             BuildDownloadRow(row);
             AddRowToPanel((UIElement)row.Bar.Tag);
@@ -692,7 +694,7 @@ namespace Przegladarka
             e.DownloadOperation.StateChanged += (s, a) => Dispatcher.BeginInvoke(new Action(() =>
             {
                 RefreshDownload(row); ReleaseParkedViews();
-                if (row.State == CoreWebView2DownloadState.Completed) { Integrity.MarkFromInternet(row.File); OnFileDownloaded(row.File); }   // silnik zwykle oznacza sam - to zabezpieczenie
+                if (row.State == CoreWebView2DownloadState.Completed) { Integrity.MarkFromInternet(row.File); OnFileDownloaded(row.File, row.Bank); }   // silnik zwykle oznacza sam - to zabezpieczenie
             }));
             RefreshDownload(row);
             Downloads_Click(null, null);

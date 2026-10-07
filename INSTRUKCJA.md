@@ -613,6 +613,7 @@ Włączasz je w **Ustawienia → Torrenty** (domyślnie wyłączone). Wtedy:
 - w ustawieniach: folder strefy, prędkość pobierania i wysyłania, udostępnianie po pobraniu (do jakiego współczynnika, jak długo), liczba uczestników;
 - **przyciski w oknie Pobrane:** w trakcie „Zatrzymaj”; po pobraniu, gdy trwa udostępnianie – „Otwórz folder” i „Zakończ udostępnianie”; na końcu „Pokaż w folderze” (zaznacza pobrany plik), „Usuń plik” (kasuje z dysku pobrany plik albo folder torrenta, po potwierdzeniu) i „Usuń z listy” (plik zostaje);
 - **przerwane pobieranie:** po zatrzymaniu albo błędzie Velivo pyta, czy usunąć z dysku częściowo pobrane pliki;
+- **strona nie uruchomi torrenta sama:** link magnet bez Twojego kliknięcia albo podsunięty plik `.torrent` – Velivo najpierw pyta; w trybie bankowym torrenty nigdy się nie uruchamiają; aria2 nie czyta obcych plików ustawień i trzyma swoje dane tylko w folderze Velivo;
 - postęp widać w oknie Pobrane; gdy Velivo działa w zasobniku (Ustawienia → „Po zamknięciu okna zostań w zasobniku”), **torrenty pobierają się dalej po zamknięciu okna**; dopiero „Zamknij całkowicie” (prawy przycisk na ikonce przy zegarze) je zatrzymuje; w trybie bankowym torrenty nie działają.
 
 **Uwaga:** w torrentach Twój adres IP widzą inni uczestnicy wymiany – dla anonimowości użyj VPN. Udostępniaj tylko materiały, do których masz prawo.

@@ -627,6 +627,7 @@ Turn them on in **Settings → Torrents** (off by default). Then:
 - settings: zone folder, download and upload speed, seeding after download (ratio and time), number of peers;
 - buttons in Downloads: Stop; while seeding – Open folder and Stop sharing; at the end – Show in folder (selects the file), Delete file (removes the downloaded file or torrent folder from disk after confirmation) and Remove from list;
 - after a stop or an error Velivo asks whether to delete the partly downloaded files;
+- **a page can't start a torrent by itself:** a magnet link without your click or a pushed `.torrent` file – Velivo asks first; torrents never start from Banking Mode; aria2 reads no foreign config and keeps its data only in Velivo's folder;
 - when Velivo stays in the tray, torrents keep downloading after the window is closed; "Exit completely" stops them; torrents don't work in Banking Mode.
 
 **Note:** in torrents other peers can see your IP address – use a VPN for anonymity. Share only material you have the rights to.

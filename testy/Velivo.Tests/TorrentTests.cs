@@ -17,6 +17,8 @@ public class TorrentTests
         Assert.Contains("--seed-ratio=1.0", a);
         Assert.Contains("--seed-time=30", a);
         Assert.Contains("--bt-max-peers=60", a);
+        Assert.Contains("--no-conf=true", a);   // obcy plik ustawien aria2 z profilu Windows nie jest czytany
+        Assert.Contains(a, x => x.StartsWith("--dht-file-path=") && x.Contains("narzedzia"));   // dane sieci DHT w strefie Velivo, nie w profilu Windows
         Assert.Equal("--", a.Last());   // dalej tylko link / plik - nigdy kolejna opcja
     }
 
@@ -113,5 +115,13 @@ public class TorrentTests
             Assert.Equal("\"" + d + "\"", MainWindow.ExplorerArgs(d.Replace('\\', '/')));
         }
         finally { System.IO.File.Delete(f); }
+    }
+
+    [Fact]
+    public void Strona_nie_uruchomi_torrenta_bez_zgody()
+    {
+        Assert.True(MainWindow.TorrentAskFirst(false, false));    // magnet bez klikniecia / pobrany .torrent - najpierw pytanie
+        Assert.False(MainWindow.TorrentAskFirst(true, false));    // klikniety link, pasek adresu, dwuklik w Windows
+        Assert.False(MainWindow.TorrentAskFirst(false, true));    // i tak pyta okno wyboru folderu (Anuluj = nic)
     }
 }

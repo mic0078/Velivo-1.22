@@ -1051,6 +1051,8 @@ namespace Przegladarka
             { "Torrenty są wyłączone – włącz je w Ustawieniach → Torrenty.", "Torrents are off – turn them on in Settings → Torrents." },
             { "Ustawić Velivo jako domyślną przeglądarkę?\n\nLinki z innych programów i pliki PDF będą otwierać się w Velivo. Zmienisz to później w Ustawieniach.", "Make Velivo your default browser?\n\nLinks from other programs and PDF files will open in Velivo. You can change this later in Settings." },
             { "Pobiera darmowy program aria2 (doinstalowany przy pierwszym użyciu). Uwaga: w torrentach Twój adres IP widzą inni uczestnicy wymiany. W zasobniku pobierają się dalej po zamknięciu okna; „Zamknij całkowicie” je zatrzymuje.", "Uses the free aria2 program (installed on first use). Note: in torrents other peers can see your IP address. In the tray they keep downloading after the window closes; \"Exit completely\" stops them." },
+            { "Strona chce rozpocząć pobieranie torrenta:", "A page wants to start a torrent download:" },
+            { "\n\nW torrentach Twój adres IP widzą inni uczestnicy wymiany. Rozpocząć?", "\n\nIn torrents other peers can see your IP address. Start?" },
             { "Otwieraj filmy i PDF w Velivo (Windows)…", "Open videos and PDFs in Velivo (Windows)…" },
             { "Otwiera Aplikacje domyślne Windows na stronie Velivo – tam przy .mp4, .mkv, .pdf… wybierasz Velivo. Na jeden plik: prawy przycisk → Otwórz za pomocą → Velivo.", "Opens Windows Default apps on the Velivo page – choose Velivo for .mp4, .mkv, .pdf… For a single file: right-click → Open with → Velivo." },
             { "Wszystkie pliki", "All files" },

@@ -13,7 +13,7 @@ const player = join(dir, 'odtwarzacz.html');
 writeFileSync(player, skrypt('PlayerHtml').replace('{ERR}', 'BLAD-FORMATU'));
 const film = join(dir, 'film #1.webm');   // spacja i # w nazwie jak w prawdziwych plikach
 copyFileSync(new URL('film.webm', import.meta.url), film);   // 20-sekundowy film testowy (ffmpeg testsrc)
-const url = (o, v) => pathToFileURL(player).href + '#a=' + o.a + '&r=' + o.r + '&l=' + o.l + '&v=' + encodeURIComponent(v);
+const url = (o, v) => pathToFileURL(player).href + '#a=' + o.a + '&r=' + o.r + '&l=' + o.l + '&s=sol123&v=' + encodeURIComponent(v);
 const filmUrl = pathToFileURL(film).href;   // jak w C#: "#" w nazwie zakodowane jako %23
 const browser = await pw.chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 let ok = true; const check = (c, m) => { console.log((c ? 'OK   ' : 'BLAD ') + m); if (!c) ok = false; };
@@ -160,6 +160,20 @@ check(calls === (before ? 'play' : 'pause'), 'YouTube w okienku: pauza/odtwarzan
 await p3.evaluate(() => { const r = document.getElementById('velivo-vol'); r.value = 0.6; r.dispatchEvent(new Event('input', { bubbles: true })); });
 check(Math.abs((await p3.evaluate(() => document.querySelector('video').volume)) - 0.6) < 0.01, 'YouTube w okienku: glosnosc');
 await p3.close();
+
+// prywatnosc: inny lokalny plik HTML nie moze odczytac, jakie filmy ogladales (sciezki w pamieci strony)
+await page.goto('about:blank');
+await page.goto(url({ a: 0, r: 1, l: 0 }, filmUrl));
+await page.waitForFunction(() => document.getElementById('v').readyState >= 1, null, { timeout: 10000 });
+await page.evaluate(() => { const v = document.getElementById('v'); v.currentTime = 9; v.pause(); });
+await page.waitForTimeout(400);
+const obcy = join(dir, 'obcy.html'); writeFileSync(obcy, '<!doctype html><script>window.wyciek=JSON.stringify(Object.keys(localStorage).concat(Object.values(localStorage)))</script>');
+await page.goto(pathToFileURL(obcy).href);
+const wyciek = await page.evaluate(() => window.wyciek);
+check(!/film|webm|odtw|velivo-odtw/i.test(wyciek), 'obcy plik HTML nie widzi nazw ani sciezek filmow: ' + wyciek.slice(0, 120));
+await page.goto(url({ a: 0, r: 1, l: 0 }, filmUrl));
+await page.waitForFunction(() => document.getElementById('v').readyState >= 1, null, { timeout: 10000 }); await page.waitForTimeout(400);
+check(Math.abs((await page.evaluate(() => document.getElementById('v').currentTime)) - 9) < 1, 'wznawianie dalej dziala (zaszyfrowany klucz)');
 
 await browser.close();
 console.log(ok ? 'WSZYSTKO OK' : 'SA BLEDY'); process.exit(ok ? 0 : 1);

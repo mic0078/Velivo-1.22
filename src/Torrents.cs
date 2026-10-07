@@ -68,9 +68,16 @@ namespace Przegladarka
         }
 
         // source = link magnet: albo pobrany plik .torrent
-        async Task StartTorrentAsync(string source)
+        // Strona nie uruchomi torrenta sama (magnet bez klikniecia, podsuniety plik .torrent): wtedy najpierw pytanie,
+        // chyba ze i tak pyta okno wyboru folderu. Bez pytania: klikniety link, pasek adresu, dwuklik na pliku w Windows.
+        internal static bool TorrentAskFirst(bool userAction, bool askFolder) { return !userAction && !askFolder; }
+
+        async Task StartTorrentAsync(string source, bool userAction)
         {
             if (!_settings.Torrents || string.IsNullOrWhiteSpace(source)) return;
+            if (TorrentAskFirst(userAction, _settings.AskDownload) &&
+                MessageBox.Show(this, L.T("Strona chce rozpocząć pobieranie torrenta:") + "\n\n" + (IsMagnet(source) ? MagnetName(source) : Path.GetFileName(source)) +
+                    L.T("\n\nW torrentach Twój adres IP widzą inni uczestnicy wymiany. Rozpocząć?"), L.T("Torrenty"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             if (!await EnsureAria2Async()) return;
             var dir = TorrentZone();
             if (_settings.AskDownload)   // jak przy zwyklym pobieraniu: wybor folderu (start w strefie torrentow)
@@ -202,7 +209,8 @@ namespace Przegladarka
         // Po opcjach "--": dalej tylko zrodlo (link / plik), nigdy kolejna opcja.
         internal static List<string> Aria2Args(string dir, int downKb, int upKb, double ratio, int seedMin, int peers)
         {
-            var a = new List<string> { "--dir=" + dir };
+            // pelne oddzielenie: bez obcego pliku ustawien aria2 z profilu Windows, dane sieci DHT w strefie Velivo
+            var a = new List<string> { "--dir=" + dir, "--no-conf=true", "--dht-file-path=" + Path.Combine(ToolsDir, "torrent-dht.dat"), "--dht-file-path6=" + Path.Combine(ToolsDir, "torrent-dht6.dat") };
             if (downKb > 0) a.Add("--max-overall-download-limit=" + downKb + "K");
             if (upKb > 0) a.Add("--max-upload-limit=" + upKb + "K");
             if (ratio <= 0) a.Add("--seed-time=0");
@@ -304,14 +312,14 @@ namespace Przegladarka
             if (video != null && _settings.VideoPlayer) { AddTab(PlayerUrl(video)); return; }
             var t = TorrentArg(a);
             if (t == null) AddTab(a);
-            else if (_settings.Torrents) _ = StartTorrentAsync(t);
+            else if (_settings.Torrents) _ = StartTorrentAsync(t, true);   // dwuklik / link z innego programu
             else ShowToast(L.T("Torrenty są wyłączone – włącz je w Ustawieniach → Torrenty."), null);
         }
 
-        void OnFileDownloaded(string file)
+        void OnFileDownloaded(string file, bool bank)
         {
-            if (_settings.Torrents && file != null && file.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase) && File.Exists(file))
-                _ = StartTorrentAsync(file);
+            if (!bank && _settings.Torrents && file != null && file.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase) && File.Exists(file))
+                _ = StartTorrentAsync(file, false);   // plik pobrany ze strony - pobranie moglo nastapic bez klikniecia
         }
     }
 }

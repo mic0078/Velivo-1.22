@@ -210,6 +210,8 @@ Hold the **right button**, move the mouse about 3 cm and release:
 
 A normal right-click without moving opens the menu as always. You can turn gestures off in Settings → Search and start.
 
+A **pinned tab** is not closed by the ↓ gesture (just like it has no close button). The turn in ↓ then → counts from about 15 px, so "Reload" doesn't accidentally become "close tab".
+
 ### Mouse wheel on buttons
 
 | Where | Action |
@@ -366,6 +368,9 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - **🔊 on the toolbar** or Ctrl+Shift+U reads the main content. The paragraph being read is highlighted and scrolled to the middle of the screen.
 - **Right-click → 🔊 Read from here** reads from the clicked sentence. A click elsewhere jumps there.
 - **Select text → Read selection aloud** reads just that part.
+- **Same content as Reader:** read aloud and Reader share one article detector – only the article is read, without side columns and extras.
+- **Voice per paragraph language:** in mixed text each paragraph is read with a voice in its own language (Polish / English).
+- **Reacts to changes:** a new voice or speed in Settings applies at once; when the page switches to another article, reading stops.
 - While reading, the toolbar shows pause, stop and speed (0.75×–2×); volume is in settings.
 - **Voices:**
   - Windows Polish and English voices;
@@ -387,6 +392,7 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - Type words you remember from the content, for example "laptop battery 6 hours". Letter case and Polish characters don't matter.
 - Results show the title, site, date and a snippet with the words. A double-click opens the page.
 - **Skipped:** private tabs, banks, payments, mail, logins, gov.pl, ZUS and any page with a password field.
+- Only the page's **main content** is stored (no menus or ads); **search result pages** are not stored.
 - **Where to open it:** right-click on a page, the button in the History window or Velivo tools.
 - Clearing history clears this memory too. You can turn the feature off in settings.
 
@@ -425,6 +431,7 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
   - light;
   - **dark** – pages darkened while photos keep their true colors;
   - **night** – warm colors with less blue light, **strength set with the mouse wheel**.
+- **Each site has its own mode** – one light, another dark, another night; Velivo remembers it per site. In dark mode a page enters without a white flash (dark background before painting, dark mist in the entrance effect).
 - **Zoom** remembered per site, changed with the wheel on the percent button or with Ctrl+wheel.
 - **Phone version** for a chosen site (right-click), remembered.
 - **Language:** Polish or English (Settings → Look → Language).
@@ -482,6 +489,9 @@ Banking mode is a separate, isolated browser profile for banking, payments and s
 - **🔒 Full isolation** – bank mode uses only its own encrypted vault: the browser's regular passwords and autofill are neither suggested nor saved there, and vault data goes only into bank tabs (no extensions).
 - **🛡 Transfer guard** – a pasted or typed account number is checked (IBAN / NRB checksum) and compared with your Bank accounts: a typo, a number swapped in the clipboard by malware or an unknown payee shows up at once.
 - **💸 Transfer from the vault** – on a transfer form Velivo fills in the payee, account number (NRB / IBAN / sort code + 8 digits) and reference, and the amount and customer number from the Bill with the same name. You always confirm it yourself.
+- **💬 Suggestion under the field** – click the login, password, selected characters, card number or payee account field: if the vault has matching data for this page, a choice appears right under the field (one click fills it); nothing matches – nothing appears. The page can't see your account names.
+- **Menu only with matching data** – fill items in the 🏦 menu appear only when the vault has data for the open page.
+- **Safe filling** – the full password never goes into one-character boxes (only the selected characters do), and card data goes only into visible fields – hidden fields on the page get nothing.
 
 **Cards, notes and search**
 
@@ -594,6 +604,19 @@ The connection status is in Settings → **LAN diagnostics panel…**.
 - **Download history survives restarts.** Each file shows its size, date and time, and the site it came from.
 - A deleted file is marked in gray: "File deleted or moved".
 - Buttons: Open, 📁 Show in folder, Remove from list, Clear finished, Media on page.
+
+### Torrents (optional)
+
+Turn them on in **Settings → Torrents** (off by default). Then:
+- **magnet links** (clicked or pasted into the address bar) and **downloaded .torrent files** are downloaded by the free **aria2** – fetched on first use with your consent (about 2.5 MB) and run only if its SHA-256 checksum matches;
+- **Windows association:** the installer associates `.torrent` files and `magnet:` links with Velivo – double-clicking a file or a magnet link from another program starts the download (if torrents are off, Velivo tells you where to turn them on);
+- **separate zone:** files go to their own folder (default `Downloads\Velivo-Torrenty`); with "Ask where to save" on you pick a folder for each torrent; files are marked as from the internet and Velivo opens nothing by itself;
+- settings: zone folder, download and upload speed, seeding after download (ratio and time), number of peers;
+- buttons in Downloads: Stop; while seeding – Open folder and Stop sharing; at the end – Show in folder (selects the file), Delete file (removes the downloaded file or torrent folder from disk after confirmation) and Remove from list;
+- after a stop or an error Velivo asks whether to delete the partly downloaded files;
+- when Velivo stays in the tray, torrents keep downloading after the window is closed; "Exit completely" stops them; torrents don't work in Banking Mode.
+
+**Note:** in torrents other peers can see your IP address – use a VPN for anonymity. Share only material you have the rights to.
 
 ---
 
@@ -738,6 +761,9 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 - **Velivo speakers** – choose a specific sound output instead of the Windows default. **Don't lose sound** – when a music program (Ableton, Cubase) takes the speakers, Velivo plays on another active output and returns when they are free. **🔊 Windows volume mixer…** – pin Velivo to your speakers permanently.
 - **Stay in the system tray when the window is closed** – background sync and instant start; the icon by the clock pulses while syncing, right-click: Open, Sync now, Exit completely.
 - **Connections per download** – 1 (no splitting) to 16; more is usually faster.
+
+### Torrents
+- **Download torrents (magnet and .torrent) in Velivo** – off by default; **Torrent zone folder** (Choose… / Default), **Download** and **upload speed**, **Share after download** (ratio, 0 = not at all) and **for how long**, **Most peers**. Details in chapter 8.
 
 ### Browser junk (cache)
 - Page cache, compiled scripts and graphics cache – can be deleted without losing logins. **Junk folder** (e.g. on a RAM disk), **Default**, **Delete junk on every start**, **Currently uses: …**, **Clear junk now**.

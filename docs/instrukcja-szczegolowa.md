@@ -471,6 +471,7 @@ Velivo samo pobiera pliki (jak Internet Download Manager):
 - Wbudowane okienko pobierania Edge jest ukryte.
 - Przy zamykaniu Velivo z aktywnymi pobraniami – pytanie.
 - Każdy pobrany plik dostaje znacznik „plik z internetu” (7.15).
+- **Torrenty** (Ustawienia → Torrenty, domyślnie wyłączone): magnet i `.torrent` przez aria2 (pobierany raz, za zgodą, suma SHA-256), skojarzenie `.torrent`/`magnet:` w instalatorze, osobna strefa `Pobrane\Velivo-Torrenty` albo wybór folderu, limity prędkości i udostępniania; przyciski „Otwórz folder”, „Zakończ udostępnianie”, „Pokaż w folderze”, „Usuń plik”, „Usuń z listy”; po przerwaniu pytanie o usunięcie części. W zasobniku pobierają się dalej po zamknięciu okna; w trybie bankowym wyłączone.
 
 ## 12.2 Pobieranie filmów i audio
 **Gdzie:** przycisk ⬇ Pobierz po najechaniu na film (Ustawienia → „Przycisk Pobierz nad filmami”), prawy klik → „⬇ Pobierz film…”, Narzędzia → „Wykryj media do pobrania”.

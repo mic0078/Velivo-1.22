@@ -212,8 +212,12 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); MessageBox.Show(this, L.T("Nie udało się uruchomić ponownie:\n") + ex.Message, "Velivo"); }
         }
 
+        static readonly FontFamily ModeIconFont = new FontFamily("Segoe UI Emoji, Segoe UI Symbol, Segoe UI");
+
         void UpdateDarkButton()
         {
+            // znaki trybu (☀ 🌙 🌅) jak w powiadomieniu - czcionka ikon Windows ich nie ma (rysowalaby prostokaty)
+            DarkBtn.FontFamily = ModeIconFont; DarkBtn.FontSize = 17;
             var m = CurrentPageMode();
             bool on = m.Dark;
             if (m.Night)

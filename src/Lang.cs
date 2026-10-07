@@ -1050,6 +1050,8 @@ namespace Przegladarka
             { "Do torrentów Velivo używa darmowego programu aria2 (ok. 2,5 MB, z serwisu GitHub).\n\nWażne: w torrentach Twój adres IP widzą inni uczestnicy wymiany. Jeśli chcesz pozostać anonimowy, użyj VPN.\n\nPobrać aria2 teraz? To jednorazowe.", "For torrents Velivo uses the free aria2 program (about 2.5 MB, from GitHub).\n\nImportant: in torrents other participants can see your IP address. If you want to stay anonymous, use a VPN.\n\nDownload aria2 now? This is a one-off." },
             { "Torrenty", "Torrents" },
             { "Torrenty są wyłączone – włącz je w Ustawieniach → Torrenty.", "Torrents are off – turn them on in Settings → Torrents." },
+            { "Usuń plik", "Delete file" },
+            { "Usunąć z dysku pobrany torrent?", "Delete the downloaded torrent from disk?" },
             { "Zakończ udostępnianie", "Stop sharing" },
             { "Otwórz folder", "Open folder" },
             { "Usunąć z dysku częściowo pobrane pliki?", "Delete the partly downloaded files from disk?" },

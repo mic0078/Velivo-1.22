@@ -91,4 +91,14 @@ public class TorrentTests
         Assert.Null(MainWindow.TorrentFileLine("FILE: [METADATA]film"));
         Assert.Null(MainWindow.TorrentFileLine("[#5d77cf SEED(0.0) CN:0 SD:0]"));
     }
+
+    [Fact]
+    public void Usun_plik_usuwa_tylko_to_co_dodal_torrent()
+    {
+        Assert.Equal(@"D:\Filmy\film.avi", MainWindow.TorrentTopEntry(@"D:\Filmy", @"D:\Filmy\film.avi"));
+        Assert.Equal(@"D:\Filmy\Serial S01", MainWindow.TorrentTopEntry(@"D:\Filmy\", @"D:\Filmy\Serial S01\odc1.mkv"));   // torrent z folderem
+        Assert.Null(MainWindow.TorrentTopEntry(@"D:\Filmy", @"D:\Filmy"));   // nigdy caly folder pobierania
+        Assert.Null(MainWindow.TorrentTopEntry(@"D:\Filmy", @"D:\Filmy2\x.avi"));
+        Assert.Null(MainWindow.TorrentTopEntry(@"D:\Filmy", @"D:\Filmy\..\Windows\x"));
+    }
 }

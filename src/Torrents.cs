@@ -150,6 +150,14 @@ namespace Przegladarka
                 var target = new[] { done, file }.FirstOrDefault(x => x != null && (File.Exists(x) || Directory.Exists(x))) ?? dir;   // po "Zakoncz udostepnianie" aria2 nie podaje wyniku - zostaje sciezka z linii FILE:
                 MarkTorrentFiles(target);   // strefa: kazdy plik oznaczony jako z internetu (Windows sprawdzi go przed uruchomieniem)
                 buttons.Children.Add(SmallButton(L.T("Pokaż w folderze"), () => ShowInFolder(target)));
+                var top = TorrentTopEntry(dir, target);   // plik albo caly folder torrenta - nigdy sam folder pobierania
+                if (top != null)
+                    buttons.Children.Add(SmallButton(L.T("Usuń plik"), () =>
+                    {
+                        if (MessageBox.Show(this, L.T("Usunąć z dysku pobrany torrent?") + "\n\n" + top, L.T("Torrenty"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                        try { if (Directory.Exists(top)) Directory.Delete(top, true); else File.Delete(top); File.Delete(top + ".aria2"); DlPanel.Children.Remove(row); UpdateDownloadsButton(); }
+                        catch (Exception ex) { MessageBox.Show(this, ex.Message, L.T("Torrenty")); }
+                    }));
                 ShowToast(L.T("🧲 Pobrano torrent: ") + title, null);
             }
             else
@@ -233,6 +241,17 @@ namespace Przegladarka
             if (line == null || !line.StartsWith("FILE: ", StringComparison.Ordinal)) return null;
             var path = line.Substring(6).Trim();
             return path.Length == 0 || path.Contains("[METADATA]") || path.Contains("[MEMORY]") ? null : path;
+        }
+
+        // pobrany plik w folderze torrenta -> to, co torrent dodal do folderu pobierania (plik albo jego wlasny folder); null = poza folderem
+        internal static string TorrentTopEntry(string dir, string path)
+        {
+            if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(path)) return null;
+            var root = Path.GetFullPath(dir).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+            var full = Path.GetFullPath(path);
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase) || full.Length == root.Length) return null;
+            var first = full.Substring(root.Length).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries)[0];
+            return Path.Combine(root, first);
         }
 
         static void ShowInFolder(string path)

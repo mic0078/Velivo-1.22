@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Przegladarka;
 using Xunit;
@@ -70,5 +72,15 @@ public class TorrentTests
         Assert.Null(MainWindow.TorrentArg("https://example.com/ubuntu.torrent"));   // adres w sieci to zwykla karta
         Assert.Null(MainWindow.TorrentArg("file:///C:/Pobrane/strona.html"));
         Assert.Null(MainWindow.TorrentArg("velivo.pl"));
+    }
+
+    [Fact]
+    public void Przerwany_torrent_usuwa_tylko_swoje_niedokonczone_czesci()
+    {
+        var dir = @"C:\T";
+        var before = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { @"C:\T\stary.iso", @"C:\T\inny", @"C:\T\inny.aria2" };
+        var after = new HashSet<string>(before, StringComparer.OrdinalIgnoreCase) { @"C:\T\ubuntu.iso", @"C:\T\ubuntu.iso.aria2", @"C:\T\gotowy.mkv" };
+        Assert.Equal(new[] { @"C:\T\ubuntu.iso" }, MainWindow.PartialEntries(dir, before, after));   // bez starych plikow i bez skonczonych
+        Assert.Empty(MainWindow.PartialEntries(dir, after, after));
     }
 }

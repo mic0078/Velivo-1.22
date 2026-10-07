@@ -108,6 +108,7 @@ namespace Przegladarka
             Downloads_Click(null, null);
 
             string done = null, lastError = null; bool seeding = false;
+            var before = DirEntries(dir);   // co bylo w folderze przed startem - po przerwaniu usuwamy tylko nowe czesci
             try
             {
                 proc = Process.Start(psi);
@@ -148,9 +149,31 @@ namespace Przegladarka
             {
                 status.Text = stopped ? L.T("Zatrzymano") : L.T("Nie udało się pobrać: ") + (lastError ?? "?");
                 status.Foreground = stopped ? Brushes.Gray : Brushes.Firebrick;
+                var parts = PartialEntries(dir, before, DirEntries(dir));
+                if (parts.Count > 0 && MessageBox.Show(this, L.T("Usunąć z dysku częściowo pobrane pliki?") + "\n\n" + string.Join("\n", parts.Select(Path.GetFileName)),
+                        L.T("Torrenty"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    foreach (var e in parts)
+                    {
+                        try { if (Directory.Exists(e)) Directory.Delete(e, true); else File.Delete(e); File.Delete(e + ".aria2"); }
+                        catch (Exception ex) { App.LogError(ex); }
+                    }
             }
             buttons.Children.Add(SmallButton(L.T("Usuń z listy"), () => { DlPanel.Children.Remove(row); UpdateDownloadsButton(); }));
             UpdateDownloadsButton();
+        }
+
+        static HashSet<string> DirEntries(string dir)
+        {
+            try { return new HashSet<string>(Directory.EnumerateFileSystemEntries(dir), StringComparer.OrdinalIgnoreCase); }
+            catch (Exception) { return new HashSet<string>(StringComparer.OrdinalIgnoreCase); }
+        }
+
+        // przerwany torrent: nowe wpisy w folderze, przy ktorych aria2 zostawilo plik kontrolny .aria2 (= niedokonczone)
+        internal static List<string> PartialEntries(string dir, HashSet<string> before, HashSet<string> after)
+        {
+            return after.Where(e => !before.Contains(e) && !e.EndsWith(".aria2", StringComparison.OrdinalIgnoreCase) && after.Contains(e + ".aria2")
+                                    && string.Equals(Path.GetDirectoryName(e), dir.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                        .OrderBy(e => e).ToList();
         }
 
         string TorrentZone()

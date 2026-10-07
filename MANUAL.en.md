@@ -283,7 +283,10 @@ Hover over a video and three buttons appear in its top right corner: **⬇ Downl
 
 | What | How |
 | --- | --- |
-| Pause / resume | click the video |
+| Pause / resume | click the video, ▶/❚❚ on the bar or Space |
+| Seeking | ◀◀ / ▶▶ (10 s), time bar, ← → keys, wheel over the time bar (5 s) |
+| Volume | 🔊 mute, slider, ↑ ↓ keys, wheel over the slider, M |
+| Full screen | ⛶ on the bar, F or double-click the video; Esc to leave |
 | Transparency 15–100% | mouse wheel over the window |
 | Move | dark bar at the top |
 | Size (from 160×90) | edge or corner |

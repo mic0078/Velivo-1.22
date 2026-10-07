@@ -552,7 +552,10 @@ Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy 
 
 | Co | Jak |
 | --- | --- |
-| Pauza / wznowienie | klik na film |
+| Pauza / wznowienie | klik na film, ▶/❚❚ na pasku albo spacja |
+| Przewijanie | ◀◀ / ▶▶ (10 s), pasek czasu, strzałki ← →, kółko nad paskiem czasu (5 s) |
+| Głośność | 🔊 wycisz, suwak, strzałki ↑ ↓, kółko nad suwakiem, M |
+| Pełny ekran | ⛶ na pasku, F albo dwuklik na filmie; Esc – wyjście |
 | Przezroczystość 15–100% | kółko myszy nad okienkiem |
 | Przesuwanie | ciemny pasek u góry |
 | Wielkość (od 160×90) | krawędź lub róg |

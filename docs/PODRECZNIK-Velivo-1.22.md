@@ -358,8 +358,10 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 ### 7.7 Pauza i wznowienie
 - **Jak używać:** kliknij w film.
 
-### 7.8 Przewijanie filmu w okienku
-- **Co robi:** na dole okienka jest pasek przewijania – pojawia się po najechaniu.
+### 7.8 Kompaktowy odtwarzacz w okienku (przewijanie, głośność, pełny ekran)
+- **Co robi:** po najechaniu myszką na dole okienka pojawia się pasek: ▶/❚❚ pauza, ◀◀ 10 s wstecz, ▶▶ 10 s do przodu, pasek czasu (klik / przeciąganie, kółko nad nim ±5 s), 🔊 wycisz, suwak głośności (kółko nad nim ±5%) i ⛶ pełny ekran. Działa tak samo dla YouTube, innych stron i filmów z dysku.
+- **Klawiatura** (po kliknięciu w okienko): spacja – pauza, ← → – 10 s, ↑ ↓ – głośność, M – wycisz, F – pełny ekran, Esc – wyjście z pełnego ekranu. Dwuklik na filmie – pełny ekran.
+- **Małe okienko:** pasek sam się upraszcza – najpierw chowa suwak głośności i czas, w najmniejszym także ±10 s.
 
 ### 7.9 Powrót do strony (↩)
 - **Jak używać:** kliknij ↩ na pasku okienka.

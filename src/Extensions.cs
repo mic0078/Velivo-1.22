@@ -565,6 +565,9 @@ namespace Przegladarka
         }
 
         // Okienko dodatku pod jego ikonka, zamykane po kliknieciu gdzie indziej (jak w Chrome).
+        // Dodatek nie dostaje karty bankowej (tryb bankowy calkowicie odizolowany) ani prywatnej (jak incognito w Chrome).
+        internal static bool ExtensionMayUseTab(bool bank, bool isPrivate) { return !bank && !isPrivate; }
+
         void OpenExtensionPopup(ExtInfo info, FrameworkElement anchor)
         {
             if (info.Popup == null)
@@ -609,7 +612,7 @@ namespace Przegladarka
                     };
                     core.WindowCloseRequested += (a, b) => { closing = true; win.Close(); };
                     core.NewWindowRequested += (a, b) => OnNewWindowRequested(b, false);
-                    if (pageTab != null && pageTab.View.CoreWebView2 != null)
+                    if (pageTab != null && pageTab.View.CoreWebView2 != null && ExtensionMayUseTab(pageTab.Bank, pageTab.Private))
                         await InstallActiveTabBridge(core, pageTab);
                     core.DocumentTitleChanged += (a, b) => { if (!string.IsNullOrEmpty(core.DocumentTitle)) win.Title = core.DocumentTitle; };
                     // jak w Chrome: okienko dopasowane do zawartosci dodatku (bez pustego miejsca i bez paska przewijania)

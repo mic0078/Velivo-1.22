@@ -595,7 +595,7 @@ Włączasz je w **Ustawienia → Torrenty** (domyślnie wyłączone). Wtedy:
 - **wybór folderu:** przy każdym torrencie (gdy włączone „Pytaj, gdzie zapisać plik”) wybierasz folder – okno otwiera się w strefie torrentów;
 - **osobna strefa:** pliki trafiają do własnego folderu (domyślnie `Pobrane\Velivo-Torrenty`), są oznaczone jako pobrane z internetu (Windows sprawdzi je przed uruchomieniem), Velivo niczego z nich samo nie otwiera;
 - w ustawieniach: folder strefy, prędkość pobierania i wysyłania, udostępnianie po pobraniu (do jakiego współczynnika, jak długo), liczba uczestników;
-- postęp widać w oknie Pobrane; **zamknięcie Velivo zatrzymuje torrenty**; w trybie bankowym torrenty nie działają.
+- postęp widać w oknie Pobrane; gdy Velivo działa w zasobniku (Ustawienia → „Po zamknięciu okna zostań w zasobniku”), **torrenty pobierają się dalej po zamknięciu okna**; dopiero „Zamknij całkowicie” (prawy przycisk na ikonce przy zegarze) je zatrzymuje; w trybie bankowym torrenty nie działają.
 
 **Uwaga:** w torrentach Twój adres IP widzą inni uczestnicy wymiany – dla anonimowości użyj VPN. Udostępniaj tylko materiały, do których masz prawo.
 

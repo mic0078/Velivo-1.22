@@ -642,6 +642,10 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Co robi:** blokuje także osadzone treści serwisów społecznościowych.
 - **Ograniczenia:** na zaufanych domenach ścisła działa jak zrównoważona, chyba że dla domeny zaznaczysz „Wymuś blokowanie trackerów”.
 
+### 12.2a Ochrona przed śledzeniem – wyłączona (bez kontrolowania)
+- **Gdzie:** Ustawienia → Prywatność → „Ochrona przed śledzeniem” → „Wyłączona – bez kontrolowania”.
+- **Co robi:** silnik nie blokuje trackerów – dla tych, którzy wolą strony bez żadnej ingerencji. uBlock Origin Lite i reguły dla stron działają dalej, jeśli są włączone. Domyślnie zostaje ochrona zrównoważona.
+
 ### 12.3 Panel prywatności i reguły domen
 - **Gdzie:** tarcza → „Panel prywatności i antyfingerprinting”; Ustawienia → Dane → „Prywatność per-strona”.
 - **Jak używać:** 1) wpisz domenę (np. `example.com` – można wkleić cały adres, zostaje sama domena); 2) zaznacz wybrane opcje (12.4–12.7); 3) „Zapisz regułę”. „Usuń regułę” kasuje ją.

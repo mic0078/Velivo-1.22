@@ -752,7 +752,7 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 
 ### Privacy
 - **Send "Do Not Track" signals** (DNT and Global Privacy Control).
-- **Tracking protection** – **balanced** (recommended: blocks known trackers, embedded content like X posts or videos works) or **strict** (also blocks embedded social content; on trusted domains it acts as balanced unless you tick "Force tracker blocking" for the domain).
+- **Tracking protection** – **balanced** (recommended: blocks known trackers, embedded content like X posts or videos works) or **strict** (also blocks embedded social content; on trusted domains it acts as balanced unless you tick "Force tracker blocking" for the domain) or **off – no tracking control** (the engine blocks no trackers; uBlock Origin Lite and site rules still work if enabled).
 - **Save browsing history**.
 - **Clear data on close** – history and cache; accounts stay logged in.
 - **Logins from Sejf: key on the toolbar on login pages** – clicking the key fills the form with a Sejf login.

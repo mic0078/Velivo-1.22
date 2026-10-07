@@ -17,7 +17,7 @@ namespace Przegladarka
         public string Search = "startpage";
         public string Home = "https://startpage.com";
         public bool SendDnt = true;            // naglowki DNT: 1 i Sec-GPC: 1
-        public bool StrictTracking = false;    // ochrona przed sledzeniem: false = zrownowazona (domyslna), true = scisla
+        public string Tracking = "balanced";   // ochrona przed sledzeniem: balanced (domyslna) / strict / none (bez kontrolowania)
         public bool SaveHistory = true;
         public bool ClearOnExit = false;       // przy zamknieciu: historia + cache (bez wylogowywania kont)
         public bool SavePasswords = true;
@@ -148,7 +148,7 @@ namespace Przegladarka
                         case "search": if (Engines.ContainsKey(v)) s.Search = v; break;
                         case "home": if (v.Length > 0) s.Home = v; break;
                         case "dnt": s.SendDnt = b; break;
-                        case "tracking": s.StrictTracking = v == "strict"; break;
+                        case "tracking": if (v == "balanced" || v == "strict" || v == "none") s.Tracking = v; break;
                         case "history": s.SaveHistory = b; break;
                         case "clearOnExit": s.ClearOnExit = b; break;
                         case "passwords": s.SavePasswords = b; break;
@@ -268,7 +268,7 @@ namespace Przegladarka
             SaveLanSyncKey(dir, LanSyncKey);
             File.WriteAllLines(FilePath(dir), new[]
             {
-                "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
+                "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + Tracking,
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "askedDefault=" + B(AskedDefaultBrowser), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
                 "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "playerSalt=" + (PlayerSalt ?? ""), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
@@ -497,8 +497,9 @@ namespace Przegladarka
             var trackBox = new ComboBox { Width = 320, HorizontalAlignment = HorizontalAlignment.Left };
             trackBox.Items.Add(new ComboBoxItem { Content = L.T("Ochrona zrównoważona (zalecana)"), Tag = "balanced" });
             trackBox.Items.Add(new ComboBoxItem { Content = L.T("Ścisła ochrona"), Tag = "strict" });
-            trackBox.SelectedIndex = s.StrictTracking ? 1 : 0;
-            trackBox.ToolTip = L.T("Zrównoważona: blokuje znane trackery, a osadzone treści (np. wpisy z X, filmy) działają. Ścisła: blokuje też osadzone treści serwisów społecznościowych. Na zaufanych domenach ścisła działa jak zrównoważona, chyba że zaznaczysz dla domeny „Wymuś blokowanie trackerów”.");
+            trackBox.Items.Add(new ComboBoxItem { Content = L.T("Wyłączona – bez kontrolowania"), Tag = "none" });
+            trackBox.SelectedIndex = s.Tracking == "strict" ? 1 : s.Tracking == "none" ? 2 : 0;
+            trackBox.ToolTip = L.T("Zrównoważona: blokuje znane trackery, a osadzone treści (np. wpisy z X, filmy) działają. Ścisła: blokuje też osadzone treści serwisów społecznościowych. Na zaufanych domenach ścisła działa jak zrównoważona, chyba że zaznaczysz dla domeny „Wymuś blokowanie trackerów”. Wyłączona: silnik nie blokuje trackerów (uBlock Origin Lite i reguły dla stron działają dalej, jeśli są włączone).");
             trackPanel.Children.Add(trackBox);
             var hist = Check(L.T("Zapisuj historię przeglądania"), null, s.SaveHistory);
             var clear = Check(L.T("Czyść dane przy zamknięciu (historia i pamięć podręczna)"), L.T("Czyści historię i cache przy zamknięciu, ale nie wylogowuje kont ani nie usuwa zapisanych logowań."), s.ClearOnExit);
@@ -854,7 +855,7 @@ namespace Przegladarka
             {
                 s.Search = (string)((ComboBoxItem)engine.SelectedItem).Tag;
                 s.Home = string.IsNullOrWhiteSpace(home.Text) ? "https://duckduckgo.com/" : ToUrl(home.Text);
-                s.SendDnt = dnt.IsChecked == true; s.StrictTracking = trackBox.SelectedIndex == 1;
+                s.SendDnt = dnt.IsChecked == true; s.Tracking = (string)((ComboBoxItem)trackBox.SelectedItem).Tag;
                 s.SaveHistory = hist.IsChecked == true; s.ClearOnExit = clear.IsChecked == true;
                 s.SavePasswords = pw.IsChecked == true; s.Autofill = af.IsChecked == true;
                 s.BlockThirdPartyPopups = pop.IsChecked == true;

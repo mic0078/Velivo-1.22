@@ -391,7 +391,7 @@ namespace Przegladarka
                 }
             }
             if (job.State == JobState.Canceled) DeletePart(job);
-            await Dispatcher.InvokeAsync(() => { RefreshJob(job); SaveJobs(); UpdateDownloadsButton(); });
+            await Dispatcher.InvokeAsync(() => { RefreshJob(job); SaveJobs(); UpdateDownloadsButton(); if (job.State == JobState.Done) OnFileDownloaded(job.File); });
         }
 
         async Task RunSingle(Job job, CancellationToken ct)
@@ -692,7 +692,7 @@ namespace Przegladarka
             e.DownloadOperation.StateChanged += (s, a) => Dispatcher.BeginInvoke(new Action(() =>
             {
                 RefreshDownload(row); ReleaseParkedViews();
-                if (row.State == CoreWebView2DownloadState.Completed) Integrity.MarkFromInternet(row.File);   // silnik zwykle oznacza sam - to zabezpieczenie
+                if (row.State == CoreWebView2DownloadState.Completed) { Integrity.MarkFromInternet(row.File); OnFileDownloaded(row.File); }   // silnik zwykle oznacza sam - to zabezpieczenie
             }));
             RefreshDownload(row);
             Downloads_Click(null, null);

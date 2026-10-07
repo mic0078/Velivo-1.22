@@ -53,6 +53,7 @@ Popularne przeglądarki (Chrome, Edge, Firefox, Opera) nie mają tych funkcji wb
 - **📺 Wyślij kartę na drugi komputer** w domu – przez szyfrowaną sieć lokalną, bez chmury i bez konta; film rusza w tym samym miejscu.
 - **Synchronizacja bez chmury** – zakładki, hasła, historia, karty przypięte, Szybki Dostęp i ustawienia między komputerami w domowej sieci, szyfrowane po sparowaniu kodem.
 - **⬇ Pobieranie filmów jak w Internet Download Manager** – przycisk „Pobierz” nad filmem, także na YouTube: wybór jakości (do 1080p), MP3/M4A, wybór folderu; zwykłe pliki do 16 połączeń naraz z wznawianiem po restarcie.
+- **🧲 Torrenty (włączane w Ustawieniach, domyślnie wyłączone)** – linki magnet i pliki .torrent pobiera darmowy aria2 (doinstalowany przy pierwszym użyciu, ze sprawdzoną sumą SHA-256). Osobna strefa: własny folder, pliki oznaczone jako z internetu, nic nie otwiera się samo. Limity pobierania, wysyłania i udostępniania w sekcji „Torrenty”; zamknięcie Velivo zatrzymuje torrenty.
 - **🔊 „Czytaj od tego miejsca”** – prawy przycisk na akapicie i Velivo czyta od tego zdania; naturalne polskie i angielskie głosy offline.
 - **🌅 Tryb nocny z natężeniem** jak „Światło nocne” w Windows – regulowany kółkiem myszy na przycisku.
 - **🖱 Gesty myszy i obsługa samą myszką** – idealne przy telewizorze i na kanapie: ← wstecz, → dalej, ↑ nowa karta, ↓ zamknij, ↓→ odśwież; powiększenie strony kółkiem na przycisku procentów.

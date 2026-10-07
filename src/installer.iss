@@ -120,6 +120,18 @@ Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\File
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".xhtml"; ValueData: "VelivoHTML"
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".svg"; ValueData: "VelivoHTML"
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\StartMenu"; ValueType: string; ValueName: "StartMenuInternet"; ValueData: "Velivo"
+; torrenty: plik .torrent i linki magnet: (pobiera tylko, gdy torrenty sa wlaczone w Ustawieniach)
+Root: HKCU; Subkey: "Software\Classes\VelivoTorrent"; ValueType: string; ValueName: ""; ValueData: "Velivo Torrent"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\VelivoTorrent\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
+Root: HKCU; Subkey: "Software\Classes\VelivoTorrent\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.torrent"; ValueType: string; ValueName: ""; ValueData: "VelivoTorrent"
+Root: HKCU; Subkey: "Software\Classes\.torrent\OpenWithProgids"; ValueType: string; ValueName: "VelivoTorrent"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\magnet"; ValueType: string; ValueName: ""; ValueData: "URL:Magnet Link"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\magnet"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\magnet\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
+Root: HKCU; Subkey: "Software\Classes\magnet\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".torrent"; ValueData: "VelivoTorrent"
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\URLAssociations"; ValueType: string; ValueName: "magnet"; ValueData: "VelivoTorrent"
 Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "Velivo"; ValueData: "Software\Clients\StartMenuInternet\Velivo\Capabilities"; Flags: uninsdeletevalue
 
 [Run]

@@ -66,6 +66,13 @@ namespace Przegladarka
         public bool MouseGestures = true;       // prawy przycisk + ruch myszy
         public bool PipButton = true;
         public bool VideoDownloadButton = true;
+        public bool Torrents = false;          // torrenty (magnet, .torrent) przez aria2 - wlaczane recznie
+        public string TorrentDir = "";         // osobna strefa torrentow (pusty = Pobrane\Velivo-Torrenty)
+        public int TorrentDownKb = 0;          // limit pobierania KB/s (0 = bez limitu)
+        public int TorrentUpKb = 1024;         // limit wysylania KB/s (0 = bez limitu)
+        public double TorrentRatio = 1.0;      // udostepnianie do wspolczynnika (0 = nie udostepniaj po pobraniu)
+        public int TorrentSeedMin = 30;        // najdluzej udostepniaj (minuty)
+        public int TorrentPeers = 60;          // najwiecej uczestnikow naraz
         public string VideoDir = "";
         public string FloatBounds = "";
         public int FloatOpacity = 100;
@@ -180,6 +187,13 @@ namespace Przegladarka
                         case "gestures": s.MouseGestures = b; break;
                         case "pipBtn": s.PipButton = b; break;
                         case "videoDlBtn": s.VideoDownloadButton = b; break;
+                        case "torrents": s.Torrents = b; break;
+                        case "torrentDir": s.TorrentDir = v; break;
+                        case "torrentDown": { int x; if (int.TryParse(v, out x)) s.TorrentDownKb = Math.Max(0, Math.Min(1000000, x)); } break;
+                        case "torrentUp": { int x; if (int.TryParse(v, out x)) s.TorrentUpKb = Math.Max(0, Math.Min(1000000, x)); } break;
+                        case "torrentRatio": { double x; if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out x)) s.TorrentRatio = Math.Max(0, Math.Min(10, x)); } break;
+                        case "torrentSeed": { int x; if (int.TryParse(v, out x)) s.TorrentSeedMin = Math.Max(1, Math.Min(1440, x)); } break;
+                        case "torrentPeers": { int x; if (int.TryParse(v, out x)) s.TorrentPeers = Math.Max(5, Math.Min(200, x)); } break;
                         case "videoDir": s.VideoDir = v; break;
                         case "floatBounds": s.FloatBounds = v; break;
                         case "floatTop": s.FloatTopmost = b; break;
@@ -245,7 +259,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
@@ -623,6 +637,43 @@ namespace Przegladarka
             cacheSize.SelectedIndex = Math.Max(0, Array.IndexOf(cacheOpts, s.CacheMb));
             root.Children.Add(cacheSize);
 
+            // ---------- torrenty: osobna strefa ----------
+            root.Children.Add(Header(L.T("Torrenty")));
+            var torrBox = Check(L.T("Torrenty (linki magnet i pliki .torrent)"), L.T("Pobiera darmowy program aria2 (doinstalowany przy pierwszym użyciu). Uwaga: w torrentach Twój adres IP widzą inni uczestnicy wymiany. Zamknięcie Velivo zatrzymuje torrenty."), s.Torrents);
+            root.Children.Add(torrBox);
+            root.Children.Add(new TextBlock { Text = L.T("Strefa torrentów – osobny folder (puste = Pobrane\\Velivo-Torrenty):"), Margin = new Thickness(0, 6, 0, 0) });
+            var torrDirBox = new TextBox { Text = s.TorrentDir, Padding = new Thickness(4), Margin = new Thickness(0, 2, 6, 0) };
+            var torrBrowse = SmallButton(L.T("Wybierz…"), null);
+            torrBrowse.Click += (a, b) =>
+            {
+                var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Strefa torrentów") };
+                if (!string.IsNullOrWhiteSpace(torrDirBox.Text) && Directory.Exists(torrDirBox.Text)) dlg.InitialDirectory = torrDirBox.Text;
+                if (dlg.ShowDialog(win) == true) torrDirBox.Text = dlg.FolderName;
+            };
+            var torrDefault = SmallButton(L.T("Domyślny"), () => torrDirBox.Text = "");
+            var torrRow = new DockPanel();
+            DockPanel.SetDock(torrDefault, Dock.Right); DockPanel.SetDock(torrBrowse, Dock.Right);
+            torrRow.Children.Add(torrDefault); torrRow.Children.Add(torrBrowse); torrRow.Children.Add(torrDirBox);
+            root.Children.Add(torrRow);
+            root.Children.Add(new TextBlock { Text = L.T("Pliki z torrentów są oznaczone jako pobrane z internetu – Windows sprawdzi je przed uruchomieniem. Velivo niczego z nich samo nie otwiera."), TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Brushes.Gray, Margin = new Thickness(0, 2, 0, 4) });
+            Func<string, int[], Func<int, string>, int, ComboBox> torrCombo = (label, opts, fmt, cur) =>
+            {
+                root.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 4, 0, 0) });
+                var cb = new ComboBox { Width = 240, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 2) };
+                foreach (var o in opts) cb.Items.Add(fmt(o));
+                cb.SelectedIndex = Math.Max(0, Array.IndexOf(opts, cur));
+                root.Children.Add(cb);
+                return cb;
+            };
+            Func<int, string> speed = kb => kb == 0 ? L.T("Bez limitu") : kb >= 1024 ? (kb / 1024) + " MB/s" : kb + " KB/s";
+            int[] downOpts = { 0, 512, 1024, 2048, 5120, 10240, 20480 }, upOpts = { 0, 128, 256, 512, 1024, 2048, 5120 };
+            int[] ratioOpts = { 0, 50, 100, 150, 200 }, seedOpts = { 15, 30, 60, 120, 240 }, peerOpts = { 20, 40, 60, 100 };
+            var torrDown = torrCombo(L.T("Prędkość pobierania:"), downOpts, speed, s.TorrentDownKb);
+            var torrUp = torrCombo(L.T("Prędkość wysyłania:"), upOpts, speed, s.TorrentUpKb);
+            var torrRatio = torrCombo(L.T("Udostępnianie po pobraniu:"), ratioOpts, r => r == 0 ? L.T("Nie udostępniaj") : L.T("Do współczynnika ") + (r / 100.0).ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("pl-PL")) + ":1", (int)Math.Round(s.TorrentRatio * 100));
+            var torrSeed = torrCombo(L.T("Udostępniaj najdłużej:"), seedOpts, m => m >= 60 ? (m / 60) + " h" : m + " min", s.TorrentSeedMin);
+            var torrPeers = torrCombo(L.T("Najwięcej uczestników naraz:"), peerOpts, p => p.ToString(), s.TorrentPeers);
+
             root.Children.Add(Header(L.T("Dane")));
             var clearNow = SmallButton(L.T("Wyczyść dane przeglądania teraz…"), null);
             clearNow.HorizontalAlignment = HorizontalAlignment.Left; clearNow.Margin = new Thickness(0);
@@ -789,7 +840,9 @@ namespace Przegladarka
                 bool scriptsChanged = s.PageFade != newFade || s.PageEntrance != newEnt || s.PageEntranceMs != newEntMs || s.AutoRejectCookies != (cookieRej.IsChecked == true) || s.MouseGestures != (gestures.IsChecked == true) || s.PipButton != (pipBtn.IsChecked == true)
                     || s.DarkPatterns != (darkP.IsChecked == true) || s.VideoDownloadButton != (dlBtnBox.IsChecked == true) || s.PrivacyReceipt != (receiptBox.IsChecked == true);
                 s.PageFade = newFade; s.PageEntrance = newEnt; s.PageEntranceMs = newEntMs;
-                s.PageMemory = memory.IsChecked == true; s.VideoDownloadButton = dlBtnBox.IsChecked == true; s.DarkPatterns = darkP.IsChecked == true; s.PrivacyReceipt = receiptBox.IsChecked == true;
+                s.PageMemory = memory.IsChecked == true; s.VideoDownloadButton = dlBtnBox.IsChecked == true; s.Torrents = torrBox.IsChecked == true;
+                s.TorrentDir = (torrDirBox.Text ?? "").Trim(); s.TorrentDownKb = downOpts[Math.Max(0, torrDown.SelectedIndex)]; s.TorrentUpKb = upOpts[Math.Max(0, torrUp.SelectedIndex)];
+                s.TorrentRatio = ratioOpts[Math.Max(0, torrRatio.SelectedIndex)] / 100.0; s.TorrentSeedMin = seedOpts[Math.Max(0, torrSeed.SelectedIndex)]; s.TorrentPeers = peerOpts[Math.Max(0, torrPeers.SelectedIndex)]; s.DarkPatterns = darkP.IsChecked == true; s.PrivacyReceipt = receiptBox.IsChecked == true;
                 s.AutoRejectCookies = cookieRej.IsChecked == true; s.MouseGestures = gestures.IsChecked == true; s.PipButton = pipBtn.IsChecked == true;
                 if (scriptsChanged) RefreshPageScripts();
                 s.SmartScreen = ss.IsChecked == true; s.AskDownload = ask.IsChecked == true;

@@ -136,7 +136,7 @@ namespace Przegladarka
             Closing += ConfirmCloseWithDownloads;        // trwa pobieranie? zapytaj i wstrzymaj
             Closing += (s, e) => { if (!e.Cancel) SaveSession(); }; // karty do przywrocenia przy nastepnym starcie
             Closing += OnClosingCleanup;
-            Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); };
+            Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); StopTorrents(); };
             LoadJobs(); // lista pobran z poprzedniego uruchomienia (przerwane mozna wznowic)
             LoadZoom();
             LoadSiteModes();
@@ -174,7 +174,8 @@ namespace Przegladarka
                     if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
                     if (session.Count == 0 && pinned.Count == 0 && _startUrls.Length == 0) AddTab("");
                     if (session.Count == 0 && pinned.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
-                    foreach (var u in _startUrls) AddTab(u);
+                    foreach (var u in _startUrls) OpenArg(u);
+                    if (_tabs.Count == 0) AddTab("");   // start samym torrentem
                     _sessionLoaded = true;
                     SaveSessionSoon();
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
@@ -506,6 +507,8 @@ namespace Przegladarka
             };
 
             core.NavigationStarting += (s, e) => { if (!e.IsRedirected) SetPageBackground(tab, e.Uri); };   // tlo w trybie strony docelowej
+            // link magnet: - torrent w Velivo (gdy wlaczone; nigdy w trybie bankowym), zamiast otwierania innego programu
+            core.LaunchingExternalUriScheme += (s, e) => { var u = e.Uri; if (_settings.Torrents && !tab.Bank && IsMagnet(u)) { e.Cancel = true; Dispatcher.BeginInvoke(new Action(() => { _ = StartTorrentAsync(u); })); } };
             core.NewWindowRequested += (s, e) => { if (!OpenLinkInSameTab(tab, e)) { _creatingBank = tab.Bank; try { OnNewWindowRequested(e, tab.Private); } finally { _creatingBank = false; } } };
             core.DocumentTitleChanged += (s, e) =>
             {
@@ -973,6 +976,7 @@ namespace Przegladarka
         void Navigate(BrowserTab tab, string text)
         {
             if (tab.View.CoreWebView2 == null) return;
+            if (_settings.Torrents && !tab.Bank && IsMagnet(text)) { _ = StartTorrentAsync(text.Trim()); return; }   // wklejony link magnet
             var keyword = ExpandSearchKeyword(text);   // "yt koty" -> wyszukiwanie na YouTube
             if (keyword != null) text = keyword;
             // przypieta karta jest zamrozona - nowy adres (z innej strony) idzie do nowej karty.

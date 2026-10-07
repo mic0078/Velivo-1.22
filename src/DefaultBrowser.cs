@@ -20,6 +20,7 @@ namespace Przegladarka
     {
         internal const string AppName = "Velivo";
         const string ProgId = "VelivoHTML";
+        const string PdfProgId = "VelivoPDF";
         const string ClientKey = @"Software\Clients\StartMenuInternet\" + AppName;
 
         // ---------- jedno okno ----------
@@ -143,6 +144,12 @@ namespace Przegladarka
                 using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
                 using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
             }
+            using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + PdfProgId))
+            {
+                k.SetValue("", AppName + " PDF Document");
+                using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
+                using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
+            }
             using (var k = Registry.CurrentUser.CreateSubKey(ClientKey))
             {
                 k.SetValue("", AppName);
@@ -155,7 +162,10 @@ namespace Przegladarka
                     cap.SetValue("ApplicationIcon", exe + ",0");
                     using (var u = cap.CreateSubKey("URLAssociations")) { u.SetValue("http", ProgId); u.SetValue("https", ProgId); }
                     using (var f = cap.CreateSubKey("FileAssociations"))
+                    {
                         foreach (var ext in new[] { ".htm", ".html", ".shtml", ".xhtml", ".svg" }) f.SetValue(ext, ProgId);
+                        f.SetValue(".pdf", PdfProgId);   // PDF otwiera wbudowany czytnik silnika
+                    }
                     using (var s = cap.CreateSubKey("StartMenu")) s.SetValue("StartMenuInternet", AppName);
                 }
             }
@@ -176,6 +186,21 @@ namespace Przegladarka
         }
 
         static bool IsDefaultBrowser() { return CurrentBrowserProgId() == ProgId; }
+
+        // Pierwsze uruchomienie (takze po instalacji): jedno pytanie o domyslna przegladarke; potem tylko w Ustawieniach.
+        void AskDefaultBrowserOnce()
+        {
+            if (_settings.AskedDefaultBrowser) return;
+            _settings.AskedDefaultBrowser = true;
+            try { _settings.Save(DataDir); } catch (Exception) { }
+            if (IsDefaultBrowser()) return;
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+            {
+                if (MessageBox.Show(this, L.T("Ustawić Velivo jako domyślną przeglądarkę?\n\nLinki z innych programów i pliki PDF będą otwierać się w Velivo. Zmienisz to później w Ustawieniach."),
+                        AppName, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    MakeDefaultBrowser(this);
+            }));
+        }
 
         void MakeDefaultBrowser(Window owner)
         {

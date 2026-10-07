@@ -180,6 +180,7 @@ namespace Przegladarka
                     SaveSessionSoon();
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
                     StartLanSync();
+                    AskDefaultBrowserOnce();
                 }
                 catch (Exception ex)
                 {

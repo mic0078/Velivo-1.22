@@ -59,6 +59,8 @@ Velivo 1.22 działa na Windows 10 (wersja 1809 lub nowsza) i Windows 11, 64-bit.
 - **Gdzie:** Ustawienia → „Domyślna przeglądarka” → „Ustaw Velivo jako domyślną przeglądarkę…”.
 - **Jak używać:** kliknij przycisk, w oknie Windows „Aplikacje domyślne” wybierz Velivo i „Ustaw domyślne”.
 - **Co robi:** linki z innych programów i pliki `.html` otwierają się w Velivo. Stan jest widoczny w Ustawieniach („✓ Velivo jest domyślną przeglądarką”).
+- **Pierwsze uruchomienie:** zaraz po instalacji Velivo jednorazowo pyta, czy ustawić je jako domyślną przeglądarkę; „Nie” – pytanie się nie powtórzy.
+- **PDF:** pliki PDF otwierają się we wbudowanym czytniku Velivo (powiększanie, wyszukiwanie, drukowanie, zapis); instalator dodaje Velivo do „Otwórz za pomocą” dla `.pdf`, na stałe – w „Aplikacjach domyślnych” przy Velivo.
 - **Ograniczenia:** Windows nie pozwala programowi ustawić się samemu – ostatnie kliknięcie należy do Ciebie.
 
 ### 1.9 Import z poprzedniej przeglądarki

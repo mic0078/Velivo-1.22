@@ -697,6 +697,8 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 ### Default browser
 - Status: "✓ Velivo is the default browser" or "Velivo is not the default browser right now".
 - **Set Velivo as the default browser…** – registers Velivo with Windows and opens the default-apps window.
+- **On first start** (also right after installing) Velivo asks once whether to become the default browser; "No" – it won't ask again.
+- **PDF:** Velivo opens PDF files in its built-in viewer (zoom, search, print, save). The installer adds Velivo to "Open with" for `.pdf`; make it permanent in Default apps → Velivo.
 
 ### 📥 Import passwords, logins and bookmarks
 - **🔑 Passwords and logins from a file** (CSV from KeePassXC, Chrome, Edge and other programs).

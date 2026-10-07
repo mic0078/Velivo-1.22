@@ -120,6 +120,12 @@ Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\File
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".xhtml"; ValueData: "VelivoHTML"
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".svg"; ValueData: "VelivoHTML"
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\StartMenu"; ValueType: string; ValueName: "StartMenuInternet"; ValueData: "Velivo"
+; PDF: Velivo na liscie "Otworz za pomoca" i w Aplikacjach domyslnych (wbudowany czytnik PDF silnika)
+Root: HKCU; Subkey: "Software\Classes\VelivoPDF"; ValueType: string; ValueName: ""; ValueData: "Velivo PDF Document"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\VelivoPDF\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
+Root: HKCU; Subkey: "Software\Classes\VelivoPDF\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: string; ValueName: "VelivoPDF"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".pdf"; ValueData: "VelivoPDF"
 ; torrenty: plik .torrent i linki magnet: (pobiera tylko, gdy torrenty sa wlaczone w Ustawieniach)
 Root: HKCU; Subkey: "Software\Classes\VelivoTorrent"; ValueType: string; ValueName: ""; ValueData: "Velivo Torrent"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\VelivoTorrent\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"

@@ -378,6 +378,7 @@ Gdy czegoś brakuje, instalator sam to wykryje i otworzy stronę pobierania.
    - **Zachowaj moje ustawienia i dane** – zwykła aktualizacja (zalecane);
    - **Czysta instalacja** – start od zera. Stare dane trafią do kopii zapasowej z dopiskiem `.kopia-<data>`.
 5. Opcjonalnie zaznacz skrót na pulpicie i zakończ.
+6. **Przy pierwszym uruchomieniu** Velivo jednorazowo pyta, czy ustawić je jako domyślną przeglądarkę (linki z innych programów i pliki PDF otworzą się w Velivo). „Nie” – pytanie się nie powtórzy, zmienisz to w Ustawieniach.
 
 Instalacja nie wymaga uprawnień administratora. Program trafia do `%LOCALAPPDATA%\Programs\Velivo`. Instalator sam zamyka działające w tle Velivo i omija pliki zablokowane przez antywirusa.
 
@@ -964,6 +965,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 ### Domyślna przeglądarka
 - Stan: „✓ Velivo jest domyślną przeglądarką” albo „Velivo nie jest teraz domyślną przeglądarką”.
 - **Ustaw Velivo jako domyślną przeglądarkę…** – rejestruje Velivo w Windows i otwiera okno wyboru aplikacji domyślnych.
+- **PDF:** Velivo otwiera pliki PDF wbudowanym czytnikiem (powiększanie, wyszukiwanie, drukowanie, zapis). Instalator dodaje Velivo do „Otwórz za pomocą” dla `.pdf`; na stałe ustawisz to w „Aplikacjach domyślnych” przy Velivo.
 
 ### 📥 Import haseł, loginów i zakładek
 - **🔑 Hasła i loginy z pliku** (CSV z KeePassXC, Chrome, Edge i innych programów).

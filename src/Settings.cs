@@ -25,6 +25,7 @@ namespace Przegladarka
         public bool SmartScreen = true;        // ostrzezenia o niebezpiecznych stronach
         public bool UbolLite = true;
         public bool StayInTray = false;
+        public bool AskedDefaultBrowser = false;   // pytanie o domyslna przegladarke juz zadane (tylko ten komputer)
         public string ReaderTheme = "light";     // czytnik: light / dark / night
         public int ReaderNight = 40;            // natezenie trybu nocnego czytnika (5-100%)
         public string ReaderSize = "";          // ostatni rozmiar okna czytnika "szer;wys"        // po zamknieciu okna zostan w zasobniku (synchronizacja w tle, szybki start)
@@ -151,6 +152,7 @@ namespace Przegladarka
                         case "ubol": s.UbolLite = b; break;
                         case "audioGuard": s.AudioGuard = b; break;
                         case "tray": s.StayInTray = b; break;
+                        case "askedDefault": s.AskedDefaultBrowser = b; break;
                         case "readerTheme": if (v == "light" || v == "dark" || v == "night") s.ReaderTheme = v; break;
                         case "readerNight": { int rn; if (int.TryParse(v, out rn)) s.ReaderNight = Math.Max(5, Math.Min(100, rn)); } break;
                         case "readerSize": s.ReaderSize = v; break;
@@ -258,7 +260,7 @@ namespace Przegladarka
             {
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
-                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
+                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "askedDefault=" + B(AskedDefaultBrowser), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
                 "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),

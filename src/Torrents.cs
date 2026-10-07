@@ -73,6 +73,13 @@ namespace Przegladarka
             if (!_settings.Torrents || string.IsNullOrWhiteSpace(source)) return;
             if (!await EnsureAria2Async()) return;
             var dir = TorrentZone();
+            if (_settings.AskDownload)   // jak przy zwyklym pobieraniu: wybor folderu (start w strefie torrentow)
+            {
+                var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Gdzie pobrać torrent?") };
+                try { Directory.CreateDirectory(dir); dlg.InitialDirectory = dir; } catch (Exception) { }
+                if (dlg.ShowDialog(this) != true) return;
+                dir = dlg.FolderName;
+            }
             try { Directory.CreateDirectory(dir); }
             catch (Exception ex) { MessageBox.Show(this, L.T("Nie można użyć folderu strefy torrentów:\n") + ex.Message, L.T("Torrenty")); return; }
             var psi = new ProcessStartInfo(Aria2Path)

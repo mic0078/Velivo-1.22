@@ -1032,6 +1032,7 @@ namespace Przegladarka
             { "Osobny, odizolowany profil na banki i zakupy: własne logowania i ciasteczka, bez dodatków, bez historii. Blokuje się sam po bezczynności.", "A separate, isolated profile for banking and shopping: its own logins and cookies, no extensions, no history. Locks itself after inactivity." },
             { "🔍 Szukaj w mojej bazie…", "🔍 Search my vault…" },
             { "🔑 Wpisz login i hasło na tej stronie", "🔑 Fill in login and password on this page" },
+            { "Gdzie pobrać torrent?", "Where to download the torrent?" },
             { "Pobiera darmowy program aria2 (doinstalowany przy pierwszym użyciu). Uwaga: w torrentach Twój adres IP widzą inni uczestnicy wymiany. Zamknięcie Velivo zatrzymuje torrenty.", "Downloads with the free aria2 program (installed on first use). Note: in torrents other participants can see your IP address. Closing Velivo stops torrents." },
             { "Strefa torrentów – osobny folder (puste = Pobrane\\Velivo-Torrenty):", "Torrent zone – a separate folder (empty = Downloads\\Velivo-Torrenty):" },
             { "Strefa torrentów", "Torrent zone" },

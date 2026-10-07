@@ -38,6 +38,7 @@ namespace Przegladarka
             public Button Header;
             public TextBlock Title;
             public int Blocked;
+            public bool EngineColorMode;   // tryb strony ustawiony w silniku tej karty (schemat kolorow + przyciemnianie silnika)
             public int UbolBlocked;   // z tego: uBlock Origin Lite
             public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
@@ -508,7 +509,7 @@ namespace Przegladarka
                 AddPrivacyBlock("Tracker zablokowany (AdBlock)", e.Request.Uri, tab);
             };
 
-            core.NavigationStarting += (s, e) => { if (!e.IsRedirected) SetPageBackground(tab, e.Uri); };   // tlo w trybie strony docelowej
+            core.NavigationStarting += (s, e) => { if (!e.IsRedirected) { SetPageBackground(tab, e.Uri); _ = ApplyTabColorMode(tab, e.Uri); } };   // tlo w trybie strony docelowej
             // link magnet: - torrent w Velivo (gdy wlaczone; nigdy w trybie bankowym), zamiast otwierania innego programu
             core.LaunchingExternalUriScheme += (s, e) => { var u = e.Uri; if (_settings.Torrents && !tab.Bank && IsMagnet(u)) { e.Cancel = true; Dispatcher.BeginInvoke(new Action(() => { _ = StartTorrentAsync(u); })); } };
             core.NewWindowRequested += (s, e) => { if (!OpenLinkInSameTab(tab, e)) { _creatingBank = tab.Bank; try { OnNewWindowRequested(e, tab.Private); } finally { _creatingBank = false; } } };

@@ -109,7 +109,7 @@ namespace Przegladarka
         }
 
         // Dymek na dole okna, nad paskiem zadan (osobne okienko - nad strona WWW nie da sie nic narysowac).
-        void ShowToast(string text, string file)
+        Window ShowToast(string text, string file)
         {
             var panel = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
             panel.Children.Add(new TextBlock { Text = text, Foreground = Brushes.White, FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 340 });
@@ -133,6 +133,7 @@ namespace Przegladarka
             toast.Closed += (s, e) => timer.Stop();
             toast.Show();
             timer.Start();
+            return toast;
         }
     }
 }

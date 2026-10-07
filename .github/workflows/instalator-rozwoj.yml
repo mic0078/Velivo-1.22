@@ -51,6 +51,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           node testy/ciemny-tryb/test-wejscie.mjs
           if ($LASTEXITCODE -ne 0) { exit 1 }
+          node testy/ciemny-tryb/test-karta.mjs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           node testy/czytanie/test-glos.mjs
           if ($LASTEXITCODE -ne 0) { exit 1 }
           node testy/czytanie/test-czytnik.mjs

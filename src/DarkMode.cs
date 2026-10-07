@@ -45,8 +45,11 @@ namespace Przegladarka
             foreach (var t in _tabs) ApplyLiveDarkCss(t.View.CoreWebView2);
             RefreshPageScripts();   // efekt wejscia i tlo przed narysowaniem znaja nowy tryb strony
             UpdateDarkButton();
-            ShowToast(next == "dark" ? L.T("🌙 Tryb ciemny") : next == "night" ? L.T("🌅 Tryb nocny – cieplejsze kolory") : L.T("☀ Tryb jasny"), null);
+            try { if (_modeToast != null) _modeToast.Close(); } catch (InvalidOperationException) { }   // szybkie klikanie: nowy dymek zastepuje poprzedni
+            _modeToast = ShowToast(next == "dark" ? L.T("🌙 Tryb ciemny") : next == "night" ? L.T("🌅 Tryb nocny – cieplejsze kolory") : L.T("☀ Tryb jasny"), null);
         }
+
+        Window _modeToast;
 
         // ---------- tryb zapamietany osobno dla kazdej strony (host -> light/dark/night + natezenie) ----------
         readonly Dictionary<string, string> _modeByHost = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -137,7 +140,31 @@ namespace Przegladarka
             _nightSaveTimer.Stop(); _nightSaveTimer.Start();
         }
 
-        // Tryb wybrany w tej sesji rozni sie od trybu, z ktorym wystartowal silnik -> poprawka CSS na stronie.
+        // Tryb strony w silniku TEJ karty (nie calego profilu): schemat kolorow, o ktory pyta strona (prefers-color-scheme),
+        // i przyciemnianie silnika. Strona z wlasnym ciemnym wygladem (np. Google Wiadomosci) jest ciemna tylko w trybie
+        // ciemnym, a w jasnym - jasna, niezaleznie od motywu Windows i trybu, z ktorym wystartowal silnik.
+        internal static string[][] TabColorCommands(bool dark)
+        {
+            return new[]
+            {
+                new[] { "Emulation.setEmulatedMedia", "{\"features\":[{\"name\":\"prefers-color-scheme\",\"value\":\"" + (dark ? "dark" : "light") + "\"}]}" },
+                new[] { "Emulation.setAutoDarkModeOverride", "{\"enabled\":" + (dark ? "true" : "false") + "}" },
+            };
+        }
+
+        async System.Threading.Tasks.Task ApplyTabColorMode(BrowserTab tab, string url)
+        {
+            var core = tab.View.CoreWebView2;
+            if (core == null) return;
+            try
+            {
+                foreach (var c in TabColorCommands(ModeFor(url, tab.Private).Dark)) await core.CallDevToolsProtocolMethodAsync(c[0], c[1]);
+                tab.EngineColorMode = true;
+            }
+            catch (Exception) { tab.EngineColorMode = false; }   // starszy silnik - zostaje poprawka CSS ponizej
+        }
+
+        // Tryb wybrany w tej sesji rozni sie od trybu, z ktorym wystartowal silnik -> poprawka CSS na stronie (gdy silnik karty nie przyjal trybu).
         const string LiveDarkCss = "html{filter:invert(1) hue-rotate(180deg)!important;background:#fff!important}" +
             // drugi raz odwracamy tylko najbardziej zewnetrzny element (np. <picture>, a nie jeszcze <img> w nim) - inaczej negatyw
             ":is(img,video,picture,canvas,svg image,iframe,embed,object,[style*='background-image'])" +
@@ -150,14 +177,17 @@ namespace Przegladarka
             {
                 if (core == null || _settings == null) return;
                 var src = core.Source ?? "";
-                if (!(src.StartsWith("http://") || src.StartsWith("https://"))) return;
                 var tab = _tabs.FirstOrDefault(t => t.View.CoreWebView2 == core);
+                if (tab != null) await ApplyTabColorMode(tab, src);
+                if (!(src.StartsWith("http://") || src.StartsWith("https://"))) return;
                 var m = ModeFor(src, tab != null && tab.Private);
-                string css = m.Dark == _darkEngineAtStart ? "" : (m.Dark ? LiveDarkCss : LiveLightCss);
+                bool engine = tab != null && tab.EngineColorMode;
+                string css = engine || m.Dark == _darkEngineAtStart ? "" : (m.Dark ? LiveDarkCss : LiveLightCss);
                 if (m.Night) css += NightLightCss(m.Strength);
                 // Silnik nie przyciemnia stron, ktore same deklaruja ciemny motyw (np. GitHub z motywem jasnym ustawionym
                 // na koncie) - zostaja jasne. Gdy taka strona mimo trybu ciemnego jest jasna, przyciemniamy ja jak w trybie na zywo.
-                if (m.Dark && _darkEngineAtStart)
+                if (!m.Dark) await core.ExecuteScriptAsync("(function(){var s=document.getElementById('velivo-ciemny-wymuszony');if(s)s.remove();})()");   // po zmianie na jasny/nocny
+                if (m.Dark && (_darkEngineAtStart || engine))
                 {
                     var fix = System.Text.Json.JsonSerializer.Serialize(LiveDarkCss);
                     var check = "(function(){function run(){try{var h=document.documentElement;if(!h||document.getElementById('velivo-ciemny-wymuszony'))return;" +
@@ -165,7 +195,8 @@ namespace Przegladarka
                         // uzywany schemat: wlasciwosc CSS color-scheme wygrywa z meta (meta tylko gdy CSS = normal);
                         // "light" = silnik juz przyciemnil strone - drugie odwrocenie zrobiloby ja z powrotem jasna
                         "var eff=(cs&&cs!=='normal')?cs:(me?me.content||'':'');if(!/dark/.test(eff))return;" +
-                        "var els=[document.body,h],lum=1;for(var i=0;i<els.length;i++){if(!els[i])continue;var m=getComputedStyle(els[i]).backgroundColor.match(/[\\d.]+/g);" +
+                        // tlo nieustawione (lum -1, np. style jeszcze sie wczytuja) = plotno w ciemnym schemacie strony - nie odwracamy
+                        "var els=[document.body,h],lum=-1;for(var i=0;i<els.length;i++){if(!els[i])continue;var m=getComputedStyle(els[i]).backgroundColor.match(/[\\d.]+/g);" +
                         "if(!m||m.length<3||(m.length>3&&parseFloat(m[3])<.5))continue;lum=(0.299*m[0]+0.587*m[1]+0.114*m[2])/255;break;}" +
                         "if(lum<.6)return;var st=document.createElement('style');st.id='velivo-ciemny-wymuszony';st.textContent=" + fix + ";(document.head||h).appendChild(st);}catch(e){}}" +
                         "run();setTimeout(run,1200);})();";

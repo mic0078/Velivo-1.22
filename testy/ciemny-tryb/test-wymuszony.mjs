@@ -21,6 +21,7 @@ const przypadki = [
   { n: 'CSS color-scheme:light dark, jasne tlo - trzeba dociemnic', h: '<style>html{color-scheme:light dark}body{background:#fff}</style>', ma: true },
   { n: 'bez deklaracji (silnik przyciemnia sam)', h: '<style>body{background:#fff}</style>', ma: false },
   { n: 'meta "light dark", juz ciemne tlo', h: '<meta name=color-scheme content="light dark"><style>body{background:#111}</style>', ma: false },
+  { n: 'meta "light dark", tlo jeszcze nieustawione (jak Google Wiadomosci przed wczytaniem stylow) - plotno ciemne, nie odwracac', h: '<meta name=color-scheme content="light dark">', ma: false },
 ];
 const browser = await pw.chromium.launch();
 const ctx = await browser.newContext({ colorScheme: 'dark' });

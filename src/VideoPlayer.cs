@@ -80,7 +80,8 @@ video{width:100vw;height:100vh;object-fit:contain;background:#000;display:block}
   v.loop=o.l==='1'; v.autoplay=o.a==='1'; v.src=src;
   // wznawianie: miejsce w filmie tylko w pamieci tej strony na tym komputerze; koniec filmu = od poczatku
   var key='poz:'+src, last=0;
-  if(o.r==='1') v.addEventListener('loadedmetadata',function(){ var t=+localStorage.getItem(key)||0; if(t>5&&t<v.duration-5) v.currentTime=t; },{once:true});
+  // miejsce z adresu (&t= - powrot z okienka Na wierzchu) ma pierwszenstwo przed zapamietanym
+  v.addEventListener('loadedmetadata',function(){ var t=+o.t||(o.r==='1'?+localStorage.getItem(key)||0:0); if(t>(o.t?0:5)&&t<v.duration-1) v.currentTime=t; },{once:true});
   function save(){ if(o.r!=='1') return; try{ if(v.ended||v.currentTime<5) localStorage.removeItem(key); else localStorage.setItem(key,String(Math.floor(v.currentTime))); }catch(e){} }
   v.addEventListener('timeupdate',function(){ if(Math.abs(v.currentTime-last)>=5){ last=v.currentTime; save(); } });
   v.addEventListener('pause',save); v.addEventListener('ended',save); addEventListener('pagehide',save);

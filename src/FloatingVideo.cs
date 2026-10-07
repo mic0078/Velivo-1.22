@@ -53,7 +53,8 @@ namespace Przegladarka
   st.textContent='html,body{overflow:hidden!important;background:#000!important}body *{visibility:hidden!important}' +
     'video.velivo-film{visibility:visible!important;position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important;transform:none!important}';
   var seeked=false;
-  function fix(){ var v=big(); if(!v) return; if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
+  function fix(){ var v=big(); if(!v) return; if(v.controls) v.controls=false;   // w okienku tylko pasek Velivo (np. film z dysku ma wlasny pasek odtwarzacza)
+    if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
     if(!seeked && v.readyState>0){ seeked=true; if(t>3 && Math.abs(v.currentTime-t)>3) try{v.currentTime=t;}catch(e){} }
     if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }
   // YouTube ma wlasny odtwarzacz - wznawiamy przez niego, inaczej po bledzie dzwieku zostaje zawieszony
@@ -200,6 +201,9 @@ namespace Przegladarka
                     url = System.Text.RegularExpressions.Regex.Replace(url, @"([?&])t=[^&]*&?", "$1").TrimEnd('&', '?');
                     url += (url.Contains("?") ? "&" : "?") + "t=" + (int)now + "s";
                 }
+                // film z dysku: miejsce w adresie odtwarzacza (&t=)
+                if (now > 1 && IsPlayerUrl(PlayerFile, url))
+                    url = System.Text.RegularExpressions.Regex.Replace(url, @"&t=\d+", "").Replace("&v=", "&t=" + (int)now + "&v=");
                 // glowne okno zamkniete - najpierw uruchamiamy Velivo od nowa z ta strona, dopiero potem zamykamy okienko
                 if (_mainClosed) { OpenFromOutside(new[] { url }); win.Close(); return; }
                 win.Close();

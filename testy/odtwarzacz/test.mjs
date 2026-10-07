@@ -67,5 +67,32 @@ await page.goto(url({ a: 1, r: 0, l: 0 }, pathToFileURL(zly).href));
 await page.waitForFunction(() => getComputedStyle(document.getElementById('err')).display === 'block', null, { timeout: 10000 }).catch(() => {});
 check(await page.evaluate(() => getComputedStyle(document.getElementById('err')).display === 'block'), 'nieobslugiwany plik - komunikat zamiast czarnego ekranu');
 
+// "Film na wierzchu" z odtwarzacza: w okienku jeden pasek (Velivo), bez drugiego paska odtwarzacza
+await page.goto('about:blank');
+await page.goto(url({ a: 1, r: 0, l: 0 }, filmUrl));
+await page.waitForFunction(() => document.getElementById('v').readyState >= 1, null, { timeout: 10000 });
+await page.evaluate(skrypt('FloatPageScript') + '(0)');
+await page.waitForTimeout(1200);
+st = await page.evaluate(() => ({ controls: document.getElementById('v').controls, bars: document.querySelectorAll('#velivo-seek').length }));
+check(!st.controls && st.bars === 1, 'okienko Na wierzchu: tylko pasek Velivo (pasek odtwarzacza ukryty: ' + !st.controls + ')');
+
+// powrot z okienka do karty: miejsce filmu w adresie (&t=) ma pierwszenstwo - takze przy wylaczonym wznawianiu
+await page.goto('about:blank');
+await page.goto(url({ a: 0, r: 0, l: 0 }, filmUrl).replace('&v=', '&t=14&v='));
+await page.waitForFunction(() => document.getElementById('v').readyState >= 1, null, { timeout: 10000 });
+await page.waitForTimeout(300);
+check(Math.abs((await page.evaluate(() => document.getElementById('v').currentTime)) - 14) < 1, 'powrot z okienka Na wierzchu - film od tego samego miejsca');
+
+// przyciski nad filmem z dysku: bez "Pobierz" (plik juz jest na dysku), "Na wierzchu" i "Obraz w obrazie" sa
+const p2 = await browser.newPage({ viewport: { width: 900, height: 600 } });
+await p2.addInitScript(() => { const o = Element.prototype.attachShadow; Element.prototype.attachShadow = function (i) { return o.call(this, { ...i, mode: 'open' }); }; window.chrome = { webview: { postMessage() {} } }; });
+await p2.addInitScript('(function(C){' + skrypt('PageScriptBody') + '})(' + JSON.stringify({ token: 'T', pip: true, dlBtn: true, dlLabel: 'Pobierz', floatLabel: 'Na wierzchu', pipLabel: 'Obraz w obrazie' }) + ')');
+await p2.goto(url({ a: 0, r: 0, l: 0 }, filmUrl));
+await p2.waitForFunction(() => document.getElementById('v').readyState >= 1, null, { timeout: 10000 });
+await p2.mouse.move(450, 300); await p2.waitForTimeout(300); await p2.mouse.move(460, 310); await p2.waitForTimeout(300);
+const btns = await p2.evaluate(() => { const h = [...document.documentElement.children].find(x => x.shadowRoot); return h ? [...h.shadowRoot.querySelectorAll('button')].map(b => b.getAttribute('data-a')) : []; });
+check(btns.includes('float') && !btns.includes('dl'), 'film z dysku: przyciski ' + JSON.stringify(btns) + ' - bez Pobierz');
+await p2.close();
+
 await browser.close();
 console.log(ok ? 'WSZYSTKO OK' : 'SA BLEDY'); process.exit(ok ? 0 : 1);

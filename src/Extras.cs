@@ -401,7 +401,7 @@ try {
       var r = h.attachShadow({ mode: 'closed' });
       // bez innerHTML - YouTube (Trusted Types) blokuje wstawianie HTML z tekstu
       function addB(a, label) { var b = document.createElement('button'); b.setAttribute('data-a', a); b.title = label; b.textContent = (a === 'dl' ? '⬇ ' : a === 'float' ? '▣ ' : '⧉ ') + label; b.style.cssText = BST; r.appendChild(b); }
-      if (C.dlBtn && pm) addB('dl', C.dlLabel);
+      if (C.dlBtn && pm && location.protocol !== 'file:') addB('dl', C.dlLabel);   // film z dysku juz jest na dysku
       if (C.pip && pm) addB('float', C.floatLabel);
       if (C.pip && document.pictureInPictureEnabled !== false) addB('pip', C.pipLabel);
       r.querySelectorAll('button').forEach(function (b) {

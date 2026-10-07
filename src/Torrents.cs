@@ -256,7 +256,14 @@ namespace Przegladarka
 
         static void ShowInFolder(string path)
         {
-            try { Process.Start("explorer.exe", File.Exists(path) ? "/select,\"" + path + "\"" : "\"" + path + "\""); } catch (Exception) { }
+            try { Process.Start("explorer.exe", ExplorerArgs(path)); } catch (Exception) { }
+        }
+
+        // aria2 w Windows podaje sciezki z "/" (D:/Torrenty/film.avi) - Eksplorator ich nie rozumie i otwiera Pulpit
+        internal static string ExplorerArgs(string path)
+        {
+            var p = Path.GetFullPath(path);
+            return File.Exists(p) ? "/select,\"" + p + "\"" : "\"" + p + "\"";
         }
 
         static void MarkTorrentFiles(string path)

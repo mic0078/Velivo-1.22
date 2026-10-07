@@ -101,4 +101,17 @@ public class TorrentTests
         Assert.Null(MainWindow.TorrentTopEntry(@"D:\Filmy", @"D:\Filmy2\x.avi"));
         Assert.Null(MainWindow.TorrentTopEntry(@"D:\Filmy", @"D:\Filmy\..\Windows\x"));
     }
+
+    [Fact]
+    public void Pokaz_w_folderze_dziala_ze_sciezka_aria2_z_ukosnikami()
+    {
+        var f = System.IO.Path.GetTempFileName();
+        try
+        {
+            Assert.Equal("/select,\"" + f + "\"", MainWindow.ExplorerArgs(f.Replace('\\', '/')));   // tak podaje aria2: C:/Users/.../x.tmp
+            var d = System.IO.Path.GetDirectoryName(f);
+            Assert.Equal("\"" + d + "\"", MainWindow.ExplorerArgs(d.Replace('\\', '/')));
+        }
+        finally { System.IO.File.Delete(f); }
+    }
 }

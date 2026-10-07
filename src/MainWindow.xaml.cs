@@ -505,6 +505,7 @@ namespace Przegladarka
                 AddPrivacyBlock("Tracker zablokowany (AdBlock)", e.Request.Uri, tab);
             };
 
+            core.NavigationStarting += (s, e) => { if (!e.IsRedirected) SetPageBackground(tab, e.Uri); };   // tlo w trybie strony docelowej
             core.NewWindowRequested += (s, e) => { if (!OpenLinkInSameTab(tab, e)) { _creatingBank = tab.Bank; try { OnNewWindowRequested(e, tab.Private); } finally { _creatingBank = false; } } };
             core.DocumentTitleChanged += (s, e) =>
             {

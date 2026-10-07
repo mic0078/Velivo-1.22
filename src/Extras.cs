@@ -55,6 +55,17 @@ namespace Przegladarka
             RefreshPageScripts();
         }
 
+        // tlo, zanim strona sie narysuje: czarne w kinowym wejsciu, ciemne w trybie ciemnym tej strony (bez bialego blysku), inaczej biale
+        void SetPageBackground(BrowserTab tab, string url)
+        {
+            try
+            {
+                tab.View.DefaultBackgroundColor = _settings.PageEntrance == "cinema" ? System.Drawing.Color.Black
+                    : ModeFor(url, tab.Private).Dark ? System.Drawing.Color.FromArgb(18, 18, 18) : System.Drawing.Color.White;
+            }
+            catch (Exception) { }
+        }
+
         string BuildPageScript(BrowserTab tab = null)
         {
             var cfg = JsonSerializer.Serialize(new
@@ -72,6 +83,10 @@ namespace Przegladarka
                 receipt = _settings.PrivacyReceipt,
                 fade = _settings.PageFade,
                 entrance = _settings.PageEntrance ?? "blur",
+                // tryb ciemny Velivo (ogolny i zapamietany dla stron): strona "mowi", ze ma jasne tlo, a przyciemniana jest dopiero przy rysowaniu
+                darkPages = _settings.DarkPages,
+                darkHosts = tab != null && tab.Private ? new string[0] : _modeByHost.Where(kv => kv.Value.StartsWith("dark")).Select(kv => kv.Key).ToArray(),
+                lightHosts = tab != null && tab.Private ? new string[0] : _modeByHost.Where(kv => !kv.Value.StartsWith("dark")).Select(kv => kv.Key).ToArray(),
                 entMs = _settings.PageEntranceMs,
                 speed = _settings.SpeedUp && (tab == null || !tab.Private),   // karty prywatne i bankowe: bez wczytywania z wyprzedzeniem
             });
@@ -163,6 +178,8 @@ try {
                   : [{ transform: 'translateY(14px)', opacity: .6 }, { transform: 'none', opacity: 1 }];
       // mgielka rozmycia w kolorze strony: ciemna na ciemnych stronach, jasna na jasnych (bez szarej poswiaty)
       var tint = function () {
+        var hn = location.hostname, dk = (C.darkHosts || []).indexOf(hn) >= 0 || ((C.lightHosts || []).indexOf(hn) < 0 && C.darkPages);
+        if (dk) return 'rgba(0,0,0,.18)';   // tryb ciemny tej strony - zawsze ciemna mgielka (kolor tla strony jest wtedy jeszcze jasny)
         try {
           var els = [document.body, document.documentElement];
           for (var i = 0; i < els.length; i++) {
@@ -425,8 +442,7 @@ try {
             try
             {
                 if (tab.PageScriptId != null) { core.RemoveScriptToExecuteOnDocumentCreated(tab.PageScriptId); tab.PageScriptId = null; }
-                // kinowe wejscie: pusta strona (zanim cokolwiek sie narysuje) czarna zamiast bialej - bez bialego blysku
-                try { tab.View.DefaultBackgroundColor = _settings.PageEntrance == "cinema" ? System.Drawing.Color.Black : System.Drawing.Color.White; } catch (Exception) { }
+                SetPageBackground(tab, core.Source);
                 tab.PageScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageScript(tab));
                 // skrypt stron musi dzialac PRZED ukryciem chrome.webview (inaczej przyciski Pobierz/gesty nie maja kanalu do programu)
                 if (tab.HideScriptId != null)

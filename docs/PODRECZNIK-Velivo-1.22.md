@@ -165,7 +165,7 @@ Velivo jest projektowane tak, żeby dało się je w pełni obsłużyć samą mys
 | Ctrl+H | historia |
 | Ctrl+J | pobrane pliki |
 | Ctrl+Shift+F | „Gdzie ja to czytałem?” |
-| Ctrl+O | otwórz film z dysku (odtwarzacz) |
+| Ctrl+O | otwórz plik z dysku – film (odtwarzacz) albo PDF |
 | Ctrl+Shift+U | czytaj stronę na głos / pauza / wznów |
 | Alt+← / Alt+→ | wstecz / dalej |
 | F5 | odśwież |
@@ -394,7 +394,7 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - Menu karty → „Wycisz kartę” (4.11).
 
 ### 7.16 Odtwarzacz filmów z dysku (offline)
-- **Gdzie:** dwuklik na pliku wideo (MP4, WebM, MKV, MOV, M4V, OGV – instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „🎬 Otwórz film z dysku”.
+- **Gdzie:** dwuklik na pliku wideo (MP4, WebM, MKV, MOV, M4V, OGV – instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „📂 Otwórz plik z dysku”.
 - **Co robi:** film w karcie na całe okno, bez internetu; działają ⧉ Obraz w obrazie i ▣ Film na wierzchu.
 - **Sterowanie:** pasek odtwarzacza; spacja / klik – pauza, ← → – 5 s, ↑ ↓ – głośność, F – pełny ekran, M – wycisz.
 - **Ustawienia:** sekcja „Odtwarzacz filmów” (25.26) – otwieranie w Velivo, odtwarzanie od razu, wznawianie od miejsca (tylko ten komputer), powtarzanie.

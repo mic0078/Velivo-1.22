@@ -567,7 +567,7 @@ Przezroczystość wymaga Windows 10 w wersji 1809 lub nowszej, bo okienko używa
 
 ### 🎬 Odtwarzacz filmów z dysku (offline)
 
-- **Otwieranie:** dwuklik na pliku wideo w Windows (instalator dodaje Velivo do „Otwórz za pomocą” dla MP4, WebM, MKV, MOV, M4V, OGV; na stałe – w „Aplikacjach domyślnych” przy Velivo), **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **🎬 Otwórz film z dysku**.
+- **Otwieranie:** dwuklik na pliku wideo w Windows (instalator dodaje Velivo do „Otwórz za pomocą” dla MP4, WebM, MKV, MOV, M4V, OGV; na stałe – w „Aplikacjach domyślnych” przy Velivo), **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **📂 Otwórz plik z dysku**.
 - Film otwiera się w karcie na całe okno, bez internetu. Na filmie działają **⧉ Obraz w obrazie** i **▣ Film na wierzchu** (okienko zawsze na wierzchu, przezroczystość kółkiem).
 - **Sterowanie:** pasek odtwarzacza (start/pauza, przewijanie, głośność, pełny ekran) oraz skróty: spacja albo klik – pauza, ← → – 5 s, ↑ ↓ – głośność, **F** – pełny ekran, **M** – wycisz.
 - **Gdy Velivo nie ma na liście „Otwórz za pomocą”:** uruchom Velivo raz (samo dopisuje się do Windows) albo użyj przycisku **Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”**.
@@ -955,7 +955,7 @@ Jeśli masz RAM dysk (na przykład ImDisk, SoftPerfect RAM Disk albo własne nar
 | Ctrl+Tab / Ctrl+Shift+Tab | Następna / poprzednia karta |
 | Ctrl+Shift+A | Szukaj w kartach |
 | Ctrl+Shift+F | 🧠 Gdzie ja to czytałem? |
-| Ctrl+O | 🎬 Otwórz film z dysku |
+| Ctrl+O | 📂 Otwórz plik z dysku – film (odtwarzacz) albo PDF |
 | Ctrl+L | Pasek adresu |
 | Ctrl+D | Zakładka |
 | Ctrl+H | Historia |

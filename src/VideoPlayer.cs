@@ -57,14 +57,17 @@ namespace Przegladarka
             return PlayerUrlFor(PlayerFile, videoPath, _settings.PlayerAutoplay, _settings.PlayerResume, _settings.PlayerLoop, _settings.PlayerSalt);
         }
 
-        void OpenVideoFile()
+        // Ctrl+O / menu Narzedzia Velivo: film z dysku do odtwarzacza, PDF do wbudowanego czytnika
+        void OpenLocalFile()
         {
+            var vids = string.Join(";", VideoExts.Select(x => "*" + x));
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                Title = L.T("Otwórz film z dysku"),
-                Filter = L.T("Filmy") + "|" + string.Join(";", VideoExts.Select(x => "*" + x)) + "|" + L.T("Wszystkie pliki") + "|*.*",
+                Title = L.T("Otwórz plik z dysku"),
+                Filter = L.T("Filmy i PDF") + "|" + vids + ";*.pdf|" + L.T("Filmy") + "|" + vids + "|PDF|*.pdf|" + L.T("Wszystkie pliki") + "|*.*",
             };
-            if (dlg.ShowDialog(this) == true) AddTab(PlayerUrl(dlg.FileName));
+            if (dlg.ShowDialog(this) != true) return;
+            AddTab(IsVideoFile(dlg.FileName) && _settings.VideoPlayer ? PlayerUrl(dlg.FileName) : new Uri(dlg.FileName).AbsoluteUri);
         }
 
         const string PlayerHtml = @"<!doctype html>

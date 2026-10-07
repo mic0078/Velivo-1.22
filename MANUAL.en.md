@@ -298,7 +298,7 @@ Transparency needs Windows 10 version 1809 or newer, because the window uses a W
 
 ### 🎬 Offline video player
 
-- **Opening:** double-click a video file in Windows (the installer adds Velivo to "Open with" for MP4, WebM, MKV, MOV, M4V, OGV; make it permanent in Default apps → Velivo), **Ctrl+O** or right-click → Velivo tools → **🎬 Open a video file**.
+- **Opening:** double-click a video file in Windows (the installer adds Velivo to "Open with" for MP4, WebM, MKV, MOV, M4V, OGV; make it permanent in Default apps → Velivo), **Ctrl+O** or right-click → Velivo tools → **📂 Open a file**.
 - The video opens in a tab, filling the window, with no internet needed. **⧉ Picture in picture** and **▣ Video on top** work on it.
 - **Controls:** the player bar (play/pause, seek, volume, full screen) and keys: Space or click – pause, ← → – 5 s, ↑ ↓ – volume, **F** – full screen, **M** – mute.
 - **If Velivo isn't in "Open with":** start Velivo once (it registers itself with Windows) or use **Settings → Video player → "Open videos and PDFs in Velivo (Windows)…"**.
@@ -683,7 +683,7 @@ If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own too
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
 | Ctrl+Shift+A | Search tabs |
 | Ctrl+Shift+F | 🧠 Where did I read that? |
-| Ctrl+O | 🎬 Open a video file |
+| Ctrl+O | 📂 Open a file – video (player) or PDF |
 | Ctrl+L | Address bar |
 | Ctrl+D | Bookmark |
 | Ctrl+H | History |

@@ -141,8 +141,8 @@ namespace Przegladarka
             { "Tryb ciemny stron: WŁĄCZONY\nKliknij, aby wyłączyć", "Dark mode for pages: ON\nClick to turn off" },
             { "Tryb ciemny stron: wyłączony\nKliknij, aby przyciemnić strony (zdjęcia zostają w prawdziwych kolorach)", "Dark mode for pages: off\nClick to darken pages (photos keep their real colors)" },
             { "Tryb nocny: WŁĄCZONY (cieplejsze kolory)\nKliknij, aby wrócić do trybu jasnego", "Night mode: ON (warmer colors)\nClick to return to light mode" },
-            { "◐ Tryb ciemny", "◐ Dark mode" },
-            { "🌙 Tryb nocny – cieplejsze kolory", "🌙 Night mode – warmer colors" },
+            { "🌙 Tryb ciemny", "🌙 Dark mode" },
+            { "🌅 Tryb nocny – cieplejsze kolory", "🌅 Night mode – warmer colors" },
             { "☀ Tryb jasny", "☀ Light mode" },
 
             // ---- etap 2: ustawienia, prywatnosc, profile ----

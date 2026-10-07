@@ -137,7 +137,7 @@ Velivo starts maximized. From the left:
 | **🛡 + number** | Shield: how much was blocked on the page. A click shows the list and the privacy receipt. A red shield means AdBlock is off |
 | **⚠ + number** (yellow) | Appears in a shop that uses pressure tricks |
 | **📚** | All bookmarks |
-| **☀ / ◐ / 🌙** | Page mode – the icon shows the current one: ☀ light → ◐ dark → 🌙 night. In night mode the mouse wheel sets the strength |
+| **☀ / 🌙 / 🌅** | Page mode – the icon shows the current one: ☀ light → 🌙 dark → 🌅 night. In night mode the mouse wheel sets the strength |
 | **📷** | Screenshot: visible part or the whole page |
 | **Reader** | Reader mode with a summary |
 | **🔊** | Read the page aloud. While reading, pause, stop and speed buttons appear |
@@ -217,7 +217,7 @@ A **pinned tab** is not closed by the ↓ gesture (just like it has no close but
 | Where | Action |
 | --- | --- |
 | Zoom button (e.g. 125%) | Zooms the page in and out, remembered per site |
-| Page mode button (🌙) in night mode | Warmth strength 5–100% |
+| Page mode button (🌅) in night mode | Warmth strength 5–100% |
 | "Video on top" window | Transparency 15–100% |
 
 ### Clicking links
@@ -427,7 +427,7 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
   - **Modern** (default): calm buttons without colored backgrounds, Windows 11 icons, one blue accent, and color only on hover or when something is on;
   - **Colorful**: colored buttons and emoji.
 - **10 themes:** Light, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
-- **Page modes** (mode button – the icon shows the current mode: ☀ light, ◐ dark, 🌙 night):
+- **Page modes** (mode button – the icon shows the current mode: ☀ light, 🌙 dark, 🌅 night):
   - light;
   - **dark** – pages darkened while photos keep their true colors;
   - **night** – warm colors with less blue light, **strength set with the mouse wheel**.
@@ -705,7 +705,7 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 ### Look and readability
 - **Default page zoom** – for all pages; each page can also be zoomed separately (Ctrl + wheel) and Velivo remembers it.
 - **Dark page mode** – pages with their own dark look switch to it, other pages are dimmed (photos keep their real colours).
-- **Night mode** – warmer colours and less blue light (like Windows Night light). The page mode button (☀ / ◐ / 🌙) cycles light → dark → night; change the strength with the mouse wheel on the button.
+- **Night mode** – warmer colours and less blue light (like Windows Night light). The page mode button (☀ / 🌙 / 🌅) cycles light → dark → night; change the strength with the mouse wheel on the button.
 - **Content entrance effect** – how a new page appears on screen:
   - **Focus in** (default) – content emerges from a slight blur;
   - **From darkness (cinematic)** – the page brightens from a dark screen, like in a cinema;

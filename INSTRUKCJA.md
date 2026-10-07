@@ -405,7 +405,7 @@ Velivo startuje na pełnym ekranie. Od lewej:
 | **🛡 + liczba** | Tarcza: ile zablokowano na stronie. Kliknięcie pokazuje listę i paragon prywatności. Czerwona tarcza oznacza wyłączony AdBlock |
 | **⚠ + liczba** (żółty) | Pojawia się w sklepie, który używa sztuczek presji |
 | **📚** | Wszystkie zakładki |
-| **☀ / ◐ / 🌙** | Tryb stron – ikona pokazuje obecny: ☀ jasny → ◐ ciemny → 🌙 nocny. W trybie nocnym kółko myszy zmienia natężenie |
+| **☀ / 🌙 / 🌅** | Tryb stron – ikona pokazuje obecny: ☀ jasny → 🌙 ciemny → 🌅 nocny. W trybie nocnym kółko myszy zmienia natężenie |
 | **📷** | Zrzut ekranu: widoczna część albo cała strona |
 | **Czytnik** | Tryb czytania ze streszczeniem |
 | **🔊** | Czytaj stronę na głos. Podczas czytania pojawiają się pauza, stop i prędkość |
@@ -485,7 +485,7 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 | Gdzie | Działanie |
 | --- | --- |
 | Przycisk powiększenia (np. 125%) | Powiększa i pomniejsza stronę, zapamiętuje dla strony |
-| Przycisk trybu stron (🌙), gdy włączony jest tryb nocny | Natężenie ocieplenia 5–100% |
+| Przycisk trybu stron (🌅), gdy włączony jest tryb nocny | Natężenie ocieplenia 5–100% |
 | Okienko „Film na wierzchu” | Przezroczystość 15–100% |
 
 ### Klik myszką na linkach
@@ -711,7 +711,7 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
   - **Nowoczesny** (domyślny): spokojne przyciski bez kolorowych teł, ikony Windows 11, jeden niebieski akcent, a kolor tylko przy najechaniu albo gdy coś jest włączone;
   - **Kolorowy**: kolorowe przyciski i emoji.
 - **10 motywów:** Jasny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
-- **Tryby stron** (przycisk trybu – ikona pokazuje obecny tryb: ☀ jasny, ◐ ciemny, 🌙 nocny):
+- **Tryby stron** (przycisk trybu – ikona pokazuje obecny tryb: ☀ jasny, 🌙 ciemny, 🌅 nocny):
   - jasny;
   - **ciemny** – strony przyciemnione, a zdjęcia zostają w prawdziwych kolorach;
   - **nocny** – ciepłe kolory i mniej niebieskiego światła, **natężenie kółkiem myszy**.
@@ -972,7 +972,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 ### Wygląd i czytelność
 - **Domyślne powiększenie stron** – dla wszystkich stron; każdą stronę możesz też powiększyć osobno (Ctrl + kółko), a Velivo to zapamięta.
 - **Tryb ciemny stron** – strony z własnym ciemnym wyglądem przełączają się na niego, pozostałe są przyciemniane (zdjęcia zostają w prawdziwych kolorach).
-- **Tryb nocny** – cieplejsze kolory i mniej niebieskiego światła (jak Światło nocne w Windows). Przycisk trybu stron (☀ / ◐ / 🌙) przełącza: jasny → ciemny → nocny; natężenie zmieniasz kółkiem myszy na przycisku.
+- **Tryb nocny** – cieplejsze kolory i mniej niebieskiego światła (jak Światło nocne w Windows). Przycisk trybu stron (☀ / 🌙 / 🌅) przełącza: jasny → ciemny → nocny; natężenie zmieniasz kółkiem myszy na przycisku.
 - **Efekt wejścia treści** – jak nowa strona pojawia się na ekranie:
   - **Wyostrzenie** (domyślne) – treść wyłania się z lekkiego rozmycia;
   - **Z ciemności (kinowe)** – strona rozjaśnia się z ciemnego ekranu, jak w kinie;

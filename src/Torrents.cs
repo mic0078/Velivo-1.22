@@ -107,7 +107,7 @@ namespace Przegladarka
             AddRowToPanel(row);
             Downloads_Click(null, null);
 
-            string done = null, lastError = null; bool seeding = false;
+            string done = null, lastError = null; bool seeding = false, seedUi = false;
             var before = DirEntries(dir);   // co bylo w folderze przed startem - po przerwaniu usuwamy tylko nowe czesci
             try
             {
@@ -122,6 +122,12 @@ namespace Przegladarka
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
                         if (p.Item1 >= 0) { bar.IsIndeterminate = false; bar.Value = p.Item1; }
+                        if (p.Item4 && !seedUi)   // pobrane: plik jest gotowy, aria2 tylko udostepnia
+                        {
+                            seedUi = true;
+                            stopBtn.Content = L.T("Zakończ udostępnianie");
+                            buttons.Children.Insert(0, SmallButton(L.T("Otwórz folder"), () => { try { Process.Start("explorer.exe", "\"" + dir + "\""); } catch (Exception) { } }));
+                        }
                         status.Text = p.Item4 ? L.T("✔ Pobrane – udostępniam (limit w Ustawieniach → Torrenty)")
                             : p.Item1 + "%" + (p.Item2 != null ? "  ·  " + p.Item2 + "/s" : "") + (p.Item3 != null ? (L.En ? "  ·  left " : "  ·  zostało ") + p.Item3 : "");
                     }));

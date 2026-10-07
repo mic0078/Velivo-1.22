@@ -566,6 +566,7 @@ Przezroczystość wymaga Windows 10 w wersji 1809 lub nowszej, bo okienko używa
 - **Otwieranie:** dwuklik na pliku wideo w Windows (instalator dodaje Velivo do „Otwórz za pomocą” dla MP4, WebM, MKV, MOV, M4V, OGV; na stałe – w „Aplikacjach domyślnych” przy Velivo), **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **🎬 Otwórz film z dysku**.
 - Film otwiera się w karcie na całe okno, bez internetu. Na filmie działają **⧉ Obraz w obrazie** i **▣ Film na wierzchu** (okienko zawsze na wierzchu, przezroczystość kółkiem).
 - **Sterowanie:** pasek odtwarzacza (start/pauza, przewijanie, głośność, pełny ekran) oraz skróty: spacja albo klik – pauza, ← → – 5 s, ↑ ↓ – głośność, **F** – pełny ekran, **M** – wycisz.
+- **Gdy Velivo nie ma na liście „Otwórz za pomocą”:** uruchom Velivo raz (samo dopisuje się do Windows) albo użyj przycisku **Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”**.
 - **Ustawienia → Odtwarzacz filmów:** otwieranie filmów w Velivo, odtwarzanie od razu, wznawianie od miejsca, w którym skończyłeś (tylko na tym komputerze), powtarzanie w kółko.
 - **Formaty:** najpewniej MP4 (H.264) i WebM. Gdy kodek nie jest obsługiwany (np. HEVC/H.265), pojawia się komunikat.
 

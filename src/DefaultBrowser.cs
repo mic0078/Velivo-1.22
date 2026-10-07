@@ -145,18 +145,7 @@ namespace Przegladarka
                 using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
                 using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
             }
-            using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + PdfProgId))
-            {
-                k.SetValue("", AppName + " PDF Document");
-                using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
-                using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
-            }
-            using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + VideoProgId))
-            {
-                k.SetValue("", AppName + " Video");
-                using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
-                using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
-            }
+            RegisterFileTypes(exe);
             using (var k = Registry.CurrentUser.CreateSubKey(ClientKey))
             {
                 k.SetValue("", AppName);
@@ -179,6 +168,57 @@ namespace Przegladarka
             }
             using (var k = Registry.CurrentUser.CreateSubKey(@"Software\RegisteredApplications"))
                 k.SetValue(AppName, ClientKey + @"\Capabilities");
+        }
+
+        // PDF i filmy: Velivo na liscie "Otworz za pomoca" (Applications\Velivo.exe + OpenWithProgids). Wywolywane przy kazdym
+        // starcie - dziala tez bez instalatora i po przeniesieniu programu; Windows odswieza liste tylko, gdy cos sie zmienilo.
+        // Zwraca true, gdy wpisy byly nieaktualne.
+        static bool RegisterFileTypes(string exe)
+        {
+            string open = "\"" + exe + "\" \"%1\"";
+            string appKey = @"Software\Classes\Applications\" + Path.GetFileName(exe);
+            bool changed;
+            using (var c = Registry.CurrentUser.OpenSubKey(appKey + @"\shell\open\command"))
+                changed = c == null || (c.GetValue("") as string) != open;
+            foreach (var pid in new[] { new[] { PdfProgId, AppName + " PDF Document" }, new[] { VideoProgId, AppName + " Video" } })
+                using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + pid[0]))
+                {
+                    k.SetValue("", pid[1]);
+                    using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
+                    using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
+                }
+            var types = new[] { ".pdf" }.Concat(VideoExts).ToArray();
+            using (var k = Registry.CurrentUser.CreateSubKey(appKey))
+            {
+                k.SetValue("FriendlyAppName", AppName);
+                using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
+                using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
+                using (var t = k.CreateSubKey("SupportedTypes")) foreach (var ext in types) t.SetValue(ext, "");
+            }
+            foreach (var ext in types)
+                using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + ext + @"\OpenWithProgids"))
+                    k.SetValue(ext == ".pdf" ? PdfProgId : VideoProgId, "");
+            return changed;
+        }
+
+        [System.Runtime.InteropServices.DllImport("shell32.dll")]
+        static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
+
+        static void EnsureFileTypes()
+        {
+            Task.Run(() =>
+            {
+                try { if (RegisterFileTypes(Process.GetCurrentProcess().MainModule.FileName)) SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); }   // SHCNE_ASSOCCHANGED
+                catch (Exception ex) { App.LogError(ex); }
+            });
+        }
+
+        // Ustawienia Windows na stronie Velivo w "Aplikacjach domyslnych" (filmy, PDF, strony)
+        void OpenVelivoDefaultApps()
+        {
+            try { if (!IsRegistered()) RegisterBrowser(); } catch (Exception ex) { App.LogError(ex); }
+            try { Process.Start(new ProcessStartInfo("ms-settings:defaultapps?registeredAppUser=" + AppName) { UseShellExecute = true }); }
+            catch (Exception) { try { Process.Start(new ProcessStartInfo("ms-settings:defaultapps") { UseShellExecute = true }); } catch (Exception) { } }
         }
 
         // Wybor uzytkownika dla https (nowsze Windows 11 trzymaja go w UserChoiceLatest).

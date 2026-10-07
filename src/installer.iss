@@ -142,6 +142,17 @@ Root: HKCU; Subkey: "Software\Classes\.mov\OpenWithProgids"; ValueType: string; 
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mov"; ValueData: "VelivoVideo"
 Root: HKCU; Subkey: "Software\Classes\.ogv\OpenWithProgids"; ValueType: string; ValueName: "VelivoVideo"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Clients\StartMenuInternet\Velivo\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ogv"; ValueData: "VelivoVideo"
+; lista "Otworz za pomoca" w Eksploratorze (filmy i PDF)
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "Velivo"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Velivo.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".pdf"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mp4"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".m4v"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".webm"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mkv"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".mov"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\Velivo.exe\SupportedTypes"; ValueType: string; ValueName: ".ogv"; ValueData: ""
 ; torrenty: plik .torrent i linki magnet: (pobiera tylko, gdy torrenty sa wlaczone w Ustawieniach)
 Root: HKCU; Subkey: "Software\Classes\VelivoTorrent"; ValueType: string; ValueName: ""; ValueData: "Velivo Torrent"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\VelivoTorrent\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Velivo.exe,0"

@@ -297,6 +297,7 @@ Transparency needs Windows 10 version 1809 or newer, because the window uses a W
 - **Opening:** double-click a video file in Windows (the installer adds Velivo to "Open with" for MP4, WebM, MKV, MOV, M4V, OGV; make it permanent in Default apps → Velivo), **Ctrl+O** or right-click → Velivo tools → **🎬 Open a video file**.
 - The video opens in a tab, filling the window, with no internet needed. **⧉ Picture in picture** and **▣ Video on top** work on it.
 - **Controls:** the player bar (play/pause, seek, volume, full screen) and keys: Space or click – pause, ← → – 5 s, ↑ ↓ – volume, **F** – full screen, **M** – mute.
+- **If Velivo isn't in "Open with":** start Velivo once (it registers itself with Windows) or use **Settings → Video player → "Open videos and PDFs in Velivo (Windows)…"**.
 - **Settings → Video player:** open videos in Velivo, play right away, resume where you left off (this computer only), loop.
 - **Formats:** MP4 (H.264) and WebM work best. If the codec isn't supported (e.g. HEVC/H.265), a message appears.
 

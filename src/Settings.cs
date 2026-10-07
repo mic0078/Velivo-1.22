@@ -654,6 +654,10 @@ namespace Przegladarka
             var playerResumeBox = Check(L.T("Wznawiaj od miejsca, w którym skończyłeś"), L.T("Miejsce w każdym filmie zapamiętywane tylko na tym komputerze."), s.PlayerResume);
             var playerLoopBox = Check(L.T("Powtarzaj film w kółko"), null, s.PlayerLoop);
             foreach (var pb in new[] { playerBox, playerAutoBox, playerResumeBox, playerLoopBox }) root.Children.Add(pb);
+            var playerAssoc = SmallButton(L.T("Otwieraj filmy i PDF w Velivo (Windows)…"), OpenVelivoDefaultApps);
+            playerAssoc.HorizontalAlignment = HorizontalAlignment.Left; playerAssoc.Margin = new Thickness(0, 4, 0, 4);
+            playerAssoc.ToolTip = L.T("Otwiera Aplikacje domyślne Windows na stronie Velivo – tam przy .mp4, .mkv, .pdf… wybierasz Velivo. Na jeden plik: prawy przycisk → Otwórz za pomocą → Velivo.");
+            root.Children.Add(playerAssoc);
 
             // ---------- torrenty: osobna strefa ----------
             root.Children.Add(Header(L.T("Torrenty")));

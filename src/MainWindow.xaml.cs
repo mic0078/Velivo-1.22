@@ -181,6 +181,7 @@ namespace Przegladarka
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
                     StartLanSync();
                     AskDefaultBrowserOnce();
+                    EnsureFileTypes();
                 }
                 catch (Exception ex)
                 {

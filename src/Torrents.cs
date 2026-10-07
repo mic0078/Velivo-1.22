@@ -45,7 +45,7 @@ namespace Przegladarka
             try
             {
                 Directory.CreateDirectory(ToolsDir);
-                ShowToast(L.T("⬇ Pobieram narzędzie ") + "aria2…", null);
+                ShowToast((L.En ? "⬇ Downloading " : "⬇ Pobieram narzędzie ") + "aria2…", null);
                 using (var resp = await ToolHttp.GetAsync(Aria2ZipUrl, HttpCompletionOption.ResponseHeadersRead))
                 {
                     resp.EnsureSuccessStatusCode();

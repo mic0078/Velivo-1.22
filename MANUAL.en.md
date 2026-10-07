@@ -595,6 +595,19 @@ The connection status is in Settings → **LAN diagnostics panel…**.
 - A deleted file is marked in gray: "File deleted or moved".
 - Buttons: Open, 📁 Show in folder, Remove from list, Clear finished, Media on page.
 
+### Torrents (optional)
+
+Turn them on in **Settings → Torrents** (off by default). Then:
+- **magnet links** (clicked or pasted into the address bar) and **downloaded .torrent files** are downloaded by the free **aria2** – fetched on first use with your consent (about 2.5 MB) and run only if its SHA-256 checksum matches;
+- **Windows association:** the installer associates `.torrent` files and `magnet:` links with Velivo – double-clicking a file or a magnet link from another program starts the download (if torrents are off, Velivo tells you where to turn them on);
+- **separate zone:** files go to their own folder (default `Downloads\Velivo-Torrenty`); with "Ask where to save" on you pick a folder for each torrent; files are marked as from the internet and Velivo opens nothing by itself;
+- settings: zone folder, download and upload speed, seeding after download (ratio and time), number of peers;
+- buttons in Downloads: Stop; while seeding – Open folder and Stop sharing; at the end – Show in folder (selects the file), Delete file (removes the downloaded file or torrent folder from disk after confirmation) and Remove from list;
+- after a stop or an error Velivo asks whether to delete the partly downloaded files;
+- when Velivo stays in the tray, torrents keep downloading after the window is closed; "Exit completely" stops them; torrents don't work in Banking Mode.
+
+**Note:** in torrents other peers can see your IP address – use a VPN for anonymity. Share only material you have the rights to.
+
 ---
 
 ## 19. Extensions, profiles and tools

@@ -152,6 +152,18 @@ namespace Przegladarka
                         GlyphIcon(mobileNow ? "\uE7F4" : "\uE8EA"), CoreWebView2ContextMenuItemKind.Command);
                     mob.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SetMobileSite(tabForMobile, pageUrl, !mobileNow));
                     add(mob);
+                    // tryb tej strony wprost: jasny / ciemny / nocny (jak przycisk na pasku)
+                    var pm = CurrentPageMode();
+                    var modes = _env.CreateContextMenuItem(MenuText(L.T("Tryb strony")), GlyphIcon("\uE706"), CoreWebView2ContextMenuItemKind.Submenu);
+                    foreach (var md in new[] { new[] { "light", L.T("☀ Jasny") }, new[] { "dark", L.T("🌙 Ciemny") }, new[] { "night", L.T("🌅 Nocny – cieplejsze kolory") } })
+                    {
+                        var it = _env.CreateContextMenuItem(md[1], null, CoreWebView2ContextMenuItemKind.Radio);
+                        it.IsChecked = md[0] == (pm.Dark ? "dark" : pm.Night ? "night" : "light");
+                        var mode = md[0];
+                        it.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SetPageMode(mode));
+                        modes.Children.Add(it);
+                    }
+                    add(modes);
                     separator();
                     var reader = _env.CreateContextMenuItem(MenuText(L.T("Tryb czytania i streszczenie")), GlyphIcon("\uE736"), CoreWebView2ContextMenuItemKind.Command);
                     reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenReaderMode);
@@ -204,6 +216,15 @@ namespace Przegladarka
                 var tPlayer = _env.CreateContextMenuItem(MenuText(L.T("📂 Otwórz plik z dysku (Ctrl+O)")), GlyphIcon("\uE714"), CoreWebView2ContextMenuItemKind.Command);
                 tPlayer.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenLocalFile);
                 tools.Children.Add(tPlayer);
+                var tPriv = _env.CreateContextMenuItem(MenuText(L.T("🕶 Otwórz tę stronę w karcie prywatnej")), GlyphIcon("\uE727"), CoreWebView2ContextMenuItemKind.Command);
+                tPriv.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => AddTab(pageUrl, true));
+                var tBank = _env.CreateContextMenuItem(MenuText(L.T("🏦 Otwórz tę stronę w trybie bankowym")), GlyphIcon("\uE825"), CoreWebView2ContextMenuItemKind.Command);
+                tBank.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => OpenBankSite(pageUrl));
+                bool webPage = pageUrl.StartsWith("http://") || pageUrl.StartsWith("https://");
+                if (webPage && tabForTools != null && !tabForTools.Private && !tabForTools.Bank) tools.Children.Add(tPriv);
+                if (webPage && tabForTools != null && !tabForTools.Bank) tools.Children.Add(tBank);
+                var tSet = _env.CreateContextMenuItem(MenuText(L.T("⚙ Ustawienia")), GlyphIcon("\uE713"), CoreWebView2ContextMenuItemKind.Command);
+                tSet.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => Settings_Click(null, null));
                 tools.Children.Add(tPip);
                 tools.Children.Add(tTabs);
                 var tMem = _env.CreateContextMenuItem(MenuText(L.T("🧠 Gdzie ja to czytałem? (Ctrl+Shift+F)")), GlyphIcon("\uE8F1"), CoreWebView2ContextMenuItemKind.Command);
@@ -217,6 +238,7 @@ namespace Przegladarka
                 tools.Children.Add(tLan);
                 tools.Children.Add(tProfileWork);
                 tools.Children.Add(tUser);
+                tools.Children.Add(tSet);
                 add(tools);
                 separator();
             }

@@ -169,13 +169,14 @@ Right-click anywhere on a page.
 | Restore blocked elements | When something was blocked by hand | Undoes the blocks on this page |
 | 🍪 (Don't) reject cookie banners | Always | Exception from automatic rejection for this site |
 | 📱 / 🖥 Phone / desktop version | Always | Switches and remembers for this site |
+| Page mode: ☀ Light / 🌙 Dark / 🌅 Night | Always | Pick this page's mode directly (like the toolbar button) |
 | ▣ Video on top · ⬇ Download video · ⧉ Picture in picture | On a video or on YouTube | See [section 8](#8-videos-video-on-top-picture-in-picture-downloads) |
 | Reader mode and summary | Always | Clean article text |
 | Read page aloud (Ctrl+Shift+U) | Always | Reads the main content |
 | 🔊 Read from here | Nothing selected | Reads from the sentence you clicked |
 | 🧠 Where did I read that? | Always | Search in the content of pages you read |
 | Screenshot | Always | Visible part or the whole page |
-| Velivo tools | Always | Privacy, media, downloads, history, extensions, network diagnostics, profiles, picture in picture, tab search |
+| Velivo tools | Always | 📂 Open a file (video / PDF), 🕶 this page in a private tab, 🏦 this page in Banking Mode, privacy, media, downloads, history, extensions, network diagnostics, profiles, ⚙ Settings, picture in picture, tab search |
 | Add to Quick Access | Always | Shortcut to a chosen group |
 
 ### On a tab

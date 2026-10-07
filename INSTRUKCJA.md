@@ -438,13 +438,14 @@ Kliknij prawym przyciskiem w dowolnym miejscu strony.
 | Przywróć zablokowane elementy | Gdy coś zablokowano ręcznie | Cofa blokady na tej stronie |
 | 🍪 (Nie) odrzucaj banerów ciasteczek | Zawsze | Wyjątek od automatycznego odrzucania dla tej strony |
 | 📱 / 🖥 Wersja telefonu / komputerowa | Zawsze | Przełącza i zapamiętuje dla tej strony |
+| Tryb strony: ☀ Jasny / 🌙 Ciemny / 🌅 Nocny | Zawsze | Wybór trybu tej strony wprost (jak przycisk na pasku) |
 | ▣ Film na wierzchu · ⬇ Pobierz film · ⧉ Obraz w obrazie | Na filmie albo na YouTube | Patrz [rozdział 8](#8-filmy-film-na-wierzchu-obraz-w-obrazie-pobieranie) |
 | Tryb czytania i streszczenie | Zawsze | Czysty tekst artykułu |
 | Czytaj stronę na głos (Ctrl+Shift+U) | Zawsze | Czyta główną treść |
 | 🔊 Czytaj od tego miejsca | Gdy nic nie jest zaznaczone | Czyta od zdania, które kliknąłeś |
 | 🧠 Gdzie ja to czytałem? | Zawsze | Szukanie w treści przeczytanych stron |
 | Zrzut ekranu | Zawsze | Widoczna część albo cała strona |
-| Narzędzia Velivo | Zawsze | Prywatność, media, pobrane, historia, dodatki, diagnostyka sieci, profile, obraz w obrazie, szukanie w kartach |
+| Narzędzia Velivo | Zawsze | 📂 Otwórz plik z dysku (film / PDF), 🕶 ta strona w karcie prywatnej, 🏦 ta strona w trybie bankowym, prywatność, media, pobrane, historia, dodatki, diagnostyka sieci, profile, ⚙ Ustawienia, obraz w obrazie, szukanie w kartach |
 | Dodaj do Szybkiego Dostępu | Zawsze | Skrót do wybranej grupy |
 
 ### Na karcie

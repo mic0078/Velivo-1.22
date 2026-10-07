@@ -32,7 +32,13 @@ namespace Przegladarka
         {
             // trzy tryby po kolei: jasny -> ciemny -> nocny -> jasny; zapamietane dla biezacej strony (jak powiekszenie)
             var m = CurrentPageMode();
-            string next = m.Dark ? "night" : m.Night ? "light" : "dark";
+            SetPageMode(m.Dark ? "night" : m.Night ? "light" : "dark");
+        }
+
+        // tryb biezacej strony: przycisk na pasku (po kolei) albo prawy przycisk -> Tryb strony (wybor wprost)
+        void SetPageMode(string next)
+        {
+            var m = CurrentPageMode();
             var host = _current != null && !_current.Private && _current.View.CoreWebView2 != null ? HostOf(_current.View.CoreWebView2.Source) : null;
             if (host != null) SetSiteMode(host, next, m.Strength);
             else

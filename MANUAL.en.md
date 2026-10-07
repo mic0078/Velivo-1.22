@@ -45,6 +45,7 @@ Velivo is designed to be fully usable with the mouse alone, even from the sofa i
 
 | Feature | What it does |
 | --- | --- |
+| **🎞 All in one** | Video player for files on disk (with picture in picture and "Video on top"), PDF viewer and torrents – **no separate programs to install**. Open files by double-click or "Open with". |
 | **▣ Video on top** | Velivo's own video window you can shrink almost to an icon (from 160×90 px), with **transparency set by the mouse wheel** and an "always on top" pin. **It keeps playing after you close the tab – and even the whole browser.** |
 | **🧠 "Where did I read that?"** | Finds an article you read by words from its **content**, not just its title. Everything stays on your computer. |
 | **⚠ Shop-trick detector** | Warns about fake countdowns, "only 2 left" pressure and hidden fees, and unticks pre-selected add-ons in the cart. |

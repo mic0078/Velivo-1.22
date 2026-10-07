@@ -73,6 +73,10 @@ Velivo 1.22 działa na Windows 10 (wersja 1809 lub nowsza) i Windows 11, 64-bit.
 - **Jak używać:** wybierz Automatycznie (język z instalatora / Windows), Polski albo English i uruchom Velivo ponownie.
 - **Co robi:** tłumaczy wszystkie okna, menu, podpowiedzi oraz Szybki Dostęp.
 
+### 1.11 Wszystko w jednym – bez dodatkowych programów
+- **Co to znaczy:** Velivo zastępuje kilka osobnych programów: **odtwarzacz filmów z dysku** (7.16 – z obrazem w obrazie i „Filmem na wierzchu”), **czytnik PDF** (1.8) i **torrenty** (8.19). Nie trzeba ich instalować ani aktualizować osobno.
+- **Jak używać:** dwuklik na pliku albo prawy przycisk → „Otwórz za pomocą” → Velivo; na stałe – Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”.
+
 # 2. Interfejs
 
 ## Okno główne
@@ -1378,6 +1382,7 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **1.8** Ustawienie Velivo jako domyślnej przeglądarki
 - **1.9** Import z poprzedniej przeglądarki
 - **1.10** Język programu
+- **1.11** Wszystko w jednym – bez dodatkowych programów
 
 ## 2. Interfejs
 

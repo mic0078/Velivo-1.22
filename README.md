@@ -18,6 +18,7 @@
   🎨 <b>Piękny, nowoczesny wygląd</b> jak Windows 11 – 10 motywów, tryb ciemny i nocny<br>
   🧩 <b>Lekkie, wbudowane dodatki</b> – bez szukania w sklepie i bez spowalniania<br>
   🎬 Film w przezroczystym okienku nad wszystkim – gra nawet po zamknięciu przeglądarki<br>
+  🎞 <b>Wszystko w jednym</b> – filmy z dysku, PDF i torrenty bez instalowania dodatkowych programów<br>
   🏦 <b>Tryb bankowy</b> – osobny, zaszyfrowany sejf na banki, sklepy, karty i hasła, otwierany <b>kluczem sprzętowym</b> (YubiKey, Google Titan) albo hasłem<br>
   ✨ Efekty wejścia stron (kinowe z ciemności, wyostrzenie) i <b>wczytywanie strony już przy najechaniu na link</b><br>
   🛡 Wbudowany uBlock Origin Lite i wykrywanie fałszywych stron banków bez internetu<br>
@@ -54,6 +55,8 @@ Popularne przeglądarki (Chrome, Edge, Firefox, Opera) nie mają tych funkcji wb
 - **Synchronizacja bez chmury** – zakładki, hasła, historia, karty przypięte, Szybki Dostęp i ustawienia między komputerami w domowej sieci, szyfrowane po sparowaniu kodem.
 - **⬇ Pobieranie filmów jak w Internet Download Manager** – przycisk „Pobierz” nad filmem, także na YouTube: wybór jakości (do 1080p), MP3/M4A, wybór folderu; zwykłe pliki do 16 połączeń naraz z wznawianiem po restarcie.
 - **🎬 Odtwarzacz filmów z dysku (offline)** – MP4, WebM, MKV, MOV w karcie na całe okno, z obrazem w obrazie i „Filmem na wierzchu”; skojarzenie plików w instalatorze, Ctrl+O, wznawianie od miejsca, osobna sekcja w Ustawieniach.
+- **📄 PDF** – pliki PDF otwierają się we wbudowanym czytniku (powiększanie, wyszukiwanie, drukowanie, zapis); Velivo jest na liście „Otwórz za pomocą”.
+- **Pierwsze uruchomienie** – Velivo jednorazowo pyta, czy zostać domyślną przeglądarką (linki, filmy i PDF otworzą się w nim).
 - **🧲 Torrenty (włączane w Ustawieniach, domyślnie wyłączone)** – linki magnet i pliki .torrent pobiera darmowy aria2 (doinstalowany przy pierwszym użyciu, ze sprawdzoną sumą SHA-256). Osobna strefa: własny folder, pliki oznaczone jako z internetu, nic nie otwiera się samo. Pliki `.torrent` i linki magnet skojarzone z Velivo (dwuklik pobiera). Limity pobierania, wysyłania i udostępniania w sekcji „Torrenty”; „Pokaż w folderze”, „Usuń plik”, sprzątanie po przerwanym pobieraniu. W zasobniku torrenty pobierają się dalej po zamknięciu okna.
 - **🔊 „Czytaj od tego miejsca”** – prawy przycisk na akapicie i Velivo czyta od tego zdania; naturalne polskie i angielskie głosy offline.
 - **🌅 Tryb nocny z natężeniem** jak „Światło nocne” w Windows – regulowany kółkiem myszy na przycisku.

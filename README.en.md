@@ -18,6 +18,7 @@
   🎨 <b>Beautiful, modern look</b> like Windows 11 – 10 themes, dark and night mode<br>
   🧩 <b>Light, built-in add-ons</b> – no store hunting and no slowdown<br>
   🎬 Video in a see-through window above everything – keeps playing even after the browser is closed<br>
+  🎞 <b>All in one</b> – videos from disk, PDFs and torrents without installing extra programs<br>
   🏦 <b>Banking mode</b> – a separate, encrypted vault for banks, shops, cards and passwords, opened with a <b>hardware security key</b> (YubiKey, Google Titan) or a password<br>
   ✨ Page entrance effects (cinematic from darkness, focus-in) and <b>pages that start loading when you hover a link</b><br>
   🛡 Built-in uBlock Origin Lite and offline detection of fake bank sites<br>
@@ -56,6 +57,8 @@ Popular browsers (Chrome, Edge, Firefox, Opera) don't have these features built 
 - **Sync without the cloud** – bookmarks, passwords, history, pinned tabs, Quick Access and settings between computers on your home network, encrypted after pairing with a code.
 - **⬇ Video downloads like Internet Download Manager** – a "Download" button over every video, YouTube included: quality choice (up to 1080p), MP3/M4A, folder choice; regular files with up to 16 connections and resume after restart.
 - **🎬 Offline video player** – MP4, WebM, MKV, MOV in a tab filling the window, with picture in picture and "Video on top"; file association in the installer, Ctrl+O, resume where you left off, its own Settings section.
+- **📄 PDF** – PDF files open in the built-in viewer (zoom, search, print, save); Velivo is listed in "Open with".
+- **First start** – Velivo asks once whether to become the default browser (links, videos and PDFs then open in it).
 - **🧲 Torrents (switched on in Settings, off by default)** – magnet links and .torrent files are downloaded by the free aria2 (fetched on first use, SHA-256 verified). `.torrent` files and magnet links are associated with Velivo. Separate zone: own folder (or a folder you pick), files marked as from the internet, nothing opens by itself. Download, upload and seeding limits in the "Torrents" section; Show in folder, Delete file, cleanup after an interrupted download. In the tray, torrents keep going after the window closes.
 - **🔊 "Read from here"** – right-click a paragraph and Velivo reads from that sentence; natural Polish and English offline voices.
 - **🌅 Night mode with strength** like Windows "Night light" – adjusted with the mouse wheel on the button.

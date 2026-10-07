@@ -313,6 +313,7 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 
 | Funkcja | Co robi |
 | --- | --- |
+| **🎞 Wszystko w jednym** | Odtwarzacz filmów z dysku (z obrazem w obrazie i „Filmem na wierzchu”), czytnik PDF i torrenty – **bez instalowania osobnych programów**. Pliki otwierasz dwuklikiem albo przez „Otwórz za pomocą”. |
 | **▣ Film na wierzchu** | Własne okienko z filmem, które zmniejszysz prawie do znaczka (od 160×90 pikseli), z **przezroczystością regulowaną kółkiem myszy** i przypinką „zawsze na wierzchu”. **Gra dalej po zamknięciu karty, a nawet całej przeglądarki.** |
 | **🧠 „Gdzie ja to czytałem?”** | Znajduje przeczytany artykuł po słowach z jego **treści**, a nie tylko po tytule. Wszystko zostaje na Twoim komputerze. |
 | **⚠ Wykrywacz sztuczek w sklepach** | Ostrzega przed fałszywymi licznikami, presją „ostatnie sztuki” i ukrytymi opłatami. Zaznaczone z góry dodatki w koszyku sam odznacza. |

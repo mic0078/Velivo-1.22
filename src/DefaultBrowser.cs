@@ -21,6 +21,7 @@ namespace Przegladarka
         internal const string AppName = "Velivo";
         const string ProgId = "VelivoHTML";
         const string PdfProgId = "VelivoPDF";
+        const string VideoProgId = "VelivoVideo";
         const string ClientKey = @"Software\Clients\StartMenuInternet\" + AppName;
 
         // ---------- jedno okno ----------
@@ -150,6 +151,12 @@ namespace Przegladarka
                 using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
                 using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
             }
+            using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + VideoProgId))
+            {
+                k.SetValue("", AppName + " Video");
+                using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
+                using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
+            }
             using (var k = Registry.CurrentUser.CreateSubKey(ClientKey))
             {
                 k.SetValue("", AppName);
@@ -165,6 +172,7 @@ namespace Przegladarka
                     {
                         foreach (var ext in new[] { ".htm", ".html", ".shtml", ".xhtml", ".svg" }) f.SetValue(ext, ProgId);
                         f.SetValue(".pdf", PdfProgId);   // PDF otwiera wbudowany czytnik silnika
+                        foreach (var ext in VideoExts) f.SetValue(ext, VideoProgId);   // filmy - odtwarzacz Velivo
                     }
                     using (var s = cap.CreateSubKey("StartMenu")) s.SetValue("StartMenuInternet", AppName);
                 }

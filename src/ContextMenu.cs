@@ -201,6 +201,9 @@ namespace Przegladarka
                 tPip.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartPictureInPicture(tabForTools));
                 var tTabs = _env.CreateContextMenuItem(MenuText(L.T("Szukaj w kartach (Ctrl+Shift+A)")), GlyphIcon("\uE721"), CoreWebView2ContextMenuItemKind.Command);
                 tTabs.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowTabSearch);
+                var tPlayer = _env.CreateContextMenuItem(MenuText(L.T("🎬 Otwórz film z dysku (Ctrl+O)")), GlyphIcon("\uE714"), CoreWebView2ContextMenuItemKind.Command);
+                tPlayer.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenVideoFile);
+                tools.Children.Add(tPlayer);
                 tools.Children.Add(tPip);
                 tools.Children.Add(tTabs);
                 var tMem = _env.CreateContextMenuItem(MenuText(L.T("🧠 Gdzie ja to czytałem? (Ctrl+Shift+F)")), GlyphIcon("\uE8F1"), CoreWebView2ContextMenuItemKind.Command);

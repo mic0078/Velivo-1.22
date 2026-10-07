@@ -292,6 +292,14 @@ Hover over a video and three buttons appear in its top right corner: **⬇ Downl
 
 Transparency needs Windows 10 version 1809 or newer, because the window uses a Windows component to draw the picture.
 
+### 🎬 Offline video player
+
+- **Opening:** double-click a video file in Windows (the installer adds Velivo to "Open with" for MP4, WebM, MKV, MOV, M4V, OGV; make it permanent in Default apps → Velivo), **Ctrl+O** or right-click → Velivo tools → **🎬 Open a video file**.
+- The video opens in a tab, filling the window, with no internet needed. **⧉ Picture in picture** and **▣ Video on top** work on it.
+- **Controls:** the player bar (play/pause, seek, volume, full screen) and keys: Space or click – pause, ← → – 5 s, ↑ ↓ – volume, **F** – full screen, **M** – mute.
+- **Settings → Video player:** open videos in Velivo, play right away, resume where you left off (this computer only), loop.
+- **Formats:** MP4 (H.264) and WebM work best. If the codec isn't supported (e.g. HEVC/H.265), a message appears.
+
 ### ⧉ Picture in picture
 
 The standard window of the browser engine. It keeps playing after you close the tab, until you close the window. Its minimum and maximum size are set by the Chromium engine, not by Velivo.
@@ -668,6 +676,7 @@ If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own too
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
 | Ctrl+Shift+A | Search tabs |
 | Ctrl+Shift+F | 🧠 Where did I read that? |
+| Ctrl+O | 🎬 Open a video file |
 | Ctrl+L | Address bar |
 | Ctrl+D | Bookmark |
 | Ctrl+H | History |
@@ -763,6 +772,9 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 - **Velivo speakers** – choose a specific sound output instead of the Windows default. **Don't lose sound** – when a music program (Ableton, Cubase) takes the speakers, Velivo plays on another active output and returns when they are free. **🔊 Windows volume mixer…** – pin Velivo to your speakers permanently.
 - **Stay in the system tray when the window is closed** – background sync and instant start; the icon by the clock pulses while syncing, right-click: Open, Sync now, Exit completely.
 - **Connections per download** – 1 (no splitting) to 16; more is usually faster.
+
+### Video player
+- **Open video files in the Velivo player**, **Play right after opening**, **Resume where you left off** (this computer only), **Loop the video**. Details in chapter 8.
 
 ### Torrents
 - **Download torrents (magnet and .torrent) in Velivo** – off by default; **Torrent zone folder** (Choose… / Default), **Download** and **upload speed**, **Share after download** (ratio, 0 = not at all) and **for how long**, **Most peers**. Details in chapter 8.

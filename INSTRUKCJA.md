@@ -561,6 +561,14 @@ Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy 
 
 Przezroczystość wymaga Windows 10 w wersji 1809 lub nowszej, bo okienko używa składnika Windows do rysowania obrazu.
 
+### 🎬 Odtwarzacz filmów z dysku (offline)
+
+- **Otwieranie:** dwuklik na pliku wideo w Windows (instalator dodaje Velivo do „Otwórz za pomocą” dla MP4, WebM, MKV, MOV, M4V, OGV; na stałe – w „Aplikacjach domyślnych” przy Velivo), **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **🎬 Otwórz film z dysku**.
+- Film otwiera się w karcie na całe okno, bez internetu. Na filmie działają **⧉ Obraz w obrazie** i **▣ Film na wierzchu** (okienko zawsze na wierzchu, przezroczystość kółkiem).
+- **Sterowanie:** pasek odtwarzacza (start/pauza, przewijanie, głośność, pełny ekran) oraz skróty: spacja albo klik – pauza, ← → – 5 s, ↑ ↓ – głośność, **F** – pełny ekran, **M** – wycisz.
+- **Ustawienia → Odtwarzacz filmów:** otwieranie filmów w Velivo, odtwarzanie od razu, wznawianie od miejsca, w którym skończyłeś (tylko na tym komputerze), powtarzanie w kółko.
+- **Formaty:** najpewniej MP4 (H.264) i WebM. Gdy kodek nie jest obsługiwany (np. HEVC/H.265), pojawia się komunikat.
+
 ### ⧉ Obraz w obrazie
 
 Standardowe okienko silnika przeglądarki. Gra dalej po zamknięciu karty, aż zamkniesz okienko. Jego minimalną i maksymalną wielkość narzuca silnik Chromium, a nie Velivo.
@@ -940,6 +948,7 @@ Jeśli masz RAM dysk (na przykład ImDisk, SoftPerfect RAM Disk albo własne nar
 | Ctrl+Tab / Ctrl+Shift+Tab | Następna / poprzednia karta |
 | Ctrl+Shift+A | Szukaj w kartach |
 | Ctrl+Shift+F | 🧠 Gdzie ja to czytałem? |
+| Ctrl+O | 🎬 Otwórz film z dysku |
 | Ctrl+L | Pasek adresu |
 | Ctrl+D | Zakładka |
 | Ctrl+H | Historia |
@@ -1030,6 +1039,9 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 - **Głośniki Velivo** – wybierz konkretne wyjście dźwięku zamiast domyślnego Windows. **Nie gub dźwięku** – gdy program muzyczny (Ableton, Cubase) zajmie głośniki, Velivo gra na innym aktywnym wyjściu i wraca, gdy się zwolnią. **🔊 Mikser głośności Windows…** – przypięcie Velivo do głośników na stałe.
 - **Po zamknięciu okna zostań w zasobniku** – synchronizacja w tle i natychmiastowy start; ikonka przy zegarze pulsuje podczas synchronizacji, prawy klik: Otwórz, Synchronizuj teraz, Zamknij całkowicie.
 - **Połączeń na jeden pobierany plik** – od 1 (bez dzielenia) do 16; więcej = zwykle szybciej.
+
+### Odtwarzacz filmów
+- **Otwieraj filmy z dysku w odtwarzaczu Velivo**, **Odtwarzaj od razu po otwarciu**, **Wznawiaj od miejsca, w którym skończyłeś** (tylko ten komputer), **Powtarzaj film w kółko**. Szczegóły w rozdziale 8.
 
 ### Torrenty
 - **Pobieraj torrenty (magnet i .torrent) w Velivo** – domyślnie wyłączone; **Folder strefy torrentów** (Wybierz… / Domyślny), **Prędkość pobierania** i **wysyłania**, **Udostępniaj po pobraniu** (współczynnik, 0 = wcale) i **jak długo**, **Najwięcej uczestników**. Szczegóły w rozdziale 8.

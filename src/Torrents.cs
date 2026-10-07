@@ -297,9 +297,11 @@ namespace Przegladarka
             return null;
         }
 
-        // otwarcie z zewnatrz: torrent trafia do pobran, reszta do nowej karty
+        // otwarcie z zewnatrz: torrent trafia do pobran, film z dysku do odtwarzacza, reszta do nowej karty
         void OpenArg(string a)
         {
+            var video = VideoArg(a);
+            if (video != null && _settings.VideoPlayer) { AddTab(PlayerUrl(video)); return; }
             var t = TorrentArg(a);
             if (t == null) AddTab(a);
             else if (_settings.Torrents) _ = StartTorrentAsync(t);

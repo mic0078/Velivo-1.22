@@ -99,7 +99,7 @@ namespace Przegladarka
 
         void ShowFloatingVideo(string page, double time, string title, bool isPrivate)
         {
-            if (string.IsNullOrEmpty(page) || !(page.StartsWith("http://") || page.StartsWith("https://"))) return;
+            if (string.IsNullOrEmpty(page) || !(page.StartsWith("http://") || page.StartsWith("https://") || IsPlayerUrl(PlayerFile, page))) return;   // strony www albo odtwarzacz filmow z dysku
             // kontrolka rysowana w oknie WPF (nie osobne okno systemowe) - dzieki temu dziala przezroczystosc okienka
             var view = new WebView2CompositionControl { DefaultBackgroundColor = System.Drawing.Color.Black };
 

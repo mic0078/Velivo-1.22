@@ -161,6 +161,7 @@ Velivo jest projektowane tak, żeby dało się je w pełni obsłużyć samą mys
 | Ctrl+H | historia |
 | Ctrl+J | pobrane pliki |
 | Ctrl+Shift+F | „Gdzie ja to czytałem?” |
+| Ctrl+O | otwórz film z dysku (odtwarzacz) |
 | Ctrl+Shift+U | czytaj stronę na głos / pauza / wznów |
 | Alt+← / Alt+→ | wstecz / dalej |
 | F5 | odśwież |
@@ -385,6 +386,13 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 
 ### 7.15 Wyciszenie filmu w karcie
 - Menu karty → „Wycisz kartę” (4.11).
+
+### 7.16 Odtwarzacz filmów z dysku (offline)
+- **Gdzie:** dwuklik na pliku wideo (MP4, WebM, MKV, MOV, M4V, OGV – instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „🎬 Otwórz film z dysku”.
+- **Co robi:** film w karcie na całe okno, bez internetu; działają ⧉ Obraz w obrazie i ▣ Film na wierzchu.
+- **Sterowanie:** pasek odtwarzacza; spacja / klik – pauza, ← → – 5 s, ↑ ↓ – głośność, F – pełny ekran, M – wycisz.
+- **Ustawienia:** sekcja „Odtwarzacz filmów” (25.26) – otwieranie w Velivo, odtwarzanie od razu, wznawianie od miejsca (tylko ten komputer), powtarzanie.
+- **Ograniczenia:** najpewniej MP4 (H.264) i WebM; nieobsługiwany kodek (np. HEVC/H.265) – komunikat.
 
 # 8. Pobieranie plików, filmów i muzyki
 
@@ -1272,6 +1280,9 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 ### 25.25 Torrenty
 - **Gdzie:** Ustawienia → sekcja „Torrenty”: włączanie (domyślnie wyłączone), folder strefy, prędkość pobierania i wysyłania, udostępnianie po pobraniu (współczynnik i czas), liczba uczestników. Opis – 8.19.
 
+### 25.26 Odtwarzacz filmów
+- **Gdzie:** Ustawienia → sekcja „Odtwarzacz filmów”: otwieranie filmów z dysku w Velivo, odtwarzanie od razu, wznawianie od miejsca, powtarzanie. Opis – 7.16.
+
 # 26. Wydajność
 
 ### 26.1 Szybsze otwieranie stron
@@ -1448,6 +1459,7 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **7.13** Przykłady użycia
 - **7.14** Obraz w obrazie (PiP)
 - **7.15** Wyciszenie filmu w karcie
+- **7.16** Odtwarzacz filmów z dysku (offline)
 
 ## 8. Pobieranie plików, filmów i muzyki
 
@@ -1690,6 +1702,7 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **25.17** Zostań w zasobniku
 - **25.24** Zapis ustawień
 - **25.25** Torrenty
+- **25.26** Odtwarzacz filmów
 
 ## 26. Wydajność
 

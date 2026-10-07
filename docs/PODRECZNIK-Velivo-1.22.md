@@ -257,6 +257,7 @@ Velivo jest projektowane tak, żeby dało się je w pełni obsłużyć samą mys
 | ↓ potem → | Odśwież |
 
 - **Co robi:** zwykły prawy klik bez ruchu otwiera menu jak zawsze. Strona nie może podrobić gestu – komunikat do Velivo ma tajny znacznik uruchomienia.
+- **Przypięta karta:** gest ↓ jej nie zamyka (tak samo jak krzyżyk). Skręt w geście ↓ potem → liczy się już od ok. 15 px, więc „Odśwież” nie zamienia się przypadkiem w zamknięcie karty.
 
 ### 5.2 Wyszukiwarka w pasku adresu
 - **Gdzie:** Ustawienia → Wyszukiwanie i start → „Wyszukiwarka w pasku adresu”.
@@ -305,6 +306,8 @@ Velivo jest projektowane tak, żeby dało się je w pełni obsłużyć samą mys
 - **Gdzie:** przycisk z księżycem; Ustawienia → Wygląd → „Tryb ciemny stron”.
 - **Jak używać:** klik w przycisk (jasny → ciemny → nocny).
 - **Co robi:** strony, które mają własny ciemny wygląd, przełączają się na niego; pozostałe jasne strony są przyciemniane, a **zdjęcia zostają w prawdziwych kolorach**. Tryb jest zapamiętywany **osobno dla każdej strony**.
+- **Każda strona ma swój tryb:** jedna strona może być jasna, druga ciemna, trzecia nocna – Velivo pamięta to dla każdej strony osobno, także po ponownym uruchomieniu.
+- **Wejście strony w trybie ciemnym:** tło karty jest ciemne, zanim strona się narysuje, a efekt wejścia (6.1) przechodzi przez ciemną mgłę – bez białego błysku.
 - **Ograniczenia:** gdy silnik wystartował w innym trybie, Velivo poprawia stronę albo proponuje ponowne uruchomienie (karty wracają).
 
 ### 6.6 Tryb nocny (cieplejsze kolory)
@@ -484,6 +487,9 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 ### 9.4 Czytanie strony na głos
 - **Gdzie:** przycisk czytania na pasku; Ctrl+Shift+U.
 - **Co robi:** czyta główną treść strony; czytany akapit jest podświetlany i przewijany na środek ekranu, łatwo śledzić wzrokiem.
+- **Treść jak w Czytniku:** czyta i Czytnik korzystają z tego samego wykrywania artykułu – czytany jest sam artykuł, bez bocznych kolumn, polecanych i dodatków.
+- **Głos wg języka akapitu:** w tekście mieszanym (np. polski artykuł z angielskim cytatem) każdy akapit czytany jest głosem w swoim języku.
+- **Reaguje na zmiany:** zmiana głosu lub prędkości w Ustawieniach działa od razu, bez ponownego włączania; gdy strona przejdzie do innego artykułu (np. kolejny tekst bez przeładowania), czytanie się zatrzymuje, zamiast czytać nieaktualną treść.
 
 ### 9.5 Czytanie zaznaczenia
 - **Jak używać:** zaznacz tekst → przycisk czytania albo prawy klik → „Czytaj zaznaczenie na głos”.
@@ -507,6 +513,7 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Jak używać:** wpisz kilka zapamiętanych słów → wybierz wynik strzałkami → Enter otwiera stronę.
 - **Co robi:** Velivo zapisuje tekst przeczytanych stron **tylko na tym komputerze** i przeszukuje go lokalnie.
 - **Ograniczenia:** pomijane są karty prywatne, banki, płatności, poczta i każda strona z polem hasła.
+- **Co zapisuje:** tylko główną treść strony (bez menu, reklam i list linków); strony wyników wyszukiwarek (Google, Bing, DuckDuckGo…) są pomijane, żeby wyniki nie zaśmiecały pamięci.
 
 ### 9.11 Tłumaczenie stron i zaznaczenia
 - **Gdzie:** prawy klik.
@@ -781,6 +788,9 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Izolacja:** tylko baza trybu bankowego – zwykłe hasła przeglądarki nie są tu używane; dane trafiają tylko do kart bankowych i tylko na stronę, dla której je wybrano.
 - **🛡 Strażnik przelewu:** wklejony / wpisany numer rachunku – suma kontrolna IBAN / NRB i porównanie z Rachunkami bankowymi (odbiorca z bazy / ostrzeżenie / błędny numer).
 - **💸 Wypełnij przelew:** menu 🏦 albo propozycja na formularzu przelewu – odbiorca, numer (NRB, IBAN, sort code + 8 cyfr), tytuł; kwota i numer klienta z Rachunku do opłacenia o tej samej nazwie. Zawsze po kliknięciu.
+- **💬 Propozycja pod polem** – klikasz w login, hasło, wybrane znaki, numer karty albo numer konta odbiorcy: gdy baza ma pasujące dane dla tej strony, tuż pod polem pojawia się wybór (jedno kliknięcie wypełnia); nic nie pasuje – nic się nie pokazuje. Strona nie widzi nazw Twoich kont.
+- **Menu tylko z pasującymi danymi** – pozycje wypełniania w menu 🏦 pojawiają się tylko wtedy, gdy baza ma dane dla otwartej strony.
+- **Bezpieczne wypełnianie** – pełne hasło nigdy nie trafia do pól po jednym znaku (tam idą tylko wybrane znaki), a dane karty wpisywane są wyłącznie w widoczne pola – ukryte pola strony nic nie dostaną.
 
 ### 14.23 Szukaj w mojej bazie
 - **Gdzie:** menu 🏦 → „Szukaj w mojej bazie…”.
@@ -858,6 +868,7 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 
 ### 14.43 Ustawienia trybu bankowego
 - **Gdzie:** menu 🏦 → „Ustawienia trybu bankowego…”: nowe hasło (puste = bez zmiany), dodawanie i usuwanie kluczy („Usuń zaznaczoną”, „Usuń wszystkie klucze”), czas blokady.
+- **Wpisuj dane z bazy samo** – na stronie z bazy (jedno pasujące konto) login, hasło i wybrane znaki wpisują się same; wyłączone = wszystko po kliknięciu. Karta płatnicza – zawsze po kliknięciu.
 
 ### 14.44 Zapomniane hasło
 - **Gdzie:** okno logowania trybu → „Zapomniałem hasła – wyczyść tryb bankowy…”.
@@ -1255,6 +1266,9 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 
 ### 25.24 Zapis ustawień
 - **Co robi:** „Zapisz” zapisuje i od razu stosuje ustawienia we wszystkich kartach. Zmiana języka lub folderu śmieci działa po ponownym uruchomieniu (Velivo o tym informuje).
+
+### 25.25 Torrenty
+- **Gdzie:** Ustawienia → sekcja „Torrenty”: włączanie (domyślnie wyłączone), folder strefy, prędkość pobierania i wysyłania, udostępnianie po pobraniu (współczynnik i czas), liczba uczestników. Opis – 8.19.
 
 # 26. Wydajność
 
@@ -1673,6 +1687,7 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **25.16** Nie gub dźwięku
 - **25.17** Zostań w zasobniku
 - **25.24** Zapis ustawień
+- **25.25** Torrenty
 
 ## 26. Wydajność
 

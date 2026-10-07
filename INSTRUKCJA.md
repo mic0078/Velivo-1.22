@@ -478,6 +478,8 @@ Przytrzymaj **prawy przycisk**, przesuń myszkę o ok. 3 cm i puść:
 
 Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawienia → Wyszukiwanie i start.
 
+**Przypięta karta** nie zamyka się gestem ↓ (tak samo jak krzyżykiem). Skręt w geście ↓ potem → liczy się już od ok. 15 px, więc „Odśwież” nie zamienia się przypadkiem w zamknięcie karty.
+
 ### Kółko myszy na przyciskach
 
 | Gdzie | Działanie |
@@ -650,6 +652,9 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - **🔊 na pasku** albo Ctrl+Shift+U czyta główną treść strony. Czytany akapit jest podświetlony i przewijany na środek ekranu.
 - **Prawy przycisk → 🔊 Czytaj od tego miejsca** czyta od klikniętego zdania. Klik w inne miejsce przeskakuje tam.
 - **Zaznacz tekst → Czytaj zaznaczenie na głos** czyta tylko fragment.
+- **Treść jak w Czytniku:** czytanie i Czytnik korzystają z tego samego wykrywania artykułu – czytany jest sam artykuł, bez bocznych kolumn i dodatków.
+- **Głos wg języka akapitu:** w tekście mieszanym każdy akapit czytany jest głosem w swoim języku (polski / angielski).
+- **Reaguje na zmiany:** zmiana głosu lub prędkości w Ustawieniach działa od razu; gdy strona przejdzie do innego artykułu, czytanie się zatrzymuje.
 - Podczas czytania na pasku są pauza, stop i prędkość (0,75×–2×), a w ustawieniach jest głośność.
 - **Głosy:**
   - polskie i angielskie głosy Windows;
@@ -671,6 +676,7 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - Wpisujesz słowa, które pamiętasz z treści, na przykład „bateria laptop 6 godzin”. Wielkość liter i polskie znaki nie mają znaczenia.
 - Wyniki pokazują tytuł, stronę, datę i fragment z szukanymi słowami. Dwuklik otwiera stronę.
 - **Pomijane:** karty prywatne, banki, płatności, poczta, logowania, gov.pl, ZUS i każda strona z polem hasła.
+- Zapisywana jest tylko **główna treść** strony (bez menu i reklam); **strony wyników wyszukiwarek** nie są zapisywane.
 - **Gdzie to otworzyć:** prawy przycisk na stronie, przycisk w oknie Historii albo Narzędzia Velivo.
 - Wyczyszczenie historii czyści także tę pamięć. Funkcję wyłączysz w ustawieniach.
 
@@ -709,6 +715,7 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
   - jasny;
   - **ciemny** – strony przyciemnione, a zdjęcia zostają w prawdziwych kolorach;
   - **nocny** – ciepłe kolory i mniej niebieskiego światła, **natężenie kółkiem myszy**.
+- **Każda strona ma swój tryb** – jedna jasna, inna ciemna, inna nocna; Velivo pamięta to osobno dla każdej strony. W trybie ciemnym strona wchodzi bez białego błysku (ciemne tło przed narysowaniem, ciemna mgła efektu wejścia).
 - **Powiększenie** zapamiętywane dla każdej strony, zmieniane kółkiem na przycisku procentów albo Ctrl+kółkiem.
 - **Wersja telefonu** dla wybranej strony (prawy przycisk), zapamiętywana.
 - **Język:** polski albo angielski (Ustawienia → Wygląd → Język).
@@ -766,6 +773,9 @@ Tryb bankowy to osobny, odizolowany profil przeglądarki na banki, płatności i
 - **🔒 Pełna izolacja** – tryb bankowy używa tylko własnej zaszyfrowanej bazy: zwykłe hasła i autouzupełnianie przeglądarki nie są w nim podpowiadane ani zapisywane, a dane z bazy trafiają wyłącznie do kart bankowych (bez dodatków).
 - **🛡 Strażnik przelewu** – wklejony lub wpisany numer rachunku Velivo sprawdza (suma kontrolna IBAN / NRB) i porównuje z Twoimi Rachunkami bankowymi: literówka, numer podmieniony w schowku przez wirusa albo obcy odbiorca widać od razu.
 - **💸 Przelew z bazy** – na formularzu przelewu Velivo wpisuje odbiorcę, numer rachunku (NRB / IBAN / sort code + 8 cyfr), tytuł, a kwotę i numer klienta z Rachunku do opłacenia o tej samej nazwie. Zatwierdzasz zawsze sam.
+- **💬 Propozycja pod polem** – klikasz w login, hasło, wybrane znaki, numer karty albo numer konta odbiorcy: gdy baza ma pasujące dane dla tej strony, tuż pod polem pojawia się wybór (jedno kliknięcie wypełnia); nic nie pasuje – nic się nie pokazuje. Strona nie widzi nazw Twoich kont.
+- **Menu tylko z pasującymi danymi** – pozycje wypełniania w menu 🏦 pojawiają się tylko wtedy, gdy baza ma dane dla otwartej strony.
+- **Bezpieczne wypełnianie** – pełne hasło nigdy nie trafia do pól po jednym znaku (tam idą tylko wybrane znaki), a dane karty wpisywane są wyłącznie w widoczne pola – ukryte pola strony nic nie dostaną.
 
 **Karty, notatki i wyszukiwarka**
 
@@ -1018,6 +1028,9 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 - **Głośniki Velivo** – wybierz konkretne wyjście dźwięku zamiast domyślnego Windows. **Nie gub dźwięku** – gdy program muzyczny (Ableton, Cubase) zajmie głośniki, Velivo gra na innym aktywnym wyjściu i wraca, gdy się zwolnią. **🔊 Mikser głośności Windows…** – przypięcie Velivo do głośników na stałe.
 - **Po zamknięciu okna zostań w zasobniku** – synchronizacja w tle i natychmiastowy start; ikonka przy zegarze pulsuje podczas synchronizacji, prawy klik: Otwórz, Synchronizuj teraz, Zamknij całkowicie.
 - **Połączeń na jeden pobierany plik** – od 1 (bez dzielenia) do 16; więcej = zwykle szybciej.
+
+### Torrenty
+- **Pobieraj torrenty (magnet i .torrent) w Velivo** – domyślnie wyłączone; **Folder strefy torrentów** (Wybierz… / Domyślny), **Prędkość pobierania** i **wysyłania**, **Udostępniaj po pobraniu** (współczynnik, 0 = wcale) i **jak długo**, **Najwięcej uczestników**. Szczegóły w rozdziale 8.
 
 ### Śmieci przeglądarki (pamięć podręczna)
 - Cache stron, skompilowane skrypty i cache grafiki – można je usuwać bez utraty logowań. **Folder na śmieci** (np. na RAM dysku – zob. rozdział 19), **Domyślny**, **Usuwaj śmieci przy każdym uruchomieniu**, **Teraz zajmują: …**, **Wyczyść śmieci teraz**.

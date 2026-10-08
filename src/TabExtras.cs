@@ -119,7 +119,7 @@ namespace Przegladarka
             root.SubmenuOpened += (s, e) =>
             {
                 if (e.OriginalSource != root) return;
-                root.Items.Clear();
+                var stare = root.Items.Cast<object>().ToList();   // stare pozycje usuwamy na koncu - pusta lista zamyka podmenu (WPF)
                 var save = new MenuItem { Header = L.T("Zapisz otwarte karty jako zestaw…") };
                 save.Click += (a, b) =>
                 {
@@ -157,6 +157,7 @@ namespace Przegladarka
                     set.Items.Add(open); set.Items.Add(update); set.Items.Add(new Separator()); set.Items.Add(del);
                     root.Items.Add(set);
                 }
+                foreach (var o in stare) root.Items.Remove(o);
             };
             return root;
         }
@@ -282,7 +283,7 @@ namespace Przegladarka
             root.SubmenuOpened += (s, e) =>
             {
                 if (e.OriginalSource != root) return;
-                root.Items.Clear();
+                var stare = root.Items.Cast<object>().ToList();   // stare pozycje usuwamy na koncu - pusta lista zamyka podmenu (WPF)
                 var fresh = new MenuItem { Header = L.T("Nowa grupa…") };
                 fresh.Click += (a, b) =>
                 {
@@ -307,6 +308,7 @@ namespace Przegladarka
                     leave.Click += (a, b) => RemoveTabFromGroup(tab);
                     root.Items.Add(leave);
                 }
+                foreach (var o in stare) root.Items.Remove(o);
             };
             return root;
         }

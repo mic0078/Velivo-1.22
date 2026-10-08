@@ -179,7 +179,7 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | uBlock Origin Lite wbudowany | + cotygodniowa aktualizacja z GitHub z SHA-256 | Ubol.cs | ✔ | ✔ | ✔ |
 | Tarcza: licznik i lista zablokowanych | Velivo + uBOL bez dubli | Ubol.cs 100 | ✔ | ✔ | – |
 | Włącz / wyłącz AdBlock | | Lang/okno | ✔ | ✔ | – |
-| Ochrona przed śledzeniem: zrównoważona / ścisła | poziom silnika Edge wg aktywnej strony | PrivacyAndProfiles.cs 257 | ✔ | ✔ | ✔ |
+| Ochrona przed śledzeniem: zrównoważona / ścisła / wyłączona | poziom silnika Edge wg aktywnej strony | PrivacyAndProfiles.cs 257 | ✔ | ✔ | ✔ |
 | Reguły dla domen | blokuj JavaScript, bez cookies, wymuś trackery, czyść dane po wejściu | PrivacyAndProfiles.cs | ✔ | ✔ | ✔ |
 | Zaufane domeny | | PrivacyAndProfiles.cs | ✔ | ✔ | – |
 | Dziennik „Co zablokowano i dlaczego” | godzina, domena, powód, pełny adres | PrivacyAndProfiles.cs | ✔ | ✔ | – |
@@ -438,13 +438,14 @@ Kliknij prawym przyciskiem w dowolnym miejscu strony.
 | Przywróć zablokowane elementy | Gdy coś zablokowano ręcznie | Cofa blokady na tej stronie |
 | 🍪 (Nie) odrzucaj banerów ciasteczek | Zawsze | Wyjątek od automatycznego odrzucania dla tej strony |
 | 📱 / 🖥 Wersja telefonu / komputerowa | Zawsze | Przełącza i zapamiętuje dla tej strony |
+| Tryb strony: ☀ Jasny / 🌙 Ciemny / 🌅 Nocny | Zawsze | Wybór trybu tej strony wprost (jak przycisk na pasku) |
 | ▣ Film na wierzchu · ⬇ Pobierz film · ⧉ Obraz w obrazie | Na filmie albo na YouTube | Patrz [rozdział 8](#8-filmy-film-na-wierzchu-obraz-w-obrazie-pobieranie) |
 | Tryb czytania i streszczenie | Zawsze | Czysty tekst artykułu |
 | Czytaj stronę na głos (Ctrl+Shift+U) | Zawsze | Czyta główną treść |
 | 🔊 Czytaj od tego miejsca | Gdy nic nie jest zaznaczone | Czyta od zdania, które kliknąłeś |
 | 🧠 Gdzie ja to czytałem? | Zawsze | Szukanie w treści przeczytanych stron |
 | Zrzut ekranu | Zawsze | Widoczna część albo cała strona |
-| Narzędzia Velivo | Zawsze | Prywatność, media, pobrane, historia, dodatki, diagnostyka sieci, profile, obraz w obrazie, szukanie w kartach |
+| Narzędzia Velivo | Zawsze | 📂 Otwórz plik z dysku (film / PDF), 🕶 ta strona w karcie prywatnej, 🏦 ta strona w trybie bankowym, prywatność, media, pobrane, historia, dodatki, diagnostyka sieci, profile, ⚙ Ustawienia, obraz w obrazie, szukanie w kartach |
 | Dodaj do Szybkiego Dostępu | Zawsze | Skrót do wybranej grupy |
 
 ### Na karcie
@@ -511,6 +512,9 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 - **Wyciszanie:** na karcie, która gra, pojawia się 🔊. Kliknięcie wycisza (🔇).
 - **Automatyczne odświeżanie:** prawy przycisk → Odświeżaj automatycznie. Karta ma wtedy znaczek ⟳.
 - **Szukanie w kartach:** Ctrl+Shift+A, wpisz kilka liter, Enter przełącza.
+- **Prawy przycisk na „+” albo na pustym miejscu paska kart:** nowa karta, nowa karta prywatna, przywróć zamkniętą kartę, **Zestawy kart** (otwórz zapisany / zapisz obecne), **Grupy kart** (rozwiń / zwiń), szukaj w kartach.
+- **◫ Podział ekranu:** prawy przycisk na karcie → „Pokaż obok (podziel ekran)” – dwie karty obok siebie, środkowy pasek przesuwasz myszką; kliknięcie w stronę obok robi ją aktywną. Wyjście: „Zamknij podział ekranu” albo zamknięcie jednej z kart.
+- **💤 Usypianie nieużywanych kart** (Ustawienia → Karty, domyślnie wyłączone): karta, której dawno nie oglądasz, zasypia – mniej pamięci i procesora; budzi się po kliknięciu. Nie zasypia oglądana, przypięta ani grająca.
 - **Karty prywatne (🕶):** nic nie zapisują, nie synchronizują się i nie trafiają do historii.
 - **Po ponownym uruchomieniu** karty, grupy i przypięte wracają. Wyłączysz to w ustawieniach.
 
@@ -552,7 +556,10 @@ Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy 
 
 | Co | Jak |
 | --- | --- |
-| Pauza / wznowienie | klik na film |
+| Pauza / wznowienie | klik na film, ▶/❚❚ na pasku albo spacja |
+| Przewijanie | ◀◀ / ▶▶ (10 s), pasek czasu, strzałki ← →, kółko nad paskiem czasu (5 s) |
+| Głośność | 🔊 wycisz, suwak, strzałki ↑ ↓, kółko nad suwakiem, M |
+| Pełny ekran | ⛶ na pasku, F albo dwuklik na filmie; Esc – wyjście |
 | Przezroczystość 15–100% | kółko myszy nad okienkiem |
 | Przesuwanie | ciemny pasek u góry |
 | Wielkość (od 160×90) | krawędź lub róg |
@@ -564,7 +571,7 @@ Przezroczystość wymaga Windows 10 w wersji 1809 lub nowszej, bo okienko używa
 
 ### 🎬 Odtwarzacz filmów z dysku (offline)
 
-- **Otwieranie:** dwuklik na pliku wideo w Windows (instalator dodaje Velivo do „Otwórz za pomocą” dla MP4, WebM, MKV, MOV, M4V, OGV; na stałe – w „Aplikacjach domyślnych” przy Velivo), **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **🎬 Otwórz film z dysku**.
+- **Otwieranie:** dwuklik na pliku wideo w Windows (instalator dodaje Velivo do „Otwórz za pomocą” dla MP4, WebM, MKV, MOV, M4V, OGV; na stałe – w „Aplikacjach domyślnych” przy Velivo), **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **📂 Otwórz plik z dysku**.
 - Film otwiera się w karcie na całe okno, bez internetu. Na filmie działają **⧉ Obraz w obrazie** i **▣ Film na wierzchu** (okienko zawsze na wierzchu, przezroczystość kółkiem).
 - **Sterowanie:** pasek odtwarzacza (start/pauza, przewijanie, głośność, pełny ekran) oraz skróty: spacja albo klik – pauza, ← → – 5 s, ↑ ↓ – głośność, **F** – pełny ekran, **M** – wycisz.
 - **Gdy Velivo nie ma na liście „Otwórz za pomocą”:** uruchom Velivo raz (samo dopisuje się do Windows) albo użyj przycisku **Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”**.
@@ -610,6 +617,7 @@ Włączasz je w **Ustawienia → Torrenty** (domyślnie wyłączone). Wtedy:
 - w ustawieniach: folder strefy, prędkość pobierania i wysyłania, udostępnianie po pobraniu (do jakiego współczynnika, jak długo), liczba uczestników;
 - **przyciski w oknie Pobrane:** w trakcie „Zatrzymaj”; po pobraniu, gdy trwa udostępnianie – „Otwórz folder” i „Zakończ udostępnianie”; na końcu „Pokaż w folderze” (zaznacza pobrany plik), „Usuń plik” (kasuje z dysku pobrany plik albo folder torrenta, po potwierdzeniu) i „Usuń z listy” (plik zostaje);
 - **przerwane pobieranie:** po zatrzymaniu albo błędzie Velivo pyta, czy usunąć z dysku częściowo pobrane pliki;
+- **strona nie uruchomi torrenta sama:** link magnet bez Twojego kliknięcia albo podsunięty plik `.torrent` – Velivo najpierw pyta; w trybie bankowym torrenty nigdy się nie uruchamiają; aria2 nie czyta obcych plików ustawień i trzyma swoje dane tylko w folderze Velivo;
 - postęp widać w oknie Pobrane; gdy Velivo działa w zasobniku (Ustawienia → „Po zamknięciu okna zostań w zasobniku”), **torrenty pobierają się dalej po zamknięciu okna**; dopiero „Zamknij całkowicie” (prawy przycisk na ikonce przy zegarze) je zatrzymuje; w trybie bankowym torrenty nie działają.
 
 **Uwaga:** w torrentach Twój adres IP widzą inni uczestnicy wymiany – dla anonimowości użyj VPN. Udostępniaj tylko materiały, do których masz prawo.
@@ -623,7 +631,7 @@ Włączasz je w **Ustawienia → Torrenty** (domyślnie wyłączone). Wtedy:
 | **Blokowanie reklam i trackerów** | EasyList, EasyPrivacy i lista polska, ok. 95 tys. reguł. Działa przed pobraniem, więc strony są lżejsze |
 | **Ręczne blokowanie elementów** | Prawy przycisk → 🚫 Blokuj element. Kółko myszy powiększa obszar, klik blokuje, Esc anuluje |
 | **🍪 Banery ciasteczek (RODO)** | Velivo samo klika „Odrzuć” albo „Tylko niezbędne”. **Nigdy nie klika „Akceptuj”.** Gdy baner nie ma przycisku odrzucenia, nic nie jest klikane |
-| **Ochrona przed śledzeniem** | Zrównoważona (domyślna) albo ścisła. Na zaufanych stronach ścisła działa jak zrównoważona, chyba że zaznaczysz „Wymuś blokowanie trackerów” |
+| **Ochrona przed śledzeniem** | Zrównoważona (domyślna), ścisła albo wyłączona (bez kontrolowania – dla tych, którzy wolą). Na zaufanych stronach ścisła działa jak zrównoważona, chyba że zaznaczysz „Wymuś blokowanie trackerów” |
 | **Reguły dla domen** (przycisk Prywatność) | Blokada JavaScriptu, ciasteczek, wymuszone blokowanie trackerów, automatyczne czyszczenie danych, zaufana domena |
 | **🛡 Tarcza** | Licznik i lista wszystkiego, co zablokowano: AdBlock, reguły, JavaScript, ręcznie ukryte elementy, banery ciasteczek |
 | **🧾 Paragon prywatności** | Na górze okna tarczy: ile zewnętrznych firm, w ilu krajach, brokerzy danych, próby rozpoznania komputera (canvas, karta graficzna, dźwięk) i najczęstsze firmy |
@@ -782,6 +790,7 @@ Tryb bankowy to osobny, odizolowany profil przeglądarki na banki, płatności i
 - **🔢 Wpisz wybrane znaki** – gdy bank prosi np. o 2., 5. i 9. znak (RBS, NatWest, Bank of Scotland, TSB, Lloyds, Halifax), Velivo samo odczytuje numery i wpisuje właściwe znaki, także w listach wyboru. Gdy na jakiejś stronie się nie uda, **🧪 Skopiuj opis formularza** kopiuje sam opis pól (bez Twoich danych) do zgłoszenia.
 - **🔗 Dane skojarzone ze stroną** – na stronie z Twojej bazy login, hasło i wybrane znaki wpisują się same (gdy pasuje jedno konto; formularza Velivo nie wysyła). Kilka kont (np. prywatne i firmowe) – wybór jednym kliknięciem; karta płatnicza – zawsze po kliknięciu. Można wyłączyć w Ustawieniach trybu bankowego.
 - **🔒 Pełna izolacja** – tryb bankowy używa tylko własnej zaszyfrowanej bazy: zwykłe hasła i autouzupełnianie przeglądarki nie są w nim podpowiadane ani zapisywane, a dane z bazy trafiają wyłącznie do kart bankowych (bez dodatków).
+- **Dodatki (rozszerzenia)** nie mają dostępu do kart bankowych ani prywatnych – nawet otwarte z paska, gdy taka karta jest aktywna.
 - **🛡 Strażnik przelewu** – wklejony lub wpisany numer rachunku Velivo sprawdza (suma kontrolna IBAN / NRB) i porównuje z Twoimi Rachunkami bankowymi: literówka, numer podmieniony w schowku przez wirusa albo obcy odbiorca widać od razu.
 - **💸 Przelew z bazy** – na formularzu przelewu Velivo wpisuje odbiorcę, numer rachunku (NRB / IBAN / sort code + 8 cyfr), tytuł, a kwotę i numer klienta z Rachunku do opłacenia o tej samej nazwie. Zatwierdzasz zawsze sam.
 - **💬 Propozycja pod polem** – klikasz w login, hasło, wybrane znaki, numer karty albo numer konta odbiorcy: gdy baza ma pasujące dane dla tej strony, tuż pod polem pojawia się wybór (jedno kliknięcie wypełnia); nic nie pasuje – nic się nie pokazuje. Strona nie widzi nazw Twoich kont.
@@ -950,7 +959,7 @@ Jeśli masz RAM dysk (na przykład ImDisk, SoftPerfect RAM Disk albo własne nar
 | Ctrl+Tab / Ctrl+Shift+Tab | Następna / poprzednia karta |
 | Ctrl+Shift+A | Szukaj w kartach |
 | Ctrl+Shift+F | 🧠 Gdzie ja to czytałem? |
-| Ctrl+O | 🎬 Otwórz film z dysku |
+| Ctrl+O | 📂 Otwórz plik z dysku – film (odtwarzacz) albo PDF |
 | Ctrl+L | Pasek adresu |
 | Ctrl+D | Zakładka |
 | Ctrl+H | Historia |
@@ -1003,6 +1012,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 ### Karty
 - **Po uruchomieniu przywracaj karty z poprzedniej sesji** – karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T.
 - **Otwieraj linki w tej samej karcie** – linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej (działa Wstecz i Dalej). Ctrl+klik nadal otwiera nową kartę.
+- **Usypiaj nieużywane karty** – wyłączone (domyślnie), po 15 / 30 min, po 1 / 2 h.
 
 ### Wyszukiwanie i start
 - **Skróty wyszukiwania** – np. „yt koty” szuka na YouTube; własne skróty dodajesz w okienku.
@@ -1015,7 +1025,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 
 ### Prywatność
 - **Wysyłaj sygnały „Nie śledź”** (DNT i Global Privacy Control).
-- **Ochrona przed śledzeniem** – **zrównoważona** (zalecana: blokuje znane trackery, osadzone treści jak wpisy z X czy filmy działają) albo **ścisła** (blokuje też osadzone treści serwisów społecznościowych; na zaufanych domenach działa jak zrównoważona, chyba że dla domeny zaznaczysz „Wymuś blokowanie trackerów”).
+- **Ochrona przed śledzeniem** – **zrównoważona** (zalecana: blokuje znane trackery, osadzone treści jak wpisy z X czy filmy działają) albo **ścisła** (blokuje też osadzone treści serwisów społecznościowych; na zaufanych domenach działa jak zrównoważona, chyba że dla domeny zaznaczysz „Wymuś blokowanie trackerów”) albo **wyłączona – bez kontrolowania** (silnik nie blokuje trackerów; uBlock Origin Lite i reguły dla stron działają dalej, jeśli są włączone).
 - **Zapisuj historię przeglądania**.
 - **Czyść dane przy zamknięciu** – historia i pamięć podręczna; konta zostają zalogowane.
 - **Loginy z Sejfu: kluczyk na pasku na stronach logowania** – kliknięcie kluczyka wypełnia formularz loginem z Sejfu.

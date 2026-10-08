@@ -161,6 +161,37 @@ namespace Przegladarka
         }
 
         // Prawy klik na karcie.
+        // prawy przycisk na pustym miejscu paska kart: nowe karty i to, co zapisane wczesniej (zamkniete karty, zestawy)
+        ContextMenu BuildTabStripMenu()
+        {
+            var menu = new ContextMenu();
+            var add = new MenuItem { Header = L.T("Nowa karta (Ctrl+T)") }; add.Click += (s, e) => AddTab(NewTabUrl);
+            var priv = new MenuItem { Header = L.T("Nowa karta prywatna (Ctrl+Shift+N)") }; priv.Click += (s, e) => AddTab(HomeUrl, true);
+            var reopen = new MenuItem { Header = L.T("Przywróć zamkniętą kartę (Ctrl+Shift+T)") }; reopen.Click += (s, e) => ReopenClosedTab();
+            var sets = BuildTabSetsMenu();
+            var find = new MenuItem { Header = L.T("Szukaj w kartach (Ctrl+Shift+A)") }; find.Click += (s, e) => ShowTabSearch();
+            var groups = new MenuItem { Header = L.T("Grupy kart") };
+            menu.Opened += (s, e) =>
+            {
+                reopen.IsEnabled = _closedTabs.Count > 0;
+                // grupy: klikniecie rozwija albo zwija grupe (lista budowana przy otwarciu menu, zanim podmenu sie otworzy)
+                groups.Items.Clear();
+                foreach (var g0 in _groups)
+                {
+                    var g = g0;
+                    int n = _tabs.Count(t => t.Group == g);
+                    var it = new MenuItem { Header = new TextBlock { Text = "●  " + g.Name + "  (" + n + ")  " + (g.Collapsed ? L.T("– rozwiń") : L.T("– zwiń")), Foreground = new System.Windows.Media.SolidColorBrush(g.Color) } };
+                    it.Click += (a, b) => { g.Collapsed = !g.Collapsed; RefreshGroupsUi(); SaveSessionSoon(); };
+                    groups.Items.Add(it);
+                }
+                if (groups.Items.Count == 0) groups.Items.Add(new MenuItem { Header = L.T("Brak grup – prawy przycisk na karcie → Dodaj do grupy"), IsEnabled = false });
+                var icons = new Dictionary<MenuItem, string> { { add, "\uE710" }, { priv, "\uE727" }, { reopen, "\uE7A7" }, { sets, "\uE8F1" }, { groups, "\uE8EC" }, { find, "\uE721" } };
+                foreach (var kv in icons) kv.Key.Icon = Modern ? MenuGlyph(kv.Value) : null;
+            };
+            foreach (var m in new object[] { add, priv, new Separator(), reopen, sets, groups, new Separator(), find }) menu.Items.Add(m);
+            return menu;
+        }
+
         ContextMenu BuildTabMenu(BrowserTab tab)
         {
             var menu = new ContextMenu();
@@ -182,6 +213,7 @@ namespace Przegladarka
             var sets = BuildTabSetsMenu();
             var find = new MenuItem { Header = L.T("Szukaj w kartach (Ctrl+Shift+A)") }; find.Click += (s, e) => ShowTabSearch();
             var sendTo = BuildSendTabMenu(tab);
+            var split = new MenuItem(); split.Click += (s, e) => { if (_splitTab != null && IsOnScreen(tab)) CloseSplit(); else ShowSideBySide(tab); };
             menu.Opened += (s, e) =>
             {
                 reopen.IsEnabled = _closedTabs.Count > 0; others.IsEnabled = _tabs.Count > 1; right.IsEnabled = _tabs.IndexOf(tab) < _tabs.Count - 1;
@@ -190,13 +222,15 @@ namespace Przegladarka
                 bool muted = false; try { muted = tab.View.CoreWebView2 != null && tab.View.CoreWebView2.IsMuted; } catch (Exception) { }
                 mute.Header = muted ? L.T("Włącz dźwięk karty") : L.T("Wycisz kartę");
                 group.IsEnabled = !tab.Pinned;
+                split.Header = _splitTab != null && IsOnScreen(tab) ? L.T("◫ Zamknij podział ekranu") : L.T("◫ Pokaż obok (podziel ekran)");
+                split.IsEnabled = tab != _current || _splitTab != null;
                 // nowoczesny wyglad: ikony Windows 11 zamiast emoji
                 var icons = new Dictionary<MenuItem, string> { { reload, "\uE72C" }, { dup, "\uE8C8" }, { pin, "\uE718" }, { mute, muted ? "\uE767" : "\uE74F" },
-                    { refresh, "\uE895" }, { sendTo, "\uE8A7" }, { group, "\uE8EC" }, { sets, "\uE8F1" }, { find, "\uE721" }, { close, "\uE711" }, { reopen, "\uE7A7" } };
+                    { refresh, "\uE895" }, { sendTo, "\uE8A7" }, { group, "\uE8EC" }, { sets, "\uE8F1" }, { find, "\uE721" }, { split, "\uE89F" }, { close, "\uE711" }, { reopen, "\uE7A7" } };
                 foreach (var kv in icons) kv.Key.Icon = Modern ? MenuGlyph(kv.Value) : null;
                 sendTo.Header = MenuText(L.T("📺 Wyślij do…"));
             };
-            foreach (var m in new object[] { reload, dup, priv, pin, mute, refresh, sendTo, new Separator(), group, sets, find, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
+            foreach (var m in new object[] { reload, dup, priv, pin, mute, refresh, sendTo, split, new Separator(), group, sets, find, new Separator(), close, others, right, new Separator(), reopen }) menu.Items.Add(m);
             return menu;
         }
     }

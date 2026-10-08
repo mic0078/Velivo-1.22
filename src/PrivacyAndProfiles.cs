@@ -255,7 +255,7 @@ namespace Przegladarka
         }
 
         // Poziom ochrony silnika Edge jest wspolny dla wszystkich kart - ustawiamy go wg aktywnej strony:
-        // wymuszone trackery -> scisla; zaufana domena -> zrownowazona; reszta -> wg ustawien.
+        // wymuszone trackery -> scisla; zaufana domena -> najwyzej zrownowazona; reszta -> wg ustawien (takze "wylaczona").
         void UpdateTrackingLevel(string url)
         {
             try
@@ -263,10 +263,10 @@ namespace Przegladarka
                 var core = _current != null ? _current.View.CoreWebView2 : null;
                 if (core == null) return;
                 var r = RuleForUrl(url);
-                bool strict = r != null && r.StrictTrackers ? true
-                    : (r != null && r.Trusted) || IsQuickAccessUrl(url) ? false
-                    : _settings.StrictTracking;
-                var level = strict ? CoreWebView2TrackingPreventionLevel.Strict : CoreWebView2TrackingPreventionLevel.Balanced;
+                var mode = r != null && r.StrictTrackers ? "strict"
+                    : ((r != null && r.Trusted) || IsQuickAccessUrl(url)) && _settings.Tracking == "strict" ? "balanced"
+                    : _settings.Tracking;
+                var level = mode == "strict" ? CoreWebView2TrackingPreventionLevel.Strict : mode == "none" ? CoreWebView2TrackingPreventionLevel.None : CoreWebView2TrackingPreventionLevel.Balanced;
                 if (core.Profile.PreferredTrackingPreventionLevel != level) core.Profile.PreferredTrackingPreventionLevel = level;
             }
             catch (Exception) { }

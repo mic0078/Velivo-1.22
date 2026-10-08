@@ -165,7 +165,7 @@ Velivo jest projektowane tak, żeby dało się je w pełni obsłużyć samą mys
 | Ctrl+H | historia |
 | Ctrl+J | pobrane pliki |
 | Ctrl+Shift+F | „Gdzie ja to czytałem?” |
-| Ctrl+O | otwórz film z dysku (odtwarzacz) |
+| Ctrl+O | otwórz plik z dysku – film (odtwarzacz) albo PDF |
 | Ctrl+Shift+U | czytaj stronę na głos / pauza / wznów |
 | Alt+← / Alt+→ | wstecz / dalej |
 | F5 | odśwież |
@@ -213,6 +213,17 @@ Velivo jest projektowane tak, żeby dało się je w pełni obsłużyć samą mys
 
 ### 4.10 Szukanie w kartach
 - **Jak używać:** Ctrl+Shift+A (albo Narzędzia Velivo → Szukaj w kartach) → wpisz fragment tytułu lub adresu → strzałki i Enter. Esc zamyka.
+
+### 4.10c Menu pustego paska kart i przycisku „+”
+- **Jak używać:** prawy przycisk na „+” albo na pustym miejscu paska kart.
+- **Co robi:** nowa karta, nowa karta prywatna, przywróć zamkniętą kartę, Zestawy kart (otwórz zapisany, zapisz obecne), Grupy kart (rozwiń / zwiń), szukaj w kartach. Zwykłe kliknięcie „+” od razu otwiera nową kartę.
+
+### 4.10a Podział ekranu (dwie karty obok siebie)
+- **Jak używać:** prawy przycisk na karcie → „◫ Pokaż obok (podziel ekran)”; środkowy pasek przesuwasz myszką, kliknięcie w stronę obok robi ją aktywną. Wyjście: „Zamknij podział ekranu” albo zamknięcie jednej z kart.
+
+### 4.10b Usypianie nieużywanych kart
+- **Gdzie:** Ustawienia → Karty → „Usypiaj nieużywane karty” (domyślnie wyłączone; 15 / 30 min, 1 / 2 h).
+- **Co robi:** karta, której dawno nie oglądasz, zasypia (mniej pamięci i procesora) i budzi się po kliknięciu. Nie zasypia oglądana, przypięta ani grająca (muzyka, film, czytanie na głos).
 
 ### 4.11 Wyciszanie karty
 - **Jak używać:** menu karty → „Wycisz kartę” / „Włącz dźwięk karty”.
@@ -358,8 +369,10 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 ### 7.7 Pauza i wznowienie
 - **Jak używać:** kliknij w film.
 
-### 7.8 Przewijanie filmu w okienku
-- **Co robi:** na dole okienka jest pasek przewijania – pojawia się po najechaniu.
+### 7.8 Kompaktowy odtwarzacz w okienku (przewijanie, głośność, pełny ekran)
+- **Co robi:** po najechaniu myszką na dole okienka pojawia się pasek: ▶/❚❚ pauza, ◀◀ 10 s wstecz, ▶▶ 10 s do przodu, pasek czasu (klik / przeciąganie, kółko nad nim ±5 s), 🔊 wycisz, suwak głośności (kółko nad nim ±5%) i ⛶ pełny ekran. Działa tak samo dla YouTube, innych stron i filmów z dysku.
+- **Klawiatura** (po kliknięciu w okienko): spacja – pauza, ← → – 10 s, ↑ ↓ – głośność, M – wycisz, F – pełny ekran, Esc – wyjście z pełnego ekranu. Dwuklik na filmie – pełny ekran.
+- **Małe okienko:** pasek sam się upraszcza – najpierw chowa suwak głośności i czas, w najmniejszym także ±10 s.
 
 ### 7.9 Powrót do strony (↩)
 - **Jak używać:** kliknij ↩ na pasku okienka.
@@ -392,10 +405,11 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - Menu karty → „Wycisz kartę” (4.11).
 
 ### 7.16 Odtwarzacz filmów z dysku (offline)
-- **Gdzie:** dwuklik na pliku wideo (MP4, WebM, MKV, MOV, M4V, OGV – instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „🎬 Otwórz film z dysku”.
+- **Gdzie:** dwuklik na pliku wideo (MP4, WebM, MKV, MOV, M4V, OGV – instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „📂 Otwórz plik z dysku”.
 - **Co robi:** film w karcie na całe okno, bez internetu; działają ⧉ Obraz w obrazie i ▣ Film na wierzchu.
 - **Sterowanie:** pasek odtwarzacza; spacja / klik – pauza, ← → – 5 s, ↑ ↓ – głośność, F – pełny ekran, M – wycisz.
 - **Ustawienia:** sekcja „Odtwarzacz filmów” (25.26) – otwieranie w Velivo, odtwarzanie od razu, wznawianie od miejsca (tylko ten komputer), powtarzanie.
+- **Prywatność:** miejsce w filmie zapisywane pod zaszyfrowanym kluczem (SHA-256 z losową solą Velivo) – inne pliki HTML z dysku nie odczytają, jakie filmy oglądasz.
 - **Ograniczenia:** najpewniej MP4 (H.264) i WebM; nieobsługiwany kodek (np. HEVC/H.265) – komunikat.
 
 # 8. Pobieranie plików, filmów i muzyki
@@ -481,6 +495,7 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Ustawienia:** prędkość pobierania i wysyłania, udostępnianie po pobraniu (do jakiego współczynnika i jak długo – 0 = bez udostępniania), liczba uczestników.
 - **Przyciski w oknie Pobrane:** w trakcie – „Zatrzymaj”; po pobraniu, gdy trwa udostępnianie – „Otwórz folder” i „Zakończ udostępnianie”; na końcu – „Pokaż w folderze” (zaznacza pobrany plik), „Usuń plik” (kasuje pobrany plik albo folder torrenta z dysku, po potwierdzeniu, nigdy cały folder pobierania) i „Usuń z listy” (plik zostaje na dysku).
 - **Przerwane pobieranie:** po zatrzymaniu albo błędzie Velivo pyta, czy usunąć z dysku częściowo pobrane pliki (z listą nazw). Usuwa tylko niedokończone pliki tego torrenta.
+- **Bezpieczeństwo:** strona nie uruchomi torrenta sama (magnet bez kliknięcia, podsunięty plik `.torrent` – najpierw pytanie); w trybie bankowym torrenty nigdy się nie uruchamiają; aria2 nie czyta obcych plików ustawień, a dane sieci (DHT) trzyma tylko w folderze Velivo.
 - **Po zamknięciu okna:** gdy Velivo działa w zasobniku, torrenty pobierają się dalej; zatrzymuje je dopiero „Zamknij całkowicie” (prawy klik na ikonce przy zegarze). Bez zasobnika zamknięcie Velivo zatrzymuje torrenty.
 - **Ograniczenia:** w trybie bankowym torrenty nie działają. Twój adres IP widzą inni uczestnicy wymiany – dla anonimowości użyj VPN. Udostępniaj tylko materiały, do których masz prawo.
 
@@ -637,6 +652,10 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 ### 12.2 Ochrona przed śledzeniem – ścisła
 - **Co robi:** blokuje także osadzone treści serwisów społecznościowych.
 - **Ograniczenia:** na zaufanych domenach ścisła działa jak zrównoważona, chyba że dla domeny zaznaczysz „Wymuś blokowanie trackerów”.
+
+### 12.2a Ochrona przed śledzeniem – wyłączona (bez kontrolowania)
+- **Gdzie:** Ustawienia → Prywatność → „Ochrona przed śledzeniem” → „Wyłączona – bez kontrolowania”.
+- **Co robi:** silnik nie blokuje trackerów – dla tych, którzy wolą strony bez żadnej ingerencji. uBlock Origin Lite i reguły dla stron działają dalej, jeśli są włączone. Domyślnie zostaje ochrona zrównoważona.
 
 ### 12.3 Panel prywatności i reguły domen
 - **Gdzie:** tarcza → „Panel prywatności i antyfingerprinting”; Ustawienia → Dane → „Prywatność per-strona”.

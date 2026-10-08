@@ -29,9 +29,9 @@ namespace Przegladarka
         static string PlayerFile { get { return Path.Combine(DataDir, "odtwarzacz.html"); } }
 
         // strona odtwarzacza z filmem: file:///…/odtwarzacz.html#a=1&r=1&l=0&v=file%3A%2F%2F%2F…film.mp4 (ustawienia + film na koncu)
-        internal static string PlayerUrlFor(string playerFile, string videoPath, bool autoplay, bool resume, bool loop)
+        internal static string PlayerUrlFor(string playerFile, string videoPath, bool autoplay, bool resume, bool loop, string salt)
         {
-            return new Uri(playerFile).AbsoluteUri + "#a=" + (autoplay ? 1 : 0) + "&r=" + (resume ? 1 : 0) + "&l=" + (loop ? 1 : 0)
+            return new Uri(playerFile).AbsoluteUri + "#a=" + (autoplay ? 1 : 0) + "&r=" + (resume ? 1 : 0) + "&l=" + (loop ? 1 : 0) + "&s=" + Uri.EscapeDataString(salt ?? "")
                 + "&v=" + Uri.EscapeDataString(new Uri(Path.GetFullPath(videoPath)).AbsoluteUri.Replace("#", "%23"));   // "#" w nazwie pliku to nie kotwica
         }
 
@@ -49,17 +49,25 @@ namespace Przegladarka
                 if (!File.Exists(PlayerFile) || File.ReadAllText(PlayerFile) != html) File.WriteAllText(PlayerFile, html);
             }
             catch (Exception ex) { App.LogError(ex); }
-            return PlayerUrlFor(PlayerFile, videoPath, _settings.PlayerAutoplay, _settings.PlayerResume, _settings.PlayerLoop);
+            if (string.IsNullOrEmpty(_settings.PlayerSalt))
+            {
+                _settings.PlayerSalt = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+                try { _settings.Save(DataDir); } catch (Exception) { }
+            }
+            return PlayerUrlFor(PlayerFile, videoPath, _settings.PlayerAutoplay, _settings.PlayerResume, _settings.PlayerLoop, _settings.PlayerSalt);
         }
 
-        void OpenVideoFile()
+        // Ctrl+O / menu Narzedzia Velivo: film z dysku do odtwarzacza, PDF do wbudowanego czytnika
+        void OpenLocalFile()
         {
+            var vids = string.Join(";", VideoExts.Select(x => "*" + x));
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
-                Title = L.T("Otwórz film z dysku"),
-                Filter = L.T("Filmy") + "|" + string.Join(";", VideoExts.Select(x => "*" + x)) + "|" + L.T("Wszystkie pliki") + "|*.*",
+                Title = L.T("Otwórz plik z dysku"),
+                Filter = L.T("Filmy i PDF") + "|" + vids + ";*.pdf|" + L.T("Filmy") + "|" + vids + "|PDF|*.pdf|" + L.T("Wszystkie pliki") + "|*.*",
             };
-            if (dlg.ShowDialog(this) == true) AddTab(PlayerUrl(dlg.FileName));
+            if (dlg.ShowDialog(this) != true) return;
+            AddTab(IsVideoFile(dlg.FileName) && _settings.VideoPlayer ? PlayerUrl(dlg.FileName) : new Uri(dlg.FileName).AbsoluteUri);
         }
 
         const string PlayerHtml = @"<!doctype html>
@@ -79,9 +87,15 @@ video{width:100vw;height:100vh;object-fit:contain;background:#000;display:block}
   document.title=decodeURIComponent(src.split('/').pop());
   v.loop=o.l==='1'; v.autoplay=o.a==='1'; v.src=src;
   // wznawianie: miejsce w filmie tylko w pamieci tej strony na tym komputerze; koniec filmu = od poczatku
-  var key='poz:'+src, last=0;
-  if(o.r==='1') v.addEventListener('loadedmetadata',function(){ var t=+localStorage.getItem(key)||0; if(t>5&&t<v.duration-5) v.currentTime=t; },{once:true});
-  function save(){ if(o.r!=='1') return; try{ if(v.ended||v.currentTime<5) localStorage.removeItem(key); else localStorage.setItem(key,String(Math.floor(v.currentTime))); }catch(e){} }
+  // klucz zapisu = SHA-256(sol Velivo + sciezka): inne lokalne pliki HTML (wspolna pamiec stron file://) nie odczytaja,
+  // jakie filmy ogladasz; sol zna tylko Velivo (podaje ja w adresie). Bez soli - bez zapamietywania.
+  var key=null, last=0;
+  var keyP=(o.r==='1'&&o.s&&window.crypto&&crypto.subtle)?crypto.subtle.digest('SHA-256',new TextEncoder().encode(decodeURIComponent(o.s)+'|'+src)).then(function(b){
+    key='poz:'+Array.prototype.map.call(new Uint8Array(b),function(x){ return ('0'+x.toString(16)).slice(-2); }).join(''); }).catch(function(){}) : Promise.resolve();
+  try{ Object.keys(localStorage).forEach(function(k){ if(k.indexOf('poz:file:')===0) localStorage.removeItem(k); }); }catch(e){}   // dawny zapis z jawna sciezka
+  // miejsce z adresu (&t= - powrot z okienka Na wierzchu) ma pierwszenstwo przed zapamietanym
+  v.addEventListener('loadedmetadata',function(){ keyP.then(function(){ var t=+o.t||(key?+localStorage.getItem(key)||0:0); if(t>(o.t?0:5)&&t<v.duration-1) v.currentTime=t; }); },{once:true});
+  function save(){ if(!key) return; try{ if(v.ended||v.currentTime<5) localStorage.removeItem(key); else localStorage.setItem(key,String(Math.floor(v.currentTime))); }catch(e){} }
   v.addEventListener('timeupdate',function(){ if(Math.abs(v.currentTime-last)>=5){ last=v.currentTime; save(); } });
   v.addEventListener('pause',save); v.addEventListener('ended',save); addEventListener('pagehide',save);
   v.addEventListener('error',function(){ document.getElementById('err').style.display='block'; });

@@ -463,7 +463,7 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
             root.SubmenuOpened += (s, e) =>
             {
                 if (e.OriginalSource != root) return;
-                root.Items.Clear();
+                var stare = root.Items.Cast<object>().ToList();   // stare pozycje usuwamy na koncu - pusta lista zamyka podmenu (WPF)
                 var targets = SendTargets();
                 if (_lanEncryptionKey == null || _lanLegacyNoKeyMode || !_settings.LanSync)
                     root.Items.Add(new MenuItem { Header = L.T("Włącz i sparuj synchronizację LAN w ustawieniach"), IsEnabled = false });
@@ -476,6 +476,7 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
                     it.Click += async (a, b) => await SendTabToPeer(tab, p);
                     root.Items.Add(it);
                 }
+                foreach (var o in stare) root.Items.Remove(o);
             };
             return root;
         }

@@ -17,7 +17,7 @@ namespace Przegladarka
         public string Search = "startpage";
         public string Home = "https://startpage.com";
         public bool SendDnt = true;            // naglowki DNT: 1 i Sec-GPC: 1
-        public bool StrictTracking = false;    // ochrona przed sledzeniem: false = zrownowazona (domyslna), true = scisla
+        public string Tracking = "balanced";   // ochrona przed sledzeniem: balanced (domyslna) / strict / none (bez kontrolowania)
         public bool SaveHistory = true;
         public bool ClearOnExit = false;       // przy zamknieciu: historia + cache (bez wylogowywania kont)
         public bool SavePasswords = true;
@@ -39,6 +39,7 @@ namespace Przegladarka
         public int Connections = 8;            // polaczen na jeden plik w menedzerze pobierania (1-16)
         public int DefaultZoom = 100;          // domyslne powiekszenie stron w %
         public bool DarkPages = false;         // tryb ciemny stron
+        public int SleepTabsMin = 0;          // usypiaj nieuzywane karty po tylu minutach (0 = wylaczone, domyslnie)
         public bool LinksInSameTab = true;     // linki otwierane przez strone w nowej karcie (target=_blank) -> w tej samej karcie
         public bool RestoreTabs = false;       // przywracaj karty po ponownym uruchomieniu
         public bool FullFilterLists = true;    // pelne listy AdBlocka (EasyList, EasyPrivacy, polska)
@@ -71,6 +72,7 @@ namespace Przegladarka
         public bool PlayerAutoplay = true;     // odtwarzaj od razu po otwarciu
         public bool PlayerResume = true;       // wznawiaj od miejsca, w ktorym skonczyles
         public bool PlayerLoop = false;        // powtarzaj film w kolko
+        public string PlayerSalt = "";         // losowa sol kluczy "miejsce w filmie" (tylko ten komputer)
         public bool Torrents = false;          // torrenty (magnet, .torrent) przez aria2 - wlaczane recznie
         public string TorrentDir = "";         // osobna strefa torrentow (pusty = Pobrane\Velivo-Torrenty)
         public int TorrentDownKb = 0;          // limit pobierania KB/s (0 = bez limitu)
@@ -147,7 +149,7 @@ namespace Przegladarka
                         case "search": if (Engines.ContainsKey(v)) s.Search = v; break;
                         case "home": if (v.Length > 0) s.Home = v; break;
                         case "dnt": s.SendDnt = b; break;
-                        case "tracking": s.StrictTracking = v == "strict"; break;
+                        case "tracking": if (v == "balanced" || v == "strict" || v == "none") s.Tracking = v; break;
                         case "history": s.SaveHistory = b; break;
                         case "clearOnExit": s.ClearOnExit = b; break;
                         case "passwords": s.SavePasswords = b; break;
@@ -171,6 +173,7 @@ namespace Przegladarka
                         case "dark": s.DarkPages = b; break;
                         case "restore": s.RestoreTabs = b; break;
                         case "sameTab": s.LinksInSameTab = b; break;
+                        case "sleepTabs": { int n; if (int.TryParse(v, out n) && n >= 0) s.SleepTabsMin = n; } break;
                         case "fullLists": s.FullFilterLists = b; break;
                         case "sejfLogins": s.SejfLogins = b; break;
                         case "quickAccessTab": s.QuickAccessNewTab = b; break;
@@ -197,6 +200,7 @@ namespace Przegladarka
                         case "playerAuto": s.PlayerAutoplay = b; break;
                         case "playerResume": s.PlayerResume = b; break;
                         case "playerLoop": s.PlayerLoop = b; break;
+                        case "playerSalt": s.PlayerSalt = v; break;
                         case "torrents": s.Torrents = b; break;
                         case "torrentDir": s.TorrentDir = v; break;
                         case "torrentDown": { int x; if (int.TryParse(v, out x)) s.TorrentDownKb = Math.Max(0, Math.Min(1000000, x)); } break;
@@ -266,11 +270,11 @@ namespace Przegladarka
             SaveLanSyncKey(dir, LanSyncKey);
             File.WriteAllLines(FilePath(dir), new[]
             {
-                "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + (StrictTracking ? "strict" : "balanced"),
+                "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + Tracking,
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "askedDefault=" + B(AskedDefaultBrowser), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
-                "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "playerSalt=" + (PlayerSalt ?? ""), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "sleepTabs=" + SleepTabsMin, "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
                 "toolbarCompact=" + B(ToolbarAlwaysCompact),
@@ -454,6 +458,13 @@ namespace Przegladarka
             root.Children.Add(restore);
             var sameTab = Check(L.T("Otwieraj linki w tej samej karcie"), L.T("Linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej - działa Wstecz i Dalej. Ctrl+klik dalej otwiera nową kartę. Wyłączone: jak w innych przeglądarkach."), s.LinksInSameTab);
             root.Children.Add(sameTab);
+            root.Children.Add(new TextBlock { Text = L.T("Usypiaj nieużywane karty (mniej pamięci i procesora):"), Margin = new Thickness(0, 6, 0, 2) });
+            int[] sleepOpts = { 0, 15, 30, 60, 120 };
+            var sleepBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 4),
+                ToolTip = L.T("Karta, której dawno nie oglądasz, zasypia i budzi się po kliknięciu. Nie zasypia: oglądana, przypięta ani grająca (muzyka, film, czytanie na głos).") };
+            foreach (var m in sleepOpts) sleepBox.Items.Add(m == 0 ? L.T("Wyłączone") : m < 60 ? L.T("po ") + m + " min" : L.T("po ") + (m / 60) + " h");
+            sleepBox.SelectedIndex = Math.Max(0, Array.IndexOf(sleepOpts, s.SleepTabsMin));
+            root.Children.Add(sleepBox);
 
             root.Children.Add(Header(L.T("Wyszukiwanie i start")));
             var kwBtn = SmallButton(L.T("Skróty wyszukiwania (np. „yt koty”)…"), () => EditSearchKeywords(win));
@@ -495,8 +506,9 @@ namespace Przegladarka
             var trackBox = new ComboBox { Width = 320, HorizontalAlignment = HorizontalAlignment.Left };
             trackBox.Items.Add(new ComboBoxItem { Content = L.T("Ochrona zrównoważona (zalecana)"), Tag = "balanced" });
             trackBox.Items.Add(new ComboBoxItem { Content = L.T("Ścisła ochrona"), Tag = "strict" });
-            trackBox.SelectedIndex = s.StrictTracking ? 1 : 0;
-            trackBox.ToolTip = L.T("Zrównoważona: blokuje znane trackery, a osadzone treści (np. wpisy z X, filmy) działają. Ścisła: blokuje też osadzone treści serwisów społecznościowych. Na zaufanych domenach ścisła działa jak zrównoważona, chyba że zaznaczysz dla domeny „Wymuś blokowanie trackerów”.");
+            trackBox.Items.Add(new ComboBoxItem { Content = L.T("Wyłączona – bez kontrolowania"), Tag = "none" });
+            trackBox.SelectedIndex = s.Tracking == "strict" ? 1 : s.Tracking == "none" ? 2 : 0;
+            trackBox.ToolTip = L.T("Zrównoważona: blokuje znane trackery, a osadzone treści (np. wpisy z X, filmy) działają. Ścisła: blokuje też osadzone treści serwisów społecznościowych. Na zaufanych domenach ścisła działa jak zrównoważona, chyba że zaznaczysz dla domeny „Wymuś blokowanie trackerów”. Wyłączona: silnik nie blokuje trackerów (uBlock Origin Lite i reguły dla stron działają dalej, jeśli są włączone).");
             trackPanel.Children.Add(trackBox);
             var hist = Check(L.T("Zapisuj historię przeglądania"), null, s.SaveHistory);
             var clear = Check(L.T("Czyść dane przy zamknięciu (historia i pamięć podręczna)"), L.T("Czyści historię i cache przy zamknięciu, ale nie wylogowuje kont ani nie usuwa zapisanych logowań."), s.ClearOnExit);
@@ -852,7 +864,7 @@ namespace Przegladarka
             {
                 s.Search = (string)((ComboBoxItem)engine.SelectedItem).Tag;
                 s.Home = string.IsNullOrWhiteSpace(home.Text) ? "https://duckduckgo.com/" : ToUrl(home.Text);
-                s.SendDnt = dnt.IsChecked == true; s.StrictTracking = trackBox.SelectedIndex == 1;
+                s.SendDnt = dnt.IsChecked == true; s.Tracking = (string)((ComboBoxItem)trackBox.SelectedItem).Tag;
                 s.SaveHistory = hist.IsChecked == true; s.ClearOnExit = clear.IsChecked == true;
                 s.SavePasswords = pw.IsChecked == true; s.Autofill = af.IsChecked == true;
                 s.BlockThirdPartyPopups = pop.IsChecked == true;
@@ -895,7 +907,7 @@ namespace Przegladarka
                 s.NightLight = night.IsChecked == true && !s.DarkPages;
                 if (oldNight != s.NightLight) { UpdateDarkButton(); darkChanged = true; }
                 s.ToolbarAlwaysCompact = compactBar.IsChecked == true;
-                s.RestoreTabs = restore.IsChecked == true; s.LinksInSameTab = sameTab.IsChecked == true;
+                s.RestoreTabs = restore.IsChecked == true; s.LinksInSameTab = sameTab.IsChecked == true; s.SleepTabsMin = sleepOpts[Math.Max(0, sleepBox.SelectedIndex)];
                 if (quickAccess.IsEnabled) s.QuickAccessNewTab = quickAccess.IsChecked == true;
                 s.ReadVoice = (string)((ComboBoxItem)voice.SelectedItem).Tag;
                 s.ReadRate = (double)((ComboBoxItem)rate.SelectedItem).Tag;

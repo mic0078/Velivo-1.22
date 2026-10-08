@@ -53,7 +53,8 @@ namespace Przegladarka
   st.textContent='html,body{overflow:hidden!important;background:#000!important}body *{visibility:hidden!important}' +
     'video.velivo-film{visibility:visible!important;position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important;transform:none!important}';
   var seeked=false;
-  function fix(){ var v=big(); if(!v) return; if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
+  function fix(){ var v=big(); if(!v) return; if(v.controls) v.controls=false;   // w okienku tylko pasek Velivo (np. film z dysku ma wlasny pasek odtwarzacza)
+    if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
     if(!seeked && v.readyState>0){ seeked=true; if(t>3 && Math.abs(v.currentTime-t)>3) try{v.currentTime=t;}catch(e){} }
     if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }
   // YouTube ma wlasny odtwarzacz - wznawiamy przez niego, inaczej po bledzie dzwieku zostaje zawieszony
@@ -69,32 +70,60 @@ namespace Przegladarka
   document.addEventListener('play', function(e){ if(e.target && e.target.tagName==='VIDEO') e.target.__velivoUserPaused=false; }, true);
   fix(); setInterval(fix, 1000);
   // pasek czasu: klik/przeciaganie = skok, kolko nad paskiem = +-5 s (kolko nad filmem = przezroczystosc)
+  // pasek okienka: pauza, -10 s / +10 s, pasek czasu, glosnosc (wycisz + suwak); kolko nad paskiem czasu = +-5 s, nad glosnoscia = +-5%
+  var IC={play:'M8 5v14l11-7z',pause:'M6 5h4v14H6zM14 5h4v14h-4z',back:'M11 18V6l-8.5 6zm.5-6 8.5 6V6z',fwd:'M4 18l8.5-6L4 6zm9-12v12l8.5-6z',
+    full:'M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z',
+    vol:'M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z',mute:'M3 9v6h4l5 5V4L7 9H3zm13 .4 1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1z'};
+  function setIc(el,k){ var p=el.querySelector('path'); if(p && p.getAttribute('d')!==IC[k]) p.setAttribute('d',IC[k]); }
+  function vb(a,k,title){ var b=document.createElement('span'); b.className='vb'; b.setAttribute('data-a',a); b.title=title;
+    var sv=document.createElementNS('http://www.w3.org/2000/svg','svg'); sv.setAttribute('viewBox','0 0 24 24'); var pa=document.createElementNS('http://www.w3.org/2000/svg','path'); pa.setAttribute('d',IC[k]); sv.appendChild(pa); b.appendChild(sv); return b; }
   var bar=document.getElementById('velivo-seek');
   if(!bar){
     bar=document.createElement('div'); bar.id='velivo-seek';
-    var tr=document.createElement('div'), fl=document.createElement('div'), tx=document.createElement('div');
+    var tr=document.createElement('div'), fl=document.createElement('div'), tx=document.createElement('div'), vol=document.createElement('input');
     tr.id='velivo-seek-track'; fl.id='velivo-seek-fill'; tx.id='velivo-seek-time';
-    tr.appendChild(fl); bar.appendChild(tr); bar.appendChild(tx); document.documentElement.appendChild(bar);
-    st.textContent+='#velivo-seek,#velivo-seek *{visibility:visible!important}#velivo-seek{position:fixed;left:0;right:0;bottom:0;height:30px;z-index:2147483647;display:flex;align-items:center;gap:8px;padding:0 8px;background:linear-gradient(transparent,rgba(0,0,0,.75));opacity:0;transition:opacity .25s;cursor:pointer;font:600 11px Segoe UI,sans-serif;color:#fff}'+
-      '#velivo-seek.on{opacity:1}#velivo-seek-track{flex:1;height:5px;background:rgba(255,255,255,.3);border-radius:3px;position:relative}#velivo-seek:hover #velivo-seek-track{height:8px}#velivo-seek-fill{position:absolute;left:0;top:0;bottom:0;background:#60a5fa;border-radius:3px}#velivo-seek-time{white-space:nowrap;font-variant-numeric:tabular-nums}';
+    vol.id='velivo-vol'; vol.type='range'; vol.min='0'; vol.max='1'; vol.step='0.05'; vol.title='Głośność';
+    tr.appendChild(fl);
+    [vb('play','pause','Odtwarzaj / pauza (spacja)'), vb('back','back','10 s wstecz (←)'), vb('fwd','fwd','10 s do przodu (→)'), tr, tx, vb('mute','vol','Wycisz (M)'), vol, vb('full','full','Pełny ekran (F, dwuklik; Esc – wyjście)')].forEach(function(x){ bar.appendChild(x); });
+    document.documentElement.appendChild(bar);
+    st.textContent+='#velivo-seek,#velivo-seek *{visibility:visible!important}#velivo-seek{position:fixed;left:0;right:0;bottom:0;height:34px;z-index:2147483647;display:flex;align-items:center;gap:6px;padding:0 8px;background:linear-gradient(transparent,rgba(0,0,0,.8));opacity:0;transition:opacity .25s;cursor:pointer;font:600 11px Segoe UI,sans-serif;color:#fff}'+
+      '#velivo-seek.on{opacity:1}#velivo-seek-track{flex:1;min-width:30px;height:5px;background:rgba(255,255,255,.3);border-radius:3px;position:relative}#velivo-seek-track:hover{height:8px}#velivo-seek-fill{position:absolute;left:0;top:0;bottom:0;background:#60a5fa;border-radius:3px}#velivo-seek-time{white-space:nowrap;font-variant-numeric:tabular-nums}'+
+      '#velivo-seek .vb{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:5px;flex:none}#velivo-seek .vb:hover{background:rgba(255,255,255,.22)}#velivo-seek .vb svg{width:16px;height:16px;fill:#fff;pointer-events:none}'+
+      '#velivo-vol{width:70px;flex:none;margin:0;accent-color:#60a5fa;cursor:pointer}@media (max-width:340px){#velivo-vol,#velivo-seek-time{display:none!important}}@media (max-width:230px){#velivo-seek [data-a=back],#velivo-seek [data-a=fwd]{display:none!important}}';
   }
   function fmt(x){ if(!isFinite(x)) return '--:--'; x=Math.max(0,Math.floor(x)); var h=Math.floor(x/3600),m=Math.floor(x%3600/60),sec=x%60; return (h?h+':'+(m<10?'0':''):'')+m+':'+(sec<10?'0':'')+sec; }
-  function upd(){ var v=big(); if(!v) return; var d=v.duration; document.getElementById('velivo-seek-fill').style.width=(isFinite(d)&&d>0?Math.min(100,v.currentTime/d*100):0)+'%'; document.getElementById('velivo-seek-time').textContent=fmt(v.currentTime)+' / '+fmt(d); }
-  var hideT=null; function show(){ bar.classList.add('on'); upd(); clearTimeout(hideT); hideT=setTimeout(function(){ if(!dragging) bar.classList.remove('on'); },2000); }
+  function upd(){ var v=big(); if(!v) return; var d=v.duration; document.getElementById('velivo-seek-fill').style.width=(isFinite(d)&&d>0?Math.min(100,v.currentTime/d*100):0)+'%'; document.getElementById('velivo-seek-time').textContent=fmt(v.currentTime)+' / '+fmt(d);
+    setIc(bar.querySelector('[data-a=play]'), v.paused?'play':'pause'); setIc(bar.querySelector('[data-a=mute]'), v.muted||v.volume===0?'mute':'vol');
+    var vr=document.getElementById('velivo-vol'); if(document.activeElement!==vr) vr.value=v.muted?0:v.volume; }
+  var hideT=null; function show(){ bar.classList.add('on'); upd(); clearTimeout(hideT); hideT=setTimeout(function hide(){ if(dragging||bar.matches(':hover')){ hideT=setTimeout(hide,1000); return; } bar.classList.remove('on'); },2000); }
   function seekTo(clientX){ var v=big(), r=document.getElementById('velivo-seek-track').getBoundingClientRect(); if(!v||!isFinite(v.duration)||r.width<=0) return; v.currentTime=Math.max(0,Math.min(1,(clientX-r.left)/r.width))*v.duration; upd(); }
+  function skip(s){ var v=big(); if(v&&isFinite(v.duration)){ v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+s)); show(); } }
+  function setVol(x){ var v=big(); if(!v) return; v.volume=Math.max(0,Math.min(1,Math.round(x*100)/100)); if(v.volume>0) v.muted=false; show(); }
+  function full(on){ if(window.chrome && chrome.webview) chrome.webview.postMessage(on===false ? 'velivo-float-full:0' : 'velivo-float-full'); }
+  function toggle(){ var v=big(); if(!v) return; if(v.paused){ v.__velivoUserPaused=false; playIt(v); } else { v.__velivoUserPaused=true; var mp=yt(); try{ if(mp&&mp.pauseVideo){ mp.pauseVideo(); } else v.pause(); }catch(x){ v.pause(); } } setTimeout(upd,50); }
   var dragging=false;
   if(!window.__velivoSeek){ window.__velivoSeek=1;
     setInterval(function(){ if(bar.classList.contains('on')) upd(); },500);
     addEventListener('mousemove', show, true);
-    bar.addEventListener('mousedown', function(e){ if(e.button!==0) return; dragging=true; seekTo(e.clientX); e.preventDefault(); e.stopPropagation(); }, true);
+    document.getElementById('velivo-seek-track').addEventListener('mousedown', function(e){ if(e.button!==0) return; dragging=true; seekTo(e.clientX); e.preventDefault(); e.stopPropagation(); }, true);
     addEventListener('mousemove', function(e){ if(dragging) seekTo(e.clientX); }, true);
     addEventListener('mouseup', function(){ if(dragging){ dragging=false; show(); } }, true);
-    bar.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); }, true);
+    document.getElementById('velivo-vol').addEventListener('input', function(e){ setVol(+e.target.value); });
+    bar.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('[data-a]'); if(e.target.id==='velivo-vol') return; e.preventDefault(); e.stopPropagation(); if(!b) return;
+      var a=b.getAttribute('data-a'), v=big(); if(!v) return;
+      if(a==='play') toggle(); else if(a==='back') skip(-10); else if(a==='fwd') skip(10); else if(a==='mute'){ v.muted=!v.muted; if(!v.muted&&v.volume===0) v.volume=0.5; show(); } else if(a==='full') full(); }, true);
+    addEventListener('dblclick', function(e){ if(bar.contains(e.target)) return; e.preventDefault(); e.stopPropagation(); full(); }, true);
+    // klawiatura (po kliknieciu w okienko): spacja pauza, strzalki ← → 10 s, ↑ ↓ glosnosc, M wycisz
+    addEventListener('keydown', function(e){ if(e.ctrlKey||e.altKey||e.metaKey) return; var v=big(); if(!v) return; var k=e.key, h=true;
+      if(k===' '||k==='k') toggle(); else if(k==='ArrowRight') skip(10); else if(k==='ArrowLeft') skip(-10);
+      else if(k==='ArrowUp') setVol(v.volume+0.05); else if(k==='ArrowDown') setVol(v.volume-0.05); else if(k==='m'||k==='M'){ v.muted=!v.muted; show(); } else if(k==='f'||k==='F') full(); else if(k==='Escape') full(false); else h=false;
+      if(h){ e.preventDefault(); e.stopPropagation(); } }, true);
   }
-  if (!window.__velivoWheel && window.chrome && chrome.webview) { window.__velivoWheel = 1; addEventListener('wheel', function(e){ e.preventDefault(); e.stopPropagation();
-    if (bar && bar.contains(e.target)) { var v=big(); if(v&&isFinite(v.duration)){ v.currentTime=Math.max(0,Math.min(v.duration,v.currentTime+(e.deltaY<0?5:-5))); show(); } return; }
-    chrome.webview.postMessage('velivo-float-wheel:' + (e.deltaY < 0 ? 1 : -1)); }, { passive: false, capture: true }); }
-  document.addEventListener('click', function(e){ if(bar && bar.contains(e.target)) return; var v=big(); if(!v) return; e.preventDefault(); e.stopPropagation(); if(v.paused){ v.__velivoUserPaused=false; playIt(v); } else { v.__velivoUserPaused=true; var mp=yt(); try{ if(mp&&mp.pauseVideo){ mp.pauseVideo(); } else v.pause(); }catch(x){ v.pause(); } } }, true);
+  if (!window.__velivoWheel) { window.__velivoWheel = 1; addEventListener('wheel', function(e){ e.preventDefault(); e.stopPropagation(); var v=big();
+    if (bar && v && (e.target.id==='velivo-vol' || (e.target.closest && e.target.closest('[data-a=mute]')))) { setVol(v.volume+(e.deltaY<0?0.05:-0.05)); return; }
+    if (bar && bar.contains(e.target)) { skip(e.deltaY<0?5:-5); return; }
+    if (window.chrome && chrome.webview) chrome.webview.postMessage('velivo-float-wheel:' + (e.deltaY < 0 ? 1 : -1)); }, { passive: false, capture: true }); }
+  document.addEventListener('click', function(e){ if(bar && bar.contains(e.target)) return; if(!big()) return; e.preventDefault(); e.stopPropagation(); toggle(); }, true);
 })";
 
         void ShowFloatingVideo(string page, double time, string title, bool isPrivate)
@@ -200,6 +229,9 @@ namespace Przegladarka
                     url = System.Text.RegularExpressions.Regex.Replace(url, @"([?&])t=[^&]*&?", "$1").TrimEnd('&', '?');
                     url += (url.Contains("?") ? "&" : "?") + "t=" + (int)now + "s";
                 }
+                // film z dysku: miejsce w adresie odtwarzacza (&t=)
+                if (now > 1 && IsPlayerUrl(PlayerFile, url))
+                    url = System.Text.RegularExpressions.Regex.Replace(url, @"&t=\d+", "").Replace("&v=", "&t=" + (int)now + "&v=");
                 // glowne okno zamkniete - najpierw uruchamiamy Velivo od nowa z ta strona, dopiero potem zamykamy okienko
                 if (_mainClosed) { OpenFromOutside(new[] { url }); win.Close(); return; }
                 win.Close();
@@ -212,12 +244,14 @@ namespace Przegladarka
             };
             win.Closed += (s, e) =>
             {
-                _settings.FloatBounds = string.Join(";", new[] { win.Left, win.Top, win.Width, win.Height }.Select(x => x.ToString("0", CultureInfo.InvariantCulture)));
+                var rb = win.WindowState == WindowState.Normal ? new Rect(win.Left, win.Top, win.Width, win.Height) : win.RestoreBounds;   // po pelnym ekranie zapamietujemy zwykly rozmiar
+                _settings.FloatBounds = string.Join(";", new[] { rb.Left, rb.Top, rb.Width, rb.Height }.Select(x => x.ToString("0", CultureInfo.InvariantCulture)));
                 try { _settings.Save(DataDir); } catch (Exception) { }
                 try { view.Dispose(); } catch (Exception) { }
             };
             win.Show();
-            _ = InitFloatingView(view, page, time, isPrivate, titleText, d => step(d));
+            _ = InitFloatingView(view, page, time, isPrivate, titleText, d => step(d),
+                toggle => { if (toggle) win.WindowState = win.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; else if (win.WindowState == WindowState.Maximized) win.WindowState = WindowState.Normal; });
         }
 
         const string FloatAdSkipScript = @"(function(){ if (!/(^|\.)youtube\.com$/.test(location.hostname)) return;
@@ -232,7 +266,7 @@ namespace Przegladarka
   } catch (e) {} }, 300);
 })();";
 
-        async Task InitFloatingView(WebView2CompositionControl view, string page, double time, bool isPrivate, TextBlock titleText, Action<int> wheel)
+        async Task InitFloatingView(WebView2CompositionControl view, string page, double time, bool isPrivate, TextBlock titleText, Action<int> wheel, Action<bool> fullScreen)
         {
             try
             {
@@ -265,6 +299,9 @@ namespace Przegladarka
                 {
                     string m = null; try { m = e.TryGetWebMessageAsString(); } catch (Exception) { }
                     if (m == "velivo-float-wheel:1") wheel(1); else if (m == "velivo-float-wheel:-1") wheel(-1);
+                    // pelny ekran okienka (przycisk na pasku, F, dwuklik) - Esc wraca; okienko zostaje na wierzchu
+                    else if (m == "velivo-float-full") fullScreen(true);
+                    else if (m == "velivo-float-full:0") fullScreen(false);
                 };
                 core.NavigationCompleted += async (s, e) =>
                 {

@@ -169,13 +169,14 @@ Right-click anywhere on a page.
 | Restore blocked elements | When something was blocked by hand | Undoes the blocks on this page |
 | 🍪 (Don't) reject cookie banners | Always | Exception from automatic rejection for this site |
 | 📱 / 🖥 Phone / desktop version | Always | Switches and remembers for this site |
+| Page mode: ☀ Light / 🌙 Dark / 🌅 Night | Always | Pick this page's mode directly (like the toolbar button) |
 | ▣ Video on top · ⬇ Download video · ⧉ Picture in picture | On a video or on YouTube | See [section 8](#8-videos-video-on-top-picture-in-picture-downloads) |
 | Reader mode and summary | Always | Clean article text |
 | Read page aloud (Ctrl+Shift+U) | Always | Reads the main content |
 | 🔊 Read from here | Nothing selected | Reads from the sentence you clicked |
 | 🧠 Where did I read that? | Always | Search in the content of pages you read |
 | Screenshot | Always | Visible part or the whole page |
-| Velivo tools | Always | Privacy, media, downloads, history, extensions, network diagnostics, profiles, picture in picture, tab search |
+| Velivo tools | Always | 📂 Open a file (video / PDF), 🕶 this page in a private tab, 🏦 this page in Banking Mode, privacy, media, downloads, history, extensions, network diagnostics, profiles, ⚙ Settings, picture in picture, tab search |
 | Add to Quick Access | Always | Shortcut to a chosen group |
 
 ### On a tab
@@ -242,6 +243,9 @@ A **pinned tab** is not closed by the ↓ gesture (just like it has no close but
 - **Mute:** a tab that plays sound shows 🔊. A click mutes it (🔇).
 - **Auto refresh:** right-click → Auto refresh. The tab then shows ⟳.
 - **Tab search:** Ctrl+Shift+A, type a few letters, Enter switches.
+- **Right-click "+" or an empty spot on the tab bar:** new tab, new private tab, reopen closed tab, **Tab sets** (open a saved one / save current), **Tab groups** (expand / collapse), tab search.
+- **◫ Split screen:** right-click a tab → "Show side by side (split screen)" – two tabs next to each other, drag the middle bar; clicking the other page makes it active. Leave with "Close split screen" or by closing one of the tabs.
+- **💤 Sleeping tabs** (Settings → Tabs, off by default): a tab you haven't viewed for a while goes to sleep – less memory and CPU; it wakes on click. The viewed, pinned or playing tab never sleeps.
 - **Private tabs (🕶):** save nothing, don't sync and don't go to history.
 - **After a restart** your tabs, groups and pinned tabs come back. You can turn this off in settings.
 
@@ -283,7 +287,10 @@ Hover over a video and three buttons appear in its top right corner: **⬇ Downl
 
 | What | How |
 | --- | --- |
-| Pause / resume | click the video |
+| Pause / resume | click the video, ▶/❚❚ on the bar or Space |
+| Seeking | ◀◀ / ▶▶ (10 s), time bar, ← → keys, wheel over the time bar (5 s) |
+| Volume | 🔊 mute, slider, ↑ ↓ keys, wheel over the slider, M |
+| Full screen | ⛶ on the bar, F or double-click the video; Esc to leave |
 | Transparency 15–100% | mouse wheel over the window |
 | Move | dark bar at the top |
 | Size (from 160×90) | edge or corner |
@@ -295,7 +302,7 @@ Transparency needs Windows 10 version 1809 or newer, because the window uses a W
 
 ### 🎬 Offline video player
 
-- **Opening:** double-click a video file in Windows (the installer adds Velivo to "Open with" for MP4, WebM, MKV, MOV, M4V, OGV; make it permanent in Default apps → Velivo), **Ctrl+O** or right-click → Velivo tools → **🎬 Open a video file**.
+- **Opening:** double-click a video file in Windows (the installer adds Velivo to "Open with" for MP4, WebM, MKV, MOV, M4V, OGV; make it permanent in Default apps → Velivo), **Ctrl+O** or right-click → Velivo tools → **📂 Open a file**.
 - The video opens in a tab, filling the window, with no internet needed. **⧉ Picture in picture** and **▣ Video on top** work on it.
 - **Controls:** the player bar (play/pause, seek, volume, full screen) and keys: Space or click – pause, ← → – 5 s, ↑ ↓ – volume, **F** – full screen, **M** – mute.
 - **If Velivo isn't in "Open with":** start Velivo once (it registers itself with Windows) or use **Settings → Video player → "Open videos and PDFs in Velivo (Windows)…"**.
@@ -497,6 +504,7 @@ Banking mode is a separate, isolated browser profile for banking, payments and s
 - **🔢 Fill in selected characters** – when the bank asks e.g. for the 2nd, 5th and 9th character (RBS, NatWest, Bank of Scotland, TSB, Lloyds, Halifax), Velivo reads the numbers and types the right characters, drop-down lists included. If a page doesn't work, **🧪 Copy a description of the login form** copies only the field description (without your data) for a report.
 - **🔗 Data linked to the page** – on a page from your vault the login, password and selected characters fill in by themselves (when one account matches; Velivo never submits the form). Several accounts (e.g. personal and business) – one click to choose; payment card – always after a click. Can be turned off in Bank mode settings.
 - **🔒 Full isolation** – bank mode uses only its own encrypted vault: the browser's regular passwords and autofill are neither suggested nor saved there, and vault data goes only into bank tabs (no extensions).
+- **Extensions** get no access to bank or private tabs – even when opened from the toolbar while such a tab is active.
 - **🛡 Transfer guard** – a pasted or typed account number is checked (IBAN / NRB checksum) and compared with your Bank accounts: a typo, a number swapped in the clipboard by malware or an unknown payee shows up at once.
 - **💸 Transfer from the vault** – on a transfer form Velivo fills in the payee, account number (NRB / IBAN / sort code + 8 digits) and reference, and the amount and customer number from the Bill with the same name. You always confirm it yourself.
 - **💬 Suggestion under the field** – click the login, password, selected characters, card number or payee account field: if the vault has matching data for this page, a choice appears right under the field (one click fills it); nothing matches – nothing appears. The page can't see your account names.
@@ -624,6 +632,7 @@ Turn them on in **Settings → Torrents** (off by default). Then:
 - settings: zone folder, download and upload speed, seeding after download (ratio and time), number of peers;
 - buttons in Downloads: Stop; while seeding – Open folder and Stop sharing; at the end – Show in folder (selects the file), Delete file (removes the downloaded file or torrent folder from disk after confirmation) and Remove from list;
 - after a stop or an error Velivo asks whether to delete the partly downloaded files;
+- **a page can't start a torrent by itself:** a magnet link without your click or a pushed `.torrent` file – Velivo asks first; torrents never start from Banking Mode; aria2 reads no foreign config and keeps its data only in Velivo's folder;
 - when Velivo stays in the tray, torrents keep downloading after the window is closed; "Exit completely" stops them; torrents don't work in Banking Mode.
 
 **Note:** in torrents other peers can see your IP address – use a VPN for anonymity. Share only material you have the rights to.
@@ -678,7 +687,7 @@ If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own too
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
 | Ctrl+Shift+A | Search tabs |
 | Ctrl+Shift+F | 🧠 Where did I read that? |
-| Ctrl+O | 🎬 Open a video file |
+| Ctrl+O | 📂 Open a file – video (player) or PDF |
 | Ctrl+L | Address bar |
 | Ctrl+D | Bookmark |
 | Ctrl+H | History |
@@ -748,7 +757,7 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 
 ### Privacy
 - **Send "Do Not Track" signals** (DNT and Global Privacy Control).
-- **Tracking protection** – **balanced** (recommended: blocks known trackers, embedded content like X posts or videos works) or **strict** (also blocks embedded social content; on trusted domains it acts as balanced unless you tick "Force tracker blocking" for the domain).
+- **Tracking protection** – **balanced** (recommended: blocks known trackers, embedded content like X posts or videos works) or **strict** (also blocks embedded social content; on trusted domains it acts as balanced unless you tick "Force tracker blocking" for the domain) or **off – no tracking control** (the engine blocks no trackers; uBlock Origin Lite and site rules still work if enabled).
 - **Save browsing history**.
 - **Clear data on close** – history and cache; accounts stay logged in.
 - **Logins from Sejf: key on the toolbar on login pages** – clicking the key fills the form with a Sejf login.

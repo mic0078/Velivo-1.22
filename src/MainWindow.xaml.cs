@@ -38,6 +38,7 @@ namespace Przegladarka
             public Button Header;
             public TextBlock Title;
             public int Blocked;
+            public bool EngineColorMode;   // tryb strony ustawiony w silniku tej karty (schemat kolorow + przyciemnianie silnika)
             public int UbolBlocked;   // z tego: uBlock Origin Lite
             public readonly List<string> BlockedItems = new List<string>();   // co zablokowano na biezacej stronie (wszystkie silniki)
             public int HiddenElements;   // elementy ukryte regulami recznymi (kosmetyka)
@@ -47,6 +48,7 @@ namespace Przegladarka
             public string AcctChecked;   // tryb bankowy: ostatnio sprawdzony numer rachunku (straznik przelewu - raz na numer)
             public string BankAsked;     // strona bankowa (domena), o ktora juz zapytano w tej karcie            // karta trybu bankowego (osobny profil; Private=true, zeby nic nie zapisywac)
             public bool Pinned;
+            public DateTime LastShown = DateTime.UtcNow;   // ostatnio ogladana - do usypiania nieuzywanych kart
             public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
             public bool Mobile;          // strona w wersji telefonu
             public string DesktopUA;
@@ -182,6 +184,9 @@ namespace Przegladarka
                     StartLanSync();
                     AskDefaultBrowserOnce();
                     EnsureFileTypes();
+                    StartSleepTabs();
+                    TabScroller.ContextMenu = BuildTabStripMenu();   // prawy przycisk na pustym pasku kart
+                    NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
                 }
                 catch (Exception ex)
                 {
@@ -392,6 +397,7 @@ namespace Przegladarka
             TabStrip.Children.Insert(TabStrip.Children.IndexOf(NewTabBtn), tab.Header);
             NewTabBtn.BringIntoView();
             Host.Children.Add(tab.View);
+            tab.View.GotFocus += (s, e) => FocusSplitPane(tab);   // podzial ekranu: klikniecie w karte obok = aktywna
             SelectTab(tab);
             InitView(tab, url, pending, deferral);
         }
@@ -508,9 +514,9 @@ namespace Przegladarka
                 AddPrivacyBlock("Tracker zablokowany (AdBlock)", e.Request.Uri, tab);
             };
 
-            core.NavigationStarting += (s, e) => { if (!e.IsRedirected) SetPageBackground(tab, e.Uri); };   // tlo w trybie strony docelowej
+            core.NavigationStarting += (s, e) => { if (!e.IsRedirected) { SetPageBackground(tab, e.Uri); _ = ApplyTabColorMode(tab, e.Uri); } };   // tlo w trybie strony docelowej
             // link magnet: - torrent w Velivo (gdy wlaczone; nigdy w trybie bankowym), zamiast otwierania innego programu
-            core.LaunchingExternalUriScheme += (s, e) => { var u = e.Uri; if (_settings.Torrents && !tab.Bank && IsMagnet(u)) { e.Cancel = true; Dispatcher.BeginInvoke(new Action(() => { _ = StartTorrentAsync(u); })); } };
+            core.LaunchingExternalUriScheme += (s, e) => { var u = e.Uri; if (_settings.Torrents && !tab.Bank && IsMagnet(u)) { e.Cancel = true; bool user = e.IsUserInitiated; Dispatcher.BeginInvoke(new Action(() => { _ = StartTorrentAsync(u, user); })); } };
             core.NewWindowRequested += (s, e) => { if (!OpenLinkInSameTab(tab, e)) { _creatingBank = tab.Bank; try { OnNewWindowRequested(e, tab.Private); } finally { _creatingBank = false; } } };
             core.DocumentTitleChanged += (s, e) =>
             {
@@ -786,7 +792,7 @@ namespace Przegladarka
         {
             foreach (var t in _tabs)
             {
-                bool on = t == _current;
+                bool on = IsOnScreen(t);
                 t.View.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 // karta w tle moze oddac czesc pamieci (strona dalej dziala: muzyka, czaty, liczniki)
                 try
@@ -809,8 +815,12 @@ namespace Przegladarka
 
         void SelectTab(BrowserTab tab)
         {
-            if (_current != null && _current != tab) _prevTab = _current;
+            if (_current != null && _current != tab) { _prevTab = _current; _current.LastShown = DateTime.UtcNow; }
+            bool swapSplit = _splitTab != null && tab == _splitTab;   // podzial ekranu: karta obok staje sie aktywna, aktywna idzie obok
+            if (swapSplit) _splitTab = _current;
             _current = tab;
+            if (swapSplit) LayoutSplit();
+            WakeTab(tab);
             SelectTabColors();
             Address.Text = tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : "";
             Title = BuildWindowTitle(tab.Title.Text);
@@ -926,6 +936,7 @@ namespace Przegladarka
                 if (!busy) { Close(); return; } // ostatnia karta: zamknij okno (sprzatanie w OnClosingCleanup)
                 AddTab(NewTabUrl); // ostatnia karta pobiera plik - zostaw okno z nowa karta
             }
+            if (tab == _splitTab || (_splitTab != null && tab == _current)) { if (tab == _current) { var keep = _splitTab; _splitTab = null; LayoutSplit(); SelectTab(keep); } else CloseSplit(); }   // koniec podzialu ekranu
             if (tab == _readTab) StopReading(); // zamykana karta jest czytana na glos - koniec czytania
             RememberClosed(tab); // do przywrocenia przez Ctrl+Shift+T
             int idx = _tabs.IndexOf(tab);
@@ -978,7 +989,7 @@ namespace Przegladarka
         void Navigate(BrowserTab tab, string text)
         {
             if (tab.View.CoreWebView2 == null) return;
-            if (_settings.Torrents && !tab.Bank && IsMagnet(text)) { _ = StartTorrentAsync(text.Trim()); return; }   // wklejony link magnet
+            if (_settings.Torrents && !tab.Bank && IsMagnet(text)) { _ = StartTorrentAsync(text.Trim(), true); return; }   // wklejony link magnet
             var keyword = ExpandSearchKeyword(text);   // "yt koty" -> wyszukiwanie na YouTube
             if (keyword != null) text = keyword;
             // przypieta karta jest zamrozona - nowy adres (z innej strony) idzie do nowej karty.
@@ -1076,7 +1087,7 @@ namespace Przegladarka
             else if (ctrl && shift && key == Key.A) ShowTabSearch();
             else if (ctrl && shift && key == Key.F) ShowPageMemorySearch();
             else if (ctrl && shift && key == Key.U) { if (_readTab == null) StartReading(false); else ReadBtn_Click(null, null); }
-            else if (ctrl && !shift && key == Key.O) OpenVideoFile();
+            else if (ctrl && !shift && key == Key.O) OpenLocalFile();
             else if (ctrl && key == Key.T) AddTab(NewTabUrl);
             else if (ctrl && key == Key.W && _current != null) CloseTab(_current);
             else if (ctrl && key == Key.L) { Address.Focus(); }

@@ -69,6 +69,7 @@ namespace Przegladarka
         {
             "lanSync",
             "askedDefault",
+            "playerSalt",
             "audioOut",
             "cacheDir",          // wlasny folder na smieci - sciezka istnieje tylko na tym komputerze
             "cacheMb",           // rozmiar pamieci podrecznej zalezy od dysku tego komputera

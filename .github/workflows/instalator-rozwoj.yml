@@ -57,6 +57,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           node testy/czytanie/test-czytnik.mjs
           if ($LASTEXITCODE -ne 0) { exit 1 }
+          node testy/czytanie/test-tresc-sport.mjs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           node testy/gesty/test-gesty.mjs
           if ($LASTEXITCODE -ne 0) { exit 1 }
           node testy/lan-ustawienia/test-klucze.mjs

@@ -18,15 +18,20 @@ namespace Przegladarka
         // swojemu blokowi (dlugosc, przecinki; linki odejmuja), wygrywa blok z prawdziwa trescia - takze gdy strona nie oznacza go
         // jako <article>. Menu, polecane, podpisy zdjec, reklamy, komentarze, "czytaj tez" i listy linkow odpadaja. Wszystko lokalnie.
         const string ArticleCoreScript = @"const velivoArticle = () => {
-  const JUNK_SEL = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, figcaption, [aria-hidden=true], [hidden], ' +
+  // gdy scisle odrzucanie zostawi za malo tekstu (artykul w bloku nazwanym np. ""share"" / ""video""), drugi przebieg
+  // odrzuca tylko to, co na pewno nie jest trescia: menu, stopke, panel boczny, formularze, komentarze
+  const STRICT = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, figcaption, [aria-hidden=true], [hidden], ' +
     '.ad, .ads, .advert, .share, .social, .related, .comments, [class*=related i], [class*=recommend i], [class*=polecam i], [class*=promo i], ' +
     '[class*=newsletter i], [class*=cookie i], [class*=consent i], [class*=comment i], [id*=comment i], [class*=sponsor i], [class*=advert i], ' +
     '[class*=reklam i], [class*=breadcrumb i], [class*=share i], [class*=social i], [class*=paywall i], [class*=subscribe i], [class*=author-box i], ' +
     '[class*=tags i], [class*=see-also i], [class*=read-more i], [class*=readmore i], [id*=taboola i], [class*=taboola i], [class*=outbrain i], ' +
     '[class*=caption i], [class*=credit i], [class*=gallery i], [class*=video i], [class*=player i], [role=navigation], [role=complementary]';
+  const RELAXED = 'nav, footer, aside, form, script, style, noscript, figcaption, [aria-hidden=true], [hidden], [class*=comment i], [id*=comment i], ' +
+    '[role=navigation], [role=complementary], [id*=taboola i], [class*=taboola i], [class*=outbrain i]';
   const JUNK_TXT = /^(czytaj (też|także|również|więcej|dalej)|zobacz (też|także|również|wideo|więcej)|polecamy|polecane|reklama|artykuł sponsorowany|materiał (sponsorowany|partnera)|advertisement|sponsored|tagi:|tags:|źródło:|fot\.|foto:|zdjęcie:|autor zdjęcia|udostępnij|share|subskrybuj|zapisz się|newsletter|komentarze|dodaj komentarz|dołącz do|pobierz aplikację|obserwuj nas|kup teraz|więcej na ten temat|read more|related|see also|follow us)/i;
   const visible = el => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
   const linkLen = el => { let n = 0; for (const a of el.querySelectorAll('a')) n += (a.innerText || '').length; return n; };
+  const run = (JUNK_SEL) => {
   const inJunk = (el, stop) => { for (let e = el; e && e !== stop; e = e.parentElement) if (e.matches && e.matches(JUNK_SEL)) return true; return false; };
   const scores = new Map();
   for (const p of document.querySelectorAll('p, pre, blockquote')) {
@@ -62,10 +67,17 @@ namespace Przegladarka
     if (t.length < 2 || seen.has(t)) continue;
     seen.add(t); blocks.push({ el, text: t });
   }
-  if (blocks.length === 0) { const t = (root.innerText || '').replace(/\s+/g, ' ').trim(); if (t) blocks.push({ el: root, text: t }); }
+  let fallback = false;   // nie znaleziono akapitow - caly tekst bloku (awaryjnie, przegrywa z prawdziwa trescia)
+  if (blocks.length === 0) { const t = (root.innerText || '').replace(/\s+/g, ' ').trim(); if (t) { blocks.push({ el: root, text: t }); fallback = true; } }
   const h1 = document.querySelector('h1');   // tytul na poczatek, jesli jest poza trescia
   if (h1 && !root.contains(h1) && visible(h1)) blocks.unshift({ el: h1, text: h1.innerText.replace(/\s+/g, ' ').trim() });
-  return { root, blocks };
+  return { root, blocks, fallback };
+  };
+  const words = r => r.fallback ? 0 : r.blocks.reduce((n, b) => n + (b.text.length > 40 ? b.text.length : 0), 0);
+  const strict = run(STRICT);
+  if (words(strict) >= 500) return strict;
+  const relaxed = run(RELAXED);
+  return words(relaxed) > words(strict) || (strict.fallback && !relaxed.fallback) ? relaxed : strict;
 };";
 
         const string ReaderExtractScript = @"(() => {" + ArticleCoreScript + @"
@@ -99,7 +111,7 @@ namespace Przegladarka
                         return;
                     }
 
-                    var summary = LocalSummary(text, 5, title);
+                    var summary = LocalSummary(text, 4, title);
 
                     var win = new Window
                     {
@@ -130,6 +142,7 @@ namespace Przegladarka
 
                     var view = new WebView2();
                     var readSummaryBtn = SmallButton(L.T("Czytaj podsumowanie"), null);
+                    if (summary.Length == 0) readSummaryBtn.Visibility = Visibility.Collapsed;   // bez streszczenia nie ma czego czytac
                     var readAllBtn = SmallButton(L.T("Czytaj całość"), null);
                     var stopBtn = SmallButton(L.T("Zatrzymaj"), null);
                     var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
@@ -254,20 +267,32 @@ namespace Przegladarka
                    "#velivo-night{position:fixed;inset:0;pointer-events:none;background:#ff8a00;mix-blend-mode:multiply;opacity:0;transition:opacity .25s;z-index:2147483647}</style>" +
                    "<script>window.__velivoLook=function(m,s){var b=document.body;if(!b)return;b.classList.toggle('dark',m==='dark');var n=document.getElementById('velivo-night');if(!n){n=document.createElement('div');n.id='velivo-night';document.documentElement.appendChild(n);}n.style.opacity=m==='night'?(Math.max(5,Math.min(100,s))/100*0.45).toFixed(3):'0';};</script></head><body>" +
                    "<h1>" + T(title) + "</h1><small>" + T(url) + "</small>" +
-                   "<div id='velivo-summary'><strong>" + T(L.T("Najważniejsze zdania (streszczenie lokalne, bez AI):")) + "</strong><br/>" + sum + "</div>" +
+                   (sum.Length > 0 ? "<div id='velivo-summary'><strong>" + T(L.T("W skrócie:")) + "</strong><br/>" + sum + "</div>" : "") +
                    "<article><p>" + body + "</p></article></body></html>";
         }
 
-        // Streszczenie LOKALNE (bez chmury i bez AI): wybiera najwazniejsze zdania artykulu.
-        // Waga zdania: czeste slowa kluczowe tekstu + slowa z tytulu + premia za poczatek artykulu (tam zwykle jest sedno).
-        static string LocalSummary(string text, int maxSentences, string title = null)
+        // Streszczenie (lokalnie, bez chmury): najwazniejsze zdania artykulu. Bierze tylko pelne, samodzielne zdania:
+        // zakonczone kropka (srodtytuly i linki odpadaja), bez cytatow od myslnika i "(...)", bez zdan, ktore bez poprzedniego
+        // nie maja sensu ("Jak mowil", "Dodal", "Jednak"...). Waga: slowa kluczowe tekstu i tytulu + premia za poczatek artykulu.
+        static readonly Regex SummaryDependent = new Regex(@"^(jak (mówił|mówiła|mówi|dodał|dodała|podkreślił|podkreśliła|zaznaczył|zaznaczyła|powiedział|powiedziała|wskazał|wskazała|przekazał|przekazała|tłumaczył|tłumaczyła|relacjonował)|dodał|dodała|dodali|podkreślił|podkreśliła|zaznaczył|zaznaczyła|według (niego|niej|nich)|(jego|jej|ich) zdaniem|jednak|ponadto|natomiast|również|także|tymczasem|wcześniej|później|następnie|dlatego|zatem|więc|z kolei|w związku z tym|mówił|mówiła|powiedział|powiedziała|on|ona|oni|one|to|tam|tak|ten|ta|te|tego|tej|tym|he|she|they|it|this|that|however|also|but|and)\b", RegexOptions.IgnoreCase);
+
+        internal static bool SummaryCandidate(string s)
         {
-            var sentences = Regex.Split(text, @"(?<=[\.!\?…])\s+|\n+")
+            return s.Length > 50 && s.Length < 320
+                && Regex.IsMatch(s, @"[\.!…][""”»']?$")                  // pelne zdanie (srodtytul / link nie ma kropki)
+                && !Regex.IsMatch(s, @"^[-–—„""»«]")                       // wyrwany cytat albo wypowiedz od myslnika
+                && !s.Contains("(...)") && !s.Contains("[...]") && !s.Contains("(…)")
+                && !SummaryDependent.IsMatch(s);
+        }
+
+        internal static string LocalSummary(string text, int maxSentences, string title = null)
+        {
+            var sentences = Regex.Split(text, @"(?<=[\.!\?…][""”»']?)\s+|\n+")
                 .Select(s => s.Trim())
-                .Where(s => s.Length > 50 && s.Length < 450 && !s.EndsWith("?"))
+                .Where(SummaryCandidate)
                 .Take(200)
                 .ToList();
-            if (sentences.Count == 0) return L.T("Brak danych do streszczenia.");
+            if (sentences.Count == 0) return "";   // brak pelnych zdan - bez ramki streszczenia (lepiej nic niz bzdura)
 
             var stop = new HashSet<string>(("i oraz a w z na do o że to ten ta te tego tej tym się jest są był była było były być jak dla po od przez nie tak lub ale " +
                 "czy też także jeszcze już tylko może można który która które którzy których jego jej ich nim nią tu tam gdy kiedy gdzie co kto " +

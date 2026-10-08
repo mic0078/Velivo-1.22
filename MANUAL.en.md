@@ -400,7 +400,8 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 ### Reader mode ("Reader" button)
 
 - Clean article text in a readable font, without ads or distractions.
-- **"Key sentences"** – an automatic summary computed locally, **no AI and no cloud**. Velivo picks the sentences with the article's and title's most important words, with a bonus for the start of the text.
+- **"In short"** – a few key sentences of the article, computed on your computer. Only complete, self-contained sentences: no subheadings, torn-out quotes or sentences that make no sense without the previous one. If there are none, the box is simply not shown.
+- Reader finds the article even when the page hides it in an unusual block (e.g. next to X posts or videos) – instead of "not enough content" it shows the text without menus and recommendations.
 - "Read summary" and "Read all" buttons. Clicking the text reads from that point.
 
 ### 🧠 "Where did I read that?" (Ctrl+Shift+F)

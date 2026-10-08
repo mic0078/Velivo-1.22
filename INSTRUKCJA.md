@@ -686,7 +686,8 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 ### Tryb czytania (przycisk „Czytnik”)
 
 - Czysty tekst artykułu w czytelnej czcionce, bez reklam i rozpraszaczy.
-- **„Najważniejsze zdania”** – automatyczne streszczenie liczone lokalnie, **bez AI i bez chmury**. Velivo wybiera zdania z najważniejszymi słowami artykułu i tytułu, z premią za początek tekstu.
+- **„W skrócie”** – kilka najważniejszych zdań artykułu, liczone na Twoim komputerze. Tylko pełne, samodzielne zdania: bez śródtytułów, wyrwanych cytatów i zdań, które bez poprzedniego nie mają sensu. Gdy takich nie ma, ramki po prostu nie ma.
+- Czytnik znajduje artykuł także wtedy, gdy strona ukrywa go w nietypowym bloku (np. przy wpisach z X czy filmach) – zamiast „za mało treści” pokazuje treść bez menu i polecanych.
 - Przyciski „Czytaj podsumowanie” i „Czytaj całość”. Kliknięcie w tekst czyta od tego miejsca.
 
 ### 🧠 „Gdzie ja to czytałem?” (Ctrl+Shift+F)

@@ -48,6 +48,7 @@ namespace Przegladarka
             public string AcctChecked;   // tryb bankowy: ostatnio sprawdzony numer rachunku (straznik przelewu - raz na numer)
             public string BankAsked;     // strona bankowa (domena), o ktora juz zapytano w tej karcie            // karta trybu bankowego (osobny profil; Private=true, zeby nic nie zapisywac)
             public bool Pinned;
+            public DateTime LastShown = DateTime.UtcNow;   // ostatnio ogladana - do usypiania nieuzywanych kart
             public bool InPip;           // film tej karty gra w okienku "obraz w obrazie"
             public bool Mobile;          // strona w wersji telefonu
             public string DesktopUA;
@@ -183,6 +184,7 @@ namespace Przegladarka
                     StartLanSync();
                     AskDefaultBrowserOnce();
                     EnsureFileTypes();
+                    StartSleepTabs();
                 }
                 catch (Exception ex)
                 {
@@ -393,6 +395,7 @@ namespace Przegladarka
             TabStrip.Children.Insert(TabStrip.Children.IndexOf(NewTabBtn), tab.Header);
             NewTabBtn.BringIntoView();
             Host.Children.Add(tab.View);
+            tab.View.GotFocus += (s, e) => FocusSplitPane(tab);   // podzial ekranu: klikniecie w karte obok = aktywna
             SelectTab(tab);
             InitView(tab, url, pending, deferral);
         }
@@ -787,7 +790,7 @@ namespace Przegladarka
         {
             foreach (var t in _tabs)
             {
-                bool on = t == _current;
+                bool on = IsOnScreen(t);
                 t.View.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
                 // karta w tle moze oddac czesc pamieci (strona dalej dziala: muzyka, czaty, liczniki)
                 try
@@ -810,8 +813,12 @@ namespace Przegladarka
 
         void SelectTab(BrowserTab tab)
         {
-            if (_current != null && _current != tab) _prevTab = _current;
+            if (_current != null && _current != tab) { _prevTab = _current; _current.LastShown = DateTime.UtcNow; }
+            bool swapSplit = _splitTab != null && tab == _splitTab;   // podzial ekranu: karta obok staje sie aktywna, aktywna idzie obok
+            if (swapSplit) _splitTab = _current;
             _current = tab;
+            if (swapSplit) LayoutSplit();
+            WakeTab(tab);
             SelectTabColors();
             Address.Text = tab.View.CoreWebView2 != null ? tab.View.CoreWebView2.Source : "";
             Title = BuildWindowTitle(tab.Title.Text);
@@ -927,6 +934,7 @@ namespace Przegladarka
                 if (!busy) { Close(); return; } // ostatnia karta: zamknij okno (sprzatanie w OnClosingCleanup)
                 AddTab(NewTabUrl); // ostatnia karta pobiera plik - zostaw okno z nowa karta
             }
+            if (tab == _splitTab || (_splitTab != null && tab == _current)) { if (tab == _current) { var keep = _splitTab; _splitTab = null; LayoutSplit(); SelectTab(keep); } else CloseSplit(); }   // koniec podzialu ekranu
             if (tab == _readTab) StopReading(); // zamykana karta jest czytana na glos - koniec czytania
             RememberClosed(tab); // do przywrocenia przez Ctrl+Shift+T
             int idx = _tabs.IndexOf(tab);

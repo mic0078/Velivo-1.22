@@ -512,6 +512,8 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 - **Wyciszanie:** na karcie, która gra, pojawia się 🔊. Kliknięcie wycisza (🔇).
 - **Automatyczne odświeżanie:** prawy przycisk → Odświeżaj automatycznie. Karta ma wtedy znaczek ⟳.
 - **Szukanie w kartach:** Ctrl+Shift+A, wpisz kilka liter, Enter przełącza.
+- **◫ Podział ekranu:** prawy przycisk na karcie → „Pokaż obok (podziel ekran)” – dwie karty obok siebie, środkowy pasek przesuwasz myszką; kliknięcie w stronę obok robi ją aktywną. Wyjście: „Zamknij podział ekranu” albo zamknięcie jednej z kart.
+- **💤 Usypianie nieużywanych kart** (Ustawienia → Karty, domyślnie wyłączone): karta, której dawno nie oglądasz, zasypia – mniej pamięci i procesora; budzi się po kliknięciu. Nie zasypia oglądana, przypięta ani grająca.
 - **Karty prywatne (🕶):** nic nie zapisują, nie synchronizują się i nie trafiają do historii.
 - **Po ponownym uruchomieniu** karty, grupy i przypięte wracają. Wyłączysz to w ustawieniach.
 
@@ -1009,6 +1011,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 ### Karty
 - **Po uruchomieniu przywracaj karty z poprzedniej sesji** – karty prywatne nigdy nie są zapisywane. Zamkniętą kartę przywrócisz też skrótem Ctrl+Shift+T.
 - **Otwieraj linki w tej samej karcie** – linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej (działa Wstecz i Dalej). Ctrl+klik nadal otwiera nową kartę.
+- **Usypiaj nieużywane karty** – wyłączone (domyślnie), po 15 / 30 min, po 1 / 2 h.
 
 ### Wyszukiwanie i start
 - **Skróty wyszukiwania** – np. „yt koty” szuka na YouTube; własne skróty dodajesz w okienku.

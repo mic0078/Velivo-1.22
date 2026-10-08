@@ -214,6 +214,13 @@ Velivo jest projektowane tak, żeby dało się je w pełni obsłużyć samą mys
 ### 4.10 Szukanie w kartach
 - **Jak używać:** Ctrl+Shift+A (albo Narzędzia Velivo → Szukaj w kartach) → wpisz fragment tytułu lub adresu → strzałki i Enter. Esc zamyka.
 
+### 4.10a Podział ekranu (dwie karty obok siebie)
+- **Jak używać:** prawy przycisk na karcie → „◫ Pokaż obok (podziel ekran)”; środkowy pasek przesuwasz myszką, kliknięcie w stronę obok robi ją aktywną. Wyjście: „Zamknij podział ekranu” albo zamknięcie jednej z kart.
+
+### 4.10b Usypianie nieużywanych kart
+- **Gdzie:** Ustawienia → Karty → „Usypiaj nieużywane karty” (domyślnie wyłączone; 15 / 30 min, 1 / 2 h).
+- **Co robi:** karta, której dawno nie oglądasz, zasypia (mniej pamięci i procesora) i budzi się po kliknięciu. Nie zasypia oglądana, przypięta ani grająca (muzyka, film, czytanie na głos).
+
 ### 4.11 Wyciszanie karty
 - **Jak używać:** menu karty → „Wycisz kartę” / „Włącz dźwięk karty”.
 

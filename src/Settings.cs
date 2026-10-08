@@ -39,6 +39,7 @@ namespace Przegladarka
         public int Connections = 8;            // polaczen na jeden plik w menedzerze pobierania (1-16)
         public int DefaultZoom = 100;          // domyslne powiekszenie stron w %
         public bool DarkPages = false;         // tryb ciemny stron
+        public int SleepTabsMin = 0;          // usypiaj nieuzywane karty po tylu minutach (0 = wylaczone, domyslnie)
         public bool LinksInSameTab = true;     // linki otwierane przez strone w nowej karcie (target=_blank) -> w tej samej karcie
         public bool RestoreTabs = false;       // przywracaj karty po ponownym uruchomieniu
         public bool FullFilterLists = true;    // pelne listy AdBlocka (EasyList, EasyPrivacy, polska)
@@ -172,6 +173,7 @@ namespace Przegladarka
                         case "dark": s.DarkPages = b; break;
                         case "restore": s.RestoreTabs = b; break;
                         case "sameTab": s.LinksInSameTab = b; break;
+                        case "sleepTabs": { int n; if (int.TryParse(v, out n) && n >= 0) s.SleepTabsMin = n; } break;
                         case "fullLists": s.FullFilterLists = b; break;
                         case "sejfLogins": s.SejfLogins = b; break;
                         case "quickAccessTab": s.QuickAccessNewTab = b; break;
@@ -272,7 +274,7 @@ namespace Przegladarka
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "askedDefault=" + B(AskedDefaultBrowser), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
                 "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "playerSalt=" + (PlayerSalt ?? ""), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
-                "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
+                "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "sleepTabs=" + SleepTabsMin, "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
                 "toolbarCompact=" + B(ToolbarAlwaysCompact),
@@ -456,6 +458,13 @@ namespace Przegladarka
             root.Children.Add(restore);
             var sameTab = Check(L.T("Otwieraj linki w tej samej karcie"), L.T("Linki, które strona chce otworzyć w nowej karcie, otwierają się w bieżącej - działa Wstecz i Dalej. Ctrl+klik dalej otwiera nową kartę. Wyłączone: jak w innych przeglądarkach."), s.LinksInSameTab);
             root.Children.Add(sameTab);
+            root.Children.Add(new TextBlock { Text = L.T("Usypiaj nieużywane karty (mniej pamięci i procesora):"), Margin = new Thickness(0, 6, 0, 2) });
+            int[] sleepOpts = { 0, 15, 30, 60, 120 };
+            var sleepBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 4),
+                ToolTip = L.T("Karta, której dawno nie oglądasz, zasypia i budzi się po kliknięciu. Nie zasypia: oglądana, przypięta ani grająca (muzyka, film, czytanie na głos).") };
+            foreach (var m in sleepOpts) sleepBox.Items.Add(m == 0 ? L.T("Wyłączone") : m < 60 ? L.T("po ") + m + " min" : L.T("po ") + (m / 60) + " h");
+            sleepBox.SelectedIndex = Math.Max(0, Array.IndexOf(sleepOpts, s.SleepTabsMin));
+            root.Children.Add(sleepBox);
 
             root.Children.Add(Header(L.T("Wyszukiwanie i start")));
             var kwBtn = SmallButton(L.T("Skróty wyszukiwania (np. „yt koty”)…"), () => EditSearchKeywords(win));
@@ -898,7 +907,7 @@ namespace Przegladarka
                 s.NightLight = night.IsChecked == true && !s.DarkPages;
                 if (oldNight != s.NightLight) { UpdateDarkButton(); darkChanged = true; }
                 s.ToolbarAlwaysCompact = compactBar.IsChecked == true;
-                s.RestoreTabs = restore.IsChecked == true; s.LinksInSameTab = sameTab.IsChecked == true;
+                s.RestoreTabs = restore.IsChecked == true; s.LinksInSameTab = sameTab.IsChecked == true; s.SleepTabsMin = sleepOpts[Math.Max(0, sleepBox.SelectedIndex)];
                 if (quickAccess.IsEnabled) s.QuickAccessNewTab = quickAccess.IsChecked == true;
                 s.ReadVoice = (string)((ComboBoxItem)voice.SelectedItem).Tag;
                 s.ReadRate = (double)((ComboBoxItem)rate.SelectedItem).Tag;

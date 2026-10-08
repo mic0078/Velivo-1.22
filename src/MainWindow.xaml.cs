@@ -185,6 +185,8 @@ namespace Przegladarka
                     AskDefaultBrowserOnce();
                     EnsureFileTypes();
                     StartSleepTabs();
+                    TabScroller.ContextMenu = BuildTabStripMenu();   // prawy przycisk na pustym pasku kart
+                    NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
                 }
                 catch (Exception ex)
                 {

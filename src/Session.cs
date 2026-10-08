@@ -161,6 +161,37 @@ namespace Przegladarka
         }
 
         // Prawy klik na karcie.
+        // prawy przycisk na pustym miejscu paska kart: nowe karty i to, co zapisane wczesniej (zamkniete karty, zestawy)
+        ContextMenu BuildTabStripMenu()
+        {
+            var menu = new ContextMenu();
+            var add = new MenuItem { Header = L.T("Nowa karta (Ctrl+T)") }; add.Click += (s, e) => AddTab(NewTabUrl);
+            var priv = new MenuItem { Header = L.T("Nowa karta prywatna (Ctrl+Shift+N)") }; priv.Click += (s, e) => AddTab(HomeUrl, true);
+            var reopen = new MenuItem { Header = L.T("Przywróć zamkniętą kartę (Ctrl+Shift+T)") }; reopen.Click += (s, e) => ReopenClosedTab();
+            var sets = BuildTabSetsMenu();
+            var find = new MenuItem { Header = L.T("Szukaj w kartach (Ctrl+Shift+A)") }; find.Click += (s, e) => ShowTabSearch();
+            var groups = new MenuItem { Header = L.T("Grupy kart") };
+            menu.Opened += (s, e) =>
+            {
+                reopen.IsEnabled = _closedTabs.Count > 0;
+                // grupy: klikniecie rozwija albo zwija grupe (lista budowana przy otwarciu menu, zanim podmenu sie otworzy)
+                groups.Items.Clear();
+                foreach (var g0 in _groups)
+                {
+                    var g = g0;
+                    int n = _tabs.Count(t => t.Group == g);
+                    var it = new MenuItem { Header = new TextBlock { Text = "●  " + g.Name + "  (" + n + ")  " + (g.Collapsed ? L.T("– rozwiń") : L.T("– zwiń")), Foreground = new System.Windows.Media.SolidColorBrush(g.Color) } };
+                    it.Click += (a, b) => { g.Collapsed = !g.Collapsed; RefreshGroupsUi(); SaveSessionSoon(); };
+                    groups.Items.Add(it);
+                }
+                if (groups.Items.Count == 0) groups.Items.Add(new MenuItem { Header = L.T("Brak grup – prawy przycisk na karcie → Dodaj do grupy"), IsEnabled = false });
+                var icons = new Dictionary<MenuItem, string> { { add, "\uE710" }, { priv, "\uE727" }, { reopen, "\uE7A7" }, { sets, "\uE8F1" }, { groups, "\uE8EC" }, { find, "\uE721" } };
+                foreach (var kv in icons) kv.Key.Icon = Modern ? MenuGlyph(kv.Value) : null;
+            };
+            foreach (var m in new object[] { add, priv, new Separator(), reopen, sets, groups, new Separator(), find }) menu.Items.Add(m);
+            return menu;
+        }
+
         ContextMenu BuildTabMenu(BrowserTab tab)
         {
             var menu = new ContextMenu();

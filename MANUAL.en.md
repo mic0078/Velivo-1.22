@@ -243,6 +243,7 @@ A **pinned tab** is not closed by the ↓ gesture (just like it has no close but
 - **Mute:** a tab that plays sound shows 🔊. A click mutes it (🔇).
 - **Auto refresh:** right-click → Auto refresh. The tab then shows ⟳.
 - **Tab search:** Ctrl+Shift+A, type a few letters, Enter switches.
+- **Right-click "+" or an empty spot on the tab bar:** new tab, new private tab, reopen closed tab, **Tab sets** (open a saved one / save current), **Tab groups** (expand / collapse), tab search.
 - **◫ Split screen:** right-click a tab → "Show side by side (split screen)" – two tabs next to each other, drag the middle bar; clicking the other page makes it active. Leave with "Close split screen" or by closing one of the tabs.
 - **💤 Sleeping tabs** (Settings → Tabs, off by default): a tab you haven't viewed for a while goes to sleep – less memory and CPU; it wakes on click. The viewed, pinned or playing tab never sleeps.
 - **Private tabs (🕶):** save nothing, don't sync and don't go to history.

@@ -73,6 +73,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           node testy/odtwarzacz/test.mjs
           if ($LASTEXITCODE -ne 0) { exit 1 }
+          node testy/szybki-dostep/test.mjs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Kompilacja programu
         shell: pwsh

@@ -1,7 +1,7 @@
 // Szybki Dostep (strona nowej karty, src/QuickAccessExtension/kod) w Chromium z atrapa Velivo i przegladarki:
 // dodawanie, edycja, usuwanie z cofnieciem, grupy, filtrowanie, zapis po ponownym otwarciu, brak bledow JavaScript.
 // Uruchom: node testy/szybki-dostep/test.mjs
-import { createRequire } from 'node:module'; import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module'; import { readFileSync } from 'node:fs'; import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 let pw; try { pw = require('playwright'); } catch { pw = require(process.env.PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright'); }
 const browser = await pw.chromium.launch(); const p = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -11,7 +11,7 @@ const odp = []; p.on('dialog', (d) => d.accept(odp.shift() || ''));
 await p.addInitScript(readFileSync(new URL('atrapa.js', import.meta.url), 'utf8'));
 // strona dodatku podawana jak przez przegladarke (serwer lokalny), bez internetu: ikony stron nie moga wstrzymac strony
 const { createServer } = await import('node:http'); const { extname, join } = await import('node:path');
-const kod = new URL('../../src/QuickAccessExtension/kod/', import.meta.url).pathname;
+const kod = fileURLToPath(new URL('../../src/QuickAccessExtension/kod/', import.meta.url));   // nie .pathname: na Windows daje /D:/…
 const typy = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
 const serwer = createServer((q, r) => { let dane = null, f = ''; try { f = join(kod, decodeURIComponent(q.url.split('?')[0])); dane = readFileSync(f); } catch { } if (!dane) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'Content-Type': typy[extname(f)] || 'application/octet-stream' }); r.end(dane); });
 await new Promise((ok) => serwer.listen(0, '127.0.0.1', ok));

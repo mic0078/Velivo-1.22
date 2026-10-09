@@ -166,7 +166,7 @@ namespace Przegladarka
                     add(modes);
                     separator();
                     var reader = _env.CreateContextMenuItem(MenuText(L.T("Tryb czytania i streszczenie")), GlyphIcon("\uE736"), CoreWebView2ContextMenuItemKind.Command);
-                    reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenReaderMode);
+                    reader.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => OpenReaderMode());
                     add(reader);
                     var readPage = _env.CreateContextMenuItem(MenuText(_readTab != null ? L.T("Zatrzymaj czytanie") : L.T("Czytaj stronę na głos (Ctrl+Shift+U)")), GlyphIcon("\uE767"), CoreWebView2ContextMenuItemKind.Command);
                     readPage.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => { if (_readTab != null) StopReading(); else StartReading(false); });

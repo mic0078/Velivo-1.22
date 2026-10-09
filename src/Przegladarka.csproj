@@ -32,6 +32,12 @@
       <Link>Dodatki\uBlock Origin Lite\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- pdf.js (Mozilla, Apache-2.0): tekst z PDF do trybu czytania i czytania na glos -->
+    <Content Include="PdfJs\**\*">
+      <Link>pdfjs\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="QuickAccessExtension\**\*">
       <Link>Dodatki\Szybki Dostęp\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

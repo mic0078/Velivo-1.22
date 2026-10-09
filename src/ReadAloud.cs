@@ -195,6 +195,8 @@ namespace Przegladarka
         async void StartReading(bool onlySelection)
         {
             var tab = _current;
+            // PDF: czytnik silnika nie daje tekstu - czytamy w trybie czytania (tekst z pdf.js), od razu calosc
+            if (!onlySelection && tab != null && tab.View.CoreWebView2 != null && IsPdfUrl(tab.View.CoreWebView2.Source)) { OpenReaderMode(true); return; }
             if (tab == null || !await EnsureReader(tab)) return;
             if (_readTab != null && _readTab != tab) StopReading();
             var n = await tab.View.CoreWebView2.ExecuteScriptAsync("window.__velivoRead.start(" + (onlySelection ? "true" : "false") + "," +

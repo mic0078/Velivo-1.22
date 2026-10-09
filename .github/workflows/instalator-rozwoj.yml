@@ -43,6 +43,7 @@ jobs:
       - name: Testy w Chromium (tryb ciemny, czytanie)
         shell: pwsh
         run: |
+          pip install --quiet reportlab
           npm install --no-save playwright@1.48.2
           npx playwright install chromium
           node testy/ciemny-tryb/test.mjs
@@ -76,6 +77,8 @@ jobs:
           node testy/odtwarzacz/test.mjs
           if ($LASTEXITCODE -ne 0) { exit 1 }
           node testy/szybki-dostep/test.mjs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          node testy/pdf/test-tekst-pdf.mjs
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Kompilacja programu

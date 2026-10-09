@@ -90,27 +90,52 @@ namespace Przegladarka
             OpenReaderMode();
         }
 
-        async void OpenReaderMode()
+        // readAll: po otwarciu od razu czytaj calosc (🔊 na PDF), inaczej - podsumowanie
+        async void OpenReaderMode(bool readAll = false)
         {
             if (Core == null) return;
             try
             {
-                var raw = await Core.ExecuteScriptAsync(ReaderExtractScript);
-                var json = JsonSerializer.Deserialize<string>(raw);
-                if (string.IsNullOrWhiteSpace(json)) return;
-
-                using (var doc = JsonDocument.Parse(json))
+                string title, url, text;
+                if (IsPdfUrl(Core.Source))
                 {
-                    var root = doc.RootElement;
-                    var title = root.TryGetProperty("title", out var t) ? t.GetString() : L.T("Tryb czytania");
-                    var url = root.TryGetProperty("url", out var u) ? u.GetString() : "";
-                    var text = root.TryGetProperty("text", out var x) ? x.GetString() : "";
+                    // PDF: wbudowany czytnik silnika nie daje tekstu - Velivo czyta plik sam (PdfReader.cs)
+                    url = Core.Source;
+                    ShowToast(L.T("📄 Odczytuję tekst z PDF…"), null);
+                    (string Title, string Text) pdf;
+                    try { pdf = await ExtractPdfTextAsync(url, Core); }
+                    catch (Exception ex)
+                    {
+                        App.LogError(ex);
+                        ShowToast(L.T("📄 Nie udało się odczytać tekstu z tego PDF: ") + ex.Message, null);
+                        return;
+                    }
+                    title = pdf.Title; text = pdf.Text;
+                    if (string.IsNullOrWhiteSpace(text) || text.Length < 120)
+                    {
+                        ShowToast(L.T("📄 Ten PDF nie ma tekstu do odczytania (może to skan)."), null);
+                        return;
+                    }
+                }
+                else
+                {
+                    var raw = await Core.ExecuteScriptAsync(ReaderExtractScript);
+                    var json = JsonSerializer.Deserialize<string>(raw);
+                    if (string.IsNullOrWhiteSpace(json)) return;
+                    using (var doc = JsonDocument.Parse(json))
+                    {
+                        var root = doc.RootElement;
+                        title = root.TryGetProperty("title", out var t) ? t.GetString() : L.T("Tryb czytania");
+                        url = root.TryGetProperty("url", out var u) ? u.GetString() : "";
+                        text = root.TryGetProperty("text", out var x) ? x.GetString() : "";
+                    }
                     if (string.IsNullOrWhiteSpace(text) || text.Length < 120)
                     {
                         ShowToast(L.T("📰 Za mało treści do trybu czytania na tej stronie."), null);
                         return;
                     }
-
+                }
+                {
                     var summary = LocalSummary(text, 4, title);
 
                     var win = new Window
@@ -198,6 +223,7 @@ namespace Przegladarka
                         view.Dispose();
                     };
 
+                    var readAllJs = "window.getSelection().removeAllRanges();window.__velivoRead && window.__velivoRead.start(false," + Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")";
                     win.Loaded += async (a, b) =>
                     {
                         try
@@ -222,13 +248,11 @@ namespace Przegladarka
     window.__velivoRead && window.__velivoRead.startAt(e.clientX, e.clientY, " + Num(_settings.ReadRate) + ", " + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + @");
   });
 })();");
-                                await ReadSummaryInReader(view);
+                                if (readAll) await view.CoreWebView2.ExecuteScriptAsync(readAllJs);
+                                else await ReadSummaryInReader(view);
                             };
                             readSummaryBtn.Click += async (s3, e3) => await ReadSummaryInReader(view);
-                            readAllBtn.Click += async (s3, e3) =>
-                            {
-                                await view.CoreWebView2.ExecuteScriptAsync("window.getSelection().removeAllRanges();window.__velivoRead && window.__velivoRead.start(false," + Num(_settings.ReadRate) + "," + JsonSerializer.Serialize(_settings.ReadVoice ?? "") + ")");
-                            };
+                            readAllBtn.Click += async (s3, e3) => await view.CoreWebView2.ExecuteScriptAsync(readAllJs);
                             stopBtn.Click += async (s3, e3) => await view.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.stop()");
                         }
                         catch (Exception ex)

@@ -93,6 +93,17 @@ namespace Przegladarka
 
         // ================= zapisane zestawy kart =================
 
+        // adres do menu: domena + sciezka, skrocone
+        internal static string ShortUrl(string url)
+        {
+            Uri u;
+            var t = Uri.TryCreate(url, UriKind.Absolute, out u) && (u.Scheme == "http" || u.Scheme == "https")
+                ? (u.Host.StartsWith("www.") ? u.Host.Substring(4) : u.Host) + (u.AbsolutePath == "/" ? "" : Uri.UnescapeDataString(u.AbsolutePath))
+                : url ?? "";
+            t = t.Replace("_", "__");   // podkreslnik w naglowku menu to klawisz skrotu
+            return t.Length > 70 ? t.Substring(0, 67) + "…" : t;
+        }
+
         static string TabSetsFile { get { return Path.Combine(DataDir, "zestawy-kart.json"); } }
 
         static Dictionary<string, List<string>> LoadTabSets()
@@ -139,6 +150,15 @@ namespace Przegladarka
                 {
                     var name = kv.Key; var urls = kv.Value ?? new List<string>();
                     var set = new MenuItem { Header = name + "  (" + urls.Count + ")" };
+                    // kazda karta zestawu osobno + "otworz wszystkie"
+                    foreach (var u0 in urls.Where(Restorable))
+                    {
+                        var u = u0;
+                        var one = new MenuItem { Header = ShortUrl(u), ToolTip = u };
+                        one.Click += (a, b) => AddTab(u);
+                        set.Items.Add(one);
+                    }
+                    if (set.Items.Count > 0) set.Items.Add(new Separator());
                     var open = new MenuItem { Header = L.T("Otwórz wszystkie karty") };
                     open.Click += (a, b) => { foreach (var u in urls.Where(Restorable)) AddTab(u); };
                     var update = new MenuItem { Header = L.T("Zastąp obecnymi kartami") };
@@ -169,7 +189,6 @@ namespace Przegladarka
             public string Name;
             public Color Color;
             public bool Collapsed;
-            public bool Kept;   // przypieta: wraca po kazdym uruchomieniu (takze bez przywracania kart)
             public Button Chip;
         }
 
@@ -238,7 +257,7 @@ namespace Przegladarka
                 int count = _tabs.Count(t => t.Group == g);
                 if (g.Chip == null) g.Chip = BuildGroupChip(g);
                 g.Chip.Background = new SolidColorBrush(g.Color);
-                g.Chip.Content = (g.Kept ? "📌 " : "") + (g.Collapsed ? "▸ " : "▾ ") + g.Name + (g.Collapsed ? "  (" + count + ")" : "");
+                g.Chip.Content = (g.Collapsed ? "▸ " : "▾ ") + g.Name + (g.Collapsed ? "  (" + count + ")" : "");
                 TabStrip.Children.Insert(TabStrip.Children.IndexOf(first.Header), g.Chip);
             }
         }
@@ -263,14 +282,6 @@ namespace Przegladarka
                 it.Click += (s, e) => { g.Color = c; RefreshGroupsUi(); SaveSessionSoon(); };
                 color.Items.Add(it);
             }
-            var keep = new MenuItem { Header = L.T("📌 Przypnij grupę (zostaje po ponownym uruchomieniu)"), IsCheckable = true };
-            menu.Opened += (s, e) => keep.IsChecked = g.Kept;
-            keep.Click += (s, e) =>
-            {
-                g.Kept = keep.IsChecked;
-                RefreshGroupsUi(); SaveSessionSoon();
-                ShowToast(g.Kept ? L.T("📌 Grupa przypięta – wróci po ponownym uruchomieniu") : L.T("Grupa odpięta"), null);
-            };
             var asSet = new MenuItem { Header = L.T("Zapisz grupę jako zestaw kart") };
             asSet.Click += (s, e) =>
             {
@@ -288,7 +299,7 @@ namespace Przegladarka
                 if (MessageBox.Show(this, (L.En ? "Close " : "Zamknąć ") + members.Count + (L.En ? " tabs?" : " kart?"), "Velivo", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 foreach (var t in members) CloseTab(t);
             };
-            foreach (var m in new object[] { rename, color, new Separator(), keep, asSet, new Separator(), ungroup, closeAll }) menu.Items.Add(m);
+            foreach (var m in new object[] { rename, color, new Separator(), asSet, new Separator(), ungroup, closeAll }) menu.Items.Add(m);
             chip.ContextMenu = menu;
             return chip;
         }
@@ -350,7 +361,7 @@ namespace Przegladarka
             catch (IOException) { }
         }
 
-        // Przypiete grupy: osobny plik, zapisywany zawsze (niezaleznie od przywracania kart).
+        // Grupy kart sa zapamietywane zawsze (osobny plik, niezaleznie od przywracania kart) - wracaja po ponownym uruchomieniu.
         internal sealed class KeptGroup
         {
             public string Name { get; set; }
@@ -359,7 +370,7 @@ namespace Przegladarka
             public List<string> Urls { get; set; }
         }
 
-        static string KeptGroupsFile { get { return Path.Combine(DataDir, "grupy-przypiete.json"); } }
+        static string KeptGroupsFile { get { return Path.Combine(DataDir, "grupy-kart.json"); } }
 
         internal static List<KeptGroup> ParseKeptGroups(string json)
         {
@@ -377,7 +388,7 @@ namespace Przegladarka
             try
             {
                 Func<BrowserTab, string> urlOf = t => t.View.CoreWebView2 != null ? t.View.CoreWebView2.Source : t.StartUrl;
-                var kept = _groups.Where(g => g.Kept).Select(g => new KeptGroup
+                var kept = _groups.Select(g => new KeptGroup
                 {
                     Name = g.Name, Collapsed = g.Collapsed,
                     Color = g.Color.R.ToString("X2") + g.Color.G.ToString("X2") + g.Color.B.ToString("X2"),
@@ -389,7 +400,7 @@ namespace Przegladarka
             catch (IOException) { }
         }
 
-        // po starcie: grupa przywrocona z sesja zostaje przypieta, brakujaca otwiera sie na nowo
+        // po starcie: grupa przywrocona juz z sesja zostaje, brakujaca otwiera sie na nowo
         void RestoreKeptGroups()
         {
             try
@@ -406,7 +417,6 @@ namespace Przegladarka
                         _groups.Add(g);
                         foreach (var u in k.Urls) { AddTab(u); _tabs[_tabs.Count - 1].Group = g; }
                     }
-                    g.Kept = true;
                 }
                 RefreshGroupsUi();
             }

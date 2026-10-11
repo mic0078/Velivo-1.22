@@ -2,7 +2,7 @@ using System.Linq;
 using Przegladarka;
 using Xunit;
 
-// Przypiete grupy kart (grupy-przypiete.json): wracaja po ponownym uruchomieniu, takze gdy przywracanie kart jest wylaczone.
+// Grupy kart (grupy-kart.json): zawsze wracaja po ponownym uruchomieniu, takze gdy przywracanie kart jest wylaczone.
 // Wczesniej grupy zapisywaly sie tylko z sesja - przy domyslnych ustawieniach znikaly po restarcie.
 public class KeptGroupsTests
 {

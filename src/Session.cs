@@ -127,6 +127,7 @@ namespace Przegladarka
         {
             if (!_sessionLoaded) return;
             SavePinnedTabs();
+            SaveKeptGroups();
             try
             {
                 if ((!_settings.RestoreTabs || _settings.ClearOnExit) && !File.Exists(RestartFlag))

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -169,6 +169,7 @@ namespace Przegladarka
             public string Name;
             public Color Color;
             public bool Collapsed;
+            public bool Kept;   // przypieta: wraca po kazdym uruchomieniu (takze bez przywracania kart)
             public Button Chip;
         }
 
@@ -237,7 +238,7 @@ namespace Przegladarka
                 int count = _tabs.Count(t => t.Group == g);
                 if (g.Chip == null) g.Chip = BuildGroupChip(g);
                 g.Chip.Background = new SolidColorBrush(g.Color);
-                g.Chip.Content = (g.Collapsed ? "▸ " : "▾ ") + g.Name + (g.Collapsed ? "  (" + count + ")" : "");
+                g.Chip.Content = (g.Kept ? "📌 " : "") + (g.Collapsed ? "▸ " : "▾ ") + g.Name + (g.Collapsed ? "  (" + count + ")" : "");
                 TabStrip.Children.Insert(TabStrip.Children.IndexOf(first.Header), g.Chip);
             }
         }
@@ -262,6 +263,22 @@ namespace Przegladarka
                 it.Click += (s, e) => { g.Color = c; RefreshGroupsUi(); SaveSessionSoon(); };
                 color.Items.Add(it);
             }
+            var keep = new MenuItem { Header = L.T("📌 Przypnij grupę (zostaje po ponownym uruchomieniu)"), IsCheckable = true };
+            menu.Opened += (s, e) => keep.IsChecked = g.Kept;
+            keep.Click += (s, e) =>
+            {
+                g.Kept = keep.IsChecked;
+                RefreshGroupsUi(); SaveSessionSoon();
+                ShowToast(g.Kept ? L.T("📌 Grupa przypięta – wróci po ponownym uruchomieniu") : L.T("Grupa odpięta"), null);
+            };
+            var asSet = new MenuItem { Header = L.T("Zapisz grupę jako zestaw kart") };
+            asSet.Click += (s, e) =>
+            {
+                var urls = _tabs.Where(t => t.Group == g && !t.Private).Select(t => t.View.CoreWebView2 != null ? t.View.CoreWebView2.Source : t.StartUrl).Where(Restorable).Distinct().ToList();
+                if (urls.Count == 0) return;
+                var sets = LoadTabSets(); sets[g.Name] = urls; SaveTabSets(sets);
+                ShowToast((L.En ? "Saved set „" : "Zapisano zestaw „") + g.Name + "” (" + urls.Count + ")", null);
+            };
             var ungroup = new MenuItem { Header = L.T("Rozgrupuj (karty zostają)") };
             ungroup.Click += (s, e) => { foreach (var t in _tabs.Where(t => t.Group == g)) t.Group = null; RefreshGroupsUi(); SaveSessionSoon(); };
             var closeAll = new MenuItem { Header = L.T("Zamknij wszystkie karty grupy") };
@@ -271,7 +288,7 @@ namespace Przegladarka
                 if (MessageBox.Show(this, (L.En ? "Close " : "Zamknąć ") + members.Count + (L.En ? " tabs?" : " kart?"), "Velivo", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 foreach (var t in members) CloseTab(t);
             };
-            foreach (var m in new object[] { rename, color, new Separator(), ungroup, closeAll }) menu.Items.Add(m);
+            foreach (var m in new object[] { rename, color, new Separator(), keep, asSet, new Separator(), ungroup, closeAll }) menu.Items.Add(m);
             chip.ContextMenu = menu;
             return chip;
         }
@@ -331,6 +348,69 @@ namespace Przegladarka
                 else File.WriteAllLines(GroupsFile, lines);
             }
             catch (IOException) { }
+        }
+
+        // Przypiete grupy: osobny plik, zapisywany zawsze (niezaleznie od przywracania kart).
+        internal sealed class KeptGroup
+        {
+            public string Name { get; set; }
+            public string Color { get; set; }
+            public bool Collapsed { get; set; }
+            public List<string> Urls { get; set; }
+        }
+
+        static string KeptGroupsFile { get { return Path.Combine(DataDir, "grupy-przypiete.json"); } }
+
+        internal static List<KeptGroup> ParseKeptGroups(string json)
+        {
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<KeptGroup>>(json ?? "") ?? new List<KeptGroup>();
+                return list.Where(k => !string.IsNullOrWhiteSpace(k.Name) && k.Urls != null)
+                    .Select(k => { k.Urls = k.Urls.Where(Restorable).Take(50).ToList(); return k; }).Where(k => k.Urls.Count > 0).ToList();
+            }
+            catch (Exception) { return new List<KeptGroup>(); }
+        }
+
+        void SaveKeptGroups()
+        {
+            try
+            {
+                Func<BrowserTab, string> urlOf = t => t.View.CoreWebView2 != null ? t.View.CoreWebView2.Source : t.StartUrl;
+                var kept = _groups.Where(g => g.Kept).Select(g => new KeptGroup
+                {
+                    Name = g.Name, Collapsed = g.Collapsed,
+                    Color = g.Color.R.ToString("X2") + g.Color.G.ToString("X2") + g.Color.B.ToString("X2"),
+                    Urls = _tabs.Where(t => t.Group == g && !t.Private).Select(urlOf).Where(Restorable).ToList(),
+                }).Where(k => k.Urls.Count > 0).ToList();
+                if (kept.Count == 0) { if (File.Exists(KeptGroupsFile)) File.Delete(KeptGroupsFile); }
+                else File.WriteAllText(KeptGroupsFile, JsonSerializer.Serialize(kept, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (IOException) { }
+        }
+
+        // po starcie: grupa przywrocona z sesja zostaje przypieta, brakujaca otwiera sie na nowo
+        void RestoreKeptGroups()
+        {
+            try
+            {
+                if (!File.Exists(KeptGroupsFile)) return;
+                foreach (var k in ParseKeptGroups(File.ReadAllText(KeptGroupsFile)))
+                {
+                    var g = _groups.FirstOrDefault(x => x.Name == k.Name);
+                    if (g == null)
+                    {
+                        var c = GroupColors[_groups.Count % GroupColors.Length];
+                        try { c = (Color)ColorConverter.ConvertFromString("#" + k.Color); } catch (Exception) { }
+                        g = new TabGroup { Name = k.Name, Color = c, Collapsed = k.Collapsed };
+                        _groups.Add(g);
+                        foreach (var u in k.Urls) { AddTab(u); _tabs[_tabs.Count - 1].Group = g; }
+                    }
+                    g.Kept = true;
+                }
+                RefreshGroupsUi();
+            }
+            catch (Exception ex) { App.LogError(ex); }
         }
 
         void RestoreTabGroups(List<BrowserTab> sessionTabs)

@@ -29,7 +29,7 @@ namespace Przegladarka
         public string ReaderTheme = "light";     // czytnik: light / dark / night
         public int ReaderNight = 40;            // natezenie trybu nocnego czytnika (5-100%)
         public string ReaderSize = "";          // ostatni rozmiar okna czytnika "szer;wys"        // po zamknieciu okna zostan w zasobniku (synchronizacja w tle, szybki start)
-        public bool AudioGuard = true;         // dzwiek nie ginie, gdy program muzyczny zajmie karte
+        public bool AudioGuard = false;        // dzwiek nie ginie, gdy program muzyczny zajmie karte (domyslnie wylaczone)
         public string AudioOut = "";           // wybrane glosniki Velivo ("" = domyslne Windows)           // wbudowany uBlock Origin Lite
         public bool AntiPhishing = true;       // wykrywanie stron-podrobek (offline)
         public bool HttpsFirst = true;         // najpierw HTTPS, strony bez szyfrowania tylko po ostrzezeniu

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,7 +13,8 @@ namespace Przegladarka
 {
     // Karteczki (sticky notes): zolte karteczki na pulpicie - przesuwane, ze zmiana rozmiaru, opcjonalnie zawsze na wierzchu.
     // Dostepne zawsze (bez trybu bankowego). Zapis lokalny w karteczki.json; po uruchomieniu Velivo wracaja na swoje miejsca.
-    // Wzory z ikonka: zwykla, lista zadan, zakupy, zadzwon, wazne, pomysl, na dzis. Na liscie dwuklik w wiersz ☐ / ☑ odhacza.
+    // Wzory z ikonka: zwykla, lista zadan, zakupy, zadzwon, wazne, pomysl, na dzis. Listy wypunktowane (•), dwuklik w wiersz
+    // odhacza (• -> ✓ -> •); 📅 wstawia date z kalendarza w miejscu kursora.
     public partial class MainWindow
     {
         internal sealed class StickyNote
@@ -33,12 +34,12 @@ namespace Przegladarka
         internal static readonly string[][] NoteKinds =
         {
             new[] { "note", "📝", "Karteczka", "" },
-            new[] { "todo", "✅", "Do zrobienia", "☐ \n☐ \n☐ " },
-            new[] { "shop", "🛒", "Zakupy", "☐ \n☐ \n☐ " },
+            new[] { "todo", "✅", "Do zrobienia", "• \n• \n• " },
+            new[] { "shop", "🛒", "Zakupy", "• \n• \n• " },
             new[] { "call", "📞", "Zadzwoń", "" },
             new[] { "important", "❗", "Ważne", "" },
             new[] { "idea", "💡", "Pomysł", "" },
-            new[] { "today", "⭐", "Na dziś", "☐ \n☐ \n☐ " },
+            new[] { "today", "⭐", "Na dziś", "• \n• \n• " },
         };
 
         static readonly string[] NoteColors = { "FFF59D", "FFCC80", "A5D6A7", "90CAF9", "F48FB1", "E1BEE7" };
@@ -52,18 +53,23 @@ namespace Przegladarka
 
         internal static List<StickyNote> ParseNotes(string json)
         {
-            try { return (JsonSerializer.Deserialize<List<StickyNote>>(json ?? "") ?? new List<StickyNote>()).Where(n => n != null && !string.IsNullOrEmpty(n.Id)).ToList(); }
+            try
+            {
+                var list = (JsonSerializer.Deserialize<List<StickyNote>>(json ?? "") ?? new List<StickyNote>()).Where(n => n != null && !string.IsNullOrEmpty(n.Id)).ToList();
+                foreach (var n in list) n.Text = (n.Text ?? "").Replace("☐", "•").Replace("☑", "✓");   // dawne kratki (zle wyswietlane) -> kropki
+                return list;
+            }
             catch (Exception) { return new List<StickyNote>(); }
         }
 
-        // dwuklik w wiersz listy: ☐ <-> ☑ (inne wiersze bez zmian)
+        // dwuklik w wiersz listy: • <-> ✓ (inne wiersze bez zmian)
         internal static string ToggleCheckLine(string text, int line)
         {
             var lines = (text ?? "").Split('\n');
             if (line < 0 || line >= lines.Length) return text;
             var l = lines[line];
-            if (l.StartsWith("☐")) lines[line] = "☑" + l.Substring(1);
-            else if (l.StartsWith("☑")) lines[line] = "☐" + l.Substring(1);
+            if (l.StartsWith("•")) lines[line] = "✓" + l.Substring(1);
+            else if (l.StartsWith("✓")) lines[line] = "•" + l.Substring(1);
             else return text;
             return string.Join("\n", lines);
         }
@@ -149,8 +155,19 @@ namespace Przegladarka
             {
                 Text = n.Text ?? "", AcceptsReturn = true, AcceptsTab = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 15, Padding = new Thickness(8, 6, 8, 6),
-                FontFamily = new FontFamily("Segoe Print, Segoe UI Symbol"),   // ☐ / ☑ z Segoe UI Symbol (czarno-biale, bez kolorowych zamiennikow) Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
+                FontFamily = new FontFamily("Segoe Print, Segoe UI"), Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
             };
+            // 📅 ten sam kalendarzyk co przy datach w trybie bankowym - data wstawiana w miejscu kursora
+            var date = DatePickerButton(head, () => null, v =>
+            {
+                int at = box.CaretIndex;
+                box.Text = box.Text.Insert(at, v);
+                box.Focus(); box.CaretIndex = at + v.Length;
+            });
+            date.Width = 26; date.MinWidth = 0; date.Height = 24; date.Padding = new Thickness(0); date.Margin = new Thickness(1, 0, 0, 0);
+            date.Background = Brushes.Transparent; date.BorderThickness = new Thickness(0); date.Cursor = Cursors.Hand; date.FontSize = 13;
+            date.ToolTip = L.T("Wstaw datę z kalendarza");
+            btns.Children.Insert(0, date);
             var root = new DockPanel();
             DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); root.Children.Add(box);
             w.Content = root;
@@ -179,7 +196,7 @@ namespace Przegladarka
             add.Click += (s, e) => { kinds.PlacementTarget = add; kinds.IsOpen = true; };
             del.Click += (s, e) =>
             {
-                if (!string.IsNullOrWhiteSpace(n.Text.Replace("☐", "").Replace("☑", "")) &&
+                if (!string.IsNullOrWhiteSpace(n.Text.Replace("•", "").Replace("✓", "")) &&
                     MessageBox.Show(w, L.T("Usunąć tę karteczkę?"), "Velivo", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 _notes.Remove(n); SaveNotes(); w.Close();
             };

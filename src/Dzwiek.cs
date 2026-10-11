@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
 
@@ -227,12 +228,17 @@ namespace Przegladarka
         {
             if (_audioGuard != null) return;
             _audioGuard = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            _audioGuard.Tick += (s, e) =>
+            // sprawdzanie urzadzen dzwieku (COM, proba otwarcia wyjscia) w tle - w watku okna zatrzymywalo obraz
+            // na kilkadziesiat ms co 2 s podczas odtwarzania (mikro przyciecia filmow i przewijania)
+            bool probing = false;
+            _audioGuard.Tick += async (s, e) =>
             {
+                if (probing) return;
+                probing = true;
                 try
                 {
                     if (_settings == null || !_settings.AudioGuard) { if (_audioRoutedTo != "") { RouteVelivoAudio(null); _audioRoutedTo = ""; } return; }
-                    var def = DefaultAudioOutputId();
+                    var def = await Task.Run(() => DefaultAudioOutputId());
                     if (_lastDefaultOut != null && def != _lastDefaultOut) _audioChangedAt = DateTime.UtcNow;
                     _lastDefaultOut = def;
                     ResumeAfterAudioChange();
@@ -241,10 +247,10 @@ namespace Przegladarka
                     bool playing = _tabs.Any(t => { try { return t.View.CoreWebView2 != null && t.View.CoreWebView2.IsDocumentPlayingAudio; } catch (Exception) { return false; } })
                         || _floatCores.ToList().Any(c => { try { return c.IsDocumentPlayingAudio; } catch (Exception) { _floatCores.Remove(c); return false; } });
                     if (!playing) return;
-                    var wanted = string.IsNullOrEmpty(_settings.AudioOut) ? DefaultAudioOutputId() : _settings.AudioOut;
+                    var wanted = string.IsNullOrEmpty(_settings.AudioOut) ? def : _settings.AudioOut;
                     if (wanted == null) return;
                     string target;
-                    bool free = AudioOutputFree(wanted);
+                    bool free = await Task.Run(() => AudioOutputFree(wanted));
                     if (_lastWantedFree.HasValue && _lastWantedFree.Value != free) _audioChangedAt = DateTime.UtcNow;
                     _lastWantedFree = free;
                     if (free) { _freeTicks++; _busyTicks = 0; } else { _busyTicks++; _freeTicks = 0; }
@@ -253,7 +259,7 @@ namespace Przegladarka
                     else
                     {
                         // zajete (np. Ableton/Cubase) - pierwsze inne wolne wyjscie
-                        var alt = ListAudioOutputs().FirstOrDefault(d => d.Id != wanted && AudioOutputFree(d.Id));
+                        var alt = await Task.Run(() => ListAudioOutputs().FirstOrDefault(d => d.Id != wanted && AudioOutputFree(d.Id)));
                         if (alt == null) return;
                         target = alt.Id;
                     }
@@ -265,6 +271,7 @@ namespace Przegladarka
                     ShowToast("🔊 " + L.T("Dźwięk Velivo: ") + (name ?? L.T("domyślne wyjście Windows")), null);
                 }
                 catch (Exception ex) { App.LogError(ex); }
+                finally { probing = false; }
             };
             _audioGuard.Start();
             // przy wyjsciu z programu: zadnego pozostawionego przypisania glosnikow w Windows

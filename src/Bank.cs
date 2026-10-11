@@ -2189,24 +2189,24 @@ draw();
 
         static string FixUrl(string u) { u = (u ?? "").Trim(); return u.Length > 0 && !u.Contains("://") ? "https://" + u : u; }
 
-        // 📅 obok pola z data: miniaturowy kalendarz pod polem, klik w dzien wpisuje DD.MM.RRRR (wpisywanie recznie dziala dalej)
-        static Button DatePickerButton(TextBox tb)
+        // 📅 miniaturowy kalendarz pod polem (pola z data w trybie bankowym, karteczki): klik w dzien = pick("DD.MM.RRRR")
+        static Button DatePickerButton(FrameworkElement anchor, Func<DateTime?> current, Action<string> pick)
         {
             var btn = new Button { Content = "📅", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("Wybierz datę z kalendarza") };
             var cal = new System.Windows.Controls.Calendar { FirstDayOfWeek = DayOfWeek.Monday, IsTodayHighlighted = true };
             var pop = new System.Windows.Controls.Primitives.Popup { Child = new Border { Child = cal, Background = Brushes.White, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) },
-                PlacementTarget = tb, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true };
+                PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true };
             btn.Click += (a, b) =>
             {
-                var d = ParseDay(tb.Text) ?? DateTime.Today;
-                cal.SelectedDate = ParseDay(tb.Text); cal.DisplayDate = d;
+                var d = current();
+                cal.SelectedDate = d; cal.DisplayDate = d ?? DateTime.Today;
                 pop.IsOpen = true;
             };
             cal.SelectedDatesChanged += (a, b) =>
             {
                 if (!pop.IsOpen || cal.SelectedDate == null) return;
-                tb.Text = cal.SelectedDate.Value.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture);
-                pop.IsOpen = false; tb.Focus(); tb.CaretIndex = tb.Text.Length;
+                pop.IsOpen = false;
+                pick(cal.SelectedDate.Value.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture));
             };
             // kalendarz WPF przechwytuje mysz po kliknieciu dnia - bez zwolnienia nastepny klik w okno "przepada"
             cal.PreviewMouseUp += (a, b) => { if (Mouse.Captured is System.Windows.Controls.Primitives.CalendarItem) Mouse.Capture(null); };
@@ -2290,7 +2290,7 @@ draw();
                 else
                 {
                     var tb = new TextBox { Padding = new Thickness(4) };
-                    if (fd.Date) { var cal = DatePickerButton(tb); DockPanel.SetDock(cal, Dock.Right); row.Children.Add(cal); }
+                    if (fd.Date) { var cal = DatePickerButton(tb, () => ParseDay(tb.Text), v => { tb.Text = v; tb.Focus(); tb.CaretIndex = v.Length; }); DockPanel.SetDock(cal, Dock.Right); row.Children.Add(cal); }
                     row.Children.Add(tb);
                     getters[fd.Key] = () => tb.Text ?? ""; setters[fd.Key] = v => tb.Text = v ?? "";
                 }

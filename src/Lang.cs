@@ -770,6 +770,7 @@ namespace Przegladarka
             { "Nowoczesny (spokojny, jak Windows 11)", "Modern (calm, like Windows 11)" },
             { "Kolorowy (kolorowe przyciski)", "Colorful (colored buttons)" },
             { "W skrócie:", "In short:" },
+            { "Wstaw datę z kalendarza", "Insert a date from the calendar" },
             { "Wybierz datę z kalendarza", "Pick a date from the calendar" },
             { "📥 Wklej ze schowka", "📥 Paste from clipboard" },
             { "📥 Schowek jest pusty", "📥 Clipboard is empty" },

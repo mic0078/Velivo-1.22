@@ -168,6 +168,7 @@ namespace Przegladarka
                     _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"),
                         new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true, AdditionalBrowserArguments = BrowserArguments() });
                     LoadBookmarks();
+                    LoadNotes();   // karteczki na pulpit wracaja na swoje miejsca
                     var pinned = LoadPinnedTabs(); // karty przypiete - zawsze na poczatku
                     foreach (var u in pinned) { AddTab(u); SetTabPinned(_tabs[_tabs.Count - 1], true); }
                     var session = LoadSession(); // karty z poprzedniego uruchomienia

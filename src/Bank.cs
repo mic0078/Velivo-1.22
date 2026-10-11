@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -353,7 +353,7 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(sheet); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(transfer); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(BuildNotesMenu()); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(sheet); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(transfer); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 // dodac strone mozna z kazdej karty (takze zwyklej) - gdy tryb zamkniety, najpierw klucz / haslo
                 addSite.IsEnabled = _current != null && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
@@ -2151,6 +2151,30 @@ draw();
 
         static string FixUrl(string u) { u = (u ?? "").Trim(); return u.Length > 0 && !u.Contains("://") ? "https://" + u : u; }
 
+        // 📅 obok pola z data: miniaturowy kalendarz pod polem, klik w dzien wpisuje DD.MM.RRRR (wpisywanie recznie dziala dalej)
+        static Button DatePickerButton(TextBox tb)
+        {
+            var btn = new Button { Content = "📅", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("Wybierz datę z kalendarza") };
+            var cal = new System.Windows.Controls.Calendar { FirstDayOfWeek = DayOfWeek.Monday, IsTodayHighlighted = true };
+            var pop = new System.Windows.Controls.Primitives.Popup { Child = new Border { Child = cal, Background = Brushes.White, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) },
+                PlacementTarget = tb, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true };
+            btn.Click += (a, b) =>
+            {
+                var d = ParseDay(tb.Text) ?? DateTime.Today;
+                cal.SelectedDate = ParseDay(tb.Text); cal.DisplayDate = d;
+                pop.IsOpen = true;
+            };
+            cal.SelectedDatesChanged += (a, b) =>
+            {
+                if (!pop.IsOpen || cal.SelectedDate == null) return;
+                tb.Text = cal.SelectedDate.Value.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                pop.IsOpen = false; tb.Focus(); tb.CaretIndex = tb.Text.Length;
+            };
+            // kalendarz WPF przechwytuje mysz po kliknieciu dnia - bez zwolnienia nastepny klik w okno "przepada"
+            cal.PreviewMouseUp += (a, b) => { if (Mouse.Captured is System.Windows.Controls.Primitives.CalendarItem) Mouse.Capture(null); };
+            return btn;
+        }
+
         static DateTime? ParseDay(string t)
         {
             DateTime d;
@@ -2195,7 +2219,10 @@ draw();
                 var fd = f;
                 sp.Children.Add(new TextBlock { Text = L.T(fd.Label) });
                 var row = new DockPanel { Margin = new Thickness(0, 1, 0, 5) };
-                var copy = new Button { Content = "📋", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📋 Kopiuj") };   // bez sztywnej szerokosci - ikonka nie jest ucinana do "|"
+                // Kopiuj / Wklej obok kazdego pola (bez sztywnej szerokosci - ikonka nie jest ucinana do "|")
+                var copy = new Button { Content = "📋", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📋 Kopiuj") };
+                var paste = new Button { Content = "📥", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📥 Wklej ze schowka") };
+                DockPanel.SetDock(paste, Dock.Right); row.Children.Add(paste);
                 DockPanel.SetDock(copy, Dock.Right); row.Children.Add(copy);
                 if (kind == "bills" && fd.Key == "name" && sheetNames.Count > 0)
                 {
@@ -2225,9 +2252,17 @@ draw();
                 else
                 {
                     var tb = new TextBox { Padding = new Thickness(4) };
+                    if (fd.Date) { var cal = DatePickerButton(tb); DockPanel.SetDock(cal, Dock.Right); row.Children.Add(cal); }
                     row.Children.Add(tb);
                     getters[fd.Key] = () => tb.Text ?? ""; setters[fd.Key] = v => tb.Text = v ?? "";
                 }
+                paste.Click += (a, b) =>
+                {
+                    string v = null;
+                    try { if (Clipboard.ContainsText()) v = Clipboard.GetText().Trim(); } catch (Exception) { }
+                    if (string.IsNullOrEmpty(v)) { ShowToast(L.T("📥 Schowek jest pusty"), null); return; }
+                    setters[fd.Key](v);
+                };
                 copy.Click += (a, b) =>
                 {
                     var v = getters[fd.Key](); if (string.IsNullOrEmpty(v)) return;

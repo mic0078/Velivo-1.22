@@ -200,7 +200,8 @@ namespace Przegladarka
                 var icons = new Dictionary<MenuItem, string> { { add, "\uE710" }, { priv, "\uE727" }, { reopen, "\uE7A7" }, { sets, "\uE8F1" }, { groups, "\uE8EC" }, { find, "\uE721" } };
                 foreach (var kv in icons) kv.Key.Icon = Modern ? MenuGlyph(kv.Value) : null;
             };
-            foreach (var m in new object[] { add, priv, new Separator(), reopen, sets, groups, new Separator(), find }) menu.Items.Add(m);
+            var notes = BuildNotesMenu();
+            foreach (var m in new object[] { add, priv, new Separator(), reopen, sets, groups, new Separator(), notes, find }) menu.Items.Add(m);
             return menu;
         }
 

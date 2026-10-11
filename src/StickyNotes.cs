@@ -149,7 +149,7 @@ namespace Przegladarka
             {
                 Text = n.Text ?? "", AcceptsReturn = true, AcceptsTab = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 15, Padding = new Thickness(8, 6, 8, 6),
-                FontFamily = new FontFamily("Segoe Print, Segoe UI"), Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
+                FontFamily = new FontFamily("Segoe Print, Segoe UI Symbol"),   // ☐ / ☑ z Segoe UI Symbol (czarno-biale, bez kolorowych zamiennikow) Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22)),
             };
             var root = new DockPanel();
             DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); root.Children.Add(box);

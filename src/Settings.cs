@@ -593,6 +593,15 @@ namespace Przegladarka
             root.Children.Add(guardBox);
             var trayBox = Check(L.T("Po zamknięciu okna zostań w zasobniku (synchronizacja w tle, natychmiastowy start)"), L.T("Ikonka Velivo przy zegarze pulsuje podczas synchronizacji. Prawy przycisk na ikonce: Otwórz, Synchronizuj teraz, Zamknij całkowicie."), s.StayInTray);
             root.Children.Add(trayBox);
+            int autoNow = ReadAutostart();
+            var autoBox = Check(L.T("Uruchamiaj Velivo przy starcie Windows"), L.T("Opóźnienie pozwala Windows najpierw spokojnie się uruchomić."), autoNow >= 0);
+            root.Children.Add(autoBox);
+            var autoDelay = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(24, 0, 0, 6) };
+            foreach (var d in AutostartDelays) autoDelay.Items.Add(d == 0 ? L.T("bez opóźnienia") : d < 60 ? (L.En ? "after " : "po ") + d + " s" : (L.En ? "after " : "po ") + d / 60 + " min");
+            autoDelay.SelectedIndex = Math.Max(0, Array.IndexOf(AutostartDelays, autoNow >= 0 ? autoNow : 30));
+            autoDelay.IsEnabled = autoBox.IsChecked == true;
+            autoBox.Click += (a0, b0) => autoDelay.IsEnabled = autoBox.IsChecked == true;
+            root.Children.Add(autoDelay);
             var audioOut = SmallButton(L.T("🔊 Mikser głośności Windows…"), OpenAppAudioSettings);
             audioOut.HorizontalAlignment = HorizontalAlignment.Left;
             root.Children.Add(audioOut);
@@ -884,6 +893,8 @@ namespace Przegladarka
                 bool ubolChanged = s.UbolLite != (ubolBox.IsChecked == true); s.UbolLite = ubolBox.IsChecked == true; if (ubolChanged) _ = EnsureBundledUbolAsync();
                 s.AudioGuard = guardBox.IsChecked == true;
                 s.StayInTray = trayBox.IsChecked == true; UpdateTrayFromSettings();
+                int autoNew = autoBox.IsChecked == true ? AutostartDelays[Math.Max(0, autoDelay.SelectedIndex)] : -1;
+                if (autoNew != ReadAutostart()) WriteAutostart(autoNew >= 0, Math.Max(0, autoNew));
                 var newOut = (string)((ComboBoxItem)outBox.SelectedItem).Tag ?? "";
                 if (newOut != (s.AudioOut ?? "")) { s.AudioOut = newOut; RouteVelivoAudio(newOut); _audioRoutedTo = newOut; }
                 s.AntiPhishing = phishBox.IsChecked == true; s.HttpsFirst = httpsBox.IsChecked == true; s.SafePayments = payBox.IsChecked == true;

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { skrypt } from '../wspolne/skrypt-cs.mjs';
 const require = createRequire(import.meta.url);
 let pw; try { pw = require('playwright'); } catch { pw = require(process.env.PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright'); }
@@ -15,7 +16,7 @@ const dir = mkdtempSync(join(tmpdir(), 'velivo-pdf-'));
 const src = new URL('../../src/PdfJs/', import.meta.url);
 for (const f of ['pdf.min.mjs', 'pdf.worker.min.mjs']) copyFileSync(new URL(f, src), join(dir, f));
 writeFileSync(join(dir, 'czytaj.html'), skrypt('PdfExtractHtml'));
-execFileSync('python3', ['-I', new URL('./generuj-pdf.py', import.meta.url).pathname, join(dir, 'dokument.pdf')]);
+execFileSync('python3', ['-I', fileURLToPath(new URL('./generuj-pdf.py', import.meta.url)), join(dir, 'dokument.pdf')]);
 
 const typy = { '.html': 'text/html', '.mjs': 'text/javascript', '.pdf': 'application/pdf' };
 const srv = createServer((req, res) => {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -51,6 +51,9 @@ namespace Przegladarka
             AppDomain.CurrentDomain.UnhandledException += (s, a) => LogError(a.ExceptionObject as Exception);
 
             var args = e.Args.ToList();
+            // start z Windows (autostart): poczekaj ustawiony czas, zanim cokolwiek sie wczyta
+            int autoDelay = Przegladarka.MainWindow.TakeAutostartArg(args);
+            if (autoDelay > 0) System.Threading.Thread.Sleep(autoDelay * 1000);
             int p = args.IndexOf("--profil");
             string requestedProfile = null;
             if (p >= 0)

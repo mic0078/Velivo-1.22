@@ -173,9 +173,12 @@ namespace Przegladarka
                     var session = LoadSession(); // karty z poprzedniego uruchomienia
                     foreach (var u in session) AddTab(u);
                     if (session.Count > 0) RestoreTabGroups(_tabs.Skip(pinned.Count).Take(session.Count).ToList());
+                    int beforeKept = _tabs.Count;
+                    RestoreKeptGroups();   // grupy kart - zawsze, takze bez przywracania kart
+                    bool keptOpened = _tabs.Count > beforeKept;
                     if (session.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[Math.Min(pinned.Count + LoadSessionActive(), _tabs.Count - 1)]);
-                    if (session.Count == 0 && pinned.Count == 0 && _startUrls.Length == 0) AddTab("");
-                    if (session.Count == 0 && pinned.Count > 0 && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
+                    if (session.Count == 0 && pinned.Count == 0 && !keptOpened && _startUrls.Length == 0) AddTab("");
+                    if (session.Count == 0 && (pinned.Count > 0 || keptOpened) && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
                     foreach (var u in _startUrls) OpenArg(u);
                     if (_tabs.Count == 0) AddTab("");   // start samym torrentem
                     _sessionLoaded = true;

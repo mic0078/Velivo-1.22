@@ -127,6 +127,7 @@ namespace Przegladarka
         {
             if (!_sessionLoaded) return;
             SavePinnedTabs();
+            SaveKeptGroups();
             try
             {
                 if ((!_settings.RestoreTabs || _settings.ClearOnExit) && !File.Exists(RestartFlag))
@@ -174,14 +175,25 @@ namespace Przegladarka
             menu.Opened += (s, e) =>
             {
                 reopen.IsEnabled = _closedTabs.Count > 0;
-                // grupy: klikniecie rozwija albo zwija grupe (lista budowana przy otwarciu menu, zanim podmenu sie otworzy)
+                // grupy: kazda grupa to lista jej kart (klik = przejdz do tej karty) + zwin / rozwin
                 groups.Items.Clear();
                 foreach (var g0 in _groups)
                 {
                     var g = g0;
-                    int n = _tabs.Count(t => t.Group == g);
-                    var it = new MenuItem { Header = new TextBlock { Text = "●  " + g.Name + "  (" + n + ")  " + (g.Collapsed ? L.T("– rozwiń") : L.T("– zwiń")), Foreground = new System.Windows.Media.SolidColorBrush(g.Color) } };
-                    it.Click += (a, b) => { g.Collapsed = !g.Collapsed; RefreshGroupsUi(); SaveSessionSoon(); };
+                    var members = _tabs.Where(t => t.Group == g).ToList();
+                    var it = new MenuItem { Header = new TextBlock { Text = "●  " + g.Name + "  (" + members.Count + ")", Foreground = new System.Windows.Media.SolidColorBrush(g.Color) } };
+                    foreach (var t0 in members)
+                    {
+                        var t = t0;
+                        var title = t.View.CoreWebView2 != null && !string.IsNullOrEmpty(t.View.CoreWebView2.DocumentTitle) ? t.View.CoreWebView2.DocumentTitle : ShortUrl(t.StartUrl);
+                        var one = new MenuItem { Header = (title.Length > 70 ? title.Substring(0, 67) + "…" : title).Replace("_", "__"), FontWeight = t == _current ? System.Windows.FontWeights.SemiBold : System.Windows.FontWeights.Normal };
+                        one.Click += (a, b) => { SelectTab(t); RefreshGroupsUi(); };
+                        it.Items.Add(one);
+                    }
+                    it.Items.Add(new Separator());
+                    var fold = new MenuItem { Header = g.Collapsed ? L.T("Rozwiń grupę") : L.T("Zwiń grupę") };
+                    fold.Click += (a, b) => { g.Collapsed = !g.Collapsed; RefreshGroupsUi(); SaveSessionSoon(); };
+                    it.Items.Add(fold);
                     groups.Items.Add(it);
                 }
                 if (groups.Items.Count == 0) groups.Items.Add(new MenuItem { Header = L.T("Brak grup – prawy przycisk na karcie → Dodaj do grupy"), IsEnabled = false });

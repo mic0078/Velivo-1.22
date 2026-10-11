@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 
@@ -171,43 +172,100 @@ namespace Przegladarka
             SaveBookmarks();
         }
 
+        // Menedzer zakladek: tabela Nazwa / Adres, szukanie, otwieranie (Enter / dwuklik, Ctrl = nowa karta),
+        // edycja nazwy i adresu, usuwanie (Delete), kolejnosc (Alt+strzalki). Kolejnosc = kolejnosc na pasku zakladek.
         void Bookmarks_Click(object sender, RoutedEventArgs e)
         {
-            var list = new ListBox { BorderThickness = new Thickness(0) };
+            var win = new Window { Title = L.T("Zakładki"), Width = 900, Height = 560, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var search = new TextBox { Margin = new Thickness(8, 8, 8, 4), Padding = new Thickness(4), ToolTip = L.T("Szukaj w nazwach i adresach") };
+            var hint = new TextBlock { Text = L.T("🔍 Szukaj zakładki…"), Foreground = Brushes.Gray, Margin = new Thickness(14, 13, 0, 0), IsHitTestVisible = false };
+            search.TextChanged += (s, a) => hint.Visibility = search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+            var top = new Grid(); top.Children.Add(search); top.Children.Add(hint);
+            var grid = new GridView();
+            grid.Columns.Add(new GridViewColumn { Header = L.T("Nazwa"), Width = 360, DisplayMemberBinding = new System.Windows.Data.Binding("Title") });
+            grid.Columns.Add(new GridViewColumn { Header = L.T("Adres"), Width = 480, DisplayMemberBinding = new System.Windows.Data.Binding("Url") });
+            var list = new ListView { View = grid, BorderThickness = new Thickness(0), Margin = new Thickness(8, 0, 8, 0) };
+            var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Gray, Margin = new Thickness(10, 0, 0, 0) };
             Action fill = () =>
             {
-                list.Items.Clear();
-                foreach (var b in _bookmarks) list.Items.Add(new ListBoxItem { Content = b.Title + "   —   " + b.Url, Tag = b });
+                var sel = list.SelectedItem;
+                var q = search.Text.Trim();
+                var shown = _bookmarks.Where(b => q.Length == 0 || b.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || b.Url.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                list.ItemsSource = shown.Select(b => new BookmarkRow { Title = b.Title, Url = b.Url, Item = b }).ToList();
+                count.Text = q.Length == 0 ? _bookmarks.Count + L.T(" zakładek") : shown.Count + " / " + _bookmarks.Count;
+                if (sel is BookmarkRow r) list.SelectedItem = ((List<BookmarkRow>)list.ItemsSource).FirstOrDefault(x => x.Item == r.Item);
             };
+            search.TextChanged += (s, a) => fill();
             fill();
-            var win = new Window { Title = L.T("Zakładki (dwuklik otwiera)"), Width = 700, Height = 500, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
-            list.MouseDoubleClick += (s, a) =>
+            Func<Bookmark> current = () => (list.SelectedItem as BookmarkRow)?.Item;
+            Action<bool> open = newTab =>
             {
-                var it = list.SelectedItem as ListBoxItem;
-                if (it == null || _current == null) return;
-                Navigate(_current, ((Bookmark)it.Tag).Url);
-                win.Close();
+                var b = current(); if (b == null) return;
+                if (newTab || _current == null) AddTab(b.Url); else Navigate(_current, b.Url);
+                if (!newTab) win.Close();
             };
-            var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(6) };
-            bar.Children.Add(SmallButton(L.T("▲ W górę"), () => MoveBookmark(list, -1, fill)));
-            bar.Children.Add(SmallButton(L.T("▼ W dół"), () => MoveBookmark(list, 1, fill)));
-            bar.Children.Add(SmallButton(L.T("Usuń"), () =>
+            Action edit = () =>
             {
-                var it = list.SelectedItem as ListBoxItem;
-                if (it == null) return;
-                _bookmarks.Remove((Bookmark)it.Tag); SaveBookmarks(); fill();
-            }));
-            win.Content = Docked(bar, list);
+                var b = current(); if (b == null) return;
+                var t = Prompt(L.T("Nazwa zakładki:"), b.Title); if (t == null) return;
+                var u = Prompt(L.T("Adres zakładki:"), b.Url); if (u == null) return;
+                if (!string.IsNullOrWhiteSpace(t)) b.Title = t.Trim();
+                if (!string.IsNullOrWhiteSpace(u)) b.Url = u.Trim();
+                SaveBookmarks(); fill();
+            };
+            Action remove = () =>
+            {
+                var b = current(); if (b == null) return;
+                int i = list.SelectedIndex;
+                _bookmarks.Remove(b); SaveBookmarks(); fill();
+                if (list.Items.Count > 0) list.SelectedIndex = Math.Min(i, list.Items.Count - 1);
+            };
+            Action<int> move = dir =>
+            {
+                var b = current(); if (b == null) return;
+                int i = _bookmarks.IndexOf(b), j = i + dir;
+                if (j < 0 || j >= _bookmarks.Count) return;
+                _bookmarks.RemoveAt(i); _bookmarks.Insert(j, b); SaveBookmarks(); fill();
+            };
+            list.MouseDoubleClick += (s, a) => open(Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
+            list.PreviewKeyDown += (s, a) =>
+            {
+                if (a.Key == Key.Enter) { open(Keyboard.Modifiers.HasFlag(ModifierKeys.Control)); a.Handled = true; }
+                else if (a.Key == Key.Delete) { remove(); a.Handled = true; }
+                else if (a.Key == Key.F2) { edit(); a.Handled = true; }
+                else if (Keyboard.Modifiers == ModifierKeys.Alt && (a.SystemKey == Key.Up || a.SystemKey == Key.Down)) { move(a.SystemKey == Key.Up ? -1 : 1); a.Handled = true; }
+            };
+            search.PreviewKeyDown += (s, a) => { if (a.Key == Key.Down && list.Items.Count > 0) { list.SelectedIndex = 0; ((ListViewItem)list.ItemContainerGenerator.ContainerFromIndex(0))?.Focus(); a.Handled = true; } };
+            var menu = new ContextMenu();
+            foreach (var (text, act) in new (string, Action)[] {
+                (L.T("Otwórz"), () => open(false)), (L.T("Otwórz w nowej karcie"), () => open(true)), (null, null),
+                (L.T("Edytuj… (F2)"), edit), (L.T("Usuń (Delete)"), remove), (null, null),
+                (L.T("▲ W górę (Alt+↑)"), () => move(-1)), (L.T("▼ W dół (Alt+↓)"), () => move(1)) })
+            {
+                if (text == null) { menu.Items.Add(new Separator()); continue; }
+                var mi = new MenuItem { Header = text }; var act0 = act; mi.Click += (s, a) => act0(); menu.Items.Add(mi);
+            }
+            list.ContextMenu = menu;
+            var bar = new DockPanel { Margin = new Thickness(6), LastChildFill = false };
+            DockPanel.SetDock(count, Dock.Left); bar.Children.Add(count);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+            DockPanel.SetDock(buttons, Dock.Right); bar.Children.Add(buttons);
+            buttons.Children.Add(SmallButton(L.T("Otwórz"), () => open(false)));
+            buttons.Children.Add(SmallButton(L.T("W nowej karcie"), () => open(true)));
+            buttons.Children.Add(SmallButton(L.T("Edytuj…"), edit));
+            buttons.Children.Add(SmallButton(L.T("▲ W górę"), () => move(-1)));
+            buttons.Children.Add(SmallButton(L.T("▼ W dół"), () => move(1)));
+            buttons.Children.Add(SmallButton(L.T("Usuń"), remove));
+            var body = new DockPanel();
+            DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);
+            DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
+            body.Children.Add(list);
+            win.Content = body;
+            win.Loaded += (s, a) => search.Focus();
             win.Show();
         }
 
-        void MoveBookmark(ListBox list, int dir, Action fill)
-        {
-            int i = list.SelectedIndex, j = i + dir;
-            if (i < 0 || j < 0 || j >= _bookmarks.Count) return;
-            var b = _bookmarks[i]; _bookmarks.RemoveAt(i); _bookmarks.Insert(j, b);
-            SaveBookmarks(); fill(); list.SelectedIndex = j;
-        }
+        sealed class BookmarkRow { public string Title { get; set; } public string Url { get; set; } public Bookmark Item; }
 
         // ================= DODATKI =================
 

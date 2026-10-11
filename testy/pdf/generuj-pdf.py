@@ -5,9 +5,11 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import glob
-font = 'Helvetica'
-for p in glob.glob('/usr/share/fonts/**/DejaVuSans.ttf', recursive=True):
+font = None
+# czcionka z polskimi znakami: Linux (DejaVu) albo Windows (Arial) - Helvetica nie ma ą, ę, ł…
+for p in glob.glob('/usr/share/fonts/**/DejaVuSans.ttf', recursive=True) + glob.glob('C:/Windows/Fonts/arial.ttf'):
     pdfmetrics.registerFont(TTFont('DejaVu', p)); font = 'DejaVu'; break
+if font is None: sys.exit('brak czcionki z polskimi znakami')
 c = canvas.Canvas(sys.argv[1], pagesize=A4)
 c.setTitle('Sprawozdanie roczne Velivo')
 c.setFont(font, 12)

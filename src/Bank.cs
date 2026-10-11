@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -353,7 +353,7 @@ namespace Przegladarka
             lockNow.Click += (s, e) => LockBank(null);
             var reset = new MenuItem { Header = L.T("Zapomniałem hasła – wyczyść tryb bankowy…") };
             reset.Click += (s, e) => ResetBank();
-            menu.Items.Add(help); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(sheet); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(transfer); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
+            menu.Items.Add(help); menu.Items.Add(BuildNotesMenu()); menu.Items.Add(new Separator()); menu.Items.Add(search); menu.Items.Add(new Separator()); menu.Items.Add(sites); menu.Items.Add(shops); menu.Items.Add(addSite); menu.Items.Add(addShop); menu.Items.Add(new Separator()); menu.Items.Add(cards); menu.Items.Add(fill); menu.Items.Add(logins); menu.Items.Add(notes); menu.Items.Add(docs); menu.Items.Add(accs); menu.Items.Add(bills); menu.Items.Add(sheet); menu.Items.Add(fillLogin); menu.Items.Add(partial); menu.Items.Add(transfer); menu.Items.Add(diag); menu.Items.Add(new Separator()); menu.Items.Add(cfg); menu.Items.Add(log); menu.Items.Add(backup); menu.Items.Add(restore); menu.Items.Add(profMenu); menu.Items.Add(lockNow); menu.Items.Add(new Separator()); menu.Items.Add(reset);
             menu.Opened += (s, e) => { lockNow.IsEnabled = _bankUnlocked; fill.IsEnabled = _bankUnlocked && _current != null && _current.Bank; reset.IsEnabled = LoadBank() != null;
                 // dodac strone mozna z kazdej karty (takze zwyklej) - gdy tryb zamkniety, najpierw klucz / haslo
                 addSite.IsEnabled = _current != null && HostOf(_current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : null) != null;
@@ -478,6 +478,21 @@ namespace Przegladarka
             var c = LoadBank();
             if (c == null) { if (!BankSetup(null)) return false; return LoadBank() != null; }
             return await BankUnlock(c);
+        }
+
+        // akcja z menu 🏦 przy zamknietym trybie: najpierw klucz / haslo (i karta bankowa), potem od razu wybrana akcja
+        async Task<bool> UnlockForAction()
+        {
+            if (_bankUnlocked && _bankKey != null) return true;
+            if (!await EnsureBankUnlocked()) return false;
+            if (!_tabs.Any(t => t.Bank))   // bez karty bankowej tryb sam sie zamyka (licznik bezczynnosci)
+            {
+                _bankLastInput = DateTime.UtcNow;
+                _creatingBank = true;
+                try { AddTab(HomeUrl, true); } finally { _creatingBank = false; }
+            }
+            if (_bankKey == null) { ShowToast(L.T("Ten klucz otwiera tryb, ale nie odszyfrowuje kart – użyj klucza, który szyfruje karty"), null); return false; }
+            return true;
         }
 
         async void OpenBankTabAt(string url)
@@ -714,11 +729,11 @@ namespace Przegladarka
         string _bankNewOwner;
 
         // ---------- pierwsze ustawienie / zmiana ustawien ----------
-        void BankSettings()
+        async void BankSettings()
         {
             var c = LoadBank();
             if (c == null) { BankSetup(null); return; }
-            if (!_bankUnlocked) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); OpenBankTab(); return; }
+            if (!await UnlockForAction()) return;
             BankSetup(c);
         }
 
@@ -894,9 +909,9 @@ namespace Przegladarka
         // ---------- karty bankowe (zaszyfrowane haslem trybu bankowego) ----------
         // Kodu CVV/CVC nie zapisujemy celowo - to on chroni karte, gdy ktos pozna jej numer.
         // Karty: lista, podglad (dane ukryte do klikniecia "Pokaz"), edycja, CVV (opcjonalnie, ukryty)
-        void BankCards()
+        async void BankCards()
         {
-            if (!_bankUnlocked || _bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); OpenBankTab(); return; }
+            if (!await UnlockForAction()) return;
             var c = LoadBank(); if (c == null) return;
             List<BankCard> cards;
             try { cards = LoadCards(c); } catch (Exception) { MessageBox.Show(this, L.T("Nie udało się odczytać kart."), "Velivo"); return; }
@@ -1057,7 +1072,16 @@ else if(/cc-name|cardholder|card-holder|holder|imi.+nazw|name.?on.?card/.test(a)
             if (list == null)
             {
                 var info = new MenuItem { Header = L.T("Otwórz tryb bankowy, aby zobaczyć listę") };
-                info.Click += (s, e) => OpenBankTab();
+                info.Click += async (s, e) =>
+                {
+                    // po kluczu / hasle od razu lista do wyboru (bez ponownego szukania w menu)
+                    if (!await UnlockForAction()) return;
+                    var tmp = new MenuItem(); FillBankSitesMenu(tmp, shop);
+                    var items = tmp.Items.Cast<object>().ToList(); tmp.Items.Clear();
+                    var pick = new ContextMenu { PlacementTarget = _bankBtn };
+                    foreach (var it in items) pick.Items.Add(it);
+                    pick.IsOpen = true;
+                };
                 parent.Items.Add(info); return;
             }
             list = list.Where(x => IsShop(x) == shop).ToList();
@@ -1423,6 +1447,20 @@ else if(/^(text|email|tel|)$/.test(el.type||'')&&/username|login|user.?id|custom
                 {
                     var acc = a;
                     offers.Add(new KeyValuePair<string, Action>(L.T("🔢 Wpisz wybrane znaki") + " – " + acc.Label, () => { _ = RunPartialFill(pin, acc.Pass, mem, host); }));
+                }
+            }
+            else if (kinds.partial)
+            {
+                // dane tylko w Moich notatkach: najpierw notatki z nazwa tego banku (jedna = wpisuje sama, jak dane strony)
+                List<BankNote> notes;
+                try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { notes = new List<BankNote>(); }
+                var usable = notes.Where(n => { string a, b; return NotePartial(n.Text, out a, out b); }).ToList();
+                var mine = usable.Where(n => NoteMatchesHost(n.Title, n.Text, host)).ToList();
+                if (mine.Count == 1 && auto) { string np, nw; NotePartial(mine[0].Text, out np, out nw); await RunPartialFill(np, nw, null, host); done = true; }
+                else foreach (var n0 in (mine.Count > 0 ? mine : usable).Take(5))
+                {
+                    var n = n0;
+                    offers.Add(new KeyValuePair<string, Action>(L.T("🔢 Wpisz wybrane znaki") + " – " + n.Title, () => { string np, nw; NotePartial(n.Text, out np, out nw); _ = RunPartialFill(np, nw, null, host); }));
                 }
             }
             if (kinds.transfer)   // odbiorce wybierasz sam - zawsze po kliknieciu
@@ -2151,6 +2189,30 @@ draw();
 
         static string FixUrl(string u) { u = (u ?? "").Trim(); return u.Length > 0 && !u.Contains("://") ? "https://" + u : u; }
 
+        // 📅 miniaturowy kalendarz pod polem (pola z data w trybie bankowym, karteczki): klik w dzien = pick("DD.MM.RRRR")
+        static Button DatePickerButton(FrameworkElement anchor, Func<DateTime?> current, Action<string> pick)
+        {
+            var btn = new Button { Content = "📅", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("Wybierz datę z kalendarza") };
+            var cal = new System.Windows.Controls.Calendar { FirstDayOfWeek = DayOfWeek.Monday, IsTodayHighlighted = true };
+            var pop = new System.Windows.Controls.Primitives.Popup { Child = new Border { Child = cal, Background = Brushes.White, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) },
+                PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true };
+            btn.Click += (a, b) =>
+            {
+                var d = current();
+                cal.SelectedDate = d; cal.DisplayDate = d ?? DateTime.Today;
+                pop.IsOpen = true;
+            };
+            cal.SelectedDatesChanged += (a, b) =>
+            {
+                if (!pop.IsOpen || cal.SelectedDate == null) return;
+                pop.IsOpen = false;
+                pick(cal.SelectedDate.Value.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture));
+            };
+            // kalendarz WPF przechwytuje mysz po kliknieciu dnia - bez zwolnienia nastepny klik w okno "przepada"
+            cal.PreviewMouseUp += (a, b) => { if (Mouse.Captured is System.Windows.Controls.Primitives.CalendarItem) Mouse.Capture(null); };
+            return btn;
+        }
+
         static DateTime? ParseDay(string t)
         {
             DateTime d;
@@ -2171,9 +2233,9 @@ draw();
             return it.Get("name") + (am.Length > 0 ? "   " + am : "") + (it.Get("due").Length > 0 ? "   " + it.Get("due") : "") + state;
         }
 
-        void BankItems(string kind)
+        async void BankItems(string kind)
         {
-            if (!_bankUnlocked || _bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); OpenBankTab(); return; }
+            if (!await UnlockForAction()) return;
             var c = LoadBank(); if (c == null) return;
             var def = ItemDefs[kind];
             _currencyCache = BankCurrency();
@@ -2195,7 +2257,10 @@ draw();
                 var fd = f;
                 sp.Children.Add(new TextBlock { Text = L.T(fd.Label) });
                 var row = new DockPanel { Margin = new Thickness(0, 1, 0, 5) };
-                var copy = new Button { Content = "📋", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📋 Kopiuj") };   // bez sztywnej szerokosci - ikonka nie jest ucinana do "|"
+                // Kopiuj / Wklej obok kazdego pola (bez sztywnej szerokosci - ikonka nie jest ucinana do "|")
+                var copy = new Button { Content = "📋", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📋 Kopiuj") };
+                var paste = new Button { Content = "📥", MinWidth = 34, Padding = new Thickness(2, 0, 2, 0), Margin = new Thickness(4, 0, 0, 0), ToolTip = L.T("📥 Wklej ze schowka") };
+                DockPanel.SetDock(paste, Dock.Right); row.Children.Add(paste);
                 DockPanel.SetDock(copy, Dock.Right); row.Children.Add(copy);
                 if (kind == "bills" && fd.Key == "name" && sheetNames.Count > 0)
                 {
@@ -2225,9 +2290,17 @@ draw();
                 else
                 {
                     var tb = new TextBox { Padding = new Thickness(4) };
+                    if (fd.Date) { var cal = DatePickerButton(tb, () => ParseDay(tb.Text), v => { tb.Text = v; tb.Focus(); tb.CaretIndex = v.Length; }); DockPanel.SetDock(cal, Dock.Right); row.Children.Add(cal); }
                     row.Children.Add(tb);
                     getters[fd.Key] = () => tb.Text ?? ""; setters[fd.Key] = v => tb.Text = v ?? "";
                 }
+                paste.Click += (a, b) =>
+                {
+                    string v = null;
+                    try { if (Clipboard.ContainsText()) v = Clipboard.GetText().Trim(); } catch (Exception) { }
+                    if (string.IsNullOrEmpty(v)) { ShowToast(L.T("📥 Schowek jest pusty"), null); return; }
+                    setters[fd.Key](v);
+                };
                 copy.Click += (a, b) =>
                 {
                     var v = getters[fd.Key](); if (string.IsNullOrEmpty(v)) return;
@@ -2383,9 +2456,9 @@ draw();
         }
 
         // ---------- notatki (zaszyfrowane jak karty) ----------
-        void BankNotes()
+        async void BankNotes()
         {
-            if (!_bankUnlocked || _bankKey == null) { ShowToast(L.T("Najpierw otwórz tryb bankowy (hasłem / kluczem)"), null); OpenBankTab(); return; }
+            if (!await UnlockForAction()) return;
             var c = LoadBank(); if (c == null) return;
             List<BankNote> notes;
             try { notes = LoadSealed<BankNote>(c.Notes); } catch (Exception) { MessageBox.Show(this, L.T("Nie udało się odczytać kart."), "Velivo"); return; }
@@ -2846,20 +2919,40 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
                 var mi = new MenuItem { Header = (string.IsNullOrEmpty(note.Category) ? "" : "[" + L.T(note.Category) + "]  ") + note.Title };
                 mi.Click += async (s, e) =>
                 {
-                    string pin = null, pwd = null;
-                    foreach (var l in (note.Text ?? "").Replace("\r", "").Split('\n'))
-                    {
-                        int i = l.IndexOf(':'); if (i <= 0) continue;
-                        var k = l.Substring(0, i).Trim().ToLowerInvariant(); var v = l.Substring(i + 1).Trim();
-                        if (pin == null && (k.StartsWith("passcode") || k.StartsWith("pin") || k.StartsWith("kod"))) pin = v;
-                        else if (pwd == null && (k.StartsWith("has") || k.StartsWith("password"))) pwd = v;
-                    }
+                    string pin, pwd;
+                    NotePartial(note.Text, out pin, out pwd);
                     await RunPartialFill(pin, pwd, null);
                 };
                 menu.Items.Add(mi);
             }
             if (menu.Items.Count == 0) { BankNotes(); return; }
             menu.IsOpen = true;
+        }
+
+        // Z notatki: wiersze "Passcode: …" / "PIN: …" / "Kod: …" i "Hasło: …" / "Password: …"; true = jest cos do wpisania
+        internal static bool NotePartial(string text, out string pin, out string pwd)
+        {
+            pin = null; pwd = null;
+            foreach (var l in (text ?? "").Replace("\r", "").Split('\n'))
+            {
+                int i = l.IndexOf(':'); if (i <= 0) continue;
+                var k = l.Substring(0, i).Trim().ToLowerInvariant(); var v = l.Substring(i + 1).Trim();
+                if (v.Length == 0) continue;
+                if (pin == null && (k.StartsWith("passcode") || k.StartsWith("pin") || k.StartsWith("kod"))) pin = v;
+                else if (pwd == null && (k.StartsWith("has") || k.StartsWith("password"))) pwd = v;
+            }
+            return pin != null || pwd != null;
+        }
+
+        // notatka dotyczy tej strony: w tytule albo tresci nazwa banku z adresu (np. "natwest" z www.onlinebanking.natwest.com)
+        internal static bool NoteMatchesHost(string title, string text, string host)
+        {
+            var parts = (host ?? "").ToLowerInvariant().Split('.');
+            if (parts.Length < 2) return false;
+            var name = parts[parts.Length - 2];
+            if ((name == "co" || name == "com" || name == "org") && parts.Length >= 3) name = parts[parts.Length - 3];   // natwest.co.uk
+            if (name.Length < 3) return false;
+            return ((title ?? "") + " " + (text ?? "")).ToLowerInvariant().Contains(name);
         }
 
         // Wybrane znaki hasla / PIN: numer znaku z podpisu pola; gdy kilka pol ma wspolne zdanie ("podaj 2., 4. i 6. cyfre") -

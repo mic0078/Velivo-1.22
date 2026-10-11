@@ -29,7 +29,7 @@ namespace Przegladarka
         public string ReaderTheme = "light";     // czytnik: light / dark / night
         public int ReaderNight = 40;            // natezenie trybu nocnego czytnika (5-100%)
         public string ReaderSize = "";          // ostatni rozmiar okna czytnika "szer;wys"        // po zamknieciu okna zostan w zasobniku (synchronizacja w tle, szybki start)
-        public bool AudioGuard = true;         // dzwiek nie ginie, gdy program muzyczny zajmie karte
+        public bool AudioGuard = false;        // dzwiek nie ginie, gdy program muzyczny zajmie karte (domyslnie wylaczone)
         public string AudioOut = "";           // wybrane glosniki Velivo ("" = domyslne Windows)           // wbudowany uBlock Origin Lite
         public bool AntiPhishing = true;       // wykrywanie stron-podrobek (offline)
         public bool HttpsFirst = true;         // najpierw HTTPS, strony bez szyfrowania tylko po ostrzezeniu
@@ -156,7 +156,7 @@ namespace Przegladarka
                         case "autofill": s.Autofill = b; break;
                         case "smartscreen": s.SmartScreen = b; break;
                         case "ubol": s.UbolLite = b; break;
-                        case "audioGuard": s.AudioGuard = b; break;
+                        case "audioGuardOn": s.AudioGuard = b; break;   // nowy klucz: dawne "audioGuard" (domyslnie wlaczony) pomijane - strażnik wylaczony u wszystkich
                         case "tray": s.StayInTray = b; break;
                         case "askedDefault": s.AskedDefaultBrowser = b; break;
                         case "readerTheme": if (v == "light" || v == "dark" || v == "night") s.ReaderTheme = v; break;
@@ -272,7 +272,7 @@ namespace Przegladarka
             {
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + Tracking,
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
-                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuard=" + B(AudioGuard), "tray=" + B(StayInTray), "askedDefault=" + B(AskedDefaultBrowser), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
+                "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuardOn=" + B(AudioGuard), "tray=" + B(StayInTray), "askedDefault=" + B(AskedDefaultBrowser), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
                 "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "playerSalt=" + (PlayerSalt ?? ""), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "sleepTabs=" + SleepTabsMin, "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),

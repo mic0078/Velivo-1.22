@@ -216,6 +216,18 @@ namespace Przegladarka
                 var tPlayer = _env.CreateContextMenuItem(MenuText(L.T("📂 Otwórz plik z dysku (Ctrl+O)")), GlyphIcon("\uE714"), CoreWebView2ContextMenuItemKind.Command);
                 tPlayer.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenLocalFile);
                 tools.Children.Add(tPlayer);
+                var tNotes = _env.CreateContextMenuItem(MenuText(L.T("🗒 Karteczki na pulpit")), GlyphIcon("\uE70B"), CoreWebView2ContextMenuItemKind.Submenu);
+                foreach (var kk in NoteKinds)
+                {
+                    var kind = kk[0];
+                    var it = _env.CreateContextMenuItem(kk[1] + "  " + L.T(kk[2]), null, CoreWebView2ContextMenuItemKind.Command);
+                    it.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => NewNote(kind));
+                    tNotes.Children.Add(it);
+                }
+                var tNotesAll = _env.CreateContextMenuItem(L.T("Pokaż wszystkie karteczki"), null, CoreWebView2ContextMenuItemKind.Command);
+                tNotesAll.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowAllNotes);
+                tNotes.Children.Add(tNotesAll);
+                tools.Children.Add(tNotes);
                 var tPriv = _env.CreateContextMenuItem(MenuText(L.T("🕶 Otwórz tę stronę w karcie prywatnej")), GlyphIcon("\uE727"), CoreWebView2ContextMenuItemKind.Command);
                 tPriv.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => AddTab(pageUrl, true));
                 var tBank = _env.CreateContextMenuItem(MenuText(L.T("🏦 Otwórz tę stronę w trybie bankowym")), GlyphIcon("\uE825"), CoreWebView2ContextMenuItemKind.Command);

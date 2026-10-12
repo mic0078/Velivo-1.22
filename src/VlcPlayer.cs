@@ -513,12 +513,20 @@ namespace Przegladarka
             var btnRow = new DockPanel { Margin = new Thickness(4, 2, 4, 4) };
             DockPanel.SetDock(left, Dock.Left); DockPanel.SetDock(right, Dock.Right);
             btnRow.Children.Add(left); btnRow.Children.Add(right);
-            var controls = new StackPanel { Background = dim };
+            // pasek nakladany na obraz (jak w "Na wierzchu"): chowa sie po chwili bez ruchu myszy, film nie zmienia rozmiaru
+            var controls = new StackPanel { Background = new SolidColorBrush(Color.FromArgb(0xD9, 0x1C, 0x1C, 0x1C)), VerticalAlignment = VerticalAlignment.Bottom };
             controls.Children.Add(seekRow); controls.Children.Add(btnRow);
-            var root = new DockPanel();
-            DockPanel.SetDock(controls, Dock.Bottom);
-            root.Children.Add(controls); root.Children.Add(view);
-            win.Content = root;
+            overlay.Children.Add(controls);
+            win.Content = view;
+            // waskie okno: tylko najwazniejsze przyciski (reszta wraca po poszerzeniu)
+            win.SizeChanged += (s, e) =>
+            {
+                double w = win.ActualWidth;
+                foreach (var b in new UIElement[] { subs, audio, aspect, snap, lib, top }) b.Visibility = w >= 820 ? Visibility.Visible : Visibility.Collapsed;
+                foreach (var b in new UIElement[] { speed, stop }) b.Visibility = w >= 600 ? Visibility.Visible : Visibility.Collapsed;
+                foreach (var b in new UIElement[] { back10, fwd10, volText }) b.Visibility = w >= 480 ? Visibility.Visible : Visibility.Collapsed;
+                vol.Width = w >= 480 ? 110 : 70;
+            };
 
             LibraryVideo current = null;
             bool seeking = false, full0 = false;
@@ -529,7 +537,14 @@ namespace Przegladarka
             osdTimer.Tick += (s, e) => { osdTimer.Stop(); osd.Visibility = Visibility.Collapsed; };
             Action<string> showOsd = t => { osd.Text = t; osd.Visibility = Visibility.Visible; osdTimer.Stop(); osdTimer.Start(); };
             var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
-            hideTimer.Tick += (s, e) => { hideTimer.Stop(); if (full0 && !controls.IsMouseOver) { controls.Visibility = Visibility.Collapsed; overlay.Cursor = Cursors.None; } };
+            // chowanie paska: tylko gdy film gra, mysz nie jest nad paskiem i zadne menu (napisy, dzwiek) nie jest otwarte
+            hideTimer.Tick += (s, e) =>
+            {
+                hideTimer.Stop();
+                if (!mp.IsPlaying || controls.IsMouseOver || controls.ContextMenu != null && controls.ContextMenu.IsOpen || Mouse.Captured != null) { hideTimer.Start(); return; }
+                controls.Visibility = Visibility.Collapsed; overlay.Cursor = Cursors.None;
+            };
+            Action showBar = () => { controls.Visibility = Visibility.Visible; overlay.Cursor = null; hideTimer.Stop(); hideTimer.Start(); };
 
             // zapis miejsca wznowienia co kilka sekund i przy zmianie filmu / zamknieciu
             Action savePos = () =>
@@ -604,8 +619,9 @@ namespace Przegladarka
             Action toggleFull = () =>
             {
                 full0 = !full0;
-                if (full0) { prevState = win.WindowState; win.WindowStyle = WindowStyle.None; win.WindowState = WindowState.Normal; win.WindowState = WindowState.Maximized; win.Topmost = true; hideTimer.Start(); }
-                else { win.Topmost = _settings.VlcTopmost; win.WindowStyle = WindowStyle.SingleBorderWindow; win.WindowState = prevState; controls.Visibility = Visibility.Visible; overlay.Cursor = null; }
+                if (full0) { prevState = win.WindowState; win.WindowStyle = WindowStyle.None; win.WindowState = WindowState.Normal; win.WindowState = WindowState.Maximized; win.Topmost = true; }
+                else { win.Topmost = _settings.VlcTopmost; win.WindowStyle = WindowStyle.SingleBorderWindow; win.WindowState = prevState; }
+                showBar();
                 full.Content = PlayerIcon(full0 ? "exitfull" : "full");
             };
 
@@ -701,11 +717,14 @@ namespace Przegladarka
             // mysz na obrazie: klik = pauza, dwuklik = pelny ekran, kolko = glosnosc, ruch = pokaz pasek (pelny ekran)
             overlay.MouseLeftButtonDown += (s, e) =>
             {
+                if (controls.IsMouseOver) return;   // klik na pasku to nie klik w obraz
                 if (e.ClickCount == 2) { togglePlay(); toggleFull(); }   // pierwszy klik dwukliku juz zatrzymal - wznawiamy
                 else togglePlay();
             };
-            overlay.MouseWheel += (s, e) => { setVol(vol.Value + (e.Delta > 0 ? 5 : -5)); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); };
-            overlay.MouseMove += (s, e) => { if (!full0) return; controls.Visibility = Visibility.Visible; overlay.Cursor = null; hideTimer.Stop(); hideTimer.Start(); };
+            overlay.MouseWheel += (s, e) => { if (controls.IsMouseOver && !vol.IsMouseOver) return; showBar(); setVol(vol.Value + (e.Delta > 0 ? 5 : -5)); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); };
+            overlay.MouseMove += (s, e) => showBar();
+            mp.Paused += (s, e) => Dispatcher.BeginInvoke(showBar);   // pauza - pasek zostaje widoczny
+            hideTimer.Start();
             win.PreviewKeyDown += (s, e) =>
             {
                 if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) || Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)) return;

@@ -1169,12 +1169,60 @@ namespace Przegladarka
             chPanel.MouseLeave += (s, e) => { chHide.Stop(); chHide.Start(); };
             chPanel.MouseEnter += (s, e) => chHide.Stop();
             chPanel.MouseLeftButtonDown += (s, e) => e.Handled = true;   // klik na liscie to nie pauza
-            Action<bool> showChannels = show =>
+            bool? chTvMode = null;   // lista kanalow albo lista filmow (zmiana - nowe grupy)
+            Action<bool> showChannels = null;
+            // lista filmow nad filmem: biezaca lista / ostatnio ogladane / wszystkie filmy - plakat, tytul, rok, ocena, ile obejrzane
+            Action showFilms = () =>
+            {
+                const string fCur = "\u0001cur", fRec = "\u0001rec", fAll = "\u0001all";
+                if (chGroup.Items.Count == 0)
+                {
+                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("▶ Bieżąca lista"), Tag = fCur });
+                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("🕘 Ostatnio oglądane"), Tag = fRec });
+                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("🎬 Wszystkie filmy"), Tag = fAll });
+                }
+                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedIndex = 0;
+                var fk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? fCur;
+                var libAll = LoadLibrary();
+                List<LibraryVideo> films = fk == fCur ? _playlist.Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList()
+                    : fk == fRec ? libAll.Where(v => v.Last > 0 && v.Peer == null).OrderByDescending(v => v.Last).Take(60).ToList()
+                    : libAll.Where(v => v.Peer == null).OrderBy(v => MetaTitle(MetaFor(v.Path)) ?? CleanTitle(v.Title), StringComparer.CurrentCultureIgnoreCase).ToList();
+                var curP = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                chList.Items.Clear(); ListBoxItem cur = null;
+                for (int k = 0; k < films.Count; k++)
+                {
+                    var f = films[k]; int idx = k; var m = MetaFor(f.Path);
+                    var img = new Image { Width = 34, Height = 50, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+                    if (m?.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) img.Source = LoadLogo(pf); }
+                    var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    txt.Children.Add(new TextBlock { Text = MetaTitle(m) ?? CleanTitle(f.Title), FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+                    var sub = string.Join("  ·  ", new[] { m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null, m?.Genres.Count > 0 ? m.Genres[0] : null, f.Len > 0 ? FormatTime(f.Len) : null, SeenText(f) is string st && st.Length > 0 ? L.T("obejrzane ") + st : null }.Where(x => x != null));
+                    if (sub.Length > 0) txt.Children.Add(new TextBlock { Text = sub, FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
+                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); row.Children.Add(img); row.Children.Add(txt);
+                    var it = new ListBoxItem { Content = row, Padding = new Thickness(8, 4, 8, 4), Cursor = Cursors.Hand };
+                    if (string.Equals(f.Path, curP, StringComparison.OrdinalIgnoreCase)) { it.Background = new SolidColorBrush(Color.FromArgb(0x66, 0x3B, 0x82, 0xF6)); cur = it; }
+                    it.PreviewMouseLeftButtonUp += (q, w2) =>
+                    {
+                        if (fk == fCur) _vlcLoad(idx);
+                        else { var paths = films.Select(x => x.Path).ToList(); PlayVideos(paths.ToArray(), idx); }   // ta lista staje sie lista odtwarzania
+                        showChannelsRefresh();
+                    };
+                    chList.Items.Add(it);
+                }
+                chPanel.Visibility = Visibility.Visible;
+                if (cur != null) chList.ScrollIntoView(cur);
+                chHide.Stop(); if (!chPanel.IsMouseOver) chHide.Start();
+            };
+            showChannels = show =>
             {
                 if (!show) { chPanel.Visibility = Visibility.Collapsed; return; }
                 if (mini0) return;
                 chPanel.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.ListAlpha)) / 100), 0x14, 0x16, 0x1A));
                 chPanel.Margin = new Thickness(0, 0, 0, controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0);
+                var nowPath = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                bool tvMode = nowPath != null && _iptvPlaying.ContainsKey(nowPath);
+                if (chTvMode != tvMode) { chGroup.Items.Clear(); chTvMode = tvMode; }
+                if (!tvMode) { showFilms(); return; }
                 // grupy (raz na otwarcie): biezaca + z listy kanalow
                 const string curKey = "\u0001cur", favKey = "\u0001fav", recKey = "\u0001rec";
                 if (chGroup.Items.Count == 0)
@@ -1606,7 +1654,7 @@ namespace Przegladarka
                 if (path != null && _iptvPlaying.ContainsKey(path))
                 {
                     add(L.T("📋 Lista kanałów (L / kursor przy lewej krawędzi)"), () => showChannels(true), true);
-                    var laM = new MenuItem { Header = L.T("📋 Przezroczystość listy kanałów") };
+                    var laM = new MenuItem { Header = L.T("📋 Przezroczystość listy (kanały i filmy)") };
                     foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
                     {
                         var al = a0; var mi = new MenuItem { Header = (100 - al) + " %", IsCheckable = true, IsChecked = IptvSt.ListAlpha == al };
@@ -1614,6 +1662,18 @@ namespace Przegladarka
                         laM.Items.Add(mi);
                     }
                     cm.Items.Add(laM);
+                }
+                else if (path != null)
+                {
+                    add(L.T("📋 Lista filmów (L / kursor przy lewej krawędzi)"), () => showChannels(true), true);
+                    var flM = new MenuItem { Header = L.T("📋 Przezroczystość listy (kanały i filmy)") };
+                    foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
+                    {
+                        var al = a0; var mi = new MenuItem { Header = (100 - al) + " %", IsCheckable = true, IsChecked = IptvSt.ListAlpha == al };
+                        mi.Click += (q, w2) => { IptvSt.ListAlpha = al; SaveIptv(IptvSt); showChannels(true); };
+                        flM.Items.Add(mi);
+                    }
+                    cm.Items.Add(flM);
                 }
                 var infoM = new MenuItem { Header = L.T("ℹ Pasek informacji") };
                 var hideM = new MenuItem { Header = L.T("Znikanie po") };
@@ -1736,7 +1796,7 @@ namespace Przegladarka
                 showBar();
                 // kursor przy lewej krawedzi obrazu (kanal TV) - lista kanalow, bez klikania
                 var cp = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
-                if (cp != null && _iptvPlaying.ContainsKey(cp) && e.GetPosition(overlay).X < 14 && chPanel.Visibility != Visibility.Visible) showChannels(true);
+                if (cp != null && e.GetPosition(overlay).X < 14 && chPanel.Visibility != Visibility.Visible) showChannels(true);   // kanaly albo filmy
             };
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(showBar);
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(new Action(() => pausedAt = DateTime.Now));   // pauza - pasek zostaje widoczny

@@ -1073,7 +1073,7 @@ namespace Przegladarka
             win.SizeChanged += (s, e) => { infoResize.Stop(); infoResize.Start(); };
             overlay.Children.Add(infoBox);
             var infoTimer = new DispatcherTimer();
-            infoTimer.Tick += (s, e) => { infoTimer.Stop(); if (!controls.IsVisible) infoBox.Visibility = Visibility.Collapsed; };   // przy widocznym pasku sterowania zostaje
+            infoTimer.Tick += (s, e) => { infoTimer.Stop(); infoBox.Visibility = Visibility.Collapsed; };
             string infoShownFor = null;
             Action<bool> showInfo = byUser =>
             {
@@ -1232,11 +1232,11 @@ namespace Przegladarka
                 if (chPanel.Visibility == Visibility.Visible) showChannels(true);
             };
             chGroup.DropDownOpened += (s, e) => chHide.Stop();   // wybieranie grupy - lista nie chowa sie
-            // pasek informacji razem z paskiem sterowania: ruch mysza - oba, bez ruchu - oba znikaja
+            // pasek informacji pokazuje sie razem z paskiem sterowania (ruch mysza), a znika po swoim czasie (ustawienie "Znikanie po")
             controls.IsVisibleChanged += (s, e) =>
             {
-                if (controls.IsVisible) { if (infoBox.Visibility != Visibility.Visible) showInfo(true); else infoBox.Margin = new Thickness(16, 0, 16, controls.ActualHeight + 10); }
-                else infoBox.Visibility = Visibility.Collapsed;
+                if (controls.IsVisible && infoBox.Visibility != Visibility.Visible) showInfo(true);
+                else if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16);
             };
             win.Closed += (s, e) => infoTimer.Stop();
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)

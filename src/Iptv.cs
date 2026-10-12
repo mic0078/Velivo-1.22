@@ -62,6 +62,7 @@ namespace Przegladarka
             public string RecDir { get; set; }   // folder nagran (puste = Wideo\Velivo TV)
             public string Win { get; set; }
             public string Group { get; set; }    // ostatnio wybrana grupa
+            public Dictionary<string, long> Watched { get; set; } = new Dictionary<string, long>();   // kanal -> kiedy ostatnio ogladany (unix ms)
             public int Buffer { get; set; } = 1;  // zapas bufora kanalow na zywo (s); 1 = jak VLC
             public int InfoSec { get; set; } = 5;        // pasek informacji o programie: znika po tylu sekundach; 0 = tylko na zadanie (klawisz I)
             public int InfoAlpha { get; set; } = 85;     // nieprzezroczystosc paska informacji (%)
@@ -523,7 +524,7 @@ namespace Przegladarka
             var groups = new ListBox { Width = 200, Margin = new Thickness(8, 0, 0, 0) };
             var grid = new GridView();
             // kolumny: naglowek klik = sortuj, drugi klik = odwrotnie
-            var cols = new[] { new[] { "nr", "Nr", "50" }, new[] { "name", "Kanał", "270" }, new[] { "now", "Teraz", "300" }, new[] { "next", "Następnie", "260" } };
+            var cols = new[] { new[] { "nr", "Nr", "50" }, new[] { "name", "Kanał", "270" }, new[] { "now", "Teraz", "300" }, new[] { "next", "Następnie", "260" }, new[] { "watched", "Oglądany", "110" } };
             var sortSaved = (st.Sort ?? "nr").Split(',');
             string sortKey = cols.Any(c => c[0] == sortSaved[0]) ? sortSaved[0] : "nr"; bool sortDesc = sortSaved.Length > 1 && sortSaved[1] == "desc";
             var headers = new Dictionary<string, GridViewColumnHeader>();
@@ -542,7 +543,7 @@ namespace Przegladarka
                     sp.AppendChild(im); sp.AppendChild(tb);
                     col.CellTemplate = new DataTemplate { VisualTree = sp };
                 }
-                else col.DisplayMemberBinding = new System.Windows.Data.Binding(c[0] == "nr" ? "Nr" : c[0] == "now" ? "Now" : "Next");
+                else col.DisplayMemberBinding = new System.Windows.Data.Binding(c[0] == "nr" ? "Nr" : c[0] == "now" ? "Now" : c[0] == "watched" ? "Watched" : "Next");
                 grid.Columns.Add(col);
             }
             Action markSort = () => { foreach (var c in cols) headers[c[0]].Content = L.T(c[1]) + (c[0] == sortKey ? (sortDesc ? "  ▼" : "  ▲") : ""); };
@@ -586,6 +587,7 @@ namespace Przegladarka
                         Ch = c, Nr = nrOf.TryGetValue(c, out var nr) ? nr : 0, Name = (IsRecording(c.Url) ? "⏺ " : "") + (st.Fav.Contains(c.Url) ? "⭐ " : "") + c.Name,
                         Now = n0 != null ? n0.Start.ToString("HH:mm") + "  " + n0.Title : "", Next = nx != null ? nx.Start.ToString("HH:mm") + "  " + nx.Title : "",
                         NowStart = n0?.Start ?? DateTime.MaxValue, NextStart = nx?.Start ?? DateTime.MaxValue,
+                        WatchedMs = st.Watched.TryGetValue(c.Url, out var wm) ? wm : 0, Watched = st.Watched.TryGetValue(c.Url, out var wm2) ? LastPlayedText(wm2, now) : "",
                         LogoUrl = !string.IsNullOrEmpty(c.Logo) ? c.Logo : ByChannel(icons, c),
                     };
                 });
@@ -593,7 +595,7 @@ namespace Przegladarka
                 bool keep = g == recentKey || g == favKey && sortKey == "nr" && !sortDesc;   // ostatnio ogladane - zawsze od najnowszego
                 if (!keep)
                 {
-                    Func<TvRow, IComparable> by = sortKey == "name" ? (Func<TvRow, IComparable>)(r => r.Ch.Name.ToLowerInvariant()) : sortKey == "now" ? r => r.Now.Length > 7 ? r.Now.Substring(7).ToLowerInvariant() : "\uffff" : sortKey == "next" ? r => r.Next.Length > 7 ? r.Next.Substring(7).ToLowerInvariant() : "\uffff" : r => r.Nr;
+                    Func<TvRow, IComparable> by = sortKey == "watched" ? (Func<TvRow, IComparable>)(r => -r.WatchedMs) : sortKey == "name" ? (Func<TvRow, IComparable>)(r => r.Ch.Name.ToLowerInvariant()) : sortKey == "now" ? r => r.Now.Length > 7 ? r.Now.Substring(7).ToLowerInvariant() : "\uffff" : sortKey == "next" ? r => r.Next.Length > 7 ? r.Next.Substring(7).ToLowerInvariant() : "\uffff" : r => r.Nr;
                     all = sortDesc ? all.OrderByDescending(by) : all.OrderBy(by);
                 }
                 var keepSel = (list.SelectedItem as TvRow)?.Ch.Url;
@@ -751,6 +753,7 @@ namespace Przegladarka
                 var r = list.SelectedItem as TvRow; if (r == null) return;
                 _iptvPlaying.Clear();
                 foreach (var x in rows) _iptvPlaying[x.Ch.Url] = x.Ch;
+                st.Watched[r.Ch.Url] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 st.Recent.Remove(r.Ch.Url); st.Recent.Insert(0, r.Ch.Url); if (st.Recent.Count > 30) st.Recent.RemoveRange(30, st.Recent.Count - 30);
                 SaveIptv(st);
                 PlayVideos(rows.Select(x => x.Ch.Url).ToArray(), rows.IndexOf(r));
@@ -866,6 +869,7 @@ namespace Przegladarka
         {
             public int Nr { get; set; } public string Name { get; set; } public string Now { get; set; } public string Next { get; set; } public IptvChannel Ch;
             public DateTime NowStart, NextStart;
+            public string Watched { get; set; } public long WatchedMs;
             public string LogoUrl;
             ImageSource _logo;
             public ImageSource Logo { get { return _logo; } set { _logo = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs("Logo")); } }

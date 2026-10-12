@@ -78,6 +78,7 @@ namespace Przegladarka
             "readerSize",        // rozmiar okna zalezy od ekranu komputera          // glosniki to urzadzenie konkretnego komputera
             "lastDlDir",         // folder (np. dysk Z:) istnieje tylko na tym komputerze
             "lanSyncSilent",
+            "vlcLocalName",      // nazwa biblioteki filmow tego komputera - kazdy komputer ma wlasna
             "lanSyncKey",
             "quickAccessTab",
             "language",          // jezyk interfejsu wybiera kazdy komputer sam
@@ -557,7 +558,18 @@ namespace Przegladarka
             LanSyncPayload state = null;
             LanHistoryPayload hist = null;
             LanTabPayload sentTab = null;
-            if (pkt.t == "tab")
+            LanFilmMsg film = null;
+            if (pkt.t == "film")   // filmy w sieci (LanVideo.cs) - tylko sparowane, zaszyfrowane
+            {
+                if (_lanLegacyNoKeyMode) return;
+                try { film = DecryptLanBlob<LanFilmMsg>(pkt); }
+                catch (CryptographicException) { return; }
+                catch (FormatException) { return; }
+                catch (JsonException) { return; }
+                catch (InvalidDataException) { return; }
+                if (film == null) return;
+            }
+            else if (pkt.t == "tab")
             {
                 if (_lanLegacyNoKeyMode) return;
                 try { sentTab = DecryptLanBlob<LanTabPayload>(pkt); }
@@ -607,6 +619,12 @@ namespace Przegladarka
 
             if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase)) return;
 
+            if (pkt.t == "film")
+            {
+                var fm = film; var fp = pkt;
+                await Dispatcher.InvokeAsync(() => ReceiveLanFilm(fp, fm));
+                return;
+            }
             if (pkt.t == "tab")
             {
                 var st = sentTab; var sp = pkt;

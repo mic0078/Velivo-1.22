@@ -27,9 +27,31 @@ namespace Przegladarka
             return chars.Length == 0 ? "domyslny" : new string(chars);
         }
 
+        internal static Point CascadeSpot(Rect me, System.Collections.Generic.IEnumerable<Rect> others, Rect work)
+        {
+            const double step = 30;
+            var list = others.Where(o => Math.Abs(o.Width - me.Width) < 3 && Math.Abs(o.Height - me.Height) < 3).ToList();
+            double x = me.X, y = me.Y;
+            for (int i = 0; i < 50 && list.Any(o => Math.Abs(o.X - x) < 10 && Math.Abs(o.Y - y) < 10); i++)
+            {
+                x += step; y += step;
+                if (y + me.Height > work.Bottom || x + me.Width > work.Right) { x = work.Left + (x - me.X) % (step * 5); y = work.Top; }   // dol ekranu - od gory
+            }
+            return new Point(x, y);
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            // okna o tym samym rozmiarze otwierane w tym samym miejscu - kaskadowo jak w Windows (najnowsze na wierzchu, przesuniete w dol)
+            EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s, a) =>
+            {
+                var w = s as Window;
+                if (w == null || w.WindowStyle == WindowStyle.None || w.WindowState != WindowState.Normal || w == MainWindow) return;
+                var others = Windows.Cast<Window>().Where(o => o != w && o.IsVisible && o.WindowState == WindowState.Normal).Select(o => new Rect(o.Left, o.Top, o.ActualWidth, o.ActualHeight));
+                var p = CascadeSpot(new Rect(w.Left, w.Top, w.ActualWidth, w.ActualHeight), others, SystemParameters.WorkArea);
+                w.Left = p.X; w.Top = p.Y;
+            }));
             // Siatka bezpieczenstwa: nieprzewidziany blad nie wylacza przegladarki - zapis do pliku i komunikat.
             // Komunikat najwyzej jeden naraz i nie czesciej niz raz na 30 s dla tego samego bledu
             // (powtarzajacy sie blad nie moze zasypac ekranu okienkami) - kazdy blad i tak trafia do bledy.log.

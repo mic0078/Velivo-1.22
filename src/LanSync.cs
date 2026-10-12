@@ -78,6 +78,7 @@ namespace Przegladarka
             "readerSize",        // rozmiar okna zalezy od ekranu komputera          // glosniki to urzadzenie konkretnego komputera
             "lastDlDir",         // folder (np. dysk Z:) istnieje tylko na tym komputerze
             "lanSyncSilent",
+            "vlcLocalName",      // nazwa biblioteki filmow tego komputera - kazdy komputer ma wlasna
             "lanSyncKey",
             "quickAccessTab",
             "language",          // jezyk interfejsu wybiera kazdy komputer sam

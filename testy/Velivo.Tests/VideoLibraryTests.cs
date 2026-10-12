@@ -85,4 +85,22 @@ public class VideoLibraryTests
         Assert.Null(l[1].Vol);   // film bez wlasnych ustawien - odtwarzacz bierze ostatnio uzywane
         Assert.Null(l[1].LVoice);
     }
+
+    [Fact]
+    public void DwieBiblioteki()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "velivo-libs-" + System.Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "a.mkv"), "x"); File.WriteAllText(Path.Combine(dir, "b.mkv"), "x");
+        var lib = new System.Collections.Generic.List<MainWindow.LibraryVideo>();
+        MainWindow.AddToLibrary(lib, new[] { Path.Combine(dir, "a.mkv") });         // dysk tego komputera - prywatna
+        MainWindow.AddToLibrary(lib, new[] { Path.Combine(dir, "b.mkv") }, true);   // dodany we wspolnej
+        Assert.False(MainWindow.IsShared(lib[0]));
+        Assert.True(MainWindow.IsShared(lib[1]));
+        Assert.True(MainWindow.IsShared(new MainWindow.LibraryVideo { Path = @"\\nas\Filmy\c.mkv", Title = "c" }));   // NAS - wspolna
+        Assert.False(MainWindow.IsShared(new MainWindow.LibraryVideo { Path = @"\\nas\Filmy\d.mkv", Title = "d", Shared = false }));   // przeniesiony do prywatnej
+        var back = MainWindow.ParseLibrary(System.Text.Json.JsonSerializer.Serialize(lib));
+        Assert.Null(back[0].Shared); Assert.True(back[1].Shared);
+        Directory.Delete(dir, true);
+    }
 }

@@ -327,14 +327,14 @@ namespace Przegladarka
             return done == tcs.Task ? tcs.Task.Result : null;
         }
 
-        // lista dla drugiego komputera: ostatnio ogladane na gorze, najwyzej tyle, ile zmiesci sie w pakiecie
+        // wspolna biblioteka dla drugiego komputera: ostatnio ogladane na gorze, najwyzej tyle, ile zmiesci sie w pakiecie
         List<LanFilmItem> LibraryFor(LanPeerInfo peer)
         {
             var list = new List<LanFilmItem>();
             int size = 0;   // pakiet LAN ma limit ok. 60 KB - lista najwyzej do ok. 120 KB tekstu przed kompresja
             foreach (var v in LoadLibrary().OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).Take(300))
             {
-                if (!File.Exists(v.Path)) continue;
+                if (!IsShared(v) || !File.Exists(v.Path)) continue;   // prywatna biblioteka nie wychodzi z komputera
                 size += 260 + v.Title.Length + v.Path.Length * 2;
                 if (size > 120000) break;
                 var t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title;

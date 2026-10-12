@@ -61,7 +61,10 @@ namespace Przegladarka
             public double? LRate { get; set; }
             public int? LDuck { get; set; }
             public string LVoice { get; set; }
+            public bool? Shared { get; set; }  // we wspolnej bibliotece; null = film z dysku sieciowego (NAS) wspolny, z dysku tego komputera prywatny
         }
+
+        internal static bool IsShared(LibraryVideo v) { return v.Shared ?? NetworkPath(v.Path) != null; }
 
         internal static List<LibraryVideo> ParseLibrary(string json)
         {
@@ -82,7 +85,7 @@ namespace Przegladarka
         }
 
         // dodaje pliki (i filmy z podanych folderow, z podfolderami); zwraca liczbe nowych
-        internal static int AddToLibrary(List<LibraryVideo> lib, IEnumerable<string> paths)
+        internal static int AddToLibrary(List<LibraryVideo> lib, IEnumerable<string> paths, bool? shared = null)
         {
             int added = 0;
             var known = new HashSet<string>(lib.Select(v => v.Path), StringComparer.OrdinalIgnoreCase);
@@ -96,7 +99,7 @@ namespace Przegladarka
                     if (!IsVlcVideoFile(f)) continue;
                     var full = System.IO.Path.GetFullPath(f);
                     if (!known.Add(full)) continue;
-                    lib.Add(new LibraryVideo { Path = full, Title = System.IO.Path.GetFileNameWithoutExtension(full), Added = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+                    lib.Add(new LibraryVideo { Path = full, Title = System.IO.Path.GetFileNameWithoutExtension(full), Added = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Shared = shared });
                     added++;
                 }
             }
@@ -203,13 +206,14 @@ namespace Przegladarka
         }
 
         // skanowanie w tle - folder na dysku sieciowym (NAS, \\serwer\Filmy, Z:) moze sie czytac dlugo
-        async void AddPathsToLibrary(IEnumerable<string> paths)
+        // shared: dodane w oknie wspolnej / prywatnej biblioteki; null = wg dysku (NAS - wspolna)
+        async void AddPathsToLibrary(IEnumerable<string> paths, bool? shared = null)
         {
             var list = paths.ToList();
             ShowToast(L.T("🎬 Szukam filmów…"), null);
             var found = await System.Threading.Tasks.Task.Run(() => { var tmp = new List<LibraryVideo>(); AddToLibrary(tmp, list); return tmp; });
             var lib = LoadLibrary();
-            int n = AddToLibrary(lib, found.Select(v => v.Path));
+            int n = AddToLibrary(lib, found.Select(v => v.Path), shared);
             SaveLibrary(lib);
             ShowToast("🎬 " + (L.En ? "Added to library: " : "Dodano do biblioteki: ") + n, null);
             if (_libWin != null && _libWin.IsLoaded) _libRefresh?.Invoke();
@@ -242,6 +246,7 @@ namespace Przegladarka
 
         Window _libWin;
         Action _libRefresh;
+        bool _libSharedView;   // otwarta biblioteka: wspolna albo tego komputera
 
         sealed class LibRow
         {
@@ -287,21 +292,25 @@ namespace Przegladarka
             var hint = new TextBlock { Text = L.T("🔍 Szukaj filmu…"), Foreground = Brushes.Gray, Margin = new Thickness(14, 13, 0, 0), IsHitTestVisible = false };
             search.TextChanged += (s, a) => hint.Visibility = search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
             var searchBox = new Grid(); searchBox.Children.Add(search); searchBox.Children.Add(hint);
-            // zrodlo: ten komputer albo biblioteka drugiego Velivo w sieci (sparowanego)
-            var source = new ComboBox { Width = 230, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Biblioteka tego komputera albo innego Velivo w sieci") };
+            // dwie biblioteki: wspolna (ta sama nazwa na sparowanych komputerach, filmy wszystkich wlaczonych Velivo) i prywatna tego komputera
+            var source = new ComboBox { Width = 230, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wspólna biblioteka (widzą ją sparowane komputery) albo biblioteka tylko tego komputera") };
+            Func<string> sharedName = () => string.IsNullOrWhiteSpace(_settings.VlcSharedName) ? L.T("Wspólna biblioteka") : _settings.VlcSharedName;
+            Func<string> localName = () => string.IsNullOrWhiteSpace(_settings.VlcLocalName) ? Environment.MachineName : _settings.VlcLocalName;
+            var sharedItem = new ComboBoxItem(); var localItem = new ComboBoxItem();
+            Action names = () => { sharedItem.Content = "📚 " + sharedName(); localItem.Content = "🔒 " + localName(); };
+            names();
+            source.Items.Add(sharedItem); source.Items.Add(localItem);
+            source.SelectedItem = _libSharedView ? sharedItem : localItem;
+            var renameBtn = SmallButton(L.T("✏ Zmień nazwę"), null);
+            var deleteBtn = SmallButton(L.T("🗑 Usuń bibliotekę"), null);
+            renameBtn.Margin = deleteBtn.Margin = new Thickness(6, 8, 0, 4);
             var top = new DockPanel();
-            DockPanel.SetDock(source, Dock.Left); top.Children.Add(source); top.Children.Add(searchBox);
-            LanPeerInfo remotePeer = null;
-            List<LanFilmItem> remoteItems = new List<LanFilmItem>();
-            var remoteOf = new Dictionary<LibraryVideo, LanFilmItem>();
-            Action fillSources = () =>
-            {
-                var sel0 = (source.SelectedItem as ComboBoxItem)?.Tag as string;
-                source.Items.Clear();
-                source.Items.Add(new ComboBoxItem { Content = L.T("💻 Ten komputer"), Tag = null });
-                foreach (var p in SendTargets()) source.Items.Add(new ComboBoxItem { Content = "🖥 " + (string.IsNullOrWhiteSpace(p.Device) ? p.Id.Substring(0, 8) : p.Device), Tag = p.Id });
-                source.SelectedItem = source.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == sel0) ?? source.Items[0];
-            };
+            foreach (var c in new FrameworkElement[] { source, renameBtn, deleteBtn }) { DockPanel.SetDock(c, Dock.Left); top.Children.Add(c); }
+            top.Children.Add(searchBox);
+            // filmy wspolnej biblioteki z innych Velivo (wlaczonych) - wczytywane przy wejsciu do wspolnej
+            var peerItems = new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
+            var remoteOf = new Dictionary<LibraryVideo, KeyValuePair<LanPeerInfo, LanFilmItem>>();
+            int peersOff = 0;
             var grid = new GridView();
             // kolumny: naglowek klik = sortuj, drugi klik = odwrotnie
             var cols = new[] { new[] { "title", "Tytuł", "Title", "340" }, new[] { "len", "Długość", "Length", "80" }, new[] { "seen", "Obejrzane", "Seen", "86" },
@@ -326,16 +335,24 @@ namespace Przegladarka
                 int ver = ++fillVer;
                 lib = LoadLibrary();
                 var q = search.Text.Trim();
-                var all = lib; var key = sortKey; var desc = sortDesc;
-                var peer = remotePeer;
-                if (peer != null)   // biblioteka drugiego komputera (bez sprawdzania dysku - pliki sa tam)
-                {
-                    remoteOf.Clear();
-                    all = remoteItems.Select(x => { var v = new LibraryVideo { Path = x.i, Title = x.t, Len = x.l, Pos = x.p, Done = x.d, Last = x.w }; remoteOf[v] = x; return v; }).ToList();
-                }
+                var key = sortKey; var desc = sortDesc; var shared = _libSharedView;
+                var fromPeers = shared ? peerItems.ToList() : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
+                var local = lib;
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
-                var newRows = await System.Threading.Tasks.Task.Run(() =>
+                var res = await System.Threading.Tasks.Task.Run(() =>
                 {
+                    var mine = local.Where(v => IsShared(v) == shared).ToList();
+                    var all = new List<LibraryVideo>(mine);
+                    var of = new Dictionary<LibraryVideo, KeyValuePair<LanPeerInfo, LanFilmItem>>();
+                    // ten sam film z NAS na kilku komputerach = jedna pozycja
+                    var seen = new HashSet<string>(mine.Select(v => NetworkPath(v.Path)).Where(n => n != null), StringComparer.OrdinalIgnoreCase);
+                    foreach (var kv in fromPeers)
+                    {
+                        if (!seen.Add(kv.Value.n ?? kv.Key.Id + "|" + kv.Value.i)) continue;
+                        var x = kv.Value;
+                        var v = new LibraryVideo { Path = x.n ?? x.i, Title = x.t, Len = x.l, Pos = x.p, Done = x.d, Last = x.w };
+                        of[v] = kv; all.Add(v);
+                    }
                     // niedostepny udzial / dysk sprawdzany raz (nie po kilka sekund dla kazdego filmu)
                     var roots = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
                     Func<string, bool> exists = path =>
@@ -346,20 +363,36 @@ namespace Przegladarka
                         return up && File.Exists(path);
                     };
                     var now = DateTime.Now;
-                    return SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0), key, desc)
+                    var r = SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0), key, desc)
                     .Select(v => new LibRow
                     {
-                        Item = v, Missing = peer == null && !exists(v.Path), Title = v.Title,
+                        Item = v, Missing = !of.ContainsKey(v) && !exists(v.Path), Title = v.Title,
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = SeenText(v),
                         LastPlayed = LastPlayedText(v.Last, now),
-                        Folder = peer != null ? (remoteOf[v].n != null ? System.IO.Path.GetDirectoryName(remoteOf[v].n) : "🖥 " + peer.Device) : System.IO.Path.GetDirectoryName(v.Path),
-                    }).Select(r => { if (r.Missing) r.Title = "⚠ " + r.Title; return r; }).ToList();
+                        Folder = of.ContainsKey(v) ? (of[v].Value.n != null ? System.IO.Path.GetDirectoryName(of[v].Value.n) : "🖥 " + of[v].Key.Device) : System.IO.Path.GetDirectoryName(v.Path),
+                    }).Select(row => { if (row.Missing) row.Title = "⚠ " + row.Title; return row; }).ToList();
+                    return Tuple.Create(r, all.Count, of);
                 });
                 if (ver != fillVer) return;   // w miedzyczasie nowsze szukanie
-                rows = newRows;
+                rows = res.Item1; remoteOf.Clear(); foreach (var kv in res.Item3) remoteOf[kv.Key] = kv.Value;
                 list.ItemsSource = rows;
-                count.Text = rows.Count + " / " + all.Count + L.T(" filmów") + (peer != null ? "  ·  🖥 " + peer.Device : "");
+                count.Text = rows.Count + " / " + res.Item2 + L.T(" filmów") + (shared && peersOff > 0 ? "  ·  " + L.T("niedostępne teraz (komputer wyłączony): ") + peersOff : "");
+            };
+            // filmy wspolnej biblioteki ze wszystkich wlaczonych Velivo naraz
+            Action loadPeers = async () =>
+            {
+                var peers = SendTargets();
+                if (peers.Count == 0) { peerItems.Clear(); peersOff = 0; fill(); return; }
+                count.Text = L.T("Wczytuję wspólną bibliotekę…");
+                var got = await System.Threading.Tasks.Task.WhenAll(peers.Select(p => RequestLibrary(p)));
+                peerItems.Clear(); peersOff = 0;
+                for (int i = 0; i < peers.Count; i++)
+                {
+                    if (got[i] == null) { peersOff++; continue; }
+                    foreach (var x in got[i]) peerItems.Add(new KeyValuePair<LanPeerInfo, LanFilmItem>(peers[i], x));
+                }
+                fill();
             };
             _libRefresh = fill;
             list.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler((s, a) =>
@@ -370,36 +403,45 @@ namespace Przegladarka
                 markSort(); fill();
             }));
             search.TextChanged += (s, a) => fill();
-            source.DropDownOpened += (s, a) => fillSources();
-            fillSources();
-            source.SelectionChanged += async (s, a) =>
+            source.SelectionChanged += (s, a) =>
             {
-                var id = (source.SelectedItem as ComboBoxItem)?.Tag as string;
-                if (id == (remotePeer?.Id)) return;
-                if (id == null) { remotePeer = null; fill(); return; }
-                var peer = PeerById(id); if (peer == null) return;
-                count.Text = L.T("Wczytuję bibliotekę: ") + peer.Device + "…";
-                var items = await RequestLibrary(peer);
-                if (items == null)
-                {
-                    ShowToast("🖥 " + peer.Device + L.T(" nie odpowiada (Velivo musi być tam uruchomione)"), null);
-                    source.SelectedIndex = 0; return;
-                }
-                remotePeer = peer; remoteItems = items; fill();
+                _libSharedView = source.SelectedItem == sharedItem;
+                fill();
+                if (_libSharedView) loadPeers();
             };
+            renameBtn.Click += (s, a) =>
+            {
+                bool shared = _libSharedView;
+                win.Topmost = false;
+                var name = Prompt(shared ? L.T("Nazwa wspólnej biblioteki (taka sama na wszystkich sparowanych komputerach):") : L.T("Nazwa biblioteki tego komputera:"), shared ? sharedName() : localName());
+                win.Topmost = owner.Topmost;
+                if (name == null) return;
+                if (shared) _settings.VlcSharedName = name.Trim(); else _settings.VlcLocalName = name.Trim();
+                try { _settings.Save(DataDir); } catch (Exception) { }
+                names();
+            };
+            deleteBtn.Click += (s, a) =>
+            {
+                bool shared = _libSharedView;
+                if (MessageBox.Show(win, string.Format(L.T("Usunąć całą bibliotekę „{0}”?\n\nZnikną tylko pozycje z listy na tym komputerze – pliki filmów zostają na dysku."), shared ? sharedName() : localName()),
+                    L.T("Biblioteka filmów"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                var l = LoadLibrary(); l.RemoveAll(v => IsShared(v) == shared);
+                SaveLibrary(l); fill();
+            };
+            if (_libSharedView) loadPeers();
             fill();
             Func<List<LibRow>> sel = () => list.SelectedItems.Cast<LibRow>().ToList();
             Action play = () =>
             {
                 var r = list.SelectedItem as LibRow; if (r == null) return;
-                if (remotePeer != null) { WantRemoteFilm(remotePeer, remoteOf[r.Item], false); return; }   // film z drugiego komputera - ogladasz tutaj
+                if (remoteOf.TryGetValue(r.Item, out var rem)) { WantRemoteFilm(rem.Key, rem.Value, false); return; }   // film z drugiego komputera - ogladasz tutaj
                 if (r.Missing) { MessageBox.Show(win, L.T("Nie ma już tego pliku na dysku (przeniesiony albo usunięty)."), L.T("Biblioteka filmów")); return; }
-                var playable = rows.Where(x => !x.Missing).Select(x => x.Item.Path).ToList();   // lista odtwarzania = widoczna lista
+                var playable = rows.Where(x => !x.Missing && !remoteOf.ContainsKey(x.Item)).Select(x => x.Item.Path).ToList();   // lista odtwarzania = widoczna lista
                 PlayVideos(playable.ToArray(), playable.IndexOf(r.Item.Path));
             };
             Action remove = () =>
             {
-                var rs = sel(); if (rs.Count == 0 || remotePeer != null) return;
+                var rs = sel().Where(r => !remoteOf.ContainsKey(r.Item)).ToList(); if (rs.Count == 0) return;
                 var l = LoadLibrary(); l.RemoveAll(v => rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
                 SaveLibrary(l); fill();
             };
@@ -430,10 +472,11 @@ namespace Przegladarka
             menu.Opened += (s, a) =>
             {
                 menu.Items.Clear();
-                if (remotePeer != null)
+                var r0 = list.SelectedItem as LibRow;
+                if (r0 != null && remoteOf.TryGetValue(r0.Item, out var rem))
                 {
                     addItem(L.T("▶ Odtwórz tutaj"), play);
-                    addItem(L.T("👥 Oglądaj razem z: ") + remotePeer.Device, () => { var r = list.SelectedItem as LibRow; if (r != null) WantRemoteFilm(remotePeer, remoteOf[r.Item], true); });
+                    addItem(L.T("👥 Oglądaj razem z: ") + rem.Key.Device, () => WantRemoteFilm(rem.Key, rem.Value, true));
                     return;
                 }
                 addItem(L.T("▶ Odtwórz"), play);
@@ -442,6 +485,13 @@ namespace Przegladarka
                 menu.Items.Add(new Separator());
                 addItem(L.T("Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); });
                 addItem(L.T("Obejrzyj od początku"), () => { foreach (var r in sel()) r.Item.Pos = 0; var l = LoadLibrary(); foreach (var v in l) if (sel().Any(r => r.Item.Path == v.Path)) v.Pos = 0; SaveLibrary(l); play(); });
+                bool toShared = !_libSharedView;
+                addItem(toShared ? L.T("📚 Przenieś do: ") + sharedName() : L.T("🔒 Przenieś do: ") + localName(), () =>
+                {
+                    var paths = new HashSet<string>(sel().Where(r => !remoteOf.ContainsKey(r.Item)).Select(r => r.Item.Path), StringComparer.OrdinalIgnoreCase);
+                    var l = LoadLibrary(); foreach (var v in l) if (paths.Contains(v.Path)) v.Shared = toShared;
+                    SaveLibrary(l); fill();
+                });
                 addItem(L.T("Usuń z biblioteki (plik zostaje na dysku)"), remove);
             };
             list.ContextMenu = menu;
@@ -450,8 +500,8 @@ namespace Przegladarka
             var buttons = new StackPanel { Orientation = Orientation.Horizontal };
             DockPanel.SetDock(buttons, Dock.Right); bar.Children.Add(buttons);
             buttons.Children.Add(SmallButton(L.T("▶ Odtwórz"), play));
-            buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true); if (f != null) AddPathsToLibrary(f); }));
-            buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(); if (d != null) AddPathsToLibrary(new[] { d }); }));
+            buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true); if (f != null) AddPathsToLibrary(f, _libSharedView); }));
+            buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView); }));
             buttons.Children.Add(SmallButton(L.T("Usuń z biblioteki"), remove));
             var body = new DockPanel();
             DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);
@@ -465,7 +515,7 @@ namespace Przegladarka
             win.Content = body;
             // przeciagnij pliki / foldery z Eksploratora na okno = dodaj do biblioteki
             win.AllowDrop = true;
-            win.Drop += (s, a) => { if (a.Data.GetData(DataFormats.FileDrop) is string[] f) AddPathsToLibrary(f); };
+            win.Drop += (s, a) => { if (a.Data.GetData(DataFormats.FileDrop) is string[] f) AddPathsToLibrary(f, _libSharedView); };
             win.Closed += (s, a) => { _libWin = null; _libRefresh = null; };
             _libWin = win;
             win.Show();

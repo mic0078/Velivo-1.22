@@ -52,8 +52,11 @@ namespace Przegladarka
   var st=document.getElementById('velivo-film'); if(!st){ st=document.createElement('style'); st.id='velivo-film'; (document.head||document.documentElement).appendChild(st); }
   st.textContent='html,body{overflow:hidden!important;background:#000!important}body *{visibility:hidden!important}' +
     'video.velivo-film{visibility:visible!important;position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important;transform:none!important}';
-  var seeked=false;
-  function fix(){ var v=big(); if(!v) return; if(v.controls) v.controls=false;   // w okienku tylko pasek Velivo (np. film z dysku ma wlasny pasek odtwarzacza)
+  // strona czeka na cos innego niz film (komunikat YouTube, zgoda, wybor konta, blad): po 6 s bez obrazu pokazujemy cala
+  // strone zamiast czarnego okna (klasa na <html> wylacza ukrywanie); gdy film ma obraz - z powrotem sam film
+  var seeked=false, t0=Date.now();
+  if(!document.getElementById('velivo-film-show')){ var sh=document.createElement('style'); sh.id='velivo-film-show'; sh.textContent='html.velivo-strona body *{visibility:visible!important}html.velivo-strona,html.velivo-strona body{overflow:auto!important}html.velivo-strona video.velivo-film{position:static!important;width:auto!important;height:auto!important}'; (document.head||document.documentElement).appendChild(sh); }
+  function fix(){ var v=big(); var ok=v&&v.videoWidth>0; document.documentElement.classList.toggle('velivo-strona', !ok&&Date.now()-t0>6000); if(!v) return; if(v.controls) v.controls=false;   // w okienku tylko pasek Velivo (np. film z dysku ma wlasny pasek odtwarzacza)
     if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
     if(!seeked && v.readyState>0){ seeked=true; if(t>3 && Math.abs(v.currentTime-t)>3) try{v.currentTime=t;}catch(e){} }
     if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }

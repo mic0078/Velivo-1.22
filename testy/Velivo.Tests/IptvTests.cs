@@ -119,4 +119,14 @@ public class IptvTests
         Assert.Equal(payload.Length, new FileInfo(file).Length);
         File.Delete(file);
     }
+
+    [Fact]
+    public void NagraniaWSwojejBibliotece()
+    {
+        var dirs = new System.Collections.Generic.List<string> { @"C:\Users\a\Videos\Velivo TV\" };
+        Assert.True(MainWindow.UnderAny(@"C:\Users\a\Videos\Velivo TV\TVN24 – Fakty 2026-10-12 19.00.ts", dirs));
+        Assert.True(MainWindow.UnderAny(@"c:\users\a\videos\velivo tv\x.ts", dirs));
+        Assert.False(MainWindow.UnderAny(@"C:\Users\a\Videos\Velivo TV2\x.ts", dirs));   // inny folder o podobnej nazwie
+        Assert.False(MainWindow.UnderAny(@"Y:\Filmy\film.mkv", dirs));
+    }
 }

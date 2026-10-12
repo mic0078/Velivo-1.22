@@ -38,6 +38,17 @@ namespace Przegladarka
         DispatcherTimer _iptvTimer;
         Action _iptvJobsChanged;
 
+        // foldery nagran (domyslny, wybrany i z zaplanowanych) - ich filmy tworza biblioteke "Nagrane z TV"
+        List<string> TvRecDirs()
+        {
+            var st = IptvSt;
+            var dirs = new List<string> { string.IsNullOrWhiteSpace(st.RecDir) ? DefaultRecDir : st.RecDir };
+            dirs.AddRange(st.Jobs.Where(j => !string.IsNullOrWhiteSpace(j.Folder)).Select(j => j.Folder));
+            return dirs.Select(d => { try { return Path.GetFullPath(d).TrimEnd('\\') + "\\"; } catch (Exception) { return null; } }).Where(d => d != null).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        internal static bool UnderAny(string path, List<string> dirs) { return dirs.Any(d => (path ?? "").StartsWith(d, StringComparison.OrdinalIgnoreCase)); }
+
         static long UnixMs(DateTime local) { return new DateTimeOffset(local).ToUnixTimeMilliseconds(); }
         static DateTime LocalOf(long ms) { return DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime; }
 
@@ -101,6 +112,7 @@ namespace Przegladarka
                 IptvSt.Jobs.RemoveAll(x => x.Id == j.Id); SaveIptv(IptvSt);
                 _iptvJobsChanged?.Invoke();
                 var err = t.IsFaulted ? t.Exception.GetBaseException().Message : t.Result;
+                if (File.Exists(file)) { var l = LoadLibrary(); if (AddToLibrary(l, new[] { file }, false) > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } }   // biblioteka "Nagrane z TV"
                 if (err != null && !File.Exists(file)) ShowToast(L.T("⚠ Nagrywanie nie udało się: ") + j.Channel + " – " + err, null);
                 else ShowToast(L.T("✅ Nagranie zapisane: ") + Path.GetFileName(file) + (err != null ? " (" + err + ")" : ""), file);
             })));

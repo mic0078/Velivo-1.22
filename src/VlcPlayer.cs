@@ -292,6 +292,7 @@ namespace Przegladarka
         Window _libWin;
         Action _libRefresh;
         bool _libSharedView;   // otwarta biblioteka: wspolna albo tego komputera
+        bool _libTvView;       // otwarta biblioteka "Nagrane z TV" (pliki z folderow nagran)
         bool? _playShared;     // z ktorej biblioteki wlaczono film (jej licznik obejrzenia); null = obojetnie
 
         sealed class LibRow
@@ -342,11 +343,12 @@ namespace Przegladarka
             var source = new ComboBox { Width = 230, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wspólna biblioteka (widzą ją sparowane komputery) albo biblioteka tylko tego komputera") };
             Func<string> sharedName = () => string.IsNullOrWhiteSpace(_settings.VlcSharedName) ? L.T("Wspólna biblioteka") : _settings.VlcSharedName;
             Func<string> localName = () => string.IsNullOrWhiteSpace(_settings.VlcLocalName) ? Environment.MachineName : _settings.VlcLocalName;
-            var sharedItem = new ComboBoxItem(); var localItem = new ComboBoxItem();
+            var sharedItem = new ComboBoxItem(); var localItem = new ComboBoxItem(); var tvItem = new ComboBoxItem { Content = L.T("📺 Nagrane z TV") };
             Action names = () => { sharedItem.Content = "📚 " + sharedName(); localItem.Content = "🔒 " + localName(); };
             names();
             source.Items.Add(sharedItem); source.Items.Add(localItem);
-            source.SelectedItem = _libSharedView ? sharedItem : localItem;
+            if (IptvInstalled) source.Items.Add(tvItem); else _libTvView = false;
+            source.SelectedItem = _libTvView ? tvItem : _libSharedView ? sharedItem : localItem;
             var renameBtn = SmallButton(L.T("✏ Zmień nazwę"), null);
             var deleteBtn = SmallButton(L.T("🗑 Usuń bibliotekę"), null);
             renameBtn.Margin = deleteBtn.Margin = new Thickness(6, 8, 0, 4);
@@ -382,13 +384,13 @@ namespace Przegladarka
                 int ver = ++fillVer;
                 lib = LoadLibrary();
                 var q = search.Text.Trim();
-                var key = sortKey; var desc = sortDesc; var shared = _libSharedView;
-                var fromPeers = shared ? peerItems.ToList() : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
+                var key = sortKey; var desc = sortDesc; var shared = _libSharedView; var tv = _libTvView; var recDirs = TvRecDirs();
+                var fromPeers = shared && !tv ? peerItems.ToList() : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
                 var local = lib;
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
                 var res = await System.Threading.Tasks.Task.Run(() =>
                 {
-                    var mine = local.Where(v => IsShared(v) == shared).ToList();
+                    var mine = local.Where(v => tv ? UnderAny(v.Path, recDirs) : !UnderAny(v.Path, recDirs) && IsShared(v) == shared).ToList();   // nagrania TV - tylko w swojej bibliotece
                     var all = new List<LibraryVideo>(mine);
                     var of = new Dictionary<LibraryVideo, KeyValuePair<LanPeerInfo, LanFilmItem>>();
                     // ten sam film z NAS na kilku komputerach = jedna pozycja
@@ -452,7 +454,8 @@ namespace Przegladarka
             search.TextChanged += (s, a) => fill();
             source.SelectionChanged += (s, a) =>
             {
-                _libSharedView = source.SelectedItem == sharedItem;
+                _libSharedView = source.SelectedItem == sharedItem; _libTvView = source.SelectedItem == tvItem;
+                renameBtn.IsEnabled = !_libTvView;
                 fill();
                 if (_libSharedView) loadPeers();
             };
@@ -469,12 +472,13 @@ namespace Przegladarka
             };
             deleteBtn.Click += (s, a) =>
             {
-                bool shared = _libSharedView;
-                if (MessageBox.Show(win, string.Format(L.T("Usunąć całą bibliotekę „{0}”?\n\nZnikną tylko pozycje z listy na tym komputerze – pliki filmów zostają na dysku."), shared ? sharedName() : localName()),
+                bool shared = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs();
+                if (MessageBox.Show(win, string.Format(L.T("Usunąć całą bibliotekę „{0}”?\n\nZnikną tylko pozycje z listy na tym komputerze – pliki filmów zostają na dysku."), tv ? L.T("Nagrane z TV") : shared ? sharedName() : localName()),
                     L.T("Biblioteka filmów"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-                var l = LoadLibrary(); l.RemoveAll(v => IsShared(v) == shared);
+                var l = LoadLibrary(); l.RemoveAll(v => tv ? UnderAny(v.Path, recDirs) : !UnderAny(v.Path, recDirs) && IsShared(v) == shared);
                 SaveLibrary(l); fill();
             };
+            renameBtn.IsEnabled = !_libTvView;
             if (_libSharedView) loadPeers();
             fill();
             Func<List<LibRow>> sel = () => list.SelectedItems.Cast<LibRow>().ToList();
@@ -490,7 +494,7 @@ namespace Przegladarka
             Action remove = () =>
             {
                 var rs = sel().Where(r => !remoteOf.ContainsKey(r.Item)).ToList(); if (rs.Count == 0) return;
-                var l = LoadLibrary(); bool sh = _libSharedView; l.RemoveAll(v => IsShared(v) == sh && rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
+                var l = LoadLibrary(); bool sh = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs(); l.RemoveAll(v => (tv ? UnderAny(v.Path, recDirs) : IsShared(v) == sh) && rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
                 SaveLibrary(l); fill();
             };
             // usun z biblioteki i plik z dysku (do Kosza; dysk sieciowy nie ma Kosza - wtedy na stale)
@@ -545,6 +549,7 @@ namespace Przegladarka
                 menu.Items.Add(new Separator());
                 addItem(L.T("Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); });
                 addItem(L.T("Obejrzyj od początku"), () => { foreach (var r in sel()) r.Item.Pos = 0; var l = LoadLibrary(); foreach (var r in sel()) { var v = FindEntry(l, r.Item.Path, _libSharedView); if (v != null) v.Pos = 0; } SaveLibrary(l); play(); });
+                if (_libTvView) { addItem(L.T("Usuń z biblioteki (plik zostaje na dysku)"), remove); addItem(L.T("🗑 Usuń z biblioteki i z dysku…"), removeFiles); return; }   // nagrania TV - bez przenoszenia
                 bool toShared = !_libSharedView;
                 string target = toShared ? sharedName() : localName();
                 // przenies: ten sam licznik obejrzenia; kopiuj: druga pozycja z wlasnym licznikiem (od zera)
@@ -572,8 +577,8 @@ namespace Przegladarka
             var buttons = new StackPanel { Orientation = Orientation.Horizontal };
             DockPanel.SetDock(buttons, Dock.Right); bar.Children.Add(buttons);
             buttons.Children.Add(SmallButton(L.T("▶ Odtwórz"), play));
-            buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true, win); if (f != null) AddPathsToLibrary(f, _libSharedView); }));
-            buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(win); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView); }));
+            buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true, win); if (f != null) AddPathsToLibrary(f, _libSharedView && !_libTvView); }));
+            buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(win); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView && !_libTvView); }));
             buttons.Children.Add(SmallButton(L.T("Usuń z biblioteki"), remove));
             var body = new DockPanel();
             DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);
@@ -587,7 +592,7 @@ namespace Przegladarka
             win.Content = body;
             // przeciagnij pliki / foldery z Eksploratora na okno = dodaj do biblioteki
             win.AllowDrop = true;
-            win.Drop += (s, a) => { if (a.Data.GetData(DataFormats.FileDrop) is string[] f) AddPathsToLibrary(f, _libSharedView); };
+            win.Drop += (s, a) => { if (a.Data.GetData(DataFormats.FileDrop) is string[] f) AddPathsToLibrary(f, _libSharedView && !_libTvView); };
             win.Closed += (s, a) => { _libWin = null; _libRefresh = null; };
             _libWin = win;
             win.Show();

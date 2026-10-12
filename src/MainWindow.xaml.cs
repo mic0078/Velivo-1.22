@@ -138,7 +138,7 @@ namespace Przegladarka
             Closing += ConfirmCloseWithDownloads;        // trwa pobieranie? zapytaj i wstrzymaj
             Closing += (s, e) => { if (!e.Cancel) SaveSession(); }; // karty do przywrocenia przy nastepnym starcie
             Closing += OnClosingCleanup;
-            Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); StopTorrents(); };
+            Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); StopTorrents(); foreach (var w in _noteWindows.Values.ToList()) w.Close(); };   // karteczki bez wlasciciela trzymalyby proces przy zyciu
             LoadJobs(); // lista pobran z poprzedniego uruchomienia (przerwane mozna wznowic)
             LoadZoom();
             LoadSiteModes();

@@ -1073,7 +1073,7 @@ namespace Przegladarka
             win.SizeChanged += (s, e) => { infoResize.Stop(); infoResize.Start(); };
             overlay.Children.Add(infoBox);
             var infoTimer = new DispatcherTimer();
-            infoTimer.Tick += (s, e) => { infoTimer.Stop(); infoBox.Visibility = Visibility.Collapsed; };
+            infoTimer.Tick += (s, e) => { infoTimer.Stop(); if (!controls.IsVisible) infoBox.Visibility = Visibility.Collapsed; };   // przy widocznym pasku sterowania zostaje
             string infoShownFor = null;
             Action<bool> showInfo = byUser =>
             {
@@ -1232,7 +1232,12 @@ namespace Przegladarka
                 if (chPanel.Visibility == Visibility.Visible) showChannels(true);
             };
             chGroup.DropDownOpened += (s, e) => chHide.Stop();   // wybieranie grupy - lista nie chowa sie
-            controls.IsVisibleChanged += (s, e) => { if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16); };
+            // pasek informacji razem z paskiem sterowania: ruch mysza - oba, bez ruchu - oba znikaja
+            controls.IsVisibleChanged += (s, e) =>
+            {
+                if (controls.IsVisible) { if (infoBox.Visibility != Visibility.Visible) showInfo(true); else infoBox.Margin = new Thickness(16, 0, 16, controls.ActualHeight + 10); }
+                else infoBox.Visibility = Visibility.Collapsed;
+            };
             win.Closed += (s, e) => infoTimer.Stop();
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)
             int marqueePos = 0;

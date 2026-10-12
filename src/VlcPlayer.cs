@@ -1174,6 +1174,9 @@ namespace Przegladarka
                 {
                     add(L.T("⏮ Poprzedni kanał (PgUp)"), () => _vlcLoad(_playIndex - 1), _playIndex > 0);
                     add(L.T("⏭ Następny kanał (PgDn)"), () => _vlcLoad(_playIndex + 1), _playIndex < _playlist.Count - 1);
+                    var tvCh = _iptvPlaying[path];
+                    if (IsRecording(path)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(path), true);
+                    else add(L.T("⏺ Nagrywaj ten kanał"), () => RecordNow(tvCh, win), true);
                 }
                 if (path != null && !remote && file)
                 {

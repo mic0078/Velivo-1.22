@@ -436,8 +436,11 @@ namespace Przegladarka
                     return Tuple.Create(r, all.Count, of);
                 });
                 if (ver != fillVer) return;   // w miedzyczasie nowsze szukanie
+                // odswiezenie (np. co 10 s zapis miejsca filmu) nie gubi zaznaczenia - inaczej znika opis z prawej
+                var keepSel = new HashSet<string>(list.SelectedItems.Cast<LibRow>().Select(x => x.Item.Path), StringComparer.OrdinalIgnoreCase);
                 rows = res.Item1; remoteOf.Clear(); foreach (var kv in res.Item3) remoteOf[kv.Key] = kv.Value;
                 list.ItemsSource = rows;
+                foreach (var r0 in rows.Where(x => keepSel.Contains(x.Item.Path))) list.SelectedItems.Add(r0);
                 count.Text = rows.Count + " / " + res.Item2 + L.T(" filmów") + (shared && peersOff > 0 ? "  ·  " + L.T("niedostępne teraz (komputer wyłączony): ") + peersOff : "");
             };
             // filmy wspolnej biblioteki ze wszystkich wlaczonych Velivo naraz

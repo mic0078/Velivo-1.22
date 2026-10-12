@@ -267,19 +267,6 @@ namespace Przegladarka
                 toggle => { if (toggle) win.WindowState = win.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; else if (win.WindowState == WindowState.Maximized) win.WindowState = WindowState.Normal; });
         }
 
-        // Bez przewijania "reklamy" na koniec: YouTube wkleja teraz reklamy w strumien filmu - przewiniecie na koniec przeskakiwalo
-        // caly film (czarny obraz, sam przelaczal na nastepne filmy). Zostaje klikniecie "Pomin" i wyciszenie na czas reklamy.
-        const string FloatAdSkipScript = @"(function(){ if (!/(^|\.)youtube\.com$/.test(location.hostname)) return;
-  setInterval(function(){ try {
-    var p = document.querySelector('.html5-video-player');
-    var b = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button');
-    if (b) b.click();
-    if (p && p.classList.contains('ad-showing')) { var v = p.querySelector('video'); if (v && !v.muted) { v.muted = true; v.__velivoAdMuted = true; } }
-    else { var v2 = p && p.querySelector('video'); if (v2 && v2.__velivoAdMuted) { v2.muted = false; v2.__velivoAdMuted = false; } }
-    document.querySelectorAll('ytd-ad-slot-renderer, .ytp-ad-overlay-container, #player-ads').forEach(function(x){ x.style.display = 'none'; });
-  } catch (e) {} }, 300);
-})();";
-
         async Task InitFloatingView(WebView2CompositionControl view, string page, double time, bool isPrivate, TextBlock titleText, Action<int> wheel, Action<bool> fullScreen)
         {
             try
@@ -306,8 +293,8 @@ namespace Przegladarka
                     }
                     catch (Exception) { }
                 };
-                // reklamy wideo YouTube: pominiecie (przycisk "Pomin") albo przewiniecie do konca, bez dzwieku
-                await core.AddScriptToExecuteOnDocumentCreatedAsync(FloatAdSkipScript);
+                // reklam nie ruszamy wlasnym skryptem (ukrywanie miejsc na reklamy YouTube wykrywal jako bloker i zalogowanym
+                // pokazywal "Zezwol na reklamy" zamiast filmu) - reklamy blokuje uBlock Origin Lite, jak w karcie
                 core.DocumentTitleChanged += (s, e) => titleText.Text = core.DocumentTitle;
                 core.Settings.IsWebMessageEnabled = true;
                 // kolko myszy nad filmem tez zmienia przezroczystosc

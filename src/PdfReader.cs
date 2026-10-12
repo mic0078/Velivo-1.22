@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -10,7 +10,8 @@ namespace Przegladarka
 {
     // Tekst z otwartego PDF (do trybu czytania i czytania na glos). Wbudowany czytnik PDF silnika nie daje dostepu do tekstu,
     // wiec Velivo czyta plik sam - lokalnie, biblioteka pdf.js (Mozilla) z katalogu programu, w ukrytym silniku bez dostepu
-    // do sieci i dysku (wirtualny adres wskazuje tylko katalog roboczy). PDF z sieci pobiera z ciasteczkami karty.
+    // do sieci i dysku (wirtualny adres wskazuje tylko katalog z pdf.js). PDF z sieci pobiera z ciasteczkami karty; tresc PDF
+    // podawana z pamieci - nie trafia na dysk (wazne np. dla wyciagow z trybu bankowego).
     public partial class MainWindow
     {
         const long PdfMaxBytes = 100L * 1024 * 1024;
@@ -108,7 +109,6 @@ try {
             }
             var page = Path.Combine(PdfWorkDir, "czytaj.html");
             if (!File.Exists(page) || File.ReadAllText(page) != PdfExtractHtml) File.WriteAllText(page, PdfExtractHtml);
-            await File.WriteAllBytesAsync(Path.Combine(PdfWorkDir, "dokument.pdf"), bytes);
 
             var done = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
@@ -125,7 +125,9 @@ try {
                 core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
                 core.WebResourceRequested += (s, e) =>
                 {
-                    if (!e.Request.Uri.StartsWith("https://velivo-pdf/", StringComparison.OrdinalIgnoreCase))
+                    if (e.Request.Uri.Equals("https://velivo-pdf/dokument.pdf", StringComparison.OrdinalIgnoreCase))
+                        e.Response = core.Environment.CreateWebResourceResponse(new MemoryStream(bytes, false), 200, "OK", "Content-Type: application/pdf");
+                    else if (!e.Request.Uri.StartsWith("https://velivo-pdf/", StringComparison.OrdinalIgnoreCase))
                         e.Response = core.Environment.CreateWebResourceResponse(null, 403, "Blocked", "");
                 };
                 core.Navigate("https://velivo-pdf/czytaj.html");
@@ -144,7 +146,6 @@ try {
             finally
             {
                 try { ctl.Close(); } catch (Exception) { }
-                try { File.Delete(Path.Combine(PdfWorkDir, "dokument.pdf")); } catch (Exception) { }   // tresc PDF nie zostaje na dysku
             }
         }
     }

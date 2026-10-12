@@ -787,50 +787,6 @@ namespace Przegladarka
             bool mini0 = false;
             Action showBar = () => { controls.Visibility = Visibility.Visible; if (mini0) miniBar.Visibility = Visibility.Visible; overlay.Cursor = null; hideTimer.Stop(); hideTimer.Start(); };
 
-            // pasek informacji przy kanale TV (jak w dekoderze): logo, kanal, program z godzinami, postep, opis, nastepny; znika sam
-            var infoLogo = new Image { Width = 72, Height = 44, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Top };
-            var infoText = new StackPanel();
-            var infoRow = new DockPanel(); DockPanel.SetDock(infoLogo, Dock.Left); infoRow.Children.Add(infoLogo); infoRow.Children.Add(infoText);
-            var infoBox = new Border { Child = infoRow, CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(16, 0, 16, 0),
-                VerticalAlignment = VerticalAlignment.Bottom, MaxWidth = 900, Visibility = Visibility.Collapsed, IsHitTestVisible = false };
-            overlay.Children.Add(infoBox);
-            var infoTimer = new DispatcherTimer();
-            infoTimer.Tick += (s, e) => { infoTimer.Stop(); infoBox.Visibility = Visibility.Collapsed; };
-            string infoShownFor = null;
-            Action<bool> showInfo = byUser =>
-            {
-                var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
-                if (pth == null || !_iptvPlaying.TryGetValue(pth, out var ch) || mini0) { infoBox.Visibility = Visibility.Collapsed; return; }
-                if (!byUser && IptvSt.InfoSec == 0) return;   // tylko na zadanie
-                var l = EpgFor(_iptvEpg, ch); var now = DateTime.Now; var p0 = EpgAt(l, now); var nx = l?.FirstOrDefault(x => x.Start >= (p0?.Stop ?? now));
-                infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
-                infoText.Children.Clear();
-                Func<string, double, FontWeight, Brush, TextBlock> tb = (t, size, w, b) => new TextBlock { Text = t, FontSize = size, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
-                infoText.Children.Add(tb((IsRecording(pth) ? "⏺ REC   " : "") + ch.Name, 15, FontWeights.SemiBold, Brushes.LightGray));
-                if (p0 == null) infoText.Children.Add(tb(_iptvEpg == null ? L.T("Brak programu TV") : L.T("Brak programu dla tego kanału"), 16, FontWeights.Normal, Brushes.White));
-                else
-                {
-                    infoText.Children.Add(tb("▶ " + p0.Start.ToString("HH:mm") + "–" + p0.Stop.ToString("HH:mm") + "   " + p0.Title + (string.IsNullOrEmpty(p0.Sub) ? "" : " – " + p0.Sub), 20, FontWeights.Bold, Brushes.White));
-                    double total = (p0.Stop - p0.Start).TotalMinutes, done = (now - p0.Start).TotalMinutes;
-                    var bar = new ProgressBar { Height = 5, Maximum = Math.Max(1, total), Value = Math.Max(0, done), Margin = new Thickness(0, 4, 0, 2), Foreground = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(0) };
-                    infoText.Children.Add(bar);
-                    var meta = (int)done + L.T(" min z ") + (int)total + L.T(" · zostało ") + Math.Max(0, (int)Math.Ceiling(total - done)) + L.T(" min") + (p0.Cats.Count > 0 ? "  ·  " + string.Join(", ", p0.Cats) : "") + (!string.IsNullOrEmpty(p0.Year) ? "  ·  " + (p0.Year.Length > 4 ? p0.Year.Substring(0, 4) : p0.Year) : "");
-                    infoText.Children.Add(tb(meta, 12.5, FontWeights.Normal, Brushes.Silver));
-                    if (!string.IsNullOrEmpty(p0.Desc)) { var d = tb(p0.Desc, 13.5, FontWeights.Normal, Brushes.Gainsboro); d.MaxHeight = 58; d.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(d); }
-                }
-                if (nx != null) infoText.Children.Add(tb("⏭ " + L.T("Następnie: ") + nx.Start.ToString("HH:mm") + "  " + nx.Title, 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
-                infoLogo.Source = null;
-                var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
-                if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) infoLogo.Source = t.Result; }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
-                infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);   // nad paskiem sterowania
-                infoBox.Visibility = Visibility.Visible;
-                infoShownFor = p0 != null ? pth + p0.Start.Ticks : pth;
-                infoTimer.Stop();
-                var sec = IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec;
-                infoTimer.Interval = TimeSpan.FromSeconds(sec); infoTimer.Start();
-            };
-            controls.IsVisibleChanged += (s, e) => { if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16); };
-            win.Closed += (s, e) => infoTimer.Stop();
 
             // zapis miejsca wznowienia co kilka sekund i przy zmianie filmu / zamknieciu
             Action savePos = () =>
@@ -1014,6 +970,75 @@ namespace Przegladarka
             tvWatch.Start();
             win.Closed += (s, e) => tvWatch.Stop();
             string curTitle = "";
+            // pasek informacji przy kanale TV (jak w dekoderze): logo, kanal, program z godzinami, postep, opis, nastepny; znika sam
+            var infoLogo = new Image { Width = 72, Height = 44, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Top };
+            var infoText = new StackPanel();
+            var infoRow = new DockPanel(); DockPanel.SetDock(infoLogo, Dock.Left); infoRow.Children.Add(infoLogo); infoRow.Children.Add(infoText);
+            var infoBox = new Border { Child = infoRow, CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(16, 0, 16, 0),
+                VerticalAlignment = VerticalAlignment.Bottom, MaxWidth = 900, Visibility = Visibility.Collapsed, IsHitTestVisible = false };
+            overlay.Children.Add(infoBox);
+            var infoTimer = new DispatcherTimer();
+            infoTimer.Tick += (s, e) => { infoTimer.Stop(); infoBox.Visibility = Visibility.Collapsed; };
+            string infoShownFor = null;
+            Action<bool> showInfo = byUser =>
+            {
+                var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (pth == null || mini0) { infoBox.Visibility = Visibility.Collapsed; return; }
+                if (!byUser && IptvSt.InfoSec == 0) return;   // tylko na zadanie
+                if (!_iptvPlaying.TryGetValue(pth, out var ch))
+                {
+                    // zwykly film: tytul, miejsce / dlugosc, postep, ile zostalo i o ktorej koniec, nastepny z listy
+                    infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
+                    infoText.Children.Clear(); infoLogo.Source = null; infoLogo.Visibility = Visibility.Collapsed;
+                    Func<string, double, FontWeight, Brush, TextBlock> ft = (t, size, w, b) => new TextBlock { Text = t, FontSize = size, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
+                    infoText.Children.Add(ft("🎬 " + (curTitle.Length > 0 ? curTitle : System.IO.Path.GetFileNameWithoutExtension(pth)), 20, FontWeights.Bold, Brushes.White));
+                    long len = mp.Length, pos = Math.Max(0, mp.Time);
+                    if (len > 0)
+                    {
+                        infoText.Children.Add(new ProgressBar { Height = 5, Maximum = len, Value = pos, Margin = new Thickness(0, 4, 0, 2), Foreground = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(0) });
+                        var left = TimeSpan.FromMilliseconds((len - pos) / Math.Max(0.1, mp.Rate));
+                        infoText.Children.Add(ft(FormatTime(pos) + " / " + FormatTime(len) + L.T("  ·  zostało ") + FormatTime((long)left.TotalMilliseconds) + L.T("  ·  koniec o ") + DateTime.Now.Add(left).ToString("HH:mm"), 13.5, FontWeights.Normal, Brushes.Silver));
+                    }
+                    var extra = new List<string>();
+                    if (lc.Cues.Count > 0 && lc.File != null) extra.Add(L.T("💬 napisy: ") + System.IO.Path.GetFileName(lc.File));
+                    if (_settings.VlcLector && lc.Cues.Count > 0) extra.Add(L.T("🗣 lektor włączony"));
+                    if (extra.Count > 0) infoText.Children.Add(ft(string.Join("   ·   ", extra), 12.5, FontWeights.Normal, Brushes.Silver));
+                    if (_playIndex < _playlist.Count - 1) infoText.Children.Add(ft("⏭ " + L.T("Następny: ") + System.IO.Path.GetFileNameWithoutExtension(_playlist[_playIndex + 1]), 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
+                    infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);
+                    infoBox.Visibility = Visibility.Visible; infoShownFor = null;
+                    infoTimer.Stop(); infoTimer.Interval = TimeSpan.FromSeconds(IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec); infoTimer.Start();
+                    return;
+                }
+                infoLogo.Visibility = Visibility.Visible;
+                var l = EpgFor(_iptvEpg, ch); var now = DateTime.Now; var p0 = EpgAt(l, now); var nx = l?.FirstOrDefault(x => x.Start >= (p0?.Stop ?? now));
+                infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
+                infoText.Children.Clear();
+                Func<string, double, FontWeight, Brush, TextBlock> tb = (t, size, w, b) => new TextBlock { Text = t, FontSize = size, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
+                infoText.Children.Add(tb((IsRecording(pth) ? "⏺ REC   " : "") + ch.Name, 15, FontWeights.SemiBold, Brushes.LightGray));
+                if (p0 == null) infoText.Children.Add(tb(_iptvEpg == null ? L.T("Brak programu TV") : L.T("Brak programu dla tego kanału"), 16, FontWeights.Normal, Brushes.White));
+                else
+                {
+                    infoText.Children.Add(tb("▶ " + p0.Start.ToString("HH:mm") + "–" + p0.Stop.ToString("HH:mm") + "   " + p0.Title + (string.IsNullOrEmpty(p0.Sub) ? "" : " – " + p0.Sub), 20, FontWeights.Bold, Brushes.White));
+                    double total = (p0.Stop - p0.Start).TotalMinutes, done = (now - p0.Start).TotalMinutes;
+                    var bar = new ProgressBar { Height = 5, Maximum = Math.Max(1, total), Value = Math.Max(0, done), Margin = new Thickness(0, 4, 0, 2), Foreground = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(0) };
+                    infoText.Children.Add(bar);
+                    var meta = (int)done + L.T(" min z ") + (int)total + L.T(" · zostało ") + Math.Max(0, (int)Math.Ceiling(total - done)) + L.T(" min") + (p0.Cats.Count > 0 ? "  ·  " + string.Join(", ", p0.Cats) : "") + (!string.IsNullOrEmpty(p0.Year) ? "  ·  " + (p0.Year.Length > 4 ? p0.Year.Substring(0, 4) : p0.Year) : "");
+                    infoText.Children.Add(tb(meta, 12.5, FontWeights.Normal, Brushes.Silver));
+                    if (!string.IsNullOrEmpty(p0.Desc)) { var d = tb(p0.Desc, 13.5, FontWeights.Normal, Brushes.Gainsboro); d.MaxHeight = 58; d.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(d); }
+                }
+                if (nx != null) infoText.Children.Add(tb("⏭ " + L.T("Następnie: ") + nx.Start.ToString("HH:mm") + "  " + nx.Title, 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
+                infoLogo.Source = null;
+                var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
+                if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) infoLogo.Source = t.Result; }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
+                infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);   // nad paskiem sterowania
+                infoBox.Visibility = Visibility.Visible;
+                infoShownFor = p0 != null ? pth + p0.Start.Ticks : pth;
+                infoTimer.Stop();
+                var sec = IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec;
+                infoTimer.Interval = TimeSpan.FromSeconds(sec); infoTimer.Start();
+            };
+            controls.IsVisibleChanged += (s, e) => { if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16); };
+            win.Closed += (s, e) => infoTimer.Stop();
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)
             int marqueePos = 0;
             Action recTitle = () =>
@@ -1101,7 +1126,10 @@ namespace Przegladarka
                 tracksTimer.Start();
                 if (tv != null && _recording.Count > 0) WarnOneConnection();   // trwa nagrywanie - drugie polaczenie
                 if (tv != null) { var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); }   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
-                if (tv != null) { showOsd("📺 " + (i + 1) + ". " + tv.Name); var once = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) }; once.Tick += (s, e) => { once.Stop(); showInfo(false); }; once.Start(); }
+                if (tv != null) showOsd("📺 " + (i + 1) + ". " + tv.Name);
+                var infoOnce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(tv != null ? 700 : 1500) };   // film - gdy znana jest dlugosc
+                infoOnce.Tick += (s, e) => { infoOnce.Stop(); if (_playlist.Count > _playIndex && _playlist[_playIndex] == path) showInfo(false); };
+                infoOnce.Start();
                 speedIdx = 3; speed.Content = "1×";
                 prev.IsEnabled = i > 0; next.IsEnabled = i < _playlist.Count - 1;
             };
@@ -1351,6 +1379,24 @@ namespace Przegladarka
                 add(L.T("➕ Dodaj do: 📚 ") + shName, () => addTo(true), file);
                 add(L.T("➕ Dodaj do: 🔒 ") + myName, () => addTo(false), file);
                 if (!file && path != null && !_iptvPlaying.ContainsKey(path)) add(L.T("(film strumieniowany z innego komputera – jest w jego bibliotece)"), () => { }, false);
+                add(L.T("ℹ Pokaż informacje (I)"), () => showInfo(true), true);
+                var infoM = new MenuItem { Header = L.T("ℹ Pasek informacji") };
+                var hideM = new MenuItem { Header = L.T("Znikanie po") };
+                foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
+                {
+                    var sec = sec0; var mi = new MenuItem { Header = sec == 0 ? L.T("nie pokazuj sam (tylko klawisz I)") : sec + " s", IsCheckable = true, IsChecked = IptvSt.InfoSec == sec };
+                    mi.Click += (q, w2) => { IptvSt.InfoSec = sec; SaveIptv(IptvSt); showInfo(true); };
+                    hideM.Items.Add(mi);
+                }
+                var alphaM = new MenuItem { Header = L.T("Przezroczystość tła") };
+                foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
+                {
+                    var al = a0; var mi = new MenuItem { Header = (100 - al) + " %" + (al == 100 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = IptvSt.InfoAlpha == al };
+                    mi.Click += (q, w2) => { IptvSt.InfoAlpha = al; SaveIptv(IptvSt); showInfo(true); };
+                    alphaM.Items.Add(mi);
+                }
+                infoM.Items.Add(hideM); infoM.Items.Add(alphaM);
+                cm.Items.Add(infoM);
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
                 if (file) add(L.T("💬 Pobierz napisy…"), () => ShowSubtitleSearch(path, Window.GetWindow(overlay) ?? win, f =>
                 {
@@ -1380,24 +1426,6 @@ namespace Przegladarka
                     add(L.T("⏮ Poprzedni kanał (PgUp)"), () => _vlcLoad(_playIndex - 1), _playIndex > 0);
                     add(L.T("⏭ Następny kanał (PgDn)"), () => _vlcLoad(_playIndex + 1), _playIndex < _playlist.Count - 1);
                     add(L.T("🔄 Odśwież kanał (F5)"), () => { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); }, true);
-                    add(L.T("ℹ Pokaż informacje o programie (I)"), () => showInfo(true), true);
-                    var infoM = new MenuItem { Header = L.T("ℹ Pasek informacji") };
-                    var hideM = new MenuItem { Header = L.T("Znikanie po") };
-                    foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
-                    {
-                        var sec = sec0; var mi = new MenuItem { Header = sec == 0 ? L.T("nie pokazuj sam (tylko klawisz I)") : sec + " s", IsCheckable = true, IsChecked = IptvSt.InfoSec == sec };
-                        mi.Click += (q, w2) => { IptvSt.InfoSec = sec; SaveIptv(IptvSt); showInfo(true); };
-                        hideM.Items.Add(mi);
-                    }
-                    var alphaM = new MenuItem { Header = L.T("Przezroczystość tła") };
-                    foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
-                    {
-                        var al = a0; var mi = new MenuItem { Header = (100 - al) + " %" + (al == 100 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = IptvSt.InfoAlpha == al };
-                        mi.Click += (q, w2) => { IptvSt.InfoAlpha = al; SaveIptv(IptvSt); showInfo(true); };
-                        alphaM.Items.Add(mi);
-                    }
-                    infoM.Items.Add(hideM); infoM.Items.Add(alphaM);
-                    cm.Items.Add(infoM);
                     // zapas bufora: wiecej = mniej przyciec, ale troche wieksze opoznienie i wolniejsze przelaczanie
                     var bufM = new MenuItem { Header = L.T("⏱ Bufor kanałów: ") + IptvSt.Buffer + " s" };
                     foreach (var sec0 in new[] { 1, 3, 5, 10 })

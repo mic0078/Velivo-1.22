@@ -355,6 +355,47 @@ namespace Przegladarka
             _vlcWin.Activate();
         }
 
+        // ikony odtwarzacza rysowane wektorowo (ostre, jednakowe, bez kolorowych obwodek wygladzania czcionki na ciemnym tle)
+        internal static readonly Dictionary<string, string> PlayerIcons = new Dictionary<string, string>
+        {
+            { "prev", "M6,6H8V18H6M9.5,12L18,6V18Z" },
+            { "next", "M16,18H18V6H16M6,18L14.5,12L6,6Z" },
+            { "play", "M8,5.14V19.14L19,12.14Z" },
+            { "pause", "M14,19H18V5H14M6,19H10V5H6Z" },
+            { "stop", "M6,6H18V18H6Z" },
+            { "subs", "M18,11H16.5V10.5H14.5V13.5H16.5V13H18V14A1,1 0 0,1 17,15H14A1,1 0 0,1 13,14V10A1,1 0 0,1 14,9H17A1,1 0 0,1 18,10M11,11H9.5V10.5H7.5V13.5H9.5V13H11V14A1,1 0 0,1 10,15H7A1,1 0 0,1 6,14V10A1,1 0 0,1 7,9H10A1,1 0 0,1 11,10M19,4H5C3.89,4 3,4.89 3,6V18A2,2 0 0,0 5,20H19A2,2 0 0,0 21,18V6C21,4.89 20.1,4 19,4Z" },
+            { "audio", "M12,3V13.55C11.41,13.21 10.73,13 10,13A4,4 0 0,0 6,17A4,4 0 0,0 10,21A4,4 0 0,0 14,17V7H18V3H12Z" },
+            { "aspect", "M19,12H17V15H14V17H19V12M7,9H10V7H5V12H7V9M21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19V5A2,2 0 0,0 21,3M21,19H3V5H21V19Z" },
+            { "snap", "M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z" },
+            { "library", "M3,10H14V12H3V10M3,6H14V8H3V6M3,14H10V16H3V14M16,13V21L22,17L16,13Z" },
+            { "full", "M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z" },
+            { "exitfull", "M14,14H19V16H16V19H14V14M5,14H10V19H8V16H5V14M8,5H10V10H5V8H8V5M19,8V10H14V5H16V8H19Z" },
+            { "volume", "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z" },
+            { "mute", "M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z" },
+            { "pin", "M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z" },
+            { "pinned", "M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" },
+        };
+
+        internal static System.Windows.Shapes.Path PlayerIcon(string name)
+        {
+            return new System.Windows.Shapes.Path { Data = Geometry.Parse(PlayerIcons[name]), Fill = Brushes.White, Width = 20, Height = 20, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
+        }
+
+        // przyciski odtwarzacza: bez ramki, zaokraglone podswietlenie pod mysza, wylaczony = przygaszony
+        internal static Style PlayerButtonStyle()
+        {
+            return (Style)System.Windows.Markup.XamlReader.Parse(@"<Style TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+  <Setter Property='Foreground' Value='White'/><Setter Property='Background' Value='Transparent'/><Setter Property='Cursor' Value='Hand'/><Setter Property='Focusable' Value='False'/>
+  <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
+    <Border x:Name='b' Background='{TemplateBinding Background}' CornerRadius='5' Padding='{TemplateBinding Padding}'>
+      <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
+    <ControlTemplate.Triggers>
+      <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#33FFFFFF'/></Trigger>
+      <Trigger Property='IsPressed' Value='True'><Setter TargetName='b' Property='Background' Value='#55FFFFFF'/></Trigger>
+      <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.35'/></Trigger>
+    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>");
+        }
+
         void BuildVlcWindow()
         {
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
@@ -368,15 +409,15 @@ namespace Przegladarka
             view.Content = overlay;
 
             Brush fg = Brushes.White, dim = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-            Func<string, string, Button> glyphBtn = (g, tip) => new Button
+            var btnStyle = PlayerButtonStyle();
+            Func<string, string, Button> glyphBtn = (icon, tip) => new Button
             {
-                Content = new TextBlock { Text = g, FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 16 }, ToolTip = tip,
-                Width = 38, Height = 34, Margin = new Thickness(1, 0, 1, 0), Foreground = fg, Background = Brushes.Transparent, BorderThickness = new Thickness(0), Cursor = Cursors.Hand,
+                Content = PlayerIcon(icon), ToolTip = tip, Width = 40, Height = 36, Margin = new Thickness(1, 0, 1, 0), Style = btnStyle,
             };
             Func<string, string, Button> textBtn = (t, tip) => new Button
             {
-                Content = t, ToolTip = tip, MinWidth = 44, Height = 34, Padding = new Thickness(6, 0, 6, 0), Margin = new Thickness(1, 0, 1, 0), Foreground = fg,
-                Background = Brushes.Transparent, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, FontSize = 13,
+                Content = t, ToolTip = tip, MinWidth = 46, Height = 36, Padding = new Thickness(6, 0, 6, 0), Margin = new Thickness(1, 0, 1, 0), Style = btnStyle,
+                FontSize = 14, FontWeight = FontWeights.SemiBold,
             };
             var timeNow = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 8, 0), Text = "0:00", MinWidth = 52, TextAlignment = TextAlignment.Right };
             var timeLen = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 10, 0), Text = "0:00", MinWidth = 52 };
@@ -385,26 +426,27 @@ namespace Przegladarka
             DockPanel.SetDock(timeNow, Dock.Left); DockPanel.SetDock(timeLen, Dock.Right);
             seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(seek);
 
-            var prev = glyphBtn("\uE892", L.T("Poprzedni (P)"));
-            var play = glyphBtn("\uE769", L.T("Pauza / odtwarzaj (spacja)"));
-            var stop = glyphBtn("\uE71A", L.T("Stop"));
-            var next = glyphBtn("\uE893", L.T("Następny (N)"));
+            var prev = glyphBtn("prev", L.T("Poprzedni (P)"));
+            var play = glyphBtn("pause", L.T("Pauza / odtwarzaj (spacja)"));
+            var stop = glyphBtn("stop", L.T("Stop"));
+            var next = glyphBtn("next", L.T("Następny (N)"));
             var back10 = textBtn("−10 s", L.T("10 s wstecz (←)"));
             var fwd10 = textBtn("+10 s", L.T("10 s do przodu (→)"));
             var speed = textBtn("1×", L.T("Prędkość odtwarzania ([ i ])"));
-            var subs = glyphBtn("\uE7F0", L.T("Napisy"));
-            var audio = glyphBtn("\uE8D6", L.T("Ścieżka dźwięku (język)"));
-            var aspect = glyphBtn("\uE799", L.T("Proporcje obrazu"));
-            var snap = glyphBtn("\uE722", L.T("Zrzut klatki (zapis do Obrazów)"));
-            var lib = glyphBtn("\uE8B3", L.T("Biblioteka filmów"));
-            var full = glyphBtn("\uE740", L.T("Pełny ekran (F, dwuklik)"));
-            var mute = glyphBtn("\uE767", L.T("Wycisz (M)"));
+            var subs = glyphBtn("subs", L.T("Napisy"));
+            var audio = glyphBtn("audio", L.T("Ścieżka dźwięku (język)"));
+            var aspect = glyphBtn("aspect", L.T("Proporcje obrazu"));
+            var snap = glyphBtn("snap", L.T("Zrzut klatki (zapis do Obrazów)"));
+            var lib = glyphBtn("library", L.T("Biblioteka filmów"));
+            var full = glyphBtn("full", L.T("Pełny ekran (F, dwuklik)"));
+            var mute = glyphBtn("volume", L.T("Wycisz (M)"));
+            var top = glyphBtn("pin", L.T("Zawsze na wierzchu"));
             var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
             var left = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var b in new UIElement[] { prev, play, stop, next, back10, fwd10, speed }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var b in new UIElement[] { subs, audio, aspect, snap, lib, full, mute, vol, volText }) right.Children.Add(b);
+            foreach (var b in new UIElement[] { subs, audio, aspect, snap, lib, top, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new DockPanel { Margin = new Thickness(4, 2, 4, 4) };
             DockPanel.SetDock(left, Dock.Left); DockPanel.SetDock(right, Dock.Right);
             btnRow.Children.Add(left); btnRow.Children.Add(right);
@@ -479,9 +521,9 @@ namespace Przegladarka
                 timeNow.Text = FormatTime(e.Time);
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => ((TextBlock)play.Content).Text = "\uE769"));
-            mp.Paused += (s, e) => Dispatcher.BeginInvoke(new Action(() => ((TextBlock)play.Content).Text = "\uE768"));
-            mp.Stopped += (s, e) => Dispatcher.BeginInvoke(new Action(() => { ((TextBlock)play.Content).Text = "\uE768"; seek.Value = 0; timeNow.Text = "0:00"; }));
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => play.Content = PlayerIcon("pause")));
+            mp.Paused += (s, e) => Dispatcher.BeginInvoke(new Action(() => play.Content = PlayerIcon("play")));
+            mp.Stopped += (s, e) => Dispatcher.BeginInvoke(new Action(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; }));
             mp.EndReached += (s, e) => Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (current != null) { var l = LoadLibrary(); var v = l.FirstOrDefault(x => x.Path == current.Path); if (v != null) { v.Pos = 0; v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
@@ -492,15 +534,15 @@ namespace Przegladarka
             Action togglePlay = () => { if (mp.IsPlaying) mp.SetPause(true); else if (mp.State == VLCState.Stopped || mp.State == VLCState.Ended || mp.State == VLCState.NothingSpecial) _vlcLoad(_playIndex); else mp.SetPause(false); };
             Action<long> jump = d => { if (mp.Length <= 0) return; mp.Time = Math.Max(0, Math.Min(mp.Length - 500, mp.Time + d)); showOsd((d > 0 ? "+" : "−") + Math.Abs(d / 1000) + " s"); };
             Action<double> setVol = v => { vol.Value = Math.Max(0, Math.Min(125, v)); };
-            vol.ValueChanged += (s, e) => { mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (mp.Mute && vol.Value > 0) mp.Mute = false; ((TextBlock)mute.Content).Text = mp.Mute || vol.Value == 0 ? "\uE74F" : "\uE767"; };
-            Action toggleMute = () => { mp.Mute = !mp.Mute; ((TextBlock)mute.Content).Text = mp.Mute ? "\uE74F" : "\uE767"; showOsd(mp.Mute ? L.T("Wyciszono") : (int)vol.Value + "%"); };
+            vol.ValueChanged += (s, e) => { mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (mp.Mute && vol.Value > 0) mp.Mute = false; mute.Content = PlayerIcon(mp.Mute || vol.Value == 0 ? "mute" : "volume"); };
+            Action toggleMute = () => { mp.Mute = !mp.Mute; mute.Content = PlayerIcon(mp.Mute ? "mute" : "volume"); showOsd(mp.Mute ? L.T("Wyciszono") : (int)vol.Value + "%"); };
             Action<int> setSpeed = d => { speedIdx = Math.Max(0, Math.Min(speeds.Length - 1, speedIdx + d)); mp.SetRate(speeds[speedIdx]); speed.Content = speeds[speedIdx].ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "×"; showOsd(L.T("Prędkość ") + speed.Content); };
             Action toggleFull = () =>
             {
                 full0 = !full0;
                 if (full0) { prevState = win.WindowState; win.WindowStyle = WindowStyle.None; win.WindowState = WindowState.Normal; win.WindowState = WindowState.Maximized; win.Topmost = true; hideTimer.Start(); }
-                else { win.Topmost = false; win.WindowStyle = WindowStyle.SingleBorderWindow; win.WindowState = prevState; controls.Visibility = Visibility.Visible; overlay.Cursor = null; }
-                ((TextBlock)full.Content).Text = full0 ? "\uE73F" : "\uE740";
+                else { win.Topmost = _settings.VlcTopmost; win.WindowStyle = WindowStyle.SingleBorderWindow; win.WindowState = prevState; controls.Visibility = Visibility.Visible; overlay.Cursor = null; }
+                full.Content = PlayerIcon(full0 ? "exitfull" : "full");
             };
 
             play.Click += (s, e) => togglePlay();
@@ -512,6 +554,16 @@ namespace Przegladarka
             speed.Click += (s, e) => setSpeed(speedIdx == speeds.Length - 1 ? -speedIdx : 1);
             speed.MouseRightButtonUp += (s, e) => { speedIdx = 3; setSpeed(0); e.Handled = true; };
             full.Click += (s, e) => toggleFull();
+            // zawsze na wierzchu (zapamietywane); aktywny przycisk podswietlony
+            Action showTop = () => { top.Content = PlayerIcon(_settings.VlcTopmost ? "pinned" : "pin"); top.Background = _settings.VlcTopmost ? new SolidColorBrush(Color.FromArgb(0x55, 0x3B, 0x82, 0xF6)) : Brushes.Transparent; };
+            top.Click += (s, e) =>
+            {
+                _settings.VlcTopmost = !_settings.VlcTopmost;
+                if (!full0) win.Topmost = _settings.VlcTopmost;
+                showTop(); showOsd(_settings.VlcTopmost ? L.T("Zawsze na wierzchu") : L.T("Na wierzchu: wyłączone"));
+                try { _settings.Save(DataDir); } catch (Exception) { }
+            };
+            win.Topmost = _settings.VlcTopmost; showTop();
             mute.Click += (s, e) => toggleMute();
             lib.Click += (s, e) => ShowVideoLibrary();
             snap.Click += (s, e) =>

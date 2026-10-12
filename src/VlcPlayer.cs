@@ -202,9 +202,35 @@ namespace Przegladarka
 
         sealed class LibRow
         {
-            public string Title { get; set; } public string Length { get; set; } public string Seen { get; set; } public string Folder { get; set; }
+            public string Title { get; set; } public string Length { get; set; } public string Seen { get; set; } public string LastPlayed { get; set; } public string Folder { get; set; }
             public LibraryVideo Item;
             public bool Missing;
+        }
+
+        // "kiedy ostatnio": dzis 21:15 / wczoraj 18:02 / 12.10.2026
+        internal static string LastPlayedText(long unixMs, DateTime now)
+        {
+            if (unixMs <= 0) return "";
+            var d = DateTimeOffset.FromUnixTimeMilliseconds(unixMs).LocalDateTime;
+            if (d.Date == now.Date) return L.T("dziś ") + d.ToString("HH:mm");
+            if (d.Date == now.Date.AddDays(-1)) return L.T("wczoraj ") + d.ToString("HH:mm");
+            return d.ToString("dd.MM.yyyy");
+        }
+
+        // sortowanie biblioteki: kolumna + kierunek (domyslnie: ostatnio odtwarzane na gorze)
+        internal static IEnumerable<LibraryVideo> SortLibrary(IEnumerable<LibraryVideo> list, string key, bool desc)
+        {
+            Func<LibraryVideo, IComparable> by;
+            switch (key)
+            {
+                case "title": by = v => v.Title.ToLowerInvariant(); break;
+                case "len": by = v => v.Len; break;
+                case "seen": by = v => v.Len > 0 ? (v.Last > 0 && v.Pos == 0 ? 1.0 : (double)v.Pos / v.Len) : 0.0; break;
+                case "folder": by = v => (System.IO.Path.GetDirectoryName(v.Path) ?? "").ToLowerInvariant(); break;
+                default: by = v => v.Last; break;
+            }
+            var sorted = desc ? list.OrderByDescending(by) : list.OrderBy(by);
+            return sorted.ThenBy(v => v.Title, StringComparer.CurrentCultureIgnoreCase);
         }
 
         void ShowVideoLibrary()
@@ -216,10 +242,19 @@ namespace Przegladarka
             search.TextChanged += (s, a) => hint.Visibility = search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
             var top = new Grid(); top.Children.Add(search); top.Children.Add(hint);
             var grid = new GridView();
-            grid.Columns.Add(new GridViewColumn { Header = L.T("Tytuł"), Width = 360, DisplayMemberBinding = new System.Windows.Data.Binding("Title") });
-            grid.Columns.Add(new GridViewColumn { Header = L.T("Długość"), Width = 80, DisplayMemberBinding = new System.Windows.Data.Binding("Length") });
-            grid.Columns.Add(new GridViewColumn { Header = L.T("Obejrzane"), Width = 90, DisplayMemberBinding = new System.Windows.Data.Binding("Seen") });
-            grid.Columns.Add(new GridViewColumn { Header = L.T("Folder"), Width = 300, DisplayMemberBinding = new System.Windows.Data.Binding("Folder") });
+            // kolumny: naglowek klik = sortuj, drugi klik = odwrotnie
+            var cols = new[] { new[] { "title", "Tytuł", "Title", "340" }, new[] { "len", "Długość", "Length", "80" }, new[] { "seen", "Obejrzane", "Seen", "86" },
+                new[] { "last", "Ostatnio", "LastPlayed", "110" }, new[] { "folder", "Folder", "Folder", "280" } };
+            string sortKey = "last"; bool sortDesc = true;
+            var headers = new Dictionary<string, GridViewColumnHeader>();
+            foreach (var c in cols)
+            {
+                var h = new GridViewColumnHeader { Content = L.T(c[1]), Tag = c[0], Cursor = Cursors.Hand };
+                headers[c[0]] = h;
+                grid.Columns.Add(new GridViewColumn { Header = h, Width = double.Parse(c[3], System.Globalization.CultureInfo.InvariantCulture), DisplayMemberBinding = new System.Windows.Data.Binding(c[2]) });
+            }
+            Action markSort = () => { foreach (var c in cols) headers[c[0]].Content = L.T(c[1]) + (c[0] == sortKey ? (sortDesc ? "  ▼" : "  ▲") : ""); };
+            markSort();
             var list = new ListView { View = grid, Margin = new Thickness(8, 0, 8, 0), SelectionMode = SelectionMode.Extended };
             var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Gray, Margin = new Thickness(10, 0, 0, 0) };
             List<LibraryVideo> lib = LoadLibrary();
@@ -230,7 +265,7 @@ namespace Przegladarka
                 int ver = ++fillVer;
                 lib = LoadLibrary();
                 var q = search.Text.Trim();
-                var all = lib;
+                var all = lib; var key = sortKey; var desc = sortDesc;
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
                 var newRows = await System.Threading.Tasks.Task.Run(() =>
                 {
@@ -243,13 +278,14 @@ namespace Przegladarka
                         if (!roots.TryGetValue(root, out up)) roots[root] = up = Directory.Exists(root);
                         return up && File.Exists(path);
                     };
-                    return all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
-                    .OrderByDescending(v => v.Last).ThenBy(v => v.Title, StringComparer.CurrentCultureIgnoreCase)
+                    var now = DateTime.Now;
+                    return SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0), key, desc)
                     .Select(v => new LibRow
                     {
                         Item = v, Missing = !exists(v.Path), Title = v.Title,
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = v.Last == 0 ? "" : v.Len > 0 && v.Pos == 0 ? "✓" : v.Len > 0 ? (int)(100.0 * v.Pos / v.Len) + "%" : "…",
+                        LastPlayed = LastPlayedText(v.Last, now),
                         Folder = System.IO.Path.GetDirectoryName(v.Path),
                     }).Select(r => { if (r.Missing) r.Title = "⚠ " + r.Title; return r; }).ToList();
                 });
@@ -259,6 +295,13 @@ namespace Przegladarka
                 count.Text = rows.Count + " / " + lib.Count + L.T(" filmów");
             };
             _libRefresh = fill;
+            list.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler((s, a) =>
+            {
+                if (!(a.OriginalSource is GridViewColumnHeader h) || !(h.Tag is string k)) return;
+                if (k == sortKey) sortDesc = !sortDesc;
+                else { sortKey = k; sortDesc = k == "last" || k == "len" || k == "seen"; }   // daty i liczby: najpierw najwieksze
+                markSort(); fill();
+            }));
             search.TextChanged += (s, a) => fill();
             fill();
             Func<List<LibRow>> sel = () => list.SelectedItems.Cast<LibRow>().ToList();

@@ -363,7 +363,8 @@ namespace Przegladarka
             // kolumny: naglowek klik = sortuj, drugi klik = odwrotnie
             var cols = new[] { new[] { "title", "Tytuł", "Title", "340" }, new[] { "len", "Długość", "Length", "80" }, new[] { "seen", "Obejrzane", "Seen", "86" },
                 new[] { "last", "Ostatnio", "LastPlayed", "110" }, new[] { "folder", "Folder", "Folder", "280" } };
-            string sortKey = "last"; bool sortDesc = true;
+            var sortSaved = (GetPref("sort-biblioteka") ?? "last,desc").Split(',');   // ostatnie sortowanie
+            string sortKey = cols.Any(c => c[0] == sortSaved[0]) ? sortSaved[0] : "last"; bool sortDesc = sortSaved.Length > 1 && sortSaved[1] == "desc";
             var headers = new Dictionary<string, GridViewColumnHeader>();
             foreach (var c in cols)
             {
@@ -449,6 +450,7 @@ namespace Przegladarka
                 if (!(a.OriginalSource is GridViewColumnHeader h) || !(h.Tag is string k)) return;
                 if (k == sortKey) sortDesc = !sortDesc;
                 else { sortKey = k; sortDesc = k == "last" || k == "len" || k == "seen"; }   // daty i liczby: najpierw najwieksze
+                SetPref("sort-biblioteka", sortKey + (sortDesc ? ",desc" : ""));
                 markSort(); fill();
             }));
             search.TextChanged += (s, a) => fill();

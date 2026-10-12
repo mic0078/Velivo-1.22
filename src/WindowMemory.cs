@@ -143,5 +143,15 @@ namespace Przegladarka
             try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
             catch (Exception ex) { App.LogError(ex); }
         }
+
+        // drobne ustawienia list (np. sortowanie) - w tym samym pliku co okna
+        internal static string GetPref(string key) { return WinBounds().TryGetValue("ust:" + key, out var v) ? v : null; }
+
+        internal static void SetPref(string key, string value)
+        {
+            WinBounds()["ust:" + key] = value;
+            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+            catch (Exception ex) { App.LogError(ex); }
+        }
 }
 }

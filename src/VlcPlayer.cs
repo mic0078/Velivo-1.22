@@ -935,7 +935,7 @@ namespace Przegladarka
                 ldRow.Item2.Value = current?.LDuck ?? _settings.VlcLectorDuck;
                 settingVoice = true; _settings.VlcLectorVoice = current?.LVoice ?? _settings.VlcLectorVoice; selectVoice(_settings.VlcLectorVoice); settingVoice = false;
                 vol.Value = current?.Vol ?? _settings.VlcVolume;
-                mp.Volume = (int)vol.Value;   // takze gdy suwak juz stal na tej wartosci (bez zdarzenia zmiany)
+                mp.Volume = muted ? 0 : (int)vol.Value;   // takze gdy suwak juz stal na tej wartosci (bez zdarzenia zmiany)
                 filmPrefsTimer.Stop();
             };
             applyFilmPrefs();
@@ -958,7 +958,7 @@ namespace Przegladarka
             var lectorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             lectorTimer.Tick += (s, e) =>
             {
-                if (mp.Mute != muted) mp.Mute = muted;   // VLC kasuje wyciszenie przy nowym filmie i zmianie glosnosci - pilnujemy
+                if (muted && mp.Volume != 0) mp.Volume = 0;   // nowy film, sciszanie pod lektora itp. ustawiaja glosnosc - przy wyciszeniu pilnujemy zera
                 if (_settings.VlcLector && !muted) LectorTick(lc, mp, () => (int)vol.Value);
             };
             lectorTimer.Start();
@@ -1200,7 +1200,7 @@ namespace Przegladarka
                 }
                 // sciezki filmu znane chwile po starcie - wtedy ustawiamy zapamietane napisy i dzwiek
                 var tracksTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
-                tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); mp.Volume = (int)vol.Value; };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
+                tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); mp.Volume = muted ? 0 : (int)vol.Value; };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
                 if (tv != null && _recording.Count > 0) WarnOneConnection();   // trwa nagrywanie - drugie polaczenie
                 if (tv != null) { IptvSt.Watched[path] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); }   // lista kanalow odswieza "Ostatnio ogladane"   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
@@ -1276,10 +1276,10 @@ namespace Przegladarka
             };
             Action<double> setVol = v => { vol.Value = Math.Max(0, Math.Min(125, v)); };
             // wyciszenie pamietane tutaj: stan Mute w VLC zglasza sie z opoznieniem i kasuje przy zmianie filmu / glosnosci
-            vol.ValueChanged += (s, e) => { _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (muted && vol.Value > 0) muted = false; mp.Mute = muted; mute.Content = PlayerIcon(muted || vol.Value == 0 ? "mute" : "volume"); };
+            vol.ValueChanged += (s, e) => { _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); if (muted && vol.Value > 0) muted = false; mp.Volume = muted ? 0 : (int)vol.Value; volText.Text = (int)vol.Value + "%"; mute.Content = PlayerIcon(muted || vol.Value == 0 ? "mute" : "volume"); };
             Action toggleMute = () =>
             {
-                muted = !muted; mp.Mute = muted;
+                muted = !muted; mp.Mute = false; mp.Volume = muted ? 0 : (int)vol.Value;   // wyciszenie = glosnosc 0 (przelacznik Mute w VLC bywa zawodny)
                 if (muted) LectorStopVoice(lc, mp);   // lektor tez cicho
                 mute.Content = PlayerIcon(muted ? "mute" : "volume"); showOsd(muted ? L.T("Wyciszono") : (int)vol.Value + "%");
             };

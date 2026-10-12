@@ -78,13 +78,20 @@ namespace Przegladarka
             {
                 if (j.Kind == "switch")
                 {
+                    // minute wczesniej - pytanie na srodku filmu (gdy cos leci w odtwarzaczu); bez odpowiedzi - przelacza o czasie
+                    var playingNow = _vlcWin != null && _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                    if (now >= j.Start - 60000 && now < j.Start && playingNow != null && playingNow != j.Url && _vlcAsk != null && !_asked.ContainsKey(j.Id))
+                    {
+                        var job = j;
+                        _asked[j.Id] = _vlcAsk(string.Format(L.T("O {0} zaczyna się:\n📺 {1}{2}\n\nPrzełączyć na ten kanał?"), LocalOf(j.Start).ToString("HH:mm"), j.Channel, string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title),
+                            () => { _asked.Remove(job.Id); IptvSt.Jobs.Remove(job); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); SwitchNow(job); },
+                            () => { _asked.Remove(job.Id); IptvSt.Jobs.Remove(job); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); ShowToast(L.T("📺 Zostajesz przy filmie"), null); });
+                    }
                     if (now < j.Start) continue;
                     st.Jobs.Remove(j); changed = true;
+                    if (_asked.TryGetValue(j.Id, out var closeAsk)) { closeAsk(); _asked.Remove(j.Id); }
                     if (now - j.Start > 10 * 60000) continue;   // Velivo bylo wylaczone - po czasie nie przelaczamy
-                    var ch = new IptvChannel { Name = j.Channel, Url = j.Url, Opts = j.Opts ?? new List<string>() };
-                    _iptvPlaying[ch.Url] = ch;
-                    PlayVideos(new[] { ch.Url }, 0);
-                    ShowToast("📺 " + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
+                    SwitchNow(j);
                 }
                 else if (j.Kind == "rec")
                 {
@@ -93,6 +100,17 @@ namespace Przegladarka
                 }
             }
             if (changed) { SaveIptv(st); _iptvJobsChanged?.Invoke(); }
+        }
+
+        readonly Dictionary<string, Action> _asked = new Dictionary<string, Action>();   // pytanie o przelaczenie na ekranie (id zadania -> zamknij)
+        Func<string, Action, Action, Action> _vlcAsk;   // odtwarzacz: pytanie na srodku obrazu (tekst, tak, nie) -> zamknij
+
+        void SwitchNow(IptvJob j)
+        {
+            var ch = new IptvChannel { Name = j.Channel, Url = j.Url, Opts = j.Opts ?? new List<string>() };
+            _iptvPlaying[ch.Url] = ch;
+            PlayVideos(new[] { ch.Url }, 0);   // film zapisuje miejsce, w ktorym przerwano
+            ShowToast("📺 " + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
         }
 
         bool IsRecording(string url) { return IptvSt.Jobs.Any(j => j.Kind == "rec" && j.Url == url && _recording.ContainsKey(j.Id)); }

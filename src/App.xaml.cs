@@ -47,12 +47,14 @@ namespace Przegladarka
             EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s, a) =>
             {
                 var w = s as Window;
-                if (w != null) Przegladarka.MainWindow.RememberWindow(w);   // ostatnie miejsce i rozmiar okna
+                if (w != null) { Przegladarka.MainWindow.RememberWindow(w); Przegladarka.MainWindow.RestoreAlpha(w); }   // ostatnie miejsce, rozmiar i przezroczystosc okna
                 if (w == null || w.WindowStyle == WindowStyle.None || w.WindowState != WindowState.Normal || w == MainWindow) return;
                 var others = Windows.Cast<Window>().Where(o => o != w && o.IsVisible && o.WindowState == WindowState.Normal).Select(o => new Rect(o.Left, o.Top, o.ActualWidth, o.ActualHeight));
                 var p = CascadeSpot(new Rect(w.Left, w.Top, w.ActualWidth, w.ActualHeight), others, SystemParameters.WorkArea);
                 w.Left = p.X; w.Top = p.Y;
             }));
+            // Alt + kolko myszy = przezroczystosc okna (kazdego okna Velivo)
+            EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseWheelEvent, new System.Windows.Input.MouseWheelEventHandler(Przegladarka.MainWindow.AlphaWheel));
             // Siatka bezpieczenstwa: nieprzewidziany blad nie wylacza przegladarki - zapis do pliku i komunikat.
             // Komunikat najwyzej jeden naraz i nie czesciej niz raz na 30 s dla tego samego bledu
             // (powtarzajacy sie blad nie moze zasypac ekranu okienkami) - kazdy blad i tak trafia do bledy.log.

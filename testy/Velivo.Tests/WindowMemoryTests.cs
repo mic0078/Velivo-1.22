@@ -23,4 +23,12 @@ public class WindowMemoryTests
         Assert.False(MainWindow.ParseBounds("1,2,3", out _, out _));
         Assert.False(MainWindow.ParseBounds("0,0,20,20", out _, out _));   // za male - zepsuty zapis
     }
+
+    [Fact]
+    public void PrzezroczystoscKolkiem()
+    {
+        Assert.Equal(0.95, MainWindow.NextAlpha(1.0, -120));
+        Assert.Equal(1.0, MainWindow.NextAlpha(1.0, 120));    // nie wiecej niz 100%
+        Assert.Equal(0.2, MainWindow.NextAlpha(0.2, -120));   // okno nie znika calkiem
+    }
 }

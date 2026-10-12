@@ -1031,6 +1031,25 @@ namespace Przegladarka
             };
             Action<long> jump = d => { if (mp.Length <= 0) return; mp.Time = Math.Max(0, Math.Min(mp.Length - 500, mp.Time + d)); TogetherSend("seek", mp.Time); showOsd((d > 0 ? "+" : "−") + Math.Abs(d / 1000) + " s"); };
             // ogladanie razem: polecenie z drugiego komputera (bez odsylania z powrotem)
+            // pytanie na srodku obrazu (np. "za minute program - przelaczyc?"); zwraca: zamknij pytanie
+            _vlcAsk = (text, yes, no) =>
+            {
+                var tb = new TextBlock { Text = text, Foreground = Brushes.White, FontSize = 18, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 14) };
+                var by = new Button { Content = L.T("📺 Przełącz"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(6, 0, 6, 0), FontSize = 15, IsDefault = true };
+                var bn = new Button { Content = L.T("🎬 Zostań przy filmie"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(6, 0, 6, 0), FontSize = 15 };
+                var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+                row.Children.Add(by); row.Children.Add(bn);
+                var sp = new StackPanel(); sp.Children.Add(tb); sp.Children.Add(row);
+                var box = new Border { Child = sp, Background = new SolidColorBrush(Color.FromArgb(0xEE, 0x1C, 0x1C, 0x1C)), CornerRadius = new CornerRadius(10), Padding = new Thickness(24, 18, 24, 18),
+                    BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 520 };
+                Action close = () => overlay.Children.Remove(box);
+                by.Click += (s, e) => { close(); yes(); };
+                bn.Click += (s, e) => { close(); no(); };
+                box.MouseLeftButtonDown += (s, e) => e.Handled = true;   // klik w okienko to nie pauza
+                overlay.Children.Add(box);
+                if (win.WindowState == WindowState.Minimized) win.WindowState = WindowState.Normal;
+                return close;
+            };
             _vlcRemoteCtl = (act, pos) =>
             {
                 if (act == "pause") { mp.SetPause(true); if (pos > 0) mp.Time = pos; showOsd(L.T("⏸ Pauza na drugim komputerze")); }
@@ -1287,7 +1306,7 @@ namespace Przegladarka
             win.Closed += (s, e) =>
             {
                 saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);
-                _vlcWin = null; _vlcLoad = null; _vlcRemoteCtl = null; _playShared = null;
+                _vlcWin = null; _vlcLoad = null; _vlcRemoteCtl = null; _vlcAsk = null; _playShared = null;
                 LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
                 view.MediaPlayer = null;
                 System.Threading.Tasks.Task.Run(() => { try { mp.Stop(); mp.Dispose(); } catch (Exception) { } });   // Stop VLC moze chwile trwac - nie w watku okna

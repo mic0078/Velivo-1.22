@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Input;
+using System.Windows.Interop;
 
 namespace Przegladarka
 {
@@ -96,6 +99,49 @@ namespace Przegladarka
                 try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
                 catch (Exception ex) { App.LogError(ex); }
             };
+        }
+
+        // ---------- przezroczystosc okna: Alt + kolko myszy (zapamietywana) ----------
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr h, int i);
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] static extern IntPtr SetWindowLongPtr(IntPtr h, int i, IntPtr v);
+        [DllImport("user32.dll")] static extern bool SetLayeredWindowAttributes(IntPtr h, uint key, byte alpha, uint flags);
+        const int GWL_EXSTYLE = -20; const long WS_EX_LAYERED = 0x80000; const uint LWA_ALPHA = 2;
+        static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Window, object> _alpha = new System.Runtime.CompilerServices.ConditionalWeakTable<Window, object>();
+
+        static string AlphaKey(Window w) { return "przezroczystosc:" + (w is MainWindow ? "Velivo" : WindowKey(w.Title)); }
+
+        // krok o 5%, najwyzej do 20% widocznosci (okno nie znika calkiem)
+        internal static double NextAlpha(double a, int delta) { return Math.Round(Math.Max(0.2, Math.Min(1.0, a + (delta > 0 ? 0.05 : -0.05))), 2); }
+
+        static void ApplyAlpha(Window w, double a)
+        {
+            _alpha.AddOrUpdate(w, a);
+            if (w.AllowsTransparency) { w.Opacity = a; return; }
+            var h = new WindowInteropHelper(w).Handle; if (h == IntPtr.Zero) return;
+            var ex = (long)GetWindowLongPtr(h, GWL_EXSTYLE);
+            if (a >= 0.999) { if ((ex & WS_EX_LAYERED) != 0) SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(ex & ~WS_EX_LAYERED)); return; }
+            if ((ex & WS_EX_LAYERED) == 0) SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(ex | WS_EX_LAYERED));
+            SetLayeredWindowAttributes(h, 0, (byte)Math.Round(a * 255), LWA_ALPHA);
+        }
+
+        // przy otwarciu okna - ostatnia przezroczystosc
+        internal static void RestoreAlpha(Window w)
+        {
+            if (w.AllowsTransparency && w.Owner != null) return;   // warstwa na filmie - przezroczystosc ma okno odtwarzacza
+            if (WinBounds().TryGetValue(AlphaKey(w), out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) && a < 1) ApplyAlpha(w, Math.Max(0.2, a));
+        }
+
+        internal static void AlphaWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers != ModifierKeys.Alt || !(sender is Window w)) return;
+            if (w.AllowsTransparency && w.Owner != null) w = w.Owner;   // kolko nad filmem (warstwa) - cale okno odtwarzacza
+            var a = NextAlpha(_alpha.TryGetValue(w, out var cur) ? (double)cur : 1.0, e.Delta);
+            ApplyAlpha(w, a);
+            e.Handled = true;
+            WinBounds()[AlphaKey(w)] = a.ToString(CultureInfo.InvariantCulture);
+            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+            catch (Exception ex) { App.LogError(ex); }
         }
 }
 }

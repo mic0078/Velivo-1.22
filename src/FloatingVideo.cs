@@ -254,14 +254,15 @@ namespace Przegladarka
                 toggle => { if (toggle) win.WindowState = win.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; else if (win.WindowState == WindowState.Maximized) win.WindowState = WindowState.Normal; });
         }
 
+        // Bez przewijania "reklamy" na koniec: YouTube wkleja teraz reklamy w strumien filmu - przewiniecie na koniec przeskakiwalo
+        // caly film (czarny obraz, sam przelaczal na nastepne filmy). Zostaje klikniecie "Pomin" i wyciszenie na czas reklamy.
         const string FloatAdSkipScript = @"(function(){ if (!/(^|\.)youtube\.com$/.test(location.hostname)) return;
   setInterval(function(){ try {
     var p = document.querySelector('.html5-video-player');
     var b = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button');
     if (b) b.click();
-    if (p && p.classList.contains('ad-showing')) { var v = p.querySelector('video'); if (v) { v.muted = true; if (isFinite(v.duration) && v.duration > 0) v.currentTime = v.duration; } }
+    if (p && p.classList.contains('ad-showing')) { var v = p.querySelector('video'); if (v && !v.muted) { v.muted = true; v.__velivoAdMuted = true; } }
     else { var v2 = p && p.querySelector('video'); if (v2 && v2.__velivoAdMuted) { v2.muted = false; v2.__velivoAdMuted = false; } }
-    if (p && p.classList.contains('ad-showing')) { var v3 = p.querySelector('video'); if (v3) v3.__velivoAdMuted = true; }
     document.querySelectorAll('ytd-ad-slot-renderer, .ytp-ad-overlay-container, #player-ads').forEach(function(x){ x.style.display = 'none'; });
   } catch (e) {} }, 300);
 })();";

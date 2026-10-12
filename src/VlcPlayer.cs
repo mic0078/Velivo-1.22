@@ -548,6 +548,7 @@ namespace Przegladarka
                 menu.Items.Add(peersMenu(L.T("👥 Oglądaj razem z…"), true));
                 menu.Items.Add(new Separator());
                 addItem(L.T("Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); });
+                addItem(L.T("💬 Pobierz napisy…"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowSubtitleSearch(r.Item.Path, win); });
                 addItem(L.T("Obejrzyj od początku"), () => { foreach (var r in sel()) r.Item.Pos = 0; var l = LoadLibrary(); foreach (var r in sel()) { var v = FindEntry(l, r.Item.Path, _libSharedView); if (v != null) v.Pos = 0; } SaveLibrary(l); play(); });
                 if (_libTvView) { addItem(L.T("Usuń z biblioteki (plik zostaje na dysku)"), remove); addItem(L.T("🗑 Usuń z biblioteki i z dysku…"), removeFiles); return; }   // nagrania TV - bez przenoszenia
                 bool toShared = !_libSharedView;
@@ -1224,6 +1225,12 @@ namespace Przegladarka
                 add(L.T("➕ Dodaj do: 🔒 ") + myName, () => addTo(false), file);
                 if (!file && path != null && !_iptvPlaying.ContainsKey(path)) add(L.T("(film strumieniowany z innego komputera – jest w jego bibliotece)"), () => { }, false);
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
+                if (file) add(L.T("💬 Pobierz napisy…"), () => ShowSubtitleSearch(path, Window.GetWindow(overlay) ?? win, f =>
+                {
+                    if (_playlist.Count <= _playIndex || _playlist[_playIndex] != path) return;   // w miedzyczasie inny film
+                    mp.AddSlave(MediaSlaveType.Subtitle, new Uri(f).AbsoluteUri, true); loadSubs(f);
+                    showOsd(L.T("💬 Napisy wczytane"));
+                }), true);
                 if (IptvInstalled) add(L.T("📺 Kanały telewizji"), () => ShowIptv(Window.GetWindow(overlay) ?? win), true);
                 if (path != null && _iptvPlaying.ContainsKey(path))
                 {

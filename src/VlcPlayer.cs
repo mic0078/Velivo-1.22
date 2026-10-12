@@ -1011,7 +1011,14 @@ namespace Przegladarka
             var infoText = new StackPanel();
             var infoRow = new DockPanel(); DockPanel.SetDock(infoLogo, Dock.Left); infoRow.Children.Add(infoLogo); infoRow.Children.Add(infoText);
             var infoBox = new Border { Child = infoRow, CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(16, 0, 16, 0),
-                VerticalAlignment = VerticalAlignment.Bottom, MaxWidth = 900, Visibility = Visibility.Collapsed, IsHitTestVisible = false };
+                VerticalAlignment = VerticalAlignment.Bottom, Visibility = Visibility.Collapsed, IsHitTestVisible = false };   // pelna szerokosc okna
+            // wielkosc tekstu: wg szerokosci okna (male okno - mniejszy, pelny ekran - wiekszy) razy ustawienie uzytkownika
+            Action infoScale = () =>
+            {
+                double k = Math.Max(0.65, Math.Min(1.7, win.ActualWidth / 1280.0)) * Math.Max(50, Math.Min(200, IptvSt.InfoScale)) / 100.0;
+                infoRow.LayoutTransform = new ScaleTransform(k, k);
+            };
+            win.SizeChanged += (s, e) => infoScale();
             overlay.Children.Add(infoBox);
             var infoTimer = new DispatcherTimer();
             infoTimer.Tick += (s, e) => { infoTimer.Stop(); infoBox.Visibility = Visibility.Collapsed; };
@@ -1049,7 +1056,7 @@ namespace Przegladarka
                     if (fm != null && !string.IsNullOrEmpty(fm.Overview)) { var od = ft(fm.Overview, 13.5, FontWeights.Normal, Brushes.Gainsboro); od.MaxHeight = 58; od.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(od); }
                     if (_playIndex < _playlist.Count - 1) infoText.Children.Add(ft("⏭ " + L.T("Następny: ") + System.IO.Path.GetFileNameWithoutExtension(_playlist[_playIndex + 1]), 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
                     infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);
-                    infoBox.Visibility = Visibility.Visible; infoShownFor = null;
+                    infoScale(); infoBox.Visibility = Visibility.Visible; infoShownFor = null;
                     infoTimer.Stop(); infoTimer.Interval = TimeSpan.FromSeconds(IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec); infoTimer.Start();
                     return;
                 }
@@ -1075,7 +1082,7 @@ namespace Przegladarka
                 var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
                 if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) infoLogo.Source = t.Result; }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
                 infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);   // nad paskiem sterowania
-                infoBox.Visibility = Visibility.Visible;
+                infoScale(); infoBox.Visibility = Visibility.Visible;
                 infoShownFor = p0 != null ? pth + p0.Start.Ticks : pth;
                 infoTimer.Stop();
                 var sec = IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec;
@@ -1439,7 +1446,14 @@ namespace Przegladarka
                     mi.Click += (q, w2) => { IptvSt.InfoAlpha = al; SaveIptv(IptvSt); showInfo(true); };
                     alphaM.Items.Add(mi);
                 }
-                infoM.Items.Add(hideM); infoM.Items.Add(alphaM);
+                var sizeM = new MenuItem { Header = L.T("Wielkość tekstu (względem okna)") };
+                foreach (var z0 in new[] { new object[] { 85, "Mały" }, new object[] { 100, "Normalny" }, new object[] { 125, "Duży" }, new object[] { 150, "Bardzo duży" } })
+                {
+                    var z = (int)z0[0]; var mi = new MenuItem { Header = L.T((string)z0[1]), IsCheckable = true, IsChecked = IptvSt.InfoScale == z };
+                    mi.Click += (q, w2) => { IptvSt.InfoScale = z; SaveIptv(IptvSt); showInfo(true); };
+                    sizeM.Items.Add(mi);
+                }
+                infoM.Items.Add(hideM); infoM.Items.Add(alphaM); infoM.Items.Add(sizeM);
                 cm.Items.Add(infoM);
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
                 if (file) add(L.T("💬 Pobierz napisy…"), () => ShowSubtitleSearch(path, Window.GetWindow(overlay) ?? win, f =>

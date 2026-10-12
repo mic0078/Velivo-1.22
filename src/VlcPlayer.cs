@@ -489,9 +489,15 @@ namespace Przegladarka
             deleteBtn.Click += (s, a) =>
             {
                 bool shared = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs();
-                if (MessageBox.Show(win, string.Format(L.T("Usunąć całą bibliotekę „{0}”?\n\nZnikną tylko pozycje z listy na tym komputerze – pliki filmów zostają na dysku."), tv ? L.T("Nagrane z TV") : shared ? sharedName() : localName()),
+                Func<LibraryVideo, bool> mine = v => tv ? UnderAny(v.Path, recDirs) : !UnderAny(v.Path, recDirs) && IsShared(v) == shared;
+                int here = LoadLibrary().Count(mine), fromPeers = shared && !tv ? remoteOf.Count : 0;
+                var name = tv ? L.T("Nagrane z TV") : shared ? sharedName() : localName();
+                // filmy z innych komputerow sa zapisane tam - tu mozna usunac tylko wpisy z tego komputera
+                var peersNote = fromPeers > 0 ? string.Format(L.T("\n\n{0} pozycji przychodzi z innych komputerów – są zapisane tam i usuwa się je na tamtym komputerze."), fromPeers) : "";
+                if (here == 0) { MessageBox.Show(win, string.Format(L.T("W bibliotece „{0}” na tym komputerze nie ma żadnych pozycji do usunięcia."), name) + peersNote, L.T("Biblioteka filmów"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+                if (MessageBox.Show(win, string.Format(L.T("Usunąć z biblioteki „{0}” {1} pozycji zapisanych na tym komputerze?\n\nPliki filmów zostają na dysku."), name, here) + peersNote,
                     L.T("Biblioteka filmów"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-                var l = LoadLibrary(); l.RemoveAll(v => tv ? UnderAny(v.Path, recDirs) : !UnderAny(v.Path, recDirs) && IsShared(v) == shared);
+                var l = LoadLibrary(); l.RemoveAll(v => mine(v));
                 SaveLibrary(l); fill();
             };
             renameBtn.IsEnabled = !_libTvView;

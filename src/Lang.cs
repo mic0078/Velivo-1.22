@@ -770,6 +770,8 @@ namespace Przegladarka
             { "Nowoczesny (spokojny, jak Windows 11)", "Modern (calm, like Windows 11)" },
             { "Kolorowy (kolorowe przyciski)", "Colorful (colored buttons)" },
             { "W skrócie:", "In short:" },
+            { "Tryb mini – małe okienko na wierzchu (jak dla YouTube)", "Mini mode – small always-on-top window (like for YouTube)" },
+            { "Wróć do zwykłego okna", "Back to the normal window" },
             { "Ostatnio", "Last played" },
             { "dziś ", "today " },
             { "wczoraj ", "yesterday " },

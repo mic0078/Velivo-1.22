@@ -436,6 +436,9 @@ namespace Przegladarka
             { "volume", "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z" },
             { "mute", "M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z" },
             { "pin", "M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z" },
+            { "mini", "M19,11H11V17H19V11M23,19V5C23,3.88 22.1,3 21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19M21,19H3V4.97H21V19Z" },
+            { "exitmini", "M21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19V5A2,2 0 0,0 21,3M21,19H3V5H21V19M13,9H5V7H15V17H13V9Z" },
+            { "close", "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" },
             { "pinned", "M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" },
         };
 
@@ -504,12 +507,13 @@ namespace Przegladarka
             var full = glyphBtn("full", L.T("Pełny ekran (F, dwuklik)"));
             var mute = glyphBtn("volume", L.T("Wycisz (M)"));
             var top = glyphBtn("pin", L.T("Zawsze na wierzchu"));
+            var mini = glyphBtn("mini", L.T("Tryb mini – małe okienko na wierzchu (jak dla YouTube)"));
             var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
             var left = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var b in new UIElement[] { prev, play, stop, next, back10, fwd10, speed }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var b in new UIElement[] { subs, audio, aspect, snap, lib, top, full, mute, vol, volText }) right.Children.Add(b);
+            foreach (var b in new UIElement[] { subs, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new DockPanel { Margin = new Thickness(4, 2, 4, 4) };
             DockPanel.SetDock(left, Dock.Left); DockPanel.SetDock(right, Dock.Right);
             btnRow.Children.Add(left); btnRow.Children.Add(right);
@@ -517,6 +521,16 @@ namespace Przegladarka
             var controls = new StackPanel { Background = new SolidColorBrush(Color.FromArgb(0xD9, 0x1C, 0x1C, 0x1C)), VerticalAlignment = VerticalAlignment.Bottom };
             controls.Children.Add(seekRow); controls.Children.Add(btnRow);
             overlay.Children.Add(controls);
+            // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
+            var miniTitle = new TextBlock { Foreground = Brushes.White, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            var miniBack = glyphBtn("exitmini", L.T("Wróć do zwykłego okna"));
+            var miniClose = glyphBtn("close", L.T("Zamknij"));
+            foreach (var b in new[] { miniBack, miniClose }) { b.Width = 28; b.Height = 22; ((System.Windows.Shapes.Path)b.Content).Width = 14; ((System.Windows.Shapes.Path)b.Content).Height = 14; }
+            var miniBtns = new StackPanel { Orientation = Orientation.Horizontal };
+            miniBtns.Children.Add(miniBack); miniBtns.Children.Add(miniClose);
+            var miniBar = new DockPanel { Height = 24, VerticalAlignment = VerticalAlignment.Top, Background = new SolidColorBrush(Color.FromArgb(0xD9, 0x10, 0x10, 0x10)), Visibility = Visibility.Collapsed, Cursor = Cursors.SizeAll };
+            DockPanel.SetDock(miniBtns, Dock.Right); miniBar.Children.Add(miniBtns); miniBar.Children.Add(miniTitle);
+            overlay.Children.Add(miniBar);
             win.Content = view;
             // waskie okno: tylko najwazniejsze przyciski (reszta wraca po poszerzeniu)
             win.SizeChanged += (s, e) =>
@@ -542,9 +556,11 @@ namespace Przegladarka
             {
                 hideTimer.Stop();
                 if (!mp.IsPlaying || controls.IsMouseOver || controls.ContextMenu != null && controls.ContextMenu.IsOpen || Mouse.Captured != null) { hideTimer.Start(); return; }
-                controls.Visibility = Visibility.Collapsed; overlay.Cursor = Cursors.None;
+                if (miniBar.IsMouseOver) { hideTimer.Start(); return; }
+                controls.Visibility = Visibility.Collapsed; miniBar.Visibility = Visibility.Collapsed; overlay.Cursor = Cursors.None;
             };
-            Action showBar = () => { controls.Visibility = Visibility.Visible; overlay.Cursor = null; hideTimer.Stop(); hideTimer.Start(); };
+            bool mini0 = false;
+            Action showBar = () => { controls.Visibility = Visibility.Visible; if (mini0) miniBar.Visibility = Visibility.Visible; overlay.Cursor = null; hideTimer.Stop(); hideTimer.Start(); };
 
             // zapis miejsca wznowienia co kilka sekund i przy zmianie filmu / zamknieciu
             Action savePos = () =>
@@ -577,6 +593,7 @@ namespace Przegladarka
                 var path = _playlist[i];
                 current = LoadLibrary().FirstOrDefault(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
                 win.Title = System.IO.Path.GetFileName(path) + " – " + L.T("Odtwarzacz filmów");
+                miniTitle.Text = System.IO.Path.GetFileNameWithoutExtension(path);
                 using (var media = new Media(_libVlc, path, FromType.FromPath))
                 {
                     // napisy o tej samej nazwie obok filmu (film.srt, film.pl.srt) dolaczane same - jak w VLC
@@ -616,8 +633,36 @@ namespace Przegladarka
             vol.ValueChanged += (s, e) => { mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (mp.Mute && vol.Value > 0) mp.Mute = false; mute.Content = PlayerIcon(mp.Mute || vol.Value == 0 ? "mute" : "volume"); };
             Action toggleMute = () => { mp.Mute = !mp.Mute; mute.Content = PlayerIcon(mp.Mute ? "mute" : "volume"); showOsd(mp.Mute ? L.T("Wyciszono") : (int)vol.Value + "%"); };
             Action<int> setSpeed = d => { speedIdx = Math.Max(0, Math.Min(speeds.Length - 1, speedIdx + d)); mp.SetRate(speeds[speedIdx]); speed.Content = speeds[speedIdx].ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "×"; showOsd(L.T("Prędkość ") + speed.Content); };
+            // tryb mini: male okienko bez ramki w prawym dolnym rogu, zawsze na wierzchu; powrot - poprzedni rozmiar i miejsce
+            Rect normalBounds = Rect.Empty;
+            Action toggleMini = () =>
+            {
+                if (full0) return;
+                mini0 = !mini0;
+                if (mini0)
+                {
+                    normalBounds = win.WindowState == WindowState.Normal ? new Rect(win.Left, win.Top, win.Width, win.Height) : win.RestoreBounds;
+                    win.WindowState = WindowState.Normal; win.WindowStyle = WindowStyle.None; win.ResizeMode = ResizeMode.CanResizeWithGrip;
+                    var wa = SystemParameters.WorkArea;
+                    win.Width = 480; win.Height = 270; win.Left = wa.Right - 480 - 16; win.Top = wa.Bottom - 270 - 16;
+                    win.Topmost = true;
+                    miniTitle.Text = System.IO.Path.GetFileNameWithoutExtension(_playlist.Count > _playIndex ? _playlist[_playIndex] : "");
+                }
+                else
+                {
+                    win.WindowStyle = WindowStyle.SingleBorderWindow; win.ResizeMode = ResizeMode.CanResize; win.Topmost = _settings.VlcTopmost;
+                    if (!normalBounds.IsEmpty) { win.Left = normalBounds.Left; win.Top = normalBounds.Top; win.Width = normalBounds.Width; win.Height = normalBounds.Height; }
+                    miniBar.Visibility = Visibility.Collapsed;
+                }
+                showBar();
+            };
+            miniBar.MouseLeftButtonDown += (s, e) => { if (e.ClickCount == 2) toggleMini(); else try { win.DragMove(); } catch (InvalidOperationException) { } e.Handled = true; };
+            miniBack.Click += (s, e) => toggleMini();
+            miniClose.Click += (s, e) => win.Close();
+            mini.Click += (s, e) => toggleMini();
             Action toggleFull = () =>
             {
+                if (mini0) toggleMini();
                 full0 = !full0;
                 if (full0) { prevState = win.WindowState; win.WindowStyle = WindowStyle.None; win.WindowState = WindowState.Normal; win.WindowState = WindowState.Maximized; win.Topmost = true; }
                 else { win.Topmost = _settings.VlcTopmost; win.WindowStyle = WindowStyle.SingleBorderWindow; win.WindowState = prevState; }
@@ -737,7 +782,7 @@ namespace Przegladarka
                     case Key.Up: setVol(vol.Value + 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
                     case Key.Down: setVol(vol.Value - 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
                     case Key.F: case Key.F11: toggleFull(); break;
-                    case Key.Escape: if (full0) toggleFull(); else h = false; break;
+                    case Key.Escape: if (full0) toggleFull(); else if (mini0) toggleMini(); else h = false; break;
                     case Key.M: toggleMute(); break;
                     case Key.N: _vlcLoad(_playIndex + 1); break;
                     case Key.P: _vlcLoad(_playIndex - 1); break;

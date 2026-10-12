@@ -1063,7 +1063,9 @@ namespace Przegladarka
             };
             win.Topmost = _settings.VlcTopmost; showTop();
             mute.Click += (s, e) => toggleMute();
-            lib.Click += (s, e) => ShowVideoLibrary(win);   // nad filmem
+            // nad filmem: wlascicielem jest przezroczysta warstwa na obrazie (osobne okno nad odtwarzaczem),
+            // inaczej warstwa przykrywa biblioteke i jej X / przyciski nad filmem nie reaguja na klik
+            lib.Click += (s, e) => ShowVideoLibrary(Window.GetWindow(overlay) ?? win);
             snap.Click += (s, e) =>
             {
                 var dir = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);

@@ -56,7 +56,9 @@ namespace Przegladarka
   // strone zamiast czarnego okna (klasa na <html> wylacza ukrywanie); gdy film ma obraz - z powrotem sam film
   var seeked=false, t0=Date.now();
   if(!document.getElementById('velivo-film-show')){ var sh=document.createElement('style'); sh.id='velivo-film-show'; sh.textContent='html.velivo-strona body *{visibility:visible!important}html.velivo-strona,html.velivo-strona body{overflow:auto!important}html.velivo-strona video.velivo-film{position:static!important;width:auto!important;height:auto!important}'; (document.head||document.documentElement).appendChild(sh); }
-  function fix(){ var v=big(); var ok=v&&v.videoWidth>0; document.documentElement.classList.toggle('velivo-strona', !ok&&Date.now()-t0>6000); if(!v) return; if(v.controls) v.controls=false;   // w okienku tylko pasek Velivo (np. film z dysku ma wlasny pasek odtwarzacza)
+  var t1=-1, moved=false;   // film dziala dopiero, gdy czas naprawde idzie (same wymiary filmu to za malo - zawieszony tez je ma)
+  function fix(){ var v=big(); if(v&&!v.paused){ if(t1>=0&&v.currentTime!==t1) moved=true; t1=v.currentTime; }
+    var ok=v&&v.videoWidth>0&&(moved||v.__velivoUserPaused); document.documentElement.classList.toggle('velivo-strona', !ok&&Date.now()-t0>6000); if(!v) return; if(v.controls) v.controls=false;   // w okienku tylko pasek Velivo (np. film z dysku ma wlasny pasek odtwarzacza)
     if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
     if(!seeked && v.readyState>0){ seeked=true; if(t>3 && Math.abs(v.currentTime-t)>3) try{v.currentTime=t;}catch(e){} }
     if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }

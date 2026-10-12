@@ -60,7 +60,9 @@ namespace Przegladarka
             public string Last { get; set; }
             public List<IptvJob> Jobs { get; set; } = new List<IptvJob>();   // zaplanowane nagrania i przelaczenia
             public string RecDir { get; set; }   // folder nagran (puste = Wideo\Velivo TV)
-            public string Win { get; set; }      // miejsce i rozmiar okna listy: "x,y,szer,wys"
+            public string Win { get; set; }
+            public string Group { get; set; }    // ostatnio wybrana grupa
+            public string Sort { get; set; }     // sortowanie: "kolumna" albo "kolumna,desc"      // miejsce i rozmiar okna listy: "x,y,szer,wys"
         }
 
         // ---------- lista M3U ----------
@@ -424,7 +426,8 @@ namespace Przegladarka
             var grid = new GridView();
             // kolumny: naglowek klik = sortuj, drugi klik = odwrotnie
             var cols = new[] { new[] { "nr", "Nr", "50" }, new[] { "name", "Kanał", "270" }, new[] { "now", "Teraz", "300" }, new[] { "next", "Następnie", "260" } };
-            string sortKey = "nr"; bool sortDesc = false;
+            var sortSaved = (st.Sort ?? "nr").Split(',');
+            string sortKey = cols.Any(c => c[0] == sortSaved[0]) ? sortSaved[0] : "nr"; bool sortDesc = sortSaved.Length > 1 && sortSaved[1] == "desc";
             var headers = new Dictionary<string, GridViewColumnHeader>();
             foreach (var c in cols)
             {
@@ -499,7 +502,7 @@ namespace Przegladarka
             };
             Action fillGroups = () =>
             {
-                var sel = (groups.SelectedItem as ListBoxItem)?.Tag as string;
+                var sel = (groups.SelectedItem as ListBoxItem)?.Tag as string ?? st.Group;   // przy otwarciu - ostatnia grupa
                 groups.Items.Clear();
                 groups.Items.Add(new ListBoxItem { Content = L.T("📺 Wszystkie"), Tag = allKey });
                 groups.Items.Add(new ListBoxItem { Content = L.T("⭐ Ulubione"), Tag = favKey });
@@ -553,11 +556,17 @@ namespace Przegladarka
                 source.SelectedItem = source.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == st.Last) ?? (source.Items.Count > 0 ? source.Items[0] : null);
             };
             source.SelectionChanged += (s, a) => { var c = cur(); if (c != null && st.Last != c.Id) { st.Last = c.Id; SaveIptv(st); } _ = load(false); };
-            groups.SelectionChanged += (s, a) => fillList();
+            groups.SelectionChanged += (s, a) =>
+            {
+                var g = (groups.SelectedItem as ListBoxItem)?.Tag as string;
+                if (g != null && g != st.Group) { st.Group = g; SaveIptv(st); }
+                fillList();
+            };
             list.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler((s, a) =>
             {
                 if (!(a.OriginalSource is GridViewColumnHeader h) || !(h.Tag is string k)) return;
                 if (k == sortKey) sortDesc = !sortDesc; else { sortKey = k; sortDesc = false; }
+                st.Sort = sortKey + (sortDesc ? ",desc" : ""); SaveIptv(st);
                 markSort(); fillList();
             }));
             search.TextChanged += (s, a) => fillList();

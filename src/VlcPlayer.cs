@@ -199,17 +199,27 @@ namespace Przegladarka
             TabBarPanel.Children.Insert(bank >= 0 ? bank + 1 : 1, _filmBtn);   // dock z prawej: nastepny w kolejnosci stoi po lewej od 🏦
         }
 
-        string[] PickVideoFiles(bool multi)
+        string _lastVideoDir;   // ostatnio wybrany folder - kolejne okno wyboru otwiera sie przy nim, nie w jego srodku
+
+        // owner: okno, nad ktorym ma byc okno wyboru (z biblioteki - nad biblioteka)
+        string[] PickVideoFiles(bool multi, Window owner = null)
         {
             var exts = string.Join(";", VideoExts.Concat(VlcExtraExts).Select(x => "*" + x));
             var dlg = new Microsoft.Win32.OpenFileDialog { Title = L.T("Wybierz film"), Multiselect = multi, Filter = L.T("Filmy") + "|" + exts + "|" + L.T("Wszystkie pliki") + "|*.*" };
-            return dlg.ShowDialog(this) == true ? dlg.FileNames : null;
+            if (_lastVideoDir != null) dlg.InitialDirectory = _lastVideoDir;
+            if (dlg.ShowDialog(owner ?? this) != true) return null;
+            _lastVideoDir = System.IO.Path.GetDirectoryName(dlg.FileName);
+            return dlg.FileNames;
         }
 
-        string PickFolder()
+        string PickFolder(Window owner = null)
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Wybierz folder z filmami") };
-            return dlg.ShowDialog(this) == true ? dlg.FolderName : null;
+            var up = _lastVideoDir != null ? System.IO.Path.GetDirectoryName(_lastVideoDir) : null;
+            if (up != null) dlg.InitialDirectory = up;   // widac ostatni folder (np. D:\Filmy na D:\), a nie jego podfoldery
+            if (dlg.ShowDialog(owner ?? this) != true) return null;
+            _lastVideoDir = dlg.FolderName;
+            return dlg.FolderName;
         }
 
         // skanowanie w tle - folder na dysku sieciowym (NAS, \\serwer\Filmy, Z:) moze sie czytac dlugo
@@ -522,8 +532,8 @@ namespace Przegladarka
             var buttons = new StackPanel { Orientation = Orientation.Horizontal };
             DockPanel.SetDock(buttons, Dock.Right); bar.Children.Add(buttons);
             buttons.Children.Add(SmallButton(L.T("▶ Odtwórz"), play));
-            buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true); if (f != null) AddPathsToLibrary(f, _libSharedView); }));
-            buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView); }));
+            buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true, win); if (f != null) AddPathsToLibrary(f, _libSharedView); }));
+            buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(win); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView); }));
             buttons.Children.Add(SmallButton(L.T("Usuń z biblioteki"), remove));
             var body = new DockPanel();
             DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);

@@ -17,6 +17,14 @@ namespace Przegladarka
     // Dziala niezaleznie od kart - zamkniecie karty nie zatrzymuje filmu; zamkniecie okienka - tak.
     public partial class MainWindow
     {
+        // rodzaje zadan sprawdzane przez filtr Velivo (karty i okienko Na wierzchu); obrazki i czcionki - bez (patrz InitView)
+        static readonly CoreWebView2WebResourceContext[] FilteredContexts = {
+            CoreWebView2WebResourceContext.Document, CoreWebView2WebResourceContext.Script, CoreWebView2WebResourceContext.Stylesheet,
+            CoreWebView2WebResourceContext.XmlHttpRequest, CoreWebView2WebResourceContext.Fetch, CoreWebView2WebResourceContext.Media,
+            CoreWebView2WebResourceContext.Websocket, CoreWebView2WebResourceContext.EventSource, CoreWebView2WebResourceContext.Ping,
+            CoreWebView2WebResourceContext.Manifest, CoreWebView2WebResourceContext.TextTrack, CoreWebView2WebResourceContext.SignedExchange,
+            CoreWebView2WebResourceContext.CspViolationReport, CoreWebView2WebResourceContext.Other };
+
         sealed class FloatRequest { public string page { get; set; } public double time { get; set; } public string title { get; set; } }
 
         // z karty: biezacy film (strona + miejsce), film w karcie pauzujemy
@@ -285,8 +293,10 @@ namespace Przegladarka
                 ApplyViewSettings(core);
                 core.Settings.AreDefaultContextMenusEnabled = false;
                 core.NewWindowRequested += (s, e) => e.Handled = true;   // reklamy i linki z okienka nie otwieraja okien
-                // blokada reklam i trackerow jak w karcie
-                core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All, CoreWebView2WebResourceRequestSourceKinds.All);
+                // blokada reklam i trackerow jak w karcie - te same rodzaje zadan (bez obrazkow i czcionek): zablokowany obrazek-przyneta
+                // YouTube uznawal za bloker i zalogowanym pokazywal "Zezwol na reklamy" zamiast filmu (czarne okienko)
+                foreach (var ctx in FilteredContexts)
+                    core.AddWebResourceRequestedFilter("*", ctx, CoreWebView2WebResourceRequestSourceKinds.All);
                 core.WebResourceRequested += (s, e) =>
                 {
                     try

@@ -770,6 +770,7 @@ namespace Przegladarka
             { "Nowoczesny (spokojny, jak Windows 11)", "Modern (calm, like Windows 11)" },
             { "Kolorowy (kolorowe przyciski)", "Colorful (colored buttons)" },
             { "W skrócie:", "In short:" },
+            { "🎬 Szukam filmów…", "🎬 Looking for videos…" },
             { "Filmy – biblioteka i odtwarzacz (jak VLC)\nPrawy klik: otwórz plik, dodaj do biblioteki", "Videos – library and player (like VLC)\nRight-click: open a file, add to library" },
             { "Biblioteka filmów", "Video library" },
             { "Otwórz film z dysku…", "Open a video from disk…" },

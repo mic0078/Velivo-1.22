@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -159,10 +159,14 @@ namespace Przegladarka
             return dlg.ShowDialog(this) == true ? dlg.FolderName : null;
         }
 
-        void AddPathsToLibrary(IEnumerable<string> paths)
+        // skanowanie w tle - folder na dysku sieciowym (NAS, \\serwer\Filmy, Z:) moze sie czytac dlugo
+        async void AddPathsToLibrary(IEnumerable<string> paths)
         {
+            var list = paths.ToList();
+            ShowToast(L.T("🎬 Szukam filmów…"), null);
+            var found = await System.Threading.Tasks.Task.Run(() => { var tmp = new List<LibraryVideo>(); AddToLibrary(tmp, list); return tmp; });
             var lib = LoadLibrary();
-            int n = AddToLibrary(lib, paths);
+            int n = AddToLibrary(lib, found.Select(v => v.Path));
             SaveLibrary(lib);
             ShowToast("🎬 " + (L.En ? "Added to library: " : "Dodano do biblioteki: ") + n, null);
             if (_libWin != null && _libWin.IsLoaded) _libRefresh?.Invoke();
@@ -220,20 +224,37 @@ namespace Przegladarka
             var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Gray, Margin = new Thickness(10, 0, 0, 0) };
             List<LibraryVideo> lib = LoadLibrary();
             List<LibRow> rows = new List<LibRow>();
-            Action fill = () =>
+            int fillVer = 0;
+            Action fill = async () =>
             {
+                int ver = ++fillVer;
                 lib = LoadLibrary();
                 var q = search.Text.Trim();
-                rows = lib.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
+                var all = lib;
+                // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
+                var newRows = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    // niedostepny udzial / dysk sprawdzany raz (nie po kilka sekund dla kazdego filmu)
+                    var roots = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                    Func<string, bool> exists = path =>
+                    {
+                        var root = System.IO.Path.GetPathRoot(path) ?? "";
+                        bool up;
+                        if (!roots.TryGetValue(root, out up)) roots[root] = up = Directory.Exists(root);
+                        return up && File.Exists(path);
+                    };
+                    return all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
                     .OrderByDescending(v => v.Last).ThenBy(v => v.Title, StringComparer.CurrentCultureIgnoreCase)
                     .Select(v => new LibRow
                     {
-                        Item = v, Missing = !File.Exists(v.Path),
-                        Title = (File.Exists(v.Path) ? "" : "⚠ ") + v.Title,
+                        Item = v, Missing = !exists(v.Path), Title = v.Title,
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = v.Last == 0 ? "" : v.Len > 0 && v.Pos == 0 ? "✓" : v.Len > 0 ? (int)(100.0 * v.Pos / v.Len) + "%" : "…",
                         Folder = System.IO.Path.GetDirectoryName(v.Path),
-                    }).ToList();
+                    }).Select(r => { if (r.Missing) r.Title = "⚠ " + r.Title; return r; }).ToList();
+                });
+                if (ver != fillVer) return;   // w miedzyczasie nowsze szukanie
+                rows = newRows;
                 list.ItemsSource = rows;
                 count.Text = rows.Count + " / " + lib.Count + L.T(" filmów");
             };

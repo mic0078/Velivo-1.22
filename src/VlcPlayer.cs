@@ -952,6 +952,22 @@ namespace Przegladarka
                 applyTracks();
                 showOsd(_settings.VlcShowSubs ? L.T("Napisy: widoczne") : L.T("Napisy: ukryte (lektor czyta)"));
             };
+            // straznik kanalu na zywo: obraz stoi (czas sie nie przesuwa) albo strumien sie urwal - ponowne polaczenie
+            bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
+            var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            tvWatch.Tick += (s, e) =>
+            {
+                var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (pth == null || !_iptvPlaying.ContainsKey(pth) || userStopped || mp.State == VLCState.Paused) { lastTvProgress = DateTime.Now; return; }
+                if (mp.State == VLCState.Playing && mp.Time != lastTvTime) { lastTvTime = mp.Time; lastTvProgress = DateTime.Now; tvRetries = 0; return; }
+                var wait = Math.Max(8, IptvSt.Buffer + 6) * (tvRetries >= 3 ? 2 : 1);   // po kilku probach rzadziej
+                if ((DateTime.Now - lastTvProgress).TotalSeconds < wait) return;
+                tvRetries++; lastTvProgress = DateTime.Now; lastTvTime = -1;
+                showOsd(L.T("🔄 Obraz stanął – odświeżam kanał…") + (tvRetries > 1 ? " (" + tvRetries + ")" : ""));
+                _vlcLoad(_playIndex);
+            };
+            tvWatch.Start();
+            win.Closed += (s, e) => tvWatch.Stop();
             string curTitle = "";
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)
             int marqueePos = 0;
@@ -978,6 +994,7 @@ namespace Przegladarka
             win.Closed += (s, e) => _iptvJobsChanged -= recTitle;
             _vlcLoad = i =>
             {
+                userStopped = false; lastTvProgress = DateTime.Now;
                 savePos();
                 if (i < 0 || i >= _playlist.Count) return;
                 _playIndex = i;
@@ -1012,6 +1029,7 @@ namespace Przegladarka
                     // napisy o tej samej nazwie obok filmu (film.srt, film.pl.srt) dolaczane same - jak w VLC; przy strumieniu - z komputera wlasciciela
                     if (stream && rf?.Sub != null) media.AddSlave(MediaSlaveType.Subtitle, 4, rf.Sub);
                     if (tv != null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
+                    if (tv != null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
@@ -1049,7 +1067,7 @@ namespace Przegladarka
             {
                 if (current != null && _remoteFilms.TryGetValue(current.Path, out var rfe)) { SendRemoteProgress(rfe, 0, mp.Length, true); current = null; }
                 if (current != null) { var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current)); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
-                if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału kanału")); return; }   // telewizja: bez przeskoku na nastepny kanal
+                if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału – łączę ponownie…")); return; }   // telewizja: bez przeskoku na nastepny kanal; strażnik polaczy ponownie
                 if (_playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
             mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(new Action(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));
@@ -1135,7 +1153,7 @@ namespace Przegladarka
             };
 
             play.Click += (s, e) => togglePlay();
-            stop.Click += (s, e) => { savePos(); mp.Stop(); LeaveTogether(); };   // Stop konczy wspolne ogladanie tylko tutaj
+            stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); };   // Stop konczy wspolne ogladanie tylko tutaj
             prev.Click += (s, e) => _vlcLoad(_playIndex - 1);
             next.Click += (s, e) => _vlcLoad(_playIndex + 1);
             back10.Click += (s, e) => jump(-10000);
@@ -1306,6 +1324,16 @@ namespace Przegladarka
                     }
                     add(L.T("⏮ Poprzedni kanał (PgUp)"), () => _vlcLoad(_playIndex - 1), _playIndex > 0);
                     add(L.T("⏭ Następny kanał (PgDn)"), () => _vlcLoad(_playIndex + 1), _playIndex < _playlist.Count - 1);
+                    add(L.T("🔄 Odśwież kanał (F5)"), () => { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); }, true);
+                    // zapas bufora: wiecej = mniej przyciec, ale troche wieksze opoznienie i wolniejsze przelaczanie
+                    var bufM = new MenuItem { Header = L.T("⏱ Bufor kanałów: ") + IptvSt.Buffer + " s" };
+                    foreach (var sec0 in new[] { 1, 3, 5, 10 })
+                    {
+                        var sec = sec0; var bi = new MenuItem { Header = sec + " s" + (sec == 1 ? L.T(" (najmniejsze opóźnienie)") : sec == 3 ? L.T(" (zalecane przy przycięciach)") : ""), IsCheckable = true, IsChecked = IptvSt.Buffer == sec };
+                        bi.Click += (q, w2) => { IptvSt.Buffer = sec; SaveIptv(IptvSt); showOsd(L.T("Bufor: ") + sec + " s"); _vlcLoad(_playIndex); };
+                        bufM.Items.Add(bi);
+                    }
+                    cm.Items.Add(bufM);
                     var tvCh = _iptvPlaying[path];
                     if (IsRecording(path)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(path), true);
                     else add(L.T("⏺ Nagrywaj ten kanał"), () => RecordNow(tvCh, win), true);
@@ -1367,6 +1395,7 @@ namespace Przegladarka
                     case Key.Up: setVol(vol.Value + 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
                     case Key.Down: setVol(vol.Value - 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
                     case Key.F: case Key.F11: toggleFull(); break;
+                    case Key.F5: if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); } break;
                     case Key.Escape: if (full0) toggleFull(); else if (mini0) toggleMini(); else h = false; break;
                     case Key.M: toggleMute(); break;
                     case Key.N: case Key.PageDown: _vlcLoad(_playIndex + 1); break;
@@ -1374,7 +1403,7 @@ namespace Przegladarka
                     case Key.P: _vlcLoad(_playIndex - 1); break;
                     case Key.OemOpenBrackets: setSpeed(-1); break;
                     case Key.OemCloseBrackets: setSpeed(1); break;
-                    case Key.S: mp.Stop(); break;
+                    case Key.S: userStopped = true; mp.Stop(); break;
                     default: h = false; break;
                 }
                 if (h) e.Handled = true;

@@ -62,6 +62,7 @@ namespace Przegladarka
             public string RecDir { get; set; }   // folder nagran (puste = Wideo\Velivo TV)
             public string Win { get; set; }
             public string Group { get; set; }    // ostatnio wybrana grupa
+            public int Buffer { get; set; } = 1;  // zapas bufora kanalow na zywo (s); 1 = jak VLC
             public Dictionary<string, string> EpgMap { get; set; } = new Dictionary<string, string>();   // reczne przypisanie programu TV: adres kanalu -> id w EPG
             public string Sort { get; set; }     // sortowanie: "kolumna" albo "kolumna,desc"      // miejsce i rozmiar okna listy: "x,y,szer,wys"
         }

@@ -1027,6 +1027,7 @@ namespace Przegladarka
             // wielkosc tekstu: wg szerokosci okna (male okno - mniejszy, pelny ekran - wiekszy) razy ustawienie uzytkownika
             // wielkosc czcionek liczona przy budowaniu paska (bez skalowania warstwy - w oknie nakladanym na film potrafilo znikac)
             double infoK = 1;
+            Action showChannelsRefresh = null;
             Action infoScale = () => infoK = Math.Max(0.65, Math.Min(1.7, win.ActualWidth / 1280.0)) * Math.Max(50, Math.Min(200, IptvSt.InfoScale)) / 100.0;
             Action<bool> showInfoRef = null;
             var infoResize = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -1104,6 +1105,48 @@ namespace Przegladarka
                 infoTimer.Interval = TimeSpan.FromSeconds(sec); infoTimer.Start();
             };
             showInfoRef = showInfo;
+
+            // lista kanalow nad filmem (z lewej): kanaly biezacej grupy z logo i tym, co leci; klik = przelacz, kolko = przewijanie
+            var chList = new ListBox { Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.White, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            ScrollViewer.SetHorizontalScrollBarVisibility(chList, ScrollBarVisibility.Disabled);
+            var chPanel = new Border { Child = chList, Width = 340, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 0), Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(0, 8, 8, 0) };
+            overlay.Children.Add(chPanel);
+            var chHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            chHide.Tick += (s, e) => { chHide.Stop(); if (!chPanel.IsMouseOver) chPanel.Visibility = Visibility.Collapsed; };
+            chPanel.MouseLeave += (s, e) => { chHide.Stop(); chHide.Start(); };
+            chPanel.MouseEnter += (s, e) => chHide.Stop();
+            chPanel.MouseLeftButtonDown += (s, e) => e.Handled = true;   // klik na liscie to nie pauza
+            Action<bool> showChannels = show =>
+            {
+                if (!show) { chPanel.Visibility = Visibility.Collapsed; return; }
+                if (mini0) return;
+                chPanel.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.ListAlpha)) / 100), 0x14, 0x16, 0x1A));
+                chPanel.Margin = new Thickness(0, 0, 0, controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0);
+                chList.Items.Clear();
+                var now = DateTime.Now; ListBoxItem cur = null;
+                for (int k = 0; k < _playlist.Count; k++)
+                {
+                    if (!_iptvPlaying.TryGetValue(_playlist[k], out var ch)) continue;
+                    int idx = k;
+                    var img = new Image { Width = 40, Height = 24, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+                    var nowP = EpgAt(EpgFor(_iptvEpg, ch), now);
+                    var txt = new StackPanel();
+                    txt.Children.Add(new TextBlock { Text = (IptvSt.Fav.Contains(ch.Url) ? "⭐ " : "") + ch.Name, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+                    if (nowP != null) txt.Children.Add(new TextBlock { Text = nowP.Start.ToString("HH:mm") + "  " + nowP.Title, FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
+                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); row.Children.Add(img); row.Children.Add(txt);
+                    var it = new ListBoxItem { Content = row, Padding = new Thickness(8, 4, 8, 4), Cursor = Cursors.Hand };
+                    if (idx == _playIndex) { it.Background = new SolidColorBrush(Color.FromArgb(0x66, 0x3B, 0x82, 0xF6)); cur = it; }
+                    it.PreviewMouseLeftButtonUp += (q, w2) => { _vlcLoad(idx); showChannelsRefresh(); };
+                    chList.Items.Add(it);
+                    var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
+                    if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) img.Source = t.Result; }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
+                }
+                if (chList.Items.Count == 0) return;
+                chPanel.Visibility = Visibility.Visible;
+                if (cur != null) { chList.SelectedItem = null; chList.ScrollIntoView(cur); }
+                chHide.Stop(); if (!chPanel.IsMouseOver) chHide.Start();
+            };
+            showChannelsRefresh = () => { if (chPanel.Visibility == Visibility.Visible) showChannels(true); };
             controls.IsVisibleChanged += (s, e) => { if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16); };
             win.Closed += (s, e) => infoTimer.Stop();
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)
@@ -1444,6 +1487,9 @@ namespace Przegladarka
             overlay.MouseLeftButtonDown += (s, e) =>
             {
                 if (controls.IsMouseOver) return;   // klik na pasku to nie klik w obraz
+                var curPath = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (curPath != null && _iptvPlaying.ContainsKey(curPath) && e.GetPosition(overlay).X < 70)   // klik przy lewej krawedzi - lista kanalow
+                { showChannels(chPanel.Visibility != Visibility.Visible); e.Handled = true; return; }
                 if (e.ClickCount == 2) { togglePlay(); toggleFull(); }   // pierwszy klik dwukliku juz zatrzymal - wznawiamy
                 else togglePlay();
             };
@@ -1468,6 +1514,18 @@ namespace Przegladarka
                 add(L.T("➕ Dodaj do: 🔒 ") + myName, () => addTo(false), file);
                 if (!file && path != null && !_iptvPlaying.ContainsKey(path)) add(L.T("(film strumieniowany z innego komputera – jest w jego bibliotece)"), () => { }, false);
                 add(L.T("ℹ Pokaż informacje (I)"), () => showInfo(true), true);
+                if (path != null && _iptvPlaying.ContainsKey(path))
+                {
+                    add(L.T("📋 Lista kanałów (L / klik przy lewej krawędzi)"), () => showChannels(true), true);
+                    var laM = new MenuItem { Header = L.T("📋 Przezroczystość listy kanałów") };
+                    foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
+                    {
+                        var al = a0; var mi = new MenuItem { Header = (100 - al) + " %", IsCheckable = true, IsChecked = IptvSt.ListAlpha == al };
+                        mi.Click += (q, w2) => { IptvSt.ListAlpha = al; SaveIptv(IptvSt); showChannels(true); };
+                        laM.Items.Add(mi);
+                    }
+                    cm.Items.Add(laM);
+                }
                 var infoM = new MenuItem { Header = L.T("ℹ Pasek informacji") };
                 var hideM = new MenuItem { Header = L.T("Znikanie po") };
                 foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
@@ -1601,8 +1659,9 @@ namespace Przegladarka
                     case Key.Down: setVol(vol.Value - 5); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); break;
                     case Key.F: case Key.F11: toggleFull(); break;
                     case Key.I: showInfo(true); break;
+                    case Key.L: showChannels(chPanel.Visibility != Visibility.Visible); break;
                     case Key.F5: if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); } break;
-                    case Key.Escape: if (full0) toggleFull(); else if (mini0) toggleMini(); else h = false; break;
+                    case Key.Escape: if (chPanel.Visibility == Visibility.Visible) showChannels(false); else if (full0) toggleFull(); else if (mini0) toggleMini(); else h = false; break;
                     case Key.M: toggleMute(); break;
                     case Key.N: case Key.PageDown: _vlcLoad(_playIndex + 1); break;
                     case Key.PageUp: _vlcLoad(_playIndex - 1); break;

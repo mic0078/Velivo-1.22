@@ -855,6 +855,7 @@ namespace Przegladarka
 
             // lektor: napisy z pliku obok filmu albo wczytane z menu Napisy
             var lc = new Lector();
+            bool muted = false;
             Action<string, string> loadSubsText = (text, name) =>
             {
                 lc.Cues = new List<SubCue>(); lc.File = null; lc.LastSpoken = -1;
@@ -955,7 +956,11 @@ namespace Przegladarka
             lector.Click += (s, e) => { lectorOn.IsChecked = _settings.VlcLector; lectorPop.IsOpen = true; };
             showLector();
             var lectorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-            lectorTimer.Tick += (s, e) => { if (_settings.VlcLector) LectorTick(lc, mp, () => (int)vol.Value); };
+            lectorTimer.Tick += (s, e) =>
+            {
+                if (mp.Mute != muted) mp.Mute = muted;   // VLC kasuje wyciszenie przy nowym filmie i zmianie glosnosci - pilnujemy
+                if (_settings.VlcLector && !muted) LectorTick(lc, mp, () => (int)vol.Value);
+            };
             lectorTimer.Start();
             // pamietanie napisow i sciezki dzwieku: dla tego filmu (biblioteka) i jako ostatni wybor dla kolejnych filmow
             Action<bool, string> rememberTrack = (spu, name) =>
@@ -1270,8 +1275,14 @@ namespace Przegladarka
                 }
             };
             Action<double> setVol = v => { vol.Value = Math.Max(0, Math.Min(125, v)); };
-            vol.ValueChanged += (s, e) => { _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (mp.Mute && vol.Value > 0) mp.Mute = false; mute.Content = PlayerIcon(mp.Mute || vol.Value == 0 ? "mute" : "volume"); };
-            Action toggleMute = () => { mp.Mute = !mp.Mute; mute.Content = PlayerIcon(mp.Mute ? "mute" : "volume"); showOsd(mp.Mute ? L.T("Wyciszono") : (int)vol.Value + "%"); };
+            // wyciszenie pamietane tutaj: stan Mute w VLC zglasza sie z opoznieniem i kasuje przy zmianie filmu / glosnosci
+            vol.ValueChanged += (s, e) => { _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (muted && vol.Value > 0) muted = false; mp.Mute = muted; mute.Content = PlayerIcon(muted || vol.Value == 0 ? "mute" : "volume"); };
+            Action toggleMute = () =>
+            {
+                muted = !muted; mp.Mute = muted;
+                if (muted) LectorStopVoice(lc, mp);   // lektor tez cicho
+                mute.Content = PlayerIcon(muted ? "mute" : "volume"); showOsd(muted ? L.T("Wyciszono") : (int)vol.Value + "%");
+            };
             Action<int> setSpeed = d => { speedIdx = Math.Max(0, Math.Min(speeds.Length - 1, speedIdx + d)); mp.SetRate(speeds[speedIdx]); speed.Content = speeds[speedIdx].ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "×"; showOsd(L.T("Prędkość ") + speed.Content); };
             // tryb mini: male okienko bez ramki w prawym dolnym rogu, zawsze na wierzchu; powrot - poprzedni rozmiar i miejsce
             Rect normalBounds = Rect.Empty;

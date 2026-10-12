@@ -82,6 +82,17 @@ namespace Przegladarka
         internal static string ReadSubtitleFile(string path) { return SubtitleText(File.ReadAllBytes(path)); }
 
         // napisy obok filmu: film.srt, film.pl.srt, film.PL.ass ... (najpierw polskie)
+        // wszystkie pliki napisow obok filmu (film.srt, film.pl.srt, film.en.srt...)
+        internal static List<string> SubtitleFilesFor(string video)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(video); var name = Path.GetFileNameWithoutExtension(video);
+                return Directory.EnumerateFiles(dir, name + "*").Where(f => SubtitleExts.Contains(Path.GetExtension(f).ToLowerInvariant())).OrderBy(f => f).ToList();
+            }
+            catch (Exception) { return new List<string>(); }
+        }
+
         internal static string FindSubtitleFor(string video)
         {
             try

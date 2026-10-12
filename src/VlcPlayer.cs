@@ -1163,6 +1163,30 @@ namespace Przegladarka
                     if (dlg.ShowDialog(win) == true) { mp.AddSlave(MediaSlaveType.Subtitle, new Uri(dlg.FileName).AbsoluteUri, true); loadSubs(dlg.FileName); }
                 };
                 cm.Items.Add(load);
+                // pliki napisow obok filmu (np. pobrane) - do Kosza
+                var cur = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                var subFiles = cur != null && !cur.Contains("://") ? SubtitleFilesFor(cur) : new List<string>();
+                if (subFiles.Count > 0)
+                {
+                    var del = new MenuItem { Header = L.T("🗑 Usuń plik napisów") };
+                    foreach (var f0 in subFiles)
+                    {
+                        var f = f0; var mi = new MenuItem { Header = System.IO.Path.GetFileName(f) };
+                        mi.Click += (a, b) =>
+                        {
+                            if (MessageBox.Show(win, string.Format(L.T("Usunąć plik napisów „{0}” (do Kosza)?"), System.IO.Path.GetFileName(f)), L.T("Napisy"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                            try
+                            {
+                                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(f, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                                if (lc.File == f) { mp.SetSpu(-1); loadSubs(null); }   // usuniete wlasnie uzywane - wylaczone (lektor tez)
+                                showOsd(L.T("Napisy usunięte"));
+                            }
+                            catch (Exception ex) { App.LogError(ex); showOsd(L.T("Nie udało się usunąć napisów")); }
+                        };
+                        del.Items.Add(mi);
+                    }
+                    cm.Items.Add(del);
+                }
                 var delay = new MenuItem { Header = L.T("Opóźnienie napisów") };
                 foreach (var ms in new[] { -1000, -250, 0, 250, 1000 })
                 {

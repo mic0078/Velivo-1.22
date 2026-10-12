@@ -1020,12 +1020,13 @@ namespace Przegladarka
             var infoBox = new Border { Child = infoRow, CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(16, 0, 16, 0),
                 VerticalAlignment = VerticalAlignment.Bottom, Visibility = Visibility.Collapsed, IsHitTestVisible = false };   // pelna szerokosc okna
             // wielkosc tekstu: wg szerokosci okna (male okno - mniejszy, pelny ekran - wiekszy) razy ustawienie uzytkownika
-            Action infoScale = () =>
-            {
-                double k = Math.Max(0.65, Math.Min(1.7, win.ActualWidth / 1280.0)) * Math.Max(50, Math.Min(200, IptvSt.InfoScale)) / 100.0;
-                infoRow.LayoutTransform = new ScaleTransform(k, k);
-            };
-            win.SizeChanged += (s, e) => infoScale();
+            // wielkosc czcionek liczona przy budowaniu paska (bez skalowania warstwy - w oknie nakladanym na film potrafilo znikac)
+            double infoK = 1;
+            Action infoScale = () => infoK = Math.Max(0.65, Math.Min(1.7, win.ActualWidth / 1280.0)) * Math.Max(50, Math.Min(200, IptvSt.InfoScale)) / 100.0;
+            Action<bool> showInfoRef = null;
+            var infoResize = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            infoResize.Tick += (s, e) => { infoResize.Stop(); if (infoBox.Visibility == Visibility.Visible) showInfoRef?.Invoke(true); };   // po zmianie rozmiaru - zbudowany od nowa
+            win.SizeChanged += (s, e) => { infoResize.Stop(); infoResize.Start(); };
             overlay.Children.Add(infoBox);
             var infoTimer = new DispatcherTimer();
             infoTimer.Tick += (s, e) => { infoTimer.Stop(); infoBox.Visibility = Visibility.Collapsed; };
@@ -1034,20 +1035,22 @@ namespace Przegladarka
             {
                 var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (pth == null || mini0) { infoBox.Visibility = Visibility.Collapsed; return; }
+                infoScale();
+                bool roomy = win.ActualHeight >= 420;   // niskie okno - bez opisu, zeby pasek sie miescil
                 if (!byUser && IptvSt.InfoSec == 0) return;   // tylko na zadanie
                 if (!_iptvPlaying.TryGetValue(pth, out var ch))
                 {
                     // zwykly film: tytul, miejsce / dlugosc, postep, ile zostalo i o ktorej koniec, nastepny z listy
                     infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
                     infoText.Children.Clear(); infoLogo.Source = null; infoLogo.Visibility = Visibility.Collapsed;
-                    Func<string, double, FontWeight, Brush, TextBlock> ft = (t, size, w, b) => new TextBlock { Text = t, FontSize = size, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
+                    Func<string, double, FontWeight, Brush, TextBlock> ft = (t, size, w, b) => new TextBlock { Text = t, FontSize = size * infoK, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
                     var fm = MetaFor(pth);   // dane z Jellyfin (lokalna baza)
                     infoText.Children.Add(ft("🎬 " + (MetaTitle(fm) ?? (curTitle.Length > 0 ? curTitle : System.IO.Path.GetFileNameWithoutExtension(pth))), 20, FontWeights.Bold, Brushes.White));
                     if (fm != null)
                     {
                         var fmeta = string.Join("  ·  ", new[] { fm.Rating > 0 ? "★ " + fm.Rating.ToString("0.0") : null, fm.Genres.Count > 0 ? string.Join(", ", fm.Genres) : null, fm.Director != null ? L.T("reż. ") + fm.Director : null }.Where(x => x != null));
                         if (fmeta.Length > 0) infoText.Children.Add(ft(fmeta, 12.5, FontWeights.Normal, Brushes.Silver));
-                        if (fm.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, fm.Poster); if (File.Exists(pf)) { infoLogo.Source = LoadLogo(pf); infoLogo.Visibility = Visibility.Visible; infoLogo.Height = 90; infoLogo.Width = 64; } }
+                        if (fm.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, fm.Poster); if (File.Exists(pf)) { infoLogo.Source = LoadLogo(pf); infoLogo.Visibility = Visibility.Visible; infoLogo.Height = 90 * infoK; infoLogo.Width = 64 * infoK; } }
                     }
                     long len = mp.Length, pos = Math.Max(0, mp.Time);
                     if (len > 0)
@@ -1060,18 +1063,18 @@ namespace Przegladarka
                     if (lc.Cues.Count > 0 && lc.File != null) extra.Add(L.T("💬 napisy: ") + System.IO.Path.GetFileName(lc.File));
                     if (_settings.VlcLector && lc.Cues.Count > 0) extra.Add(L.T("🗣 lektor włączony"));
                     if (extra.Count > 0) infoText.Children.Add(ft(string.Join("   ·   ", extra), 12.5, FontWeights.Normal, Brushes.Silver));
-                    if (fm != null && !string.IsNullOrEmpty(fm.Overview)) { var od = ft(fm.Overview, 13.5, FontWeights.Normal, Brushes.Gainsboro); od.MaxHeight = 58; od.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(od); }
+                    if (roomy && fm != null && !string.IsNullOrEmpty(fm.Overview)) { var od = ft(fm.Overview, 13.5, FontWeights.Normal, Brushes.Gainsboro); od.MaxHeight = 58 * infoK; od.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(od); }
                     if (_playIndex < _playlist.Count - 1) infoText.Children.Add(ft("⏭ " + L.T("Następny: ") + System.IO.Path.GetFileNameWithoutExtension(_playlist[_playIndex + 1]), 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
                     infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);
-                    infoScale(); infoBox.Visibility = Visibility.Visible; infoShownFor = null;
+                    infoBox.Visibility = Visibility.Visible; infoShownFor = null;
                     infoTimer.Stop(); infoTimer.Interval = TimeSpan.FromSeconds(IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec); infoTimer.Start();
                     return;
                 }
-                infoLogo.Visibility = Visibility.Visible; infoLogo.Width = 72; infoLogo.Height = 44;
+                infoLogo.Visibility = Visibility.Visible; infoLogo.Width = 72 * infoK; infoLogo.Height = 44 * infoK;
                 var l = EpgFor(_iptvEpg, ch); var now = DateTime.Now; var p0 = EpgAt(l, now); var nx = l?.FirstOrDefault(x => x.Start >= (p0?.Stop ?? now));
                 infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
                 infoText.Children.Clear();
-                Func<string, double, FontWeight, Brush, TextBlock> tb = (t, size, w, b) => new TextBlock { Text = t, FontSize = size, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
+                Func<string, double, FontWeight, Brush, TextBlock> tb = (t, size, w, b) => new TextBlock { Text = t, FontSize = size * infoK, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
                 infoText.Children.Add(tb((IsRecording(pth) ? "⏺ REC   " : "") + ch.Name, 15, FontWeights.SemiBold, Brushes.LightGray));
                 if (p0 == null) infoText.Children.Add(tb(_iptvEpg == null ? L.T("Brak programu TV") : L.T("Brak programu dla tego kanału"), 16, FontWeights.Normal, Brushes.White));
                 else
@@ -1082,19 +1085,20 @@ namespace Przegladarka
                     infoText.Children.Add(bar);
                     var meta = (int)done + L.T(" min z ") + (int)total + L.T(" · zostało ") + Math.Max(0, (int)Math.Ceiling(total - done)) + L.T(" min") + (p0.Cats.Count > 0 ? "  ·  " + string.Join(", ", p0.Cats) : "") + (!string.IsNullOrEmpty(p0.Year) ? "  ·  " + (p0.Year.Length > 4 ? p0.Year.Substring(0, 4) : p0.Year) : "");
                     infoText.Children.Add(tb(meta, 12.5, FontWeights.Normal, Brushes.Silver));
-                    if (!string.IsNullOrEmpty(p0.Desc)) { var d = tb(p0.Desc, 13.5, FontWeights.Normal, Brushes.Gainsboro); d.MaxHeight = 58; d.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(d); }
+                    if (roomy && !string.IsNullOrEmpty(p0.Desc)) { var d = tb(p0.Desc, 13.5, FontWeights.Normal, Brushes.Gainsboro); d.MaxHeight = 58 * infoK; d.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(d); }
                 }
                 if (nx != null) infoText.Children.Add(tb("⏭ " + L.T("Następnie: ") + nx.Start.ToString("HH:mm") + "  " + nx.Title, 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
                 infoLogo.Source = null;
                 var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
                 if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) infoLogo.Source = t.Result; }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
                 infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);   // nad paskiem sterowania
-                infoScale(); infoBox.Visibility = Visibility.Visible;
+                infoBox.Visibility = Visibility.Visible;
                 infoShownFor = p0 != null ? pth + p0.Start.Ticks : pth;
                 infoTimer.Stop();
                 var sec = IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec;
                 infoTimer.Interval = TimeSpan.FromSeconds(sec); infoTimer.Start();
             };
+            showInfoRef = showInfo;
             controls.IsVisibleChanged += (s, e) => { if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16); };
             win.Closed += (s, e) => infoTimer.Stop();
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)
@@ -1271,9 +1275,10 @@ namespace Przegladarka
             Action<int> setSpeed = d => { speedIdx = Math.Max(0, Math.Min(speeds.Length - 1, speedIdx + d)); mp.SetRate(speeds[speedIdx]); speed.Content = speeds[speedIdx].ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "×"; showOsd(L.T("Prędkość ") + speed.Content); };
             // tryb mini: male okienko bez ramki w prawym dolnym rogu, zawsze na wierzchu; powrot - poprzedni rozmiar i miejsce
             Rect normalBounds = Rect.Empty;
+            Action exitFull = null;   // ustawiane nizej (pelny ekran zdefiniowany po trybie mini)
             Action toggleMini = () =>
             {
-                if (full0) return;
+                if (full0) exitFull?.Invoke();   // z pelnego ekranu - najpierw wyjscie, potem mini
                 mini0 = !mini0;
                 if (mini0)
                 {
@@ -1305,6 +1310,7 @@ namespace Przegladarka
                 showBar();
                 full.Content = PlayerIcon(full0 ? "exitfull" : "full");
             };
+            exitFull = () => { if (full0) toggleFull(); };
 
             play.Click += (s, e) => togglePlay();
             stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); };   // Stop konczy wspolne ogladanie tylko tutaj

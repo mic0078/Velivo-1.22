@@ -1133,9 +1133,8 @@ namespace Przegladarka
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("⭐ Ulubione"), Tag = favKey });
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("🕘 Ostatnio oglądane"), Tag = recKey });
                     if (_iptvPl != null) foreach (var g in _iptvPl.Channels.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) chGroup.Items.Add(new ComboBoxItem { Content = g.Length == 0 ? L.T("(bez grupy)") : g, Tag = g });
-                    var saved = GetPref("grupa-lista-tv") ?? curKey;
-                    chGroup.SelectedItem = chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(x => (string)x.Tag == saved) ?? chGroup.Items[0];
                 }
+                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedIndex = 0;   // kazde otwarcie: biezaca lista i biezacy kanal
                 var gk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? curKey;
                 List<IptvChannel> chans;
                 if (gk == curKey) chans = _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]).ToList();
@@ -1180,7 +1179,6 @@ namespace Przegladarka
             chGroup.SelectionChanged += (s, e) =>
             {
                 if (!(chGroup.SelectedItem is ComboBoxItem gi) || !(gi.Tag is string g)) return;
-                SetPref("grupa-lista-tv", g);
                 if (chPanel.Visibility == Visibility.Visible) showChannels(true);
             };
             chGroup.DropDownOpened += (s, e) => chHide.Stop();   // wybieranie grupy - lista nie chowa sie

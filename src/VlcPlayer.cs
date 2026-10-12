@@ -429,7 +429,7 @@ namespace Przegladarka
                         mf(v) is MovieInfo m1 && ((m1.Name ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (m1.Original ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)), key, desc, mf)
                     .Select(v => new LibRow
                     {
-                        Item = v, Missing = !of.ContainsKey(v) && (v.Peer != null ? !online.Contains(v.Peer) : !exists(v.Path)), Title = MetaTitle(mf(v)) ?? v.Title,
+                        Item = v, Missing = !of.ContainsKey(v) && (v.Peer != null ? !online.Contains(v.Peer) : !exists(v.Path)), Title = MetaTitle(mf(v)) ?? CleanTitle(v.Title),
                         Year = mf(v)?.Year > 0 ? mf(v).Year.ToString() : "", Rating = mf(v)?.Rating > 0 ? "★ " + mf(v).Rating.ToString("0.0") : "", Genre = string.Join(", ", mf(v)?.Genres ?? new List<string>()),
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = SeenText(v),

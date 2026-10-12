@@ -65,7 +65,22 @@ namespace Przegladarka
 
         internal MovieInfo MetaFor(string path) { return path != null && Meta.TryGetValue(MetaKey(path), out var m) ? m : null; }
 
-        internal static string MetaTitle(MovieInfo m) { return m == null ? null : m.Name + (m.Year > 0 ? " (" + m.Year + ")" : ""); }
+        // tytul z Jellyfin tylko dla rozpoznanego filmu (nierozpoznany ma za nazwe nazwe pliku - bez opisu i oceny)
+        internal static string MetaTitle(MovieInfo m) { return m == null || string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? null : m.Name + (m.Year > 0 ? " (" + m.Year + ")" : ""); }
+
+        // czytelny tytul z nazwy pliku: bez [dopiskow], jakosci i kodekow, kropki jako spacje, rok w nawiasie
+        internal static string CleanTitle(string raw)
+        {
+            var t = System.Text.RegularExpressions.Regex.Replace(raw ?? "", @"\[[^\]]*\]", " ");
+            t = System.Text.RegularExpressions.Regex.Replace(t, @"[._]", " ");
+            string title, year = null;
+            var m = System.Text.RegularExpressions.Regex.Match(t, @"^(.+?)[\s(\-]*\b((19|20)\d{2})\b");
+            if (m.Success) { title = m.Groups[1].Value; year = m.Groups[2].Value; }
+            else title = System.Text.RegularExpressions.Regex.Replace(t, @"[\s\-]*\b(pl|lektor|dubbing|napisy|\d{3,4}p|4k|bdrip|brrip|bluray|web-?dl|webrip|hdtv|dvdrip|x26[45]|h ?26[45]|hevc|xvid|divx|ac3|dd\d.*|aac.*|lp|dp|r d11)\b.*$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            title = System.Text.RegularExpressions.Regex.Replace(title, @"\s+", " ").Trim(' ', '-', '–', '(', ',');
+            if (title.Length == 0) return raw;
+            return year != null ? title + " (" + year + ")" : title;
+        }
 
         JellyfinConf LoadJellyfinConf()
         {

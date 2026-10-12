@@ -22,4 +22,16 @@ public class JellyfinMetaTests
         Assert.Equal("Ridley Scott", m.Director); Assert.Equal(new[] { "Sigourney Weaver" }, m.People); Assert.Equal("t1", m.ImageTag);
         Assert.Equal("Obcy - 8. pasażer Nostromo (1979)", MainWindow.MetaTitle(m));
     }
+
+    [Fact]
+    public void CzytelnyTytulZNazwyPliku()
+    {
+        Assert.Equal("Mad Max 3- Pod Kopułą Gromu (1985)", MainWindow.CleanTitle("[ELECTRO-TORRENT] Mad Max 3- Pod Kopułą Gromu 1985 LP r.d11"));
+        Assert.Equal("Alien (1979)", MainWindow.CleanTitle("Alien.1979.PL.1080p.BDRip.DD.2.0.x264-MR"));
+        Assert.Equal("2001 A Space Odyssey (1968)", MainWindow.CleanTitle("2001.A.Space.Odyssey.1968.2160p.4K.BluRay.x265.10bit.AAC5.1"));
+        Assert.Equal("Distant (2024)", MainWindow.CleanTitle("[devil-torrents.pl] Distant (2024) [XviD.720p] Lektor PL [AC3]"));
+        Assert.Equal("28 years later", MainWindow.CleanTitle("28 years later-720p"));
+        // nierozpoznany w Jellyfin (bez opisu i oceny) - nie jego "tytul" (nazwa pliku)
+        Assert.Null(MainWindow.MetaTitle(new MainWindow.MovieInfo { Name = "Alien.1979.PL.1080p", Year = 1979 }));
+    }
 }

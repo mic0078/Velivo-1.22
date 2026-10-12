@@ -153,5 +153,45 @@ namespace Przegladarka
             try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
             catch (Exception ex) { App.LogError(ex); }
         }
+
+        // sortowanie dowolnej listy (ListView + GridView z DisplayMemberBinding): klik w naglowek, drugi klik - odwrotnie,
+        // zapamietane; wlasciwosc "<Kolumna>Sort" (jesli jest) to klucz sortowania (np. data jako DateTime zamiast tekstu)
+        internal static Action SortableList(System.Windows.Controls.ListView list, string prefKey)
+        {
+            var grid = (System.Windows.Controls.GridView)list.View;
+            var p = (GetPref("sort-" + prefKey) ?? "").Split(',');
+            string key = p[0].Length > 0 ? p[0] : null; bool desc = p.Length > 1 && p[1] == "desc";
+            var headers = new List<Tuple<System.Windows.Controls.GridViewColumnHeader, string, string>>();
+            foreach (var c in grid.Columns)
+            {
+                var path = (c.DisplayMemberBinding as System.Windows.Data.Binding)?.Path?.Path; if (path == null) continue;
+                var text = c.Header as string ?? (c.Header as System.Windows.Controls.GridViewColumnHeader)?.Content as string ?? path;
+                var h = new System.Windows.Controls.GridViewColumnHeader { Content = text, Tag = path, Cursor = Cursors.Hand };
+                c.Header = h; headers.Add(Tuple.Create(h, path, text));
+            }
+            Action apply = () =>
+            {
+                foreach (var h in headers) h.Item1.Content = h.Item3 + (h.Item2 == key ? (desc ? "  ▼" : "  ▲") : "");
+                var src = list.ItemsSource as System.Collections.IEnumerable; if (src == null || key == null) return;
+                var items = src.Cast<object>().ToList(); if (items.Count == 0) return;
+                var t = items[0].GetType(); var prop = t.GetProperty(key + "Sort") ?? t.GetProperty(key);
+                System.Reflection.FieldInfo fld = prop == null ? t.GetField(key + "Sort") ?? t.GetField(key) : null;
+                if (prop == null && fld == null) return;
+                Func<object, object> get = o => prop != null ? prop.GetValue(o) : fld.GetValue(o);
+                var cmp = Comparer<object>.Create((a, b) => a is string sa && b is string sb ? string.Compare(sa, sb, StringComparison.CurrentCultureIgnoreCase) : Comparer<object>.Default.Compare(a, b));
+                var sel = list.SelectedItem;
+                list.ItemsSource = (desc ? items.OrderByDescending(get, cmp) : items.OrderBy(get, cmp)).ToList();
+                if (sel != null) list.SelectedItem = sel;
+            };
+            list.AddHandler(System.Windows.Controls.GridViewColumnHeader.ClickEvent, new RoutedEventHandler((s, a) =>
+            {
+                if (!(a.OriginalSource is System.Windows.Controls.GridViewColumnHeader h) || !(h.Tag is string k)) return;
+                if (k == key) desc = !desc; else { key = k; desc = false; }
+                SetPref("sort-" + prefKey, key + (desc ? ",desc" : ""));
+                apply();
+            }));
+            apply();
+            return apply;   // wywolac po kazdym ustawieniu ItemsSource
+        }
 }
 }

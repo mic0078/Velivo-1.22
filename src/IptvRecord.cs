@@ -123,7 +123,7 @@ namespace Przegladarka
             var file = Path.Combine(dir, RecordingName(j.Channel, j.Title, DateTime.Now));
             ShowToast(L.T("⏺ Nagrywam: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
             _iptvJobsChanged?.Invoke();
-            var until = LocalOf(j.Stop);
+            Func<DateTime> until = () => LocalOf(j.Stop);   // "Przedluz" zmienia j.Stop w trakcie nagrywania
             Task.Run(() => RecordStream(j.Url, j.Opts, file, until, cts.Token)).ContinueWith(t => Dispatcher.BeginInvoke(new Action(() =>
             {
                 _recording.Remove(j.Id);
@@ -157,7 +157,9 @@ namespace Przegladarka
         }
 
         // null = w porzadku; tekst = powod przerwania (plik moze byc czesciowy)
-        internal static async Task<string> RecordStream(string url, List<string> opts, string file, DateTime until, CancellationToken ct)
+        internal static Task<string> RecordStream(string url, List<string> opts, string file, DateTime until, CancellationToken ct) { return RecordStream(url, opts, file, () => until, ct); }
+
+        internal static async Task<string> RecordStream(string url, List<string> opts, string file, Func<DateTime> until, CancellationToken ct)
         {
             if (!(url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
                 return L.T("nagrywanie działa dla kanałów http/https");
@@ -166,7 +168,7 @@ namespace Przegladarka
             using (var outFs = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.Read))
             {
                 string lastErr = null; int fails = 0;
-                while (DateTime.Now < until && !ct.IsCancellationRequested)
+                while (DateTime.Now < until() && !ct.IsCancellationRequested)
                 {
                     try
                     {
@@ -190,25 +192,25 @@ namespace Przegladarka
                     }
                     catch (OperationCanceledException) { break; }
                     catch (Exception ex) { lastErr = ex.Message; if (++fails >= 20) return lastErr; }
-                    if (DateTime.Now < until && !ct.IsCancellationRequested) { try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { break; } }   // zerwane polaczenie - ponownie
+                    if (DateTime.Now < until() && !ct.IsCancellationRequested) { try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { break; } }   // zerwane polaczenie - ponownie
                 }
                 return outFs.Length == 0 ? (lastErr ?? L.T("brak danych")) : null;
             }
         }
 
-        static async Task CopyUntil(Stream s, Stream outFs, DateTime until, CancellationToken ct)
+        static async Task CopyUntil(Stream s, Stream outFs, Func<DateTime> until, CancellationToken ct)
         {
             var buf = new byte[65536]; int n;
-            while (DateTime.Now < until && !ct.IsCancellationRequested && (n = await s.ReadAsync(buf, 0, buf.Length, ct)) > 0)
+            while (DateTime.Now < until() && !ct.IsCancellationRequested && (n = await s.ReadAsync(buf, 0, buf.Length, ct)) > 0)
                 await outFs.WriteAsync(buf, 0, n, ct);
         }
 
         // HLS: lista segmentow odswiezana co chwile, nowe segmenty dopisywane po kolei (lista glowna - najlepsza jakosc)
-        static async Task<string> RecordHls(HttpClient http, string url, Stream outFs, DateTime until, CancellationToken ct)
+        static async Task<string> RecordHls(HttpClient http, string url, Stream outFs, Func<DateTime> until, CancellationToken ct)
         {
             var seen = new HashSet<string>();
             var baseUri = new Uri(url);
-            while (DateTime.Now < until && !ct.IsCancellationRequested)
+            while (DateTime.Now < until() && !ct.IsCancellationRequested)
             {
                 var text = await http.GetStringAsync(baseUri, ct);
                 var pl = ParseHls(text, baseUri);
@@ -216,12 +218,12 @@ namespace Przegladarka
                 if (pl.Variant != null) { baseUri = pl.Variant; continue; }
                 foreach (var seg in pl.Segments)
                 {
-                    if (DateTime.Now >= until || ct.IsCancellationRequested) break;
+                    if (DateTime.Now >= until() || ct.IsCancellationRequested) break;
                     if (!seen.Add(seg.AbsoluteUri)) continue;
                     using (var resp = await http.GetAsync(seg, HttpCompletionOption.ResponseHeadersRead, ct))
                     {
                         if (!resp.IsSuccessStatusCode) continue;
-                        using (var s = await resp.Content.ReadAsStreamAsync()) await CopyUntil(s, outFs, DateTime.MaxValue, ct);
+                        using (var s = await resp.Content.ReadAsStreamAsync()) await CopyUntil(s, outFs, () => DateTime.MaxValue, ct);
                     }
                 }
                 if (pl.Ended) break;   // nagranie (VOD) - koniec listy
@@ -323,13 +325,22 @@ namespace Przegladarka
             foreach (var c in new[] { new[] { "What", "Co", "70" }, new[] { "When", "Kiedy", "170" }, new[] { "Channel", "Kanał", "160" }, new[] { "Title", "Program", "220" } })
                 grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
             var list = new ListView { View = grid, Margin = new Thickness(8) };
-            Action fill = () => list.ItemsSource = IptvSt.Jobs.OrderBy(j => j.Start).Select(j => new
+            Action sortJobs = null;
+            Action fill = () =>
             {
-                Job = j, Channel = j.Channel, Title = j.Title,
-                What = j.Kind == "switch" ? "⏰" : _recording.ContainsKey(j.Id) ? L.T("⏺ teraz") : "⏺",
-                When = LocalOf(j.Start).ToString("dd.MM HH:mm") + (j.Kind == "rec" ? "–" + LocalOf(j.Stop).ToString("HH:mm") : ""),
-            }).ToList();
+                list.ItemsSource = IptvSt.Jobs.OrderBy(j => j.Start).Select(j => new
+                {
+                    Job = j, Channel = j.Channel, Title = j.Title, WhenSort = j.Start,
+                    What = j.Kind == "switch" ? "⏰" : _recording.ContainsKey(j.Id) ? L.T("⏺ teraz") : "⏺",
+                    When = LocalOf(j.Start).ToString("dd.MM HH:mm") + (j.Kind == "rec" ? "–" + LocalOf(j.Stop).ToString("HH:mm") : ""),
+                }).ToList();
+                sortJobs?.Invoke();
+            };
+            sortJobs = SortableList(list, "zaplanowane");
             fill();
+            Func<IptvJob> selJob = () => { var it = list.SelectedItem; return it == null ? null : (IptvJob)it.GetType().GetProperty("Job").GetValue(it); };
+            // przedluzenie nagrania (takze w trakcie) - np. mecz z dogrywka
+            Action<int> extend = min => { var j = selJob(); if (j == null || j.Kind != "rec") return; j.Stop += min * 60000L; SaveIptv(IptvSt); fill(); ShowToast(L.T("⏺ Nagranie do ") + LocalOf(j.Stop).ToString("HH:mm") + " – " + j.Channel, null); };
             Action remove = () =>
             {
                 var it = list.SelectedItem; if (it == null) return;
@@ -341,7 +352,15 @@ namespace Przegladarka
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
             bar.Children.Add(SmallButton(L.T("❌ Odwołaj / zatrzymaj"), remove));
             list.PreviewKeyDown += (s, a) => { if (a.Key == System.Windows.Input.Key.Delete) { remove(); a.Handled = true; } };
-            var cm = new ContextMenu(); var cmi = new MenuItem { Header = L.T("❌ Odwołaj (nagrywanie w toku – zatrzymaj)") }; cmi.Click += (s, a) => remove(); cm.Items.Add(cmi); list.ContextMenu = cm;
+            var cm = new ContextMenu();
+            cm.Opened += (s, a) =>
+            {
+                cm.Items.Clear(); var j = selJob();
+                Action<string, Action> add = (t, act) => { var mi = new MenuItem { Header = t, IsEnabled = j != null }; mi.Click += (q, e) => act(); cm.Items.Add(mi); };
+                add(L.T("❌ Odwołaj (nagrywanie w toku – zatrzymaj)"), remove);
+                if (j == null || j.Kind == "rec") { add(L.T("⏩ Przedłuż nagranie o 15 min"), () => extend(15)); add(L.T("⏩ Przedłuż nagranie o 30 min"), () => extend(30)); add(L.T("⏩ Przedłuż nagranie o 1 godz."), () => extend(60)); }
+            };
+            list.ContextMenu = cm;
             bar.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
             var body = new DockPanel();
             DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
@@ -371,15 +390,18 @@ namespace Przegladarka
             var list = new ListView { View = grid, Margin = new Thickness(8), SelectionMode = SelectionMode.Extended };
             RememberColumns(w, "nagrania", grid);
             var count = new TextBlock { Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            Action sortRec = null;
             Action fill = () =>
             {
                 var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir };
                 foreach (var j in IptvSt.Jobs) if (!string.IsNullOrWhiteSpace(j.Folder)) dirs.Add(j.Folder);
                 var files = dirs.Where(Directory.Exists).SelectMany(d => { try { return Directory.GetFiles(d, "*.ts"); } catch (Exception) { return new string[0]; } })
                     .Select(f => new FileInfo(f)).OrderByDescending(f => f.LastWriteTime).ToList();
-                list.ItemsSource = files.Select(f => new { Path = f.FullName, Name = Path.GetFileNameWithoutExtension(f.Name), Date = f.LastWriteTime.ToString("dd.MM.yyyy HH:mm"), Size = (f.Length / 1048576.0).ToString("0") + " MB" }).ToList();
+                list.ItemsSource = files.Select(f => new { Path = f.FullName, Name = Path.GetFileNameWithoutExtension(f.Name), Date = f.LastWriteTime.ToString("dd.MM.yyyy HH:mm"), DateSort = f.LastWriteTime, Size = (f.Length / 1048576.0).ToString("0") + " MB", SizeSort = f.Length }).ToList();
+                sortRec?.Invoke();
                 count.Text = files.Count + L.T(" nagrań");
             };
+            sortRec = SortableList(list, "nagrania");
             Func<List<string>> sel = () => list.SelectedItems.Cast<object>().Select(o => (string)o.GetType().GetProperty("Path").GetValue(o)).ToList();
             Action play = () => { var p = sel(); if (p.Count > 0) PlayVideos(p.ToArray(), 0); };
             Action del = () =>

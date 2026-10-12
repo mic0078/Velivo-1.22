@@ -137,6 +137,7 @@ namespace Przegladarka
                 grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
             var list = new ListView { View = grid, Margin = new Thickness(8, 0, 8, 0) };
             RememberColumns(w, "napisy", grid);
+            var sortSubs = SortableList(list, "napisy");
             var status = new TextBlock { Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             string token = null;
             Func<Task<bool>> login = async () =>
@@ -178,6 +179,7 @@ namespace Przegladarka
                         });
                     }
                     list.ItemsSource = res.OrderBy(r => r.Match == L.T("✔ ten plik") ? 0 : 1).ThenByDescending(r => r.Downloads).ToList();
+                    sortSubs?.Invoke();
                     status.Text = res.Count == 0 ? L.T("Nie znaleziono napisów – zmień nazwę w polu wyszukiwania.") : res.Count + L.T(" wyników · dwuklik = pobierz");
                 }
                 catch (Exception ex) { status.Text = L.T("⚠ ") + ex.Message; }

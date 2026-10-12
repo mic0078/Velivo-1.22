@@ -188,6 +188,7 @@ namespace Przegladarka
                 menu.Items.Add(mi);
             };
             item("\uE8B3", L.T("Biblioteka filmów"), ShowVideoLibrary);
+            if (IptvInstalled) item("\uE7F4", L.T("📺 Nagrane z TV"), () => { _libTvView = true; _libSharedView = false; if (_libWin != null && _libWin.IsLoaded) _libWin.Close(); ShowVideoLibrary(); });
             item("\uE8E5", L.T("Otwórz film z dysku…"), () => { var f = PickVideoFiles(false); if (f != null) PlayVideos(f, 0); });
             menu.Items.Add(new Separator());
             item("\uE710", L.T("Dodaj filmy do biblioteki…"), () => { var f = PickVideoFiles(true); if (f != null) AddPathsToLibrary(f); });
@@ -951,6 +952,10 @@ namespace Przegladarka
                 applyTracks();
                 showOsd(_settings.VlcShowSubs ? L.T("Napisy: widoczne") : L.T("Napisy: ukryte (lektor czyta)"));
             };
+            string curTitle = "";
+            Action recTitle = () => { var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (pth != null && curTitle.Length > 0) win.Title = (IsRecording(pth) ? "⏺ REC  " : "") + curTitle + " – " + L.T("Odtwarzacz filmów"); };
+            _iptvJobsChanged += recTitle;   // nagrywanie ogladanego kanalu - widac w tytule
+            win.Closed += (s, e) => _iptvJobsChanged -= recTitle;
             _vlcLoad = i =>
             {
                 savePos();
@@ -969,7 +974,8 @@ namespace Przegladarka
                 else if (rf == null) current = FindEntry(LoadLibrary(), path, _playShared);
                 bool stream = path.Contains("://");
                 var name = rf != null ? rf.Title : tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path);
-                win.Title = name + " – " + L.T("Odtwarzacz filmów");
+                curTitle = name;
+                win.Title = (IsRecording(path) ? "⏺ REC  " : "") + name + " – " + L.T("Odtwarzacz filmów");
                 LectorStopVoice(lc, mp);
                 if (stream && rf?.Sub != null)
                 {
@@ -1000,6 +1006,7 @@ namespace Przegladarka
                 var tracksTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
                 tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); mp.Volume = (int)vol.Value; };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
+                if (tv != null) { var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); }   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
                 if (tv != null) { var now = EpgAt(EpgFor(_iptvEpg, tv), DateTime.Now); showOsd("📺 " + (i + 1) + ". " + tv.Name + (now != null ? "\n" + now.Title : "")); }
                 speedIdx = 3; speed.Content = "1×";
                 prev.IsEnabled = i > 0; next.IsEnabled = i < _playlist.Count - 1;
@@ -1262,6 +1269,20 @@ namespace Przegladarka
                 if (IptvInstalled) add(L.T("📅 Pełny program TV"), () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path != null && _iptvPlaying.ContainsKey(path) ? path : null), true);
                 if (path != null && _iptvPlaying.ContainsKey(path))
                 {
+                    var tvNow = _iptvPlaying[path]; var epgL = EpgFor(_iptvEpg, tvNow); var nowP = EpgAt(epgL, DateTime.Now);
+                    var nextP = epgL?.FirstOrDefault(x => x.Start >= (nowP?.Stop ?? DateTime.Now));
+                    if (nowP != null) add(L.T("▶ Teraz: ") + nowP.Title + L.T(" (do ") + nowP.Stop.ToString("HH:mm") + ")", () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
+                    if (nextP != null) add(L.T("⏭ Następnie: ") + nextP.Start.ToString("HH:mm") + " " + nextP.Title, () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
+                    bool isFav = IptvSt.Fav.Contains(path);
+                    add(isFav ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), () => { if (!IptvSt.Fav.Remove(path)) IptvSt.Fav.Add(path); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); }, true);
+                    // ostatnio ogladane kanaly - szybkie przelaczenie
+                    var recent = IptvSt.Recent.Where(u => u != path).Take(10).Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : _iptvPl?.Channels.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
+                    if (recent.Count > 0)
+                    {
+                        var rm = new MenuItem { Header = L.T("🕘 Ostatnio oglądane kanały") };
+                        foreach (var c0 in recent) { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (q, w2) => { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }; rm.Items.Add(mi); }
+                        cm.Items.Add(rm);
+                    }
                     add(L.T("⏮ Poprzedni kanał (PgUp)"), () => _vlcLoad(_playIndex - 1), _playIndex > 0);
                     add(L.T("⏭ Następny kanał (PgDn)"), () => _vlcLoad(_playIndex + 1), _playIndex < _playlist.Count - 1);
                     var tvCh = _iptvPlaying[path];

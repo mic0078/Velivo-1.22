@@ -28,6 +28,7 @@ namespace Przegladarka
             var hours = new ComboBox { Margin = new Thickness(8, 8, 0, 4), Width = 190, ToolTip = L.T("Jak często odświeżać listę i program TV") };
             var hoursOpts = new[] { 3, 6, 12, 24, 48, 168, 0 };
             foreach (var t in new[] { "co 3 godziny", "co 6 godzin", "co 12 godzin", "codziennie", "co 2 dni", "co tydzień", "tylko ręcznie" }) hours.Items.Add(L.T("Odświeżanie: ") + L.T(t));
+            var group = new ComboBox { Margin = new Thickness(8, 8, 0, 4), Width = 200, ToolTip = L.T("Grupa kanałów") };
             var sort = new ComboBox { Margin = new Thickness(8, 8, 0, 4), Width = 170 };
             var sortOpts = new[] { "nr", "az", "za" };
             foreach (var t in new[] { "Sortuj: jak na liście", "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A" }) sort.Items.Add(L.T(t));
@@ -36,7 +37,7 @@ namespace Przegladarka
             var status = new TextBlock { Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 8, 0, 4) };
             var top = new StackPanel { Orientation = Orientation.Horizontal };
             top.Children.Add(new TextBlock { Text = "🔍", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 8, 0, 4) });
-            foreach (var c in new FrameworkElement[] { search, sort, hours, refresh, JobsBadge(w), status }) top.Children.Add(c);
+            foreach (var c in new FrameworkElement[] { search, group, sort, hours, refresh, JobsBadge(w), status }) top.Children.Add(c);
 
             var chans = new ListBox { Width = 230, Margin = new Thickness(8, 0, 0, 8) };
             var progs = new ListBox { Margin = new Thickness(8, 0, 8, 8), HorizontalContentAlignment = HorizontalAlignment.Stretch };
@@ -50,12 +51,31 @@ namespace Przegladarka
                 var pl = _iptvPl; var epg = _iptvEpg;
                 if (pl == null) { status.Text = L.T("Wczytuję kanały…"); return; }
                 var q = search.Text.Trim();
-                var found = pl.Channels.Where(c => EpgFor(epg, c) != null && (q.Length == 0 || c.Name.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0));
+                // grupy: wszystkie, ulubione, grupy z listy (wybor zapamietany)
+                var gsel = (group.SelectedItem as ComboBoxItem)?.Tag as string ?? GetPref("grupa-program") ?? "\u0001all";
+                if (group.Items.Count == 0)
+                {
+                    group.Items.Add(new ComboBoxItem { Content = L.T("📺 Wszystkie"), Tag = "\u0001all" });
+                    group.Items.Add(new ComboBoxItem { Content = L.T("⭐ Ulubione"), Tag = "\u0001fav" });
+                    foreach (var g in pl.Channels.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) group.Items.Add(new ComboBoxItem { Content = g.Length == 0 ? L.T("(bez grupy)") : g, Tag = g });
+                    group.SelectedItem = group.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == gsel) ?? group.Items[0];
+                    gsel = (string)((ComboBoxItem)group.SelectedItem).Tag;
+                }
+                var fav = IptvSt.Fav;
+                var found = pl.Channels.Where(c => EpgFor(epg, c) != null && (q.Length == 0 || c.Name.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0) &&
+                    (gsel == "\u0001all" || (gsel == "\u0001fav" ? fav.Contains(c.Url) : c.Group == gsel)));
                 var so = sortOpts[Math.Max(0, sort.SelectedIndex)];
                 if (so == "az") found = found.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase);
                 else if (so == "za") found = found.OrderByDescending(c => c.Name, StringComparer.CurrentCultureIgnoreCase);
                 foreach (var ch in found)
-                    chans.Items.Add(new ListBoxItem { Content = "📺 " + ch.Name, Tag = ch });
+                {
+                    var row = new StackPanel { Orientation = Orientation.Horizontal };
+                    var img = new Image { Width = 32, Height = 18, Margin = new Thickness(0, 0, 6, 0), Stretch = Stretch.Uniform };
+                    row.Children.Add(img); row.Children.Add(new TextBlock { Text = (fav.Contains(ch.Url) ? "⭐ " : "") + ch.Name, VerticalAlignment = VerticalAlignment.Center });
+                    chans.Items.Add(new ListBoxItem { Content = row, Tag = ch });
+                    var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
+                    if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) img.Source = t.Result; }, TaskScheduler.FromCurrentSynchronizationContext());
+                }
                 chans.SelectedItem = chans.Items.Cast<ListBoxItem>().FirstOrDefault(i => ((IptvChannel)i.Tag).Url == keep) ?? (chans.Items.Count > 0 ? chans.Items[0] : null);
                 chans.ScrollIntoView(chans.SelectedItem);
                 var src = _iptvSrc;
@@ -89,6 +109,7 @@ namespace Przegladarka
             };
             chans.SelectionChanged += (s, a) => fillProgs();
             search.TextChanged += (s, a) => fillChans();
+            group.SelectionChanged += (s, a) => { if (group.SelectedItem is ComboBoxItem gi && gi.Tag is string g) { SetPref("grupa-program", g); fillChans(); } };
             sort.SelectionChanged += (s, a) => { SetPref("sort-program", sortOpts[Math.Max(0, sort.SelectedIndex)]); fillChans(); };
             hours.SelectionChanged += (s, a) =>
             {

@@ -63,6 +63,8 @@ namespace Przegladarka
             public string Win { get; set; }
             public string Group { get; set; }    // ostatnio wybrana grupa
             public int Buffer { get; set; } = 1;  // zapas bufora kanalow na zywo (s); 1 = jak VLC
+            public int InfoSec { get; set; } = 5;        // pasek informacji o programie: znika po tylu sekundach; 0 = tylko na zadanie (klawisz I)
+            public int InfoAlpha { get; set; } = 85;     // nieprzezroczystosc paska informacji (%)
             public Dictionary<string, string> EpgMap { get; set; } = new Dictionary<string, string>();   // reczne przypisanie programu TV: adres kanalu -> id w EPG
             public string Sort { get; set; }     // sortowanie: "kolumna" albo "kolumna,desc"      // miejsce i rozmiar okna listy: "x,y,szer,wys"
         }

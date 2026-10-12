@@ -28,7 +28,7 @@ jobs:
 
       - name: Testy jednostkowe (prawdziwy kod Velivo - Integrity, Mark-of-the-Web)
         shell: pwsh
-        run: dotnet test testy\Velivo.Tests\Velivo.Tests.csproj -c Release --logger "console;verbosity=detailed"
+        run: dotnet test testy\Velivo.Tests\Velivo.Tests.csproj -c Release --filter "Category!=Vlc" --logger "console;verbosity=detailed"
 
       - name: Kompilacja Velivo PO poprawkach
         shell: pwsh

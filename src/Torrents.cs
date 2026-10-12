@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -309,6 +309,7 @@ namespace Przegladarka
         void OpenArg(string a)
         {
             var video = VideoArg(a);
+            if (video != null && VlcInstalled) { PlayVideos(new[] { video }, 0); return; }   // dodatek "jak VLC" - wszystkie formaty
             if (video != null && _settings.VideoPlayer) { AddTab(PlayerUrl(video)); return; }
             var t = TorrentArg(a);
             if (t == null) AddTab(a);

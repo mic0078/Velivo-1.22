@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -23,7 +23,7 @@ namespace Przegladarka
         internal static string VideoArg(string a)
         {
             Uri u;
-            return Uri.TryCreate(a, UriKind.Absolute, out u) && u.IsFile && IsVideoFile(u.LocalPath) ? u.LocalPath : null;
+            return Uri.TryCreate(a, UriKind.Absolute, out u) && u.IsFile && (IsVideoFile(u.LocalPath) || (VlcInstalled && IsVlcVideoFile(u.LocalPath))) ? u.LocalPath : null;
         }
 
         static string PlayerFile { get { return Path.Combine(DataDir, "odtwarzacz.html"); } }
@@ -60,13 +60,14 @@ namespace Przegladarka
         // Ctrl+O / menu Narzedzia Velivo: film z dysku do odtwarzacza, PDF do wbudowanego czytnika
         void OpenLocalFile()
         {
-            var vids = string.Join(";", VideoExts.Select(x => "*" + x));
+            var vids = string.Join(";", (VlcInstalled ? VideoExts.Concat(VlcExtraExts) : VideoExts).Select(x => "*" + x));
             var dlg = new Microsoft.Win32.OpenFileDialog
             {
                 Title = L.T("Otwórz plik z dysku"),
                 Filter = L.T("Filmy i PDF") + "|" + vids + ";*.pdf|" + L.T("Filmy") + "|" + vids + "|PDF|*.pdf|" + L.T("Wszystkie pliki") + "|*.*",
             };
             if (dlg.ShowDialog(this) != true) return;
+            if (VlcInstalled && IsVlcVideoFile(dlg.FileName)) { PlayVideos(new[] { dlg.FileName }, 0); return; }
             AddTab(IsVideoFile(dlg.FileName) && _settings.VideoPlayer ? PlayerUrl(dlg.FileName) : new Uri(dlg.FileName).AbsoluteUri);
         }
 

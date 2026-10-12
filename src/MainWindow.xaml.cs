@@ -143,6 +143,7 @@ namespace Przegladarka
             LoadZoom();
             LoadSiteModes();
             InitBankMode();
+            InitVlcFeature();   // 🎬 odtwarzacz filmow - tylko gdy dodatek wybrany w instalatorze
             InitZoomMenu();
             UpdateDarkButton();
             ApplyBrowserTheme();

@@ -89,7 +89,16 @@ jobs:
 
       - name: Testy jednostkowe (prawdziwy kod Velivo)
         shell: pwsh
-        run: dotnet test testy\Velivo.Tests\Velivo.Tests.csproj -c Release --logger "console;verbosity=normal"
+        run: dotnet test testy\Velivo.Tests\Velivo.Tests.csproj -c Release --filter "Category!=Vlc" --logger "console;verbosity=normal"
+
+      - name: Test odtwarzacza filmow (libvlc pobrana i rozpakowana jak w instalatorze, odtwarza AVI)
+        shell: pwsh
+        run: |
+          python -I testy/odtwarzacz-vlc/przygotuj.py "$env:RUNNER_TEMP\vlc"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $env:VELIVO_VLC_DIR = "$env:RUNNER_TEMP\vlc\build\x64"
+          $env:VELIVO_VLC_AVI = "$env:RUNNER_TEMP\vlc\test.avi"
+          dotnet test testy\Velivo.Tests\Velivo.Tests.csproj -c Release --filter "Category=Vlc" --logger "console;verbosity=normal"
 
       - name: Test LAN end-to-end (duzy stan, sparowany komputer)
         shell: pwsh

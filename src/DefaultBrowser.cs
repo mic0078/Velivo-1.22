@@ -187,7 +187,21 @@ namespace Przegladarka
                     using (var i = k.CreateSubKey("DefaultIcon")) i.SetValue("", exe + ",0");
                     using (var c = k.CreateSubKey(@"shell\open\command")) c.SetValue("", open);
                 }
-            var types = new[] { ".pdf" }.Concat(VideoExts).ToArray();
+            var types = new[] { ".pdf" }.Concat(VideoExts).Concat(VlcInstalled ? VlcExtraExts : new string[0]).ToArray();
+            // odtwarzacz filmow odinstalowany: AVI, WMV i inne znikaja z "Otworz za pomoca"
+            if (!VlcInstalled)
+                using (var t = Registry.CurrentUser.OpenSubKey(appKey + @"\SupportedTypes", true))
+                    if (t != null && t.GetValue(VlcExtraExts[0]) != null)
+                    {
+                        changed = true;
+                        foreach (var ext in VlcExtraExts)
+                        {
+                            t.DeleteValue(ext, false);
+                            using (var k = Registry.CurrentUser.OpenSubKey(@"Software\Classes\" + ext + @"\OpenWithProgids", true)) k?.DeleteValue(VideoProgId, false);
+                        }
+                    }
+            using (var t = Registry.CurrentUser.OpenSubKey(appKey + @"\SupportedTypes"))
+                if (VlcInstalled && (t == null || t.GetValue(VlcExtraExts[0]) == null)) changed = true;
             using (var k = Registry.CurrentUser.CreateSubKey(appKey))
             {
                 k.SetValue("FriendlyAppName", AppName);

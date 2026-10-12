@@ -898,7 +898,7 @@ namespace Przegladarka
                 if (act == "pause") { mp.SetPause(true); if (pos > 0) mp.Time = pos; showOsd(L.T("⏸ Pauza na drugim komputerze")); }
                 else if (act == "play") { if (pos > 0 && Math.Abs(mp.Time - pos) > 1500) mp.Time = pos; mp.SetPause(false); }
                 else if (act == "seek") { if (mp.Length > 0) mp.Time = pos; }
-                else if (act == "stop") { savePos(); mp.Stop(); showOsd(L.T("⏹ Zatrzymano na drugim komputerze")); }
+                else if (act == "leave") showOsd(L.T("👋 Drugi komputer wyszedł – oglądasz dalej sam"));   // tylko informacja - film gra dalej
             };
             Action<double> setVol = v => { vol.Value = Math.Max(0, Math.Min(125, v)); };
             vol.ValueChanged += (s, e) => { _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (mp.Mute && vol.Value > 0) mp.Mute = false; mute.Content = PlayerIcon(mp.Mute || vol.Value == 0 ? "mute" : "volume"); };
@@ -942,7 +942,7 @@ namespace Przegladarka
             };
 
             play.Click += (s, e) => togglePlay();
-            stop.Click += (s, e) => { savePos(); mp.Stop(); TogetherSend("stop", 0); };
+            stop.Click += (s, e) => { savePos(); mp.Stop(); LeaveTogether(); };   // Stop konczy wspolne ogladanie tylko tutaj
             prev.Click += (s, e) => _vlcLoad(_playIndex - 1);
             next.Click += (s, e) => _vlcLoad(_playIndex + 1);
             back10.Click += (s, e) => jump(-10000);
@@ -1071,7 +1071,7 @@ namespace Przegladarka
             {
                 saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);
                 _vlcWin = null; _vlcLoad = null; _vlcRemoteCtl = null;
-                if (_together != null) { TogetherSend("stop", 0); _together = null; }   // zamkniecie odtwarzacza konczy wspolne ogladanie
+                LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
                 view.MediaPlayer = null;
                 System.Threading.Tasks.Task.Run(() => { try { mp.Stop(); mp.Dispose(); } catch (Exception) { } });   // Stop VLC moze chwile trwac - nie w watku okna
             };

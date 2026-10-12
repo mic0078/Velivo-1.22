@@ -41,7 +41,7 @@ namespace Przegladarka
             public long len { get; set; }
             public bool done { get; set; }
             public long startAt { get; set; }     // wspolny start (unix ms)
-            public string act { get; set; }       // ctl: play / pause / seek / stop
+            public string act { get; set; }       // ctl: play / pause / seek / leave
             public List<LanFilmItem> items { get; set; }
             public LibraryVideo prefs { get; set; }   // ustawienia filmu: glosnosc, lektor, napisy, sciezka dzwieku
         }
@@ -297,6 +297,14 @@ namespace Przegladarka
         TogetherSession _together;
         Action<string, long> _vlcRemoteCtl;   // ustawia odtwarzacz (z drugiego komputera), bez odsylania
 
+        // wyjscie ze wspolnego ogladania tylko tutaj - drugi komputer oglada dalej sam
+        void LeaveTogether()
+        {
+            if (_together == null) return;
+            TogetherSend("leave", 0);
+            _together = null;
+        }
+
         void TogetherSend(string act, long pos)
         {
             var t = _together; if (t == null) return;
@@ -381,7 +389,9 @@ namespace Przegladarka
                     ShowToast((m.kind == "together" ? L.T("👥 Oglądacie razem z: ") : L.T("📺 Film z: ")) + peer.Device + " – " + m.title, null);
                     break;
                 case "ctl":
-                    if (_together != null && _together.Session == m.session && _together.PeerId == peer.Id) _vlcRemoteCtl?.Invoke(m.act, m.pos);
+                    if (_together == null || _together.Session != m.session || _together.PeerId != peer.Id) return;
+                    if (m.act == "leave") _together = null;   // druga osoba wyszla - dalej bez synchronizacji
+                    _vlcRemoteCtl?.Invoke(m.act, m.pos);
                     break;
                 case "prog":   // postep ogladania filmu z tej biblioteki na drugim komputerze
                 {

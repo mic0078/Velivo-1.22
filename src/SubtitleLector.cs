@@ -175,16 +175,16 @@ namespace Przegladarka
             lc.Busy = true;
             try
             {
-                // tempo: zwykle jak w czytaniu na glos; dluga kwestia w krotkim czasie - szybciej (do 1,8x)
+                // tempo: ustawione w panelu lektora; dluga kwestia w krotkim czasie - szybciej (do 2x)
                 double secs = Math.Max(0.6, (cue.End - t) / 1000.0);
                 double need = cue.Text.Length / 15.0 / secs;
-                double rate = Math.Round(Math.Min(1.8, Math.Max(_settings.ReadRate, need)) * 4) / 4;   // stopnie co 0,25 - kazde inne tempo to ponowne uruchomienie Pipera
+                double rate = Math.Round(Math.Min(Math.Max(2.0, _settings.VlcLectorRate), Math.Max(_settings.VlcLectorRate, need)) * 4) / 4;   // stopnie co 0,25 - kazde inne tempo to ponowne uruchomienie Pipera
                 var wav = await LectorSynthesizeAsync(cue.Text, lc.Lang, rate);
                 if (wav == null || !mp.IsPlaying || mp.Time - mp.SpuDelay / 1000 > cue.End + 1500) return;   // za pozno - pomijamy
                 LectorStopVoice(lc, mp);
-                lc.Ducked = volume(); mp.Volume = (int)(lc.Ducked * 0.35);   // film ciszej, jak lektor w TV
+                lc.Ducked = volume(); mp.Volume = (int)(lc.Ducked * Math.Max(0, Math.Min(100, _settings.VlcLectorDuck)) / 100.0);   // film ciszej, jak lektor w TV
                 var done = new TaskCompletionSource<bool>();
-                var voice = new System.Windows.Media.MediaPlayer { Volume = Math.Max(0.2, _settings.ReadVolume) };
+                var voice = new System.Windows.Media.MediaPlayer { Volume = Math.Max(0.1, Math.Min(1, _settings.VlcLectorVolume)) };
                 lc.Voice = voice;
                 voice.MediaEnded += (s, e) => done.TrySetResult(true);
                 voice.MediaFailed += (s, e) => done.TrySetResult(false);

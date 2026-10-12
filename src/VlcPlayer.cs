@@ -614,16 +614,38 @@ namespace Przegladarka
                 catch (Exception ex) { App.LogError(ex); }
             };
             Action showLector = () => lector.Background = _settings.VlcLector ? new SolidColorBrush(Color.FromArgb(0x55, 0x3B, 0x82, 0xF6)) : Brushes.Transparent;
-            lector.Click += (s, e) =>
+            // klik 🗣 = panel lektora: wlacz/wylacz, glosnosc, predkosc, sciszanie filmu (zapamietywane)
+            Action saveLector = () => { try { _settings.Save(DataDir); } catch (Exception) { } };
+            var lectorOn = new CheckBox { Content = L.T("Lektor włączony"), Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 8), IsChecked = _settings.VlcLector };
+            Func<string, double, double, double, Func<double, string>, Action<double>, StackPanel> sliderRow = (label, min, max, val, fmt, set) =>
             {
-                _settings.VlcLector = !_settings.VlcLector;
+                var t = new TextBlock { Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0) };
+                var sl = new Slider { Minimum = min, Maximum = max, Value = val, Width = 220, IsMoveToPointEnabled = true };
+                Action upd = () => t.Text = label + ": " + fmt(sl.Value);
+                sl.ValueChanged += (a2, b2) => { set(sl.Value); upd(); saveLector(); };
+                upd();
+                var row = new StackPanel(); row.Children.Add(t); row.Children.Add(sl); return row;
+            };
+            var lectorPanel = new StackPanel { Margin = new Thickness(12) };
+            lectorPanel.Children.Add(lectorOn);
+            lectorPanel.Children.Add(sliderRow(L.T("Głośność lektora"), 10, 100, _settings.VlcLectorVolume * 100, v => (int)v + "%", v => { _settings.VlcLectorVolume = v / 100; if (lc.Voice != null) lc.Voice.Volume = _settings.VlcLectorVolume; }));
+            lectorPanel.Children.Add(sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, _settings.VlcLectorRate, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 4) / 4));
+            lectorPanel.Children.Add(sliderRow(L.T("Film podczas czytania"), 0, 100, _settings.VlcLectorDuck, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => _settings.VlcLectorDuck = (int)v));
+            var lectorPop = new System.Windows.Controls.Primitives.Popup
+            {
+                Child = new Border { Child = lectorPanel, Background = new SolidColorBrush(Color.FromArgb(0xF0, 0x1C, 0x1C, 0x1C)), CornerRadius = new CornerRadius(6), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) },
+                PlacementTarget = lector, Placement = System.Windows.Controls.Primitives.PlacementMode.Top, StaysOpen = false, AllowsTransparency = true,
+            };
+            lectorOn.Click += (s, e) =>
+            {
+                _settings.VlcLector = lectorOn.IsChecked == true;
                 if (!_settings.VlcLector) LectorStopVoice(lc, mp);
-                showLector();
-                try { _settings.Save(DataDir); } catch (Exception) { }
+                showLector(); saveLector();
                 showOsd(!_settings.VlcLector ? L.T("Lektor: wyłączony")
                     : lc.Cues.Count > 0 ? L.T("Lektor: czyta napisy ") + System.IO.Path.GetFileName(lc.File)
                     : L.T("Lektor: brak napisów obok filmu – wczytaj je w menu Napisy"));
             };
+            lector.Click += (s, e) => { lectorOn.IsChecked = _settings.VlcLector; lectorPop.IsOpen = true; };
             showLector();
             var lectorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             lectorTimer.Tick += (s, e) => { if (_settings.VlcLector) LectorTick(lc, mp, () => (int)vol.Value); };

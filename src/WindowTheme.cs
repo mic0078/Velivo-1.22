@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 
@@ -58,7 +59,20 @@ namespace Przegladarka
             foreach (var t in new[] { typeof(CheckBox), typeof(RadioButton), typeof(Label), typeof(GroupBox), typeof(Expander), typeof(TabItem) })
                 style(t, s => s.Setters.Add(set(Control.ForegroundProperty, DarkFg)));
             style(typeof(ComboBox), s => s.Setters.Add(set(Control.ForegroundProperty, Brushes.Black)));   // pole listy rozwijanej zostaje jasne (szablon Windows) - tekst czytelny
-            style(typeof(ContextMenu), s => { s.Setters.Add(set(Control.BackgroundProperty, DarkPanel)); s.Setters.Add(set(Control.ForegroundProperty, DarkFg)); s.Setters.Add(set(Control.BorderBrushProperty, DarkBorder)); });
+            style(typeof(ContextMenu), s =>
+            {
+                s.Setters.Add(set(Control.BackgroundProperty, DarkPanel)); s.Setters.Add(set(Control.ForegroundProperty, DarkFg)); s.Setters.Add(set(Control.BorderBrushProperty, DarkBorder));
+                // szablon Windows ma jasna kolumne na ikony (pionowy pasek) - prosty ciemny szablon bez niej
+                var border = new FrameworkElementFactory(typeof(Border));
+                border.SetValue(Border.BackgroundProperty, DarkPanel); border.SetValue(Border.BorderBrushProperty, DarkBorder);
+                border.SetValue(Border.BorderThicknessProperty, new Thickness(1)); border.SetValue(Border.PaddingProperty, new Thickness(2));
+                var sv = new FrameworkElementFactory(typeof(ScrollViewer)); sv.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Auto);
+                var ip = new FrameworkElementFactory(typeof(ItemsPresenter)); ip.SetValue(KeyboardNavigation.DirectionalNavigationProperty, KeyboardNavigationMode.Cycle);
+                sv.AppendChild(ip); border.AppendChild(sv);
+                s.Setters.Add(set(Control.TemplateProperty, new ControlTemplate(typeof(ContextMenu)) { VisualTree = border }));
+            });
+            style(typeof(Separator), s => s.Setters.Add(set(Control.BackgroundProperty, DarkBorder)));
+            style(typeof(MenuItem), s => s.Setters.Add(set(Control.ForegroundProperty, DarkFg)));
             style(typeof(ToolTip), s => { s.Setters.Add(set(Control.BackgroundProperty, DarkPanel)); s.Setters.Add(set(Control.ForegroundProperty, DarkFg)); });
             // zaznaczony wiersz listy: podswietlenie Windows jest jasne - tekst ciemny, zeby byl czytelny
             foreach (var t in new[] { typeof(ListBoxItem), typeof(ListViewItem) })

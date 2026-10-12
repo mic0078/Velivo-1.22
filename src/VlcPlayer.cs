@@ -1117,6 +1117,18 @@ namespace Przegladarka
 
             // lista kanalow nad filmem (z lewej): kanaly biezacej grupy z logo i tym, co leci; klik = przelacz, kolko = przewijanie
             var chList = new ListBox { Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.White, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            // wiersz bez jasnego podswietlenia Windows (bialy tekst byl nieczytelny) - pod mysza lekko jasniejsze tlo
+            var chItemTpl = new ControlTemplate(typeof(ListBoxItem));
+            var chBd = new FrameworkElementFactory(typeof(Border), "bd");
+            chBd.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+            chBd.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+            chBd.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
+            chItemTpl.VisualTree = chBd;
+            var chHover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            chHover.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)), "bd"));
+            chItemTpl.Triggers.Add(chHover);
+            var chItemStyle = new Style(typeof(ListBoxItem)); chItemStyle.Setters.Add(new Setter(Control.TemplateProperty, chItemTpl));
+            chList.ItemContainerStyle = chItemStyle;
             ScrollViewer.SetHorizontalScrollBarVisibility(chList, ScrollBarVisibility.Disabled);
             // wybor grupy na gorze listy (zapamietany): biezaca lista, ulubione, ostatnio ogladane, grupy z listy kanalow
             var chGroup = new ComboBox { Margin = new Thickness(6, 6, 6, 4) };
@@ -1532,8 +1544,7 @@ namespace Przegladarka
             {
                 if (controls.IsMouseOver) return;   // klik na pasku to nie klik w obraz
                 var curPath = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
-                if (curPath != null && _iptvPlaying.ContainsKey(curPath) && e.GetPosition(overlay).X < 70)   // klik przy lewej krawedzi - lista kanalow
-                { showChannels(chPanel.Visibility != Visibility.Visible); e.Handled = true; return; }
+                if (chPanel.Visibility == Visibility.Visible) { showChannels(false); e.Handled = true; return; }   // klik obok listy - schowaj (bez pauzy)
                 if (e.ClickCount == 2) { togglePlay(); toggleFull(); }   // pierwszy klik dwukliku juz zatrzymal - wznawiamy
                 else togglePlay();
             };
@@ -1560,7 +1571,7 @@ namespace Przegladarka
                 add(L.T("ℹ Pokaż informacje (I)"), () => showInfo(true), true);
                 if (path != null && _iptvPlaying.ContainsKey(path))
                 {
-                    add(L.T("📋 Lista kanałów (L / klik przy lewej krawędzi)"), () => showChannels(true), true);
+                    add(L.T("📋 Lista kanałów (L / kursor przy lewej krawędzi)"), () => showChannels(true), true);
                     var laM = new MenuItem { Header = L.T("📋 Przezroczystość listy kanałów") };
                     foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
                     {
@@ -1686,7 +1697,13 @@ namespace Przegladarka
                 cm.IsOpen = true;
             };
             overlay.MouseWheel += (s, e) => { if (controls.IsMouseOver && !vol.IsMouseOver) return; showBar(); setVol(vol.Value + (e.Delta > 0 ? 5 : -5)); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); };
-            overlay.MouseMove += (s, e) => showBar();
+            overlay.MouseMove += (s, e) =>
+            {
+                showBar();
+                // kursor przy lewej krawedzi obrazu (kanal TV) - lista kanalow, bez klikania
+                var cp = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (cp != null && _iptvPlaying.ContainsKey(cp) && e.GetPosition(overlay).X < 14 && chPanel.Visibility != Visibility.Visible) showChannels(true);
+            };
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(showBar);
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(new Action(() => pausedAt = DateTime.Now));   // pauza - pasek zostaje widoczny
             hideTimer.Start();

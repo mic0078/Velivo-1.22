@@ -103,4 +103,26 @@ public class VideoLibraryTests
         Assert.Null(back[0].Shared); Assert.True(back[1].Shared);
         Directory.Delete(dir, true);
     }
+
+    [Fact]
+    public void KopiaWDrugiejBibliotece()
+    {
+        var lib = new System.Collections.Generic.List<MainWindow.LibraryVideo>
+        {
+            new MainWindow.LibraryVideo { Path = @"C:\f.mkv", Title = "f", Pos = 5000, Shared = true },
+            new MainWindow.LibraryVideo { Path = @"C:\f.mkv", Title = "f", Pos = 0, Shared = false },
+        };
+        Assert.Equal(5000, MainWindow.FindEntry(lib, @"c:\F.mkv", true).Pos);   // kazda biblioteka - wlasny licznik
+        Assert.Equal(0, MainWindow.FindEntry(lib, @"C:\f.mkv", false).Pos);
+    }
+
+    [Fact]
+    public void OknaKaskadowo()
+    {
+        var work = new System.Windows.Rect(0, 0, 1920, 1040);
+        var a = new System.Windows.Rect(100, 100, 400, 300);
+        var p = Przegladarka.App.CascadeSpot(a, new[] { a, new System.Windows.Rect(130, 130, 400, 300) }, work);
+        Assert.Equal(new System.Windows.Point(160, 160), p);   // trzecie okno - po skosie dalej
+        Assert.Equal(new System.Windows.Point(100, 100), Przegladarka.App.CascadeSpot(a, new[] { new System.Windows.Rect(100, 100, 800, 600) }, work));   // inny rozmiar - bez zmian
+    }
 }

@@ -295,6 +295,7 @@ namespace Przegladarka
 
         sealed class TogetherSession { public string PeerId, Session; }
         TogetherSession _together;
+        TogetherSession _lastTogether;   // ostatnie wspolne ogladanie - mozna do niego wrocic
         Action<string, long> _vlcRemoteCtl;   // ustawia odtwarzacz (z drugiego komputera), bez odsylania
 
         // wyjscie ze wspolnego ogladania tylko tutaj - drugi komputer oglada dalej sam
@@ -302,7 +303,7 @@ namespace Przegladarka
         {
             if (_together == null) return;
             TogetherSend("leave", 0);
-            _together = null;
+            _lastTogether = _together; _together = null;
         }
 
         void TogetherSend(string act, long pos)
@@ -373,7 +374,7 @@ namespace Przegladarka
                     break;
                 case "want":   // drugi komputer chce obejrzec film z tej biblioteki
                 {
-                    var v = LoadLibrary().FirstOrDefault(x => FilmId(x.Path) == m.id && File.Exists(x.Path));
+                    var v = LoadLibrary().FirstOrDefault(x => FilmId(x.Path) == m.id && IsShared(x) && File.Exists(x.Path));
                     if (v != null) PlayFilmOn(v, peer, m.act == "together");
                     break;
                 }
@@ -389,13 +390,15 @@ namespace Przegladarka
                     ShowToast((m.kind == "together" ? L.T("👥 Oglądacie razem z: ") : L.T("📺 Film z: ")) + peer.Device + " – " + m.title, null);
                     break;
                 case "ctl":
+                    if (m.act == "join" && _together == null && _lastTogether != null && _lastTogether.Session == m.session && _lastTogether.PeerId == peer.Id) _together = _lastTogether;   // druga osoba wraca
                     if (_together == null || _together.Session != m.session || _together.PeerId != peer.Id) return;
-                    if (m.act == "leave") _together = null;   // druga osoba wyszla - dalej bez synchronizacji
+                    if (m.act == "leave") { _lastTogether = _together; _together = null; ShowToast(L.T("👋 Przestał oglądać razem: ") + peer.Device, null); }   // dalej bez synchronizacji
+                    if (m.act == "join") ShowToast(L.T("👥 Dołączył ponownie: ") + peer.Device, null);
                     _vlcRemoteCtl?.Invoke(m.act, m.pos);
                     break;
                 case "prog":   // postep ogladania filmu z tej biblioteki na drugim komputerze
                 {
-                    var l = LoadLibrary(); var v = l.FirstOrDefault(x => FilmId(x.Path) == m.id);
+                    var l = LoadLibrary(); var v = l.Where(x => FilmId(x.Path) == m.id).OrderBy(x => IsShared(x) ? 0 : 1).FirstOrDefault();   // licznik wspolnej biblioteki
                     if (v == null) return;
                     ApplyPrefs(v, m.prefs);   // glosnosc, lektor, napisy ustawione na drugim komputerze
                     if (m.done) { v.Done = true; v.Pos = 0; v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); if (m.len > 0) v.Len = m.len; }

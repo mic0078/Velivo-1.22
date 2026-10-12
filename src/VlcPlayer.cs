@@ -647,6 +647,9 @@ namespace Przegladarka
             };
             var lectorPanel = new StackPanel { Margin = new Thickness(12) };
             lectorPanel.Children.Add(lectorOn);
+            // napisy na obrazie mozna ukryc - lektor czyta je dalej (z pliku napisow)
+            var showSubs = new CheckBox { Content = L.T("Pokazuj napisy na ekranie"), Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 8), IsChecked = _settings.VlcShowSubs };
+            lectorPanel.Children.Add(showSubs);
             // glos lektora: automatycznie (jezyk napisow), glosy Piper (niepobrany - pobierze), glosy Windows
             lectorPanel.Children.Add(new TextBlock { Text = L.T("Głos lektora:"), Foreground = Brushes.White, Margin = new Thickness(0, 2, 0, 2) });
             var voiceBox = new ComboBox { Width = 240, HorizontalAlignment = HorizontalAlignment.Left };
@@ -720,11 +723,19 @@ namespace Przegladarka
                 try
                 {
                     var spu = PickTrack(mp.SpuDescription.Select(t => (t.Id, t.Name)), current?.Spu ?? _settings.VlcSpu);
-                    if (spu != int.MinValue) mp.SetSpu(spu);
+                    if (!_settings.VlcShowSubs) mp.SetSpu(-1);   // napisy ukryte (lektor czyta dalej)
+                    else if (spu != int.MinValue) mp.SetSpu(spu);
+                    else if (mp.Spu < 0) { var first = mp.SpuDescription.FirstOrDefault(t => t.Id >= 0); if (first.Name != null) mp.SetSpu(first.Id); }
                     var au = PickTrack(mp.AudioTrackDescription.Select(t => (t.Id, t.Name)), current?.Audio ?? _settings.VlcAudio);
                     if (au != int.MinValue && au >= 0) mp.SetAudioTrack(au);
                 }
                 catch (Exception ex) { App.LogError(ex); }
+            };
+            showSubs.Click += (s, e) =>
+            {
+                _settings.VlcShowSubs = showSubs.IsChecked == true; saveLector();
+                applyTracks();
+                showOsd(_settings.VlcShowSubs ? L.T("Napisy: widoczne") : L.T("Napisy: ukryte (lektor czyta)"));
             };
             _vlcLoad = i =>
             {

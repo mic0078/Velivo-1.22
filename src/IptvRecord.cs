@@ -347,9 +347,9 @@ namespace Przegladarka
             DockPanel.SetDock((UIElement)body.Children[1], Dock.Top);
             body.Children.Add(list);
             w.Content = body;
-            Action prev = _iptvJobsChanged;
-            _iptvJobsChanged = () => { prev?.Invoke(); if (w.IsLoaded) fill(); };
-            w.Closed += (s, a) => _iptvJobsChanged = prev;
+            Action onJobs = () => { if (w.IsLoaded) fill(); };
+            _iptvJobsChanged += onJobs;
+            w.Closed += (s, a) => _iptvJobsChanged -= onJobs;
             w.Show();
         }
     

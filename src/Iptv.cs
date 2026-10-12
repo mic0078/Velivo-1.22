@@ -565,17 +565,17 @@ namespace Przegladarka
                 bool stale = src.Hours > 0 && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - src.Updated > src.Hours * 3600 * 1000L;
                 try
                 {
-                    if (File.Exists(m3u)) { var t = await Task.Run(() => ParseM3u(File.ReadAllText(m3u))); if (ver != loadVer) return; pl = t; fillGroups(); fillList(); }
+                    if (File.Exists(m3u)) { var t = await Task.Run(() => ParseM3u(File.ReadAllText(m3u))); if (ver != loadVer) return; pl = t; _iptvPl = t; fillGroups(); fillList(); _iptvLoaded?.Invoke(); }
                     if (force || stale || !File.Exists(m3u))
                     {
                         count.Text = L.T("Wczytuję listę kanałów…");
                         await Task.Run(() => DownloadTo(src.Url, m3u));
                         var t = await Task.Run(() => ParseM3u(File.ReadAllText(m3u)));
                         if (ver != loadVer) return;
-                        pl = t; fillGroups(); fillList();
+                        pl = t; _iptvPl = t; fillGroups(); fillList(); _iptvLoaded?.Invoke();
                     }
                     var epgUrl = !string.IsNullOrWhiteSpace(src.Epg) ? src.Epg : pl.EpgUrl;
-                    if (string.IsNullOrWhiteSpace(epgUrl)) { _iptvEpg = null; _iptvIcons = null; fillList(); }
+                    if (string.IsNullOrWhiteSpace(epgUrl)) { _iptvEpg = null; _iptvIcons = null; fillList(); _iptvLoaded?.Invoke(); }
                     else
                     {
                         if (force || stale || !File.Exists(epgFile))
@@ -601,7 +601,7 @@ namespace Przegladarka
                         });
                         progress.Visibility = Visibility.Collapsed;
                         if (ver != loadVer) return;
-                        _iptvEpg = e; _iptvIcons = ic; fillList();
+                        _iptvEpg = e; _iptvIcons = ic; fillList(); _iptvLoaded?.Invoke();
                     }
                     if (force || stale) { src.Updated = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveIptv(st); }
                 }
@@ -617,7 +617,7 @@ namespace Przegladarka
                 foreach (var s0 in st.Sources) source.Items.Add(new ComboBoxItem { Content = "📋 " + s0.Name, Tag = s0.Id });
                 source.SelectedItem = source.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == st.Last) ?? (source.Items.Count > 0 ? source.Items[0] : null);
             };
-            source.SelectionChanged += (s, a) => { var c = cur(); if (c != null && st.Last != c.Id) { st.Last = c.Id; SaveIptv(st); } _ = load(false); };
+            source.SelectionChanged += (s, a) => { _iptvSrc = cur(); var c = cur(); if (c != null && st.Last != c.Id) { st.Last = c.Id; SaveIptv(st); } _ = load(false); };
             groups.SelectionChanged += (s, a) =>
             {
                 var g = (groups.SelectedItem as ListBoxItem)?.Tag as string;
@@ -758,6 +758,7 @@ namespace Przegladarka
                 add(L.T("⏺ Zaplanuj nagrywanie…"), () => ScheduleDialog(r.Ch, win), r != null);
                 add(L.T("📅 Zaplanowane…"), () => ShowJobs(win), true);
                 add(L.T("🎞 Nagrania…"), () => ShowRecordings(win), true);
+                add(L.T("📅 Pełny program TV…"), () => ShowEpgGuide(win, r?.Ch.Url), true);
                 add(L.T("📁 Otwórz folder nagrań"), OpenRecDir, true);
                 menu.Items.Add(new Separator());
                 add(L.T("🔄 Odśwież listę i program TV"), () => _ = load(true), cur() != null);
@@ -774,6 +775,7 @@ namespace Przegladarka
             buttons.Children.Add(SmallButton(L.T("⭐ Ulubiony"), toggleFav));
             buttons.Children.Add(SmallButton(L.T("⏺ Nagrywaj"), () => { var r = list.SelectedItem as TvRow; if (r == null) return; if (IsRecording(r.Ch.Url)) StopRecording(r.Ch.Url); else RecordNow(r.Ch, win); }));
             buttons.Children.Add(SmallButton(L.T("📅 Zaplanowane"), () => ShowJobs(win)));
+            buttons.Children.Add(SmallButton(L.T("📅 Program TV"), () => ShowEpgGuide(win, (list.SelectedItem as TvRow)?.Ch.Url)));
             buttons.Children.Add(SmallButton(L.T("🎞 Nagrania"), () => ShowRecordings(win)));
             buttons.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
             var body = new DockPanel();
@@ -783,10 +785,11 @@ namespace Przegladarka
             DockPanel.SetDock(groups, Dock.Left); body.Children.Add(groups);
             body.Children.Add(list);
             win.Content = body;
-            Action prevJobs = _iptvJobsChanged;
-            _iptvJobsChanged = () => { prevJobs?.Invoke(); fillList(); fillEpg(); };   // ⏺ przy kanale nagrywanym
+            Action onJobs = () => { fillList(); fillEpg(); };   // ⏺ przy kanale nagrywanym
+            _iptvJobsChanged += onJobs;
             win.Closing += (s, a) => { var b = win.RestoreBounds; st.Win = string.Join(",", new[] { b.Left, b.Top, b.Width, b.Height }.Select(v => ((int)v).ToString(CultureInfo.InvariantCulture))); SaveIptv(st); };
-            win.Closed += (s, a) => { _tvWin = null; _iptvAdd = null; _iptvJobsChanged = prevJobs; };
+            _iptvReload = force => { _iptvSrc = cur(); return load(force); };
+            win.Closed += (s, a) => { _tvWin = null; _iptvAdd = null; _iptvJobsChanged -= onJobs; _iptvReload = null; };
             _tvWin = win;
             fillSources();
             if (st.Sources.Count == 0) _ = load(false);

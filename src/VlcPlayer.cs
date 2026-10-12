@@ -1256,6 +1256,7 @@ namespace Przegladarka
                     showOsd(L.T("💬 Napisy wczytane"));
                 }), true);
                 if (IptvInstalled) add(L.T("📺 Kanały telewizji"), () => ShowIptv(Window.GetWindow(overlay) ?? win), true);
+                if (IptvInstalled) add(L.T("📅 Pełny program TV"), () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path != null && _iptvPlaying.ContainsKey(path) ? path : null), true);
                 if (path != null && _iptvPlaying.ContainsKey(path))
                 {
                     add(L.T("⏮ Poprzedni kanał (PgUp)"), () => _vlcLoad(_playIndex - 1), _playIndex > 0);

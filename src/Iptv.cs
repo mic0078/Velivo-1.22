@@ -40,7 +40,7 @@ namespace Przegladarka
             public string EpgUrl;   // adres programu TV z naglowka listy (url-tvg / x-tvg-url)
         }
 
-        internal sealed class EpgItem { public DateTime Start, Stop; public string Title, Desc; }
+        internal sealed class EpgItem { public DateTime Start, Stop; public string Title, Desc, Sub, Year; public List<string> Cats = new List<string>(); }
 
         sealed class IptvSource
         {
@@ -179,6 +179,9 @@ namespace Przegladarka
                                 if (sub.NodeType != XmlNodeType.Element) continue;
                                 if (sub.Name == "title" && it.Title == null) it.Title = sub.ReadElementContentAsString().Trim();
                                 else if (sub.Name == "desc" && it.Desc == null) it.Desc = sub.ReadElementContentAsString().Trim();
+                                else if (sub.Name == "sub-title" && it.Sub == null) it.Sub = sub.ReadElementContentAsString().Trim();
+                                else if (sub.Name == "category" && it.Cats.Count < 4) { var c = sub.ReadElementContentAsString().Trim(); if (c.Length > 0 && !it.Cats.Contains(c)) it.Cats.Add(c); }
+                                else if (sub.Name == "date" && it.Year == null) it.Year = sub.ReadElementContentAsString().Trim();
                             }
                         if (!byId.TryGetValue(ch, out var l)) byId[ch] = l = new List<EpgItem>();
                         l.Add(it);
@@ -252,21 +255,55 @@ namespace Przegladarka
         static string IptvCache(IptvSource src, string ext) { return Path.Combine(IptvDataDir, src.Id + ext); }
 
         // plik z dysku albo pobranie z sieci do pamieci podrecznej (lista ".m3u", program ".epg")
-        static async Task DownloadTo(string url, string file)
+        // progress: pobrane bajty, calosc (0 = nieznana)
+        static async Task DownloadTo(string url, string file, Action<long, long> progress = null)
         {
             if (File.Exists(url)) { File.Copy(url, file, true); return; }
-            using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) })
+            using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
             {
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("Velivo");
                 using (var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
                 {
                     resp.EnsureSuccessStatusCode();
+                    long total = resp.Content.Headers.ContentLength ?? 0, done = 0, shown = 0;
                     var tmp = file + ".tmp";
-                    using (var fs = File.Create(tmp)) await (await resp.Content.ReadAsStreamAsync()).CopyToAsync(fs);
+                    using (var fs = File.Create(tmp))
+                    using (var src = await resp.Content.ReadAsStreamAsync())
+                    {
+                        var buf = new byte[81920]; int n;
+                        while ((n = await src.ReadAsync(buf, 0, buf.Length)) > 0)
+                        {
+                            await fs.WriteAsync(buf, 0, n); done += n;
+                            if (progress != null && done - shown > 512 * 1024) { shown = done; progress(done, total); }
+                        }
+                    }
                     File.Copy(tmp, file, true); File.Delete(tmp);
                 }
             }
         }
+
+        // odczyt pliku z postepem (wczytywanie duzego programu TV)
+        sealed class ProgressStream : Stream
+        {
+            readonly Stream _s; readonly Action<double> _p; long _shown;
+            public ProgressStream(Stream s, Action<double> p) { _s = s; _p = p; }
+            public override int Read(byte[] b, int o, int c)
+            {
+                int n = _s.Read(b, o, c);
+                if (_s.Position - _shown > 1 << 20 || n == 0) { _shown = _s.Position; _p(_s.Length > 0 ? (double)_s.Position / _s.Length : 0); }
+                return n;
+            }
+            public override bool CanRead => true; public override bool CanSeek => false; public override bool CanWrite => false;
+            public override long Length => _s.Length;
+            public override long Position { get => _s.Position; set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override long Seek(long a, SeekOrigin b) { throw new NotSupportedException(); }
+            public override void SetLength(long a) { throw new NotSupportedException(); }
+            public override void Write(byte[] b, int o, int c) { throw new NotSupportedException(); }
+            protected override void Dispose(bool d) { if (d) _s.Dispose(); base.Dispose(d); }
+        }
+
+        static string Mb(long b) { return (b / 1048576.0).ToString(b < 10 * 1048576 ? "0.0" : "0"); }
 
         // ---------- przycisk 📺 ----------
 
@@ -453,10 +490,16 @@ namespace Przegladarka
             RememberColumns(win, "telewizja", grid);
             // program kanalu: klik prawym = przelacz o czasie / nagraj ten program
             var epgList = new ListBox { Height = 150, Margin = new Thickness(8, 4, 8, 0) };
-            var epgDesc = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 2, 10, 2), Foreground = Brushes.DimGray, MaxHeight = 48 };
-            var epgBox = new DockPanel();
-            DockPanel.SetDock(epgDesc, Dock.Bottom); epgBox.Children.Add(epgDesc); epgBox.Children.Add(epgList);
+            // opis wybranego programu obok listy: tytul, odcinek, gatunek, rok, opis
+            var epgDesc = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 6, 10, 6) };
+            var descBox = new ScrollViewer { Content = epgDesc, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Height = 150, Margin = new Thickness(0, 4, 8, 0) };
+            epgList.Margin = new Thickness(8, 4, 8, 0);
+            var epgBox = new Grid();
+            epgBox.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            epgBox.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+            Grid.SetColumn(descBox, 1); epgBox.Children.Add(epgList); epgBox.Children.Add(descBox);
             var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Gray, Margin = new Thickness(10, 0, 0, 0) };
+            var progress = new ProgressBar { Width = 160, Height = 10, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Maximum = 100, Visibility = Visibility.Collapsed };
 
             IptvPlaylist pl = new IptvPlaylist();
             List<TvRow> rows = new List<TvRow>();
@@ -535,9 +578,28 @@ namespace Przegladarka
                     if (string.IsNullOrWhiteSpace(epgUrl)) { _iptvEpg = null; _iptvIcons = null; fillList(); }
                     else
                     {
-                        if (force || stale || !File.Exists(epgFile)) { count.Text = L.T("Wczytuję program TV…"); await Task.Run(() => DownloadTo(epgUrl, epgFile)); }
+                        if (force || stale || !File.Exists(epgFile))
+                        {
+                            count.Text = L.T("Pobieram program TV…"); progress.Visibility = Visibility.Visible; progress.IsIndeterminate = true;
+                            await Task.Run(() => DownloadTo(epgUrl, epgFile, (d, t) => Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                if (ver != loadVer) return;
+                                progress.IsIndeterminate = t <= 0; if (t > 0) progress.Value = 100.0 * d / t;
+                                count.Text = L.T("Pobieram program TV… ") + Mb(d) + (t > 0 ? " / " + Mb(t) + " MB  (" + (int)(100.0 * d / t) + "%)" : " MB");
+                            }))));
+                        }
+                        count.Text = L.T("Wczytuję program TV…"); progress.Visibility = Visibility.Visible; progress.IsIndeterminate = false; progress.Value = 0;
                         var ic = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        var e = await Task.Run(() => { using (var fs = File.OpenRead(epgFile)) return ParseXmltv(fs, DateTime.Now.AddHours(-6), DateTime.Now.AddHours(30), ic); });
+                        var e = await Task.Run(() =>
+                        {
+                            using (var fs = new ProgressStream(File.OpenRead(epgFile), f => Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                if (ver != loadVer) return;
+                                progress.Value = 100 * f; count.Text = L.T("Wczytuję program TV… ") + (int)(100 * f) + "%";
+                            }))))
+                                return ParseXmltv(fs, DateTime.Now.AddHours(-6), DateTime.Now.AddHours(30), ic);
+                        });
+                        progress.Visibility = Visibility.Collapsed;
                         if (ver != loadVer) return;
                         _iptvEpg = e; _iptvIcons = ic; fillList();
                     }
@@ -546,7 +608,7 @@ namespace Przegladarka
                 catch (Exception ex)
                 {
                     App.LogError(ex);
-                    if (ver == loadVer) count.Text = L.T("⚠ Nie udało się wczytać: ") + ex.Message;
+                    if (ver == loadVer) { count.Text = L.T("⚠ Nie udało się wczytać: ") + ex.Message; progress.Visibility = Visibility.Collapsed; }
                 }
             };
             Action fillSources = () =>
@@ -642,7 +704,7 @@ namespace Przegladarka
             list.PreviewKeyDown += (s, a) => { if (a.Key == Key.Enter) { play(); a.Handled = true; } };
             Action fillEpg = () =>
             {
-                epgList.Items.Clear(); epgDesc.Text = "";
+                epgList.Items.Clear(); epgDesc.Inlines.Clear();
                 var r = list.SelectedItem as TvRow; if (r == null) return;
                 var l = EpgFor(_iptvEpg, r.Ch);
                 if (l == null) { epgDesc.Text = _iptvEpg == null ? L.T("Brak programu TV – dodaj adres EPG w „✏ Edytuj”.") : L.T("Brak programu dla tego kanału."); return; }
@@ -656,7 +718,17 @@ namespace Przegladarka
                 if (epgList.Items.Count > 0) epgList.SelectedIndex = 0;
             };
             list.SelectionChanged += (s, a) => fillEpg();
-            epgList.SelectionChanged += (s, a) => { var x = (epgList.SelectedItem as ListBoxItem)?.Tag as EpgItem; epgDesc.Text = x?.Desc ?? ""; };
+            epgList.SelectionChanged += (s, a) =>
+            {
+                epgDesc.Inlines.Clear();
+                var x = (epgList.SelectedItem as ListBoxItem)?.Tag as EpgItem; if (x == null) return;
+                epgDesc.Inlines.Add(new System.Windows.Documents.Run(x.Title ?? "") { FontWeight = FontWeights.SemiBold, FontSize = 14 });
+                if (!string.IsNullOrEmpty(x.Sub)) epgDesc.Inlines.Add(new System.Windows.Documents.Run("\n" + x.Sub) { FontStyle = FontStyles.Italic });
+                var meta = x.Start.ToString("HH:mm") + "–" + x.Stop.ToString("HH:mm") + "  ·  " + (int)(x.Stop - x.Start).TotalMinutes + L.T(" min") +
+                    (x.Cats.Count > 0 ? "  ·  " + string.Join(", ", x.Cats) : "") + (!string.IsNullOrEmpty(x.Year) ? "  ·  " + (x.Year.Length > 4 ? x.Year.Substring(0, 4) : x.Year) : "");
+                epgDesc.Inlines.Add(new System.Windows.Documents.Run("\n" + meta + "\n\n") { Foreground = Brushes.Gray });
+                epgDesc.Inlines.Add(new System.Windows.Documents.Run(string.IsNullOrEmpty(x.Desc) ? L.T("Program TV nie zawiera opisu tej audycji.") : x.Desc) { Foreground = string.IsNullOrEmpty(x.Desc) ? Brushes.Gray : Brushes.Black });
+            };
             var epgMenu = new ContextMenu();
             epgMenu.Opened += (s, a) =>
             {
@@ -695,6 +767,7 @@ namespace Przegladarka
 
             var bar = new DockPanel { Margin = new Thickness(6), LastChildFill = false };
             DockPanel.SetDock(count, Dock.Left); bar.Children.Add(count);
+            DockPanel.SetDock(progress, Dock.Left); bar.Children.Add(progress);
             var buttons = new StackPanel { Orientation = Orientation.Horizontal };
             DockPanel.SetDock(buttons, Dock.Right); bar.Children.Add(buttons);
             buttons.Children.Add(SmallButton(L.T("▶ Oglądaj"), play));

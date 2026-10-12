@@ -61,6 +61,8 @@ namespace Przegladarka
             public double? LRate { get; set; }
             public int? LDuck { get; set; }
             public string LVoice { get; set; }
+            public string Peer { get; set; }       // kopia filmu z innego komputera (dysk tamtego komputera): jego id - gra przez siec
+            public string RemoteId { get; set; }   // id filmu w bibliotece tamtego komputera
             public bool? Shared { get; set; }  // we wspolnej bibliotece; null = film z dysku sieciowego (NAS) wspolny, z dysku tego komputera prywatny
         }
 
@@ -394,6 +396,7 @@ namespace Przegladarka
                 lib = LoadLibrary();
                 var q = search.Text.Trim();
                 var key = sortKey; var desc = sortDesc; var shared = _libSharedView; var meta = Meta; var tv = _libTvView; var recDirs = TvRecDirs();
+                var peersNow = SendTargets(); var online = new HashSet<string>(peersNow.Select(p => p.Id));   // kopie z innych komputerow - dostepne, gdy tamten wlaczony
                 var fromPeers = shared && !tv ? peerItems.ToList() : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
                 var local = lib;
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
@@ -426,12 +429,12 @@ namespace Przegladarka
                         mf(v) is MovieInfo m1 && ((m1.Name ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (m1.Original ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)), key, desc, mf)
                     .Select(v => new LibRow
                     {
-                        Item = v, Missing = !of.ContainsKey(v) && !exists(v.Path), Title = MetaTitle(mf(v)) ?? v.Title,
+                        Item = v, Missing = !of.ContainsKey(v) && (v.Peer != null ? !online.Contains(v.Peer) : !exists(v.Path)), Title = MetaTitle(mf(v)) ?? v.Title,
                         Year = mf(v)?.Year > 0 ? mf(v).Year.ToString() : "", Rating = mf(v)?.Rating > 0 ? "★ " + mf(v).Rating.ToString("0.0") : "", Genre = string.Join(", ", mf(v)?.Genres ?? new List<string>()),
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = SeenText(v),
                         LastPlayed = LastPlayedText(v.Last, now),
-                        Folder = of.ContainsKey(v) ? (of[v].Value.n != null ? System.IO.Path.GetDirectoryName(of[v].Value.n) : "🖥 " + of[v].Key.Device) : System.IO.Path.GetDirectoryName(v.Path),
+                        Folder = v.Peer != null ? "🖥 " + (peersNow.FirstOrDefault(p => p.Id == v.Peer)?.Device ?? L.T("inny komputer (wyłączony)")) + "  ·  " + MetaKey(v.Path) : of.ContainsKey(v) ? (of[v].Value.n != null ? System.IO.Path.GetDirectoryName(of[v].Value.n) : "🖥 " + of[v].Key.Device) : System.IO.Path.GetDirectoryName(v.Path),
                     }).Select(row => { if (row.Missing) row.Title = "⚠ " + row.Title; return row; }).ToList();
                     return Tuple.Create(r, all.Count, of);
                 });
@@ -508,8 +511,14 @@ namespace Przegladarka
             {
                 var r = list.SelectedItem as LibRow; if (r == null) return;
                 if (remoteOf.TryGetValue(r.Item, out var rem)) { WantRemoteFilm(rem.Key, rem.Value, false); return; }   // film z drugiego komputera - ogladasz tutaj
+                if (r.Item.Peer != null)   // skopiowany z innego komputera - przez siec
+                {
+                    var pr = PeerById(r.Item.Peer);
+                    if (pr == null) { MessageBox.Show(win, L.T("Komputer, na którym jest ten film, jest teraz wyłączony albo niedostępny."), L.T("Biblioteka filmów")); return; }
+                    WantRemoteFilm(pr, new LanFilmItem { i = r.Item.RemoteId, t = r.Item.Title, l = r.Item.Len }, false); return;
+                }
                 if (r.Missing) { MessageBox.Show(win, L.T("Nie ma już tego pliku na dysku (przeniesiony albo usunięty)."), L.T("Biblioteka filmów")); return; }
-                var playable = rows.Where(x => !x.Missing && !remoteOf.ContainsKey(x.Item)).Select(x => x.Item.Path).ToList();   // lista odtwarzania = widoczna lista
+                var playable = rows.Where(x => !x.Missing && !remoteOf.ContainsKey(x.Item) && x.Item.Peer == null).Select(x => x.Item.Path).ToList();   // lista odtwarzania = widoczna lista
                 _playShared = _libSharedView;
                 PlayVideos(playable.ToArray(), playable.IndexOf(r.Item.Path));
             };
@@ -561,8 +570,22 @@ namespace Przegladarka
                 {
                     addItem(L.T("▶ Odtwórz tutaj"), play);
                     addItem(L.T("👥 Oglądaj razem z: ") + rem.Key.Device, () => WantRemoteFilm(rem.Key, rem.Value, true));
-                    var unc = rem.Value.n;   // film z NAS - mozna miec go tez u siebie (wlasny licznik)
-                    if (unc != null) addItem(L.T("📋 Kopiuj do: ") + localName(), () => { var l = LoadLibrary(); AddToLibrary(l, new[] { unc }, false); SaveLibrary(l); ShowToast(L.T("🔒 Skopiowano do: ") + localName(), null); });
+                    // kopia na ten komputer (wlasny licznik, wlasne zarzadzanie): NAS - wprost, dysk tamtego komputera - przez siec
+                    Action<IEnumerable<KeyValuePair<LanPeerInfo, LanFilmItem>>> copyHere = items =>
+                    {
+                        var l = LoadLibrary(); int n = 0;
+                        foreach (var kv in items)
+                        {
+                            var x = kv.Value;
+                            if (x.n != null) { n += AddToLibrary(l, new[] { x.n }, false); continue; }
+                            var p = "velivo:" + x.i + "\\" + (x.fn ?? x.i);
+                            if (l.Any(v => v.Peer == kv.Key.Id && v.RemoteId == x.i)) continue;
+                            l.Add(new LibraryVideo { Path = p, Title = x.t, Len = x.l, Added = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Shared = false, Peer = kv.Key.Id, RemoteId = x.i }); n++;
+                        }
+                        SaveLibrary(l); ShowToast(L.T("🔒 Skopiowano do: ") + localName() + " – " + n, null);
+                    };
+                    addItem(L.T("📋 Kopiuj zaznaczone do: ") + localName(), () => copyHere(sel().Where(r => remoteOf.ContainsKey(r.Item)).Select(r => remoteOf[r.Item]).ToList()));
+                    addItem(L.T("📋 Kopiuj całą listę z innych komputerów do: ") + localName(), () => copyHere(remoteOf.Values.ToList()));
                     return;
                 }
                 addItem(L.T("▶ Odtwórz"), play);

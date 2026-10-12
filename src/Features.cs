@@ -419,6 +419,7 @@ namespace Przegladarka
         static Button SmallButton(string text, Action onClick)
         {
             var b = new Button { Content = text, Width = double.NaN, Height = 28, FontSize = 12, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(4, 0, 0, 0), Background = new SolidColorBrush(Color.FromRgb(0xF3, 0xF4, 0xF6)) };
+            b.SetResourceReference(Control.BackgroundProperty, "SmallBtnBg");   // jasne / ciemne okna (WindowTheme.cs); bez zasobu - jasne jak dotad
             if (onClick != null) b.Click += (s, e) => onClick();
             return b;
         }

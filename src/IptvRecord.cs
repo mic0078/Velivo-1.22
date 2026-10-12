@@ -38,6 +38,17 @@ namespace Przegladarka
         DispatcherTimer _iptvTimer;
         Action _iptvJobsChanged;
 
+        // foldery nagran (domyslny, wybrany i z zaplanowanych) - ich filmy tworza biblioteke "Nagrane z TV"
+        List<string> TvRecDirs()
+        {
+            var st = IptvSt;
+            var dirs = new List<string> { string.IsNullOrWhiteSpace(st.RecDir) ? DefaultRecDir : st.RecDir };
+            dirs.AddRange(st.Jobs.Where(j => !string.IsNullOrWhiteSpace(j.Folder)).Select(j => j.Folder));
+            return dirs.Select(d => { try { return Path.GetFullPath(d).TrimEnd('\\') + "\\"; } catch (Exception) { return null; } }).Where(d => d != null).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        internal static bool UnderAny(string path, List<string> dirs) { return dirs.Any(d => (path ?? "").StartsWith(d, StringComparison.OrdinalIgnoreCase)); }
+
         static long UnixMs(DateTime local) { return new DateTimeOffset(local).ToUnixTimeMilliseconds(); }
         static DateTime LocalOf(long ms) { return DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime; }
 
@@ -67,21 +78,58 @@ namespace Przegladarka
             {
                 if (j.Kind == "switch")
                 {
+                    // minute wczesniej - pytanie na srodku filmu (gdy cos leci w odtwarzaczu); bez odpowiedzi - przelacza o czasie
+                    var playingNow = _vlcWin != null && _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                    if (now >= j.Start - 60000 && now < j.Start && playingNow != null && playingNow != j.Url && _vlcAsk != null && !_asked.ContainsKey(j.Id))
+                    {
+                        var job = j;
+                        _asked[j.Id] = _vlcAsk(string.Format(L.T("O {0} zaczyna się:\n📺 {1}{2}\n\nPrzełączyć na ten kanał?"), LocalOf(j.Start).ToString("HH:mm"), j.Channel, string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title),
+                            () => { _asked.Remove(job.Id); IptvSt.Jobs.Remove(job); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); SwitchNow(job); },
+                            () => { _asked.Remove(job.Id); IptvSt.Jobs.Remove(job); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); ShowToast(L.T("📺 Zostajesz przy filmie"), null); });
+                    }
                     if (now < j.Start) continue;
                     st.Jobs.Remove(j); changed = true;
+                    if (_asked.TryGetValue(j.Id, out var closeAsk)) { closeAsk(); _asked.Remove(j.Id); }
                     if (now - j.Start > 10 * 60000) continue;   // Velivo bylo wylaczone - po czasie nie przelaczamy
-                    var ch = new IptvChannel { Name = j.Channel, Url = j.Url, Opts = j.Opts ?? new List<string>() };
-                    _iptvPlaying[ch.Url] = ch;
-                    PlayVideos(new[] { ch.Url }, 0);
-                    ShowToast("📺 " + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
+                    SwitchNow(j);
                 }
                 else if (j.Kind == "rec")
                 {
                     if (now >= j.Stop) { if (!_recording.ContainsKey(j.Id)) { st.Jobs.Remove(j); changed = true; } continue; }
+                    // minute wczesniej - powiadomienie (i ostrzezenie, gdy wlasnie leci inny kanal TV)
+                    if (now >= j.Start - 75000 && now < j.Start - 30000 && _recNotified.Add(j.Id))
+                    {
+                        ShowToast(L.T("⏺ Za minutę nagrywanie: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
+                        WarnOneConnection();
+                    }
                     if (now >= j.Start - 30000 && !_recording.ContainsKey(j.Id)) StartRecording(j);
                 }
             }
             if (changed) { SaveIptv(st); _iptvJobsChanged?.Invoke(); }
+        }
+
+        readonly Dictionary<string, Action> _asked = new Dictionary<string, Action>();   // pytanie o przelaczenie na ekranie (id zadania -> zamknij)
+        Func<string, Action, Action, Action> _vlcAsk;   // odtwarzacz: pytanie na srodku obrazu (tekst, tak, nie) -> zamknij
+
+        void SwitchNow(IptvJob j)
+        {
+            var ch = new IptvChannel { Name = j.Channel, Url = j.Url, Opts = j.Opts ?? new List<string>() };
+            _iptvPlaying[ch.Url] = ch;
+            PlayVideos(new[] { ch.Url }, 0);   // film zapisuje miejsce, w ktorym przerwano
+            ShowToast("📺 " + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
+        }
+
+        readonly HashSet<string> _recNotified = new HashSet<string>();
+        DateTime _connWarned = DateTime.MinValue;
+
+        // ogladanie kanalu TV i nagrywanie naraz = dwa polaczenia z dostawca - wielu pozwala tylko na jedno
+        void WarnOneConnection()
+        {
+            var playing = _vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex]);
+            if (!playing && _recording.Count == 0) return;
+            if (DateTime.Now - _connWarned < TimeSpan.FromMinutes(30)) return;   // nie czesciej niz co pol godziny
+            _connWarned = DateTime.Now;
+            ShowToast(L.T("⚠ Oglądanie i nagrywanie naraz to dwa połączenia z dostawcą IPTV. Jeśli pozwala na jedno, jedno z nich może się przerwać."), null);
         }
 
         bool IsRecording(string url) { return IptvSt.Jobs.Any(j => j.Kind == "rec" && j.Url == url && _recording.ContainsKey(j.Id)); }
@@ -92,15 +140,17 @@ namespace Przegladarka
             _recording[j.Id] = cts;
             var dir = string.IsNullOrWhiteSpace(j.Folder) ? DefaultRecDir : j.Folder;
             var file = Path.Combine(dir, RecordingName(j.Channel, j.Title, DateTime.Now));
+            if (_vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) WarnOneConnection();
             ShowToast(L.T("⏺ Nagrywam: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
             _iptvJobsChanged?.Invoke();
-            var until = LocalOf(j.Stop);
+            Func<DateTime> until = () => LocalOf(j.Stop);   // "Przedluz" zmienia j.Stop w trakcie nagrywania
             Task.Run(() => RecordStream(j.Url, j.Opts, file, until, cts.Token)).ContinueWith(t => Dispatcher.BeginInvoke(new Action(() =>
             {
                 _recording.Remove(j.Id);
                 IptvSt.Jobs.RemoveAll(x => x.Id == j.Id); SaveIptv(IptvSt);
                 _iptvJobsChanged?.Invoke();
                 var err = t.IsFaulted ? t.Exception.GetBaseException().Message : t.Result;
+                if (File.Exists(file)) { var l = LoadLibrary(); if (AddToLibrary(l, new[] { file }, false) > 0) { SaveLibrary(l); _libRefresh?.Invoke(); } }   // biblioteka "Nagrane z TV"
                 if (err != null && !File.Exists(file)) ShowToast(L.T("⚠ Nagrywanie nie udało się: ") + j.Channel + " – " + err, null);
                 else ShowToast(L.T("✅ Nagranie zapisane: ") + Path.GetFileName(file) + (err != null ? " (" + err + ")" : ""), file);
             })));
@@ -127,7 +177,9 @@ namespace Przegladarka
         }
 
         // null = w porzadku; tekst = powod przerwania (plik moze byc czesciowy)
-        internal static async Task<string> RecordStream(string url, List<string> opts, string file, DateTime until, CancellationToken ct)
+        internal static Task<string> RecordStream(string url, List<string> opts, string file, DateTime until, CancellationToken ct) { return RecordStream(url, opts, file, () => until, ct); }
+
+        internal static async Task<string> RecordStream(string url, List<string> opts, string file, Func<DateTime> until, CancellationToken ct)
         {
             if (!(url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
                 return L.T("nagrywanie działa dla kanałów http/https");
@@ -136,7 +188,7 @@ namespace Przegladarka
             using (var outFs = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.Read))
             {
                 string lastErr = null; int fails = 0;
-                while (DateTime.Now < until && !ct.IsCancellationRequested)
+                while (DateTime.Now < until() && !ct.IsCancellationRequested)
                 {
                     try
                     {
@@ -160,25 +212,25 @@ namespace Przegladarka
                     }
                     catch (OperationCanceledException) { break; }
                     catch (Exception ex) { lastErr = ex.Message; if (++fails >= 20) return lastErr; }
-                    if (DateTime.Now < until && !ct.IsCancellationRequested) { try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { break; } }   // zerwane polaczenie - ponownie
+                    if (DateTime.Now < until() && !ct.IsCancellationRequested) { try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { break; } }   // zerwane polaczenie - ponownie
                 }
                 return outFs.Length == 0 ? (lastErr ?? L.T("brak danych")) : null;
             }
         }
 
-        static async Task CopyUntil(Stream s, Stream outFs, DateTime until, CancellationToken ct)
+        static async Task CopyUntil(Stream s, Stream outFs, Func<DateTime> until, CancellationToken ct)
         {
             var buf = new byte[65536]; int n;
-            while (DateTime.Now < until && !ct.IsCancellationRequested && (n = await s.ReadAsync(buf, 0, buf.Length, ct)) > 0)
+            while (DateTime.Now < until() && !ct.IsCancellationRequested && (n = await s.ReadAsync(buf, 0, buf.Length, ct)) > 0)
                 await outFs.WriteAsync(buf, 0, n, ct);
         }
 
         // HLS: lista segmentow odswiezana co chwile, nowe segmenty dopisywane po kolei (lista glowna - najlepsza jakosc)
-        static async Task<string> RecordHls(HttpClient http, string url, Stream outFs, DateTime until, CancellationToken ct)
+        static async Task<string> RecordHls(HttpClient http, string url, Stream outFs, Func<DateTime> until, CancellationToken ct)
         {
             var seen = new HashSet<string>();
             var baseUri = new Uri(url);
-            while (DateTime.Now < until && !ct.IsCancellationRequested)
+            while (DateTime.Now < until() && !ct.IsCancellationRequested)
             {
                 var text = await http.GetStringAsync(baseUri, ct);
                 var pl = ParseHls(text, baseUri);
@@ -186,12 +238,12 @@ namespace Przegladarka
                 if (pl.Variant != null) { baseUri = pl.Variant; continue; }
                 foreach (var seg in pl.Segments)
                 {
-                    if (DateTime.Now >= until || ct.IsCancellationRequested) break;
+                    if (DateTime.Now >= until() || ct.IsCancellationRequested) break;
                     if (!seen.Add(seg.AbsoluteUri)) continue;
                     using (var resp = await http.GetAsync(seg, HttpCompletionOption.ResponseHeadersRead, ct))
                     {
                         if (!resp.IsSuccessStatusCode) continue;
-                        using (var s = await resp.Content.ReadAsStreamAsync()) await CopyUntil(s, outFs, DateTime.MaxValue, ct);
+                        using (var s = await resp.Content.ReadAsStreamAsync()) await CopyUntil(s, outFs, () => DateTime.MaxValue, ct);
                     }
                 }
                 if (pl.Ended) break;   // nagranie (VOD) - koniec listy
@@ -293,13 +345,22 @@ namespace Przegladarka
             foreach (var c in new[] { new[] { "What", "Co", "70" }, new[] { "When", "Kiedy", "170" }, new[] { "Channel", "Kanał", "160" }, new[] { "Title", "Program", "220" } })
                 grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
             var list = new ListView { View = grid, Margin = new Thickness(8) };
-            Action fill = () => list.ItemsSource = IptvSt.Jobs.OrderBy(j => j.Start).Select(j => new
+            Action sortJobs = null;
+            Action fill = () =>
             {
-                Job = j, Channel = j.Channel, Title = j.Title,
-                What = j.Kind == "switch" ? "⏰" : _recording.ContainsKey(j.Id) ? L.T("⏺ teraz") : "⏺",
-                When = LocalOf(j.Start).ToString("dd.MM HH:mm") + (j.Kind == "rec" ? "–" + LocalOf(j.Stop).ToString("HH:mm") : ""),
-            }).ToList();
+                list.ItemsSource = IptvSt.Jobs.OrderBy(j => j.Start).Select(j => new
+                {
+                    Job = j, Channel = j.Channel, Title = j.Title, WhenSort = j.Start,
+                    What = j.Kind == "switch" ? "⏰" : _recording.ContainsKey(j.Id) ? L.T("⏺ teraz") : "⏺",
+                    When = LocalOf(j.Start).ToString("dd.MM HH:mm") + (j.Kind == "rec" ? "–" + LocalOf(j.Stop).ToString("HH:mm") : ""),
+                }).ToList();
+                sortJobs?.Invoke();
+            };
+            sortJobs = SortableList(list, "zaplanowane");
             fill();
+            Func<IptvJob> selJob = () => { var it = list.SelectedItem; return it == null ? null : (IptvJob)it.GetType().GetProperty("Job").GetValue(it); };
+            // przedluzenie nagrania (takze w trakcie) - np. mecz z dogrywka
+            Action<int> extend = min => { var j = selJob(); if (j == null || j.Kind != "rec") return; j.Stop += min * 60000L; SaveIptv(IptvSt); fill(); ShowToast(L.T("⏺ Nagranie do ") + LocalOf(j.Stop).ToString("HH:mm") + " – " + j.Channel, null); };
             Action remove = () =>
             {
                 var it = list.SelectedItem; if (it == null) return;
@@ -309,18 +370,129 @@ namespace Przegladarka
                 fill();
             };
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
-            bar.Children.Add(SmallButton(L.T("🗑 Usuń / zatrzymaj"), remove));
-            bar.Children.Add(SmallButton(L.T("📁 Folder nagrań"), () => { var dir = string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir; Directory.CreateDirectory(dir); System.Diagnostics.Process.Start("explorer.exe", "\"" + dir + "\""); }));
+            bar.Children.Add(SmallButton(L.T("❌ Odwołaj / zatrzymaj"), remove));
+            list.PreviewKeyDown += (s, a) => { if (a.Key == System.Windows.Input.Key.Delete) { remove(); a.Handled = true; } };
+            var cm = new ContextMenu();
+            cm.Opened += (s, a) =>
+            {
+                cm.Items.Clear(); var j = selJob();
+                Action<string, Action> add = (t, act) => { var mi = new MenuItem { Header = t, IsEnabled = j != null }; mi.Click += (q, e) => act(); cm.Items.Add(mi); };
+                add(L.T("❌ Odwołaj (nagrywanie w toku – zatrzymaj)"), remove);
+                if (j == null || j.Kind == "rec") { add(L.T("⏩ Przedłuż nagranie o 15 min"), () => extend(15)); add(L.T("⏩ Przedłuż nagranie o 30 min"), () => extend(30)); add(L.T("⏩ Przedłuż nagranie o 1 godz."), () => extend(60)); }
+            };
+            list.ContextMenu = cm;
+            bar.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
             var body = new DockPanel();
             DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
             body.Children.Add(new TextBlock { Text = L.T("Velivo musi być włączone o czasie nagrania lub przełączenia."), Foreground = Brushes.Gray, Margin = new Thickness(10, 8, 10, 0) });
             DockPanel.SetDock((UIElement)body.Children[1], Dock.Top);
             body.Children.Add(list);
             w.Content = body;
-            Action prev = _iptvJobsChanged;
-            _iptvJobsChanged = () => { prev?.Invoke(); if (w.IsLoaded) fill(); };
-            w.Closed += (s, a) => _iptvJobsChanged = prev;
+            Action onJobs = () => { if (w.IsLoaded) fill(); };
+            _iptvJobsChanged += onJobs;
+            w.Closed += (s, a) => _iptvJobsChanged -= onJobs;
             w.Show();
         }
-    }
+    
+        void OpenRecDir()
+        {
+            var dir = string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir;
+            try { Directory.CreateDirectory(dir); System.Diagnostics.Process.Start("explorer.exe", "\"" + dir + "\""); } catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // nagrania z folderu nagran: odtworz, usun (z dysku i z biblioteki filmow), otworz folder
+        void ShowRecordings(Window owner)
+        {
+            var w = new Window { Title = L.T("🎞 Nagrania TV"), Width = 760, Height = 420, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var grid = new GridView();
+            foreach (var c in new[] { new[] { "Name", "Nagranie", "460" }, new[] { "Date", "Data", "130" }, new[] { "Size", "Rozmiar", "90" } })
+                grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
+            var list = new ListView { View = grid, Margin = new Thickness(8), SelectionMode = SelectionMode.Extended };
+            RememberColumns(w, "nagrania", grid);
+            var count = new TextBlock { Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            Action sortRec = null;
+            Action fill = () =>
+            {
+                var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir };
+                foreach (var j in IptvSt.Jobs) if (!string.IsNullOrWhiteSpace(j.Folder)) dirs.Add(j.Folder);
+                var files = dirs.Where(Directory.Exists).SelectMany(d => { try { return Directory.GetFiles(d, "*.ts"); } catch (Exception) { return new string[0]; } })
+                    .Select(f => new FileInfo(f)).OrderByDescending(f => f.LastWriteTime).ToList();
+                list.ItemsSource = files.Select(f => new { Path = f.FullName, Name = Path.GetFileNameWithoutExtension(f.Name), Date = f.LastWriteTime.ToString("dd.MM.yyyy HH:mm"), DateSort = f.LastWriteTime, Size = (f.Length / 1048576.0).ToString("0") + " MB", SizeSort = f.Length }).ToList();
+                sortRec?.Invoke();
+                count.Text = files.Count + L.T(" nagrań");
+            };
+            sortRec = SortableList(list, "nagrania");
+            Func<List<string>> sel = () => list.SelectedItems.Cast<object>().Select(o => (string)o.GetType().GetProperty("Path").GetValue(o)).ToList();
+            Action play = () => { var p = sel(); if (p.Count > 0) PlayVideos(p.ToArray(), 0); };
+            Action del = () =>
+            {
+                var p = sel(); if (p.Count == 0) return;
+                if (MessageBox.Show(w, string.Format(L.T("Usunąć {0} nagrań z dysku (do Kosza) i z biblioteki filmów?"), p.Count), L.T("Nagrania TV"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                var errs = DeleteVideoFiles(p);
+                fill();
+                if (errs.Count > 0) MessageBox.Show(w, L.T("Nie udało się usunąć (nagrywane albo odtwarzane):\n") + string.Join("\n", errs.Take(10)), L.T("Nagrania TV"));
+            };
+            list.MouseDoubleClick += (s, a) => play();
+            list.PreviewKeyDown += (s, a) => { if (a.Key == System.Windows.Input.Key.Enter) { play(); a.Handled = true; } else if (a.Key == System.Windows.Input.Key.Delete) { del(); a.Handled = true; } };
+            var menu = new ContextMenu();
+            foreach (var it in new[] { Tuple.Create(L.T("▶ Odtwórz"), play), Tuple.Create(L.T("🗑 Usuń z dysku i z biblioteki…"), del), Tuple.Create(L.T("📁 Otwórz folder nagrań"), (Action)OpenRecDir) })
+            { var mi = new MenuItem { Header = it.Item1 }; var act = it.Item2; mi.Click += (s, a) => act(); menu.Items.Add(mi); }
+            list.ContextMenu = menu;
+            var bar = new DockPanel { Margin = new Thickness(6), LastChildFill = false };
+            DockPanel.SetDock(count, Dock.Left); bar.Children.Add(count);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+            DockPanel.SetDock(buttons, Dock.Right); bar.Children.Add(buttons);
+            buttons.Children.Add(SmallButton(L.T("▶ Odtwórz"), play));
+            buttons.Children.Add(SmallButton(L.T("🗑 Usuń z dysku"), del));
+            buttons.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
+            var body = new DockPanel();
+            DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
+            body.Children.Add(list);
+            w.Content = body;
+            fill();
+            w.Show();
+        }
+
+        // zaplanowane dla tej audycji: przelaczenie albo nagranie (null = brak)
+        IptvJob JobFor(IptvChannel ch, EpgItem x, string kind)
+        {
+            if (ch == null || x == null) return null;
+            return IptvSt.Jobs.FirstOrDefault(j => j.Url == ch.Url && j.Kind == kind &&
+                (kind == "switch" ? j.Start == UnixMs(x.Start) :
+                 j.Start < UnixMs(x.Stop) && j.Stop >= UnixMs(x.Stop) && (j.Stop <= UnixMs(x.Stop.AddMinutes(10)) || j.Start <= UnixMs(x.Start))));   // takze nagranie "od teraz do konca" trwajacej audycji
+        }
+
+        // odwolanie: nagrywanie w toku - zatrzymane (plik zostaje), zaplanowane - usuniete
+        void CancelJob(IptvJob j)
+        {
+            if (j == null) return;
+            if (_recording.TryGetValue(j.Id, out var c)) { c.Cancel(); return; }
+            if (_asked.TryGetValue(j.Id, out var closeAsk)) { closeAsk(); _asked.Remove(j.Id); }
+            IptvSt.Jobs.Remove(j); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke();
+            ShowToast(j.Kind == "switch" ? L.T("⏰ Przełączenie odwołane: ") + j.Channel : L.T("⏺ Nagranie odwołane: ") + j.Channel, null);
+        }
+
+        // "⏰ 2 przełączenia · ⏺ 1 nagranie" (pusty, gdy nic nie zaplanowano)
+        internal string JobsSummary()
+        {
+            int sw = IptvSt.Jobs.Count(j => j.Kind == "switch"), rec = IptvSt.Jobs.Count(j => j.Kind == "rec");
+            var parts = new List<string>();
+            if (sw > 0) parts.Add("⏰ " + L.T("zaplanowane przełączenia: ") + sw);
+            if (rec > 0) parts.Add("⏺ " + L.T("nagrania: ") + rec + (_recording.Count > 0 ? L.T(" (teraz: ") + _recording.Count + ")" : ""));
+            return string.Join("  ·  ", parts);
+        }
+
+        // przycisk "📅 ..." z liczba zaplanowanych - klik otwiera liste (odwolywanie); znika, gdy nic nie ma
+        Button JobsBadge(Window owner)
+        {
+            var b = SmallButton("", () => ShowJobs(owner));
+            b.Margin = new Thickness(10, 8, 0, 4);
+            b.ToolTip = L.T("Zaplanowane przełączenia i nagrania – kliknij, aby zobaczyć lub odwołać");
+            Action upd = () => { var t = JobsSummary(); b.Content = "📅 " + t; b.Visibility = t.Length == 0 ? Visibility.Collapsed : Visibility.Visible; };
+            upd();
+            _iptvJobsChanged += upd;
+            owner.Closed += (s, a) => _iptvJobsChanged -= upd;
+            return b;
+        }
+}
 }

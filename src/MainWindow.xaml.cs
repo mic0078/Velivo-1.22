@@ -118,6 +118,7 @@ namespace Przegladarka
             InitializeComponent();
             Title = AppTitleLabel;
             _settings = AppSettings.Load(DataDir);
+            _winTheme = _settings.WindowTheme ?? "light";   // jasne / ciemne okna
             L.Init(_settings.Language);
             try
             {

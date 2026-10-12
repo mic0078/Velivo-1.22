@@ -16,6 +16,9 @@
 3. Test „po poprawce” + istniejące testy bezpieczeństwa.
 4. Uczciwy raport: co sprawdzone, a czego nie.
 
+## Interfejs
+- Każda lista w Velivo ma sortowanie (klik w nagłówek albo wybór) i zapamiętuje je – razem z miejscem i rozmiarem okna oraz szerokością kolumn.
+
 ## Inne
 - Odpowiadaj po polsku.
 - Nie przepisuj opublikowanej historii `main` (bez force-push / rebase / amend na `main`).

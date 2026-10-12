@@ -995,6 +995,7 @@ namespace Przegladarka
                     WriteProfilesRegistry(state.profiles);
                     WriteIfNotEmpty(ExtensionsSyncListFile, state.extensions);
                     _settings = AppSettings.Load(DataDir);
+                    SetWindowTheme(_settings.WindowTheme);
                     ApplySettingsToAllTabs();
                     UpdateDarkButton();
                     ApplyBrowserTheme();

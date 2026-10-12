@@ -57,6 +57,7 @@ namespace Przegladarka
         public int CacheMb = 0;                // rozmiar pamieci podrecznej (0 = automatycznie)
         public bool BlockThirdPartyPopups = true;
         public string UiStyle = "modern";
+        public string WindowTheme = "light";   // okna (biblioteka, telewizja, notatki...): light / dark / auto (jak Windows)
         public int PageFade = 300;
         public int PageEntranceMs = 1000;       // szybkosc efektu wejscia w ms (0 = wg plynnego przejscia)
         public string PageEntrance = "cinema";  // efekt wejscia tresci: slide / blur / zoom / none               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)
@@ -202,6 +203,7 @@ namespace Przegladarka
                         case "pageFade": { int pf; if (int.TryParse(v, out pf)) s.PageFade = Math.Max(0, Math.Min(4000, pf)); } break;
                         case "nightStrength": { int ns; if (int.TryParse(v, out ns)) s.NightStrength = Math.Max(5, Math.Min(100, ns)); } break;
                         case "uiStyle": s.UiStyle = v == "colorful" ? "colorful" : "modern"; break;
+                        case "winTheme": s.WindowTheme = v == "dark" || v == "auto" ? v : "light"; break;
                         case "pageMemory": s.PageMemory = b; break;
                         case "darkPatterns": s.DarkPatterns = b; break;
                         case "privacyReceipt": s.PrivacyReceipt = b; break;
@@ -297,7 +299,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + Tracking,
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuardOn=" + B(AudioGuard), "tray=" + B(StayInTray), "askedDefault=" + B(AskedDefaultBrowser), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "playerSalt=" + (PlayerSalt ?? ""), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "vlcTop=" + B(VlcTopmost), "vlcLector=" + B(VlcLector), "vlcLectorVoice=" + (VlcLectorVoice ?? ""), "vlcSharedName=" + (VlcSharedName ?? ""), "vlcLocalName=" + (VlcLocalName ?? ""), "vlcVolume=" + VlcVolume, "vlcShowSubs=" + B(VlcShowSubs), "vlcLectorVol=" + VlcLectorVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "vlcLectorRate=" + VlcLectorRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "vlcLectorDuck=" + VlcLectorDuck, "vlcSpu=" + (VlcSpu ?? ""), "vlcAudio=" + (VlcAudio ?? ""), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "winTheme=" + (WindowTheme ?? "light"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "playerSalt=" + (PlayerSalt ?? ""), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "vlcTop=" + B(VlcTopmost), "vlcLector=" + B(VlcLector), "vlcLectorVoice=" + (VlcLectorVoice ?? ""), "vlcSharedName=" + (VlcSharedName ?? ""), "vlcLocalName=" + (VlcLocalName ?? ""), "vlcVolume=" + VlcVolume, "vlcShowSubs=" + B(VlcShowSubs), "vlcLectorVol=" + VlcLectorVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "vlcLectorRate=" + VlcLectorRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "vlcLectorDuck=" + VlcLectorDuck, "vlcSpu=" + (VlcSpu ?? ""), "vlcAudio=" + (VlcAudio ?? ""), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "sleepTabs=" + SleepTabsMin, "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),
@@ -441,6 +443,17 @@ namespace Przegladarka
             styleBox.SelectedIndex = s.UiStyle == "colorful" ? 1 : 0;
             styleBox.SelectionChanged += (a, b) => { _settings.UiStyle = (string)((ComboBoxItem)styleBox.SelectedItem).Tag; ApplyUiStyle(); };
             root.Children.Add(styleBox);
+            root.Children.Add(new TextBlock { Text = L.T("Okna (biblioteka filmów, telewizja, program TV, notatki, ustawienia):"), Margin = new Thickness(0, 6, 0, 2) });
+            var winTheme = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
+            foreach (var opt in new[] { new[] { "light", L.T("Jasne") }, new[] { "dark", L.T("Ciemne (wygodne w nocy)") }, new[] { "auto", L.T("Jak w Windows (tryb aplikacji)") } })
+            {
+                var it = new ComboBoxItem { Content = opt[1], Tag = opt[0] };
+                winTheme.Items.Add(it);
+                if (opt[0] == (s.WindowTheme ?? "light")) winTheme.SelectedItem = it;
+            }
+            if (winTheme.SelectedItem == null) winTheme.SelectedIndex = 0;
+            winTheme.SelectionChanged += (a, b) => { _settings.WindowTheme = (string)((ComboBoxItem)winTheme.SelectedItem).Tag; SetWindowTheme(_settings.WindowTheme); };   // podglad na zywo
+            root.Children.Add(winTheme);
             root.Children.Add(new TextBlock { Text = L.T("Język interfejsu / Language:"), Margin = new Thickness(0, 6, 0, 2) });
             var langBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
             foreach (var opt in new[] { new[] { "auto", L.T("Automatycznie (język z instalatora / Windows)") }, new[] { "pl", "Polski" }, new[] { "en", "English" } })

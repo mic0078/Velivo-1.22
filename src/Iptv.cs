@@ -590,7 +590,7 @@ namespace Przegladarka
                     };
                 });
                 // ulubione i ostatnie - w swojej kolejnosci, dopoki nie wybrano sortowania
-                bool keep = (g == favKey || g == recentKey) && sortKey == "nr" && !sortDesc;
+                bool keep = g == recentKey || g == favKey && sortKey == "nr" && !sortDesc;   // ostatnio ogladane - zawsze od najnowszego
                 if (!keep)
                 {
                     Func<TvRow, IComparable> by = sortKey == "name" ? (Func<TvRow, IComparable>)(r => r.Ch.Name.ToLowerInvariant()) : sortKey == "now" ? r => r.Now.Length > 7 ? r.Now.Substring(7).ToLowerInvariant() : "\uffff" : sortKey == "next" ? r => r.Next.Length > 7 ? r.Next.Substring(7).ToLowerInvariant() : "\uffff" : r => r.Nr;

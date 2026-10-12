@@ -75,4 +75,14 @@ public class VideoLibraryTests
         MainWindow.RecordProgress(v, 1200000, 6000000, 5);      // ponowne ogladanie przerwane w 20%
         Assert.Equal("20%", MainWindow.SeenText(v));
     }
+
+    [Fact]
+    public void UstawieniaFilmuZapisaneOsobno()
+    {
+        var json = "[{\"Path\":\"C:\\\\a.mkv\",\"Title\":\"a\",\"Vol\":60,\"LVol\":0.8,\"LRate\":1.5,\"LDuck\":100,\"LVoice\":\"piper:pl_PL-gosia-medium\"},{\"Path\":\"C:\\\\b.mkv\",\"Title\":\"b\"}]";
+        var l = MainWindow.ParseLibrary(json);
+        Assert.Equal(60, l[0].Vol); Assert.Equal(1.5, l[0].LRate); Assert.Equal(100, l[0].LDuck); Assert.Equal("piper:pl_PL-gosia-medium", l[0].LVoice);
+        Assert.Null(l[1].Vol);   // film bez wlasnych ustawien - odtwarzacz bierze ostatnio uzywane
+        Assert.Null(l[1].LVoice);
+    }
 }

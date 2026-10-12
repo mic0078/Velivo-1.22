@@ -55,6 +55,12 @@ namespace Przegladarka
             public bool Done { get; set; }   // obejrzany do konca
             public string Spu { get; set; }    // wybrane napisy (nazwa sciezki, "-" = wylaczone)
             public string Audio { get; set; }  // wybrana sciezka dzwieku (nazwa)
+            // ustawienia tego filmu (filmy maja rozna glosnosc): glosnosc filmu i lektor; null = jak ostatnio
+            public int? Vol { get; set; }
+            public double? LVol { get; set; }
+            public double? LRate { get; set; }
+            public int? LDuck { get; set; }
+            public string LVoice { get; set; }
         }
 
         internal static List<LibraryVideo> ParseLibrary(string json)
@@ -482,6 +488,7 @@ namespace Przegladarka
 
         void BuildVlcWindow()
         {
+            LibraryVideo current = null;   // film, ktory teraz gra (jego wpis w bibliotece)
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
             var view = new VideoView { MediaPlayer = mp, Background = Brushes.Black };
             var win = new Window { Title = L.T("Odtwarzacz filmów"), Width = 960, Height = 600, Background = Brushes.Black, Icon = Icon, WindowStartupLocation = WindowStartupLocation.CenterScreen };
@@ -561,7 +568,6 @@ namespace Przegladarka
                 vol.Width = w >= 480 ? 110 : 70;
             };
 
-            LibraryVideo current = null;
             bool seeking = false, full0 = false;
             WindowState prevState = WindowState.Normal;
             float[] speeds = { 0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f };
@@ -617,20 +623,71 @@ namespace Przegladarka
             // klik 🗣 = panel lektora: wlacz/wylacz, glosnosc, predkosc, sciszanie filmu (zapamietywane)
             Action saveLector = () => { try { _settings.Save(DataDir); } catch (Exception) { } };
             var lectorOn = new CheckBox { Content = L.T("Lektor włączony"), Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 8), IsChecked = _settings.VlcLector };
-            Func<string, double, double, double, Func<double, string>, Action<double>, StackPanel> sliderRow = (label, min, max, val, fmt, set) =>
+            // zapis ustawien tego filmu (glosnosc + lektor) chwile po ostatniej zmianie
+            var filmPrefsTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+            filmPrefsTimer.Tick += (s, e) =>
+            {
+                filmPrefsTimer.Stop(); saveLector();
+                if (current == null) return;
+                var l = LoadLibrary(); var v = l.FirstOrDefault(x => string.Equals(x.Path, current.Path, StringComparison.OrdinalIgnoreCase));
+                if (v == null) return;
+                v.Vol = _settings.VlcVolume; v.LVol = _settings.VlcLectorVolume; v.LRate = _settings.VlcLectorRate; v.LDuck = _settings.VlcLectorDuck; v.LVoice = _settings.VlcLectorVoice;
+                current.Vol = v.Vol; current.LVol = v.LVol; current.LRate = v.LRate; current.LDuck = v.LDuck; current.LVoice = v.LVoice;
+                SaveLibrary(l);
+            };
+            Action filmPrefsChanged = () => { filmPrefsTimer.Stop(); filmPrefsTimer.Start(); };
+            Func<string, double, double, Func<double, string>, Action<double>, Tuple<StackPanel, Slider>> sliderRow = (label, min, max, fmt, set) =>
             {
                 var t = new TextBlock { Foreground = Brushes.White, Margin = new Thickness(0, 4, 0, 0) };
-                var sl = new Slider { Minimum = min, Maximum = max, Value = val, Width = 220, IsMoveToPointEnabled = true };
+                var sl = new Slider { Minimum = min, Maximum = max, Width = 240, IsMoveToPointEnabled = true };
                 Action upd = () => t.Text = label + ": " + fmt(sl.Value);
-                sl.ValueChanged += (a2, b2) => { set(sl.Value); upd(); saveLector(); };
+                sl.ValueChanged += (a2, b2) => { set(sl.Value); upd(); filmPrefsChanged(); };
                 upd();
-                var row = new StackPanel(); row.Children.Add(t); row.Children.Add(sl); return row;
+                var row = new StackPanel(); row.Children.Add(t); row.Children.Add(sl); return Tuple.Create(row, sl);
             };
             var lectorPanel = new StackPanel { Margin = new Thickness(12) };
             lectorPanel.Children.Add(lectorOn);
-            lectorPanel.Children.Add(sliderRow(L.T("Głośność lektora"), 10, 100, _settings.VlcLectorVolume * 100, v => (int)v + "%", v => { _settings.VlcLectorVolume = v / 100; if (lc.Voice != null) lc.Voice.Volume = _settings.VlcLectorVolume; }));
-            lectorPanel.Children.Add(sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, _settings.VlcLectorRate, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 4) / 4));
-            lectorPanel.Children.Add(sliderRow(L.T("Film podczas czytania"), 0, 100, _settings.VlcLectorDuck, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => _settings.VlcLectorDuck = (int)v));
+            // napisy na obrazie mozna ukryc - lektor czyta je dalej (z pliku napisow)
+            var showSubs = new CheckBox { Content = L.T("Pokazuj napisy na ekranie"), Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 8), IsChecked = _settings.VlcShowSubs };
+            lectorPanel.Children.Add(showSubs);
+            // glos lektora: automatycznie (jezyk napisow), glosy Piper (niepobrany - pobierze), glosy Windows
+            lectorPanel.Children.Add(new TextBlock { Text = L.T("Głos lektora:"), Foreground = Brushes.White, Margin = new Thickness(0, 2, 0, 2) });
+            var voiceBox = new ComboBox { Width = 240, HorizontalAlignment = HorizontalAlignment.Left };
+            voiceBox.Items.Add(new ComboBoxItem { Content = L.T("Automatycznie (język napisów)"), Tag = "" });
+            foreach (var pv in PiperVoices) voiceBox.Items.Add(new ComboBoxItem { Content = "Piper: " + L.T(pv.Label) + (PiperVoiceInstalled(pv) ? "" : L.T(" – pobierz")), Tag = "piper:" + pv.Id });
+            try { foreach (var wv in Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices) voiceBox.Items.Add(new ComboBoxItem { Content = "Windows: " + wv.DisplayName + " (" + wv.Language + ")", Tag = "win:" + wv.DisplayName }); } catch (Exception) { }
+            Action<string> selectVoice = tag => voiceBox.SelectedItem = voiceBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (tag ?? "")) ?? voiceBox.Items[0];
+            bool settingVoice = false;
+            voiceBox.SelectionChanged += async (s, e) =>
+            {
+                if (settingVoice || !(voiceBox.SelectedItem is ComboBoxItem it)) return;
+                var tag = (string)it.Tag;
+                var pv = tag.StartsWith("piper:") ? PiperVoices.FirstOrDefault(x => "piper:" + x.Id == tag) : null;
+                if (pv != null && !PiperVoiceInstalled(pv))
+                {
+                    showOsd(L.T("Pobieram głos ") + L.T(pv.Label) + "…");
+                    if (!await EnsurePiperAsync(pv)) { settingVoice = true; selectVoice(_settings.VlcLectorVoice); settingVoice = false; return; }
+                    it.Content = "Piper: " + L.T(pv.Label);
+                }
+                _settings.VlcLectorVoice = tag; LectorStopVoice(lc, mp); filmPrefsChanged();
+            };
+            lectorPanel.Children.Add(voiceBox);
+            var lvRow = sliderRow(L.T("Głośność lektora"), 10, 100, v => (int)v + "%", v => { _settings.VlcLectorVolume = v / 100; if (lc.Voice != null) lc.Voice.Volume = _settings.VlcLectorVolume; });
+            var lrRow = sliderRow(L.T("Prędkość czytania"), 0.8, 2.0, v => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "×", v => _settings.VlcLectorRate = Math.Round(v * 4) / 4);
+            var ldRow = sliderRow(L.T("Film podczas czytania"), 0, 100, v => v >= 100 ? L.T("bez ściszania") : (int)v + "%", v => _settings.VlcLectorDuck = (int)v);
+            foreach (var r in new[] { lvRow, lrRow, ldRow }) lectorPanel.Children.Add(r.Item1);
+            // ustawienia filmu do panelu i odtwarzacza (przy wczytaniu filmu): zapisane dla filmu, inaczej ostatnio uzywane
+            Action applyFilmPrefs = () =>
+            {
+                lvRow.Item2.Value = (current?.LVol ?? _settings.VlcLectorVolume) * 100;
+                lrRow.Item2.Value = current?.LRate ?? _settings.VlcLectorRate;
+                ldRow.Item2.Value = current?.LDuck ?? _settings.VlcLectorDuck;
+                settingVoice = true; _settings.VlcLectorVoice = current?.LVoice ?? _settings.VlcLectorVoice; selectVoice(_settings.VlcLectorVoice); settingVoice = false;
+                vol.Value = current?.Vol ?? _settings.VlcVolume;
+                mp.Volume = (int)vol.Value;   // takze gdy suwak juz stal na tej wartosci (bez zdarzenia zmiany)
+                filmPrefsTimer.Stop();
+            };
+            applyFilmPrefs();
             var lectorPop = new System.Windows.Controls.Primitives.Popup
             {
                 Child = new Border { Child = lectorPanel, Background = new SolidColorBrush(Color.FromArgb(0xF0, 0x1C, 0x1C, 0x1C)), CornerRadius = new CornerRadius(6), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) },
@@ -666,11 +723,19 @@ namespace Przegladarka
                 try
                 {
                     var spu = PickTrack(mp.SpuDescription.Select(t => (t.Id, t.Name)), current?.Spu ?? _settings.VlcSpu);
-                    if (spu != int.MinValue) mp.SetSpu(spu);
+                    if (!_settings.VlcShowSubs) mp.SetSpu(-1);   // napisy ukryte (lektor czyta dalej)
+                    else if (spu != int.MinValue) mp.SetSpu(spu);
+                    else if (mp.Spu < 0) { var first = mp.SpuDescription.FirstOrDefault(t => t.Id >= 0); if (first.Name != null) mp.SetSpu(first.Id); }
                     var au = PickTrack(mp.AudioTrackDescription.Select(t => (t.Id, t.Name)), current?.Audio ?? _settings.VlcAudio);
                     if (au != int.MinValue && au >= 0) mp.SetAudioTrack(au);
                 }
                 catch (Exception ex) { App.LogError(ex); }
+            };
+            showSubs.Click += (s, e) =>
+            {
+                _settings.VlcShowSubs = showSubs.IsChecked == true; saveLector();
+                applyTracks();
+                showOsd(_settings.VlcShowSubs ? L.T("Napisy: widoczne") : L.T("Napisy: ukryte (lektor czyta)"));
             };
             _vlcLoad = i =>
             {
@@ -681,6 +746,7 @@ namespace Przegladarka
                 current = LoadLibrary().FirstOrDefault(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
                 win.Title = System.IO.Path.GetFileName(path) + " – " + L.T("Odtwarzacz filmów");
                 LectorStopVoice(lc, mp); loadSubs(FindSubtitleFor(path));
+                applyFilmPrefs();
                 miniTitle.Text = System.IO.Path.GetFileNameWithoutExtension(path);
                 using (var media = new Media(_libVlc, path, FromType.FromPath))
                 {
@@ -697,7 +763,7 @@ namespace Przegladarka
                 }
                 // sciezki filmu znane chwile po starcie - wtedy ustawiamy zapamietane napisy i dzwiek
                 var tracksTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
-                tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); };
+                tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); mp.Volume = (int)vol.Value; };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
                 speedIdx = 3; speed.Content = "1×";
                 prev.IsEnabled = i > 0; next.IsEnabled = i < _playlist.Count - 1;
@@ -722,7 +788,7 @@ namespace Przegladarka
             Action togglePlay = () => { if (mp.IsPlaying) mp.SetPause(true); else if (mp.State == VLCState.Stopped || mp.State == VLCState.Ended || mp.State == VLCState.NothingSpecial) _vlcLoad(_playIndex); else mp.SetPause(false); };
             Action<long> jump = d => { if (mp.Length <= 0) return; mp.Time = Math.Max(0, Math.Min(mp.Length - 500, mp.Time + d)); showOsd((d > 0 ? "+" : "−") + Math.Abs(d / 1000) + " s"); };
             Action<double> setVol = v => { vol.Value = Math.Max(0, Math.Min(125, v)); };
-            vol.ValueChanged += (s, e) => { mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (mp.Mute && vol.Value > 0) mp.Mute = false; mute.Content = PlayerIcon(mp.Mute || vol.Value == 0 ? "mute" : "volume"); };
+            vol.ValueChanged += (s, e) => { _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (mp.Mute && vol.Value > 0) mp.Mute = false; mute.Content = PlayerIcon(mp.Mute || vol.Value == 0 ? "mute" : "volume"); };
             Action toggleMute = () => { mp.Mute = !mp.Mute; mute.Content = PlayerIcon(mp.Mute ? "mute" : "volume"); showOsd(mp.Mute ? L.T("Wyciszono") : (int)vol.Value + "%"); };
             Action<int> setSpeed = d => { speedIdx = Math.Max(0, Math.Min(speeds.Length - 1, speedIdx + d)); mp.SetRate(speeds[speedIdx]); speed.Content = speeds[speedIdx].ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "×"; showOsd(L.T("Prędkość ") + speed.Content); };
             // tryb mini: male okienko bez ramki w prawym dolnym rogu, zawsze na wierzchu; powrot - poprzedni rozmiar i miejsce

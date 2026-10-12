@@ -134,13 +134,16 @@ namespace Przegladarka
         // syntezuje kwestie: Piper (jezyk zgodny z napisami, jesli jest taki glos), inaczej glos Windows
         async Task<string> LectorSynthesizeAsync(string text, string lang, double rate)
         {
-            var piper = SelectedPiperVoice(_settings.ReadVoice);
-            if (piper != null && piper.Lang != lang) piper = PiperVoices.FirstOrDefault(v => v.Lang == lang && PiperVoiceInstalled(v)) ?? piper;
+            // glos wybrany w panelu lektora; "automatycznie" = glos czytania na glos, w jezyku napisow
+            var tag = _settings.VlcLectorVoice ?? "";
+            var piper = tag.StartsWith("piper:") ? SelectedPiperVoice(tag) : tag.StartsWith("win:") ? null : SelectedPiperVoice(_settings.ReadVoice);
+            if (piper != null && tag.Length == 0 && piper.Lang != lang) piper = PiperVoices.FirstOrDefault(v => v.Lang == lang && PiperVoiceInstalled(v)) ?? piper;
             if (piper != null && PiperVoiceInstalled(piper)) return await PiperSynthesizeAsync(piper, text, rate);
             try
             {
                 var synth = new Windows.Media.SpeechSynthesis.SpeechSynthesizer();
-                var voice = Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices.FirstOrDefault(v => v.Language.StartsWith(lang, StringComparison.OrdinalIgnoreCase));
+                var voice = (tag.StartsWith("win:") ? Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices.FirstOrDefault(v => "win:" + v.DisplayName == tag) : null)
+                    ?? Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices.FirstOrDefault(v => v.Language.StartsWith(lang, StringComparison.OrdinalIgnoreCase));
                 if (voice != null) synth.Voice = voice;
                 synth.Options.SpeakingRate = Math.Max(0.5, Math.Min(3.0, rate));
                 using (var stream = await synth.SynthesizeTextToStreamAsync(text))

@@ -199,6 +199,15 @@ namespace Przegladarka
             TabBarPanel.Children.Insert(bank >= 0 ? bank + 1 : 1, _filmBtn);   // dock z prawej: nastepny w kolejnosci stoi po lewej od 🏦
         }
 
+        // okno wyboru zawsze na samej gorze: na ten czas okna "zawsze na wierzchu" (odtwarzacz, biblioteka) nie zaslaniaja go
+        static bool? ShowAboveAll(Func<bool?> show)
+        {
+            var top = Application.Current.Windows.Cast<Window>().Where(w => w.Topmost).ToList();
+            foreach (var w in top) w.Topmost = false;
+            try { return show(); }
+            finally { foreach (var w in top) w.Topmost = true; }
+        }
+
         string _lastVideoDir;   // ostatnio wybrany folder - kolejne okno wyboru otwiera sie przy nim, nie w jego srodku
 
         // owner: okno, nad ktorym ma byc okno wyboru (z biblioteki - nad biblioteka)
@@ -207,7 +216,7 @@ namespace Przegladarka
             var exts = string.Join(";", VideoExts.Concat(VlcExtraExts).Select(x => "*" + x));
             var dlg = new Microsoft.Win32.OpenFileDialog { Title = L.T("Wybierz film"), Multiselect = multi, Filter = L.T("Filmy") + "|" + exts + "|" + L.T("Wszystkie pliki") + "|*.*" };
             if (_lastVideoDir != null) dlg.InitialDirectory = _lastVideoDir;
-            if (dlg.ShowDialog(owner ?? this) != true) return null;
+            if (ShowAboveAll(() => dlg.ShowDialog(owner ?? this)) != true) return null;
             _lastVideoDir = System.IO.Path.GetDirectoryName(dlg.FileName);
             return dlg.FileNames;
         }
@@ -217,7 +226,7 @@ namespace Przegladarka
             var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Wybierz folder z filmami") };
             var up = _lastVideoDir != null ? System.IO.Path.GetDirectoryName(_lastVideoDir) : null;
             if (up != null) dlg.InitialDirectory = up;   // widac ostatni folder (np. D:\Filmy na D:\), a nie jego podfoldery
-            if (dlg.ShowDialog(owner ?? this) != true) return null;
+            if (ShowAboveAll(() => dlg.ShowDialog(owner ?? this)) != true) return null;
             _lastVideoDir = dlg.FolderName;
             return dlg.FolderName;
         }

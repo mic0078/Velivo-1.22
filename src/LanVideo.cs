@@ -43,6 +43,8 @@ namespace Przegladarka
             public long startAt { get; set; }     // wspolny start (unix ms)
             public string act { get; set; }       // ctl: play / pause / seek / leave
             public List<LanFilmItem> items { get; set; }
+            public int off { get; set; }          // biblioteka w kilku paczkach: od ktorej pozycji
+            public bool more { get; set; }        // sa jeszcze dalsze paczki
             public LibraryVideo prefs { get; set; }   // ustawienia filmu: glosnosc, lektor, napisy, sciezka dzwieku
         }
 
@@ -57,6 +59,7 @@ namespace Przegladarka
             public string u { get; set; }   // strumien
             public string n { get; set; }   // sciezka sieciowa (NAS)
             public string s { get; set; }   // napisy
+            public string fn { get; set; }  // nazwa pliku (dopasowanie informacji o filmie, np. z Jellyfin)
             public LibraryVideo f { get; set; }   // ustawienia filmu
         }
 
@@ -317,31 +320,61 @@ namespace Przegladarka
 
         readonly Dictionary<string, TaskCompletionSource<List<LanFilmItem>>> _libRequests = new Dictionary<string, TaskCompletionSource<List<LanFilmItem>>>();
 
+        readonly Dictionary<string, Tuple<TaskCompletionSource<List<LanFilmItem>>, bool[]>> _libMore = new Dictionary<string, Tuple<TaskCompletionSource<List<LanFilmItem>>, bool[]>>();
+
+        // cala wspolna biblioteka drugiego komputera - w kilku paczkach (jedna paczka LAN miesci ok. 200-300 filmow)
         async Task<List<LanFilmItem>> RequestLibrary(LanPeerInfo peer)
         {
-            var req = Guid.NewGuid().ToString("N");
-            var tcs = new TaskCompletionSource<List<LanFilmItem>>();
-            _libRequests[req] = tcs;
-            SendFilmMsg(peer, new LanFilmMsg { kind = "libreq", req = req });
-            var done = await Task.WhenAny(tcs.Task, Task.Delay(6000));
-            _libRequests.Remove(req);
-            return done == tcs.Task ? tcs.Task.Result : null;
+            var all = new List<LanFilmItem>();
+            for (int page = 0; page < 60; page++)
+            {
+                var req = Guid.NewGuid().ToString("N");
+                var tcs = new TaskCompletionSource<List<LanFilmItem>>();
+                var more = new bool[1];
+                _libRequests[req] = tcs; _libMore[req] = Tuple.Create(tcs, more);
+                SendFilmMsg(peer, new LanFilmMsg { kind = "libreq", req = req, off = all.Count });
+                var done = await Task.WhenAny(tcs.Task, Task.Delay(6000));
+                _libRequests.Remove(req); _libMore.Remove(req);
+                if (done != tcs.Task) return page == 0 ? null : all;   // nie odpowiada - to, co juz przyszlo
+                all.AddRange(tcs.Task.Result);
+                if (!more[0] || tcs.Task.Result.Count == 0) break;   // starsza wersja Velivo odpowiada jedna paczka bez "more"
+            }
+            return all;
         }
 
-        // wspolna biblioteka dla drugiego komputera: ostatnio ogladane na gorze, najwyzej tyle, ile zmiesci sie w pakiecie
-        List<LanFilmItem> LibraryFor(LanPeerInfo peer)
+        // wspolna biblioteka (cache na minute - kolejne paczki nie sprawdzaja dyskow od nowa)
+        Tuple<DateTime, List<LibraryVideo>> _sharedCache;
+        List<LibraryVideo> SharedForPeers()
         {
-            var list = new List<LanFilmItem>();
-            int size = 0;   // pakiet LAN ma limit ok. 60 KB - lista najwyzej do ok. 120 KB tekstu przed kompresja
-            foreach (var v in LoadLibrary().OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).Take(300))
+            var c = _sharedCache;
+            if (c != null && DateTime.Now - c.Item1 < TimeSpan.FromMinutes(1)) return c.Item2;
+            var l = LoadLibrary().Where(v => IsShared(v) && File.Exists(v.Path)).OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();   // prywatna biblioteka nie wychodzi z komputera
+            _sharedCache = Tuple.Create(DateTime.Now, l);
+            return l;
+        }
+
+        // jedna paczka: od pozycji off, ile zmiesci sie w pakiecie LAN (limit ok. 60 KB - do ok. 120 KB tekstu przed kompresja)
+        internal static List<LibraryVideo> LibraryPage(List<LibraryVideo> shared, int off, out bool more)
+        {
+            var page = new List<LibraryVideo>(); int size = 0, i = Math.Max(0, off);
+            for (; i < shared.Count; i++)
             {
-                if (!IsShared(v) || !File.Exists(v.Path)) continue;   // prywatna biblioteka nie wychodzi z komputera
-                size += 260 + v.Title.Length + v.Path.Length * 2;
-                if (size > 120000) break;
-                var t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title;
-                list.Add(new LanFilmItem { i = FilmId(v.Path), t = t, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last, n = NetworkPath(v.Path), f = PrefsOf(v) });
+                var v = shared[i];
+                size += 280 + Math.Min(90, v.Title.Length) + v.Path.Length * 3;
+                if (size > 120000 && page.Count > 0) break;
+                page.Add(v);
             }
-            return list;
+            more = i < shared.Count;
+            return page;
+        }
+
+        List<LanFilmItem> LibraryFor(LanPeerInfo peer, int off, out bool more)
+        {
+            return LibraryPage(SharedForPeers(), off, out more).Select(v => new LanFilmItem
+            {
+                i = FilmId(v.Path), t = v.Title.Length > 90 ? v.Title.Substring(0, 90) : v.Title, l = v.Len, p = v.Done ? 0 : v.Pos, d = v.Done, w = v.Last,
+                n = NetworkPath(v.Path), f = PrefsOf(v), fn = Path.GetFileName(v.Path),
+            }).ToList();
         }
 
         // wybrany film z biblioteki drugiego komputera: prosimy o strumien (klucz powstaje dopiero teraz, na ten jeden film)
@@ -367,9 +400,10 @@ namespace Przegladarka
             switch (m.kind)
             {
                 case "libreq":   // lista w tle - wylaczony NAS nie moze zawiesic okna
-                    _ = Task.Run(() => { var items = LibraryFor(peer); Dispatcher.BeginInvoke(new Action(() => SendFilmMsg(peer, new LanFilmMsg { kind = "lib", req = m.req, items = items }))); });
+                    _ = Task.Run(() => { var items = LibraryFor(peer, m.off, out var more); Dispatcher.BeginInvoke(new Action(() => SendFilmMsg(peer, new LanFilmMsg { kind = "lib", req = m.req, items = items, more = more }))); });
                     break;
                 case "lib":
+                    if (m.req != null && _libMore.TryGetValue(m.req, out var mr)) mr.Item2[0] = m.more;
                     if (m.req != null && _libRequests.TryGetValue(m.req, out var tcs)) tcs.TrySetResult(m.items ?? new List<LanFilmItem>());
                     break;
                 case "want":   // drugi komputer chce obejrzec film z tej biblioteki

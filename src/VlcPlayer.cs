@@ -408,7 +408,7 @@ namespace Przegladarka
                     {
                         if (!seen.Add(kv.Value.n ?? kv.Key.Id + "|" + kv.Value.i)) continue;
                         var x = kv.Value;
-                        var v = new LibraryVideo { Path = x.n ?? x.i, Title = x.t, Len = x.l, Pos = x.p, Done = x.d, Last = x.w };
+                        var v = new LibraryVideo { Path = x.n ?? ("velivo:" + x.i + "\\" + (x.fn ?? x.i)), Title = x.t, Len = x.l, Pos = x.p, Done = x.d, Last = x.w };
                         of[v] = kv; all.Add(v);
                     }
                     // niedostepny udzial / dysk sprawdzany raz (nie po kilka sekund dla kazdego filmu)

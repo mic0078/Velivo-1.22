@@ -132,6 +132,15 @@ namespace Przegladarka
             ShowToast(L.T("⚠ Oglądanie i nagrywanie naraz to dwa połączenia z dostawcą IPTV. Jeśli pozwala na jedno, jedno z nich może się przerwać."), null);
         }
 
+        readonly Dictionary<string, string> _recFile = new Dictionary<string, string>();   // id nagrania w toku -> plik
+
+        // plik nagrywanego teraz kanalu (do ogladania z nagrania); null = nie nagrywa sie
+        string RecFileFor(string url)
+        {
+            var j = IptvSt.Jobs.FirstOrDefault(x => x.Kind == "rec" && x.Url == url && _recording.ContainsKey(x.Id) && _recFile.ContainsKey(x.Id));
+            return j != null && File.Exists(_recFile[j.Id]) && new FileInfo(_recFile[j.Id]).Length > 512 * 1024 ? _recFile[j.Id] : null;
+        }
+
         bool IsRecording(string url) { return IptvSt.Jobs.Any(j => j.Kind == "rec" && j.Url == url && _recording.ContainsKey(j.Id)); }
 
         void StartRecording(IptvJob j)
@@ -140,13 +149,14 @@ namespace Przegladarka
             _recording[j.Id] = cts;
             var dir = string.IsNullOrWhiteSpace(j.Folder) ? DefaultRecDir : j.Folder;
             var file = Path.Combine(dir, RecordingName(j.Channel, j.Title, DateTime.Now));
+            _recFile[j.Id] = file;
             if (_vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) WarnOneConnection();
             ShowToast(L.T("⏺ Nagrywam: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
             _iptvJobsChanged?.Invoke();
             Func<DateTime> until = () => LocalOf(j.Stop);   // "Przedluz" zmienia j.Stop w trakcie nagrywania
             Task.Run(() => RecordStream(j.Url, j.Opts, file, until, cts.Token)).ContinueWith(t => Dispatcher.BeginInvoke(new Action(() =>
             {
-                _recording.Remove(j.Id);
+                _recording.Remove(j.Id); _recFile.Remove(j.Id);
                 IptvSt.Jobs.RemoveAll(x => x.Id == j.Id); SaveIptv(IptvSt);
                 _iptvJobsChanged?.Invoke();
                 var err = t.IsFaulted ? t.Exception.GetBaseException().Message : t.Result;

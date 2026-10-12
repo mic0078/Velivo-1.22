@@ -990,11 +990,18 @@ namespace Przegladarka
                 showOsd(_settings.VlcShowSubs ? L.T("Napisy: widoczne") : L.T("Napisy: ukryte (lektor czyta)"));
             };
             // straznik kanalu na zywo: obraz stoi (czas sie nie przesuwa) albo strumien sie urwal - ponowne polaczenie
+            string curRecFile = null; long recResume = -1; DateTime pausedAt = DateTime.Now;
             bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
             var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             tvWatch.Tick += (s, e) =>
             {
                 var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                // opcja: ogladany kanal zaczal sie nagrywac - przejscie na plik nagrania (zostaje jedno polaczenie)
+                if (pth != null && _iptvPlaying.ContainsKey(pth) && IptvSt.WatchFromRec && curRecFile == null && !userStopped && mp.State == VLCState.Playing && RecFileFor(pth) != null)
+                { recResume = -1; _vlcLoad(_playIndex); return; }
+                // opcja: dluga pauza na zywo - polaczenie z dostawca zwolnione (▶ laczy ponownie)
+                if (pth != null && _iptvPlaying.ContainsKey(pth) && mp.State == VLCState.Paused && curRecFile == null && IptvSt.PauseRelease && (DateTime.Now - pausedAt).TotalMinutes >= 5)
+                { userStopped = true; mp.Stop(); showOsd(L.T("⏸ Połączenie z dostawcą zwolnione po 5 min pauzy – ▶ wznawia")); return; }
                 if (pth == null || !_iptvPlaying.ContainsKey(pth) || userStopped || mp.State == VLCState.Paused) { lastTvProgress = DateTime.Now; return; }
                 if (mp.State == VLCState.Playing && mp.Time != lastTvTime) { lastTvTime = mp.Time; lastTvProgress = DateTime.Now; tvRetries = 0; return; }
                 var wait = Math.Max(8, IptvSt.Buffer + 6) * (tvRetries >= 3 ? 2 : 1);   // po kilku probach rzadziej
@@ -1155,15 +1162,26 @@ namespace Przegladarka
                 else loadSubs(stream ? null : FindSubtitleFor(path));
                 applyFilmPrefs();
                 miniTitle.Text = name;
-                using (var media = stream ? new Media(_libVlc, new Uri(path)) : new Media(_libVlc, path, FromType.FromPath))
+                // nagrywany kanal (opcja): obraz z pliku nagrania - jedno polaczenie z dostawca, pauza i cofanie
+                curRecFile = tv != null && IptvSt.WatchFromRec ? RecFileFor(path) : null;
+                if (curRecFile != null) stream = false;
+                using (var media = curRecFile != null ? new Media(_libVlc, curRecFile, FromType.FromPath) : stream ? new Media(_libVlc, new Uri(path)) : new Media(_libVlc, path, FromType.FromPath))
                 {
                     // napisy o tej samej nazwie obok filmu (film.srt, film.pl.srt) dolaczane same - jak w VLC; przy strumieniu - z komputera wlasciciela
                     if (stream && rf?.Sub != null) media.AddSlave(MediaSlaveType.Subtitle, 4, rf.Sub);
-                    if (tv != null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
-                    if (tv != null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
+                    if (tv != null && curRecFile == null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
+                    if (tv != null && curRecFile == null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
+                if (curRecFile != null)
+                {
+                    long at = recResume; recResume = -1;   // -1 = na zywo (koniec pliku), inaczej miejsce, w ktorym bylismy
+                    var once2 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                    once2.Tick += (s, e) => { once2.Stop(); if (mp.Length > 0) mp.Time = at >= 0 ? Math.Min(at, mp.Length - 1500) : Math.Max(0, mp.Length - 3000); };
+                    once2.Start();
+                    if (at < 0) showOsd(L.T("⏺ Oglądasz z nagrania – pauza i cofanie działają"));
+                }
                 if (resume > 0)
                 {
                     long r = resume;
@@ -1201,6 +1219,8 @@ namespace Przegladarka
             {
                 if (current != null && _remoteFilms.TryGetValue(current.Path, out var rfe)) { SendRemoteProgress(rfe, 0, mp.Length, true); current = null; }
                 if (current != null) { var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current)); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
+                // z nagrania: dojechalismy do konca zapisanego pliku - ponownie otworz plik (urosl) od tego miejsca
+                if (curRecFile != null && _playlist.Count > _playIndex) { recResume = Math.Max(0, mp.Length - 1000); _vlcLoad(_playIndex); return; }
                 if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału – łączę ponownie…")); return; }   // telewizja: bez przeskoku na nastepny kanal; strażnik polaczy ponownie
                 if (_playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
@@ -1484,6 +1504,14 @@ namespace Przegladarka
                     add(L.T("⏮ Poprzedni kanał (PgUp)"), () => _vlcLoad(_playIndex - 1), _playIndex > 0);
                     add(L.T("⏭ Następny kanał (PgDn)"), () => _vlcLoad(_playIndex + 1), _playIndex < _playlist.Count - 1);
                     add(L.T("🔄 Odśwież kanał (F5)"), () => { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); }, true);
+                    if (curRecFile != null) add(L.T("⏩ Na żywo (koniec nagrania)"), () => { recResume = -1; _vlcLoad(_playIndex); }, true);
+                    else if (IptvSt.WatchFromRec && RecFileFor(path) != null) add(L.T("⏺ Oglądaj z nagrania (jedno połączenie, pauza i cofanie)"), () => { recResume = -1; _vlcLoad(_playIndex); }, true);
+                    var optM = new MenuItem { Header = L.T("⚙ Opcje połączenia") };
+                    var o1 = new MenuItem { Header = L.T("Nagrywany kanał oglądaj z nagrania (jedno połączenie, pauza i cofanie)"), IsCheckable = true, IsChecked = IptvSt.WatchFromRec };
+                    o1.Click += (q, w2) => { IptvSt.WatchFromRec = !IptvSt.WatchFromRec; SaveIptv(IptvSt); };
+                    var o2 = new MenuItem { Header = L.T("Po 5 min pauzy zwolnij połączenie z dostawcą"), IsCheckable = true, IsChecked = IptvSt.PauseRelease };
+                    o2.Click += (q, w2) => { IptvSt.PauseRelease = !IptvSt.PauseRelease; SaveIptv(IptvSt); };
+                    optM.Items.Add(o1); optM.Items.Add(o2); cm.Items.Add(optM);
                     // zapas bufora: wiecej = mniej przyciec, ale troche wieksze opoznienie i wolniejsze przelaczanie
                     var bufM = new MenuItem { Header = L.T("⏱ Bufor kanałów: ") + IptvSt.Buffer + " s" };
                     foreach (var sec0 in new[] { 1, 3, 5, 10 })
@@ -1540,7 +1568,8 @@ namespace Przegladarka
             };
             overlay.MouseWheel += (s, e) => { if (controls.IsMouseOver && !vol.IsMouseOver) return; showBar(); setVol(vol.Value + (e.Delta > 0 ? 5 : -5)); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); };
             overlay.MouseMove += (s, e) => showBar();
-            mp.Paused += (s, e) => Dispatcher.BeginInvoke(showBar);   // pauza - pasek zostaje widoczny
+            mp.Paused += (s, e) => Dispatcher.BeginInvoke(showBar);
+            mp.Paused += (s, e) => Dispatcher.BeginInvoke(new Action(() => pausedAt = DateTime.Now));   // pauza - pasek zostaje widoczny
             hideTimer.Start();
             win.PreviewKeyDown += (s, e) =>
             {

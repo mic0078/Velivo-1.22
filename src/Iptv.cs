@@ -63,7 +63,9 @@ namespace Przegladarka
             public string Win { get; set; }
             public string Group { get; set; }    // ostatnio wybrana grupa
             public Dictionary<string, long> Watched { get; set; } = new Dictionary<string, long>();   // kanal -> kiedy ostatnio ogladany (unix ms)
-            public int Buffer { get; set; } = 1;  // zapas bufora kanalow na zywo (s); 1 = jak VLC
+            public int Buffer { get; set; } = 1;
+            public bool WatchFromRec { get; set; }   // ogladanie nagrywanego kanalu z pliku nagrania (jedno polaczenie, pauza i cofanie) - opcja
+            public bool PauseRelease { get; set; }   // po 5 min pauzy zwolnij polaczenie z dostawca - opcja  // zapas bufora kanalow na zywo (s); 1 = jak VLC
             public int InfoSec { get; set; } = 5;        // pasek informacji o programie: znika po tylu sekundach; 0 = tylko na zadanie (klawisz I)
             public int InfoAlpha { get; set; } = 85;     // nieprzezroczystosc paska informacji (%)
             public int InfoScale { get; set; } = 100;    // wielkosc tekstu paska informacji (%), dodatkowo dopasowana do rozmiaru okna

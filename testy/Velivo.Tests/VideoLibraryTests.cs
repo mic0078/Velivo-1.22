@@ -58,4 +58,21 @@ public class VideoLibraryTests
         Assert.Equal("03.05.2025", MainWindow.LastPlayedText(new System.DateTimeOffset(new System.DateTime(2025, 5, 3, 12, 0, 0)).ToUnixTimeMilliseconds(), now));
         Assert.EndsWith("18:30", MainWindow.LastPlayedText(new System.DateTimeOffset(new System.DateTime(2026, 10, 12, 18, 30, 0)).ToUnixTimeMilliseconds(), now));
     }
+
+    [Fact]
+    public void ProcentObejrzanegoPoStopie()
+    {
+        var v = new MainWindow.LibraryVideo { Path = @"C:\f.avi", Title = "f" };
+        MainWindow.RecordProgress(v, 1800000, 6000000, 1);      // przerwany w 30% (Stop)
+        Assert.Equal("30%", MainWindow.SeenText(v));
+        Assert.False(v.Done);
+        MainWindow.RecordProgress(v, 3000, 6000000, 2);         // zaledwie zaczety od nowa - nie "obejrzany"
+        Assert.Equal("", MainWindow.SeenText(v));
+        MainWindow.RecordProgress(v, 5990000, 6000000, 3);      // ostatnie sekundy = obejrzany
+        Assert.Equal("✓", MainWindow.SeenText(v));
+        MainWindow.RecordProgress(v, 2000, 6000000, 4);         // ponowne ogladanie od poczatku - dalej obejrzany
+        Assert.Equal("✓", MainWindow.SeenText(v));
+        MainWindow.RecordProgress(v, 1200000, 6000000, 5);      // ponowne ogladanie przerwane w 20%
+        Assert.Equal("20%", MainWindow.SeenText(v));
+    }
 }

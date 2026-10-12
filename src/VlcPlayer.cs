@@ -52,6 +52,7 @@ namespace Przegladarka
             public long Last { get; set; }   // ostatnie odtwarzanie (unix ms), 0 = nieogladany
             public long Pos { get; set; }    // miejsce wznowienia (ms)
             public long Len { get; set; }    // dlugosc (ms), znana po pierwszym odtworzeniu
+            public bool Done { get; set; }   // obejrzany do konca
         }
 
         internal static List<LibraryVideo> ParseLibrary(string json)
@@ -92,6 +93,25 @@ namespace Przegladarka
                 }
             }
             return added;
+        }
+
+        // zapis postepu ogladania: koncowka filmu (ostatnie 15 s) = obejrzany; inaczej miejsce, w ktorym przerwano
+        internal static void RecordProgress(LibraryVideo v, long time, long len, long nowMs)
+        {
+            v.Last = nowMs;
+            if (len > 0) v.Len = len;
+            if (v.Len > 0 && time >= v.Len - 15000) { v.Done = true; v.Pos = 0; }
+            else if (time >= 10000) { v.Done = false; v.Pos = time; }
+            else if (!v.Done) v.Pos = time;   // zaledwie zaczety (ponowne ogladanie obejrzanego nie kasuje znacznika)
+        }
+
+        // kolumna "Obejrzane": ✓ / procent / pusto
+        internal static double SeenFraction(LibraryVideo v) { return v.Done ? 1.0 : v.Len > 0 ? Math.Min(1.0, (double)v.Pos / v.Len) : 0.0; }
+        internal static string SeenText(LibraryVideo v)
+        {
+            if (v.Done) return "✓";
+            int pct = (int)(100 * SeenFraction(v));
+            return pct >= 1 ? pct + "%" : "";
         }
 
         // miejsce wznowienia: od poczatku, gdy obejrzane prawie do konca albo zaledwie zaczete
@@ -225,7 +245,7 @@ namespace Przegladarka
             {
                 case "title": by = v => v.Title.ToLowerInvariant(); break;
                 case "len": by = v => v.Len; break;
-                case "seen": by = v => v.Len > 0 ? (v.Last > 0 && v.Pos == 0 ? 1.0 : (double)v.Pos / v.Len) : 0.0; break;
+                case "seen": by = v => SeenFraction(v); break;
                 case "folder": by = v => (System.IO.Path.GetDirectoryName(v.Path) ?? "").ToLowerInvariant(); break;
                 default: by = v => v.Last; break;
             }
@@ -284,7 +304,7 @@ namespace Przegladarka
                     {
                         Item = v, Missing = !exists(v.Path), Title = v.Title,
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
-                        Seen = v.Last == 0 ? "" : v.Len > 0 && v.Pos == 0 ? "✓" : v.Len > 0 ? (int)(100.0 * v.Pos / v.Len) + "%" : "…",
+                        Seen = SeenText(v),
                         LastPlayed = LastPlayedText(v.Last, now),
                         Folder = System.IO.Path.GetDirectoryName(v.Path),
                     }).Select(r => { if (r.Missing) r.Title = "⚠ " + r.Title; return r; }).ToList();
@@ -515,15 +535,16 @@ namespace Przegladarka
             Action savePos = () =>
             {
                 if (current == null) return;
+                // po Stop / koncu odtwarzacz podaje czas 0 - nie wolno nim nadpisac miejsca, w ktorym przerwano
+                var st = mp.State;
+                if (st != VLCState.Playing && st != VLCState.Paused && st != VLCState.Buffering) return;
                 try
                 {
                     long t = mp.Time, len = mp.Length;
                     var l = LoadLibrary();
                     var v = l.FirstOrDefault(x => string.Equals(x.Path, current.Path, StringComparison.OrdinalIgnoreCase));
                     if (v == null) return;
-                    v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    if (len > 0) v.Len = len;
-                    v.Pos = ResumeAt(t, v.Len);
+                    RecordProgress(v, t, len, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                     SaveLibrary(l);
                     _libRefresh?.Invoke();
                 }
@@ -569,7 +590,7 @@ namespace Przegladarka
             mp.Stopped += (s, e) => Dispatcher.BeginInvoke(new Action(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; }));
             mp.EndReached += (s, e) => Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (current != null) { var l = LoadLibrary(); var v = l.FirstOrDefault(x => x.Path == current.Path); if (v != null) { v.Pos = 0; v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
+                if (current != null) { var l = LoadLibrary(); var v = l.FirstOrDefault(x => x.Path == current.Path); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
                 if (_playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
             mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(new Action(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));

@@ -69,7 +69,7 @@ namespace Przegladarka
             var m = Regex.Match(t, @"^(.+?\b(19|20)\d{2})\b");   // tytul do roku ("2001 A Space Odyssey 1968" - rok z tytulu nie ucina)
             if (m.Success) t = m.Groups[1].Value;
             else t = Regex.Replace(t, @"\b(pl|eng?|lektor|dubbing|napisy|\d{3,4}p|4k|bdrip|brrip|web-?dl|webrip|hdtv|dvdrip|x26[45]|h ?26[45]|hevc|xvid|ac3|dd\d?.*|aac.*)\b.*$", "", RegexOptions.IgnoreCase);
-            return Regex.Replace(t, @"\s+", " ").Trim().ToLowerInvariant();
+            return Regex.Replace(t, @"\s+", " ").Trim(' ', '-', '_', ',').ToLowerInvariant();   // "28 years later-720p" -> "28 years later"
         }
 
         static HttpClient OsClient(SubsAccount a, string token)
@@ -94,7 +94,7 @@ namespace Przegladarka
             return JsonDocument.Parse(text).RootElement.Clone();
         }
 
-        sealed class OsResult { public string Name { get; set; } public string Lang { get; set; } public int Downloads { get; set; } public string Match { get; set; } public long FileId; public string Text; }   // Text - napisy z Napiprojektu (juz pobrane)
+        sealed class OsResult { public string Name { get; set; } public string Source { get; set; } public string Lang { get; set; } public int Downloads { get; set; } public string Match { get; set; } public long FileId; public string Text; }   // Text - napisy z Napiprojektu (juz pobrane)
 
         // ---------- Napiprojekt (polskie napisy, po skrocie pliku, bez konta) ----------
 
@@ -217,10 +217,17 @@ namespace Przegladarka
             var accBtn = SmallButton(L.T("👤 Konto"), null); accBtn.Margin = new Thickness(6, 8, 8, 4);
             var top = new DockPanel();
             DockPanel.SetDock(accBtn, Dock.Right); top.Children.Add(accBtn);
+            // zrodla napisow (zapamietane)
+            var useOs = new CheckBox { Content = "OpenSubtitles", IsChecked = GetPref("napisy-os") != "0", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 8, 0, 4) };
+            var useNapi = new CheckBox { Content = L.T("Napiprojekt (PL)"), IsChecked = GetPref("napisy-napi") != "0", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 8, 0, 4), ToolTip = L.T("Polskie napisy dopasowane do tego pliku, bez konta") };
+            useOs.Click += (s, a) => SetPref("napisy-os", useOs.IsChecked == true ? "1" : "0");
+            useNapi.Click += (s, a) => SetPref("napisy-napi", useNapi.IsChecked == true ? "1" : "0");
+            DockPanel.SetDock(useNapi, Dock.Right); top.Children.Add(useNapi);
+            DockPanel.SetDock(useOs, Dock.Right); top.Children.Add(useOs);
             DockPanel.SetDock(searchBtn, Dock.Right); top.Children.Add(searchBtn);
             top.Children.Add(query);
             var grid = new GridView();
-            foreach (var c in new[] { new[] { "Name", "Napisy (wydanie)", "440" }, new[] { "Lang", "Język", "60" }, new[] { "Match", "Dopasowanie", "110" }, new[] { "Downloads", "Pobrań", "70" } })
+            foreach (var c in new[] { new[] { "Name", "Napisy (wydanie)", "360" }, new[] { "Source", "Źródło", "100" }, new[] { "Lang", "Język", "60" }, new[] { "Match", "Dopasowanie", "110" }, new[] { "Downloads", "Pobrań", "70" } })
                 grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
             var list = new ListView { View = grid, Margin = new Thickness(8, 0, 8, 0) };
             RememberColumns(w, "napisy", grid);
@@ -236,10 +243,11 @@ namespace Przegladarka
             Func<Task> search = async () =>
             {
                 status.Text = L.T("Szukam napisów…"); list.ItemsSource = null;
-                var res = new List<OsResult>(); string osErr = null;
-                // Napiprojekt rownolegle (polskie napisy dokladnie do tego pliku)
-                var napi = acc.Lang.Split(',').Contains("pl") ? Task.Run(async () => { try { return await NapiFetch(video); } catch (Exception) { return null; } }) : Task.FromResult<string>(null);
-                try
+                var res = new List<OsResult>(); string osInfo = null, napiInfo = null;
+                bool os = useOs.IsChecked == true, np = useNapi.IsChecked == true;
+                // Napiprojekt rownolegle (polskie napisy dokladnie do tego pliku); wynik albo powod
+                var napi = np ? Task.Run(async () => { try { return Tuple.Create(await NapiFetch(video), (string)null); } catch (Exception ex) { return Tuple.Create((string)null, ex.Message); } }) : Task.FromResult(Tuple.Create((string)null, (string)null));
+                if (os) try
                 {
                     var hash = await Task.Run(() => { try { return OsHash(video); } catch (Exception) { return null; } });
                     var args = new SortedDictionary<string, string>(StringComparer.Ordinal) { { "languages", acc.Lang } };   // parametry alfabetycznie (wymaganie API)
@@ -258,17 +266,21 @@ namespace Przegladarka
                             Name = (at.TryGetProperty("release", out var rl) ? rl.GetString() : null) ?? files[0].GetProperty("file_name").GetString(),
                             Lang = at.TryGetProperty("language", out var lg) ? lg.GetString() : "",
                             Downloads = at.TryGetProperty("download_count", out var dc) && dc.ValueKind == JsonValueKind.Number ? dc.GetInt32() : 0,
-                            Match = hashMatch ? L.T("✔ ten plik") : L.T("po nazwie"),
+                            Match = hashMatch ? L.T("✔ ten plik") : L.T("po nazwie"), Source = "OpenSubtitles",
                             FileId = files[0].GetProperty("file_id").GetInt64(),
                         });
                     }
                 }
-                catch (Exception ex) { osErr = ex.Message; }
+                catch (Exception ex) { osInfo = "⚠ " + ex.Message; }
+                if (os && osInfo == null) osInfo = res.Count + L.T(" wyników");
                 var nt = await napi;
-                if (nt != null) res.Insert(0, new OsResult { Name = L.T("Napiprojekt – napisy do tego pliku"), Lang = "pl", Match = L.T("✔ ten plik"), Text = nt });
+                if (nt.Item1 != null) { res.Insert(0, new OsResult { Name = L.T("Napisy do tego pliku"), Source = "Napiprojekt", Lang = "pl", Match = L.T("✔ ten plik"), Text = nt.Item1 }); napiInfo = L.T("znaleziono"); }
+                else if (np) napiInfo = nt.Item2 != null ? "⚠ " + nt.Item2 : L.T("brak napisów do tego pliku");
                 list.ItemsSource = res.OrderBy(r => r.Match == L.T("✔ ten plik") ? 0 : 1).ThenByDescending(r => r.Downloads).ToList();
                 sortSubs?.Invoke();
-                status.Text = (res.Count == 0 ? L.T("Nie znaleziono napisów – zmień nazwę w polu wyszukiwania.") : res.Count + L.T(" wyników · dwuklik = pobierz")) + (osErr != null ? L.T("  · ⚠ OpenSubtitles: ") + osErr : "");
+                // co odpowiedzialo kazde zrodlo
+                status.Text = (!os && !np ? L.T("Zaznacz co najmniej jedno źródło napisów.") :
+                    string.Join("  ·  ", new[] { os ? "OpenSubtitles: " + osInfo : null, np ? "Napiprojekt: " + napiInfo : null }.Where(x => x != null))) + (res.Count > 0 ? L.T("  ·  dwuklik = pobierz") : "");
             };
             Func<Task> download = async () =>
             {

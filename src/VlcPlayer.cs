@@ -953,7 +953,27 @@ namespace Przegladarka
                 showOsd(_settings.VlcShowSubs ? L.T("Napisy: widoczne") : L.T("Napisy: ukryte (lektor czyta)"));
             };
             string curTitle = "";
-            Action recTitle = () => { var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (pth != null && curTitle.Length > 0) win.Title = (IsRecording(pth) ? "⏺ REC  " : "") + curTitle + " – " + L.T("Odtwarzacz filmów"); };
+            // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)
+            int marqueePos = 0;
+            Action recTitle = () =>
+            {
+                var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (pth == null || curTitle.Length == 0) return;
+                var text = (IsRecording(pth) ? "⏺ REC  " : "") + curTitle;
+                if (_iptvPlaying.TryGetValue(pth, out var tvc))
+                {
+                    var nowP = EpgAt(EpgFor(_iptvEpg, tvc), DateTime.Now);
+                    if (nowP != null) text += "  ·  ▶ " + nowP.Title + L.T(" (do ") + nowP.Stop.ToString("HH:mm") + ")";
+                }
+                int fit = Math.Max(12, (int)((win.ActualWidth - 300) / 7.5));
+                if (text.Length <= fit) marqueePos = 0;
+                else { var loop = text + "     •     "; marqueePos = (marqueePos + 1) % loop.Length; text = (loop + loop).Substring(marqueePos, fit); }
+                win.Title = text + " – " + L.T("Odtwarzacz filmów");
+            };
+            var marquee = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            marquee.Tick += (s, e) => { if (win.WindowStyle != WindowStyle.None) recTitle(); };
+            marquee.Start();
+            win.Closed += (s, e) => marquee.Stop();
             _iptvJobsChanged += recTitle;   // nagrywanie ogladanego kanalu - widac w tytule
             win.Closed += (s, e) => _iptvJobsChanged -= recTitle;
             _vlcLoad = i =>
@@ -974,7 +994,7 @@ namespace Przegladarka
                 else if (rf == null) current = FindEntry(LoadLibrary(), path, _playShared);
                 bool stream = path.Contains("://");
                 var name = rf != null ? rf.Title : tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path);
-                curTitle = name;
+                curTitle = name; marqueePos = 0;
                 win.Title = (IsRecording(path) ? "⏺ REC  " : "") + name + " – " + L.T("Odtwarzacz filmów");
                 LectorStopVoice(lc, mp);
                 if (stream && rf?.Sub != null)

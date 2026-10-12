@@ -83,7 +83,10 @@ namespace Przegladarka
         public string VideoDir = "";
         public string FloatBounds = "";
         public int FloatOpacity = 100;
-        public bool VlcTopmost = false;        // odtwarzacz filmow (dodatek) zawsze na wierzchu
+        public bool VlcTopmost = false;
+        public bool VlcLector = false;
+        public string VlcSpu = "";             // odtwarzacz filmow: ostatnio wybrane napisy (nazwa sciezki, "-" = wylaczone)
+        public string VlcAudio = "";           // odtwarzacz filmow: ostatnio wybrana sciezka dzwieku         // odtwarzacz filmow: lektor czyta napisy        // odtwarzacz filmow (dodatek) zawsze na wierzchu
         public bool FloatTopmost = true;       // okienko filmu zawsze na wierzchu         // przezroczystosc okienka "film na wierzchu" (15-100%)      // miejsce i wielkosc okienka "film na wierzchu"          // ostatnio wybrany folder na filmy  // przycisk "Pobierz" nad filmami           // przycisk "obraz w obrazie" nad filmami
         public bool LanSync = true;            // bez sparowania dziala tryb zgodnosci (bez hasel); hasla tylko po sparowaniu
         public string LanSyncKey = "";
@@ -213,6 +216,9 @@ namespace Przegladarka
                         case "floatBounds": s.FloatBounds = v; break;
                         case "floatTop": s.FloatTopmost = b; break;
                         case "vlcTop": s.VlcTopmost = b; break;
+                        case "vlcLector": s.VlcLector = b; break;
+                        case "vlcSpu": s.VlcSpu = v; break;
+                        case "vlcAudio": s.VlcAudio = v; break;
                         case "floatOpacity": { int fo; if (int.TryParse(v, out fo)) s.FloatOpacity = Math.Max(15, Math.Min(100, fo)); } break;
                         case "cacheDir": s.CacheDir = v; break;
                         case "cleanJunk": s.CleanJunkOnStart = b; break;
@@ -275,7 +281,7 @@ namespace Przegladarka
                 "search=" + Search, "home=" + Home, "dnt=" + B(SendDnt), "tracking=" + Tracking,
                 "history=" + B(SaveHistory), "clearOnExit=" + B(ClearOnExit), "passwords=" + B(SavePasswords),
                 "autofill=" + B(Autofill), "smartscreen=" + B(SmartScreen), "ubol=" + B(UbolLite), "audioGuardOn=" + B(AudioGuard), "tray=" + B(StayInTray), "askedDefault=" + B(AskedDefaultBrowser), "readerTheme=" + (ReaderTheme ?? "light"), "readerNight=" + ReaderNight, "readerSize=" + (ReaderSize ?? ""), "audioOut=" + (AudioOut ?? ""), "antiPhishing=" + B(AntiPhishing), "httpsFirst=" + B(HttpsFirst), "safePay=" + B(SafePayments), "askDownload=" + B(AskDownload), "lastDlDir=" + (LastDownloadDir ?? ""),
-                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "playerSalt=" + (PlayerSalt ?? ""), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "vlcTop=" + B(VlcTopmost), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
+                "popups=" + B(BlockThirdPartyPopups), "cookieReject=" + B(AutoRejectCookies), "uiStyle=" + (UiStyle ?? "modern"), "nightStrength=" + NightStrength, "pageFade=" + PageFade, "pageEntrance=" + (PageEntrance ?? "blur"), "pageEntranceMs=" + PageEntranceMs, "pageMemory=" + B(PageMemory), "darkPatterns=" + B(DarkPatterns), "privacyReceipt=" + B(PrivacyReceipt), "gestures=" + B(MouseGestures), "pipBtn=" + B(PipButton), "videoDlBtn=" + B(VideoDownloadButton), "player=" + B(VideoPlayer), "playerAuto=" + B(PlayerAutoplay), "playerResume=" + B(PlayerResume), "playerLoop=" + B(PlayerLoop), "playerSalt=" + (PlayerSalt ?? ""), "torrents=" + B(Torrents), "torrentDir=" + (TorrentDir ?? ""), "torrentDown=" + TorrentDownKb, "torrentUp=" + TorrentUpKb, "torrentRatio=" + TorrentRatio.ToString(System.Globalization.CultureInfo.InvariantCulture), "torrentSeed=" + TorrentSeedMin, "torrentPeers=" + TorrentPeers, "videoDir=" + (VideoDir ?? ""), "floatBounds=" + (FloatBounds ?? ""), "floatOpacity=" + FloatOpacity, "floatTop=" + B(FloatTopmost), "vlcTop=" + B(VlcTopmost), "vlcLector=" + B(VlcLector), "vlcSpu=" + (VlcSpu ?? ""), "vlcAudio=" + (VlcAudio ?? ""), "cacheDir=" + (CacheDir ?? ""), "cleanJunk=" + B(CleanJunkOnStart), "speedUp=" + B(SpeedUp), "cacheMb=" + CacheMb, "connections=" + Connections, "zoom=" + DefaultZoom, "dark=" + B(DarkPages),
                 "restore=" + B(RestoreTabs), "sameTab=" + B(LinksInSameTab), "sleepTabs=" + SleepTabsMin, "fullLists=" + B(FullFilterLists), "sejfLogins=" + B(SejfLogins), "quickAccessTab=" + B(QuickAccessNewTab), "readRate=" + ReadRate.ToString(System.Globalization.CultureInfo.InvariantCulture), "readVoice=" + (ReadVoice ?? ""), "readVolume=" + ReadVolume.ToString(System.Globalization.CultureInfo.InvariantCulture), "nightLight=" + B(NightLight), "theme=" + (Theme ?? "jasny"), "language=" + (Language ?? "auto"),
                 "lanSync=" + B(LanSync),
                 "lanSyncSilent=" + B(LanSyncSilent),

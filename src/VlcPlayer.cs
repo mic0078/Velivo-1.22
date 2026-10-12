@@ -53,6 +53,8 @@ namespace Przegladarka
             public long Pos { get; set; }    // miejsce wznowienia (ms)
             public long Len { get; set; }    // dlugosc (ms), znana po pierwszym odtworzeniu
             public bool Done { get; set; }   // obejrzany do konca
+            public string Spu { get; set; }    // wybrane napisy (nazwa sciezki, "-" = wylaczone)
+            public string Audio { get; set; }  // wybrana sciezka dzwieku (nazwa)
         }
 
         internal static List<LibraryVideo> ParseLibrary(string json)
@@ -93,6 +95,21 @@ namespace Przegladarka
                 }
             }
             return added;
+        }
+
+        // wybor sciezki napisow / dzwieku wg zapamietanej nazwy: dokladnie ta sama, inaczej ten sam jezyk ([Polski], [English]);
+        // "-" = wylaczone (-1); int.MinValue = brak pasujacej (zostaje domyslna filmu)
+        internal static int PickTrack(IEnumerable<(int Id, string Name)> tracks, string wanted)
+        {
+            if (string.IsNullOrEmpty(wanted)) return int.MinValue;
+            if (wanted == "-") return -1;
+            var list = tracks.Where(t => t.Id >= 0).ToList();
+            var exact = list.FirstOrDefault(t => t.Name == wanted);
+            if (exact.Name != null) return exact.Id;
+            Func<string, string> langOf = n => { var m = System.Text.RegularExpressions.Regex.Match(n ?? "", @"\[([^\]]+)\]"); return (m.Success ? m.Groups[1].Value : n ?? "").Trim().ToLowerInvariant(); };
+            var lang = langOf(wanted);
+            var same = list.FirstOrDefault(t => langOf(t.Name) == lang);
+            return same.Name != null ? same.Id : int.MinValue;
         }
 
         // zapis postepu ogladania: koncowka filmu (ostatnie 15 s) = obejrzany; inaczej miejsce, w ktorym przerwano
@@ -439,6 +456,7 @@ namespace Przegladarka
             { "mini", "M19,11H11V17H19V11M23,19V5C23,3.88 22.1,3 21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19M21,19H3V4.97H21V19Z" },
             { "exitmini", "M21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19V5A2,2 0 0,0 21,3M21,19H3V5H21V19M13,9H5V7H15V17H13V9Z" },
             { "close", "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" },
+            { "lector", "M9,5A4,4 0 0,1 13,9A4,4 0 0,1 9,13A4,4 0 0,1 5,9A4,4 0 0,1 9,5M9,15C11.67,15 17,16.34 17,19V21H1V19C1,16.34 6.33,15 9,15M16.76,5.36C18.78,7.56 18.78,10.61 16.76,12.63L15.08,10.94C15.92,9.76 15.92,8.23 15.08,7.05L16.76,5.36M20.07,2C24,6.05 23.97,12.11 20.07,16L18.44,14.37C21.21,11.19 21.21,6.65 18.44,3.63L20.07,2Z" },
             { "pinned", "M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" },
         };
 
@@ -500,6 +518,7 @@ namespace Przegladarka
             var fwd10 = textBtn("+10 s", L.T("10 s do przodu (→)"));
             var speed = textBtn("1×", L.T("Prędkość odtwarzania ([ i ])"));
             var subs = glyphBtn("subs", L.T("Napisy"));
+            var lector = glyphBtn("lector", L.T("Lektor – czyta napisy na głos (Piper / głos Windows)"));
             var audio = glyphBtn("audio", L.T("Ścieżka dźwięku (język)"));
             var aspect = glyphBtn("aspect", L.T("Proporcje obrazu"));
             var snap = glyphBtn("snap", L.T("Zrzut klatki (zapis do Obrazów)"));
@@ -513,7 +532,7 @@ namespace Przegladarka
             var left = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var b in new UIElement[] { prev, play, stop, next, back10, fwd10, speed }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var b in new UIElement[] { subs, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
+            foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new DockPanel { Margin = new Thickness(4, 2, 4, 4) };
             DockPanel.SetDock(left, Dock.Left); DockPanel.SetDock(right, Dock.Right);
             btnRow.Children.Add(left); btnRow.Children.Add(right);
@@ -536,7 +555,7 @@ namespace Przegladarka
             win.SizeChanged += (s, e) =>
             {
                 double w = win.ActualWidth;
-                foreach (var b in new UIElement[] { subs, audio, aspect, snap, lib, top }) b.Visibility = w >= 820 ? Visibility.Visible : Visibility.Collapsed;
+                foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap, lib, top }) b.Visibility = w >= 820 ? Visibility.Visible : Visibility.Collapsed;
                 foreach (var b in new UIElement[] { speed, stop }) b.Visibility = w >= 600 ? Visibility.Visible : Visibility.Collapsed;
                 foreach (var b in new UIElement[] { back10, fwd10, volText }) b.Visibility = w >= 480 ? Visibility.Visible : Visibility.Collapsed;
                 vol.Width = w >= 480 ? 110 : 70;
@@ -585,6 +604,52 @@ namespace Przegladarka
             saveTimer.Tick += (s, e) => { if (mp.IsPlaying) savePos(); };
             saveTimer.Start();
 
+            // lektor: napisy z pliku obok filmu albo wczytane z menu Napisy
+            var lc = new Lector();
+            Action<string> loadSubs = path =>
+            {
+                lc.Cues = new List<SubCue>(); lc.File = null; lc.LastSpoken = -1;
+                if (path == null) return;
+                try { lc.Cues = ParseSubtitles(ReadSubtitleFile(path)); lc.Lang = SubtitleLanguage(lc.Cues); lc.File = path; }
+                catch (Exception ex) { App.LogError(ex); }
+            };
+            Action showLector = () => lector.Background = _settings.VlcLector ? new SolidColorBrush(Color.FromArgb(0x55, 0x3B, 0x82, 0xF6)) : Brushes.Transparent;
+            lector.Click += (s, e) =>
+            {
+                _settings.VlcLector = !_settings.VlcLector;
+                if (!_settings.VlcLector) LectorStopVoice(lc, mp);
+                showLector();
+                try { _settings.Save(DataDir); } catch (Exception) { }
+                showOsd(!_settings.VlcLector ? L.T("Lektor: wyłączony")
+                    : lc.Cues.Count > 0 ? L.T("Lektor: czyta napisy ") + System.IO.Path.GetFileName(lc.File)
+                    : L.T("Lektor: brak napisów obok filmu – wczytaj je w menu Napisy"));
+            };
+            showLector();
+            var lectorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+            lectorTimer.Tick += (s, e) => { if (_settings.VlcLector) LectorTick(lc, mp, () => (int)vol.Value); };
+            lectorTimer.Start();
+            // pamietanie napisow i sciezki dzwieku: dla tego filmu (biblioteka) i jako ostatni wybor dla kolejnych filmow
+            Action<bool, string> rememberTrack = (spu, name) =>
+            {
+                if (spu) _settings.VlcSpu = name; else _settings.VlcAudio = name;
+                try { _settings.Save(DataDir); } catch (Exception) { }
+                if (current == null) return;
+                var l = LoadLibrary(); var v = l.FirstOrDefault(x => string.Equals(x.Path, current.Path, StringComparison.OrdinalIgnoreCase));
+                if (v == null) return;
+                if (spu) v.Spu = name; else v.Audio = name;
+                SaveLibrary(l);
+            };
+            Action applyTracks = () =>
+            {
+                try
+                {
+                    var spu = PickTrack(mp.SpuDescription.Select(t => (t.Id, t.Name)), current?.Spu ?? _settings.VlcSpu);
+                    if (spu != int.MinValue) mp.SetSpu(spu);
+                    var au = PickTrack(mp.AudioTrackDescription.Select(t => (t.Id, t.Name)), current?.Audio ?? _settings.VlcAudio);
+                    if (au != int.MinValue && au >= 0) mp.SetAudioTrack(au);
+                }
+                catch (Exception ex) { App.LogError(ex); }
+            };
             _vlcLoad = i =>
             {
                 savePos();
@@ -593,6 +658,7 @@ namespace Przegladarka
                 var path = _playlist[i];
                 current = LoadLibrary().FirstOrDefault(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
                 win.Title = System.IO.Path.GetFileName(path) + " – " + L.T("Odtwarzacz filmów");
+                LectorStopVoice(lc, mp); loadSubs(FindSubtitleFor(path));
                 miniTitle.Text = System.IO.Path.GetFileNameWithoutExtension(path);
                 using (var media = new Media(_libVlc, path, FromType.FromPath))
                 {
@@ -607,6 +673,10 @@ namespace Przegladarka
                     once.Tick += (s, e) => { once.Stop(); if (mp.Length > 0) { mp.Time = r; showOsd(L.T("Wznowiono od ") + FormatTime(r)); } };
                     once.Start();
                 }
+                // sciezki filmu znane chwile po starcie - wtedy ustawiamy zapamietane napisy i dzwiek
+                var tracksTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+                tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); };
+                tracksTimer.Start();
                 speedIdx = 3; speed.Content = "1×";
                 prev.IsEnabled = i > 0; next.IsEnabled = i < _playlist.Count - 1;
             };
@@ -715,7 +785,8 @@ namespace Przegladarka
                 {
                     var id = t.Id;
                     var mi = new MenuItem { Header = id < 0 ? L.T("Wyłącz napisy") : t.Name, IsCheckable = true, IsChecked = id == curSpu };
-                    mi.Click += (a, b) => mp.SetSpu(id);
+                    var nm = id < 0 ? "-" : t.Name;
+                    mi.Click += (a, b) => { mp.SetSpu(id); rememberTrack(true, nm); };
                     cm.Items.Add(mi);
                 }
                 if (cm.Items.Count > 0) cm.Items.Add(new Separator());
@@ -723,7 +794,7 @@ namespace Przegladarka
                 load.Click += (a, b) =>
                 {
                     var dlg = new Microsoft.Win32.OpenFileDialog { Title = L.T("Napisy"), Filter = L.T("Napisy") + "|" + string.Join(";", SubtitleExts.Select(x => "*" + x)) };
-                    if (dlg.ShowDialog(win) == true) mp.AddSlave(MediaSlaveType.Subtitle, new Uri(dlg.FileName).AbsoluteUri, true);
+                    if (dlg.ShowDialog(win) == true) { mp.AddSlave(MediaSlaveType.Subtitle, new Uri(dlg.FileName).AbsoluteUri, true); loadSubs(dlg.FileName); }
                 };
                 cm.Items.Add(load);
                 var delay = new MenuItem { Header = L.T("Opóźnienie napisów") };
@@ -743,7 +814,8 @@ namespace Przegladarka
                 {
                     var id = t.Id;
                     var mi = new MenuItem { Header = id < 0 ? L.T("Bez dźwięku") : t.Name, IsCheckable = true, IsChecked = id == cur };
-                    mi.Click += (a, b) => mp.SetAudioTrack(id);
+                    var nm = t.Name;
+                    mi.Click += (a, b) => { if (id >= 0) { mp.SetAudioTrack(id); rememberTrack(false, nm); } else mp.SetAudioTrack(id); };
                     cm.Items.Add(mi);
                 }
                 if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("(brak ścieżek)"), IsEnabled = false });
@@ -796,7 +868,7 @@ namespace Przegladarka
             win.Closing += (s, e) => savePos();
             win.Closed += (s, e) =>
             {
-                saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop();
+                saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);
                 _vlcWin = null; _vlcLoad = null;
                 view.MediaPlayer = null;
                 System.Threading.Tasks.Task.Run(() => { try { mp.Stop(); mp.Dispose(); } catch (Exception) { } });   // Stop VLC moze chwile trwac - nie w watku okna

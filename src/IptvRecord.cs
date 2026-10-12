@@ -339,7 +339,9 @@ namespace Przegladarka
                 fill();
             };
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
-            bar.Children.Add(SmallButton(L.T("🗑 Usuń / zatrzymaj"), remove));
+            bar.Children.Add(SmallButton(L.T("❌ Odwołaj / zatrzymaj"), remove));
+            list.PreviewKeyDown += (s, a) => { if (a.Key == System.Windows.Input.Key.Delete) { remove(); a.Handled = true; } };
+            var cm = new ContextMenu(); var cmi = new MenuItem { Header = L.T("❌ Odwołaj (nagrywanie w toku – zatrzymaj)") }; cmi.Click += (s, a) => remove(); cm.Items.Add(cmi); list.ContextMenu = cm;
             bar.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
             var body = new DockPanel();
             DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
@@ -407,6 +409,48 @@ namespace Przegladarka
             w.Content = body;
             fill();
             w.Show();
+        }
+
+        // zaplanowane dla tej audycji: przelaczenie albo nagranie (null = brak)
+        IptvJob JobFor(IptvChannel ch, EpgItem x, string kind)
+        {
+            if (ch == null || x == null) return null;
+            return IptvSt.Jobs.FirstOrDefault(j => j.Url == ch.Url && j.Kind == kind &&
+                (kind == "switch" ? j.Start == UnixMs(x.Start) :
+                 j.Start < UnixMs(x.Stop) && j.Stop >= UnixMs(x.Stop) && (j.Stop <= UnixMs(x.Stop.AddMinutes(10)) || j.Start <= UnixMs(x.Start))));   // takze nagranie "od teraz do konca" trwajacej audycji
+        }
+
+        // odwolanie: nagrywanie w toku - zatrzymane (plik zostaje), zaplanowane - usuniete
+        void CancelJob(IptvJob j)
+        {
+            if (j == null) return;
+            if (_recording.TryGetValue(j.Id, out var c)) { c.Cancel(); return; }
+            if (_asked.TryGetValue(j.Id, out var closeAsk)) { closeAsk(); _asked.Remove(j.Id); }
+            IptvSt.Jobs.Remove(j); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke();
+            ShowToast(j.Kind == "switch" ? L.T("⏰ Przełączenie odwołane: ") + j.Channel : L.T("⏺ Nagranie odwołane: ") + j.Channel, null);
+        }
+
+        // "⏰ 2 przełączenia · ⏺ 1 nagranie" (pusty, gdy nic nie zaplanowano)
+        internal string JobsSummary()
+        {
+            int sw = IptvSt.Jobs.Count(j => j.Kind == "switch"), rec = IptvSt.Jobs.Count(j => j.Kind == "rec");
+            var parts = new List<string>();
+            if (sw > 0) parts.Add("⏰ " + L.T("zaplanowane przełączenia: ") + sw);
+            if (rec > 0) parts.Add("⏺ " + L.T("nagrania: ") + rec + (_recording.Count > 0 ? L.T(" (teraz: ") + _recording.Count + ")" : ""));
+            return string.Join("  ·  ", parts);
+        }
+
+        // przycisk "📅 ..." z liczba zaplanowanych - klik otwiera liste (odwolywanie); znika, gdy nic nie ma
+        Button JobsBadge(Window owner)
+        {
+            var b = SmallButton("", () => ShowJobs(owner));
+            b.Margin = new Thickness(10, 8, 0, 4);
+            b.ToolTip = L.T("Zaplanowane przełączenia i nagrania – kliknij, aby zobaczyć lub odwołać");
+            Action upd = () => { var t = JobsSummary(); b.Content = "📅 " + t; b.Visibility = t.Length == 0 ? Visibility.Collapsed : Visibility.Visible; };
+            upd();
+            _iptvJobsChanged += upd;
+            owner.Closed += (s, a) => _iptvJobsChanged -= upd;
+            return b;
         }
 }
 }

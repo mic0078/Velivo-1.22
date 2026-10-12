@@ -36,7 +36,7 @@ namespace Przegladarka
             var status = new TextBlock { Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 8, 0, 4) };
             var top = new StackPanel { Orientation = Orientation.Horizontal };
             top.Children.Add(new TextBlock { Text = "🔍", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 8, 0, 4) });
-            foreach (var c in new FrameworkElement[] { search, sort, hours, refresh, status }) top.Children.Add(c);
+            foreach (var c in new FrameworkElement[] { search, sort, hours, refresh, JobsBadge(w), status }) top.Children.Add(c);
 
             var chans = new ListBox { Width = 230, Margin = new Thickness(8, 0, 0, 8) };
             var progs = new ListBox { Margin = new Thickness(8, 0, 8, 8), HorizontalContentAlignment = HorizontalAlignment.Stretch };
@@ -74,7 +74,7 @@ namespace Przegladarka
                     if (x.Start.Date != day) { day = x.Start.Date; progs.Items.Add(new ListBoxItem { Content = new TextBlock { Text = day.ToString("dddd, d MMMM"), FontWeight = FontWeights.Bold, Foreground = Brushes.SteelBlue, Margin = new Thickness(0, 6, 0, 2) }, IsEnabled = false }); }
                     bool live = x.Start <= now && x.Stop > now, past = x.Stop <= now;
                     var tb = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4), Opacity = past ? 0.55 : 1 };
-                    var mark = jobs.Any(j => j.Url == ch.Url && j.Kind == "rec" && j.Start <= UnixMs(x.Start) && j.Stop >= UnixMs(x.Stop)) ? "⏺ " : jobs.Any(j => j.Url == ch.Url && j.Kind == "switch" && j.Start == UnixMs(x.Start)) ? "⏰ " : "";
+                    var mark = JobFor(ch, x, "rec") != null ? "⏺ " : JobFor(ch, x, "switch") != null ? "⏰ " : "";
                     tb.Inlines.Add(new Run((live ? "▶ " : "") + mark + x.Start.ToString("HH:mm") + " (" + ((int)(x.Stop - x.Start).TotalMinutes / 60).ToString("00") + ":" + ((int)(x.Stop - x.Start).TotalMinutes % 60).ToString("00") + ") ") { FontWeight = FontWeights.Bold, Foreground = Brushes.SeaGreen });
                     tb.Inlines.Add(new Run(x.Title ?? "") { FontWeight = FontWeights.Bold });
                     if (!string.IsNullOrEmpty(x.Sub)) tb.Inlines.Add(new Run(" – " + x.Sub) { FontStyle = FontStyles.Italic });
@@ -113,8 +113,11 @@ namespace Przegladarka
                 Action<string, Action, bool> add = (t, act, on) => { var mi = new MenuItem { Header = t, IsEnabled = on }; mi.Click += (q, e) => { act(); fillProgs(); }; menu.Items.Add(mi); };
                 bool live = x != null && x.Start <= DateTime.Now && x.Stop > DateTime.Now, future = x != null && x.Start > DateTime.Now;
                 add(L.T("▶ Oglądaj ten kanał teraz"), watch, ch != null);
-                add(L.T("⏰ Przełącz na ten program o czasie"), () => SwitchAt(ch, x), ch != null && future);
-                add(live ? L.T("⏺ Nagraj ten program (od teraz do końca)") : L.T("⏺ Nagraj ten program"), () => RecordProgramme(ch, live ? new EpgItem { Title = x.Title, Start = DateTime.Now.AddMinutes(2), Stop = x.Stop } : x), ch != null && (live || future));
+                var sw = JobFor(ch, x, "switch"); var rec = JobFor(ch, x, "rec");
+                if (sw != null) add(L.T("❌ Odwołaj przełączenie o ") + x.Start.ToString("HH:mm"), () => CancelJob(sw), true);
+                else add(L.T("⏰ Przełącz na ten program o czasie"), () => SwitchAt(ch, x), ch != null && future);
+                if (rec != null) add(_recording.ContainsKey(rec.Id) ? L.T("⏹ Zatrzymaj nagrywanie") : L.T("❌ Odwołaj nagranie"), () => CancelJob(rec), true);
+                else add(live ? L.T("⏺ Nagraj ten program (od teraz do końca)") : L.T("⏺ Nagraj ten program"), () => RecordProgramme(ch, live ? new EpgItem { Title = x.Title, Start = DateTime.Now.AddMinutes(2), Stop = x.Stop } : x), ch != null && (live || future));
                 add(L.T("⏺ Zaplanuj nagrywanie…"), () => ScheduleDialog(ch, w), ch != null);
                 menu.Items.Add(new Separator());
                 add(L.T("📅 Zaplanowane…"), () => ShowJobs(w), true);

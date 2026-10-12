@@ -723,8 +723,7 @@ namespace Przegladarka
                 var now = DateTime.Now;
                 foreach (var x in l.Where(x => x.Stop > now).Take(40))
                 {
-                    var mark = st.Jobs.Any(j => j.Url == r.Ch.Url && j.Kind == "rec" && j.Start <= UnixMs(x.Start) && j.Stop >= UnixMs(x.Stop)) ? "⏺ " :
-                        st.Jobs.Any(j => j.Url == r.Ch.Url && j.Kind == "switch" && j.Start == UnixMs(x.Start)) ? "⏰ " : "";
+                    var mark = JobFor(r.Ch, x, "rec") != null ? "⏺ " : JobFor(r.Ch, x, "switch") != null ? "⏰ " : "";
                     epgList.Items.Add(new ListBoxItem { Content = (x.Start <= now ? "▶ " : "    ") + mark + x.Start.ToString(x.Start.Date == now.Date ? "HH:mm" : "ddd HH:mm") + "–" + x.Stop.ToString("HH:mm") + "  " + x.Title, Tag = x });
                 }
                 if (epgList.Items.Count > 0) epgList.SelectedIndex = 0;
@@ -749,8 +748,11 @@ namespace Przegladarka
                 Action<string, Action, bool> add = (t, act, on) => { var mi = new MenuItem { Header = t, IsEnabled = on }; mi.Click += (q, w2) => { act(); fillEpg(); }; epgMenu.Items.Add(mi); };
                 bool live = x != null && x.Start <= DateTime.Now;
                 add(L.T("▶ Oglądaj ten kanał"), play, r != null);
-                add(L.T("⏰ Przełącz na ten program o czasie"), () => SwitchAt(r.Ch, x), r != null && x != null && !live);
-                add(live ? L.T("⏺ Nagraj ten program (od teraz do końca)") : L.T("⏺ Nagraj ten program"), () => { if (live) { x = new EpgItem { Title = x.Title, Start = DateTime.Now.AddMinutes(2), Stop = x.Stop }; } RecordProgramme(r.Ch, x); }, r != null && x != null);
+                var sw = JobFor(r?.Ch, x, "switch"); var rec = JobFor(r?.Ch, x, "rec");
+                if (sw != null) add(L.T("❌ Odwołaj przełączenie o ") + x.Start.ToString("HH:mm"), () => CancelJob(sw), true);
+                else add(L.T("⏰ Przełącz na ten program o czasie"), () => SwitchAt(r.Ch, x), r != null && x != null && !live);
+                if (rec != null) add(_recording.ContainsKey(rec.Id) ? L.T("⏹ Zatrzymaj nagrywanie") : L.T("❌ Odwołaj nagranie"), () => CancelJob(rec), true);
+                else add(live ? L.T("⏺ Nagraj ten program (od teraz do końca)") : L.T("⏺ Nagraj ten program"), () => { if (live) { x = new EpgItem { Title = x.Title, Start = DateTime.Now.AddMinutes(2), Stop = x.Stop }; } RecordProgramme(r.Ch, x); }, r != null && x != null);
                 add(L.T("📅 Zaplanowane…"), () => ShowJobs(win), true);
             };
             epgList.ContextMenu = epgMenu;
@@ -780,6 +782,8 @@ namespace Przegladarka
 
             var bar = new DockPanel { Margin = new Thickness(6), LastChildFill = false };
             DockPanel.SetDock(count, Dock.Left); bar.Children.Add(count);
+            var badge = JobsBadge(win); badge.Margin = new Thickness(10, 0, 0, 0);
+            DockPanel.SetDock(badge, Dock.Left); bar.Children.Add(badge);
             DockPanel.SetDock(progress, Dock.Left); bar.Children.Add(progress);
             var buttons = new StackPanel { Orientation = Orientation.Horizontal };
             DockPanel.SetDock(buttons, Dock.Right); bar.Children.Add(buttons);

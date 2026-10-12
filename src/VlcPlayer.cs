@@ -276,10 +276,13 @@ namespace Przegladarka
             return sorted.ThenBy(v => v.Title, StringComparer.CurrentCultureIgnoreCase);
         }
 
-        void ShowVideoLibrary()
+        // owner: okno, nad ktorym ma byc biblioteka (z odtwarzacza - nad filmem, takze gdy odtwarzacz jest zawsze na wierzchu)
+        void ShowVideoLibrary() { ShowVideoLibrary(this); }
+
+        void ShowVideoLibrary(Window owner)
         {
-            if (_libWin != null && _libWin.IsLoaded) { _libWin.Activate(); return; }
-            var win = new Window { Title = L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            if (_libWin != null && _libWin.IsLoaded) { if (_libWin.Owner != owner) _libWin.Owner = owner; _libWin.Topmost = owner.Topmost; _libWin.Activate(); return; }
+            var win = new Window { Title = L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             var search = new TextBox { Margin = new Thickness(8, 8, 8, 4), Padding = new Thickness(4) };
             var hint = new TextBlock { Text = L.T("🔍 Szukaj filmu…"), Foreground = Brushes.Gray, Margin = new Thickness(14, 13, 0, 0), IsHitTestVisible = false };
             search.TextChanged += (s, a) => hint.Visibility = search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -961,7 +964,7 @@ namespace Przegladarka
             };
             win.Topmost = _settings.VlcTopmost; showTop();
             mute.Click += (s, e) => toggleMute();
-            lib.Click += (s, e) => ShowVideoLibrary();
+            lib.Click += (s, e) => ShowVideoLibrary(win);   // nad filmem
             snap.Click += (s, e) =>
             {
                 var dir = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);

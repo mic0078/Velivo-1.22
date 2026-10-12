@@ -196,6 +196,7 @@ namespace Przegladarka
             menu.Items.Add(new Separator());
             item("\uE74D", L.T("Odinstaluj odtwarzacz filmów…"), UninstallVlc);
             _filmBtn.ContextMenu = menu;
+            AutoSyncJellyfin();   // informacje o filmach z Jellyfin - uzupelnienie lokalnej bazy w tle (gdy ustawione)
             int bank = TabBarPanel.Children.IndexOf(_bankBtn);
             TabBarPanel.Children.Insert(bank >= 0 ? bank + 1 : 1, _filmBtn);   // dock z prawej: nastepny w kolejnosci stoi po lewej od 🏦
         }
@@ -299,6 +300,7 @@ namespace Przegladarka
         sealed class LibRow
         {
             public string Title { get; set; } public string Length { get; set; } public string Seen { get; set; } public string LastPlayed { get; set; } public string Folder { get; set; }
+            public string Year { get; set; } public string Rating { get; set; } public string Genre { get; set; }   // z Jellyfin (filmy-info)
             public LibraryVideo Item;
             public bool Missing;
         }
@@ -314,12 +316,16 @@ namespace Przegladarka
         }
 
         // sortowanie biblioteki: kolumna + kierunek (domyslnie: ostatnio odtwarzane na gorze)
-        internal static IEnumerable<LibraryVideo> SortLibrary(IEnumerable<LibraryVideo> list, string key, bool desc)
+        internal static IEnumerable<LibraryVideo> SortLibrary(IEnumerable<LibraryVideo> list, string key, bool desc, Func<LibraryVideo, MovieInfo> meta = null)
         {
             Func<LibraryVideo, IComparable> by;
+            Func<LibraryVideo, MovieInfo> mi = v => meta?.Invoke(v);
             switch (key)
             {
-                case "title": by = v => v.Title.ToLowerInvariant(); break;
+                case "title": by = v => (mi(v)?.Name ?? v.Title).ToLowerInvariant(); break;
+                case "year": by = v => mi(v)?.Year ?? 0; break;
+                case "rating": by = v => mi(v)?.Rating ?? 0; break;
+                case "genre": by = v => (mi(v)?.Genres.FirstOrDefault() ?? "").ToLowerInvariant(); break;
                 case "len": by = v => v.Len; break;
                 case "seen": by = v => SeenFraction(v); break;
                 case "folder": by = v => (System.IO.Path.GetDirectoryName(v.Path) ?? "").ToLowerInvariant(); break;
@@ -362,8 +368,9 @@ namespace Przegladarka
             int peersOff = 0;
             var grid = new GridView();
             // kolumny: naglowek klik = sortuj, drugi klik = odwrotnie
-            var cols = new[] { new[] { "title", "Tytuł", "Title", "340" }, new[] { "len", "Długość", "Length", "80" }, new[] { "seen", "Obejrzane", "Seen", "86" },
-                new[] { "last", "Ostatnio", "LastPlayed", "110" }, new[] { "folder", "Folder", "Folder", "280" } };
+            var cols = new[] { new[] { "title", "Tytuł", "Title", "320" }, new[] { "year", "Rok", "Year", "52" }, new[] { "rating", "Ocena", "Rating", "56" }, new[] { "genre", "Gatunek", "Genre", "110" },
+                new[] { "len", "Długość", "Length", "70" }, new[] { "seen", "Obejrzane", "Seen", "80" },
+                new[] { "last", "Ostatnio", "LastPlayed", "100" }, new[] { "folder", "Folder", "Folder", "260" } };
             var sortSaved = (GetPref("sort-biblioteka") ?? "last,desc").Split(',');   // ostatnie sortowanie
             string sortKey = cols.Any(c => c[0] == sortSaved[0]) ? sortSaved[0] : "last"; bool sortDesc = sortSaved.Length > 1 && sortSaved[1] == "desc";
             var headers = new Dictionary<string, GridViewColumnHeader>();
@@ -376,7 +383,7 @@ namespace Przegladarka
             Action markSort = () => { foreach (var c in cols) headers[c[0]].Content = L.T(c[1]) + (c[0] == sortKey ? (sortDesc ? "  ▼" : "  ▲") : ""); };
             markSort();
             var list = new ListView { View = grid, Margin = new Thickness(8, 0, 8, 0), SelectionMode = SelectionMode.Extended };
-            RememberColumns(win, "biblioteka", grid);
+            RememberColumns(win, "biblioteka-v2", grid);   // v2: kolumny Rok / Ocena / Gatunek
             var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Gray, Margin = new Thickness(10, 0, 0, 0) };
             List<LibraryVideo> lib = LoadLibrary();
             List<LibRow> rows = new List<LibRow>();
@@ -386,7 +393,7 @@ namespace Przegladarka
                 int ver = ++fillVer;
                 lib = LoadLibrary();
                 var q = search.Text.Trim();
-                var key = sortKey; var desc = sortDesc; var shared = _libSharedView; var tv = _libTvView; var recDirs = TvRecDirs();
+                var key = sortKey; var desc = sortDesc; var shared = _libSharedView; var meta = Meta; var tv = _libTvView; var recDirs = TvRecDirs();
                 var fromPeers = shared && !tv ? peerItems.ToList() : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();
                 var local = lib;
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
@@ -414,10 +421,13 @@ namespace Przegladarka
                         return up && File.Exists(path);
                     };
                     var now = DateTime.Now;
-                    var r = SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0), key, desc)
+                    Func<LibraryVideo, MovieInfo> mf = v => meta.TryGetValue(MetaKey(v.Path), out var mm) ? mm : null;   // dane z Jellyfin (lokalna baza)
+                    var r = SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        mf(v) is MovieInfo m1 && ((m1.Name ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (m1.Original ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)), key, desc, mf)
                     .Select(v => new LibRow
                     {
-                        Item = v, Missing = !of.ContainsKey(v) && !exists(v.Path), Title = v.Title,
+                        Item = v, Missing = !of.ContainsKey(v) && !exists(v.Path), Title = MetaTitle(mf(v)) ?? v.Title,
+                        Year = mf(v)?.Year > 0 ? mf(v).Year.ToString() : "", Rating = mf(v)?.Rating > 0 ? "★ " + mf(v).Rating.ToString("0.0") : "", Genre = string.Join(", ", mf(v)?.Genres ?? new List<string>()),
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = SeenText(v),
                         LastPlayed = LastPlayedText(v.Last, now),
@@ -450,7 +460,7 @@ namespace Przegladarka
             {
                 if (!(a.OriginalSource is GridViewColumnHeader h) || !(h.Tag is string k)) return;
                 if (k == sortKey) sortDesc = !sortDesc;
-                else { sortKey = k; sortDesc = k == "last" || k == "len" || k == "seen"; }   // daty i liczby: najpierw najwieksze
+                else { sortKey = k; sortDesc = k == "last" || k == "len" || k == "seen" || k == "year" || k == "rating"; }   // daty i liczby: najpierw najwieksze
                 SetPref("sort-biblioteka", sortKey + (sortDesc ? ",desc" : ""));
                 markSort(); fill();
             }));
@@ -584,6 +594,28 @@ namespace Przegladarka
             buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true, win); if (f != null) AddPathsToLibrary(f, _libSharedView && !_libTvView); }));
             buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(win); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView && !_libTvView); }));
             buttons.Children.Add(SmallButton(L.T("Usuń z biblioteki"), remove));
+            buttons.Children.Add(SmallButton(L.T("🎞 Jellyfin…"), () => ShowJellyfinDialog(win)));
+            // opis zaznaczonego filmu (z Jellyfin): plakat, tytul, rok, ocena, gatunek, rezyser, obsada, opis
+            var dPoster = new Image { Width = 180, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Left };
+            var dText = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            var dStack = new StackPanel { Margin = new Thickness(10, 4, 10, 4) }; dStack.Children.Add(dPoster); dStack.Children.Add(dText);
+            var details = new ScrollViewer { Content = dStack, Width = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Visibility = Visibility.Collapsed };
+            list.SelectionChanged += (s, a) =>
+            {
+                var r = list.SelectedItem as LibRow; var m = r != null ? MetaFor(r.Item.Path) : null;
+                details.Visibility = m == null ? Visibility.Collapsed : Visibility.Visible;
+                if (m == null) return;
+                dPoster.Source = null;
+                if (m.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) dPoster.Source = LoadLogo(pf); }
+                dText.Inlines.Clear();
+                dText.Inlines.Add(new System.Windows.Documents.Run(m.Name ?? "") { FontSize = 16, FontWeight = FontWeights.Bold });
+                if (!string.IsNullOrEmpty(m.Original) && m.Original != m.Name) dText.Inlines.Add(new System.Windows.Documents.Run("\n" + m.Original) { FontStyle = FontStyles.Italic });
+                var meta = string.Join("  ·  ", new[] { m.Year > 0 ? m.Year.ToString() : null, m.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null, m.Age, m.Genres.Count > 0 ? string.Join(", ", m.Genres) : null }.Where(x => !string.IsNullOrEmpty(x)));
+                dText.Inlines.Add(new System.Windows.Documents.Run("\n" + meta) { Foreground = Brushes.Gray });
+                if (m.Director != null) dText.Inlines.Add(new System.Windows.Documents.Run("\n" + L.T("Reżyseria: ") + m.Director) { Foreground = Brushes.Gray });
+                if (m.People.Count > 0) dText.Inlines.Add(new System.Windows.Documents.Run("\n" + L.T("Obsada: ") + string.Join(", ", m.People)) { Foreground = Brushes.Gray });
+                if (!string.IsNullOrEmpty(m.Overview)) dText.Inlines.Add(new System.Windows.Documents.Run("\n\n" + m.Overview));
+            };
             var body = new DockPanel();
             DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);
             DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
@@ -592,6 +624,7 @@ namespace Przegladarka
                 var empty = new TextBlock { Text = L.T("Biblioteka jest pusta. Dodaj filmy albo cały folder (np. Wideo) – przyciski na dole."), Margin = new Thickness(12, 4, 12, 4), Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap };
                 DockPanel.SetDock(empty, Dock.Top); body.Children.Add(empty);
             }
+            DockPanel.SetDock(details, Dock.Right); body.Children.Add(details);
             body.Children.Add(list);
             win.Content = body;
             // przeciagnij pliki / foldery z Eksploratora na okno = dodaj do biblioteki
@@ -991,7 +1024,14 @@ namespace Przegladarka
                     infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
                     infoText.Children.Clear(); infoLogo.Source = null; infoLogo.Visibility = Visibility.Collapsed;
                     Func<string, double, FontWeight, Brush, TextBlock> ft = (t, size, w, b) => new TextBlock { Text = t, FontSize = size, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
-                    infoText.Children.Add(ft("🎬 " + (curTitle.Length > 0 ? curTitle : System.IO.Path.GetFileNameWithoutExtension(pth)), 20, FontWeights.Bold, Brushes.White));
+                    var fm = MetaFor(pth);   // dane z Jellyfin (lokalna baza)
+                    infoText.Children.Add(ft("🎬 " + (MetaTitle(fm) ?? (curTitle.Length > 0 ? curTitle : System.IO.Path.GetFileNameWithoutExtension(pth))), 20, FontWeights.Bold, Brushes.White));
+                    if (fm != null)
+                    {
+                        var fmeta = string.Join("  ·  ", new[] { fm.Rating > 0 ? "★ " + fm.Rating.ToString("0.0") : null, fm.Genres.Count > 0 ? string.Join(", ", fm.Genres) : null, fm.Director != null ? L.T("reż. ") + fm.Director : null }.Where(x => x != null));
+                        if (fmeta.Length > 0) infoText.Children.Add(ft(fmeta, 12.5, FontWeights.Normal, Brushes.Silver));
+                        if (fm.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, fm.Poster); if (File.Exists(pf)) { infoLogo.Source = LoadLogo(pf); infoLogo.Visibility = Visibility.Visible; infoLogo.Height = 90; infoLogo.Width = 64; } }
+                    }
                     long len = mp.Length, pos = Math.Max(0, mp.Time);
                     if (len > 0)
                     {
@@ -1003,13 +1043,14 @@ namespace Przegladarka
                     if (lc.Cues.Count > 0 && lc.File != null) extra.Add(L.T("💬 napisy: ") + System.IO.Path.GetFileName(lc.File));
                     if (_settings.VlcLector && lc.Cues.Count > 0) extra.Add(L.T("🗣 lektor włączony"));
                     if (extra.Count > 0) infoText.Children.Add(ft(string.Join("   ·   ", extra), 12.5, FontWeights.Normal, Brushes.Silver));
+                    if (fm != null && !string.IsNullOrEmpty(fm.Overview)) { var od = ft(fm.Overview, 13.5, FontWeights.Normal, Brushes.Gainsboro); od.MaxHeight = 58; od.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(od); }
                     if (_playIndex < _playlist.Count - 1) infoText.Children.Add(ft("⏭ " + L.T("Następny: ") + System.IO.Path.GetFileNameWithoutExtension(_playlist[_playIndex + 1]), 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
                     infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);
                     infoBox.Visibility = Visibility.Visible; infoShownFor = null;
                     infoTimer.Stop(); infoTimer.Interval = TimeSpan.FromSeconds(IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec); infoTimer.Start();
                     return;
                 }
-                infoLogo.Visibility = Visibility.Visible;
+                infoLogo.Visibility = Visibility.Visible; infoLogo.Width = 72; infoLogo.Height = 44;
                 var l = EpgFor(_iptvEpg, ch); var now = DateTime.Now; var p0 = EpgAt(l, now); var nx = l?.FirstOrDefault(x => x.Start >= (p0?.Stop ?? now));
                 infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
                 infoText.Children.Clear();

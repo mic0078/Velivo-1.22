@@ -424,7 +424,7 @@ namespace Przegladarka
                         return up && File.Exists(path);
                     };
                     var now = DateTime.Now;
-                    Func<LibraryVideo, MovieInfo> mf = v => meta.TryGetValue(MetaKey(v.Path), out var mm) ? mm : null;   // dane z Jellyfin (lokalna baza)
+                    Func<LibraryVideo, MovieInfo> mf = v => LookupMeta(meta, v.Path);   // dane z Jellyfin (lokalna baza)
                     var r = SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         mf(v) is MovieInfo m1 && ((m1.Name ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (m1.Original ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)), key, desc, mf)
                     .Select(v => new LibRow

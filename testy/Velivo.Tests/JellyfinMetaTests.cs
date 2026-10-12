@@ -34,4 +34,14 @@ public class JellyfinMetaTests
         // nierozpoznany w Jellyfin (bez opisu i oceny) - nie jego "tytul" (nazwa pliku)
         Assert.Null(MainWindow.MetaTitle(new MainWindow.MovieInfo { Name = "Alien.1979.PL.1080p", Year = 1979 }));
     }
+
+    [Fact]
+    public void DopasowaniePolskichZnakowIFolderu()
+    {
+        // "ą" zapisane jako litera albo jako "a" + ogonek (NAS) - ten sam film
+        Assert.Equal(MainWindow.MetaKey("D:\\Mad Max pod Kopułą Gromu.mkv"), MainWindow.MetaKey("Y:\\Mad Max pod Kopu\u0142a\u0328 Gromu.mkv"));
+        // Jellyfin podal folder filmu - plik w tym folderze dopasowany po nazwie folderu
+        var meta = new System.Collections.Generic.Dictionary<string, MainWindow.MovieInfo> { { MainWindow.MetaDirKey(@"\\nas\Filmy 3\Mad Max 1985 r.d11" + "\\x"), new MainWindow.MovieInfo { Name = "Mad Max pod Kopułą Gromu" } } };
+        Assert.Equal("Mad Max pod Kopułą Gromu", MainWindow.LookupMeta(meta, @"Y:\MediaJellyfin\Filmy 3\Mad Max 1985 r.d11\film.mkv").Name);
+    }
 }

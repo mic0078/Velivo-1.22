@@ -60,10 +60,26 @@ namespace Przegladarka
             int i = p.LastIndexOf('\\');
             var name = i >= 0 ? p.Substring(i + 1) : p;
             int dot = name.LastIndexOf('.');
-            return (dot > 0 ? name.Substring(0, dot) : name).ToLowerInvariant();
+            return (dot > 0 ? name.Substring(0, dot) : name).Normalize(NormalizationForm.FormC).ToLowerInvariant();   // polskie znaki zapisane na dwa sposoby (NAS) - jednakowo
         }
 
-        internal MovieInfo MetaFor(string path) { return path != null && Meta.TryGetValue(MetaKey(path), out var m) ? m : null; }
+        // klucz folderu filmu - gdy Jellyfin podaje sciezke folderu zamiast pliku
+        internal static string MetaDirKey(string path)
+        {
+            var p = (path ?? "").Replace('/', '\\').TrimEnd('\\');
+            int i = p.LastIndexOf('\\');
+            var dir = i > 0 ? p.Substring(0, i) : "";
+            int j = dir.LastIndexOf('\\');
+            return "dir:" + (j >= 0 ? dir.Substring(j + 1) : dir).Normalize(NormalizationForm.FormC).ToLowerInvariant();
+        }
+
+        internal static MovieInfo LookupMeta(Dictionary<string, MovieInfo> meta, string path)
+        {
+            if (path == null) return null;
+            return meta.TryGetValue(MetaKey(path), out var m) ? m : meta.TryGetValue(MetaDirKey(path), out m) ? m : null;
+        }
+
+        internal MovieInfo MetaFor(string path) { return LookupMeta(Meta, path); }
 
         // tytul z Jellyfin tylko dla rozpoznanego filmu (nierozpoznany ma za nazwe nazwe pliku - bez opisu i oceny)
         internal static string MetaTitle(MovieInfo m) { return m == null || string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? null : m.Name + (m.Year > 0 ? " (" + m.Year + ")" : ""); }
@@ -128,7 +144,10 @@ namespace Przegladarka
             using (var http = JellyfinClient(c))
             {
                 var users = JsonDocument.Parse(await (await Ok(http.GetAsync("Users"))).Content.ReadAsStringAsync()).RootElement;
-                var uid = users.EnumerateArray().Select(u => u.GetProperty("Id").GetString()).FirstOrDefault();
+                // administrator widzi wszystkie biblioteki (pierwszy uzytkownik moze nie miec dostepu do czesci z nich)
+                var ul = users.EnumerateArray().ToList();
+                var admin = ul.FirstOrDefault(u => u.TryGetProperty("Policy", out var pol) && pol.TryGetProperty("IsAdministrator", out var ad) && ad.ValueKind == JsonValueKind.True);
+                var uid = (admin.ValueKind == JsonValueKind.Object ? admin : ul.FirstOrDefault()).GetProperty("Id").GetString();
                 if (uid == null) throw new InvalidOperationException(L.T("brak użytkowników na serwerze"));
                 progress(L.T("Pobieram listę filmów…"));
                 var json = await (await Ok(http.GetAsync("Users/" + uid + "/Items?Recursive=true&IncludeItemTypes=Movie&Fields=Path,Overview,Genres,People,OriginalTitle,OfficialRating"))).Content.ReadAsStringAsync();
@@ -156,13 +175,16 @@ namespace Przegladarka
                         catch (Exception) { }
                     }
                     meta[key] = m;
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(path, @"\.(mkv|mp4|avi|m4v|ts|m2ts|wmv|mov|mpg|mpeg|iso|webm|flv)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                        meta[MetaDirKey(path + "\\x")] = m;   // Jellyfin podal folder filmu - dopasowanie po nazwie folderu
                     if (n % 25 == 0) progress(L.T("Filmy: ") + n + " / " + total + L.T(" · nowe plakaty: ") + posters);
                 }
                 Directory.CreateDirectory(MetaDir);
                 File.WriteAllText(MetaFile, JsonSerializer.Serialize(meta));
                 _meta = meta;
                 c.Synced = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveJellyfinConf(c);
-                return L.T("✅ Filmów z Jellyfin: ") + total + L.T(" · nowe plakaty: ") + posters;
+                var lib = LoadLibrary(); int matched = lib.Count(v => LookupMeta(meta, v.Path) != null);
+                return L.T("✅ Filmów z Jellyfin: ") + total + L.T(" · dopasowanych w bibliotece: ") + matched + " / " + lib.Count + L.T(" · nowe plakaty: ") + posters;
             }
         }
 

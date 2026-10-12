@@ -594,7 +594,7 @@ namespace Przegladarka
             _playIndex = Math.Max(0, Math.Min(index, files.Length - 1));
             // film otwarty z dysku trafia do biblioteki (jak "ostatnio odtwarzane" w VLC)
             var lib = LoadLibrary();
-            if (AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
+            if (AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f) && !_iptvPlaying.ContainsKey(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
             if (_vlcWin == null) BuildVlcWindow();
             _vlcLoad(_playIndex);
             if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal;
@@ -925,9 +925,11 @@ namespace Przegladarka
                     current = new LibraryVideo { Path = path, Title = rf.Title, Pos = rf.Pos, Len = rf.Len };
                     ApplyPrefs(current, rf.Prefs); rf.Prefs = current;
                 }
-                else current = FindEntry(LoadLibrary(), path, _playShared);
-                bool stream = path.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
-                var name = rf != null ? rf.Title : System.IO.Path.GetFileNameWithoutExtension(path);
+                _iptvPlaying.TryGetValue(path, out var tv);   // kanal telewizji (IPTV) - bez biblioteki, napisow i wznawiania
+                if (tv != null) current = null;
+                else if (rf == null) current = FindEntry(LoadLibrary(), path, _playShared);
+                bool stream = path.Contains("://");
+                var name = rf != null ? rf.Title : tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path);
                 win.Title = name + " – " + L.T("Odtwarzacz filmów");
                 LectorStopVoice(lc, mp);
                 if (stream && rf?.Sub != null)
@@ -944,6 +946,7 @@ namespace Przegladarka
                 {
                     // napisy o tej samej nazwie obok filmu (film.srt, film.pl.srt) dolaczane same - jak w VLC; przy strumieniu - z komputera wlasciciela
                     if (stream && rf?.Sub != null) media.AddSlave(MediaSlaveType.Subtitle, 4, rf.Sub);
+                    if (tv != null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
@@ -958,6 +961,7 @@ namespace Przegladarka
                 var tracksTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
                 tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); mp.Volume = (int)vol.Value; };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
+                if (tv != null) { var now = EpgAt(EpgFor(_iptvEpg, tv), DateTime.Now); showOsd("📺 " + (i + 1) + ". " + tv.Name + (now != null ? "\n" + now.Title : "")); }
                 speedIdx = 3; speed.Content = "1×";
                 prev.IsEnabled = i > 0; next.IsEnabled = i < _playlist.Count - 1;
             };
@@ -978,6 +982,7 @@ namespace Przegladarka
             {
                 if (current != null && _remoteFilms.TryGetValue(current.Path, out var rfe)) { SendRemoteProgress(rfe, 0, mp.Length, true); current = null; }
                 if (current != null) { var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current)); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
+                if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału kanału")); return; }   // telewizja: bez przeskoku na nastepny kanal
                 if (_playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
             mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(new Action(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));
@@ -1156,14 +1161,20 @@ namespace Przegladarka
                 cm.Items.Add(new Separator());
                 var path = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 bool remote = path != null && _remoteFilms.ContainsKey(path);
-                bool file = path != null && !path.StartsWith("http", StringComparison.OrdinalIgnoreCase);   // plik albo NAS - mozna dodac do biblioteki
+                bool file = path != null && !path.Contains("://");   // plik albo NAS - mozna dodac do biblioteki
                 Action<bool> addTo = sh => { var l = LoadLibrary(); int n = AddToLibrary(l, new[] { path }, sh); SaveLibrary(l); _libRefresh?.Invoke(); showOsd(n > 0 ? L.T("Dodano do biblioteki") : L.T("Już jest w tej bibliotece")); };
                 string shName = string.IsNullOrWhiteSpace(_settings.VlcSharedName) ? L.T("Wspólna biblioteka") : _settings.VlcSharedName;
                 string myName = string.IsNullOrWhiteSpace(_settings.VlcLocalName) ? Environment.MachineName : _settings.VlcLocalName;
                 add(L.T("➕ Dodaj do: 📚 ") + shName, () => addTo(true), file);
                 add(L.T("➕ Dodaj do: 🔒 ") + myName, () => addTo(false), file);
-                if (!file && path != null) add(L.T("(film strumieniowany z innego komputera – jest w jego bibliotece)"), () => { }, false);
+                if (!file && path != null && !_iptvPlaying.ContainsKey(path)) add(L.T("(film strumieniowany z innego komputera – jest w jego bibliotece)"), () => { }, false);
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
+                if (IptvInstalled) add(L.T("📺 Kanały telewizji"), () => ShowIptv(Window.GetWindow(overlay) ?? win), true);
+                if (path != null && _iptvPlaying.ContainsKey(path))
+                {
+                    add(L.T("⏮ Poprzedni kanał (PgUp)"), () => _vlcLoad(_playIndex - 1), _playIndex > 0);
+                    add(L.T("⏭ Następny kanał (PgDn)"), () => _vlcLoad(_playIndex + 1), _playIndex < _playlist.Count - 1);
+                }
                 if (path != null && !remote && file)
                 {
                     foreach (var together0 in new[] { false, true })
@@ -1223,7 +1234,8 @@ namespace Przegladarka
                     case Key.F: case Key.F11: toggleFull(); break;
                     case Key.Escape: if (full0) toggleFull(); else if (mini0) toggleMini(); else h = false; break;
                     case Key.M: toggleMute(); break;
-                    case Key.N: _vlcLoad(_playIndex + 1); break;
+                    case Key.N: case Key.PageDown: _vlcLoad(_playIndex + 1); break;
+                    case Key.PageUp: _vlcLoad(_playIndex - 1); break;
                     case Key.P: _vlcLoad(_playIndex - 1); break;
                     case Key.OemOpenBrackets: setSpeed(-1); break;
                     case Key.OemCloseBrackets: setSpeed(1); break;

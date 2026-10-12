@@ -144,6 +144,7 @@ namespace Przegladarka
             LoadSiteModes();
             InitBankMode();
             InitVlcFeature();   // 🎬 odtwarzacz filmow - tylko gdy dodatek wybrany w instalatorze
+            InitIptvFeature();  // 📺 telewizja IPTV - osobny modul z instalatora (wymaga odtwarzacza filmow)
             InitZoomMenu();
             UpdateDarkButton();
             ApplyBrowserTheme();

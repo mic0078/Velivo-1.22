@@ -42,6 +42,8 @@ pl.Addons=Dodatki (opcjonalne):
 en.Addons=Add-ons (optional):
 pl.VideoPlayer=Odtwarzacz filmów jak VLC – AVI, MKV, WMV i inne formaty, biblioteka filmów (pobiera ok. 145 MB z oficjalnej paczki VideoLAN; można go później odinstalować w Velivo)
 en.VideoPlayer=VLC-like video player – AVI, MKV, WMV and more, video library (downloads about 145 MB from the official VideoLAN package; can be uninstalled later in Velivo)
+pl.Iptv=Telewizja IPTV – kanały z listy M3U (plik albo adres URL) i program TV (EPG); można później odinstalować w Velivo
+en.Iptv=IPTV television – channels from an M3U list (file or URL) and TV guide (EPG); can be uninstalled later in Velivo
 pl.VideoPlayerFailed=Nie udało się pobrać odtwarzacza filmów:%n%1%n%nVelivo zainstaluje się bez niego – możesz uruchomić instalator ponownie później.
 en.VideoPlayerFailed=Could not download the video player:%n%1%n%nVelivo will be installed without it – you can run the installer again later.
 pl.VideoPlayerUnpack=Nie udało się rozpakować odtwarzacza filmów – Velivo działa bez niego. Uruchom instalator ponownie, aby spróbować jeszcze raz.
@@ -80,6 +82,8 @@ en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included i
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"
 ; odtwarzacz filmow (libvlc) - tylko na wyrazne zyczenie uzytkownika
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"; Flags: unchecked
+; telewizja IPTV - osobny modul na odtwarzaczu filmow (bez wlasnego pobierania)
+Name: "videoplayer\iptv"; Description: "{cm:Iptv}"; Flags: unchecked
 
 [InstallDelete]
 ; pozostalosci po poprzednich nazwach programu ("Przegladarka", "Tarcza") - tylko pliki programu i skroty,
@@ -185,6 +189,7 @@ Filename: "{app}\Velivo.exe"; Description: "{cm:RunApp,{#AppName}}"; Flags: nowa
 [UninstallDelete]
 Type: files; Name: "{app}\unins*.old-*"
 Type: filesandordirs; Name: "{app}\vlc"
+Type: files; Name: "{app}\iptv.on"
 
 [Code]
 function HasDesktopRuntime10: Boolean;
@@ -314,6 +319,8 @@ begin
     SaveStringToFile(ExpandConstant('{app}\language.txt'), ActiveLanguage, False);
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer') and FileExists(ExpandConstant('{tmp}\libvlc.nupkg')) then
     InstallVlc;
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer\iptv') then
+    SaveStringToFile(ExpandConstant('{app}\iptv.on'), '1', False);
   if (CurStep = ssInstall) and (DataPage <> nil) and (DataPage.SelectedValueIndex = 1) then
   begin
     Stamp := GetDateTimeString('yyyymmdd-hhnnss', '-', '-');

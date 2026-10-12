@@ -741,7 +741,7 @@ namespace Przegladarka
                 var meta = x.Start.ToString("HH:mm") + "–" + x.Stop.ToString("HH:mm") + "  ·  " + (int)(x.Stop - x.Start).TotalMinutes + L.T(" min") +
                     (x.Cats.Count > 0 ? "  ·  " + string.Join(", ", x.Cats) : "") + (!string.IsNullOrEmpty(x.Year) ? "  ·  " + (x.Year.Length > 4 ? x.Year.Substring(0, 4) : x.Year) : "");
                 epgDesc.Inlines.Add(new System.Windows.Documents.Run("\n" + meta + "\n\n") { Foreground = Brushes.Gray });
-                epgDesc.Inlines.Add(new System.Windows.Documents.Run(string.IsNullOrEmpty(x.Desc) ? L.T("Program TV nie zawiera opisu tej audycji.") : x.Desc) { Foreground = string.IsNullOrEmpty(x.Desc) ? Brushes.Gray : Brushes.Black });
+                epgDesc.Inlines.Add(new System.Windows.Documents.Run(string.IsNullOrEmpty(x.Desc) ? L.T("Program TV nie zawiera opisu tej audycji.") : x.Desc) { Foreground = string.IsNullOrEmpty(x.Desc) ? Brushes.Gray : epgDesc.Foreground });   // kolor tekstu okna (jasne / ciemne)
             };
             var epgMenu = new ContextMenu();
             epgMenu.Opened += (s, a) =>

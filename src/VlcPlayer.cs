@@ -1006,6 +1006,7 @@ namespace Przegladarka
                 var tracksTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
                 tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); mp.Volume = (int)vol.Value; };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
+                if (tv != null && _recording.Count > 0) WarnOneConnection();   // trwa nagrywanie - drugie polaczenie
                 if (tv != null) { var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); }   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
                 if (tv != null) { var now = EpgAt(EpgFor(_iptvEpg, tv), DateTime.Now); showOsd("📺 " + (i + 1) + ". " + tv.Name + (now != null ? "\n" + now.Title : "")); }
                 speedIdx = 3; speed.Content = "1×";

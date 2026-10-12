@@ -96,6 +96,12 @@ namespace Przegladarka
                 else if (j.Kind == "rec")
                 {
                     if (now >= j.Stop) { if (!_recording.ContainsKey(j.Id)) { st.Jobs.Remove(j); changed = true; } continue; }
+                    // minute wczesniej - powiadomienie (i ostrzezenie, gdy wlasnie leci inny kanal TV)
+                    if (now >= j.Start - 75000 && now < j.Start - 30000 && _recNotified.Add(j.Id))
+                    {
+                        ShowToast(L.T("⏺ Za minutę nagrywanie: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
+                        WarnOneConnection();
+                    }
                     if (now >= j.Start - 30000 && !_recording.ContainsKey(j.Id)) StartRecording(j);
                 }
             }
@@ -113,6 +119,19 @@ namespace Przegladarka
             ShowToast("📺 " + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
         }
 
+        readonly HashSet<string> _recNotified = new HashSet<string>();
+        DateTime _connWarned = DateTime.MinValue;
+
+        // ogladanie kanalu TV i nagrywanie naraz = dwa polaczenia z dostawca - wielu pozwala tylko na jedno
+        void WarnOneConnection()
+        {
+            var playing = _vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex]);
+            if (!playing && _recording.Count == 0) return;
+            if (DateTime.Now - _connWarned < TimeSpan.FromMinutes(30)) return;   // nie czesciej niz co pol godziny
+            _connWarned = DateTime.Now;
+            ShowToast(L.T("⚠ Oglądanie i nagrywanie naraz to dwa połączenia z dostawcą IPTV. Jeśli pozwala na jedno, jedno z nich może się przerwać."), null);
+        }
+
         bool IsRecording(string url) { return IptvSt.Jobs.Any(j => j.Kind == "rec" && j.Url == url && _recording.ContainsKey(j.Id)); }
 
         void StartRecording(IptvJob j)
@@ -121,6 +140,7 @@ namespace Przegladarka
             _recording[j.Id] = cts;
             var dir = string.IsNullOrWhiteSpace(j.Folder) ? DefaultRecDir : j.Folder;
             var file = Path.Combine(dir, RecordingName(j.Channel, j.Title, DateTime.Now));
+            if (_vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) WarnOneConnection();
             ShowToast(L.T("⏺ Nagrywam: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
             _iptvJobsChanged?.Invoke();
             Func<DateTime> until = () => LocalOf(j.Stop);   // "Przedluz" zmienia j.Stop w trakcie nagrywania

@@ -62,6 +62,7 @@ namespace Przegladarka
             public string RecDir { get; set; }   // folder nagran (puste = Wideo\Velivo TV)
             public string Win { get; set; }
             public string Group { get; set; }    // ostatnio wybrana grupa
+            public Dictionary<string, string> EpgMap { get; set; } = new Dictionary<string, string>();   // reczne przypisanie programu TV: adres kanalu -> id w EPG
             public string Sort { get; set; }     // sortowanie: "kolumna" albo "kolumna,desc"      // miejsce i rozmiar okna listy: "x,y,szer,wys"
         }
 
@@ -427,6 +428,48 @@ namespace Przegladarka
 
         Action _iptvAdd;
 
+        // reczne przypisania programu TV (kanal o innej nazwie w EPG) - przed dopasowaniem po tvg-id
+        void ApplyEpgMap(IptvPlaylist pl)
+        {
+            var map = IptvSt.EpgMap; if (map == null || map.Count == 0) return;
+            foreach (var c in pl.Channels) if (map.TryGetValue(c.Url, out var id)) c.TvgId = id;
+        }
+
+        // wybor kanalu z programu TV dla tego kanalu listy (szukanie po nazwie)
+        bool AssignEpg(IptvChannel ch, Window owner)
+        {
+            var epg = _iptvEpg; if (epg == null) return false;
+            var d = new Window { Title = L.T("📅 Przypisz program TV – ") + ch.Name, Width = 460, Height = 520, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var q = new TextBox { Margin = new Thickness(8), Padding = new Thickness(4), Text = Regex.Replace(ch.Name ?? "", @"\b(hd|fhd|sd|uhd|4k)\b|\[.*?\]|\|.*?\|", "", RegexOptions.IgnoreCase).Trim() };
+            var lb = new ListBox { Margin = new Thickness(8, 0, 8, 0) };
+            var keys = epg.Keys.Where(k => !k.StartsWith("@")).OrderBy(k => k, StringComparer.CurrentCultureIgnoreCase).ToList();
+            var now = DateTime.Now;
+            Action fill = () =>
+            {
+                lb.Items.Clear(); var t = q.Text.Trim();
+                foreach (var k in keys.Where(k => t.Length == 0 || k.IndexOf(t, StringComparison.OrdinalIgnoreCase) >= 0).Take(300))
+                {
+                    var cur = EpgAt(epg[k], now);
+                    lb.Items.Add(new ListBoxItem { Content = k + (cur != null ? "   ·   " + L.T("teraz: ") + cur.Title : ""), Tag = k });
+                }
+            };
+            q.TextChanged += (s, a) => fill(); fill();
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
+            bool ok = false;
+            Action pick = () => { if (lb.SelectedItem is ListBoxItem it) { IptvSt.EpgMap[ch.Url] = (string)it.Tag; ch.TvgId = (string)it.Tag; ok = true; d.Close(); } };
+            bar.Children.Add(SmallButton(L.T("✔ Przypisz"), pick));
+            if (IptvSt.EpgMap.ContainsKey(ch.Url)) bar.Children.Add(SmallButton(L.T("Usuń przypisanie"), () => { IptvSt.EpgMap.Remove(ch.Url); ch.TvgId = null; ok = true; d.Close(); }));
+            lb.MouseDoubleClick += (s, a) => pick();
+            var body = new DockPanel();
+            DockPanel.SetDock(q, Dock.Top); body.Children.Add(q);
+            DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
+            body.Children.Add(lb);
+            d.Content = body;
+            d.ShowDialog();
+            if (ok) SaveIptv(IptvSt);
+            return ok;
+        }
+
         // okno listy: ostatnie miejsce i rozmiar; nie zaslania odtwarzacza (np. w trybie mini) - stawia sie obok niego
         void PlaceIptvWindow(Window win, string saved)
         {
@@ -580,14 +623,14 @@ namespace Przegladarka
                 bool stale = src.Hours > 0 && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - src.Updated > src.Hours * 3600 * 1000L;
                 try
                 {
-                    if (File.Exists(m3u)) { var t = await Task.Run(() => ParseM3u(File.ReadAllText(m3u))); if (ver != loadVer) return; pl = t; _iptvPl = t; fillGroups(); fillList(); _iptvLoaded?.Invoke(); }
+                    if (File.Exists(m3u)) { var t = await Task.Run(() => ParseM3u(File.ReadAllText(m3u))); if (ver != loadVer) return; ApplyEpgMap(t); pl = t; _iptvPl = t; fillGroups(); fillList(); _iptvLoaded?.Invoke(); }
                     if (force || stale || !File.Exists(m3u))
                     {
                         count.Text = L.T("Wczytuję listę kanałów…");
                         await Task.Run(() => DownloadTo(src.Url, m3u));
                         var t = await Task.Run(() => ParseM3u(File.ReadAllText(m3u)));
                         if (ver != loadVer) return;
-                        pl = t; _iptvPl = t; fillGroups(); fillList(); _iptvLoaded?.Invoke();
+                        ApplyEpgMap(t); pl = t; _iptvPl = t; fillGroups(); fillList(); _iptvLoaded?.Invoke();
                     }
                     var epgUrl = !string.IsNullOrWhiteSpace(src.Epg) ? src.Epg : pl.EpgUrl;
                     if (string.IsNullOrWhiteSpace(epgUrl)) { _iptvEpg = null; _iptvIcons = null; fillList(); _iptvLoaded?.Invoke(); }
@@ -769,6 +812,7 @@ namespace Przegladarka
                 add(L.T("▶ Oglądaj"), play, r != null);
                 add(r != null && st.Fav.Contains(r.Ch.Url) ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), toggleFav, r != null);
                 add(L.T("📋 Kopiuj adres kanału"), () => { try { Clipboard.SetText(r.Ch.Url); } catch (Exception) { } }, r != null);
+                add(L.T("📅 Przypisz program TV…"), () => { if (AssignEpg(r.Ch, win)) { fillList(); fillEpg(); } }, r != null && _iptvEpg != null);
                 menu.Items.Add(new Separator());
                 if (r != null && IsRecording(r.Ch.Url)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(r.Ch.Url), true);
                 else add(L.T("⏺ Nagrywaj teraz"), () => RecordNow(r.Ch, win), r != null);

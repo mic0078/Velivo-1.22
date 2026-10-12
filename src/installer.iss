@@ -38,6 +38,14 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
 pl.DesktopIcon=Skrót na pulpicie
+pl.Addons=Dodatki (opcjonalne):
+en.Addons=Add-ons (optional):
+pl.VideoPlayer=Odtwarzacz filmów jak VLC – AVI, MKV, WMV i inne formaty, biblioteka filmów (pobiera ok. 145 MB z oficjalnej paczki VideoLAN; można go później odinstalować w Velivo)
+en.VideoPlayer=VLC-like video player – AVI, MKV, WMV and more, video library (downloads about 145 MB from the official VideoLAN package; can be uninstalled later in Velivo)
+pl.VideoPlayerFailed=Nie udało się pobrać odtwarzacza filmów:%n%1%n%nVelivo zainstaluje się bez niego – możesz uruchomić instalator ponownie później.
+en.VideoPlayerFailed=Could not download the video player:%n%1%n%nVelivo will be installed without it – you can run the installer again later.
+pl.VideoPlayerUnpack=Nie udało się rozpakować odtwarzacza filmów – Velivo działa bez niego. Uruchom instalator ponownie, aby spróbować jeszcze raz.
+en.VideoPlayerUnpack=Could not unpack the video player – Velivo works without it. Run the installer again to retry.
 en.DesktopIcon=Desktop shortcut
 pl.Shortcuts=Skróty:
 en.Shortcuts=Shortcuts:
@@ -70,6 +78,8 @@ en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included i
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"
+; odtwarzacz filmow (libvlc) - tylko na wyrazne zyczenie uzytkownika
+Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"; Flags: unchecked
 
 [InstallDelete]
 ; pozostalosci po poprzednich nazwach programu ("Przegladarka", "Tarcza") - tylko pliki programu i skroty,
@@ -174,6 +184,7 @@ Filename: "{app}\Velivo.exe"; Description: "{cm:RunApp,{#AppName}}"; Flags: nowa
 
 [UninstallDelete]
 Type: files; Name: "{app}\unins*.old-*"
+Type: filesandordirs; Name: "{app}\vlc"
 
 [Code]
 function HasDesktopRuntime10: Boolean;
@@ -204,6 +215,40 @@ end;
 
 var
   DataPage: TInputOptionWizardPage;
+  DownloadPage: TDownloadWizardPage;
+
+// Odtwarzacz filmow: oficjalna paczka VideoLAN z NuGet, sprawdzana suma SHA-256 (podmieniony plik = brak instalacji).
+// Rozpakowujemy tylko 64-bitowa biblioteke bez wtyczek do nadawania strumieni, wizualizacji itp. (test w CI robi to samo).
+const
+  VlcUrl = 'https://api.nuget.org/v3-flatcontainer/videolan.libvlc.windows/3.0.24/videolan.libvlc.windows.3.0.24.nupkg';
+  VlcSha256 = '3da3f37ee2b2b10e5c788d830a3b513658c36521ea1b0f966ed86eb69f41ef3c';
+  VlcTarArgs = '--exclude build/x64/plugins/stream_out --exclude build/x64/plugins/access_output --exclude build/x64/plugins/mux ' +
+    '--exclude build/x64/plugins/visualization --exclude build/x64/plugins/services_discovery --exclude build/x64/plugins/lua ' +
+    '--exclude build/x64/plugins/video_splitter --exclude build/x64/plugins/keystore build/x64/libvlc.dll build/x64/libvlccore.dll build/x64/plugins';
+
+function VlcWanted: Boolean;
+begin
+  Result := WizardIsTaskSelected('videoplayer') and not FileExists(ExpandConstant('{app}\vlc\libvlc.dll'));
+end;
+
+procedure InstallVlc;
+var Code: Integer; Tmp: String;
+begin
+  Tmp := ExpandConstant('{app}\vlc-rozpakowanie');
+  DelTree(Tmp, True, True, True);
+  ForceDirectories(Tmp);
+  if Exec(ExpandConstant('{sys}\tar.exe'), '-xf "' + ExpandConstant('{tmp}\libvlc.nupkg') + '" -C "' + Tmp + '" ' + VlcTarArgs, '', SW_HIDE, ewWaitUntilTerminated, Code)
+     and (Code = 0) and FileExists(Tmp + '\build\x64\libvlc.dll') then
+  begin
+    DelTree(ExpandConstant('{app}\vlc'), True, True, True);
+    if not RenameFile(Tmp + '\build\x64', ExpandConstant('{app}\vlc')) then MsgBox(CustomMessage('VideoPlayerUnpack'), mbError, MB_OK);
+    // odinstalowanie zlecone wczesniej w Velivo - ponowna instalacja je odwoluje
+    DeleteFile(ExpandConstant('{localappdata}\Przegladarka\odtwarzacz-usun.flag'));
+  end
+  else
+    MsgBox(CustomMessage('VideoPlayerUnpack'), mbError, MB_OK);
+  DelTree(Tmp, True, True, True);
+end;
 
 function UserDataDir: String;
 begin
@@ -222,6 +267,7 @@ end;
 
 procedure InitializeWizard;
 begin
+  DownloadPage := CreateDownloadPage(SetupMessage(msgWizardPreparing), SetupMessage(msgPreparingDesc), nil);
   if not HasOldData then exit;
   DataPage := CreateInputOptionPage(wpSelectTasks,
     CustomMessage('OldDataTitle'), CustomMessage('OldDataDesc'), CustomMessage('OldDataQuestion'), True, False);
@@ -235,6 +281,22 @@ begin
   Result := True;
   if (DataPage <> nil) and (CurPageID = DataPage.ID) and (DataPage.SelectedValueIndex = 1) then
     Result := MsgBox(CustomMessage('CleanConfirm'), mbConfirmation, MB_YESNO) = IDYES;
+  if (CurPageID = wpReady) and VlcWanted then
+  begin
+    DownloadPage.Clear;
+    DownloadPage.Add(VlcUrl, 'libvlc.nupkg', VlcSha256);
+    DownloadPage.Show;
+    try
+      try
+        DownloadPage.Download;
+      except
+        // bez odtwarzacza instalacja idzie dalej (Velivo dziala jak dotad)
+        if not DownloadPage.AbortedByUser then MsgBox(FmtMessage(CustomMessage('VideoPlayerFailed'), [GetExceptionMessage]), mbError, MB_OK);
+      end;
+    finally
+      DownloadPage.Hide;
+    end;
+  end;
 end;
 
 procedure BackupDir(Dir: String; Stamp: String);
@@ -250,6 +312,8 @@ begin
   // jezyk wybrany w instalatorze = jezyk programu (Velivo czyta go, gdy w ustawieniach jest "automatycznie")
   if CurStep = ssPostInstall then
     SaveStringToFile(ExpandConstant('{app}\language.txt'), ActiveLanguage, False);
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer') and FileExists(ExpandConstant('{tmp}\libvlc.nupkg')) then
+    InstallVlc;
   if (CurStep = ssInstall) and (DataPage <> nil) and (DataPage.SelectedValueIndex = 1) then
   begin
     Stamp := GetDateTimeString('yyyymmdd-hhnnss', '-', '-');

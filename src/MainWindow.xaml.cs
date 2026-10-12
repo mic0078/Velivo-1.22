@@ -143,6 +143,7 @@ namespace Przegladarka
             LoadZoom();
             LoadSiteModes();
             InitBankMode();
+            InitVlcFeature();   // 🎬 odtwarzacz filmow - tylko gdy dodatek wybrany w instalatorze
             InitZoomMenu();
             UpdateDarkButton();
             ApplyBrowserTheme();
@@ -477,12 +478,7 @@ namespace Przegladarka
             // Bez zdjec i czcionek: kazde przechwycone zadanie przechodzi przez glowny watek okna, a strony
             // ze zdjeciami (eBay, Allegro) wczytuja ich setki przy przewijaniu - przycinalo przewijanie i myszke.
             // Reklamy-obrazki i piksele sledzace blokuje i tak uBlock Origin Lite wewnatrz silnika (bez kosztu dla okna).
-            foreach (var ctx in new[] {
-                CoreWebView2WebResourceContext.Document, CoreWebView2WebResourceContext.Script, CoreWebView2WebResourceContext.Stylesheet,
-                CoreWebView2WebResourceContext.XmlHttpRequest, CoreWebView2WebResourceContext.Fetch, CoreWebView2WebResourceContext.Media,
-                CoreWebView2WebResourceContext.Websocket, CoreWebView2WebResourceContext.EventSource, CoreWebView2WebResourceContext.Ping,
-                CoreWebView2WebResourceContext.Manifest, CoreWebView2WebResourceContext.TextTrack, CoreWebView2WebResourceContext.SignedExchange,
-                CoreWebView2WebResourceContext.CspViolationReport, CoreWebView2WebResourceContext.Other })
+            foreach (var ctx in FilteredContexts)
                 core.AddWebResourceRequestedFilter("*", ctx, CoreWebView2WebResourceRequestSourceKinds.All);
             core.WebResourceRequested += (s, e) =>
             {

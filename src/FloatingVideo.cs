@@ -17,6 +17,14 @@ namespace Przegladarka
     // Dziala niezaleznie od kart - zamkniecie karty nie zatrzymuje filmu; zamkniecie okienka - tak.
     public partial class MainWindow
     {
+        // rodzaje zadan sprawdzane przez filtr Velivo (karty i okienko Na wierzchu); obrazki i czcionki - bez (patrz InitView)
+        static readonly CoreWebView2WebResourceContext[] FilteredContexts = {
+            CoreWebView2WebResourceContext.Document, CoreWebView2WebResourceContext.Script, CoreWebView2WebResourceContext.Stylesheet,
+            CoreWebView2WebResourceContext.XmlHttpRequest, CoreWebView2WebResourceContext.Fetch, CoreWebView2WebResourceContext.Media,
+            CoreWebView2WebResourceContext.Websocket, CoreWebView2WebResourceContext.EventSource, CoreWebView2WebResourceContext.Ping,
+            CoreWebView2WebResourceContext.Manifest, CoreWebView2WebResourceContext.TextTrack, CoreWebView2WebResourceContext.SignedExchange,
+            CoreWebView2WebResourceContext.CspViolationReport, CoreWebView2WebResourceContext.Other };
+
         sealed class FloatRequest { public string page { get; set; } public double time { get; set; } public string title { get; set; } }
 
         // z karty: biezacy film (strona + miejsce), film w karcie pauzujemy
@@ -52,8 +60,13 @@ namespace Przegladarka
   var st=document.getElementById('velivo-film'); if(!st){ st=document.createElement('style'); st.id='velivo-film'; (document.head||document.documentElement).appendChild(st); }
   st.textContent='html,body{overflow:hidden!important;background:#000!important}body *{visibility:hidden!important}' +
     'video.velivo-film{visibility:visible!important;position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important;transform:none!important}';
-  var seeked=false;
-  function fix(){ var v=big(); if(!v) return; if(v.controls) v.controls=false;   // w okienku tylko pasek Velivo (np. film z dysku ma wlasny pasek odtwarzacza)
+  // strona czeka na cos innego niz film (komunikat YouTube, zgoda, wybor konta, blad): po 6 s bez obrazu pokazujemy cala
+  // strone zamiast czarnego okna (klasa na <html> wylacza ukrywanie); gdy film ma obraz - z powrotem sam film
+  var seeked=false, t0=Date.now();
+  if(!document.getElementById('velivo-film-show')){ var sh=document.createElement('style'); sh.id='velivo-film-show'; sh.textContent='html.velivo-strona body *{visibility:visible!important}html.velivo-strona,html.velivo-strona body{overflow:auto!important}html.velivo-strona video.velivo-film{position:static!important;width:auto!important;height:auto!important}'; (document.head||document.documentElement).appendChild(sh); }
+  var t1=-1, moved=false;   // film dziala dopiero, gdy czas naprawde idzie (same wymiary filmu to za malo - zawieszony tez je ma)
+  function fix(){ var v=big(); if(v&&!v.paused){ if(t1>=0&&v.currentTime!==t1) moved=true; t1=v.currentTime; }
+    var ok=v&&v.videoWidth>0&&(moved||v.__velivoUserPaused); document.documentElement.classList.toggle('velivo-strona', !ok&&Date.now()-t0>6000); if(!v) return; if(v.controls) v.controls=false;   // w okienku tylko pasek Velivo (np. film z dysku ma wlasny pasek odtwarzacza)
     if(!v.classList.contains('velivo-film')){ document.querySelectorAll('video.velivo-film').forEach(function(x){x.classList.remove('velivo-film');}); v.classList.add('velivo-film'); }
     if(!seeked && v.readyState>0){ seeked=true; if(t>3 && Math.abs(v.currentTime-t)>3) try{v.currentTime=t;}catch(e){} }
     if(v.paused && !v.__velivoUserPaused && !v.ended) autoPlay(v); }
@@ -89,7 +102,7 @@ namespace Przegladarka
     st.textContent+='#velivo-seek,#velivo-seek *{visibility:visible!important}#velivo-seek{position:fixed;left:0;right:0;bottom:0;height:34px;z-index:2147483647;display:flex;align-items:center;gap:6px;padding:0 8px;background:linear-gradient(transparent,rgba(0,0,0,.8));opacity:0;transition:opacity .25s;cursor:pointer;font:600 11px Segoe UI,sans-serif;color:#fff}'+
       '#velivo-seek.on{opacity:1}#velivo-seek-track{flex:1;min-width:30px;height:5px;background:rgba(255,255,255,.3);border-radius:3px;position:relative}#velivo-seek-track:hover{height:8px}#velivo-seek-fill{position:absolute;left:0;top:0;bottom:0;background:#60a5fa;border-radius:3px}#velivo-seek-time{white-space:nowrap;font-variant-numeric:tabular-nums}'+
       '#velivo-seek .vb{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:5px;flex:none}#velivo-seek .vb:hover{background:rgba(255,255,255,.22)}#velivo-seek .vb svg{width:16px;height:16px;fill:#fff;pointer-events:none}'+
-      '#velivo-vol{width:70px;flex:none;margin:0;accent-color:#60a5fa;cursor:pointer}@media (max-width:340px){#velivo-vol,#velivo-seek-time{display:none!important}}@media (max-width:230px){#velivo-seek [data-a=back],#velivo-seek [data-a=fwd]{display:none!important}}';
+      '#velivo-vol{width:70px;flex:none;margin:0;accent-color:#60a5fa;cursor:pointer}@media (max-width:480px){#velivo-vol,#velivo-seek-time{display:none!important}}@media (max-width:330px){#velivo-seek [data-a=back],#velivo-seek [data-a=fwd]{display:none!important}}';
   }
   function fmt(x){ if(!isFinite(x)) return '--:--'; x=Math.max(0,Math.floor(x)); var h=Math.floor(x/3600),m=Math.floor(x%3600/60),sec=x%60; return (h?h+':'+(m<10?'0':''):'')+m+':'+(sec<10?'0':'')+sec; }
   function upd(){ var v=big(); if(!v) return; var d=v.duration; document.getElementById('velivo-seek-fill').style.width=(isFinite(d)&&d>0?Math.min(100,v.currentTime/d*100):0)+'%'; document.getElementById('velivo-seek-time').textContent=fmt(v.currentTime)+' / '+fmt(d);
@@ -254,18 +267,6 @@ namespace Przegladarka
                 toggle => { if (toggle) win.WindowState = win.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; else if (win.WindowState == WindowState.Maximized) win.WindowState = WindowState.Normal; });
         }
 
-        const string FloatAdSkipScript = @"(function(){ if (!/(^|\.)youtube\.com$/.test(location.hostname)) return;
-  setInterval(function(){ try {
-    var p = document.querySelector('.html5-video-player');
-    var b = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button');
-    if (b) b.click();
-    if (p && p.classList.contains('ad-showing')) { var v = p.querySelector('video'); if (v) { v.muted = true; if (isFinite(v.duration) && v.duration > 0) v.currentTime = v.duration; } }
-    else { var v2 = p && p.querySelector('video'); if (v2 && v2.__velivoAdMuted) { v2.muted = false; v2.__velivoAdMuted = false; } }
-    if (p && p.classList.contains('ad-showing')) { var v3 = p.querySelector('video'); if (v3) v3.__velivoAdMuted = true; }
-    document.querySelectorAll('ytd-ad-slot-renderer, .ytp-ad-overlay-container, #player-ads').forEach(function(x){ x.style.display = 'none'; });
-  } catch (e) {} }, 300);
-})();";
-
         async Task InitFloatingView(WebView2CompositionControl view, string page, double time, bool isPrivate, TextBlock titleText, Action<int> wheel, Action<bool> fullScreen)
         {
             try
@@ -279,8 +280,10 @@ namespace Przegladarka
                 ApplyViewSettings(core);
                 core.Settings.AreDefaultContextMenusEnabled = false;
                 core.NewWindowRequested += (s, e) => e.Handled = true;   // reklamy i linki z okienka nie otwieraja okien
-                // blokada reklam i trackerow jak w karcie
-                core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All, CoreWebView2WebResourceRequestSourceKinds.All);
+                // blokada reklam i trackerow jak w karcie - te same rodzaje zadan (bez obrazkow i czcionek): zablokowany obrazek-przyneta
+                // YouTube uznawal za bloker i zalogowanym pokazywal "Zezwol na reklamy" zamiast filmu (czarne okienko)
+                foreach (var ctx in FilteredContexts)
+                    core.AddWebResourceRequestedFilter("*", ctx, CoreWebView2WebResourceRequestSourceKinds.All);
                 core.WebResourceRequested += (s, e) =>
                 {
                     try
@@ -290,8 +293,8 @@ namespace Przegladarka
                     }
                     catch (Exception) { }
                 };
-                // reklamy wideo YouTube: pominiecie (przycisk "Pomin") albo przewiniecie do konca, bez dzwieku
-                await core.AddScriptToExecuteOnDocumentCreatedAsync(FloatAdSkipScript);
+                // reklam nie ruszamy wlasnym skryptem (ukrywanie miejsc na reklamy YouTube wykrywal jako bloker i zalogowanym
+                // pokazywal "Zezwol na reklamy" zamiast filmu) - reklamy blokuje uBlock Origin Lite, jak w karcie
                 core.DocumentTitleChanged += (s, e) => titleText.Text = core.DocumentTitle;
                 core.Settings.IsWebMessageEnabled = true;
                 // kolko myszy nad filmem tez zmienia przezroczystosc

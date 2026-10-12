@@ -15,13 +15,15 @@ using System.Windows.Media;
 namespace Przegladarka
 {
     // Napisy z OpenSubtitles.com (jak w Jellyfin): wyszukiwanie po skrocie pliku (dokladne dopasowanie) i po nazwie,
-    // zapis obok filmu jako "film.pl.srt" - odtwarzacz i lektor wczytuja je same. Konto uzytkownika + jego klucz API;
+    // zapis obok filmu jako "film.pl.srt" - odtwarzacz i lektor wczytuja je same. Klucz aplikacji wbudowany, uzytkownik - swoje konto;
     // haslo zaszyfrowane dla tego konta Windows (DPAPI), tylko na tym komputerze.
     public partial class MainWindow
     {
         static string SubsAccountFile { get { return Path.Combine(DataDir, "napisy-konto.bin"); } }
         static readonly byte[] SubsEntropy = Encoding.UTF8.GetBytes("Velivo.OpenSubtitles");
         const string OsApi = "https://api.opensubtitles.com/api/v1";
+        // klucz aplikacji Velivo (OpenSubtitles.com - API Consumers, jak w Jellyfin); uzytkownik loguje sie swoim kontem
+        const string OsAppKey = "tL1Bgs1TAlhoBU5x2eZNb4qU6p8wawyK";
 
         sealed class SubsAccount { public string Key { get; set; } public string User { get; set; } public string Pass { get; set; } public string Lang { get; set; } = "pl"; }
 
@@ -73,7 +75,7 @@ namespace Przegladarka
         static HttpClient OsClient(SubsAccount a, string token)
         {
             var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.TryAddWithoutValidation("Api-Key", a.Key);
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Api-Key", string.IsNullOrEmpty(a.Key) ? OsAppKey : a.Key);
             http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Velivo v1.22");
             http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
             if (token != null) http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer " + token);
@@ -99,9 +101,8 @@ namespace Przegladarka
         {
             var d = new Window { Title = L.T("💬 Konto OpenSubtitles"), Width = 480, SizeToContent = SizeToContent.Height, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize };
             var p = new StackPanel { Margin = new Thickness(12) };
-            p.Children.Add(new TextBlock { Text = L.T("Napisy z OpenSubtitles.com. Klucz API utworzysz na swoim koncie: opensubtitles.com → API Consumers → New consumer."), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray });
+            p.Children.Add(new TextBlock { Text = L.T("Napisy z OpenSubtitles.com – zaloguj się swoim kontem (darmowe konto: opensubtitles.com)."), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray });
             Func<string, string, TextBox> field = (label, value) => { p.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 8, 0, 2) }); var t = new TextBox { Text = value ?? "", Padding = new Thickness(4) }; p.Children.Add(t); return t; };
-            var key = field(L.T("Klucz API:"), a.Key);
             var user = field(L.T("Nazwa użytkownika:"), a.User);
             p.Children.Add(new TextBlock { Text = L.T("Hasło:"), Margin = new Thickness(0, 8, 0, 2) });
             var pass = new PasswordBox { Password = a.Pass ?? "", Padding = new Thickness(4) }; p.Children.Add(pass);
@@ -111,10 +112,10 @@ namespace Przegladarka
             p.Children.Add(ok);
             d.Content = p;
             if (d.ShowDialog() != true) return false;
-            a.Key = key.Text.Trim(); a.User = user.Text.Trim(); a.Pass = pass.Password; a.Lang = Regex.Replace(lang.Text.ToLowerInvariant(), @"[^a-z,-]", "");
+            a.User = user.Text.Trim(); a.Pass = pass.Password; a.Lang = Regex.Replace(lang.Text.ToLowerInvariant(), @"[^a-z,-]", "");
             if (a.Lang.Length == 0) a.Lang = "pl";
             SaveSubsAccount(a);
-            return a.Key.Length > 0;
+            return a.User.Length > 0;
         }
 
         // okno: wyniki dla filmu, "Pobierz" = zapis obok filmu (film.<jezyk>.srt)
@@ -122,7 +123,7 @@ namespace Przegladarka
         {
             if (!File.Exists(video)) { MessageBox.Show(owner, L.T("Napisy można pobrać do filmu z dysku tego komputera albo z dysku sieciowego."), L.T("Napisy")); return; }
             var acc = LoadSubsAccount() ?? new SubsAccount();
-            if (string.IsNullOrEmpty(acc.Key) && !SubsAccountDialog(owner, acc)) return;
+            if (string.IsNullOrEmpty(acc.User) && !SubsAccountDialog(owner, acc)) return;
             var w = new Window { Title = L.T("💬 Napisy – ") + Path.GetFileNameWithoutExtension(video), Width = 760, Height = 440, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             var query = new TextBox { Text = OsQuery(Path.GetFileNameWithoutExtension(video)), Margin = new Thickness(8, 8, 0, 4), Padding = new Thickness(4) };
             var searchBtn = SmallButton(L.T("🔍 Szukaj"), null); searchBtn.Margin = new Thickness(6, 8, 0, 4);

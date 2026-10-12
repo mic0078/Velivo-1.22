@@ -94,7 +94,65 @@ namespace Przegladarka
             return JsonDocument.Parse(text).RootElement.Clone();
         }
 
-        sealed class OsResult { public string Name { get; set; } public string Lang { get; set; } public int Downloads { get; set; } public string Match { get; set; } public long FileId; }
+        sealed class OsResult { public string Name { get; set; } public string Lang { get; set; } public int Downloads { get; set; } public string Match { get; set; } public long FileId; public string Text; }   // Text - napisy z Napiprojektu (juz pobrane)
+
+        // ---------- Napiprojekt (polskie napisy, po skrocie pliku, bez konta) ----------
+
+        // skrot: MD5 pierwszych 10 MB pliku
+        internal static string NapiHash(string file)
+        {
+            using (var fs = File.OpenRead(file))
+            using (var md5 = MD5.Create())
+            {
+                var buf = new byte[10485760]; int n = 0, r;
+                while (n < buf.Length && (r = fs.Read(buf, n, buf.Length - n)) > 0) n += r;
+                return Convert.ToHexString(md5.ComputeHash(buf, 0, n)).ToLowerInvariant();
+            }
+        }
+
+        // kontrolny ciag "t" wymagany przez Napiprojekt (ten sam algorytm co w innych programach, np. subliminal)
+        internal static string NapiToken(string h)
+        {
+            int[] idx = { 0xe, 0x3, 0x6, 0x8, 0x2 }, mul = { 2, 2, 5, 4, 3 }, add = { 0, 0xd, 0x10, 0xb, 0x5 };
+            var sb = new StringBuilder();
+            for (int i = 0; i < 5; i++)
+            {
+                int t = add[i] + Convert.ToInt32(h[idx[i]].ToString(), 16);
+                int v = Convert.ToInt32(h.Substring(t, 2), 16);
+                var x = (v * mul[i]).ToString("x");
+                sb.Append(x[x.Length - 1]);
+            }
+            return sb.ToString();
+        }
+
+        // MPL2 ("[12][34]tekst", dziesiate czesci sekundy) -> SRT; inne formaty bez zmian
+        internal static string MplToSrt(string text)
+        {
+            var lines = (text ?? "").Replace("\r", "").Split('\n').Where(l => l.Trim().Length > 0).ToList();
+            if (lines.Count == 0 || !lines.All(l => Regex.IsMatch(l, @"^\[\d+\]\[\d*\]"))) return text;
+            var sb = new StringBuilder(); int n = 1;
+            Func<int, string> ts = d => { var t = TimeSpan.FromMilliseconds(d * 100L); return ((int)t.TotalHours).ToString("00") + ":" + t.Minutes.ToString("00") + ":" + t.Seconds.ToString("00") + "," + t.Milliseconds.ToString("000"); };
+            foreach (var l in lines)
+            {
+                var m = Regex.Match(l, @"^\[(\d+)\]\[(\d*)\](.*)$");
+                int a = int.Parse(m.Groups[1].Value), b = m.Groups[2].Value.Length > 0 ? int.Parse(m.Groups[2].Value) : a + 30;
+                var body = string.Join("\n", m.Groups[3].Value.Split('|').Select(x => x.TrimStart('/').Trim()));
+                sb.Append(n++).Append('\n').Append(ts(a)).Append(" --> ").Append(ts(b)).Append('\n').Append(body).Append("\n\n");
+            }
+            return sb.ToString();
+        }
+
+        static async Task<string> NapiFetch(string video)
+        {
+            var h = await Task.Run(() => NapiHash(video));
+            var url = "http://napiprojekt.pl/unit_napisy/dl.php?v=dreambox&kolejka=false&nick=&pass=&napios=Linux&l=PL&f=" + h + "&t=" + NapiToken(h);
+            using (var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) })
+            {
+                var data = await http.GetByteArrayAsync(url);
+                if (data.Length < 10 || Encoding.ASCII.GetString(data, 0, Math.Min(4, data.Length)) == "NPc0") return null;   // brak napisow dla tego pliku
+                return MplToSrt(SubtitleText(data));
+            }
+        }
 
         // konto: klucz API (z opensubtitles.com - Konsumenci API), login, haslo, jezyk napisow
         bool SubsAccountDialog(Window owner, SubsAccount a)
@@ -178,6 +236,9 @@ namespace Przegladarka
             Func<Task> search = async () =>
             {
                 status.Text = L.T("Szukam napisów…"); list.ItemsSource = null;
+                var res = new List<OsResult>(); string osErr = null;
+                // Napiprojekt rownolegle (polskie napisy dokladnie do tego pliku)
+                var napi = acc.Lang.Split(',').Contains("pl") ? Task.Run(async () => { try { return await NapiFetch(video); } catch (Exception) { return null; } }) : Task.FromResult<string>(null);
                 try
                 {
                     var hash = await Task.Run(() => { try { return OsHash(video); } catch (Exception) { return null; } });
@@ -187,7 +248,6 @@ namespace Przegladarka
                     var url = OsApi + "/subtitles?" + string.Join("&", args.Select(kv => kv.Key + "=" + Uri.EscapeDataString(kv.Value)));
                     JsonElement j;
                     using (var http = OsClient(acc, null)) j = await OsJson(await http.GetAsync(url));
-                    var res = new List<OsResult>();
                     foreach (var it in j.GetProperty("data").EnumerateArray())
                     {
                         var at = it.GetProperty("attributes");
@@ -202,16 +262,31 @@ namespace Przegladarka
                             FileId = files[0].GetProperty("file_id").GetInt64(),
                         });
                     }
-                    list.ItemsSource = res.OrderBy(r => r.Match == L.T("✔ ten plik") ? 0 : 1).ThenByDescending(r => r.Downloads).ToList();
-                    sortSubs?.Invoke();
-                    status.Text = res.Count == 0 ? L.T("Nie znaleziono napisów – zmień nazwę w polu wyszukiwania.") : res.Count + L.T(" wyników · dwuklik = pobierz");
                 }
-                catch (Exception ex) { status.Text = L.T("⚠ ") + ex.Message; }
+                catch (Exception ex) { osErr = ex.Message; }
+                var nt = await napi;
+                if (nt != null) res.Insert(0, new OsResult { Name = L.T("Napiprojekt – napisy do tego pliku"), Lang = "pl", Match = L.T("✔ ten plik"), Text = nt });
+                list.ItemsSource = res.OrderBy(r => r.Match == L.T("✔ ten plik") ? 0 : 1).ThenByDescending(r => r.Downloads).ToList();
+                sortSubs?.Invoke();
+                status.Text = (res.Count == 0 ? L.T("Nie znaleziono napisów – zmień nazwę w polu wyszukiwania.") : res.Count + L.T(" wyników · dwuklik = pobierz")) + (osErr != null ? L.T("  · ⚠ OpenSubtitles: ") + osErr : "");
             };
             Func<Task> download = async () =>
             {
                 var r = list.SelectedItem as OsResult; if (r == null) return;
                 status.Text = L.T("Pobieram…");
+                if (r.Text != null)   // Napiprojekt - tekst juz jest; MicroDVD ({klatki}) jako .sub, reszta jako .srt
+                {
+                    try
+                    {
+                        var ext = Regex.IsMatch(r.Text.TrimStart(), @"^\{\d+\}") ? ".sub" : ".srt";
+                        var t2 = Path.Combine(Path.GetDirectoryName(video), Path.GetFileNameWithoutExtension(video) + ".pl" + ext);
+                        File.WriteAllText(t2, r.Text, new UTF8Encoding(true));
+                        status.Text = L.T("✅ Zapisano: ") + Path.GetFileName(t2);
+                        loaded?.Invoke(t2);
+                    }
+                    catch (Exception ex) { status.Text = L.T("⚠ ") + ex.Message; }
+                    return;
+                }
                 try
                 {
                     await login();

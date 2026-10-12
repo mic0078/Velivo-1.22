@@ -38,7 +38,7 @@ public class SubtitleLectorTests
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             File.WriteAllBytes(f, Encoding.GetEncoding(1250).GetBytes(Srt));
-            Assert.Contains("Cześć, jak się masz?", MainWindow.ReadSubtitleFile(f));
+            Assert.Contains("Cześć,</i> jak się masz?", MainWindow.ReadSubtitleFile(f));   // surowy plik (ze znacznikami), polskie znaki odczytane
             File.WriteAllText(f, Srt, new UTF8Encoding(true));
             Assert.StartsWith("1", MainWindow.ReadSubtitleFile(f));   // UTF-8 z BOM tez
         }

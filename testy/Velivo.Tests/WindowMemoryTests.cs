@@ -31,4 +31,13 @@ public class WindowMemoryTests
         Assert.Equal(1.0, MainWindow.NextAlpha(1.0, 120));    // nie wiecej niz 100%
         Assert.Equal(0.2, MainWindow.NextAlpha(0.2, -120));   // okno nie znika calkiem
     }
+
+    [Fact]
+    public void JasnoscKoloru()
+    {
+        Assert.Equal(1.0, MainWindow.Luma(System.Windows.Media.Brushes.White), 3);   // biala karta - do zamiany na ciemna
+        Assert.Equal(0.0, MainWindow.Luma(System.Windows.Media.Brushes.Black), 3);
+        Assert.True(MainWindow.Luma(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF3, 0xF4, 0xF6))) > 0.8);
+        Assert.Equal(-1, MainWindow.Luma(null));
+    }
 }

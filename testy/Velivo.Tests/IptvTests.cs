@@ -129,4 +129,27 @@ public class IptvTests
         Assert.False(MainWindow.UnderAny(@"C:\Users\a\Videos\Velivo TV2\x.ts", dirs));   // inny folder o podobnej nazwie
         Assert.False(MainWindow.UnderAny(@"Y:\Filmy\film.mkv", dirs));
     }
+
+    [Fact]
+    public void ProgramTvOpisZarazPoTytule()
+    {
+        var now = DateTime.UtcNow;
+        string T(DateTime d) => d.ToString("yyyyMMddHHmmss") + " +0000";
+        // opis zaraz po tytule, dwa gatunki pod rzad; audycja poza oknem czasu tuz przed audycja w oknie
+        var xml = "<tv><channel id=\"a\"><display-name>A</display-name><display-name>A HD</display-name><icon src=\"http://l/a.png\"/></channel>" +
+            $"<programme start=\"{T(now.AddDays(-5))}\" stop=\"{T(now.AddDays(-5).AddHours(1))}\" channel=\"a\"><title>Stary</title></programme>" +
+            $"<programme start=\"{T(now.AddHours(-1))}\" stop=\"{T(now.AddHours(1))}\" channel=\"a\"><title lang=\"pl\">Zbrodnie idealne</title><desc lang=\"pl\">Opis odcinka</desc><category>Serial</category><category>Kryminalny</category><date>2017</date></programme>" +
+            $"<programme start=\"{T(now.AddHours(1))}\" stop=\"{T(now.AddHours(2))}\" channel=\"a\"><title>Drugi</title><desc>Drugi opis</desc></programme>" +
+            "</tv>";
+        var icons = new System.Collections.Generic.Dictionary<string, string>();
+        var epg = MainWindow.ParseXmltv(new MemoryStream(Encoding.UTF8.GetBytes(xml)), DateTime.Now.AddHours(-6), DateTime.Now.AddHours(30), icons);
+        var l = epg["a"];
+        Assert.Equal(2, l.Count);   // audycja po pominietej (poza oknem) nie ginie
+        Assert.Equal("Opis odcinka", l[0].Desc);
+        Assert.Equal(new[] { "Serial", "Kryminalny" }, l[0].Cats);
+        Assert.Equal("2017", l[0].Year);
+        Assert.Equal("Drugi opis", l[1].Desc);
+        Assert.Equal(l, epg["A HD"]);   // druga nazwa kanalu tez
+        Assert.Equal("http://l/a.png", icons["a"]);
+    }
 }

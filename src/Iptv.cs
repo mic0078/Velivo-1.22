@@ -151,38 +151,50 @@ namespace Przegladarka
             var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, XmlResolver = null, IgnoreComments = true, IgnoreWhitespace = true };
             using (var r = XmlReader.Create(s, settings))
             {
-                while (r.Read())
+                // po Skip / ReadElementContentAsString czytnik stoi juz na nastepnym elemencie - nie wolno go przeskoczyc kolejnym Read
+                bool next = true;
+                while (next ? r.Read() : !r.EOF)
                 {
+                    next = true;
                     if (r.NodeType != XmlNodeType.Element) continue;
                     if (r.Name == "channel")
                     {
                         var id = r.GetAttribute("id") ?? "";
                         string icon = null; var dns = new List<string>();
                         using (var sub = r.ReadSubtree())
-                            while (sub.Read())
+                        {
+                            sub.Read();
+                            while (!sub.EOF)
                             {
-                                if (sub.NodeType != XmlNodeType.Element) continue;
-                                if (sub.Name == "display-name") { var dn = sub.ReadElementContentAsString().Trim(); if (dn.Length > 0) { dns.Add(dn); if (!names.ContainsKey(dn)) names[dn] = id; } }
-                                else if (sub.Name == "icon" && icon == null) icon = sub.GetAttribute("src");
+                                if (sub.NodeType == XmlNodeType.Element && sub.Depth > 0 && sub.Name == "display-name") { var dn = sub.ReadElementContentAsString().Trim(); if (dn.Length > 0) { dns.Add(dn); if (!names.ContainsKey(dn)) names[dn] = id; } continue; }
+                                if (sub.NodeType == XmlNodeType.Element && sub.Name == "icon" && icon == null) icon = sub.GetAttribute("src");
+                                sub.Read();
                             }
+                        }
                         if (icons != null && !string.IsNullOrEmpty(icon)) { icons[id] = icon; foreach (var dn in dns) if (!icons.ContainsKey(dn)) icons[dn] = icon; }
                     }
                     else if (r.Name == "programme")
                     {
                         var start = ParseXmltvTime(r.GetAttribute("start")); var stop = ParseXmltvTime(r.GetAttribute("stop"));
                         var ch = r.GetAttribute("channel") ?? "";
-                        if (start == null || stop == null || stop < from || start > to) { r.Skip(); continue; }
+                        if (start == null || stop == null || stop < from || start > to) { r.Skip(); next = false; continue; }
                         var it = new EpgItem { Start = start.Value, Stop = stop.Value };
                         using (var sub = r.ReadSubtree())
-                            while (sub.Read())
+                        {
+                            sub.Read();
+                            while (!sub.EOF)
                             {
-                                if (sub.NodeType != XmlNodeType.Element) continue;
-                                if (sub.Name == "title" && it.Title == null) it.Title = sub.ReadElementContentAsString().Trim();
-                                else if (sub.Name == "desc" && it.Desc == null) it.Desc = sub.ReadElementContentAsString().Trim();
-                                else if (sub.Name == "sub-title" && it.Sub == null) it.Sub = sub.ReadElementContentAsString().Trim();
-                                else if (sub.Name == "category" && it.Cats.Count < 4) { var c = sub.ReadElementContentAsString().Trim(); if (c.Length > 0 && !it.Cats.Contains(c)) it.Cats.Add(c); }
-                                else if (sub.Name == "date" && it.Year == null) it.Year = sub.ReadElementContentAsString().Trim();
+                                var el = sub.NodeType == XmlNodeType.Element && sub.Depth == 1 ? sub.Name : null;
+                                if (el != "title" && el != "desc" && el != "sub-title" && el != "category" && el != "date") { sub.Read(); continue; }
+                                string v;
+                                try { v = sub.ReadElementContentAsString().Trim(); } catch (XmlException) { sub.Skip(); continue; }   // element z dziecmi - pomijamy
+                                if (el == "title") { if (it.Title == null) it.Title = v; }
+                                else if (el == "desc") { if (string.IsNullOrEmpty(it.Desc)) it.Desc = v; }
+                                else if (el == "sub-title") { if (it.Sub == null) it.Sub = v; }
+                                else if (el == "category") { if (v.Length > 0 && it.Cats.Count < 4 && !it.Cats.Contains(v)) it.Cats.Add(v); }
+                                else if (it.Year == null) it.Year = v;
                             }
+                        }
                         if (!byId.TryGetValue(ch, out var l)) byId[ch] = l = new List<EpgItem>();
                         l.Add(it);
                     }

@@ -61,4 +61,14 @@ public class IptvTests
         var plain = MainWindow.ParseXmltv(new MemoryStream(Encoding.UTF8.GetBytes(xml)), DateTime.Now.AddHours(-6), DateTime.Now.AddHours(30));
         Assert.Equal(2, plain["tvp1.pl"].Count);
     }
+
+    [Fact]
+    public void DopasowanieBezDopiskowJakosci()
+    {
+        Assert.Equal(MainWindow.EpgKey("TVP 1 HD"), MainWindow.EpgKey("|PL| TVP 1 SD"));
+        Assert.Equal(MainWindow.EpgKey("Polsat News FHD"), MainWindow.EpgKey("POLSAT NEWS"));
+        Assert.NotEqual(MainWindow.EpgKey("TV Puls"), MainWindow.EpgKey("TV Puls 2"));
+        var map = new System.Collections.Generic.Dictionary<string, string> { { MainWindow.EpgKey("TVP 1 HD"), "logo" } };
+        Assert.Equal("logo", MainWindow.ByChannel(map, new MainWindow.IptvChannel { Name = "TVP 1 SD" }));
+    }
 }

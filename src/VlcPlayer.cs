@@ -353,6 +353,7 @@ namespace Przegladarka
             Action markSort = () => { foreach (var c in cols) headers[c[0]].Content = L.T(c[1]) + (c[0] == sortKey ? (sortDesc ? "  ▼" : "  ▲") : ""); };
             markSort();
             var list = new ListView { View = grid, Margin = new Thickness(8, 0, 8, 0), SelectionMode = SelectionMode.Extended };
+            RememberColumns(win, "biblioteka", grid);
             var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Gray, Margin = new Thickness(10, 0, 0, 0) };
             List<LibraryVideo> lib = LoadLibrary();
             List<LibRow> rows = new List<LibRow>();

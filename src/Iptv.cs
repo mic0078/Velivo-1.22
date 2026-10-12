@@ -404,7 +404,7 @@ namespace Przegladarka
         {
             if (_tvWin != null && _tvWin.IsLoaded) { if (_tvWin.Owner != owner) _tvWin.Owner = owner; _tvWin.Topmost = owner.Topmost; _tvWin.Activate(); return; }
             var st = IptvSt;
-            var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "own-bounds" };   // miejsce zapamietuje sam (i omija odtwarzacz)
             PlaceIptvWindow(win, st.Win);
             var source = new ComboBox { Width = 200, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center };
             var addBtn = SmallButton(L.T("➕ Dodaj listę"), null);
@@ -447,6 +447,7 @@ namespace Przegladarka
             Action markSort = () => { foreach (var c in cols) headers[c[0]].Content = L.T(c[1]) + (c[0] == sortKey ? (sortDesc ? "  ▼" : "  ▲") : ""); };
             markSort();
             var list = new ListView { View = grid, Margin = new Thickness(8, 0, 8, 0), SelectionMode = SelectionMode.Single };
+            RememberColumns(win, "telewizja", grid);
             // program kanalu: klik prawym = przelacz o czasie / nagraj ten program
             var epgList = new ListBox { Height = 150, Margin = new Thickness(8, 4, 8, 0) };
             var epgDesc = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 2, 10, 2), Foreground = Brushes.DimGray, MaxHeight = 48 };

@@ -597,6 +597,15 @@ namespace Przegladarka
             buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true, win); if (f != null) AddPathsToLibrary(f, _libSharedView && !_libTvView); }));
             buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(win); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView && !_libTvView); }));
             buttons.Children.Add(SmallButton(L.T("Usuń z biblioteki"), remove));
+            // odswiez: wspolna biblioteka od nowa z innych komputerow + (gdy ustawiony) nowe dane z Jellyfin w tle
+            buttons.Children.Add(SmallButton(L.T("🔄 Odśwież"), async () =>
+            {
+                _sharedCache = null;
+                if (_libSharedView && !_libTvView) loadPeers(); else fill();
+                var jc = LoadJellyfinConf();
+                if (jc != null && !string.IsNullOrEmpty(jc.Url))
+                    try { await System.Threading.Tasks.Task.Run(() => SyncJellyfin(jc, _ => { })); fill(); } catch (Exception) { }   // serwer wylaczony - zostaje lokalna baza
+            }));
             buttons.Children.Add(SmallButton(L.T("🎞 Jellyfin…"), () => ShowJellyfinDialog(win)));
             // opis zaznaczonego filmu (z Jellyfin): plakat, tytul, rok, ocena, gatunek, rezyser, obsada, opis
             var dPoster = new Image { Width = 180, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Left };

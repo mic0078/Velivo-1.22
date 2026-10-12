@@ -283,7 +283,22 @@ namespace Przegladarka
             var search = new TextBox { Margin = new Thickness(8, 8, 8, 4), Padding = new Thickness(4) };
             var hint = new TextBlock { Text = L.T("🔍 Szukaj filmu…"), Foreground = Brushes.Gray, Margin = new Thickness(14, 13, 0, 0), IsHitTestVisible = false };
             search.TextChanged += (s, a) => hint.Visibility = search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
-            var top = new Grid(); top.Children.Add(search); top.Children.Add(hint);
+            var searchBox = new Grid(); searchBox.Children.Add(search); searchBox.Children.Add(hint);
+            // zrodlo: ten komputer albo biblioteka drugiego Velivo w sieci (sparowanego)
+            var source = new ComboBox { Width = 230, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Biblioteka tego komputera albo innego Velivo w sieci") };
+            var top = new DockPanel();
+            DockPanel.SetDock(source, Dock.Left); top.Children.Add(source); top.Children.Add(searchBox);
+            LanPeerInfo remotePeer = null;
+            List<LanFilmItem> remoteItems = new List<LanFilmItem>();
+            var remoteOf = new Dictionary<LibraryVideo, LanFilmItem>();
+            Action fillSources = () =>
+            {
+                var sel0 = (source.SelectedItem as ComboBoxItem)?.Tag as string;
+                source.Items.Clear();
+                source.Items.Add(new ComboBoxItem { Content = L.T("💻 Ten komputer"), Tag = null });
+                foreach (var p in SendTargets()) source.Items.Add(new ComboBoxItem { Content = "🖥 " + (string.IsNullOrWhiteSpace(p.Device) ? p.Id.Substring(0, 8) : p.Device), Tag = p.Id });
+                source.SelectedItem = source.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == sel0) ?? source.Items[0];
+            };
             var grid = new GridView();
             // kolumny: naglowek klik = sortuj, drugi klik = odwrotnie
             var cols = new[] { new[] { "title", "Tytuł", "Title", "340" }, new[] { "len", "Długość", "Length", "80" }, new[] { "seen", "Obejrzane", "Seen", "86" },
@@ -309,6 +324,12 @@ namespace Przegladarka
                 lib = LoadLibrary();
                 var q = search.Text.Trim();
                 var all = lib; var key = sortKey; var desc = sortDesc;
+                var peer = remotePeer;
+                if (peer != null)   // biblioteka drugiego komputera (bez sprawdzania dysku - pliki sa tam)
+                {
+                    remoteOf.Clear();
+                    all = remoteItems.Select(x => { var v = new LibraryVideo { Path = x.i, Title = x.t, Len = x.l, Pos = x.p, Done = x.d, Last = x.w }; remoteOf[v] = x; return v; }).ToList();
+                }
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
                 var newRows = await System.Threading.Tasks.Task.Run(() =>
                 {
@@ -325,17 +346,17 @@ namespace Przegladarka
                     return SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0), key, desc)
                     .Select(v => new LibRow
                     {
-                        Item = v, Missing = !exists(v.Path), Title = v.Title,
+                        Item = v, Missing = peer == null && !exists(v.Path), Title = v.Title,
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = SeenText(v),
                         LastPlayed = LastPlayedText(v.Last, now),
-                        Folder = System.IO.Path.GetDirectoryName(v.Path),
+                        Folder = peer != null ? (remoteOf[v].n != null ? System.IO.Path.GetDirectoryName(remoteOf[v].n) : "🖥 " + peer.Device) : System.IO.Path.GetDirectoryName(v.Path),
                     }).Select(r => { if (r.Missing) r.Title = "⚠ " + r.Title; return r; }).ToList();
                 });
                 if (ver != fillVer) return;   // w miedzyczasie nowsze szukanie
                 rows = newRows;
                 list.ItemsSource = rows;
-                count.Text = rows.Count + " / " + lib.Count + L.T(" filmów");
+                count.Text = rows.Count + " / " + all.Count + L.T(" filmów") + (peer != null ? "  ·  🖥 " + peer.Device : "");
             };
             _libRefresh = fill;
             list.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler((s, a) =>
@@ -346,18 +367,36 @@ namespace Przegladarka
                 markSort(); fill();
             }));
             search.TextChanged += (s, a) => fill();
+            source.DropDownOpened += (s, a) => fillSources();
+            fillSources();
+            source.SelectionChanged += async (s, a) =>
+            {
+                var id = (source.SelectedItem as ComboBoxItem)?.Tag as string;
+                if (id == (remotePeer?.Id)) return;
+                if (id == null) { remotePeer = null; fill(); return; }
+                var peer = PeerById(id); if (peer == null) return;
+                count.Text = L.T("Wczytuję bibliotekę: ") + peer.Device + "…";
+                var items = await RequestLibrary(peer);
+                if (items == null)
+                {
+                    ShowToast("🖥 " + peer.Device + L.T(" nie odpowiada (Velivo musi być tam uruchomione)"), null);
+                    source.SelectedIndex = 0; return;
+                }
+                remotePeer = peer; remoteItems = items; fill();
+            };
             fill();
             Func<List<LibRow>> sel = () => list.SelectedItems.Cast<LibRow>().ToList();
             Action play = () =>
             {
                 var r = list.SelectedItem as LibRow; if (r == null) return;
+                if (remotePeer != null) { WantRemoteFilm(remotePeer, remoteOf[r.Item], false); return; }   // film z drugiego komputera - ogladasz tutaj
                 if (r.Missing) { MessageBox.Show(win, L.T("Nie ma już tego pliku na dysku (przeniesiony albo usunięty)."), L.T("Biblioteka filmów")); return; }
                 var playable = rows.Where(x => !x.Missing).Select(x => x.Item.Path).ToList();   // lista odtwarzania = widoczna lista
                 PlayVideos(playable.ToArray(), playable.IndexOf(r.Item.Path));
             };
             Action remove = () =>
             {
-                var rs = sel(); if (rs.Count == 0) return;
+                var rs = sel(); if (rs.Count == 0 || remotePeer != null) return;
                 var l = LoadLibrary(); l.RemoveAll(v => rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
                 SaveLibrary(l); fill();
             };
@@ -367,14 +406,41 @@ namespace Przegladarka
                 if (a.Key == Key.Enter) { play(); a.Handled = true; }
                 else if (a.Key == Key.Delete) { remove(); a.Handled = true; }
             };
+            // menu pod prawym: filmy tego komputera - takze "Odtworz na" / "Ogladaj razem z" innym Velivo; filmy drugiego komputera - tutaj / razem
             var menu = new ContextMenu();
-            foreach (var (text, act) in new (string, Action)[] {
-                (L.T("▶ Odtwórz"), play), (L.T("Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); }),
-                (L.T("Obejrzyj od początku"), () => { foreach (var r in sel()) r.Item.Pos = 0; var l = LoadLibrary(); foreach (var v in l) if (sel().Any(r => r.Item.Path == v.Path)) v.Pos = 0; SaveLibrary(l); play(); }),
-                (L.T("Usuń z biblioteki (plik zostaje na dysku)"), remove) })
+            Action<string, Action> addItem = (text, act) => { var mi = new MenuItem { Header = text }; mi.Click += (s, a) => act(); menu.Items.Add(mi); };
+            Func<string, bool, MenuItem> peersMenu = (text, together) =>
             {
-                var mi = new MenuItem { Header = text }; var act0 = act; mi.Click += (s, a) => act0(); menu.Items.Add(mi);
-            }
+                var root = new MenuItem { Header = text };
+                var r = list.SelectedItem as LibRow;
+                var peers = SendTargets();
+                if (peers.Count == 0) root.Items.Add(new MenuItem { Header = L.T("Brak innych Velivo w sieci (muszą być włączone i sparowane)"), IsEnabled = false });
+                foreach (var p0 in peers)
+                {
+                    var p = p0;
+                    var mi = new MenuItem { Header = "🖥 " + p.Device };
+                    mi.Click += (s, a) => { if (r != null && !r.Missing) PlayFilmOn(r.Item, p, together); };
+                    root.Items.Add(mi);
+                }
+                return root;
+            };
+            menu.Opened += (s, a) =>
+            {
+                menu.Items.Clear();
+                if (remotePeer != null)
+                {
+                    addItem(L.T("▶ Odtwórz tutaj"), play);
+                    addItem(L.T("👥 Oglądaj razem z: ") + remotePeer.Device, () => { var r = list.SelectedItem as LibRow; if (r != null) WantRemoteFilm(remotePeer, remoteOf[r.Item], true); });
+                    return;
+                }
+                addItem(L.T("▶ Odtwórz"), play);
+                menu.Items.Add(peersMenu(L.T("📺 Odtwórz na…"), false));
+                menu.Items.Add(peersMenu(L.T("👥 Oglądaj razem z…"), true));
+                menu.Items.Add(new Separator());
+                addItem(L.T("Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); });
+                addItem(L.T("Obejrzyj od początku"), () => { foreach (var r in sel()) r.Item.Pos = 0; var l = LoadLibrary(); foreach (var v in l) if (sel().Any(r => r.Item.Path == v.Path)) v.Pos = 0; SaveLibrary(l); play(); });
+                addItem(L.T("Usuń z biblioteki (plik zostaje na dysku)"), remove);
+            };
             list.ContextMenu = menu;
             var bar = new DockPanel { Margin = new Thickness(6), LastChildFill = false };
             DockPanel.SetDock(count, Dock.Left); bar.Children.Add(count);
@@ -434,7 +500,7 @@ namespace Przegladarka
             _playIndex = Math.Max(0, Math.Min(index, files.Length - 1));
             // film otwarty z dysku trafia do biblioteki (jak "ostatnio odtwarzane" w VLC)
             var lib = LoadLibrary();
-            if (AddToLibrary(lib, files) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }
+            if (AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
             if (_vlcWin == null) BuildVlcWindow();
             _vlcLoad(_playIndex);
             if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal;
@@ -597,6 +663,12 @@ namespace Przegladarka
                 try
                 {
                     long t = mp.Time, len = mp.Length;
+                    if (_remoteFilms.TryGetValue(current.Path, out var rfs))   // film z innego komputera - postep do jego biblioteki
+                    {
+                        RecordProgress(current, t, len, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        SendRemoteProgress(rfs, t, len, false);
+                        return;
+                    }
                     var l = LoadLibrary();
                     var v = l.FirstOrDefault(x => string.Equals(x.Path, current.Path, StringComparison.OrdinalIgnoreCase));
                     if (v == null) return;
@@ -612,12 +684,18 @@ namespace Przegladarka
 
             // lektor: napisy z pliku obok filmu albo wczytane z menu Napisy
             var lc = new Lector();
-            Action<string> loadSubs = path =>
+            Action<string, string> loadSubsText = (text, name) =>
             {
                 lc.Cues = new List<SubCue>(); lc.File = null; lc.LastSpoken = -1;
-                if (path == null) return;
-                try { lc.Cues = ParseSubtitles(ReadSubtitleFile(path)); lc.Lang = SubtitleLanguage(lc.Cues); lc.File = path; }
+                if (text == null) return;
+                try { lc.Cues = ParseSubtitles(text); lc.Lang = SubtitleLanguage(lc.Cues); lc.File = name; }
                 catch (Exception ex) { App.LogError(ex); }
+            };
+            Action<string> loadSubs = path =>
+            {
+                string text = null;
+                try { if (path != null) text = ReadSubtitleFile(path); } catch (Exception ex) { App.LogError(ex); }
+                loadSubsText(text, path);
             };
             Action showLector = () => lector.Background = _settings.VlcLector ? new SolidColorBrush(Color.FromArgb(0x55, 0x3B, 0x82, 0xF6)) : Brushes.Transparent;
             // klik 🗣 = panel lektora: wlacz/wylacz, glosnosc, predkosc, sciszanie filmu (zapamietywane)
@@ -629,10 +707,11 @@ namespace Przegladarka
             {
                 filmPrefsTimer.Stop(); saveLector();
                 if (current == null) return;
+                current.Vol = _settings.VlcVolume; current.LVol = _settings.VlcLectorVolume; current.LRate = _settings.VlcLectorRate; current.LDuck = _settings.VlcLectorDuck; current.LVoice = _settings.VlcLectorVoice;
+                if (_remoteFilms.TryGetValue(current.Path, out var rfp)) { SendRemoteProgress(rfp, mp.Time, mp.Length, false); return; }   // film z innego komputera - ustawienia do jego biblioteki
                 var l = LoadLibrary(); var v = l.FirstOrDefault(x => string.Equals(x.Path, current.Path, StringComparison.OrdinalIgnoreCase));
                 if (v == null) return;
-                v.Vol = _settings.VlcVolume; v.LVol = _settings.VlcLectorVolume; v.LRate = _settings.VlcLectorRate; v.LDuck = _settings.VlcLectorDuck; v.LVoice = _settings.VlcLectorVoice;
-                current.Vol = v.Vol; current.LVol = v.LVol; current.LRate = v.LRate; current.LDuck = v.LDuck; current.LVoice = v.LVoice;
+                ApplyPrefs(v, PrefsOf(current));
                 SaveLibrary(l);
             };
             Action filmPrefsChanged = () => { filmPrefsTimer.Stop(); filmPrefsTimer.Start(); };
@@ -713,6 +792,8 @@ namespace Przegladarka
                 if (spu) _settings.VlcSpu = name; else _settings.VlcAudio = name;
                 try { _settings.Save(DataDir); } catch (Exception) { }
                 if (current == null) return;
+                if (spu) current.Spu = name; else current.Audio = name;
+                if (_remoteFilms.TryGetValue(current.Path, out var rft)) { SendRemoteProgress(rft, mp.Time, mp.Length, false); return; }
                 var l = LoadLibrary(); var v = l.FirstOrDefault(x => string.Equals(x.Path, current.Path, StringComparison.OrdinalIgnoreCase));
                 if (v == null) return;
                 if (spu) v.Spu = name; else v.Audio = name;
@@ -743,14 +824,32 @@ namespace Przegladarka
                 if (i < 0 || i >= _playlist.Count) return;
                 _playIndex = i;
                 var path = _playlist[i];
-                current = LoadLibrary().FirstOrDefault(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
-                win.Title = System.IO.Path.GetFileName(path) + " – " + L.T("Odtwarzacz filmów");
-                LectorStopVoice(lc, mp); loadSubs(FindSubtitleFor(path));
-                applyFilmPrefs();
-                miniTitle.Text = System.IO.Path.GetFileNameWithoutExtension(path);
-                using (var media = new Media(_libVlc, path, FromType.FromPath))
+                // film z innego komputera (strumien albo dysk sieciowy): miejsce i ustawienia z jego biblioteki
+                _remoteFilms.TryGetValue(path, out var rf);
+                if (rf != null)
                 {
-                    // napisy o tej samej nazwie obok filmu (film.srt, film.pl.srt) dolaczane same - jak w VLC
+                    current = new LibraryVideo { Path = path, Title = rf.Title, Pos = rf.Pos, Len = rf.Len };
+                    ApplyPrefs(current, rf.Prefs); rf.Prefs = current;
+                }
+                else current = LoadLibrary().FirstOrDefault(x => string.Equals(x.Path, path, StringComparison.OrdinalIgnoreCase));
+                bool stream = path.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+                var name = rf != null ? rf.Title : System.IO.Path.GetFileNameWithoutExtension(path);
+                win.Title = name + " – " + L.T("Odtwarzacz filmów");
+                LectorStopVoice(lc, mp);
+                if (stream && rf?.Sub != null)
+                {
+                    loadSubsText(null, null);
+                    var subUrl = rf.Sub;
+                    _ = System.Threading.Tasks.Task.Run(async () => { try { using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(15) }) return await http.GetByteArrayAsync(subUrl); } catch (Exception) { return null; } })
+                        .ContinueWith(t => Dispatcher.BeginInvoke(new Action(() => { if (t.Result != null && _playlist.Count > _playIndex && _playlist[_playIndex] == path) loadSubsText(SubtitleText(t.Result), name); })));
+                }
+                else loadSubs(stream ? null : FindSubtitleFor(path));
+                applyFilmPrefs();
+                miniTitle.Text = name;
+                using (var media = stream ? new Media(_libVlc, new Uri(path)) : new Media(_libVlc, path, FromType.FromPath))
+                {
+                    // napisy o tej samej nazwie obok filmu (film.srt, film.pl.srt) dolaczane same - jak w VLC; przy strumieniu - z komputera wlasciciela
+                    if (stream && rf?.Sub != null) media.AddSlave(MediaSlaveType.Subtitle, 4, rf.Sub);
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
@@ -780,13 +879,27 @@ namespace Przegladarka
             mp.Stopped += (s, e) => Dispatcher.BeginInvoke(new Action(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; }));
             mp.EndReached += (s, e) => Dispatcher.BeginInvoke(new Action(() =>
             {
+                if (current != null && _remoteFilms.TryGetValue(current.Path, out var rfe)) { SendRemoteProgress(rfe, 0, mp.Length, true); current = null; }
                 if (current != null) { var l = LoadLibrary(); var v = l.FirstOrDefault(x => x.Path == current.Path); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
                 if (_playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
             mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(new Action(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));
 
-            Action togglePlay = () => { if (mp.IsPlaying) mp.SetPause(true); else if (mp.State == VLCState.Stopped || mp.State == VLCState.Ended || mp.State == VLCState.NothingSpecial) _vlcLoad(_playIndex); else mp.SetPause(false); };
-            Action<long> jump = d => { if (mp.Length <= 0) return; mp.Time = Math.Max(0, Math.Min(mp.Length - 500, mp.Time + d)); showOsd((d > 0 ? "+" : "−") + Math.Abs(d / 1000) + " s"); };
+            Action togglePlay = () =>
+            {
+                if (mp.IsPlaying) { mp.SetPause(true); TogetherSend("pause", mp.Time); }
+                else if (mp.State == VLCState.Stopped || mp.State == VLCState.Ended || mp.State == VLCState.NothingSpecial) _vlcLoad(_playIndex);
+                else { mp.SetPause(false); TogetherSend("play", mp.Time); }
+            };
+            Action<long> jump = d => { if (mp.Length <= 0) return; mp.Time = Math.Max(0, Math.Min(mp.Length - 500, mp.Time + d)); TogetherSend("seek", mp.Time); showOsd((d > 0 ? "+" : "−") + Math.Abs(d / 1000) + " s"); };
+            // ogladanie razem: polecenie z drugiego komputera (bez odsylania z powrotem)
+            _vlcRemoteCtl = (act, pos) =>
+            {
+                if (act == "pause") { mp.SetPause(true); if (pos > 0) mp.Time = pos; showOsd(L.T("⏸ Pauza na drugim komputerze")); }
+                else if (act == "play") { if (pos > 0 && Math.Abs(mp.Time - pos) > 1500) mp.Time = pos; mp.SetPause(false); }
+                else if (act == "seek") { if (mp.Length > 0) mp.Time = pos; }
+                else if (act == "stop") { savePos(); mp.Stop(); showOsd(L.T("⏹ Zatrzymano na drugim komputerze")); }
+            };
             Action<double> setVol = v => { vol.Value = Math.Max(0, Math.Min(125, v)); };
             vol.ValueChanged += (s, e) => { _settings.VlcVolume = (int)vol.Value; filmPrefsChanged(); mp.Volume = (int)vol.Value; volText.Text = (int)vol.Value + "%"; if (mp.Mute && vol.Value > 0) mp.Mute = false; mute.Content = PlayerIcon(mp.Mute || vol.Value == 0 ? "mute" : "volume"); };
             Action toggleMute = () => { mp.Mute = !mp.Mute; mute.Content = PlayerIcon(mp.Mute ? "mute" : "volume"); showOsd(mp.Mute ? L.T("Wyciszono") : (int)vol.Value + "%"); };
@@ -829,7 +942,7 @@ namespace Przegladarka
             };
 
             play.Click += (s, e) => togglePlay();
-            stop.Click += (s, e) => { savePos(); mp.Stop(); };
+            stop.Click += (s, e) => { savePos(); mp.Stop(); TogetherSend("stop", 0); };
             prev.Click += (s, e) => _vlcLoad(_playIndex - 1);
             next.Click += (s, e) => _vlcLoad(_playIndex + 1);
             back10.Click += (s, e) => jump(-10000);
@@ -856,7 +969,7 @@ namespace Przegladarka
                 if (mp.TakeSnapshot(0, file, 0, 0)) ShowToast(L.T("📷 Zapisano klatkę: ") + System.IO.Path.GetFileName(file), file);
             };
             seek.PreviewMouseDown += (s, e) => seeking = true;
-            seek.PreviewMouseUp += (s, e) => { if (mp.Length > 0) mp.Time = (long)(seek.Value / 1000 * mp.Length); seeking = false; };
+            seek.PreviewMouseUp += (s, e) => { if (mp.Length > 0) { mp.Time = (long)(seek.Value / 1000 * mp.Length); TogetherSend("seek", mp.Time); } seeking = false; };
             seek.ValueChanged += (s, e) => { if (seeking && mp.Length > 0) timeNow.Text = FormatTime((long)(seek.Value / 1000 * mp.Length)); };
 
             // menu napisow / dzwieku / proporcji budowane przy otwarciu (sciezki znane dopiero po starcie filmu)
@@ -957,7 +1070,8 @@ namespace Przegladarka
             win.Closed += (s, e) =>
             {
                 saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);
-                _vlcWin = null; _vlcLoad = null;
+                _vlcWin = null; _vlcLoad = null; _vlcRemoteCtl = null;
+                if (_together != null) { TogetherSend("stop", 0); _together = null; }   // zamkniecie odtwarzacza konczy wspolne ogladanie
                 view.MediaPlayer = null;
                 System.Threading.Tasks.Task.Run(() => { try { mp.Stop(); mp.Dispose(); } catch (Exception) { } });   // Stop VLC moze chwile trwac - nie w watku okna
             };

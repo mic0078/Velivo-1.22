@@ -79,16 +79,7 @@ namespace Przegladarka
         }
 
         // polskie napisy czesto sa w Windows-1250 (stare SRT) - UTF-8 tylko, gdy plik jest poprawnym UTF-8
-        internal static string ReadSubtitleFile(string path)
-        {
-            var bytes = File.ReadAllBytes(path);
-            try { return new UTF8Encoding(false, true).GetString(bytes).TrimStart('﻿'); }
-            catch (DecoderFallbackException)
-            {
-                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-                return Encoding.GetEncoding(1250).GetString(bytes);
-            }
-        }
+        internal static string ReadSubtitleFile(string path) { return SubtitleText(File.ReadAllBytes(path)); }
 
         // napisy obok filmu: film.srt, film.pl.srt, film.PL.ass ... (najpierw polskie)
         internal static string FindSubtitleFor(string video)

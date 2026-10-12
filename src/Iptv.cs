@@ -303,7 +303,7 @@ namespace Przegladarka
             protected override void Dispose(bool d) { if (d) _s.Dispose(); base.Dispose(d); }
         }
 
-        static string Mb(long b) { return (b / 1048576.0).ToString(b < 10 * 1048576 ? "0.0" : "0"); }
+        static string EpgMb(long b) { return (b / 1048576.0).ToString(b < 10 * 1048576 ? "0.0" : "0"); }
 
         // ---------- przycisk 📺 ----------
 
@@ -585,7 +585,7 @@ namespace Przegladarka
                             {
                                 if (ver != loadVer) return;
                                 progress.IsIndeterminate = t <= 0; if (t > 0) progress.Value = 100.0 * d / t;
-                                count.Text = L.T("Pobieram program TV… ") + Mb(d) + (t > 0 ? " / " + Mb(t) + " MB  (" + (int)(100.0 * d / t) + "%)" : " MB");
+                                count.Text = L.T("Pobieram program TV… ") + EpgMb(d) + (t > 0 ? " / " + EpgMb(t) + " MB  (" + (int)(100.0 * d / t) + "%)" : " MB");
                             }))));
                         }
                         count.Text = L.T("Wczytuję program TV…"); progress.Visibility = Visibility.Visible; progress.IsIndeterminate = false; progress.Value = 0;

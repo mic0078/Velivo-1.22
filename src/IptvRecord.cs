@@ -310,7 +310,7 @@ namespace Przegladarka
             };
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(8) };
             bar.Children.Add(SmallButton(L.T("🗑 Usuń / zatrzymaj"), remove));
-            bar.Children.Add(SmallButton(L.T("📁 Folder nagrań"), () => { var dir = string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir; Directory.CreateDirectory(dir); System.Diagnostics.Process.Start("explorer.exe", "\"" + dir + "\""); }));
+            bar.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
             var body = new DockPanel();
             DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
             body.Children.Add(new TextBlock { Text = L.T("Velivo musi być włączone o czasie nagrania lub przełączenia."), Foreground = Brushes.Gray, Margin = new Thickness(10, 8, 10, 0) });
@@ -322,5 +322,61 @@ namespace Przegladarka
             w.Closed += (s, a) => _iptvJobsChanged = prev;
             w.Show();
         }
-    }
+    
+        void OpenRecDir()
+        {
+            var dir = string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir;
+            try { Directory.CreateDirectory(dir); System.Diagnostics.Process.Start("explorer.exe", "\"" + dir + "\""); } catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // nagrania z folderu nagran: odtworz, usun (z dysku i z biblioteki filmow), otworz folder
+        void ShowRecordings(Window owner)
+        {
+            var w = new Window { Title = L.T("🎞 Nagrania TV"), Width = 760, Height = 420, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var grid = new GridView();
+            foreach (var c in new[] { new[] { "Name", "Nagranie", "460" }, new[] { "Date", "Data", "130" }, new[] { "Size", "Rozmiar", "90" } })
+                grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
+            var list = new ListView { View = grid, Margin = new Thickness(8), SelectionMode = SelectionMode.Extended };
+            RememberColumns(w, "nagrania", grid);
+            var count = new TextBlock { Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            Action fill = () =>
+            {
+                var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir };
+                foreach (var j in IptvSt.Jobs) if (!string.IsNullOrWhiteSpace(j.Folder)) dirs.Add(j.Folder);
+                var files = dirs.Where(Directory.Exists).SelectMany(d => { try { return Directory.GetFiles(d, "*.ts"); } catch (Exception) { return new string[0]; } })
+                    .Select(f => new FileInfo(f)).OrderByDescending(f => f.LastWriteTime).ToList();
+                list.ItemsSource = files.Select(f => new { Path = f.FullName, Name = Path.GetFileNameWithoutExtension(f.Name), Date = f.LastWriteTime.ToString("dd.MM.yyyy HH:mm"), Size = (f.Length / 1048576.0).ToString("0") + " MB" }).ToList();
+                count.Text = files.Count + L.T(" nagrań");
+            };
+            Func<List<string>> sel = () => list.SelectedItems.Cast<object>().Select(o => (string)o.GetType().GetProperty("Path").GetValue(o)).ToList();
+            Action play = () => { var p = sel(); if (p.Count > 0) PlayVideos(p.ToArray(), 0); };
+            Action del = () =>
+            {
+                var p = sel(); if (p.Count == 0) return;
+                if (MessageBox.Show(w, string.Format(L.T("Usunąć {0} nagrań z dysku (do Kosza) i z biblioteki filmów?"), p.Count), L.T("Nagrania TV"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                var errs = DeleteVideoFiles(p);
+                fill();
+                if (errs.Count > 0) MessageBox.Show(w, L.T("Nie udało się usunąć (nagrywane albo odtwarzane):\n") + string.Join("\n", errs.Take(10)), L.T("Nagrania TV"));
+            };
+            list.MouseDoubleClick += (s, a) => play();
+            list.PreviewKeyDown += (s, a) => { if (a.Key == System.Windows.Input.Key.Enter) { play(); a.Handled = true; } else if (a.Key == System.Windows.Input.Key.Delete) { del(); a.Handled = true; } };
+            var menu = new ContextMenu();
+            foreach (var it in new[] { Tuple.Create(L.T("▶ Odtwórz"), play), Tuple.Create(L.T("🗑 Usuń z dysku i z biblioteki…"), del), Tuple.Create(L.T("📁 Otwórz folder nagrań"), (Action)OpenRecDir) })
+            { var mi = new MenuItem { Header = it.Item1 }; var act = it.Item2; mi.Click += (s, a) => act(); menu.Items.Add(mi); }
+            list.ContextMenu = menu;
+            var bar = new DockPanel { Margin = new Thickness(6), LastChildFill = false };
+            DockPanel.SetDock(count, Dock.Left); bar.Children.Add(count);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+            DockPanel.SetDock(buttons, Dock.Right); bar.Children.Add(buttons);
+            buttons.Children.Add(SmallButton(L.T("▶ Odtwórz"), play));
+            buttons.Children.Add(SmallButton(L.T("🗑 Usuń z dysku"), del));
+            buttons.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
+            var body = new DockPanel();
+            DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);
+            body.Children.Add(list);
+            w.Content = body;
+            fill();
+            w.Show();
+        }
+}
 }

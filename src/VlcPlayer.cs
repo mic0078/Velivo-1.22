@@ -268,6 +268,25 @@ namespace Przegladarka
             EnsureFileTypes();   // AVI, WMV i inne znikaja z "Otworz za pomoca"
         }
 
+        // pliki filmow do Kosza i z obu bibliotek; zwraca nazwy plikow, ktorych nie udalo sie usunac
+        List<string> DeleteVideoFiles(IEnumerable<string> paths)
+        {
+            var errs = new List<string>(); var gone = new List<string>();
+            foreach (var p in paths.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    if (File.Exists(p)) Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(p, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                    gone.Add(p);
+                }
+                catch (Exception ex) { App.LogError(ex); errs.Add(System.IO.Path.GetFileName(p)); }
+            }
+            var l = LoadLibrary();
+            if (l.RemoveAll(v => gone.Contains(v.Path, StringComparer.OrdinalIgnoreCase)) > 0) SaveLibrary(l);
+            _libRefresh?.Invoke();
+            return errs;
+        }
+
         // ---------- okno biblioteki ----------
 
         Window _libWin;
@@ -474,6 +493,16 @@ namespace Przegladarka
                 var l = LoadLibrary(); bool sh = _libSharedView; l.RemoveAll(v => IsShared(v) == sh && rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
                 SaveLibrary(l); fill();
             };
+            // usun z biblioteki i plik z dysku (do Kosza; dysk sieciowy nie ma Kosza - wtedy na stale)
+            Action removeFiles = () =>
+            {
+                var rs = sel().Where(r => !remoteOf.ContainsKey(r.Item) && !r.Missing).ToList(); if (rs.Count == 0) return;
+                var msg = rs.Count == 1 ? string.Format(L.T("Usunąć film „{0}” z biblioteki i z dysku?"), rs[0].Item.Title) : string.Format(L.T("Usunąć {0} filmów z biblioteki i z dysku?"), rs.Count);
+                if (MessageBox.Show(win, msg + L.T("\n\nPlik trafi do Kosza (na dysku sieciowym – usunięty na stałe)."), L.T("Biblioteka filmów"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                var errs = DeleteVideoFiles(rs.Select(r => r.Item.Path));
+                fill();
+                if (errs.Count > 0) MessageBox.Show(win, L.T("Nie udało się usunąć (plik w użyciu – np. właśnie odtwarzany):\n") + string.Join("\n", errs.Take(10)), L.T("Biblioteka filmów"));
+            };
             list.MouseDoubleClick += (s, a) => play();
             list.PreviewKeyDown += (s, a) =>
             {
@@ -535,6 +564,7 @@ namespace Przegladarka
                 addItem((toShared ? "📚 " : "🔒 ") + L.T("Przenieś do: ") + target, () => moveOrCopy(false));
                 addItem(L.T("📋 Kopiuj do: ") + target + L.T(" (osobny licznik)"), () => moveOrCopy(true));
                 addItem(L.T("Usuń z biblioteki (plik zostaje na dysku)"), remove);
+                addItem(L.T("🗑 Usuń z biblioteki i z dysku…"), removeFiles);
             };
             list.ContextMenu = menu;
             var bar = new DockPanel { Margin = new Thickness(6), LastChildFill = false };

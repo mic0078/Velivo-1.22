@@ -685,6 +685,8 @@ namespace Przegladarka
                 else add(L.T("⏺ Nagrywaj teraz"), () => RecordNow(r.Ch, win), r != null);
                 add(L.T("⏺ Zaplanuj nagrywanie…"), () => ScheduleDialog(r.Ch, win), r != null);
                 add(L.T("📅 Zaplanowane…"), () => ShowJobs(win), true);
+                add(L.T("🎞 Nagrania…"), () => ShowRecordings(win), true);
+                add(L.T("📁 Otwórz folder nagrań"), OpenRecDir, true);
                 menu.Items.Add(new Separator());
                 add(L.T("🔄 Odśwież listę i program TV"), () => _ = load(true), cur() != null);
                 add(L.T("➕ Dodaj listę kanałów…"), _iptvAdd, true);
@@ -699,6 +701,8 @@ namespace Przegladarka
             buttons.Children.Add(SmallButton(L.T("⭐ Ulubiony"), toggleFav));
             buttons.Children.Add(SmallButton(L.T("⏺ Nagrywaj"), () => { var r = list.SelectedItem as TvRow; if (r == null) return; if (IsRecording(r.Ch.Url)) StopRecording(r.Ch.Url); else RecordNow(r.Ch, win); }));
             buttons.Children.Add(SmallButton(L.T("📅 Zaplanowane"), () => ShowJobs(win)));
+            buttons.Children.Add(SmallButton(L.T("🎞 Nagrania"), () => ShowRecordings(win)));
+            buttons.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
             var body = new DockPanel();
             DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);
             DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);

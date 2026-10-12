@@ -108,14 +108,43 @@ namespace Przegladarka
             var pass = new PasswordBox { Password = a.Pass ?? "", Padding = new Thickness(4) }; p.Children.Add(pass);
             var lang = field(L.T("Języki napisów (np. pl albo pl,en):"), a.Lang);
             var ok = new Button { Content = "OK", Width = 90, Height = 28, IsDefault = true, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
-            ok.Click += (s, e) => d.DialogResult = true;
+            var info = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+            p.Children.Add(info);
+            // OK = proba logowania od razu: potwierdzenie albo dokladny powod z OpenSubtitles
+            ok.Click += async (s, e) =>
+            {
+                var test = new SubsAccount { Key = a.Key, User = user.Text.Trim(), Pass = pass.Password };
+                if (test.User.Length == 0) { info.Foreground = Brushes.IndianRed; info.Text = L.T("Podaj nazwę użytkownika."); return; }
+                ok.IsEnabled = false; info.Foreground = Brushes.Gray; info.Text = L.T("Loguję…");
+                try
+                {
+                    var r = await OsLogin(test);
+                    info.Foreground = Brushes.SeaGreen; info.Text = L.T("✅ Zalogowano: ") + test.User + (r.Item2 > 0 ? L.T(" · pobrań dziennie: ") + r.Item2 : "");
+                    await System.Threading.Tasks.Task.Delay(1200);
+                    d.DialogResult = true;
+                }
+                catch (Exception ex) { info.Foreground = Brushes.IndianRed; info.Text = L.T("⚠ Nie udało się zalogować: ") + ex.Message; ok.IsEnabled = true; }
+            };
             p.Children.Add(ok);
+            p.Children.Remove(info); p.Children.Insert(p.Children.IndexOf(ok), info);
             d.Content = p;
             if (d.ShowDialog() != true) return false;
             a.User = user.Text.Trim(); a.Pass = pass.Password; a.Lang = Regex.Replace(lang.Text.ToLowerInvariant(), @"[^a-z,-]", "");
             if (a.Lang.Length == 0) a.Lang = "pl";
             SaveSubsAccount(a);
             return a.User.Length > 0;
+        }
+
+        // logowanie: token i dzienny limit pobran
+        static async Task<Tuple<string, int>> OsLogin(SubsAccount a)
+        {
+            using (var http = OsClient(a, null))
+            {
+                var body = new StringContent(JsonSerializer.Serialize(new { username = a.User, password = a.Pass }), Encoding.UTF8, "application/json");
+                var j = await OsJson(await http.PostAsync(OsApi + "/login", body));
+                int allowed = j.TryGetProperty("user", out var u) && u.TryGetProperty("allowed_downloads", out var ad) && ad.ValueKind == JsonValueKind.Number ? ad.GetInt32() : 0;
+                return Tuple.Create(j.GetProperty("token").GetString(), allowed);
+            }
         }
 
         // okno: wyniki dla filmu, "Pobierz" = zapis obok filmu (film.<jezyk>.srt)
@@ -143,12 +172,7 @@ namespace Przegladarka
             Func<Task<bool>> login = async () =>
             {
                 if (token != null || string.IsNullOrEmpty(acc.User)) return true;
-                using (var http = OsClient(acc, null))
-                {
-                    var body = new StringContent(JsonSerializer.Serialize(new { username = acc.User, password = acc.Pass }), Encoding.UTF8, "application/json");
-                    var j = await OsJson(await http.PostAsync(OsApi + "/login", body));
-                    token = j.GetProperty("token").GetString();
-                }
+                token = (await OsLogin(acc)).Item1;
                 return true;
             };
             Func<Task> search = async () =>

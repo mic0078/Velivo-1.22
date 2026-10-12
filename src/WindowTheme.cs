@@ -68,6 +68,9 @@ namespace Przegladarka
                     var tr = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
                     tr.Setters.Add(set(Control.ForegroundProperty, Brushes.Black));
                     s.Triggers.Add(tr);
+                    var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };   // podswietlenie pod mysza - tez jasne
+                    hover.Setters.Add(set(Control.ForegroundProperty, Brushes.Black));
+                    s.Triggers.Add(hover);
                 });
             w.Resources.MergedDictionaries.Insert(0, d);
             RecolorTree(w, true);

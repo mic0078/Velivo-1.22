@@ -1109,7 +1109,10 @@ namespace Przegladarka
             // lista kanalow nad filmem (z lewej): kanaly biezacej grupy z logo i tym, co leci; klik = przelacz, kolko = przewijanie
             var chList = new ListBox { Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.White, HorizontalContentAlignment = HorizontalAlignment.Stretch };
             ScrollViewer.SetHorizontalScrollBarVisibility(chList, ScrollBarVisibility.Disabled);
-            var chPanel = new Border { Child = chList, Width = 340, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 0), Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(0, 8, 8, 0) };
+            // wybor grupy na gorze listy (zapamietany): biezaca lista, ulubione, ostatnio ogladane, grupy z listy kanalow
+            var chGroup = new ComboBox { Margin = new Thickness(6, 6, 6, 4) };
+            var chDock = new DockPanel(); DockPanel.SetDock(chGroup, Dock.Top); chDock.Children.Add(chGroup); chDock.Children.Add(chList);
+            var chPanel = new Border { Child = chDock, Width = 340, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 0), Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(0, 8, 8, 0) };
             overlay.Children.Add(chPanel);
             var chHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
             chHide.Tick += (s, e) => { chHide.Stop(); if (!chPanel.IsMouseOver) chPanel.Visibility = Visibility.Collapsed; };
@@ -1122,11 +1125,33 @@ namespace Przegladarka
                 if (mini0) return;
                 chPanel.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.ListAlpha)) / 100), 0x14, 0x16, 0x1A));
                 chPanel.Margin = new Thickness(0, 0, 0, controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0);
+                // grupy (raz na otwarcie): biezaca + z listy kanalow
+                const string curKey = "\u0001cur", favKey = "\u0001fav", recKey = "\u0001rec";
+                if (chGroup.Items.Count == 0)
+                {
+                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("▶ Bieżąca lista"), Tag = curKey });
+                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("⭐ Ulubione"), Tag = favKey });
+                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("🕘 Ostatnio oglądane"), Tag = recKey });
+                    if (_iptvPl != null) foreach (var g in _iptvPl.Channels.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) chGroup.Items.Add(new ComboBoxItem { Content = g.Length == 0 ? L.T("(bez grupy)") : g, Tag = g });
+                    var saved = GetPref("grupa-lista-tv") ?? curKey;
+                    chGroup.SelectedItem = chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(x => (string)x.Tag == saved) ?? chGroup.Items[0];
+                }
+                var gk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? curKey;
+                List<IptvChannel> chans;
+                if (gk == curKey) chans = _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]).ToList();
+                else
+                {
+                    var all = _iptvPl?.Channels ?? new List<IptvChannel>();
+                    chans = gk == favKey ? IptvSt.Fav.Select(u => all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList()
+                        : gk == recKey ? IptvSt.Recent.Select(u => all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList()
+                        : all.Where(c => c.Group == gk).ToList();
+                }
+                var curUrl = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 chList.Items.Clear();
                 var now = DateTime.Now; ListBoxItem cur = null;
-                for (int k = 0; k < _playlist.Count; k++)
+                for (int k = 0; k < chans.Count; k++)
                 {
-                    if (!_iptvPlaying.TryGetValue(_playlist[k], out var ch)) continue;
+                    var ch = chans[k];
                     int idx = k;
                     var img = new Image { Width = 40, Height = 24, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
                     var nowP = EpgAt(EpgFor(_iptvEpg, ch), now);
@@ -1135,18 +1160,30 @@ namespace Przegladarka
                     if (nowP != null) txt.Children.Add(new TextBlock { Text = nowP.Start.ToString("HH:mm") + "  " + nowP.Title, FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
                     var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); row.Children.Add(img); row.Children.Add(txt);
                     var it = new ListBoxItem { Content = row, Padding = new Thickness(8, 4, 8, 4), Cursor = Cursors.Hand };
-                    if (idx == _playIndex) { it.Background = new SolidColorBrush(Color.FromArgb(0x66, 0x3B, 0x82, 0xF6)); cur = it; }
-                    it.PreviewMouseLeftButtonUp += (q, w2) => { _vlcLoad(idx); showChannelsRefresh(); };
+                    if (ch.Url == curUrl) { it.Background = new SolidColorBrush(Color.FromArgb(0x66, 0x3B, 0x82, 0xF6)); cur = it; }
+                    // klik: z biezacej listy - przelacz; z innej grupy - ta grupa staje sie lista (PgUp/PgDn po niej)
+                    it.PreviewMouseLeftButtonUp += (q, w2) =>
+                    {
+                        if (gk == curKey) _vlcLoad(_playlist.IndexOf(ch.Url));
+                        else { foreach (var c in chans) _iptvPlaying[c.Url] = c; PlayVideos(chans.Select(c => c.Url).ToArray(), idx); }
+                        showChannelsRefresh();
+                    };
                     chList.Items.Add(it);
                     var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
                     if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) img.Source = t.Result; }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
                 }
-                if (chList.Items.Count == 0) return;
                 chPanel.Visibility = Visibility.Visible;
                 if (cur != null) { chList.SelectedItem = null; chList.ScrollIntoView(cur); }
                 chHide.Stop(); if (!chPanel.IsMouseOver) chHide.Start();
             };
             showChannelsRefresh = () => { if (chPanel.Visibility == Visibility.Visible) showChannels(true); };
+            chGroup.SelectionChanged += (s, e) =>
+            {
+                if (!(chGroup.SelectedItem is ComboBoxItem gi) || !(gi.Tag is string g)) return;
+                SetPref("grupa-lista-tv", g);
+                if (chPanel.Visibility == Visibility.Visible) showChannels(true);
+            };
+            chGroup.DropDownOpened += (s, e) => chHide.Stop();   // wybieranie grupy - lista nie chowa sie
             controls.IsVisibleChanged += (s, e) => { if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16); };
             win.Closed += (s, e) => infoTimer.Stop();
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)

@@ -1287,7 +1287,8 @@ namespace Przegladarka
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("🎬 Wszystkie filmy"), Tag = fAll });
                 }
                 fillSort("sort-lista-filmow", new[] { "az", "za", "ocena", "rok" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: ocena", "Sortuj: rok (najnowsze)" });
-                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedIndex = 0;
+                // otwarcie listy: biezaca lista, a gdy to tylko jeden film (start z "Kontynuuj", z dysku innego komputera) - wszystkie filmy
+                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedIndex = _playlist.Count > 1 || _playlist.Count == 1 && _remoteFilms.ContainsKey(_playlist[0]) ? 0 : 2;
                 var fk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? fCur;
                 var how = GetPref("sort-lista-filmow") ?? "az";
                 var libAll = LoadLibrary();

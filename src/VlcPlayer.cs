@@ -2230,6 +2230,14 @@ namespace Przegladarka
                 d.Start();
             };
             Action pipSwap = null;
+            // kursor nad podgladem PiP - klik tam nie jest klikiem w glowny obraz (bez pauzy glownego)
+            Func<MouseEventArgs, bool> overPip = e0 =>
+            {
+                if (pipWin == null || !pipWin.IsVisible) return false;
+                var src = PresentationSource.FromVisual(overlay); if (src?.CompositionTarget == null) return false;
+                var pt = src.CompositionTarget.TransformFromDevice.Transform(overlay.PointToScreen(e0.GetPosition(overlay)));
+                return new Rect(pipWin.Left, pipWin.Top, pipWin.ActualWidth, pipWin.ActualHeight).Contains(pt);
+            };
             Action<ItemsControl> pipItems = null;
             pipShow = ch =>
             {
@@ -2245,7 +2253,8 @@ namespace Przegladarka
                         Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Foreground = Brushes.White, BorderThickness = new Thickness(0), ToolTip = L.T("Zamknij PiP") };
                     px.Click += (q, w2) => pipClose();
                     pl.Children.Add(pipName); pl.Children.Add(px); pv.Content = pl;
-                    var pw = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, ShowInTaskbar = false, ShowActivated = false, Owner = win, Topmost = win.Topmost, Background = Brushes.Black, Content = pv, Width = 320, Height = 180 };
+                    var pw = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, ShowInTaskbar = false, ShowActivated = false, Owner = Window.GetWindow(overlay) ?? win,   // nad warstwa obrazu glownego (inaczej klik trafial w glowny = pauza)
+                         Topmost = win.Topmost, Background = Brushes.Black, Content = pv, Width = 320, Height = 180 };
                     System.Windows.Shell.WindowChrome.SetWindowChrome(pw, new System.Windows.Shell.WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0) });
                     pl.MouseLeftButtonDown += (q, e2) =>
                     {
@@ -2434,6 +2443,7 @@ namespace Przegladarka
             overlay.MouseLeftButtonDown += (s, e) =>
             {
                 if (controls.IsMouseOver) return;   // klik na pasku to nie klik w obraz
+                if (overPip(e)) { pipSwap?.Invoke(); e.Handled = true; return; }   // klik na podgladzie PiP - zamiana kanalow, bez pauzy glownego
                 var curPath = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (chPanel.Visibility == Visibility.Visible) { showChannels(false); e.Handled = true; return; }   // klik obok listy - schowaj (bez pauzy)
                 if (e.ClickCount == 2) { togglePlay(); toggleFull(); }   // pierwszy klik dwukliku juz zatrzymal - wznawiamy

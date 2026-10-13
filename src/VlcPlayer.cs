@@ -2065,9 +2065,8 @@ namespace Przegladarka
                 updSleep();
             };
             win.Closed += (s, e) => sleepTimer.Stop();
-            sleep.Click += (s, e) =>
+            Action<ItemsControl> sleepItems = cm =>
             {
-                var cm = new ContextMenu { PlacementTarget = sleep, Placement = PlacementMode.Top };
                 foreach (var m0 in new[] { 15, 30, 45, 60, 90, 120 })
                 {
                     var m = m0; var mi = new MenuItem { Header = m + " min" };
@@ -2084,8 +2083,8 @@ namespace Przegladarka
                     off.Click += (a, b) => { sleepAt = null; sleepEnd = false; mp.Volume = muted ? 0 : (int)vol.Value; updSleep(); showOsd(L.T("⏾ Wyłącznik czasowy wyłączony")); };
                     cm.Items.Add(off);
                 }
-                cm.IsOpen = true;
             };
+            sleep.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = sleep, Placement = PlacementMode.Top }; sleepItems(cm); cm.IsOpen = true; };
             // po Stop zamiast czarnego ekranu: film - biblioteka filmow, telewizja - lista kanalow
             Action afterStop = () => { var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p0 != null && _iptvPlaying.ContainsKey(p0)) showChannels(true); else ShowVideoLibrary(win); };
             stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); afterStop(); };   // Stop konczy wspolne ogladanie tylko tutaj
@@ -2286,6 +2285,9 @@ namespace Przegladarka
                 infoM.Items.Add(hideM); infoM.Items.Add(alphaM); infoM.Items.Add(sizeM);
                 cm.Items.Add(infoM);
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
+                add(isFav() ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), () => fav.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)), true);
+                var slM = new MenuItem { Header = L.T("⏾ Wyłącznik czasowy") + (sleepEnd ? L.T(" (po końcu filmu)") : sleepAt.HasValue ? " (" + Math.Max(1, (int)Math.Ceiling((sleepAt.Value - DateTime.Now).TotalMinutes)) + " min)" : "") };
+                sleepItems(slM); cm.Items.Add(slM);
                 add(L.T("⏰ Zaplanuj włączenie filmu / kanału…"), () => ShowScheduleStart(Window.GetWindow(overlay) ?? win), true);
                 {   // playlisty i moja kolejka - wlaczenie jednym klikiem
                     var pls = LoadPlaylists(); var plM = new MenuItem { Header = L.T("🎞 Playlisty i moja kolejka") };
@@ -2310,7 +2312,6 @@ namespace Przegladarka
                     if (nowP != null) add(L.T("▶ Teraz: ") + nowP.Title + L.T(" (do ") + nowP.Stop.ToString("HH:mm") + ")", () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
                     if (nextP != null) add(L.T("⏭ Następnie: ") + nextP.Start.ToString("HH:mm") + " " + nextP.Title, () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
                     bool isFav = IptvSt.Fav.Contains(path);
-                    add(isFav ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), () => { if (!IptvSt.Fav.Remove(path)) IptvSt.Fav.Add(path); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); }, true);
                     // ostatnio ogladane kanaly - szybkie przelaczenie
                     var recent = IptvSt.Recent.Where(u => u != path).Take(10).Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : _iptvPl?.Channels.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
                     if (recent.Count > 0)
@@ -2409,8 +2410,8 @@ namespace Przegladarka
                 var groups = new List<(string Title, string[] Prefixes)>
                 {
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
-                    (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie", "⭐ " }),
-                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🕘 Ostatnio oglądane kanały", "📺 Kanały telewizji", "📅", "🎬 Biblioteka filmów", "🎞 Playlisty", "⏰ Zaplanuj" }),
+                    (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
+                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🕘 Ostatnio oglądane kanały", "📺 Kanały telewizji", "📅", "🎬 Biblioteka filmów", "🎞 Playlisty", "⭐ ", "⏾ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),

@@ -2255,8 +2255,10 @@ namespace Przegladarka
                     px.Click += (q, w2) => pipClose();
                     pl.Children.Add(pipName); pl.Children.Add(px); pv.Content = pl;
                     var pw = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, ShowInTaskbar = false, ShowActivated = false, Owner = Window.GetWindow(overlay) ?? win,   // nad warstwa obrazu glownego (inaczej klik trafial w glowny = pauza)
-                         Topmost = win.Topmost, Background = Brushes.Black, Content = pv, Width = 320, Height = 180 };
-                    System.Windows.Shell.WindowChrome.SetWindowChrome(pw, new System.Windows.Shell.WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0) });
+                         Topmost = win.Topmost, Background = Brushes.Black, Width = 320, Height = 180,
+                        // ramka do lapania mysza: obraz VLC zakrywa krawedzie okna, wiec wielkosc zmienia sie za ten pasek
+                        Content = new Border { Child = pv, BorderThickness = new Thickness(5), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3D, 0x44)) } };
+                    System.Windows.Shell.WindowChrome.SetWindowChrome(pw, new System.Windows.Shell.WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(5), GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0) });
                     pl.MouseLeftButtonDown += (q, e2) =>
                     {
                         var before = new Point(pw.Left, pw.Top);

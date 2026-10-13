@@ -512,7 +512,14 @@ namespace Przegladarka
         // okno listy: zrodlo (lista), grupy, kanaly z "teraz / nastepnie", program wybranego kanalu
         void ShowIptv(Window owner)
         {
-            if (_tvWin != null && _tvWin.IsLoaded) { if (_tvWin.Owner != owner) _tvWin.Owner = owner; _tvWin.Topmost = owner.Topmost; _tvWin.Activate(); return; }
+            if (_tvWin != null && _tvWin.IsLoaded)   // juz otwarte: na wierzch (takze zminimalizowane / ukryte za odtwarzaczem)
+            {
+                if (_tvWin.Owner != owner) _tvWin.Owner = owner;
+                if (_tvWin.WindowState == WindowState.Minimized) _tvWin.WindowState = WindowState.Normal;
+                if (!_tvWin.IsVisible) _tvWin.Show();
+                _tvWin.Topmost = true; _tvWin.Topmost = owner.Topmost; _tvWin.Activate();
+                return;
+            }
             var st = IptvSt;
             var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "own-bounds" };   // miejsce zapamietuje sam (i omija odtwarzacz)
             PlaceIptvWindow(win, st.Win);

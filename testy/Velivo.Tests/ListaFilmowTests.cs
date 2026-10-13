@@ -38,7 +38,7 @@ public class ListaFilmowTests
         Assert.Contains("--audio-filter=normvol:compressor", MainWindow.LevelArgs("normalny"));
         Assert.Contains("--audio-filter=compressor", MainWindow.LevelArgs("limit"));   // tylko scisza - bez podglasniania
         Assert.DoesNotContain(MainWindow.LevelArgs("limit"), a => a.StartsWith("--norm-"));
-        Assert.Contains("--compressor-attack=5", MainWindow.LevelArgs("mocny"));      // mocne - szybka reakcja
+        Assert.Contains("--compressor-attack=2", MainWindow.LevelArgs("mocny"));      // mocne - szybka reakcja
         Assert.All(MainWindow.LevelArgs("lagodny"), a => Assert.StartsWith("--", a));
     }
 }

@@ -1424,6 +1424,33 @@ namespace Przegladarka
             var chDock = new DockPanel(); DockPanel.SetDock(chGroup, Dock.Top); DockPanel.SetDock(chSort, Dock.Top); chDock.Children.Add(chGroup); chDock.Children.Add(chSort); chDock.Children.Add(chList);
             var chPanel = new Border { Child = chDock, Width = 340, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 0), Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(0, 8, 8, 0) };
             overlay.Children.Add(chPanel);
+            // zegar na obrazie (filmy i TV): pozycja (rogi / srodek, gora / dol), wielkosc wzgledem okna, przezroczystosc - ustawienia zapamietane
+            var clockText = new TextBlock { Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, IsHitTestVisible = false };
+            clockText.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 6, ShadowDepth = 1, Opacity = 0.9, Color = Colors.Black };
+            var clock = new Border { Child = clockText, CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 2, 10, 4), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+            overlay.Children.Add(clock);
+            Action layoutClock = () =>
+            {
+                clock.Visibility = GetPref("zegar") == "1" ? Visibility.Visible : Visibility.Collapsed;
+                if (clock.Visibility != Visibility.Visible) return;
+                var pos = GetPref("zegar-poz") ?? "pg";   // [l|s|p][g|d]: lewy / srodek / prawy, gora / dol
+                double k = (GetPref("zegar-wielk") ?? "2") == "1" ? 0.035 : (GetPref("zegar-wielk") ?? "2") == "3" ? 0.085 : 0.055;
+                clockText.FontSize = Math.Max(12, win.ActualHeight * k);
+                int alpha = int.TryParse(GetPref("zegar-alfa"), out var a) ? a : 85;
+                clock.Opacity = Math.Max(0.15, Math.Min(1, alpha / 100.0));
+                clock.Background = new SolidColorBrush(Color.FromArgb(0x55, 0, 0, 0));
+                clock.HorizontalAlignment = pos[0] == 'l' ? HorizontalAlignment.Left : pos[0] == 's' ? HorizontalAlignment.Center : HorizontalAlignment.Right;
+                clock.VerticalAlignment = pos.EndsWith("g") ? VerticalAlignment.Top : VerticalAlignment.Bottom;
+                double bottom = controls.Visibility == Visibility.Visible ? controls.ActualHeight + 12 : 16;   // nad paskiem sterowania
+                clock.Margin = new Thickness(18, pos.EndsWith("g") ? 16 : 0, 18, pos.EndsWith("d") ? bottom : 0);
+            };
+            var clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            clockTimer.Tick += (s, e) => { if (clock.Visibility == Visibility.Visible) clockText.Text = DateTime.Now.ToString("HH:mm"); };
+            clockTimer.Start(); clockText.Text = DateTime.Now.ToString("HH:mm");
+            win.Closed += (s, e) => clockTimer.Stop();
+            win.SizeChanged += (s, e) => layoutClock();
+            controls.IsVisibleChanged += (s, e) => layoutClock();
+            layoutClock();
             var chHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
             chHide.Tick += (s, e) => { chHide.Stop(); if (!chPanel.IsMouseOver && mp.State != VLCState.Stopped) chPanel.Visibility = Visibility.Collapsed; };   // po Stop lista zostaje
             chPanel.MouseLeave += (s, e) => { chHide.Stop(); chHide.Start(); };
@@ -2182,6 +2209,27 @@ namespace Przegladarka
                 add(L.T("Tryb mini"), toggleMini, true);
                 add(L.T("Pełny ekran"), toggleFull, true);
                 add(L.T("📷 Zrzut klatki"), click(snap), true);
+                {   // zegar: wlacz, pozycja, wielkosc, przezroczystosc
+                    var clM = new MenuItem { Header = L.T("🕐 Zegar na obrazie") };
+                    var on = new MenuItem { Header = L.T("Pokazuj zegar"), IsCheckable = true, IsChecked = GetPref("zegar") == "1" };
+                    on.Click += (q, w2) => { SetPref("zegar", on.IsChecked ? "1" : "0"); layoutClock(); };
+                    clM.Items.Add(on);
+                    Action<string, string, (string, string)[]> opts = (title, pref, items) =>
+                    {
+                        var sub = new MenuItem { Header = title };
+                        foreach (var it0 in items)
+                        {
+                            var it = it0; var mi = new MenuItem { Header = it.Item2, IsCheckable = true, IsChecked = (GetPref(pref) ?? (pref == "zegar-poz" ? "pg" : pref == "zegar-wielk" ? "2" : "85")) == it.Item1 };
+                            mi.Click += (q, w2) => { SetPref(pref, it.Item1); SetPref("zegar", "1"); layoutClock(); };
+                            sub.Items.Add(mi);
+                        }
+                        clM.Items.Add(sub);
+                    };
+                    opts(L.T("Pozycja"), "zegar-poz", new[] { ("lg", L.T("↖ Lewy górny róg")), ("sg", L.T("⬆ Góra – środek")), ("pg", L.T("↗ Prawy górny róg")), ("ld", L.T("↙ Lewy dolny róg")), ("sd", L.T("⬇ Dół – środek")), ("pd", L.T("↘ Prawy dolny róg")) });
+                    opts(L.T("Wielkość"), "zegar-wielk", new[] { ("1", L.T("Mały")), ("2", L.T("Średni")), ("3", L.T("Duży")) });
+                    opts(L.T("Przezroczystość"), "zegar-alfa", new[] { ("100", "0 %"), ("85", "15 %"), ("65", "35 %"), ("45", "55 %"), ("30", "70 %") });
+                    cm.Items.Add(clM);
+                }
                 // porzadek: odtwarzanie, telewizja / film, listy, udostepnianie, widok, a ustawienia w jednym podmenu
                 string H(object o) => (o as MenuItem)?.Header as string ?? "";
                 Func<string, string[], bool> starts = (h, ps) => ps.Any(p0 => h.StartsWith(L.T(p0)));
@@ -2192,7 +2240,7 @@ namespace Przegladarka
                     (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🕘 Ostatnio oglądane kanały", "📺 Kanały telewizji", "📅", "🎬 Biblioteka filmów", "🎞 Playlisty" }),
                     (null, new[] { "💬 Pobierz napisy", "Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
-                    (null, new[] { "📌 Zawsze na wierzchu", "Tryb mini", "Pełny ekran", "📷 Zrzut klatki" }),
+                    (null, new[] { "📌 Zawsze na wierzchu", "Tryb mini", "Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
                     (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "ℹ Pasek informacji", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
                 var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().ToList();

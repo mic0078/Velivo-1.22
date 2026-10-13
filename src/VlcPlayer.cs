@@ -398,6 +398,21 @@ namespace Przegladarka
         }
 
         string _libVlcKey;   // opcje, z ktorymi utworzono VLC
+        // tryby wyrownywania (jak w AudioBalance): lagodny - wolniej, szerzej; mocny - szybciej, ciasniej; limit - tylko scisza za glosne
+        internal static string[] LevelArgs(string mode)
+        {
+            string C(string th, string ratio, string att, string rel, string gain) => "--compressor-threshold=" + th + " --compressor-ratio=" + ratio + " --compressor-attack=" + att + " --compressor-release=" + rel + " --compressor-makeup-gain=" + gain;
+            string comp;
+            switch (mode)
+            {
+                case "lagodny": comp = "--audio-filter=normvol:compressor --norm-buff-size=30 --norm-max-level=3.0 " + C("-16", "3", "25", "250", "3"); break;
+                case "mocny": comp = "--audio-filter=normvol:compressor --norm-buff-size=10 --norm-max-level=1.2 " + C("-26", "12", "5", "80", "10"); break;
+                case "limit": comp = "--audio-filter=compressor " + C("-12", "20", "2", "100", "0"); break;
+                default: comp = "--audio-filter=normvol:compressor --norm-buff-size=20 --norm-max-level=2.0 " + C("-20", "6", "15", "150", "6"); break;
+            }
+            return comp.Split(' ');
+        }
+
         static bool LevelVolume => GetPref("wyrownaj-glosnosc") == "1";   // wyrownywanie glosnosci (menu dzwieku)
         // tytul na liscie: wlasny (zmieniony w Velivo), z Jellyfin, z nazwy pliku
         internal static string ShownTitle(LibraryVideo v, MovieInfo m) { return !string.IsNullOrWhiteSpace(v.MyTitle) ? v.MyTitle : MetaTitle(m) ?? CleanTitle(v.Title); }
@@ -968,7 +983,7 @@ namespace Przegladarka
         {
             var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
             if (!Surround51) args.Add("--stereo-mode=1");
-            if (LevelVolume) { args.Add("--audio-filter=normvol:compressor"); args.Add("--norm-max-level=1.5"); }   // wyrownywanie glosnosci (cicho / glosno nagrane filmy i kanaly)
+            if (LevelVolume) args.AddRange(LevelArgs(GetPref("wyrownaj-tryb") ?? "normalny"));   // wyrownywanie glosnosci (cicho / glosno nagrane filmy i kanaly)
             var key = string.Join(" ", args);
             if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
             if (_libVlc != null) { var old = _libVlc; _libVlc = null; System.Threading.Tasks.Task.Run(async () => { await System.Threading.Tasks.Task.Delay(15000); try { old.Dispose(); } catch (Exception) { } }); }
@@ -2112,8 +2127,19 @@ namespace Przegladarka
                 var sur = new MenuItem { Header = L.T("Dźwięk 5.1 bez miksowania do stereo (zestaw kina domowego)"), IsCheckable = true, IsChecked = Surround51 };
                 sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); mp.SetChannel(sur.IsChecked ? (AudioOutputChannel)0 : AudioOutputChannel.Stereo); showOsd(sur.IsChecked ? L.T("Dźwięk: 5.1") : L.T("Dźwięk: stereo")); };
                 cm.Items.Add(sur);
-                var lvl = new MenuItem { Header = L.T("Wyrównuj głośność (ciche podgłośnia, głośne ścisza)"), IsCheckable = true, IsChecked = LevelVolume };
-                lvl.Click += (a, b) => { SetPref("wyrownaj-glosnosc", lvl.IsChecked ? "1" : "0"); showOsd(L.T("Wyrównywanie głośności: ") + (lvl.IsChecked ? L.T("włączone") : L.T("wyłączone")) + L.T(" – od następnego otwarcia odtwarzacza")); };
+                // wyrownywanie glosnosci: wylaczone / lagodny / normalny / mocny / tylko scisza za glosne
+                var lvl = new MenuItem { Header = L.T("🎚 Wyrównywanie głośności") };
+                var curMode = LevelVolume ? GetPref("wyrownaj-tryb") ?? "normalny" : "off";
+                foreach (var m0 in new[] { ("off", L.T("Wyłączone")), ("lagodny", L.T("Łagodne – wolniej, z zapasem")), ("normalny", L.T("Normalne")), ("mocny", L.T("Mocne – szybko, równo")), ("limit", L.T("Tylko ścisza za głośne")) })
+                {
+                    var m = m0; var mi = new MenuItem { Header = m.Item2, IsCheckable = true, IsChecked = curMode == m.Item1 };
+                    mi.Click += (a, b) =>
+                    {
+                        SetPref("wyrownaj-glosnosc", m.Item1 == "off" ? "0" : "1"); if (m.Item1 != "off") SetPref("wyrownaj-tryb", m.Item1);
+                        showOsd(L.T("Wyrównywanie głośności: ") + m.Item2 + L.T(" – od następnego otwarcia odtwarzacza"));
+                    };
+                    lvl.Items.Add(mi);
+                }
                 cm.Items.Add(lvl);
             });
             popup(aspect, cm =>

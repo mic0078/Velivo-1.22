@@ -31,4 +31,14 @@ public class ListaFilmowTests
         Assert.Null(MainWindow.Neighbor(l, "3", 1));
         Assert.Null(MainWindow.Neighbor(l, "x", 1));
     }
+
+    [Fact]
+    public void TrybyWyrownywaniaGlosnosci()
+    {
+        Assert.Contains("--audio-filter=normvol:compressor", MainWindow.LevelArgs("normalny"));
+        Assert.Contains("--audio-filter=compressor", MainWindow.LevelArgs("limit"));   // tylko scisza - bez podglasniania
+        Assert.DoesNotContain(MainWindow.LevelArgs("limit"), a => a.StartsWith("--norm-"));
+        Assert.Contains("--compressor-attack=5", MainWindow.LevelArgs("mocny"));      // mocne - szybka reakcja
+        Assert.All(MainWindow.LevelArgs("lagodny"), a => Assert.StartsWith("--", a));
+    }
 }

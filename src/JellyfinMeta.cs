@@ -184,10 +184,31 @@ namespace Przegladarka
                 {
                     using (var http = JellyfinClient(c))
                     {
+                        var before = cur.ImageTag + "|" + cur.Overview + "|" + cur.Year;
                         await Ok(http.PostAsync("Items/RemoteSearch/Apply/" + cur.Id + "?ReplaceAllImages=true", new StringContent(results[i].GetRawText(), Encoding.UTF8, "application/json")));
-                        await System.Threading.Tasks.Task.Delay(4000);   // Jellyfin odswieza film w tle
+                        // Jellyfin aktualizuje film w tle - pobieramy tylko ten film, az dane sie zmienia (najwyzej ok. 45 s)
+                        MovieInfo m = null;
+                        for (int t = 0; t < 15; t++)
+                        {
+                            await System.Threading.Tasks.Task.Delay(3000);
+                            var js = await (await Ok(http.GetAsync("Items?Ids=" + cur.Id + "&Fields=Path,Overview,Genres,People,OriginalTitle,OfficialRating"))).Content.ReadAsStringAsync();
+                            var items = JsonDocument.Parse(js).RootElement.GetProperty("Items");
+                            if (items.GetArrayLength() == 0) break;
+                            m = ParseJellyfinItem(items[0]);
+                            if (m.ImageTag + "|" + m.Overview + "|" + m.Year != before && !string.IsNullOrEmpty(m.Overview)) break;
+                        }
+                        if (m == null) { status.Text = L.T("⚠ Jellyfin nie zwrócił filmu – spróbuj „🔄 Odśwież” w bibliotece za chwilę."); return; }
+                        if (m.ImageTag != null)
+                            try { var img = await http.GetByteArrayAsync("Items/" + m.Id + "/Images/Primary?maxHeight=720&quality=90"); Directory.CreateDirectory(PosterDir); var f = m.Id + "-720.jpg"; File.WriteAllBytes(Path.Combine(PosterDir, f), img); m.Poster = f; }
+                            catch (Exception) { m.Poster = cur.Poster; }
+                        var key = MetaKey(path);
+                        var meta = new Dictionary<string, MovieInfo>(Meta, StringComparer.OrdinalIgnoreCase);
+                        foreach (var k in meta.Where(kv => kv.Value.Id == cur.Id || kv.Value == cur).Select(kv => kv.Key).ToList()) meta[k] = m;   // wszystkie klucze tego filmu
+                        meta[key] = m;
+                        Directory.CreateDirectory(MetaDir);
+                        File.WriteAllText(MetaFile, JsonSerializer.Serialize(meta.Where(kv => !kv.Key.StartsWith("ty:") && !kv.Key.StartsWith("t:")).ToDictionary(kv => kv.Key, kv => kv.Value)));
+                        _meta = null;   // wczytana od nowa (z kluczami tytulow i recznymi danymi)
                     }
-                    await System.Threading.Tasks.Task.Run(() => SyncJellyfin(c, _ => { }));
                     done?.Invoke(); win.Close();
                 }
                 catch (Exception ex) { status.Text = L.T("⚠ Nie udało się: ") + ex.Message; }
@@ -332,7 +353,7 @@ namespace Przegladarka
 
         static HttpClient JellyfinClient(JellyfinConf c)
         {
-            var http = new HttpClient { BaseAddress = new Uri(c.Url.TrimEnd('/') + "/"), Timeout = TimeSpan.FromSeconds(60) };
+            var http = new HttpClient { BaseAddress = new Uri(c.Url.TrimEnd('/') + "/"), Timeout = TimeSpan.FromMinutes(5) };   // duza baza (ponad 1000 filmow z obsada) - serwer odpowiada dlugo
             http.DefaultRequestHeaders.TryAddWithoutValidation("X-Emby-Token", c.Key);
             http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
             return http;

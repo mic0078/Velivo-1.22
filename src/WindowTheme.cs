@@ -55,7 +55,29 @@ namespace Przegladarka
             foreach (var t in new[] { typeof(ListBox), typeof(ListView), typeof(TreeView), typeof(DataGrid) })
                 style(t, s => { s.Setters.Add(set(Control.BackgroundProperty, DarkHeader)); s.Setters.Add(set(Control.ForegroundProperty, DarkFg)); s.Setters.Add(set(Control.BorderBrushProperty, DarkBorder)); });
             style(typeof(GridViewColumnHeader), s => { s.Setters.Add(set(Control.BackgroundProperty, DarkPanel)); s.Setters.Add(set(Control.ForegroundProperty, DarkFg)); s.Setters.Add(set(Control.BorderBrushProperty, DarkBorder)); });
-            style(typeof(Button), s => { s.Setters.Add(set(Control.BackgroundProperty, DarkPanel)); s.Setters.Add(set(Control.ForegroundProperty, DarkFg)); s.Setters.Add(set(Control.BorderBrushProperty, DarkBorder)); });
+            style(typeof(Button), s =>
+            {
+                s.Setters.Add(set(Control.BackgroundProperty, DarkPanel)); s.Setters.Add(set(Control.ForegroundProperty, DarkFg)); s.Setters.Add(set(Control.BorderBrushProperty, DarkBorder));
+                // szablon Windows podswietla przycisk na jasnoniebiesko - jasny tekst znikal; tu: kolor przycisku + lekka poswiata
+                var g = new FrameworkElementFactory(typeof(Grid));
+                var bd = new FrameworkElementFactory(typeof(Border));
+                bd.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty)); bd.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
+                bd.SetValue(Border.BorderThicknessProperty, new Thickness(1)); bd.SetValue(Border.CornerRadiusProperty, new CornerRadius(3));
+                var ov = new FrameworkElementFactory(typeof(Border), "ov"); ov.SetValue(Border.CornerRadiusProperty, new CornerRadius(3)); ov.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+                var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+                cp.SetValue(FrameworkElement.MarginProperty, new TemplateBindingExtension(Control.PaddingProperty));
+                cp.SetValue(FrameworkElement.HorizontalAlignmentProperty, new TemplateBindingExtension(Control.HorizontalContentAlignmentProperty));
+                cp.SetValue(FrameworkElement.VerticalAlignmentProperty, new TemplateBindingExtension(Control.VerticalContentAlignmentProperty));
+                cp.SetValue(UIElement.SnapsToDevicePixelsProperty, true);
+                g.AppendChild(bd); g.AppendChild(ov); g.AppendChild(cp);
+                var tpl = new ControlTemplate(typeof(Button)) { VisualTree = g };
+                var hov = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; hov.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)), "ov")); tpl.Triggers.Add(hov);
+                var prs = new Trigger { Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, Value = true }; prs.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)), "ov")); tpl.Triggers.Add(prs);
+                var dis = new Trigger { Property = UIElement.IsEnabledProperty, Value = false }; dis.Setters.Add(new Setter(UIElement.OpacityProperty, 0.45)); tpl.Triggers.Add(dis);
+                s.Setters.Add(set(Control.TemplateProperty, tpl));
+                s.Setters.Add(set(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Center)); s.Setters.Add(set(Control.VerticalContentAlignmentProperty, VerticalAlignment.Center));
+                s.Setters.Add(set(Control.PaddingProperty, new Thickness(6, 2, 6, 2)));
+            });
             foreach (var t in new[] { typeof(CheckBox), typeof(RadioButton), typeof(Label), typeof(GroupBox), typeof(Expander), typeof(TabItem) })
                 style(t, s => s.Setters.Add(set(Control.ForegroundProperty, DarkFg)));
             style(typeof(ComboBox), s => s.Setters.Add(set(Control.ForegroundProperty, Brushes.Black)));   // pole listy rozwijanej zostaje jasne (szablon Windows) - tekst czytelny

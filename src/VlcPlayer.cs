@@ -569,17 +569,18 @@ namespace Przegladarka
             Action play = () =>
             {
                 var r = list.SelectedItem as LibRow; if (r == null) return;
-                if (remoteOf.TryGetValue(r.Item, out var rem)) { WantRemoteFilm(rem.Key, rem.Value, false); return; }   // film z drugiego komputera - ogladasz tutaj
+                if (remoteOf.TryGetValue(r.Item, out var rem)) { WantRemoteFilm(rem.Key, rem.Value, false); win.Close(); return; }   // film z drugiego komputera - ogladasz tutaj; biblioteka znika (wraca z listy filmow lub 🎬)
                 if (r.Item.Peer != null)   // skopiowany z innego komputera - przez siec
                 {
                     var pr = PeerById(r.Item.Peer);
                     if (pr == null) { MessageBox.Show(win, L.T("Komputer, na którym jest ten film, jest teraz wyłączony albo niedostępny."), L.T("Biblioteka filmów")); return; }
-                    WantRemoteFilm(pr, new LanFilmItem { i = r.Item.RemoteId, t = r.Item.Title, l = r.Item.Len }, false); return;
+                    WantRemoteFilm(pr, new LanFilmItem { i = r.Item.RemoteId, t = r.Item.Title, l = r.Item.Len }, false); win.Close(); return;
                 }
                 if (r.Missing) { MessageBox.Show(win, L.T("Nie ma już tego pliku na dysku (przeniesiony albo usunięty)."), L.T("Biblioteka filmów")); return; }
                 var playable = rows.Where(x => !x.Missing && !remoteOf.ContainsKey(x.Item) && x.Item.Peer == null).Select(x => x.Item.Path).ToList();   // lista odtwarzania = widoczna lista
                 _playShared = _libSharedView;
                 PlayVideos(playable.ToArray(), playable.IndexOf(r.Item.Path));
+                win.Close();   // film gra - biblioteka nie zostaje otwarta
             };
             Action remove = () =>
             {
@@ -1254,7 +1255,7 @@ namespace Przegladarka
             var chPanel = new Border { Child = chDock, Width = 340, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 0), Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(0, 8, 8, 0) };
             overlay.Children.Add(chPanel);
             var chHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            chHide.Tick += (s, e) => { chHide.Stop(); if (!chPanel.IsMouseOver) chPanel.Visibility = Visibility.Collapsed; };
+            chHide.Tick += (s, e) => { chHide.Stop(); if (!chPanel.IsMouseOver && mp.State != VLCState.Stopped) chPanel.Visibility = Visibility.Collapsed; };   // po Stop lista zostaje
             chPanel.MouseLeave += (s, e) => { chHide.Stop(); chHide.Start(); };
             chPanel.MouseEnter += (s, e) => chHide.Stop();
             chPanel.MouseLeftButtonDown += (s, e) => e.Handled = true;   // klik na liscie to nie pauza
@@ -1570,7 +1571,7 @@ namespace Przegladarka
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
             var see = overlay.Background;   // prawie przezroczysta - widac film, a klik trafia w okno
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo); }));
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo); if (chPanel.Visibility == Visibility.Visible && !chPanel.IsMouseOver) { chHide.Stop(); chHide.Start(); } }));   // lista po Stop chowa sie, gdy film znowu gra
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => play.Content = PlayerIcon("play")));
             // po Stop / koncu pod obrazem jest jasne okienko VLC - zaslaniamy je na czarno
             mp.Stopped += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; overlay.Background = Brushes.Black; }));
@@ -1684,7 +1685,7 @@ namespace Przegladarka
             exitFull = () => { if (full0) toggleFull(); };
 
             play.Click += (s, e) => togglePlay();
-            stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); };   // Stop konczy wspolne ogladanie tylko tutaj
+            stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); showChannels(true); };   // zamiast czarnego ekranu - lista filmow / kanalow   // Stop konczy wspolne ogladanie tylko tutaj
             prev.Click += (s, e) => step(-1);
             next.Click += (s, e) => step(1);
             back10.Click += (s, e) => jump(-10000);
@@ -2008,7 +2009,7 @@ namespace Przegladarka
                     case Key.P: step(-1); break;
                     case Key.OemOpenBrackets: setSpeed(-1); break;
                     case Key.OemCloseBrackets: setSpeed(1); break;
-                    case Key.S: userStopped = true; mp.Stop(); break;
+                    case Key.S: userStopped = true; mp.Stop(); showChannels(true); break;
                     default: h = false; break;
                 }
                 if (h) e.Handled = true;

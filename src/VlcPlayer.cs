@@ -1193,7 +1193,7 @@ namespace Przegladarka
                 // film z innego komputera: biezaca lista = wspolna biblioteka tamtych komputerow (tytuly, plakaty, klik - przez siec)
                 if (fk == fCur && curP != null && _remoteFilms.TryGetValue(curP, out var rfCur))
                 {
-                    foreach (var kv in _peerFilms.Count > 0 ? _peerFilms : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>())
+                    foreach (var kv in _peerFilms.OrderBy(kv => MetaTitle(LookupMeta(Meta, kv.Value.n ?? ("velivo:" + kv.Value.i + "\\" + (kv.Value.fn ?? kv.Value.i)))) ?? CleanTitle(kv.Value.t), StringComparer.CurrentCultureIgnoreCase).ToList())
                     {
                         var x = kv.Value; var pk = kv;
                         var m = LookupMeta(Meta, x.n ?? ("velivo:" + x.i + "\\" + (x.fn ?? x.i)));

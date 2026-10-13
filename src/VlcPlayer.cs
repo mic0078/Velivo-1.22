@@ -2194,7 +2194,7 @@ namespace Przegladarka
 
             // PiP (obraz w obrazie): drugi kanal TV w malym okienku nad obrazem, wyciszony; przeciaganie mysza = pozycja, krawedzie = wielkosc,
             // klik = zamiana z glownym; pozycja i wielkosc zapamietane wzgledem okna odtwarzacza (domyslnie prawy dolny rog)
-            MediaPlayer pipMp = null; Window pipWin = null; IptvChannel pipCh = null; TextBlock pipName = null; bool pipPlacing = false;
+            LibVLCSharp.Shared.MediaPlayer pipMp = null; Window pipWin = null; IptvChannel pipCh = null; TextBlock pipName = null; bool pipPlacing = false;
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             Func<string, double, double> prefD = (k, d) => double.TryParse(GetPref(k), System.Globalization.NumberStyles.Float, inv, out var x) ? x : d;
             Func<Rect> pipHost = () =>
@@ -2235,7 +2235,7 @@ namespace Przegladarka
                 if (_libVlc == null || ch == null) return;
                 if (pipWin == null)
                 {
-                    pipMp = new MediaPlayer(_libVlc) { Mute = true };
+                    pipMp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { Mute = true };
                     var pv = new VideoView { MediaPlayer = pipMp, Background = Brushes.Black };
                     var pl = new Grid { Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), Cursor = Cursors.SizeAll, ToolTip = L.T("Klik – zamień z głównym • przeciągnij – przesuń • krawędź – wielkość • prawy – opcje") };
                     pipName = new TextBlock { Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 4, 30, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,

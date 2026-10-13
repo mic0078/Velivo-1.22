@@ -921,7 +921,7 @@ namespace Przegladarka
             WindowState prevState = WindowState.Normal;
             float[] speeds = { 0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f };
             int speedIdx = 3;
-            var osdTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1300) };
+            var osdTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(3500) };   // komunikaty (dzwiek, glosnosc...) - czas na przeczytanie
             osdTimer.Tick += (s, e) => { osdTimer.Stop(); osd.Visibility = Visibility.Collapsed; };
             Action<string> showOsd = t => { osd.Text = t; osd.Visibility = Visibility.Visible; osdTimer.Stop(); osdTimer.Start(); };
             var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
@@ -1422,7 +1422,7 @@ namespace Przegladarka
             // pasek informacji pokazuje sie razem z paskiem sterowania (ruch mysza), a znika po swoim czasie (ustawienie "Znikanie po")
             controls.IsVisibleChanged += (s, e) =>
             {
-                if (controls.IsVisible && infoBox.Visibility != Visibility.Visible) showInfo(true);
+                if (controls.IsVisible && infoBox.Visibility != Visibility.Visible) { if (IptvSt.InfoOnMove) showInfo(true); }
                 else if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16);
             };
             win.Closed += (s, e) => infoTimer.Stop();
@@ -1685,7 +1685,9 @@ namespace Przegladarka
             exitFull = () => { if (full0) toggleFull(); };
 
             play.Click += (s, e) => togglePlay();
-            stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); showChannels(true); };   // zamiast czarnego ekranu - lista filmow / kanalow   // Stop konczy wspolne ogladanie tylko tutaj
+            // po Stop zamiast czarnego ekranu: film - biblioteka filmow, telewizja - lista kanalow
+            Action afterStop = () => { var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p0 != null && _iptvPlaying.ContainsKey(p0)) showChannels(true); else ShowVideoLibrary(win); };
+            stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); afterStop(); };   // Stop konczy wspolne ogladanie tylko tutaj
             prev.Click += (s, e) => step(-1);
             next.Click += (s, e) => step(1);
             back10.Click += (s, e) => jump(-10000);
@@ -1862,6 +1864,9 @@ namespace Przegladarka
                     cm.Items.Add(flM);
                 }
                 var infoM = new MenuItem { Header = L.T("ℹ Pasek informacji") };
+                var moveM = new MenuItem { Header = L.T("Pokazuj przy ruchu myszy"), IsCheckable = true, IsChecked = IptvSt.InfoOnMove };
+                moveM.Click += (q, w2) => { IptvSt.InfoOnMove = moveM.IsChecked; SaveIptv(IptvSt); showOsd(IptvSt.InfoOnMove ? L.T("Pasek informacji: przy ruchu myszy") : L.T("Pasek informacji: tylko klawisz I")); };
+                infoM.Items.Add(moveM);
                 var hideM = new MenuItem { Header = L.T("Znikanie po") };
                 foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
                 {
@@ -2009,7 +2014,7 @@ namespace Przegladarka
                     case Key.P: step(-1); break;
                     case Key.OemOpenBrackets: setSpeed(-1); break;
                     case Key.OemCloseBrackets: setSpeed(1); break;
-                    case Key.S: userStopped = true; mp.Stop(); showChannels(true); break;
+                    case Key.S: userStopped = true; mp.Stop(); afterStop(); break;
                     default: h = false; break;
                 }
                 if (h) e.Handled = true;

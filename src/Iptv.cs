@@ -66,6 +66,7 @@ namespace Przegladarka
             public int Buffer { get; set; } = 1;
             public bool WatchFromRec { get; set; }   // ogladanie nagrywanego kanalu z pliku nagrania (jedno polaczenie, pauza i cofanie) - opcja
             public bool PauseRelease { get; set; }   // po 5 min pauzy zwolnij polaczenie z dostawca - opcja  // zapas bufora kanalow na zywo (s); 1 = jak VLC
+            public bool InfoOnMove { get; set; } = true;   // pasek informacji pokazuje sie przy ruchu myszy (inaczej tylko klawisz I)
             public int InfoSec { get; set; } = 5;        // pasek informacji o programie: znika po tylu sekundach; 0 = tylko na zadanie (klawisz I)
             public int InfoAlpha { get; set; } = 85;     // nieprzezroczystosc paska informacji (%)
             public int InfoScale { get; set; } = 100;

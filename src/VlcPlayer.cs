@@ -326,7 +326,7 @@ namespace Przegladarka
 
         sealed class LibRow
         {
-            public string Title { get; set; } public string Length { get; set; } public string Seen { get; set; } public string LastPlayed { get; set; } public string Folder { get; set; }
+            public string Title { get; set; } public string Length { get; set; } public string Seen { get; set; } public string LastPlayed { get; set; } public string AddedText { get; set; } public string Folder { get; set; }
             public string Year { get; set; } public string Rating { get; set; } public string Genre { get; set; }   // z Jellyfin (filmy-info)
             public LibraryVideo Item;
             public bool Missing;
@@ -354,6 +354,7 @@ namespace Przegladarka
                 case "rating": by = v => mi(v)?.Rating ?? 0; break;
                 case "genre": by = v => (mi(v)?.Genres.FirstOrDefault() ?? "").ToLowerInvariant(); break;
                 case "len": by = v => v.Len; break;
+                case "added": by = v => v.Added; break;
                 case "seen": by = v => SeenFraction(v); break;
                 case "folder": by = v => (System.IO.Path.GetDirectoryName(v.Path) ?? "").ToLowerInvariant(); break;
                 default: by = v => v.Last; break;
@@ -459,7 +460,7 @@ namespace Przegladarka
             // kolumny: naglowek klik = sortuj, drugi klik = odwrotnie
             var cols = new[] { new[] { "title", "Tytuł", "Title", "320" }, new[] { "year", "Rok", "Year", "52" }, new[] { "rating", "Ocena", "Rating", "56" }, new[] { "genre", "Gatunek", "Genre", "110" },
                 new[] { "len", "Długość", "Length", "70" }, new[] { "seen", "Obejrzane", "Seen", "80" },
-                new[] { "last", "Ostatnio", "LastPlayed", "100" }, new[] { "folder", "Folder", "Folder", "260" } };
+                new[] { "last", "Ostatnio oglądano", "LastPlayed", "110" }, new[] { "added", "Dodano", "AddedText", "100" }, new[] { "folder", "Folder", "Folder", "260" } };
             var sortSaved = (GetPref("sort-biblioteka") ?? "last,desc").Split(',');   // ostatnie sortowanie
             string sortKey = cols.Any(c => c[0] == sortSaved[0]) ? sortSaved[0] : "last"; bool sortDesc = sortSaved.Length > 1 && sortSaved[1] == "desc";
             var headers = new Dictionary<string, GridViewColumnHeader>();
@@ -472,7 +473,7 @@ namespace Przegladarka
             Action markSort = () => { foreach (var c in cols) headers[c[0]].Content = L.T(c[1]) + (c[0] == sortKey ? (sortDesc ? "  ▼" : "  ▲") : ""); };
             markSort();
             var list = new ListView { View = grid, Margin = new Thickness(8, 0, 8, 0), SelectionMode = SelectionMode.Extended };
-            RememberColumns(win, "biblioteka-v2", grid);   // v2: kolumny Rok / Ocena / Gatunek
+            RememberColumns(win, "biblioteka-v3", grid);   // v2: kolumny Rok / Ocena / Gatunek
             var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Gray, Margin = new Thickness(10, 0, 0, 0) };
             List<LibraryVideo> lib = LoadLibrary();
             List<LibRow> rows = new List<LibRow>();
@@ -521,6 +522,7 @@ namespace Przegladarka
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = SeenText(v),
                         LastPlayed = LastPlayedText(v.Last, now),
+                        AddedText = LastPlayedText(v.Added, now),   // kiedy dodany do biblioteki
                         Folder = v.Peer != null ? "🖥 " + (peersNow.FirstOrDefault(p => p.Id == v.Peer)?.Device ?? L.T("inny komputer (wyłączony)")) + "  ·  " + MetaKey(v.Path) : of.ContainsKey(v) ? (of[v].Value.n != null ? System.IO.Path.GetDirectoryName(of[v].Value.n) : "🖥 " + of[v].Key.Device) : System.IO.Path.GetDirectoryName(v.Path),
                     }).Select(row => { if (row.Missing) row.Title = "⚠ " + row.Title; return row; }).ToList();
                     return Tuple.Create(r, all.Count, of);

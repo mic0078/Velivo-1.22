@@ -41,7 +41,8 @@ namespace Przegladarka
         LibVLC _libVlc;
         Window _vlcWin;
         Button _filmBtn, _playerBtn;
-        bool _hiddenForPlayer;   // przegladarka schowana do zasobnika przez przycisk odtwarzacza - wraca po zamknieciu odtwarzacza
+        bool _hiddenForPlayer;
+        Func<IptvChannel, bool> _pipShow;   // podglad PiP w otwartym odtwarzaczu (gdy gra TV) - takze z okna telewizji   // przegladarka schowana do zasobnika przez przycisk odtwarzacza - wraca po zamknieciu odtwarzacza
 
         // sam odtwarzacz (jak typowy program do filmow): czarny ekran, przegladarka do zasobnika
         void OpenEmptyPlayer()
@@ -2235,7 +2236,7 @@ namespace Przegladarka
                 if (_libVlc == null || ch == null) return;
                 if (pipWin == null)
                 {
-                    pipMp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { Mute = true };
+                    pipMp = new LibVLCSharp.Shared.MediaPlayer(_libVlc);
                     var pv = new VideoView { MediaPlayer = pipMp, Background = Brushes.Black };
                     var pl = new Grid { Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), Cursor = Cursors.SizeAll, ToolTip = L.T("Klik – zamień z głównym • przeciągnij – przesuń • krawędź – wielkość • prawy – opcje") };
                     pipName = new TextBlock { Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 4, 30, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
@@ -2265,6 +2266,7 @@ namespace Przegladarka
                     {
                         foreach (var o in ch.Opts) media.AddOption(o);
                         media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);
+                        media.AddOption(":no-audio");   // podglad bez dzwieku: wyciszanie VLC dziala na caly program (znikal dzwiek glownego), dzwiek = zamiana kanalow
                         pipMp.Play(media);
                     }
                 }
@@ -2287,11 +2289,8 @@ namespace Przegladarka
                 if (pipWin != null)
                 {
                     pa(cm, L.T("⇄ Zamień z głównym (klik w podgląd)"), () => pipSwap(), tvNow);
-                    var snd = new MenuItem { Header = L.T("🔊 Dźwięk z podglądu"), IsCheckable = true, IsChecked = !pipMp.Mute };
-                    snd.Click += (q, w2) => { pipMp.Mute = !snd.IsChecked; mp.Mute = snd.IsChecked; };   // dzwiek z jednego naraz
-                    cm.Items.Add(snd);
                     pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
-                    pa(cm, L.T("✖ Zamknij PiP"), () => { mp.Mute = false; pipClose(); }, true);
+                    pa(cm, L.T("✖ Zamknij PiP"), pipClose, true);
                     cm.Items.Add(new Separator());
                 }
                 // wybor kanalu do podgladu: ulubione, ostatnio ogladane, biezaca grupa
@@ -2299,13 +2298,15 @@ namespace Przegladarka
                 Action<string, IEnumerable<IptvChannel>> sub = (h, list) =>
                 {
                     var sm = new MenuItem { Header = h };
-                    foreach (var c0 in list.Where(c => c != null && c.Url != p0).Take(40)) { var c = c0; pa(sm, (pipCh?.Url == c.Url ? "● " : "") + c.Name, () => pipShow(c), true); }
+                    foreach (var c0 in list.Where(c => c != null && c.Url != p0)) { var c = c0; pa(sm, (pipCh?.Url == c.Url ? "● " : "") + c.Name, () => pipShow(c), true); }
                     if (sm.Items.Count > 0) cm.Items.Add(sm);
                 };
                 sub(L.T("⭐ Ulubione"), IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u)));
                 sub(L.T("🕘 Ostatnio oglądane"), IptvSt.Recent.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u)));
                 if (tvNow) sub(L.T("📺 Kanały tej grupy"), _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]));
             };
+            _pipShow = ch => { if (_vlcWin != win) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p1 == null || !_iptvPlaying.ContainsKey(p1) || p1 == ch.Url) return false; pipShow(ch); return true; };   // z okna TV
+            win.Closed += (s, e) => _pipShow = null;
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();
             win.SizeChanged += (s, e) => pipPlace();
@@ -2441,7 +2442,7 @@ namespace Przegladarka
             // prawy przycisk na obrazie: najczestsze rzeczy pod reka
             overlay.MouseRightButtonUp += (s, e) =>
             {
-                if (controls.IsMouseOver) return;
+                if (controls.IsMouseOver || chPanel.IsMouseOver) return;   // na liscie kanalow - jej wlasne menu (ulubione, PiP, sortowanie)
                 e.Handled = true;
                 var cm = new ContextMenu();
                 Action<string, Action, bool> add = (text, act, on) => { var mi = new MenuItem { Header = text, IsEnabled = on }; mi.Click += (a, b) => act(); cm.Items.Add(mi); };

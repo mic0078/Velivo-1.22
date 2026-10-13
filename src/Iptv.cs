@@ -844,6 +844,7 @@ namespace Przegladarka
                 Action<string, Action, bool> add = (t, act, on) => { var mi = new MenuItem { Header = t, IsEnabled = on }; mi.Click += (x, y) => act(); menu.Items.Add(mi); };
                 add(L.T("▶ Oglądaj"), play, r != null);
                 add(r != null && st.Fav.Contains(r.Ch.Url) ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), toggleFav, r != null);
+                add(L.T("⧉ Pokaż w PiP (podgląd w odtwarzaczu)"), () => _pipShow?.Invoke(r.Ch), r != null && _pipShow != null && _vlcWin != null);
                 add(L.T("📋 Kopiuj adres kanału"), () => { try { Clipboard.SetText(r.Ch.Url); } catch (Exception) { } }, r != null);
                 add(L.T("📅 Przypisz program TV…"), () => { if (AssignEpg(r.Ch, win)) { fillList(); fillEpg(); } }, r != null && _iptvEpg != null);
                 menu.Items.Add(new Separator());

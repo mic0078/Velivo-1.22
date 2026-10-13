@@ -296,7 +296,8 @@ namespace Przegladarka
         Window _libWin;
         Action _libRefresh;
         bool _libSharedView;   // otwarta biblioteka: wspolna albo tego komputera
-        bool _libTvView;       // otwarta biblioteka "Nagrane z TV" (pliki z folderow nagran)
+        bool _libTvView;
+        List<KeyValuePair<LanPeerInfo, LanFilmItem>> _peerFilms = new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();   // wspolna biblioteka innych komputerow (ostatnio wczytana)       // otwarta biblioteka "Nagrane z TV" (pliki z folderow nagran)
         bool? _playShared;     // z ktorej biblioteki wlaczono film (jej licznik obejrzenia); null = obojetnie
 
         sealed class LibRow
@@ -459,7 +460,7 @@ namespace Przegladarka
                     if (got[i] == null) { peersOff++; continue; }
                     foreach (var x in got[i]) peerItems.Add(new KeyValuePair<LanPeerInfo, LanFilmItem>(peers[i], x));
                 }
-                fill();
+                _peerFilms = peerItems.ToList(); fill();   // lista filmow w odtwarzaczu (film z innego komputera)
             };
             _libRefresh = fill;
             list.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler((s, a) =>
@@ -1189,6 +1190,30 @@ namespace Przegladarka
                     : libAll.Where(v => v.Peer == null).OrderBy(v => MetaTitle(MetaFor(v.Path)) ?? CleanTitle(v.Title), StringComparer.CurrentCultureIgnoreCase).ToList();
                 var curP = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 chList.Items.Clear(); ListBoxItem cur = null;
+                // film z innego komputera: biezaca lista = wspolna biblioteka tamtych komputerow (tytuly, plakaty, klik - przez siec)
+                if (fk == fCur && curP != null && _remoteFilms.TryGetValue(curP, out var rfCur))
+                {
+                    foreach (var kv in _peerFilms.Count > 0 ? _peerFilms : new List<KeyValuePair<LanPeerInfo, LanFilmItem>>())
+                    {
+                        var x = kv.Value; var pk = kv;
+                        var m = LookupMeta(Meta, x.n ?? ("velivo:" + x.i + "\\" + (x.fn ?? x.i)));
+                        var img = new Image { Width = 34, Height = 50, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+                        if (m?.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) img.Source = LoadLogo(pf); }
+                        var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                        txt.Children.Add(new TextBlock { Text = MetaTitle(m) ?? CleanTitle(x.t), FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+                        txt.Children.Add(new TextBlock { Text = "🖥 " + kv.Key.Device + (m?.Rating > 0 ? "  ·  ★ " + m.Rating.ToString("0.0") : "") + (x.l > 0 ? "  ·  " + FormatTime(x.l) : ""), FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
+                        var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); row.Children.Add(img); row.Children.Add(txt);
+                        var it = new ListBoxItem { Content = row, Padding = new Thickness(8, 4, 8, 4), Cursor = Cursors.Hand };
+                        if (x.i == rfCur.Id) { it.Background = new SolidColorBrush(Color.FromArgb(0x66, 0x3B, 0x82, 0xF6)); cur = it; }
+                        it.PreviewMouseLeftButtonUp += (q, w2) => { WantRemoteFilm(pk.Key, pk.Value, false); showChannels(false); };
+                        chList.Items.Add(it);
+                    }
+                    if (chList.Items.Count == 0) chList.Items.Add(new ListBoxItem { Content = new TextBlock { Text = L.T("Otwórz wspólną bibliotekę, aby wczytać listę filmów z innych komputerów."), Foreground = Brushes.Silver, TextWrapping = TextWrapping.Wrap }, IsEnabled = false });
+                    chPanel.Visibility = Visibility.Visible;
+                    if (cur != null) chList.ScrollIntoView(cur);
+                    chHide.Stop(); if (!chPanel.IsMouseOver) chHide.Start();
+                    return;
+                }
                 for (int k = 0; k < films.Count; k++)
                 {
                     var f = films[k]; int idx = k; var m = MetaFor(f.Path);

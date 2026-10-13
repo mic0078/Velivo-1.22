@@ -2148,7 +2148,10 @@ namespace Przegladarka
                 if (left.TotalSeconds <= 30 && left.TotalSeconds > 0) mp.Volume = (int)(vol.Value * left.TotalSeconds / 30);   // wyciszanie
                 if (left.TotalSeconds <= 0)
                 {
-                    sleepAt = null; savePos(); mp.SetPause(true); mp.Volume = muted ? 0 : (int)vol.Value;
+                    var pz = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                    sleepAt = null; savePos();
+                    if (pz != null && _iptvPlaying.ContainsKey(pz)) mp.Stop(); else mp.SetPause(true);   // TV na zywo - pauza nie ma sensu, zatrzymaj
+                    mp.Volume = muted ? 0 : (int)vol.Value;
                     showOsd(L.T("⏾ Wyłącznik czasowy – zatrzymano"));
                 }
                 updSleep();
@@ -2162,9 +2165,20 @@ namespace Przegladarka
                     mi.Click += (a, b) => { sleepEnd = false; sleepAt = DateTime.Now.AddMinutes(m); updSleep(); showOsd(L.T("⏾ Zatrzymanie za ") + m + " min"); };
                     cm.Items.Add(mi);
                 }
-                var endMi = new MenuItem { Header = L.T("🎬 Po końcu tego filmu") };
-                endMi.Click += (a, b) => { sleepAt = null; sleepEnd = true; updSleep(); showOsd(L.T("⏾ Zatrzymanie po końcu filmu")); };
-                cm.Items.Add(endMi);
+                var pNow = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (pNow != null && _iptvPlaying.TryGetValue(pNow, out var tvc))
+                {   // telewizja: po koncu programu, ktory teraz leci (z programu TV)
+                    var prog = EpgAt(EpgFor(_iptvEpg, tvc), DateTime.Now);
+                    var endP = new MenuItem { Header = prog != null ? L.T("📺 Po końcu programu: ") + prog.Title + " (" + prog.Stop.ToString("HH:mm") + ")" : L.T("📺 Po końcu programu (brak programu TV)"), IsEnabled = prog != null };
+                    if (prog != null) endP.Click += (a, b) => { sleepEnd = false; sleepAt = prog.Stop; updSleep(); showOsd(L.T("⏾ Zatrzymanie o ") + prog.Stop.ToString("HH:mm") + L.T(" – po końcu programu")); };
+                    cm.Items.Add(endP);
+                }
+                else
+                {
+                    var endMi = new MenuItem { Header = L.T("🎬 Po końcu tego filmu") };
+                    endMi.Click += (a, b) => { sleepAt = null; sleepEnd = true; updSleep(); showOsd(L.T("⏾ Zatrzymanie po końcu filmu")); };
+                    cm.Items.Add(endMi);
+                }
                 if (sleepAt.HasValue || sleepEnd)
                 {
                     cm.Items.Add(new Separator());

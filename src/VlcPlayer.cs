@@ -1416,7 +1416,11 @@ namespace Przegladarka
                 const string fCur = "\u0001cur", fRec = "\u0001rec", fAll = "\u0001all";
                 // grupy: kolejka, ostatnio ogladane, wszystkie, moja kolejka i zapisane playlisty (odswiezane, gdy sie zmienia)
                 var pls = LoadPlaylists();
-                var want = new List<(string Text, string Tag)> { (L.T("▶ Kolejka"), fCur), (L.T("🕘 Ostatnio oglądane"), fRec), (L.T("🎬 Wszystkie filmy"), fAll) };
+                // kolejka = cala biblioteka (film wlaczony z pelnej listy) - nie pokazujemy jej osobno, to "Wszystkie filmy"
+                var libLocal = LoadLibrary().Count(v => v.Peer == null);
+                bool realQueue = _playlist.Count > 1 && _playlist.Count < libLocal || _playlist.Count >= 1 && _remoteFilms.ContainsKey(_playlist[0]);
+                var want = new List<(string Text, string Tag)> { (L.T("🕘 Ostatnio oglądane"), fRec), (L.T("🎬 Wszystkie filmy"), fAll) };
+                if (realQueue) want.Insert(0, (L.T("▶ Kolejka") + (_remoteFilms.ContainsKey(_playlist[0]) ? "" : " (" + _playlist.Count + ")"), fCur));
                 if (pls.Mine.Count > 0) want.Add((L.T("📋 Moja kolejka") + " (" + pls.Mine.Count + ")", "\u0001mine"));
                 foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) want.Add(("🎞 " + n + " (" + pls.Named[n].Count + ")", "\u0001pl:" + n));
                 if (!chGroup.Items.Cast<ComboBoxItem>().Select(i => (string)i.Content + "|" + i.Tag).SequenceEqual(want.Select(w => w.Text + "|" + w.Tag)))
@@ -1430,8 +1434,8 @@ namespace Przegladarka
                 }
                 fillSort("sort-lista-filmow", new[] { "az", "za", "ocena", "rok" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: ocena", "Sortuj: rok (najnowsze)" });
                 // otwarcie listy: biezaca lista, a gdy to tylko jeden film (start z "Kontynuuj", z dysku innego komputera) - wszystkie filmy
-                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedIndex = _playlist.Count > 1 || _playlist.Count == 1 && _remoteFilms.ContainsKey(_playlist[0]) ? 0 : 2;
-                var fk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? fCur;
+                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedItem = chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (realQueue ? fCur : fAll));
+                var fk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? (realQueue ? fCur : fAll);
                 var how = GetPref("sort-lista-filmow") ?? "az";
                 var libAll = LoadLibrary();
                 var curP = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;

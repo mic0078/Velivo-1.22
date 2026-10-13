@@ -199,7 +199,11 @@ namespace Przegladarka
                 var uid = (admin.ValueKind == JsonValueKind.Object ? admin : ul.FirstOrDefault()).GetProperty("Id").GetString();
                 if (uid == null) throw new InvalidOperationException(L.T("brak użytkowników na serwerze"));
                 progress(L.T("Pobieram listę filmów…"));
-                var json = await (await Ok(http.GetAsync("Users/" + uid + "/Items?Recursive=true&IncludeItemTypes=Movie,Video&Fields=Path,MediaSources,Overview,Genres,People,OriginalTitle,OfficialRating"))).Content.ReadAsStringAsync();
+                // wszystkie filmy serwera (jak /Items z kluczem API) - widok uzytkownika pomija biblioteki bez dostepu i filmy ponad jego limit wieku (PL-16, PL-18)
+                const string q = "Items?Recursive=true&IncludeItemTypes=Movie,Video&Fields=Path,MediaSources,Overview,Genres,People,OriginalTitle,OfficialRating";
+                var resp = await http.GetAsync(q);
+                if (!resp.IsSuccessStatusCode) resp = await Ok(http.GetAsync("Users/" + uid + "/" + q));   // starszy serwer - widok uzytkownika
+                var json = await resp.Content.ReadAsStringAsync();
                 var items = JsonDocument.Parse(json).RootElement.GetProperty("Items");
                 var meta = new Dictionary<string, MovieInfo>(Meta, StringComparer.OrdinalIgnoreCase);
                 int n = 0, total = items.GetArrayLength(), posters = 0;

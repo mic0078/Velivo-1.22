@@ -36,5 +36,11 @@ public class BibliotekaTytulyTests
         MainWindow.AddTitleKeys(meta, alien);
         Assert.Same(alien, MainWindow.LookupMeta(meta, @"X:\Filmy 0\Obcy Kolekcja\Alien.1979.Directors.Cut.mkv"));
         Assert.Null(MainWindow.LookupMeta(meta, @"X:\Filmy 0\Alien.1986.mkv"));
+        Assert.Same(alien, MainWindow.LookupMeta(meta, @"X:\Obcy.8.pasazer.Nostromo.1979.mkv"));   // bez polskich znakow
+        var later = new MainWindow.MovieInfo { Name = "28 lat później", Original = "28 Years Later", Year = 2025, Overview = "x" };
+        MainWindow.AddTitleKeys(meta, later);
+        Assert.Same(later, MainWindow.LookupMeta(meta, @"Y:\28\28 years later.mkv"));   // bez roku w nazwie pliku
+        MainWindow.AddTitleKeys(meta, new MainWindow.MovieInfo { Name = "Alien", Year = 2030, Overview = "x" });
+        Assert.Null(MainWindow.LookupMeta(meta, @"X:\Alien.mkv"));   // dwa filmy "Alien" - bez roku nie wiadomo ktory
     }
 }

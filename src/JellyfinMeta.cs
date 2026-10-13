@@ -49,7 +49,9 @@ namespace Przegladarka
             {
                 if (_meta != null) return _meta;
                 try { _meta = File.Exists(MetaFile) ? JsonSerializer.Deserialize<Dictionary<string, MovieInfo>>(File.ReadAllText(MetaFile)) : null; } catch (Exception ex) { App.LogError(ex); }
-                return _meta ?? (_meta = new Dictionary<string, MovieInfo>(StringComparer.OrdinalIgnoreCase));
+                _meta = new Dictionary<string, MovieInfo>(_meta ?? new Dictionary<string, MovieInfo>(), StringComparer.OrdinalIgnoreCase);
+                foreach (var m in _meta.Where(kv => !kv.Key.StartsWith("ty:") && !kv.Key.StartsWith("t:")).Select(kv => kv.Value).Distinct().ToList()) AddTitleKeys(_meta, m);   // tytul + rok od razu, bez ponownej synchronizacji
+                return _meta;
             }
         }
 
@@ -77,9 +79,10 @@ namespace Przegladarka
         {
             if (path == null) return null;
             if (meta.TryGetValue(MetaKey(path), out var m) || meta.TryGetValue(MetaDirKey(path), out m)) return m;
-            var c = System.Text.RegularExpressions.Regex.Match(CleanTitle(MetaKey(path)), @"^(.+) \((\d{4})\)$");   // "alien (1979)"
-            var k = c.Success ? TitleYearKey(c.Groups[1].Value, int.Parse(c.Groups[2].Value)) : null;
-            return k != null && meta.TryGetValue(k, out m) ? m : null;
+            var ct = CleanTitle(MetaKey(path));
+            var c = System.Text.RegularExpressions.Regex.Match(ct, @"^(.+) \((\d{4})\)$");   // "alien (1979)"
+            var k = c.Success ? TitleYearKey(c.Groups[1].Value, int.Parse(c.Groups[2].Value)) : TitleYearKey(ct, 0);   // bez roku w nazwie - sam tytul, gdy jednoznaczny
+            return k != null && meta.TryGetValue(k, out m) && m != Ambiguous ? m : null;
         }
 
         internal MovieInfo MetaFor(string path) { return LookupMeta(Meta, path); }
@@ -110,12 +113,24 @@ namespace Przegladarka
         }
 
         // klucz "tytul + rok": plik o innej nazwie niz w Jellyfin (np. inna wersja, kolekcja w jednym folderze)
-        static string TitleYearKey(string title, int year) { var t = new string((title ?? "").Normalize(NormalizationForm.FormC).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray()); return t.Length == 0 || year <= 0 ? null : "ty:" + t + year; }
+        // bez polskich znakow (pasazer = pasażer) i znakow innych niz litery i cyfry; rok 0 = klucz samego tytulu
+        static string TitleYearKey(string title, int year)
+        {
+            var d = (title ?? "").Replace('ł', 'l').Replace('Ł', 'L').Normalize(NormalizationForm.FormD).ToLowerInvariant();
+            var t = new string(d.Where(ch => char.IsLetterOrDigit(ch) && System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray());
+            return t.Length == 0 ? null : year > 0 ? "ty:" + t + year : "t:" + t;
+        }
+
+        static readonly MovieInfo Ambiguous = new MovieInfo();   // ten sam tytul bez roku u kilku filmow - nie dopasowujemy
 
         internal static void AddTitleKeys(Dictionary<string, MovieInfo> meta, MovieInfo m)
         {
             if (m.Year <= 0 || string.IsNullOrEmpty(m.Overview) && m.Rating <= 0) return;   // tylko rozpoznane filmy
-            foreach (var t in new[] { m.Name, m.Original }) { var k = TitleYearKey(t, m.Year); if (k != null && !meta.ContainsKey(k)) meta[k] = m; }
+            foreach (var t in new[] { m.Name, m.Original })
+            {
+                var k = TitleYearKey(t, m.Year); if (k != null && !meta.ContainsKey(k)) meta[k] = m;
+                var k0 = TitleYearKey(t, 0); if (k0 != null) meta[k0] = meta.TryGetValue(k0, out var o) && o != m ? Ambiguous : m;
+            }
         }
 
         // czytelny tytul z nazwy pliku: bez [dopiskow], jakosci i kodekow, kropki jako spacje, rok w nawiasie
@@ -218,7 +233,9 @@ namespace Przegladarka
                     if (n % 25 == 0) progress(L.T("Filmy: ") + n + " / " + total + L.T(" · nowe plakaty: ") + posters);
                 }
                 Directory.CreateDirectory(MetaDir);
+                foreach (var k in meta.Keys.Where(k => k.StartsWith("ty:") || k.StartsWith("t:")).ToList()) meta.Remove(k);   // klucze tytulow liczone przy wczytaniu
                 File.WriteAllText(MetaFile, JsonSerializer.Serialize(meta));
+                foreach (var m in meta.Values.Distinct().ToList()) AddTitleKeys(meta, m);
                 _meta = meta;
                 c.Synced = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveJellyfinConf(c);
                 var lib = LoadLibrary(); int matched = lib.Count(v => LookupMeta(meta, v.Path) != null);

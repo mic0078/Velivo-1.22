@@ -1686,10 +1686,12 @@ namespace Przegladarka
             popup(audio, cm =>
             {
                 int cur = mp.AudioTrack;
+                var info = new Dictionary<int, string>();   // kodek i kanaly sciezki - widac, ktora moze nie grac
+                try { foreach (var mt in mp.Media?.Tracks ?? new MediaTrack[0]) if (mt.TrackType == TrackType.Audio) info[mt.Id] = new string(BitConverter.GetBytes(mt.Codec).Select(b => (char)b).ToArray()).Trim('\0', ' ').ToUpperInvariant() + (mt.Data.Audio.Channels > 0 ? " " + mt.Data.Audio.Channels + "ch" : ""); } catch (Exception) { }
                 foreach (var t in mp.AudioTrackDescription)
                 {
                     var id = t.Id;
-                    var mi = new MenuItem { Header = id < 0 ? L.T("Bez dźwięku") : t.Name, IsCheckable = true, IsChecked = id == cur };
+                    var mi = new MenuItem { Header = id < 0 ? L.T("Bez dźwięku") : t.Name + (info.TryGetValue(id, out var ci) ? "   ·  " + ci : ""), IsCheckable = true, IsChecked = id == cur };
                     var nm = t.Name;
                     mi.Click += (a, b) => { if (id >= 0) { mp.SetAudioTrack(id); rememberTrack(false, nm); } else mp.SetAudioTrack(id); };
                     cm.Items.Add(mi);

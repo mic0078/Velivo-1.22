@@ -55,6 +55,7 @@ namespace Przegladarka
             public bool Done { get; set; }   // obejrzany do konca
             public string Spu { get; set; }    // wybrane napisy (nazwa sciezki, "-" = wylaczone)
             public string Audio { get; set; }  // wybrana sciezka dzwieku (nazwa)
+            public string MyTitle { get; set; }  // wlasny tytul (zmiana nazwy w Velivo; plik i dane z Jellyfin bez zmian)
             // ustawienia tego filmu (filmy maja rozna glosnosc): glosnosc filmu i lektor; null = jak ostatnio
             public int? Vol { get; set; }
             public double? LVol { get; set; }
@@ -336,7 +337,7 @@ namespace Przegladarka
             Func<LibraryVideo, MovieInfo> mi = v => meta?.Invoke(v);
             switch (key)
             {
-                case "title": by = v => (MetaTitle(mi(v)) ?? CleanTitle(v.Title)).ToLowerInvariant(); break;   // tak, jak widac w kolumnie
+                case "title": by = v => ShownTitle(v, mi(v)).ToLowerInvariant(); break;   // tak, jak widac w kolumnie
                 case "year": by = v => mi(v)?.Year ?? 0; break;
                 case "rating": by = v => mi(v)?.Rating ?? 0; break;
                 case "genre": by = v => (mi(v)?.Genres.FirstOrDefault() ?? "").ToLowerInvariant(); break;
@@ -385,6 +386,9 @@ namespace Przegladarka
 
         string _libVlcKey;   // opcje, z ktorymi utworzono VLC
         static bool LevelVolume => GetPref("wyrownaj-glosnosc") == "1";   // wyrownywanie glosnosci (menu dzwieku)
+        // tytul na liscie: wlasny (zmieniony w Velivo), z Jellyfin, z nazwy pliku
+        internal static string ShownTitle(LibraryVideo v, MovieInfo m) { return !string.IsNullOrWhiteSpace(v.MyTitle) ? v.MyTitle : MetaTitle(m) ?? CleanTitle(v.Title); }
+
         static bool Surround51 => GetPref("dzwiek-51") == "1";   // dzwiek przestrzenny bez miksowania do stereo (wybor w menu dzwieku)
 
         // ostatnio ogladany, nieskonczony film z tego komputera
@@ -486,11 +490,11 @@ namespace Przegladarka
                     };
                     var now = DateTime.Now;
                     Func<LibraryVideo, MovieInfo> mf = v => LookupMeta(meta, v.Path);   // dane z Jellyfin (lokalna baza)
-                    var r = SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    var r = SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (v.MyTitle ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         mf(v) is MovieInfo m1 && ((m1.Name ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (m1.Original ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)), key, desc, mf)
                     .Select(v => new LibRow
                     {
-                        Item = v, Missing = !of.ContainsKey(v) && (v.Peer != null ? !online.Contains(v.Peer) : !exists(v.Path)), Title = MetaTitle(mf(v)) ?? CleanTitle(v.Title),
+                        Item = v, Missing = !of.ContainsKey(v) && (v.Peer != null ? !online.Contains(v.Peer) : !exists(v.Path)), Title = ShownTitle(v, mf(v)),
                         Year = mf(v)?.Year > 0 ? mf(v).Year.ToString() : "", Rating = mf(v)?.Rating > 0 ? "★ " + mf(v).Rating.ToString("0.0") : "", Genre = string.Join(", ", mf(v)?.Genres ?? new List<string>()),
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = SeenText(v),
@@ -677,6 +681,18 @@ namespace Przegladarka
                 menu.Items.Add(peersMenu(L.T("📺 Odtwórz na…"), false));
                 menu.Items.Add(peersMenu(L.T("👥 Oglądaj razem z…"), true));
                 menu.Items.Add(new Separator());
+                // wlasny tytul: tylko w Velivo (plik i dopasowanie do Jellyfin bez zmian - plakat i opis zostaja); pusty = tytul z Jellyfin
+                addItem(L.T("✏ Zmień tytuł…"), () =>
+                {
+                    var r = list.SelectedItem as LibRow; if (r == null || remoteOf.ContainsKey(r.Item)) return;
+                    win.Topmost = false;
+                    var t = Prompt(L.T("Tytuł filmu w Velivo (plik na dysku i Jellyfin bez zmian; puste = tytuł z Jellyfin):"), r.Title.TrimStart('⚠', ' '));
+                    win.Topmost = owner.Topmost;
+                    if (t == null) return;
+                    var l = LoadLibrary(); var v = FindEntry(l, r.Item.Path, IsShared(r.Item)); if (v == null) return;
+                    t = t.Trim(); v.MyTitle = t.Length == 0 || t == (MetaTitle(MetaFor(v.Path)) ?? CleanTitle(v.Title)) ? null : t;
+                    SaveLibrary(l); fill();
+                });
                 addItem(L.T("Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); });
                 addItem(L.T("💬 Pobierz napisy…"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowSubtitleSearch(r.Item.Path, win); });
                 addItem(L.T("Obejrzyj od początku"), () => { foreach (var r in sel()) r.Item.Pos = 0; var l = LoadLibrary(); foreach (var r in sel()) { var v = FindEntry(l, r.Item.Path, _libSharedView); if (v != null) v.Pos = 0; } SaveLibrary(l); play(); });
@@ -1320,7 +1336,7 @@ namespace Przegladarka
                 bool remoteCur = fk == fCur && rfCur != null;   // film z innego komputera: biezaca lista = wspolna biblioteka tamtych komputerow
                 List<LibraryVideo> films = fk == fCur ? (remoteCur ? new List<LibraryVideo>() : _playlist.Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList())   // kolejnosc odtwarzania
                     : fk == fRec ? libAll.Where(v => v.Last > 0 && v.Peer == null).ToList()
-                    : SortFilms(libAll.Where(v => v.Peer == null), v => v.Title, v => MetaFor(v.Path), how);
+                    : SortFilms(libAll.Where(v => v.Peer == null), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
                 // sortowanie nie dotyczy kolejnosci odtwarzania ani ostatnio ogladanych (zawsze od najnowszego)
                 chSort.Visibility = fk == fRec || fk == fCur && !remoteCur ? Visibility.Collapsed : Visibility.Visible;
                 chList.Items.Clear(); ListBoxItem cur = null;
@@ -1329,7 +1345,7 @@ namespace Przegladarka
                     var img = new Image { Width = 34, Height = 50, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
                     if (m?.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) img.Source = LoadLogo(pf, 150); }
                     var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                    txt.Children.Add(new TextBlock { Text = MetaTitle(m) ?? CleanTitle(raw), FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+                    txt.Children.Add(new TextBlock { Text = raw, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
                     if (sub.Length > 0) txt.Children.Add(new TextBlock { Text = sub, FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
                     var dp = new DockPanel(); DockPanel.SetDock(img, Dock.Left); dp.Children.Add(img); dp.Children.Add(txt);
                     return new ListBoxItem { Content = dp, Padding = new Thickness(8, 4, 8, 4), Cursor = Cursors.Hand };
@@ -1338,7 +1354,7 @@ namespace Przegladarka
                 {
                     var x = kv.Value;
                     var m = LookupMeta(Meta, PeerFilmKey(x));
-                    var it = mkRow(m, x.t, "🖥 " + kv.Key.Device + (m?.Rating > 0 ? "  ·  ★ " + m.Rating.ToString("0.0") : "") + (x.l > 0 ? "  ·  " + FormatTime(x.l) : ""));
+                    var it = mkRow(m, MetaTitle(m) ?? CleanTitle(x.t), "🖥 " + kv.Key.Device + (m?.Rating > 0 ? "  ·  ★ " + m.Rating.ToString("0.0") : "") + (x.l > 0 ? "  ·  " + FormatTime(x.l) : ""));
                     if (rfCur != null && x.i == rfCur.Id) { it.Background = new SolidColorBrush(Color.FromArgb(0x66, 0x3B, 0x82, 0xF6)); cur = it; }
                     it.PreviewMouseLeftButtonUp += (q, w2) => { WantRemoteFilm(kv.Key, kv.Value, false); showChannels(false); };
                     chList.Items.Add(it);
@@ -1347,7 +1363,7 @@ namespace Przegladarka
                 {
                     var f = films[k]; var m = MetaFor(f.Path);
                     var sub = string.Join("  ·  ", new[] { m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null, m?.Genres.Count > 0 ? m.Genres[0] : null, f.Len > 0 ? FormatTime(f.Len) : null, SeenText(f) is string st && st.Length > 0 ? L.T("obejrzane ") + st : null }.Where(x => x != null));
-                    var it = mkRow(m, f.Title, sub);
+                    var it = mkRow(m, ShownTitle(f, m), sub);
                     if (string.Equals(f.Path, curP, StringComparison.OrdinalIgnoreCase)) { it.Background = new SolidColorBrush(Color.FromArgb(0x66, 0x3B, 0x82, 0xF6)); cur = it; }
                     it.PreviewMouseLeftButtonUp += (q, w2) =>
                     {

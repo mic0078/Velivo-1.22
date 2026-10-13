@@ -88,9 +88,9 @@ namespace Przegladarka
         internal MovieInfo MetaFor(string path) { return LookupMeta(Meta, path); }
 
         // sortowanie listy filmow: az / za / ocena / rok (rok nierozpoznanego filmu z nazwy pliku)
-        internal static List<T> SortFilms<T>(IEnumerable<T> src, Func<T, string> raw, Func<T, MovieInfo> meta, string how)
+        internal static List<T> SortFilms<T>(IEnumerable<T> src, Func<T, string> raw, Func<T, MovieInfo> meta, string how, Func<T, string> custom = null)
         {
-            var rows = src.Select(x => { var m = meta(x); var t = MetaTitle(m) ?? CleanTitle(raw(x)); var y = System.Text.RegularExpressions.Regex.Match(t, @"\((\d{4})\)$");
+            var rows = src.Select(x => { var m = meta(x); var c = custom?.Invoke(x); var t = !string.IsNullOrWhiteSpace(c) ? c : MetaTitle(m) ?? CleanTitle(raw(x)); var y = System.Text.RegularExpressions.Regex.Match(t, @"\((\d{4})\)$");
                 return (x, t, r: m?.Rating ?? 0, y: m?.Year > 0 ? m.Year : y.Success ? int.Parse(y.Groups[1].Value) : 0); }).ToList();
             var cmp = StringComparer.CurrentCultureIgnoreCase;
             var o = how == "za" ? rows.OrderByDescending(r => r.t, cmp)

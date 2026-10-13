@@ -105,6 +105,7 @@ namespace Przegladarka
             }
         }
         bool _cleanedUp;
+        bool _mainClosing;
         bool _extensionsLoaded;
         bool _toolbarCompact;
 
@@ -137,6 +138,7 @@ namespace Przegladarka
             Closing += TrayOnClosing;                    // tryb zasobnika: chowamy zamiast zamykac
             Closing += GuardAgainstWebViewClosingWindow; // musi byc pierwsze - anuluje zamkniecie okna przez strone
             Closing += ConfirmCloseWithDownloads;        // trwa pobieranie? zapytaj i wstrzymaj
+            Closing += (s, e) => { if (!e.Cancel) _mainClosing = true; };   // odtwarzacz zamykany razem z Velivo - wznowi ostatni program
             Closing += (s, e) => { if (!e.Cancel) SaveSession(); }; // karty do przywrocenia przy nastepnym starcie
             Closing += OnClosingCleanup;
             Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); StopTorrents(); foreach (var w in _noteWindows.Values.ToList()) w.Close(); };   // karteczki bez wlasciciela trzymalyby proces przy zyciu

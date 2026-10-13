@@ -81,6 +81,22 @@ namespace Przegladarka
 
         internal MovieInfo MetaFor(string path) { return LookupMeta(Meta, path); }
 
+        // sortowanie listy filmow: az / za / ocena / rok (rok nierozpoznanego filmu z nazwy pliku)
+        internal static List<T> SortFilms<T>(IEnumerable<T> src, Func<T, string> raw, Func<T, MovieInfo> meta, string how)
+        {
+            var rows = src.Select(x => { var m = meta(x); var t = MetaTitle(m) ?? CleanTitle(raw(x)); var y = System.Text.RegularExpressions.Regex.Match(t, @"\((\d{4})\)$");
+                return (x, t, r: m?.Rating ?? 0, y: m?.Year > 0 ? m.Year : y.Success ? int.Parse(y.Groups[1].Value) : 0); }).ToList();
+            var cmp = StringComparer.CurrentCultureIgnoreCase;
+            var o = how == "za" ? rows.OrderByDescending(r => r.t, cmp)
+                : how == "ocena" ? rows.OrderByDescending(r => r.r).ThenBy(r => r.t, cmp)
+                : how == "rok" ? rows.OrderByDescending(r => r.y).ThenBy(r => r.t, cmp)
+                : rows.OrderBy(r => r.t, cmp);
+            return o.Select(r => r.x).ToList();
+        }
+
+        // sasiad na liscie (nastepny / poprzedni film); null - koniec listy albo nie ma na liscie
+        internal static string Neighbor(List<string> ids, string cur, int d) { var i = ids.IndexOf(cur); return i < 0 || i + d < 0 || i + d >= ids.Count ? null : ids[i + d]; }
+
         // tytul z Jellyfin tylko dla rozpoznanego filmu (nierozpoznany ma za nazwe nazwe pliku - bez opisu i oceny)
         internal static string MetaTitle(MovieInfo m) { return m == null || string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? null : m.Name + (m.Year > 0 ? " (" + m.Year + ")" : ""); }
 

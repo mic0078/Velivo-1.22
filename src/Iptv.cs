@@ -420,6 +420,9 @@ namespace Przegladarka
             item("\uE838", L.T("📁 Folder nagrań"), OpenRecDir);
             _tvBtn.ContextMenu = menu;
             StartIptvScheduler();   // zaplanowane nagrania / przelaczenia dzialaja takze przy zamknietym oknie listy
+            var resume = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };   // po uruchomieniu: ostatni program, ktory lecial przy zamykaniu
+            resume.Tick += (s, e) => { resume.Stop(); ResumeTv(); };
+            resume.Start();
             int film = _filmBtn != null ? TabBarPanel.Children.IndexOf(_filmBtn) : -1;
             TabBarPanel.Children.Insert(film >= 0 ? film + 1 : 1, _tvBtn);   // obok 🎬
         }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -110,6 +111,38 @@ namespace Przegladarka
 
         readonly Dictionary<string, Action> _asked = new Dictionary<string, Action>();   // pytanie o przelaczenie na ekranie (id zadania -> zamknij)
         Func<string, Action, Action, Action> _vlcAsk;   // odtwarzacz: pytanie na srodku obrazu (tekst, tak, nie) -> zamknij
+
+        sealed class TvResume { public int Idx { get; set; } public List<TvResumeCh> Chans { get; set; } = new List<TvResumeCh>(); }
+        sealed class TvResumeCh { public string Name { get; set; } public string Url { get; set; } public string Group { get; set; } public string Logo { get; set; } public string TvgId { get; set; } public List<string> Opts { get; set; } }
+        string TvResumeFile => Path.Combine(IptvDataDir, "wznow.json");
+
+        // lista kanalow, z ktorej ogladano, i biezacy kanal (-1 = bez wznawiania)
+        void SaveTvResume(int idx)
+        {
+            try
+            {
+                if (idx < 0) { if (File.Exists(TvResumeFile)) File.Delete(TvResumeFile); return; }
+                var r = new TvResume { Idx = idx };
+                foreach (var u in _playlist) if (_iptvPlaying.TryGetValue(u, out var c)) r.Chans.Add(new TvResumeCh { Name = c.Name, Url = c.Url, Group = c.Group, Logo = c.Logo, TvgId = c.TvgId, Opts = c.Opts });
+                Directory.CreateDirectory(IptvDataDir); File.WriteAllText(TvResumeFile, JsonSerializer.Serialize(r));
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
+        void ResumeTv()
+        {
+            try
+            {
+                if (!IptvInstalled || _vlcWin != null || !File.Exists(TvResumeFile)) return;
+                var r = JsonSerializer.Deserialize<TvResume>(File.ReadAllText(TvResumeFile));
+                if (r?.Chans == null || r.Chans.Count == 0) return;
+                _iptvPlaying.Clear();
+                foreach (var c in r.Chans) _iptvPlaying[c.Url] = new IptvChannel { Name = c.Name, Url = c.Url, Group = c.Group ?? "", Logo = c.Logo, TvgId = c.TvgId, Opts = c.Opts ?? new List<string>() };
+                PlayVideos(r.Chans.Select(c => c.Url).ToArray(), r.Idx);
+                ShowToast(L.T("📺 Wznawiam: ") + r.Chans[Math.Max(0, Math.Min(r.Idx, r.Chans.Count - 1))].Name, null);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
 
         void SwitchNow(IptvJob j)
         {

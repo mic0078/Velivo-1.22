@@ -377,6 +377,15 @@ namespace Przegladarka
             }).ToList();
         }
 
+        // klucz filmu z innego komputera do informacji z Jellyfin
+        static string PeerFilmKey(LanFilmItem x) { return x.n ?? ("velivo:" + x.i + "\\" + (x.fn ?? x.i)); }
+
+        // wspolna biblioteka innych komputerow bez powtorzen (ten sam plik na dwoch komputerach - raz), posortowana
+        List<KeyValuePair<LanPeerInfo, LanFilmItem>> PeerQueue(string how)
+        {
+            return SortFilms(_peerFilms.GroupBy(p => (p.Value.fn ?? p.Value.t ?? p.Value.i).ToLowerInvariant()).Select(g => g.OrderByDescending(p => p.Value.w).First()), p => p.Value.t, p => LookupMeta(Meta, PeerFilmKey(p.Value)), how);
+        }
+
         // wybrany film z biblioteki drugiego komputera: prosimy o strumien (klucz powstaje dopiero teraz, na ten jeden film)
         void WantRemoteFilm(LanPeerInfo peer, LanFilmItem item, bool together)
         {

@@ -416,6 +416,7 @@ namespace Przegladarka
         void ShowRandomPicker(Window owner, List<LibraryVideo> pool, LibraryVideo seed, Action<List<string>> play)
         {
             var win = new Window { Title = L.T("🎲 Wylosuj filmy"), Width = 760, Height = 720, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var genres = pool.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(g => g, StringComparer.CurrentCultureIgnoreCase).ToList();
             var seedGenres = seed != null ? MetaFor(seed.Path)?.Genres ?? new List<string>() : new List<string>();
             var genre = new ComboBox { Width = 240 };
@@ -495,7 +496,7 @@ namespace Przegladarka
             foreach (var c in new[] { genre, minRating, count }) c.SelectionChanged += (s, e) => { if (win.IsLoaded) roll(); };
             unseen.Click += (s, e) => roll();
             win.Loaded += (s, e) => roll();
-            win.ShowDialog();
+            win.Show();
         }
 
         static bool Surround51 => GetPref("dzwiek-51") == "1";   // dzwiek przestrzenny bez miksowania do stereo (wybor w menu dzwieku)
@@ -516,8 +517,9 @@ namespace Przegladarka
 
         void ShowVideoLibrary(Window owner)
         {
-            if (_libWin != null && _libWin.IsLoaded) { if (_libWin.Owner != owner) _libWin.Owner = owner; _libWin.Topmost = owner.Topmost; _libWin.Activate(); return; }
+            if (_libWin != null && _libWin.IsLoaded) { if (_libWin.WindowState == WindowState.Minimized) _libWin.WindowState = WindowState.Normal; _libWin.Topmost = owner.Topmost; _libWin.Activate(); return; }
             var win = new Window { Title = L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var search = new TextBox { Margin = new Thickness(8, 8, 8, 4), Padding = new Thickness(4) };
             var hint = new TextBlock { Text = L.T("🔍 Szukaj filmu…"), Foreground = Brushes.Gray, Margin = new Thickness(14, 13, 0, 0), IsHitTestVisible = false };
             search.TextChanged += (s, a) => hint.Visibility = search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -851,7 +853,7 @@ namespace Przegladarka
                 {
                     var r = list.SelectedItem as LibRow; if (r == null || remoteOf.ContainsKey(r.Item)) return;
                     win.Topmost = false;
-                    if (ShowMetaEditor(win, r.Item.Path, CleanTitle(r.Item.Title))) fill();
+                    ShowMetaEditor(win, r.Item.Path, CleanTitle(r.Item.Title), fill);
                     win.Topmost = owner.Topmost;
                 });
                 addItem(L.T("📂 Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); });

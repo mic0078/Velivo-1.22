@@ -24,6 +24,7 @@ namespace Przegladarka
             if (_guideWin != null && _guideWin.IsLoaded) { _guideWin.Activate(); return; }
             if (_iptvPl == null) ShowIptv(owner);   // lista jeszcze nie wczytana - okno kanalow ja wczyta, przewodnik odswiezy sie sam
             var w = new Window { Title = L.T("📅 Program TV"), Width = 900, Height = 620, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var search = new TextBox { Margin = new Thickness(8, 8, 0, 4), Padding = new Thickness(4), Width = 200 };
             var hours = new ComboBox { Margin = new Thickness(8, 8, 0, 4), Width = 190, ToolTip = L.T("Jak często odświeżać listę i program TV") };
             var hoursOpts = new[] { 3, 6, 12, 24, 48, 168, 0 };

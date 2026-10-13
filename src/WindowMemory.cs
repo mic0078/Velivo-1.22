@@ -145,6 +145,26 @@ namespace Przegladarka
         }
 
         // drobne ustawienia list (np. sortowanie) - w tym samym pliku co okna
+        // okno niezalezne (jak zwykle okno Windows): wlasna pozycja na pasku zadan, nie przykrywa na stale innych okien Velivo,
+        // przelaczanie Alt+Tab; zamykane razem z Velivo. Pierwsze otwarcie - na srodku okna, z ktorego je otwarto.
+        readonly List<Window> _independent = new List<Window>();
+        internal void Independent(Window w)
+        {
+            var o = w.Owner;
+            if (o != null && w.WindowStartupLocation == WindowStartupLocation.CenterOwner && o.IsLoaded)
+            {
+                w.WindowStartupLocation = WindowStartupLocation.Manual;
+                double ow = o.WindowState == WindowState.Maximized ? SystemParameters.WorkArea.Width : o.ActualWidth, oh = o.WindowState == WindowState.Maximized ? SystemParameters.WorkArea.Height : o.ActualHeight;
+                double ol = o.WindowState == WindowState.Maximized ? SystemParameters.WorkArea.Left : o.Left, ot = o.WindowState == WindowState.Maximized ? SystemParameters.WorkArea.Top : o.Top;
+                w.Left = ol + Math.Max(0, (ow - w.Width) / 2); w.Top = ot + Math.Max(0, (oh - w.Height) / 2);
+            }
+            if (w.WindowStartupLocation == WindowStartupLocation.CenterOwner) w.WindowStartupLocation = WindowStartupLocation.CenterScreen;   // bez okna-wlasciciela
+            if (w.Icon == null) w.Icon = Icon;
+            w.Owner = null; w.ShowInTaskbar = true;
+            _independent.Add(w); w.Closed += (s, e) => _independent.Remove(w);
+        }
+        void CloseIndependent() { foreach (var w in _independent.ToList()) try { w.Close(); } catch (Exception) { } }
+
         internal static string GetPref(string key) { return WinBounds().TryGetValue("ust:" + key, out var v) ? v : null; }
 
         internal static void SetPref(string key, string value)

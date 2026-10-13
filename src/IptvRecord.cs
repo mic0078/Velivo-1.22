@@ -384,6 +384,7 @@ namespace Przegladarka
         void ShowJobs(Window owner)
         {
             var w = new Window { Title = L.T("📅 Zaplanowane"), Width = 640, Height = 360, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var grid = new GridView();
             foreach (var c in new[] { new[] { "What", "Co", "70" }, new[] { "When", "Kiedy", "170" }, new[] { "Channel", "Kanał", "160" }, new[] { "Title", "Program", "220" } })
                 grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
@@ -462,6 +463,7 @@ namespace Przegladarka
         void ShowRecordings(Window owner)
         {
             var w = new Window { Title = L.T("🎞 Nagrania TV"), Width = 760, Height = 420, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var grid = new GridView();
             foreach (var c in new[] { new[] { "Name", "Nagranie", "460" }, new[] { "Date", "Data", "130" }, new[] { "Size", "Rozmiar", "90" } })
                 grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });

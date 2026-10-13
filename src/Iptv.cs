@@ -515,7 +515,6 @@ namespace Przegladarka
         {
             if (_tvWin != null && _tvWin.IsLoaded)   // juz otwarte: na wierzch (takze zminimalizowane / ukryte za odtwarzaczem)
             {
-                if (_tvWin.Owner != owner) _tvWin.Owner = owner;
                 if (_tvWin.WindowState == WindowState.Minimized) _tvWin.WindowState = WindowState.Normal;
                 if (!_tvWin.IsVisible) _tvWin.Show();
                 _tvWin.Topmost = true; _tvWin.Topmost = owner.Topmost; _tvWin.Activate();
@@ -525,6 +524,7 @@ namespace Przegladarka
             var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "own-bounds" };   // miejsce zapamietuje sam (i omija odtwarzacz)
             PlaceIptvWindow(win, st.Win);
             var source = new ComboBox { Width = 200, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center };
+            Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var addBtn = SmallButton(L.T("➕ Dodaj listę"), null);
             var editBtn = SmallButton(L.T("✏ Edytuj"), null);
             var delBtn = SmallButton(L.T("🗑 Usuń listę"), null);

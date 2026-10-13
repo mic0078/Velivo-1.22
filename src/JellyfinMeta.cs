@@ -63,11 +63,12 @@ namespace Przegladarka
         }
 
         // okno: tytul, rok, ocena, gatunek, rezyser, obsada, opis, plakat (z pliku) - dla filmu bez danych albo z blednymi
-        bool ShowMetaEditor(Window owner, string path, string fileTitle)
+        void ShowMetaEditor(Window owner, string path, string fileTitle, Action done)
         {
             var key = MetaKey(path);
             var cur = LookupMeta(Meta, path);
             var win = new Window { Title = L.T("📝 Informacje o filmie"), Width = 640, Height = 600, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var grid = new Grid { Margin = new Thickness(12) };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
             var poster = new Image { Width = 170, Height = 250, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Top };
@@ -98,7 +99,6 @@ namespace Przegladarka
             var tOver = field(L.T("Opis"), cur?.Overview, true);
             var sv = new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             Grid.SetColumn(sv, 1); grid.Children.Add(sv);
-            bool saved = false;
             var ok = SmallButton(L.T("💾 Zapisz"), () =>
             {
                 Func<string, List<string>> list = t => t.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
@@ -111,19 +111,18 @@ namespace Przegladarka
                     catch (Exception ex) { MessageBox.Show(win, L.T("Nie udało się skopiować plakatu: ") + ex.Message); return; }
                 var man = LoadManual(); man[key] = m;
                 Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
-                Meta[key] = m; saved = true; win.Close();
+                Meta[key] = m; win.Close(); done?.Invoke();
             });
             var del = SmallButton(L.T("↺ Przywróć dane z Jellyfin"), () =>
             {
                 var man = LoadManual(); if (!man.Remove(key)) { win.Close(); return; }
-                File.WriteAllText(ManualFile, JsonSerializer.Serialize(man)); _meta = null; saved = true; win.Close();   // baza wczytana od nowa - bez recznych danych tego filmu
+                File.WriteAllText(ManualFile, JsonSerializer.Serialize(man)); _meta = null; win.Close(); done?.Invoke();   // baza wczytana od nowa - bez recznych danych tego filmu
             });
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12, 0, 12, 12) };
             bar.Children.Add(del); bar.Children.Add(ok);
             var dock = new DockPanel(); DockPanel.SetDock(bar, Dock.Bottom); dock.Children.Add(bar); dock.Children.Add(grid);
             win.Content = dock;
-            win.ShowDialog();
-            return saved;
+            win.Show();
         }
 
         // wyszukanie filmu w sieci przez Jellyfin (jego dostawcy: TMDb, OMDb) i przypisanie wybranego wyniku - poprawia tez Jellyfin
@@ -139,6 +138,7 @@ namespace Przegladarka
                 return;
             }
             var win = new Window { Title = L.T("🔎 Wyszukaj informacje o filmie"), Width = 720, Height = 560, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var ym = System.Text.RegularExpressions.Regex.Match(fileTitle ?? "", @"^(.+) \((\d{4})\)$");
             var qName = new TextBox { Text = ym.Success ? ym.Groups[1].Value : fileTitle, Padding = new Thickness(4), Width = 380 };
             var qYear = new TextBox { Text = ym.Success ? ym.Groups[2].Value : "", Padding = new Thickness(4), Width = 70, Margin = new Thickness(6, 0, 6, 0) };
@@ -224,7 +224,7 @@ namespace Przegladarka
             win.Content = dock;
             list.MouseDoubleClick += (s, a) => apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             win.Loaded += (s, a) => { _ = search(); };
-            win.ShowDialog();
+            win.Show();
         }
 
         // strona w osobnym okienku na wierzchu (nad biblioteka i oknem wyszukiwania - karta w glownym oknie bylaby schowana)
@@ -496,6 +496,7 @@ namespace Przegladarka
         {
             var c = LoadJellyfinConf() ?? new JellyfinConf { Url = "http://" };
             var d = new Window { Title = L.T("🎞 Informacje o filmach z Jellyfin"), Width = 520, SizeToContent = SizeToContent.Height, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize };
+            Independent(d);   // zwykle okno Windows - nie przykrywa innych na stale
             var p = new StackPanel { Margin = new Thickness(12) };
             p.Children.Add(new TextBlock { Text = L.T("Velivo pobierze z Twojego serwera Jellyfin tytuły, opisy, oceny, obsadę i plakaty do własnej bazy na tym komputerze (działa też, gdy serwer jest wyłączony) i będzie ją uzupełniać."), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray });
             Func<string, string, TextBox> field = (label, value) => { p.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 8, 0, 2) }); var t = new TextBox { Text = value ?? "", Padding = new Thickness(4) }; p.Children.Add(t); return t; };
@@ -521,7 +522,7 @@ namespace Przegladarka
             };
             p.Children.Add(ok);
             d.Content = p;
-            d.ShowDialog();
+            d.Show();
         }
     }
 }

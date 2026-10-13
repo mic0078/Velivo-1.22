@@ -208,10 +208,11 @@ namespace Przegladarka
         // okno: wyniki dla filmu, "Pobierz" = zapis obok filmu (film.<jezyk>.srt)
         void ShowSubtitleSearch(string video, Window owner, Action<string> loaded = null)
         {
-            if (!File.Exists(video)) { MessageBox.Show(owner, L.T("Napisy można pobrać do filmu z dysku tego komputera albo z dysku sieciowego."), L.T("Napisy")); return; }
+            if (!File.Exists(video)) { InfoBox(owner, L.T("Napisy można pobrać do filmu z dysku tego komputera albo z dysku sieciowego.")); return; }
             var acc = LoadSubsAccount() ?? new SubsAccount();
             if (string.IsNullOrEmpty(acc.User) && !SubsAccountDialog(owner, acc)) return;
             var w = new Window { Title = L.T("💬 Napisy – ") + Path.GetFileNameWithoutExtension(video), Width = 760, Height = 440, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var query = new TextBox { Text = OsQuery(Path.GetFileNameWithoutExtension(video)), Margin = new Thickness(8, 8, 0, 4), Padding = new Thickness(4) };
             var searchBtn = SmallButton(L.T("🔍 Szukaj"), null); searchBtn.Margin = new Thickness(6, 8, 0, 4);
             var accBtn = SmallButton(L.T("👤 Konto"), null); accBtn.Margin = new Thickness(6, 8, 8, 4);

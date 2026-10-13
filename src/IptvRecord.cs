@@ -28,6 +28,7 @@ namespace Przegladarka
             public long Start { get; set; }       // unix ms
             public long Stop { get; set; }        // unix ms (nagrywanie)
             public string Folder { get; set; }
+            public bool Film { get; set; }        // "switch" filmu z biblioteki (Url = sciezka pliku)
         }
 
         IptvState _iptvState;
@@ -84,7 +85,8 @@ namespace Przegladarka
                     if (now >= j.Start - 60000 && now < j.Start && playingNow != null && playingNow != j.Url && _vlcAsk != null && !_asked.ContainsKey(j.Id))
                     {
                         var job = j;
-                        _asked[j.Id] = _vlcAsk(string.Format(L.T("O {0} zaczyna się:\n📺 {1}{2}\n\nPrzełączyć na ten kanał?"), LocalOf(j.Start).ToString("HH:mm"), j.Channel, string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title),
+                        _asked[j.Id] = _vlcAsk(j.Film ? string.Format(L.T("O {0} zaplanowany film:\n🎬 {1}\n\nWłączyć teraz?"), LocalOf(j.Start).ToString("HH:mm"), j.Channel)
+                            : string.Format(L.T("O {0} zaczyna się:\n📺 {1}{2}\n\nPrzełączyć na ten kanał?"), LocalOf(j.Start).ToString("HH:mm"), j.Channel, string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title),
                             () => { _asked.Remove(job.Id); IptvSt.Jobs.Remove(job); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); SwitchNow(job); },
                             () => { _asked.Remove(job.Id); IptvSt.Jobs.Remove(job); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); ShowToast(L.T("📺 Zostajesz przy filmie"), null); });
                     }
@@ -144,8 +146,62 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); }
         }
 
+        // zaplanowane wlaczenie o godzinie: film z biblioteki albo kanal TV (zwykle okno, lista z wyszukiwaniem, data i godzina)
+        void ShowScheduleStart(Window owner)
+        {
+            var w = new Window { Title = L.T("⏰ Zaplanuj włączenie"), Width = 560, Height = 640, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(w);
+            var films = LoadLibrary().Where(v => v.Peer == null && File.Exists(v.Path)).Select(v => (Name: ShownTitle(v, MetaFor(v.Path)), Url: v.Path, Opts: (List<string>)null))
+                .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            var chans = new List<(string Name, string Url, List<string> Opts)>();
+            if (IptvInstalled)
+            {
+                var pl = _iptvPl;
+                if (pl == null) { var src = IptvSt.Sources.FirstOrDefault(x => x.Id == IptvSt.Last) ?? IptvSt.Sources.FirstOrDefault(); var f = src != null ? IptvCache(src, ".m3u") : null; if (f != null && File.Exists(f)) try { pl = ParseM3u(File.ReadAllText(f)); } catch (Exception) { } }
+                if (pl != null) chans = pl.Channels.Select(c => (c.Name, c.Url, c.Opts)).ToList();
+            }
+            var rbFilm = new RadioButton { Content = L.T("🎬 Film"), IsChecked = true, Margin = new Thickness(0, 0, 16, 0) };
+            var rbTv = new RadioButton { Content = L.T("📺 Kanał TV"), IsEnabled = chans.Count > 0 };
+            var kind = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 12, 12, 6) }; kind.Children.Add(rbFilm); kind.Children.Add(rbTv);
+            var search = new TextBox { Margin = new Thickness(12, 0, 12, 6), Padding = new Thickness(4) };
+            var list = new ListBox { Margin = new Thickness(12, 0, 12, 6) };
+            Action fill = () =>
+            {
+                var q = search.Text.Trim(); list.Items.Clear();
+                foreach (var x in (rbFilm.IsChecked == true ? films : chans).Where(x => q.Length == 0 || x.Name.IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0).Take(500))
+                    list.Items.Add(new ListBoxItem { Content = x.Name, Tag = x });
+            };
+            search.TextChanged += (s, e) => fill(); rbFilm.Checked += (s, e) => fill(); rbTv.Checked += (s, e) => fill();
+            var when = DateTime.Now.AddHours(1); when = new DateTime(when.Year, when.Month, when.Day, when.Hour, 0, 0);
+            var date = new DatePicker { SelectedDate = when.Date, Width = 140, Margin = new Thickness(0, 0, 8, 0) };
+            var time = new TextBox { Text = when.ToString("HH:mm"), Width = 70, Padding = new Thickness(4), VerticalContentAlignment = VerticalAlignment.Center };
+            var at = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 0, 12, 6) };
+            at.Children.Add(new TextBlock { Text = L.T("Kiedy:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }); at.Children.Add(date); at.Children.Add(time);
+            var ok = SmallButton(L.T("⏰ Zaplanuj"), () =>
+            {
+                if (!((list.SelectedItem as ListBoxItem)?.Tag is ValueTuple<string, string, List<string>> x)) { InfoBox(w, L.T("Wybierz film albo kanał z listy.")); return; }
+                if (!TimeSpan.TryParse(time.Text.Trim(), out var t) || date.SelectedDate == null) { InfoBox(w, L.T("Podaj godzinę w formacie GG:MM, np. 20:15.")); return; }
+                var start = date.SelectedDate.Value.Date + t;
+                if (start < DateTime.Now) { InfoBox(w, L.T("Ta godzina już minęła.")); return; }
+                AddJob(new IptvJob { Kind = "switch", Film = rbFilm.IsChecked == true, Url = x.Item2, Channel = x.Item1, Opts = x.Item3 ?? new List<string>(), Start = UnixMs(start) });
+                ShowToast("⏰ " + start.ToString("dd.MM HH:mm") + "  " + (rbFilm.IsChecked == true ? "🎬 " : "📺 ") + x.Item1, null);
+                w.Close();
+            });
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12) };
+            bar.Children.Add(SmallButton(L.T("📅 Zaplanowane…"), () => ShowJobs(w))); bar.Children.Add(ok);
+            var dock = new DockPanel();
+            foreach (var el in new UIElement[] { kind, search }) { DockPanel.SetDock(el, Dock.Top); dock.Children.Add(el); }
+            DockPanel.SetDock(bar, Dock.Bottom); dock.Children.Add(bar);
+            DockPanel.SetDock(at, Dock.Bottom); dock.Children.Add(at);
+            dock.Children.Add(list);
+            w.Content = dock;
+            list.MouseDoubleClick += (s, e) => ok.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            fill(); w.Show();
+        }
+
         void SwitchNow(IptvJob j)
         {
+            if (j.Film) { PlayVideos(new[] { j.Url }, 0); ShowToast("🎬 " + j.Channel, null); return; }   // zaplanowany film
             var ch = new IptvChannel { Name = j.Channel, Url = j.Url, Opts = j.Opts ?? new List<string>() };
             _iptvPlaying[ch.Url] = ch;
             PlayVideos(new[] { ch.Url }, 0);   // film zapisuje miejsce, w ktorym przerwano
@@ -374,7 +430,7 @@ namespace Przegladarka
             var ci = System.Globalization.CultureInfo.InvariantCulture;
             if (!DateTime.TryParseExact(from.Text.Trim(), "dd.MM.yyyy HH:mm", ci, System.Globalization.DateTimeStyles.None, out var a1) ||
                 !DateTime.TryParseExact(to.Text.Trim(), "dd.MM.yyyy HH:mm", ci, System.Globalization.DateTimeStyles.None, out var a2) || a2 <= a1 || a2 <= DateTime.Now)
-            { MessageBox.Show(owner, L.T("Sprawdź czas początku i końca (koniec musi być później niż początek i w przyszłości)."), L.T("Nagrywanie")); return; }
+            { InfoBox(owner, L.T("Sprawdź czas początku i końca (koniec musi być później niż początek i w przyszłości).")); return; }
             IptvSt.RecDir = folder.Text.Trim();
             AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = title.Text.Trim(), Start = UnixMs(a1), Stop = UnixMs(a2), Folder = IptvSt.RecDir });
             ShowToast(L.T("⏺ Zaplanowano nagranie: ") + a1.ToString("dd.MM HH:mm") + "–" + a2.ToString("HH:mm") + " " + ch.Name, null);
@@ -384,6 +440,7 @@ namespace Przegladarka
         void ShowJobs(Window owner)
         {
             var w = new Window { Title = L.T("📅 Zaplanowane"), Width = 640, Height = 360, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var grid = new GridView();
             foreach (var c in new[] { new[] { "What", "Co", "70" }, new[] { "When", "Kiedy", "170" }, new[] { "Channel", "Kanał", "160" }, new[] { "Title", "Program", "220" } })
                 grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
@@ -437,6 +494,21 @@ namespace Przegladarka
             w.Show();
         }
     
+        // wybor folderu nagran (nowe nagrania; stare zostaja tam, gdzie sa - i dalej sa w bibliotece "Nagrane z TV")
+        void ChooseRecDir(Window owner)
+        {
+            var cur = string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir;
+            var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Folder nagrań telewizji") };
+            if (Directory.Exists(cur)) dlg.InitialDirectory = cur;
+            if (dlg.ShowDialog(owner) != true) return;
+            var old = IptvSt.RecDir;
+            IptvSt.RecDir = string.Equals(dlg.FolderName.TrimEnd('\\'), DefaultRecDir, StringComparison.OrdinalIgnoreCase) ? null : dlg.FolderName;
+            // zaplanowane nagrania do starego folderu - do nowego
+            foreach (var j in IptvSt.Jobs.Where(j => j.Kind == "rec" && string.Equals(j.Folder ?? "", old ?? "", StringComparison.OrdinalIgnoreCase) && !_recording.ContainsKey(j.Id))) j.Folder = IptvSt.RecDir;
+            SaveIptv(IptvSt);
+            ShowToast(L.T("📁 Nowe nagrania w: ") + (IptvSt.RecDir ?? DefaultRecDir), null);
+        }
+
         void OpenRecDir()
         {
             var dir = string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir;
@@ -447,6 +519,7 @@ namespace Przegladarka
         void ShowRecordings(Window owner)
         {
             var w = new Window { Title = L.T("🎞 Nagrania TV"), Width = 760, Height = 420, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(w);   // zwykle okno Windows - nie przykrywa innych na stale
             var grid = new GridView();
             foreach (var c in new[] { new[] { "Name", "Nagranie", "460" }, new[] { "Date", "Data", "130" }, new[] { "Size", "Rozmiar", "90" } })
                 grid.Columns.Add(new GridViewColumn { Header = L.T(c[1]), Width = double.Parse(c[2]), DisplayMemberBinding = new System.Windows.Data.Binding(c[0]) });
@@ -470,10 +543,10 @@ namespace Przegladarka
             Action del = () =>
             {
                 var p = sel(); if (p.Count == 0) return;
-                if (MessageBox.Show(w, string.Format(L.T("Usunąć {0} nagrań z dysku (do Kosza) i z biblioteki filmów?"), p.Count), L.T("Nagrania TV"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                if (!AskYes(w, string.Format(L.T("Usunąć {0} nagrań z dysku (do Kosza) i z biblioteki filmów?"), p.Count))) return;
                 var errs = DeleteVideoFiles(p);
                 fill();
-                if (errs.Count > 0) MessageBox.Show(w, L.T("Nie udało się usunąć (nagrywane albo odtwarzane):\n") + string.Join("\n", errs.Take(10)), L.T("Nagrania TV"));
+                if (errs.Count > 0) InfoBox(w, L.T("Nie udało się usunąć (nagrywane albo odtwarzane):\n") + string.Join("\n", errs.Take(10)));
             };
             list.MouseDoubleClick += (s, a) => play();
             list.PreviewKeyDown += (s, a) => { if (a.Key == System.Windows.Input.Key.Enter) { play(); a.Handled = true; } else if (a.Key == System.Windows.Input.Key.Delete) { del(); a.Handled = true; } };

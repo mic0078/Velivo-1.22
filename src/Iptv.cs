@@ -66,6 +66,7 @@ namespace Przegladarka
             public int Buffer { get; set; } = 1;
             public bool WatchFromRec { get; set; }   // ogladanie nagrywanego kanalu z pliku nagrania (jedno polaczenie, pauza i cofanie) - opcja
             public bool PauseRelease { get; set; }   // po 5 min pauzy zwolnij polaczenie z dostawca - opcja  // zapas bufora kanalow na zywo (s); 1 = jak VLC
+            public bool InfoOnMove { get; set; } = true;   // pasek informacji pokazuje sie przy ruchu myszy (inaczej tylko klawisz I)
             public int InfoSec { get; set; } = 5;        // pasek informacji o programie: znika po tylu sekundach; 0 = tylko na zadanie (klawisz I)
             public int InfoAlpha { get; set; } = 85;     // nieprzezroczystosc paska informacji (%)
             public int InfoScale { get; set; } = 100;
@@ -416,9 +417,11 @@ namespace Przegladarka
             menu.Items.Add(new Separator());
             item("", L.T("Odinstaluj moduł IPTV…"), UninstallIptv);
             item("\uE787", L.T("📅 Program TV"), () => ShowEpgGuide(this, null));
+            item("\uE823", L.T("⏰ Zaplanuj włączenie filmu / kanału…"), () => ShowScheduleStart(this));
             item("\uE787", L.T("Zaplanowane nagrania i przełączenia"), () => ShowJobs(this));
             item("\uE8B2", L.T("🎞 Nagrania"), () => ShowRecordings(this));
             item("\uE838", L.T("📁 Folder nagrań"), OpenRecDir);
+            item("\uE838", L.T("📁 Zmień folder nagrań…"), () => ChooseRecDir(this));
             _tvBtn.ContextMenu = menu;
             StartIptvScheduler();   // zaplanowane nagrania / przelaczenia dzialaja takze przy zamknietym oknie listy
             var resume = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };   // po uruchomieniu: ostatni program, ktory lecial przy zamykaniu
@@ -430,8 +433,7 @@ namespace Przegladarka
 
         void UninstallIptv()
         {
-            if (MessageBox.Show(this, L.T("Odinstalować moduł IPTV?\n\nTwoje listy kanałów zostają – wrócą po ponownej instalacji modułu. Odtwarzacz filmów zostaje."),
-                L.T("Telewizja IPTV"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (!AskYes(this, L.T("Odinstalować moduł IPTV?\n\nTwoje listy kanałów zostają – wrócą po ponownej instalacji modułu. Odtwarzacz filmów zostaje."))) return;
             if (_tvWin != null) _tvWin.Close();
             try { File.Delete(IptvMarker); } catch (Exception ex) { App.LogError(ex); }
             if (_tvBtn != null) { TabBarPanel.Children.Remove(_tvBtn); _tvBtn = null; }
@@ -511,11 +513,18 @@ namespace Przegladarka
         // okno listy: zrodlo (lista), grupy, kanaly z "teraz / nastepnie", program wybranego kanalu
         void ShowIptv(Window owner)
         {
-            if (_tvWin != null && _tvWin.IsLoaded) { if (_tvWin.Owner != owner) _tvWin.Owner = owner; _tvWin.Topmost = owner.Topmost; _tvWin.Activate(); return; }
+            if (_tvWin != null && _tvWin.IsLoaded)   // juz otwarte: na wierzch (takze zminimalizowane / ukryte za odtwarzaczem)
+            {
+                if (_tvWin.WindowState == WindowState.Minimized) _tvWin.WindowState = WindowState.Normal;
+                if (!_tvWin.IsVisible) _tvWin.Show();
+                _tvWin.Topmost = true; _tvWin.Topmost = owner.Topmost; _tvWin.Activate();
+                return;
+            }
             var st = IptvSt;
             var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "own-bounds" };   // miejsce zapamietuje sam (i omija odtwarzacz)
             PlaceIptvWindow(win, st.Win);
             var source = new ComboBox { Width = 200, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center };
+            Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var addBtn = SmallButton(L.T("➕ Dodaj listę"), null);
             var editBtn = SmallButton(L.T("✏ Edytuj"), null);
             var delBtn = SmallButton(L.T("🗑 Usuń listę"), null);
@@ -751,7 +760,7 @@ namespace Przegladarka
             delBtn.Click += (s, a) =>
             {
                 var src = cur(); if (src == null) return;
-                if (MessageBox.Show(win, string.Format(L.T("Usunąć listę „{0}” z Velivo?"), src.Name), L.T("Telewizja"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                if (!AskYes(win, string.Format(L.T("Usunąć listę „{0}” z Velivo?"), src.Name))) return;
                 st.Sources.Remove(src);
                 foreach (var ext in new[] { ".m3u", ".epg" }) try { File.Delete(IptvCache(src, ext)); } catch (Exception) { }
                 SaveIptv(st); fillSources(); if (st.Sources.Count == 0) _ = load(false);
@@ -864,7 +873,12 @@ namespace Przegladarka
             buttons.Children.Add(SmallButton(L.T("📅 Zaplanowane"), () => ShowJobs(win)));
             buttons.Children.Add(SmallButton(L.T("📅 Program TV"), () => ShowEpgGuide(win, (list.SelectedItem as TvRow)?.Ch.Url)));
             buttons.Children.Add(SmallButton(L.T("🎞 Nagrania"), () => ShowRecordings(win)));
-            buttons.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
+            var recDirBtn = SmallButton(L.T("📁 Folder nagrań"), OpenRecDir);
+            recDirBtn.ToolTip = L.T("Klik: otwórz folder nagrań · prawy przycisk: zmień folder");
+            var recDirMenu = new ContextMenu(); var chg = new MenuItem { Header = L.T("📁 Zmień folder nagrań…") }; chg.Click += (s, a) => ChooseRecDir(win); recDirMenu.Items.Add(chg);
+            recDirBtn.ContextMenu = recDirMenu;
+            buttons.Children.Add(recDirBtn);
+            buttons.Children.Add(SmallButton(L.T("Zmień…"), () => ChooseRecDir(win)));
             var body = new DockPanel();
             DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);
             DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);

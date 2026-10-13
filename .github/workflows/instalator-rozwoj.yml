@@ -2,7 +2,7 @@ name: Instalator testowy (gałąź robocza rozwoj)
 
 on:
   push:
-    branches: ['rozwoj', 'iptv']
+    branches: ['rozwoj']
     paths: ['src/**', 'testy/**', '.github/workflows/instalator-rozwoj.yml']
 
 permissions:

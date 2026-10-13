@@ -124,6 +124,8 @@ namespace Przegladarka
             {
                 var open = SmallButton(L.T("Otwórz"), () => { try { Process.Start(new ProcessStartInfo(file) { UseShellExecute = true }); } catch (Exception) { } toast.Close(); });
                 var show = SmallButton(L.T("Pokaż w folderze"), () => { Process.Start("explorer.exe", "/select,\"" + file + "\""); toast.Close(); });
+                foreach (var b in new[] { open, show })   // powiadomienie zawsze ciemne - przyciski czytelne w jasnym i ciemnym motywie
+                { b.Background = new SolidColorBrush(Color.FromRgb(0x37, 0x41, 0x51)); b.Foreground = Brushes.White; b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80)); }
                 buttons.Children.Add(open); buttons.Children.Add(show);
                 panel.Children.Add(buttons);
             }

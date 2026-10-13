@@ -712,6 +712,14 @@ namespace Przegladarka
             var playerResumeBox = Check(L.T("Wznawiaj od miejsca, w którym skończyłeś"), L.T("Miejsce w każdym filmie zapamiętywane tylko na tym komputerze."), s.PlayerResume);
             var playerLoopBox = Check(L.T("Powtarzaj film w kółko"), null, s.PlayerLoop);
             foreach (var pb in new[] { playerBox, playerAutoBox, playerResumeBox, playerLoopBox }) root.Children.Add(pb);
+            // odtwarzacz filmow (VLC): wznawianie filmu - pytanie albo stale ustawienie
+            root.Children.Add(new TextBlock { Text = L.T("Odtwarzacz filmów (biblioteka): film oglądany wcześniej"), Margin = new Thickness(0, 6, 0, 2) });
+            var resumeMode = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 4) };
+            var resumeKeys = new[] { "pytaj", "wznow", "poczatek" };
+            foreach (var t in new[] { "Pytaj za każdym razem", "Zawsze wznawiaj od miejsca przerwania", "Zawsze od początku" }) resumeMode.Items.Add(L.T(t));
+            resumeMode.SelectedIndex = Math.Max(0, Array.IndexOf(resumeKeys, GetPref("wznawianie") ?? "pytaj"));
+            resumeMode.SelectionChanged += (a, b) => SetPref("wznawianie", resumeKeys[Math.Max(0, resumeMode.SelectedIndex)]);
+            root.Children.Add(resumeMode);
             var playerAssoc = SmallButton(L.T("Otwieraj filmy i PDF w Velivo (Windows)…"), OpenVelivoDefaultApps);
             playerAssoc.HorizontalAlignment = HorizontalAlignment.Left; playerAssoc.Margin = new Thickness(0, 4, 0, 4);
             playerAssoc.ToolTip = L.T("Otwiera Aplikacje domyślne Windows na stronie Velivo – tam przy .mp4, .mkv, .pdf… wybierasz Velivo. Na jeden plik: prawy przycisk → Otwórz za pomocą → Velivo.");

@@ -5,7 +5,9 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Interop;
 
 namespace Przegladarka
@@ -145,6 +147,70 @@ namespace Przegladarka
         }
 
         // drobne ustawienia list (np. sortowanie) - w tym samym pliku co okna
+        // okno niezalezne (jak zwykle okno Windows): wlasna pozycja na pasku zadan, nie przykrywa na stale innych okien Velivo,
+        // przelaczanie Alt+Tab; zamykane razem z Velivo. Pierwsze otwarcie - na srodku okna, z ktorego je otwarto.
+        readonly List<Window> _independent = new List<Window>();
+        internal void Independent(Window w)
+        {
+            var o = w.Owner;
+            if (o != null && w.WindowStartupLocation == WindowStartupLocation.CenterOwner && o.IsLoaded)
+            {
+                w.WindowStartupLocation = WindowStartupLocation.Manual;
+                double ow = o.WindowState == WindowState.Maximized ? SystemParameters.WorkArea.Width : o.ActualWidth, oh = o.WindowState == WindowState.Maximized ? SystemParameters.WorkArea.Height : o.ActualHeight;
+                double ol = o.WindowState == WindowState.Maximized ? SystemParameters.WorkArea.Left : o.Left, ot = o.WindowState == WindowState.Maximized ? SystemParameters.WorkArea.Top : o.Top;
+                w.Left = ol + Math.Max(0, (ow - w.Width) / 2); w.Top = ot + Math.Max(0, (oh - w.Height) / 2);
+            }
+            if (w.WindowStartupLocation == WindowStartupLocation.CenterOwner) w.WindowStartupLocation = WindowStartupLocation.CenterScreen;   // bez okna-wlasciciela
+            if (w.Icon == null) w.Icon = Icon;
+            w.Owner = null; w.ShowInTaskbar = true;
+            _independent.Add(w); w.Closed += (s, e) => _independent.Remove(w);
+        }
+        // pytanie Tak / Nie w stylu Velivo (ciemne, czytelne okienko jak w odtwarzaczu) - zamiast szarego MessageBox Windows
+        internal static bool AskYes(Window owner, string text, string yes = null, string no = null)
+        {
+            bool res = false;
+            var d = new Window { WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false, Owner = owner != null && owner.IsVisible ? owner : null, Topmost = owner?.Topmost ?? false, WindowStartupLocation = owner != null && owner.IsVisible ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen };
+            var p = new StackPanel { Margin = new Thickness(26, 20, 26, 20), MaxWidth = 460 };
+            p.Children.Add(new TextBlock { Text = text, Foreground = Brushes.White, FontSize = 15, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 16) });
+            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            Func<string, bool, Button> btn = (t, primary) => new Button
+            {
+                Content = t, Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(6, 0, 6, 0), FontSize = 14, Cursor = System.Windows.Input.Cursors.Hand,
+                Background = primary ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : Brushes.White, Foreground = primary ? Brushes.White : Brushes.Black,
+                BorderBrush = primary ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : Brushes.LightGray, Template = RoundButton()
+            };
+            var y = btn(yes ?? L.T("Tak"), true); var n = btn(no ?? L.T("Nie"), false);
+            y.Click += (s, e) => { res = true; d.Close(); }; n.Click += (s, e) => d.Close();
+            y.IsDefault = true; n.IsCancel = true; if (no == "") y.IsCancel = true;
+            row.Children.Add(y); if (no != "") row.Children.Add(n); p.Children.Add(row);
+            d.Content = new Border { Child = p, CornerRadius = new CornerRadius(10), Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x22, 0x22, 0x22)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)), BorderThickness = new Thickness(1) };
+            d.Loaded += (s, e) => y.Focus();
+            d.ShowDialog();
+            return res;
+        }
+
+        // informacja z jednym przyciskiem OK - ten sam czytelny styl
+        internal static void InfoBox(Window owner, string text) { AskYes(owner, text, "OK", ""); }
+
+        // zaokraglony przycisk (tlo z Background, poswiata pod mysza)
+        static ControlTemplate RoundButton()
+        {
+            var g = new FrameworkElementFactory(typeof(Grid));
+            var bd = new FrameworkElementFactory(typeof(Border));
+            bd.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty)); bd.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
+            bd.SetValue(Border.BorderThicknessProperty, new Thickness(1)); bd.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+            var ov = new FrameworkElementFactory(typeof(Border), "ov"); ov.SetValue(Border.CornerRadiusProperty, new CornerRadius(6)); ov.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter)); cp.SetValue(FrameworkElement.MarginProperty, new TemplateBindingExtension(Control.PaddingProperty));
+            cp.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center); cp.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+            g.AppendChild(bd); g.AppendChild(ov); g.AppendChild(cp);
+            var t = new ControlTemplate(typeof(Button)) { VisualTree = g };
+            var h = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; h.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x30, 0x80, 0x80, 0x80)), "ov")); t.Triggers.Add(h);
+            return t;
+        }
+
+        void CloseIndependent() { foreach (var w in _independent.ToList()) try { w.Close(); } catch (Exception) { } }
+
         internal static string GetPref(string key) { return WinBounds().TryGetValue("ust:" + key, out var v) ? v : null; }
 
         internal static void SetPref(string key, string value)

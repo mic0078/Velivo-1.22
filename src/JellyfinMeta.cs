@@ -38,6 +38,206 @@ namespace Przegladarka
 
         static string MetaDir { get { return Path.Combine(DataDir, "filmy-info"); } }
         static string MetaFile { get { return Path.Combine(MetaDir, "baza.json"); } }
+        static string JellyfinFilesFile { get { return Path.Combine(MetaDir, "pliki.txt"); } }
+
+        // nowe filmy z Jellyfin, ktorych plik jest dostepny na tym komputerze, a nie ma ich w bibliotece (ten sam plik z dwoch bibliotek Jellyfin - raz)
+        internal static List<string> NewJellyfinFiles(List<string> jellyfinPaths, IEnumerable<string> libraryPaths, Func<string, bool> exists)
+        {
+            var have = new HashSet<string>(libraryPaths.Select(MetaKey));
+            var res = new List<string>();
+            foreach (var p in jellyfinPaths.Where(p => !string.IsNullOrWhiteSpace(p)))
+            {
+                var k = MetaKey(p);
+                if (have.Contains(k) || !IsVlcVideoFile(p) || !exists(p)) continue;
+                have.Add(k); res.Add(p);
+            }
+            return res;
+        }
+
+        // informacje o filmach wpisane recznie (gdy Jellyfin ich nie zna) - osobny plik, pobieranie z Jellyfin ich nie nadpisuje
+        static string ManualFile { get { return Path.Combine(MetaDir, "reczne.json"); } }
+        static Dictionary<string, MovieInfo> LoadManual()
+        {
+            try { if (File.Exists(ManualFile)) return JsonSerializer.Deserialize<Dictionary<string, MovieInfo>>(File.ReadAllText(ManualFile)) ?? new Dictionary<string, MovieInfo>(); } catch (Exception ex) { App.LogError(ex); }
+            return new Dictionary<string, MovieInfo>();
+        }
+
+        // okno: tytul, rok, ocena, gatunek, rezyser, obsada, opis, plakat (z pliku) - dla filmu bez danych albo z blednymi
+        void ShowMetaEditor(Window owner, string path, string fileTitle, Action done)
+        {
+            var key = MetaKey(path);
+            var cur = LookupMeta(Meta, path);
+            var win = new Window { Title = L.T("📝 Informacje o filmie"), Width = 640, Height = 600, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
+            var grid = new Grid { Margin = new Thickness(12) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
+            var poster = new Image { Width = 170, Height = 250, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Top };
+            string posterFile = cur?.Poster, posterNew = null;
+            Action showPoster = () => { var f = posterNew ?? (posterFile != null ? Path.Combine(PosterDir, posterFile) : null); poster.Source = f != null && File.Exists(f) ? LoadLogo(f, 500) : null; };
+            showPoster();
+            var left = new StackPanel(); left.Children.Add(poster);
+            left.Children.Add(SmallButton(L.T("🖼 Wybierz plakat…"), () =>
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Obrazy") + "|*.jpg;*.jpeg;*.png;*.webp;*.bmp" };
+                if (dlg.ShowDialog(win) == true) { posterNew = dlg.FileName; showPoster(); }
+            }));
+            Grid.SetColumn(left, 0); grid.Children.Add(left);
+            var form = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
+            Func<string, string, bool, TextBox> field = (label, val, multi) =>
+            {
+                form.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 6, 0, 2) });
+                var tb = new TextBox { Text = val ?? "", Padding = new Thickness(4), AcceptsReturn = multi, TextWrapping = multi ? TextWrapping.Wrap : TextWrapping.NoWrap, Height = multi ? 170 : double.NaN, VerticalScrollBarVisibility = multi ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled };
+                form.Children.Add(tb); return tb;
+            };
+            var tTitle = field(L.T("Tytuł"), cur?.Name ?? fileTitle, false);
+            var tOrig = field(L.T("Tytuł oryginalny"), cur?.Original, false);
+            var tYear = field(L.T("Rok"), cur?.Year > 0 ? cur.Year.ToString() : "", false);
+            var tRating = field(L.T("Ocena (0–10)"), cur?.Rating > 0 ? cur.Rating.ToString("0.0") : "", false);
+            var tGenre = field(L.T("Gatunek (po przecinku)"), cur != null ? string.Join(", ", cur.Genres ?? new List<string>()) : "", false);
+            var tDir = field(L.T("Reżyseria"), cur?.Director, false);
+            var tPeople = field(L.T("Obsada (po przecinku)"), cur != null ? string.Join(", ", cur.People ?? new List<string>()) : "", false);
+            var tOver = field(L.T("Opis"), cur?.Overview, true);
+            var sv = new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            Grid.SetColumn(sv, 1); grid.Children.Add(sv);
+            var ok = SmallButton(L.T("💾 Zapisz"), () =>
+            {
+                Func<string, List<string>> list = t => t.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+                var m = new MovieInfo { Id = cur?.Id, ImageTag = cur?.ImageTag, Age = cur?.Age, Name = tTitle.Text.Trim(), Original = tOrig.Text.Trim(), Overview = tOver.Text.Trim(), Director = tDir.Text.Trim(), Genres = list(tGenre.Text), People = list(tPeople.Text), Poster = posterFile };
+                int.TryParse(tYear.Text.Trim(), out var y); m.Year = y;
+                double.TryParse(tRating.Text.Trim().Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var r); m.Rating = Math.Max(0, Math.Min(10, r));
+                if (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0) m.Overview = " ";   // film uznany za opisany (tytul z tego okna)
+                if (posterNew != null)
+                    try { Directory.CreateDirectory(PosterDir); var f = "reczny-" + Math.Abs(key.GetHashCode()) + Path.GetExtension(posterNew).ToLowerInvariant(); File.Copy(posterNew, Path.Combine(PosterDir, f), true); m.Poster = f; }
+                    catch (Exception ex) { InfoBox(win, L.T("Nie udało się skopiować plakatu: ") + ex.Message); return; }
+                var man = LoadManual(); man[key] = m;
+                Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
+                Meta[key] = m; win.Close(); done?.Invoke();
+            });
+            var del = SmallButton(L.T("↺ Przywróć dane z Jellyfin"), () =>
+            {
+                var man = LoadManual(); if (!man.Remove(key)) { win.Close(); return; }
+                File.WriteAllText(ManualFile, JsonSerializer.Serialize(man)); _meta = null; win.Close(); done?.Invoke();   // baza wczytana od nowa - bez recznych danych tego filmu
+            });
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12, 0, 12, 12) };
+            bar.Children.Add(del); bar.Children.Add(ok);
+            var dock = new DockPanel(); DockPanel.SetDock(bar, Dock.Bottom); dock.Children.Add(bar); dock.Children.Add(grid);
+            win.Content = dock;
+            win.Show();
+        }
+
+        // wyszukanie filmu w sieci przez Jellyfin (jego dostawcy: TMDb, OMDb) i przypisanie wybranego wyniku - poprawia tez Jellyfin
+        void ShowMetaSearch(Window owner, string path, string fileTitle, Action done)
+        {
+            var c = LoadJellyfinConf();
+            var cur = LookupMeta(Meta, path);
+            if (c == null || string.IsNullOrEmpty(c.Url) || cur?.Id == null)
+            {
+                // film nieznany Jellyfin - wyszukiwarka w nowej karcie (Filmweb) i reczne uzupelnienie
+                ShowWebWindow(owner, "https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(fileTitle));
+                InfoBox(owner, L.T("Tego filmu nie ma w Jellyfin (albo Jellyfin nie jest ustawiony), więc otworzyłem wyszukiwanie w Filmweb.\n\nInformacje możesz wpisać w „📝 Uzupełnij informacje…”."));
+                return;
+            }
+            var win = new Window { Title = L.T("🔎 Wyszukaj informacje o filmie"), Width = 720, Height = 560, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
+            var ym = System.Text.RegularExpressions.Regex.Match(fileTitle ?? "", @"^(.+) \((\d{4})\)$");
+            var qName = new TextBox { Text = ym.Success ? ym.Groups[1].Value : fileTitle, Padding = new Thickness(4), Width = 380 };
+            var qYear = new TextBox { Text = ym.Success ? ym.Groups[2].Value : "", Padding = new Thickness(4), Width = 70, Margin = new Thickness(6, 0, 6, 0) };
+            var status = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(12, 4, 12, 4) };
+            var list = new ListBox { Margin = new Thickness(12, 0, 12, 0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+            var results = new List<JsonElement>();
+            Func<System.Threading.Tasks.Task> search = async () =>
+            {
+                status.Text = L.T("Szukam…"); list.Items.Clear(); results.Clear();
+                try
+                {
+                    using (var http = JellyfinClient(c))
+                    {
+                        int.TryParse(qYear.Text.Trim(), out var y);
+                        var body = JsonSerializer.Serialize(new Dictionary<string, object> { ["SearchInfo"] = y > 0 ? (object)new { Name = qName.Text.Trim(), Year = y } : new { Name = qName.Text.Trim() }, ["ItemId"] = cur.Id });
+                        var resp = await Ok(http.PostAsync("Items/RemoteSearch/Movie", new StringContent(body, Encoding.UTF8, "application/json")));
+                        var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                        foreach (var r in doc.RootElement.EnumerateArray()) results.Add(r.Clone());
+                    }
+                }
+                catch (Exception ex) { status.Text = L.T("⚠ Błąd wyszukiwania: ") + ex.Message; return; }
+                foreach (var r in results)
+                {
+                    string S(string n) { return r.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null; }
+                    var year = r.TryGetProperty("ProductionYear", out var py) && py.ValueKind == JsonValueKind.Number ? " (" + py.GetInt32() + ")" : "";
+                    var img = new Image { Width = 60, Height = 90, Stretch = Stretch.Uniform, Margin = new Thickness(0, 2, 10, 2) };
+                    var url = S("ImageUrl");
+                    if (url != null) try { img.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(url)); } catch (Exception) { }
+                    var txt = new StackPanel();
+                    txt.Children.Add(new TextBlock { Text = S("Name") + year, FontWeight = FontWeights.SemiBold, FontSize = 14 });
+                    var ov = S("Overview"); if (ov != null) txt.Children.Add(new TextBlock { Text = ov.Length > 220 ? ov.Substring(0, 220) + "…" : ov, TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray });
+                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); row.Children.Add(img); row.Children.Add(txt);
+                    list.Items.Add(new ListBoxItem { Content = row });
+                }
+                status.Text = results.Count == 0 ? L.T("Nic nie znaleziono – zmień tytuł albo rok i szukaj ponownie.") : L.T("Wybierz właściwy film i kliknij „Zastosuj”.");
+            };
+            var apply = SmallButton(L.T("✅ Zastosuj"), async () =>
+            {
+                int i = list.SelectedIndex; if (i < 0 || i >= results.Count) return;
+                status.Text = L.T("Przypisuję w Jellyfin i pobieram dane…");
+                try
+                {
+                    using (var http = JellyfinClient(c))
+                    {
+                        var before = cur.ImageTag + "|" + cur.Overview + "|" + cur.Year;
+                        await Ok(http.PostAsync("Items/RemoteSearch/Apply/" + cur.Id + "?ReplaceAllImages=true", new StringContent(results[i].GetRawText(), Encoding.UTF8, "application/json")));
+                        // Jellyfin aktualizuje film w tle - pobieramy tylko ten film, az dane sie zmienia (najwyzej ok. 45 s)
+                        MovieInfo m = null;
+                        for (int t = 0; t < 15; t++)
+                        {
+                            await System.Threading.Tasks.Task.Delay(3000);
+                            var js = await (await Ok(http.GetAsync("Items?Ids=" + cur.Id + "&Fields=Path,Overview,Genres,People,OriginalTitle,OfficialRating"))).Content.ReadAsStringAsync();
+                            var items = JsonDocument.Parse(js).RootElement.GetProperty("Items");
+                            if (items.GetArrayLength() == 0) break;
+                            m = ParseJellyfinItem(items[0]);
+                            if (m.ImageTag + "|" + m.Overview + "|" + m.Year != before && !string.IsNullOrEmpty(m.Overview)) break;
+                        }
+                        if (m == null) { status.Text = L.T("⚠ Jellyfin nie zwrócił filmu – spróbuj „🔄 Odśwież” w bibliotece za chwilę."); return; }
+                        if (m.ImageTag != null)
+                            try { var img = await http.GetByteArrayAsync("Items/" + m.Id + "/Images/Primary?maxHeight=720&quality=90"); Directory.CreateDirectory(PosterDir); var f = m.Id + "-720.jpg"; File.WriteAllBytes(Path.Combine(PosterDir, f), img); m.Poster = f; }
+                            catch (Exception) { m.Poster = cur.Poster; }
+                        var key = MetaKey(path);
+                        var meta = new Dictionary<string, MovieInfo>(Meta, StringComparer.OrdinalIgnoreCase);
+                        foreach (var k in meta.Where(kv => kv.Value.Id == cur.Id || kv.Value == cur).Select(kv => kv.Key).ToList()) meta[k] = m;   // wszystkie klucze tego filmu
+                        meta[key] = m;
+                        Directory.CreateDirectory(MetaDir);
+                        File.WriteAllText(MetaFile, JsonSerializer.Serialize(meta.Where(kv => !kv.Key.StartsWith("ty:") && !kv.Key.StartsWith("t:")).ToDictionary(kv => kv.Key, kv => kv.Value)));
+                        _meta = null;   // wczytana od nowa (z kluczami tytulow i recznymi danymi)
+                    }
+                    done?.Invoke(); win.Close();
+                }
+                catch (Exception ex) { status.Text = L.T("⚠ Nie udało się: ") + ex.Message; }
+            });
+            var top = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 12, 12, 4) };
+            top.Children.Add(qName); top.Children.Add(qYear); top.Children.Add(SmallButton(L.T("🔎 Szukaj"), () => { _ = search(); }));
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12) };
+            bar.Children.Add(SmallButton(L.T("🌐 Szukaj w Filmweb"), () => ShowWebWindow(win, "https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(qName.Text.Trim()))));
+            bar.Children.Add(apply);
+            var dock = new DockPanel();
+            DockPanel.SetDock(top, Dock.Top); DockPanel.SetDock(status, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
+            dock.Children.Add(top); dock.Children.Add(status); dock.Children.Add(bar); dock.Children.Add(list);
+            win.Content = dock;
+            list.MouseDoubleClick += (s, a) => apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            win.Loaded += (s, a) => { _ = search(); };
+            win.Show();
+        }
+
+        // strona w osobnym okienku na wierzchu (nad biblioteka i oknem wyszukiwania - karta w glownym oknie bylaby schowana)
+        void ShowWebWindow(Window owner, string url)
+        {
+            var w = new Window { Title = "Filmweb", Width = 1000, Height = 760, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var view = new Microsoft.Web.WebView2.Wpf.WebView2();
+            w.Content = view;
+            w.Loaded += async (s, a) => { try { await view.EnsureCoreWebView2Async(_env); view.CoreWebView2.Navigate(url); } catch (Exception ex) { App.LogError(ex); } };
+            w.Closed += (s, a) => view.Dispose();
+            w.Show();
+        }
+
         static string PosterDir { get { return Path.Combine(MetaDir, "plakaty"); } }
         static string JellyfinConfFile { get { return Path.Combine(DataDir, "jellyfin.bin"); } }
         static readonly byte[] JellyfinEntropy = Encoding.UTF8.GetBytes("Velivo.Jellyfin");
@@ -50,6 +250,7 @@ namespace Przegladarka
                 if (_meta != null) return _meta;
                 try { _meta = File.Exists(MetaFile) ? JsonSerializer.Deserialize<Dictionary<string, MovieInfo>>(File.ReadAllText(MetaFile)) : null; } catch (Exception ex) { App.LogError(ex); }
                 _meta = new Dictionary<string, MovieInfo>(_meta ?? new Dictionary<string, MovieInfo>(), StringComparer.OrdinalIgnoreCase);
+                foreach (var kv in LoadManual()) _meta[kv.Key] = kv.Value;   // informacje wpisane recznie maja pierwszenstwo
                 foreach (var m in _meta.Where(kv => !kv.Key.StartsWith("ty:") && !kv.Key.StartsWith("t:")).Select(kv => kv.Value).Distinct().ToList()) AddTitleKeys(_meta, m);   // tytul + rok od razu, bez ponownej synchronizacji
                 return _meta;
             }
@@ -88,9 +289,9 @@ namespace Przegladarka
         internal MovieInfo MetaFor(string path) { return LookupMeta(Meta, path); }
 
         // sortowanie listy filmow: az / za / ocena / rok (rok nierozpoznanego filmu z nazwy pliku)
-        internal static List<T> SortFilms<T>(IEnumerable<T> src, Func<T, string> raw, Func<T, MovieInfo> meta, string how)
+        internal static List<T> SortFilms<T>(IEnumerable<T> src, Func<T, string> raw, Func<T, MovieInfo> meta, string how, Func<T, string> custom = null)
         {
-            var rows = src.Select(x => { var m = meta(x); var t = MetaTitle(m) ?? CleanTitle(raw(x)); var y = System.Text.RegularExpressions.Regex.Match(t, @"\((\d{4})\)$");
+            var rows = src.Select(x => { var m = meta(x); var c = custom?.Invoke(x); var t = !string.IsNullOrWhiteSpace(c) ? c : MetaTitle(m) ?? CleanTitle(raw(x)); var y = System.Text.RegularExpressions.Regex.Match(t, @"\((\d{4})\)$");
                 return (x, t, r: m?.Rating ?? 0, y: m?.Year > 0 ? m.Year : y.Success ? int.Parse(y.Groups[1].Value) : 0); }).ToList();
             var cmp = StringComparer.CurrentCultureIgnoreCase;
             var o = how == "za" ? rows.OrderByDescending(r => r.t, cmp)
@@ -163,7 +364,7 @@ namespace Przegladarka
 
         static HttpClient JellyfinClient(JellyfinConf c)
         {
-            var http = new HttpClient { BaseAddress = new Uri(c.Url.TrimEnd('/') + "/"), Timeout = TimeSpan.FromSeconds(60) };
+            var http = new HttpClient { BaseAddress = new Uri(c.Url.TrimEnd('/') + "/"), Timeout = TimeSpan.FromMinutes(5) };   // duza baza (ponad 1000 filmow z obsada) - serwer odpowiada dlugo
             http.DefaultRequestHeaders.TryAddWithoutValidation("X-Emby-Token", c.Key);
             http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
             return http;
@@ -207,6 +408,14 @@ namespace Przegladarka
                 if (!resp.IsSuccessStatusCode) resp = await Ok(http.GetAsync("Users/" + uid + "/" + q));   // starszy serwer - widok uzytkownika
                 var json = await resp.Content.ReadAsStringAsync();
                 var items = JsonDocument.Parse(json).RootElement.GetProperty("Items");
+                // foldery ustawione teraz w bibliotekach Jellyfin - stare wpisy z usunietych folderow (np. dawne litery dyskow) pomijamy
+                var roots = new List<string>();
+                try
+                {
+                    var vf = JsonDocument.Parse(await (await Ok(http.GetAsync("Library/VirtualFolders"))).Content.ReadAsStringAsync()).RootElement;
+                    foreach (var f in vf.EnumerateArray()) if (f.TryGetProperty("Locations", out var locs)) foreach (var l in locs.EnumerateArray()) { var s = l.GetString(); if (!string.IsNullOrEmpty(s)) roots.Add(s.Replace('/', '\\').TrimEnd('\\') + "\\"); }
+                }
+                catch (Exception) { roots.Clear(); }   // starszy serwer - bez filtra
                 var meta = new Dictionary<string, MovieInfo>(Meta, StringComparer.OrdinalIgnoreCase);
                 int n = 0, total = items.GetArrayLength(), posters = 0;
                 Directory.CreateDirectory(PosterDir);
@@ -215,9 +424,10 @@ namespace Przegladarka
                 {
                     n++;
                     var path = it.TryGetProperty("Path", out var pth) ? pth.GetString() : null; if (path == null) continue;
+                    if (roots.Count > 0 && !roots.Any(r => path.Replace('/', '\\').StartsWith(r, StringComparison.OrdinalIgnoreCase))) continue;   // poza bibliotekami Jellyfin
                     var m = ParseJellyfinItem(it);
                     var key = MetaKey(path);
-                    jfAll.Add((m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "") + (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? "  [nierozpoznany w Jellyfin]" : ""), path));
+                    if (it.TryGetProperty("Type", out var ty) && ty.GetString() == "Movie") jfAll.Add((m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "") + (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? "  [nierozpoznany w Jellyfin]" : ""), path));
                     meta.TryGetValue(key, out var old);
                     if (old != null && old.Id != m.Id && Richness(old) > Richness(ParseJellyfinItem(it))) continue;   // ten sam plik w drugiej bibliotece Jellyfin, tam nierozpoznany - zostaja lepsze dane
                     m.Poster = old?.Poster;
@@ -245,6 +455,7 @@ namespace Przegladarka
                 foreach (var k in meta.Keys.Where(k => k.StartsWith("ty:") || k.StartsWith("t:")).ToList()) meta.Remove(k);   // klucze tytulow liczone przy wczytaniu
                 File.WriteAllText(MetaFile, JsonSerializer.Serialize(meta));
                 foreach (var m in meta.Values.Distinct().ToList()) AddTitleKeys(meta, m);
+                foreach (var kv in LoadManual()) meta[kv.Key] = kv.Value;   // reczne informacje zostaja po pobraniu z Jellyfin
                 _meta = meta;
                 c.Synced = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveJellyfinConf(c);
                 var lib = LoadLibrary(); int matched = lib.Count(v => LookupMeta(meta, v.Path) != null);
@@ -257,6 +468,7 @@ namespace Przegladarka
                     rep.Append("\nFilmy w Jellyfin bez pliku o tej nazwie w bibliotece Velivo:\n");
                     foreach (var j in jfAll.Where(j => !libKeys.Contains(MetaKey(j.Path))).OrderBy(j => j.Path)) rep.Append("  " + j.Name + "   <-   " + j.Path + "\n");
                     File.WriteAllText(Path.Combine(DataDir, "jellyfin-raport.txt"), rep.ToString());
+                    File.WriteAllLines(JellyfinFilesFile, jfAll.Select(j => j.Path));   // pliki filmow Jellyfin - Odswiez w bibliotece dopisuje nowe
                 }
                 catch (Exception ex) { App.LogError(ex); }
                 return L.T("✅ Filmów z Jellyfin: ") + total + L.T(" · dopasowanych w bibliotece: ") + matched + " / " + lib.Count + L.T(" · nowe plakaty: ") + posters;
@@ -284,6 +496,7 @@ namespace Przegladarka
         {
             var c = LoadJellyfinConf() ?? new JellyfinConf { Url = "http://" };
             var d = new Window { Title = L.T("🎞 Informacje o filmach z Jellyfin"), Width = 520, SizeToContent = SizeToContent.Height, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize };
+            Independent(d);   // zwykle okno Windows - nie przykrywa innych na stale
             var p = new StackPanel { Margin = new Thickness(12) };
             p.Children.Add(new TextBlock { Text = L.T("Velivo pobierze z Twojego serwera Jellyfin tytuły, opisy, oceny, obsadę i plakaty do własnej bazy na tym komputerze (działa też, gdy serwer jest wyłączony) i będzie ją uzupełniać."), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray });
             Func<string, string, TextBox> field = (label, value) => { p.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 8, 0, 2) }); var t = new TextBox { Text = value ?? "", Padding = new Thickness(4) }; p.Children.Add(t); return t; };
@@ -309,7 +522,7 @@ namespace Przegladarka
             };
             p.Children.Add(ok);
             d.Content = p;
-            d.ShowDialog();
+            d.Show();
         }
     }
 }

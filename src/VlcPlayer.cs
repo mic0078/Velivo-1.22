@@ -1529,10 +1529,10 @@ namespace Przegladarka
                 clock.Visibility = GetPref("zegar") == "1" ? Visibility.Visible : Visibility.Collapsed;
                 if (clock.Visibility != Visibility.Visible) return;
                 var pos = GetPref("zegar-poz") ?? "pg";   // [l|s|p][g|d]: lewy / srodek / prawy, gora / dol
-                double k = (GetPref("zegar-wielk") ?? "2") == "1" ? 0.035 : (GetPref("zegar-wielk") ?? "2") == "3" ? 0.085 : 0.055;
-                clockText.FontSize = Math.Max(12, win.ActualHeight * k);
+                var zw = GetPref("zegar-wielk") ?? "2"; double k = zw == "0" ? 0.022 : zw == "1" ? 0.035 : zw == "3" ? 0.085 : 0.055;
+                clockText.FontSize = Math.Max(10, win.ActualHeight * k);
                 int alpha = int.TryParse(GetPref("zegar-alfa"), out var a) ? a : 85;
-                clock.Opacity = Math.Max(0.15, Math.Min(1, alpha / 100.0));
+                clock.Opacity = Math.Max(0.08, Math.Min(1, alpha / 100.0));
                 clock.Background = new SolidColorBrush(Color.FromArgb(0x55, 0, 0, 0));
                 clock.HorizontalAlignment = pos[0] == 'l' ? HorizontalAlignment.Left : pos[0] == 's' ? HorizontalAlignment.Center : HorizontalAlignment.Right;
                 clock.VerticalAlignment = pos.EndsWith("g") ? VerticalAlignment.Top : VerticalAlignment.Bottom;
@@ -2059,7 +2059,7 @@ namespace Przegladarka
                     cm.Items.Add(mi);
                 }
                 if (cm.Items.Count > 0) cm.Items.Add(new Separator());
-                var load = new MenuItem { Header = L.T("Wczytaj napisy z pliku…") };
+                var load = new MenuItem { Header = L.T("📂 Wczytaj napisy z pliku…") };
                 load.Click += (a, b) =>
                 {
                     var dlg = new Microsoft.Win32.OpenFileDialog { Title = L.T("Napisy"), Filter = L.T("Napisy") + "|" + string.Join(";", SubtitleExts.Select(x => "*" + x)) };
@@ -2185,21 +2185,21 @@ namespace Przegladarka
                 var moveM = new MenuItem { Header = L.T("Pokazuj przy ruchu myszy"), IsCheckable = true, IsChecked = IptvSt.InfoOnMove };
                 moveM.Click += (q, w2) => { IptvSt.InfoOnMove = moveM.IsChecked; SaveIptv(IptvSt); showOsd(IptvSt.InfoOnMove ? L.T("Pasek informacji: przy ruchu myszy") : L.T("Pasek informacji: tylko klawisz I")); };
                 infoM.Items.Add(moveM);
-                var hideM = new MenuItem { Header = L.T("Znikanie po") };
+                var hideM = new MenuItem { Header = L.T("⏱ Znikanie po") };
                 foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
                 {
                     var sec = sec0; var mi = new MenuItem { Header = sec == 0 ? L.T("nie pokazuj sam (tylko klawisz I)") : sec + " s", IsCheckable = true, IsChecked = IptvSt.InfoSec == sec };
                     mi.Click += (q, w2) => { IptvSt.InfoSec = sec; SaveIptv(IptvSt); showInfo(true); };
                     hideM.Items.Add(mi);
                 }
-                var alphaM = new MenuItem { Header = L.T("Przezroczystość tła") };
+                var alphaM = new MenuItem { Header = L.T("🌓 Przezroczystość tła") };
                 foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
                 {
                     var al = a0; var mi = new MenuItem { Header = (100 - al) + " %" + (al == 100 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = IptvSt.InfoAlpha == al };
                     mi.Click += (q, w2) => { IptvSt.InfoAlpha = al; SaveIptv(IptvSt); showInfo(true); };
                     alphaM.Items.Add(mi);
                 }
-                var sizeM = new MenuItem { Header = L.T("Wielkość tekstu (względem okna)") };
+                var sizeM = new MenuItem { Header = L.T("🔠 Wielkość tekstu (względem okna)") };
                 foreach (var z0 in new[] { new object[] { 85, "Mały" }, new object[] { 100, "Normalny" }, new object[] { 125, "Duży" }, new object[] { 150, "Bardzo duży" } })
                 {
                     var z = (int)z0[0]; var mi = new MenuItem { Header = L.T((string)z0[1]), IsCheckable = true, IsChecked = IptvSt.InfoScale == z };
@@ -2320,9 +2320,9 @@ namespace Przegladarka
                         }
                         clM.Items.Add(sub);
                     };
-                    opts(L.T("Pozycja"), "zegar-poz", new[] { ("lg", L.T("↖ Lewy górny róg")), ("sg", L.T("⬆ Góra – środek")), ("pg", L.T("↗ Prawy górny róg")), ("ld", L.T("↙ Lewy dolny róg")), ("sd", L.T("⬇ Dół – środek")), ("pd", L.T("↘ Prawy dolny róg")) });
-                    opts(L.T("Wielkość"), "zegar-wielk", new[] { ("1", L.T("Mały")), ("2", L.T("Średni")), ("3", L.T("Duży")) });
-                    opts(L.T("Przezroczystość"), "zegar-alfa", new[] { ("100", "0 %"), ("85", "15 %"), ("65", "35 %"), ("45", "55 %"), ("30", "70 %") });
+                    opts(L.T("📍 Pozycja"), "zegar-poz", new[] { ("lg", L.T("↖ Lewy górny róg")), ("sg", L.T("⬆ Góra – środek")), ("pg", L.T("↗ Prawy górny róg")), ("ld", L.T("↙ Lewy dolny róg")), ("sd", L.T("⬇ Dół – środek")), ("pd", L.T("↘ Prawy dolny róg")) });
+                    opts(L.T("🔠 Wielkość"), "zegar-wielk", new[] { ("0", L.T("Bardzo mały")), ("1", L.T("Mały")), ("2", L.T("Średni")), ("3", L.T("Duży")) });
+                    opts(L.T("🌓 Przezroczystość"), "zegar-alfa", new[] { ("100", "0 %"), ("85", "15 %"), ("65", "35 %"), ("45", "55 %"), ("30", "70 %"), ("20", "80 %"), ("10", "90 %") });
                     cm.Items.Add(clM);
                 }
                 // porzadek: odtwarzanie, telewizja / film, listy, udostepnianie, widok, a ustawienia w jednym podmenu

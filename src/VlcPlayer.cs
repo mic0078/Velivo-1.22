@@ -168,6 +168,15 @@ namespace Przegladarka
         }
 
         // miejsce wznowienia: od poczatku, gdy obejrzane prawie do konca albo zaledwie zaczete
+        // ten sam film w obu bibliotekach: miejsce wznowienia z wpisu ogladanego najpozniej (np. z kolejki), licznik zostaje w swojej bibliotece
+        internal static void TakeNewestProgress(List<LibraryVideo> lib, LibraryVideo cur)
+        {
+            if (cur == null) return;
+            var n = lib.Where(x => x != cur && string.Equals(x.Path, cur.Path, StringComparison.OrdinalIgnoreCase) && x.Last > cur.Last).OrderByDescending(x => x.Last).FirstOrDefault();
+            if (n == null) return;
+            cur.Pos = n.Pos; cur.Done = n.Done; if (n.Len > 0) cur.Len = n.Len;
+        }
+
         internal static long ResumeAt(long pos, long len)
         {
             if (pos < 10000) return 0;
@@ -1833,7 +1842,7 @@ namespace Przegladarka
                 }
                 _iptvPlaying.TryGetValue(path, out var tv);   // kanal telewizji (IPTV) - bez biblioteki, napisow i wznawiania
                 if (tv != null) current = null;
-                else if (rf == null) current = FindEntry(LoadLibrary(), path, _playShared);
+                else if (rf == null) { var lib0 = LoadLibrary(); current = FindEntry(lib0, path, _playShared); TakeNewestProgress(lib0, current); }
                 SaveTvResume(tv != null ? _playIndex : -1);   // ostatni program wraca po uruchomieniu Velivo
                 bool stream = path.Contains("://");
                 var name = rf != null ? rf.Title : tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path);

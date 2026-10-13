@@ -2289,7 +2289,8 @@ namespace Przegladarka
             pipSwap = () =>
             {
                 var a = pipCh; var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
-                if (a == null || p0 == null || !_iptvPlaying.TryGetValue(p0, out var mainCh)) return;
+                if (a == null) return;
+                if (p0 == null || !_iptvPlaying.TryGetValue(p0, out var mainCh)) { pipClose(); PlayChannelInGroup(a, KnownPlaylist()); return; }   // przy filmie: kanal na glowny, miejsce filmu zapamietane (Ostatnio ogladane Filmy)
                 pipShow(mainCh);   // glowny idzie do podgladu
                 int at = _playlist.IndexOf(a.Url);
                 if (at >= 0) _vlcLoad(at); else PlayChannelInGroup(a, KnownPlaylist());   // podglad idzie na glowny (w swojej grupie)
@@ -2299,10 +2300,10 @@ namespace Przegladarka
                 var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 bool tvNow = p0 != null && _iptvPlaying.ContainsKey(p0);
                 Action<ItemsControl, string, Action, bool> pa = (to, h, a, en) => { var mi = new MenuItem { Header = h, IsEnabled = en }; mi.Click += (q, w2) => a(); to.Items.Add(mi); };
-                if (!tvNow && pipWin == null) { pa(cm, L.T("(PiP działa przy oglądaniu telewizji)"), () => { }, false); return; }
+                if (!IptvInstalled) { pa(cm, L.T("(PiP pokazuje kanały telewizji – moduł TV nie jest zainstalowany)"), () => { }, false); return; }
                 if (pipWin != null)
                 {
-                    pa(cm, L.T("⇄ Zamień z głównym (klik w podgląd)"), () => pipSwap(), tvNow);
+                    pa(cm, tvNow ? L.T("⇄ Zamień z głównym (klik w podgląd)") : L.T("📺 Oglądaj ten kanał (klik w podgląd)"), () => pipSwap(), true);
                     pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
                     pa(cm, L.T("✖ Zamknij PiP"), pipClose, true);
                     cm.Items.Add(new Separator());
@@ -2318,8 +2319,16 @@ namespace Przegladarka
                 sub(L.T("⭐ Ulubione"), IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u)));
                 sub(L.T("🕘 Ostatnio oglądane"), IptvSt.Recent.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u)));
                 if (tvNow) sub(L.T("📺 Kanały tej grupy"), _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]));
+                var grM = new MenuItem { Header = L.T("📂 Wszystkie grupy") };   // takze przy filmie: dowolny kanal do podgladu
+                foreach (var g0 in allc.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase))
+                {
+                    var g = g0; var gm = new MenuItem { Header = g.Length == 0 ? L.T("(bez grupy)") : g };
+                    foreach (var c0 in allc.Where(c => c.Group == g && c.Url != p0).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)) { var c = c0; pa(gm, (pipCh?.Url == c.Url ? "● " : "") + c.Name, () => pipShow(c), true); }
+                    if (gm.Items.Count > 0) grM.Items.Add(gm);
+                }
+                if (grM.Items.Count > 0) cm.Items.Add(grM);
             };
-            _pipShow = ch => { if (_vlcWin != win) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p1 == null || !_iptvPlaying.ContainsKey(p1) || p1 == ch.Url) return false; pipShow(ch); return true; };   // z okna TV
+            _pipShow = ch => { if (_vlcWin != win) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p1 == ch.Url) return false; pipShow(ch); return true; };   // z okna TV
             win.Closed += (s, e) => _pipShow = null;
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();

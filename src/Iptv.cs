@@ -573,6 +573,8 @@ namespace Przegladarka
 
             IptvPlaylist pl = new IptvPlaylist();
             List<TvRow> rows = new List<TvRow>();
+            Action autoPlay = null;   // klik w 📺: ostatnio ogladany kanal startuje sam (gdy nic nie gra)
+            bool autoStart = _vlcWin == null;
             string favKey = "\u0001fav", recentKey = "\u0001recent", allKey = "\u0001all";
             Func<IptvSource> cur = () => st.Sources.FirstOrDefault(x => x.Id == ((source.SelectedItem as ComboBoxItem)?.Tag as string));
 
@@ -612,6 +614,7 @@ namespace Przegladarka
                 if (keepSel != null) list.SelectedItem = rows.FirstOrDefault(x => x.Ch.Url == keepSel);
                 // logo w tle (z dysku albo pobrane i zapisane)
                 foreach (var r0 in rows.Where(x => x.LogoUrl != null).Take(600)) { var r = r0; GetLogo(r.LogoUrl).ContinueWith(t => { if (t.Result != null) r.Logo = t.Result; }, TaskScheduler.FromCurrentSynchronizationContext()); }
+                if (autoStart && autoPlay != null && st.Recent.Count > 0 && pl.Channels.Count > 0) { autoStart = false; autoPlay(); }
                 count.Text = rows.Count + " / " + pl.Channels.Count + L.T(" kanałów") + (epg != null ? "  ·  " + L.T("program TV wczytany") : "");
             };
             Action fillGroups = () =>
@@ -765,6 +768,13 @@ namespace Przegladarka
                 st.Recent.Remove(r.Ch.Url); st.Recent.Insert(0, r.Ch.Url); if (st.Recent.Count > 30) st.Recent.RemoveRange(30, st.Recent.Count - 30);
                 SaveIptv(st);
                 PlayVideos(rows.Select(x => x.Ch.Url).ToArray(), rows.IndexOf(r));
+            };
+            autoPlay = () =>
+            {
+                var r = rows.FirstOrDefault(x => x.Ch.Url == st.Recent[0]);
+                if (r != null) { list.SelectedItem = r; list.ScrollIntoView(r); play(); return; }
+                var ch = pl.Channels.FirstOrDefault(c => c.Url == st.Recent[0]); if (ch == null) return;   // kanal poza widoczna grupa - sam
+                _iptvPlaying[ch.Url] = ch; PlayVideos(new[] { ch.Url }, 0);
             };
             Action toggleFav = () =>
             {

@@ -55,7 +55,8 @@ namespace Przegladarka
             public bool Done { get; set; }   // obejrzany do konca
             public string Spu { get; set; }    // wybrane napisy (nazwa sciezki, "-" = wylaczone)
             public string Audio { get; set; }  // wybrana sciezka dzwieku (nazwa)
-            public string MyTitle { get; set; }  // wlasny tytul (zmiana nazwy w Velivo; plik i dane z Jellyfin bez zmian)
+            public string MyTitle { get; set; }
+            public long? SubDelay { get; set; }  // przesuniecie napisow tego filmu (ms; + = napisy pozniej)  // wlasny tytul (zmiana nazwy w Velivo; plik i dane z Jellyfin bez zmian)
             // ustawienia tego filmu (filmy maja rozna glosnosc): glosnosc filmu i lektor; null = jak ostatnio
             public int? Vol { get; set; }
             public double? LVol { get; set; }
@@ -1177,6 +1178,48 @@ namespace Przegladarka
                     : L.T("Lektor: brak napisów obok filmu – wczytaj je w menu Napisy"));
             };
             lector.Click += (s, e) => { lectorOn.IsChecked = _settings.VlcLector; lectorPop.IsOpen = true; };
+            // przesuniecie napisow na zywo: suwak i przyciski, okienko zostaje otwarte - widac od razu, czy napisy pasuja do mowy
+            var sdText = new TextBlock { Foreground = Brushes.White, FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
+            var sdSlider = new Slider { Minimum = -10, Maximum = 10, Width = 320, TickFrequency = 0.05, IsSnapToTickEnabled = true, IsMoveToPointEnabled = true };
+            bool sdSetting = false;
+            var sdSave = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+            sdSave.Tick += (s, e) =>
+            {
+                sdSave.Stop(); if (current == null || _remoteFilms.ContainsKey(current.Path)) return;
+                current.SubDelay = mp.SpuDelay / 1000; var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current)); if (v == null) return;
+                v.SubDelay = current.SubDelay == 0 ? null : current.SubDelay; SaveLibrary(l);   // zapamietane dla tego filmu
+            };
+            Action<double> setSubDelay = sec =>
+            {
+                sec = Math.Round(Math.Max(-10, Math.Min(10, sec)) * 20) / 20;
+                mp.SetSpuDelay((long)(sec * 1000000));
+                sdText.Text = L.T("Przesunięcie napisów: ") + (sec > 0 ? "+" : "") + sec.ToString("0.00") + " s" + (sec > 0 ? L.T("  (później)") : sec < 0 ? L.T("  (wcześniej)") : "");
+                sdSetting = true; sdSlider.Value = sec; sdSetting = false;
+                sdSave.Stop(); sdSave.Start();
+            };
+            sdSlider.ValueChanged += (s, e) => { if (!sdSetting) setSubDelay(sdSlider.Value); };
+            var sdPanel = new StackPanel { Margin = new Thickness(12) };
+            var sdHead = new DockPanel();
+            var sdClose = new Button { Content = "✕", Padding = new Thickness(6, 0, 6, 0), Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            DockPanel.SetDock(sdClose, Dock.Right); sdHead.Children.Add(sdClose); sdHead.Children.Add(sdText);
+            sdPanel.Children.Add(sdHead); sdPanel.Children.Add(sdSlider);
+            var sdBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+            foreach (var st0 in new[] { -1.0, -0.1, 0.0, 0.1, 1.0 })
+            {
+                var st = st0; var b = new Button { Content = st == 0 ? L.T("Zeruj") : (st > 0 ? "+" : "−") + Math.Abs(st).ToString("0.0") + " s", Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0, 0, 6, 0) };
+                b.Click += (s, e) => setSubDelay(st == 0 ? 0 : mp.SpuDelay / 1000000.0 + st);
+                sdBtns.Children.Add(b);
+            }
+            sdPanel.Children.Add(sdBtns);
+            sdPanel.Children.Add(new TextBlock { Text = L.T("Napisy za wcześnie → w prawo (+). Za późno → w lewo (−). Klawisze: G / H po 0,05 s."), Foreground = Brushes.Silver, FontSize = 11.5, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 320 });
+            var subDelayPop = new System.Windows.Controls.Primitives.Popup
+            {
+                Child = new Border { Child = sdPanel, Background = new SolidColorBrush(Color.FromArgb(0xF0, 0x1C, 0x1C, 0x1C)), CornerRadius = new CornerRadius(6), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) },
+                PlacementTarget = subs, Placement = System.Windows.Controls.Primitives.PlacementMode.Top, StaysOpen = true, AllowsTransparency = true,
+            };
+            sdClose.Click += (s, e) => subDelayPop.IsOpen = false;
+            Action openSubDelay = () => { setSubDelay(mp.SpuDelay / 1000000.0); subDelayPop.IsOpen = true; };
+            win.Deactivated += (s, e) => subDelayPop.IsOpen = false;
             showLector();
             var lectorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             lectorTimer.Tick += (s, e) =>
@@ -1206,6 +1249,7 @@ namespace Przegladarka
                     if (!_settings.VlcShowSubs) mp.SetSpu(-1);   // napisy ukryte (lektor czyta dalej)
                     else if (spu != int.MinValue) mp.SetSpu(spu);
                     else if (mp.Spu < 0) { var first = mp.SpuDescription.FirstOrDefault(t => t.Id >= 0); if (first.Name != null) mp.SetSpu(first.Id); }
+                    mp.SetSpuDelay((current?.SubDelay ?? 0) * 1000);   // zapamietane przesuniecie napisow tego filmu
                     var au = current?.Audio != null ? PickTrack(mp.AudioTrackDescription.Select(t => (t.Id, t.Name)), current.Audio) : PickTrack(mp.AudioTrackDescription.Select(t => (t.Id, t.Name)), _settings.VlcAudio, false);   // inny film - tylko jezyk
                     if (au != int.MinValue && au >= 0) mp.SetAudioTrack(au);
                 }
@@ -1883,14 +1927,8 @@ namespace Przegladarka
                     }
                     cm.Items.Add(del);
                 }
-                var delay = new MenuItem { Header = L.T("Opóźnienie napisów") };
-                foreach (var ms in new[] { -1000, -250, 0, 250, 1000 })
-                {
-                    var d = ms;
-                    var mi = new MenuItem { Header = d == 0 ? L.T("Bez przesunięcia") : (d > 0 ? "+" : "−") + Math.Abs(d) + " ms" };
-                    mi.Click += (a, b) => { mp.SetSpuDelay(d == 0 ? 0 : mp.SpuDelay + d * 1000L); showOsd(L.T("Napisy: ") + (mp.SpuDelay / 1000) + " ms"); };
-                    delay.Items.Add(mi);
-                }
+                var delay = new MenuItem { Header = L.T("⏱ Przesunięcie napisów (na żywo)…") };
+                delay.Click += (a, b) => openSubDelay();
                 cm.Items.Add(delay);
             });
             popup(audio, cm =>
@@ -2160,6 +2198,8 @@ namespace Przegladarka
                     case Key.F5: if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); } break;
                     case Key.Escape: if (chPanel.Visibility == Visibility.Visible) showChannels(false); else if (full0) toggleFull(); else if (mini0) toggleMini(); else h = false; break;
                     case Key.M: toggleMute(); break;
+                    case Key.G: setSubDelay(mp.SpuDelay / 1000000.0 - 0.05); showOsd(sdText.Text); break;   // napisy wczesniej (jak w VLC)
+                    case Key.H: setSubDelay(mp.SpuDelay / 1000000.0 + 0.05); showOsd(sdText.Text); break;   // napisy pozniej
                     case Key.N: case Key.PageDown: step(1); break;
                     case Key.PageUp: step(-1); break;
                     case Key.P: step(-1); break;

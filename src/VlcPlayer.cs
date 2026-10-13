@@ -383,6 +383,8 @@ namespace Przegladarka
             return res;
         }
 
+        string _libVlcKey;   // opcje, z ktorymi utworzono VLC
+        static bool LevelVolume => GetPref("wyrownaj-glosnosc") == "1";   // wyrownywanie glosnosci (menu dzwieku)
         static bool Surround51 => GetPref("dzwiek-51") == "1";   // dzwiek przestrzenny bez miksowania do stereo (wybor w menu dzwieku)
 
         // ostatnio ogladany, nieskonczony film z tego komputera
@@ -748,7 +750,12 @@ namespace Przegladarka
 
         bool EnsureLibVlc()
         {
-            if (_libVlc != null) return true;
+            var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
+            if (!Surround51) args.Add("--stereo-mode=1");
+            if (LevelVolume) { args.Add("--audio-filter=normvol:compressor"); args.Add("--norm-max-level=1.5"); }   // wyrownywanie glosnosci (cicho / glosno nagrane filmy i kanaly)
+            var key = string.Join(" ", args);
+            if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
+            if (_libVlc != null) { var old = _libVlc; _libVlc = null; System.Threading.Tasks.Task.Run(async () => { await System.Threading.Tasks.Task.Delay(15000); try { old.Dispose(); } catch (Exception) { } }); }
             if (!VlcInstalled) { ShowToast(L.T("🎬 Odtwarzacz filmów nie jest zainstalowany"), null); return false; }
             try
             {
@@ -756,8 +763,7 @@ namespace Przegladarka
                 // bez tytulu filmu na obrazie; sprzetowe dekodowanie (lzejsze dla procesora); bez sieciowych uslug VLC
                 // dzwiek 5.1 domyslnie miksowany do stereo: urzadzenie zglaszajace 5.1 (HDMI, soundbar), ktore gra tylko stereo, dawalo cisze
                 // AC3/DTS dekodowane tutaj (bez passthrough) - urzadzenie, ktore go nie przyjmuje, dawalo "failed to create audio output" i cisze
-                _libVlc = Surround51 ? new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif")
-                    : new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--stereo-mode=1", "--mmdevice-passthrough=0", "--no-spdif");
+                _libVlc = new LibVLC(args.ToArray()); _libVlcKey = key;
                 // ostrzezenia i bledy VLC biezacego filmu w vlc.log (folder danych) - np. dlaczego nie ma dzwieku
                 _libVlc.Log += (s, e) =>
                 {
@@ -1797,6 +1803,9 @@ namespace Przegladarka
                 var sur = new MenuItem { Header = L.T("Dźwięk 5.1 bez miksowania do stereo (zestaw kina domowego)"), IsCheckable = true, IsChecked = Surround51 };
                 sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); mp.SetChannel(sur.IsChecked ? (AudioOutputChannel)0 : AudioOutputChannel.Stereo); showOsd(sur.IsChecked ? L.T("Dźwięk: 5.1") : L.T("Dźwięk: stereo")); };
                 cm.Items.Add(sur);
+                var lvl = new MenuItem { Header = L.T("Wyrównuj głośność (ciche podgłośnia, głośne ścisza)"), IsCheckable = true, IsChecked = LevelVolume };
+                lvl.Click += (a, b) => { SetPref("wyrownaj-glosnosc", lvl.IsChecked ? "1" : "0"); showOsd(L.T("Wyrównywanie głośności: ") + (lvl.IsChecked ? L.T("włączone") : L.T("wyłączone")) + L.T(" – od następnego otwarcia odtwarzacza")); };
+                cm.Items.Add(lvl);
             });
             popup(aspect, cm =>
             {

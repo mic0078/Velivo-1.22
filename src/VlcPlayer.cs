@@ -352,6 +352,15 @@ namespace Przegladarka
         // owner: okno, nad ktorym ma byc biblioteka (z odtwarzacza - nad filmem, takze gdy odtwarzacz jest zawsze na wierzchu)
         void ShowVideoLibrary() { ShowVideoLibrary(this); }
 
+        static volatile bool _aoutFailed;   // VLC nie otworzyl wyjscia dzwieku (biezacy film)
+
+        // plik AVI po zawartosci (bywa z inna koncowka, np. .ts)
+        internal static bool IsAviFile(string path)
+        {
+            try { using (var f = File.OpenRead(path)) { var b = new byte[12]; return f.Read(b, 0, 12) == 12 && System.Text.Encoding.ASCII.GetString(b, 0, 4) == "RIFF" && System.Text.Encoding.ASCII.GetString(b, 8, 4) == "AVI "; } }
+            catch (Exception) { return false; }
+        }
+
         static readonly string VlcLogFile = System.IO.Path.Combine(DataDir, "vlc.log");
         static bool Surround51 => GetPref("dzwiek-51") == "1";   // dzwiek przestrzenny bez miksowania do stereo (wybor w menu dzwieku)
 
@@ -730,7 +739,9 @@ namespace Przegladarka
                 // ostrzezenia i bledy VLC biezacego filmu w vlc.log (folder danych) - np. dlaczego nie ma dzwieku
                 _libVlc.Log += (s, e) =>
                 {
-                    if (e.Level < LogLevel.Warning) return;
+                    if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
+                    bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
+                    if (e.Level < LogLevel.Warning && !audio) return;   // szczegoly wyjscia dzwieku zawsze
                     try { lock (VlcLogFile) { var f = new FileInfo(VlcLogFile); if (!f.Exists || f.Length < 512 * 1024) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + e.Message + "\n"); } } catch (Exception) { }
                 };
                 return true;
@@ -1412,6 +1423,9 @@ namespace Przegladarka
             win.Closed += (s, e) => marquee.Stop();
             _iptvJobsChanged += recTitle;   // nagrywanie ogladanego kanalu - widac w tytule
             win.Closed += (s, e) => _iptvJobsChanged -= recTitle;
+            // zdarzenia VLC czekajace w kolejce po zamknieciu okna nie dotykaja juz odtwarzacza (zwolniony VLC = awaria calego Velivo)
+            bool vlcClosed = false, aoutDs = false;
+            Func<Action, Action> guard = a => () => { if (!vlcClosed) a(); };
             _vlcLoad = i =>
             {
                 userStopped = false; lastTvProgress = DateTime.Now;
@@ -1455,7 +1469,8 @@ namespace Przegladarka
                     if (tv != null && curRecFile == null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
                     if (tv != null && curRecFile == null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
-                    if (tv == null && path.EndsWith(".avi", StringComparison.OrdinalIgnoreCase)) media.AddOption(":demux=avformat,any");
+                    if (tv == null && !stream && IsAviFile(path)) media.AddOption(":demux=avformat,any");
+                    _aoutFailed = false;
                     try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + path + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }
@@ -1477,7 +1492,20 @@ namespace Przegladarka
                 }
                 // sciezki filmu znane chwile po starcie - wtedy ustawiamy zapamietane napisy i dzwiek
                 var tracksTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
-                tracksTimer.Tick += (s, e) => { tracksTimer.Stop(); applyTracks(); mp.Volume = muted ? 0 : (int)vol.Value; };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
+                tracksTimer.Tick += (s, e) =>
+                {
+                    tracksTimer.Stop(); applyTracks(); mp.Volume = muted ? 0 : (int)vol.Value;
+                    // wyjscie dzwieku Windows (WASAPI) nie przyjelo formatu filmu - DirectSound i ten sam film od tego miejsca
+                    if (_aoutFailed && !aoutDs)
+                    {
+                        aoutDs = true; _aoutFailed = false;
+                        long t = mp.Time; mp.SetAudioOutput("directsound"); mp.Stop(); mp.Play();
+                        var back = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+                        back.Tick += (q, w) => { back.Stop(); if (!vlcClosed && t > 0) mp.Time = t; };
+                        back.Start();
+                        showOsd(L.T("🔊 Inne wyjście dźwięku (DirectSound)"));
+                    }
+                };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
                 if (tv != null && _recording.Count > 0) WarnOneConnection();   // trwa nagrywanie - drugie polaczenie
                 if (tv != null) { IptvSt.Watched[path] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); }   // lista kanalow odswieza "Ostatnio ogladane"   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
@@ -1489,9 +1517,6 @@ namespace Przegladarka
                 prev.IsEnabled = i > 0; next.IsEnabled = i < _playlist.Count - 1;
             };
 
-            // zdarzenia VLC czekajace w kolejce po zamknieciu okna nie dotykaja juz odtwarzacza (zwolniony VLC = awaria calego Velivo)
-            bool vlcClosed = false;
-            Func<Action, Action> guard = a => () => { if (!vlcClosed) a(); };
             mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(guard(() => timeLen.Text = FormatTime(e.Length)));
             mp.TimeChanged += (s, e) => Dispatcher.BeginInvoke(guard(() =>
             {

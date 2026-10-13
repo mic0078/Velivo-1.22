@@ -1420,7 +1420,7 @@ namespace Przegladarka
                 var libLocal = LoadLibrary().Count(v => v.Peer == null);
                 bool realQueue = _playlist.Count > 1 && _playlist.Count < libLocal || _playlist.Count >= 1 && _remoteFilms.ContainsKey(_playlist[0]);
                 var want = new List<(string Text, string Tag)> { (L.T("🕘 Ostatnio oglądane"), fRec), (L.T("🎬 Wszystkie filmy"), fAll) };
-                if (realQueue) want.Insert(0, (L.T("▶ Kolejka") + (_remoteFilms.ContainsKey(_playlist[0]) ? "" : " (" + _playlist.Count + ")"), fCur));
+                want.Insert(0, (L.T("▶ Kolejka") + (!realQueue ? L.T(" (pusta)") : _remoteFilms.ContainsKey(_playlist[0]) ? "" : " (" + _playlist.Count + ")"), fCur));
                 if (pls.Mine.Count > 0) want.Add((L.T("📋 Moja kolejka") + " (" + pls.Mine.Count + ")", "\u0001mine"));
                 foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) want.Add(("🎞 " + n + " (" + pls.Named[n].Count + ")", "\u0001pl:" + n));
                 if (!chGroup.Items.Cast<ComboBoxItem>().Select(i => (string)i.Content + "|" + i.Tag).SequenceEqual(want.Select(w => w.Text + "|" + w.Tag)))
@@ -1440,7 +1440,14 @@ namespace Przegladarka
                 var libAll = LoadLibrary();
                 var curP = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 _remoteFilms.TryGetValue(curP ?? "", out var rfCur);
-                bool remoteCur = fk == fCur && rfCur != null;   // film z innego komputera: biezaca lista = wspolna biblioteka tamtych komputerow
+                bool remoteCur = fk == fCur && rfCur != null;
+                if (fk == fCur && !realQueue)   // kolejka pusta - film wlaczony z calej biblioteki
+                {
+                    chSort.Visibility = Visibility.Collapsed; chList.Items.Clear();
+                    chList.Items.Add(new ListBoxItem { Content = new TextBlock { Text = L.T("Kolejka jest pusta.\n\nW bibliotece zaznacz filmy (przeciągnij myszą albo Ctrl+klik) i wybierz pod prawym przyciskiem „Odtwórz zaznaczone jako kolejkę” albo „Dodaj do kolejki”."), Foreground = Brushes.Silver, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(6) }, IsEnabled = false });
+                    chPanel.Visibility = Visibility.Visible; chHide.Stop(); if (!chPanel.IsMouseOver) chHide.Start();
+                    return;
+                }   // film z innego komputera: biezaca lista = wspolna biblioteka tamtych komputerow
                 List<LibraryVideo> films = fk == fCur ? (remoteCur ? new List<LibraryVideo>() : _playlist.Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList())   // kolejnosc odtwarzania
                     : fk == fRec ? libAll.Where(v => v.Last > 0 && v.Peer == null).ToList()
                     : fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? (fk.StartsWith("\u0001mine") ? pls.Mine : pls.Named.TryGetValue(fk.Substring(4), out var pl0) ? pl0 : new List<string>())

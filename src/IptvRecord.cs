@@ -437,6 +437,21 @@ namespace Przegladarka
             w.Show();
         }
     
+        // wybor folderu nagran (nowe nagrania; stare zostaja tam, gdzie sa - i dalej sa w bibliotece "Nagrane z TV")
+        void ChooseRecDir(Window owner)
+        {
+            var cur = string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir;
+            var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Folder nagrań telewizji") };
+            if (Directory.Exists(cur)) dlg.InitialDirectory = cur;
+            if (dlg.ShowDialog(owner) != true) return;
+            var old = IptvSt.RecDir;
+            IptvSt.RecDir = string.Equals(dlg.FolderName.TrimEnd('\\'), DefaultRecDir, StringComparison.OrdinalIgnoreCase) ? null : dlg.FolderName;
+            // zaplanowane nagrania do starego folderu - do nowego
+            foreach (var j in IptvSt.Jobs.Where(j => j.Kind == "rec" && string.Equals(j.Folder ?? "", old ?? "", StringComparison.OrdinalIgnoreCase) && !_recording.ContainsKey(j.Id))) j.Folder = IptvSt.RecDir;
+            SaveIptv(IptvSt);
+            ShowToast(L.T("📁 Nowe nagrania w: ") + (IptvSt.RecDir ?? DefaultRecDir), null);
+        }
+
         void OpenRecDir()
         {
             var dir = string.IsNullOrWhiteSpace(IptvSt.RecDir) ? DefaultRecDir : IptvSt.RecDir;

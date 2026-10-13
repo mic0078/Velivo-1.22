@@ -420,6 +420,7 @@ namespace Przegladarka
             item("\uE787", L.T("Zaplanowane nagrania i przełączenia"), () => ShowJobs(this));
             item("\uE8B2", L.T("🎞 Nagrania"), () => ShowRecordings(this));
             item("\uE838", L.T("📁 Folder nagrań"), OpenRecDir);
+            item("\uE838", L.T("📁 Zmień folder nagrań…"), () => ChooseRecDir(this));
             _tvBtn.ContextMenu = menu;
             StartIptvScheduler();   // zaplanowane nagrania / przelaczenia dzialaja takze przy zamknietym oknie listy
             var resume = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };   // po uruchomieniu: ostatni program, ktory lecial przy zamykaniu
@@ -872,7 +873,12 @@ namespace Przegladarka
             buttons.Children.Add(SmallButton(L.T("📅 Zaplanowane"), () => ShowJobs(win)));
             buttons.Children.Add(SmallButton(L.T("📅 Program TV"), () => ShowEpgGuide(win, (list.SelectedItem as TvRow)?.Ch.Url)));
             buttons.Children.Add(SmallButton(L.T("🎞 Nagrania"), () => ShowRecordings(win)));
-            buttons.Children.Add(SmallButton(L.T("📁 Folder nagrań"), OpenRecDir));
+            var recDirBtn = SmallButton(L.T("📁 Folder nagrań"), OpenRecDir);
+            recDirBtn.ToolTip = L.T("Klik: otwórz folder nagrań · prawy przycisk: zmień folder");
+            var recDirMenu = new ContextMenu(); var chg = new MenuItem { Header = L.T("📁 Zmień folder nagrań…") }; chg.Click += (s, a) => ChooseRecDir(win); recDirMenu.Items.Add(chg);
+            recDirBtn.ContextMenu = recDirMenu;
+            buttons.Children.Add(recDirBtn);
+            buttons.Children.Add(SmallButton(L.T("Zmień…"), () => ChooseRecDir(win)));
             var body = new DockPanel();
             DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);
             DockPanel.SetDock(bar, Dock.Bottom); body.Children.Add(bar);

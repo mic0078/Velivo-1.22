@@ -182,13 +182,16 @@ namespace Przegladarka
             };
             var y = btn(yes ?? L.T("Tak"), true); var n = btn(no ?? L.T("Nie"), false);
             y.Click += (s, e) => { res = true; d.Close(); }; n.Click += (s, e) => d.Close();
-            y.IsDefault = true; n.IsCancel = true;
-            row.Children.Add(y); row.Children.Add(n); p.Children.Add(row);
+            y.IsDefault = true; n.IsCancel = true; if (no == "") y.IsCancel = true;
+            row.Children.Add(y); if (no != "") row.Children.Add(n); p.Children.Add(row);
             d.Content = new Border { Child = p, CornerRadius = new CornerRadius(10), Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x22, 0x22, 0x22)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)), BorderThickness = new Thickness(1) };
             d.Loaded += (s, e) => y.Focus();
             d.ShowDialog();
             return res;
         }
+
+        // informacja z jednym przyciskiem OK - ten sam czytelny styl
+        internal static void InfoBox(Window owner, string text) { AskYes(owner, text, "OK", ""); }
 
         // zaokraglony przycisk (tlo z Background, poswiata pod mysza)
         static ControlTemplate RoundButton()

@@ -690,7 +690,7 @@ namespace Przegladarka
                 var name = tv ? L.T("Nagrane z TV") : shared ? sharedName() : localName();
                 // filmy z innych komputerow sa zapisane tam - tu mozna usunac tylko wpisy z tego komputera
                 var peersNote = fromPeers > 0 ? string.Format(L.T("\n\n{0} pozycji przychodzi z innych komputerów – są zapisane tam i usuwa się je na tamtym komputerze."), fromPeers) : "";
-                if (here == 0) { MessageBox.Show(win, string.Format(L.T("W bibliotece „{0}” na tym komputerze nie ma żadnych pozycji do usunięcia."), name) + peersNote, L.T("Biblioteka filmów"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+                if (here == 0) { InfoBox(win, string.Format(L.T("W bibliotece „{0}” na tym komputerze nie ma żadnych pozycji do usunięcia."), name) + peersNote); return; }
                 if (!AskYes(win, string.Format(L.T("Usunąć z biblioteki „{0}” {1} pozycji zapisanych na tym komputerze?\n\nPliki filmów zostają na dysku."), name, here) + peersNote)) return;
                 var l = LoadLibrary(); l.RemoveAll(v => mine(v));
                 SaveLibrary(l); fill();
@@ -706,10 +706,10 @@ namespace Przegladarka
                 if (r.Item.Peer != null)   // skopiowany z innego komputera - przez siec
                 {
                     var pr = PeerById(r.Item.Peer);
-                    if (pr == null) { MessageBox.Show(win, L.T("Komputer, na którym jest ten film, jest teraz wyłączony albo niedostępny."), L.T("Biblioteka filmów")); return; }
+                    if (pr == null) { InfoBox(win, L.T("Komputer, na którym jest ten film, jest teraz wyłączony albo niedostępny.")); return; }
                     WantRemoteFilm(pr, new LanFilmItem { i = r.Item.RemoteId, t = r.Item.Title, l = r.Item.Len }, false); win.Close(); return;
                 }
-                if (r.Missing) { MessageBox.Show(win, L.T("Nie ma już tego pliku na dysku (przeniesiony albo usunięty)."), L.T("Biblioteka filmów")); return; }
+                if (r.Missing) { InfoBox(win, L.T("Nie ma już tego pliku na dysku (przeniesiony albo usunięty).")); return; }
                 var playable = rows.Where(x => !x.Missing && !remoteOf.ContainsKey(x.Item) && x.Item.Peer == null).Select(x => x.Item.Path).ToList();   // lista odtwarzania = widoczna lista
                 _playShared = _libSharedView;
                 PlayVideos(playable.ToArray(), playable.IndexOf(r.Item.Path));
@@ -729,7 +729,7 @@ namespace Przegladarka
                 if (!AskYes(win, msg + L.T("\n\nPlik trafi do Kosza (na dysku sieciowym – usunięty na stałe)."))) return;
                 var errs = DeleteVideoFiles(rs.Select(r => r.Item.Path));
                 fill();
-                if (errs.Count > 0) MessageBox.Show(win, L.T("Nie udało się usunąć (plik w użyciu – np. właśnie odtwarzany):\n") + string.Join("\n", errs.Take(10)), L.T("Biblioteka filmów"));
+                if (errs.Count > 0) InfoBox(win, L.T("Nie udało się usunąć (plik w użyciu – np. właśnie odtwarzany):\n") + string.Join("\n", errs.Take(10)));
             };
             list.MouseDoubleClick += (s, a) => play();
             // zaznaczanie kilku filmow przeciaganiem z wcisnietym lewym przyciskiem (jak w Eksploratorze); Ctrl/Shift - jak zwykle
@@ -1007,7 +1007,7 @@ namespace Przegladarka
             catch (Exception ex)
             {
                 App.LogError(ex);
-                MessageBox.Show(this, L.T("Nie udało się uruchomić odtwarzacza filmów:\n") + ex.Message, L.T("Odtwarzacz filmów"));
+                InfoBox(this, L.T("Nie udało się uruchomić odtwarzacza filmów:\n") + ex.Message);
                 return false;
             }
         }

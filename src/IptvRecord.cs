@@ -179,10 +179,10 @@ namespace Przegladarka
             at.Children.Add(new TextBlock { Text = L.T("Kiedy:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }); at.Children.Add(date); at.Children.Add(time);
             var ok = SmallButton(L.T("⏰ Zaplanuj"), () =>
             {
-                if (!((list.SelectedItem as ListBoxItem)?.Tag is ValueTuple<string, string, List<string>> x)) { MessageBox.Show(w, L.T("Wybierz film albo kanał z listy."), w.Title); return; }
-                if (!TimeSpan.TryParse(time.Text.Trim(), out var t) || date.SelectedDate == null) { MessageBox.Show(w, L.T("Podaj godzinę w formacie GG:MM, np. 20:15."), w.Title); return; }
+                if (!((list.SelectedItem as ListBoxItem)?.Tag is ValueTuple<string, string, List<string>> x)) { InfoBox(w, L.T("Wybierz film albo kanał z listy.")); return; }
+                if (!TimeSpan.TryParse(time.Text.Trim(), out var t) || date.SelectedDate == null) { InfoBox(w, L.T("Podaj godzinę w formacie GG:MM, np. 20:15.")); return; }
                 var start = date.SelectedDate.Value.Date + t;
-                if (start < DateTime.Now) { MessageBox.Show(w, L.T("Ta godzina już minęła."), w.Title); return; }
+                if (start < DateTime.Now) { InfoBox(w, L.T("Ta godzina już minęła.")); return; }
                 AddJob(new IptvJob { Kind = "switch", Film = rbFilm.IsChecked == true, Url = x.Item2, Channel = x.Item1, Opts = x.Item3 ?? new List<string>(), Start = UnixMs(start) });
                 ShowToast("⏰ " + start.ToString("dd.MM HH:mm") + "  " + (rbFilm.IsChecked == true ? "🎬 " : "📺 ") + x.Item1, null);
                 w.Close();
@@ -430,7 +430,7 @@ namespace Przegladarka
             var ci = System.Globalization.CultureInfo.InvariantCulture;
             if (!DateTime.TryParseExact(from.Text.Trim(), "dd.MM.yyyy HH:mm", ci, System.Globalization.DateTimeStyles.None, out var a1) ||
                 !DateTime.TryParseExact(to.Text.Trim(), "dd.MM.yyyy HH:mm", ci, System.Globalization.DateTimeStyles.None, out var a2) || a2 <= a1 || a2 <= DateTime.Now)
-            { MessageBox.Show(owner, L.T("Sprawdź czas początku i końca (koniec musi być później niż początek i w przyszłości)."), L.T("Nagrywanie")); return; }
+            { InfoBox(owner, L.T("Sprawdź czas początku i końca (koniec musi być później niż początek i w przyszłości).")); return; }
             IptvSt.RecDir = folder.Text.Trim();
             AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = title.Text.Trim(), Start = UnixMs(a1), Stop = UnixMs(a2), Folder = IptvSt.RecDir });
             ShowToast(L.T("⏺ Zaplanowano nagranie: ") + a1.ToString("dd.MM HH:mm") + "–" + a2.ToString("HH:mm") + " " + ch.Name, null);
@@ -546,7 +546,7 @@ namespace Przegladarka
                 if (!AskYes(w, string.Format(L.T("Usunąć {0} nagrań z dysku (do Kosza) i z biblioteki filmów?"), p.Count))) return;
                 var errs = DeleteVideoFiles(p);
                 fill();
-                if (errs.Count > 0) MessageBox.Show(w, L.T("Nie udało się usunąć (nagrywane albo odtwarzane):\n") + string.Join("\n", errs.Take(10)), L.T("Nagrania TV"));
+                if (errs.Count > 0) InfoBox(w, L.T("Nie udało się usunąć (nagrywane albo odtwarzane):\n") + string.Join("\n", errs.Take(10)));
             };
             list.MouseDoubleClick += (s, a) => play();
             list.PreviewKeyDown += (s, a) => { if (a.Key == System.Windows.Input.Key.Enter) { play(); a.Handled = true; } else if (a.Key == System.Windows.Input.Key.Delete) { del(); a.Handled = true; } };

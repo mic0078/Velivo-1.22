@@ -108,7 +108,7 @@ namespace Przegladarka
                 if (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0) m.Overview = " ";   // film uznany za opisany (tytul z tego okna)
                 if (posterNew != null)
                     try { Directory.CreateDirectory(PosterDir); var f = "reczny-" + Math.Abs(key.GetHashCode()) + Path.GetExtension(posterNew).ToLowerInvariant(); File.Copy(posterNew, Path.Combine(PosterDir, f), true); m.Poster = f; }
-                    catch (Exception ex) { MessageBox.Show(win, L.T("Nie udało się skopiować plakatu: ") + ex.Message); return; }
+                    catch (Exception ex) { InfoBox(win, L.T("Nie udało się skopiować plakatu: ") + ex.Message); return; }
                 var man = LoadManual(); man[key] = m;
                 Directory.CreateDirectory(MetaDir); File.WriteAllText(ManualFile, JsonSerializer.Serialize(man));
                 Meta[key] = m; win.Close(); done?.Invoke();
@@ -134,7 +134,7 @@ namespace Przegladarka
             {
                 // film nieznany Jellyfin - wyszukiwarka w nowej karcie (Filmweb) i reczne uzupelnienie
                 ShowWebWindow(owner, "https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(fileTitle));
-                MessageBox.Show(owner, L.T("Tego filmu nie ma w Jellyfin (albo Jellyfin nie jest ustawiony), więc otworzyłem wyszukiwanie w Filmweb.\n\nInformacje możesz wpisać w „📝 Uzupełnij informacje…”."), L.T("Wyszukaj informacje"));
+                InfoBox(owner, L.T("Tego filmu nie ma w Jellyfin (albo Jellyfin nie jest ustawiony), więc otworzyłem wyszukiwanie w Filmweb.\n\nInformacje możesz wpisać w „📝 Uzupełnij informacje…”."));
                 return;
             }
             var win = new Window { Title = L.T("🔎 Wyszukaj informacje o filmie"), Width = 720, Height = 560, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };

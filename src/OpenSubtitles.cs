@@ -208,7 +208,7 @@ namespace Przegladarka
         // okno: wyniki dla filmu, "Pobierz" = zapis obok filmu (film.<jezyk>.srt)
         void ShowSubtitleSearch(string video, Window owner, Action<string> loaded = null)
         {
-            if (!File.Exists(video)) { MessageBox.Show(owner, L.T("Napisy można pobrać do filmu z dysku tego komputera albo z dysku sieciowego."), L.T("Napisy")); return; }
+            if (!File.Exists(video)) { InfoBox(owner, L.T("Napisy można pobrać do filmu z dysku tego komputera albo z dysku sieciowego.")); return; }
             var acc = LoadSubsAccount() ?? new SubsAccount();
             if (string.IsNullOrEmpty(acc.User) && !SubsAccountDialog(owner, acc)) return;
             var w = new Window { Title = L.T("💬 Napisy – ") + Path.GetFileNameWithoutExtension(video), Width = 760, Height = 440, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };

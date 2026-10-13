@@ -1438,6 +1438,8 @@ namespace Przegladarka
                     if (stream && rf?.Sub != null) media.AddSlave(MediaSlaveType.Subtitle, 4, rf.Sub);
                     if (tv != null && curRecFile == null) foreach (var o in tv.Opts) media.AddOption(o);   // naglowki wymagane przez dostawce (z listy)
                     if (tv != null && curRecFile == null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
+                    // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
+                    if (tv == null && path.EndsWith(".avi", StringComparison.OrdinalIgnoreCase)) media.AddOption(":demux=avformat,any");
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;

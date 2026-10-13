@@ -601,6 +601,20 @@ namespace Przegladarka
                 if (errs.Count > 0) MessageBox.Show(win, L.T("Nie udało się usunąć (plik w użyciu – np. właśnie odtwarzany):\n") + string.Join("\n", errs.Take(10)), L.T("Biblioteka filmów"));
             };
             list.MouseDoubleClick += (s, a) => play();
+            // zaznaczanie kilku filmow przeciaganiem z wcisnietym lewym przyciskiem (jak w Eksploratorze); Ctrl/Shift - jak zwykle
+            int dragAnchor = -1;
+            Func<object, int> rowAt = src => ItemsControl.ContainerFromElement(list, src as DependencyObject) is ListViewItem c ? list.ItemContainerGenerator.IndexFromContainer(c) : -1;
+            list.PreviewMouseLeftButtonDown += (s, a) => dragAnchor = Keyboard.Modifiers == ModifierKeys.None ? rowAt(a.OriginalSource) : -1;
+            list.PreviewMouseLeftButtonUp += (s, a) => dragAnchor = -1;
+            list.PreviewMouseMove += (s, a) =>
+            {
+                if (a.LeftButton != MouseButtonState.Pressed || dragAnchor < 0) return;
+                int i = rowAt(a.OriginalSource); if (i < 0 || i == dragAnchor && list.SelectedItems.Count <= 1) return;
+                list.SelectedItems.Clear();
+                for (int k = Math.Min(i, dragAnchor); k <= Math.Max(i, dragAnchor); k++) list.SelectedItems.Add(list.Items[k]);
+            };
+            // zaznaczone filmy tego komputera (w kolejnosci listy) - do odtworzenia albo kolejki
+            Func<string[]> selPaths = () => list.SelectedItems.Cast<LibRow>().OrderBy(r => rows.IndexOf(r)).Where(r => !r.Missing && !remoteOf.ContainsKey(r.Item) && r.Item.Peer == null).Select(r => r.Item.Path).ToArray();
             list.PreviewKeyDown += (s, a) =>
             {
                 if (a.Key == Key.Enter) { play(); a.Handled = true; }
@@ -651,6 +665,15 @@ namespace Przegladarka
                     return;
                 }
                 addItem(L.T("▶ Odtwórz"), play);
+                int nSel = list.SelectedItems.Count;
+                if (nSel > 1) addItem(L.T("▶ Odtwórz zaznaczone jako kolejkę (") + nSel + ")", () => { var ps = selPaths(); if (ps.Length == 0) return; _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); });
+                addItem(L.T("➕ Dodaj do kolejki") + (nSel > 1 ? " (" + nSel + ")" : ""), () =>
+                {
+                    var ps = selPaths(); if (ps.Length == 0) return;
+                    if (_vlcWin == null) { _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); return; }   // nic nie gra - kolejka od tych filmow
+                    int added = 0; foreach (var p0 in ps) if (!_playlist.Contains(p0, StringComparer.OrdinalIgnoreCase)) { _playlist.Add(p0); added++; }
+                    ShowToast(L.T("➕ Dodano do kolejki: ") + added, null);
+                });
                 menu.Items.Add(peersMenu(L.T("📺 Odtwórz na…"), false));
                 menu.Items.Add(peersMenu(L.T("👥 Oglądaj razem z…"), true));
                 menu.Items.Add(new Separator());
@@ -1282,7 +1305,7 @@ namespace Przegladarka
                 const string fCur = "\u0001cur", fRec = "\u0001rec", fAll = "\u0001all";
                 if (chGroup.Items.Count == 0)
                 {
-                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("▶ Bieżąca lista"), Tag = fCur });
+                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("▶ Kolejka"), Tag = fCur });
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("🕘 Ostatnio oglądane"), Tag = fRec });
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("🎬 Wszystkie filmy"), Tag = fAll });
                 }
@@ -1365,7 +1388,7 @@ namespace Przegladarka
                 const string curKey = "\u0001cur", favKey = "\u0001fav", recKey = "\u0001rec";
                 if (chGroup.Items.Count == 0)
                 {
-                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("▶ Bieżąca lista"), Tag = curKey });
+                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("▶ Kolejka"), Tag = curKey });
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("⭐ Ulubione"), Tag = favKey });
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("🕘 Ostatnio oglądane"), Tag = recKey });
                     if (_iptvPl != null) foreach (var g in _iptvPl.Channels.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) chGroup.Items.Add(new ComboBoxItem { Content = g.Length == 0 ? L.T("(bez grupy)") : g, Tag = g });

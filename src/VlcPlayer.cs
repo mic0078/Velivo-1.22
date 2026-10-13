@@ -397,7 +397,8 @@ namespace Przegladarka
             return res;
         }
 
-        string _libVlcKey;   // opcje, z ktorymi utworzono VLC
+        string _libVlcKey;
+        bool _forceResume;   // odtwarzacz uruchomiony ponownie (zmiana dzwieku) - wznow bez pytania   // opcje, z ktorymi utworzono VLC
         // tryby wyrownywania (jak w AudioBalance): lagodny - wolniej, szerzej; mocny - szybciej, ciasniej; limit - tylko scisza za glosne
         internal static string[] LevelArgs(string mode)
         {
@@ -1862,7 +1863,7 @@ namespace Przegladarka
                     once.Tick += (s, e) =>
                     {
                         once.Stop(); if (mp.Length <= 0) return;
-                        var how = GetPref("wznawianie") ?? "pytaj";   // pytaj / wznow / poczatek (Ustawienia -> Odtwarzacz filmow)
+                        var how = _forceResume ? "wznow" : GetPref("wznawianie") ?? "pytaj"; _forceResume = false;   // po restarcie odtwarzacza - bez pytania   // pytaj / wznow / poczatek (Ustawienia -> Odtwarzacz filmow)
                         if (how == "poczatek" || _together != null) return;
                         if (how == "wznow") { mp.Time = r; showOsd(L.T("Wznowiono od ") + FormatTime(r)); return; }
                         mp.SetPause(true);
@@ -2025,6 +2026,14 @@ namespace Przegladarka
             exitFull = () => { if (full0) toggleFull(); };
 
             play.Click += (s, e) => togglePlay();
+            // ponowne uruchomienie odtwarzacza w tym samym miejscu (zmiana filtrow dzwieku VLC dziala tylko od startu)
+            Action restartPlayer = () =>
+            {
+                var pl = _playlist.ToArray(); int idx = _playIndex; if (pl.Length == 0) return;
+                savePos(); _forceResume = true;
+                win.Close();
+                Dispatcher.BeginInvoke(new Action(() => PlayVideos(pl, idx)), DispatcherPriority.Background);
+            };
             // po Stop zamiast czarnego ekranu: film - biblioteka filmow, telewizja - lista kanalow
             Action afterStop = () => { var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p0 != null && _iptvPlaying.ContainsKey(p0)) showChannels(true); else ShowVideoLibrary(win); };
             stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); afterStop(); };   // Stop konczy wspolne ogladanie tylko tutaj
@@ -2129,10 +2138,11 @@ namespace Przegladarka
                 if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("(brak ścieżek)"), IsEnabled = false });
                 cm.Items.Add(new Separator());
                 var sur = new MenuItem { Header = L.T("Dźwięk 5.1 bez miksowania do stereo (zestaw kina domowego)"), IsCheckable = true, IsChecked = Surround51 };
-                sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); mp.SetChannel(sur.IsChecked ? (AudioOutputChannel)0 : AudioOutputChannel.Stereo); showOsd(sur.IsChecked ? L.T("Dźwięk: 5.1") : L.T("Dźwięk: stereo")); };
+                sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); restartPlayer(); };   // zmiana wyjscia dzwieku - odtwarzacz od nowa w tym samym miejscu
                 cm.Items.Add(sur);
                 // wyrownywanie glosnosci: wylaczone / lagodny / normalny / mocny / tylko scisza za glosne
                 var lvl = new MenuItem { Header = L.T("🎚 Wyrównywanie głośności") };
+                lvl.ToolTip = L.T("Po wyborze odtwarzacz uruchomi się ponownie w tym samym miejscu (VLC ustawia dźwięk przy starcie).");
                 var curMode = LevelVolume ? GetPref("wyrownaj-tryb") ?? "normalny" : "off";
                 foreach (var m0 in new[] { ("off", L.T("Wyłączone")), ("lagodny", L.T("Łagodne – wolniej, z zapasem")), ("normalny", L.T("Normalne")), ("mocny", L.T("Mocne – szybko, równo")), ("limit", L.T("Tylko ścisza za głośne")) })
                 {
@@ -2140,7 +2150,7 @@ namespace Przegladarka
                     mi.Click += (a, b) =>
                     {
                         SetPref("wyrownaj-glosnosc", m.Item1 == "off" ? "0" : "1"); if (m.Item1 != "off") SetPref("wyrownaj-tryb", m.Item1);
-                        showOsd(L.T("Wyrównywanie głośności: ") + m.Item2 + L.T(" – od następnego otwarcia odtwarzacza"));
+                        restartPlayer();   // VLC przyjmuje filtry dzwieku tylko przy starcie - odtwarzacz od nowa, w tym samym miejscu
                     };
                     lvl.Items.Add(mi);
                 }

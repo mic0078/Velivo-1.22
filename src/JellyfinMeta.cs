@@ -197,13 +197,14 @@ namespace Przegladarka
                     var key = MetaKey(path);
                     meta.TryGetValue(key, out var old);
                     m.Poster = old?.Poster;
-                    if (m.ImageTag != null && (old == null || old.ImageTag != m.ImageTag || old.Poster == null || !File.Exists(Path.Combine(PosterDir, old.Poster))))
+                    if (m.ImageTag != null && (old == null || old.ImageTag != m.ImageTag || old.Poster != m.Id + "-720.jpg" || !File.Exists(Path.Combine(PosterDir, old.Poster))))
                     {
                         try
                         {
-                            var img = await http.GetByteArrayAsync("Items/" + m.Id + "/Images/Primary?maxHeight=360&quality=85");
-                            var file = m.Id + ".jpg";
+                            var img = await http.GetByteArrayAsync("Items/" + m.Id + "/Images/Primary?maxHeight=720&quality=90");
+                            var file = m.Id + "-720.jpg";   // wyzsza jakosc - stare (360 px) pobierane od nowa
                             File.WriteAllBytes(Path.Combine(PosterDir, file), img);
+                            if (old?.Poster != null && old.Poster != file) try { File.Delete(Path.Combine(PosterDir, old.Poster)); } catch (Exception) { }   // stary plakat (360 px)
                             m.Poster = file; posters++;
                         }
                         catch (Exception) { }

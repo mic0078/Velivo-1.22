@@ -343,12 +343,13 @@ namespace Przegladarka
         static readonly System.Threading.SemaphoreSlim LogoGate = new System.Threading.SemaphoreSlim(6);
         static readonly HttpClient LogoHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
 
-        static ImageSource LoadLogo(string file)
+        // height: wysokosc dekodowania (logo kanalu 40 px; plakat w opisie wiekszy - inaczej rozmazany)
+        static ImageSource LoadLogo(string file, int height = 40)
         {
             try
             {
                 var b = new BitmapImage();
-                using (var fs = File.OpenRead(file)) { b.BeginInit(); b.CacheOption = BitmapCacheOption.OnLoad; b.DecodePixelHeight = 40; b.StreamSource = fs; b.EndInit(); }
+                using (var fs = File.OpenRead(file)) { b.BeginInit(); b.CacheOption = BitmapCacheOption.OnLoad; b.DecodePixelHeight = height; b.StreamSource = fs; b.EndInit(); }
                 b.Freeze();
                 return b;
             }

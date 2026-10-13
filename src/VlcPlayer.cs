@@ -2315,18 +2315,15 @@ namespace Przegladarka
                 infoM.Items.Add(hideM); infoM.Items.Add(alphaM); infoM.Items.Add(sizeM);
                 cm.Items.Add(infoM);
                 add(L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(true, Window.GetWindow(overlay) ?? win); if (fs != null) PlayVideos(fs, 0); }, true);
-                {   // ostatnio ogladane filmy i kanaly TV - wlaczenie jednym klikiem
-                    var rm = new MenuItem { Header = L.T("🕘 Ostatnio oglądane") };
-                    // jedna lista: 20 ostatnich (filmy i kanaly razem), najnowsze na gorze
-                    var rec = LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != path && File.Exists(v.Path))
-                        .Select(v => (When: v.Last, Text: "🎬 " + ShownTitle(v, MetaFor(v.Path)), Go: (Action)(() => PlayVideos(new[] { v.Path }, 0)))).ToList();
-                    foreach (var u in IptvSt.Recent.Where(u => u != path))
-                    {
-                        var c = _iptvPlaying.TryGetValue(u, out var c1) ? c1 : _iptvPl?.Channels.FirstOrDefault(x => x.Url == u); if (c == null) continue;
-                        rec.Add((IptvSt.Watched.TryGetValue(u, out var t) ? t : 0, "📺 " + c.Name, () => { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }));
-                    }
-                    foreach (var r in rec.OrderByDescending(x => x.When).Take(20)) { var go = r.Go; var mi = new MenuItem { Header = r.Text }; mi.Click += (q, w2) => go(); rm.Items.Add(mi); }
-                    if (rm.Items.Count > 0) cm.Items.Add(rm);
+                {   // ostatnio ogladane - osobno TV i filmy, po 20 ostatnich, najnowsze na gorze
+                    var rf = new MenuItem { Header = L.T("🕘 Ostatnio oglądane Filmy") };
+                    foreach (var v0 in LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != path && File.Exists(v.Path)).OrderByDescending(v => v.Last).Take(20))
+                    { var v = v0; var mi = new MenuItem { Header = ShownTitle(v, MetaFor(v.Path)) }; mi.Click += (q, w2) => PlayVideos(new[] { v.Path }, 0); rf.Items.Add(mi); }
+                    var rt = new MenuItem { Header = L.T("🕘 Ostatnio oglądane TV") };
+                    foreach (var c0 in IptvSt.Recent.Where(u => u != path).Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : _iptvPl?.Channels.FirstOrDefault(x => x.Url == u)).Where(c => c != null).Take(20))
+                    { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (q, w2) => { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }; rt.Items.Add(mi); }
+                    if (rt.Items.Count > 0) cm.Items.Add(rt);
+                    if (rf.Items.Count > 0) cm.Items.Add(rf);
                 }
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
                 add(isFav() ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), () => fav.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)), true);

@@ -214,6 +214,7 @@ namespace Przegladarka
                 menu.Items.Add(mi);
             };
             item("\uE8B3", L.T("Biblioteka filmów"), ShowVideoLibrary);
+            item("\uE823", L.T("⏰ Zaplanuj włączenie filmu / kanału…"), () => ShowScheduleStart(this));
             if (IptvInstalled) item("\uE7F4", L.T("📺 Nagrane z TV"), () => { _libTvView = true; _libSharedView = false; if (_libWin != null && _libWin.IsLoaded) _libWin.Close(); ShowVideoLibrary(); });
             item("\uE8E5", L.T("Otwórz film z dysku…"), () => { var f = PickVideoFiles(false); if (f != null) PlayVideos(f, 0); });
             menu.Items.Add(new Separator());
@@ -222,6 +223,7 @@ namespace Przegladarka
             menu.Items.Add(new Separator());
             item("\uE74D", L.T("Odinstaluj odtwarzacz filmów…"), UninstallVlc);
             _filmBtn.ContextMenu = menu;
+            StartIptvScheduler();   // zaplanowane wlaczenie filmu dziala takze bez modulu TV
             AutoSyncJellyfin();   // informacje o filmach z Jellyfin - uzupelnienie lokalnej bazy w tle (gdy ustawione)
             int bank = TabBarPanel.Children.IndexOf(_bankBtn);
             TabBarPanel.Children.Insert(bank >= 0 ? bank + 1 : 1, _filmBtn);   // dock z prawej: nastepny w kolejnosci stoi po lewej od 🏦
@@ -399,22 +401,6 @@ namespace Przegladarka
 
         string _libVlcKey;
         bool _forceResume;   // odtwarzacz uruchomiony ponownie (zmiana dzwieku) - wznow bez pytania   // opcje, z ktorymi utworzono VLC
-        // tryby wyrownywania (jak w AudioBalance): lagodny - wolniej, szerzej; mocny - szybciej, ciasniej; limit - tylko scisza za glosne
-        internal static string[] LevelArgs(string mode)
-        {
-            string C(string th, string ratio, string att, string rel, string gain) => "--compressor-threshold=" + th + " --compressor-ratio=" + ratio + " --compressor-attack=" + att + " --compressor-release=" + rel + " --compressor-makeup-gain=" + gain;
-            string comp;
-            switch (mode)
-            {
-                case "lagodny": comp = "--audio-filter=normvol:compressor --norm-buff-size=30 --norm-max-level=3.0 " + C("-16", "3", "25", "250", "3"); break;
-                case "mocny": comp = "--audio-filter=normvol:compressor --norm-buff-size=8 --norm-max-level=0.8 " + C("-30", "20", "2", "60", "14"); break;
-                case "limit": comp = "--audio-filter=compressor " + C("-12", "20", "2", "100", "0"); break;
-                default: comp = "--audio-filter=normvol:compressor --norm-buff-size=20 --norm-max-level=2.0 " + C("-20", "6", "15", "150", "6"); break;
-            }
-            return comp.Split(' ');
-        }
-
-        static bool LevelVolume => GetPref("wyrownaj-glosnosc") == "1";   // wyrownywanie glosnosci (menu dzwieku)
         // tytul na liscie: wlasny (zmieniony w Velivo), z Jellyfin, z nazwy pliku
         internal static string ShownTitle(LibraryVideo v, MovieInfo m) { return !string.IsNullOrWhiteSpace(v.MyTitle) ? v.MyTitle : MetaTitle(m) ?? CleanTitle(v.Title); }
 
@@ -984,7 +970,6 @@ namespace Przegladarka
         {
             var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
             if (!Surround51) args.Add("--stereo-mode=1");
-            if (LevelVolume) args.AddRange(LevelArgs(GetPref("wyrownaj-tryb") ?? "normalny"));   // wyrownywanie glosnosci (cicho / glosno nagrane filmy i kanaly)
             var key = string.Join(" ", args);
             if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
             if (_libVlc != null) { var old = _libVlc; _libVlc = null; System.Threading.Tasks.Task.Run(async () => { await System.Threading.Tasks.Task.Delay(15000); try { old.Dispose(); } catch (Exception) { } }); }
@@ -1000,7 +985,7 @@ namespace Przegladarka
                 _libVlc.Log += (s, e) =>
                 {
                     if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
-                    bool audio = e.Module != null && (e.Module.Contains("normvol") || e.Module.Contains("compressor") || (e.Message ?? "").Contains("audio filter") || e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
+                    bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
                     if (e.Level < LogLevel.Warning && !audio) return;   // szczegoly wyjscia dzwieku zawsze
                     try { lock (VlcLogFile) { var f = new FileInfo(VlcLogFile); if (!f.Exists || f.Length < 512 * 1024) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + e.Message + "\n"); } } catch (Exception) { }
                 };
@@ -1121,12 +1106,14 @@ namespace Przegladarka
             var mute = glyphBtn("volume", L.T("Wycisz (M)"));
             var top = glyphBtn("pin", L.T("Zawsze na wierzchu"));
             var mini = glyphBtn("mini", L.T("Tryb mini – małe okienko na wierzchu (jak dla YouTube)"));
+            var fav = textBtn("☆", L.T("Ulubione – kanał do ⭐ Ulubionych, film do playlisty ⭐ Ulubione"));
+            var sleep = textBtn("⏾", L.T("Wyłącznik czasowy – zatrzymaj po czasie albo po końcu filmu"));
             var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
             var left = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var b in new UIElement[] { prev, play, stop, next, back10, fwd10, speed }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
+            foreach (var b in new UIElement[] { fav, sleep, subs, lector, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new DockPanel { Margin = new Thickness(4, 2, 4, 4) };
             DockPanel.SetDock(left, Dock.Left); DockPanel.SetDock(right, Dock.Right);
             btnRow.Children.Add(left); btnRow.Children.Add(right);
@@ -1797,7 +1784,8 @@ namespace Przegladarka
             _iptvJobsChanged += recTitle;   // nagrywanie ogladanego kanalu - widac w tytule
             win.Closed += (s, e) => _iptvJobsChanged -= recTitle;
             // zdarzenia VLC czekajace w kolejce po zamknieciu okna nie dotykaja juz odtwarzacza (zwolniony VLC = awaria calego Velivo)
-            bool vlcClosed = false, aoutDs = false; string levelOsdFor = null;
+            bool vlcClosed = false, aoutDs = false;
+            DateTime? sleepAt = null; bool sleepEnd = false; Action updSleep = () => { };   // wylacznik czasowy
             Func<Action, Action> guard = a => () => { if (!vlcClosed) a(); };
             _vlcLoad = i =>
             {
@@ -1844,9 +1832,7 @@ namespace Przegladarka
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
                     if (tv == null && !stream && IsAviFile(path)) media.AddOption(":demux=avformat,any");
                     _aoutFailed = false;
-                    // wyrownywanie glosnosci takze dla tego filmu (oprocz ustawien przy starcie VLC)
-                    if (LevelVolume) foreach (var la in LevelArgs(GetPref("wyrownaj-tryb") ?? "normalny")) media.AddOption(":" + la.TrimStart('-'));
-                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + path + "\nVLC: " + _libVlcKey + "\nWyrownywanie: " + (LevelVolume ? GetPref("wyrownaj-tryb") ?? "normalny" : "wylaczone") + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
+                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + path + "\nVLC: " + _libVlcKey + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
@@ -1910,11 +1896,7 @@ namespace Przegladarka
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
             var see = overlay.Background;   // prawie przezroczysta - widac film, a klik trafia w okno
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo);
-                var lp = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
-                if (lp == levelOsdFor) { } else if ((levelOsdFor = lp) == null) { }   // komunikat raz na film, nie po kazdej pauzie
-                else if (LevelVolume && _libVlcKey != null && _libVlcKey.Contains("--audio-filter")) showOsd(L.T("🎚 Wyrównywanie głośności: ") + (GetPref("wyrownaj-tryb") ?? "normalny"));
-                else if (LevelVolume) showOsd(L.T("🎚 Wyrównywanie zadziała po zamknięciu i ponownym otwarciu odtwarzacza")); if (chPanel.Visibility == Visibility.Visible && !chPanel.IsMouseOver) { chHide.Stop(); chHide.Start(); } }));   // lista po Stop chowa sie, gdy film znowu gra
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo); if (chPanel.Visibility == Visibility.Visible && !chPanel.IsMouseOver) { chHide.Stop(); chHide.Start(); } }));   // lista po Stop chowa sie, gdy film znowu gra
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => play.Content = PlayerIcon("play")));
             // po Stop / koncu pod obrazem jest jasne okienko VLC - zaslaniamy je na czarno
             mp.Stopped += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; overlay.Background = Brushes.Black; }));
@@ -1930,12 +1912,13 @@ namespace Przegladarka
             };
             mp.EndReached += (s, e) => Dispatcher.BeginInvoke(guard(() =>
             {
-                if (current != null && _remoteFilms.TryGetValue(current.Path, out var rfe)) { SendRemoteProgress(rfe, 0, mp.Length, true); current = null; if (_together == null) step(1); return; }   // nastepny film z tamtej biblioteki
+                bool stopHere = sleepEnd; if (stopHere) { sleepEnd = false; sleepAt = null; showOsd(L.T("⏾ Wyłącznik czasowy – koniec filmu")); updSleep(); }   // bez nastepnego filmu
+                if (current != null && _remoteFilms.TryGetValue(current.Path, out var rfe)) { SendRemoteProgress(rfe, 0, mp.Length, true); current = null; if (_together == null && !stopHere) step(1); return; }   // nastepny film z tamtej biblioteki
                 if (current != null) { var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current)); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
                 // z nagrania: dojechalismy do konca zapisanego pliku - ponownie otworz plik (urosl) od tego miejsca
                 if (curRecFile != null && _playlist.Count > _playIndex) { recResume = Math.Max(0, mp.Length - 1000); _vlcLoad(_playIndex); return; }
                 if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału – łączę ponownie…")); return; }   // telewizja: bez przeskoku na nastepny kanal; strażnik polaczy ponownie
-                if (_playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
+                if (!stopHere && _playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
             mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(guard(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));
 
@@ -2035,6 +2018,73 @@ namespace Przegladarka
                 savePos(); _forceResume = true;
                 win.Close();
                 Dispatcher.BeginInvoke(new Action(() => PlayVideos(pl, idx)), DispatcherPriority.Background);
+            };
+            // ulubione: kanal TV - Ulubione kanalow, film - playlista "⭐ Ulubione"
+            const string favList = "⭐ Ulubione";
+            Func<string> favPath = () => _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+            Func<bool> isFav = () =>
+            {
+                var p0 = favPath(); if (p0 == null) return false;
+                if (_iptvPlaying.ContainsKey(p0)) return IptvSt.Fav.Contains(p0);
+                return LoadPlaylists().Named.TryGetValue(favList, out var l0) && l0.Contains(p0, StringComparer.OrdinalIgnoreCase);
+            };
+            Action updFav = () => fav.Content = isFav() ? "★" : "☆";
+            fav.Click += (s, e) =>
+            {
+                var p0 = favPath(); if (p0 == null) return;
+                bool now;
+                if (_iptvPlaying.ContainsKey(p0)) { now = !IptvSt.Fav.Remove(p0); if (now) IptvSt.Fav.Add(p0); SaveIptv(IptvSt); }
+                else
+                {
+                    var pl = LoadPlaylists(); if (!pl.Named.TryGetValue(favList, out var l0)) pl.Named[favList] = l0 = new List<string>();
+                    now = l0.RemoveAll(x => string.Equals(x, p0, StringComparison.OrdinalIgnoreCase)) == 0; if (now) l0.Add(p0);
+                    if (l0.Count == 0) pl.Named.Remove(favList);
+                    SavePlaylists(pl);
+                }
+                updFav(); showOsd(now ? L.T("⭐ Dodano do ulubionych") : L.T("☆ Usunięto z ulubionych"));
+            };
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(updFav));
+            // wylacznik czasowy: po czasie (ostatnie 30 s cichnie) albo po koncu filmu
+            var sleepTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            updSleep = () =>
+            {
+                var left = sleepAt.HasValue ? sleepAt.Value - DateTime.Now : TimeSpan.Zero;
+                sleep.Content = sleepEnd ? "⏾ ⏹" : sleepAt.HasValue ? "⏾ " + Math.Max(1, (int)Math.Ceiling(left.TotalMinutes)) : "⏾";
+                if (sleepAt.HasValue) sleepTimer.Start(); else sleepTimer.Stop();
+            };
+            sleepTimer.Tick += (s, e) =>
+            {
+                if (!sleepAt.HasValue) { sleepTimer.Stop(); return; }
+                var left = sleepAt.Value - DateTime.Now;
+                if (left.TotalSeconds <= 30 && left.TotalSeconds > 0) mp.Volume = (int)(vol.Value * left.TotalSeconds / 30);   // wyciszanie
+                if (left.TotalSeconds <= 0)
+                {
+                    sleepAt = null; savePos(); mp.SetPause(true); mp.Volume = muted ? 0 : (int)vol.Value;
+                    showOsd(L.T("⏾ Wyłącznik czasowy – zatrzymano"));
+                }
+                updSleep();
+            };
+            win.Closed += (s, e) => sleepTimer.Stop();
+            sleep.Click += (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = sleep, Placement = PlacementMode.Top };
+                foreach (var m0 in new[] { 15, 30, 45, 60, 90, 120 })
+                {
+                    var m = m0; var mi = new MenuItem { Header = m + " min" };
+                    mi.Click += (a, b) => { sleepEnd = false; sleepAt = DateTime.Now.AddMinutes(m); updSleep(); showOsd(L.T("⏾ Zatrzymanie za ") + m + " min"); };
+                    cm.Items.Add(mi);
+                }
+                var endMi = new MenuItem { Header = L.T("🎬 Po końcu tego filmu") };
+                endMi.Click += (a, b) => { sleepAt = null; sleepEnd = true; updSleep(); showOsd(L.T("⏾ Zatrzymanie po końcu filmu")); };
+                cm.Items.Add(endMi);
+                if (sleepAt.HasValue || sleepEnd)
+                {
+                    cm.Items.Add(new Separator());
+                    var off = new MenuItem { Header = L.T("✖ Wyłącz wyłącznik czasowy") };
+                    off.Click += (a, b) => { sleepAt = null; sleepEnd = false; mp.Volume = muted ? 0 : (int)vol.Value; updSleep(); showOsd(L.T("⏾ Wyłącznik czasowy wyłączony")); };
+                    cm.Items.Add(off);
+                }
+                cm.IsOpen = true;
             };
             // po Stop zamiast czarnego ekranu: film - biblioteka filmow, telewizja - lista kanalow
             Action afterStop = () => { var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p0 != null && _iptvPlaying.ContainsKey(p0)) showChannels(true); else ShowVideoLibrary(win); };
@@ -2142,21 +2192,6 @@ namespace Przegladarka
                 var sur = new MenuItem { Header = L.T("Dźwięk 5.1 bez miksowania do stereo (zestaw kina domowego)"), IsCheckable = true, IsChecked = Surround51 };
                 sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); restartPlayer(); };   // zmiana wyjscia dzwieku - odtwarzacz od nowa w tym samym miejscu
                 cm.Items.Add(sur);
-                // wyrownywanie glosnosci: wylaczone / lagodny / normalny / mocny / tylko scisza za glosne
-                var lvl = new MenuItem { Header = L.T("🎚 Wyrównywanie głośności") };
-                lvl.ToolTip = L.T("Po wyborze odtwarzacz uruchomi się ponownie w tym samym miejscu (VLC ustawia dźwięk przy starcie).");
-                var curMode = LevelVolume ? GetPref("wyrownaj-tryb") ?? "normalny" : "off";
-                foreach (var m0 in new[] { ("off", L.T("Wyłączone")), ("lagodny", L.T("Łagodne – wolniej, z zapasem")), ("normalny", L.T("Normalne")), ("mocny", L.T("Mocne – szybko, równo")), ("limit", L.T("Tylko ścisza za głośne")) })
-                {
-                    var m = m0; var mi = new MenuItem { Header = m.Item2, IsCheckable = true, IsChecked = curMode == m.Item1 };
-                    mi.Click += (a, b) =>
-                    {
-                        SetPref("wyrownaj-glosnosc", m.Item1 == "off" ? "0" : "1"); if (m.Item1 != "off") SetPref("wyrownaj-tryb", m.Item1);
-                        restartPlayer();   // VLC przyjmuje filtry dzwieku tylko przy starcie - odtwarzacz od nowa, w tym samym miejscu
-                    };
-                    lvl.Items.Add(mi);
-                }
-                cm.Items.Add(lvl);
             });
             popup(aspect, cm =>
             {
@@ -2251,6 +2286,7 @@ namespace Przegladarka
                 infoM.Items.Add(hideM); infoM.Items.Add(alphaM); infoM.Items.Add(sizeM);
                 cm.Items.Add(infoM);
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
+                add(L.T("⏰ Zaplanuj włączenie filmu / kanału…"), () => ShowScheduleStart(Window.GetWindow(overlay) ?? win), true);
                 {   // playlisty i moja kolejka - wlaczenie jednym klikiem
                     var pls = LoadPlaylists(); var plM = new MenuItem { Header = L.T("🎞 Playlisty i moja kolejka") };
                     Action<string, List<string>> one = (t, paths) => { var mi = new MenuItem { Header = t }; mi.Click += (q, w2) => PlayVideos(paths.ToArray(), 0); plM.Items.Add(mi); };
@@ -2374,7 +2410,7 @@ namespace Przegladarka
                 {
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
                     (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie", "⭐ " }),
-                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🕘 Ostatnio oglądane kanały", "📺 Kanały telewizji", "📅", "🎬 Biblioteka filmów", "🎞 Playlisty" }),
+                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🕘 Ostatnio oglądane kanały", "📺 Kanały telewizji", "📅", "🎬 Biblioteka filmów", "🎞 Playlisty", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),

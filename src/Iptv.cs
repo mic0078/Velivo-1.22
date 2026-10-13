@@ -417,6 +417,7 @@ namespace Przegladarka
             menu.Items.Add(new Separator());
             item("", L.T("Odinstaluj moduł IPTV…"), UninstallIptv);
             item("\uE787", L.T("📅 Program TV"), () => ShowEpgGuide(this, null));
+            item("\uE823", L.T("⏰ Zaplanuj włączenie filmu / kanału…"), () => ShowScheduleStart(this));
             item("\uE787", L.T("Zaplanowane nagrania i przełączenia"), () => ShowJobs(this));
             item("\uE8B2", L.T("🎞 Nagrania"), () => ShowRecordings(this));
             item("\uE838", L.T("📁 Folder nagrań"), OpenRecDir);

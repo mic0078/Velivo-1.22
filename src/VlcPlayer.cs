@@ -1371,7 +1371,14 @@ namespace Przegladarka
                     if (_iptvPl != null) foreach (var g in _iptvPl.Channels.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) chGroup.Items.Add(new ComboBoxItem { Content = g.Length == 0 ? L.T("(bez grupy)") : g, Tag = g });
                 }
                 fillSort("sort-lista-kanalow", new[] { "az", "za", "nr" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: jak na liście" });
-                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedIndex = 0;   // kazde otwarcie: biezaca lista i biezacy kanal
+                if (chPanel.Visibility != Visibility.Visible)   // kazde otwarcie: biezaca lista i biezacy kanal; gdy to jeden kanal (program TV, wznowienie) - jego grupa
+                {
+                    chGroup.SelectedIndex = 0;
+                    var tvCount = _playlist.Count(u => _iptvPlaying.ContainsKey(u));
+                    var nowCh = _playlist.Count > _playIndex && _iptvPlaying.TryGetValue(_playlist[_playIndex], out var nc) ? nc : null;
+                    var grp = nowCh == null ? null : chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (i.Tag as string) == (_iptvPl?.Channels.FirstOrDefault(c => c.Url == nowCh.Url)?.Group ?? nowCh.Group));
+                    if (tvCount <= 1 && grp != null) chGroup.SelectedItem = grp;
+                }
                 var gk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? curKey;
                 chSort.Visibility = gk == curKey || gk == recKey ? Visibility.Collapsed : Visibility.Visible;   // kolejnosc przelaczania / od najnowszego
                 List<IptvChannel> chans;

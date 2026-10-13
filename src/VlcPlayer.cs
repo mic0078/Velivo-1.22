@@ -2209,8 +2209,9 @@ namespace Przegladarka
                 if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
                 double w = r.Width * Math.Max(0.1, Math.Min(0.7, prefD("pip-w", 0.28))), h = w * 9 / 16;
                 double fx = prefD("pip-x", -1), fy = prefD("pip-y", -1);
-                double x = fx < 0 ? r.Width - w - 16 : fx * r.Width, y = fy < 0 ? r.Height - h - 16 - (controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0) : fy * r.Height;
+                double x = fx < 0 ? r.Width - w : fx * r.Width, y = fy < 0 ? r.Height - h - (controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0) : fy * r.Height;
                 x = Math.Max(0, Math.Min(r.Width - w, x)); y = Math.Max(0, Math.Min(r.Height - h, y));
+                var ow = Window.GetWindow(overlay); if (ow != null && pipWin.Owner != ow) pipWin.Owner = ow;   // warstwa obrazu bywa tworzona na nowo (zmiana rozmiaru) - podglad zawsze nad nia
                 pipPlacing = true; pipWin.Width = w; pipWin.Height = h; pipWin.Left = r.X + x; pipWin.Top = r.Y + y; pipPlacing = false;
             };
             Action pipSave = () =>
@@ -2266,7 +2267,9 @@ namespace Przegladarka
                     };
                     pl.MouseRightButtonUp += (q, e2) => { var cm = new ContextMenu(); pipItems(cm); cm.IsOpen = true; e2.Handled = true; };
                     pw.SizeChanged += (q, e2) => { if (pipPlacing) return; pipPlacing = true; pw.Height = pw.Width * 9 / 16; pipPlacing = false; pipSave(); };   // proporcje obrazu 16:9
-                    pipWin = pw; pw.Show(); pipPlace();
+                    pw.WindowStartupLocation = WindowStartupLocation.Manual;
+                    pipWin = pw; pipPlace();   // miejsce przed pokazaniem - inaczej startowal w lewym gornym rogu i to zapamietywal
+                    pipPlacing = true; pw.Show(); pipPlacing = false; pipPlace();
                 }
                 pipCh = ch; pipName.Text = "⧉ " + ch.Name;
                 try
@@ -2452,6 +2455,7 @@ namespace Przegladarka
             // prawy przycisk na obrazie: najczestsze rzeczy pod reka
             overlay.MouseRightButtonUp += (s, e) =>
             {
+                if (overPip(e)) { var pc = new ContextMenu(); pipItems(pc); pc.IsOpen = true; e.Handled = true; return; }   // prawy na podgladzie - jego opcje
                 if (controls.IsMouseOver || chPanel.IsMouseOver) return;   // na liscie kanalow - jej wlasne menu (ulubione, PiP, sortowanie)
                 e.Handled = true;
                 var cm = new ContextMenu();

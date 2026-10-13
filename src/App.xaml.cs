@@ -123,7 +123,38 @@ namespace Przegladarka
                 Shutdown();
                 return;
             }
+            WatchUncleanExit();
             new Przegladarka.MainWindow(urls).Show();
+        }
+
+        // nagle zamkniecie (blad w VLC / WebView2 / systemie - bez wpisu w bledy.log): znacznik dziala.txt zostaje,
+        // przy nastepnym starcie dopisujemy do bledy.log raport awarii Windows (ktory modul sie wysypal)
+        void WatchUncleanExit()
+        {
+            try
+            {
+                var marker = Path.Combine(Przegladarka.MainWindow.DataFolder, "dziala.txt");
+                if (File.Exists(marker))
+                {
+                    var since = File.GetLastWriteTime(marker).AddMinutes(-1);
+                    var log = new System.Text.StringBuilder("Velivo zamknęło się nieoczekiwanie (poprzednie uruchomienie: " + File.ReadAllText(marker).Trim() + ")\n");
+                    foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) })
+                        foreach (var sub in new[] { "ReportArchive", "ReportQueue" })
+                        {
+                            var dir = Path.Combine(root, "Microsoft", "Windows", "WER", sub);
+                            if (!Directory.Exists(dir)) continue;
+                            foreach (var d in Directory.GetDirectories(dir, "*Velivo*").Where(d => Directory.GetLastWriteTime(d) >= since))
+                            {
+                                var wer = Path.Combine(d, "Report.wer");
+                                if (File.Exists(wer)) log.Append(Path.GetFileName(d) + "\n" + string.Join("\n", File.ReadAllLines(wer).Where(l => l.StartsWith("Sig[") || l.StartsWith("EventType") || l.StartsWith("AppPath"))) + "\n");
+                            }
+                        }
+                    LogError(new Exception(log.ToString()));
+                }
+                File.WriteAllText(marker, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                Exit += (s, a) => { try { File.Delete(marker); } catch (Exception) { } };
+            }
+            catch (Exception ex) { LogError(ex); }
         }
 
         internal static void LogError(Exception ex)

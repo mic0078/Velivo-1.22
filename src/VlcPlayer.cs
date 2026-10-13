@@ -747,10 +747,24 @@ namespace Przegladarka
                     t = t.Trim(); v.MyTitle = t.Length == 0 || t == (MetaTitle(MetaFor(v.Path)) ?? CleanTitle(v.Title)) ? null : t;
                     SaveLibrary(l); fill();
                 });
-                addItem(L.T("Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); });
+                addItem(L.T("🔎 Wyszukaj informacje w sieci…"), () =>
+                {
+                    var r = list.SelectedItem as LibRow; if (r == null || remoteOf.ContainsKey(r.Item)) return;
+                    win.Topmost = false;
+                    ShowMetaSearch(win, r.Item.Path, MetaTitle(MetaFor(r.Item.Path)) ?? CleanTitle(r.Item.Title), fill);
+                    win.Topmost = owner.Topmost;
+                });
+                addItem(L.T("📝 Uzupełnij informacje ręcznie (opis, plakat, ocena)…"), () =>
+                {
+                    var r = list.SelectedItem as LibRow; if (r == null || remoteOf.ContainsKey(r.Item)) return;
+                    win.Topmost = false;
+                    if (ShowMetaEditor(win, r.Item.Path, CleanTitle(r.Item.Title))) fill();
+                    win.Topmost = owner.Topmost;
+                });
+                addItem(L.T("📂 Pokaż w folderze"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowInFolder(r.Item.Path); });
                 addItem(L.T("💬 Pobierz napisy…"), () => { var r = list.SelectedItem as LibRow; if (r != null && !r.Missing) ShowSubtitleSearch(r.Item.Path, win); });
-                addItem(L.T("Obejrzyj od początku"), () => { foreach (var r in sel()) r.Item.Pos = 0; var l = LoadLibrary(); foreach (var r in sel()) { var v = FindEntry(l, r.Item.Path, _libSharedView); if (v != null) v.Pos = 0; } SaveLibrary(l); play(); });
-                if (_libTvView) { addItem(L.T("Usuń z biblioteki (plik zostaje na dysku)"), remove); addItem(L.T("🗑 Usuń z biblioteki i z dysku…"), removeFiles); return; }   // nagrania TV - bez przenoszenia
+                addItem(L.T("⏮ Obejrzyj od początku"), () => { foreach (var r in sel()) r.Item.Pos = 0; var l = LoadLibrary(); foreach (var r in sel()) { var v = FindEntry(l, r.Item.Path, _libSharedView); if (v != null) v.Pos = 0; } SaveLibrary(l); play(); });
+                if (_libTvView) { addItem(L.T("➖ Usuń z biblioteki (plik zostaje na dysku)"), remove); addItem(L.T("🗑 Usuń z biblioteki i z dysku…"), removeFiles); return; }   // nagrania TV - bez przenoszenia
                 bool toShared = !_libSharedView;
                 string target = toShared ? sharedName() : localName();
                 // przenies: ten sam licznik obejrzenia; kopiuj: druga pozycja z wlasnym licznikiem (od zera)
@@ -769,7 +783,7 @@ namespace Przegladarka
                 };
                 addItem((toShared ? "📚 " : "🔒 ") + L.T("Przenieś do: ") + target, () => moveOrCopy(false));
                 addItem(L.T("📋 Kopiuj do: ") + target + L.T(" (osobny licznik)"), () => moveOrCopy(true));
-                addItem(L.T("Usuń z biblioteki (plik zostaje na dysku)"), remove);
+                addItem(L.T("➖ Usuń z biblioteki (plik zostaje na dysku)"), remove);
                 addItem(L.T("🗑 Usuń z biblioteki i z dysku…"), removeFiles);
             };
             list.ContextMenu = menu;
@@ -784,7 +798,7 @@ namespace Przegladarka
             buttons.Children.Add(SmallButton(L.T("▶ Odtwórz"), play));
             buttons.Children.Add(SmallButton(L.T("➕ Dodaj filmy…"), () => { var f = PickVideoFiles(true, win); if (f != null) AddPathsToLibrary(f, _libSharedView && !_libTvView); }));
             buttons.Children.Add(SmallButton(L.T("📁 Dodaj folder…"), () => { var d = PickFolder(win); if (d != null) AddPathsToLibrary(new[] { d }, _libSharedView && !_libTvView); }));
-            buttons.Children.Add(SmallButton(L.T("Usuń z biblioteki"), remove));
+            buttons.Children.Add(SmallButton(L.T("➖ Usuń z biblioteki"), remove));
             // odswiez: wspolna biblioteka od nowa z innych komputerow + (gdy ustawiony) nowe dane z Jellyfin w tle
             buttons.Children.Add(SmallButton(L.T("🔄 Odśwież"), async () =>
             {

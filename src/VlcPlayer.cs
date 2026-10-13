@@ -1081,13 +1081,19 @@ namespace Przegladarka
             var overlay = new Grid { Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)) };
             var see = overlay.Background;   // prawie przezroczysta - widac film, a klik trafia w okno
             overlay.Background = Brushes.Black;   // bez filmu czarny ekran z logo Velivo (nie bialy)
-            // logo rysowane wektorowo (ostre w kazdym rozmiarze): zaokraglony kwadrat z gradientem, "V" i napis Velivo
-            var logoBox = new Border { Width = 120, Height = 120, CornerRadius = new CornerRadius(28), HorizontalAlignment = HorizontalAlignment.Center,
-                Background = new LinearGradientBrush(Color.FromRgb(0x6D, 0x28, 0xD9), Color.FromRgb(0x0E, 0x9F, 0xA8), 45),
-                Child = new TextBlock { Text = "V", FontSize = 78, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -6, 0, 0) } };
-            var bigLogo = new StackPanel { Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
-            bigLogo.Children.Add(logoBox);
-            bigLogo.Children.Add(new TextBlock { Text = "Velivo", FontSize = 34, FontWeight = FontWeights.Light, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) });
+            // logo rysowane wektorowo (ostre w kazdym rozmiarze): kwadrat z gradientem fiolet-blekit, biale "V" z liniami ruchu, napis Velivo
+            var logoArt = new Canvas { Width = 150, Height = 150 };
+            logoArt.Children.Add(new Border { Width = 150, Height = 150, CornerRadius = new CornerRadius(34),
+                Background = new LinearGradientBrush(Color.FromRgb(0x7B, 0x2F, 0xF7), Color.FromRgb(0x38, 0xBD, 0xF8), 45) });
+            logoArt.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M 62,38 L 88,108 L 114,38"), Stroke = Brushes.White, StrokeThickness = 20,
+                StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round });
+            foreach (var (y, x0, op) in new[] { (58.0, 22.0, 1.0), (74.0, 30.0, 0.8), (90.0, 38.0, 0.6) })
+                logoArt.Children.Add(new System.Windows.Shapes.Line { X1 = x0, X2 = x0 + 26, Y1 = y, Y2 = y, Stroke = Brushes.White, StrokeThickness = 6, Opacity = op,
+                    StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+            var bigLogo = new StackPanel { Opacity = 0.85, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
+            bigLogo.Children.Add(logoArt);
+            bigLogo.Children.Add(new TextBlock { Text = "Velivo", FontSize = 52, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0),
+                Foreground = new LinearGradientBrush(Color.FromRgb(0x8B, 0x5C, 0xF6), Color.FromRgb(0x63, 0x66, 0xF1), 0) });
             overlay.Children.Add(bigLogo);
             var osd = new TextBlock { Foreground = Brushes.White, FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(18), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
                 Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 1, BlurRadius = 4 }, Visibility = Visibility.Collapsed };
@@ -2308,6 +2314,17 @@ namespace Przegladarka
                 }
                 infoM.Items.Add(hideM); infoM.Items.Add(alphaM); infoM.Items.Add(sizeM);
                 cm.Items.Add(infoM);
+                add(L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(true, Window.GetWindow(overlay) ?? win); if (fs != null) PlayVideos(fs, 0); }, true);
+                {   // ostatnio ogladane filmy i kanaly TV - wlaczenie jednym klikiem
+                    var rm = new MenuItem { Header = L.T("🕘 Ostatnio oglądane") };
+                    var films = LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != path && File.Exists(v.Path)).OrderByDescending(v => v.Last).Take(10).ToList();
+                    if (films.Count > 0) rm.Items.Add(new MenuItem { Header = L.T("🎬 Filmy"), IsEnabled = false });
+                    foreach (var v0 in films) { var v = v0; var mi = new MenuItem { Header = "   " + ShownTitle(v, MetaFor(v.Path)) }; mi.Click += (q, w2) => PlayVideos(new[] { v.Path }, 0); rm.Items.Add(mi); }
+                    var chans = IptvSt.Recent.Where(u => u != path).Take(10).Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : _iptvPl?.Channels.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
+                    if (chans.Count > 0) { if (films.Count > 0) rm.Items.Add(new Separator()); rm.Items.Add(new MenuItem { Header = L.T("📺 Kanały TV"), IsEnabled = false }); }
+                    foreach (var c0 in chans) { var c = c0; var mi = new MenuItem { Header = "   " + c.Name }; mi.Click += (q, w2) => { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }; rm.Items.Add(mi); }
+                    if (rm.Items.Count > 0) cm.Items.Add(rm);
+                }
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
                 add(isFav() ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), () => fav.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)), true);
                 var slM = new MenuItem { Header = L.T("⏾ Wyłącznik czasowy") + (sleepEnd ? L.T(" (po końcu filmu)") : sleepAt.HasValue ? " (" + Math.Max(1, (int)Math.Ceiling((sleepAt.Value - DateTime.Now).TotalMinutes)) + " min)" : "") };
@@ -2336,14 +2353,6 @@ namespace Przegladarka
                     if (nowP != null) add(L.T("▶ Teraz: ") + nowP.Title + L.T(" (do ") + nowP.Stop.ToString("HH:mm") + ")", () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
                     if (nextP != null) add(L.T("⏭ Następnie: ") + nextP.Start.ToString("HH:mm") + " " + nextP.Title, () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
                     bool isFav = IptvSt.Fav.Contains(path);
-                    // ostatnio ogladane kanaly - szybkie przelaczenie
-                    var recent = IptvSt.Recent.Where(u => u != path).Take(10).Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : _iptvPl?.Channels.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
-                    if (recent.Count > 0)
-                    {
-                        var rm = new MenuItem { Header = L.T("🕘 Ostatnio oglądane kanały") };
-                        foreach (var c0 in recent) { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (q, w2) => { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }; rm.Items.Add(mi); }
-                        cm.Items.Add(rm);
-                    }
                     add(L.T("⏮ Poprzedni kanał (PgUp)"), () => _vlcLoad(_playIndex - 1), _playIndex > 0);
                     add(L.T("⏭ Następny kanał (PgDn)"), () => _vlcLoad(_playIndex + 1), _playIndex < _playlist.Count - 1);
                     add(L.T("🔄 Odśwież kanał (F5)"), () => { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); }, true);
@@ -2435,7 +2444,7 @@ namespace Przegladarka
                 {
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
                     (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
-                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🕘 Ostatnio oglądane kanały", "📺 Kanały telewizji", "📅", "🎬 Biblioteka filmów", "🎞 Playlisty", "⭐ ", "⏾ ", "⏰ Zaplanuj" }),
+                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),

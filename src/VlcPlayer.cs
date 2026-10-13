@@ -1081,7 +1081,13 @@ namespace Przegladarka
             var overlay = new Grid { Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)) };
             var see = overlay.Background;   // prawie przezroczysta - widac film, a klik trafia w okno
             overlay.Background = Brushes.Black;   // bez filmu czarny ekran z logo Velivo (nie bialy)
-            var bigLogo = new Image { Source = Icon, Width = 160, Height = 160, Opacity = 0.35, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
+            // logo rysowane wektorowo (ostre w kazdym rozmiarze): zaokraglony kwadrat z gradientem, "V" i napis Velivo
+            var logoBox = new Border { Width = 120, Height = 120, CornerRadius = new CornerRadius(28), HorizontalAlignment = HorizontalAlignment.Center,
+                Background = new LinearGradientBrush(Color.FromRgb(0x6D, 0x28, 0xD9), Color.FromRgb(0x0E, 0x9F, 0xA8), 45),
+                Child = new TextBlock { Text = "V", FontSize = 78, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -6, 0, 0) } };
+            var bigLogo = new StackPanel { Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
+            bigLogo.Children.Add(logoBox);
+            bigLogo.Children.Add(new TextBlock { Text = "Velivo", FontSize = 34, FontWeight = FontWeights.Light, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) });
             overlay.Children.Add(bigLogo);
             var osd = new TextBlock { Foreground = Brushes.White, FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(18), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
                 Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 1, BlurRadius = 4 }, Visibility = Visibility.Collapsed };

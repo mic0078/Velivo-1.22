@@ -348,6 +348,9 @@ namespace Przegladarka
         // owner: okno, nad ktorym ma byc biblioteka (z odtwarzacza - nad filmem, takze gdy odtwarzacz jest zawsze na wierzchu)
         void ShowVideoLibrary() { ShowVideoLibrary(this); }
 
+        static readonly string VlcLogFile = System.IO.Path.Combine(DataDir, "vlc.log");
+        static bool Surround51 => GetPref("dzwiek-51") == "1";   // dzwiek przestrzenny bez miksowania do stereo (wybor w menu dzwieku)
+
         // ostatnio ogladany, nieskonczony film z tego komputera
         LibraryVideo LastFilm()
         {
@@ -716,7 +719,15 @@ namespace Przegladarka
             {
                 LibVLCSharp.Shared.Core.Initialize(VlcDir);
                 // bez tytulu filmu na obrazie; sprzetowe dekodowanie (lzejsze dla procesora); bez sieciowych uslug VLC
-                _libVlc = new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd");
+                // dzwiek 5.1 domyslnie miksowany do stereo: urzadzenie zglaszajace 5.1 (HDMI, soundbar), ktore gra tylko stereo, dawalo cisze
+                _libVlc = Surround51 ? new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd")
+                    : new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--stereo-mode=1");
+                // ostrzezenia i bledy VLC biezacego filmu w vlc.log (folder danych) - np. dlaczego nie ma dzwieku
+                _libVlc.Log += (s, e) =>
+                {
+                    if (e.Level < LogLevel.Warning) return;
+                    try { lock (VlcLogFile) { var f = new FileInfo(VlcLogFile); if (!f.Exists || f.Length < 512 * 1024) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + e.Message + "\n"); } } catch (Exception) { }
+                };
                 return true;
             }
             catch (Exception ex)
@@ -1440,6 +1451,7 @@ namespace Przegladarka
                     if (tv != null && curRecFile == null) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);   // zapas bufora (ustawienie)
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
                     if (tv == null && path.EndsWith(".avi", StringComparison.OrdinalIgnoreCase)) media.AddOption(":demux=avformat,any");
+                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + path + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
@@ -1482,7 +1494,7 @@ namespace Przegladarka
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
             var see = overlay.Background;   // prawie przezroczysta - widac film, a klik trafia w okno
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; }));
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo); }));
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => play.Content = PlayerIcon("play")));
             // po Stop / koncu pod obrazem jest jasne okienko VLC - zaslaniamy je na czarno
             mp.Stopped += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; overlay.Background = Brushes.Black; }));
@@ -1702,6 +1714,10 @@ namespace Przegladarka
                     cm.Items.Add(mi);
                 }
                 if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("(brak ścieżek)"), IsEnabled = false });
+                cm.Items.Add(new Separator());
+                var sur = new MenuItem { Header = L.T("Dźwięk 5.1 bez miksowania do stereo (zestaw kina domowego)"), IsCheckable = true, IsChecked = Surround51 };
+                sur.Click += (a, b) => { SetPref("dzwiek-51", sur.IsChecked ? "1" : "0"); mp.SetChannel(sur.IsChecked ? (AudioOutputChannel)0 : AudioOutputChannel.Stereo); showOsd(sur.IsChecked ? L.T("Dźwięk: 5.1") : L.T("Dźwięk: stereo")); };
+                cm.Items.Add(sur);
             });
             popup(aspect, cm =>
             {

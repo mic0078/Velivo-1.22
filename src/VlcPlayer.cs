@@ -1920,7 +1920,7 @@ namespace Przegladarka
                 };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
                 if (tv != null && _recording.Count > 0) WarnOneConnection();   // trwa nagrywanie - drugie polaczenie
-                if (tv != null) { IptvSt.Watched[path] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); }   // lista kanalow odswieza "Ostatnio ogladane"   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
+                if (tv != null) { IptvSt.Watched[path] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); LoadIptvInBackground(() => { if (_vlcWin == win) showInfo(false); }); }   // lista kanalow odswieza "Ostatnio ogladane"   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
                 if (tv != null) showOsd("📺 " + (i + 1) + ". " + tv.Name);
                 var infoOnce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(tv != null ? 700 : 1500) };   // film - gdy znana jest dlugosc
                 infoOnce.Tick += (s, e) => { infoOnce.Stop(); if (_playlist.Count > _playIndex && _playlist[_playIndex] == path) showInfo(false); };

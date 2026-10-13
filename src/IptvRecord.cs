@@ -153,8 +153,31 @@ namespace Przegladarka
             if (_iptvPl != null) return _iptvPl;
             if (_knownPl != null) return _knownPl;   // raz na uruchomienie - duza lista nie spowalnia menu
             var src = IptvSt.Sources.FirstOrDefault(x => x.Id == IptvSt.Last) ?? IptvSt.Sources.FirstOrDefault(); var f = src != null ? IptvCache(src, ".m3u") : null;
-            if (f != null && File.Exists(f)) try { return _knownPl = ParseM3u(File.ReadAllText(f)); } catch (Exception) { }
+            if (f != null && File.Exists(f)) try { _knownPl = ParseM3u(File.ReadAllText(f)); ApplyEpgMap(_knownPl); return _knownPl; } catch (Exception) { }
             return null;
+        }
+
+        // kanal wlaczony bez okna TV (z menu odtwarzacza, harmonogramu): lista i program TV z pamieci podrecznej w tle, bez pobierania z sieci
+        bool _iptvBgLoading;
+        async void LoadIptvInBackground(Action done)
+        {
+            if (_iptvEpg != null || _iptvBgLoading || !IptvInstalled) return;
+            var src = IptvSt.Sources.FirstOrDefault(x => x.Id == IptvSt.Last) ?? IptvSt.Sources.FirstOrDefault(); if (src == null) return;
+            var m3u = IptvCache(src, ".m3u"); var epgFile = IptvCache(src, ".epg");
+            _iptvBgLoading = true;
+            try
+            {
+                if (_iptvPl == null && File.Exists(m3u)) { var t = _knownPl ?? await Task.Run(() => ParseM3u(File.ReadAllText(m3u))); ApplyEpgMap(t); if (_iptvPl == null) _iptvPl = t; }
+                if (_iptvEpg == null && File.Exists(epgFile))
+                {
+                    var ic = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    var e = await Task.Run(() => { using (var fs = File.OpenRead(epgFile)) return ParseXmltv(fs, DateTime.Now.AddHours(-6), DateTime.Now.AddHours(30), ic); });
+                    if (_iptvEpg == null) { _iptvEpg = e; _iptvIcons = ic; }   // okno TV moglo w miedzyczasie wczytac swoje
+                }
+                _iptvLoaded?.Invoke(); done?.Invoke();
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            finally { _iptvBgLoading = false; }
         }
 
         // zaplanowane wlaczenie o godzinie: film z biblioteki albo kanal TV (zwykle okno, lista z wyszukiwaniem, data i godzina)

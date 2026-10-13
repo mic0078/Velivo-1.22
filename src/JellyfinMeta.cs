@@ -397,6 +397,14 @@ namespace Przegladarka
                 if (!resp.IsSuccessStatusCode) resp = await Ok(http.GetAsync("Users/" + uid + "/" + q));   // starszy serwer - widok uzytkownika
                 var json = await resp.Content.ReadAsStringAsync();
                 var items = JsonDocument.Parse(json).RootElement.GetProperty("Items");
+                // foldery ustawione teraz w bibliotekach Jellyfin - stare wpisy z usunietych folderow (np. dawne litery dyskow) pomijamy
+                var roots = new List<string>();
+                try
+                {
+                    var vf = JsonDocument.Parse(await (await Ok(http.GetAsync("Library/VirtualFolders"))).Content.ReadAsStringAsync()).RootElement;
+                    foreach (var f in vf.EnumerateArray()) if (f.TryGetProperty("Locations", out var locs)) foreach (var l in locs.EnumerateArray()) { var s = l.GetString(); if (!string.IsNullOrEmpty(s)) roots.Add(s.Replace('/', '\\').TrimEnd('\\') + "\\"); }
+                }
+                catch (Exception) { roots.Clear(); }   // starszy serwer - bez filtra
                 var meta = new Dictionary<string, MovieInfo>(Meta, StringComparer.OrdinalIgnoreCase);
                 int n = 0, total = items.GetArrayLength(), posters = 0;
                 Directory.CreateDirectory(PosterDir);
@@ -405,6 +413,7 @@ namespace Przegladarka
                 {
                     n++;
                     var path = it.TryGetProperty("Path", out var pth) ? pth.GetString() : null; if (path == null) continue;
+                    if (roots.Count > 0 && !roots.Any(r => path.Replace('/', '\\').StartsWith(r, StringComparison.OrdinalIgnoreCase))) continue;   // poza bibliotekami Jellyfin
                     var m = ParseJellyfinItem(it);
                     var key = MetaKey(path);
                     if (it.TryGetProperty("Type", out var ty) && ty.GetString() == "Movie") jfAll.Add((m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "") + (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? "  [nierozpoznany w Jellyfin]" : ""), path));

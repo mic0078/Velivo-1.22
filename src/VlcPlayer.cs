@@ -389,6 +389,16 @@ namespace Przegladarka
         // tytul na liscie: wlasny (zmieniony w Velivo), z Jellyfin, z nazwy pliku
         internal static string ShownTitle(LibraryVideo v, MovieInfo m) { return !string.IsNullOrWhiteSpace(v.MyTitle) ? v.MyTitle : MetaTitle(m) ?? CleanTitle(v.Title); }
 
+        // moja kolejka (zapamietana) i zapisane playlisty - sciezki filmow w kolejnosci
+        internal sealed class Playlists { public List<string> Mine { get; set; } = new List<string>(); public Dictionary<string, List<string>> Named { get; set; } = new Dictionary<string, List<string>>(); }
+        static string PlaylistsFile => System.IO.Path.Combine(DataDir, "playlisty.json");
+        static Playlists LoadPlaylists()
+        {
+            try { if (File.Exists(PlaylistsFile)) return JsonSerializer.Deserialize<Playlists>(File.ReadAllText(PlaylistsFile)) ?? new Playlists(); } catch (Exception ex) { App.LogError(ex); }
+            return new Playlists();
+        }
+        static void SavePlaylists(Playlists p) { try { Directory.CreateDirectory(DataDir); File.WriteAllText(PlaylistsFile, JsonSerializer.Serialize(p)); } catch (Exception ex) { App.LogError(ex); } }
+
         static bool Surround51 => GetPref("dzwiek-51") == "1";   // dzwiek przestrzenny bez miksowania do stereo (wybor w menu dzwieku)
 
         // ostatnio ogladany, nieskonczony film z tego komputera
@@ -670,14 +680,44 @@ namespace Przegladarka
                 }
                 addItem(L.T("▶ Odtwórz"), play);
                 int nSel = list.SelectedItems.Count;
-                if (nSel > 1) addItem(L.T("▶ Odtwórz zaznaczone jako kolejkę (") + nSel + ")", () => { var ps = selPaths(); if (ps.Length == 0) return; _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); });
+                Action<List<string>> rememberMine = q => { var p0 = LoadPlaylists(); p0.Mine = q.ToList(); SavePlaylists(p0); };   // moja kolejka zostaje (takze po wlaczeniu innego filmu i po zamknieciu)
+                if (nSel > 1) addItem(L.T("▶ Odtwórz zaznaczone jako kolejkę (") + nSel + ")", () => { var ps = selPaths(); if (ps.Length == 0) return; rememberMine(ps.ToList()); _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); });
                 addItem(L.T("➕ Dodaj do kolejki") + (nSel > 1 ? " (" + nSel + ")" : ""), () =>
                 {
                     var ps = selPaths(); if (ps.Length == 0) return;
-                    if (_vlcWin == null) { _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); return; }   // nic nie gra - kolejka od tych filmow
+                    if (_vlcWin == null) { rememberMine(ps.ToList()); _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); return; }   // nic nie gra - kolejka od tych filmow
                     int added = 0; foreach (var p0 in ps) if (!_playlist.Contains(p0, StringComparer.OrdinalIgnoreCase)) { _playlist.Add(p0); added++; }
+                    rememberMine(_playlist.Where(u => !_iptvPlaying.ContainsKey(u) && !_remoteFilms.ContainsKey(u)).ToList());
                     ShowToast(L.T("➕ Dodano do kolejki: ") + added, null);
                 });
+                // playlisty: zapis zaznaczonych / mojej kolejki pod nazwa, odtwarzanie, usuwanie
+                var plsM = LoadPlaylists();
+                var plRoot = new MenuItem { Header = L.T("🎞 Playlisty") };
+                Action<string, Action> plAdd = (t, act) => { var mi = new MenuItem { Header = t }; mi.Click += (q, w2) => act(); plRoot.Items.Add(mi); };
+                Action<List<string>> saveAs = paths =>
+                {
+                    if (paths.Count == 0) return;
+                    win.Topmost = false; var n = Prompt(L.T("Nazwa playlisty (np. Obcy – wszystkie części):"), ""); win.Topmost = owner.Topmost;
+                    if (string.IsNullOrWhiteSpace(n)) return;
+                    var p0 = LoadPlaylists(); p0.Named[n.Trim()] = paths; SavePlaylists(p0); ShowToast(L.T("🎞 Zapisano playlistę: ") + n.Trim() + " (" + paths.Count + ")", null);
+                };
+                plAdd(L.T("💾 Zapisz zaznaczone jako playlistę…"), () => saveAs(selPaths().ToList()));
+                if (plsM.Mine.Count > 0)
+                {
+                    plAdd(L.T("▶ Odtwórz moją kolejkę (") + plsM.Mine.Count + ")", () => { _playShared = _libSharedView; PlayVideos(plsM.Mine.ToArray(), 0); win.Close(); });
+                    plAdd(L.T("💾 Zapisz moją kolejkę jako playlistę…"), () => saveAs(plsM.Mine.ToList()));
+                    plAdd(L.T("🗑 Wyczyść moją kolejkę"), () => { var p0 = LoadPlaylists(); p0.Mine.Clear(); SavePlaylists(p0); });
+                }
+                if (plsM.Named.Count > 0) plRoot.Items.Add(new Separator());
+                foreach (var name0 in plsM.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase))
+                {
+                    var name = name0; var one = new MenuItem { Header = "🎞 " + name + " (" + plsM.Named[name].Count + ")" };
+                    var pPlay = new MenuItem { Header = L.T("▶ Odtwórz") }; pPlay.Click += (q, w2) => { _playShared = _libSharedView; PlayVideos(plsM.Named[name].ToArray(), 0); win.Close(); };
+                    var pAdd = new MenuItem { Header = L.T("➕ Dodaj zaznaczone") }; pAdd.Click += (q, w2) => { var p0 = LoadPlaylists(); if (!p0.Named.TryGetValue(name, out var l0)) return; foreach (var x in selPaths()) if (!l0.Contains(x, StringComparer.OrdinalIgnoreCase)) l0.Add(x); SavePlaylists(p0); };
+                    var pDel = new MenuItem { Header = L.T("🗑 Usuń playlistę") }; pDel.Click += (q, w2) => { if (MessageBox.Show(win, string.Format(L.T("Usunąć playlistę „{0}”? Filmy zostają w bibliotece."), name), L.T("Playlisty"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return; var p0 = LoadPlaylists(); p0.Named.Remove(name); SavePlaylists(p0); };
+                    one.Items.Add(pPlay); one.Items.Add(pAdd); one.Items.Add(pDel); plRoot.Items.Add(one);
+                }
+                menu.Items.Add(plRoot);
                 menu.Items.Add(peersMenu(L.T("📺 Odtwórz na…"), false));
                 menu.Items.Add(peersMenu(L.T("👥 Oglądaj razem z…"), true));
                 menu.Items.Add(new Separator());
@@ -1319,11 +1359,19 @@ namespace Przegladarka
             Action showFilms = () =>
             {
                 const string fCur = "\u0001cur", fRec = "\u0001rec", fAll = "\u0001all";
-                if (chGroup.Items.Count == 0)
+                // grupy: kolejka, ostatnio ogladane, wszystkie, moja kolejka i zapisane playlisty (odswiezane, gdy sie zmienia)
+                var pls = LoadPlaylists();
+                var want = new List<(string Text, string Tag)> { (L.T("▶ Kolejka"), fCur), (L.T("🕘 Ostatnio oglądane"), fRec), (L.T("🎬 Wszystkie filmy"), fAll) };
+                if (pls.Mine.Count > 0) want.Add((L.T("📋 Moja kolejka") + " (" + pls.Mine.Count + ")", "\u0001mine"));
+                foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) want.Add(("🎞 " + n + " (" + pls.Named[n].Count + ")", "\u0001pl:" + n));
+                if (!chGroup.Items.Cast<ComboBoxItem>().Select(i => (string)i.Content + "|" + i.Tag).SequenceEqual(want.Select(w => w.Text + "|" + w.Tag)))
                 {
-                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("▶ Kolejka"), Tag = fCur });
-                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("🕘 Ostatnio oglądane"), Tag = fRec });
-                    chGroup.Items.Add(new ComboBoxItem { Content = L.T("🎬 Wszystkie filmy"), Tag = fAll });
+                    var keep = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string;
+                    chGroup.Tag = "busy";   // przebudowa grup - bez ponownego wypelniania listy
+                    chGroup.Items.Clear();
+                    foreach (var w in want) chGroup.Items.Add(new ComboBoxItem { Content = w.Text, Tag = w.Tag });
+                    chGroup.SelectedItem = chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == keep);
+                    chGroup.Tag = null;
                 }
                 fillSort("sort-lista-filmow", new[] { "az", "za", "ocena", "rok" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: ocena", "Sortuj: rok (najnowsze)" });
                 // otwarcie listy: biezaca lista, a gdy to tylko jeden film (start z "Kontynuuj", z dysku innego komputera) - wszystkie filmy
@@ -1336,9 +1384,11 @@ namespace Przegladarka
                 bool remoteCur = fk == fCur && rfCur != null;   // film z innego komputera: biezaca lista = wspolna biblioteka tamtych komputerow
                 List<LibraryVideo> films = fk == fCur ? (remoteCur ? new List<LibraryVideo>() : _playlist.Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList())   // kolejnosc odtwarzania
                     : fk == fRec ? libAll.Where(v => v.Last > 0 && v.Peer == null).ToList()
+                    : fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? (fk.StartsWith("\u0001mine") ? pls.Mine : pls.Named.TryGetValue(fk.Substring(4), out var pl0) ? pl0 : new List<string>())
+                        .Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList()   // kolejnosc playlisty
                     : SortFilms(libAll.Where(v => v.Peer == null), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
                 // sortowanie nie dotyczy kolejnosci odtwarzania ani ostatnio ogladanych (zawsze od najnowszego)
-                chSort.Visibility = fk == fRec || fk == fCur && !remoteCur ? Visibility.Collapsed : Visibility.Visible;
+                chSort.Visibility = fk == fRec || fk == fCur && !remoteCur || fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? Visibility.Collapsed : Visibility.Visible;
                 chList.Items.Clear(); ListBoxItem cur = null;
                 Func<MovieInfo, string, string, ListBoxItem> mkRow = (m, raw, sub) =>
                 {
@@ -1468,7 +1518,7 @@ namespace Przegladarka
             showChannelsRefresh = () => { if (chPanel.Visibility == Visibility.Visible) showChannels(true); };
             chGroup.SelectionChanged += (s, e) =>
             {
-                if (!(chGroup.SelectedItem is ComboBoxItem gi) || !(gi.Tag is string g)) return;
+                if (chGroup.Tag != null || !(chGroup.SelectedItem is ComboBoxItem gi) || !(gi.Tag is string g)) return;
                 if (chPanel.Visibility == Visibility.Visible) showChannels(true);
             };
             chGroup.DropDownOpened += (s, e) => chHide.Stop();   // wybieranie grupy - lista nie chowa sie

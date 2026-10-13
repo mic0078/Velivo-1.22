@@ -415,7 +415,7 @@ namespace Przegladarka
         // losowanie filmow: gatunek / jak zaznaczony film, minimalna ocena, nieobejrzane, ile - potem kolejka albo playlista
         void ShowRandomPicker(Window owner, List<LibraryVideo> pool, LibraryVideo seed, Action<List<string>> play)
         {
-            var win = new Window { Title = L.T("🎲 Wylosuj filmy"), Width = 560, Height = 580, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var win = new Window { Title = L.T("🎲 Wylosuj filmy"), Width = 760, Height = 720, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             var genres = pool.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(g => g, StringComparer.CurrentCultureIgnoreCase).ToList();
             var seedGenres = seed != null ? MetaFor(seed.Path)?.Genres ?? new List<string>() : new List<string>();
             var genre = new ComboBox { Width = 240 };
@@ -431,10 +431,11 @@ namespace Przegladarka
             count.SelectedIndex = 1;
             var unseen = new CheckBox { Content = L.T("Tylko nieobejrzane"), IsChecked = true, Margin = new Thickness(0, 8, 0, 0) };
             var form = new StackPanel { Margin = new Thickness(12) };
-            Action<string, UIElement> row = (t, c) => { var d = new DockPanel { Margin = new Thickness(0, 4, 0, 0) }; var tb = new TextBlock { Text = t, Width = 140, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(tb, Dock.Left); d.Children.Add(tb); d.Children.Add(c); form.Children.Add(d); };
+            Action<string, FrameworkElement> row = (t, c) => { var d = new DockPanel { Margin = new Thickness(0, 4, 0, 0) }; var tb = new TextBlock { Text = t, Width = 140, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(tb, Dock.Left); c.HorizontalAlignment = HorizontalAlignment.Left; d.Children.Add(tb); d.Children.Add(c); form.Children.Add(d); };
             row(L.T("Gatunek:"), genre); row(L.T("Ocena co najmniej:"), minRating); row(L.T("Ile filmów:"), count);
             form.Children.Add(unseen);
-            var list = new ListBox { Margin = new Thickness(12, 0, 12, 0) };
+            var list = new ListBox { Margin = new Thickness(12, 0, 12, 0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
             var info = new TextBlock { Margin = new Thickness(12, 6, 12, 6), Foreground = Brushes.Gray };
             var picked = new List<LibraryVideo>();
             var rnd = new Random();
@@ -452,7 +453,20 @@ namespace Przegladarka
                 }).ToList();
                 picked = cand.OrderBy(_ => rnd.Next()).Take((int)count.SelectedItem).ToList();
                 list.Items.Clear();
-                foreach (var v in picked) { var m = MetaFor(v.Path); list.Items.Add(ShownTitle(v, m) + (m?.Rating > 0 ? "   ★ " + m.Rating.ToString("0.0") : "") + (m?.Genres.Count > 0 ? "   · " + string.Join(", ", m.Genres.Take(2)) : "")); }
+                foreach (var v in picked)   // plakat, tytul, ocena i gatunek, krotki opis
+                {
+                    var m = MetaFor(v.Path);
+                    var img = new Image { Width = 60, Height = 90, Stretch = Stretch.Uniform, Margin = new Thickness(0, 4, 12, 4), VerticalAlignment = VerticalAlignment.Top };
+                    if (m?.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) img.Source = LoadLogo(pf, 180); }
+                    var txt = new StackPanel { Margin = new Thickness(0, 4, 0, 4) };
+                    txt.Children.Add(new TextBlock { Text = ShownTitle(v, m), FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+                    var sub = string.Join("  ·  ", new[] { m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null, m?.Genres.Count > 0 ? string.Join(", ", m.Genres.Take(3)) : null, v.Len > 0 ? FormatTime(v.Len) : null }.Where(x => x != null));
+                    if (sub.Length > 0) txt.Children.Add(new TextBlock { Text = sub, Foreground = Brushes.Gray, Margin = new Thickness(0, 2, 0, 2) });
+                    var ov = (m?.Overview ?? "").Trim();
+                    if (ov.Length > 0) txt.Children.Add(new TextBlock { Text = ov.Length > 260 ? ov.Substring(0, 260).TrimEnd() + "…" : ov, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+                    var dp = new DockPanel(); DockPanel.SetDock(img, Dock.Left); dp.Children.Add(img); dp.Children.Add(txt);
+                    list.Items.Add(new ListBoxItem { Content = dp, Padding = new Thickness(4) });
+                }
                 info.Text = picked.Count == 0 ? L.T("Nic nie pasuje – zmień warunki.") : string.Format(L.T("Wylosowano {0} z {1} pasujących."), picked.Count, cand.Count);
             };
             var bar = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12) };
@@ -2282,11 +2296,11 @@ namespace Przegladarka
                         StartAt(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 1500, () => { _together = t; TogetherSend("join", 0); showOsd(L.T("👥 Dołączono ponownie")); });   // po wczytaniu filmu
                     }, true);
                 cm.Items.Add(new Separator());
-                add(L.T("Napisy na ekranie: ") + (_settings.VlcShowSubs ? L.T("ukryj") : L.T("pokaż")), () => { showSubs.IsChecked = !_settings.VlcShowSubs; showSubs.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); }, true);
+                add(L.T("💬 Napisy na ekranie: ") + (_settings.VlcShowSubs ? L.T("ukryj") : L.T("pokaż")), () => { showSubs.IsChecked = !_settings.VlcShowSubs; showSubs.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); }, true);
                 add(_settings.VlcLector ? L.T("🗣 Wyłącz lektora") : L.T("🗣 Włącz lektora"), () => { lectorOn.IsChecked = !_settings.VlcLector; lectorOn.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); }, true);
                 add(L.T("📌 Zawsze na wierzchu"), click(top), true);
-                add(L.T("Tryb mini"), toggleMini, true);
-                add(L.T("Pełny ekran"), toggleFull, true);
+                add(L.T("🔲 Tryb mini"), toggleMini, true);
+                add(L.T("🖥 Pełny ekran"), toggleFull, true);
                 add(L.T("📷 Zrzut klatki"), click(snap), true);
                 {   // zegar: wlacz, pozycja, wielkosc, przezroczystosc
                     var clM = new MenuItem { Header = L.T("🕐 Zegar na obrazie") };
@@ -2317,9 +2331,9 @@ namespace Przegladarka
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
                     (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie", "⭐ " }),
                     (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🕘 Ostatnio oglądane kanały", "📺 Kanały telewizji", "📅", "🎬 Biblioteka filmów", "🎞 Playlisty" }),
-                    (null, new[] { "💬 Pobierz napisy", "Napisy na ekranie", "🗣 " }),
+                    (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
-                    (null, new[] { "📌 Zawsze na wierzchu", "Tryb mini", "Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
+                    (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
                     (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "ℹ Pasek informacji", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
                 var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().ToList();

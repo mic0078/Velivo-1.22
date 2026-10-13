@@ -112,6 +112,8 @@ namespace Przegladarka
             return m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "");
         }
 
+        static int Richness(MovieInfo m) { return (string.IsNullOrEmpty(m.Overview) ? 0 : 4) + (m.Rating > 0 ? 2 : 0) + (m.Genres?.Count > 0 ? 1 : 0); }
+
         // klucz "tytul + rok": plik o innej nazwie niz w Jellyfin (np. inna wersja, kolekcja w jednym folderze)
         // bez polskich znakow (pasazer = pasażer) i znakow innych niz litery i cyfry; rok 0 = klucz samego tytulu
         static string TitleYearKey(string title, int year)
@@ -217,6 +219,7 @@ namespace Przegladarka
                     var key = MetaKey(path);
                     jfAll.Add((m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "") + (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? "  [nierozpoznany w Jellyfin]" : ""), path));
                     meta.TryGetValue(key, out var old);
+                    if (old != null && old.Id != m.Id && Richness(old) > Richness(ParseJellyfinItem(it))) continue;   // ten sam plik w drugiej bibliotece Jellyfin, tam nierozpoznany - zostaja lepsze dane
                     m.Poster = old?.Poster;
                     if (m.ImageTag != null && (old == null || old.ImageTag != m.ImageTag || old.Poster != m.Id + "-720.jpg" || !File.Exists(Path.Combine(PosterDir, old.Poster))))
                     {

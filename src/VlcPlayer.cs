@@ -83,8 +83,12 @@ namespace Przegladarka
 
         List<LibraryVideo> LoadLibrary()
         {
-            try { return File.Exists(LibraryFile) ? ParseLibrary(File.ReadAllText(LibraryFile)) : new List<LibraryVideo>(); }
-            catch (IOException) { return new List<LibraryVideo>(); }
+            // plik zapisywany wlasnie przez odtwarzacz (co 10 s) - ponow odczyt; pusta lista zapisana z powrotem skasowalaby biblioteke
+            for (int i = 0; ; i++)
+            {
+                try { return File.Exists(LibraryFile) ? ParseLibrary(File.ReadAllText(LibraryFile)) : new List<LibraryVideo>(); }
+                catch (IOException) when (i < 40) { System.Threading.Thread.Sleep(25); }
+            }
         }
 
         void SaveLibrary(List<LibraryVideo> lib)
@@ -720,8 +724,9 @@ namespace Przegladarka
                 LibVLCSharp.Shared.Core.Initialize(VlcDir);
                 // bez tytulu filmu na obrazie; sprzetowe dekodowanie (lzejsze dla procesora); bez sieciowych uslug VLC
                 // dzwiek 5.1 domyslnie miksowany do stereo: urzadzenie zglaszajace 5.1 (HDMI, soundbar), ktore gra tylko stereo, dawalo cisze
-                _libVlc = Surround51 ? new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd")
-                    : new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--stereo-mode=1");
+                // AC3/DTS dekodowane tutaj (bez passthrough) - urzadzenie, ktore go nie przyjmuje, dawalo "failed to create audio output" i cisze
+                _libVlc = Surround51 ? new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif")
+                    : new LibVLC("--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--stereo-mode=1", "--mmdevice-passthrough=0", "--no-spdif");
                 // ostrzezenia i bledy VLC biezacego filmu w vlc.log (folder danych) - np. dlaczego nie ma dzwieku
                 _libVlc.Log += (s, e) =>
                 {

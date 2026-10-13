@@ -362,6 +362,27 @@ namespace Przegladarka
         }
 
         static readonly string VlcLogFile = System.IO.Path.Combine(DataDir, "vlc.log");
+        // wznowic od zapisanego miejsca? true = wznow, false = od poczatku; "zapamietaj" - ustawienie na stale (bez pytania)
+        bool? AskResume(Window owner, long at)
+        {
+            bool? res = null;
+            var dlg = new Window { Title = L.T("Wznowić oglądanie?"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var p = new StackPanel { Margin = new Thickness(18) };
+            p.Children.Add(new TextBlock { Text = L.T("Ten film był oglądany do ") + FormatTime(at) + ".", FontSize = 14, Margin = new Thickness(0, 0, 0, 12) });
+            var remember = new CheckBox { Content = L.T("Zapamiętaj wybór i nie pytaj (zmiana: Ustawienia → Odtwarzacz filmów)"), Margin = new Thickness(0, 0, 0, 12) };
+            var btns = new StackPanel { Orientation = Orientation.Horizontal };
+            var resume = new Button { Content = L.T("▶ Wznów od ") + FormatTime(at), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var start = new Button { Content = L.T("⏮ Od początku"), Padding = new Thickness(14, 6, 14, 6) };
+            resume.Click += (s, e) => { res = true; dlg.Close(); };
+            start.Click += (s, e) => { res = false; dlg.Close(); };
+            btns.Children.Add(resume); btns.Children.Add(start);
+            p.Children.Add(remember); p.Children.Add(btns);
+            dlg.Content = p;
+            dlg.ShowDialog();
+            if (res != null && remember.IsChecked == true) SetPref("wznawianie", res.Value ? "wznow" : "poczatek");
+            return res;
+        }
+
         static bool Surround51 => GetPref("dzwiek-51") == "1";   // dzwiek przestrzenny bez miksowania do stereo (wybor w menu dzwieku)
 
         // ostatnio ogladany, nieskonczony film z tego komputera
@@ -962,7 +983,20 @@ namespace Przegladarka
             };
             Action showLector = () => lector.Background = _settings.VlcLector ? new SolidColorBrush(Color.FromArgb(0x55, 0x3B, 0x82, 0xF6)) : Brushes.Transparent;
             // klik 🗣 = panel lektora: wlacz/wylacz, glosnosc, predkosc, sciszanie filmu (zapamietywane)
-            Action saveLector = () => { try { _settings.Save(DataDir); } catch (Exception) { } };
+            // domyslne ustawienia (film bez wlasnych): te z ustawien Velivo - zmiany w filmie ich nie nadpisuja
+            int defVol = _settings.VlcVolume, defDuck = _settings.VlcLectorDuck; double defLVol = _settings.VlcLectorVolume, defRate = _settings.VlcLectorRate; string defVoice = _settings.VlcLectorVoice;
+            Action saveLector = () =>
+            {
+                try
+                {
+                    if (current == null) { defVol = _settings.VlcVolume; defDuck = _settings.VlcLectorDuck; defLVol = _settings.VlcLectorVolume; defRate = _settings.VlcLectorRate; defVoice = _settings.VlcLectorVoice; _settings.Save(DataDir); return; }
+                    // zapis pozostalych ustawien (lektor wl., napisy) z domyslnymi wartosciami filmu - ustawienia tego filmu ida do biblioteki
+                    var keep = (_settings.VlcVolume, _settings.VlcLectorDuck, _settings.VlcLectorVolume, _settings.VlcLectorRate, _settings.VlcLectorVoice);
+                    _settings.VlcVolume = defVol; _settings.VlcLectorDuck = defDuck; _settings.VlcLectorVolume = defLVol; _settings.VlcLectorRate = defRate; _settings.VlcLectorVoice = defVoice;
+                    try { _settings.Save(DataDir); } finally { (_settings.VlcVolume, _settings.VlcLectorDuck, _settings.VlcLectorVolume, _settings.VlcLectorRate, _settings.VlcLectorVoice) = keep; }
+                }
+                catch (Exception) { }
+            };
             var lectorOn = new CheckBox { Content = L.T("Lektor włączony"), Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 8), IsChecked = _settings.VlcLector };
             // zapis ustawien tego filmu (glosnosc + lektor) chwile po ostatniej zmianie
             var filmPrefsTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
@@ -1021,11 +1055,12 @@ namespace Przegladarka
             // ustawienia filmu do panelu i odtwarzacza (przy wczytaniu filmu): zapisane dla filmu, inaczej ostatnio uzywane
             Action applyFilmPrefs = () =>
             {
-                lvRow.Item2.Value = (current?.LVol ?? _settings.VlcLectorVolume) * 100;
-                lrRow.Item2.Value = current?.LRate ?? _settings.VlcLectorRate;
-                ldRow.Item2.Value = current?.LDuck ?? _settings.VlcLectorDuck;
-                settingVoice = true; _settings.VlcLectorVoice = current?.LVoice ?? _settings.VlcLectorVoice; selectVoice(_settings.VlcLectorVoice); settingVoice = false;
-                vol.Value = current?.Vol ?? _settings.VlcVolume;
+                // film bez wlasnych ustawien - domyslne (nie te z poprzedniego filmu)
+                lvRow.Item2.Value = (current?.LVol ?? defLVol) * 100;
+                lrRow.Item2.Value = current?.LRate ?? defRate;
+                ldRow.Item2.Value = current?.LDuck ?? defDuck;
+                settingVoice = true; _settings.VlcLectorVoice = current?.LVoice ?? defVoice; selectVoice(_settings.VlcLectorVoice); settingVoice = false;
+                vol.Value = current?.Vol ?? defVol;
                 mp.Volume = muted ? 0 : (int)vol.Value;   // takze gdy suwak juz stal na tej wartosci (bez zdarzenia zmiany)
                 filmPrefsTimer.Stop();
             };
@@ -1057,7 +1092,7 @@ namespace Przegladarka
             Action<bool, string> rememberTrack = (spu, name) =>
             {
                 if (spu) _settings.VlcSpu = name; else _settings.VlcAudio = name;
-                try { _settings.Save(DataDir); } catch (Exception) { }
+                saveLector();   // bez nadpisania domyslnych ustawien lektora ustawieniami tego filmu
                 if (current == null) return;
                 if (spu) current.Spu = name; else current.Audio = name;
                 if (_remoteFilms.TryGetValue(current.Path, out var rft)) { SendRemoteProgress(rft, mp.Time, mp.Length, false); return; }
@@ -1487,7 +1522,18 @@ namespace Przegladarka
                 {
                     long r = resume;
                     var once = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
-                    once.Tick += (s, e) => { once.Stop(); if (mp.Length > 0) { mp.Time = r; showOsd(L.T("Wznowiono od ") + FormatTime(r)); } };
+                    once.Tick += (s, e) =>
+                    {
+                        once.Stop(); if (mp.Length <= 0) return;
+                        var how = GetPref("wznawianie") ?? "pytaj";   // pytaj / wznow / poczatek (Ustawienia -> Odtwarzacz filmow)
+                        if (how == "poczatek" || _together != null) return;
+                        if (how == "wznow") { mp.Time = r; showOsd(L.T("Wznowiono od ") + FormatTime(r)); return; }
+                        mp.SetPause(true);
+                        var ans = AskResume(win, r);
+                        if (ans == null) { mp.SetPause(false); return; }
+                        if (ans.Value) { mp.Time = r; showOsd(L.T("Wznowiono od ") + FormatTime(r)); }
+                        mp.SetPause(false);
+                    };
                     once.Start();
                 }
                 // sciezki filmu znane chwile po starcie - wtedy ustawiamy zapamietane napisy i dzwiek
@@ -1653,7 +1699,7 @@ namespace Przegladarka
                 _settings.VlcTopmost = !_settings.VlcTopmost;
                 if (!full0) win.Topmost = _settings.VlcTopmost;
                 showTop(); showOsd(_settings.VlcTopmost ? L.T("Zawsze na wierzchu") : L.T("Na wierzchu: wyłączone"));
-                try { _settings.Save(DataDir); } catch (Exception) { }
+                saveLector();
             };
             win.Topmost = _settings.VlcTopmost; showTop();
             mute.Click += (s, e) => toggleMute();

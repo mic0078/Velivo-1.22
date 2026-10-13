@@ -1159,13 +1159,14 @@ namespace Przegladarka
             var mini = glyphBtn("mini", L.T("Tryb mini – małe okienko na wierzchu (jak dla YouTube)"));
             var fav = textBtn("☆", L.T("Ulubione – kanał do ⭐ Ulubionych, film do playlisty ⭐ Ulubione"));
             var sleep = textBtn("⏾", L.T("Wyłącznik czasowy – zatrzymaj po czasie albo po końcu filmu"));
-            fav.FontSize = sleep.FontSize = 22; fav.FontWeight = sleep.FontWeight = FontWeights.Normal;   // znaki jak ikony obok
+            var pipBtn = textBtn("⧉", L.T("Obraz w obrazie (PiP) – podgląd drugiego kanału TV"));
+            fav.FontSize = sleep.FontSize = pipBtn.FontSize = 22; fav.FontWeight = sleep.FontWeight = pipBtn.FontWeight = FontWeights.Normal;   // znaki jak ikony obok
             var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
             var left = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var b in new UIElement[] { prev, play, stop, next, back10, fwd10, speed }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var b in new UIElement[] { fav, sleep, subs, lector, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
+            foreach (var b in new UIElement[] { fav, sleep, pipBtn, subs, lector, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new DockPanel { Margin = new Thickness(4, 2, 4, 4) };
             DockPanel.SetDock(left, Dock.Left); DockPanel.SetDock(right, Dock.Right);
             btnRow.Children.Add(left); btnRow.Children.Add(right);
@@ -1601,6 +1602,7 @@ namespace Przegladarka
             win.SizeChanged += (s, e) => layoutClock();
             controls.IsVisibleChanged += (s, e) => layoutClock();
             layoutClock();
+            Action<IptvChannel> pipShow = null;   // PiP (ustawiane nizej) - z listy kanalow "Pokaz w PiP"
             var chHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
             chHide.Tick += (s, e) => { chHide.Stop(); if (!chPanel.IsMouseOver && mp.State != VLCState.Stopped) chPanel.Visibility = Visibility.Collapsed; };   // po Stop lista zostaje
             chPanel.MouseLeave += (s, e) => { chHide.Stop(); chHide.Start(); };
@@ -1797,6 +1799,7 @@ namespace Przegladarka
                         }, true);
                         if (IsRecording(ch.Url)) radd(L.T("⏹ Zatrzymaj nagrywanie"), () => { StopRecording(ch.Url); showChannelsRefresh(); }, true);
                         else radd(L.T("⏺ Nagrywaj w tle"), () => RecordNow(ch, win), true);
+                        radd(L.T("⧉ Pokaż w PiP (podgląd)"), () => pipShow?.Invoke(ch), ch.Url != curUrl);
                         radd(L.T("📅 Program TV kanału"), () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, ch.Url), true);
                         if (gk != curKey && gk != recKey)
                         {
@@ -2188,6 +2191,126 @@ namespace Przegladarka
                 }
             };
             sleep.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = sleep, Placement = PlacementMode.Top }; sleepItems(cm); cm.IsOpen = true; };
+
+            // PiP (obraz w obrazie): drugi kanal TV w malym okienku nad obrazem, wyciszony; przeciaganie mysza = pozycja, krawedzie = wielkosc,
+            // klik = zamiana z glownym; pozycja i wielkosc zapamietane wzgledem okna odtwarzacza (domyslnie prawy dolny rog)
+            MediaPlayer pipMp = null; Window pipWin = null; IptvChannel pipCh = null; TextBlock pipName = null; bool pipPlacing = false;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            Func<string, double, double> prefD = (k, d) => double.TryParse(GetPref(k), System.Globalization.NumberStyles.Float, inv, out var x) ? x : d;
+            Func<Rect> pipHost = () =>
+            {
+                var src = PresentationSource.FromVisual(view); if (src?.CompositionTarget == null) return Rect.Empty;
+                var tl = src.CompositionTarget.TransformFromDevice.Transform(view.PointToScreen(new Point(0, 0)));
+                return new Rect(tl.X, tl.Y, view.ActualWidth, view.ActualHeight);
+            };
+            Action pipPlace = () =>
+            {
+                if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
+                double w = r.Width * Math.Max(0.1, Math.Min(0.7, prefD("pip-w", 0.28))), h = w * 9 / 16;
+                double fx = prefD("pip-x", -1), fy = prefD("pip-y", -1);
+                double x = fx < 0 ? r.Width - w - 16 : fx * r.Width, y = fy < 0 ? r.Height - h - 16 - (controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0) : fy * r.Height;
+                x = Math.Max(0, Math.Min(r.Width - w, x)); y = Math.Max(0, Math.Min(r.Height - h, y));
+                pipPlacing = true; pipWin.Width = w; pipWin.Height = h; pipWin.Left = r.X + x; pipWin.Top = r.Y + y; pipPlacing = false;
+            };
+            Action pipSave = () =>
+            {
+                if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
+                SetPref("pip-x", ((pipWin.Left - r.X) / r.Width).ToString(inv)); SetPref("pip-y", ((pipWin.Top - r.Y) / r.Height).ToString(inv));
+                SetPref("pip-w", (pipWin.Width / r.Width).ToString(inv));
+            };
+            Action pipClose = () =>
+            {
+                if (pipWin == null) return;
+                var m = pipMp; var w0 = pipWin; pipMp = null; pipWin = null; pipCh = null;
+                try { m.Stop(); } catch (Exception) { }
+                w0.Close();
+                var d = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };   // jak przy glownym - zwolnienie VLC z opoznieniem (bez awarii)
+                d.Tick += (q, w2) => { d.Stop(); try { m.Dispose(); } catch (Exception) { } };
+                d.Start();
+            };
+            Action pipSwap = null;
+            Action<ItemsControl> pipItems = null;
+            pipShow = ch =>
+            {
+                if (_libVlc == null || ch == null) return;
+                if (pipWin == null)
+                {
+                    pipMp = new MediaPlayer(_libVlc) { Mute = true };
+                    var pv = new VideoView { MediaPlayer = pipMp, Background = Brushes.Black };
+                    var pl = new Grid { Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), Cursor = Cursors.SizeAll, ToolTip = L.T("Klik – zamień z głównym • przeciągnij – przesuń • krawędź – wielkość • prawy – opcje") };
+                    pipName = new TextBlock { Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 4, 30, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+                        TextTrimming = TextTrimming.CharacterEllipsis, Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 1, BlurRadius = 3 } };
+                    var px = new Button { Content = "✕", Width = 24, Height = 22, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Cursor = Cursors.Hand,
+                        Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Foreground = Brushes.White, BorderThickness = new Thickness(0), ToolTip = L.T("Zamknij PiP") };
+                    px.Click += (q, w2) => pipClose();
+                    pl.Children.Add(pipName); pl.Children.Add(px); pv.Content = pl;
+                    var pw = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, ShowInTaskbar = false, ShowActivated = false, Owner = win, Topmost = win.Topmost, Background = Brushes.Black, Content = pv, Width = 320, Height = 180 };
+                    System.Windows.Shell.WindowChrome.SetWindowChrome(pw, new System.Windows.Shell.WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0) });
+                    pl.MouseLeftButtonDown += (q, e2) =>
+                    {
+                        var before = new Point(pw.Left, pw.Top);
+                        try { pw.DragMove(); } catch (InvalidOperationException) { }
+                        if (Math.Abs(pw.Left - before.X) < 3 && Math.Abs(pw.Top - before.Y) < 3) pipSwap?.Invoke();   // klik bez przesuwania = zamiana kanalow
+                        else pipSave();
+                        e2.Handled = true;
+                    };
+                    pl.MouseRightButtonUp += (q, e2) => { var cm = new ContextMenu(); pipItems(cm); cm.IsOpen = true; e2.Handled = true; };
+                    pw.SizeChanged += (q, e2) => { if (pipPlacing) return; pipPlacing = true; pw.Height = pw.Width * 9 / 16; pipPlacing = false; pipSave(); };   // proporcje obrazu 16:9
+                    pipWin = pw; pw.Show(); pipPlace();
+                }
+                pipCh = ch; pipName.Text = "⧉ " + ch.Name;
+                try
+                {
+                    using (var media = new Media(_libVlc, new Uri(ch.Url)))
+                    {
+                        foreach (var o in ch.Opts) media.AddOption(o);
+                        media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);
+                        pipMp.Play(media);
+                    }
+                }
+                catch (Exception ex) { App.LogError(ex); showOsd(L.T("⚠ PiP: nie udało się włączyć kanału")); }
+            };
+            pipSwap = () =>
+            {
+                var a = pipCh; var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (a == null || p0 == null || !_iptvPlaying.TryGetValue(p0, out var mainCh)) return;
+                pipShow(mainCh);   // glowny idzie do podgladu
+                int at = _playlist.IndexOf(a.Url);
+                if (at >= 0) _vlcLoad(at); else PlayChannelInGroup(a, KnownPlaylist());   // podglad idzie na glowny (w swojej grupie)
+            };
+            pipItems = cm =>
+            {
+                var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                bool tvNow = p0 != null && _iptvPlaying.ContainsKey(p0);
+                Action<ItemsControl, string, Action, bool> pa = (to, h, a, en) => { var mi = new MenuItem { Header = h, IsEnabled = en }; mi.Click += (q, w2) => a(); to.Items.Add(mi); };
+                if (!tvNow && pipWin == null) { pa(cm, L.T("(PiP działa przy oglądaniu telewizji)"), () => { }, false); return; }
+                if (pipWin != null)
+                {
+                    pa(cm, L.T("⇄ Zamień z głównym (klik w podgląd)"), () => pipSwap(), tvNow);
+                    var snd = new MenuItem { Header = L.T("🔊 Dźwięk z podglądu"), IsCheckable = true, IsChecked = !pipMp.Mute };
+                    snd.Click += (q, w2) => { pipMp.Mute = !snd.IsChecked; mp.Mute = snd.IsChecked; };   // dzwiek z jednego naraz
+                    cm.Items.Add(snd);
+                    pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
+                    pa(cm, L.T("✖ Zamknij PiP"), () => { mp.Mute = false; pipClose(); }, true);
+                    cm.Items.Add(new Separator());
+                }
+                // wybor kanalu do podgladu: ulubione, ostatnio ogladane, biezaca grupa
+                var plx = KnownPlaylist(); var allc = plx?.Channels ?? new List<IptvChannel>();
+                Action<string, IEnumerable<IptvChannel>> sub = (h, list) =>
+                {
+                    var sm = new MenuItem { Header = h };
+                    foreach (var c0 in list.Where(c => c != null && c.Url != p0).Take(40)) { var c = c0; pa(sm, (pipCh?.Url == c.Url ? "● " : "") + c.Name, () => pipShow(c), true); }
+                    if (sm.Items.Count > 0) cm.Items.Add(sm);
+                };
+                sub(L.T("⭐ Ulubione"), IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u)));
+                sub(L.T("🕘 Ostatnio oglądane"), IptvSt.Recent.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u)));
+                if (tvNow) sub(L.T("📺 Kanały tej grupy"), _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]));
+            };
+            pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
+            win.LocationChanged += (s, e) => pipPlace();
+            win.SizeChanged += (s, e) => pipPlace();
+            win.StateChanged += (s, e) => { if (pipWin != null) { if (win.WindowState == WindowState.Minimized) pipWin.Hide(); else { pipWin.Show(); Dispatcher.BeginInvoke(pipPlace, DispatcherPriority.Background); } } };
+            win.Closed += (s, e) => pipClose();
             // po Stop zamiast czarnego ekranu: film - biblioteka filmow, telewizja - lista kanalow
             Action afterStop = () => { var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p0 != null && _iptvPlaying.ContainsKey(p0)) showChannels(true); else ShowVideoLibrary(win); };
             stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); afterStop(); };   // Stop konczy wspolne ogladanie tylko tutaj
@@ -2403,6 +2526,7 @@ namespace Przegladarka
                 add(isFav() ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), () => fav.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)), true);
                 var slM = new MenuItem { Header = L.T("⏾ Wyłącznik czasowy") + (sleepEnd ? L.T(" (po końcu filmu)") : sleepAt.HasValue ? " (" + Math.Max(1, (int)Math.Ceiling((sleepAt.Value - DateTime.Now).TotalMinutes)) + " min)" : "") };
                 sleepItems(slM); cm.Items.Add(slM);
+                { var pipM = new MenuItem { Header = L.T("⧉ Obraz w obrazie (PiP)") }; pipItems(pipM); cm.Items.Add(pipM); }
                 add(L.T("⏰ Zaplanuj włączenie filmu / kanału…"), () => ShowScheduleStart(Window.GetWindow(overlay) ?? win), true);
                 {   // playlisty i moja kolejka - wlaczenie jednym klikiem
                     var pls = LoadPlaylists(); var plM = new MenuItem { Header = L.T("🎞 Playlisty i moja kolejka") };
@@ -2518,7 +2642,7 @@ namespace Przegladarka
                 {
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
                     (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
-                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⏰ Zaplanuj" }),
+                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),

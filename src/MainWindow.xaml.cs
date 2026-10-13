@@ -105,6 +105,7 @@ namespace Przegladarka
             }
         }
         bool _cleanedUp;
+        bool _mainClosing;
         bool _extensionsLoaded;
         bool _toolbarCompact;
 
@@ -137,6 +138,7 @@ namespace Przegladarka
             Closing += TrayOnClosing;                    // tryb zasobnika: chowamy zamiast zamykac
             Closing += GuardAgainstWebViewClosingWindow; // musi byc pierwsze - anuluje zamkniecie okna przez strone
             Closing += ConfirmCloseWithDownloads;        // trwa pobieranie? zapytaj i wstrzymaj
+            Closing += (s, e) => { if (!e.Cancel) _mainClosing = true; };   // odtwarzacz zamykany razem z Velivo - wznowi ostatni program
             Closing += (s, e) => { if (!e.Cancel) SaveSession(); }; // karty do przywrocenia przy nastepnym starcie
             Closing += OnClosingCleanup;
             Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); StopTorrents(); foreach (var w in _noteWindows.Values.ToList()) w.Close(); };   // karteczki bez wlasciciela trzymalyby proces przy zyciu
@@ -422,7 +424,7 @@ namespace Przegladarka
             {
                 MessageBox.Show(this, L.T("Nie udało się otworzyć karty.\nJeśli działa jeszcze starsza wersja Velivo, zamknij ją i spróbuj ponownie.\n\n") + ex.Message, "Velivo");
                 if (deferral != null) deferral.Complete();
-                if (_tabs.Contains(tab)) CloseTab(tab);
+                if (_tabs.Contains(tab)) CloseTab(tab, true);
                 return;
             }
             var core = tab.View.CoreWebView2;
@@ -589,7 +591,7 @@ namespace Przegladarka
             // zamyka TYLKO te karte. Domyslnie kontrolka WebView2 zamyka cale okno programu - odpinamy to.
             DetachDefaultWindowClose(tab.View);
             core.DOMContentLoaded += (s, e) => { ApplyElementRules(core, tab); ApplyLiveDarkCss(core); };   // elementy zablokowane recznie (menu kontekstowe)
-            core.WindowCloseRequested += (s, e) => Dispatcher.BeginInvoke(new Action(() => { if (_tabs.Contains(tab)) CloseTab(tab); }));
+            core.WindowCloseRequested += (s, e) => Dispatcher.BeginInvoke(new Action(() => { if (_tabs.Contains(tab)) CloseTab(tab, true); }));
             core.ContainsFullScreenElementChanged += (s, e) =>
             {
                 if (tab != _current) return;
@@ -918,7 +920,8 @@ namespace Przegladarka
         // (zamkniecie widoku WebView2 przerwaloby jego pobierania).
         readonly List<WebView2> _parkedViews = new List<WebView2>();
 
-        void CloseTab(BrowserTab tab)
+        // auto = karta zamykana przez program (blokada banku, strona, blad) - ostatnia nie zamyka Velivo
+        void CloseTab(BrowserTab tab, bool auto = false)
         {
             StopPasswordCapture(tab.View.CoreWebView2);
             // ostatnia karta bankowa: slady (cache, historia) czyscimy teraz, poki jej profil jeszcze istnieje
@@ -935,8 +938,8 @@ namespace Przegladarka
             }
             if (_tabs.Count == 1)
             {
-                if (!busy) { Close(); return; } // ostatnia karta: zamknij okno (sprzatanie w OnClosingCleanup)
-                AddTab(NewTabUrl); // ostatnia karta pobiera plik - zostaw okno z nowa karta
+                if (!busy && !auto) { Close(); return; } // ostatnia karta zamknieta przez uzytkownika: zamknij okno (sprzatanie w OnClosingCleanup)
+                AddTab(NewTabUrl); // ostatnia karta pobiera plik albo zamyka ja program (np. blokada banku przy ogladaniu filmu) - zostaw okno z nowa karta
             }
             if (tab == _splitTab || (_splitTab != null && tab == _current)) { if (tab == _current) { var keep = _splitTab; _splitTab = null; LayoutSplit(); SelectTab(keep); } else CloseSplit(); }   // koniec podzialu ekranu
             if (tab == _readTab) StopReading(); // zamykana karta jest czytana na glos - koniec czytania

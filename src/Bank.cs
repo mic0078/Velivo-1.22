@@ -451,7 +451,7 @@ namespace Przegladarka
             foreach (var t in _bankTools.Values.ToList()) { try { t.Close(); } catch (Exception) { } }
             foreach (Window t in OwnedWindows.Cast<Window>().ToList()) { try { if ((t.Tag as string) == "velivo-bank") t.Close(); } catch (Exception) { } }
             _bankUnlocked = false; ForgetBankKey();
-            foreach (var t in _tabs.Where(t => t.Bank).ToList()) CloseTab(t);   // ostatnia zamykana karta czysci slady (CloseTab)
+            foreach (var t in _tabs.Where(t => t.Bank).ToList()) CloseTab(t, true);   // ostatnia zamykana karta czysci slady (CloseTab)
             ShowToast(toast ?? L.T("🔒 Tryb bankowy zablokowany"), null);
         }
 
@@ -2087,7 +2087,7 @@ else if(s.length===6&&so.length)set(so[0],so[0].maxLength>0&&so[0].maxLength<8?s
                             ShowToast(L.T("💾 Arkusz rachunków zapisany (zaszyfrowany)") + (bad > 0 ? (L.En ? " – rows without a valid month skipped: " : " – pominięto wiersze bez poprawnego miesiąca: ") + bad : ""), null);
                         }
                     }
-                    if (_tabs.Contains(tab)) CloseTab(tab);
+                    if (_tabs.Contains(tab)) CloseTab(tab, true);
                 }
                 catch (Exception ex) { App.LogError(ex); }
                 finally { busy = false; }

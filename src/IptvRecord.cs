@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -111,6 +112,38 @@ namespace Przegladarka
         readonly Dictionary<string, Action> _asked = new Dictionary<string, Action>();   // pytanie o przelaczenie na ekranie (id zadania -> zamknij)
         Func<string, Action, Action, Action> _vlcAsk;   // odtwarzacz: pytanie na srodku obrazu (tekst, tak, nie) -> zamknij
 
+        sealed class TvResume { public int Idx { get; set; } public List<TvResumeCh> Chans { get; set; } = new List<TvResumeCh>(); }
+        sealed class TvResumeCh { public string Name { get; set; } public string Url { get; set; } public string Group { get; set; } public string Logo { get; set; } public string TvgId { get; set; } public List<string> Opts { get; set; } }
+        string TvResumeFile => Path.Combine(IptvDataDir, "wznow.json");
+
+        // lista kanalow, z ktorej ogladano, i biezacy kanal (-1 = bez wznawiania)
+        void SaveTvResume(int idx)
+        {
+            try
+            {
+                if (idx < 0) { if (File.Exists(TvResumeFile)) File.Delete(TvResumeFile); return; }
+                var r = new TvResume { Idx = idx };
+                foreach (var u in _playlist) if (_iptvPlaying.TryGetValue(u, out var c)) r.Chans.Add(new TvResumeCh { Name = c.Name, Url = c.Url, Group = c.Group, Logo = c.Logo, TvgId = c.TvgId, Opts = c.Opts });
+                Directory.CreateDirectory(IptvDataDir); File.WriteAllText(TvResumeFile, JsonSerializer.Serialize(r));
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
+        void ResumeTv()
+        {
+            try
+            {
+                if (!IptvInstalled || _vlcWin != null || !File.Exists(TvResumeFile)) return;
+                var r = JsonSerializer.Deserialize<TvResume>(File.ReadAllText(TvResumeFile));
+                if (r?.Chans == null || r.Chans.Count == 0) return;
+                _iptvPlaying.Clear();
+                foreach (var c in r.Chans) _iptvPlaying[c.Url] = new IptvChannel { Name = c.Name, Url = c.Url, Group = c.Group ?? "", Logo = c.Logo, TvgId = c.TvgId, Opts = c.Opts ?? new List<string>() };
+                PlayVideos(r.Chans.Select(c => c.Url).ToArray(), r.Idx);
+                ShowToast(L.T("📺 Wznawiam: ") + r.Chans[Math.Max(0, Math.Min(r.Idx, r.Chans.Count - 1))].Name, null);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         void SwitchNow(IptvJob j)
         {
             var ch = new IptvChannel { Name = j.Channel, Url = j.Url, Opts = j.Opts ?? new List<string>() };
@@ -132,6 +165,15 @@ namespace Przegladarka
             ShowToast(L.T("⚠ Oglądanie i nagrywanie naraz to dwa połączenia z dostawcą IPTV. Jeśli pozwala na jedno, jedno z nich może się przerwać."), null);
         }
 
+        readonly Dictionary<string, string> _recFile = new Dictionary<string, string>();   // id nagrania w toku -> plik
+
+        // plik nagrywanego teraz kanalu (do ogladania z nagrania); null = nie nagrywa sie
+        string RecFileFor(string url)
+        {
+            var j = IptvSt.Jobs.FirstOrDefault(x => x.Kind == "rec" && x.Url == url && _recording.ContainsKey(x.Id) && _recFile.ContainsKey(x.Id));
+            return j != null && File.Exists(_recFile[j.Id]) && new FileInfo(_recFile[j.Id]).Length > 512 * 1024 ? _recFile[j.Id] : null;
+        }
+
         bool IsRecording(string url) { return IptvSt.Jobs.Any(j => j.Kind == "rec" && j.Url == url && _recording.ContainsKey(j.Id)); }
 
         void StartRecording(IptvJob j)
@@ -140,13 +182,14 @@ namespace Przegladarka
             _recording[j.Id] = cts;
             var dir = string.IsNullOrWhiteSpace(j.Folder) ? DefaultRecDir : j.Folder;
             var file = Path.Combine(dir, RecordingName(j.Channel, j.Title, DateTime.Now));
+            _recFile[j.Id] = file;
             if (_vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) WarnOneConnection();
             ShowToast(L.T("⏺ Nagrywam: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
             _iptvJobsChanged?.Invoke();
             Func<DateTime> until = () => LocalOf(j.Stop);   // "Przedluz" zmienia j.Stop w trakcie nagrywania
             Task.Run(() => RecordStream(j.Url, j.Opts, file, until, cts.Token)).ContinueWith(t => Dispatcher.BeginInvoke(new Action(() =>
             {
-                _recording.Remove(j.Id);
+                _recording.Remove(j.Id); _recFile.Remove(j.Id);
                 IptvSt.Jobs.RemoveAll(x => x.Id == j.Id); SaveIptv(IptvSt);
                 _iptvJobsChanged?.Invoke();
                 var err = t.IsFaulted ? t.Exception.GetBaseException().Message : t.Result;

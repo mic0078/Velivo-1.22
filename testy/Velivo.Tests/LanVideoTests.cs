@@ -36,4 +36,23 @@ public class LanVideoTests
         Assert.Equal(40, owner.Vol); Assert.Equal(1.5, owner.LRate);
         Assert.Equal("piper:pl_PL-gosia-medium", owner.LVoice);  // nieustawione tam - zostaje
     }
+
+    [Fact]
+    public void BibliotekaWKilkuPaczkach()
+    {
+        // 582 filmy z dlugimi nazwami (jak na dyskach USB) - kiedys przychodzila tylko pierwsza paczka (232)
+        var shared = new System.Collections.Generic.List<MainWindow.LibraryVideo>();
+        for (int i = 0; i < 582; i++) shared.Add(new MainWindow.LibraryVideo { Path = @"E:\Filmy\[ELECTRO-TORRENT.d11] Bardzo dlugi tytul filmu " + i + @" 1080p BRRip H264 Lektor PL\film" + i + ".mkv", Title = "[ELECTRO-TORRENT.d11] Bardzo dlugi tytul filmu " + i });
+        int off = 0, pages = 0; bool more;
+        var got = new System.Collections.Generic.HashSet<string>();
+        do
+        {
+            var page = MainWindow.LibraryPage(shared, off, out more);
+            Assert.NotEmpty(page);
+            foreach (var v in page) Assert.True(got.Add(v.Path));   // bez powtorzen
+            off += page.Count; pages++;
+        } while (more && pages < 60);
+        Assert.Equal(582, got.Count);   // cala biblioteka
+        Assert.True(pages > 1);
+    }
 }

@@ -1844,7 +1844,9 @@ namespace Przegladarka
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
                     if (tv == null && !stream && IsAviFile(path)) media.AddOption(":demux=avformat,any");
                     _aoutFailed = false;
-                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + path + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
+                    // wyrownywanie glosnosci takze dla tego filmu (oprocz ustawien przy starcie VLC)
+                    if (LevelVolume) foreach (var la in LevelArgs(GetPref("wyrownaj-tryb") ?? "normalny")) media.AddOption(":" + la.TrimStart('-'));
+                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + path + "\nVLC: " + _libVlcKey + "\nWyrownywanie: " + (LevelVolume ? GetPref("wyrownaj-tryb") ?? "normalny" : "wylaczone") + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;

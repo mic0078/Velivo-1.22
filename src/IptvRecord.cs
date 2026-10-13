@@ -543,7 +543,7 @@ namespace Przegladarka
             Action del = () =>
             {
                 var p = sel(); if (p.Count == 0) return;
-                if (MessageBox.Show(w, string.Format(L.T("Usunąć {0} nagrań z dysku (do Kosza) i z biblioteki filmów?"), p.Count), L.T("Nagrania TV"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                if (!AskYes(w, string.Format(L.T("Usunąć {0} nagrań z dysku (do Kosza) i z biblioteki filmów?"), p.Count))) return;
                 var errs = DeleteVideoFiles(p);
                 fill();
                 if (errs.Count > 0) MessageBox.Show(w, L.T("Nie udało się usunąć (nagrywane albo odtwarzane):\n") + string.Join("\n", errs.Take(10)), L.T("Nagrania TV"));

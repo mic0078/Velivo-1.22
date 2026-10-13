@@ -433,8 +433,7 @@ namespace Przegladarka
 
         void UninstallIptv()
         {
-            if (MessageBox.Show(this, L.T("Odinstalować moduł IPTV?\n\nTwoje listy kanałów zostają – wrócą po ponownej instalacji modułu. Odtwarzacz filmów zostaje."),
-                L.T("Telewizja IPTV"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (!AskYes(this, L.T("Odinstalować moduł IPTV?\n\nTwoje listy kanałów zostają – wrócą po ponownej instalacji modułu. Odtwarzacz filmów zostaje."))) return;
             if (_tvWin != null) _tvWin.Close();
             try { File.Delete(IptvMarker); } catch (Exception ex) { App.LogError(ex); }
             if (_tvBtn != null) { TabBarPanel.Children.Remove(_tvBtn); _tvBtn = null; }
@@ -761,7 +760,7 @@ namespace Przegladarka
             delBtn.Click += (s, a) =>
             {
                 var src = cur(); if (src == null) return;
-                if (MessageBox.Show(win, string.Format(L.T("Usunąć listę „{0}” z Velivo?"), src.Name), L.T("Telewizja"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                if (!AskYes(win, string.Format(L.T("Usunąć listę „{0}” z Velivo?"), src.Name))) return;
                 st.Sources.Remove(src);
                 foreach (var ext in new[] { ".m3u", ".epg" }) try { File.Delete(IptvCache(src, ext)); } catch (Exception) { }
                 SaveIptv(st); fillSources(); if (st.Sources.Count == 0) _ = load(false);

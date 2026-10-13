@@ -40,7 +40,17 @@ namespace Przegladarka
 
         LibVLC _libVlc;
         Window _vlcWin;
-        Button _filmBtn;
+        Button _filmBtn, _playerBtn;
+        bool _hiddenForPlayer;   // przegladarka schowana do zasobnika przez przycisk odtwarzacza - wraca po zamknieciu odtwarzacza
+
+        // sam odtwarzacz (jak typowy program do filmow): czarny ekran, przegladarka do zasobnika
+        void OpenEmptyPlayer()
+        {
+            if (!EnsureLibVlc()) return;
+            if (_vlcWin == null) { _playlist = new List<string>(); _playIndex = 0; BuildVlcWindow(); }
+            else { if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal; _vlcWin.Activate(); }
+            if (IsVisible) { EnsureTray(); Hide(); _inTray = true; _hiddenForPlayer = true; }
+        }
 
         // ---------- biblioteka ----------
 
@@ -227,6 +237,11 @@ namespace Przegladarka
             AutoSyncJellyfin();   // informacje o filmach z Jellyfin - uzupelnienie lokalnej bazy w tle (gdy ustawione)
             int bank = TabBarPanel.Children.IndexOf(_bankBtn);
             TabBarPanel.Children.Insert(bank >= 0 ? bank + 1 : 1, _filmBtn);   // dock z prawej: nastepny w kolejnosci stoi po lewej od 🏦
+            // ▶ sam odtwarzacz - pusty, czarny ekran; przegladarka chowa sie do zasobnika
+            _playerBtn = new Button { Content = "▶", FontSize = 16, Width = 40, Height = 36, Margin = new Thickness(2, 3, 2, 0), ToolTip = L.T("Odtwarzacz – otwórz pusty odtwarzacz (przeglądarka schowa się do zasobnika i wróci po zamknięciu odtwarzacza)") };
+            DockPanel.SetDock(_playerBtn, Dock.Right);
+            _playerBtn.Click += (s, e) => OpenEmptyPlayer();
+            TabBarPanel.Children.Insert(TabBarPanel.Children.IndexOf(_filmBtn) + 1, _playerBtn);
         }
 
         // okno wyboru zawsze na samej gorze: na ten czas okna "zawsze na wierzchu" (odtwarzacz, biblioteka) nie zaslaniaja go
@@ -277,8 +292,7 @@ namespace Przegladarka
 
         void UninstallVlc()
         {
-            if (MessageBox.Show(this, L.T("Odinstalować odtwarzacz filmów (bibliotekę VLC)?\n\nFilmy MP4 i WebM dalej otworzysz w karcie Velivo. Twoja lista filmów zostaje – wróci po ponownej instalacji dodatku."),
-                L.T("Odtwarzacz filmów"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (!AskYes(this, L.T("Odinstalować odtwarzacz filmów (bibliotekę VLC)?\n\nFilmy MP4 i WebM dalej otworzysz w karcie Velivo. Twoja lista filmów zostaje – wróci po ponownej instalacji dodatku."))) return;
             if (_vlcWin != null) _vlcWin.Close();
             if (_libWin != null) _libWin.Close();
             bool loaded = _libVlc != null;
@@ -677,8 +691,7 @@ namespace Przegladarka
                 // filmy z innych komputerow sa zapisane tam - tu mozna usunac tylko wpisy z tego komputera
                 var peersNote = fromPeers > 0 ? string.Format(L.T("\n\n{0} pozycji przychodzi z innych komputerów – są zapisane tam i usuwa się je na tamtym komputerze."), fromPeers) : "";
                 if (here == 0) { MessageBox.Show(win, string.Format(L.T("W bibliotece „{0}” na tym komputerze nie ma żadnych pozycji do usunięcia."), name) + peersNote, L.T("Biblioteka filmów"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
-                if (MessageBox.Show(win, string.Format(L.T("Usunąć z biblioteki „{0}” {1} pozycji zapisanych na tym komputerze?\n\nPliki filmów zostają na dysku."), name, here) + peersNote,
-                    L.T("Biblioteka filmów"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                if (!AskYes(win, string.Format(L.T("Usunąć z biblioteki „{0}” {1} pozycji zapisanych na tym komputerze?\n\nPliki filmów zostają na dysku."), name, here) + peersNote)) return;
                 var l = LoadLibrary(); l.RemoveAll(v => mine(v));
                 SaveLibrary(l); fill();
             };
@@ -713,7 +726,7 @@ namespace Przegladarka
             {
                 var rs = sel().Where(r => !remoteOf.ContainsKey(r.Item) && !r.Missing).ToList(); if (rs.Count == 0) return;
                 var msg = rs.Count == 1 ? string.Format(L.T("Usunąć film „{0}” z biblioteki i z dysku?"), rs[0].Item.Title) : string.Format(L.T("Usunąć {0} filmów z biblioteki i z dysku?"), rs.Count);
-                if (MessageBox.Show(win, msg + L.T("\n\nPlik trafi do Kosza (na dysku sieciowym – usunięty na stałe)."), L.T("Biblioteka filmów"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                if (!AskYes(win, msg + L.T("\n\nPlik trafi do Kosza (na dysku sieciowym – usunięty na stałe)."))) return;
                 var errs = DeleteVideoFiles(rs.Select(r => r.Item.Path));
                 fill();
                 if (errs.Count > 0) MessageBox.Show(win, L.T("Nie udało się usunąć (plik w użyciu – np. właśnie odtwarzany):\n") + string.Join("\n", errs.Take(10)), L.T("Biblioteka filmów"));
@@ -818,7 +831,7 @@ namespace Przegladarka
                     var name = name0; var one = new MenuItem { Header = "🎞 " + name + " (" + plsM.Named[name].Count + ")" };
                     var pPlay = new MenuItem { Header = L.T("▶ Odtwórz") }; pPlay.Click += (q, w2) => { _playShared = _libSharedView; PlayVideos(plsM.Named[name].ToArray(), 0); win.Close(); };
                     var pAdd = new MenuItem { Header = L.T("➕ Dodaj zaznaczone") }; pAdd.Click += (q, w2) => { var p0 = LoadPlaylists(); if (!p0.Named.TryGetValue(name, out var l0)) return; foreach (var x in selPaths()) if (!l0.Contains(x, StringComparer.OrdinalIgnoreCase)) l0.Add(x); SavePlaylists(p0); };
-                    var pDel = new MenuItem { Header = L.T("🗑 Usuń playlistę") }; pDel.Click += (q, w2) => { if (MessageBox.Show(win, string.Format(L.T("Usunąć playlistę „{0}”? Filmy zostają w bibliotece."), name), L.T("Playlisty"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return; var p0 = LoadPlaylists(); p0.Named.Remove(name); SavePlaylists(p0); };
+                    var pDel = new MenuItem { Header = L.T("🗑 Usuń playlistę") }; pDel.Click += (q, w2) => { if (!AskYes(win, string.Format(L.T("Usunąć playlistę „{0}”? Filmy zostają w bibliotece."), name))) return; var p0 = LoadPlaylists(); p0.Named.Remove(name); SavePlaylists(p0); };
                     one.Items.Add(pPlay); one.Items.Add(pAdd); one.Items.Add(pDel); plRoot.Items.Add(one);
                 }
                 menu.Items.Add(plRoot);
@@ -2156,7 +2169,7 @@ namespace Przegladarka
                         var f = f0; var mi = new MenuItem { Header = System.IO.Path.GetFileName(f) };
                         mi.Click += (a, b) =>
                         {
-                            if (MessageBox.Show(win, string.Format(L.T("Usunąć plik napisów „{0}” (do Kosza)?"), System.IO.Path.GetFileName(f)), L.T("Napisy"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                            if (!AskYes(win, string.Format(L.T("Usunąć plik napisów „{0}” (do Kosza)?"), System.IO.Path.GetFileName(f)))) return;
                             try
                             {
                                 Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(f, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
@@ -2479,7 +2492,8 @@ namespace Przegladarka
                 saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);
                 _vlcWin = null; _vlcLoad = null; _vlcRemoteCtl = null; _vlcAsk = null; _playShared = null;
                 LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
-                if (!_mainClosing) SaveTvResume(-1);   // odtwarzacz zamkniety recznie - bez wznawiania; przy zamykaniu Velivo zostaje
+                if (!_mainClosing) SaveTvResume(-1);
+                if (_hiddenForPlayer && !_mainClosing) { _hiddenForPlayer = false; ShowFromTray(); }   // przegladarka wraca z zasobnika   // odtwarzacz zamkniety recznie - bez wznawiania; przy zamykaniu Velivo zostaje
                 view.MediaPlayer = null;
                 vlcClosed = true;
                 // Stop VLC moze chwile trwac - nie w watku okna; zwolnienie pozniej, gdy kolejka okna i jednorazowe zegary (do 1,5 s) juz minely

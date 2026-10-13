@@ -1849,6 +1849,7 @@ namespace Przegladarka
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;
+                bool forced = _forceResume; _forceResume = false;   // "wznow bez pytania" tylko dla filmu wlaczonego zaraz po restarcie odtwarzacza
                 if (curRecFile != null)
                 {
                     long at = recResume; recResume = -1;   // -1 = na zywo (koniec pliku), inaczej miejsce, w ktorym bylismy
@@ -1864,7 +1865,7 @@ namespace Przegladarka
                     once.Tick += (s, e) =>
                     {
                         once.Stop(); if (mp.Length <= 0) return;
-                        var how = _forceResume ? "wznow" : GetPref("wznawianie") ?? "pytaj"; _forceResume = false;   // po restarcie odtwarzacza - bez pytania   // pytaj / wznow / poczatek (Ustawienia -> Odtwarzacz filmow)
+                        var how = forced ? "wznow" : GetPref("wznawianie") ?? "pytaj";   // po restarcie odtwarzacza - bez pytania   // pytaj / wznow / poczatek (Ustawienia -> Odtwarzacz filmow)
                         if (how == "poczatek" || _together != null) return;
                         if (how == "wznow") { mp.Time = r; showOsd(L.T("Wznowiono od ") + FormatTime(r)); return; }
                         mp.SetPause(true);

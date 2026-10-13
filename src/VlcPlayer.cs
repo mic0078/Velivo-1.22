@@ -52,6 +52,19 @@ namespace Przegladarka
             if (IsVisible) { EnsureTray(); Hide(); _inTray = true; _hiddenForPlayer = true; }
         }
 
+        // kanal wlaczony spoza okna TV (np. "Ostatnio ogladane"): gra w swojej grupie - lista kanalow i PgUp/PgDn po tej grupie, nie jako kolejka
+        void PlayChannelInGroup(IptvChannel ch, IptvPlaylist pl)
+        {
+            var grp = pl?.Channels.Where(c => c.Group == ch.Group).ToList() ?? new List<IptvChannel>();
+            var how = GetPref("sort-lista-kanalow") ?? "az";   // ta sama kolejnosc, co na liscie kanalow w odtwarzaczu
+            if (how == "az") grp = grp.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            else if (how == "za") grp = grp.OrderByDescending(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            int at = grp.FindIndex(c => c.Url == ch.Url);
+            if (at < 0) { grp = new List<IptvChannel> { ch }; at = 0; }
+            foreach (var c in grp) _iptvPlaying[c.Url] = c;
+            PlayVideos(grp.Select(c => c.Url).ToArray(), at);
+        }
+
         // ---------- biblioteka ----------
 
         internal sealed class LibraryVideo
@@ -1712,12 +1725,14 @@ namespace Przegladarka
                 if (!tvMode) { showFilms(); return; }
                 // grupy (raz na otwarcie): biezaca + z listy kanalow
                 const string curKey = "\u0001cur", favKey = "\u0001fav", recKey = "\u0001rec";
+                var plAll = _iptvPl ?? KnownPlaylist();   // okno TV niewlaczone - lista z pamieci podrecznej (wszystkie grupy)
+                if (chGroup.Items.Count <= 3 && plAll != null && plAll.Channels.Count > 0) { chGroup.Tag = "busy"; chGroup.Items.Clear(); chGroup.Tag = null; }
                 if (chGroup.Items.Count == 0)
                 {
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("▶ Kolejka"), Tag = curKey });
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("⭐ Ulubione"), Tag = favKey });
                     chGroup.Items.Add(new ComboBoxItem { Content = L.T("🕘 Ostatnio oglądane"), Tag = recKey });
-                    if (_iptvPl != null) foreach (var g in _iptvPl.Channels.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) chGroup.Items.Add(new ComboBoxItem { Content = g.Length == 0 ? L.T("(bez grupy)") : g, Tag = g });
+                    if (plAll != null) foreach (var g in plAll.Channels.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) chGroup.Items.Add(new ComboBoxItem { Content = g.Length == 0 ? L.T("(bez grupy)") : g, Tag = g });
                 }
                 fillSort("sort-lista-kanalow", new[] { "az", "za", "nr" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: jak na liście" });
                 if (chPanel.Visibility != Visibility.Visible)   // kazde otwarcie: biezaca lista i biezacy kanal; gdy to jeden kanal (program TV, wznowienie) - jego grupa
@@ -1725,7 +1740,7 @@ namespace Przegladarka
                     chGroup.SelectedIndex = 0;
                     var tvCount = _playlist.Count(u => _iptvPlaying.ContainsKey(u));
                     var nowCh = _playlist.Count > _playIndex && _iptvPlaying.TryGetValue(_playlist[_playIndex], out var nc) ? nc : null;
-                    var grp = nowCh == null ? null : chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (i.Tag as string) == (_iptvPl?.Channels.FirstOrDefault(c => c.Url == nowCh.Url)?.Group ?? nowCh.Group));
+                    var grp = nowCh == null ? null : chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (i.Tag as string) == (plAll?.Channels.FirstOrDefault(c => c.Url == nowCh.Url)?.Group ?? nowCh.Group));
                     if (tvCount <= 1 && grp != null) chGroup.SelectedItem = grp;
                 }
                 var gk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? curKey;
@@ -1734,7 +1749,7 @@ namespace Przegladarka
                 if (gk == curKey) chans = _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]).ToList();
                 else
                 {
-                    var all = _iptvPl?.Channels ?? new List<IptvChannel>();
+                    var all = plAll?.Channels ?? new List<IptvChannel>();
                     chans = gk == favKey ? IptvSt.Fav.Select(u => all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList()
                         : gk == recKey ? IptvSt.Recent.Select(u => all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList()
                         : all.Where(c => c.Group == gk).ToList();
@@ -1755,10 +1770,45 @@ namespace Przegladarka
                     var img = new Image { Width = 40, Height = 24, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
                     var nowP = EpgAt(EpgFor(_iptvEpg, ch), now);
                     var txt = new StackPanel();
-                    txt.Children.Add(new TextBlock { Text = (IptvSt.Fav.Contains(ch.Url) ? "⭐ " : "") + ch.Name, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
-                    if (nowP != null) txt.Children.Add(new TextBlock { Text = nowP.Start.ToString("HH:mm") + "  " + nowP.Title, FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
-                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); row.Children.Add(img); row.Children.Add(txt);
+                    txt.Children.Add(new TextBlock { Text = ch.Name, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+                    if (nowP != null)
+                    {
+                        txt.Children.Add(new TextBlock { Text = nowP.Start.ToString("HH:mm") + "–" + nowP.Stop.ToString("HH:mm") + "  " + nowP.Title, FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
+                        // waski pasek: ile programu juz minelo (jak w dekoderach / programach IPTV)
+                        double span = (nowP.Stop - nowP.Start).TotalMinutes, gone = (now - nowP.Start).TotalMinutes;
+                        txt.Children.Add(new ProgressBar { Height = 3, Maximum = Math.Max(1, span), Value = Math.Max(0, Math.Min(span, gone)), Margin = new Thickness(0, 3, 0, 1), BorderThickness = new Thickness(0),
+                            Foreground = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), Background = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+                            ToolTip = L.T("zostało ") + Math.Max(0, (int)Math.Ceiling(span - gone)) + " min" });
+                    }
+                    var star = new TextBlock { Text = IptvSt.Fav.Contains(ch.Url) ? "★" : "", Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18)), FontSize = 14, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };   // ulubiony - gwiazdka z prawej
+                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); DockPanel.SetDock(star, Dock.Right); row.Children.Add(img); row.Children.Add(star); row.Children.Add(txt);
                     var it = new ListBoxItem { Content = row, Padding = new Thickness(8, 4, 8, 4), Cursor = Cursors.Hand };
+                    {   // prawy przycisk na kanale: otworz, ulubione, nagrywanie, program, sortowanie listy
+                        var rcm = new ContextMenu();
+                        Action<string, Action, bool> radd = (h, a, en) => { var mi = new MenuItem { Header = h, IsEnabled = en }; mi.Click += (q, w2) => a(); rcm.Items.Add(mi); };
+                        radd(L.T("▶ Otwórz"), () => { if (gk == curKey) _vlcLoad(_playlist.IndexOf(ch.Url)); else { foreach (var c in chans) _iptvPlaying[c.Url] = c; PlayVideos(chans.Select(c => c.Url).ToArray(), idx); } showChannelsRefresh(); }, ch.Url != curUrl);
+                        rcm.Items.Add(new Separator());
+                        bool isF = IptvSt.Fav.Contains(ch.Url);
+                        radd(isF ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), () =>
+                        {
+                            if (ch.Url == curUrl) { fav.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); showChannelsRefresh(); return; }   // biezacy - jak przycisk na pasku
+                            if (isF) IptvSt.Fav.Remove(ch.Url); else IptvSt.Fav.Add(ch.Url);
+                            SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); showChannelsRefresh();
+                        }, true);
+                        if (IsRecording(ch.Url)) radd(L.T("⏹ Zatrzymaj nagrywanie"), () => { StopRecording(ch.Url); showChannelsRefresh(); }, true);
+                        else radd(L.T("⏺ Nagrywaj w tle"), () => RecordNow(ch, win), true);
+                        radd(L.T("📅 Program TV kanału"), () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, ch.Url), true);
+                        if (gk != curKey && gk != recKey)
+                        {
+                            rcm.Items.Add(new Separator());
+                            var so = new MenuItem { Header = L.T("↕ Sortuj według") }; var nowHow = GetPref("sort-lista-kanalow") ?? "az";
+                            foreach (var (k1, n1) in new[] { ("az", "nazwa A–Z"), ("za", "nazwa Z–A"), ("nr", "jak na liście") })
+                            { var key = k1; var mi = new MenuItem { Header = L.T(n1), IsCheckable = true, IsChecked = nowHow == key }; mi.Click += (q, w2) => { SetPref("sort-lista-kanalow", key); chSort.Tag = null; chSort.SelectedItem = chSort.Items.Cast<ComboBoxItem>().FirstOrDefault(x => (string)x.Tag == key); chSort.Tag = "sort-lista-kanalow"; showChannelsRefresh(); }; so.Items.Add(mi); }
+                            rcm.Items.Add(so);
+                        }
+                        rcm.Opened += (q, w2) => chHide.Stop();   // menu otwarte - lista nie chowa sie
+                        it.ContextMenu = rcm;
+                    }
                     if (ch.Url == curUrl) { it.Background = new SolidColorBrush(Color.FromArgb(0x66, 0x3B, 0x82, 0xF6)); cur = it; }
                     // klik: z biezacej listy - przelacz; z innej grupy - ta grupa staje sie lista (PgUp/PgDn po niej)
                     it.PreviewMouseLeftButtonUp += (q, w2) =>
@@ -2331,7 +2381,7 @@ namespace Przegladarka
                     var rt = new MenuItem { Header = L.T("🕘 Ostatnio oglądane TV") };
                     var kpl = IptvInstalled && IptvSt.Recent.Any(u => u != path && !_iptvPlaying.ContainsKey(u)) ? KnownPlaylist() : _iptvPl;   // TV jeszcze nie otwierana - kanaly z pamieci podrecznej
                     foreach (var c0 in IptvSt.Recent.Where(u => u != path).Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : kpl?.Channels.FirstOrDefault(x => x.Url == u)).Where(c => c != null).Take(20))
-                    { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (q, w2) => { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }; rt.Items.Add(mi); }
+                    { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (q, w2) => PlayChannelInGroup(c, kpl); rt.Items.Add(mi); }
                     if (rt.Items.Count > 0) cm.Items.Add(rt);
                     if (rf.Items.Count > 0) cm.Items.Add(rf);
                 }

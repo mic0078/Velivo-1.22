@@ -134,7 +134,7 @@ namespace Przegladarka
             if (c == null || string.IsNullOrEmpty(c.Url) || cur?.Id == null)
             {
                 // film nieznany Jellyfin - wyszukiwarka w nowej karcie (Filmweb) i reczne uzupelnienie
-                AddTab("https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(fileTitle));
+                ShowWebWindow(owner, "https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(fileTitle));
                 MessageBox.Show(owner, L.T("Tego filmu nie ma w Jellyfin (albo Jellyfin nie jest ustawiony), więc otworzyłem wyszukiwanie w Filmweb.\n\nInformacje możesz wpisać w „📝 Uzupełnij informacje…”."), L.T("Wyszukaj informacje"));
                 return;
             }
@@ -216,7 +216,7 @@ namespace Przegladarka
             var top = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 12, 12, 4) };
             top.Children.Add(qName); top.Children.Add(qYear); top.Children.Add(SmallButton(L.T("🔎 Szukaj"), () => { _ = search(); }));
             var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12) };
-            bar.Children.Add(SmallButton(L.T("🌐 Szukaj w Filmweb"), () => AddTab("https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(qName.Text.Trim()))));
+            bar.Children.Add(SmallButton(L.T("🌐 Szukaj w Filmweb"), () => ShowWebWindow(win, "https://www.filmweb.pl/search#/?query=" + Uri.EscapeDataString(qName.Text.Trim()))));
             bar.Children.Add(apply);
             var dock = new DockPanel();
             DockPanel.SetDock(top, Dock.Top); DockPanel.SetDock(status, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
@@ -225,6 +225,17 @@ namespace Przegladarka
             list.MouseDoubleClick += (s, a) => apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             win.Loaded += (s, a) => { _ = search(); };
             win.ShowDialog();
+        }
+
+        // strona w osobnym okienku na wierzchu (nad biblioteka i oknem wyszukiwania - karta w glownym oknie bylaby schowana)
+        void ShowWebWindow(Window owner, string url)
+        {
+            var w = new Window { Title = "Filmweb", Width = 1000, Height = 760, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var view = new Microsoft.Web.WebView2.Wpf.WebView2();
+            w.Content = view;
+            w.Loaded += async (s, a) => { try { await view.EnsureCoreWebView2Async(_env); view.CoreWebView2.Navigate(url); } catch (Exception ex) { App.LogError(ex); } };
+            w.Closed += (s, a) => view.Dispose();
+            w.Show();
         }
 
         static string PosterDir { get { return Path.Combine(MetaDir, "plakaty"); } }

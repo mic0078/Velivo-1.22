@@ -1470,18 +1470,21 @@ namespace Przegladarka
                 prev.IsEnabled = i > 0; next.IsEnabled = i < _playlist.Count - 1;
             };
 
-            mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(new Action(() => timeLen.Text = FormatTime(e.Length)));
-            mp.TimeChanged += (s, e) => Dispatcher.BeginInvoke(new Action(() =>
+            // zdarzenia VLC czekajace w kolejce po zamknieciu okna nie dotykaja juz odtwarzacza (zwolniony VLC = awaria calego Velivo)
+            bool vlcClosed = false;
+            Func<Action, Action> guard = a => () => { if (!vlcClosed) a(); };
+            mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(guard(() => timeLen.Text = FormatTime(e.Length)));
+            mp.TimeChanged += (s, e) => Dispatcher.BeginInvoke(guard(() =>
             {
                 timeNow.Text = FormatTime(e.Time);
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
             var see = overlay.Background;   // prawie przezroczysta - widac film, a klik trafia w okno
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; }));
-            mp.Paused += (s, e) => Dispatcher.BeginInvoke(new Action(() => play.Content = PlayerIcon("play")));
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; }));
+            mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => play.Content = PlayerIcon("play")));
             // po Stop / koncu pod obrazem jest jasne okienko VLC - zaslaniamy je na czarno
-            mp.Stopped += (s, e) => Dispatcher.BeginInvoke(new Action(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; overlay.Background = Brushes.Black; }));
-            mp.EndReached += (s, e) => Dispatcher.BeginInvoke(new Action(() => overlay.Background = Brushes.Black));
+            mp.Stopped += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; overlay.Background = Brushes.Black; }));
+            mp.EndReached += (s, e) => Dispatcher.BeginInvoke(guard(() => overlay.Background = Brushes.Black));
             // nastepny / poprzedni: film z innego komputera - po liscie tamtej biblioteki (jak na liscie z lewej), inaczej po liscie odtwarzania
             Action<int> step = d =>
             {
@@ -1491,7 +1494,7 @@ namespace Przegladarka
                 var id = Neighbor(q.Select(x => x.Value.i).ToList(), rf.Id, d);
                 if (id != null) { var nx = q.First(x => x.Value.i == id); WantRemoteFilm(nx.Key, nx.Value, false); }
             };
-            mp.EndReached += (s, e) => Dispatcher.BeginInvoke(new Action(() =>
+            mp.EndReached += (s, e) => Dispatcher.BeginInvoke(guard(() =>
             {
                 if (current != null && _remoteFilms.TryGetValue(current.Path, out var rfe)) { SendRemoteProgress(rfe, 0, mp.Length, true); current = null; if (_together == null) step(1); return; }   // nastepny film z tamtej biblioteki
                 if (current != null) { var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current)); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
@@ -1500,7 +1503,7 @@ namespace Przegladarka
                 if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału – łączę ponownie…")); return; }   // telewizja: bez przeskoku na nastepny kanal; strażnik polaczy ponownie
                 if (_playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
-            mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(new Action(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));
+            mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(guard(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));
 
             Action togglePlay = () =>
             {
@@ -1886,8 +1889,8 @@ namespace Przegladarka
                 var cp = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (cp != null && e.GetPosition(overlay).X < 14 && chPanel.Visibility != Visibility.Visible) showChannels(true);   // kanaly albo filmy
             };
-            mp.Paused += (s, e) => Dispatcher.BeginInvoke(showBar);
-            mp.Paused += (s, e) => Dispatcher.BeginInvoke(new Action(() => pausedAt = DateTime.Now));   // pauza - pasek zostaje widoczny
+            mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(showBar));
+            mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => pausedAt = DateTime.Now));   // pauza - pasek zostaje widoczny
             hideTimer.Start();
             win.PreviewKeyDown += (s, e) =>
             {
@@ -1924,7 +1927,9 @@ namespace Przegladarka
                 LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
                 if (!_mainClosing) SaveTvResume(-1);   // odtwarzacz zamkniety recznie - bez wznawiania; przy zamykaniu Velivo zostaje
                 view.MediaPlayer = null;
-                System.Threading.Tasks.Task.Run(() => { try { mp.Stop(); mp.Dispose(); } catch (Exception) { } });   // Stop VLC moze chwile trwac - nie w watku okna
+                vlcClosed = true;
+                // Stop VLC moze chwile trwac - nie w watku okna; zwolnienie pozniej, gdy kolejka okna i jednorazowe zegary (do 1,5 s) juz minely
+                System.Threading.Tasks.Task.Run(async () => { try { mp.Stop(); await System.Threading.Tasks.Task.Delay(10000); mp.Dispose(); } catch (Exception) { } });
             };
             _vlcWin = win;
             win.Show();

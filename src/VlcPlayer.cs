@@ -2103,6 +2103,33 @@ namespace Przegladarka
                 add(L.T("Tryb mini"), toggleMini, true);
                 add(L.T("Pełny ekran"), toggleFull, true);
                 add(L.T("📷 Zrzut klatki"), click(snap), true);
+                // porzadek: odtwarzanie, telewizja / film, listy, udostepnianie, widok, a ustawienia w jednym podmenu
+                string H(object o) => (o as MenuItem)?.Header as string ?? "";
+                Func<string, string[], bool> starts = (h, ps) => ps.Any(p0 => h.StartsWith(L.T(p0)));
+                var groups = new List<(string Title, string[] Prefixes)>
+                {
+                    (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
+                    (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie", "⭐ " }),
+                    (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "🕘 Ostatnio oglądane kanały", "📺 Kanały telewizji", "📅", "🎬 Biblioteka filmów", "🎞 Playlisty" }),
+                    (null, new[] { "💬 Pobierz napisy", "Napisy na ekranie", "🗣 " }),
+                    (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
+                    (null, new[] { "📌 Zawsze na wierzchu", "Tryb mini", "Pełny ekran", "📷 Zrzut klatki" }),
+                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "ℹ Pasek informacji", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "➕ Dodaj do: ", "(film strumieniowany" }),
+                };
+                var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().ToList();
+                cm.Items.Clear();
+                var used = new HashSet<MenuItem>();
+                foreach (var g in groups)
+                {
+                    var its = all.Where(m => !used.Contains(m) && starts(H(m), g.Prefixes)).ToList();
+                    if (its.Count == 0) continue;
+                    foreach (var m in its) used.Add(m);
+                    if (cm.Items.Count > 0) cm.Items.Add(new Separator());
+                    if (g.Title == null) foreach (var m in its) cm.Items.Add(m);
+                    else { var sub = new MenuItem { Header = g.Title }; foreach (var m in its) sub.Items.Add(m); cm.Items.Add(sub); }
+                }
+                var rest = all.Where(m => !used.Contains(m)).ToList();   // nic nie ginie
+                if (rest.Count > 0) { cm.Items.Add(new Separator()); foreach (var m in rest) cm.Items.Add(m); }
                 cm.IsOpen = true;
             };
             overlay.MouseWheel += (s, e) => { if (controls.IsMouseOver && !vol.IsMouseOver) return; showBar(); setVol(vol.Value + (e.Delta > 0 ? 5 : -5)); showOsd(L.T("Głośność ") + (int)vol.Value + "%"); };

@@ -406,7 +406,7 @@ namespace Przegladarka
             switch (mode)
             {
                 case "lagodny": comp = "--audio-filter=normvol:compressor --norm-buff-size=30 --norm-max-level=3.0 " + C("-16", "3", "25", "250", "3"); break;
-                case "mocny": comp = "--audio-filter=normvol:compressor --norm-buff-size=10 --norm-max-level=1.2 " + C("-26", "12", "5", "80", "10"); break;
+                case "mocny": comp = "--audio-filter=normvol:compressor --norm-buff-size=8 --norm-max-level=0.8 " + C("-30", "20", "2", "60", "14"); break;
                 case "limit": comp = "--audio-filter=compressor " + C("-12", "20", "2", "100", "0"); break;
                 default: comp = "--audio-filter=normvol:compressor --norm-buff-size=20 --norm-max-level=2.0 " + C("-20", "6", "15", "150", "6"); break;
             }
@@ -999,7 +999,7 @@ namespace Przegladarka
                 _libVlc.Log += (s, e) =>
                 {
                     if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
-                    bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
+                    bool audio = e.Module != null && (e.Module.Contains("normvol") || e.Module.Contains("compressor") || (e.Message ?? "").Contains("audio filter") || e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
                     if (e.Level < LogLevel.Warning && !audio) return;   // szczegoly wyjscia dzwieku zawsze
                     try { lock (VlcLogFile) { var f = new FileInfo(VlcLogFile); if (!f.Exists || f.Length < 512 * 1024) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + e.Message + "\n"); } } catch (Exception) { }
                 };
@@ -1796,7 +1796,7 @@ namespace Przegladarka
             _iptvJobsChanged += recTitle;   // nagrywanie ogladanego kanalu - widac w tytule
             win.Closed += (s, e) => _iptvJobsChanged -= recTitle;
             // zdarzenia VLC czekajace w kolejce po zamknieciu okna nie dotykaja juz odtwarzacza (zwolniony VLC = awaria calego Velivo)
-            bool vlcClosed = false, aoutDs = false;
+            bool vlcClosed = false, aoutDs = false; string levelOsdFor = null;
             Func<Action, Action> guard = a => () => { if (!vlcClosed) a(); };
             _vlcLoad = i =>
             {
@@ -1907,7 +1907,11 @@ namespace Przegladarka
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
             var see = overlay.Background;   // prawie przezroczysta - widac film, a klik trafia w okno
-            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo); if (chPanel.Visibility == Visibility.Visible && !chPanel.IsMouseOver) { chHide.Stop(); chHide.Start(); } }));   // lista po Stop chowa sie, gdy film znowu gra
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo);
+                var lp = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (lp == levelOsdFor) { } else if ((levelOsdFor = lp) == null) { }   // komunikat raz na film, nie po kazdej pauzie
+                else if (LevelVolume && _libVlcKey != null && _libVlcKey.Contains("--audio-filter")) showOsd(L.T("🎚 Wyrównywanie głośności: ") + (GetPref("wyrownaj-tryb") ?? "normalny"));
+                else if (LevelVolume) showOsd(L.T("🎚 Wyrównywanie zadziała po zamknięciu i ponownym otwarciu odtwarzacza")); if (chPanel.Visibility == Visibility.Visible && !chPanel.IsMouseOver) { chHide.Stop(); chHide.Start(); } }));   // lista po Stop chowa sie, gdy film znowu gra
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => play.Content = PlayerIcon("play")));
             // po Stop / koncu pod obrazem jest jasne okienko VLC - zaslaniamy je na czarno
             mp.Stopped += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("play"); seek.Value = 0; timeNow.Text = "0:00"; overlay.Background = Brushes.Black; }));

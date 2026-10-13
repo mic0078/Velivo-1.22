@@ -76,7 +76,10 @@ namespace Przegladarka
         internal static MovieInfo LookupMeta(Dictionary<string, MovieInfo> meta, string path)
         {
             if (path == null) return null;
-            return meta.TryGetValue(MetaKey(path), out var m) ? m : meta.TryGetValue(MetaDirKey(path), out m) ? m : null;
+            if (meta.TryGetValue(MetaKey(path), out var m) || meta.TryGetValue(MetaDirKey(path), out m)) return m;
+            var c = System.Text.RegularExpressions.Regex.Match(CleanTitle(MetaKey(path)), @"^(.+) \((\d{4})\)$");   // "alien (1979)"
+            var k = c.Success ? TitleYearKey(c.Groups[1].Value, int.Parse(c.Groups[2].Value)) : null;
+            return k != null && meta.TryGetValue(k, out m) ? m : null;
         }
 
         internal MovieInfo MetaFor(string path) { return LookupMeta(Meta, path); }
@@ -98,7 +101,22 @@ namespace Przegladarka
         internal static string Neighbor(List<string> ids, string cur, int d) { var i = ids.IndexOf(cur); return i < 0 || i + d < 0 || i + d >= ids.Count ? null : ids[i + d]; }
 
         // tytul z Jellyfin tylko dla rozpoznanego filmu (nierozpoznany ma za nazwe nazwe pliku - bez opisu i oceny)
-        internal static string MetaTitle(MovieInfo m) { return m == null || string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? null : m.Name + (m.Year > 0 ? " (" + m.Year + ")" : ""); }
+        internal static string MetaTitle(MovieInfo m)
+        {
+            if (m == null || string.IsNullOrEmpty(m.Overview) && m.Rating <= 0) return null;
+            // nazwa w Jellyfin jak nazwa pliku ([dopiski], jakosc, kodeki) - czytelnie, jak nierozpoznany plik
+            if (System.Text.RegularExpressions.Regex.IsMatch(m.Name ?? "", @"\[|\b(\d{3,4}p|brrip|bdrip|web-?dl|webrip|x26[45]|h ?26[45]|ac3)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return CleanTitle(m.Name);
+            return m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "");
+        }
+
+        // klucz "tytul + rok": plik o innej nazwie niz w Jellyfin (np. inna wersja, kolekcja w jednym folderze)
+        static string TitleYearKey(string title, int year) { var t = new string((title ?? "").Normalize(NormalizationForm.FormC).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray()); return t.Length == 0 || year <= 0 ? null : "ty:" + t + year; }
+
+        internal static void AddTitleKeys(Dictionary<string, MovieInfo> meta, MovieInfo m)
+        {
+            if (m.Year <= 0 || string.IsNullOrEmpty(m.Overview) && m.Rating <= 0) return;   // tylko rozpoznane filmy
+            foreach (var t in new[] { m.Name, m.Original }) { var k = TitleYearKey(t, m.Year); if (k != null && !meta.ContainsKey(k)) meta[k] = m; }
+        }
 
         // czytelny tytul z nazwy pliku: bez [dopiskow], jakosci i kodekow, kropki jako spacje, rok w nawiasie
         internal static string CleanTitle(string raw)
@@ -106,7 +124,7 @@ namespace Przegladarka
             var t = System.Text.RegularExpressions.Regex.Replace(raw ?? "", @"\[[^\]]*\]", " ");
             t = System.Text.RegularExpressions.Regex.Replace(t, @"[._]", " ");
             string title, year = null;
-            var m = System.Text.RegularExpressions.Regex.Match(t, @"^(.+?)[\s(\-]*\b((19|20)\d{2})\b");
+            var m = System.Text.RegularExpressions.Regex.Match(t, @"^(.+?)[\s(\-]*(?<!\d)((19|20)\d{2})(?!\d)");
             if (m.Success) { title = m.Groups[1].Value; year = m.Groups[2].Value; }
             else title = System.Text.RegularExpressions.Regex.Replace(t, @"[\s\-]*\b(pl|lektor|dubbing|napisy|\d{3,4}p|4k|bdrip|brrip|bluray|web-?dl|webrip|hdtv|dvdrip|x26[45]|h ?26[45]|hevc|xvid|divx|ac3|dd\d.*|aac.*|lp|dp|r d11)\b.*$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             title = System.Text.RegularExpressions.Regex.Replace(title, @"\s+", " ").Trim(' ', '-', '–', '(', ',');
@@ -166,7 +184,7 @@ namespace Przegladarka
                 var uid = (admin.ValueKind == JsonValueKind.Object ? admin : ul.FirstOrDefault()).GetProperty("Id").GetString();
                 if (uid == null) throw new InvalidOperationException(L.T("brak użytkowników na serwerze"));
                 progress(L.T("Pobieram listę filmów…"));
-                var json = await (await Ok(http.GetAsync("Users/" + uid + "/Items?Recursive=true&IncludeItemTypes=Movie&Fields=Path,Overview,Genres,People,OriginalTitle,OfficialRating"))).Content.ReadAsStringAsync();
+                var json = await (await Ok(http.GetAsync("Users/" + uid + "/Items?Recursive=true&IncludeItemTypes=Movie,Video&Fields=Path,MediaSources,Overview,Genres,People,OriginalTitle,OfficialRating"))).Content.ReadAsStringAsync();
                 var items = JsonDocument.Parse(json).RootElement.GetProperty("Items");
                 var meta = new Dictionary<string, MovieInfo>(Meta, StringComparer.OrdinalIgnoreCase);
                 int n = 0, total = items.GetArrayLength(), posters = 0;
@@ -191,6 +209,9 @@ namespace Przegladarka
                         catch (Exception) { }
                     }
                     meta[key] = m;
+                    AddTitleKeys(meta, m);
+                    if (it.TryGetProperty("MediaSources", out var ms) && ms.ValueKind == JsonValueKind.Array)   // kilka wersji jednego filmu (Jellyfin laczy pliki) - kazdy plik
+                        foreach (var s in ms.EnumerateArray()) if (s.TryGetProperty("Path", out var sp) && sp.GetString() is string sps && !meta.ContainsKey(MetaKey(sps))) meta[MetaKey(sps)] = m;
                     if (!System.Text.RegularExpressions.Regex.IsMatch(path, @"\.(mkv|mp4|avi|m4v|ts|m2ts|wmv|mov|mpg|mpeg|iso|webm|flv)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                         meta[MetaDirKey(path + "\\x")] = m;   // Jellyfin podal folder filmu - dopasowanie po nazwie folderu
                     if (n % 25 == 0) progress(L.T("Filmy: ") + n + " / " + total + L.T(" · nowe plakaty: ") + posters);

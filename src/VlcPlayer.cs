@@ -117,15 +117,17 @@ namespace Przegladarka
 
         // wybor sciezki napisow / dzwieku wg zapamietanej nazwy: dokladnie ta sama, inaczej ten sam jezyk ([Polski], [English]);
         // "-" = wylaczone (-1); int.MinValue = brak pasujacej (zostaje domyslna filmu)
-        internal static int PickTrack(IEnumerable<(int Id, string Name)> tracks, string wanted)
+        // sameFilm = false: wybor z innego filmu - tylko jezyk ([Polski]); nazwy bez jezyka ("Track 2") w innym filmie to inna sciezka
+        internal static int PickTrack(IEnumerable<(int Id, string Name)> tracks, string wanted, bool sameFilm = true)
         {
             if (string.IsNullOrEmpty(wanted)) return int.MinValue;
             if (wanted == "-") return -1;
             var list = tracks.Where(t => t.Id >= 0).ToList();
             var exact = list.FirstOrDefault(t => t.Name == wanted);
-            if (exact.Name != null) return exact.Id;
-            Func<string, string> langOf = n => { var m = System.Text.RegularExpressions.Regex.Match(n ?? "", @"\[([^\]]+)\]"); return (m.Success ? m.Groups[1].Value : n ?? "").Trim().ToLowerInvariant(); };
+            if (sameFilm && exact.Name != null) return exact.Id;
+            Func<string, string> langOf = n => { var m = System.Text.RegularExpressions.Regex.Match(n ?? "", @"\[([^\]]+)\]"); return (m.Success ? m.Groups[1].Value : sameFilm ? n ?? "" : "").Trim().ToLowerInvariant(); };
             var lang = langOf(wanted);
+            if (lang.Length == 0) return int.MinValue;
             var same = list.FirstOrDefault(t => langOf(t.Name) == lang);
             return same.Name != null ? same.Id : int.MinValue;
         }
@@ -330,7 +332,7 @@ namespace Przegladarka
             Func<LibraryVideo, MovieInfo> mi = v => meta?.Invoke(v);
             switch (key)
             {
-                case "title": by = v => (mi(v)?.Name ?? v.Title).ToLowerInvariant(); break;
+                case "title": by = v => (MetaTitle(mi(v)) ?? CleanTitle(v.Title)).ToLowerInvariant(); break;   // tak, jak widac w kolumnie
                 case "year": by = v => mi(v)?.Year ?? 0; break;
                 case "rating": by = v => mi(v)?.Rating ?? 0; break;
                 case "genre": by = v => (mi(v)?.Genres.FirstOrDefault() ?? "").ToLowerInvariant(); break;
@@ -1041,11 +1043,11 @@ namespace Przegladarka
             {
                 try
                 {
-                    var spu = PickTrack(mp.SpuDescription.Select(t => (t.Id, t.Name)), current?.Spu ?? _settings.VlcSpu);
+                    var spu = (current?.Spu != null ? PickTrack(mp.SpuDescription.Select(t => (t.Id, t.Name)), current.Spu) : PickTrack(mp.SpuDescription.Select(t => (t.Id, t.Name)), _settings.VlcSpu, false));
                     if (!_settings.VlcShowSubs) mp.SetSpu(-1);   // napisy ukryte (lektor czyta dalej)
                     else if (spu != int.MinValue) mp.SetSpu(spu);
                     else if (mp.Spu < 0) { var first = mp.SpuDescription.FirstOrDefault(t => t.Id >= 0); if (first.Name != null) mp.SetSpu(first.Id); }
-                    var au = PickTrack(mp.AudioTrackDescription.Select(t => (t.Id, t.Name)), current?.Audio ?? _settings.VlcAudio);
+                    var au = current?.Audio != null ? PickTrack(mp.AudioTrackDescription.Select(t => (t.Id, t.Name)), current.Audio) : PickTrack(mp.AudioTrackDescription.Select(t => (t.Id, t.Name)), _settings.VlcAudio, false);   // inny film - tylko jezyk
                     if (au != int.MinValue && au >= 0) mp.SetAudioTrack(au);
                 }
                 catch (Exception ex) { App.LogError(ex); }

@@ -80,5 +80,10 @@ public class SubtitleLectorTests
         Assert.Equal(-1, MainWindow.PickTrack(tracks, "-"));                          // wylaczone
         Assert.Equal(int.MinValue, MainWindow.PickTrack(tracks, "Track 1 - [Deutsch]")); // brak - zostaje domyslna
         Assert.Equal(int.MinValue, MainWindow.PickTrack(tracks, ""));
+        // wybor z innego filmu: tylko jezyk - "Track 2" bez jezyka to w innym filmie zupelnie inna sciezka (komentarz, brak dzwieku)
+        var au = new[] { (1, "Track 1"), (2, "Track 2"), (3, "Track 3 - [Polski]") };
+        Assert.Equal(int.MinValue, MainWindow.PickTrack(au, "Track 2", false));
+        Assert.Equal(2, MainWindow.PickTrack(au, "Track 2"));                         // ten sam film
+        Assert.Equal(3, MainWindow.PickTrack(au, "Ścieżka 1 - [Polski]", false));
     }
 }

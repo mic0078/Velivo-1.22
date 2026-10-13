@@ -204,12 +204,14 @@ namespace Przegladarka
                 var meta = new Dictionary<string, MovieInfo>(Meta, StringComparer.OrdinalIgnoreCase);
                 int n = 0, total = items.GetArrayLength(), posters = 0;
                 Directory.CreateDirectory(PosterDir);
+                var jfAll = new List<(string Name, string Path)>();   // do raportu niedopasowanych
                 foreach (var it in items.EnumerateArray())
                 {
                     n++;
                     var path = it.TryGetProperty("Path", out var pth) ? pth.GetString() : null; if (path == null) continue;
                     var m = ParseJellyfinItem(it);
                     var key = MetaKey(path);
+                    jfAll.Add((m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "") + (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? "  [nierozpoznany w Jellyfin]" : ""), path));
                     meta.TryGetValue(key, out var old);
                     m.Poster = old?.Poster;
                     if (m.ImageTag != null && (old == null || old.ImageTag != m.ImageTag || old.Poster != m.Id + "-720.jpg" || !File.Exists(Path.Combine(PosterDir, old.Poster))))
@@ -239,6 +241,17 @@ namespace Przegladarka
                 _meta = meta;
                 c.Synced = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveJellyfinConf(c);
                 var lib = LoadLibrary(); int matched = lib.Count(v => LookupMeta(meta, v.Path) != null);
+                // raport: filmy biblioteki bez danych i filmy Jellyfin bez pliku w bibliotece - widac, czemu sie nie lacza
+                try
+                {
+                    var libKeys = new HashSet<string>(lib.Select(v => MetaKey(v.Path)));
+                    var rep = new StringBuilder("Biblioteka Velivo bez danych z Jellyfin:\n");
+                    foreach (var v in lib.Where(v => LookupMeta(meta, v.Path) == null).OrderBy(v => v.Path)) rep.Append("  " + CleanTitle(v.Title) + "   <-   " + v.Path + "\n");
+                    rep.Append("\nFilmy w Jellyfin bez pliku o tej nazwie w bibliotece Velivo:\n");
+                    foreach (var j in jfAll.Where(j => !libKeys.Contains(MetaKey(j.Path))).OrderBy(j => j.Path)) rep.Append("  " + j.Name + "   <-   " + j.Path + "\n");
+                    File.WriteAllText(Path.Combine(DataDir, "jellyfin-raport.txt"), rep.ToString());
+                }
+                catch (Exception ex) { App.LogError(ex); }
                 return L.T("✅ Filmów z Jellyfin: ") + total + L.T(" · dopasowanych w bibliotece: ") + matched + " / " + lib.Count + L.T(" · nowe plakaty: ") + posters;
             }
         }

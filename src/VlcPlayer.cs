@@ -412,6 +412,78 @@ namespace Przegladarka
         }
         static void SavePlaylists(Playlists p) { try { Directory.CreateDirectory(DataDir); File.WriteAllText(PlaylistsFile, JsonSerializer.Serialize(p)); } catch (Exception ex) { App.LogError(ex); } }
 
+        // losowanie filmow: gatunek / jak zaznaczony film, minimalna ocena, nieobejrzane, ile - potem kolejka albo playlista
+        void ShowRandomPicker(Window owner, List<LibraryVideo> pool, LibraryVideo seed, Action<List<string>> play)
+        {
+            var win = new Window { Title = L.T("🎲 Wylosuj filmy"), Width = 560, Height = 580, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var genres = pool.SelectMany(v => MetaFor(v.Path)?.Genres ?? new List<string>()).Distinct(StringComparer.CurrentCultureIgnoreCase).OrderBy(g => g, StringComparer.CurrentCultureIgnoreCase).ToList();
+            var seedGenres = seed != null ? MetaFor(seed.Path)?.Genres ?? new List<string>() : new List<string>();
+            var genre = new ComboBox { Width = 240 };
+            genre.Items.Add(L.T("Dowolny gatunek"));
+            if (seedGenres.Count > 0) genre.Items.Add(L.T("Jak zaznaczony: ") + string.Join(", ", seedGenres.Take(3)));
+            foreach (var g in genres) genre.Items.Add(g);
+            genre.SelectedIndex = 0;
+            var minRating = new ComboBox { Width = 120 };
+            foreach (var r in new[] { "dowolna", "5+", "6+", "7+", "8+" }) minRating.Items.Add(L.T(r));
+            minRating.SelectedIndex = 0;
+            var count = new ComboBox { Width = 80 };
+            foreach (var n in new[] { 3, 5, 10, 15, 20 }) count.Items.Add(n);
+            count.SelectedIndex = 1;
+            var unseen = new CheckBox { Content = L.T("Tylko nieobejrzane"), IsChecked = true, Margin = new Thickness(0, 8, 0, 0) };
+            var form = new StackPanel { Margin = new Thickness(12) };
+            Action<string, UIElement> row = (t, c) => { var d = new DockPanel { Margin = new Thickness(0, 4, 0, 0) }; var tb = new TextBlock { Text = t, Width = 140, VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(tb, Dock.Left); d.Children.Add(tb); d.Children.Add(c); form.Children.Add(d); };
+            row(L.T("Gatunek:"), genre); row(L.T("Ocena co najmniej:"), minRating); row(L.T("Ile filmów:"), count);
+            form.Children.Add(unseen);
+            var list = new ListBox { Margin = new Thickness(12, 0, 12, 0) };
+            var info = new TextBlock { Margin = new Thickness(12, 6, 12, 6), Foreground = Brushes.Gray };
+            var picked = new List<LibraryVideo>();
+            var rnd = new Random();
+            Action roll = () =>
+            {
+                double min = minRating.SelectedIndex <= 0 ? 0 : 4 + minRating.SelectedIndex;   // 5, 6, 7, 8
+                List<string> want = genre.SelectedIndex <= 0 ? null : seedGenres.Count > 0 && genre.SelectedIndex == 1 ? seedGenres : new List<string> { (string)genre.SelectedItem };
+                var cand = pool.Where(v =>
+                {
+                    var m = MetaFor(v.Path);
+                    if (unseen.IsChecked == true && (v.Done || SeenFraction(v) > 0.9)) return false;
+                    if (min > 0 && (m?.Rating ?? 0) < min) return false;
+                    if (want != null && !(m?.Genres ?? new List<string>()).Any(g => want.Contains(g, StringComparer.CurrentCultureIgnoreCase))) return false;
+                    return seed == null || !string.Equals(v.Path, seed.Path, StringComparison.OrdinalIgnoreCase) || want == null;
+                }).ToList();
+                picked = cand.OrderBy(_ => rnd.Next()).Take((int)count.SelectedItem).ToList();
+                list.Items.Clear();
+                foreach (var v in picked) { var m = MetaFor(v.Path); list.Items.Add(ShownTitle(v, m) + (m?.Rating > 0 ? "   ★ " + m.Rating.ToString("0.0") : "") + (m?.Genres.Count > 0 ? "   · " + string.Join(", ", m.Genres.Take(2)) : "")); }
+                info.Text = picked.Count == 0 ? L.T("Nic nie pasuje – zmień warunki.") : string.Format(L.T("Wylosowano {0} z {1} pasujących."), picked.Count, cand.Count);
+            };
+            var bar = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12) };
+            bar.Children.Add(SmallButton(L.T("🎲 Losuj ponownie"), roll));
+            bar.Children.Add(SmallButton(L.T("▶ Odtwórz jako kolejkę"), () => { if (picked.Count == 0) return; var ps = picked.Select(v => v.Path).ToList(); var p0 = LoadPlaylists(); p0.Mine = ps; SavePlaylists(p0); win.Close(); play(ps); }));
+            bar.Children.Add(SmallButton(L.T("➕ Dodaj do kolejki"), () =>
+            {
+                if (picked.Count == 0) return;
+                var ps = picked.Select(v => v.Path).ToList();
+                if (_vlcWin == null) { win.Close(); play(ps); return; }
+                foreach (var p1 in ps) if (!_playlist.Contains(p1, StringComparer.OrdinalIgnoreCase)) _playlist.Add(p1);
+                ShowToast(L.T("➕ Dodano do kolejki: ") + ps.Count, null);
+            }));
+            bar.Children.Add(SmallButton(L.T("💾 Zapisz jako playlistę…"), () =>
+            {
+                if (picked.Count == 0) return;
+                var def = L.T("Losowe – ") + (genre.SelectedIndex <= 0 ? L.T("różne") : genre.SelectedItem.ToString().Replace(L.T("Jak zaznaczony: "), "")) + (minRating.SelectedIndex > 0 ? " " + minRating.SelectedItem : "");
+                var n = Prompt(L.T("Nazwa playlisty:"), def); if (string.IsNullOrWhiteSpace(n)) return;
+                var p0 = LoadPlaylists(); p0.Named[n.Trim()] = picked.Select(v => v.Path).ToList(); SavePlaylists(p0);
+                ShowToast(L.T("🎞 Zapisano playlistę: ") + n.Trim() + " (" + picked.Count + ")", null);
+            }));
+            var dock = new DockPanel();
+            DockPanel.SetDock(form, Dock.Top); DockPanel.SetDock(info, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
+            dock.Children.Add(form); dock.Children.Add(info); dock.Children.Add(bar); dock.Children.Add(list);
+            win.Content = dock;
+            foreach (var c in new[] { genre, minRating, count }) c.SelectionChanged += (s, e) => { if (win.IsLoaded) roll(); };
+            unseen.Click += (s, e) => roll();
+            win.Loaded += (s, e) => roll();
+            win.ShowDialog();
+        }
+
         static bool Surround51 => GetPref("dzwiek-51") == "1";   // dzwiek przestrzenny bez miksowania do stereo (wybor w menu dzwieku)
 
         // ostatnio ogladany, nieskonczony film z tego komputera
@@ -732,6 +804,13 @@ namespace Przegladarka
                     one.Items.Add(pPlay); one.Items.Add(pAdd); one.Items.Add(pDel); plRoot.Items.Add(one);
                 }
                 menu.Items.Add(plRoot);
+                addItem(L.T("🎲 Wylosuj filmy…"), () =>
+                {
+                    var pool = rows.Where(x => !x.Missing && !remoteOf.ContainsKey(x.Item) && x.Item.Peer == null).Select(x => x.Item).ToList();
+                    win.Topmost = false;
+                    ShowRandomPicker(win, pool, (list.SelectedItem as LibRow)?.Item, ps => { _playShared = _libSharedView; PlayVideos(ps.ToArray(), 0); win.Close(); });
+                    win.Topmost = owner.Topmost;
+                });
                 menu.Items.Add(peersMenu(L.T("📺 Odtwórz na…"), false));
                 menu.Items.Add(peersMenu(L.T("👥 Oglądaj razem z…"), true));
                 menu.Items.Add(new Separator());

@@ -43,4 +43,13 @@ public class BibliotekaTytulyTests
         MainWindow.AddTitleKeys(meta, new MainWindow.MovieInfo { Name = "Alien", Year = 2030, Overview = "x" });
         Assert.Null(MainWindow.LookupMeta(meta, @"X:\Alien.mkv"));   // dwa filmy "Alien" - bez roku nie wiadomo ktory
     }
+
+    [Fact]
+    public void NoweFilmyZJellyfin()
+    {
+        var jf = new List<string> { @"U:\Media\Nowy.Film.2025.mkv", @"Y:\Media\Nowy.Film.2025.mkv", @"Y:\Media\Stary.mkv", @"Y:\Media\Brak.mkv", @"Y:\Media\opis.nfo" };
+        var lib = new[] { @"X:\Filmy\Stary.mkv" };
+        var add = MainWindow.NewJellyfinFiles(jf, lib, p => !p.Contains("Brak"));
+        Assert.Equal(new[] { @"U:\Media\Nowy.Film.2025.mkv" }, add);   // ten sam plik z dwoch bibliotek - raz; znany, niedostepny i nie-film - pomijane
+    }
 }

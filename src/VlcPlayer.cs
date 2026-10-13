@@ -791,6 +791,13 @@ namespace Przegladarka
                 var jc = LoadJellyfinConf();
                 if (jc != null && !string.IsNullOrEmpty(jc.Url))
                     try { await System.Threading.Tasks.Task.Run(() => SyncJellyfin(jc, _ => { })); fill(); } catch (Exception) { }   // serwer wylaczony - zostaje lokalna baza
+                // nowe filmy z Jellyfin (plik dostepny tutaj) - do biblioteki, ktora jest otwarta
+                if (!_libTvView && File.Exists(JellyfinFilesFile))
+                {
+                    bool sh = _libSharedView;
+                    var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(File.ReadAllLines(JellyfinFilesFile).ToList(), LoadLibrary().Select(v => v.Path), File.Exists));
+                    if (add.Count > 0) { var l = LoadLibrary(); int n = AddToLibrary(l, add, sh); SaveLibrary(l); fill(); ShowToast(L.T("🎬 Nowe filmy z Jellyfin: ") + n, null); }
+                }
             }));
             buttons.Children.Add(SmallButton(L.T("🎞 Jellyfin…"), () => ShowJellyfinDialog(win)));
             // opis zaznaczonego filmu (z Jellyfin): plakat, tytul, rok, ocena, gatunek, rezyser, obsada, opis

@@ -38,6 +38,22 @@ namespace Przegladarka
 
         static string MetaDir { get { return Path.Combine(DataDir, "filmy-info"); } }
         static string MetaFile { get { return Path.Combine(MetaDir, "baza.json"); } }
+        static string JellyfinFilesFile { get { return Path.Combine(MetaDir, "pliki.txt"); } }
+
+        // nowe filmy z Jellyfin, ktorych plik jest dostepny na tym komputerze, a nie ma ich w bibliotece (ten sam plik z dwoch bibliotek Jellyfin - raz)
+        internal static List<string> NewJellyfinFiles(List<string> jellyfinPaths, IEnumerable<string> libraryPaths, Func<string, bool> exists)
+        {
+            var have = new HashSet<string>(libraryPaths.Select(MetaKey));
+            var res = new List<string>();
+            foreach (var p in jellyfinPaths.Where(p => !string.IsNullOrWhiteSpace(p)))
+            {
+                var k = MetaKey(p);
+                if (have.Contains(k) || !IsVlcVideoFile(p) || !exists(p)) continue;
+                have.Add(k); res.Add(p);
+            }
+            return res;
+        }
+
         static string PosterDir { get { return Path.Combine(MetaDir, "plakaty"); } }
         static string JellyfinConfFile { get { return Path.Combine(DataDir, "jellyfin.bin"); } }
         static readonly byte[] JellyfinEntropy = Encoding.UTF8.GetBytes("Velivo.Jellyfin");
@@ -217,7 +233,7 @@ namespace Przegladarka
                     var path = it.TryGetProperty("Path", out var pth) ? pth.GetString() : null; if (path == null) continue;
                     var m = ParseJellyfinItem(it);
                     var key = MetaKey(path);
-                    jfAll.Add((m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "") + (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? "  [nierozpoznany w Jellyfin]" : ""), path));
+                    if (it.TryGetProperty("Type", out var ty) && ty.GetString() == "Movie") jfAll.Add((m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "") + (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? "  [nierozpoznany w Jellyfin]" : ""), path));
                     meta.TryGetValue(key, out var old);
                     if (old != null && old.Id != m.Id && Richness(old) > Richness(ParseJellyfinItem(it))) continue;   // ten sam plik w drugiej bibliotece Jellyfin, tam nierozpoznany - zostaja lepsze dane
                     m.Poster = old?.Poster;
@@ -257,6 +273,7 @@ namespace Przegladarka
                     rep.Append("\nFilmy w Jellyfin bez pliku o tej nazwie w bibliotece Velivo:\n");
                     foreach (var j in jfAll.Where(j => !libKeys.Contains(MetaKey(j.Path))).OrderBy(j => j.Path)) rep.Append("  " + j.Name + "   <-   " + j.Path + "\n");
                     File.WriteAllText(Path.Combine(DataDir, "jellyfin-raport.txt"), rep.ToString());
+                    File.WriteAllLines(JellyfinFilesFile, jfAll.Select(j => j.Path));   // pliki filmow Jellyfin - Odswiez w bibliotece dopisuje nowe
                 }
                 catch (Exception ex) { App.LogError(ex); }
                 return L.T("✅ Filmów z Jellyfin: ") + total + L.T(" · dopasowanych w bibliotece: ") + matched + " / " + lib.Count + L.T(" · nowe plakaty: ") + posters;

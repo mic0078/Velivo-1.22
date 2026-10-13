@@ -2329,7 +2329,8 @@ namespace Przegladarka
                     foreach (var v0 in LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != path && File.Exists(v.Path)).OrderByDescending(v => v.Last).Take(20))
                     { var v = v0; var mi = new MenuItem { Header = ShownTitle(v, MetaFor(v.Path)) }; mi.Click += (q, w2) => PlayVideos(new[] { v.Path }, 0); rf.Items.Add(mi); }
                     var rt = new MenuItem { Header = L.T("🕘 Ostatnio oglądane TV") };
-                    foreach (var c0 in IptvSt.Recent.Where(u => u != path).Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : _iptvPl?.Channels.FirstOrDefault(x => x.Url == u)).Where(c => c != null).Take(20))
+                    var kpl = IptvInstalled && IptvSt.Recent.Any(u => u != path && !_iptvPlaying.ContainsKey(u)) ? KnownPlaylist() : _iptvPl;   // TV jeszcze nie otwierana - kanaly z pamieci podrecznej
+                    foreach (var c0 in IptvSt.Recent.Where(u => u != path).Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : kpl?.Channels.FirstOrDefault(x => x.Url == u)).Where(c => c != null).Take(20))
                     { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (q, w2) => { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }; rt.Items.Add(mi); }
                     if (rt.Items.Count > 0) cm.Items.Add(rt);
                     if (rf.Items.Count > 0) cm.Items.Add(rf);

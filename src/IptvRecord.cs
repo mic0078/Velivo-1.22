@@ -146,6 +146,17 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); }
         }
 
+        // lista kanalow bez otwierania telewizji: wczytana albo z pamieci podrecznej ostatniego zrodla
+        IptvPlaylist _knownPl;
+        IptvPlaylist KnownPlaylist()
+        {
+            if (_iptvPl != null) return _iptvPl;
+            if (_knownPl != null) return _knownPl;   // raz na uruchomienie - duza lista nie spowalnia menu
+            var src = IptvSt.Sources.FirstOrDefault(x => x.Id == IptvSt.Last) ?? IptvSt.Sources.FirstOrDefault(); var f = src != null ? IptvCache(src, ".m3u") : null;
+            if (f != null && File.Exists(f)) try { return _knownPl = ParseM3u(File.ReadAllText(f)); } catch (Exception) { }
+            return null;
+        }
+
         // zaplanowane wlaczenie o godzinie: film z biblioteki albo kanal TV (zwykle okno, lista z wyszukiwaniem, data i godzina)
         void ShowScheduleStart(Window owner)
         {
@@ -156,8 +167,7 @@ namespace Przegladarka
             var chans = new List<(string Name, string Url, List<string> Opts)>();
             if (IptvInstalled)
             {
-                var pl = _iptvPl;
-                if (pl == null) { var src = IptvSt.Sources.FirstOrDefault(x => x.Id == IptvSt.Last) ?? IptvSt.Sources.FirstOrDefault(); var f = src != null ? IptvCache(src, ".m3u") : null; if (f != null && File.Exists(f)) try { pl = ParseM3u(File.ReadAllText(f)); } catch (Exception) { } }
+                var pl = KnownPlaylist();
                 if (pl != null) chans = pl.Channels.Select(c => (c.Name, c.Url, c.Opts)).ToList();
             }
             var rbFilm = new RadioButton { Content = L.T("🎬 Film"), IsChecked = true, Margin = new Thickness(0, 0, 16, 0) };

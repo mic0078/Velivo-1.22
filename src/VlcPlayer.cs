@@ -194,6 +194,17 @@ namespace Przegladarka
             var cont = new MenuItem { Icon = MenuGlyph("\uE768"), FontWeight = FontWeights.SemiBold };
             cont.Click += (s, e) => ContinueLastFilm();
             menu.Items.Add(cont);
+            // szybki dostep: moja kolejka i zapisane playlisty - jednym klikiem, bez otwierania biblioteki
+            var plQuick = new MenuItem { Header = L.T("🎞 Playlisty i moja kolejka"), Icon = MenuGlyph("\uE8FD") };
+            menu.Items.Add(plQuick);
+            menu.Opened += (s, e) =>
+            {
+                plQuick.Items.Clear(); var pls = LoadPlaylists();
+                Action<string, List<string>> one = (t, paths) => { var mi = new MenuItem { Header = t, IsEnabled = paths.Count > 0 }; mi.Click += (q, w) => PlayVideos(paths.ToArray(), 0); plQuick.Items.Add(mi); };
+                if (pls.Mine.Count > 0) one(L.T("📋 Moja kolejka (") + pls.Mine.Count + ")", pls.Mine);
+                foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) one("🎞 " + n + " (" + pls.Named[n].Count + ")", pls.Named[n]);
+                plQuick.Visibility = plQuick.Items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            };
             menu.Opened += (s, e) => { var v = LastFilm(); cont.Visibility = v != null ? Visibility.Visible : Visibility.Collapsed; if (v != null) cont.Header = L.T("▶ Kontynuuj: ") + (MetaTitle(MetaFor(v.Path)) ?? CleanTitle(v.Title)); };
             Action<string, string, Action> item = (glyph, text, act) =>
             {
@@ -1997,6 +2008,13 @@ namespace Przegladarka
                 infoM.Items.Add(hideM); infoM.Items.Add(alphaM); infoM.Items.Add(sizeM);
                 cm.Items.Add(infoM);
                 add(L.T("🎬 Biblioteka filmów"), click(lib), true);
+                {   // playlisty i moja kolejka - wlaczenie jednym klikiem
+                    var pls = LoadPlaylists(); var plM = new MenuItem { Header = L.T("🎞 Playlisty i moja kolejka") };
+                    Action<string, List<string>> one = (t, paths) => { var mi = new MenuItem { Header = t }; mi.Click += (q, w2) => PlayVideos(paths.ToArray(), 0); plM.Items.Add(mi); };
+                    if (pls.Mine.Count > 0) one(L.T("📋 Moja kolejka (") + pls.Mine.Count + ")", pls.Mine);
+                    foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) one("🎞 " + n + " (" + pls.Named[n].Count + ")", pls.Named[n]);
+                    if (plM.Items.Count > 0) cm.Items.Add(plM);
+                }
                 if (file) add(L.T("💬 Pobierz napisy…"), () => ShowSubtitleSearch(path, Window.GetWindow(overlay) ?? win, f =>
                 {
                     if (_playlist.Count <= _playIndex || _playlist[_playIndex] != path) return;   // w miedzyczasie inny film

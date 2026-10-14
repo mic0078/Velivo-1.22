@@ -188,6 +188,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 ---
 
 ## 11a. ⌨ Klawiatura ekranowa
+- **Włączasz ją sam** w Ustawieniach („⌨ Klawiatura ekranowa Velivo”) – domyślnie wyłączona.
 - Kliknij **rolką** (środkowym przyciskiem myszy) w pole do pisania – np. szukanie kanału lub filmu, a także pola na stronach.
 - Działa też **w innych programach** (np. Notatnik, aplikacja Claude, komunikatory) – wystarczy, że Velivo jest włączone. Program musi udostępniać swoje pola dla dostępności (większość tak robi).
 - **Przytrzymaj rolkę ok. 1 sekundy** – klawiatura otworzy się wszędzie, także w dokumentach i edytorach (litery trafią tam, gdzie miga kursor).

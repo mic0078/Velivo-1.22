@@ -65,7 +65,6 @@ namespace Przegladarka
             }
             catch (Exception ex) { LogError(ex); }   // tylko wygoda - bez tego Velivo dziala dalej
             Przegladarka.AutoTips.Register();   // podpowiedzi dla przyciskow i menu bez wlasnej podpowiedzi
-            Przegladarka.MainWindow.StartGlobalKeyboardHook();   // i w innych programach, gdy Velivo dziala
             // Siatka bezpieczenstwa: nieprzewidziany blad nie wylacza przegladarki - zapis do pliku i komunikat.
             // Komunikat najwyzej jeden naraz i nie czesciej niz raz na 30 s dla tego samego bledu
             // (powtarzajacy sie blad nie moze zasypac ekranu okienkami) - kazdy blad i tak trafia do bledy.log.

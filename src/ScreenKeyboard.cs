@@ -27,6 +27,7 @@ namespace Przegladarka
         const uint KeyUp = 2, KeyUnicode = 4;
 
         static Window _kbd;
+        internal static volatile bool KeyboardOn;   // Ustawienia: klawiatura wlaczona (domyslnie nie - tylko na zyczenie)
         static DateTime _shutdownAt = DateTime.MinValue;   // zaplanowane wylaczenie komputera z klawiatury
         // pisanie przeciagnieciem: wybierane slowa i wlasny slownik
         static readonly Dictionary<string, int> _swLearned = new Dictionary<string, int>();
@@ -147,15 +148,18 @@ namespace Przegladarka
         [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")] static extern int XInputGetState(int user, out PadState st);
         static LowLevelProc _mouseProc;   // trzymane, zeby GC nie zebral delegata
         static IntPtr _mouseHook;
+        static bool _hookStarted;
         static System.Windows.Threading.DispatcherTimer _holdTimer;   // przytrzymanie rolki 1 s = klawiatura wszedzie
         static PointStruct _holdAt;
 
         internal static void StartGlobalKeyboardHook()
         {
-            if (_mouseHook != IntPtr.Zero) return;
+            if (_hookStarted) return;
+            _hookStarted = true;
             _mouseProc = (code, wp, lp) =>
             {
-                if (code >= 0 && (int)wp == 0x0207)   // WM_MBUTTONDOWN
+                if (!KeyboardOn) { }   // wylaczona w ustawieniach - nic nie robimy, tylko przekazujemy dalej
+                else if (code >= 0 && (int)wp == 0x0207)   // WM_MBUTTONDOWN
                 {
                     var pt = Marshal.PtrToStructure<PointStruct>(lp);
                     _holdAt = pt;
@@ -645,7 +649,7 @@ namespace Przegladarka
         // pola tekstowe w oknach Velivo (wyszukiwanie, nazwy, hasla, edytowalne listy)
         internal static void KeyboardOnMiddleClick(object sender, MouseButtonEventArgs e)
         {
-            if (e.ChangedButton != MouseButton.Middle) return;
+            if (e.ChangedButton != MouseButton.Middle || !KeyboardOn) return;
             var d = e.OriginalSource as DependencyObject;
             while (d != null && !(d is TextBox) && !(d is PasswordBox) && !(d is ComboBox)) d = VisualTreeHelper.GetParent(d) ?? LogicalTreeHelper.GetParent(d);
             if (d is ComboBox cb && !cb.IsEditable) return;

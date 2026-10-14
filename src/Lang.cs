@@ -757,6 +757,8 @@ namespace Przegladarka
             { "Język klawiatury: polski / angielski (słownik pisania przeciągnięciem i czytanie na głos)", "Keyboard language: Polish / English (swipe typing dictionary and reading aloud)" },
             { "Klawiatura", "Keyboard" },
             { "Klawiatura Velivo", "Velivo Keyboard" },
+            { "⌨ Klawiatura ekranowa Velivo (klik rolką w pole; przytrzymanie rolki 1 s – wszędzie)", "⌨ Velivo on-screen keyboard (middle-click a field; hold the wheel 1 s – anywhere)" },
+            { "Własna klawiatura z pisaniem przeciągnięciem. Wyłączona – rolka działa jak zwykle i Velivo nie nasłuchuje myszy w innych programach.", "Own keyboard with swipe typing. When off – the wheel works as usual and Velivo does not listen to the mouse in other programs." },
             { "Tab – następne pole", "Tab – next field" },
             { "Caps Lock – wszystkie litery wielkie, aż klikniesz znowu", "Caps Lock – all letters upper case until you click again" },
             { "Shift – następna litera wielka (albo znak z góry klawisza)", "Shift – next letter upper case (or the upper symbol)" },

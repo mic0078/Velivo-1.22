@@ -529,6 +529,8 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 
 ### ⌨ Klawiatura ekranowa Velivo
 
+**Włączasz ją sam:** Ustawienia → „⌨ Klawiatura ekranowa Velivo”. Domyślnie jest wyłączona – wtedy rolka działa jak zwykle, a Velivo nie nasłuchuje myszy w innych programach.
+
 - **Klik rolką (środkowym przyciskiem) w pole do pisania** otwiera klawiaturę Velivo – na stronach, w oknach Velivo i **w innych programach** (np. WhatsApp, Notatnik, komunikatory), gdy Velivo jest włączone. Na linkach rolka dalej otwiera nową kartę.
 - **Przytrzymanie rolki ok. 1 sekundy** otwiera klawiaturę **wszędzie**, także tam, gdzie Velivo nie rozpozna pola (dokumenty, edytory). Najpierw kliknij lewym w miejsce pisania – litery trafią tam, gdzie miga kursor.
 - **Rozmiar:** chwyć brzeg albo róg klawiatury i przeciągnij – powiększa się i pomniejsza (50–200%), zachowując proporcje; zapamiętuje rozmiar.

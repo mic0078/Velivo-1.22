@@ -99,3 +99,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Przytrzymanie rolki 1 s = klawiatura wszędzie (bez sprawdzania pola; dokumenty, edytory); krótki klik rolką w pole – jak dotąd.
 - Zmiana rozmiaru klawiatury brzegami/rogami (WindowChrome), proporcje pilnowane (WM_SIZING), 50–200%, szerokość zapamiętana (klawiatura-szer).
 - Pad na klawiaturze: przycisk 🎮 w nagłówku (klawiatura-pad), XInput (xinput1_4), odczyt 60/s tylko gdy włączone i klawiatura otwarta; ramka wyboru w gradiencie logo; A naciśnij, B ⌫, X spacja, Y ⇧, LT ą ę ł, LB/RB ◀▶, Start ⏎, Back zamknij.
+- Klawiatura: pasek skrótów (📧 e-mail, 🔇🔉🔊 głośność Windows, 🌐 Velivo, ⏻ wyłączenie za 30 s / odwołanie), przełącznik PL/EN (słownik slowa-en.txt), 🗣 czytanie pisanych słów lektorem (nie w polach haseł), 🎤 dyktowanie Win+H; wszystkie napisy klawiatury po angielsku; podpowiedzi hurtowo (AutoTips.cs, PL/EN).

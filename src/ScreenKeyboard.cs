@@ -27,6 +27,7 @@ namespace Przegladarka
         const uint KeyUp = 2, KeyUnicode = 4;
 
         static Window _kbd;
+        static DateTime _shutdownAt = DateTime.MinValue;   // zaplanowane wylaczenie komputera z klawiatury
         // pisanie przeciagnieciem: wybierane slowa i wlasny slownik
         static readonly Dictionary<string, int> _swLearned = new Dictionary<string, int>();
         static readonly HashSet<string> _swOwn = new HashSet<string>();
@@ -59,16 +60,22 @@ namespace Przegladarka
             return null;
         }
 
-        // slownik polski (wbudowany) + wlasne slowa - w tle, raz na uruchomienie
+        // jezyk klawiatury (slownik przeciagania, czytanie na glos): wybrany przelacznikiem, domyslnie jezyk Velivo
+        static string KbLang => GetPref("klawiatura-jezyk") ?? (L.En ? "en" : "pl");
+        static string _swLang;
+
+        // slownik wbudowany (polski albo angielski) + wlasne slowa - w tle, przy otwarciu i zmianie jezyka
         static void LoadSwipeDictionary()
         {
-            if (SwipeTyping.Loaded) return;
+            var lang = KbLang;
+            if (SwipeTyping.Loaded && _swLang == lang) return;
+            _swLang = lang;
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
                 {
                     var asm = typeof(MainWindow).Assembly;
-                    var name = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith("slowa-pl.txt", StringComparison.Ordinal));
+                    var name = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith("slowa-" + lang + ".txt", StringComparison.Ordinal));
                     if (name == null) return;
                     var words = new List<string>();
                     using (var st = asm.GetManifestResourceStream(name)) using (var rd = new StreamReader(st, System.Text.Encoding.UTF8)) { string l; while ((l = rd.ReadLine()) != null) words.Add(l); }
@@ -82,6 +89,33 @@ namespace Przegladarka
             });
         }
         static IntPtr _kbdHwnd, _kbdTarget;   // okno klawiatury i okno, do ktorego piszemy
+
+        // kombinacja klawiszy (np. Win+H - dyktowanie Windows): wcisniecie po kolei, puszczenie w odwrotnej kolejnosci
+        static void SendCombo(params ushort[] vks)
+        {
+            var ins = vks.Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v } } })
+                .Concat(vks.Reverse().Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v, Flags = KeyUp } } })).ToArray();
+            var fg = GetForegroundWindow();
+            if (fg == _kbdHwnd && _kbdTarget != IntPtr.Zero) SetForegroundWindow(_kbdTarget);
+            SendInput((uint)ins.Length, ins, Marshal.SizeOf(typeof(KbdInput)));
+        }
+
+        // czytanie na glos tego, co sie pisze - glosem lektora Velivo (Piper albo glos Windows), slowo po slowie
+        System.Windows.Media.MediaPlayer _kbdVoice;
+        async void KbSpeak(string text, string lang)
+        {
+            try
+            {
+                var wav = await LectorSynthesizeAsync(text, lang, 1.0);
+                if (wav == null) return;
+                if (_kbdVoice == null) _kbdVoice = new System.Windows.Media.MediaPlayer();
+                var file = wav; EventHandler done = null;
+                done = (s, e) => { _kbdVoice.MediaEnded -= done; try { File.Delete(file); } catch (Exception) { } };
+                _kbdVoice.MediaEnded += done;
+                _kbdVoice.Open(new Uri(wav)); _kbdVoice.Play();
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
 
         static void SendKey(ushort vk, char ch)
         {
@@ -252,12 +286,17 @@ namespace Przegladarka
                     SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
                 }
             };
+            Action<string> say = wd =>
+            {   // czytanie na glos skonczonego slowa (nigdy w polu hasla)
+                if (wd.Length == 0 || GetPref("klawiatura-czytaj") != "1" || SecretField()) return;
+                (Application.Current?.MainWindow as MainWindow)?.KbSpeak(wd, KbLang);
+            };
             Action<ushort, char> tap = (vk, ch) =>
             {
                 SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Hidden;
                 if (vk == 0 && char.IsLetter(ch)) cur += ch;
                 else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
-                else { learn(cur); cur = ""; }
+                else { learn(cur); say(cur); cur = ""; }
             };
             // podpowiedzi nad klawiszami po przeciagnieciu - klik podmienia ostatnie slowo
             var sugRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Height = 40, Margin = new Thickness(0, 0, 0, 2) };
@@ -277,6 +316,34 @@ namespace Przegladarka
                 sugs.Add(sb); sugRow.Children.Add(sb);
             }
             root.Children.Add(sugRow);
+            // rzad skrotow: poczta, glosnosc Windows, Velivo, wylaczenie komputera
+            var fnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            Func<string, double, string, Action, Button> fn = (txt, wdt, tip, act) =>
+            {
+                var b = key(txt, wdt); b.Height = 34; b.FontSize = 14; b.ToolTip = tip; b.Click += (s, e) => act(); fnRow.Children.Add(b); return b;
+            };
+            fn("📧 E-mail", 110, L.T("Otwiera domyślny program pocztowy – nowa wiadomość"), () => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("mailto:") { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } });
+            fn("🔇", 50, L.T("Wycisz / włącz dźwięk komputera"), () => SendCombo(0xAD));
+            fn("🔉", 50, L.T("Ciszej (głośność Windows)"), () => SendCombo(0xAE));
+            fn("🔊", 50, L.T("Głośniej (głośność Windows)"), () => SendCombo(0xAF));
+            fn("🌐 Velivo", 110, L.T("Pokazuje okno przeglądarki Velivo"), () =>
+            {
+                var mw = Application.Current?.MainWindow as MainWindow; if (mw == null) return;
+                if (!mw.IsVisible) mw.ShowFromTray(); else { if (mw.WindowState == WindowState.Minimized) mw.WindowState = WindowState.Normal; mw.Activate(); }
+            });
+            fn("⏻", 50, L.T("Wyłącz komputer (z potwierdzeniem, 30 s na rozmyślenie)"), () =>
+            {
+                bool pending = DateTime.Now < _shutdownAt;   // drugi klik w ciagu 30 s - odwolanie
+                if (MessageBox.Show(pending ? L.T("Odwołać wyłączanie komputera?") : L.T("Wyłączyć komputer?\n\nZa 30 sekund – zapisz otwarte prace. Kliknij ⏻ jeszcze raz, aby odwołać."),
+                    L.T("Wyłączanie komputera"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("shutdown", pending ? "/a" : "/s /t 30") { CreateNoWindow = true, UseShellExecute = false });
+                    _shutdownAt = pending ? DateTime.MinValue : DateTime.Now.AddSeconds(30);
+                }
+                catch (Exception ex) { App.LogError(ex); }
+            });
+            root.Children.Add(fnRow);
             Button shiftB = null, capsB = null, altB = null;
             foreach (var r in rows)
             {
@@ -335,6 +402,20 @@ namespace Przegladarka
             var padB = key("🎮", 34); padB.Height = 28; padB.FontSize = 13; padB.Background = Brushes.Transparent; DockPanel.SetDock(padB, Dock.Right);
             padB.ToolTip = L.T("Pad (Xbox i zgodne): krzyżak / lewa gałka – wybór klawisza, A – naciśnij, B – ⌫, X – spacja, Y – ⇧, LB / RB – kursor ◀ ▶, LT – ą ę ł, Start – ⏎, Back – zamknij");
             head.Children.Add(padB);
+            // 🎤 dyktowanie (pisanie glosem Windows, Win+H), 🔊 czytanie na glos tego, co piszesz, PL / EN - jezyk
+            var micB = key("🎤", 34); micB.Height = 28; micB.FontSize = 13; micB.Background = Brushes.Transparent; DockPanel.SetDock(micB, Dock.Right);
+            micB.ToolTip = L.T("Pisz głosem – dyktowanie Windows (Win+H); mówisz, a tekst pojawia się w polu. Potrzebny mikrofon i internet (usługa Microsoft).");
+            micB.Click += (s, e) => SendCombo(0x5B, 0x48);
+            head.Children.Add(micB);
+            var sayB = key("🗣", 34); sayB.Height = 28; sayB.FontSize = 13; DockPanel.SetDock(sayB, Dock.Right);
+            sayB.ToolTip = L.T("Czytaj na głos to, co piszę – każde skończone słowo przeczyta lektor Velivo (w polach haseł nigdy)");
+            Action sayApply = () => sayB.Background = GetPref("klawiatura-czytaj") == "1" ? (Brush)accent : Brushes.Transparent;
+            sayB.Click += (s, e) => { SetPref("klawiatura-czytaj", GetPref("klawiatura-czytaj") == "1" ? "0" : "1"); sayApply(); };
+            sayApply(); head.Children.Add(sayB);
+            var langB = key(KbLang.ToUpperInvariant(), 40); langB.Height = 28; langB.FontSize = 12.5; langB.FontWeight = FontWeights.SemiBold; langB.Background = Brushes.Transparent; DockPanel.SetDock(langB, Dock.Right);
+            langB.ToolTip = L.T("Język klawiatury: polski / angielski (słownik pisania przeciągnięciem i czytanie na głos)");
+            langB.Click += (s, e) => { SetPref("klawiatura-jezyk", KbLang == "pl" ? "en" : "pl"); langB.Content = KbLang.ToUpperInvariant(); LoadSwipeDictionary(); };
+            head.Children.Add(langB);
             var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
             title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
@@ -482,7 +563,7 @@ namespace Przegladarka
                     var found = t.Result.Select(x => upper ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
                     learn(cur); cur = "";
                     foreach (var ch in found[0]) SendKey(0, ch); SendKey(0, ' ');
-                    learn(found[0]); lastSwipe = found[0];
+                    learn(found[0]); say(found[0]); lastSwipe = found[0];
                     if (shift) { shift = false; refresh(); }
                     for (int i = 0; i < sugs.Count; i++)
                     {

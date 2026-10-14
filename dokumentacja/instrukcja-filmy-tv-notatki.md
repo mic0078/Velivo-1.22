@@ -97,3 +97,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Pisanie przeciągnięciem (Flow): wbudowany słownik polski (40 tys. słów, FrequencyWords CC BY-SA 4.0), ślad w gradiencie logo, najlepsze słowo + spacja, 2–3 propozycje nad klawiszami (klik podmienia); nauka wybieranych słów i 📖 Mój słownik (słowa wpisane literami spoza słownika dopisują się same; klik usuwa); plik klawiatura-slowa.txt w danych Velivo.
 - Klawiatura także w innych programach: klik rolką w pole w dowolnym programie Windows (Velivo włączone) – globalny podsłuch tylko środkowego przycisku, pole sprawdzane przez UI Automation (Edit/Document, nie tylko do odczytu).
 - Przytrzymanie rolki 1 s = klawiatura wszędzie (bez sprawdzania pola; dokumenty, edytory); krótki klik rolką w pole – jak dotąd.
+- Zmiana rozmiaru klawiatury brzegami/rogami (WindowChrome), proporcje pilnowane (WM_SIZING), 50–200%, szerokość zapamiętana (klawiatura-szer).

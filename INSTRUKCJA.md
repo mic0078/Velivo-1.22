@@ -509,6 +509,7 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 
 - **Klik rolką (środkowym przyciskiem) w pole do pisania** otwiera klawiaturę Velivo – na stronach, w oknach Velivo i **w innych programach** (np. WhatsApp, Notatnik, komunikatory), gdy Velivo jest włączone. Na linkach rolka dalej otwiera nową kartę.
 - **Przytrzymanie rolki ok. 1 sekundy** otwiera klawiaturę **wszędzie**, także tam, gdzie Velivo nie rozpozna pola (dokumenty, edytory). Najpierw kliknij lewym w miejsce pisania – litery trafią tam, gdzie miga kursor.
+- **Rozmiar:** chwyć brzeg albo róg klawiatury i przeciągnij – powiększa się i pomniejsza (50–200%), zachowując proporcje; zapamiętuje rozmiar.
 - Klawiatura **nie zabiera kursora** – litery trafiają do pola, w którym piszesz. **⇧** wielka litera, **⇪** stałe wielkie, **ą ę ł** polskie znaki, **@**, **.com**, strzałki, **⏎**. Przeciągnij ją za nagłówek – zapamięta miejsce; **✕** zamyka.
 - **Pisanie przeciągnięciem (Flow):** wciśnij lewy przycisk na pierwszej literze i bez puszczania przeciągnij po kolejnych. Velivo wpisze pasujące słowo ze spacją, a nad klawiszami pokaże 2 inne propozycje – klik podmienia słowo. Polskie litery wystarczy przeciągnąć przez literę podstawową (e → ę).
 - **Nauka i 📖 Mój słownik:** słowa, które wybierasz, pojawiają się wyżej; słowo wpisane literami, którego nie ma w słowniku, samo trafia do **📖 Mojego słownika** (przycisk w nagłówku klawiatury). Klik w słowo w Moim słowniku usuwa je.

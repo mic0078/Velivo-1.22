@@ -2217,7 +2217,9 @@ namespace Przegladarka
             // klik = zamiana z glownym; pozycja i wielkosc zapamietane wzgledem okna odtwarzacza (domyslnie prawy dolny rog)
             LibVLCSharp.Shared.MediaPlayer pipMp = null; Window pipWin = null; IptvChannel pipCh = null; TextBlock pipName = null; bool pipPlacing = false;
             var inv = System.Globalization.CultureInfo.InvariantCulture;
-            double? pipX = null, pipY = null, pipW = null;   // biezace miejsce (przesuniete mysza); na stale dopiero "Zapisz to miejsce"
+            double? pipX = null, pipY = null, pipW = null;   // miejsce i wielkosc ustawione mysza - zapisywane same (chwile po ostatniej zmianie)
+            var pipKeep = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+            pipKeep.Tick += (s, e) => { pipKeep.Stop(); if (pipX == null) return; SetPref("pip-x", pipX.Value.ToString(inv)); SetPref("pip-y", pipY.Value.ToString(inv)); SetPref("pip-w", pipW.Value.ToString(inv)); };
             Func<string, double, double> prefD = (k, d) => double.TryParse(GetPref(k), System.Globalization.NumberStyles.Float, inv, out var x) ? x : d;
             Func<Rect> pipHost = () =>
             {
@@ -2239,6 +2241,7 @@ namespace Przegladarka
             {
                 if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
                 pipX = (pipWin.Left - r.X) / r.Width; pipY = (pipWin.Top - r.Y) / r.Height; pipW = pipWin.Width / r.Width;
+                pipKeep.Stop(); pipKeep.Start();
             };
             Action pipClose = () =>
             {
@@ -2388,13 +2391,7 @@ namespace Przegladarka
                 if (pipWin != null)
                 {
                     pa(cm, L.T("⇄ Zamień z głównym (klik w podgląd)"), () => pipSwap(), true);
-                    pa(cm, L.T("📌 Zapisz to miejsce i wielkość"), () =>
-                    {
-                        pipSave(); if (pipX == null) return;
-                        SetPref("pip-x", pipX.Value.ToString(inv)); SetPref("pip-y", pipY.Value.ToString(inv)); SetPref("pip-w", pipW.Value.ToString(inv));
-                        showOsd(L.T("⧉ PiP: miejsce zapisane"));
-                    }, true);
-                    pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { pipX = pipY = pipW = null; SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
+                    pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { pipKeep.Stop(); pipX = pipY = pipW = null; SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
                     pa(cm, L.T("✖ Zamknij PiP"), pipClose, true);
                     cm.Items.Add(new Separator());
                 }

@@ -162,7 +162,9 @@ namespace Przegladarka
                         scored.Add((w.Word, d + 0.06 * Math.Log(w.Rank + 2) - Math.Min(0.5, 0.15 * used)));
                     }
                 }
-            foreach (var x in scored.OrderBy(x => x.S)) { if (!result.Contains(x.W)) result.Add(x.W); if (result.Count >= count) break; }
+            // propozycje tylko bliskie najlepszemu - bez przypadkowych, dziwnych slow
+            double best = scored.Count > 0 ? scored.Min(x => x.S) : 0;
+            foreach (var x in scored.OrderBy(x => x.S)) { if (x.S > best + 0.25) break; if (!result.Contains(x.W)) result.Add(x.W); if (result.Count >= count) break; }
             return result;
         }
 

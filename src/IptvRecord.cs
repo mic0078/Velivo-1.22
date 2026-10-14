@@ -170,6 +170,20 @@ namespace Przegladarka
             _iptvBgLoading = true;
             try
             {
+                // program TV i lista starsze niz ustawione odswiezanie - pobieramy po cichu (okno kanalow bywa nieotwierane dniami,
+                // a stary program TV = pusty przewodnik)
+                bool stale = src.Hours > 0 && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - src.Updated > src.Hours * 3600 * 1000L;
+                if (stale || !File.Exists(m3u))
+                    try
+                    {
+                        await Task.Run(() => DownloadTo(src.Url, m3u));
+                        var t = await Task.Run(() => ParseM3u(File.ReadAllText(m3u)));
+                        var epgUrl = !string.IsNullOrWhiteSpace(src.Epg) ? src.Epg : t.EpgUrl;
+                        if (!string.IsNullOrWhiteSpace(epgUrl)) await Task.Run(() => DownloadTo(epgUrl, epgFile));
+                        ApplyEpgMap(t); _iptvPl = t; _iptvEpg = null;
+                        src.Updated = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveIptv(IptvSt);
+                    }
+                    catch (Exception ex) { App.LogError(ex); }   // bez sieci - zostaje to, co w pamieci podrecznej
                 if (_iptvPl == null && File.Exists(m3u)) { var t = _knownPl ?? await Task.Run(() => ParseM3u(File.ReadAllText(m3u))); ApplyEpgMap(t); if (_iptvPl == null) _iptvPl = t; }
                 if (_iptvEpg == null && File.Exists(epgFile))
                 {

@@ -348,28 +348,28 @@ namespace Przegladarka
             foreach (var r in rows)
             {
                 var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                if (r == rows[1]) { var t = key("⇥", 66); t.Click += (s, e) => tap(0x09, '\0'); row.Children.Add(t); }
-                if (r == rows[2]) { capsB = key("⇪", 78); capsB.Click += (s, e) => { caps = !caps; refresh(); }; row.Children.Add(capsB); }
-                if (r == rows[3]) { shiftB = key("⇧", 96); shiftB.Click += (s, e) => { shift = !shift; refresh(); }; row.Children.Add(shiftB); }
+                if (r == rows[1]) { var t = key("⇥", 66); t.ToolTip = L.T("Tab – następne pole"); t.Click += (s, e) => tap(0x09, '\0'); row.Children.Add(t); }
+                if (r == rows[2]) { capsB = key("⇪", 78); capsB.ToolTip = L.T("Caps Lock – wszystkie litery wielkie, aż klikniesz znowu"); capsB.Click += (s, e) => { caps = !caps; refresh(); }; row.Children.Add(capsB); }
+                if (r == rows[3]) { shiftB = key("⇧", 96); shiftB.ToolTip = L.T("Shift – następna litera wielka (albo znak z góry klawisza)"); shiftB.Click += (s, e) => { shift = !shift; refresh(); }; row.Children.Add(shiftB); }
                 foreach (var c0 in r)
                 {
                     var c = c0; var b = key(c.ToString(), 46);
                     b.Click += (s, e) => { tap(0, map(c)); if (shift || alt) { shift = false; alt = false; refresh(); } };
                     letters.Add((b, c)); row.Children.Add(b);
                 }
-                if (r == rows[0]) { var bs = key("⌫", 86); bs.Click += (s, e) => tap(0x08, '\0'); row.Children.Add(bs); }
-                if (r == rows[2]) { var en = key("⏎", 96); en.Background = accent; en.Foreground = accentText; en.Click += (s, e) => tap(0x0D, '\0'); row.Children.Add(en); }
-                if (r == rows[3]) { var up = key("▲", 46); up.Click += (s, e) => tap(0x26, '\0'); row.Children.Add(up); }
+                if (r == rows[0]) { var bs = key("⌫", 86); bs.ToolTip = L.T("Usuń znak przed kursorem"); bs.Click += (s, e) => tap(0x08, '\0'); row.Children.Add(bs); }
+                if (r == rows[2]) { var en = key("⏎", 96); en.ToolTip = L.T("Enter – zatwierdź / nowa linia"); en.Background = accent; en.Foreground = accentText; en.Click += (s, e) => tap(0x0D, '\0'); row.Children.Add(en); }
+                if (r == rows[3]) { var up = key("▲", 46); up.ToolTip = L.T("Kursor w górę"); up.Click += (s, e) => tap(0x26, '\0'); row.Children.Add(up); }
                 root.Children.Add(row);
             }
             var last = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             altB = key("ą ę ł", 96); altB.FontSize = 15; altB.ToolTip = L.T("Polskie znaki (jak prawy Alt)"); altB.Click += (s, e) => { alt = !alt; refresh(); };
             var at = key("@", 46); at.Click += (s, e) => tap(0, '@');
-            var space = key("", 380); space.Click += (s, e) => tap(0, ' ');
-            var dot = key(".com", 66); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") tap(0, ch); };
-            var lf = key("◀", 46); lf.Click += (s, e) => tap(0x25, '\0');
-            var dn = key("▼", 46); dn.Click += (s, e) => tap(0x28, '\0');
-            var rt = key("▶", 46); rt.Click += (s, e) => tap(0x27, '\0');
+            var space = key("", 380); space.ToolTip = L.T("Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych"); space.Click += (s, e) => tap(0, ' ');
+            var dot = key(".com", 66); dot.ToolTip = L.T("Wpisuje „.com”"); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") tap(0, ch); };
+            var lf = key("◀", 46); lf.ToolTip = L.T("Kursor w lewo"); lf.Click += (s, e) => tap(0x25, '\0');
+            var dn = key("▼", 46); dn.ToolTip = L.T("Kursor w dół"); dn.Click += (s, e) => tap(0x28, '\0');
+            var rt = key("▶", 46); rt.ToolTip = L.T("Kursor w prawo"); rt.Click += (s, e) => tap(0x27, '\0');
             foreach (var b in new[] { altB, at, space, dot, lf, dn, rt }) last.Children.Add(b);
             root.Children.Add(last);
             refresh = () =>
@@ -582,7 +582,7 @@ namespace Przegladarka
                     Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 20, ShadowDepth = 0, Opacity = 0.55, Color = violet } }
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };
-            close.Click += (s, e) => w.Close();
+            close.Click += (s, e) => w.Close(); close.ToolTip = L.T("Zamknij klawiaturę");
             // brzegi do zmiany rozmiaru (okno bez ramki); proporcje pilnuje WM_SIZING, a rozmiar 50-200% naturalnego
             System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome { ResizeBorderThickness = new Thickness(7), CaptionHeight = 0, GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(14), UseAeroCaptionButtons = false });
             double kbRatio = 0;

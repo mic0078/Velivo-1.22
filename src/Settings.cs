@@ -1060,33 +1060,77 @@ namespace Przegladarka
                 return card;
             }
 
-            var leftCol = new StackPanel();
-            var rightCol = new StackPanel();
-            int leftWeight = 0, rightWeight = 0;
-            foreach (var sec in sections)
+            // dzialy po lewej (zamiast dwoch dlugich kolumn) i szukanie; te same karty i opcje, zapis bez zmian
+            var groups = new[]
             {
-                var card = MakeCard(sec.Item1, sec.Item2);
-                int w = Math.Max(1, sec.Item2.Children.Count);
-                if (leftWeight <= rightWeight)
-                {
-                    leftCol.Children.Add(card);
-                    leftWeight += w;
-                }
-                else
-                {
-                    rightCol.Children.Add(card);
-                    rightWeight += w;
-                }
-            }
+                new { Name = L.T("⚙ Ogólne"), Tip = L.T("Domyślna przeglądarka, wyszukiwarka, start, karty, gesty, klawiatura ekranowa"), Keys = new[] { "Domyślna przeglądarka", "Wyszukiwanie i start" } },
+                new { Name = L.T("🎨 Wygląd"), Tip = L.T("Motyw, tryb ciemny i nocny, powiększenie, język, czytanie na głos"), Keys = new[] { "Wygląd i czytelność" } },
+                new { Name = L.T("🛡 Prywatność i reklamy"), Tip = L.T("Śledzenie, ciasteczka, historia, blokowanie reklam"), Keys = new[] { "Prywatność", "Blokowanie reklam", "Prywatność per-strona" } },
+                new { Name = L.T("🔒 Bezpieczeństwo i hasła"), Tip = L.T("Ostrzeżenia, HTTPS, płatności, pobieranie, import haseł i zakładek"), Keys = new[] { "Bezpieczeństwo i pobieranie", "📥 Import haseł, loginów i zakładek" } },
+                new { Name = L.T("🎬 Filmy i torrenty"), Tip = L.T("Odtwarzacz filmów i torrenty"), Keys = new[] { "Odtwarzacz filmów", "Torrenty" } },
+                new { Name = L.T("🔄 Profile i synchronizacja"), Tip = L.T("Profile użytkownika, synchronizacja w sieci i paczki"), Keys = new[] { "Profile użytkownika", "Synchronizacja E2E" } },
+                new { Name = L.T("🧹 Dane i zaawansowane"), Tip = L.T("Czyszczenie danych, śmieci przeglądarki, pamięć podręczna i szybkość stron"), Keys = new[] { "Dane", "Śmieci przeglądarki (pamięć podręczna)", "Szybkość wczytywania stron" } },
+            };
+            var cards = sections.Select(sec => new { Title = sec.Item1, Card = MakeCard(sec.Item1, sec.Item2) }).ToList();
+            // dzial karty; karta spoza listy (nowa sekcja) trafia do ostatniego dzialu - nic nie znika
+            Func<string, int> groupOf = t => { for (int g = 0; g < groups.Length; g++) if (groups[g].Keys.Any(k => L.T(k) == t)) return g; return groups.Length - 1; };
+            // tekst karty do szukania (opisy, pola wyboru, przyciski, podpowiedzi)
+            Func<object, string> textOf = null;
+            textOf = d =>
+            {
+                var sb = new System.Text.StringBuilder();
+                if (d is TextBlock t0) sb.Append(t0.Text).Append(' ');
+                if (d is ContentControl cc && cc.Content is string cs) sb.Append(cs).Append(' ');
+                if (d is FrameworkElement fe && fe.ToolTip is string ts) sb.Append(ts).Append(' ');
+                if (d is ItemsControl ic) foreach (var it in ic.Items) sb.Append(it is ContentControl ci ? ci.Content as string : it as string).Append(' ');
+                if (d is DependencyObject dob && !(d is ItemsControl)) foreach (var ch in LogicalTreeHelper.GetChildren(dob)) sb.Append(textOf(ch));
+                return sb.ToString();
+            };
+            var cardText = cards.ToDictionary(c => c.Card, c => textOf(c.Card));
 
-            var columns = new Grid { Margin = new Thickness(16, 8, 16, 8) };
-            columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
-            columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(leftCol, 0);
-            Grid.SetColumn(rightCol, 2);
-            columns.Children.Add(leftCol);
-            columns.Children.Add(rightCol);
+            var page = new StackPanel { Margin = new Thickness(16, 8, 16, 8) };
+            var pageScroll = new ScrollViewer { Content = page, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            var groupHead = groups.Select(g => new TextBlock { Text = g.Name, ToolTip = g.Tip, FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(2, 4, 0, 8) }).ToArray();
+            var nav = new ListBox { Width = 230, BorderThickness = new Thickness(0), Margin = new Thickness(12, 8, 0, 8), Background = Brushes.Transparent };
+            foreach (var g in groups) nav.Items.Add(new ListBoxItem { Content = g.Name, ToolTip = g.Tip, Padding = new Thickness(8, 6, 8, 6), FontSize = 14 });
+            var find = new TextBox { Margin = new Thickness(12, 12, 0, 4), Width = 230, Padding = new Thickness(4, 3, 4, 3), ToolTip = L.T("Szukaj w ustawieniach (np. „ciemny”, „torrent”, „hasła”)") };
+            var findHint = new TextBlock { Text = L.T("🔎 Szukaj w ustawieniach…"), Foreground = Brushes.Gray, Margin = new Thickness(18, 16, 0, 0), IsHitTestVisible = false };
+            Action show = () =>
+            {
+                page.Children.Clear();
+                var q = find.Text.Trim();
+                findHint.Visibility = find.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (q.Length > 0)
+                {
+                    foreach (var c in cards.Where(c => cardText[c.Card].IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0)) page.Children.Add(c.Card);
+                    if (page.Children.Count == 0) page.Children.Add(new TextBlock { Text = L.T("Nic nie znaleziono."), Foreground = Brushes.Gray, Margin = new Thickness(4) });
+                    return;
+                }
+                // wszystkie dzialy na jednej stronie, oddzielone separatorami; klik w dziale po lewej przewija do niego
+                for (int g = 0; g < groups.Length; g++)
+                {
+                    if (g > 0) page.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+                    page.Children.Add(groupHead[g]);
+                    foreach (var c in cards.Where(c => groupOf(c.Title) == g)) page.Children.Add(c.Card);
+                }
+            };
+            nav.SelectionChanged += (a, b) =>
+            {
+                if (nav.SelectedIndex < 0) return;
+                SetPref("ustawienia-dzial", nav.SelectedIndex.ToString());
+                if (find.Text.Length > 0) find.Text = "";
+                var head = groupHead[nav.SelectedIndex];
+                head.Dispatcher.BeginInvoke(new Action(() => { pageScroll.ScrollToVerticalOffset(pageScroll.VerticalOffset + head.TranslatePoint(new Point(0, 0), pageScroll).Y); }), System.Windows.Threading.DispatcherPriority.Loaded);
+            };
+            find.TextChanged += (a, b) => show();
+            nav.SelectedIndex = int.TryParse(GetPref("ustawienia-dzial"), out var lastSec) && lastSec >= 0 && lastSec < groups.Length ? lastSec : 0;
+            show();
+
+            var side = new DockPanel();
+            var findBox = new Grid(); findBox.Children.Add(find); findBox.Children.Add(findHint);
+            DockPanel.SetDock(findBox, Dock.Top);
+            side.Children.Add(findBox);
+            side.Children.Add(nav);
 
             var footer = new DockPanel { Margin = new Thickness(16, 8, 16, 12) };
             ok.Margin = new Thickness(0);
@@ -1096,7 +1140,9 @@ namespace Przegladarka
             var frame = new DockPanel();
             DockPanel.SetDock(footer, Dock.Bottom);
             frame.Children.Add(footer);
-            frame.Children.Add(new ScrollViewer { Content = columns, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+            DockPanel.SetDock(side, Dock.Left);
+            frame.Children.Add(side);
+            frame.Children.Add(pageScroll);
 
             win.MaxHeight = SystemParameters.WorkArea.Height - 40;
             win.MaxWidth = SystemParameters.WorkArea.Width - 40;

@@ -114,24 +114,9 @@ namespace Przegladarka
                 if (web)
                 {
                     var tabForBlock = _current;
-                    double px = e.Location.X, py = e.Location.Y;
-                    var block = _env.CreateContextMenuItem(MenuText(L.T("🚫 Blokuj element (reklamę)…")), GlyphIcon("\uE8F8"), CoreWebView2ContextMenuItemKind.Command);
-                    block.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartElementPicker(tabForBlock, px, py));
-                    add(block);
-                    if (ElementSelectorsFor(pageUrl).Count > 0)
-                    {
-                        var unblock = _env.CreateContextMenuItem(MenuText(L.T("Przywróć zablokowane elementy na tej stronie")), GlyphIcon("\uE72C"), CoreWebView2ContextMenuItemKind.Command);
-                        unblock.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => ClearElementRules(tabForBlock));
-                        add(unblock);
-                    }
-                    if (_settings.AutoRejectCookies)
-                    {
-                        bool rejecting = CookieRejectOn(pageUrl);
-                        var ck = _env.CreateContextMenuItem(MenuText(rejecting ? L.T("🍪 Nie odrzucaj banerów ciasteczek na tej stronie") : L.T("🍪 Odrzucaj banery ciasteczek na tej stronie")), GlyphIcon("\uE946"), CoreWebView2ContextMenuItemKind.Command);
-                        ck.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SetCookieException(pageUrl, rejecting));
-                        add(ck);
-                    }
-                    if (target.Kind == CoreWebView2ContextMenuTargetKind.Video || IsYoutubeLikeHost(MediaHost(pageUrl)))
+                    bool videoHere = target.Kind == CoreWebView2ContextMenuTargetKind.Video || IsYoutubeLikeHost(MediaHost(pageUrl));
+                    if (videoHere) separator();
+                    if (videoHere)
                     {
                         var flt = _env.CreateContextMenuItem(MenuText(L.T("▣ Film na wierzchu (małe okienko)")), GlyphIcon("\uE8A7"), CoreWebView2ContextMenuItemKind.Command);
                         flt.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => FloatVideoFromTab(tabForBlock));
@@ -179,9 +164,24 @@ namespace Przegladarka
                         readHere.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => StartReadingAt(tabForRead, rx, ry));
                         add(readHere);
                     }
-                    var memSearch = _env.CreateContextMenuItem(MenuText(L.T("🧠 Gdzie ja to czytałem?")), GlyphIcon("\uE8F1"), CoreWebView2ContextMenuItemKind.Command);
-                    memSearch.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowPageMemorySearch);
-                    add(memSearch);
+                    separator();   // blokowanie na tej stronie
+                    double px = e.Location.X, py = e.Location.Y;
+                    var block = _env.CreateContextMenuItem(MenuText(L.T("🚫 Blokuj element (reklamę)…")), GlyphIcon("\uE8F8"), CoreWebView2ContextMenuItemKind.Command);
+                    block.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(async () => await StartElementPicker(tabForBlock, px, py));
+                    add(block);
+                    if (ElementSelectorsFor(pageUrl).Count > 0)
+                    {
+                        var unblock = _env.CreateContextMenuItem(MenuText(L.T("Przywróć zablokowane elementy na tej stronie")), GlyphIcon("\uE72C"), CoreWebView2ContextMenuItemKind.Command);
+                        unblock.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => ClearElementRules(tabForBlock));
+                        add(unblock);
+                    }
+                    if (_settings.AutoRejectCookies)
+                    {
+                        bool rejecting = CookieRejectOn(pageUrl);
+                        var ck = _env.CreateContextMenuItem(MenuText(rejecting ? L.T("🍪 Nie odrzucaj banerów ciasteczek na tej stronie") : L.T("🍪 Odrzucaj banery ciasteczek na tej stronie")), GlyphIcon("\uE946"), CoreWebView2ContextMenuItemKind.Command);
+                        ck.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => SetCookieException(pageUrl, rejecting));
+                        add(ck);
+                    }
                 }
                 var shots = _env.CreateContextMenuItem(MenuText(L.T("Zrzut ekranu")), GlyphIcon("\uE722"), CoreWebView2ContextMenuItemKind.Submenu);
                 var visible = _env.CreateContextMenuItem(L.T("Widoczna część strony"), null, CoreWebView2ContextMenuItemKind.Command);
@@ -215,7 +215,6 @@ namespace Przegladarka
                 tTabs.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowTabSearch);
                 var tPlayer = _env.CreateContextMenuItem(MenuText(L.T("📂 Otwórz plik z dysku (Ctrl+O)")), GlyphIcon("\uE714"), CoreWebView2ContextMenuItemKind.Command);
                 tPlayer.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(OpenLocalFile);
-                tools.Children.Add(tPlayer);
                 var tNotes = _env.CreateContextMenuItem(MenuText(L.T("🗒 Karteczki na pulpit")), GlyphIcon("\uE70B"), CoreWebView2ContextMenuItemKind.Submenu);
                 foreach (var kk in NoteKinds)
                 {
@@ -227,29 +226,36 @@ namespace Przegladarka
                 var tNotesAll = _env.CreateContextMenuItem(L.T("Pokaż wszystkie karteczki"), null, CoreWebView2ContextMenuItemKind.Command);
                 tNotesAll.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowAllNotes);
                 tNotes.Children.Add(tNotesAll);
-                tools.Children.Add(tNotes);
                 var tPriv = _env.CreateContextMenuItem(MenuText(L.T("🕶 Otwórz tę stronę w karcie prywatnej")), GlyphIcon("\uE727"), CoreWebView2ContextMenuItemKind.Command);
                 tPriv.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => AddTab(pageUrl, true));
                 var tBank = _env.CreateContextMenuItem(MenuText(L.T("🏦 Otwórz tę stronę w trybie bankowym")), GlyphIcon("\uE825"), CoreWebView2ContextMenuItemKind.Command);
                 tBank.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => OpenBankSite(pageUrl));
                 bool webPage = pageUrl.StartsWith("http://") || pageUrl.StartsWith("https://");
-                if (webPage && tabForTools != null && !tabForTools.Private && !tabForTools.Bank) tools.Children.Add(tPriv);
-                if (webPage && tabForTools != null && !tabForTools.Bank) tools.Children.Add(tBank);
                 var tSet = _env.CreateContextMenuItem(MenuText(L.T("⚙ Ustawienia")), GlyphIcon("\uE713"), CoreWebView2ContextMenuItemKind.Command);
                 tSet.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => Settings_Click(null, null));
-                tools.Children.Add(tPip);
-                tools.Children.Add(tTabs);
                 var tMem = _env.CreateContextMenuItem(MenuText(L.T("🧠 Gdzie ja to czytałem? (Ctrl+Shift+F)")), GlyphIcon("\uE8F1"), CoreWebView2ContextMenuItemKind.Command);
                 tMem.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowPageMemorySearch);
+                // narzedzia w grupach: szukanie i notatki | otwieranie strony | pobieranie i historia | prywatnosc i profile | ustawienia
+                Action toolsSep = () => tools.Children.Add(_env.CreateContextMenuItem("", null, CoreWebView2ContextMenuItemKind.Separator));
+                tools.Children.Add(tPlayer);
+                tools.Children.Add(tTabs);
                 tools.Children.Add(tMem);
-                tools.Children.Add(tPrivacy);
-                tools.Children.Add(tMedia);
+                tools.Children.Add(tNotes);
+                toolsSep();
+                if (webPage && tabForTools != null && !tabForTools.Private && !tabForTools.Bank) tools.Children.Add(tPriv);
+                if (webPage && tabForTools != null && !tabForTools.Bank) tools.Children.Add(tBank);
+                tools.Children.Add(tPip);
+                toolsSep();
                 tools.Children.Add(tDl);
+                tools.Children.Add(tMedia);
                 tools.Children.Add(tHist);
                 tools.Children.Add(tExt);
-                tools.Children.Add(tLan);
+                toolsSep();
+                tools.Children.Add(tPrivacy);
                 tools.Children.Add(tProfileWork);
                 tools.Children.Add(tUser);
+                tools.Children.Add(tLan);
+                toolsSep();
                 tools.Children.Add(tSet);
                 add(tools);
                 separator();

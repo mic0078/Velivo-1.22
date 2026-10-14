@@ -334,7 +334,7 @@ namespace Przegladarka
                 var more = new bool[1];
                 _libRequests[req] = tcs; _libMore[req] = Tuple.Create(tcs, more);
                 SendFilmMsg(peer, new LanFilmMsg { kind = "libreq", req = req, off = all.Count });
-                var done = await Task.WhenAny(tcs.Task, Task.Delay(page == 0 ? 15000 : 6000));   // pierwsza odpowiedz: wolniejszy komputer moze jeszcze sprawdzac dyski
+                var done = await Task.WhenAny(tcs.Task, Task.Delay(6000));
                 _libRequests.Remove(req); _libMore.Remove(req);
                 if (done != tcs.Task) return page == 0 ? null : all;   // nie odpowiada - to, co juz przyszlo
                 all.AddRange(tcs.Task.Result);
@@ -343,23 +343,12 @@ namespace Przegladarka
             return all;
         }
 
-        // wspolna biblioteka gotowa zawczasu: odpowiedz od razu z ostatniej listy, a starsza niz minuta odswieza sie w tle
-        // (wolniejszy komputer / dysk USB / NAS nie sprawdza wszystkich plikow dopiero wtedy, gdy drugi komputer pyta)
+        // wspolna biblioteka (cache na minute - kolejne paczki nie sprawdzaja dyskow od nowa)
         Tuple<DateTime, List<LibraryVideo>> _sharedCache;
-        int _sharedRefreshing;
         List<LibraryVideo> SharedForPeers()
         {
             var c = _sharedCache;
-            if (c != null)
-            {
-                if (DateTime.Now - c.Item1 >= TimeSpan.FromMinutes(1) && Interlocked.Exchange(ref _sharedRefreshing, 1) == 0)
-                    Task.Run(() => { try { BuildShared(); } catch (Exception ex) { App.LogError(ex); } finally { _sharedRefreshing = 0; } });
-                return c.Item2;
-            }
-            return BuildShared();
-        }
-        List<LibraryVideo> BuildShared()
-        {
+            if (c != null && DateTime.Now - c.Item1 < TimeSpan.FromMinutes(1)) return c.Item2;
             var l = LoadLibrary().Where(v => IsShared(v) && File.Exists(v.Path)).OrderByDescending(x => x.Last).ThenBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();   // prywatna biblioteka nie wychodzi z komputera
             _sharedCache = Tuple.Create(DateTime.Now, l);
             return l;

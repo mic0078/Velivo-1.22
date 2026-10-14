@@ -98,4 +98,3 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Klawiatura „Velivo by Michael”: pisanie na zwykłej klawiaturze pokazuje falę na tym samym klawiszu ekranowym (podsłuch tylko gdy klawiatura otwarta, nic nie zapisuje, w polach haseł nic się nie zapala).
 - 🗣 w nagłówku klawiatury: menu – „Przeczytaj zaznaczony tekst” (Ctrl+C w programie docelowym, schowek przywracany; bez zaznaczenia tekst pola przez UI Automation) i „Czytaj na bieżąco”; nigdy w polu hasła.
 - Wspólne oglądanie / „Odtwórz na” w sieci: napisy, lektor i ścieżka dźwięku przechodzą na drugi komputer, głośność NIE – każdy komputer ma swoją (ściszenie u siebie nie wycisza filmu na drugim).
-- Sieć: wspólna biblioteka przygotowywana od razu po starcie Velivo i odświeżana w tle – drugi komputer dostaje listę od razu, także od wolniejszego komputera (dyski USB / NAS); na pierwszą odpowiedź czekamy do 15 s.

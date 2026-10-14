@@ -468,6 +468,16 @@ namespace Przegladarka
             catch (Exception) { return false; }
         }
 
+        // otwarte menu (kontekstowe, z paska) - klik w obraz, ktory je zamyka, nie moze zatrzymac filmu ani TV
+        static int _menusOpen; static DateTime _menuClosedAt;
+        static bool _menuWatch;
+        static void WatchMenus()
+        {
+            if (_menuWatch) return; _menuWatch = true;
+            EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.OpenedEvent, new RoutedEventHandler((s, e) => _menusOpen++));
+            EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.ClosedEvent, new RoutedEventHandler((s, e) => { _menusOpen = Math.Max(0, _menusOpen - 1); _menuClosedAt = DateTime.UtcNow; }));
+        }
+
         static readonly string VlcLogFile = System.IO.Path.Combine(DataDir, "vlc.log");
         // wznowic od zapisanego miejsca? true = wznow, false = od poczatku; "zapamietaj" - ustawienie na stale (bez pytania)
         bool? AskResume(Window owner, long at)
@@ -3113,10 +3123,12 @@ namespace Przegladarka
                 }
             });
 
+            WatchMenus();
             // mysz na obrazie: klik = pauza, dwuklik = pelny ekran, kolko = glosnosc, ruch = pokaz pasek (pelny ekran)
             overlay.MouseLeftButtonDown += (s, e) =>
             {
                 if (controls.IsMouseOver) return;   // klik na pasku to nie klik w obraz
+                if (_menusOpen > 0 || (DateTime.UtcNow - _menuClosedAt).TotalMilliseconds < 400) { e.Handled = true; return; }   // klik tylko zamyka otwarte menu - bez pauzy
                 if (overPip(e)) { pipSwap?.Invoke(); e.Handled = true; return; }   // klik na podgladzie PiP - zamiana kanalow, bez pauzy glownego
                 var curPath = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (chPanel.Visibility == Visibility.Visible) { showChannels(false); e.Handled = true; return; }   // klik obok listy - schowaj (bez pauzy)

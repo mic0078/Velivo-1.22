@@ -206,6 +206,8 @@ Hasła są zaszyfrowane dla Twojego konta Windows – przywracaj na tym samym ko
 
 ---
 
+- Gdy otwarte jest menu, klik w obraz tylko je zamyka – film i TV grają dalej.
+
 ## 13. Gdy coś nie działa
 
 | Problem | Co zrobić |

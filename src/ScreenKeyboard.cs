@@ -67,9 +67,70 @@ namespace Przegladarka
             SendInput(2, ins, Marshal.SizeOf(typeof(KbdInput)));
         }
 
-        internal static void ShowScreenKeyboard()
+        // klik rolka w pole do pisania w INNYM programie (gdy Velivo dziala): globalny podsluch myszy, tylko srodkowy przycisk;
+        // sprawdzenie pola (UI Automation) poza podsluchem, zeby nie spowalniac myszy w systemie
+        delegate IntPtr LowLevelProc(int code, IntPtr wp, IntPtr lp);
+        [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetWindowsHookEx(int id, LowLevelProc fn, IntPtr mod, uint thread);
+        [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int code, IntPtr wp, IntPtr lp);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern IntPtr GetModuleHandle(string name);
+        [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(PointStruct p);
+        [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint flags);
+        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+        [StructLayout(LayoutKind.Sequential)] struct PointStruct { public int X, Y; }
+        static LowLevelProc _mouseProc;   // trzymane, zeby GC nie zebral delegata
+        static IntPtr _mouseHook;
+
+        internal static void StartGlobalKeyboardHook()
         {
-            _kbdTarget = GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
+            if (_mouseHook != IntPtr.Zero) return;
+            _mouseProc = (code, wp, lp) =>
+            {
+                if (code >= 0 && (int)wp == 0x0207)   // WM_MBUTTONDOWN
+                {
+                    var pt = Marshal.PtrToStructure<PointStruct>(lp);
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => CheckForeignField(pt)));
+                }
+                return CallNextHookEx(_mouseHook, code, wp, lp);
+            };
+            _mouseHook = SetWindowsHookEx(14, _mouseProc, GetModuleHandle(null), 0);   // WH_MOUSE_LL
+            if (_mouseHook == IntPtr.Zero) App.LogError(new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()));
+        }
+
+        static void CheckForeignField(PointStruct pt)
+        {
+            var hw = WindowFromPoint(pt);
+            if (hw == IntPtr.Zero) return;
+            GetWindowThreadProcessId(hw, out var pid);
+            if (pid == (uint)Environment.ProcessId) return;   // wlasne okna i strony - obsluzone w Velivo
+            var top = GetAncestor(hw, 2);   // GA_ROOT
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    var el = System.Windows.Automation.AutomationElement.FromPoint(new Point(pt.X, pt.Y));
+                    if (!IsEditable(el)) return;
+                    try { el.SetFocus(); } catch (Exception) { }
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => { SetForegroundWindow(top); ShowScreenKeyboard(top); }));
+                }
+                catch (Exception) { }   // program bez dostepnosci - bez klawiatury
+            });
+        }
+
+        static bool IsEditable(System.Windows.Automation.AutomationElement el)
+        {
+            if (el == null) return false;
+            var ct = el.Current.ControlType;
+            if (ct != System.Windows.Automation.ControlType.Edit && ct != System.Windows.Automation.ControlType.Document && ct != System.Windows.Automation.ControlType.ComboBox) return false;
+            if (!el.Current.IsEnabled) return false;
+            if (el.TryGetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern, out var vp)) return !((System.Windows.Automation.ValuePattern)vp).Current.IsReadOnly;
+            return el.Current.IsKeyboardFocusable;
+        }
+
+        internal static void ShowScreenKeyboard() { ShowScreenKeyboard(IntPtr.Zero); }
+
+        static void ShowScreenKeyboard(IntPtr target)
+        {
+            _kbdTarget = target != IntPtr.Zero ? target : GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
             if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; return; }
             LoadSwipeDictionary();
             bool shift = false, caps = false, alt = false;

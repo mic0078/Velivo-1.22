@@ -2312,6 +2312,9 @@ namespace Przegladarka
                 var tl = src.CompositionTarget.TransformFromDevice.Transform(view.PointToScreen(new Point(0, 0)));
                 return new Rect(tl.X, tl.Y, view.ActualWidth, view.ActualHeight);
             };
+            // wlasciciel podgladu: warstwa obrazu (klik nie trafia w glowny), a gdy jeszcze niewidoczna (minimalizacja, start) - okno odtwarzacza;
+            // Windows nie pozwala przypiac okna do niepokazanego okna
+            Func<Window> pipOwner = () => { var ow = Window.GetWindow(overlay); return ow != null && ow != win && ow.IsVisible ? ow : win; };
             Action pipPlace = () =>
             {
                 if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
@@ -2319,7 +2322,7 @@ namespace Przegladarka
                 double fx = pipX ?? prefD("pip-x", -1), fy = pipY ?? prefD("pip-y", -1);
                 double x = fx < 0 ? r.Width - w : fx * r.Width, y = fy < 0 ? r.Height - h - (controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0) : fy * r.Height;
                 x = Math.Max(0, Math.Min(r.Width - w, x)); y = Math.Max(0, Math.Min(r.Height - h, y));
-                var ow = Window.GetWindow(overlay); if (ow != null && pipWin.Owner != ow) pipWin.Owner = ow;   // warstwa obrazu bywa tworzona na nowo (zmiana rozmiaru) - podglad zawsze nad nia
+                var ow = pipOwner(); if (pipWin.Owner != ow) pipWin.Owner = ow;   // warstwa obrazu bywa tworzona na nowo (zmiana rozmiaru) - podglad zawsze nad nia
                 pipPlacing = true; pipWin.Width = w; pipWin.Height = h; pipWin.Left = r.X + x; pipWin.Top = r.Y + y; pipPlacing = false;
             };
             Action pipSave = () =>
@@ -2410,7 +2413,7 @@ namespace Przegladarka
                     };
                     pTick.Start();
                     pl.Children.Add(pipName); pl.Children.Add(px); pl.Children.Add(pBar); pv.Content = pl;
-                    var pw = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, ShowInTaskbar = false, ShowActivated = false, Owner = Window.GetWindow(overlay) ?? win,   // nad warstwa obrazu glownego (inaczej klik trafial w glowny = pauza)
+                    var pw = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, ShowInTaskbar = false, ShowActivated = false, Owner = pipOwner(),   // nad warstwa obrazu glownego (inaczej klik trafial w glowny = pauza)
                          Topmost = win.Topmost, Background = Brushes.Black, Width = 320, Height = 180,
                         // ramka do lapania mysza: obraz VLC zakrywa krawedzie okna, wiec wielkosc zmienia sie za ten pasek
                         Content = new Border { Child = pv, BorderThickness = new Thickness(5), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3D, 0x44)) } };

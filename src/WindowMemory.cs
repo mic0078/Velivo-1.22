@@ -29,6 +29,8 @@ namespace Przegladarka
         [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);
         [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr mon, ref DlgMonInfo mi);
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int w, int h, int flags);
+        [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr hwnd);
+        [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hwnd, int cmd);
         static readonly HashSet<IntPtr> _dlgFitted = new HashSet<IntPtr>();
 
         void StartDialogGuard()
@@ -44,6 +46,7 @@ namespace Przegladarka
                         var sb = new System.Text.StringBuilder(32); GetClassName(h, sb, sb.Capacity);
                         if (sb.ToString() != "#32770") return true;   // tylko okna dialogowe Windows
                         _dlgFitted.Add(h);
+                        if (IsZoomed(h)) ShowWindow(h, 9);   // zapamietane jako zmaksymalizowane - przywroc zwykle okno (da sie przesunac i zmienic rozmiar)
                         if (!GetWindowRect(h, out var r)) return true;
                         var mi = new DlgMonInfo { Size = Marshal.SizeOf<DlgMonInfo>() };
                         if (!GetMonitorInfo(MonitorFromWindow(h, 2), ref mi)) return true;

@@ -1103,7 +1103,7 @@ namespace Przegladarka
             { "star", "M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z" },
             { "starfill", "M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" },
             { "moon", "M2,12A10,10 0 0,0 12,22C16.5,22 20.3,19 21.5,14.9C20.4,15.6 19,16 17.5,16A8.5,8.5 0 0,1 9,7.5C9,6 9.4,4.6 10.1,3.5C6,4.7 2,7.5 2,12M4,12C4,9.3 5.4,7 7.4,5.7C7.1,6.3 7,6.9 7,7.5A10.5,10.5 0 0,0 17.5,18C18,18 18.5,18 19,17.9C17.5,19.2 14.9,20 12,20A8,8 0 0,1 4,12Z" },
-            { "pip", "M21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19V5A2,2 0 0,0 21,3M21,19H3V5H21V19M19,11H11V17H19V11Z" },
+            { "pip", "M4,4H16V6H6V16H4V4M8,8H20V20H8V8M10,10V18H18V10H10Z" },   // dwa nakladajace sie okna - inna niz tryb mini
             { "rec", "M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7Z" },
             { "recstop", "M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M9,9V15H15V9Z" },
             { "timer", "M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M19.03,7.39L20.45,5.97C20,5.46 19.55,5 19.04,4.56L17.62,6C16.07,4.74 14.12,4 12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22C17,22 21,17.97 21,13C21,10.88 20.26,8.93 19.03,7.39M11,14H13V8H11M15,1H9V3H15V1Z" },
@@ -1226,7 +1226,7 @@ namespace Przegladarka
             // pasek nakladany na obraz (jak w "Na wierzchu"): chowa sie po chwili bez ruchu myszy, film nie zmienia rozmiaru
             var controls = new StackPanel { Background = new SolidColorBrush(Color.FromArgb(0xD9, 0x1C, 0x1C, 0x1C)), VerticalAlignment = VerticalAlignment.Bottom };
             // pasek postepu tak szeroki jak przyciski (konczy sie za "100%"); miejsce z prawej - na szybkie ikony
-            var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left }; mainCol.Children.Add(seekRow); mainCol.Children.Add(btnRow);
+            var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };   // do dolu - rzad przyciskow w jednej linii z szybkimi ikonami mainCol.Children.Add(seekRow); mainCol.Children.Add(btnRow);
             // szybkie ikony z prawej (te same znaki co w menu pod prawym przyciskiem, rozmiar jak przyciski obok)
             // szybkie ikony z prawej - ten sam rysowany styl i wysokosc co przyciski obok
             Func<string, string, Button> qBtn = glyphBtn;

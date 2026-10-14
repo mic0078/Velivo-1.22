@@ -30,10 +30,11 @@ public class LanVideoTests
         var owner = new MainWindow.LibraryVideo { Path = @"C:\f.mkv", Title = "f", Vol = 70, LVoice = "piper:pl_PL-gosia-medium", Spu = "Napisy - [Polski]" };
         var sent = MainWindow.PrefsOf(owner);
         Assert.Null(sent.Path);                                  // sciezka nie wychodzi z komputera
-        Assert.Equal(70, sent.Vol); Assert.Equal("Napisy - [Polski]", sent.Spu);
-        var back = new MainWindow.LibraryVideo { Vol = 40, LRate = 1.5 };   // zmienione na drugim komputerze
+        Assert.Null(sent.Vol);                                   // glosnosc zostaje na swoim komputerze (wyciszenie tu nie wycisza tam)
+        Assert.Equal("Napisy - [Polski]", sent.Spu);
+        var back = MainWindow.PrefsOf(new MainWindow.LibraryVideo { Vol = 0, LRate = 1.5 });   // zmienione na drugim komputerze (tam sciszone do zera)
         MainWindow.ApplyPrefs(owner, back);
-        Assert.Equal(40, owner.Vol); Assert.Equal(1.5, owner.LRate);
+        Assert.Equal(70, owner.Vol); Assert.Equal(1.5, owner.LRate);
         Assert.Equal("piper:pl_PL-gosia-medium", owner.LVoice);  // nieustawione tam - zostaje
     }
 

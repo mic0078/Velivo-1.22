@@ -44,11 +44,44 @@ namespace Przegladarka
         }
 
         // kopia: zip z danymi; pliki zajete przez dzialajacy program czytane wspolnie (bez blokowania)
-        static int CreateBackup(string zipPath, bool full)
+        // kopia przyrostowa: w kazdej kopii spis plikow (sciezka, rozmiar, data zmiany); przyrost zawiera tylko pliki zmienione / nowe
+        // od poprzedniej kopii i liste usunietych; nazwa konczy sie na "-przyrost"
+        const string IncSuffix = "-przyrost";
+        internal static bool IsIncrement(string zipPath) { return Path.GetFileNameWithoutExtension(zipPath).EndsWith(IncSuffix, StringComparison.OrdinalIgnoreCase); }
+
+        internal static Dictionary<string, string> ReadManifest(string zipPath)
+        {
+            var m = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using (var zip = ZipFile.OpenRead(zipPath))
+                {
+                    var e = zip.GetEntry("_manifest.txt"); if (e == null) return null;   // kopia sprzed przyrostow
+                    using (var r = new StreamReader(e.Open()))
+                        for (string l; (l = r.ReadLine()) != null;) { var t = l.Split('\t'); if (t.Length == 2) m[t[0]] = t[1]; }
+                }
+            }
+            catch (Exception) { return null; }
+            return m;
+        }
+
+        // lancuch do przywrocenia wybranej kopii: najblizsza wczesniejsza pelna i po kolei przyrosty do wybranej (wlacznie)
+        internal static List<string> RestoreChain(IEnumerable<string> allZips, string chosen)
+        {
+            var sorted = allZips.OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase).ToList();   // nazwy zawieraja date - kolejnosc chronologiczna
+            int ci = sorted.FindIndex(f => string.Equals(f, chosen, StringComparison.OrdinalIgnoreCase));
+            if (ci < 0 || !IsIncrement(chosen)) return new List<string> { chosen };
+            int fi = sorted.FindLastIndex(ci, x => !IsIncrement(x));
+            if (fi < 0) return null;   // brak pelnej kopii, od ktorej zaczyna sie ten przyrost
+            return sorted.Skip(fi).Take(ci - fi + 1).ToList();
+        }
+
+        static int CreateBackup(string zipPath, bool full, Dictionary<string, string> prev = null)
         {
             int n = 0;
             Directory.CreateDirectory(Path.GetDirectoryName(zipPath));
             var tmp = zipPath + ".part";
+            var manifest = new List<string>(); var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             using (var fs = new FileStream(tmp, FileMode.Create))
             using (var zip = new ZipArchive(fs, ZipArchiveMode.Create))
             {
@@ -56,6 +89,10 @@ namespace Przegladarka
                 {
                     var rel = Path.GetRelativePath(DataRoot, f);
                     if (!BackupInclude(rel, full)) continue;
+                    var key = rel.Replace('\\', '/'); string stamp;
+                    try { var fi = new FileInfo(f); stamp = fi.Length + ":" + fi.LastWriteTimeUtc.Ticks; } catch (Exception) { continue; }
+                    manifest.Add(key + "\t" + stamp); seen.Add(key);
+                    if (prev != null && prev.TryGetValue(key, out var old) && old == stamp) continue;   // przyrost: bez zmian - pomijamy
                     try
                     {
                         using (var src = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
@@ -65,9 +102,12 @@ namespace Przegladarka
                     }
                     catch (Exception) { }   // plik zablokowany na wylacznosc - pomijamy
                 }
-                // do odtworzenia wszystkiego z jednego folderu: instalator Velivo, instrukcja i wlaczone moduly
+                using (var w = new StreamWriter(zip.CreateEntry("_manifest.txt").Open())) foreach (var l in manifest) w.WriteLine(l);
+                if (prev != null)   // pliki usuniete od poprzedniej kopii - przy przywracaniu tez znikna
+                    using (var w = new StreamWriter(zip.CreateEntry("_usuniete.txt").Open())) foreach (var k in prev.Keys.Where(k => !seen.Contains(k))) w.WriteLine(k);
+                // do odtworzenia wszystkiego z jednego folderu: instalator Velivo (w pelnej), instrukcja i wlaczone moduly
                 var setup = Path.Combine(AppContext.BaseDirectory, "Velivo-instalator.exe");
-                if (File.Exists(setup)) try { zip.CreateEntryFromFile(setup, "_Instalator/Velivo-instalator.exe", CompressionLevel.NoCompression); } catch (Exception) { }
+                if (prev == null && File.Exists(setup)) try { zip.CreateEntryFromFile(setup, "_Instalator/Velivo-instalator.exe", CompressionLevel.NoCompression); } catch (Exception) { }
                 using (var w = new StreamWriter(zip.CreateEntry("_Instalator/JAK ODTWORZYC.txt").Open(), new System.Text.UTF8Encoding(true)))
                     w.Write(L.T("Jak odtworzyć Velivo z tej kopii\r\n\r\n1. Rozpakuj z tego pliku ZIP folder _Instalator i uruchom Velivo-instalator.exe (jeśli Velivo nie jest zainstalowane).\r\n2. W Velivo kliknij 🧹 na górnym pasku → „♻ Przywróć z kopii…” i wskaż ten plik ZIP.\r\n3. Velivo uruchomi się ponownie z Twoimi danymi i ustawieniami.\r\n\r\nHasła są zaszyfrowane dla konta Windows – przywracaj na tym samym koncie.\r\n"));
                 if (File.Exists(IptvMarker)) zip.CreateEntry("_Instalator/iptv.on");   // modul TV byl wlaczony
@@ -77,18 +117,42 @@ namespace Przegladarka
             return n;
         }
 
+        // zostaje "keep" ostatnich pelnych kopii razem z ich przyrostami; starsze lancuchy znikaja w calosci (nigdy przyrost bez swojej pelnej)
         static void TrimBackups(string dir, int keep)
         {
             try
             {
-                foreach (var f in new DirectoryInfo(dir).GetFiles(BackupPrefix + "*.zip").OrderByDescending(x => x.LastWriteTimeUtc).Skip(keep))
+                var all = new DirectoryInfo(dir).GetFiles(BackupPrefix + "*.zip").OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                var fulls = all.Where(x => !IsIncrement(x.Name)).ToList();
+                if (fulls.Count <= keep) { foreach (var x in all.TakeWhile(x => IsIncrement(x.Name))) try { x.Delete(); } catch (Exception) { } return; }   // przyrosty bez pelnej na poczatku
+                var oldestKept = fulls[fulls.Count - keep];
+                foreach (var f in all.Where(x => string.Compare(x.Name, oldestKept.Name, StringComparison.OrdinalIgnoreCase) < 0))
                     try { f.Delete(); } catch (Exception) { }
             }
             catch (Exception) { }
         }
 
         string BackupDir { get { var d = GetPref("kopia-folder"); return string.IsNullOrWhiteSpace(d) ? DefaultBackupDir : d; } }
-        string NewBackupPath() { return Path.Combine(BackupDir, BackupPrefix + DateTime.Now.ToString("yyyy-MM-dd_HH-mm") + ".zip"); }
+        string NewBackupPath(bool inc = false) { return Path.Combine(BackupDir, BackupPrefix + DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + (inc ? IncSuffix : "") + ".zip"); }
+
+        // jedna kopia wg ustawien: przyrostowa (gdy wlaczona, jest pelna z ostatnich 7 dni i spis) albo pelna; zwraca sciezke i liczbe plikow
+        (string Path, int Count) MakeBackupNow()
+        {
+            bool full = GetPref("kopia-pelna") != "0", incOn = GetPref("kopia-przyrost") != "0"; var dir = BackupDir;
+            Dictionary<string, string> prev = null;
+            if (incOn && Directory.Exists(dir))
+            {
+                var all = new DirectoryInfo(dir).GetFiles(BackupPrefix + "*.zip").OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                var lastFull = all.LastOrDefault(x => !IsIncrement(x.Name));
+                bool sameKind = GetPref("kopia-rodzaj-ostatniej") == (full ? "pelna" : "podstawowa");   // zmiana rodzaju - nowa pelna kopia
+                if (lastFull != null && DateTime.Now - lastFull.LastWriteTime < TimeSpan.FromDays(7) && sameKind) prev = ReadManifest(all.Last().FullName);
+            }
+            var path = NewBackupPath(prev != null);
+            int n = CreateBackup(path, full, prev);
+            TrimBackups(dir, 5);
+            SetPref("kopia-rodzaj-ostatniej", full ? "pelna" : "podstawowa");
+            return (path, n);
+        }
 
         // przywracanie: przy nastepnym starcie, zanim cokolwiek otworzy pliki danych (wolane z App przed oknem)
         internal static void ApplyPendingRestore()
@@ -96,13 +160,14 @@ namespace Przegladarka
             try
             {
                 if (!File.Exists(RestoreMarker)) return;
-                var zipPath = File.ReadAllText(RestoreMarker).Trim();
+                var chain = File.ReadAllLines(RestoreMarker).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();   // pelna + przyrosty po kolei
                 File.Delete(RestoreMarker);
-                if (!File.Exists(zipPath)) return;
+                foreach (var zipPath in chain.Where(File.Exists))
                 using (var zip = ZipFile.OpenRead(zipPath))
+                {
                     foreach (var e in zip.Entries)
                     {
-                        if (string.IsNullOrEmpty(e.Name)) continue;
+                        if (string.IsNullOrEmpty(e.Name) || e.FullName == "_manifest.txt" || e.FullName == "_usuniete.txt") continue;
                         if (e.FullName.StartsWith("_Instalator/", StringComparison.OrdinalIgnoreCase))
                         {   // nie dane: instalator i instrukcja zostaja w kopii; modul TV - wlaczany, jak byl
                             if (e.Name == "iptv.on" && VlcInstalled && !File.Exists(IptvMarker)) try { File.WriteAllText(IptvMarker, ""); } catch (Exception) { }
@@ -113,6 +178,15 @@ namespace Przegladarka
                         Directory.CreateDirectory(Path.GetDirectoryName(dest));
                         e.ExtractToFile(dest, true);
                     }
+                    var del = zip.GetEntry("_usuniete.txt");   // przyrost: pliki usuniete od poprzedniej kopii
+                    if (del != null)
+                        using (var r = new StreamReader(del.Open()))
+                            for (string l; (l = r.ReadLine()) != null;)
+                            {
+                                var t = Path.GetFullPath(Path.Combine(DataRoot, l));
+                                if (t.StartsWith(Path.GetFullPath(DataRoot) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) try { File.Delete(t); } catch (Exception) { }
+                            }
+                }
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -124,9 +198,7 @@ namespace Przegladarka
             if (days <= 0) return;
             DateTime last = DateTime.TryParse(GetPref("kopia-ostatnia"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var l) ? l : DateTime.MinValue;
             if (DateTime.Now - last < TimeSpan.FromDays(days)) return;
-            var path = NewBackupPath(); var dir = BackupDir;
-            bool full = GetPref("kopia-pelna") != "0";
-            Task.Run(() => { CreateBackup(path, full); TrimBackups(dir, 5); }).ContinueWith(t =>
+            Task.Run(() => MakeBackupNow()).ContinueWith(t =>
             {
                 if (t.IsFaulted) { App.LogError(t.Exception.GetBaseException()); return; }
                 Dispatcher.BeginInvoke(new Action(() => SetPref("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture))));
@@ -230,13 +302,17 @@ namespace Przegladarka
             fullBox.IsChecked = GetPref("kopia-pelna") != "0"; dataBox.IsChecked = !fullBox.IsChecked;
             fullBox.Checked += (s, e) => SetPref("kopia-pelna", "1"); dataBox.Checked += (s, e) => SetPref("kopia-pelna", "0");
             sp.Children.Add(dataBox); sp.Children.Add(fullBox);
+            var incBox = new CheckBox { Margin = new Thickness(0, 6, 0, 6), IsChecked = GetPref("kopia-przyrost") != "0",
+                Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = L.T("Kopie przyrostowe – pełna kopia co 7 dni, pozostałe tylko ze zmianami (zwykle kilka MB). Przy przywracaniu Velivo samo składa pełną z przyrostami.") } };
+            incBox.Click += (s, e) => SetPref("kopia-przyrost", incBox.IsChecked == true ? "1" : "0");
+            sp.Children.Add(incBox);
             var lastInfo = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(0, 0, 0, 6) };
             Action showLast = () =>
             {
                 try
                 {
                     var f = Directory.Exists(BackupDir) ? new DirectoryInfo(BackupDir).GetFiles(BackupPrefix + "*.zip").OrderByDescending(x => x.LastWriteTime).FirstOrDefault() : null;
-                    lastInfo.Text = f == null ? L.T("Jeszcze nie ma żadnej kopii.") : L.T("Ostatnia kopia: ") + f.LastWriteTime.ToString("dd.MM.yyyy HH:mm") + "  ·  " + Mb(f.Length);
+                    lastInfo.Text = f == null ? L.T("Jeszcze nie ma żadnej kopii.") : L.T("Ostatnia kopia: ") + f.LastWriteTime.ToString("dd.MM.yyyy HH:mm") + "  ·  " + Mb(f.Length) + (IsIncrement(f.Name) ? L.T("  ·  przyrostowa") : L.T("  ·  pełna"));
                 }
                 catch (Exception) { lastInfo.Text = ""; }
             };
@@ -248,13 +324,11 @@ namespace Przegladarka
             make.Click += async (s, e) =>
             {
                 make.IsEnabled = false; make.Content = L.T("Tworzę kopię…");
-                var path = NewBackupPath(); var dir = BackupDir;
                 try
                 {
-                    bool full = fullBox.IsChecked == true;
-                    var n = await Task.Run(() => { var c = CreateBackup(path, full); TrimBackups(dir, 5); return c; });
+                    var r = await Task.Run(() => MakeBackupNow());
                     SetPref("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
-                    ShowToast(L.T("💾 Kopia gotowa: ") + Path.GetFileName(path) + " (" + n + L.T(" plików, ") + Mb(new FileInfo(path).Length) + ")", path);
+                    ShowToast((IsIncrement(r.Path) ? L.T("💾 Kopia przyrostowa gotowa: ") : L.T("💾 Kopia pełna gotowa: ")) + Path.GetFileName(r.Path) + " (" + r.Count + L.T(" plików, ") + Mb(new FileInfo(r.Path).Length) + ")", r.Path);
                 }
                 catch (Exception ex) { App.LogError(ex); InfoBox(w, L.T("Nie udało się utworzyć kopii:\n") + ex.Message); }
                 make.IsEnabled = true; make.Content = L.T("💾 Utwórz kopię teraz"); showLast();
@@ -264,8 +338,10 @@ namespace Przegladarka
                 var d = new Microsoft.Win32.OpenFileDialog { Title = L.T("Kopia Velivo do przywrócenia"), Filter = L.T("Kopia Velivo") + "|*.zip" };
                 if (Directory.Exists(BackupDir)) d.InitialDirectory = BackupDir;
                 if (d.ShowDialog(w) != true) return;
-                if (!AskYes(w, L.T("Przywrócić dane z kopii\n") + Path.GetFileName(d.FileName) + L.T("?\n\nVelivo uruchomi się ponownie. Dane z kopii zastąpią obecne (pliki, których nie ma w kopii, zostają)."), L.T("Przywróć"), L.T("Anuluj"))) return;
-                try { File.WriteAllText(RestoreMarker, d.FileName); RestartVelivo(); }
+                var chain = RestoreChain(Directory.GetFiles(Path.GetDirectoryName(d.FileName), BackupPrefix + "*.zip"), d.FileName);
+                if (chain == null) { InfoBox(w, L.T("To kopia przyrostowa, a w jej folderze nie ma pełnej kopii, od której się zaczyna. Przenieś je razem do jednego folderu.")); return; }
+                if (!AskYes(w, L.T("Przywrócić dane z kopii\n") + Path.GetFileName(d.FileName) + (chain.Count > 1 ? L.T("\n(pełna kopia + ") + (chain.Count - 1) + L.T(" przyrostów)") : "") + L.T("?\n\nVelivo uruchomi się ponownie. Dane z kopii zastąpią obecne."), L.T("Przywróć"), L.T("Anuluj"))) return;
+                try { File.WriteAllLines(RestoreMarker, chain); RestartVelivo(); }
                 catch (Exception ex) { App.LogError(ex); InfoBox(w, ex.Message); }
             };
             open.Click += (s, e) => { try { Directory.CreateDirectory(BackupDir); System.Diagnostics.Process.Start("explorer.exe", "\"" + BackupDir + "\""); } catch (Exception) { } };

@@ -38,4 +38,24 @@ public class KopiaTests
     [InlineData("vlc.log", false)]
     [InlineData("kopia.zip.part", false)]
     public void PelnaKopia(string rel, bool want) => Assert.Equal(want, MainWindow.BackupInclude(rel, true));
+
+    // kopia przyrostowa: przywracanie sklada lancuch od najblizszej pelnej do wybranego przyrostu
+    [Fact]
+    public void LancuchPrzywracania()
+    {
+        var all = new[]
+        {
+            @"K\Velivo-kopia-2026-10-01_10-00-00.zip",
+            @"K\Velivo-kopia-2026-10-02_10-00-00-przyrost.zip",
+            @"K\Velivo-kopia-2026-10-08_10-00-00.zip",
+            @"K\Velivo-kopia-2026-10-09_10-00-00-przyrost.zip",
+            @"K\Velivo-kopia-2026-10-10_10-00-00-przyrost.zip",
+            @"K\Velivo-kopia-2026-10-11_10-00-00-przyrost.zip",
+        };
+        Assert.Equal(new[] { all[2], all[3], all[4] }, MainWindow.RestoreChain(all, all[4]));   // pelna z 8.10 + przyrosty 9 i 10
+        Assert.Equal(new[] { all[2] }, MainWindow.RestoreChain(all, all[2]));                    // pelna sama
+        Assert.Equal(new[] { all[0], all[1] }, MainWindow.RestoreChain(all, all[1]));
+        Assert.True(MainWindow.IsIncrement(all[5])); Assert.False(MainWindow.IsIncrement(all[0]));
+        Assert.Null(MainWindow.RestoreChain(new[] { all[1] }, all[1]));                          // przyrost bez swojej pelnej
+    }
 }

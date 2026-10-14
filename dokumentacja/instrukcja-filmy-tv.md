@@ -48,8 +48,6 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 | ⏹ | Zatrzymaj nagrywanie – działa z każdego kanału; przy kilku nagraniach pokaże listę |
 | ⏱ | Zapas nagrywania – ile minut przed i po audycji |
 | 📁 | Folder z nagraniami |
-
-Nagrania z TV są tylko w bibliotece „📺 Nagrane z TV” – nie trafiają do „Wszystkie filmy”, bo nie mają opisów ani plakatów.
 | 📺 | Kanały telewizji |
 | 📅 | Pełny program TV |
 | ℹ | Pasek informacji |
@@ -59,6 +57,8 @@ Nagrania z TV są tylko w bibliotece „📺 Nagrane z TV” – nie trafiają d
 | ⭐🎬 | Moje ulubione filmy |
 | 👁 | Pasek sterowania: po ilu sekundach znika (albo zawsze widoczny) i jak bardzo przezroczysty |
 | ⚟ (suwaki) | Pasek informacji: pokazywanie przy ruchu myszy, czas znikania, przezroczystość, wielkość tekstu |
+
+Nagrania z TV są tylko w bibliotece „📺 Nagrane z TV” – nie trafiają do „Wszystkie filmy”, bo nie mają opisów ani plakatów.
 
 Na samym końcu paska (za separatorem):
 - **wykres sieci** z ostatnich 30 s – niebieska linia ↓ pobieranie (TV, filmy z innego komputera), zielona ↑ wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu przez LAN) i obie prędkości,

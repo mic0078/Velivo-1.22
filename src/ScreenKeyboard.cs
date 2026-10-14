@@ -453,11 +453,6 @@ namespace Przegladarka
             }
             DockPanel.SetDock(logo, Dock.Left); head.Children.Add(logo);
             head.Children.Add(sugRow);
-            // 3 smugi z logo pociagniete pedzlem po klawiszach - zwezane, fiolet -> turkus, gasnace; nie przeszkadzaja w klikaniu
-            var paint = new Canvas { Width = 790, Height = 270, IsHitTestVisible = false, Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 2.5 } };
-            var brushFill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromArgb(0, 0x8B, 0x5C, 0xF6), 0), new GradientStop(Color.FromArgb(0x8C, 0x8B, 0x5C, 0xF6), 0.35), new GradientStop(Color.FromArgb(0x0D, 0x06, 0xB6, 0xD4), 1) }, new Point(0, 0), new Point(1, 0));
-            foreach (var (d, op) in new[] { ("M60 64 C 200 52, 330 50, 452 56 C 330 60, 210 66, 60 72 Z", 1.0), ("M130 124 C 250 114, 370 112, 478 116 C 370 120, 260 126, 130 130 Z", 0.75), ("M200 182 C 300 174, 410 172, 505 176 C 410 180, 310 186, 200 189 Z", 0.5) })
-                paint.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(d), Fill = brushFill, Opacity = op });
             // kolory przechodza po klawiszach jak w logo: lewy gorny fiolet -> niebieski -> prawy dolny turkus (subtelnie)
             root.Loaded += (s, e) =>
             {
@@ -473,9 +468,7 @@ namespace Przegladarka
                     b.Tag = br; b.Background = br;
                 }
             };
-            var keys = new Grid(); keys.Children.Add(root); var vb = new Viewbox { Stretch = Stretch.Fill, Child = paint, IsHitTestVisible = false };
-            vb.SetBinding(FrameworkElement.WidthProperty, new System.Windows.Data.Binding("ActualWidth") { Source = root }); vb.SetBinding(FrameworkElement.HeightProperty, new System.Windows.Data.Binding("ActualHeight") { Source = root });   // tylko na obszarze klawiszy
-            keys.Children.Add(vb);
+            var keys = new Grid(); keys.Children.Add(root);
             // pisanie przeciagnieciem: slad w gradiencie logo; lekki (punkty co kilka px, bez efektow) - plynny przy ruchu myszy
             var trailC = new Canvas { IsHitTestVisible = false };
             var trail = new System.Windows.Shapes.Polyline { Stroke = new LinearGradientBrush(violet, cyan, 0), StrokeThickness = 7, Opacity = 0.85,
@@ -544,7 +537,6 @@ namespace Przegladarka
             };
             padB.Click += (s, e) => { SetPref("klawiatura-pad", GetPref("klawiatura-pad") == "1" ? "0" : "1"); padApply(); };
             root.Loaded += (s, e) => padApply();
-            vb.CacheMode = new BitmapCache();   // rozmyte smugi liczone raz, nie przy kazdym ruchu sladu
             var trace = new List<Point>(); bool down = false, swiping = false;
             root.PreviewMouseLeftButtonDown += (s, e) =>
             {
@@ -630,8 +622,9 @@ namespace Przegladarka
                 double nw = w.ActualWidth, nh = w.ActualHeight; kbRatio = nh / nw;
                 w.SizeToContent = SizeToContent.Manual; w.MinWidth = nw * 0.25; w.MinHeight = nh * 0.25; w.MaxWidth = nw * 2; w.MaxHeight = nh * 2;
                 var wa = SystemParameters.WorkArea;
-                // zapamietana szerokosc, a pierwszy raz najwyzej ~40% szerokosci ekranu (nie pol ekranu)
-                double sw = double.TryParse(GetPref("klawiatura-szer"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sv) ? sv : Math.Min(nw, wa.Width * 0.4);
+                // mala: na start ok. 1/3 szerokosci ekranu, zapamietana szerokosc najwyzej 45% ekranu - nigdy pol ekranu
+                w.MaxWidth = Math.Min(w.MaxWidth, wa.Width * 0.45); w.MaxHeight = w.MaxWidth * kbRatio;
+                double sw = double.TryParse(GetPref("klawiatura-rozmiar"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sv) ? sv : wa.Width * 0.33;
                 sw = Math.Max(w.MinWidth, Math.Min(w.MaxWidth, sw)); w.Width = sw; w.Height = sw * kbRatio;
                 // zapamietane miejsce (gdy na ekranie), a pierwszy raz: na dole ekranu, na srodku
                 double ww = double.IsNaN(w.Width) ? nw : w.Width, wh = double.IsNaN(w.Height) ? nh : w.Height;
@@ -640,7 +633,7 @@ namespace Przegladarka
                     && x >= SystemParameters.VirtualScreenLeft && y >= SystemParameters.VirtualScreenTop && x + 120 <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth && y + 60 <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight) { w.Left = x; w.Top = y; }
                 else { w.Left = wa.Left + (wa.Width - ww) / 2; w.Top = wa.Bottom - wh - 10; }
             };
-            w.Closing += (s, e) => SetPref("klawiatura-szer", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            w.Closing += (s, e) => SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture));
             w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));
             w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); };
             _kbd = w; w.Show();

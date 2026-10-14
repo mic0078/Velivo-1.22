@@ -23,6 +23,9 @@
 ## Interfejs
 - Każda lista w Velivo ma sortowanie (klik w nagłówek albo wybór) i zapamiętuje je – razem z miejscem i rozmiarem okna oraz szerokością kolumn.
 
+## Dokumentacja
+- Każdą nową funkcję lub zmianę zachowania w filmach / TV dopisuj od razu do `dokumentacja/instrukcja-filmy-tv-notatki.md` (podstawa przyszłej instrukcji wbudowanej w Velivo).
+
 ## Inne
 - Odpowiadaj po polsku.
 - Nie przepisuj opublikowanej historii `main` (bez force-push / rebase / amend na `main`).

@@ -19,20 +19,28 @@ namespace Przegladarka
         [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint n, KbdInput[] inputs, int size);
         [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int idx);
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int idx, int val);
+        [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
         const uint KeyUp = 2, KeyUnicode = 4;
 
         static Window _kbd;
+        static IntPtr _kbdHwnd, _kbdTarget;   // okno klawiatury i okno, do ktorego piszemy
 
         static void SendKey(ushort vk, char ch)
         {
             uint fl = vk == 0 ? KeyUnicode : 0;
             ushort sc = vk == 0 ? ch : (ushort)0;
             var ins = new[] { new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl } } }, new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl | KeyUp } } } };
+            // klik w klawiature mogl ja aktywowac - znaki maja trafic do okna z polem, nie do klawiatury
+            var fg = GetForegroundWindow();
+            if (fg == _kbdHwnd && _kbdTarget != IntPtr.Zero) SetForegroundWindow(_kbdTarget);
+            else if (fg != _kbdHwnd && fg != IntPtr.Zero) _kbdTarget = fg;
             SendInput(2, ins, Marshal.SizeOf(typeof(KbdInput)));
         }
 
         internal static void ShowScreenKeyboard()
         {
+            _kbdTarget = GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
             if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; return; }
             bool shift = false, caps = false, alt = false;
             // subtelnie w kolorach logo Velivo: ciemne tlo z lekkim fioletowo-turkusowym odcieniem, klawisze ze szkla,
@@ -157,8 +165,14 @@ namespace Przegladarka
             close.Click += (s, e) => w.Close();
             w.SourceInitialized += (s, e) =>
             {   // okno nie zabiera fokusu - pole na stronie / w Velivo zostaje aktywne
-                var h = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+                var h = new System.Windows.Interop.WindowInteropHelper(w).Handle; _kbdHwnd = h;
                 SetWindowLong(h, -20, GetWindowLong(h, -20) | 0x08000000);
+                // WPF i tak aktywuje okno przy kliknieciu - na WM_MOUSEACTIVATE odpowiadamy "nie aktywuj"
+                System.Windows.Interop.HwndSource.FromHwnd(h).AddHook((IntPtr hw, int msg, IntPtr wp, IntPtr lp, ref bool handled) =>
+                {
+                    if (msg == 0x21) { handled = true; return (IntPtr)3; }   // MA_NOACTIVATE
+                    return IntPtr.Zero;
+                });
             };
             w.Loaded += (s, e) =>
             {   // zapamietane miejsce (gdy na ekranie), a pierwszy raz: na dole ekranu, na srodku
@@ -168,7 +182,7 @@ namespace Przegladarka
                 else { w.Left = wa.Left + (wa.Width - w.ActualWidth) / 2; w.Top = wa.Bottom - w.ActualHeight - 10; }
             };
             w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            w.Closed += (s, e) => _kbd = null;
+            w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; };
             _kbd = w; w.Show();
         }
 

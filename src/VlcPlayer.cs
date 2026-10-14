@@ -1271,13 +1271,13 @@ namespace Przegladarka
             quick.Children.Add(qBarTime); quick.Children.Add(qInfoSet);
             // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data
             quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
-            var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 1.5 };
-            var netGraph = new Canvas { Width = 60, Height = 22, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Background = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)) };
-            var netUpLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), StrokeThickness = 1.5 };   // wysylanie (np. film dla drugiego komputera w LAN)
+            var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
+            var netGraph = new Canvas { Width = 120, Height = 28, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)) };
+            var netUpLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };   // wysylanie (np. film dla drugiego komputera w LAN)
             netGraph.Children.Add(netLine); netGraph.Children.Add(netUpLine);
-            var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 10.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 12, 0), MinWidth = 70, LineHeight = 12 };
-            var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
-            var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center };
+            var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 18, 0), MinWidth = 84, LineHeight = 14 };
+            var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
+            var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center };
             var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
             var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
             netBox.Children.Add(netGraph); netBox.Children.Add(netText);
@@ -1301,7 +1301,7 @@ namespace Przegladarka
                     netHist.Add(bps); if (netHist.Count > 30) netHist.RemoveAt(0);
                     netUpHist.Add(ups); if (netUpHist.Count > 30) netUpHist.RemoveAt(0);
                     double max = Math.Max(1, Math.Max(netHist.Max(), netUpHist.Max()));   // wspolna skala obu linii
-                    Func<List<double>, PointCollection> line = h => { var pts = new PointCollection(); for (int k = 0; k < h.Count; k++) pts.Add(new Point(60 - (h.Count - 1 - k) * 2.0, 21 - 19 * h[k] / max)); return pts; };
+                    Func<List<double>, PointCollection> line = h => { var pts = new PointCollection(); for (int k = 0; k < h.Count; k++) pts.Add(new Point(120 - (h.Count - 1 - k) * 4.0, 27 - 24 * h[k] / max)); return pts; };
                     netLine.Points = line(netHist); netUpLine.Points = line(netUpHist);
                     Func<double, string> sp = v => v >= 1048576 ? (v / 1048576).ToString("0.0") + " MB/s" : (v / 1024).ToString("0") + " KB/s";
                     netText.Text = "↓ " + sp(bps) + "\n↑ " + sp(ups);
@@ -1635,7 +1635,7 @@ namespace Przegladarka
             double infoK = 1;
             Action showChannelsRefresh = null;
             Action infoScale = () => infoK = Math.Max(0.65, Math.Min(1.7, win.ActualWidth / 1280.0)) * Math.Max(50, Math.Min(200, IptvSt.InfoScale)) / 100.0;
-            Action<bool> showInfoRef = null;
+            Action<bool> showInfoRef = null; Func<bool> tvShownRef = null;
             var infoResize = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             infoResize.Tick += (s, e) => { infoResize.Stop(); if (infoBox.Visibility == Visibility.Visible) showInfoRef?.Invoke(true); };   // po zmianie rozmiaru - zbudowany od nowa
             win.SizeChanged += (s, e) => { infoResize.Stop(); infoResize.Start(); };
@@ -1712,6 +1712,9 @@ namespace Przegladarka
                 infoTimer.Interval = TimeSpan.FromSeconds(sec); infoTimer.Start();
             };
             showInfoRef = showInfo;
+            // program TV wczytal sie (okno TV / w tle) - od razu odswiez pasek informacji i napis, bez czekania na kolejny kanal
+            Action onEpg = () => Dispatcher.BeginInvoke(new Action(() => { if (_vlcWin != win) return; if (infoBox.Visibility == Visibility.Visible) showInfo(false); tvShownRef?.Invoke(); }));
+            _iptvLoaded += onEpg; win.Closed += (s, e) => _iptvLoaded -= onEpg;
 
             // lista kanalow nad filmem (z lewej): kanaly biezacej grupy z logo i tym, co leci; klik = przelacz, kolko = przewijanie
             var chList = new ListBox { Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.White, HorizontalContentAlignment = HorizontalAlignment.Stretch };
@@ -2159,7 +2162,8 @@ namespace Przegladarka
 
             // telewizja: na zywo - postep audycji z programu TV i "NA ZYWO"; archiwum - godzina w audycji
             Func<IptvChannel> liveCh = () => { var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; return p1 != null && _iptvPlaying.TryGetValue(p1, out var c1) && curRecFile == null ? c1 : null; };
-            Func<bool> tvShown = () =>
+            Func<bool> tvShown = null;
+            tvShown = () =>
             {
                 var c = liveCh();
                 if (c == null || c.ArchiveStart.HasValue) { if (ticker.Visibility == Visibility.Visible) { ticker.Visibility = tickerName.Visibility = tickerSep.Visibility = Visibility.Collapsed; ((TranslateTransform)tickerText.RenderTransform).BeginAnimation(TranslateTransform.XProperty, null); } seek.Visibility = Visibility.Visible; }   // film / archiwum - zwykly pasek
@@ -2182,6 +2186,7 @@ namespace Przegladarka
                 if (ticker.Visibility != Visibility.Visible || tickerText.Text != desc) { ticker.Visibility = Visibility.Visible; tickerText.Text = desc; Dispatcher.BeginInvoke(tickerRun, DispatcherPriority.Loaded); }
                 return true;
             };
+            tvShownRef = () => tvShown();
             mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(guard(() => { if (!tvShown()) timeLen.Text = FormatTime(e.Length); }));
             mp.TimeChanged += (s, e) => Dispatcher.BeginInvoke(guard(() =>
             {

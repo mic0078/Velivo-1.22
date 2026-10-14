@@ -1,5 +1,7 @@
 # Zasady pracy w repozytorium Velivo
 
+**Velivo** – z łaciny: *velo* (zasłaniam, osłaniam) + *vivo* (żyję) = „żyję osłonięty”. Wszystko w Velivo ma być dyskretne, chroniące prywatność, lekkie i płynne – to miara „jak Velivo”.
+
 ## Gałęzie
 - `main` – stabilna, publiczna wersja. Push do `main` automatycznie buduje i podmienia publiczny instalator (`Instalator/`).
 - `rozwoj` – JEDYNA gałąź robocza. Wszystkie zmiany (poprawki, testy, dokumentacja) idą tylko tutaj.

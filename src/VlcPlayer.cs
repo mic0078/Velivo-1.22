@@ -1309,6 +1309,9 @@ namespace Przegladarka
             var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center };
             var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
             var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
+            var netDown = new System.Windows.Documents.Run { Foreground = netLine.Stroke };
+            var netUp = new System.Windows.Documents.Run { Foreground = netUpLine.Stroke };
+            netText.Inlines.Add(netDown); netText.Inlines.Add(new System.Windows.Documents.LineBreak()); netText.Inlines.Add(netUp);
             netBox.Children.Add(netGraph); netBox.Children.Add(netText);
             quick.Children.Add(netBox); quick.Children.Add(clockBox);
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
@@ -1383,7 +1386,7 @@ namespace Przegladarka
                     Func<List<double>, PointCollection> line = h => { var pts = new PointCollection(); for (int k = 0; k < h.Count; k++) pts.Add(new Point(120 - (h.Count - 1 - k) * 4.0, 27 - 24 * h[k] / max)); return pts; };
                     netLine.Points = line(netHist); netUpLine.Points = line(netUpHist);
                     Func<double, string> sp = v => v >= 1048576 ? (v / 1048576).ToString("0.0") + " MB/s" : (v / 1024).ToString("0") + " KB/s";
-                    netText.Text = "↓ " + sp(bps) + "\n↑ " + sp(ups);
+                    netDown.Text = "↓ " + sp(bps); netUp.Text = "↑ " + sp(ups);
                 }
                 netLast = total; netUpLast = sent;
             };

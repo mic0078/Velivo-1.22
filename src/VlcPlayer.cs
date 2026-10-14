@@ -1399,8 +1399,10 @@ namespace Przegladarka
             var connText = new Button { Cursor = Cursors.Hand, Padding = new Thickness(6, 1, 6, 1), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed,
                 Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse("<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Border Background='Transparent' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border></ControlTemplate>") };
             var statusRow = new DockPanel { LastChildFill = false, Margin = new Thickness(12, 4, 4, 0), Height = 21, VerticalAlignment = VerticalAlignment.Top };   // ta sama wysokosc i linia co rzad z czasem / NA ZYWO
-            DockPanel.SetDock(recPill, Dock.Left); DockPanel.SetDock(connText, Dock.Left); DockPanel.SetDock(streamInfo, Dock.Right);
-            statusRow.Children.Add(recPill); statusRow.Children.Add(connText); statusRow.Children.Add(streamInfo);
+            // separator nad dolnym separatorem (przed wykresem sieci)
+            var infoSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(recPill, Dock.Left); DockPanel.SetDock(connText, Dock.Left); DockPanel.SetDock(streamInfo, Dock.Right); DockPanel.SetDock(infoSep, Dock.Right);
+            statusRow.Children.Add(recPill); statusRow.Children.Add(connText); statusRow.Children.Add(streamInfo); statusRow.Children.Add(infoSep);
             var quickCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; quickCol.Children.Add(statusRow); quickCol.Children.Add(quick);
             // dane strumienia rowno od lewej z wykresem sieci (zaraz za separatorem)
             SizeChangedEventHandler alignInfo = (s, e) =>

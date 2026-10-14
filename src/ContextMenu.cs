@@ -242,13 +242,6 @@ namespace Przegladarka
                 var tMem = _env.CreateContextMenuItem(MenuText(L.T("🧠 Gdzie ja to czytałem? (Ctrl+Shift+F)")), GlyphIcon("\uE8F1"), CoreWebView2ContextMenuItemKind.Command);
                 tMem.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(ShowPageMemorySearch);
                 tools.Children.Add(tMem);
-                // zapisane hasla i loginy do stron - nie z karty bankowej (izolacja trybu bankowego)
-                if (tabForTools == null || !tabForTools.Bank)
-                {
-                    var tPass = _env.CreateContextMenuItem(MenuText(L.T("🔑 Zapisane hasła i loginy")), GlyphIcon("\uE8D7"), CoreWebView2ContextMenuItemKind.Command);
-                    tPass.CustomItemSelected += (a, b) => Dispatcher.InvokeAsync(() => OpenPasswordsManager(this));
-                    tools.Children.Add(tPass);
-                }
                 tools.Children.Add(tPrivacy);
                 tools.Children.Add(tMedia);
                 tools.Children.Add(tDl);

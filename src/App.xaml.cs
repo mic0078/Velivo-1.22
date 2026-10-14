@@ -55,16 +55,6 @@ namespace Przegladarka
             }));
             // Alt + kolko myszy = przezroczystosc okna (kazdego okna Velivo)
             EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseWheelEvent, new System.Windows.Input.MouseWheelEventHandler(Przegladarka.MainWindow.AlphaWheel));
-            // klik rolka w pole do pisania = klawiatura ekranowa (kazde okno Velivo)
-            EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseDownEvent, new System.Windows.Input.MouseButtonEventHandler(Przegladarka.MainWindow.KeyboardOnMiddleClick));
-            // podpowiedzi po krotkim najechaniu (0,3 s zamiast ok. 0,4 s) i dluzej widoczne - w calym Velivo
-            try
-            {
-                System.Windows.Controls.ToolTipService.InitialShowDelayProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(300));
-                System.Windows.Controls.ToolTipService.ShowDurationProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(15000));
-            }
-            catch (Exception ex) { LogError(ex); }   // tylko wygoda - bez tego Velivo dziala dalej
-            Przegladarka.AutoTips.Register();   // podpowiedzi dla przyciskow i menu bez wlasnej podpowiedzi
             // Siatka bezpieczenstwa: nieprzewidziany blad nie wylacza przegladarki - zapis do pliku i komunikat.
             // Komunikat najwyzej jeden naraz i nie czesciej niz raz na 30 s dla tego samego bledu
             // (powtarzajacy sie blad nie moze zasypac ekranu okienkami) - kazdy blad i tak trafia do bledy.log.

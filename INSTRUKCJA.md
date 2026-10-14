@@ -6,29 +6,9 @@
 
 **Polski** | [English](MANUAL.en.md) · [Strona główna projektu](README.md)
 
-Nazwa pochodzi z łaciny: *velum* – żagiel i zasłona (*velo* – „osłaniam”), *vivo* – „żyję”. Velivo jest jak żagiel: lekkie, szybkie i dyskretne – i osłania Twoją prywatność. Velivo to prywatna przeglądarka dla Windows. Twoje dane zostają u Ciebie: nie ma konta ani chmury, a historia i hasła nie trafiają na zewnętrzne serwery. Strony wyświetla silnik Microsoft Edge (WebView2), więc wyglądają i działają tak samo jak w Edge i Chrome. Wszystko wokół stron – okno, karty, menu, prywatność, pobieranie, synchronizacja – to własny kod Velivo.
+Velivo to prywatna przeglądarka dla Windows. Twoje dane zostają u Ciebie: nie ma konta ani chmury, a historia i hasła nie trafiają na zewnętrzne serwery. Strony wyświetla silnik Microsoft Edge (WebView2), więc wyglądają i działają tak samo jak w Edge i Chrome. Wszystko wokół stron – okno, karty, menu, prywatność, pobieranie, synchronizacja – to własny kod Velivo.
 
 Przeglądarka jest projektowana tak, żeby dało się ją w pełni obsłużyć samą myszką, także z kanapy przy telewizorze. Działa po polsku i po angielsku.
-
----
-
-## Co nowego (w skrócie)
-
-| Gdzie | Co | Jak |
-|---|---|---|
-| ⌨ Klawiatura | otwieranie | **klik rolką w pole** do pisania; **przytrzymanie rolki 1 s** – wszędzie (także dokumenty, inne programy) |
-| ⌨ Klawiatura | pisanie przeciągnięciem | wciśnij na pierwszej literze i przeciągnij po kolejnych; nad klawiszami 2 propozycje |
-| ⌨ Klawiatura | rozmiar | ciągnij brzeg albo róg |
-| ⌨ Klawiatura | pasek skrótów | 📧 e-mail · 🔇 🔉 🔊 głośność · 🌐 Velivo · ⏻ wyłącz komputer (drugi klik odwołuje) |
-| ⌨ Klawiatura | nagłówek | **PL/EN** język · **🗣** czytaj, co piszę · **🎤** pisz głosem · **🎮** pad · **📖** Mój słownik |
-| 🔑 Hasła | gdzie są | prawy klik na stronie → Narzędzia → **🔑 Zapisane hasła i loginy** |
-| 🔑 Hasła | wpisywanie | pod polem hasła pastylka **🔑 Wpisz** / **⚡ Generuj**, lista kont z kółkami |
-| 🔑 Hasła | bezpieczeństwo | tylko w zaszyfrowanej bazie Velivo; klawiatura nic nie zapamiętuje z pól haseł |
-| 📺 Odtwarzacz | wykres sieci | **klik** – opcje połączenia i bufor kanałów |
-| 📺 Odtwarzacz | zegar na pasku | **klik** – zegar na obrazie (pozycja, wielkość, przezroczystość) |
-| 📺 Odtwarzacz | jakość | nad wykresem: rozdzielczość · kodek (film) · Mb/s · kl/s; pomarańczowe „utracone” = przycięcia |
-| 🧹 Porządki | kopie | **💾 Kopia przyrostowa teraz** albo **💾 Pełna kopia teraz** |
-| Wszędzie | podpowiedzi | najedź myszą na przycisk – po chwili podpowiedź, co robi |
 
 ---
 
@@ -297,15 +277,6 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | Bez konta i bez chmury | | całość | ✔ | – | ✔ |
 | Osobny folder danych (`PRZEGLADARKA_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
 
-### K. Klawiatura ekranowa (`ScreenKeyboard.cs`, `SwipeTyping.cs`)
-| Funkcja | Opis | Kod | Impl. | UI | Sys. |
-|---|---|---|:-:|:-:|:-:|
-| ⌨ Klawiatura Velivo | własna klawiatura w kolorach logo; klik rolką w pole do pisania (strony, okna Velivo) | ScreenKeyboard.cs | ✔ | ✔ | – |
-| Klawiatura w innych programach | klik rolką w pole w dowolnym programie Windows, gdy Velivo działa (UI Automation) | ScreenKeyboard.cs | ✔ | ✔ | ✔ |
-| Nie zabiera fokusu | znaki trafiają do pola, w którym się pisze | ScreenKeyboard.cs | ✔ | – | ✔ |
-| Pisanie przeciągnięciem (Flow) | ślad po klawiszach → słowo ze słownika polskiego (40 tys.), 2 propozycje do podmiany | SwipeTyping.cs | ✔ | ✔ | – |
-| Nauka słów i 📖 Mój słownik | wybierane słowa wyżej; słowa wpisane literami spoza słownika dopisują się same; klik usuwa | SwipeTyping.cs | ✔ | ✔ | ✔ |
-
 
 ---
 
@@ -359,8 +330,6 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | **🖱 Gesty myszy i obsługa samą myszką** | Wstecz, dalej, nowa karta, zamknięcie, odświeżanie i powiększenie – bez klawiatury. |
 
 ---
-
-> **Podpowiedzi:** najedź myszą na przycisk albo pozycję menu – Velivo podpowie, co robi (po polsku albo po angielsku, zależnie od języka programu).
 
 ## 2. Ile zajmuje i dlaczego tak mało
 
@@ -526,22 +495,6 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 
 - **Zwykły klik** otwiera w tej samej karcie (działają Wstecz i Dalej). Można to zmienić w ustawieniach.
 - **Środkowy przycisk** albo **Ctrl+klik** zawsze otwiera nową kartę.
-
-### ⌨ Klawiatura ekranowa Velivo
-
-**Włączasz ją sam:** Ustawienia → „⌨ Klawiatura ekranowa Velivo”. Domyślnie jest wyłączona – wtedy rolka działa jak zwykle, a Velivo nie nasłuchuje myszy w innych programach.
-
-- **Klik rolką (środkowym przyciskiem) w pole do pisania** otwiera klawiaturę Velivo – na stronach, w oknach Velivo i **w innych programach** (np. WhatsApp, Notatnik, komunikatory), gdy Velivo jest włączone. Na linkach rolka dalej otwiera nową kartę.
-- **Przytrzymanie rolki ok. 1 sekundy** otwiera klawiaturę **wszędzie**, także tam, gdzie Velivo nie rozpozna pola (dokumenty, edytory). Najpierw kliknij lewym w miejsce pisania – litery trafią tam, gdzie miga kursor.
-- **Rozmiar:** chwyć brzeg albo róg klawiatury i przeciągnij – szerokość i wysokość ustawiasz dowolnie; na start jest mała (ok. 1/3 ekranu), potem pamięta Twój rozmiar.
-- **🎮 Pad** (Xbox i zgodne z XInput; PlayStation przez Steam lub DS4Windows): włącz przyciskiem 🎮 w nagłówku klawiatury. Krzyżak / lewa gałka – wybór klawisza (ramka w kolorach logo), **A** – naciśnij, **B** – ⌫, **X** – spacja, **Y** – ⇧, **LT** – ą ę ł, **LB / RB** – kursor ◀ ▶, **Start** – ⏎, **Back** – zamknij. Przytrzymany kierunek powtarza ruch. Ustawienie zapamiętane.
-- **Pasek skrótów** nad klawiszami: **📧 E-mail** (nowa wiadomość w programie pocztowym), **🔇 🔉 🔊** (głośność Windows), **🌐 Velivo** (pokazuje okno przeglądarki), **⏻** (wyłączenie komputera za 30 s z potwierdzeniem; drugi klik odwołuje).
-- **W nagłówku:** **PL / EN** – język klawiatury (słownik przeciągania i czytanie), **🗣** – czytaj na głos to, co piszesz (każde skończone słowo, nigdy w polu hasła), **🎤** – pisanie głosem (dyktowanie Windows, Win+H; wymaga mikrofonu i internetu – usługa Microsoft), **🎮** – pad, **📖** – Mój słownik.
-- Klawiatura **nie zabiera kursora** – litery trafiają do pola, w którym piszesz. **⇧** wielka litera, **⇪** stałe wielkie, **ą ę ł** polskie znaki, **@**, **.com**, strzałki, **⏎**. Przeciągnij ją za nagłówek – zapamięta miejsce; **✕** zamyka.
-- **Pisanie przeciągnięciem (Flow):** wciśnij lewy przycisk na pierwszej literze i bez puszczania przeciągnij po kolejnych. Velivo wpisze pasujące słowo ze spacją, a nad klawiszami pokaże 2 inne propozycje – klik podmienia słowo. Polskie litery wystarczy przeciągnąć przez literę podstawową (e → ę).
-- **Nauka i 📖 Mój słownik:** słowa, które wybierasz, pojawiają się wyżej; słowo wpisane literami, którego nie ma w słowniku, samo trafia do **📖 Mojego słownika** (przycisk w nagłówku klawiatury). Klik w słowo w Moim słowniku usuwa je.
-- **Hasła są bezpieczne:** gdy piszesz w polu hasła, klawiatura niczego nie zapamiętuje (ani nauki, ani Mojego słownika). Nauka i Mój słownik są zapisane zaszyfrowane kontem Windows.
-- Gdy w jakimś programie klawiatura się nie otwiera, Velivo zapisuje, co tam kliknięto, w pliku `klawiatura.log` w folderze danych – przyda się przy zgłoszeniu.
 
 ---
 
@@ -802,8 +755,6 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 ---
 
 ## 15. Hasła i Sejf
-
-- **Gdzie są zapisane hasła:** prawy klik na stronie → **Narzędzia → 🔑 Zapisane hasła i loginy** (albo Ustawienia → Menedżer haseł lokalnych…). Baza jest zaszyfrowana kluczem Twojego konta Windows (DPAPI) i zapisywana bezpiecznie – przerwany zapis nie psuje bazy, a gdy bazy nie da się odczytać, Velivo zostawia jej kopię `hasla.vault.nieczytelna-…` do odzyskania.
 
 - **Sejf** (osobny program autora) przechowuje hasła zaszyfrowane offline. Gdy strona ma pole logowania, na pasku pojawia się **🔑**, a kliknięcie wypełnia formularz.
 - **Zapis do Sejfu:** po zalogowaniu Velivo pyta, czy zapisać albo zaktualizować hasło.

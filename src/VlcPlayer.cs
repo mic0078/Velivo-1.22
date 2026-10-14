@@ -67,6 +67,23 @@ namespace Przegladarka
             PlayVideos(grp.Select(c => c.Url).ToArray(), at);
         }
 
+        // archiwum TV: audycja z przeszlosci (albo trwajaca - od poczatku) jak film: pauza, przewijanie; kanal zostaje kanalem (logo, program)
+        internal static IptvChannel LiveOf(IptvChannel c)
+        {
+            if (c?.LiveUrl == null) return c;
+            var l = new IptvChannel { Name = c.Name, Url = c.LiveUrl, Group = c.Group, Logo = c.Logo, TvgId = c.TvgId, Catchup = c.Catchup, CatchupSource = c.CatchupSource, CatchupDays = c.CatchupDays };
+            l.Opts.AddRange(c.Opts); return l;
+        }
+
+        internal void PlayArchive(IptvChannel ch, EpgItem p)
+        {
+            var live = LiveOf(ch); var url = CatchupUrl(live, p.Start, p.Stop, DateTime.Now); if (url == null) return;
+            var a = new IptvChannel { Name = live.Name, Url = url, Group = live.Group, Logo = live.Logo, TvgId = live.TvgId, Catchup = live.Catchup, CatchupSource = live.CatchupSource, CatchupDays = live.CatchupDays, LiveUrl = live.Url, ArchiveStart = p.Start };
+            a.Opts.AddRange(live.Opts);
+            _iptvPlaying[url] = a;
+            PlayVideos(new[] { url }, 0);
+        }
+
         // ---------- biblioteka ----------
 
         internal sealed class LibraryVideo
@@ -1528,11 +1545,12 @@ namespace Przegladarka
                     return;
                 }
                 infoLogo.Visibility = Visibility.Visible; infoLogo.Width = 72 * infoK; infoLogo.Height = 44 * infoK;
-                var l = EpgFor(_iptvEpg, ch); var now = DateTime.Now; var p0 = EpgAt(l, now); var nx = l?.FirstOrDefault(x => x.Start >= (p0?.Stop ?? now));
+                // archiwum: "teraz" = miejsce w odtwarzanej audycji
+                var l = EpgFor(_iptvEpg, ch); var now = ch.ArchiveStart.HasValue ? ch.ArchiveStart.Value.AddMilliseconds(Math.Max(0, mp.Time)) : DateTime.Now; var p0 = EpgAt(l, now); var nx = l?.FirstOrDefault(x => x.Start >= (p0?.Stop ?? now));
                 infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
                 infoText.Children.Clear();
                 Func<string, double, FontWeight, Brush, TextBlock> tb = (t, size, w, b) => new TextBlock { Text = t, FontSize = size * infoK, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
-                infoText.Children.Add(tb((IsRecording(pth) ? "⏺ REC   " : "") + ch.Name, 15, FontWeights.SemiBold, Brushes.LightGray));
+                infoText.Children.Add(tb((IsRecording(pth) ? "⏺ REC   " : "") + (ch.ArchiveStart.HasValue ? L.T("⏪ Archiwum · ") + ch.ArchiveStart.Value.ToString("ddd d.MM") + " · " : HasCatchup(ch) ? "● " : "") + ch.Name, 15, FontWeights.SemiBold, ch.ArchiveStart.HasValue ? Brushes.LightGreen : Brushes.LightGray));
                 if (p0 == null) infoText.Children.Add(tb(_iptvEpg == null ? L.T("Brak programu TV") : L.T("Brak programu dla tego kanału"), 16, FontWeights.Normal, Brushes.White));
                 else
                 {
@@ -1799,7 +1817,9 @@ namespace Przegladarka
                             ToolTip = L.T("zostało ") + Math.Max(0, (int)Math.Ceiling(span - gone)) + " min" });
                     }
                     var star = new TextBlock { Text = IptvSt.Fav.Contains(ch.Url) ? "★" : "", Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18)), FontSize = 14, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };   // ulubiony - gwiazdka z prawej
-                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); DockPanel.SetDock(star, Dock.Right); row.Children.Add(img); row.Children.Add(star); row.Children.Add(txt);
+                    var arch = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Fill = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), Margin = new Thickness(6, 6, 0, 0), VerticalAlignment = VerticalAlignment.Top,
+                        Visibility = HasCatchup(ch) ? Visibility.Visible : Visibility.Collapsed, ToolTip = L.T("Archiwum: ") + ch.CatchupDays + L.T(" dni wstecz") };   // kanal z archiwum
+                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); DockPanel.SetDock(star, Dock.Right); DockPanel.SetDock(arch, Dock.Right); row.Children.Add(img); row.Children.Add(star); row.Children.Add(arch); row.Children.Add(txt);
                     var it = new ListBoxItem { Content = row, Padding = new Thickness(8, 4, 8, 4), Cursor = Cursors.Hand };
                     {   // prawy przycisk na kanale: otworz, ulubione, nagrywanie, program, sortowanie listy
                         var rcm = new ContextMenu();
@@ -1912,7 +1932,7 @@ namespace Przegladarka
                 _iptvPlaying.TryGetValue(path, out var tv);   // kanal telewizji (IPTV) - bez biblioteki, napisow i wznawiania
                 if (tv != null) current = null;
                 else if (rf == null) { var lib0 = LoadLibrary(); current = FindEntry(lib0, path, _playShared); TakeNewestProgress(lib0, current); }
-                SaveTvResume(tv != null ? _playIndex : -1);   // ostatni program wraca po uruchomieniu Velivo
+                SaveTvResume(tv != null && tv.ArchiveStart == null ? _playIndex : -1);   // ostatni program wraca po uruchomieniu Velivo
                 bool stream = path.Contains("://");
                 var name = rf != null ? rf.Title : tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path);
                 curTitle = name; marqueePos = 0;
@@ -1989,7 +2009,7 @@ namespace Przegladarka
                 };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
                 if (tv != null && _recording.Count > 0) WarnOneConnection();   // trwa nagrywanie - drugie polaczenie
-                if (tv != null) { IptvSt.Watched[path] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); LoadIptvInBackground(() => { if (_vlcWin == win) showInfo(false); }); }   // lista kanalow odswieza "Ostatnio ogladane"   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
+                if (tv != null) { var rk = tv.LiveUrl ?? path; IptvSt.Watched[rk] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var rc = IptvSt.Recent; rc.Remove(rk); rc.Insert(0, rk); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); LoadIptvInBackground(() => { if (_vlcWin == win) showInfo(false); }); }   // lista kanalow odswieza "Ostatnio ogladane"   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
                 if (tv != null) showOsd("📺 " + (i + 1) + ". " + tv.Name);
                 var infoOnce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(tv != null ? 700 : 1500) };   // film - gdy znana jest dlugosc
                 infoOnce.Tick += (s, e) => { infoOnce.Stop(); if (_playlist.Count > _playIndex && _playlist[_playIndex] == path) showInfo(false); };
@@ -2025,6 +2045,13 @@ namespace Przegladarka
                 if (current != null) { var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current)); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
                 // z nagrania: dojechalismy do konca zapisanego pliku - ponownie otworz plik (urosl) od tego miejsca
                 if (curRecFile != null && _playlist.Count > _playIndex) { recResume = Math.Max(0, mp.Length - 1000); _vlcLoad(_playIndex); return; }
+                if (_playlist.Count > _playIndex && _iptvPlaying.TryGetValue(_playlist[_playIndex], out var tvEnd) && tvEnd.ArchiveStart.HasValue)
+                {   // koniec audycji z archiwum: nastepna z archiwum, a gdy juz trwa - na zywo
+                    var el = EpgFor(_iptvEpg, tvEnd); var cur0 = EpgAt(el, tvEnd.ArchiveStart.Value); var nx0 = el?.FirstOrDefault(x => x.Start >= (cur0?.Stop ?? tvEnd.ArchiveStart.Value.AddMinutes(1)));
+                    if (!stopHere && nx0 != null && nx0.Stop <= DateTime.Now) { PlayArchive(tvEnd, nx0); return; }
+                    if (!stopHere) PlayChannelInGroup(LiveOf(tvEnd), KnownPlaylist());
+                    return;
+                }
                 if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału – łączę ponownie…")); return; }   // telewizja: bez przeskoku na nastepny kanal; strażnik polaczy ponownie
                 if (!stopHere && _playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
@@ -2683,6 +2710,8 @@ namespace Przegladarka
                 {
                     var tvNow = _iptvPlaying[path]; var epgL = EpgFor(_iptvEpg, tvNow); var nowP = EpgAt(epgL, DateTime.Now);
                     var nextP = epgL?.FirstOrDefault(x => x.Start >= (nowP?.Stop ?? DateTime.Now));
+                    if (tvNow.ArchiveStart.HasValue) add(L.T("⏩ Na żywo (wróć z archiwum)"), () => PlayChannelInGroup(LiveOf(tvNow), KnownPlaylist()), true);
+                    else if (nowP != null && HasCatchup(tvNow)) add(L.T("⏮ Od początku programu (archiwum)"), () => PlayArchive(tvNow, nowP), true);
                     if (nowP != null) add(L.T("▶ Teraz: ") + nowP.Title + L.T(" (do ") + nowP.Stop.ToString("HH:mm") + ")", () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
                     if (nextP != null) add(L.T("⏭ Następnie: ") + nextP.Start.ToString("HH:mm") + " " + nextP.Title, () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
                     bool isFav = IptvSt.Fav.Contains(path);
@@ -2776,7 +2805,7 @@ namespace Przegladarka
                 var groups = new List<(string Title, string[] Prefixes)>
                 {
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
-                    (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
+                    (null, new[] { "⏩ Na żywo (wróć", "⏮ Od początku programu", "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
                     (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),

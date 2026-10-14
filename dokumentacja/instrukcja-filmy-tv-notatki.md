@@ -84,3 +84,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - 👁 na końcu szybkich ikon (za separatorem): jak długo pasek zostaje widoczny – 2,5 / 5 / 10 / 20 s albo zawsze widoczny – oraz przezroczystość paska (0–60 %).
 - Ikona PiP: dwa nakładające się okna (inna niż tryb mini); rząd przycisków w jednej linii z szybkimi ikonami.
 - Ikona ustawień paska informacji (suwaki) obok 👁: pokazywanie przy ruchu myszy, znikanie, przezroczystość tła, wielkość tekstu – przeniesione z menu ⚙.
+- Menu pod prawym przyciskiem odchudzone: bez pozycji, które są ikonami na pasku (pauza, stop, kanał ±, informacje, odśwież, nagrywanie, biblioteka, kanały, program TV, ulubione, wyłącznik, PiP, playlisty, na wierzchu, mini, pełny ekran, zrzut).

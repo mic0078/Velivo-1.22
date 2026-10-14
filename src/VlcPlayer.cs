@@ -3098,7 +3098,10 @@ namespace Przegladarka
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
                     (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
-                var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().ToList();
+                // co jest ikona na pasku - nie powtarzamy w menu (krotsze menu)
+                var onBar = new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop", "⏮ Poprzedni kanał", "⏭ Następny kanał", "ℹ Pokaż informacje", "🔄 Odśwież kanał", "⏺ Nagrywaj ten kanał", "⏹ Zatrzymaj nagrywanie",
+                    "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅 Pełny program TV", "⭐ ", "⏾ Wyłącznik czasowy", "⧉ Obraz w obrazie", "🎞 Playlisty i moja kolejka", "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki" };
+                var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().Where(m => !starts(H(m), onBar)).ToList();
                 cm.Items.Clear();
                 var used = new HashSet<MenuItem>();
                 foreach (var g in groups)

@@ -83,11 +83,11 @@ Gdy coś się nagrywa, u góry obrazu widać małą czerwoną kropkę: **„Trwa
 
 ## 3. Menu pod prawym przyciskiem
 
-Kliknij prawym przyciskiem na obrazie. Najważniejsze pozycje:
-- **Telewizja:** co teraz leci i co następnie, poprzedni / następny kanał, odśwież, nagrywanie, **⏮ Od początku programu** (archiwum), **⏩ Na żywo**.
+Kliknij prawym przyciskiem na obrazie. Menu zawiera tylko to, czego nie ma jako ikony na pasku:
+- **Telewizja:** co teraz leci i co następnie, **⏮ Od początku programu** (archiwum), **⏩ Na żywo**.
 - **📂 Otwórz plik…**
 - **🕘 Ostatnio oglądane TV** i **🕘 Ostatnio oglądane Filmy** – po 20 ostatnich, najnowsze na górze. Kanał włączony stąd gra w swojej grupie.
-- Biblioteka, kanały, program TV, ulubione, wyłącznik czasowy, **⧉ PiP**, **⏰ Zaplanuj włączenie**, playlisty.
+- **📋 Lista kanałów / filmów**, **⏰ Zaplanuj włączenie**, napisy i lektor, zegar na obrazie.
 - **⚙ Ustawienia** – przezroczystość listy, bufor kanałów, zapas nagrywania. Ustawienia paska sterowania (👁) i paska informacji (ikona z suwakami) są na końcu szybkich ikon.
 
 ---

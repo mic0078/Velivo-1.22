@@ -496,6 +496,22 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 - **Zwykły klik** otwiera w tej samej karcie (działają Wstecz i Dalej). Można to zmienić w ustawieniach.
 - **Środkowy przycisk** albo **Ctrl+klik** zawsze otwiera nową kartę.
 
+### ⌨ Klawiatura ekranowa Velivo
+
+**Włączasz ją sam:** Ustawienia → „⌨ Klawiatura ekranowa Velivo”. Domyślnie jest wyłączona – wtedy rolka działa jak zwykle, a Velivo nie nasłuchuje myszy w innych programach.
+
+- **Klik rolką (środkowym przyciskiem) w pole do pisania** otwiera klawiaturę Velivo – na stronach, w oknach Velivo i **w innych programach** (np. WhatsApp, Notatnik, komunikatory), gdy Velivo jest włączone. Na linkach rolka dalej otwiera nową kartę.
+- **Przytrzymanie rolki ok. 1 sekundy** otwiera klawiaturę **wszędzie**, także tam, gdzie Velivo nie rozpozna pola (dokumenty, edytory). Najpierw kliknij lewym w miejsce pisania – litery trafią tam, gdzie miga kursor.
+- **Rozmiar:** chwyć brzeg albo róg klawiatury i przeciągnij – szerokość i wysokość ustawiasz dowolnie; na start jest mała (ok. 1/3 ekranu), potem pamięta Twój rozmiar.
+- **🎮 Pad** (Xbox i zgodne z XInput; PlayStation przez Steam lub DS4Windows): włącz przyciskiem 🎮 w nagłówku klawiatury. Krzyżak / lewa gałka – wybór klawisza (ramka w kolorach logo), **A** – naciśnij, **B** – ⌫, **X** – spacja, **Y** – ⇧, **LT** – ą ę ł, **LB / RB** – kursor ◀ ▶, **Start** – ⏎, **Back** – zamknij. Przytrzymany kierunek powtarza ruch. Ustawienie zapamiętane.
+- **Pasek skrótów** nad klawiszami: **📧 E-mail** (nowa wiadomość w programie pocztowym), **🔇 🔉 🔊** (głośność Windows), **🌐 Velivo** (pokazuje okno przeglądarki), **⏻** (wyłączenie komputera za 30 s z potwierdzeniem; drugi klik odwołuje).
+- **W nagłówku:** **PL / EN** – język klawiatury (słownik przeciągania i czytanie), **🗣** – czytaj na głos to, co piszesz (każde skończone słowo, nigdy w polu hasła), **🎤** – pisanie głosem (dyktowanie Windows, Win+H; wymaga mikrofonu i internetu – usługa Microsoft), **🎮** – pad, **📖** – Mój słownik.
+- Klawiatura **nie zabiera kursora** – litery trafiają do pola, w którym piszesz. **⇧** wielka litera, **⇪** stałe wielkie, **ą ę ł** polskie znaki, **@**, **.com**, strzałki, **⏎**. Przeciągnij ją za nagłówek – zapamięta miejsce; **✕** zamyka.
+- **Pisanie przeciągnięciem (Flow):** wciśnij lewy przycisk na pierwszej literze i bez puszczania przeciągnij po kolejnych. Velivo wpisze pasujące słowo ze spacją, a nad klawiszami pokaże 2 inne propozycje – klik podmienia słowo. Polskie litery wystarczy przeciągnąć przez literę podstawową (e → ę).
+- **Nauka i 📖 Mój słownik:** słowa, które wybierasz, pojawiają się wyżej; słowo wpisane literami, którego nie ma w słowniku, samo trafia do **📖 Mojego słownika** (przycisk w nagłówku klawiatury). Klik w słowo w Moim słowniku usuwa je.
+- **Hasła są bezpieczne:** gdy piszesz w polu hasła, klawiatura niczego nie zapamiętuje (ani nauki, ani Mojego słownika). Nauka i Mój słownik są zapisane zaszyfrowane kontem Windows.
+- Gdy w jakimś programie klawiatura się nie otwiera, Velivo zapisuje, co tam kliknięto, w pliku `klawiatura.log` w folderze danych – przyda się przy zgłoszeniu.
+
 ---
 
 ## 7. Karty

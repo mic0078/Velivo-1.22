@@ -93,3 +93,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Ręczne kopie dwoma przyciskami: „💾 Kopia przyrostowa teraz” (na życzenie, bez limitu 7 dni; bez pełnej tego rodzaju – pełna) i „💾 Pełna kopia teraz”.
 - Nad wykresem sieci (prawa strona, linia NA ŻYWO): jakość strumienia – rozdzielczość (SD/HD/FHD/4K), przepływność, klatki/s; „⚠ utracone: N” na pomarańczowo przy gubionych klatkach.
 - Film: w linii jakości także kodek obrazu (np. FHD 1920×1080 · H.264 · 8,2 Mb/s · 24 kl/s; dźwięk tylko w podpowiedzi, żeby linia mieściła się nad wykresem); podpowiedź = pełne dane techniczne (plik, rozmiar, kontener, długość, obraz, wszystkie ścieżki dźwięku, napisy); te dane też w vlc.log.
+- Klawiatura ekranowa Velivo: klik rolką (środkowym przyciskiem) w pole do pisania – na stronie i w oknach Velivo (np. szukanie kanału / filmu). Własne ciemne okno, nie zabiera fokusu; ⇧, ⇪, „ą ę ł” (polskie znaki), @, .com, strzałki, ⏎; przeciąganie za nagłówek, miejsce zapamiętane.

@@ -187,6 +187,11 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 
 ---
 
+## 11a. ⌨ Klawiatura ekranowa
+- Kliknij **rolką** (środkowym przyciskiem myszy) w pole do pisania – np. szukanie kanału lub filmu, a także pola na stronach.
+- Pojawia się ciemna klawiatura Velivo; litery trafiają do pola, w którym piszesz. **⇧** – wielka litera / znak, **⇪** – stałe wielkie, **ą ę ł** – polskie znaki, **⏎** – zatwierdź.
+- Przeciągnij ją za nagłówek – zapamięta miejsce. **✕** zamyka.
+
 ## 12. 🧹 Porządki i kopia bezpieczeństwa
 
 **Czyszczenie śmieci** – zaznaczasz, co usunąć (pamięć stron, miniatury, ikony kanałów, stary program TV, dzienniki). Przy każdej pozycji widać rozmiar. Hasła, zakładki, listy kanałów i biblioteka zostają.

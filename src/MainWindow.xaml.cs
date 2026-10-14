@@ -463,6 +463,9 @@ namespace Przegladarka
             core.WebMessageReceived += (s, e) => { try { if (e.TryGetWebMessageAsString() == "velivo:nowa-karta") tab.NewTabIntentAt = DateTime.UtcNow; } catch (Exception) { } };
             await core.AddScriptToExecuteOnDocumentCreatedAsync(
                 "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button===1||e.ctrlKey||e.shiftKey||e.metaKey){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(a)pm('velivo:nowa-karta');}},true);}catch(x){}})();");
+            // klik rolka w pole do pisania = klawiatura ekranowa (tylko znacznik, bez danych)
+            core.WebMessageReceived += (s, e) => { try { if (e.TryGetWebMessageAsString() == "velivo:klawiatura") ShowScreenKeyboard(); } catch (Exception) { } };
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(KeyboardPageScript);
             core.WebMessageReceived += (s, e) => { try { HandlePageMessage(tab, e.TryGetWebMessageAsString()); } catch (Exception) { } };
             await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
             tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);

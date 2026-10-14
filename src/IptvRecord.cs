@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -67,9 +67,10 @@ namespace Przegladarka
         {
             if (_iptvTimer != null) return;
             _iptvTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            _iptvTimer.Tick += (s, e) => IptvTick();
+            _iptvTimer.Tick += (s, e) => { try { IptvTick(); } catch (Exception ex) { App.LogError(ex); } };
             _iptvTimer.Start();
-            IptvTick();
+            // pierwsze sprawdzenie po uruchomieniu programu, nie w trakcie tworzenia okna - zadanie (np. nagranie w toku) nie moze zablokowac startu
+            Dispatcher.BeginInvoke(new Action(() => { try { IptvTick(); } catch (Exception ex) { App.LogError(ex); } }), DispatcherPriority.ApplicationIdle);
         }
 
         void IptvTick()
@@ -105,7 +106,7 @@ namespace Przegladarka
                         ShowToast(L.T("⏺ Za minutę nagrywanie: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
                         WarnOneConnection();
                     }
-                    if (now >= j.Start - 30000 && !_recording.ContainsKey(j.Id)) StartRecording(j);
+                    if (now >= j.Start - 30000 && !_recording.ContainsKey(j.Id)) { try { StartRecording(j); } catch (Exception ex) { App.LogError(ex); } }   // blad jednego nagrania nie zatrzymuje reszty
                 }
             }
             if (changed) { SaveIptv(st); _iptvJobsChanged?.Invoke(); }

@@ -30,7 +30,34 @@ namespace Przegladarka
         // pisanie przeciagnieciem: wybierane slowa i wlasny slownik
         static readonly Dictionary<string, int> _swLearned = new Dictionary<string, int>();
         static readonly HashSet<string> _swOwn = new HashSet<string>();
-        static string SwipeFile => Path.Combine(DataDir, "klawiatura-slowa.txt");
+        static string SwipeFile => Path.Combine(DataDir, "klawiatura-slowa.bin");   // zaszyfrowany (DPAPI, konto Windows)
+        static volatile bool _pageSecret;   // strona: kursor w polu hasla (zglasza skrypt strony)
+
+        // czy pole, do ktorego teraz piszemy, jest polem hasla - wtedy NIC nie trafia do nauki ani Mojego slownika;
+        // gdy nie da sie tego sprawdzic - tez traktujemy jak haslo (bezpieczniej nie uczyc)
+        static bool SecretField()
+        {
+            try
+            {
+                GetWindowThreadProcessId(_kbdTarget, out var pid);
+                if (pid == (uint)Environment.ProcessId)
+                {
+                    var f = Keyboard.FocusedElement;
+                    if (f is PasswordBox) return true;
+                    if (f is Microsoft.Web.WebView2.Wpf.WebView2 || f is DependencyObject d && FindAncestor<Microsoft.Web.WebView2.Wpf.WebView2>(d) != null) return _pageSecret;
+                    return false;
+                }
+                var el = System.Windows.Automation.AutomationElement.FocusedElement;
+                return el == null || el.Current.IsPassword;
+            }
+            catch (Exception) { return true; }
+        }
+
+        static T FindAncestor<T>(DependencyObject d) where T : class
+        {
+            for (; d != null; d = VisualTreeHelper.GetParent(d) ?? LogicalTreeHelper.GetParent(d)) if (d is T t) return t;
+            return null;
+        }
 
         // slownik polski (wbudowany) + wlasne slowa - w tle, raz na uruchomienie
         static void LoadSwipeDictionary()
@@ -45,6 +72,7 @@ namespace Przegladarka
                     if (name == null) return;
                     var words = new List<string>();
                     using (var st = asm.GetManifestResourceStream(name)) using (var rd = new StreamReader(st, System.Text.Encoding.UTF8)) { string l; while ((l = rd.ReadLine()) != null) words.Add(l); }
+                    try { File.Delete(Path.Combine(DataDir, "klawiatura-slowa.txt")); } catch (Exception) { }   // dawny jawny plik - nauka od nowa, juz zaszyfrowana
                     var own = new HashSet<string>(); var learned = SwipeTyping.LoadLearned(SwipeFile, own);
                     SwipeTyping.Load(words);
                     foreach (var w in own) SwipeTyping.AddUserWord(w);
@@ -215,7 +243,7 @@ namespace Przegladarka
             string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
             Action<string> learn = wd =>
             {
-                if (wd.Length < 2 || !SwipeTyping.Loaded) return;
+                if (wd.Length < 2 || !SwipeTyping.Loaded || SecretField()) return;   // pole hasla - bez nauki
                 var lw = wd.ToLowerInvariant();
                 lock (_swLearned)
                 {
@@ -528,6 +556,6 @@ namespace Przegladarka
         }
 
         // strona: klik rolka w pole do pisania - fokus w polu i znacznik do okna (bez tresci); bez autoprzewijania
-        const string KeyboardPageScript = "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button!==1)return;var t=e.target;if(!t||!t.closest)return;var f=t.closest('input,textarea,[contenteditable=\"\"],[contenteditable=true]');if(!f||f.disabled||f.readOnly)return;if(f.tagName==='INPUT'&&/^(button|submit|reset|checkbox|radio|file|image|range|color|hidden)$/i.test(f.type))return;e.preventDefault();try{f.focus();}catch(x){}pm('velivo:klawiatura');},true);}catch(x){}})();";
+        const string KeyboardPageScript = "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button!==1)return;var t=e.target;if(!t||!t.closest)return;var f=t.closest('input,textarea,[contenteditable=\"\"],[contenteditable=true]');if(!f||f.disabled||f.readOnly)return;if(f.tagName==='INPUT'&&/^(button|submit|reset|checkbox|radio|file|image|range|color|hidden)$/i.test(f.type))return;e.preventDefault();try{f.focus();}catch(x){}pm('velivo:klawiatura');},true);var sec=function(t){return !!(t&&t.tagName==='INPUT'&&(t.type==='password'||/password|one-time-code/i.test(t.autocomplete||'')));};document.addEventListener('focusin',function(e){pm('velivo:kbd-haslo:'+(sec(e.target)?'1':'0'));},true);}catch(x){}})();";
     }
 }

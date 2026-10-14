@@ -17,6 +17,8 @@ namespace Przegladarka
             return i >= 0 ? "acelnoszx"[i] : c;
         }
 
+        static readonly byte[] Entropy = System.Text.Encoding.UTF8.GetBytes("Velivo.Keyboard.v1");
+
         sealed class Entry { public string Word; public string Keys; public int Rank; }
         static List<Entry> _words;
         static Dictionary<string, List<Entry>> _byEnds;   // klucz: pierwszy + ostatni klawisz
@@ -148,8 +150,10 @@ namespace Przegladarka
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(file));
-                File.WriteAllLines(file, learned.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).Take(5000).Select(kv => kv.Key + "\t" + kv.Value)
+                var text = string.Join("\n", learned.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).Take(5000).Select(kv => kv.Key + "\t" + kv.Value)
                     .Concat(own.Select(w => "+" + w)));
+                // zaszyfrowane kontem Windows - w folderze danych nie ma jawnej listy wpisywanych slow
+                File.WriteAllBytes(file, System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(text), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser));
             }
             catch (Exception ex) { App.LogError(ex); }
         }
@@ -161,7 +165,7 @@ namespace Przegladarka
             try
             {
                 if (File.Exists(file))
-                    foreach (var line in File.ReadAllLines(file))
+                    foreach (var line in System.Text.Encoding.UTF8.GetString(System.Security.Cryptography.ProtectedData.Unprotect(File.ReadAllBytes(file), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser)).Split('\n'))
                     {
                         if (line.StartsWith("+")) { if (line.Length > 2) own?.Add(line.Substring(1)); continue; }
                         var p = line.Split('\t');

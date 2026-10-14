@@ -316,7 +316,7 @@ namespace Przegladarka
         void ApplyViewSettings(CoreWebView2 core)
         {
             var st = core.Settings;
-            st.IsPasswordAutosaveEnabled = _settings.SavePasswords;
+            st.IsPasswordAutosaveEnabled = false;   // hasla tylko we wlasnej, zaszyfrowanej bazie Velivo (nie w magazynie silnika Edge)
             st.IsGeneralAutofillEnabled = _settings.Autofill;
             st.IsReputationCheckingRequired = false;
             UpdateTrackingLevel(_current != null && _current.View.CoreWebView2 != null ? _current.View.CoreWebView2.Source : core.Source);

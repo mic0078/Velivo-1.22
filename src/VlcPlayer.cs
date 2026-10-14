@@ -1240,7 +1240,8 @@ namespace Przegladarka
                 tt.BeginAnimation(TranslateTransform.XProperty, anim);
             };
             ticker.SizeChanged += (s, e) => { if (ticker.Visibility == Visibility.Visible) tickerRun(); };
-            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(tickerName); seekRow.Children.Add(tickerSep); seekRow.Children.Add(seek); seekRow.Children.Add(ticker);
+            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(tickerName); seekRow.Children.Add(tickerSep);
+            var seekArea = new Grid(); seekArea.Children.Add(seek); seekArea.Children.Add(ticker); seekRow.Children.Add(seekArea);   // wspolne pole wypelnia szerokosc: pasek postepu (film) albo napis (TV)
 
             var prev = glyphBtn("prev", L.T("Poprzedni (P)"));
             var play = glyphBtn("pause", L.T("Pauza / odtwarzaj (spacja)"));
@@ -2642,7 +2643,7 @@ namespace Przegladarka
                     };
                     pTicker.SizeChanged += (q, w2) => { if (pTicker.Visibility == Visibility.Visible) pTickRun(); };
                     pBar.Children.Add(pSnd); pBar.Children.Add(pEnd);
-                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pSep); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek); pBar.Children.Add(pTicker);
+                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pSep); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); var pArea = new Grid(); pArea.Children.Add(pSeek); pArea.Children.Add(pTicker); pBar.Children.Add(pArea);   // pasek postepu (film) albo napis (TV) - zawsze cala szerokosc
                     // glowny zmienil kanal / film przy dzwieku z podgladu - jego sciezka znow wylaczona (po ustawieniu sciezek)
                     mp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() => { if (!pipSound) return; var t1 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1300) }; t1.Tick += (a1, b1) => { t1.Stop(); if (pipSound) { mainTrack = mp.AudioTrack >= 0 ? mp.AudioTrack : mainTrack; mp.SetAudioTrack(-1); } }; t1.Start(); }));
                     // nowy kanal / film w podgladzie - bez dzwieku, dopoki nie przelaczysz; sciezka dzwieku pojawia sie chwile po starcie, wiec ponawiamy do skutku

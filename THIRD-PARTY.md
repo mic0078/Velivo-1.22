@@ -8,7 +8,7 @@
   Bundled with the Velivo installer as a separate, unmodified browser add-on (taken from official releases at build time).
 
 ## Słowniki do pisania przeciągnięciem (polski i angielski) / Swipe-typing word lists (Polish and English)
-- Źródło / Source: FrequencyWords (Hermit Dave), listy 50 000 najczęstszych słów polskich i angielskich z napisów OpenSubtitles (2018)
+- Źródło / Source: FrequencyWords (Hermit Dave), pełna lista słów polskich i 50 000 najczęstszych angielskich z napisów OpenSubtitles (2018)
 - Licencja / License: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)
 - Kod źródłowy / Source: https://github.com/hermitdave/FrequencyWords
 - Zmiany / Changes: tylko słowa z polskich liter, bez powtórzeń bez polskich znaków, słownik polski 100 000 słów (pełna lista), angielski 40 000; bez liczb częstości (`src/slowa-pl.txt`, `src/slowa-en.txt`).

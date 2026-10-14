@@ -1213,7 +1213,16 @@ namespace Przegladarka
             var controls = new StackPanel { Background = new SolidColorBrush(Color.FromArgb(0xD9, 0x1C, 0x1C, 0x1C)), VerticalAlignment = VerticalAlignment.Bottom };
             // pasek postepu tak szeroki jak przyciski (konczy sie za "100%"); miejsce z prawej - na szybkie ikony
             var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left }; mainCol.Children.Add(seekRow); mainCol.Children.Add(btnRow);
-            controls.Children.Add(mainCol);
+            // szybkie ikony z prawej (te same znaki co w menu pod prawym przyciskiem, rozmiar jak przyciski obok)
+            Func<string, string, Button> qBtn = (t, tip) => { var b = textBtn(t, tip); b.FontSize = 19; b.FontWeight = FontWeights.Normal; b.MinWidth = 40; return b; };
+            var qRec = qBtn("⏺", L.T("Nagrywaj ten kanał TV")); var qRecStop = qBtn("⏹", L.T("Zatrzymaj nagrywanie"));
+            var qRecDir = qBtn("📁", L.T("Folder z nagraniami")); var qTv = qBtn("📺", L.T("Kanały telewizji")); var qGuide = qBtn("📅", L.T("Pełny program TV"));
+            var qInfo = qBtn("ℹ", L.T("Pokaż pasek informacji (I)")); var qRefresh = qBtn("🔄", L.T("Odśwież kanał (F5)")); var qLists = qBtn("🎞", L.T("Playlisty i moja kolejka"));
+            var qFavTv = qBtn("⭐📺", L.T("Moje ulubione kanały TV")); var qFavFilm = qBtn("⭐🎬", L.T("Moje ulubione filmy")); qFavTv.FontSize = qFavFilm.FontSize = 16;
+            var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 0, 4, 4) };
+            foreach (var b in new UIElement[] { qRec, qRecStop, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
+            var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quick);
+            controls.Children.Add(ctlRow);
             overlay.Children.Add(controls);
             // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
             var miniTitle = new TextBlock { Foreground = Brushes.White, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
@@ -2503,6 +2512,52 @@ namespace Przegladarka
             _pipShow = ch => { if (_vlcWin != win) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p1 == ch.Url) return false; pipShow(ch); return true; };   // z okna TV
             _pipShowFilm = path1 => { if (_vlcWin != win || !File.Exists(path1)) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (string.Equals(p1, path1, StringComparison.OrdinalIgnoreCase)) return false; pipShow(pipFilm(path1)); return true; };
             win.Closed += (s, e) => { _pipShow = null; _pipShowFilm = null; };
+            // szybkie ikony: dzialanie i stan (nagrywanie na czerwono, rzeczy z TV tylko przy telewizji)
+            Func<IptvChannel> qTvCh = () => { var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; return p1 != null && _iptvPlaying.TryGetValue(p1, out var c1) ? c1 : null; };
+            Action updQuick = () =>
+            {
+                var c = qTvCh(); bool rec = c != null && IsRecording(c.Url);
+                qRec.IsEnabled = c != null && !rec && !c.ArchiveStart.HasValue; qRecStop.IsEnabled = rec;
+                qRec.Foreground = rec ? Brushes.Red : Brushes.White; qRec.ToolTip = rec ? L.T("⏺ Trwa nagrywanie tego kanału") : L.T("Nagrywaj ten kanał TV");
+                qRefresh.IsEnabled = c != null;
+                bool tvOn = IptvInstalled; qTv.IsEnabled = qGuide.IsEnabled = qFavTv.IsEnabled = qRecDir.IsEnabled = tvOn;
+            };
+            var qTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            qTimer.Tick += (s, e) => updQuick(); qTimer.Start(); win.Closed += (s, e) => qTimer.Stop();
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(updQuick));
+            qRec.Click += (s, e) => { var c = qTvCh(); if (c != null) { RecordNow(c, win); updQuick(); } };
+            qRecStop.Click += (s, e) => { var c = qTvCh(); if (c != null) { StopRecording(c.Url); updQuick(); } };
+            qRecDir.Click += (s, e) => OpenRecDir();
+            qTv.Click += (s, e) => ShowIptv(Window.GetWindow(overlay) ?? win);
+            qGuide.Click += (s, e) => ShowEpgGuide(Window.GetWindow(overlay) ?? win, qTvCh()?.LiveUrl ?? qTvCh()?.Url);
+            qInfo.Click += (s, e) => showInfo(true);
+            qRefresh.Click += (s, e) => { if (qTvCh() != null) { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); } };
+            Action<Button, Action<ContextMenu>> qMenu = (b, fill) => b.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = b, Placement = PlacementMode.Top }; fill(cm); if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("(pusto)"), IsEnabled = false }); cm.IsOpen = true; };
+            qMenu(qLists, cm =>
+            {
+                var pls = LoadPlaylists();
+                Action<string, List<string>> one = (t, paths) => { var mi = new MenuItem { Header = t }; mi.Click += (q, w2) => PlayVideos(paths.ToArray(), 0); cm.Items.Add(mi); };
+                if (pls.Mine.Count > 0) one(L.T("📋 Moja kolejka (") + pls.Mine.Count + ")", pls.Mine);
+                foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) one("🎞 " + n + " (" + pls.Named[n].Count + ")", pls.Named[n]);
+            });
+            qMenu(qFavTv, cm =>
+            {   // ulubione kanaly - klik: gra, a PgUp/PgDn po ulubionych
+                var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
+                var favs = IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
+                for (int k = 0; k < favs.Count; k++) { int i0 = k; var mi = new MenuItem { Header = favs[k].Name }; mi.Click += (q, w2) => { foreach (var c in favs) _iptvPlaying[c.Url] = c; PlayVideos(favs.Select(c => c.Url).ToArray(), i0); }; cm.Items.Add(mi); }
+            });
+            qMenu(qFavFilm, cm =>
+            {   // ulubione filmy (playlista "⭐ Ulubione") - klik: gra, nastepny/poprzedni po ulubionych
+                var lib = LoadLibrary();
+                var favs = (LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>()).Where(File.Exists).ToList();
+                for (int k = 0; k < favs.Count; k++)
+                {
+                    int i0 = k; var v = FindEntry(lib, favs[k], null);
+                    var mi = new MenuItem { Header = v != null ? ShownTitle(v, MetaFor(v.Path)) : System.IO.Path.GetFileNameWithoutExtension(favs[k]) };
+                    mi.Click += (q, w2) => PlayVideos(favs.ToArray(), i0); cm.Items.Add(mi);
+                }
+            });
+            updQuick();
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();
             win.SizeChanged += (s, e) => pipPlace();

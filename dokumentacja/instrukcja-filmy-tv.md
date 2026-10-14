@@ -58,9 +58,12 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 | 👁 | Pasek sterowania: po ilu sekundach znika (albo zawsze widoczny) i jak bardzo przezroczysty |
 | ⚟ (suwaki) | Pasek informacji: pokazywanie przy ruchu myszy, czas znikania, przezroczystość, wielkość tekstu |
 
+Nagrania z TV są tylko w bibliotece „📺 Nagrane z TV” – nie trafiają do „Wszystkie filmy”, bo nie mają opisów ani plakatów.
+
 Na samym końcu paska (za separatorem):
 - **wykres sieci** z ostatnich 30 s – niebieska linia ↓ pobieranie (TV, filmy z innego komputera), zielona ↑ wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu przez LAN) i obie prędkości,
-- **godzina i data**.
+- **godzina i data**,
+- nad nimi **jakość strumienia**: np. „FHD 1920×1080 · 6,8 Mb/s · 50 kl/s”; pomarańczowe „⚠ utracone: N” = gubione klatki (przycina komputer), spadek Mb/s = przycina strumień od dostawcy. Przy filmie dochodzi kodek obrazu (np. H.264), a po najechaniu myszą – pełne dane techniczne pliku.
 
 Nad nimi:
 - **⏺ REC** – czerwona pigułka, gdy coś się nagrywa (kanał i godzina końca). Kliknij, aby zatrzymać albo przedłużyć.
@@ -93,7 +96,7 @@ Kliknij prawym przyciskiem na obrazie. Menu zawiera tylko to, czego nie ma jako 
 - **Telewizja:** co teraz leci i co następnie, **⏮ Od początku programu** (archiwum), **⏩ Na żywo**.
 - **📂 Otwórz plik…**
 - **🕘 Ostatnio oglądane TV** i **🕘 Ostatnio oglądane Filmy** – po 20 ostatnich, najnowsze na górze. Kanał włączony stąd gra w swojej grupie.
-- **📋 Lista kanałów / filmów**, **⏰ Zaplanuj włączenie**, napisy i lektor, zegar na obrazie.
+- **📋 Lista kanałów / filmów**, **⏰ Zaplanuj włączenie**, napisy i lektor. Zegar na obrazie ustawiasz klikając zegar z datą na pasku.
 - **⚙ Ustawienia** – przezroczystość listy, opcje połączenia, bufor kanałów, zapas nagrywania. Ustawienia paska sterowania (👁) i paska informacji (ikona z suwakami) są na końcu szybkich ikon.
 
 Rzeczy, które są ikonami na pasku (pauza, ulubione, nagrywanie, PiP, wyłącznik czasowy itd.), nie powtarzają się w tym menu – dzięki temu jest krótkie.
@@ -130,7 +133,7 @@ Otwórz klawiszem **L** albo przesuń kursor do lewej krawędzi obrazu.
 - W oknie **📺 Telewizja** dodajesz listy kanałów (M3U), wybierasz grupy, szukasz kanałów, widzisz program TV.
 - Program TV wczytuje się w tle – także wtedy, gdy włączysz kanał z odtwarzacza bez otwierania okna TV.
 - **✏ Edytuj kanał** (prawy przycisk): własna, czytelna nazwa i ikona (z pliku albo adresu). „Przywróć oryginał” wraca do nazwy z listy. Program TV działa dalej.
-- **Bufor kanałów** (⚙ Ustawienia): 1 s – najmniejsze opóźnienie; 3–5 s – gdy obraz się przycina.
+- **Bufor kanałów** (klik w wykres sieci na pasku – tam też opcje połączenia): 1 s – najmniejsze opóźnienie; 3–5 s – gdy obraz się przycina.
 
 ---
 
@@ -193,7 +196,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 **Kopia bezpieczeństwa:**
 - **Podstawowa** – same Twoje dane (~90 MB).
 - **Pełna** – wszystko bez śmieci, także program TV, ikony, głosy lektora (~0,5 GB). Po przywróceniu nic nie trzeba pobierać.
-- Ręcznie („💾 Utwórz kopię teraz”) albo automatycznie – codziennie lub raz w tygodniu. Folder najlepiej na innym dysku lub pendrive.
+- Ręcznie – „💾 Kopia przyrostowa teraz” (tylko zmiany od ostatniej kopii; gdy nie ma jeszcze pełnej kopii tego rodzaju, powstaje pełna) albo „💾 Pełna kopia teraz” (cała od nowa, np. przed dużą zmianą lub do przeniesienia na inny dysk) – albo automatycznie: codziennie lub raz w tygodniu. Folder najlepiej na innym dysku lub pendrive.
 - **Kopie przyrostowe** (domyślnie włączone): pełna kopia co 7 dni, a pomiędzy nimi tylko zmiany – zwykle kilka MB. Przy przywracaniu wskazujesz dowolną kopię, a Velivo samo składa pełną z przyrostami. Zostaje 5 ostatnich pełnych kopii razem z ich przyrostami. Trzymaj kopie z jednego łańcucha w jednym folderze.
 
 **Po poważnej awarii:**
@@ -205,11 +208,13 @@ Hasła są zaszyfrowane dla Twojego konta Windows – przywracaj na tym samym ko
 
 ---
 
+- Gdy otwarte jest menu, klik w obraz tylko je zamyka – film i TV grają dalej.
+
 ## 13. Gdy coś nie działa
 
 | Problem | Co zrobić |
 |---|---|
-| Obraz TV się przycina | ⚙ → Bufor kanałów 3–5 s; mniej połączeń naraz; wersja HD zamiast FHD |
+| Obraz TV się przycina | klik w wykres sieci → Bufor kanałów 3–5 s; mniej połączeń naraz; wersja HD zamiast FHD |
 | Brak dźwięku | sprawdź ikonę 🔈/🔊 w PiP i ścieżkę dźwięku 🎵 |
 | Archiwum nie startuje | spróbuj jeszcze raz – Velivo sprawdza kolejne formaty; przyślij vlc.log |
 | Ostrzeżenie o połączeniach | kliknij 🔌 i ustaw limit swojego dostawcy |

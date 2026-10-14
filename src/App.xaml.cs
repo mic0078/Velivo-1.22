@@ -55,6 +55,8 @@ namespace Przegladarka
             }));
             // Alt + kolko myszy = przezroczystosc okna (kazdego okna Velivo)
             EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseWheelEvent, new System.Windows.Input.MouseWheelEventHandler(Przegladarka.MainWindow.AlphaWheel));
+            // klik rolka w pole do pisania = klawiatura ekranowa (kazde okno Velivo; tylko gdy wlaczona w ustawieniach)
+            EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseDownEvent, new System.Windows.Input.MouseButtonEventHandler(Przegladarka.MainWindow.KeyboardOnMiddleClick));
             // Siatka bezpieczenstwa: nieprzewidziany blad nie wylacza przegladarki - zapis do pliku i komunikat.
             // Komunikat najwyzej jeden naraz i nie czesciej niz raz na 30 s dla tego samego bledu
             // (powtarzajacy sie blad nie moze zasypac ekranu okienkami) - kazdy blad i tak trafia do bledy.log.
@@ -154,6 +156,8 @@ namespace Przegladarka
                 }
                 File.WriteAllText(marker, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 Exit += (s, a) => { try { File.Delete(marker); } catch (Exception) { } };
+                // zamkniecie przez instalator nowej wersji (Menedzer ponownego uruchamiania) albo wylaczenie Windows - to nie awaria
+                SessionEnding += (s, a) => { try { File.Delete(marker); } catch (Exception) { } };
             }
             catch (Exception ex) { LogError(ex); }
         }

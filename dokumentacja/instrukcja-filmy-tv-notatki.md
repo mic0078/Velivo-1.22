@@ -19,7 +19,7 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Nad szybkimi ikonami: czerwona pulsująca pigułka „⏺ REC kanał · do HH:mm” (klik: zatrzymaj / przedłuż +15/+30/+60) i „🔌 Połączenia z dostawcą: N / limit” (klik: ustaw limit dostawcy; ostrzeżenie tylko po przekroczeniu).
 - Na obrazie u góry: czerwona kropka „Trwa nagrywanie: kanał” / „Trwa nagrywanie tego kanału” – także przy schowanym pasku.
 - Pasek informacji (I): kanał, audycja z godzinami i postępem, opis, następna; stałe miejsce nad paskiem (nie opada); opcja „pokazuj przy ruchu myszy”, czas znikania, przezroczystość, wielkość tekstu.
-- Zegar na obrazie (pozycja, wielkość, przezroczystość).
+- Zegar na obrazie (pokazuj, pozycja, wielkość, przezroczystość) – klik w zegar z datą na pasku (zniknął z menu kontekstowego).
 - Skróty: spacja, ←/→, ↑/↓ głośność, F pełny ekran, M wycisz, I informacje, L lista, PgUp/PgDn kanał, F5 odśwież, G/H przesunięcie napisów, [ ] prędkość, P/N poprzedni/następny.
 
 ## 3. Menu pod prawym przyciskiem (odtwarzacz)
@@ -40,7 +40,7 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Okno Telewizja: listy M3U, grupy, wyszukiwanie, sortowanie, program kanału, nagrania, zaplanowane.
 - Prawy przycisk na kanale: oglądaj, ulubione, ⧉ PiP, ✏ edytuj kanał (własna nazwa, ikona z pliku/adresu, przywróć oryginał – program TV dalej po nazwie z listy), kopiuj adres, przypisz program TV, nagrywanie.
 - Program TV wczytywany w tle z pamięci (także bez otwierania okna TV); pełny program TV (📅).
-- Bufor kanałów 1/3/5/10 s (przy przycięciach więcej).
+- Bufor kanałów 1/3/5/10 s (przy przycięciach więcej) i opcje połączenia (oglądanie z nagrania, zwalnianie połączenia po 5 min pauzy) – klik w wykres sieci na pasku (zniknęły z menu kontekstowego).
 
 ## 7. Archiwum TV (catch-up / timeshift)
 - Zielona kropka przy kanałach z archiwum (okno TV, lista w odtwarzaczu, pełny program TV), podpowiedź „Archiwum: N dni”.
@@ -54,7 +54,7 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - 2 min przed końcem: okienko „Nagrywać dalej?” (+15/+30/+60 / zakończ o czasie).
 - Oglądanie jednego kanału przy nagrywaniu innego (osobne połączenia); „⏺ Oglądaj z nagrania” dla tego samego kanału.
 - Po restarcie Velivo trwające zaplanowane nagranie się wznawia („Wznawiam nagrywanie… do HH:mm”).
-- Nagrania trafiają do biblioteki „Nagrane z TV”; folder nagrań do zmiany.
+- Nagrania trafiają do biblioteki „Nagrane z TV”; folder nagrań do zmiany. Nagrania nie pojawiają się w „Wszystkie filmy” (biblioteka, lista w odtwarzaczu, menu okienka) – są tylko w „Nagrane z TV”.
 
 ## 9. PiP (obraz w obrazie)
 - Kanał TV albo film w podglądzie (przy TV i przy filmie); wybór: Telewizja (ostatnio, ulubione, ta grupa, wszystkie grupy), Filmy (ostatnio, ulubione, wszystkie, otwórz plik).
@@ -90,3 +90,10 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - 📺 na górnym pasku: od razu ostatni kanał w odtwarzaczu (w swojej grupie), przeglądarka do zasobnika i wraca po zamknięciu; okno listy kanałów tylko przy pierwszym uruchomieniu – poza tym 📺 w szybkich ikonach albo prawy klik na 📺.
 - PiP z TV: na pasku podglądu po ⏮ ⏭ separator, przewijany napis (co leci + opis) i godzina końca audycji przed ikoną dźwięku.
 - Kopia przyrostowa (domyślnie włączona): pełna co 7 dni, pozostałe tylko zmiany (+ lista usuniętych); przywracanie dowolnej kopii – Velivo składa pełną + przyrosty; zostaje 5 ostatnich pełnych z przyrostami.
+- Ręczne kopie dwoma przyciskami: „💾 Kopia przyrostowa teraz” (na życzenie, bez limitu 7 dni; bez pełnej tego rodzaju – pełna) i „💾 Pełna kopia teraz”.
+- Nad wykresem sieci (prawa strona, linia NA ŻYWO): jakość strumienia – rozdzielczość (SD/HD/FHD/4K), przepływność, klatki/s; „⚠ utracone: N” na pomarańczowo przy gubionych klatkach.
+- Film: w linii jakości także kodek obrazu (np. FHD 1920×1080 · H.264 · 8,2 Mb/s · 24 kl/s; dźwięk tylko w podpowiedzi, żeby linia mieściła się nad wykresem); podpowiedź = pełne dane techniczne (plik, rozmiar, kontener, długość, obraz, wszystkie ścieżki dźwięku, napisy); te dane też w vlc.log.
+- Klik w obraz przy otwartym menu tylko zamyka menu – nie zatrzymuje filmu ani TV na żywo.
+- Klawiatura „żagiel”: wpływa łagodnie od dołu z rozjaśnieniem (ok. 0,3 s), odpływa w dół przy zamknięciu; fala w kolorach logo od naciśniętego klawisza (0,4 s). Kandydat do wersji Pro (motyw / animacje), razem z: nagrywaniem TV, PiP, wspólnym oglądaniem w LAN, kopiami przyrostowymi, pisaniem myszką z nauką ruchów.
+- Klawiatura „Velivo by Michael”: pisanie na zwykłej klawiaturze pokazuje falę na tym samym klawiszu ekranowym (podsłuch tylko gdy klawiatura otwarta, nic nie zapisuje, w polach haseł nic się nie zapala).
+- 🗣 w nagłówku klawiatury: menu – „Przeczytaj zaznaczony tekst” (Ctrl+C w programie docelowym, schowek przywracany; bez zaznaczenia tekst pola przez UI Automation) i „Czytaj na bieżąco”; nigdy w polu hasła.

@@ -105,6 +105,21 @@ namespace Przegladarka
             if (IsVisible) { EnsureTray(); Hide(); _inTray = true; _hiddenForPlayer = true; }
         }
 
+        // nazwa kodeka z kodu VLC (fourcc) - czytelna, jak w MediaInfo
+        internal static string CodecName(uint fourcc)
+        {
+            var c = new string(BitConverter.GetBytes(fourcc).Select(b => (char)b).ToArray()).Trim('\0', ' ').ToLowerInvariant();
+            switch (c)
+            {
+                case "h264": case "avc1": return "H.264"; case "hevc": case "h265": case "hvc1": return "H.265";
+                case "av01": return "AV1"; case "vp90": case "vp09": return "VP9"; case "vp80": return "VP8"; case "mpgv": case "mp2v": return "MPEG-2"; case "mp4v": case "xvid": case "divx": case "dx50": return "MPEG-4";
+                case "a52": return "AC3"; case "eac3": return "E-AC3"; case "mp4a": return "AAC"; case "mpga": case "mp3": return "MP3"; case "dts": return "DTS";
+                case "opus": return "Opus"; case "vorb": return "Vorbis"; case "flac": return "FLAC"; case "truehd": case "mlp": return "TrueHD"; case "araw": case "s16l": return "PCM";
+                default: return c.ToUpperInvariant();
+            }
+        }
+        internal static string ChannelsName(uint ch) { return ch == 1 ? "mono" : ch == 2 ? "stereo" : ch == 6 ? "5.1" : ch == 8 ? "7.1" : ch + "ch"; }
+
         // ---------- biblioteka ----------
 
         internal sealed class LibraryVideo
@@ -451,6 +466,16 @@ namespace Przegladarka
         {
             try { using (var f = File.OpenRead(path)) { var b = new byte[12]; return f.Read(b, 0, 12) == 12 && System.Text.Encoding.ASCII.GetString(b, 0, 4) == "RIFF" && System.Text.Encoding.ASCII.GetString(b, 8, 4) == "AVI "; } }
             catch (Exception) { return false; }
+        }
+
+        // otwarte menu (kontekstowe, z paska) - klik w obraz, ktory je zamyka, nie moze zatrzymac filmu ani TV
+        static int _menusOpen; static DateTime _menuClosedAt;
+        static bool _menuWatch;
+        static void WatchMenus()
+        {
+            if (_menuWatch) return; _menuWatch = true;
+            EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.OpenedEvent, new RoutedEventHandler((s, e) => _menusOpen++));
+            EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.ClosedEvent, new RoutedEventHandler((s, e) => { _menusOpen = Math.Max(0, _menusOpen - 1); _menuClosedAt = DateTime.UtcNow; }));
         }
 
         static readonly string VlcLogFile = System.IO.Path.Combine(DataDir, "vlc.log");
@@ -1044,7 +1069,7 @@ namespace Przegladarka
 
         bool EnsureLibVlc()
         {
-            var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
+            var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
             if (!Surround51) args.Add("--stereo-mode=1");
             var key = string.Join(" ", args);
             if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
@@ -1210,7 +1235,7 @@ namespace Przegladarka
             DockPanel.SetDock(timeNow, Dock.Left); DockPanel.SetDock(timeLen, Dock.Right);
             // TV na zywo: zamiast paska postepu przesuwajacy sie napis - co leci i krotki opis
             var ticker = new Canvas { ClipToBounds = true, Height = 21, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
-            var tickerText = new TextBlock { Foreground = fg, FontSize = 14.5, RenderTransform = new TranslateTransform() };
+            var tickerText = new TextBlock { Foreground = fg, FontSize = 14.5, RenderTransform = new TranslateTransform(), CacheMode = new BitmapCache() };   // przesuwany jako gotowy obrazek - plynniej
             // przed napisem: nazwa stacji pogrubiona (stoi w miejscu) i cienki separator
             var tickerName = new TextBlock { Foreground = fg, FontSize = 14.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
             var tickerSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x88, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(10, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
@@ -1225,7 +1250,8 @@ namespace Przegladarka
                 tt.BeginAnimation(TranslateTransform.XProperty, anim);
             };
             ticker.SizeChanged += (s, e) => { if (ticker.Visibility == Visibility.Visible) tickerRun(); };
-            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(tickerName); seekRow.Children.Add(tickerSep); seekRow.Children.Add(seek); seekRow.Children.Add(ticker);
+            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(tickerName); seekRow.Children.Add(tickerSep);
+            var seekArea = new Grid(); seekArea.Children.Add(seek); seekArea.Children.Add(ticker); seekRow.Children.Add(seekArea);   // wspolne pole wypelnia szerokosc: pasek postepu (film) albo napis (TV)
 
             var prev = glyphBtn("prev", L.T("Poprzedni (P)"));
             var play = glyphBtn("pause", L.T("Pauza / odtwarzaj (spacja)"));
@@ -1292,14 +1318,23 @@ namespace Przegladarka
             var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
             var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center };
             var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
-            var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
+            var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\nKliknij: opcje połączenia i bufor kanałów\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
+            var netDown = new System.Windows.Documents.Run { Foreground = netLine.Stroke };
+            var netUp = new System.Windows.Documents.Run { Foreground = netUpLine.Stroke };
+            netText.Inlines.Add(netDown); netText.Inlines.Add(new System.Windows.Documents.LineBreak()); netText.Inlines.Add(netUp);
             netBox.Children.Add(netGraph); netBox.Children.Add(netText);
             quick.Children.Add(netBox); quick.Children.Add(clockBox);
+            netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
+            // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
+            var streamInfo = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+                ToolTip = L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.") };
+            string techKey = null, techShort = "", techFull = "";   // dane techniczne biezacego filmu (raz na film)
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             netTimer.Tick += (s, e) =>
             {
-                var n = DateTime.Now; nowTime.Text = n.ToString("HH:mm"); nowDate.Text = n.ToString("ddd d.MM");
+                // zmiany tylko gdy naprawde inne - kazda zmiana przerysowuje cala warstwe paska (przesuwany napis by sie zacinal)
+                var n = DateTime.Now; var tt0 = n.ToString("HH:mm"); if (nowTime.Text != tt0) { nowTime.Text = tt0; nowDate.Text = n.ToString("ddd d.MM"); }
                 long total = 0, sent = 0;
                 try
                 {
@@ -1308,6 +1343,50 @@ namespace Przegladarka
                         { var st0 = ni.GetIPStatistics(); total += st0.BytesReceived; sent += st0.BytesSent; }
                 }
                 catch (Exception) { return; }
+                if (netLast >= 0 && controls.Visibility != Visibility.Visible) { netLast = total; netUpLast = sent; return; }   // pasek schowany - bez rysowania
+                try
+                {   // jakosc biezacego strumienia (statystyki VLC)
+                    string info = "";
+                    var md = mp.Media;
+                    var pNow = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                    bool isFilm = pNow != null && !_iptvPlaying.ContainsKey(pNow);
+                    if (md != null && isFilm && techKey != pNow && md.Tracks.Length > 0)
+                    {   // film: dane techniczne raz na film - linia (krotko), podpowiedz (wszystko) i vlc.log
+                        techKey = pNow;
+                        var tr = md.Tracks; var vt = tr.FirstOrDefault(x => x.TrackType == TrackType.Video); var at = tr.Where(x => x.TrackType == TrackType.Audio).ToList();
+                        long size = 0; try { if (File.Exists(pNow)) size = new FileInfo(pNow).Length; } catch (Exception) { }
+                        var vS = vt.TrackType == TrackType.Video ? CodecName(vt.Codec) : "";
+                        techShort = vS;   // w linii tylko kodek obrazu (miesci sie nad wykresem); dzwiek w podpowiedzi
+                        var full = new System.Text.StringBuilder();
+                        full.AppendLine(L.T("Plik: ") + System.IO.Path.GetFileName(pNow) + (size > 0 ? "  (" + (size / 1073741824.0 >= 1 ? (size / 1073741824.0).ToString("0.00") + " GB" : (size / 1048576.0).ToString("0") + " MB") + ")" : ""));
+                        full.AppendLine(L.T("Kontener: ") + System.IO.Path.GetExtension(pNow).TrimStart('.').ToUpperInvariant() + L.T("   Długość: ") + FormatTime(mp.Length));
+                        if (vt.TrackType == TrackType.Video) full.AppendLine(L.T("Obraz: ") + vS + "  " + vt.Data.Video.Width + "×" + vt.Data.Video.Height + (vt.Data.Video.FrameRateDen > 0 ? "  " + (vt.Data.Video.FrameRateNum / (double)vt.Data.Video.FrameRateDen).ToString("0.###") + L.T(" kl/s") : "") + (vt.Bitrate > 0 ? "  " + (vt.Bitrate / 1000000.0).ToString("0.0") + " Mb/s" : ""));
+                        foreach (var a in at) full.AppendLine(L.T("Dźwięk: ") + CodecName(a.Codec) + "  " + ChannelsName(a.Data.Audio.Channels) + "  " + (a.Data.Audio.Rate / 1000.0).ToString("0.#") + " kHz" + (string.IsNullOrEmpty(a.Language) ? "" : "  [" + a.Language + "]") + (string.IsNullOrEmpty(a.Description) ? "" : "  " + a.Description));
+                        int subsN = tr.Count(x => x.TrackType == TrackType.Text); if (subsN > 0) full.AppendLine(L.T("Napisy w pliku: ") + subsN);
+                        techFull = full.ToString().TrimEnd();
+                        try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, "--- dane filmu ---\n" + techFull.Replace("\r", "") + "\n------------------\n"); } catch (Exception) { }   // przy zgloszeniu problemu od razu widac, co to za plik
+                    }
+                    if (md != null && (mp.IsPlaying || mp.State == VLCState.Paused))
+                    {
+                        uint vw = 0, vh = 0; mp.Size(0, ref vw, ref vh);
+                        var st = md.Statistics;
+                        double kbps = Math.Max(0, st.DemuxBitrate) * 8000;   // VLC: bajty na ms -> kb/s
+                        var q = vh >= 2000 ? "4K" : vh >= 1000 ? "FHD" : vh >= 700 ? "HD" : vh > 0 ? "SD" : "";
+                        var parts = new List<string>();
+                        if (vh > 0) parts.Add(q + " " + vw + "×" + vh);
+                        if (isFilm && techKey == pNow && techShort.Length > 0) parts.Add(techShort);   // film: kodek obrazu
+                        if (kbps > 0) parts.Add(kbps >= 1000 ? (kbps / 1000).ToString("0.0") + " Mb/s" : kbps.ToString("0") + " kb/s");
+                        var fps = mp.Fps; if (fps > 0) parts.Add(fps.ToString("0.#") + L.T(" kl/s"));
+                        info = string.Join(" · ", parts);
+                        int lost = st.LostPictures;
+                        if (lost > 0) info += L.T("  ⚠ utracone: ") + lost;
+                        var col = lost > 0 ? Brushes.Orange : Brushes.Silver; if (streamInfo.Foreground != col) streamInfo.Foreground = col;
+                    }
+                    if (streamInfo.Text != info) streamInfo.Text = info;
+                    var tip = isFilm && techKey == pNow ? techFull + L.T("\n\nUtracone klatki (pomarańczowe) – przycina komputer.") : L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.");
+                    if ((string)streamInfo.ToolTip != tip) streamInfo.ToolTip = tip;
+                }
+                catch (Exception) { }
                 if (netLast >= 0)
                 {
                     double bps = Math.Max(0, total - netLast), ups = Math.Max(0, sent - netUpLast);
@@ -1317,7 +1396,7 @@ namespace Przegladarka
                     Func<List<double>, PointCollection> line = h => { var pts = new PointCollection(); for (int k = 0; k < h.Count; k++) pts.Add(new Point(120 - (h.Count - 1 - k) * 4.0, 27 - 24 * h[k] / max)); return pts; };
                     netLine.Points = line(netHist); netUpLine.Points = line(netUpHist);
                     Func<double, string> sp = v => v >= 1048576 ? (v / 1048576).ToString("0.0") + " MB/s" : (v / 1024).ToString("0") + " KB/s";
-                    netText.Text = "↓ " + sp(bps) + "\n↑ " + sp(ups);
+                    netDown.Text = "↓ " + sp(bps); netUp.Text = "↑ " + sp(ups);
                 }
                 netLast = total; netUpLast = sent;
             };
@@ -1329,9 +1408,18 @@ namespace Przegladarka
             recPill.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.55, TimeSpan.FromSeconds(1.1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });   // delikatne pulsowanie jak w dekoderze
             var connText = new Button { Cursor = Cursors.Hand, Padding = new Thickness(6, 1, 6, 1), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed,
                 Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse("<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Border Background='Transparent' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border></ControlTemplate>") };
-            var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 4, 4, 0), Height = 21, VerticalAlignment = VerticalAlignment.Top };   // ta sama wysokosc i linia co rzad z czasem / NA ZYWO
-            statusRow.Children.Add(recPill); statusRow.Children.Add(connText);
+            var statusRow = new DockPanel { LastChildFill = false, Margin = new Thickness(12, 4, 4, 0), Height = 21, VerticalAlignment = VerticalAlignment.Top };   // ta sama wysokosc i linia co rzad z czasem / NA ZYWO
+            // separator nad dolnym separatorem (przed wykresem sieci)
+            var infoSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(recPill, Dock.Left); DockPanel.SetDock(connText, Dock.Left); DockPanel.SetDock(streamInfo, Dock.Right); DockPanel.SetDock(infoSep, Dock.Right);
+            statusRow.Children.Add(recPill); statusRow.Children.Add(connText); statusRow.Children.Add(streamInfo); statusRow.Children.Add(infoSep);
             var quickCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; quickCol.Children.Add(statusRow); quickCol.Children.Add(quick);
+            // dane strumienia rowno od lewej z wykresem sieci (zaraz za separatorem)
+            SizeChangedEventHandler alignInfo = (s, e) =>
+            {
+                try { var x = netBox.TranslatePoint(new Point(0, 0), statusRow).X; if (x > 0 && statusRow.ActualWidth > x) streamInfo.Width = statusRow.ActualWidth - x; } catch (InvalidOperationException) { }
+            };
+            statusRow.SizeChanged += alignInfo; quick.SizeChanged += alignInfo;
             var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quickCol);
             // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
             var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -1371,6 +1459,31 @@ namespace Przegladarka
             var osdTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(3500) };   // komunikaty (dzwiek, glosnosc...) - czas na przeczytanie
             osdTimer.Tick += (s, e) => { osdTimer.Stop(); osd.Visibility = Visibility.Collapsed; };
             Action<string> showOsd = t => { osd.Text = t; osd.Visibility = Visibility.Visible; osdTimer.Stop(); osdTimer.Start(); };
+            netBox.MouseLeftButtonUp += (s, e) =>
+            {   // opcje polaczenia z dostawca i bufor kanalow (zamiast w menu kontekstowym)
+                var cm = new ContextMenu { PlacementTarget = netBox, Placement = PlacementMode.Top };
+                cm.Items.Add(new MenuItem { Header = L.T("Opcje połączenia:"), IsEnabled = false });
+                var o1 = new MenuItem { Header = L.T("Nagrywany kanał oglądaj z nagrania (jedno połączenie, pauza i cofanie)"), IsCheckable = true, IsChecked = IptvSt.WatchFromRec };
+                o1.Click += (q, w2) => { IptvSt.WatchFromRec = !IptvSt.WatchFromRec; SaveIptv(IptvSt); };
+                var o2 = new MenuItem { Header = L.T("Po 5 min pauzy zwolnij połączenie z dostawcą"), IsCheckable = true, IsChecked = IptvSt.PauseRelease };
+                o2.Click += (q, w2) => { IptvSt.PauseRelease = !IptvSt.PauseRelease; SaveIptv(IptvSt); };
+                cm.Items.Add(o1); cm.Items.Add(o2);
+                cm.Items.Add(new Separator());
+                // zapas bufora: wiecej = mniej przyciec, ale troche wieksze opoznienie i wolniejsze przelaczanie
+                cm.Items.Add(new MenuItem { Header = L.T("Bufor kanałów:"), IsEnabled = false });
+                foreach (var sec0 in new[] { 1, 3, 5, 10 })
+                {
+                    var sec = sec0; var bi = new MenuItem { Header = sec + " s" + (sec == 1 ? L.T(" (najmniejsze opóźnienie)") : sec == 3 ? L.T(" (zalecane przy przycięciach)") : ""), IsCheckable = true, IsChecked = IptvSt.Buffer == sec };
+                    bi.Click += (q, w2) =>
+                    {
+                        IptvSt.Buffer = sec; SaveIptv(IptvSt); showOsd(L.T("Bufor: ") + sec + " s");
+                        var pb = _playIndex >= 0 && _playIndex < _playlist.Count ? _playlist[_playIndex] : null;
+                        if (pb != null && _iptvPlaying.ContainsKey(pb)) _vlcLoad(_playIndex);   // nowy bufor od razu tylko dla telewizji
+                    };
+                    cm.Items.Add(bi);
+                }
+                cm.IsOpen = true; e.Handled = true;
+            };
             // czas widocznosci paska (ustawienie ikona na koncu paska); 0 = zawsze widoczny
             Func<double> barSec = () => double.TryParse(GetPref("pasek-czas"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bs) ? bs : 2.5;
             var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(barSec() > 0 ? barSec() : 2.5) };
@@ -1770,6 +1883,30 @@ namespace Przegladarka
                 double bottom = controls.Visibility == Visibility.Visible ? controls.ActualHeight + 12 : 16;   // nad paskiem sterowania
                 clock.Margin = new Thickness(18, pos.EndsWith("g") ? 16 : 0, 18, pos.EndsWith("d") ? bottom : 0);
             };
+            clockBox.Cursor = Cursors.Hand; clockBox.Background = Brushes.Transparent;
+            clockBox.ToolTip = L.T("Kliknij: zegar na obrazie (pokazuj, pozycja, wielkość, przezroczystość)");
+            clockBox.MouseLeftButtonUp += (s, e) =>
+            {   // zegar na obrazie: wlacz, pozycja, wielkosc, przezroczystosc (zamiast w menu kontekstowym)
+                var clM = new ContextMenu { PlacementTarget = clockBox, Placement = PlacementMode.Top };
+                var on = new MenuItem { Header = L.T("Pokazuj zegar"), IsCheckable = true, IsChecked = GetPref("zegar") == "1" };
+                on.Click += (q, w2) => { SetPref("zegar", on.IsChecked ? "1" : "0"); layoutClock(); };
+                clM.Items.Add(on);
+                Action<string, string, (string, string)[]> opts = (title, pref, items) =>
+                {
+                    var sub = new MenuItem { Header = title };
+                    foreach (var it0 in items)
+                    {
+                        var it = it0; var mi = new MenuItem { Header = it.Item2, IsCheckable = true, IsChecked = (GetPref(pref) ?? (pref == "zegar-poz" ? "pg" : pref == "zegar-wielk" ? "2" : "85")) == it.Item1 };
+                        mi.Click += (q, w2) => { SetPref(pref, it.Item1); SetPref("zegar", "1"); layoutClock(); };
+                        sub.Items.Add(mi);
+                    }
+                    clM.Items.Add(sub);
+                };
+                opts(L.T("📍 Pozycja"), "zegar-poz", new[] { ("lg", L.T("↖ Lewy górny róg")), ("sg", L.T("⬆ Góra – środek")), ("pg", L.T("↗ Prawy górny róg")), ("ld", L.T("↙ Lewy dolny róg")), ("sd", L.T("⬇ Dół – środek")), ("pd", L.T("↘ Prawy dolny róg")) });
+                opts(L.T("🔠 Wielkość"), "zegar-wielk", new[] { ("0", L.T("Bardzo mały")), ("1", L.T("Mały")), ("2", L.T("Średni")), ("3", L.T("Duży")) });
+                opts(L.T("🌓 Przezroczystość"), "zegar-alfa", new[] { ("100", "0 %"), ("85", "15 %"), ("65", "35 %"), ("45", "55 %"), ("30", "70 %"), ("20", "80 %"), ("10", "90 %") });
+                clM.IsOpen = true; e.Handled = true;
+            };
             var clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             clockTimer.Tick += (s, e) => { if (clock.Visibility == Visibility.Visible) clockText.Text = DateTime.Now.ToString("HH:mm"); };
             clockTimer.Start(); clockText.Text = DateTime.Now.ToString("HH:mm");
@@ -1825,7 +1962,7 @@ namespace Przegladarka
                 }
                 var fk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? (realQueue ? fCur : fAll);
                 var how = GetPref("sort-lista-filmow") ?? "az";
-                var libAll = LoadLibrary();
+                var libAll = LoadLibrary(); var recDirs = TvRecDirs();   // nagrania TV - tylko w "Nagrane z TV"
                 var curP = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 _remoteFilms.TryGetValue(curP ?? "", out var rfCur);
                 bool remoteCur = fk == fCur && rfCur != null;
@@ -1840,7 +1977,7 @@ namespace Przegladarka
                     : fk == fRec ? libAll.Where(v => v.Last > 0 && v.Peer == null).ToList()
                     : fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? (fk.StartsWith("\u0001mine") ? pls.Mine : pls.Named.TryGetValue(fk.Substring(4), out var pl0) ? pl0 : new List<string>())
                         .Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList()   // kolejnosc playlisty
-                    : SortFilms(libAll.Where(v => v.Peer == null), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
+                    : SortFilms(libAll.Where(v => v.Peer == null && !UnderAny(v.Path, recDirs)), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
                 // sortowanie nie dotyczy kolejnosci odtwarzania ani ostatnio ogladanych (zawsze od najnowszego)
                 chSort.Visibility = fk == fRec || fk == fCur && !remoteCur || fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? Visibility.Collapsed : Visibility.Visible;
                 chList.Items.Clear(); ListBoxItem cur = null;
@@ -2190,10 +2327,11 @@ namespace Przegladarka
                 }
                 seek.IsEnabled = false;   // na zywo nie przewijamy
                 var p = EpgAt(EpgFor(_iptvEpg, c), DateTime.Now);
-                if (p != null) { timeNow.Text = p.Start.ToString("HH:mm"); timeLen.Text = p.Stop.ToString("HH:mm") + L.T("  ● NA ŻYWO"); }
-                else { timeNow.Text = ""; timeLen.Text = L.T("● NA ŻYWO"); }
+                var tn = p != null ? p.Start.ToString("HH:mm") : ""; var tl = p != null ? p.Stop.ToString("HH:mm") + L.T("  ● NA ŻYWO") : L.T("● NA ŻYWO");
+                if (timeNow.Text != tn) timeNow.Text = tn; if (timeLen.Text != tl) timeLen.Text = tl;
+                if (tickerName.Text != c.Name) tickerName.Text = c.Name;
                 // napis: tytul, odcinek i poczatek opisu (zmienia sie z audycja)
-                tickerName.Text = c.Name; tickerName.Visibility = tickerSep.Visibility = Visibility.Visible;
+                tickerName.Visibility = tickerSep.Visibility = Visibility.Visible;
                 var desc = p == null ? L.T("brak programu TV") : "▶ " + p.Title + (string.IsNullOrEmpty(p.Sub) ? "" : " – " + p.Sub) + (string.IsNullOrEmpty(p.Desc) ? "" : "   ·   " + (p.Desc.Length > 160 ? p.Desc.Substring(0, 160).TrimEnd() + "…" : p.Desc));
                 seek.Visibility = Visibility.Collapsed;
                 if (ticker.Visibility != Visibility.Visible || tickerText.Text != desc) { ticker.Visibility = Visibility.Visible; tickerText.Text = desc; Dispatcher.BeginInvoke(tickerRun, DispatcherPriority.Loaded); }
@@ -2201,8 +2339,11 @@ namespace Przegladarka
             };
             tvShownRef = () => tvShown();
             mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(guard(() => { if (!tvShown()) timeLen.Text = FormatTime(e.Length); }));
+            DateTime tvLastUpd = DateTime.MinValue;
             mp.TimeChanged += (s, e) => Dispatcher.BeginInvoke(guard(() =>
             {
+                var lc = liveCh();
+                if (lc != null && !lc.ArchiveStart.HasValue) { if ((DateTime.Now - tvLastUpd).TotalSeconds < 5) return; tvLastUpd = DateTime.Now; }   // na zywo: co 5 s wystarczy (godziny i napis zmieniaja sie z audycja)
                 if (tvShown()) return;
                 timeNow.Text = FormatTime(e.Time);
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
@@ -2563,7 +2704,7 @@ namespace Przegladarka
                     var pSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x77, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(6, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(pSep, Dock.Left);
                     var pEnd = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) }; DockPanel.SetDock(pEnd, Dock.Right);
                     var pTicker = new Canvas { ClipToBounds = true, Height = 18, VerticalAlignment = VerticalAlignment.Center };
-                    var pTickText = new TextBlock { Foreground = Brushes.White, FontSize = 12.5, RenderTransform = new TranslateTransform() }; pTicker.Children.Add(pTickText);
+                    var pTickText = new TextBlock { Foreground = Brushes.White, FontSize = 12.5, RenderTransform = new TranslateTransform(), CacheMode = new BitmapCache() }; pTicker.Children.Add(pTickText);
                     Action pTickRun = () =>
                     {
                         pTickText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -2572,7 +2713,7 @@ namespace Przegladarka
                     };
                     pTicker.SizeChanged += (q, w2) => { if (pTicker.Visibility == Visibility.Visible) pTickRun(); };
                     pBar.Children.Add(pSnd); pBar.Children.Add(pEnd);
-                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pSep); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek); pBar.Children.Add(pTicker);
+                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pSep); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); var pArea = new Grid(); pArea.Children.Add(pSeek); pArea.Children.Add(pTicker); pBar.Children.Add(pArea);   // pasek postepu (film) albo napis (TV) - zawsze cala szerokosc
                     // glowny zmienil kanal / film przy dzwieku z podgladu - jego sciezka znow wylaczona (po ustawieniu sciezek)
                     mp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() => { if (!pipSound) return; var t1 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1300) }; t1.Tick += (a1, b1) => { t1.Stop(); if (pipSound) { mainTrack = mp.AudioTrack >= 0 ? mp.AudioTrack : mainTrack; mp.SetAudioTrack(-1); } }; t1.Start(); }));
                     // nowy kanal / film w podgladzie - bez dzwieku, dopoki nie przelaczysz; sciezka dzwieku pojawia sie chwile po starcie, wiec ponawiamy do skutku
@@ -2603,7 +2744,7 @@ namespace Przegladarka
                         if (!film && pipCh != null)
                         {   // co leci na kanale z podgladu i do ktorej
                             var pp = EpgAt(EpgFor(_iptvEpg, pipCh), DateTime.Now);
-                            pEnd.Text = pp != null ? L.T("do ") + pp.Stop.ToString("HH:mm") : "";
+                            var pe = pp != null ? L.T("do ") + pp.Stop.ToString("HH:mm") : ""; if (pEnd.Text != pe) pEnd.Text = pe;   // tylko przy zmianie - bez przerysowania co chwile
                             var txt = pp == null ? L.T("brak programu TV") : "▶ " + pp.Title + (string.IsNullOrEmpty(pp.Sub) ? "" : " – " + pp.Sub) + (string.IsNullOrEmpty(pp.Desc) ? "" : "   ·   " + (pp.Desc.Length > 120 ? pp.Desc.Substring(0, 120).TrimEnd() + "…" : pp.Desc));
                             if (pTickText.Text != txt) { pTickText.Text = txt; Dispatcher.BeginInvoke(pTickRun, DispatcherPriority.Loaded); }
                         }
@@ -2711,7 +2852,8 @@ namespace Przegladarka
                 fSub(L.T("🕘 Ostatnio oglądane"), libF.Where(v => v.Last > 0).OrderByDescending(v => v.Last).Take(20));
                 var favF = LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>();
                 fSub(L.T("⭐ Ulubione"), favF.Select(u => libF.FirstOrDefault(v => string.Equals(v.Path, u, StringComparison.OrdinalIgnoreCase))).Where(v => v != null));
-                fSub(L.T("📚 Wszystkie filmy (") + libF.Count + ")", libF.OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
+                var recD = TvRecDirs(); var allF = libF.Where(v => !UnderAny(v.Path, recD)).ToList();   // nagrania TV - tylko w "Nagrane z TV"
+                fSub(L.T("📚 Wszystkie filmy (") + allF.Count + ")", allF.OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
                 if (fm.Items.Count > 0) fm.Items.Add(new Separator());
                 pa(fm, L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(false, Window.GetWindow(overlay) ?? win); if (fs != null && fs.Length > 0) pipShow(pipFilm(fs[0])); }, true);
                 cm.Items.Add(fm);
@@ -2982,10 +3124,12 @@ namespace Przegladarka
                 }
             });
 
+            WatchMenus();
             // mysz na obrazie: klik = pauza, dwuklik = pelny ekran, kolko = glosnosc, ruch = pokaz pasek (pelny ekran)
             overlay.MouseLeftButtonDown += (s, e) =>
             {
                 if (controls.IsMouseOver) return;   // klik na pasku to nie klik w obraz
+                if (_menusOpen > 0 || (DateTime.UtcNow - _menuClosedAt).TotalMilliseconds < 400) { e.Handled = true; return; }   // klik tylko zamyka otwarte menu - bez pauzy
                 if (overPip(e)) { pipSwap?.Invoke(); e.Handled = true; return; }   // klik na podgladzie PiP - zamiana kanalow, bez pauzy glownego
                 var curPath = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (chPanel.Visibility == Visibility.Visible) { showChannels(false); e.Handled = true; return; }   // klik obok listy - schowaj (bez pauzy)
@@ -3087,21 +3231,6 @@ namespace Przegladarka
                     add(L.T("🔄 Odśwież kanał (F5)"), () => { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); }, true);
                     if (curRecFile != null) add(L.T("⏩ Na żywo (koniec nagrania)"), () => { recResume = -1; _vlcLoad(_playIndex); }, true);
                     else if (IptvSt.WatchFromRec && RecFileFor(path) != null) add(L.T("⏺ Oglądaj z nagrania (jedno połączenie, pauza i cofanie)"), () => { recResume = -1; _vlcLoad(_playIndex); }, true);
-                    var optM = new MenuItem { Header = L.T("⚙ Opcje połączenia") };
-                    var o1 = new MenuItem { Header = L.T("Nagrywany kanał oglądaj z nagrania (jedno połączenie, pauza i cofanie)"), IsCheckable = true, IsChecked = IptvSt.WatchFromRec };
-                    o1.Click += (q, w2) => { IptvSt.WatchFromRec = !IptvSt.WatchFromRec; SaveIptv(IptvSt); };
-                    var o2 = new MenuItem { Header = L.T("Po 5 min pauzy zwolnij połączenie z dostawcą"), IsCheckable = true, IsChecked = IptvSt.PauseRelease };
-                    o2.Click += (q, w2) => { IptvSt.PauseRelease = !IptvSt.PauseRelease; SaveIptv(IptvSt); };
-                    optM.Items.Add(o1); optM.Items.Add(o2); cm.Items.Add(optM);
-                    // zapas bufora: wiecej = mniej przyciec, ale troche wieksze opoznienie i wolniejsze przelaczanie
-                    var bufM = new MenuItem { Header = L.T("⏱ Bufor kanałów: ") + IptvSt.Buffer + " s" };
-                    foreach (var sec0 in new[] { 1, 3, 5, 10 })
-                    {
-                        var sec = sec0; var bi = new MenuItem { Header = sec + " s" + (sec == 1 ? L.T(" (najmniejsze opóźnienie)") : sec == 3 ? L.T(" (zalecane przy przycięciach)") : ""), IsCheckable = true, IsChecked = IptvSt.Buffer == sec };
-                        bi.Click += (q, w2) => { IptvSt.Buffer = sec; SaveIptv(IptvSt); showOsd(L.T("Bufor: ") + sec + " s"); _vlcLoad(_playIndex); };
-                        bufM.Items.Add(bi);
-                    }
-                    cm.Items.Add(bufM);
                     cm.Items.Add(RecMarginMenu());
                     var tvCh = _iptvPlaying[path];
                     if (IsRecording(path)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(path), true);
@@ -3146,27 +3275,6 @@ namespace Przegladarka
                 add(L.T("🔲 Tryb mini"), toggleMini, true);
                 add(L.T("🖥 Pełny ekran"), toggleFull, true);
                 add(L.T("📷 Zrzut klatki"), click(snap), true);
-                {   // zegar: wlacz, pozycja, wielkosc, przezroczystosc
-                    var clM = new MenuItem { Header = L.T("🕐 Zegar na obrazie") };
-                    var on = new MenuItem { Header = L.T("Pokazuj zegar"), IsCheckable = true, IsChecked = GetPref("zegar") == "1" };
-                    on.Click += (q, w2) => { SetPref("zegar", on.IsChecked ? "1" : "0"); layoutClock(); };
-                    clM.Items.Add(on);
-                    Action<string, string, (string, string)[]> opts = (title, pref, items) =>
-                    {
-                        var sub = new MenuItem { Header = title };
-                        foreach (var it0 in items)
-                        {
-                            var it = it0; var mi = new MenuItem { Header = it.Item2, IsCheckable = true, IsChecked = (GetPref(pref) ?? (pref == "zegar-poz" ? "pg" : pref == "zegar-wielk" ? "2" : "85")) == it.Item1 };
-                            mi.Click += (q, w2) => { SetPref(pref, it.Item1); SetPref("zegar", "1"); layoutClock(); };
-                            sub.Items.Add(mi);
-                        }
-                        clM.Items.Add(sub);
-                    };
-                    opts(L.T("📍 Pozycja"), "zegar-poz", new[] { ("lg", L.T("↖ Lewy górny róg")), ("sg", L.T("⬆ Góra – środek")), ("pg", L.T("↗ Prawy górny róg")), ("ld", L.T("↙ Lewy dolny róg")), ("sd", L.T("⬇ Dół – środek")), ("pd", L.T("↘ Prawy dolny róg")) });
-                    opts(L.T("🔠 Wielkość"), "zegar-wielk", new[] { ("0", L.T("Bardzo mały")), ("1", L.T("Mały")), ("2", L.T("Średni")), ("3", L.T("Duży")) });
-                    opts(L.T("🌓 Przezroczystość"), "zegar-alfa", new[] { ("100", "0 %"), ("85", "15 %"), ("65", "35 %"), ("45", "55 %"), ("30", "70 %"), ("20", "80 %"), ("10", "90 %") });
-                    cm.Items.Add(clM);
-                }
                 // porzadek: odtwarzanie, telewizja / film, listy, udostepnianie, widok, a ustawienia w jednym podmenu
                 string H(object o) => (o as MenuItem)?.Header as string ?? "";
                 Func<string, string[], bool> starts = (h, ps) => ps.Any(p0 => h.StartsWith(L.T(p0)));
@@ -3177,8 +3285,8 @@ namespace Przegladarka
                     (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
-                    (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
-                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
+                    (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki" }),
+                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
                 // co jest ikona na pasku - nie powtarzamy w menu (krotsze menu)
                 var onBar = new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop", "⏮ Poprzedni kanał", "⏭ Następny kanał", "ℹ Pokaż informacje", "🔄 Odśwież kanał", "⏺ Nagrywaj ten kanał", "⏹ Zatrzymaj nagrywanie",

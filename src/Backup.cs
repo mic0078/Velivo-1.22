@@ -135,17 +135,18 @@ namespace Przegladarka
         string BackupDir { get { var d = GetPref("kopia-folder"); return string.IsNullOrWhiteSpace(d) ? DefaultBackupDir : d; } }
         string NewBackupPath(bool inc = false) { return Path.Combine(BackupDir, BackupPrefix + DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + (inc ? IncSuffix : "") + ".zip"); }
 
-        // jedna kopia wg ustawien: przyrostowa (gdy wlaczona, jest pelna z ostatnich 7 dni i spis) albo pelna; zwraca sciezke i liczbe plikow
-        (string Path, int Count) MakeBackupNow()
+        // jedna kopia: inc == null - wg ustawien (przyrostowa, gdy wlaczona i jest pelna z ostatnich 7 dni), true - przyrostowa na zyczenie
+        // (gdy jest od czego - inaczej pelna), false - pelna na zyczenie; zwraca sciezke i liczbe plikow
+        (string Path, int Count) MakeBackupNow(bool? inc = null)
         {
-            bool full = GetPref("kopia-pelna") != "0", incOn = GetPref("kopia-przyrost") != "0"; var dir = BackupDir;
+            bool full = GetPref("kopia-pelna") != "0", incOn = inc ?? GetPref("kopia-przyrost") != "0"; var dir = BackupDir;
             Dictionary<string, string> prev = null;
             if (incOn && Directory.Exists(dir))
             {
                 var all = new DirectoryInfo(dir).GetFiles(BackupPrefix + "*.zip").OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
                 var lastFull = all.LastOrDefault(x => !IsIncrement(x.Name));
                 bool sameKind = GetPref("kopia-rodzaj-ostatniej") == (full ? "pelna" : "podstawowa");   // zmiana rodzaju - nowa pelna kopia
-                if (lastFull != null && DateTime.Now - lastFull.LastWriteTime < TimeSpan.FromDays(7) && sameKind) prev = ReadManifest(all.Last().FullName);
+                if (lastFull != null && (DateTime.Now - lastFull.LastWriteTime < TimeSpan.FromDays(7) || inc == true) && sameKind) prev = ReadManifest(all.Last().FullName);
             }
             var path = NewBackupPath(prev != null);
             int n = CreateBackup(path, full, prev);
@@ -317,22 +318,25 @@ namespace Przegladarka
                 catch (Exception) { lastInfo.Text = ""; }
             };
             sp.Children.Add(lastInfo);
-            var bRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var make = new Button { Content = L.T("💾 Utwórz kopię teraz"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0) };
-            var restore = new Button { Content = L.T("♻ Przywróć z kopii…"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0) };
-            var open = new Button { Content = L.T("📁 Otwórz folder kopii"), Padding = new Thickness(14, 6, 14, 6) };
-            make.Click += async (s, e) =>
+            var bRow = new WrapPanel();
+            var make = new Button { Content = L.T("💾 Kopia przyrostowa teraz"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 6), ToolTip = L.T("Tylko zmiany od ostatniej kopii (zwykle kilka MB).\nGdy nie ma jeszcze pełnej kopii tego rodzaju, powstanie pełna.") };
+            var makeFull = new Button { Content = L.T("💾 Pełna kopia teraz"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 6), ToolTip = L.T("Cała kopia od nowa – np. przed dużą zmianą albo do przeniesienia na inny dysk.") };
+            var restore = new Button { Content = L.T("♻ Przywróć z kopii…"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 6) };
+            var open = new Button { Content = L.T("📁 Otwórz folder kopii"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 0, 6) };
+            RoutedEventHandler doMake = async (s, e) =>
             {
-                make.IsEnabled = false; make.Content = L.T("Tworzę kopię…");
+                var b = (Button)s; var label = b.Content; bool inc = b == make;
+                make.IsEnabled = makeFull.IsEnabled = false; b.Content = L.T("Tworzę kopię…");
                 try
                 {
-                    var r = await Task.Run(() => MakeBackupNow());
+                    var r = await Task.Run(() => MakeBackupNow(inc));
                     SetPref("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
                     ShowToast((IsIncrement(r.Path) ? L.T("💾 Kopia przyrostowa gotowa: ") : L.T("💾 Kopia pełna gotowa: ")) + Path.GetFileName(r.Path) + " (" + r.Count + L.T(" plików, ") + Mb(new FileInfo(r.Path).Length) + ")", r.Path);
                 }
                 catch (Exception ex) { App.LogError(ex); InfoBox(w, L.T("Nie udało się utworzyć kopii:\n") + ex.Message); }
-                make.IsEnabled = true; make.Content = L.T("💾 Utwórz kopię teraz"); showLast();
+                make.IsEnabled = makeFull.IsEnabled = true; b.Content = label; showLast();
             };
+            make.Click += doMake; makeFull.Click += doMake;
             restore.Click += (s, e) =>
             {
                 var d = new Microsoft.Win32.OpenFileDialog { Title = L.T("Kopia Velivo do przywrócenia"), Filter = L.T("Kopia Velivo") + "|*.zip" };
@@ -345,7 +349,7 @@ namespace Przegladarka
                 catch (Exception ex) { App.LogError(ex); InfoBox(w, ex.Message); }
             };
             open.Click += (s, e) => { try { Directory.CreateDirectory(BackupDir); System.Diagnostics.Process.Start("explorer.exe", "\"" + BackupDir + "\""); } catch (Exception) { } };
-            bRow.Children.Add(make); bRow.Children.Add(restore); bRow.Children.Add(open);
+            bRow.Children.Add(make); bRow.Children.Add(makeFull); bRow.Children.Add(restore); bRow.Children.Add(open);
             sp.Children.Add(bRow);
             w.Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 60 };
             refresh(); showLast();

@@ -1,31 +1,37 @@
 # Zasady pracy w repozytorium Velivo
 
-## Gałęzie
-- `main` – stabilna, publiczna wersja. Push do `main` automatycznie buduje i podmienia publiczny instalator (`Instalator/`).
-- `rozwoj` – JEDYNA gałąź robocza. Wszystkie zmiany (poprawki, testy, dokumentacja) idą tylko tutaj.
-- Nie twórz nowych gałęzi roboczych (`fix/...`, `claude/...`, `test/...`). Pracuj zawsze na `rozwoj`.
-- Do `main` scalaj dopiero po teście właściciela na instalatorze testowym i jego wyraźnym „scal”.
+Velivo ma być lekkie, szybkie i dyskretne — każdą zmianę oceniaj pod kątem płynności, rozmiaru i prywatności.
+
+## Gałęzie i scalanie
+
+* `rozwoj` to jedyna gałąź robocza. Nie twórz innych gałęzi.
+* `main` jest wersją publiczną; push uruchamia publikację instalatora.
+* Do `main` scalaj tylko po zielonych testach na ostatniej zmianie i wyraźnym poleceniu właściciela: „scal”.
+* Nie zmieniaj opublikowanej historii `main` przez force-push, rebase ani amend.
+
+## Zmiany i testy
+
+1. Sprawdź stan repozytorium i dostępne testy.
+2. Odtwórz problem przed poprawką. Jeśli nie da się tego zautomatyzować, opisz sposób reprodukcji i ograniczenie.
+3. Wprowadź najmniejszą czytelną poprawkę. Nie dodawaj martwego kodu ani nie zmieniaj niezwiązanych zachowań.
+4. Uruchom właściwe testy, w tym testy bezpieczeństwa, jeśli są dostępne.
+5. Przed pushem sprawdź `git diff` i potwierdź, że zmiany dotyczą tylko zgłoszonej sprawy.
+
+Nowe funkcje dodawaj tak, by nie zmieniały istniejącego działania bez potrzeby. Gdy coś się zepsuje, najpierw przywróć działanie, potem szukaj przyczyny.
 
 ## Instalator testowy
-- Każdy push na `rozwoj` ze zmianą w `src/` uruchamia workflow `instalator-rozwoj.yml` – dwa równoległe zadania: `instalator` (sam instalator testowy, ok. 3 min, tylko jako artefakt w GitHub Actions, bez zapisu do repozytorium) i `testy` (wszystkie testy, w tym bezpieczeństwa, ok. 7 min).
-- Na gałęzi roboczej budujemy tylko to, co właściciel testuje (instalator) – bez wersji przenośnej i samodzielnego exe.
-- Link do pobrania podawaj ZAWSZE i bez pytania, gdy tylko instalator jest gotowy (pełny adres `https://github.com/mic0078/Velivo-1.22/actions/runs/<run>/artifacts/<id>`).
-- Po każdej zmianie SAM poczekaj na zadanie `instalator` i od razu podaj właścicielowi link do artefaktu (właściciel nie powinien sprawdzać, czy już gotowe); potem SAM sprawdź zadanie `testy` i zgłoś wynik – czerwone testy naprawiasz od razu.
-- Przy niewielkich poprawkach: od razu link do instalatora, testy sprawdzaj w tle (nie blokuj rozmowy czekaniem) i potem podaj krótkie podsumowanie wyniku.
-- Scalenie do `main` tylko przy zielonych testach na ostatniej zmianie.
 
-## Procedura poprawki
-1. Najpierw test odtwarzający problem (wynik „przed poprawką”).
-2. Minimalna poprawka – bez zmian „na wszelki wypadek”. Poprawiaj istniejący kod w miejscu (nadpisuj), nie dopisuj nowej wersji obok starej – żadnego martwego kodu.
-3. Test „po poprawce” + istniejące testy bezpieczeństwa.
-4. Uczciwy raport: co sprawdzone, a czego nie.
+* Zmiany w `src/` na `rozwoj` uruchamiają workflow `instalator-rozwoj.yml`.
+* Na `rozwoj` buduj tylko instalator testowy.
+* Gdy artefakt będzie dostępny, podaj jego rzeczywisty link z GitHub Actions. Nie zgaduj adresu.
+* Sprawdź wynik testów i zgłoś go. Napraw czerwone testy związane ze zmianą.
+* Nie czekaj bez potrzeby na długie zadania; podaj dostępny wynik i później uzupełnij raport.
+* Nie scalaj do `main`, jeśli testy ostatniej zmiany nie są zielone.
 
-## Interfejs
-- Każda lista w Velivo ma sortowanie (klik w nagłówek albo wybór) i zapamiętuje je – razem z miejscem i rozmiarem okna oraz szerokością kolumn.
+## Interfejs i dokumentacja
 
-## Dokumentacja
-- Każdą nową funkcję lub zmianę zachowania w filmach / TV dopisuj od razu do `dokumentacja/instrukcja-filmy-tv-notatki.md` i do wersji roboczej `dokumentacja/instrukcja-filmy-tv.md` (podstawa przyszłej instrukcji wbudowanej w Velivo).
+* Przyciski, ikony i pozycje menu mają podpowiedzi PL i EN, także w klawiaturze ekranowej i odtwarzaczu.
+* Listy mają sortowanie i zapamiętują ustawienia okna oraz szerokości kolumn.
+* Zmiany funkcji filmów lub TV opisz w `dokumentacja/instrukcja-filmy-tv-notatki.md` i `dokumentacja/instrukcja-filmy-tv.md`.
 
-## Inne
-- Odpowiadaj po polsku.
-- Nie przepisuj opublikowanej historii `main` (bez force-push / rebase / amend na `main`).
+Odpowiadaj po polsku. Raportuj, co sprawdziłeś i czego nie udało się zweryfikować.

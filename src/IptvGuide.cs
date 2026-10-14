@@ -65,6 +65,10 @@ namespace Przegladarka
                 var fav = IptvSt.Fav;
                 var found = pl.Channels.Where(c => EpgFor(epg, c) != null && (q.Length == 0 || c.Name.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0) &&
                     (gsel == "\u0001all" || (gsel == "\u0001fav" ? fav.Contains(c.Url) : c.Group == gsel)));
+                if (q.Length == 0 && gsel != "\u0001all" && !found.Any())
+                {   // zapamietana grupa bez programu TV (np. filmy) - pusty przewodnik; przelaczamy na wszystkie kanaly
+                    group.SelectedIndex = 0; return;   // zmiana grupy sama wypelnia liste od nowa (inaczej kanaly dwa razy)
+                }
                 var so = sortOpts[Math.Max(0, sort.SelectedIndex)];
                 if (so == "az") found = found.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase);
                 else if (so == "za") found = found.OrderByDescending(c => c.Name, StringComparer.CurrentCultureIgnoreCase);

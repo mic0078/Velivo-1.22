@@ -1317,7 +1317,7 @@ namespace Przegladarka
             netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
             // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
-            var streamInfo = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0),
+            var streamInfo = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
                 ToolTip = L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.") };
             string techKey = null, techShort = "", techFull = "";   // dane techniczne biezacego filmu (raz na film)
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -1403,6 +1403,12 @@ namespace Przegladarka
             DockPanel.SetDock(recPill, Dock.Left); DockPanel.SetDock(connText, Dock.Left); DockPanel.SetDock(streamInfo, Dock.Right);
             statusRow.Children.Add(recPill); statusRow.Children.Add(connText); statusRow.Children.Add(streamInfo);
             var quickCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; quickCol.Children.Add(statusRow); quickCol.Children.Add(quick);
+            // dane strumienia rowno od lewej z wykresem sieci (zaraz za separatorem)
+            SizeChangedEventHandler alignInfo = (s, e) =>
+            {
+                try { var x = netBox.TranslatePoint(new Point(0, 0), statusRow).X; if (x > 0 && statusRow.ActualWidth > x) streamInfo.Width = statusRow.ActualWidth - x; } catch (InvalidOperationException) { }
+            };
+            statusRow.SizeChanged += alignInfo; quick.SizeChanged += alignInfo;
             var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quickCol);
             // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
             var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };

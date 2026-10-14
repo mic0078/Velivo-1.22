@@ -78,3 +78,8 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Przycięcia TV: bufor 3–5 s, mniej połączeń naraz, HD zamiast FHD; vlc.log (ostatni film/kanał), bledy.log (błędy programu) – w folderze danych.
 - Okna wyboru plików: Velivo pilnuje, by mieściły się na ekranie.
 - Komunikaty układają się jeden nad drugim.
+
+## Nowe (do wpisania w rozdziały)
+- TV na żywo: zamiast paska postępu przesuwający się napis – tytuł, odcinek i początek opisu; godziny audycji i „● NA ŻYWO” po bokach.
+- 👁 na końcu szybkich ikon (za separatorem): jak długo pasek zostaje widoczny – 2,5 / 5 / 10 / 20 s albo zawsze widoczny.
+- Ikona PiP: dwa nakładające się okna (inna niż tryb mini); rząd przycisków w jednej linii z szybkimi ikonami.

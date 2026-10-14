@@ -1113,6 +1113,7 @@ namespace Przegladarka
             { "info", "M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z" },
             { "refresh", "M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" },
             { "playlists", "M19,9H2V11H19V9M19,5H2V7H19V5M2,15H15V13H2V15M17,13V19L22,16L17,13Z" },
+            { "eye", "M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" },
             { "film", "M18,4L20,8H17L15,4H13L15,8H12L10,4H8L10,8H7L5,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V4H18Z" },
         };
 
@@ -1255,7 +1256,10 @@ namespace Przegladarka
             var qInfo = qBtn("info", L.T("Pokaż pasek informacji (I)")); var qRefresh = qBtn("refresh", L.T("Odśwież kanał (F5)")); var qLists = qBtn("playlists", L.T("Playlisty i moja kolejka"));
             var qFavTv = qFavBtn("tv", L.T("Moje ulubione kanały TV")); var qFavFilm = qFavBtn("film", L.T("Moje ulubione filmy"));
             var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 2, 4, 4) };   // ta sama wysokosc co rzad przyciskow (btnRow: 2 u gory, 4 u dolu)
+            var qBarTime = qBtn("eye", L.T("Jak długo pasek zostaje widoczny po ruchu myszy"));
             foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
+            quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });   // separator - ustawienia paska osobno
+            quick.Children.Add(qBarTime);
             // nad szybkimi ikonami: znacznik nagrywania (czerwona pigulka, tylko gdy cos sie nagrywa) i licznik polaczen z dostawca
             var recPill = new Button { Cursor = Cursors.Hand, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed, BorderThickness = new Thickness(0), Foreground = Brushes.White, FontSize = 12.5, FontWeight = FontWeights.SemiBold,
                 Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)), ToolTip = L.T("Trwające nagrania – kliknij: zatrzymaj albo przedłuż"),
@@ -1305,12 +1309,14 @@ namespace Przegladarka
             var osdTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(3500) };   // komunikaty (dzwiek, glosnosc...) - czas na przeczytanie
             osdTimer.Tick += (s, e) => { osdTimer.Stop(); osd.Visibility = Visibility.Collapsed; };
             Action<string> showOsd = t => { osd.Text = t; osd.Visibility = Visibility.Visible; osdTimer.Stop(); osdTimer.Start(); };
-            var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+            // czas widocznosci paska (ustawienie ikona na koncu paska); 0 = zawsze widoczny
+            Func<double> barSec = () => double.TryParse(GetPref("pasek-czas"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bs) ? bs : 2.5;
+            var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(barSec() > 0 ? barSec() : 2.5) };
             // chowanie paska: tylko gdy film gra, mysz nie jest nad paskiem i zadne menu (napisy, dzwiek) nie jest otwarte
             hideTimer.Tick += (s, e) =>
             {
                 hideTimer.Stop();
-                if (!mp.IsPlaying || controls.IsMouseOver || controls.ContextMenu != null && controls.ContextMenu.IsOpen || Mouse.Captured != null) { hideTimer.Start(); return; }
+                if (barSec() <= 0 || !mp.IsPlaying || controls.IsMouseOver || controls.ContextMenu != null && controls.ContextMenu.IsOpen || Mouse.Captured != null) { hideTimer.Start(); return; }
                 if (miniBar.IsMouseOver) { hideTimer.Start(); return; }
                 controls.Visibility = Visibility.Collapsed; miniBar.Visibility = Visibility.Collapsed; overlay.Cursor = Cursors.None;
             };
@@ -2665,6 +2671,18 @@ namespace Przegladarka
                 updQuick();
             };
             qRecDir.Click += (s, e) => OpenRecDir();
+            qBarTime.Click += (s, e) =>
+            {   // czas wyswietlania paska
+                var cm = new ContextMenu { PlacementTarget = qBarTime, Placement = PlacementMode.Top };
+                cm.Items.Add(new MenuItem { Header = L.T("Pasek znika po:"), IsEnabled = false });
+                foreach (var v0 in new[] { 2.5, 5.0, 10.0, 20.0, 0.0 })
+                {
+                    var v = v0; var mi = new MenuItem { Header = v == 0 ? L.T("nie znika (zawsze widoczny)") : v.ToString("0.#", System.Globalization.CultureInfo.CurrentCulture) + " s", IsCheckable = true, IsChecked = Math.Abs(barSec() - v) < 0.01 };
+                    mi.Click += (q, w2) => { SetPref("pasek-czas", v.ToString(System.Globalization.CultureInfo.InvariantCulture)); if (v > 0) hideTimer.Interval = TimeSpan.FromSeconds(v); showOsd(v == 0 ? L.T("Pasek: zawsze widoczny") : L.T("Pasek znika po ") + v + " s"); };
+                    cm.Items.Add(mi);
+                }
+                cm.IsOpen = true;
+            };
             recPill.Click += (s, e) =>
             {   // trwajace nagrania: zatrzymaj / przedluz
                 var cm = new ContextMenu { PlacementTarget = recPill, Placement = PlacementMode.Top };

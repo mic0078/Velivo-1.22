@@ -1346,8 +1346,7 @@ namespace Przegladarka
                         var tr = md.Tracks; var vt = tr.FirstOrDefault(x => x.TrackType == TrackType.Video); var at = tr.Where(x => x.TrackType == TrackType.Audio).ToList();
                         long size = 0; try { if (File.Exists(pNow)) size = new FileInfo(pNow).Length; } catch (Exception) { }
                         var vS = vt.TrackType == TrackType.Video ? CodecName(vt.Codec) : "";
-                        var aS = at.Count > 0 ? CodecName(at[0].Codec) + " " + ChannelsName(at[0].Data.Audio.Channels) : "";
-                        techShort = string.Join(" · ", new[] { vS, aS }.Where(x => x.Length > 0));
+                        techShort = vS;   // w linii tylko kodek obrazu (miesci sie nad wykresem); dzwiek w podpowiedzi
                         var full = new System.Text.StringBuilder();
                         full.AppendLine(L.T("Plik: ") + System.IO.Path.GetFileName(pNow) + (size > 0 ? "  (" + (size / 1073741824.0 >= 1 ? (size / 1073741824.0).ToString("0.00") + " GB" : (size / 1048576.0).ToString("0") + " MB") + ")" : ""));
                         full.AppendLine(L.T("Kontener: ") + System.IO.Path.GetExtension(pNow).TrimStart('.').ToUpperInvariant() + L.T("   Długość: ") + FormatTime(mp.Length));
@@ -1365,7 +1364,7 @@ namespace Przegladarka
                         var q = vh >= 2000 ? "4K" : vh >= 1000 ? "FHD" : vh >= 700 ? "HD" : vh > 0 ? "SD" : "";
                         var parts = new List<string>();
                         if (vh > 0) parts.Add(q + " " + vw + "×" + vh);
-                        if (isFilm && techKey == pNow && techShort.Length > 0) parts.Add(techShort);   // film: kodek obrazu i dzwiek
+                        if (isFilm && techKey == pNow && techShort.Length > 0) parts.Add(techShort);   // film: kodek obrazu
                         if (kbps > 0) parts.Add(kbps >= 1000 ? (kbps / 1000).ToString("0.0") + " Mb/s" : kbps.ToString("0") + " kb/s");
                         var fps = mp.Fps; if (fps > 0) parts.Add(fps.ToString("0.#") + L.T(" kl/s"));
                         info = string.Join(" · ", parts);

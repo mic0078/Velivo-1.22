@@ -92,4 +92,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Kopia przyrostowa (domyślnie włączona): pełna co 7 dni, pozostałe tylko zmiany (+ lista usuniętych); przywracanie dowolnej kopii – Velivo składa pełną + przyrosty; zostaje 5 ostatnich pełnych z przyrostami.
 - Ręczne kopie dwoma przyciskami: „💾 Kopia przyrostowa teraz” (na życzenie, bez limitu 7 dni; bez pełnej tego rodzaju – pełna) i „💾 Pełna kopia teraz”.
 - Nad wykresem sieci (prawa strona, linia NA ŻYWO): jakość strumienia – rozdzielczość (SD/HD/FHD/4K), przepływność, klatki/s; „⚠ utracone: N” na pomarańczowo przy gubionych klatkach.
-- Film: w linii jakości także kodek obrazu i dźwięk (np. FHD 1920×1080 · H.264 · AC3 5.1 · 8,2 Mb/s); podpowiedź = pełne dane techniczne (plik, rozmiar, kontener, długość, obraz, wszystkie ścieżki dźwięku, napisy); te dane też w vlc.log.
+- Film: w linii jakości także kodek obrazu (np. FHD 1920×1080 · H.264 · 8,2 Mb/s · 24 kl/s; dźwięk tylko w podpowiedzi, żeby linia mieściła się nad wykresem); podpowiedź = pełne dane techniczne (plik, rozmiar, kontener, długość, obraz, wszystkie ścieżki dźwięku, napisy); te dane też w vlc.log.

@@ -61,7 +61,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 Na samym końcu paska (za separatorem):
 - **wykres sieci** z ostatnich 30 s – niebieska linia ↓ pobieranie (TV, filmy z innego komputera), zielona ↑ wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu przez LAN) i obie prędkości,
 - **godzina i data**,
-- nad nimi **jakość strumienia**: np. „FHD 1920×1080 · 6,8 Mb/s · 50 kl/s”; pomarańczowe „⚠ utracone: N” = gubione klatki (przycina komputer), spadek Mb/s = przycina strumień od dostawcy. Przy filmie dochodzi kodek obrazu i dźwięk (np. H.264 · AC3 5.1), a po najechaniu myszą – pełne dane techniczne pliku.
+- nad nimi **jakość strumienia**: np. „FHD 1920×1080 · 6,8 Mb/s · 50 kl/s”; pomarańczowe „⚠ utracone: N” = gubione klatki (przycina komputer), spadek Mb/s = przycina strumień od dostawcy. Przy filmie dochodzi kodek obrazu (np. H.264), a po najechaniu myszą – pełne dane techniczne pliku.
 
 Nad nimi:
 - **⏺ REC** – czerwona pigułka, gdy coś się nagrywa (kanał i godzina końca). Kliknij, aby zatrzymać albo przedłużyć.

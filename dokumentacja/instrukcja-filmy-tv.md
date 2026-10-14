@@ -37,7 +37,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 
 **Pasek postępu:**
 - przy filmie – czas i przewijanie,
-- przy telewizji na żywo – postęp audycji z godzinami i napis **● NA ŻYWO** (na żywo nie da się przewijać),
+- przy telewizji na żywo – zamiast paska: **pogrubiona nazwa stacji │ przewijany napis z tym, co leci** (tytuł i krótki opis), po bokach godziny audycji i **● NA ŻYWO** (na żywo nie da się przewijać),
 - przy archiwum – godzina w audycji i **⏪ ARCHIWUM**.
 
 **Szybkie ikony z prawej:**
@@ -55,12 +55,18 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 | 🎞 | Playlisty i moja kolejka |
 | ⭐📺 | Moje ulubione kanały |
 | ⭐🎬 | Moje ulubione filmy |
+| 👁 | Pasek sterowania: po ilu sekundach znika (albo zawsze widoczny) i jak bardzo przezroczysty |
+| ⚟ (suwaki) | Pasek informacji: pokazywanie przy ruchu myszy, czas znikania, przezroczystość, wielkość tekstu |
+
+Na samym końcu paska (za separatorem):
+- **wykres sieci** z ostatnich 30 s – niebieska linia ↓ pobieranie (TV, filmy z innego komputera), zielona ↑ wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu przez LAN) i obie prędkości,
+- **godzina i data**.
 
 Nad nimi:
 - **⏺ REC** – czerwona pigułka, gdy coś się nagrywa (kanał i godzina końca). Kliknij, aby zatrzymać albo przedłużyć.
-- **🔌 Połączenia z dostawcą** – ile połączeń teraz używasz (oglądanie, nagrania, PiP). Kliknij i ustaw, na ile pozwala Twój dostawca – ostrzeżenie pojawi się tylko po przekroczeniu.
+- **🔌 Połączenia z dostawcą** (w jednej linii z „NA ŻYWO”) – ile połączeń teraz używasz (oglądanie, nagrania, PiP). Kliknij i ustaw, na ile pozwala Twój dostawca – ostrzeżenie pojawi się tylko po przekroczeniu.
 
-Gdy coś się nagrywa, u góry obrazu widać małą czerwoną kropkę: **„Trwa nagrywanie: nazwa kanału”**.
+Gdy coś się nagrywa, u góry obrazu widać małą czerwoną kropkę: **„Trwa nagrywanie: nazwa kanału”** (także przy schowanym pasku i przy oglądaniu innego kanału).
 
 **Skróty klawiszowe:**
 
@@ -88,7 +94,9 @@ Kliknij prawym przyciskiem na obrazie. Menu zawiera tylko to, czego nie ma jako 
 - **📂 Otwórz plik…**
 - **🕘 Ostatnio oglądane TV** i **🕘 Ostatnio oglądane Filmy** – po 20 ostatnich, najnowsze na górze. Kanał włączony stąd gra w swojej grupie.
 - **📋 Lista kanałów / filmów**, **⏰ Zaplanuj włączenie**, napisy i lektor, zegar na obrazie.
-- **⚙ Ustawienia** – przezroczystość listy, bufor kanałów, zapas nagrywania. Ustawienia paska sterowania (👁) i paska informacji (ikona z suwakami) są na końcu szybkich ikon.
+- **⚙ Ustawienia** – przezroczystość listy, opcje połączenia, bufor kanałów, zapas nagrywania. Ustawienia paska sterowania (👁) i paska informacji (ikona z suwakami) są na końcu szybkich ikon.
+
+Rzeczy, które są ikonami na pasku (pauza, ulubione, nagrywanie, PiP, wyłącznik czasowy itd.), nie powtarzają się w tym menu – dzięki temu jest krótkie.
 
 ---
 
@@ -159,7 +167,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 - Wybór: Telewizja (ostatnio oglądane, ulubione, ta grupa, wszystkie grupy) albo Filmy (ostatnio oglądane, ulubione, wszystkie, otwórz plik).
 - **Klik w podgląd** – zamiana z głównym obrazem (film zapamięta miejsce).
 - **Przeciągnij** – przesuniesz okienko; **ciągnij za ramkę** – zmienisz wielkość. Velivo zapamięta miejsce i wielkość.
-- Pasek podglądu: **🔈/🔊** – dźwięk z podglądu albo z głównego okna; przy TV ⏮ ⏭ zmiana kanału; przy filmie ⏸ ⏹ i przewijanie; ✕ zamknij.
+- Pasek podglądu: **🔈/🔊** – dźwięk z podglądu albo z głównego okna; przy TV ⏮ ⏭ zmiana kanału, a za separatorem przewijany napis z tym, co leci, i godzina końca audycji; przy filmie ⏸ ⏹ i przewijanie; ✕ zamknij.
 
 ---
 

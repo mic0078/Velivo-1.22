@@ -106,6 +106,8 @@ namespace Przegladarka
                         ShowToast(L.T("⏺ Za minutę nagrywanie: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
                         WarnOneConnection();
                     }
+                    // 2 minuty przed koncem trwajacego nagrania - pytanie, czy nagrywac dalej (audycje sie przeciagaja)
+                    if (_recording.ContainsKey(j.Id) && now >= j.Stop - 120000 && _recEndAsked.Add(j.Id + "@" + j.Stop)) AskRecEnd(j);
                     if (now >= j.Start - 30000 && !_recording.ContainsKey(j.Id)) { try { StartRecording(j); } catch (Exception ex) { App.LogError(ex); } }   // blad jednego nagrania nie zatrzymuje reszty
                 }
             }
@@ -275,8 +277,8 @@ namespace Przegladarka
             _recFile[j.Id] = file;
             if (_vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) WarnOneConnection();
             bool resumed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - j.Start > 90000;   // nagranie trwalo przed uruchomieniem Velivo
-            var until = L.T(" (do ") + DateTimeOffset.FromUnixTimeMilliseconds(j.Stop).LocalDateTime.ToString("HH:mm") + ")";
-            ShowToast((resumed ? L.T("⏺ Wznawiam nagrywanie: ") : L.T("⏺ Nagrywam: ")) + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title) + until + (resumed ? L.T("\nZatrzymasz przyciskiem ⏹ albo w 📅 Zaplanowane.") : ""), null);
+            var untilTxt = L.T(" (do ") + LocalOf(j.Stop).ToString("HH:mm") + ")";
+            ShowToast((resumed ? L.T("⏺ Wznawiam nagrywanie: ") : L.T("⏺ Nagrywam: ")) + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title) + untilTxt + (resumed ? L.T("\nZatrzymasz przyciskiem ⏹ albo w 📅 Zaplanowane.") : ""), null);
             _iptvJobsChanged?.Invoke();
             Func<DateTime> until = () => LocalOf(j.Stop);   // "Przedluz" zmienia j.Stop w trakcie nagrywania
             Task.Run(() => RecordStream(j.Url, j.Opts, file, until, cts.Token)).ContinueWith(t => Dispatcher.BeginInvoke(new Action(() =>
@@ -434,6 +436,62 @@ namespace Przegladarka
             AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = p?.Title, Start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Stop = UnixMs(p != null ? p.Stop.AddMinutes(IptvSt.RecAfter) : DateTime.Now.AddHours(4)), Folder = IptvSt.RecDir });
         }
 
+        readonly HashSet<string> _recEndAsked = new HashSet<string>();
+
+        // okienko przed koncem nagrania: przedluzyc (+15 / +30 / +60 min) albo zakonczyc o czasie; bez odpowiedzi - konczy o czasie
+        void AskRecEnd(IptvJob j)
+        {
+            var w = new Window { WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Topmost = true, ShowActivated = false };
+            var p = new StackPanel { Margin = new Thickness(20, 16, 20, 16), MaxWidth = 460 };
+            p.Children.Add(new TextBlock { Text = L.T("⏺ Nagranie kończy się o ") + LocalOf(j.Stop).ToString("HH:mm") + "\n" + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title) + L.T("\n\nNagrywać dalej?"), Foreground = Brushes.White, FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            Action<string, int> b = (t, min) =>
+            {
+                var bt = new Button { Content = t, Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(4, 0, 4, 0), Cursor = System.Windows.Input.Cursors.Hand, FontSize = 13,
+                    Background = min > 0 ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : Brushes.White, Foreground = min > 0 ? Brushes.White : Brushes.Black, BorderThickness = new Thickness(0) };
+                bt.Click += (s, e) => { if (min > 0) { j.Stop += min * 60000L; SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); ShowToast(L.T("⏺ Nagranie przedłużone do ") + LocalOf(j.Stop).ToString("HH:mm") + " – " + j.Channel, null); } w.Close(); };
+                row.Children.Add(bt);
+            };
+            b("+15 min", 15); b("+30 min", 30); b("+60 min", 60); b(L.T("Zakończ o czasie"), 0);
+            p.Children.Add(row);
+            w.Content = new Border { Child = p, CornerRadius = new CornerRadius(10), Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x22, 0x22, 0x22)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)), BorderThickness = new Thickness(1) };
+            w.Loaded += (s, e) => { var wa = SystemParameters.WorkArea; w.Left = wa.Right - w.ActualWidth - 16; w.Top = wa.Bottom - w.ActualHeight - 16; };
+            var close = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };   // nagranie juz sie skonczylo - okienko znika
+            close.Tick += (s, e) => { if (!_recording.ContainsKey(j.Id) || DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() > j.Stop) { close.Stop(); w.Close(); } };
+            w.Closed += (s, e) => close.Stop();
+            w.Show(); close.Start();
+        }
+
+        // zapas nagrywania wpisany recznie - nieduze okienko
+        void RecMarginDialog(Window owner)
+        {
+            var w = new Window { Title = L.T("⏱ Zapas nagrywania"), Width = 360, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Owner = owner != null && owner.IsVisible ? owner : null, Topmost = owner?.Topmost ?? false, WindowStartupLocation = owner != null && owner.IsVisible ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock { Text = L.T("Audycje często zaczynają się wcześniej albo przeciągają. Nagranie zacznie się i skończy z tym zapasem."), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray, Margin = new Thickness(0, 0, 0, 12) });
+            Func<string, int, TextBox> row = (label, v) =>
+            {
+                var r = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+                var tb = new TextBox { Text = v.ToString(), Width = 60, Padding = new Thickness(4), HorizontalContentAlignment = HorizontalAlignment.Right };
+                var unit = new TextBlock { Text = L.T(" min"), VerticalAlignment = VerticalAlignment.Center };
+                DockPanel.SetDock(unit, Dock.Right); DockPanel.SetDock(tb, Dock.Right);
+                r.Children.Add(unit); r.Children.Add(tb); r.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+                sp.Children.Add(r); return tb;
+            };
+            var before = row(L.T("Przed początkiem audycji"), IptvSt.RecBefore);
+            var after = row(L.T("Po końcu audycji"), IptvSt.RecAfter);
+            var ok = new Button { Content = L.T("Zapisz"), IsDefault = true, Padding = new Thickness(16, 5, 16, 5), Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = L.T("Anuluj"), IsCancel = true, Padding = new Thickness(12, 5, 12, 5) };
+            var br = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+            br.Children.Add(ok); br.Children.Add(cancel); sp.Children.Add(br);
+            ok.Click += (s, e) =>
+            {
+                if (int.TryParse(before.Text.Trim(), out var b0)) IptvSt.RecBefore = Math.Max(0, Math.Min(60, b0));
+                if (int.TryParse(after.Text.Trim(), out var a0)) IptvSt.RecAfter = Math.Max(0, Math.Min(240, a0));
+                SaveIptv(IptvSt); w.Close();
+            };
+            w.Content = sp; w.Show(); before.Focus(); before.SelectAll();
+        }
+
         // ustawienie zapasu nagrywania (przed poczatkiem i po koncu audycji) - menu 📺 i ustawienia odtwarzacza
         MenuItem RecMarginMenu()
         {
@@ -442,6 +500,7 @@ namespace Przegladarka
             foreach (var v0 in new[] { 0, 2, 5, 10 }) { var v = v0; var mi = new MenuItem { Header = v + " min", IsCheckable = true, IsChecked = IptvSt.RecBefore == v }; mi.Click += (s, e) => { IptvSt.RecBefore = v; SaveIptv(IptvSt); }; bm.Items.Add(mi); }
             foreach (var v0 in new[] { 0, 5, 10, 15, 30, 60 }) { var v = v0; var mi = new MenuItem { Header = v + " min", IsCheckable = true, IsChecked = IptvSt.RecAfter == v }; mi.Click += (s, e) => { IptvSt.RecAfter = v; SaveIptv(IptvSt); }; am.Items.Add(mi); }
             m.Items.Add(bm); m.Items.Add(am);
+            var own = new MenuItem { Header = L.T("✏ Wpisz własny zapas…") }; own.Click += (s, e) => RecMarginDialog(Application.Current.Windows.OfType<Window>().FirstOrDefault(x => x.IsActive)); m.Items.Add(own);
             m.SubmenuOpened += (s, e) => { foreach (MenuItem x in bm.Items) x.IsChecked = (string)x.Header == IptvSt.RecBefore + " min"; foreach (MenuItem x in am.Items) x.IsChecked = (string)x.Header == IptvSt.RecAfter + " min"; m.Header = L.T("⏱ Zapas nagrywania: ") + IptvSt.RecBefore + L.T(" min przed, ") + IptvSt.RecAfter + L.T(" min po"); };
             return m;
         }

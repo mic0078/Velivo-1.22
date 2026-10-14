@@ -1215,12 +1215,12 @@ namespace Przegladarka
             var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left }; mainCol.Children.Add(seekRow); mainCol.Children.Add(btnRow);
             // szybkie ikony z prawej (te same znaki co w menu pod prawym przyciskiem, rozmiar jak przyciski obok)
             Func<string, string, Button> qBtn = (t, tip) => { var b = textBtn(t, tip); b.FontSize = 19; b.FontWeight = FontWeights.Normal; b.MinWidth = 40; return b; };
-            var qRec = qBtn("⏺", L.T("Nagrywaj ten kanał TV")); var qRecStop = qBtn("⏹", L.T("Zatrzymaj nagrywanie"));
+            var qRec = qBtn("⏺", L.T("Nagrywaj ten kanał TV")); var qRecStop = qBtn("⏹", L.T("Zatrzymaj nagrywanie")); var qRecSet = qBtn("⏱", L.T("Zapas nagrywania (minuty przed i po audycji)"));
             var qRecDir = qBtn("📁", L.T("Folder z nagraniami")); var qTv = qBtn("📺", L.T("Kanały telewizji")); var qGuide = qBtn("📅", L.T("Pełny program TV"));
             var qInfo = qBtn("ℹ", L.T("Pokaż pasek informacji (I)")); var qRefresh = qBtn("🔄", L.T("Odśwież kanał (F5)")); var qLists = qBtn("🎞", L.T("Playlisty i moja kolejka"));
             var qFavTv = qBtn("⭐📺", L.T("Moje ulubione kanały TV")); var qFavFilm = qBtn("⭐🎬", L.T("Moje ulubione filmy")); qFavTv.FontSize = qFavFilm.FontSize = 16;
             var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 0, 4, 4) };
-            foreach (var b in new UIElement[] { qRec, qRecStop, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
+            foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
             var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quick);
             controls.Children.Add(ctlRow);
             overlay.Children.Add(controls);
@@ -2523,7 +2523,7 @@ namespace Przegladarka
                 qRec.IsEnabled = c != null && !rec && !c.ArchiveStart.HasValue; qRecStop.IsEnabled = rec;
                 qRec.Foreground = rec ? Brushes.Red : Brushes.White; qRec.ToolTip = rec ? L.T("⏺ Trwa nagrywanie tego kanału") : L.T("Nagrywaj ten kanał TV");
                 qRefresh.IsEnabled = c != null;
-                bool tvOn = IptvInstalled; qTv.IsEnabled = qGuide.IsEnabled = qFavTv.IsEnabled = qRecDir.IsEnabled = tvOn;
+                bool tvOn = IptvInstalled; qTv.IsEnabled = qGuide.IsEnabled = qFavTv.IsEnabled = qRecDir.IsEnabled = qRecSet.IsEnabled = tvOn;
             };
             var qTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             qTimer.Tick += (s, e) => updQuick(); qTimer.Start(); win.Closed += (s, e) => qTimer.Stop();
@@ -2531,6 +2531,7 @@ namespace Przegladarka
             qRec.Click += (s, e) => { var c = qTvCh(); if (c != null) { RecordNow(c, win); updQuick(); } };
             qRecStop.Click += (s, e) => { var c = qTvCh(); if (c != null) { StopRecording(c.Url); updQuick(); } };
             qRecDir.Click += (s, e) => OpenRecDir();
+            qRecSet.Click += (s, e) => RecMarginDialog(Window.GetWindow(overlay) ?? win);
             qTv.Click += (s, e) => ShowIptv(Window.GetWindow(overlay) ?? win);
             qGuide.Click += (s, e) => ShowEpgGuide(Window.GetWindow(overlay) ?? win, qTvCh()?.LiveUrl ?? qTvCh()?.Url);
             qInfo.Click += (s, e) => showInfo(true);

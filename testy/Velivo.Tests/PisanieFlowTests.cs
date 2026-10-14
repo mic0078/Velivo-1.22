@@ -58,6 +58,26 @@ public class PisanieFlowTests
         }
     }
 
+    // niedbaly ruch: start i koniec obok klawisza, przestrzelenie na zakretach
+    [Fact]
+    public void NiedbalyRuchZPrzestrzeleniem()
+    {
+        SwipeTyping.Load(new[] { "nie", "jak", "domu", "filmu", "kiedy", "kurwy", "jest", "mamy", "nagły", "sobie", "spokojnie" });
+        var k = Klawisze();
+        foreach (var w in new[] { "domu", "kiedy", "mamy", "sobie" })
+        {
+            var keys = w.Select(c => k[SwipeTyping.BaseKey(c)]).ToList();
+            var pts = new List<Point> { new Point(keys[0].X + 20, keys[0].Y - 15) };
+            for (int i = 1; i < keys.Count; i++)
+            {
+                var a = keys[i - 1]; var b = keys[i];
+                var over = i < keys.Count - 1 ? new Point(b.X + (b.X - a.X) * 0.25, b.Y + (b.Y - a.Y) * 0.25) : new Point(b.X - 18, b.Y + 12);
+                for (int s = 1; s <= 20; s++) pts.Add(new Point(a.X + (over.X - a.X) * s / 20, a.Y + (over.Y - a.Y) * s / 20));
+            }
+            Assert.Equal(w, SwipeTyping.Recognize(pts, k, 52)[0]);
+        }
+    }
+
     // nauka ruchow myszy: nietypowy slad uzytkownika (np. omija klawisz) po nauczeniu daje jego slowo
     [Fact]
     public void UczySieRuchowMyszy()

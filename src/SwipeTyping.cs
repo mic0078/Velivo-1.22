@@ -196,10 +196,18 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); }
         }
 
+        // dopasowanie elastyczne w czasie (DTW): przestrzelenie na zakrecie, zatrzymanie czy nierowne tempo reki nie psuja porownania
+        // (punkty sladu i wzorca moga sie "przesunac" o kilka pozycji); wynik w odstepach klawiszy na punkt
         static double Distance(Point[] a, Point[] b, double keyW)
         {
-            double d = 0; for (int i = 0; i < a.Length; i++) d += Dist(a[i], b[i]);
-            return d / (a.Length * keyW);
+            int n = a.Length, m = b.Length; const int band = 6;
+            var D = new double[n + 1, m + 1];
+            for (int i = 0; i <= n; i++) for (int j = 0; j <= m; j++) D[i, j] = double.MaxValue;
+            D[0, 0] = 0;
+            for (int i = 1; i <= n; i++)
+                for (int j = Math.Max(1, i - band); j <= Math.Min(m, i + band); j++)
+                    D[i, j] = Dist(a[i - 1], b[j - 1]) + Math.Min(D[i - 1, j - 1], Math.Min(D[i - 1, j], D[i, j - 1]));
+            return D[n, m] / (n * keyW);
         }
 
         // nauka ruchu reki: przyjete slowo zapamietuje Twoj slad (do 3 ostatnich na slowo); poprawione - zapomina zly

@@ -2348,8 +2348,14 @@ namespace Przegladarka
                 if (tvNow) sub(L.T("📺 Kanały tej grupy"), _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]));
                 {   // film w podgladzie (np. przy telewizji)
                     var fm = new MenuItem { Header = L.T("🎬 Filmy") };
-                    foreach (var v0 in LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != p0 && File.Exists(v.Path)).OrderByDescending(v => v.Last).Take(20))
-                    { var v = v0; pa(fm, (pipCh?.Url == v.Path ? "● " : "") + ShownTitle(v, MetaFor(v.Path)), () => pipShow(pipFilm(v.Path)), true); }
+                    var libF = LoadLibrary().Where(v => v.Peer == null && v.Path != p0 && File.Exists(v.Path)).ToList();
+                    var recF = new MenuItem { Header = L.T("🕘 Ostatnio oglądane") }; var allF = new MenuItem { Header = L.T("📚 Wszystkie filmy (") + libF.Count + ")" };
+                    foreach (var v0 in libF.Where(v => v.Last > 0).OrderByDescending(v => v.Last).Take(20))
+                    { var v = v0; pa(recF, (pipCh?.Url == v.Path ? "● " : "") + ShownTitle(v, MetaFor(v.Path)), () => pipShow(pipFilm(v.Path)), true); }
+                    foreach (var x in libF.Select(v => (v, t: ShownTitle(v, MetaFor(v.Path)))).OrderBy(x => x.t, StringComparer.CurrentCultureIgnoreCase))   // cala biblioteka A-Z (lista przewijana)
+                    { var v = x.v; pa(allF, (pipCh?.Url == v.Path ? "● " : "") + x.t, () => pipShow(pipFilm(v.Path)), true); }
+                    if (recF.Items.Count > 0) fm.Items.Add(recF);
+                    if (allF.Items.Count > 0) fm.Items.Add(allF);
                     if (fm.Items.Count > 0) fm.Items.Add(new Separator());
                     pa(fm, L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(false, Window.GetWindow(overlay) ?? win); if (fs != null && fs.Length > 0) pipShow(pipFilm(fs[0])); }, true);
                     cm.Items.Add(fm);

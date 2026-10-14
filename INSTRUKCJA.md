@@ -340,6 +340,8 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 
 ---
 
+> **Podpowiedzi:** najedź myszą na przycisk albo pozycję menu – Velivo podpowie, co robi (po polsku albo po angielsku, zależnie od języka programu).
+
 ## 2. Ile zajmuje i dlaczego tak mało
 
 | Co | Ile |

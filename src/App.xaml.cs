@@ -57,6 +57,7 @@ namespace Przegladarka
             EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseWheelEvent, new System.Windows.Input.MouseWheelEventHandler(Przegladarka.MainWindow.AlphaWheel));
             // klik rolka w pole do pisania = klawiatura ekranowa (kazde okno Velivo)
             EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseDownEvent, new System.Windows.Input.MouseButtonEventHandler(Przegladarka.MainWindow.KeyboardOnMiddleClick));
+            Przegladarka.AutoTips.Register();   // podpowiedzi dla przyciskow i menu bez wlasnej podpowiedzi
             Przegladarka.MainWindow.StartGlobalKeyboardHook();   // i w innych programach, gdy Velivo dziala
             // Siatka bezpieczenstwa: nieprzewidziany blad nie wylacza przegladarki - zapis do pliku i komunikat.
             // Komunikat najwyzej jeden naraz i nie czesciej niz raz na 30 s dla tego samego bledu

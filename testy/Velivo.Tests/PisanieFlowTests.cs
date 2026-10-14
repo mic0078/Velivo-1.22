@@ -58,6 +58,19 @@ public class PisanieFlowTests
         }
     }
 
+    // nauka ruchow myszy: nietypowy slad uzytkownika (np. omija klawisz) po nauczeniu daje jego slowo
+    [Fact]
+    public void UczySieRuchowMyszy()
+    {
+        SwipeTyping.Load(new[] { "dom", "dym", "dam", "kot" });
+        var k = Klawisze();
+        // "dom" pisany zawsze tak samo krzywo: zamiast przez "o" reka idzie nad "u"
+        var mojDom = new List<Point> { k['d'], new Point(k['u'].X, k['u'].Y - 8), k['m'] };
+        SwipeTyping.LearnShape("dom", mojDom, 52);
+        Assert.Equal("dom", SwipeTyping.Recognize(mojDom, k, 52)[0]);
+        SwipeTyping.ForgetShape("dom");
+    }
+
     [Fact]
     public void WlasneSlowoDajeSiePisacPrzeciagnieciem()
     {

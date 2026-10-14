@@ -288,7 +288,7 @@ namespace Przegladarka
             var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
             title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
-            string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
+            List<Point> lastTrace = null; string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
             Action<string> learn = wd =>
             {
                 if (wd.Length < 2 || !SwipeTyping.Loaded || SecretField()) return;   // pole hasla - bez nauki
@@ -325,6 +325,7 @@ namespace Przegladarka
                     for (int k = 0; k <= lastSwipe.Length; k++) SendKey(0x08, '\0');   // slowo + spacja
                     var lw = lastSwipe.ToLowerInvariant(); if (_swLearned.TryGetValue(lw, out var n) && n > 0) _swLearned[lw] = n - 1;   // to nie bylo to slowo
                     foreach (var ch in alt0) SendKey(0, ch); SendKey(0, ' ');
+                    SwipeTyping.ForgetShape(lastSwipe); if (lastTrace != null) SwipeTyping.LearnShape(alt0, lastTrace, 52);   // ten ruch znaczyl to slowo
                     learn(alt0); lastSwipe = alt0;
                     foreach (var x in sugs) x.Visibility = Visibility.Collapsed;
                     title.Visibility = Visibility.Visible;
@@ -574,6 +575,7 @@ namespace Przegladarka
                     var found = t.Result.Select(x => upper ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
                     learn(cur); cur = "";
                     foreach (var ch in found[0]) SendKey(0, ch); SendKey(0, ' ');
+                    lastTrace = pts; if (!SecretField()) SwipeTyping.LearnShape(found[0], pts, 52);   // nauka Twojego ruchu (nie w polu hasla)
                     learn(found[0]); say(found[0]); lastSwipe = found[0];
                     if (shift) { shift = false; refresh(); }
                     for (int i = 0; i < sugs.Count; i++)

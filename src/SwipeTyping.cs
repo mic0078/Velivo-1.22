@@ -148,21 +148,36 @@ namespace Przegladarka
                         if (w.Keys.Length == 1 && gLen > keyW) continue;   // jedna litera - tylko przy krotkim sladzie
                         var path = w.Keys.Select(c => keys.TryGetValue(c, out var p) ? p : new Point(double.NaN, 0)).ToList();
                         if (path.Any(p => double.IsNaN(p.X))) continue;
+                        // nauka: Twoj wlasny ksztalt przeciagniecia tego slowa (zapamietany przy wczesniejszym pisaniu) - sprawdzany przed filtrami,
+                        // bo Twoj ruch moze omijac klawisze, ktore "powinny" byc na sladzie
+                        double d = double.MaxValue;
+                        lock (_mine) if (_mine.TryGetValue(w.Word, out var mine)) foreach (var m in mine) d = Math.Min(d, Distance(g, m, keyW) * 0.8);
                         double tLen = 0; for (int i = 1; i < path.Count; i++) tLen += Dist(path[i - 1], path[i]);
-                        if (tLen > gLen * 1.8 + keyW || gLen > tLen * 1.8 + keyW) continue;   // zupelnie inna dlugosc
+                        bool ok = !(tLen > gLen * 1.8 + keyW || gLen > tLen * 1.8 + keyW);   // zupelnie inna dlugosc
                         // kazda litera slowa musi lezec blisko sladu
-                        bool ok = true;
-                        foreach (var p in path) if (g.Min(q => Dist(p, q)) > keyW * 1.1) { ok = false; break; }
-                        if (!ok) continue;
-                        var t = Resample(path, N);
-                        double d = 0; for (int i = 0; i < N; i++) d += Dist(g[i], t[i]);
-                        d /= N * keyW;
+                        if (ok) foreach (var p in path) if (g.Min(q => Dist(p, q)) > keyW * 1.1) { ok = false; break; }
+                        if (ok) d = Math.Min(d, Distance(g, Resample(path, N), keyW));
+                        if (d == double.MaxValue) continue;
                         int used = 0; learned?.TryGetValue(w.Word, out used);
-                        scored.Add((w.Word, d + 0.06 * Math.Log(w.Rank + 2) - Math.Min(0.3, 0.1 * used)));
+                        scored.Add((w.Word, d + 0.06 * Math.Log(w.Rank + 2) - Math.Min(0.5, 0.15 * used)));
                     }
                 }
             foreach (var x in scored.OrderBy(x => x.S)) { if (!result.Contains(x.W)) result.Add(x.W); if (result.Count >= count) break; }
             return result;
+        }
+
+        static IEnumerable<string> ShapeLines()
+        {
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            lock (_mine) return _mine.SelectMany(kv => kv.Value.Select(sh => "~" + kv.Key + "\t" + string.Join(" ", sh.Select(p => p.X.ToString("0.#", ci) + "," + p.Y.ToString("0.#", ci))))).ToList();
+        }
+        static void ReadShape(string line)
+        {
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            var t = line.Substring(1).Split('\t'); if (t.Length != 2) return;
+            var pts = t[1].Split(' ').Select(q => q.Split(',')).Where(q => q.Length == 2).Select(q => new Point(double.Parse(q[0], ci), double.Parse(q[1], ci))).ToArray();
+            if (pts.Length != 32) return;
+            lock (_mine) { if (!_mine.TryGetValue(t[0], out var l)) _mine[t[0]] = l = new List<Point[]>(); if (l.Count < 3) l.Add(pts); }
         }
 
         internal static void SaveLearned(string file, IDictionary<string, int> learned, ISet<string> own)
@@ -171,11 +186,36 @@ namespace Przegladarka
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(file));
                 var text = string.Join("\n", learned.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).Take(5000).Select(kv => kv.Key + "\t" + kv.Value)
-                    .Concat(own.Select(w => "+" + w)));
+                    .Concat(own.Select(w => "+" + w))
+                    .Concat(ShapeLines()));
                 // zaszyfrowane kontem Windows - w folderze danych nie ma jawnej listy wpisywanych slow
                 File.WriteAllBytes(file, System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(text), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser));
             }
             catch (Exception ex) { App.LogError(ex); }
+        }
+
+        static double Distance(Point[] a, Point[] b, double keyW)
+        {
+            double d = 0; for (int i = 0; i < a.Length; i++) d += Dist(a[i], b[i]);
+            return d / (a.Length * keyW);
+        }
+
+        // nauka ruchu reki: przyjete slowo zapamietuje Twoj slad (do 3 ostatnich na slowo); poprawione - zapomina zly
+        static readonly Dictionary<string, List<Point[]>> _mine = new Dictionary<string, List<Point[]>>();
+        internal static void LearnShape(string word, IList<Point> trace, double keyW)
+        {
+            if (string.IsNullOrEmpty(word) || trace == null || trace.Count < 2) return;
+            var w = word.ToLowerInvariant();
+            lock (_mine)
+            {
+                if (!_mine.TryGetValue(w, out var l)) _mine[w] = l = new List<Point[]>();
+                l.Add(Resample(Steady(trace, keyW), 32)); if (l.Count > 3) l.RemoveAt(0);
+            }
+        }
+        internal static void ForgetShape(string word)
+        {
+            var w = (word ?? "").ToLowerInvariant();
+            lock (_mine) if (_mine.TryGetValue(w, out var l) && l.Count > 0) { l.RemoveAt(l.Count - 1); if (l.Count == 0) _mine.Remove(w); }
         }
 
         // slowa wybierane przez uzytkownika: "slowo<TAB>ile", a wlasne slowa: "+slowo" w pliku danych
@@ -188,6 +228,7 @@ namespace Przegladarka
                     foreach (var line in System.Text.Encoding.UTF8.GetString(System.Security.Cryptography.ProtectedData.Unprotect(File.ReadAllBytes(file), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser)).Split('\n'))
                     {
                         if (line.StartsWith("+")) { if (line.Length > 2) own?.Add(line.Substring(1)); continue; }
+                        if (line.StartsWith("~")) { ReadShape(line); continue; }
                         var p = line.Split('\t');
                         if (p.Length == 2 && int.TryParse(p[1], out var n) && p[0].Length > 0) d[p[0]] = n;
                     }

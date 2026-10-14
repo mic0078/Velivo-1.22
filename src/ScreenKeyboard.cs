@@ -393,10 +393,13 @@ namespace Przegladarka
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
             title.Inlines.Add(new System.Windows.Documents.Run(" by Michael") { Foreground = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)) });
             List<Point> lastTrace = null; double lastKeyW = 52; string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
+            var ask = new TextBlock { Text = L.T("Poprawić na:"), FontSize = 13, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0), Visibility = Visibility.Collapsed };
+            string prevWord = null, prevBeforeSwipe = null;   // poprzednie slowo - do nauki kolejnosci slow
             Action<string> learn = wd =>
             {
                 if (wd.Length < 2 || !SwipeTyping.Loaded || SecretField()) return;   // pole hasla - bez nauki
                 var lw = wd.ToLowerInvariant();
+                SwipeTyping.LearnPair(prevWord, lw); prevWord = lw;   // kolejnosc slow
                 lock (_swLearned)
                 {
                     _swLearned[lw] = (_swLearned.TryGetValue(lw, out var n) ? n : 0) + 1;
@@ -411,7 +414,7 @@ namespace Przegladarka
             };
             Action<ushort, char> tap = (vk, ch) =>
             {
-                SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
+                SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; ask.Visibility = Visibility.Collapsed;
                 if (vk == 0 && char.IsLetter(ch)) cur += ch;
                 else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
                 else { learn(cur); say(cur); cur = ""; }
@@ -419,6 +422,7 @@ namespace Przegladarka
             // propozycje po przeciagnieciu - w naglowku zamiast napisu (bez osobnego, zwykle pustego rzedu); klik podmienia ostatnie slowo
             var sugRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             sugRow.Children.Add(title);
+            sugRow.Children.Add(ask);
             for (int i = 0; i < 3; i++)
             {
                 var sb = key("", double.NaN); sb.Height = 26; sb.MinWidth = 70; sb.Padding = new Thickness(12, 0, 12, 0); sb.FontSize = 14; sb.Visibility = Visibility.Collapsed;
@@ -429,9 +433,11 @@ namespace Przegladarka
                     for (int k = 0; k <= lastSwipe.Length; k++) SendKey(0x08, '\0');   // slowo + spacja
                     var lw = lastSwipe.ToLowerInvariant(); if (_swLearned.TryGetValue(lw, out var n) && n > 0) _swLearned[lw] = n - 1;   // to nie bylo to slowo
                     foreach (var ch in alt0) SendKey(0, ch); SendKey(0, ' ');
+                    prevWord = prevBeforeSwipe;   // kolejnosc slow: poprawione slowo nastepuje po tym samym poprzednim
                     SwipeTyping.ForgetShape(lastSwipe); if (lastTrace != null) SwipeTyping.LearnShape(alt0, lastTrace, lastKeyW);   // ten ruch znaczyl to slowo
                     learn(alt0); lastSwipe = alt0;
                     foreach (var x in sugs) x.Visibility = Visibility.Collapsed;
+                    ask.Visibility = Visibility.Collapsed;
                     title.Visibility = Visibility.Visible;
                 };
                 sugs.Add(sb); sugRow.Children.Add(sb);
@@ -701,12 +707,15 @@ namespace Przegladarka
                 // prawdziwy odstep klawiszy w tym ukladzie (q -> w), nie stala - trafniej przy kazdym rozmiarze
                 double kw = centers.TryGetValue('q', out var cq) && centers.TryGetValue('w', out var cw2) ? Math.Max(20, Math.Abs(cw2.X - cq.X)) : 52;
                 lastKeyW = kw;
-                System.Threading.Tasks.Task.Run(() => SwipeTyping.Recognize(pts, centers, kw, learnedCopy, 4)).ContinueWith(t =>
+                System.Threading.Tasks.Task.Run(() => SwipeTyping.Recognize(pts, centers, kw, learnedCopy, 4, prevWord)).ContinueWith(t =>
                 {
                     if (t.IsFaulted || t.Result.Count == 0) return;
                     var found = t.Result.Select(x => upper ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
                     learn(cur); cur = "";
                     foreach (var ch in found[0]) SendKey(0, ch); SendKey(0, ' ');
+                    prevBeforeSwipe = prevWord;
+                    bool unsure = SwipeTyping.LastUncertain && found.Count > 1;
+                    ask.Visibility = unsure ? Visibility.Visible : Visibility.Collapsed; title.Visibility = unsure ? Visibility.Collapsed : Visibility.Visible;
                     lastTrace = pts; if (!SecretField()) SwipeTyping.LearnShape(found[0], pts, lastKeyW);   // nauka Twojego ruchu (nie w polu hasla)
                     learn(found[0]); say(found[0]); lastSwipe = found[0];
                     if (shift) { shift = false; refresh(); }
@@ -714,6 +723,7 @@ namespace Przegladarka
                     {
                         var w0 = i + 1 < found.Count ? found[i + 1] : null;
                         sugs[i].DataContext = w0; sugs[i].Content = w0 ?? ""; sugs[i].Visibility = w0 == null ? Visibility.Collapsed : Visibility.Visible;
+                        sugs[i].Background = unsure ? accent : (sugs[i].Tag as Brush ?? keyBg);   // niepewnie - propozycje wyraznie podswietlone
                     }
                 }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
             };

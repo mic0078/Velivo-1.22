@@ -122,7 +122,7 @@ namespace Przegladarka
 
         // najlepsze slowa dla sladu; keys - srodki klawiszy liter a-z, keyW - odstep miedzy klawiszami,
         // learned - ile razy uzytkownik wybral slowo (wyzej na liscie)
-        internal static List<string> Recognize(IList<Point> trace, IDictionary<char, Point> keys, double keyW, IDictionary<string, int> learned = null, int count = 3)
+        internal static List<string> Recognize(IList<Point> trace, IDictionary<char, Point> keys, double keyW, IDictionary<string, int> learned = null, int count = 3, string prev = null)
         {
             var result = new List<string>();
             if (_words == null || trace.Count < 2 || keys.Count == 0) return result;
@@ -159,13 +159,27 @@ namespace Przegladarka
                         if (ok) d = Math.Min(d, Distance(g, Resample(path, N), keyW));
                         if (d == double.MaxValue) continue;
                         int used = 0; learned?.TryGetValue(w.Word, out used);
-                        scored.Add((w.Word, d + 0.06 * Math.Log(w.Rank + 2) - Math.Min(0.5, 0.15 * used)));
+                        // nauka kolejnosci: slowo, ktore zwykle piszesz po poprzednim, wygrywa z podobnym ksztaltem (np. "jestem" -> "michał")
+                        int pair = 0; if (prev != null) lock (_pairs) _pairs.TryGetValue(prev + " " + w.Word, out pair);
+                        scored.Add((w.Word, d + 0.06 * Math.Log(w.Rank + 2) - Math.Min(0.5, 0.15 * used) - Math.Min(0.4, 0.2 * pair)));
                     }
                 }
             // propozycje tylko bliskie najlepszemu - bez przypadkowych, dziwnych slow
             double best = scored.Count > 0 ? scored.Min(x => x.S) : 0;
+            // niepewnie: drugie slowo pasuje prawie tak samo - klawiatura zapyta "Poprawic na:"
+            var order = scored.Select(x => x.S).OrderBy(x => x).ToList();
+            LastUncertain = order.Count > 1 && order[1] - order[0] < 0.08;
             foreach (var x in scored.OrderBy(x => x.S)) { if (x.S > best + 0.25) break; if (!result.Contains(x.W)) result.Add(x.W); if (result.Count >= count) break; }
             return result;
+        }
+
+        internal static volatile bool LastUncertain;
+        static readonly Dictionary<string, int> _pairs = new Dictionary<string, int>();
+        internal static void LearnPair(string prev, string word)
+        {
+            if (string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(word)) return;
+            var k = prev.ToLowerInvariant() + " " + word.ToLowerInvariant();
+            lock (_pairs) { _pairs[k] = (_pairs.TryGetValue(k, out var n) ? n : 0) + 1; if (_pairs.Count > 20000) _pairs.Remove(_pairs.OrderBy(x => x.Value).First().Key); }
         }
 
         static IEnumerable<string> ShapeLines()
@@ -173,6 +187,8 @@ namespace Przegladarka
             var ci = System.Globalization.CultureInfo.InvariantCulture;
             lock (_mine) return _mine.SelectMany(kv => kv.Value.Select(sh => "~" + kv.Key + "\t" + string.Join(" ", sh.Select(p => p.X.ToString("0.#", ci) + "," + p.Y.ToString("0.#", ci))))).ToList();
         }
+        static IEnumerable<string> PairLines() { lock (_pairs) return _pairs.Select(kv => "=" + kv.Key + "\t" + kv.Value).ToList(); }
+
         static void ReadShape(string line)
         {
             var ci = System.Globalization.CultureInfo.InvariantCulture;
@@ -189,7 +205,8 @@ namespace Przegladarka
                 Directory.CreateDirectory(Path.GetDirectoryName(file));
                 var text = string.Join("\n", learned.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).Take(5000).Select(kv => kv.Key + "\t" + kv.Value)
                     .Concat(own.Select(w => "+" + w))
-                    .Concat(ShapeLines()));
+                    .Concat(ShapeLines())
+                    .Concat(PairLines()));
                 // zaszyfrowane kontem Windows - w folderze danych nie ma jawnej listy wpisywanych slow
                 File.WriteAllBytes(file, System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(text), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser));
             }
@@ -239,6 +256,7 @@ namespace Przegladarka
                     {
                         if (line.StartsWith("+")) { if (line.Length > 2) own?.Add(line.Substring(1)); continue; }
                         if (line.StartsWith("~")) { ReadShape(line); continue; }
+                        if (line.StartsWith("=")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[1], out var pc)) lock (_pairs) _pairs[q[0]] = pc; continue; }
                         var p = line.Split('\t');
                         if (p.Length == 2 && int.TryParse(p[1], out var n) && p[0].Length > 0) d[p[0]] = n;
                     }

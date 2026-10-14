@@ -87,3 +87,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Menu pod prawym przyciskiem odchudzone: bez pozycji, które są ikonami na pasku (pauza, stop, kanał ±, informacje, odśwież, nagrywanie, biblioteka, kanały, program TV, ulubione, wyłącznik, PiP, playlisty, na wierzchu, mini, pełny ekran, zrzut).
 - Napis przy TV na żywo: nazwa stacji pogrubiona (stoi), separator, potem przewijany tytuł i opis; większa czcionka.
 - Koniec paska (za separatorem): mały wykres sieci (internet i LAN, 30 s): ↓ pobieranie niebieska, ↑ wysyłanie zielona (wspólne oglądanie przez LAN), prędkości; godzina i data.
+- 📺 na górnym pasku: od razu ostatni kanał w odtwarzaczu (w swojej grupie), przeglądarka do zasobnika i wraca po zamknięciu; okno listy kanałów tylko przy pierwszym uruchomieniu – poza tym 📺 w szybkich ikonach albo prawy klik na 📺.

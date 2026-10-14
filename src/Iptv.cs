@@ -507,10 +507,10 @@ namespace Przegladarka
             _tvBtn = new Button
             {
                 Content = "📺", FontSize = 16, Width = 40, Height = 36, Margin = new Thickness(2, 3, 2, 0),
-                ToolTip = L.T("Telewizja IPTV – kanały z listy M3U i program TV\nPrawy klik: dodaj listę, odinstaluj moduł")
+                ToolTip = L.T("Telewizja – od razu ostatni kanał w odtwarzaczu (przeglądarka do zasobnika)\nPrawy klik: kanały telewizji, program TV, dodaj listę, nagrania")
             };
             DockPanel.SetDock(_tvBtn, Dock.Right);
-            _tvBtn.Click += (s, e) => ShowIptv(this);
+            _tvBtn.Click += (s, e) => StartTv();
             var menu = new ContextMenu();
             Action<string, string, Action> item = (glyph, text, act) => { var mi = new MenuItem { Header = text, Icon = MenuGlyph(glyph) }; mi.Click += (s, e) => act(); menu.Items.Add(mi); };
             item("", L.T("Kanały telewizji"), () => ShowIptv(this));

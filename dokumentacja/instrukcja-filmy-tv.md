@@ -12,7 +12,7 @@ Na górnym pasku Velivo masz cztery przyciski:
 |---|---|
 | 🎬 | Otwiera **bibliotekę filmów** – wszystkie Twoje filmy z opisami i okładkami. |
 | ▶ | Otwiera **pusty odtwarzacz**. Przeglądarka chowa się do zasobnika i wraca, gdy zamkniesz odtwarzacz. |
-| 📺 | Otwiera **telewizję** – listy kanałów i program TV. |
+| 📺 | Włącza **telewizję** – od razu ostatni oglądany kanał; przeglądarka chowa się do zasobnika. Listę kanałów otworzysz ikoną 📺 na pasku odtwarzacza albo prawym klikiem na 📺. |
 | 🧹 | **Porządki i kopia bezpieczeństwa** – czyszczenie i kopia Twoich danych. |
 
 Gdy nic nie gra, odtwarzacz pokazuje czarny ekran z logo Velivo.

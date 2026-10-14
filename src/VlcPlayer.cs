@@ -92,6 +92,19 @@ namespace Przegladarka
             PlayVideos(new[] { url }, 0);
         }
 
+        // 📺 na gornym pasku: od razu ostatni kanal w odtwarzaczu (w swojej grupie), przegladarka do zasobnika - jak ▶;
+        // okno listy kanalow tylko przy pierwszym uruchomieniu (brak listy / nic jeszcze nie ogladane)
+        void StartTv()
+        {
+            var pl = KnownPlaylist();
+            var last = pl == null ? null : IptvSt.Recent.Select(u => pl.Channels.FirstOrDefault(c => c.Url == u)).FirstOrDefault(c => c != null);
+            if (last == null || !EnsureLibVlc()) { ShowIptv(this); return; }
+            var cur = _vlcWin != null && _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+            if (cur == null || !_iptvPlaying.ContainsKey(cur)) PlayChannelInGroup(last, pl);   // juz leci TV - tylko na wierzch
+            else { if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal; _vlcWin.Activate(); }
+            if (IsVisible) { EnsureTray(); Hide(); _inTray = true; _hiddenForPlayer = true; }
+        }
+
         // ---------- biblioteka ----------
 
         internal sealed class LibraryVideo

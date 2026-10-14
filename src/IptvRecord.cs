@@ -274,7 +274,9 @@ namespace Przegladarka
             var file = Path.Combine(dir, RecordingName(j.Channel, j.Title, DateTime.Now));
             _recFile[j.Id] = file;
             if (_vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) WarnOneConnection();
-            ShowToast(L.T("⏺ Nagrywam: ") + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title), null);
+            bool resumed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - j.Start > 90000;   // nagranie trwalo przed uruchomieniem Velivo
+            var until = L.T(" (do ") + DateTimeOffset.FromUnixTimeMilliseconds(j.Stop).LocalDateTime.ToString("HH:mm") + ")";
+            ShowToast((resumed ? L.T("⏺ Wznawiam nagrywanie: ") : L.T("⏺ Nagrywam: ")) + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title) + until + (resumed ? L.T("\nZatrzymasz przyciskiem ⏹ albo w 📅 Zaplanowane.") : ""), null);
             _iptvJobsChanged?.Invoke();
             Func<DateTime> until = () => LocalOf(j.Stop);   // "Przedluz" zmienia j.Stop w trakcie nagrywania
             Task.Run(() => RecordStream(j.Url, j.Opts, file, until, cts.Token)).ContinueWith(t => Dispatcher.BeginInvoke(new Action(() =>
@@ -427,7 +429,9 @@ namespace Przegladarka
 
         void RecordNow(IptvChannel ch, Window owner)
         {
-            AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Stop = UnixMs(DateTime.Now.AddHours(4)), Folder = IptvSt.RecDir });
+            // do konca audycji, ktora teraz leci (z zapasem); bez programu TV - 4 godziny
+            var p = EpgAt(EpgFor(_iptvEpg, ch), DateTime.Now);
+            AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = p?.Title, Start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Stop = UnixMs(p != null ? p.Stop.AddMinutes(2) : DateTime.Now.AddHours(4)), Folder = IptvSt.RecDir });
         }
 
         void RecordProgramme(IptvChannel ch, EpgItem p)

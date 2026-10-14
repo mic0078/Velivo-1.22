@@ -65,6 +65,12 @@ namespace Przegladarka
                     }
                     catch (Exception) { }   // plik zablokowany na wylacznosc - pomijamy
                 }
+                // do odtworzenia wszystkiego z jednego folderu: instalator Velivo, instrukcja i wlaczone moduly
+                var setup = Path.Combine(AppContext.BaseDirectory, "Velivo-instalator.exe");
+                if (File.Exists(setup)) try { zip.CreateEntryFromFile(setup, "_Instalator/Velivo-instalator.exe", CompressionLevel.NoCompression); } catch (Exception) { }
+                using (var w = new StreamWriter(zip.CreateEntry("_Instalator/JAK ODTWORZYC.txt").Open(), new System.Text.UTF8Encoding(true)))
+                    w.Write(L.T("Jak odtworzyć Velivo z tej kopii\r\n\r\n1. Rozpakuj z tego pliku ZIP folder _Instalator i uruchom Velivo-instalator.exe (jeśli Velivo nie jest zainstalowane).\r\n2. W Velivo kliknij 🧹 na górnym pasku → „♻ Przywróć z kopii…” i wskaż ten plik ZIP.\r\n3. Velivo uruchomi się ponownie z Twoimi danymi i ustawieniami.\r\n\r\nHasła są zaszyfrowane dla konta Windows – przywracaj na tym samym koncie.\r\n"));
+                if (File.Exists(IptvMarker)) zip.CreateEntry("_Instalator/iptv.on");   // modul TV byl wlaczony
             }
             if (File.Exists(zipPath)) File.Delete(zipPath);
             File.Move(tmp, zipPath);
@@ -97,6 +103,11 @@ namespace Przegladarka
                     foreach (var e in zip.Entries)
                     {
                         if (string.IsNullOrEmpty(e.Name)) continue;
+                        if (e.FullName.StartsWith("_Instalator/", StringComparison.OrdinalIgnoreCase))
+                        {   // nie dane: instalator i instrukcja zostaja w kopii; modul TV - wlaczany, jak byl
+                            if (e.Name == "iptv.on" && VlcInstalled && !File.Exists(IptvMarker)) try { File.WriteAllText(IptvMarker, ""); } catch (Exception) { }
+                            continue;
+                        }
                         var dest = Path.GetFullPath(Path.Combine(DataRoot, e.FullName));
                         if (!dest.StartsWith(Path.GetFullPath(DataRoot) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) continue;   // tylko w folderze danych
                         Directory.CreateDirectory(Path.GetDirectoryName(dest));

@@ -36,8 +36,8 @@ namespace Przegladarka
             if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; return; }
             bool shift = false, caps = false, alt = false;
             // jak logo Velivo: tlo przechodzi fiolet -> niebieski -> turkus, klawisze ze szkla, wlaczone / wcisniete - biale
-            var violet = Color.FromRgb(0x8B, 0x5C, 0xF6); var cyan = Color.FromRgb(0x06, 0xB6, 0xD4);
-            var keyBg = new SolidColorBrush(Color.FromArgb(0x29, 0xFF, 0xFF, 0xFF)); var keyHover = new SolidColorBrush(Color.FromArgb(0x47, 0xFF, 0xFF, 0xFF));
+            var violet = Color.FromRgb(0x4C, 0x1D, 0x95); var cyan = Color.FromRgb(0x0E, 0x74, 0x90);   // przyciemnione kolory logo
+            var keyBg = new SolidColorBrush(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF)); var keyHover = new SolidColorBrush(Color.FromArgb(0x3D, 0xFF, 0xFF, 0xFF));
             var accent = Brushes.White; var accentText = new SolidColorBrush(Color.FromRgb(0x5B, 0x3F, 0xD9));
             var rows = new[] { "1234567890-=", "qwertyuiop[]", "asdfghjkl;'", "zxcvbnm,./" };
             const string shifted = "!@#$%^&*()_+{}:\"<>?";
@@ -111,7 +111,7 @@ namespace Przegladarka
             {
                 Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ResizeMode = ResizeMode.NoResize,
                 SizeToContent = SizeToContent.WidthAndHeight, Topmost = true, ShowActivated = false, ShowInTaskbar = false,
-                Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(violet, 0), new GradientStop(Color.FromRgb(0x4F, 0x6B, 0xED), 0.45), new GradientStop(cyan, 1) }, new Point(0, 0), new Point(1, 1)),
+                Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(violet, 0), new GradientStop(Color.FromRgb(0x2A, 0x3A, 0x8F), 0.5), new GradientStop(cyan, 1) }, new Point(0, 0), new Point(1, 1)),
                     CornerRadius = new CornerRadius(14), BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), Child = all,
                     Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 20, ShadowDepth = 0, Opacity = 0.55, Color = violet } }
             };

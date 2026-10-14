@@ -307,7 +307,7 @@ namespace Przegladarka
             var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
             title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
-            List<Point> lastTrace = null; string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
+            List<Point> lastTrace = null; double lastKeyW = 52; string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
             Action<string> learn = wd =>
             {
                 if (wd.Length < 2 || !SwipeTyping.Loaded || SecretField()) return;   // pole hasla - bez nauki
@@ -344,7 +344,7 @@ namespace Przegladarka
                     for (int k = 0; k <= lastSwipe.Length; k++) SendKey(0x08, '\0');   // slowo + spacja
                     var lw = lastSwipe.ToLowerInvariant(); if (_swLearned.TryGetValue(lw, out var n) && n > 0) _swLearned[lw] = n - 1;   // to nie bylo to slowo
                     foreach (var ch in alt0) SendKey(0, ch); SendKey(0, ' ');
-                    SwipeTyping.ForgetShape(lastSwipe); if (lastTrace != null) SwipeTyping.LearnShape(alt0, lastTrace, 52);   // ten ruch znaczyl to slowo
+                    SwipeTyping.ForgetShape(lastSwipe); if (lastTrace != null) SwipeTyping.LearnShape(alt0, lastTrace, lastKeyW);   // ten ruch znaczyl to slowo
                     learn(alt0); lastSwipe = alt0;
                     foreach (var x in sugs) x.Visibility = Visibility.Collapsed;
                     title.Visibility = Visibility.Visible;
@@ -588,13 +588,16 @@ namespace Przegladarka
                 foreach (var (b, c) in letters) if (c >= 'a' && c <= 'z') centers[c] = b.TranslatePoint(new Point(b.ActualWidth / 2, b.ActualHeight / 2), trailC);
                 var pts = trace.ToList(); bool upper = shift ^ caps;
                 Dictionary<string, int> learnedCopy; lock (_swLearned) learnedCopy = new Dictionary<string, int>(_swLearned);
-                System.Threading.Tasks.Task.Run(() => SwipeTyping.Recognize(pts, centers, 52, learnedCopy)).ContinueWith(t =>
+                // prawdziwy odstep klawiszy w tym ukladzie (q -> w), nie stala - trafniej przy kazdym rozmiarze
+                double kw = centers.TryGetValue('q', out var cq) && centers.TryGetValue('w', out var cw2) ? Math.Max(20, Math.Abs(cw2.X - cq.X)) : 52;
+                lastKeyW = kw;
+                System.Threading.Tasks.Task.Run(() => SwipeTyping.Recognize(pts, centers, kw, learnedCopy, 4)).ContinueWith(t =>
                 {
                     if (t.IsFaulted || t.Result.Count == 0) return;
                     var found = t.Result.Select(x => upper ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
                     learn(cur); cur = "";
                     foreach (var ch in found[0]) SendKey(0, ch); SendKey(0, ' ');
-                    lastTrace = pts; if (!SecretField()) SwipeTyping.LearnShape(found[0], pts, 52);   // nauka Twojego ruchu (nie w polu hasla)
+                    lastTrace = pts; if (!SecretField()) SwipeTyping.LearnShape(found[0], pts, lastKeyW);   // nauka Twojego ruchu (nie w polu hasla)
                     learn(found[0]); say(found[0]); lastSwipe = found[0];
                     if (shift) { shift = false; refresh(); }
                     for (int i = 0; i < sugs.Count; i++)

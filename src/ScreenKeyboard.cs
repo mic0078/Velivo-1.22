@@ -106,11 +106,15 @@ namespace Przegladarka
             var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
             title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
-            // z przodu 3 smugi jak w logo: coraz krotsze i bledsze, wyrownane do prawej
-            var waves = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-            foreach (var (len, op) in new[] { (18.0, 1.0), (14.0, 0.7), (10.0, 0.45) })
-                waves.Children.Add(new Border { Width = len, Height = 3, CornerRadius = new CornerRadius(1.5), Margin = new Thickness(18 - len, 1.5, 0, 1.5), Opacity = op, Background = new LinearGradientBrush(violet, cyan, 0) });
-            DockPanel.SetDock(waves, Dock.Left); head.Children.Add(waves);
+            // z przodu logo Velivo: zaokraglony kwadrat w gradiencie, biale "V" i 3 smugi predkosci (coraz bledsze)
+            var logo = new Canvas { Width = 24, Height = 24, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            logo.Children.Add(new Border { Width = 24, Height = 24, CornerRadius = new CornerRadius(6),
+                Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(violet, 0), new GradientStop(Color.FromRgb(0x4F, 0x6B, 0xED), 0.5), new GradientStop(cyan, 1) }, new Point(0, 0), new Point(1, 1)) });
+            logo.Children.Add(new System.Windows.Shapes.Polyline { Points = new PointCollection { new Point(9, 6), new Point(13.5, 18), new Point(18, 6) }, Stroke = Brushes.White, StrokeThickness = 3,
+                StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round });
+            foreach (var (y, x1, op) in new[] { (9.0, 2.5, 0.9), (12.0, 3.5, 0.65), (15.0, 4.5, 0.45) })
+                logo.Children.Add(new System.Windows.Shapes.Line { X1 = x1, X2 = x1 + 4.5, Y1 = y, Y2 = y, Stroke = Brushes.White, StrokeThickness = 1.5, Opacity = op, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+            DockPanel.SetDock(logo, Dock.Left); head.Children.Add(logo);
             head.Children.Add(title);
             var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(root);
             var w = new Window

@@ -88,7 +88,7 @@ Kliknij prawym przyciskiem na obrazie. Najważniejsze pozycje:
 - **📂 Otwórz plik…**
 - **🕘 Ostatnio oglądane TV** i **🕘 Ostatnio oglądane Filmy** – po 20 ostatnich, najnowsze na górze. Kanał włączony stąd gra w swojej grupie.
 - Biblioteka, kanały, program TV, ulubione, wyłącznik czasowy, **⧉ PiP**, **⏰ Zaplanuj włączenie**, playlisty.
-- **⚙ Ustawienia** – przezroczystość listy, pasek informacji, bufor kanałów, zapas nagrywania.
+- **⚙ Ustawienia** – przezroczystość listy, bufor kanałów, zapas nagrywania. Ustawienia paska sterowania (👁) i paska informacji (ikona z suwakami) są na końcu szybkich ikon.
 
 ---
 

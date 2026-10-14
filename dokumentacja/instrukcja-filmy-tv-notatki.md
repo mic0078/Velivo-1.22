@@ -83,3 +83,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - TV na żywo: zamiast paska postępu przesuwający się napis – tytuł, odcinek i początek opisu; godziny audycji i „● NA ŻYWO” po bokach.
 - 👁 na końcu szybkich ikon (za separatorem): jak długo pasek zostaje widoczny – 2,5 / 5 / 10 / 20 s albo zawsze widoczny – oraz przezroczystość paska (0–60 %).
 - Ikona PiP: dwa nakładające się okna (inna niż tryb mini); rząd przycisków w jednej linii z szybkimi ikonami.
+- Ikona ustawień paska informacji (suwaki) obok 👁: pokazywanie przy ruchu myszy, znikanie, przezroczystość tła, wielkość tekstu – przeniesione z menu ⚙.

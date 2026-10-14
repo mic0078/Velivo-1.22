@@ -1113,6 +1113,7 @@ namespace Przegladarka
             { "info", "M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z" },
             { "refresh", "M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" },
             { "playlists", "M19,9H2V11H19V9M19,5H2V7H19V5M2,15H15V13H2V15M17,13V19L22,16L17,13Z" },
+            { "tune", "M3,17V19H9V17H3M3,5V7H13V5H3M13,21V19H21V17H13V15H11V21H13M7,9V11H3V13H7V15H9V9H7M21,13V11H11V13H21M15,9H17V7H21V5H17V3H15V9Z" },
             { "eye", "M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" },
             { "film", "M18,4L20,8H17L15,4H13L15,8H12L10,4H8L10,8H7L5,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V4H18Z" },
         };
@@ -1262,7 +1263,8 @@ namespace Przegladarka
             var qBarTime = qBtn("eye", L.T("Pasek sterowania: jak długo zostaje widoczny i jak bardzo przezroczysty"));
             foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
             quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });   // separator - ustawienia paska osobno
-            quick.Children.Add(qBarTime);
+            var qInfoSet = qBtn("tune", L.T("Pasek informacji: kiedy się pokazuje, znikanie, przezroczystość, wielkość tekstu"));
+            quick.Children.Add(qBarTime); quick.Children.Add(qInfoSet);
             // nad szybkimi ikonami: znacznik nagrywania (czerwona pigulka, tylko gdy cos sie nagrywa) i licznik polaczen z dostawca
             var recPill = new Button { Cursor = Cursors.Hand, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed, BorderThickness = new Thickness(0), Foreground = Brushes.White, FontSize = 12.5, FontWeight = FontWeights.SemiBold,
                 Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)), ToolTip = L.T("Trwające nagrania – kliknij: zatrzymaj albo przedłuż"),
@@ -2674,6 +2676,36 @@ namespace Przegladarka
                 updQuick();
             };
             qRecDir.Click += (s, e) => OpenRecDir();
+            // ustawienia paska informacji - ikona obok 👁 (z menu ⚙ przeniesione tutaj)
+            Action<ItemsControl> infoSettings = to =>
+            {
+                    var moveM = new MenuItem { Header = L.T("Pokazuj przy ruchu myszy"), IsCheckable = true, IsChecked = IptvSt.InfoOnMove };
+                    moveM.Click += (q, w2) => { IptvSt.InfoOnMove = moveM.IsChecked; SaveIptv(IptvSt); showOsd(IptvSt.InfoOnMove ? L.T("Pasek informacji: przy ruchu myszy") : L.T("Pasek informacji: tylko klawisz I")); };
+                    to.Items.Add(moveM);
+                    var hideM = new MenuItem { Header = L.T("⏱ Znikanie po") };
+                    foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
+                    {
+                        var sec = sec0; var mi = new MenuItem { Header = sec == 0 ? L.T("nie pokazuj sam (tylko klawisz I)") : sec + " s", IsCheckable = true, IsChecked = IptvSt.InfoSec == sec };
+                        mi.Click += (q, w2) => { IptvSt.InfoSec = sec; SaveIptv(IptvSt); showInfo(true); };
+                        hideM.Items.Add(mi);
+                    }
+                    var alphaM = new MenuItem { Header = L.T("🌓 Przezroczystość tła") };
+                    foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
+                    {
+                        var al = a0; var mi = new MenuItem { Header = (100 - al) + " %" + (al == 100 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = IptvSt.InfoAlpha == al };
+                        mi.Click += (q, w2) => { IptvSt.InfoAlpha = al; SaveIptv(IptvSt); showInfo(true); };
+                        alphaM.Items.Add(mi);
+                    }
+                    var sizeM = new MenuItem { Header = L.T("🔠 Wielkość tekstu (względem okna)") };
+                    foreach (var z0 in new[] { new object[] { 85, "Mały" }, new object[] { 100, "Normalny" }, new object[] { 125, "Duży" }, new object[] { 150, "Bardzo duży" } })
+                    {
+                        var z = (int)z0[0]; var mi = new MenuItem { Header = L.T((string)z0[1]), IsCheckable = true, IsChecked = IptvSt.InfoScale == z };
+                        mi.Click += (q, w2) => { IptvSt.InfoScale = z; SaveIptv(IptvSt); showInfo(true); };
+                        sizeM.Items.Add(mi);
+                    }
+                    to.Items.Add(hideM); to.Items.Add(alphaM); to.Items.Add(sizeM);
+            };
+            qInfoSet.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = qInfoSet, Placement = PlacementMode.Top }; infoSettings(cm); cm.IsOpen = true; };
             qBarTime.Click += (s, e) =>
             {   // czas wyswietlania paska
                 var cm = new ContextMenu { PlacementTarget = qBarTime, Placement = PlacementMode.Top };
@@ -2924,33 +2956,7 @@ namespace Przegladarka
                     }
                     cm.Items.Add(flM);
                 }
-                var infoM = new MenuItem { Header = L.T("ℹ Pasek informacji") };
-                var moveM = new MenuItem { Header = L.T("Pokazuj przy ruchu myszy"), IsCheckable = true, IsChecked = IptvSt.InfoOnMove };
-                moveM.Click += (q, w2) => { IptvSt.InfoOnMove = moveM.IsChecked; SaveIptv(IptvSt); showOsd(IptvSt.InfoOnMove ? L.T("Pasek informacji: przy ruchu myszy") : L.T("Pasek informacji: tylko klawisz I")); };
-                infoM.Items.Add(moveM);
-                var hideM = new MenuItem { Header = L.T("⏱ Znikanie po") };
-                foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
-                {
-                    var sec = sec0; var mi = new MenuItem { Header = sec == 0 ? L.T("nie pokazuj sam (tylko klawisz I)") : sec + " s", IsCheckable = true, IsChecked = IptvSt.InfoSec == sec };
-                    mi.Click += (q, w2) => { IptvSt.InfoSec = sec; SaveIptv(IptvSt); showInfo(true); };
-                    hideM.Items.Add(mi);
-                }
-                var alphaM = new MenuItem { Header = L.T("🌓 Przezroczystość tła") };
-                foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
-                {
-                    var al = a0; var mi = new MenuItem { Header = (100 - al) + " %" + (al == 100 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = IptvSt.InfoAlpha == al };
-                    mi.Click += (q, w2) => { IptvSt.InfoAlpha = al; SaveIptv(IptvSt); showInfo(true); };
-                    alphaM.Items.Add(mi);
-                }
-                var sizeM = new MenuItem { Header = L.T("🔠 Wielkość tekstu (względem okna)") };
-                foreach (var z0 in new[] { new object[] { 85, "Mały" }, new object[] { 100, "Normalny" }, new object[] { 125, "Duży" }, new object[] { 150, "Bardzo duży" } })
-                {
-                    var z = (int)z0[0]; var mi = new MenuItem { Header = L.T((string)z0[1]), IsCheckable = true, IsChecked = IptvSt.InfoScale == z };
-                    mi.Click += (q, w2) => { IptvSt.InfoScale = z; SaveIptv(IptvSt); showInfo(true); };
-                    sizeM.Items.Add(mi);
-                }
-                infoM.Items.Add(hideM); infoM.Items.Add(alphaM); infoM.Items.Add(sizeM);
-                cm.Items.Add(infoM);
+
                 add(L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(true, Window.GetWindow(overlay) ?? win); if (fs != null) PlayVideos(fs, 0); }, true);
                 {   // ostatnio ogladane - osobno TV i filmy, po 20 ostatnich, najnowsze na gorze
                     var rf = new MenuItem { Header = L.T("🕘 Ostatnio oglądane Filmy") };
@@ -3090,7 +3096,7 @@ namespace Przegladarka
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
-                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "ℹ Pasek informacji", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
+                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
                 var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().ToList();
                 cm.Items.Clear();

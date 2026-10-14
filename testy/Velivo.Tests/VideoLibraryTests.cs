@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using Przegladarka;
 using Xunit;
@@ -114,6 +114,21 @@ public class VideoLibraryTests
         };
         Assert.Equal(5000, MainWindow.FindEntry(lib, @"c:\F.mkv", true).Pos);   // kazda biblioteka - wlasny licznik
         Assert.Equal(0, MainWindow.FindEntry(lib, @"C:\f.mkv", false).Pos);
+    }
+
+    [Fact]
+    public void WznowienieZNajnowszegoWpisu()
+    {
+        // film w obu bibliotekach: ogladany z kolejki (wpis wspolny), potem wlaczony z biblioteki prywatnej - ma zapytac o wznowienie
+        var lib = new System.Collections.Generic.List<MainWindow.LibraryVideo>
+        {
+            new MainWindow.LibraryVideo { Path = @"C:.mkv", Title = "f", Pos = 0, Last = 100, Shared = false },
+            new MainWindow.LibraryVideo { Path = @"C:.mkv", Title = "f", Pos = 1800000, Len = 6000000, Last = 200, Shared = true },
+        };
+        var cur = MainWindow.FindEntry(lib, @"C:.mkv", false);
+        MainWindow.TakeNewestProgress(lib, cur);
+        Assert.Equal(1800000, MainWindow.ResumeAt(cur.Pos, cur.Len));
+        Assert.False(cur.Shared ?? true);   // licznik nadal w swojej bibliotece
     }
 
     [Fact]

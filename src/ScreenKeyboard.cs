@@ -120,11 +120,14 @@ namespace Przegladarka
             }
             DockPanel.SetDock(logo, Dock.Left); head.Children.Add(logo);
             head.Children.Add(title);
-            // 3 smugi z logo przeciagniete pedzlem po klawiszach - zwezane, fiolet -> turkus, gasnace; nie przeszkadzaja w klikaniu
+            // logo wpisane w klawisze: 3 smugi pociagniete pedzlem i duze "V" - zwezane, fiolet -> turkus, gasnace; nie przeszkadzaja w klikaniu
             var paint = new Canvas { Width = 790, Height = 270, IsHitTestVisible = false, Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 2.5 } };
             var brushFill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromArgb(0, 0x8B, 0x5C, 0xF6), 0), new GradientStop(Color.FromArgb(0x8C, 0x8B, 0x5C, 0xF6), 0.35), new GradientStop(Color.FromArgb(0x0D, 0x06, 0xB6, 0xD4), 1) }, new Point(0, 0), new Point(1, 0));
-            foreach (var (d, op) in new[] { ("M20 66 C 220 50, 480 46, 760 58 C 480 60, 240 68, 20 74 Z", 1.0), ("M80 124 C 260 112, 470 108, 700 116 C 470 120, 270 128, 80 132 Z", 0.75), ("M150 182 C 300 174, 460 170, 640 176 C 460 180, 310 186, 150 189 Z", 0.5) })
+            foreach (var (d, op) in new[] { ("M60 64 C 200 52, 330 50, 452 56 C 330 60, 210 66, 60 72 Z", 1.0), ("M130 124 C 250 114, 370 112, 478 116 C 370 120, 260 126, 130 130 Z", 0.75), ("M200 182 C 300 174, 410 172, 505 176 C 410 180, 310 186, 200 189 Z", 0.5) })
                 paint.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(d), Fill = brushFill, Opacity = op });
+            // duze, ledwo widoczne "V" z logo - smugi koncza sie na jego lewym ramieniu
+            paint.Children.Add(new System.Windows.Shapes.Polyline { Points = new PointCollection { new Point(470, 24), new Point(545, 226), new Point(620, 24) }, StrokeThickness = 34, Opacity = 0.16,
+                Stroke = new LinearGradientBrush(Color.FromRgb(0xA7, 0x8B, 0xFA), Color.FromRgb(0x22, 0xD3, 0xEE), 45), StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round });
             var keys = new Grid(); keys.Children.Add(root); var vb = new Viewbox { Stretch = Stretch.Fill, Child = paint, IsHitTestVisible = false };
             vb.SetBinding(FrameworkElement.WidthProperty, new System.Windows.Data.Binding("ActualWidth") { Source = root }); vb.SetBinding(FrameworkElement.HeightProperty, new System.Windows.Data.Binding("ActualHeight") { Source = root });   // tylko na obszarze klawiszy
             keys.Children.Add(vb);

@@ -88,5 +88,11 @@ public class PisanieFlowTests
     {
         var name = typeof(MainWindow).Assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith("slowa-pl.txt"));
         Assert.NotNull(name);
+        // bez wydluzen z napisow ("taak", "taaak") - przy przeciaganiu wygladaja jak "tak"
+        using var rd = new System.IO.StreamReader(typeof(MainWindow).Assembly.GetManifestResourceStream(name));
+        var words = rd.ReadToEnd().Split('\n');
+        Assert.Contains("tak", words);
+        Assert.DoesNotContain("taak", words);
+        Assert.DoesNotContain("taaak", words);
     }
 }

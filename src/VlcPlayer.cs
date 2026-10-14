@@ -2341,9 +2341,19 @@ namespace Przegladarka
                 pipX = (pipWin.Left - r.X) / r.Width; pipY = (pipWin.Top - r.Y) / r.Height; pipW = pipWin.Width / r.Width;
                 pipKeep.Stop(); pipKeep.Start();
             };
+            // dzwiek z podgladu albo z glownego: wylaczana sama sciezka dzwieku (nie glosnosc - ta jest wspolna dla calego programu)
+            bool pipSound = false; int mainTrack = -1;
+            Action<bool> pipAudio = on =>
+            {
+                if (pipMp == null) return;
+                if (on && !pipSound) { mainTrack = mp.AudioTrack; mp.SetAudioTrack(-1); var t = pipMp.AudioTrackDescription.FirstOrDefault(x => x.Id >= 0); if (t.Name != null) pipMp.SetAudioTrack(t.Id); }
+                else if (!on && pipSound) { pipMp.SetAudioTrack(-1); var t = mp.AudioTrackDescription.FirstOrDefault(x => x.Id == mainTrack); mp.SetAudioTrack(t.Name != null ? mainTrack : mp.AudioTrackDescription.FirstOrDefault(x => x.Id >= 0).Id); }
+                pipSound = on;
+            };
             Action pipClose = () =>
             {
                 if (pipWin == null) return;
+                pipAudio(false);   // dzwiek wraca do glownego
                 var m = pipMp; var w0 = pipWin; pipMp = null; pipWin = null; pipCh = null;
                 try { m.Stop(); } catch (Exception) { }
                 w0.Close();
@@ -2402,7 +2412,13 @@ namespace Przegladarka
                     };
                     pPrev.Click += (q, w2) => pStep(-1); pNext.Click += (q, w2) => pStep(1);
                     foreach (var b0 in new[] { pPrev, pNext, pPlay, pStop }) DockPanel.SetDock(b0, Dock.Left);
+                    var pSnd = pBtn("mute", L.T("Dźwięk z podglądu / z głównego okna")); DockPanel.SetDock(pSnd, Dock.Right);
+                    pSnd.Click += (q, w2) => { pipAudio(!pipSound); var ic = PlayerIcon(pipSound ? "volume" : "mute"); ic.Width = ic.Height = 14; pSnd.Content = ic; showOsd(pipSound ? L.T("🔊 Dźwięk z podglądu") : L.T("🔊 Dźwięk z głównego okna")); };
+                    pBar.Children.Add(pSnd);
                     pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek);
+                    // glowny zmienil kanal / film przy dzwieku z podgladu - jego sciezka znow wylaczona (po ustawieniu sciezek)
+                    mp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() => { if (!pipSound) return; var t1 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1300) }; t1.Tick += (a1, b1) => { t1.Stop(); if (pipSound) { mainTrack = mp.AudioTrack >= 0 ? mp.AudioTrack : mainTrack; mp.SetAudioTrack(-1); } }; t1.Start(); }));
+                    pipMp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() => { if (pipMp != null && !pipSound) pipMp.SetAudioTrack(-1); }));   // nowy kanal / film w podgladzie - bez dzwieku, dopoki nie przelaczysz
                     bool pSeeking = false;
                     pPlay.Click += (q, w2) => { if (pipMp.IsPlaying) pipMp.SetPause(true); else if (pipMp.State == VLCState.Stopped || pipMp.State == VLCState.Ended) { var c = pipCh; pipStart = 0; pipShow(c); } else pipMp.SetPause(false); };
                     pStop.Click += (q, w2) => { pipMp.Stop(); pSeek.Value = 0; };
@@ -2416,6 +2432,8 @@ namespace Przegladarka
                         pBar.Visibility = pipCh != null ? Visibility.Visible : Visibility.Collapsed;
                         var fv = film ? Visibility.Visible : Visibility.Collapsed; var tv0 = film ? Visibility.Collapsed : Visibility.Visible;
                         pPlay.Visibility = pStop.Visibility = pSeek.Visibility = fv; pPrev.Visibility = pNext.Visibility = tv0;
+                        var sw = pipSound ? "volume" : "mute";
+                        if ((string)pSnd.Tag != sw) { var si = PlayerIcon(sw); si.Width = si.Height = 14; pSnd.Content = si; pSnd.Tag = sw; }
                         if (!film) return;
                         var want = pipMp.IsPlaying ? "pause" : "play";
                         if ((string)pPlay.Tag != want) { var ic = PlayerIcon(want); ic.Width = ic.Height = 14; pPlay.Content = ic; pPlay.Tag = want; }
@@ -2457,7 +2475,7 @@ namespace Przegladarka
                             if (st0 > 0) media.AddOption(":start-time=" + (st0 / 1000).ToString(inv));
                         }
                         pipStart = -1;
-                        media.AddOption(":no-audio");   // podglad bez dzwieku: wyciszanie VLC dziala na caly program (znikal dzwiek glownego), dzwiek = zamiana kanalow
+                        // podglad startuje bez dzwieku (sciezka wylaczana po starcie), dzwiek przelacza ikona 🔊 na pasku podgladu
                         pipMp.Play(media);
                     }
                 }
@@ -2465,6 +2483,7 @@ namespace Przegladarka
             };
             pipSwap = () =>
             {
+                pipAudio(false);   // po zamianie dzwiek z glownego
                 var a = pipCh; var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (a == null) return;
                 // glowny idzie do podgladu: kanal albo film z tego komputera (od biezacego miejsca); film strumieniowany z innego komputera - podglad sie zamyka

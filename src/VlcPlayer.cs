@@ -2231,6 +2231,9 @@ namespace Przegladarka
                 d.Start();
             };
             Action pipSwap = null;
+            const string pipFilmGrp = "\u0001film";   // film w podgladzie (jak kanal, ale plik z biblioteki)
+            long pipStart = -1;   // od ktorego miejsca film w podgladzie (-1 = jak w bibliotece)
+            Func<string, IptvChannel> pipFilm = path0 => { var lv = FindEntry(LoadLibrary(), path0, null); return new IptvChannel { Name = "🎬 " + (lv != null ? ShownTitle(lv, MetaFor(path0)) : System.IO.Path.GetFileNameWithoutExtension(path0)), Url = path0, Group = pipFilmGrp }; };
             // kursor nad podgladem PiP - klik tam nie jest klikiem w glowny obraz (bez pauzy glownego)
             Func<MouseEventArgs, bool> overPip = e0 =>
             {
@@ -2276,10 +2279,17 @@ namespace Przegladarka
                 pipCh = ch; pipName.Text = "⧉ " + ch.Name;
                 try
                 {
-                    using (var media = new Media(_libVlc, new Uri(ch.Url)))
+                    bool film = ch.Group == pipFilmGrp;
+                    using (var media = film ? new Media(_libVlc, ch.Url, FromType.FromPath) : new Media(_libVlc, new Uri(ch.Url)))
                     {
                         foreach (var o in ch.Opts) media.AddOption(o);
-                        media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);
+                        if (!film) media.AddOption(":network-caching=" + Math.Max(1, IptvSt.Buffer) * 1000);
+                        else
+                        {   // film od miejsca, w ktorym go zostawiono
+                            long st0 = pipStart >= 0 ? pipStart : ResumeAt(FindEntry(LoadLibrary(), ch.Url, null)?.Pos ?? 0, FindEntry(LoadLibrary(), ch.Url, null)?.Len ?? 0);
+                            if (st0 > 0) media.AddOption(":start-time=" + (st0 / 1000).ToString(inv));
+                        }
+                        pipStart = -1;
                         media.AddOption(":no-audio");   // podglad bez dzwieku: wyciszanie VLC dziala na caly program (znikal dzwiek glownego), dzwiek = zamiana kanalow
                         pipMp.Play(media);
                     }
@@ -2290,20 +2300,22 @@ namespace Przegladarka
             {
                 var a = pipCh; var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (a == null) return;
-                if (p0 == null || !_iptvPlaying.TryGetValue(p0, out var mainCh)) { pipClose(); PlayChannelInGroup(a, KnownPlaylist()); return; }   // przy filmie: kanal na glowny, miejsce filmu zapamietane (Ostatnio ogladane Filmy)
-                pipShow(mainCh);   // glowny idzie do podgladu
-                int at = _playlist.IndexOf(a.Url);
-                if (at >= 0) _vlcLoad(at); else PlayChannelInGroup(a, KnownPlaylist());   // podglad idzie na glowny (w swojej grupie)
+                // glowny idzie do podgladu: kanal albo film z tego komputera (od biezacego miejsca); film strumieniowany z innego komputera - podglad sie zamyka
+                IptvChannel mainItem = p0 == null ? null : _iptvPlaying.TryGetValue(p0, out var mc) ? mc : !p0.Contains("://") && File.Exists(p0) ? pipFilm(p0) : null;
+                if (mainItem != null && mainItem.Group == pipFilmGrp) { savePos(); pipStart = mp.Time; }
+                if (mainItem != null) pipShow(mainItem); else pipClose();
+                // podglad idzie na glowny: film (pyta o wznowienie) albo kanal w swojej grupie
+                if (a.Group == pipFilmGrp) PlayVideos(new[] { a.Url }, 0);
+                else { int at = _playlist.IndexOf(a.Url); if (at >= 0) _vlcLoad(at); else PlayChannelInGroup(a, KnownPlaylist()); }
             };
             pipItems = cm =>
             {
                 var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 bool tvNow = p0 != null && _iptvPlaying.ContainsKey(p0);
                 Action<ItemsControl, string, Action, bool> pa = (to, h, a, en) => { var mi = new MenuItem { Header = h, IsEnabled = en }; mi.Click += (q, w2) => a(); to.Items.Add(mi); };
-                if (!IptvInstalled) { pa(cm, L.T("(PiP pokazuje kanały telewizji – moduł TV nie jest zainstalowany)"), () => { }, false); return; }
                 if (pipWin != null)
                 {
-                    pa(cm, tvNow ? L.T("⇄ Zamień z głównym (klik w podgląd)") : L.T("📺 Oglądaj ten kanał (klik w podgląd)"), () => pipSwap(), true);
+                    pa(cm, L.T("⇄ Zamień z głównym (klik w podgląd)"), () => pipSwap(), true);
                     pa(cm, L.T("📌 Zapisz to miejsce i wielkość"), () =>
                     {
                         pipSave(); if (pipX == null) return;
@@ -2325,6 +2337,14 @@ namespace Przegladarka
                 sub(L.T("⭐ Ulubione"), IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u)));
                 sub(L.T("🕘 Ostatnio oglądane"), IptvSt.Recent.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u)));
                 if (tvNow) sub(L.T("📺 Kanały tej grupy"), _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]));
+                {   // film w podgladzie (np. przy telewizji)
+                    var fm = new MenuItem { Header = L.T("🎬 Filmy") };
+                    foreach (var v0 in LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != p0 && File.Exists(v.Path)).OrderByDescending(v => v.Last).Take(20))
+                    { var v = v0; pa(fm, (pipCh?.Url == v.Path ? "● " : "") + ShownTitle(v, MetaFor(v.Path)), () => pipShow(pipFilm(v.Path)), true); }
+                    if (fm.Items.Count > 0) fm.Items.Add(new Separator());
+                    pa(fm, L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(false, Window.GetWindow(overlay) ?? win); if (fs != null && fs.Length > 0) pipShow(pipFilm(fs[0])); }, true);
+                    cm.Items.Add(fm);
+                }
                 var grM = new MenuItem { Header = L.T("📂 Wszystkie grupy") };   // takze przy filmie: dowolny kanal do podgladu
                 foreach (var g0 in allc.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase))
                 {

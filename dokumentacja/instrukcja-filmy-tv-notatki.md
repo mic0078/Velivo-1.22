@@ -94,3 +94,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Nad wykresem sieci (prawa strona, linia NA ŻYWO): jakość strumienia – rozdzielczość (SD/HD/FHD/4K), przepływność, klatki/s; „⚠ utracone: N” na pomarańczowo przy gubionych klatkach.
 - Film: w linii jakości także kodek obrazu (np. FHD 1920×1080 · H.264 · 8,2 Mb/s · 24 kl/s; dźwięk tylko w podpowiedzi, żeby linia mieściła się nad wykresem); podpowiedź = pełne dane techniczne (plik, rozmiar, kontener, długość, obraz, wszystkie ścieżki dźwięku, napisy); te dane też w vlc.log.
 - Klik w obraz przy otwartym menu tylko zamyka menu – nie zatrzymuje filmu ani TV na żywo.
+- Klawiatura „żagiel”: wpływa łagodnie od dołu z rozjaśnieniem (ok. 0,3 s), odpływa w dół przy zamknięciu. Kandydat do wersji Pro (motyw / animacje), razem z: nagrywaniem TV, PiP, wspólnym oglądaniem w LAN, kopiami przyrostowymi, pisaniem myszką z nauką ruchów.

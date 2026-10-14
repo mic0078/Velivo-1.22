@@ -248,6 +248,23 @@ namespace Przegladarka
 
         [DllImport("user32.dll")] static extern bool GetCursorPos(out PointStruct p);
 
+        // jak zagiel (Velivo): klawiatura wplywa lagodnie od dolu i rozjasnia sie, przy zamknieciu odplywa w dol i gasnie (ok. 0,3 s)
+        static void Sail(Window w, UIElement content, bool open, Action done)
+        {
+            double top = w.Top, ms = open ? 320 : 220;
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = open ? System.Windows.Media.Animation.EasingMode.EaseOut : System.Windows.Media.Animation.EasingMode.EaseIn };
+            var move = new System.Windows.Media.Animation.DoubleAnimation(open ? top + 40 : top, open ? top : top + 40, TimeSpan.FromMilliseconds(ms)) { EasingFunction = ease };
+            var fade = new System.Windows.Media.Animation.DoubleAnimation(open ? 0 : 1, open ? 1 : 0, TimeSpan.FromMilliseconds(ms));
+            move.Completed += (s, e) =>
+            {   // po animacji zwykla pozycja (inaczej animacja trzymalaby okno i nie dalo sie go przesunac)
+                w.BeginAnimation(Window.TopProperty, null); w.Top = open ? top : top + 40;
+                content.BeginAnimation(UIElement.OpacityProperty, null); content.Opacity = open ? 1 : 0;
+                done?.Invoke();
+            };
+            w.BeginAnimation(Window.TopProperty, move);
+            content.BeginAnimation(UIElement.OpacityProperty, fade);
+        }
+
         // klawiatura nie moze zaslaniac pola, w ktore kliknieto (kursor myszy) - przesuwa sie pod nie, a gdy brak miejsca - nad nie
         static void AvoidField(Window w)
         {
@@ -616,7 +633,7 @@ namespace Przegladarka
                     CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(Color.FromArgb(0x90, 0x8B, 0x5C, 0xF6), Color.FromArgb(0x90, 0x06, 0xB6, 0xD4), 45), BorderThickness = new Thickness(1), Child = new Viewbox { Child = all, Stretch = Stretch.Fill } }   // klawisze wypelniaja okno - szerokosc i wysokosc ustawiasz niezaleznie
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };
-            close.Click += (s, e) => w.Close(); close.ToolTip = L.T("Zamknij klawiaturę");
+            close.Click += (s, e) => Sail(w, all, false, w.Close); close.ToolTip = L.T("Zamknij klawiaturę");
             // brzegi i rogi do zmiany rozmiaru (okno bez ramki) - szerokosc i wysokosc dowolnie, mysza
             System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome { ResizeBorderThickness = new Thickness(7), CaptionHeight = 0, GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(14), UseAeroCaptionButtons = false });
             w.SourceInitialized += (s, e) =>
@@ -648,6 +665,7 @@ namespace Przegladarka
                     && x >= SystemParameters.VirtualScreenLeft && y >= SystemParameters.VirtualScreenTop && x + 120 <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth && y + 60 <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight) { w.Left = x; w.Top = y; }
                 else { w.Left = wa.Left + (wa.Width - ww) / 2; w.Top = wa.Bottom - wh - 10; }
                 AvoidField(w);
+                Sail(w, all, true, null);
             };
             w.Closing += (s, e) => SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.ActualHeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
             w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));

@@ -194,7 +194,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 **Kopia bezpieczeństwa:**
 - **Podstawowa** – same Twoje dane (~90 MB).
 - **Pełna** – wszystko bez śmieci, także program TV, ikony, głosy lektora (~0,5 GB). Po przywróceniu nic nie trzeba pobierać.
-- Ręcznie („💾 Utwórz kopię teraz”) albo automatycznie – codziennie lub raz w tygodniu. Folder najlepiej na innym dysku lub pendrive.
+- Ręcznie – „💾 Kopia przyrostowa teraz” (tylko zmiany od ostatniej kopii; gdy nie ma jeszcze pełnej kopii tego rodzaju, powstaje pełna) albo „💾 Pełna kopia teraz” (cała od nowa, np. przed dużą zmianą lub do przeniesienia na inny dysk) – albo automatycznie: codziennie lub raz w tygodniu. Folder najlepiej na innym dysku lub pendrive.
 - **Kopie przyrostowe** (domyślnie włączone): pełna kopia co 7 dni, a pomiędzy nimi tylko zmiany – zwykle kilka MB. Przy przywracaniu wskazujesz dowolną kopię, a Velivo samo składa pełną z przyrostami. Zostaje 5 ostatnich pełnych kopii razem z ich przyrostami. Trzymaj kopie z jednego łańcucha w jednym folderze.
 
 **Po poważnej awarii:**

@@ -90,5 +90,6 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - 📺 na górnym pasku: od razu ostatni kanał w odtwarzaczu (w swojej grupie), przeglądarka do zasobnika i wraca po zamknięciu; okno listy kanałów tylko przy pierwszym uruchomieniu – poza tym 📺 w szybkich ikonach albo prawy klik na 📺.
 - PiP z TV: na pasku podglądu po ⏮ ⏭ separator, przewijany napis (co leci + opis) i godzina końca audycji przed ikoną dźwięku.
 - Kopia przyrostowa (domyślnie włączona): pełna co 7 dni, pozostałe tylko zmiany (+ lista usuniętych); przywracanie dowolnej kopii – Velivo składa pełną + przyrosty; zostaje 5 ostatnich pełnych z przyrostami.
+- Ręczne kopie dwoma przyciskami: „💾 Kopia przyrostowa teraz” (na życzenie, bez limitu 7 dni; bez pełnej tego rodzaju – pełna) i „💾 Pełna kopia teraz”.
 - Nad wykresem sieci (prawa strona, linia NA ŻYWO): jakość strumienia – rozdzielczość (SD/HD/FHD/4K), przepływność, klatki/s; „⚠ utracone: N” na pomarańczowo przy gubionych klatkach.
 - Film: w linii jakości także kodek obrazu i dźwięk (np. FHD 1920×1080 · H.264 · AC3 5.1 · 8,2 Mb/s); podpowiedź = pełne dane techniczne (plik, rozmiar, kontener, długość, obraz, wszystkie ścieżki dźwięku, napisy); te dane też w vlc.log.

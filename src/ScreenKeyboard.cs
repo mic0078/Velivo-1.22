@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 
@@ -34,10 +35,10 @@ namespace Przegladarka
         {
             if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; return; }
             bool shift = false, caps = false, alt = false;
-            // kolory logo Velivo: fiolet (#7C3AED) -> turkus (#06B6D4) na ciemnym, lekko fioletowym tle
-            var violet = Color.FromRgb(0x7C, 0x3A, 0xED); var cyan = Color.FromRgb(0x06, 0xB6, 0xD4);
-            var keyBg = new SolidColorBrush(Color.FromRgb(0x29, 0x25, 0x3D)); var keyHover = new SolidColorBrush(Color.FromRgb(0x3A, 0x33, 0x58));
-            var accent = new LinearGradientBrush(violet, cyan, 0);
+            // jak logo Velivo: tlo przechodzi fiolet -> niebieski -> turkus, klawisze ze szkla, wlaczone / wcisniete - biale
+            var violet = Color.FromRgb(0x8B, 0x5C, 0xF6); var cyan = Color.FromRgb(0x06, 0xB6, 0xD4);
+            var keyBg = new SolidColorBrush(Color.FromArgb(0x29, 0xFF, 0xFF, 0xFF)); var keyHover = new SolidColorBrush(Color.FromArgb(0x47, 0xFF, 0xFF, 0xFF));
+            var accent = Brushes.White; var accentText = new SolidColorBrush(Color.FromRgb(0x5B, 0x3F, 0xD9));
             var rows = new[] { "1234567890-=", "qwertyuiop[]", "asdfghjkl;'", "zxcvbnm,./" };
             const string shifted = "!@#$%^&*()_+{}:\"<>?";
             const string shiftSrc = "1234567890-=[];',./";
@@ -52,7 +53,7 @@ namespace Przegladarka
                 var cp = new FrameworkElementFactory(typeof(ContentPresenter)); cp.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center); cp.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
                 bd.AppendChild(cp); tpl.VisualTree = bd;
                 var tr = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; tr.Setters.Add(new Setter(Border.BackgroundProperty, keyHover, "bd")); tpl.Triggers.Add(tr);
-                var tp = new Trigger { Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, Value = true }; tp.Setters.Add(new Setter(Border.BackgroundProperty, accent, "bd")); tpl.Triggers.Add(tp);
+                var tp = new Trigger { Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, Value = true }; tp.Setters.Add(new Setter(Border.BackgroundProperty, accent, "bd")); tp.Setters.Add(new Setter(TextElement.ForegroundProperty, accentText, "bd")); tpl.Triggers.Add(tp);
                 b.Template = tpl; return b;
             };
             Action refresh = null;
@@ -78,7 +79,7 @@ namespace Przegladarka
                     letters.Add((b, c)); row.Children.Add(b);
                 }
                 if (r == rows[0]) { var bs = key("⌫", 86); bs.Click += (s, e) => SendKey(0x08, '\0'); row.Children.Add(bs); }
-                if (r == rows[2]) { var en = key("⏎", 96); en.Background = accent; en.Click += (s, e) => SendKey(0x0D, '\0'); row.Children.Add(en); }
+                if (r == rows[2]) { var en = key("⏎", 96); en.Background = accent; en.Foreground = accentText; en.Click += (s, e) => SendKey(0x0D, '\0'); row.Children.Add(en); }
                 if (r == rows[3]) { var up = key("▲", 46); up.Click += (s, e) => SendKey(0x26, '\0'); row.Children.Add(up); }
                 root.Children.Add(row);
             }
@@ -95,22 +96,23 @@ namespace Przegladarka
             refresh = () =>
             {
                 foreach (var (b, c) in letters) b.Content = map(c).ToString();
-                shiftB.Background = shift ? accent : keyBg; capsB.Background = caps ? accent : keyBg; altB.Background = alt ? accent : keyBg;
+                foreach (var (b, on) in new[] { (shiftB, shift), (capsB, caps), (altB, alt) }) { b.Background = on ? accent : keyBg; b.Foreground = on ? accentText : Brushes.White; }
             };
             // naglowek do przeciagania i zamkniecia
             var head = new DockPanel { Margin = new Thickness(14, 8, 8, 0), Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
             var close = key("✕", 34); close.Height = 28; close.FontSize = 13; close.Background = Brushes.Transparent; DockPanel.SetDock(close, Dock.Right);
             head.Children.Add(close);
-            var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Silver };
+            var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
             title.Inlines.Add(new System.Windows.Documents.Run("⌨ " + L.T("Klawiatura") + " "));
-            title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold, Foreground = new LinearGradientBrush(violet, cyan, 0) });
+            title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
             head.Children.Add(title);
             var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(root);
             var w = new Window
             {
                 Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ResizeMode = ResizeMode.NoResize,
                 SizeToContent = SizeToContent.WidthAndHeight, Topmost = true, ShowActivated = false, ShowInTaskbar = false,
-                Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF5, 0x15, 0x12, 0x24)), CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(violet, cyan, 45), BorderThickness = new Thickness(1.5), Child = all,
+                Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(violet, 0), new GradientStop(Color.FromRgb(0x4F, 0x6B, 0xED), 0.45), new GradientStop(cyan, 1) }, new Point(0, 0), new Point(1, 1)),
+                    CornerRadius = new CornerRadius(14), BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), Child = all,
                     Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 20, ShadowDepth = 0, Opacity = 0.55, Color = violet } }
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };

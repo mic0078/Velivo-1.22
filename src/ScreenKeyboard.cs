@@ -110,13 +110,23 @@ namespace Przegladarka
             var logo = new Canvas { Width = 24, Height = 24, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             logo.Children.Add(new Border { Width = 24, Height = 24, CornerRadius = new CornerRadius(6),
                 Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(violet, 0), new GradientStop(Color.FromRgb(0x4F, 0x6B, 0xED), 0.5), new GradientStop(cyan, 1) }, new Point(0, 0), new Point(1, 1)) });
-            logo.Children.Add(new System.Windows.Shapes.Polyline { Points = new PointCollection { new Point(9, 6), new Point(13.5, 18), new Point(18, 6) }, Stroke = Brushes.White, StrokeThickness = 3,
+            logo.Children.Add(new System.Windows.Shapes.Polyline { Points = new PointCollection { new Point(9.5, 6), new Point(13.8, 18), new Point(18, 6) }, Stroke = Brushes.White, StrokeThickness = 3,
                 StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round });
-            foreach (var (y, x1, op) in new[] { (9.0, 2.5, 0.9), (12.0, 3.5, 0.65), (15.0, 4.5, 0.45) })
-                logo.Children.Add(new System.Windows.Shapes.Line { X1 = x1, X2 = x1 + 4.5, Y1 = y, Y2 = y, Stroke = Brushes.White, StrokeThickness = 1.5, Opacity = op, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+            var fade = new LinearGradientBrush(Color.FromArgb(0, 0xFF, 0xFF, 0xFF), Colors.White, 0);   // smuga zanika ku tylowi
+            foreach (var (x, y, w0, h0, op) in new[] { (1.0, 7.6, 6.6, 1.8, 1.0), (2.6, 11.3, 6.2, 1.4, 0.8), (4.2, 15.0, 5.6, 1.0, 0.6) })
+            {
+                var st = new Border { Width = w0, Height = h0, CornerRadius = new CornerRadius(h0 / 2), Background = fade, Opacity = op };
+                Canvas.SetLeft(st, x); Canvas.SetTop(st, y); logo.Children.Add(st);
+            }
             DockPanel.SetDock(logo, Dock.Left); head.Children.Add(logo);
             head.Children.Add(title);
-            var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(root);
+            // 3 smugi z logo przeciagniete pedzlem po klawiszach - zwezane, fiolet -> turkus, gasnace; nie przeszkadzaja w klikaniu
+            var paint = new Canvas { Width = 790, Height = 270, IsHitTestVisible = false, Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 2.5 } };
+            var brushFill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromArgb(0, 0x8B, 0x5C, 0xF6), 0), new GradientStop(Color.FromArgb(0x8C, 0x8B, 0x5C, 0xF6), 0.35), new GradientStop(Color.FromArgb(0x0D, 0x06, 0xB6, 0xD4), 1) }, new Point(0, 0), new Point(1, 0));
+            foreach (var (d, op) in new[] { ("M20 66 C 220 50, 480 46, 760 58 C 480 60, 240 68, 20 74 Z", 1.0), ("M80 124 C 260 112, 470 108, 700 116 C 470 120, 270 128, 80 132 Z", 0.75), ("M150 182 C 300 174, 460 170, 640 176 C 460 180, 310 186, 150 189 Z", 0.5) })
+                paint.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(d), Fill = brushFill, Opacity = op });
+            var keys = new Grid(); keys.Children.Add(root); keys.Children.Add(new Viewbox { Stretch = Stretch.Fill, Child = paint, IsHitTestVisible = false });
+            var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(keys);
             var w = new Window
             {
                 Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ResizeMode = ResizeMode.NoResize,

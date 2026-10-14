@@ -40,7 +40,7 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Okno Telewizja: listy M3U, grupy, wyszukiwanie, sortowanie, program kanału, nagrania, zaplanowane.
 - Prawy przycisk na kanale: oglądaj, ulubione, ⧉ PiP, ✏ edytuj kanał (własna nazwa, ikona z pliku/adresu, przywróć oryginał – program TV dalej po nazwie z listy), kopiuj adres, przypisz program TV, nagrywanie.
 - Program TV wczytywany w tle z pamięci (także bez otwierania okna TV); pełny program TV (📅).
-- Bufor kanałów 1/3/5/10 s (przy przycięciach więcej).
+- Bufor kanałów 1/3/5/10 s (przy przycięciach więcej) i opcje połączenia (oglądanie z nagrania, zwalnianie połączenia po 5 min pauzy) – klik w wykres sieci na pasku (zniknęły z menu kontekstowego).
 
 ## 7. Archiwum TV (catch-up / timeshift)
 - Zielona kropka przy kanałach z archiwum (okno TV, lista w odtwarzaczu, pełny program TV), podpowiedź „Archiwum: N dni”.

@@ -131,7 +131,7 @@ Otwórz klawiszem **L** albo przesuń kursor do lewej krawędzi obrazu.
 - W oknie **📺 Telewizja** dodajesz listy kanałów (M3U), wybierasz grupy, szukasz kanałów, widzisz program TV.
 - Program TV wczytuje się w tle – także wtedy, gdy włączysz kanał z odtwarzacza bez otwierania okna TV.
 - **✏ Edytuj kanał** (prawy przycisk): własna, czytelna nazwa i ikona (z pliku albo adresu). „Przywróć oryginał” wraca do nazwy z listy. Program TV działa dalej.
-- **Bufor kanałów** (⚙ Ustawienia): 1 s – najmniejsze opóźnienie; 3–5 s – gdy obraz się przycina.
+- **Bufor kanałów** (klik w wykres sieci na pasku – tam też opcje połączenia): 1 s – najmniejsze opóźnienie; 3–5 s – gdy obraz się przycina.
 
 ---
 
@@ -210,7 +210,7 @@ Hasła są zaszyfrowane dla Twojego konta Windows – przywracaj na tym samym ko
 
 | Problem | Co zrobić |
 |---|---|
-| Obraz TV się przycina | ⚙ → Bufor kanałów 3–5 s; mniej połączeń naraz; wersja HD zamiast FHD |
+| Obraz TV się przycina | klik w wykres sieci → Bufor kanałów 3–5 s; mniej połączeń naraz; wersja HD zamiast FHD |
 | Brak dźwięku | sprawdź ikonę 🔈/🔊 w PiP i ścieżkę dźwięku 🎵 |
 | Archiwum nie startuje | spróbuj jeszcze raz – Velivo sprawdza kolejne formaty; przyślij vlc.log |
 | Ostrzeżenie o połączeniach | kliknij 🔌 i ustaw limit swojego dostawcy |

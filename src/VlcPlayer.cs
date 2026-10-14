@@ -1308,12 +1308,13 @@ namespace Przegladarka
             var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
             var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center };
             var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
-            var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
+            var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\nKliknij: opcje połączenia i bufor kanałów\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
             var netDown = new System.Windows.Documents.Run { Foreground = netLine.Stroke };
             var netUp = new System.Windows.Documents.Run { Foreground = netUpLine.Stroke };
             netText.Inlines.Add(netDown); netText.Inlines.Add(new System.Windows.Documents.LineBreak()); netText.Inlines.Add(netUp);
             netBox.Children.Add(netGraph); netBox.Children.Add(netText);
             quick.Children.Add(netBox); quick.Children.Add(clockBox);
+            netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
             // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
             var streamInfo = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0),
@@ -1441,6 +1442,31 @@ namespace Przegladarka
             var osdTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(3500) };   // komunikaty (dzwiek, glosnosc...) - czas na przeczytanie
             osdTimer.Tick += (s, e) => { osdTimer.Stop(); osd.Visibility = Visibility.Collapsed; };
             Action<string> showOsd = t => { osd.Text = t; osd.Visibility = Visibility.Visible; osdTimer.Stop(); osdTimer.Start(); };
+            netBox.MouseLeftButtonUp += (s, e) =>
+            {   // opcje polaczenia z dostawca i bufor kanalow (zamiast w menu kontekstowym)
+                var cm = new ContextMenu { PlacementTarget = netBox, Placement = PlacementMode.Top };
+                cm.Items.Add(new MenuItem { Header = L.T("Opcje połączenia:"), IsEnabled = false });
+                var o1 = new MenuItem { Header = L.T("Nagrywany kanał oglądaj z nagrania (jedno połączenie, pauza i cofanie)"), IsCheckable = true, IsChecked = IptvSt.WatchFromRec };
+                o1.Click += (q, w2) => { IptvSt.WatchFromRec = !IptvSt.WatchFromRec; SaveIptv(IptvSt); };
+                var o2 = new MenuItem { Header = L.T("Po 5 min pauzy zwolnij połączenie z dostawcą"), IsCheckable = true, IsChecked = IptvSt.PauseRelease };
+                o2.Click += (q, w2) => { IptvSt.PauseRelease = !IptvSt.PauseRelease; SaveIptv(IptvSt); };
+                cm.Items.Add(o1); cm.Items.Add(o2);
+                cm.Items.Add(new Separator());
+                // zapas bufora: wiecej = mniej przyciec, ale troche wieksze opoznienie i wolniejsze przelaczanie
+                cm.Items.Add(new MenuItem { Header = L.T("Bufor kanałów:"), IsEnabled = false });
+                foreach (var sec0 in new[] { 1, 3, 5, 10 })
+                {
+                    var sec = sec0; var bi = new MenuItem { Header = sec + " s" + (sec == 1 ? L.T(" (najmniejsze opóźnienie)") : sec == 3 ? L.T(" (zalecane przy przycięciach)") : ""), IsCheckable = true, IsChecked = IptvSt.Buffer == sec };
+                    bi.Click += (q, w2) =>
+                    {
+                        IptvSt.Buffer = sec; SaveIptv(IptvSt); showOsd(L.T("Bufor: ") + sec + " s");
+                        var pb = _playIndex >= 0 && _playIndex < _playlist.Count ? _playlist[_playIndex] : null;
+                        if (pb != null && _iptvPlaying.ContainsKey(pb)) _vlcLoad(_playIndex);   // nowy bufor od razu tylko dla telewizji
+                    };
+                    cm.Items.Add(bi);
+                }
+                cm.IsOpen = true; e.Handled = true;
+            };
             // czas widocznosci paska (ustawienie ikona na koncu paska); 0 = zawsze widoczny
             Func<double> barSec = () => double.TryParse(GetPref("pasek-czas"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bs) ? bs : 2.5;
             var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(barSec() > 0 ? barSec() : 2.5) };
@@ -3161,21 +3187,6 @@ namespace Przegladarka
                     add(L.T("🔄 Odśwież kanał (F5)"), () => { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); }, true);
                     if (curRecFile != null) add(L.T("⏩ Na żywo (koniec nagrania)"), () => { recResume = -1; _vlcLoad(_playIndex); }, true);
                     else if (IptvSt.WatchFromRec && RecFileFor(path) != null) add(L.T("⏺ Oglądaj z nagrania (jedno połączenie, pauza i cofanie)"), () => { recResume = -1; _vlcLoad(_playIndex); }, true);
-                    var optM = new MenuItem { Header = L.T("⚙ Opcje połączenia") };
-                    var o1 = new MenuItem { Header = L.T("Nagrywany kanał oglądaj z nagrania (jedno połączenie, pauza i cofanie)"), IsCheckable = true, IsChecked = IptvSt.WatchFromRec };
-                    o1.Click += (q, w2) => { IptvSt.WatchFromRec = !IptvSt.WatchFromRec; SaveIptv(IptvSt); };
-                    var o2 = new MenuItem { Header = L.T("Po 5 min pauzy zwolnij połączenie z dostawcą"), IsCheckable = true, IsChecked = IptvSt.PauseRelease };
-                    o2.Click += (q, w2) => { IptvSt.PauseRelease = !IptvSt.PauseRelease; SaveIptv(IptvSt); };
-                    optM.Items.Add(o1); optM.Items.Add(o2); cm.Items.Add(optM);
-                    // zapas bufora: wiecej = mniej przyciec, ale troche wieksze opoznienie i wolniejsze przelaczanie
-                    var bufM = new MenuItem { Header = L.T("⏱ Bufor kanałów: ") + IptvSt.Buffer + " s" };
-                    foreach (var sec0 in new[] { 1, 3, 5, 10 })
-                    {
-                        var sec = sec0; var bi = new MenuItem { Header = sec + " s" + (sec == 1 ? L.T(" (najmniejsze opóźnienie)") : sec == 3 ? L.T(" (zalecane przy przycięciach)") : ""), IsCheckable = true, IsChecked = IptvSt.Buffer == sec };
-                        bi.Click += (q, w2) => { IptvSt.Buffer = sec; SaveIptv(IptvSt); showOsd(L.T("Bufor: ") + sec + " s"); _vlcLoad(_playIndex); };
-                        bufM.Items.Add(bi);
-                    }
-                    cm.Items.Add(bufM);
                     cm.Items.Add(RecMarginMenu());
                     var tvCh = _iptvPlaying[path];
                     if (IsRecording(path)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(path), true);
@@ -3252,7 +3263,7 @@ namespace Przegladarka
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
-                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
+                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
                 // co jest ikona na pasku - nie powtarzamy w menu (krotsze menu)
                 var onBar = new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop", "⏮ Poprzedni kanał", "⏭ Następny kanał", "ℹ Pokaż informacje", "🔄 Odśwież kanał", "⏺ Nagrywaj ten kanał", "⏹ Zatrzymaj nagrywanie",

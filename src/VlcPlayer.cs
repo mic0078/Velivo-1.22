@@ -1232,6 +1232,14 @@ namespace Przegladarka
             statusRow.Children.Add(recPill); statusRow.Children.Add(connText);
             var quickCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; quickCol.Children.Add(statusRow); quickCol.Children.Add(quick);
             var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quickCol);
+            // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
+            var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+            recDot.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.35, TimeSpan.FromSeconds(1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+            var recOnText = new TextBlock { Foreground = Brushes.White, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
+            var recOn = new Border { Background = new SolidColorBrush(Color.FromArgb(0x88, 0, 0, 0)), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 3, 10, 3), Margin = new Thickness(0, 10, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false, Visibility = Visibility.Collapsed,
+                Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { recDot, recOnText } } };
+            overlay.Children.Add(recOn);
             controls.Children.Add(ctlRow);
             overlay.Children.Add(controls);
             // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
@@ -2558,6 +2566,9 @@ namespace Przegladarka
                 // znacznik nagrywania i licznik polaczen
                 var recs = IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList();
                 recPill.Visibility = recs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                recOn.Visibility = recs.Count > 0 && !mini0 ? Visibility.Visible : Visibility.Collapsed;
+                recOnText.Text = recs.Count == 0 ? "" : recs.Count > 1 ? L.T("Trwa nagrywanie: ") + string.Join(", ", recs.Select(x => x.Channel))
+                    : c != null && (c.LiveUrl ?? c.Url) == recs[0].Url ? L.T("Trwa nagrywanie tego kanału") : L.T("Trwa nagrywanie: ") + recs[0].Channel;
                 if (recs.Count == 1) recPill.Content = (c != null && (c.LiveUrl ?? c.Url) == recs[0].Url ? L.T("⏺ REC  Nagrywasz ten kanał") : "⏺ REC  " + recs[0].Channel) + L.T(" · do ") + LocalOf(recs[0].Stop).ToString("HH:mm");
                 else if (recs.Count > 1) recPill.Content = L.T("⏺ REC  ") + recs.Count + L.T(" kanały");
                 int used = (c != null && curRecFile == null ? 1 : 0) + recs.Count + (pipCh != null && pipCh.Group != pipFilmGrp ? 1 : 0);

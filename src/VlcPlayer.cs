@@ -2281,7 +2281,23 @@ namespace Przegladarka
                     var pStop = new Button { Content = "⏹", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Stop") };
                     var pSeek = new Slider { Minimum = 0, Maximum = 1000, IsMoveToPointEnabled = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 6, 0), Cursor = Cursors.Hand };
                     var pBar = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(0xB0, 0, 0, 0)), Visibility = Visibility.Collapsed, Cursor = Cursors.Arrow };
-                    DockPanel.SetDock(pPlay, Dock.Left); DockPanel.SetDock(pStop, Dock.Left); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek);
+                    // TV w podgladzie: poprzedni / nastepny kanal z jego grupy
+                    var pPrev = new Button { Content = "⏮", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Poprzedni kanał") };
+                    var pNext = new Button { Content = "⏭", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Następny kanał") };
+                    Action<int> pStep = d =>
+                    {
+                        var c = pipCh; if (c == null) return;
+                        var grp = (KnownPlaylist()?.Channels ?? new List<IptvChannel>()).Where(x => x.Group == c.Group).ToList();
+                        var how = GetPref("sort-lista-kanalow") ?? "az";   // kolejnosc jak na liscie kanalow
+                        if (how == "az") grp = grp.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                        else if (how == "za") grp = grp.OrderByDescending(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                        int at = grp.FindIndex(x => x.Url == c.Url); if (at < 0 || grp.Count < 2) return;
+                        var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                        for (int n = 1; n < grp.Count; n++) { var nx = grp[((at + d * n) % grp.Count + grp.Count) % grp.Count]; if (nx.Url != p1) { pipShow(nx); return; } }   // z pominieciem kanalu z glownego
+                    };
+                    pPrev.Click += (q, w2) => pStep(-1); pNext.Click += (q, w2) => pStep(1);
+                    foreach (var b0 in new[] { pPrev, pNext, pPlay, pStop }) DockPanel.SetDock(b0, Dock.Left);
+                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek);
                     bool pSeeking = false;
                     pPlay.Click += (q, w2) => { if (pipMp.IsPlaying) pipMp.SetPause(true); else if (pipMp.State == VLCState.Stopped || pipMp.State == VLCState.Ended) { var c = pipCh; pipStart = 0; pipShow(c); } else pipMp.SetPause(false); };
                     pStop.Click += (q, w2) => { pipMp.Stop(); pSeek.Value = 0; };
@@ -2292,7 +2308,9 @@ namespace Przegladarka
                     {
                         if (pipMp == null) { pTick.Stop(); return; }
                         bool film = pipCh?.Group == pipFilmGrp;
-                        pBar.Visibility = film ? Visibility.Visible : Visibility.Collapsed;
+                        pBar.Visibility = pipCh != null ? Visibility.Visible : Visibility.Collapsed;
+                        var fv = film ? Visibility.Visible : Visibility.Collapsed; var tv0 = film ? Visibility.Collapsed : Visibility.Visible;
+                        pPlay.Visibility = pStop.Visibility = pSeek.Visibility = fv; pPrev.Visibility = pNext.Visibility = tv0;
                         if (!film) return;
                         pPlay.Content = pipMp.IsPlaying ? "⏸" : "▶";
                         if (!pSeeking && pipMp.Length > 0) { pSeek.Value = pipMp.Position * 1000; pSeek.ToolTip = FormatTime(pipMp.Time) + " / " + FormatTime(pipMp.Length); }

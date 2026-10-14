@@ -70,6 +70,7 @@ namespace Przegladarka
             public string Group { get; set; }    // ostatnio wybrana grupa
             public Dictionary<string, long> Watched { get; set; } = new Dictionary<string, long>();   // kanal -> kiedy ostatnio ogladany (unix ms)
             public int Buffer { get; set; } = 1;
+            public int MaxConn { get; set; }           // ile polaczen naraz pozwala dostawca (0 = nie podano - ostrzegaj przy dwoch)
             public int RecBefore { get; set; } = 2;    // zapas nagrywania: minut przed poczatkiem audycji
             public int RecAfter { get; set; } = 10;    // i po jej koncu (audycje sie przeciagaja)
             public bool WatchFromRec { get; set; }   // ogladanie nagrywanego kanalu z pliku nagrania (jedno polaczenie, pauza i cofanie) - opcja

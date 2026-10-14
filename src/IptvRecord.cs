@@ -252,9 +252,13 @@ namespace Przegladarka
         {
             var playing = _vlcWin != null && _playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex]);
             if (!playing && _recording.Count == 0) return;
+            int used = (playing ? 1 : 0) + _recording.Count;
+            if (IptvSt.MaxConn > 0 && used <= IptvSt.MaxConn) return;   // miesci sie w limicie dostawcy - bez ostrzezenia
             if (DateTime.Now - _connWarned < TimeSpan.FromMinutes(30)) return;   // nie czesciej niz co pol godziny
             _connWarned = DateTime.Now;
-            ShowToast(L.T("⚠ Oglądanie i nagrywanie naraz to dwa połączenia z dostawcą IPTV. Jeśli pozwala na jedno, jedno z nich może się przerwać."), null);
+            ShowToast(IptvSt.MaxConn > 0
+                ? L.T("⚠ Połączeń z dostawcą IPTV: ") + used + L.T(", a pozwala na ") + IptvSt.MaxConn + L.T(". Jedno z nich może się przerwać.")
+                : L.T("⚠ Oglądanie i nagrywanie naraz to dwa połączenia z dostawcą IPTV. Jeśli pozwala na jedno, jedno z nich może się przerwać.\nLimit ustawisz klikając 🔌 na pasku odtwarzacza."), null);
         }
 
         readonly Dictionary<string, string> _recFile = new Dictionary<string, string>();   // id nagrania w toku -> plik

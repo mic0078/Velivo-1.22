@@ -1221,7 +1221,17 @@ namespace Przegladarka
             var qFavTv = qBtn("⭐📺", L.T("Moje ulubione kanały TV")); var qFavFilm = qBtn("⭐🎬", L.T("Moje ulubione filmy")); qFavTv.FontSize = qFavFilm.FontSize = 16;
             var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 0, 4, 4) };
             foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
-            var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quick);
+            // nad szybkimi ikonami: znacznik nagrywania (czerwona pigulka, tylko gdy cos sie nagrywa) i licznik polaczen z dostawca
+            var recPill = new Button { Cursor = Cursors.Hand, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed, BorderThickness = new Thickness(0), Foreground = Brushes.White, FontSize = 12.5, FontWeight = FontWeights.SemiBold,
+                Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)), ToolTip = L.T("Trwające nagrania – kliknij: zatrzymaj albo przedłuż"),
+                Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse("<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Border Background='{TemplateBinding Background}' CornerRadius='10' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border></ControlTemplate>") };
+            recPill.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.55, TimeSpan.FromSeconds(1.1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });   // delikatne pulsowanie jak w dekoderze
+            var connText = new Button { Cursor = Cursors.Hand, Padding = new Thickness(6, 1, 6, 1), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.Gray, FontSize = 12.5, Visibility = Visibility.Collapsed,
+                Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse("<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Border Background='Transparent' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border></ControlTemplate>") };
+            var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 6, 4, 0), MinHeight = 22 };
+            statusRow.Children.Add(recPill); statusRow.Children.Add(connText);
+            var quickCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; quickCol.Children.Add(statusRow); quickCol.Children.Add(quick);
+            var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quickCol);
             controls.Children.Add(ctlRow);
             overlay.Children.Add(controls);
             // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
@@ -1836,7 +1846,7 @@ namespace Przegladarka
                     var img = new Image { Width = 40, Height = 24, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
                     var nowP = EpgAt(EpgFor(_iptvEpg, ch), now);
                     var txt = new StackPanel();
-                    txt.Children.Add(new TextBlock { Text = ch.Name, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+                    txt.Children.Add(new TextBlock { Text = (IsRecording(ch.Url) ? "⏺ " : "") + ch.Name, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
                     if (nowP != null)
                     {
                         txt.Children.Add(new TextBlock { Text = nowP.Start.ToString("HH:mm") + "–" + nowP.Stop.ToString("HH:mm") + "  " + nowP.Title, FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
@@ -2523,6 +2533,16 @@ namespace Przegladarka
                 qRec.IsEnabled = c != null && !rec && !c.ArchiveStart.HasValue; qRecStop.IsEnabled = rec;
                 qRec.Foreground = rec ? Brushes.Red : Brushes.White; qRec.ToolTip = rec ? L.T("⏺ Trwa nagrywanie tego kanału") : L.T("Nagrywaj ten kanał TV");
                 qRefresh.IsEnabled = c != null;
+                // znacznik nagrywania i licznik polaczen
+                var recs = IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList();
+                recPill.Visibility = recs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (recs.Count == 1) recPill.Content = (c != null && (c.LiveUrl ?? c.Url) == recs[0].Url ? L.T("⏺ REC  Nagrywasz ten kanał") : "⏺ REC  " + recs[0].Channel) + L.T(" · do ") + LocalOf(recs[0].Stop).ToString("HH:mm");
+                else if (recs.Count > 1) recPill.Content = L.T("⏺ REC  ") + recs.Count + L.T(" kanały");
+                int used = (c != null && curRecFile == null ? 1 : 0) + recs.Count + (pipCh != null && pipCh.Group != pipFilmGrp ? 1 : 0);
+                connText.Visibility = IptvInstalled && (used > 0) ? Visibility.Visible : Visibility.Collapsed;
+                connText.Content = "🔌 " + used + (IptvSt.MaxConn > 0 ? "/" + IptvSt.MaxConn : "");
+                connText.Foreground = IptvSt.MaxConn > 0 && used >= IptvSt.MaxConn ? Brushes.Orange : Brushes.Gray;
+                connText.ToolTip = L.T("Połączenia z dostawcą IPTV teraz: ") + used + L.T(" (oglądanie, nagrania, podgląd PiP)") + (IptvSt.MaxConn > 0 ? L.T("\nLimit dostawcy: ") + IptvSt.MaxConn : L.T("\nKliknij, aby podać limit dostawcy"));
                 bool tvOn = IptvInstalled; qTv.IsEnabled = qGuide.IsEnabled = qFavTv.IsEnabled = qRecDir.IsEnabled = qRecSet.IsEnabled = tvOn;
             };
             var qTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -2531,6 +2551,25 @@ namespace Przegladarka
             qRec.Click += (s, e) => { var c = qTvCh(); if (c != null) { RecordNow(c, win); updQuick(); } };
             qRecStop.Click += (s, e) => { var c = qTvCh(); if (c != null) { StopRecording(c.Url); updQuick(); } };
             qRecDir.Click += (s, e) => OpenRecDir();
+            recPill.Click += (s, e) =>
+            {   // trwajace nagrania: zatrzymaj / przedluz
+                var cm = new ContextMenu { PlacementTarget = recPill, Placement = PlacementMode.Top };
+                foreach (var j0 in IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList())
+                {
+                    var j = j0; var m = new MenuItem { Header = "⏺ " + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title) + L.T(" (do ") + LocalOf(j.Stop).ToString("HH:mm") + ")" };
+                    var st0 = new MenuItem { Header = L.T("⏹ Zatrzymaj nagrywanie") }; st0.Click += (q, w2) => { if (_recording.TryGetValue(j.Id, out var cts)) cts.Cancel(); updQuick(); }; m.Items.Add(st0);
+                    foreach (var min0 in new[] { 15, 30, 60 }) { var min = min0; var ex = new MenuItem { Header = L.T("➕ Przedłuż o ") + min + " min" }; ex.Click += (q, w2) => { j.Stop += min * 60000L; SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); showOsd(L.T("⏺ Nagranie do ") + LocalOf(j.Stop).ToString("HH:mm")); updQuick(); }; m.Items.Add(ex); }
+                    cm.Items.Add(m);
+                }
+                if (cm.Items.Count > 0) cm.IsOpen = true;
+            };
+            connText.Click += (s, e) =>
+            {   // limit polaczen dostawcy - ostrzezenie tylko po jego przekroczeniu
+                var cm = new ContextMenu { PlacementTarget = connText, Placement = PlacementMode.Top };
+                cm.Items.Add(new MenuItem { Header = L.T("Mój dostawca IPTV pozwala na:"), IsEnabled = false });
+                foreach (var n0 in new[] { 1, 2, 3, 4, 5 }) { var n = n0; var mi = new MenuItem { Header = n + (n == 1 ? L.T(" połączenie") : n < 5 ? L.T(" połączenia") : L.T(" połączeń")), IsCheckable = true, IsChecked = IptvSt.MaxConn == n }; mi.Click += (q, w2) => { IptvSt.MaxConn = n; SaveIptv(IptvSt); updQuick(); }; cm.Items.Add(mi); }
+                cm.IsOpen = true;
+            };
             qRecSet.Click += (s, e) => RecMarginDialog(Window.GetWindow(overlay) ?? win);
             qTv.Click += (s, e) => ShowIptv(Window.GetWindow(overlay) ?? win);
             qGuide.Click += (s, e) => ShowEpgGuide(Window.GetWindow(overlay) ?? win, qTvCh()?.LiveUrl ?? qTvCh()?.Url);

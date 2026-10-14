@@ -277,6 +277,15 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | Bez konta i bez chmury | | całość | ✔ | – | ✔ |
 | Osobny folder danych (`PRZEGLADARKA_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
 
+### K. Klawiatura ekranowa (`ScreenKeyboard.cs`, `SwipeTyping.cs`)
+| Funkcja | Opis | Kod | Impl. | UI | Sys. |
+|---|---|---|:-:|:-:|:-:|
+| ⌨ Klawiatura Velivo | własna klawiatura w kolorach logo; klik rolką w pole do pisania (strony, okna Velivo) | ScreenKeyboard.cs | ✔ | ✔ | – |
+| Klawiatura w innych programach | klik rolką w pole w dowolnym programie Windows, gdy Velivo działa (UI Automation) | ScreenKeyboard.cs | ✔ | ✔ | ✔ |
+| Nie zabiera fokusu | znaki trafiają do pola, w którym się pisze | ScreenKeyboard.cs | ✔ | – | ✔ |
+| Pisanie przeciągnięciem (Flow) | ślad po klawiszach → słowo ze słownika polskiego (40 tys.), 2 propozycje do podmiany | SwipeTyping.cs | ✔ | ✔ | – |
+| Nauka słów i 📖 Mój słownik | wybierane słowa wyżej; słowa wpisane literami spoza słownika dopisują się same; klik usuwa | SwipeTyping.cs | ✔ | ✔ | ✔ |
+
 
 ---
 
@@ -495,6 +504,14 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 
 - **Zwykły klik** otwiera w tej samej karcie (działają Wstecz i Dalej). Można to zmienić w ustawieniach.
 - **Środkowy przycisk** albo **Ctrl+klik** zawsze otwiera nową kartę.
+
+### ⌨ Klawiatura ekranowa Velivo
+
+- **Klik rolką (środkowym przyciskiem) w pole do pisania** otwiera klawiaturę Velivo – na stronach, w oknach Velivo i **w innych programach** (np. WhatsApp, Notatnik, komunikatory), gdy Velivo jest włączone. Na linkach rolka dalej otwiera nową kartę.
+- Klawiatura **nie zabiera kursora** – litery trafiają do pola, w którym piszesz. **⇧** wielka litera, **⇪** stałe wielkie, **ą ę ł** polskie znaki, **@**, **.com**, strzałki, **⏎**. Przeciągnij ją za nagłówek – zapamięta miejsce; **✕** zamyka.
+- **Pisanie przeciągnięciem (Flow):** wciśnij lewy przycisk na pierwszej literze i bez puszczania przeciągnij po kolejnych. Velivo wpisze pasujące słowo ze spacją, a nad klawiszami pokaże 2 inne propozycje – klik podmienia słowo. Polskie litery wystarczy przeciągnąć przez literę podstawową (e → ę).
+- **Nauka i 📖 Mój słownik:** słowa, które wybierasz, pojawiają się wyżej; słowo wpisane literami, którego nie ma w słowniku, samo trafia do **📖 Mojego słownika** (przycisk w nagłówku klawiatury). Klik w słowo w Moim słowniku usuwa je.
+- Gdy w jakimś programie klawiatura się nie otwiera, Velivo zapisuje, co tam kliknięto, w pliku `klawiatura.log` w folderze danych – przyda się przy zgłoszeniu.
 
 ---
 

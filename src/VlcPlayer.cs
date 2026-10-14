@@ -1273,38 +1273,40 @@ namespace Przegladarka
             quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
             var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 1.5 };
             var netGraph = new Canvas { Width = 60, Height = 22, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Background = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)) };
-            netGraph.Children.Add(netLine);
-            var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 12, 0), MinWidth = 62 };
+            var netUpLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), StrokeThickness = 1.5 };   // wysylanie (np. film dla drugiego komputera w LAN)
+            netGraph.Children.Add(netLine); netGraph.Children.Add(netUpLine);
+            var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 10.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 12, 0), MinWidth = 70, LineHeight = 12 };
             var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
             var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center };
             var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
-            var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Pobieranie z sieci (ostatnie 30 s) – przy przycięciach widać, czy dane dochodzą") };
+            var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
             netBox.Children.Add(netGraph); netBox.Children.Add(netText);
             quick.Children.Add(netBox); quick.Children.Add(clockBox);
-            long netLast = -1; var netHist = new List<double>();
+            long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             netTimer.Tick += (s, e) =>
             {
                 var n = DateTime.Now; nowTime.Text = n.ToString("HH:mm"); nowDate.Text = n.ToString("ddd d.MM");
-                long total = 0;
+                long total = 0, sent = 0;
                 try
                 {
                     foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
                         if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
-                            total += ni.GetIPStatistics().BytesReceived;
+                        { var st0 = ni.GetIPStatistics(); total += st0.BytesReceived; sent += st0.BytesSent; }
                 }
                 catch (Exception) { return; }
                 if (netLast >= 0)
                 {
-                    double bps = Math.Max(0, total - netLast);
+                    double bps = Math.Max(0, total - netLast), ups = Math.Max(0, sent - netUpLast);
                     netHist.Add(bps); if (netHist.Count > 30) netHist.RemoveAt(0);
-                    double max = Math.Max(1, netHist.Max());
-                    var pts = new PointCollection();
-                    for (int k = 0; k < netHist.Count; k++) pts.Add(new Point(60 - (netHist.Count - 1 - k) * 2.0, 21 - 19 * netHist[k] / max));
-                    netLine.Points = pts;
-                    netText.Text = bps >= 1048576 ? (bps / 1048576).ToString("0.0") + " MB/s" : (bps / 1024).ToString("0") + " KB/s";
+                    netUpHist.Add(ups); if (netUpHist.Count > 30) netUpHist.RemoveAt(0);
+                    double max = Math.Max(1, Math.Max(netHist.Max(), netUpHist.Max()));   // wspolna skala obu linii
+                    Func<List<double>, PointCollection> line = h => { var pts = new PointCollection(); for (int k = 0; k < h.Count; k++) pts.Add(new Point(60 - (h.Count - 1 - k) * 2.0, 21 - 19 * h[k] / max)); return pts; };
+                    netLine.Points = line(netHist); netUpLine.Points = line(netUpHist);
+                    Func<double, string> sp = v => v >= 1048576 ? (v / 1048576).ToString("0.0") + " MB/s" : (v / 1024).ToString("0") + " KB/s";
+                    netText.Text = "↓ " + sp(bps) + "\n↑ " + sp(ups);
                 }
-                netLast = total;
+                netLast = total; netUpLast = sent;
             };
             netTimer.Start(); win.Closed += (s, e) => netTimer.Stop();
             // nad szybkimi ikonami: znacznik nagrywania (czerwona pigulka, tylko gdy cos sie nagrywa) i licznik polaczen z dostawca

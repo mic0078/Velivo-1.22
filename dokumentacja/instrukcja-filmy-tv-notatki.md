@@ -86,4 +86,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Ikona ustawień paska informacji (suwaki) obok 👁: pokazywanie przy ruchu myszy, znikanie, przezroczystość tła, wielkość tekstu – przeniesione z menu ⚙.
 - Menu pod prawym przyciskiem odchudzone: bez pozycji, które są ikonami na pasku (pauza, stop, kanał ±, informacje, odśwież, nagrywanie, biblioteka, kanały, program TV, ulubione, wyłącznik, PiP, playlisty, na wierzchu, mini, pełny ekran, zrzut).
 - Napis przy TV na żywo: nazwa stacji pogrubiona (stoi), separator, potem przewijany tytuł i opis; większa czcionka.
-- Koniec paska (za separatorem): mały wykres pobierania z sieci (30 s) z prędkością oraz godzina i data.
+- Koniec paska (za separatorem): mały wykres sieci (internet i LAN, 30 s): ↓ pobieranie niebieska, ↑ wysyłanie zielona (wspólne oglądanie przez LAN), prędkości; godzina i data.

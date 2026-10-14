@@ -1269,6 +1269,44 @@ namespace Przegladarka
             quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });   // separator - ustawienia paska osobno
             var qInfoSet = qBtn("tune", L.T("Pasek informacji: kiedy się pokazuje, znikanie, przezroczystość, wielkość tekstu"));
             quick.Children.Add(qBarTime); quick.Children.Add(qInfoSet);
+            // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data
+            quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+            var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 1.5 };
+            var netGraph = new Canvas { Width = 60, Height = 22, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Background = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)) };
+            netGraph.Children.Add(netLine);
+            var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 12, 0), MinWidth = 62 };
+            var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
+            var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center };
+            var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
+            var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Pobieranie z sieci (ostatnie 30 s) – przy przycięciach widać, czy dane dochodzą") };
+            netBox.Children.Add(netGraph); netBox.Children.Add(netText);
+            quick.Children.Add(netBox); quick.Children.Add(clockBox);
+            long netLast = -1; var netHist = new List<double>();
+            var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            netTimer.Tick += (s, e) =>
+            {
+                var n = DateTime.Now; nowTime.Text = n.ToString("HH:mm"); nowDate.Text = n.ToString("ddd d.MM");
+                long total = 0;
+                try
+                {
+                    foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                        if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                            total += ni.GetIPStatistics().BytesReceived;
+                }
+                catch (Exception) { return; }
+                if (netLast >= 0)
+                {
+                    double bps = Math.Max(0, total - netLast);
+                    netHist.Add(bps); if (netHist.Count > 30) netHist.RemoveAt(0);
+                    double max = Math.Max(1, netHist.Max());
+                    var pts = new PointCollection();
+                    for (int k = 0; k < netHist.Count; k++) pts.Add(new Point(60 - (netHist.Count - 1 - k) * 2.0, 21 - 19 * netHist[k] / max));
+                    netLine.Points = pts;
+                    netText.Text = bps >= 1048576 ? (bps / 1048576).ToString("0.0") + " MB/s" : (bps / 1024).ToString("0") + " KB/s";
+                }
+                netLast = total;
+            };
+            netTimer.Start(); win.Closed += (s, e) => netTimer.Stop();
             // nad szybkimi ikonami: znacznik nagrywania (czerwona pigulka, tylko gdy cos sie nagrywa) i licznik polaczen z dostawca
             var recPill = new Button { Cursor = Cursors.Hand, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed, BorderThickness = new Thickness(0), Foreground = Brushes.White, FontSize = 12.5, FontWeight = FontWeights.SemiBold,
                 Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)), ToolTip = L.T("Trwające nagrania – kliknij: zatrzymaj albo przedłuż"),

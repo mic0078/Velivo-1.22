@@ -142,7 +142,6 @@ namespace Przegladarka
         [StructLayout(LayoutKind.Sequential)] struct PointStruct { public int X, Y; }
         [StructLayout(LayoutKind.Sequential)] struct MsgStruct { public IntPtr Hwnd; public uint Message; public IntPtr WParam, LParam; public uint Time; public int X, Y; }
         [DllImport("user32.dll")] static extern int GetMessage(out MsgStruct m, IntPtr h, uint min, uint max);
-        [StructLayout(LayoutKind.Sequential)] struct RectStruct { public int Left, Top, Right, Bottom; }
         // pad (Xbox i zgodne z XInput - wiekszosc popularnych; PlayStation przez Steam / DS4Windows)
         [StructLayout(LayoutKind.Sequential)] struct PadState { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
         [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")] static extern int XInputGetState(int user, out PadState st);
@@ -590,13 +589,12 @@ namespace Przegladarka
                 Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, Background = new SolidColorBrush(Color.FromRgb(0x19, 0x1B, 0x33)), ResizeMode = ResizeMode.CanResize,   // bez przezroczystosci okna - rysowanie na karcie graficznej, plynny slad
                 SizeToContent = SizeToContent.WidthAndHeight, Topmost = true, ShowActivated = false, ShowInTaskbar = false,
                 Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromRgb(0x1E, 0x18, 0x38), 0), new GradientStop(Color.FromRgb(0x19, 0x1B, 0x33), 0.55), new GradientStop(Color.FromRgb(0x13, 0x2A, 0x35), 1) }, new Point(0, 0), new Point(1, 1)),
-                    CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(Color.FromArgb(0x90, 0x8B, 0x5C, 0xF6), Color.FromArgb(0x90, 0x06, 0xB6, 0xD4), 45), BorderThickness = new Thickness(1), Child = new Viewbox { Child = all, Stretch = Stretch.Uniform } }   // powiekszanie / pomniejszanie razem z oknem
+                    CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(Color.FromArgb(0x90, 0x8B, 0x5C, 0xF6), Color.FromArgb(0x90, 0x06, 0xB6, 0xD4), 45), BorderThickness = new Thickness(1), Child = new Viewbox { Child = all, Stretch = Stretch.Fill } }   // klawisze wypelniaja okno - szerokosc i wysokosc ustawiasz niezaleznie
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };
             close.Click += (s, e) => w.Close(); close.ToolTip = L.T("Zamknij klawiaturę");
-            // brzegi do zmiany rozmiaru (okno bez ramki); proporcje pilnuje WM_SIZING, a rozmiar 25-200% naturalnego
+            // brzegi i rogi do zmiany rozmiaru (okno bez ramki) - szerokosc i wysokosc dowolnie, mysza
             System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome { ResizeBorderThickness = new Thickness(7), CaptionHeight = 0, GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(14), UseAeroCaptionButtons = false });
-            double kbRatio = 0;
             w.SourceInitialized += (s, e) =>
             {   // okno nie zabiera fokusu - pole na stronie / w Velivo zostaje aktywne
                 var h = new System.Windows.Interop.WindowInteropHelper(w).Handle; _kbdHwnd = h;
@@ -606,26 +604,19 @@ namespace Przegladarka
                 System.Windows.Interop.HwndSource.FromHwnd(h).AddHook((IntPtr hw, int msg, IntPtr wp, IntPtr lp, ref bool handled) =>
                 {
                     if (msg == 0x21) { handled = true; return (IntPtr)3; }   // MA_NOACTIVATE
-                    if (msg == 0x0214 && kbRatio > 0)
-                    {   // WM_SIZING: przy ciagnieciu brzegu klawiatura zachowuje proporcje
-                        var rc = Marshal.PtrToStructure<RectStruct>(lp); int edge = (int)wp;
-                        int wdt = rc.Right - rc.Left, hgt = rc.Bottom - rc.Top;
-                        if (edge == 3 || edge == 6) { wdt = (int)(hgt / kbRatio); rc.Right = rc.Left + wdt; }   // gora / dol - szerokosc z wysokosci
-                        else { hgt = (int)(wdt * kbRatio); if (edge == 3 || edge == 4 || edge == 5) rc.Top = rc.Bottom - hgt; else rc.Bottom = rc.Top + hgt; }
-                        Marshal.StructureToPtr(rc, lp, false); handled = true; return (IntPtr)1;
-                    }
                     return IntPtr.Zero;
                 });
             };
             w.Loaded += (s, e) =>
             {   // naturalny rozmiar z zawartosci, potem staly i zmieniany brzegami (zapamietany)
-                double nw = w.ActualWidth, nh = w.ActualHeight; kbRatio = nh / nw;
-                w.SizeToContent = SizeToContent.Manual; w.MinWidth = nw * 0.25; w.MinHeight = nh * 0.25; w.MaxWidth = nw * 2; w.MaxHeight = nh * 2;
+                double nw = w.ActualWidth, nh = w.ActualHeight;
+                w.SizeToContent = SizeToContent.Manual; w.MinWidth = nw * 0.25; w.MinHeight = nh * 0.25;
                 var wa = SystemParameters.WorkArea;
-                // mala: na start ok. 1/3 szerokosci ekranu, zapamietana szerokosc najwyzej 45% ekranu - nigdy pol ekranu
-                w.MaxWidth = Math.Min(w.MaxWidth, wa.Width * 0.45); w.MaxHeight = w.MaxWidth * kbRatio;
-                double sw = double.TryParse(GetPref("klawiatura-rozmiar"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sv) ? sv : wa.Width * 0.33;
-                sw = Math.Max(w.MinWidth, Math.Min(w.MaxWidth, sw)); w.Width = sw; w.Height = sw * kbRatio;
+                // mala na start (ok. 1/3 szerokosci ekranu), potem zapamietany rozmiar ustawiony mysza
+                var sz = (GetPref("klawiatura-rozmiar") ?? "").Split(';');
+                if (sz.Length == 2 && double.TryParse(sz[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sw) && double.TryParse(sz[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sh))
+                { w.Width = Math.Max(w.MinWidth, Math.Min(wa.Width, sw)); w.Height = Math.Max(w.MinHeight, Math.Min(wa.Height, sh)); }
+                else { w.Width = wa.Width * 0.33; w.Height = w.Width * nh / nw; }
                 // zapamietane miejsce (gdy na ekranie), a pierwszy raz: na dole ekranu, na srodku
                 double ww = double.IsNaN(w.Width) ? nw : w.Width, wh = double.IsNaN(w.Height) ? nh : w.Height;
                 var p = (GetPref("klawiatura-poz") ?? "").Split(';');
@@ -633,7 +624,7 @@ namespace Przegladarka
                     && x >= SystemParameters.VirtualScreenLeft && y >= SystemParameters.VirtualScreenTop && x + 120 <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth && y + 60 <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight) { w.Left = x; w.Top = y; }
                 else { w.Left = wa.Left + (wa.Width - ww) / 2; w.Top = wa.Bottom - wh - 10; }
             };
-            w.Closing += (s, e) => SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            w.Closing += (s, e) => SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.ActualHeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
             w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));
             w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); };
             _kbd = w; w.Show();

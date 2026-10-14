@@ -192,7 +192,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 - Kliknij **rolką** (środkowym przyciskiem myszy) w pole do pisania – np. szukanie kanału lub filmu, a także pola na stronach.
 - Działa też **w innych programach** (np. Notatnik, aplikacja Claude, komunikatory) – wystarczy, że Velivo jest włączone. Program musi udostępniać swoje pola dla dostępności (większość tak robi).
 - **Przytrzymaj rolkę ok. 1 sekundy** – klawiatura otworzy się wszędzie, także w dokumentach i edytorach (litery trafią tam, gdzie miga kursor).
-- Brzegiem lub rogiem zmienisz rozmiar klawiatury (50–200%, proporcje zostają, rozmiar zapamiętany).
+- Brzegiem lub rogiem zmienisz rozmiar klawiatury – szerokość i wysokość dowolnie (na start mała, potem rozmiar zapamiętany).
 - **🎮 Pad** (Xbox i zgodne z XInput; PlayStation przez Steam lub DS4Windows): włącz przyciskiem 🎮 w nagłówku klawiatury. Krzyżak / lewa gałka – wybór klawisza (ramka w kolorach logo), **A** – naciśnij, **B** – ⌫, **X** – spacja, **Y** – ⇧, **LT** – ą ę ł, **LB / RB** – kursor ◀ ▶, **Start** – ⏎, **Back** – zamknij. Przytrzymany kierunek powtarza ruch. Ustawienie zapamiętane.
 - **Pasek skrótów** nad klawiszami: **📧 E-mail** (nowa wiadomość w programie pocztowym), **🔇 🔉 🔊** (głośność Windows), **🌐 Velivo** (pokazuje okno przeglądarki), **⏻** (wyłączenie komputera za 30 s z potwierdzeniem; drugi klik odwołuje).
 - **W nagłówku:** **PL / EN** – język klawiatury (słownik przeciągania i czytanie), **🗣** – czytaj na głos to, co piszesz (każde skończone słowo, nigdy w polu hasła), **🎤** – pisanie głosem (dyktowanie Windows, Win+H; wymaga mikrofonu i internetu – usługa Microsoft), **🎮** – pad, **📖** – Mój słownik.

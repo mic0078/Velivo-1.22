@@ -88,3 +88,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Napis przy TV na żywo: nazwa stacji pogrubiona (stoi), separator, potem przewijany tytuł i opis; większa czcionka.
 - Koniec paska (za separatorem): mały wykres sieci (internet i LAN, 30 s): ↓ pobieranie niebieska, ↑ wysyłanie zielona (wspólne oglądanie przez LAN), prędkości; godzina i data.
 - 📺 na górnym pasku: od razu ostatni kanał w odtwarzaczu (w swojej grupie), przeglądarka do zasobnika i wraca po zamknięciu; okno listy kanałów tylko przy pierwszym uruchomieniu – poza tym 📺 w szybkich ikonach albo prawy klik na 📺.
+- PiP z TV: na pasku podglądu po ⏮ ⏭ separator, przewijany napis (co leci + opis) i godzina końca audycji przed ikoną dźwięku.

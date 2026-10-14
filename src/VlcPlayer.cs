@@ -2559,8 +2559,20 @@ namespace Przegladarka
                     foreach (var b0 in new[] { pPrev, pNext, pPlay, pStop }) DockPanel.SetDock(b0, Dock.Left);
                     var pSnd = pBtn("mute", L.T("Dźwięk z podglądu / z głównego okna")); DockPanel.SetDock(pSnd, Dock.Right);
                     pSnd.Click += (q, w2) => { pipAudio(!pipSound); var ic = PlayerIcon(pipSound ? "volume" : "mute"); ic.Width = ic.Height = 14; pSnd.Content = ic; showOsd(pipSound ? L.T("🔊 Dźwięk z podglądu") : L.T("🔊 Dźwięk z głównego okna")); };
-                    pBar.Children.Add(pSnd);
-                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek);
+                    // TV w podgladzie: separator po ⏭, przewijany napis (co leci), godzina konca przed dzwiekiem
+                    var pSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x77, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(6, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(pSep, Dock.Left);
+                    var pEnd = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) }; DockPanel.SetDock(pEnd, Dock.Right);
+                    var pTicker = new Canvas { ClipToBounds = true, Height = 18, VerticalAlignment = VerticalAlignment.Center };
+                    var pTickText = new TextBlock { Foreground = Brushes.White, FontSize = 12.5, RenderTransform = new TranslateTransform() }; pTicker.Children.Add(pTickText);
+                    Action pTickRun = () =>
+                    {
+                        pTickText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                        double w = pTickText.DesiredSize.Width, cw = Math.Max(40, pTicker.ActualWidth);
+                        ((TranslateTransform)pTickText.RenderTransform).BeginAnimation(TranslateTransform.XProperty, new System.Windows.Media.Animation.DoubleAnimation(cw, -w, TimeSpan.FromSeconds((cw + w) / 50.0)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+                    };
+                    pTicker.SizeChanged += (q, w2) => { if (pTicker.Visibility == Visibility.Visible) pTickRun(); };
+                    pBar.Children.Add(pSnd); pBar.Children.Add(pEnd);
+                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pSep); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek); pBar.Children.Add(pTicker);
                     // glowny zmienil kanal / film przy dzwieku z podgladu - jego sciezka znow wylaczona (po ustawieniu sciezek)
                     mp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() => { if (!pipSound) return; var t1 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1300) }; t1.Tick += (a1, b1) => { t1.Stop(); if (pipSound) { mainTrack = mp.AudioTrack >= 0 ? mp.AudioTrack : mainTrack; mp.SetAudioTrack(-1); } }; t1.Start(); }));
                     // nowy kanal / film w podgladzie - bez dzwieku, dopoki nie przelaczysz; sciezka dzwieku pojawia sie chwile po starcie, wiec ponawiamy do skutku
@@ -2587,7 +2599,14 @@ namespace Przegladarka
                         bool film = pipCh?.Group == pipFilmGrp;
                         pBar.Visibility = pipCh != null ? Visibility.Visible : Visibility.Collapsed;
                         var fv = film ? Visibility.Visible : Visibility.Collapsed; var tv0 = film ? Visibility.Collapsed : Visibility.Visible;
-                        pPlay.Visibility = pStop.Visibility = pSeek.Visibility = fv; pPrev.Visibility = pNext.Visibility = tv0;
+                        pPlay.Visibility = pStop.Visibility = pSeek.Visibility = fv; pPrev.Visibility = pNext.Visibility = pSep.Visibility = pTicker.Visibility = pEnd.Visibility = tv0;
+                        if (!film && pipCh != null)
+                        {   // co leci na kanale z podgladu i do ktorej
+                            var pp = EpgAt(EpgFor(_iptvEpg, pipCh), DateTime.Now);
+                            pEnd.Text = pp != null ? L.T("do ") + pp.Stop.ToString("HH:mm") : "";
+                            var txt = pp == null ? L.T("brak programu TV") : "▶ " + pp.Title + (string.IsNullOrEmpty(pp.Sub) ? "" : " – " + pp.Sub) + (string.IsNullOrEmpty(pp.Desc) ? "" : "   ·   " + (pp.Desc.Length > 120 ? pp.Desc.Substring(0, 120).TrimEnd() + "…" : pp.Desc));
+                            if (pTickText.Text != txt) { pTickText.Text = txt; Dispatcher.BeginInvoke(pTickRun, DispatcherPriority.Loaded); }
+                        }
                         var sw = pipSound ? "volume" : "mute";
                         if ((string)pSnd.Tag != sw) { var si = PlayerIcon(sw); si.Width = si.Height = 14; pSnd.Content = si; pSnd.Tag = sw; }
                         if (!film) return;

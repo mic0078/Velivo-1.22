@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -86,9 +87,17 @@ namespace Przegladarka
             }
         }
 
-        // Komunikaty Velivo: na srodku okna, tuz NAD paskiem zadan Windows (nigdy na nim) - takze przy oknie zmaksymalizowanym
+        readonly List<Window> _toasts = new List<Window>();   // otwarte komunikaty - ukladane jeden nad drugim, nie na sobie
+
+        // Komunikaty Velivo: na srodku okna, tuz NAD paskiem zadan Windows (nigdy na nim) - takze przy oknie zmaksymalizowanym;
+        // kilka naraz - kolejny nad poprzednim, po zamknieciu jednego reszta sie przesuwa
         void PlaceToast(Window toast)
         {
+            if (!_toasts.Contains(toast))
+            {
+                _toasts.Add(toast);
+                toast.Closed += (s, e) => { _toasts.Remove(toast); foreach (var t in _toasts.ToList()) if (t.IsLoaded) PlaceToast(t); };
+            }
             try
             {
                 var src = PresentationSource.FromVisual(this);
@@ -103,7 +112,9 @@ namespace Przegladarka
                 double left = Math.Max(tl.X, waTl.X), right = Math.Min(br.X, waBr.X), bottom = Math.Min(br.Y, waBr.Y);
                 if (right - left < toast.ActualWidth) { left = waTl.X; right = waBr.X; }
                 toast.Left = left + (right - left - toast.ActualWidth) / 2;
-                toast.Top = Math.Max(waTl.Y, bottom - toast.ActualHeight - 16);
+                double below = 0;
+                foreach (var t in _toasts) { if (t == toast) break; if (t.IsLoaded) below += t.ActualHeight + 8; }
+                toast.Top = Math.Max(waTl.Y, bottom - toast.ActualHeight - 16 - below);
             }
             catch (Exception) { }
         }

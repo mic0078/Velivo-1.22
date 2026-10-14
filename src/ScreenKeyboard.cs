@@ -78,6 +78,9 @@ namespace Przegladarka
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [StructLayout(LayoutKind.Sequential)] struct PointStruct { public int X, Y; }
         [StructLayout(LayoutKind.Sequential)] struct RectStruct { public int Left, Top, Right, Bottom; }
+        // pad (Xbox i zgodne z XInput - wiekszosc popularnych; PlayStation przez Steam / DS4Windows)
+        [StructLayout(LayoutKind.Sequential)] struct PadState { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
+        [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")] static extern int XInputGetState(int user, out PadState st);
         static LowLevelProc _mouseProc;   // trzymane, zeby GC nie zebral delegata
         static IntPtr _mouseHook;
         static System.Windows.Threading.DispatcherTimer _holdTimer;   // przytrzymanie rolki 1 s = klawiatura wszedzie
@@ -300,6 +303,10 @@ namespace Przegladarka
                 cm.IsOpen = true;
             };
             head.Children.Add(dictB);
+            // 🎮 sterowanie padem
+            var padB = key("🎮", 34); padB.Height = 28; padB.FontSize = 13; padB.Background = Brushes.Transparent; DockPanel.SetDock(padB, Dock.Right);
+            padB.ToolTip = L.T("Pad (Xbox i zgodne): krzyżak / lewa gałka – wybór klawisza, A – naciśnij, B – ⌫, X – spacja, Y – ⇧, LB / RB – kursor ◀ ▶, LT – ą ę ł, Start – ⏎, Back – zamknij");
+            head.Children.Add(padB);
             var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
             title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
@@ -345,6 +352,69 @@ namespace Przegladarka
             var trail = new System.Windows.Shapes.Polyline { Stroke = new LinearGradientBrush(violet, cyan, 0), StrokeThickness = 7, Opacity = 0.85,
                 StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round };
             trailC.Children.Add(trail); keys.Children.Add(trailC);
+            // pad: ramka na wybranym klawiszu, odczyt pada 60 razy na sekunde tylko gdy 🎮 wlaczone i klawiatura otwarta
+            var padSel = new Border { BorderThickness = new Thickness(2.5), CornerRadius = new CornerRadius(9), BorderBrush = new LinearGradientBrush(violet, cyan, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
+            trailC.Children.Add(padSel);
+            int padR = 2, padC = 5; ushort padPrev = 0; DateTime padNext = DateTime.MinValue; int padDir = 0;
+            Func<List<List<Button>>> padRows = () => root.Children.OfType<StackPanel>().Select(rw => rw.Children.OfType<Button>().Where(b => b.IsVisible).ToList()).Where(l => l.Count > 0).ToList();
+            Action padShow = () =>
+            {
+                var rs = padRows(); if (rs.Count == 0) return;
+                padR = Math.Max(0, Math.Min(rs.Count - 1, padR)); padC = Math.Max(0, Math.Min(rs[padR].Count - 1, padC));
+                var b = rs[padR][padC]; var p0 = b.TranslatePoint(new Point(0, 0), trailC);
+                Canvas.SetLeft(padSel, p0.X - 2); Canvas.SetTop(padSel, p0.Y - 2); padSel.Width = b.ActualWidth + 4; padSel.Height = b.ActualHeight + 4;
+            };
+            Action<int, int> padMove = (dr, dc) =>
+            {
+                var rs = padRows(); if (rs.Count == 0) return;
+                if (dc != 0) padC = (padC + dc + rs[padR].Count) % rs[padR].Count;
+                if (dr != 0)
+                {   // w nowym rzedzie klawisz najblizej w poziomie
+                    var cur = rs[padR][Math.Min(padC, rs[padR].Count - 1)]; double cx = cur.TranslatePoint(new Point(cur.ActualWidth / 2, 0), trailC).X;
+                    padR = (padR + dr + rs.Count) % rs.Count;
+                    padC = rs[padR].Select((b, i) => (i, d: Math.Abs(b.TranslatePoint(new Point(b.ActualWidth / 2, 0), trailC).X - cx))).OrderBy(x => x.d).First().i;
+                }
+                padShow();
+            };
+            Action<Button> press = b => b?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            var padTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            padTimer.Tick += (s, e) =>
+            {
+                PadState st = default; bool ok = false;
+                try { for (int i = 0; i < 4 && !ok; i++) ok = XInputGetState(i, out st) == 0; } catch (Exception) { padTimer.Stop(); return; }   // brak XInput w systemie
+                if (!ok) return;
+                ushort bt = st.Buttons;
+                // galka jak krzyzak
+                if (st.LY > 16000) bt |= 0x1; if (st.LY < -16000) bt |= 0x2; if (st.LX < -16000) bt |= 0x4; if (st.LX > 16000) bt |= 0x8;
+                if (st.LT > 120) bt |= 0x0800;   // LT jako przycisk (nieuzywany bit)
+                ushort fresh = (ushort)(bt & ~padPrev); padPrev = bt;
+                // kierunki z powtarzaniem przy przytrzymaniu
+                int dir = (bt & 0x1) != 0 ? 1 : (bt & 0x2) != 0 ? 2 : (bt & 0x4) != 0 ? 3 : (bt & 0x8) != 0 ? 4 : 0;
+                if (dir != 0 && (dir != padDir || DateTime.Now >= padNext))
+                {
+                    padNext = DateTime.Now.AddMilliseconds(dir != padDir ? 380 : 90); padDir = dir;
+                    if (dir == 1) padMove(-1, 0); else if (dir == 2) padMove(1, 0); else if (dir == 3) padMove(0, -1); else padMove(0, 1);
+                }
+                if (dir == 0) padDir = 0;
+                if ((fresh & 0x1000) != 0) { var rs = padRows(); if (padR < rs.Count && padC < rs[padR].Count) press(rs[padR][padC]); padShow(); }   // A
+                if ((fresh & 0x2000) != 0) tap(0x08, '\0');   // B
+                if ((fresh & 0x4000) != 0) tap(0, ' ');   // X
+                if ((fresh & 0x8000) != 0) press(shiftB);   // Y
+                if ((fresh & 0x0800) != 0) press(altB);   // LT
+                if ((fresh & 0x0100) != 0) tap(0x25, '\0');   // LB
+                if ((fresh & 0x0200) != 0) tap(0x27, '\0');   // RB
+                if ((fresh & 0x0010) != 0) tap(0x0D, '\0');   // Start
+                if ((fresh & 0x0020) != 0) _kbd?.Close();   // Back
+            };
+            Action padApply = () =>
+            {
+                bool on = GetPref("klawiatura-pad") == "1";
+                padB.Background = on ? accent : Brushes.Transparent;
+                padSel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                if (on) { padShow(); padTimer.Start(); } else padTimer.Stop();
+            };
+            padB.Click += (s, e) => { SetPref("klawiatura-pad", GetPref("klawiatura-pad") == "1" ? "0" : "1"); padApply(); };
+            root.Loaded += (s, e) => padApply();
             vb.CacheMode = new BitmapCache();   // rozmyte smugi liczone raz, nie przy kazdym ruchu sladu
             var trace = new List<Point>(); bool down = false, swiping = false;
             root.PreviewMouseLeftButtonDown += (s, e) =>
@@ -440,7 +510,7 @@ namespace Przegladarka
             };
             w.Closing += (s, e) => SetPref("klawiatura-szer", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture));
             w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; };
+            w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); };
             _kbd = w; w.Show();
         }
 

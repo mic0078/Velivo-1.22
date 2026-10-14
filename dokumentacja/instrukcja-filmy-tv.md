@@ -192,6 +192,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 - Działa też **w innych programach** (np. Notatnik, aplikacja Claude, komunikatory) – wystarczy, że Velivo jest włączone. Program musi udostępniać swoje pola dla dostępności (większość tak robi).
 - **Przytrzymaj rolkę ok. 1 sekundy** – klawiatura otworzy się wszędzie, także w dokumentach i edytorach (litery trafią tam, gdzie miga kursor).
 - Brzegiem lub rogiem zmienisz rozmiar klawiatury (50–200%, proporcje zostają, rozmiar zapamiętany).
+- **🎮 Pad** (Xbox i zgodne z XInput; PlayStation przez Steam lub DS4Windows): włącz przyciskiem 🎮 w nagłówku klawiatury. Krzyżak / lewa gałka – wybór klawisza (ramka w kolorach logo), **A** – naciśnij, **B** – ⌫, **X** – spacja, **Y** – ⇧, **LT** – ą ę ł, **LB / RB** – kursor ◀ ▶, **Start** – ⏎, **Back** – zamknij. Przytrzymany kierunek powtarza ruch. Ustawienie zapamiętane.
 - Pojawia się ciemna klawiatura Velivo; litery trafiają do pola, w którym piszesz. **⇧** – wielka litera / znak, **⇪** – stałe wielkie, **ą ę ł** – polskie znaki, **⏎** – zatwierdź.
 - Przeciągnij ją za nagłówek – zapamięta miejsce. **✕** zamyka.
 - **Pisanie przeciągnięciem (jak „Flow” w telefonie):** wciśnij lewy przycisk na pierwszej literze słowa i bez puszczania przeciągnij po kolejnych literach – za myszą zostaje ślad w kolorach logo. Po puszczeniu Velivo wpisze najbardziej pasujące słowo ze spacją, a nad klawiszami pokaże jeszcze 2–3 inne propozycje – klik w propozycję podmienia słowo. Polskie litery (ą, ę, ł…) wystarczy przeciągnąć przez literę podstawową (a, e, l…).

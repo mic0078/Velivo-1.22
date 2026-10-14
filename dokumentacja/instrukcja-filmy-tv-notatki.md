@@ -98,3 +98,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Klawiatura także w innych programach: klik rolką w pole w dowolnym programie Windows (Velivo włączone) – globalny podsłuch tylko środkowego przycisku, pole sprawdzane przez UI Automation (Edit/Document, nie tylko do odczytu).
 - Przytrzymanie rolki 1 s = klawiatura wszędzie (bez sprawdzania pola; dokumenty, edytory); krótki klik rolką w pole – jak dotąd.
 - Zmiana rozmiaru klawiatury brzegami/rogami (WindowChrome), proporcje pilnowane (WM_SIZING), 50–200%, szerokość zapamiętana (klawiatura-szer).
+- Pad na klawiaturze: przycisk 🎮 w nagłówku (klawiatura-pad), XInput (xinput1_4), odczyt 60/s tylko gdy włączone i klawiatura otwarta; ramka wyboru w gradiencie logo; A naciśnij, B ⌫, X spacja, Y ⇧, LT ą ę ł, LB/RB ◀▶, Start ⏎, Back zamknij.

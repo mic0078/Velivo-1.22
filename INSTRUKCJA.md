@@ -498,7 +498,9 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 
 ### ⌨ Klawiatura ekranowa Velivo
 
-**Domyślnie włączona.** Wyłączysz ją w Ustawieniach („⌨ Klawiatura ekranowa Velivo”) – wtedy rolka działa jak zwykle, a Velivo nie nasłuchuje myszy w innych programach.
+**Domyślnie włączona.** Włączanie / wyłączanie: **⚙ Ustawienia** (zębatka na górnym pasku, po prawej) → pole **„⌨ Klawiatura ekranowa Velivo”** (zaraz pod „Gesty myszy”) → **Zapisz**. Wyłączona – rolka działa jak zwykle, a Velivo nie nasłuchuje myszy w innych programach.
+
+**Jak ją otworzyć:** kliknij **rolką** (środkowym przyciskiem) w pole do pisania albo **przytrzymaj rolkę ok. 1 s** w dowolnym miejscu (także w innych programach). Sama się nie pokazuje.
 
 - **Klik rolką (środkowym przyciskiem) w pole do pisania** otwiera klawiaturę Velivo – na stronach, w oknach Velivo i **w innych programach** (np. WhatsApp, Notatnik, komunikatory), gdy Velivo jest włączone. Na linkach rolka dalej otwiera nową kartę.
 - **Przytrzymanie rolki ok. 1 sekundy** otwiera klawiaturę **wszędzie**, także tam, gdzie Velivo nie rozpozna pola (dokumenty, edytory). Najpierw kliknij lewym w miejsce pisania – litery trafią tam, gdzie miga kursor.

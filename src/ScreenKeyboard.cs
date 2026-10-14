@@ -79,6 +79,8 @@ namespace Przegladarka
         [StructLayout(LayoutKind.Sequential)] struct PointStruct { public int X, Y; }
         static LowLevelProc _mouseProc;   // trzymane, zeby GC nie zebral delegata
         static IntPtr _mouseHook;
+        static System.Windows.Threading.DispatcherTimer _holdTimer;   // przytrzymanie rolki 1 s = klawiatura wszedzie
+        static PointStruct _holdAt;
 
         internal static void StartGlobalKeyboardHook()
         {
@@ -88,9 +90,22 @@ namespace Przegladarka
                 if (code >= 0 && (int)wp == 0x0207)   // WM_MBUTTONDOWN
                 {
                     var pt = Marshal.PtrToStructure<PointStruct>(lp);
-                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => CheckForeignField(pt)));
+                    _holdAt = pt;
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => { _holdTimer.Stop(); _holdTimer.Start(); CheckForeignField(pt); }));
                 }
+                else if (code >= 0 && (int)wp == 0x0208)   // WM_MBUTTONUP - puszczona przed czasem: bez wymuszania
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => _holdTimer.Stop()));
                 return CallNextHookEx(_mouseHook, code, wp, lp);
+            };
+            // rolka przytrzymana 1 s: klawiatura zawsze, bez sprawdzania pola (dokumenty, edytory) - pisze tam, gdzie jest kursor tekstu
+            _holdTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _holdTimer.Tick += (s, e) =>
+            {
+                _holdTimer.Stop();
+                var hw = WindowFromPoint(_holdAt); var top = hw == IntPtr.Zero ? IntPtr.Zero : GetAncestor(hw, 2);
+                GetWindowThreadProcessId(hw, out var pid);
+                if (top != IntPtr.Zero && pid != (uint)Environment.ProcessId) SetForegroundWindow(top);
+                ShowScreenKeyboard(top);
             };
             _mouseHook = SetWindowsHookEx(14, _mouseProc, GetModuleHandle(null), 0);   // WH_MOUSE_LL
             if (_mouseHook == IntPtr.Zero) App.LogError(new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()));

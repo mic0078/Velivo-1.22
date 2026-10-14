@@ -125,7 +125,9 @@ namespace Przegladarka
             var brushFill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromArgb(0, 0x8B, 0x5C, 0xF6), 0), new GradientStop(Color.FromArgb(0x8C, 0x8B, 0x5C, 0xF6), 0.35), new GradientStop(Color.FromArgb(0x0D, 0x06, 0xB6, 0xD4), 1) }, new Point(0, 0), new Point(1, 0));
             foreach (var (d, op) in new[] { ("M20 66 C 220 50, 480 46, 760 58 C 480 60, 240 68, 20 74 Z", 1.0), ("M80 124 C 260 112, 470 108, 700 116 C 470 120, 270 128, 80 132 Z", 0.75), ("M150 182 C 300 174, 460 170, 640 176 C 460 180, 310 186, 150 189 Z", 0.5) })
                 paint.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(d), Fill = brushFill, Opacity = op });
-            var keys = new Grid(); keys.Children.Add(root); keys.Children.Add(new Viewbox { Stretch = Stretch.Fill, Child = paint, IsHitTestVisible = false });
+            var keys = new Grid(); keys.Children.Add(root); var vb = new Viewbox { Stretch = Stretch.Fill, Child = paint, IsHitTestVisible = false };
+            vb.SetBinding(FrameworkElement.WidthProperty, new System.Windows.Data.Binding("ActualWidth") { Source = root }); vb.SetBinding(FrameworkElement.HeightProperty, new System.Windows.Data.Binding("ActualHeight") { Source = root });   // tylko na obszarze klawiszy
+            keys.Children.Add(vb);
             var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(keys);
             var w = new Window
             {

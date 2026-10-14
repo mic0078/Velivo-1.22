@@ -36,6 +36,8 @@ namespace Przegladarka
             public string Catchup, CatchupSource; public int CatchupDays;
             // kanal odtwarzany z archiwum: adres na zywo i poczatek odtwarzanej audycji
             public string LiveUrl; public DateTime? ArchiveStart;
+            // wlasna nazwa / ikona (edycja kanalu): oryginal z listy - do programu TV i do przywrocenia ("" = brak ikony w liscie)
+            public string OrigName, OrigLogo;
         }
 
         internal sealed class IptvPlaylist
@@ -75,7 +77,9 @@ namespace Przegladarka
             public int InfoAlpha { get; set; } = 85;     // nieprzezroczystosc paska informacji (%)
             public int InfoScale { get; set; } = 100;
             public int ListAlpha { get; set; } = 85;     // nieprzezroczystosc listy kanalow nad filmem (%)    // wielkosc tekstu paska informacji (%), dodatkowo dopasowana do rozmiaru okna
-            public Dictionary<string, string> EpgMap { get; set; } = new Dictionary<string, string>();   // reczne przypisanie programu TV: adres kanalu -> id w EPG
+            public Dictionary<string, string> EpgMap { get; set; } = new Dictionary<string, string>();
+            public Dictionary<string, string> MyNames { get; set; } = new Dictionary<string, string>();   // wlasna nazwa kanalu: adres -> nazwa
+            public Dictionary<string, string> MyLogos { get; set; } = new Dictionary<string, string>();   // wlasna ikona: adres -> plik albo adres obrazka   // reczne przypisanie programu TV: adres kanalu -> id w EPG
             public string Sort { get; set; }     // sortowanie: "kolumna" albo "kolumna,desc"      // miejsce i rozmiar okna listy: "x,y,szer,wys"
         }
 
@@ -317,8 +321,9 @@ namespace Przegladarka
         {
             if (map == null) return null;
             if (!string.IsNullOrEmpty(ch.TvgId) && map.TryGetValue(ch.TvgId, out var v)) return v;
-            if (map.TryGetValue(ch.Name ?? "", out v)) return v;
-            var k = EpgKey(ch.Name);
+            var nm = ch.OrigName ?? ch.Name;   // program TV po nazwie z listy, nie po wlasnej
+            if (map.TryGetValue(nm ?? "", out v)) return v;
+            var k = EpgKey(nm);
             return k.Length > 0 && map.TryGetValue(k, out v) ? v : null;
         }
 
@@ -427,8 +432,13 @@ namespace Przegladarka
         // logo z dysku, a gdy go nie ma - pobranie (tylko http/https, najwyzej 1 MB, musi byc obrazkiem)
         async Task<ImageSource> GetLogo(string url)
         {
-            if (string.IsNullOrEmpty(url) || !(url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))) return null;
+            if (string.IsNullOrEmpty(url)) return null;
             if (_logoMem.TryGetValue(url, out var img)) return img;
+            if (!url.Contains("://") && File.Exists(url))   // wlasna ikona z pliku (edycja kanalu)
+            {
+                img = await Task.Run(() => LoadLogo(url)); if (img != null) _logoMem[url] = img; return img;
+            }
+            if (!(url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))) return null;
             if (_logoFailed.Contains(url)) return null;
             var file = LogoFile(url);
             if (!File.Exists(file))
@@ -509,11 +519,81 @@ namespace Przegladarka
 
         Action _iptvAdd;
 
-        // reczne przypisania programu TV (kanal o innej nazwie w EPG) - przed dopasowaniem po tvg-id
+        // reczne ustawienia kanalow z listy: przypisany program TV (przed dopasowaniem po tvg-id), wlasna nazwa i ikona
         void ApplyEpgMap(IptvPlaylist pl)
         {
-            var map = IptvSt.EpgMap; if (map == null || map.Count == 0) return;
-            foreach (var c in pl.Channels) if (map.TryGetValue(c.Url, out var id)) c.TvgId = id;
+            var map = IptvSt.EpgMap;
+            foreach (var c in pl.Channels) { if (map != null && map.TryGetValue(c.Url, out var id)) c.TvgId = id; ApplyMine(c); }
+        }
+
+        void ApplyMine(IptvChannel c)
+        {
+            if (c.OrigName != null) c.Name = c.OrigName; if (c.OrigLogo != null) c.Logo = c.OrigLogo.Length == 0 ? null : c.OrigLogo;   // od oryginalu
+            c.OrigName = null; c.OrigLogo = null;
+            var key = c.LiveUrl ?? c.Url;
+            if (IptvSt.MyNames != null && IptvSt.MyNames.TryGetValue(key, out var n) && !string.IsNullOrWhiteSpace(n)) { c.OrigName = c.Name; c.Name = n; }
+            if (IptvSt.MyLogos != null && IptvSt.MyLogos.TryGetValue(key, out var lg) && !string.IsNullOrWhiteSpace(lg)) { c.OrigLogo = c.Logo ?? ""; c.Logo = lg; }
+        }
+
+        // edycja kanalu: wlasna, czytelniejsza nazwa i ikona (z pliku albo z adresu); przywrocenie oryginalu z listy
+        void EditChannel(IptvChannel ch, Window owner, Action done)
+        {
+            var orig = ch.OrigName ?? ch.Name; string logo = IptvSt.MyLogos != null && IptvSt.MyLogos.TryGetValue(ch.LiveUrl ?? ch.Url, out var ml) ? ml : null;
+            var w = new Window { Title = L.T("✏ Edytuj kanał – ") + orig, Width = 480, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Owner = owner, Topmost = owner?.Topmost ?? false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var sp = new StackPanel { Margin = new Thickness(14) };
+            sp.Children.Add(new TextBlock { Text = L.T("Nazwa kanału"), FontWeight = FontWeights.SemiBold });
+            var name = new TextBox { Text = ch.Name, Padding = new Thickness(4), Margin = new Thickness(0, 4, 0, 2) };
+            sp.Children.Add(name);
+            sp.Children.Add(new TextBlock { Text = L.T("Z listy: ") + orig, Foreground = Brushes.Gray, FontSize = 11.5, Margin = new Thickness(0, 0, 0, 10) });
+            sp.Children.Add(new TextBlock { Text = L.T("Ikona"), FontWeight = FontWeights.SemiBold });
+            var prev = new Image { Width = 96, Height = 56, Stretch = Stretch.Uniform, Margin = new Thickness(0, 6, 12, 0) };
+            Action showPrev = () => { prev.Source = null; var src = logo ?? ch.OrigLogo ?? ch.Logo; if (string.IsNullOrEmpty(src)) return; GetLogo(src).ContinueWith(t => { if (t.Result != null) prev.Source = t.Result; }, TaskScheduler.FromCurrentSynchronizationContext()); };
+            var url = new TextBox { Padding = new Thickness(4), Margin = new Thickness(0, 6, 0, 0), ToolTip = L.T("Adres obrazka (http…), np. logo ze strony stacji") };
+            var urlHint = new TextBlock { Text = L.T("🔗 adres obrazka…"), Foreground = Brushes.Gray, Margin = new Thickness(6, 10, 0, 0), IsHitTestVisible = false };
+            url.TextChanged += (s, a) => { urlHint.Visibility = url.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; var t = url.Text.Trim(); if (t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || t.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) { logo = t; showPrev(); } };
+            var urlBox = new Grid(); urlBox.Children.Add(url); urlBox.Children.Add(urlHint);
+            var fileBtn = new Button { Content = L.T("📂 Z pliku…"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 6, 6, 0) };
+            fileBtn.Click += (s, a) =>
+            {
+                var d = new Microsoft.Win32.OpenFileDialog { Title = L.T("Ikona kanału"), Filter = L.T("Obrazy") + "|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico" };
+                if (d.ShowDialog(w) != true) return;
+                try
+                {
+                    var dir = Path.Combine(IptvDataDir, "ikony-wlasne"); Directory.CreateDirectory(dir);
+                    var f = Path.Combine(dir, Guid.NewGuid().ToString("N") + Path.GetExtension(d.FileName).ToLowerInvariant());
+                    File.Copy(d.FileName, f); logo = f; url.Text = ""; showPrev();   // kopia - ikona zostaje, nawet gdy oryginalny plik zniknie
+                }
+                catch (Exception ex) { App.LogError(ex); }
+            };
+            var origBtn = new Button { Content = L.T("↺ Ikona z listy"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 6, 0, 0) };
+            origBtn.Click += (s, a) => { logo = null; url.Text = ""; showPrev(); };
+            var btns = new StackPanel { Orientation = Orientation.Horizontal }; btns.Children.Add(fileBtn); btns.Children.Add(origBtn);
+            var right = new StackPanel(); right.Children.Add(urlBox); right.Children.Add(btns);
+            var lrow = new DockPanel(); DockPanel.SetDock(prev, Dock.Left); lrow.Children.Add(prev); lrow.Children.Add(right);
+            sp.Children.Add(lrow);
+            var ok = new Button { Content = L.T("Zapisz"), IsDefault = true, Padding = new Thickness(16, 5, 16, 5), Margin = new Thickness(0, 0, 8, 0) };
+            var reset = new Button { Content = L.T("Przywróć oryginał"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = L.T("Anuluj"), IsCancel = true, Padding = new Thickness(12, 5, 12, 5) };
+            var bottom = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            bottom.Children.Add(ok); bottom.Children.Add(reset); bottom.Children.Add(cancel); sp.Children.Add(bottom);
+            Action<string, string> apply = (n, lg) =>
+            {
+                var key = ch.LiveUrl ?? ch.Url;
+                if (IptvSt.MyNames == null) IptvSt.MyNames = new Dictionary<string, string>(); if (IptvSt.MyLogos == null) IptvSt.MyLogos = new Dictionary<string, string>();
+                if (string.IsNullOrWhiteSpace(n) || n.Trim() == orig) IptvSt.MyNames.Remove(key); else IptvSt.MyNames[key] = n.Trim();
+                if (string.IsNullOrWhiteSpace(lg)) IptvSt.MyLogos.Remove(key); else IptvSt.MyLogos[key] = lg;
+                SaveIptv(IptvSt);
+                // ten sam kanal we wszystkich wczytanych listach (okno TV, odtwarzacz, podglad)
+                var all = new List<IptvChannel> { ch };
+                if (_iptvPl != null) all.AddRange(_iptvPl.Channels.Where(c => c.Url == key));
+                if (_knownPl != null) all.AddRange(_knownPl.Channels.Where(c => c.Url == key));
+                all.AddRange(_iptvPlaying.Values.Where(c => (c.LiveUrl ?? c.Url) == key));
+                foreach (var c in all.Distinct()) ApplyMine(c);
+                done?.Invoke(); w.Close();
+            };
+            ok.Click += (s, a) => apply(name.Text, logo);
+            reset.Click += (s, a) => apply(null, null);
+            w.Content = sp; showPrev(); w.Show(); name.Focus(); name.SelectAll();
         }
 
         // wybor kanalu z programu TV dla tego kanalu listy (szukanie po nazwie)
@@ -924,6 +1004,7 @@ namespace Przegladarka
                 add(L.T("▶ Oglądaj"), play, r != null);
                 add(r != null && st.Fav.Contains(r.Ch.Url) ? L.T("⭐ Usuń z ulubionych") : L.T("⭐ Dodaj do ulubionych"), toggleFav, r != null);
                 add(L.T("⧉ Pokaż w PiP (podgląd w odtwarzaczu)"), () => _pipShow?.Invoke(r.Ch), r != null && _pipShow != null && _vlcWin != null);
+                add(L.T("✏ Edytuj kanał (nazwa, ikona)…"), () => EditChannel(r.Ch, win, () => fillList()), r != null);
                 add(L.T("📋 Kopiuj adres kanału"), () => { try { Clipboard.SetText(r.Ch.Url); } catch (Exception) { } }, r != null);
                 add(L.T("📅 Przypisz program TV…"), () => { if (AssignEpg(r.Ch, win)) { fillList(); fillEpg(); } }, r != null && _iptvEpg != null);
                 menu.Items.Add(new Separator());

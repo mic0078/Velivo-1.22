@@ -1836,6 +1836,7 @@ namespace Przegladarka
                         if (IsRecording(ch.Url)) radd(L.T("⏹ Zatrzymaj nagrywanie"), () => { StopRecording(ch.Url); showChannelsRefresh(); }, true);
                         else radd(L.T("⏺ Nagrywaj w tle"), () => RecordNow(ch, win), true);
                         radd(L.T("⧉ Pokaż w PiP (podgląd)"), () => pipShow?.Invoke(ch), ch.Url != curUrl);
+                        radd(L.T("✏ Edytuj kanał (nazwa, ikona)…"), () => EditChannel(ch, Window.GetWindow(overlay) ?? win, () => { showChannelsRefresh(); showInfo(false); }), true);
                         radd(L.T("📅 Program TV kanału"), () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, ch.Url), true);
                         if (gk != curKey && gk != recKey)
                         {

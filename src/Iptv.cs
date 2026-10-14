@@ -70,6 +70,8 @@ namespace Przegladarka
             public string Group { get; set; }    // ostatnio wybrana grupa
             public Dictionary<string, long> Watched { get; set; } = new Dictionary<string, long>();   // kanal -> kiedy ostatnio ogladany (unix ms)
             public int Buffer { get; set; } = 1;
+            public int RecBefore { get; set; } = 2;    // zapas nagrywania: minut przed poczatkiem audycji
+            public int RecAfter { get; set; } = 10;    // i po jej koncu (audycje sie przeciagaja)
             public bool WatchFromRec { get; set; }   // ogladanie nagrywanego kanalu z pliku nagrania (jedno polaczenie, pauza i cofanie) - opcja
             public bool PauseRelease { get; set; }   // po 5 min pauzy zwolnij polaczenie z dostawca - opcja  // zapas bufora kanalow na zywo (s); 1 = jak VLC
             public bool InfoOnMove { get; set; } = true;   // pasek informacji pokazuje sie przy ruchu myszy (inaczej tylko klawisz I)
@@ -520,6 +522,7 @@ namespace Przegladarka
             item("\uE8B2", L.T("🎞 Nagrania"), () => ShowRecordings(this));
             item("\uE838", L.T("📁 Folder nagrań"), OpenRecDir);
             item("\uE838", L.T("📁 Zmień folder nagrań…"), () => ChooseRecDir(this));
+            menu.Items.Add(RecMarginMenu());
             _tvBtn.ContextMenu = menu;
             StartIptvScheduler();   // zaplanowane nagrania / przelaczenia dzialaja takze przy zamknietym oknie listy
             var resume = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };   // po uruchomieniu: ostatni program, ktory lecial przy zamykaniu

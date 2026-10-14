@@ -2830,6 +2830,7 @@ namespace Przegladarka
                         bufM.Items.Add(bi);
                     }
                     cm.Items.Add(bufM);
+                    cm.Items.Add(RecMarginMenu());
                     var tvCh = _iptvPlaying[path];
                     if (IsRecording(path)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(path), true);
                     else add(L.T("⏺ Nagrywaj ten kanał"), () => RecordNow(tvCh, win), true);
@@ -2905,7 +2906,7 @@ namespace Przegladarka
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
-                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "ℹ Pasek informacji", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "➕ Dodaj do: ", "(film strumieniowany" }),
+                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "ℹ Pasek informacji", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
                 var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().ToList();
                 cm.Items.Clear();

@@ -431,12 +431,24 @@ namespace Przegladarka
         {
             // do konca audycji, ktora teraz leci (z zapasem); bez programu TV - 4 godziny
             var p = EpgAt(EpgFor(_iptvEpg, ch), DateTime.Now);
-            AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = p?.Title, Start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Stop = UnixMs(p != null ? p.Stop.AddMinutes(2) : DateTime.Now.AddHours(4)), Folder = IptvSt.RecDir });
+            AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = p?.Title, Start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Stop = UnixMs(p != null ? p.Stop.AddMinutes(IptvSt.RecAfter) : DateTime.Now.AddHours(4)), Folder = IptvSt.RecDir });
+        }
+
+        // ustawienie zapasu nagrywania (przed poczatkiem i po koncu audycji) - menu 📺 i ustawienia odtwarzacza
+        MenuItem RecMarginMenu()
+        {
+            var m = new MenuItem { Header = L.T("⏱ Zapas nagrywania: ") + IptvSt.RecBefore + L.T(" min przed, ") + IptvSt.RecAfter + L.T(" min po") };
+            var bm = new MenuItem { Header = L.T("Przed początkiem audycji") }; var am = new MenuItem { Header = L.T("Po końcu audycji") };
+            foreach (var v0 in new[] { 0, 2, 5, 10 }) { var v = v0; var mi = new MenuItem { Header = v + " min", IsCheckable = true, IsChecked = IptvSt.RecBefore == v }; mi.Click += (s, e) => { IptvSt.RecBefore = v; SaveIptv(IptvSt); }; bm.Items.Add(mi); }
+            foreach (var v0 in new[] { 0, 5, 10, 15, 30, 60 }) { var v = v0; var mi = new MenuItem { Header = v + " min", IsCheckable = true, IsChecked = IptvSt.RecAfter == v }; mi.Click += (s, e) => { IptvSt.RecAfter = v; SaveIptv(IptvSt); }; am.Items.Add(mi); }
+            m.Items.Add(bm); m.Items.Add(am);
+            m.SubmenuOpened += (s, e) => { foreach (MenuItem x in bm.Items) x.IsChecked = (string)x.Header == IptvSt.RecBefore + " min"; foreach (MenuItem x in am.Items) x.IsChecked = (string)x.Header == IptvSt.RecAfter + " min"; m.Header = L.T("⏱ Zapas nagrywania: ") + IptvSt.RecBefore + L.T(" min przed, ") + IptvSt.RecAfter + L.T(" min po"); };
+            return m;
         }
 
         void RecordProgramme(IptvChannel ch, EpgItem p)
         {
-            AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = p.Title, Start = UnixMs(p.Start.AddMinutes(-2)), Stop = UnixMs(p.Stop.AddMinutes(5)), Folder = IptvSt.RecDir });   // zapas na przesuniecia w programie
+            AddJob(new IptvJob { Kind = "rec", Url = ch.Url, Channel = ch.Name, Opts = ch.Opts, Title = p.Title, Start = UnixMs(p.Start.AddMinutes(-IptvSt.RecBefore)), Stop = UnixMs(p.Stop.AddMinutes(IptvSt.RecAfter)), Folder = IptvSt.RecDir });   // zapas na przesuniecia w programie (ustawienie)
             ShowToast(L.T("⏺ Zaplanowano nagranie: ") + p.Start.ToString("dd.MM HH:mm") + " " + p.Title, null);
         }
 

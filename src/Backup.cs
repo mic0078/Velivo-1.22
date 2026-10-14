@@ -21,22 +21,30 @@ namespace Przegladarka
         Button _tidyBtn;
 
         // co trafia do kopii (sciezka wzgledem folderu danych, z "/"): dane tak, smieci nie
-        internal static bool BackupInclude(string rel)
+        // full = pelna kopia: wszystko poza prawdziwymi smieciami (pamiec podreczna stron, logi, pliki tymczasowe) - po przywroceniu nic do pobierania
+        internal static bool BackupInclude(string rel, bool full = false)
         {
             var r = rel.Replace('\\', '/');
             var parts = r.Split('/');
             var name = parts[parts.Length - 1].ToLowerInvariant();
+            if (name.EndsWith(".tmp") || name.EndsWith(".part") || name == "vlc.log" || name == "dziala.txt" || name == "przywroc-kopie.txt" || name.StartsWith("sesja.txt")) return false;
+            if (full)
+            {
+                foreach (var p in parts.Take(parts.Length - 1).Select(x => x.ToLowerInvariant()))
+                    if (p == "velivo-smieci" || p == "cache" || p == "code cache" || p == "gpucache" || p == "grshadercache" || p == "shadercache" || p == "dawncache" || p == "dawngraphitecache" || p == "dawnwebgpucache" || p == "crashpad") return false;
+                return true;
+            }
             foreach (var p in parts.Take(parts.Length - 1).Select(x => x.ToLowerInvariant()))
                 if (p == "piper" || p == "narzedzia" || p == "miniatury stron" || p == "filtry" || p == "logo" || p == "velivo-smieci") return false;   // do pobrania na nowo
             int eb = Array.FindIndex(parts, x => x.Equals("EBWebView", StringComparison.OrdinalIgnoreCase));
             if (eb >= 0)   // dane silnika stron: tylko zalogowania (ciasteczka) i dane stron - bez pamieci podrecznej
                 return parts.Skip(eb).Any(x => x.Equals("Network", StringComparison.OrdinalIgnoreCase) || x.Equals("Local Storage", StringComparison.OrdinalIgnoreCase));
-            if (name.EndsWith(".epg") || name.EndsWith(".tmp") || name == "vlc.log" || name == "dziala.txt" || name == "przywroc-kopie.txt" || name.StartsWith("sesja.txt")) return false;
+            if (name.EndsWith(".epg")) return false;
             return true;
         }
 
         // kopia: zip z danymi; pliki zajete przez dzialajacy program czytane wspolnie (bez blokowania)
-        static int CreateBackup(string zipPath)
+        static int CreateBackup(string zipPath, bool full)
         {
             int n = 0;
             Directory.CreateDirectory(Path.GetDirectoryName(zipPath));
@@ -47,7 +55,7 @@ namespace Przegladarka
                 foreach (var f in Directory.EnumerateFiles(DataRoot, "*", SearchOption.AllDirectories))
                 {
                     var rel = Path.GetRelativePath(DataRoot, f);
-                    if (!BackupInclude(rel)) continue;
+                    if (!BackupInclude(rel, full)) continue;
                     try
                     {
                         using (var src = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
@@ -106,7 +114,8 @@ namespace Przegladarka
             DateTime last = DateTime.TryParse(GetPref("kopia-ostatnia"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var l) ? l : DateTime.MinValue;
             if (DateTime.Now - last < TimeSpan.FromDays(days)) return;
             var path = NewBackupPath(); var dir = BackupDir;
-            Task.Run(() => { CreateBackup(path); TrimBackups(dir, 5); }).ContinueWith(t =>
+            bool full = GetPref("kopia-pelna") != "0";
+            Task.Run(() => { CreateBackup(path, full); TrimBackups(dir, 5); }).ContinueWith(t =>
             {
                 if (t.IsFaulted) { App.LogError(t.Exception.GetBaseException()); return; }
                 Dispatcher.BeginInvoke(new Action(() => SetPref("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture))));
@@ -201,6 +210,9 @@ namespace Przegladarka
             autoRow.Children.Add(autoBox);
             autoRow.Children.Add(new TextBlock { Text = L.T("  (zostaje 5 ostatnich)"), Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center });
             sp.Children.Add(autoRow);
+            var fullBox = new CheckBox { Content = new TextBlock { Text = L.T("Pełna kopia – także program TV, ikony kanałów, głosy lektora, narzędzia i dane stron (po przywróceniu nic do pobierania; większa)"), TextWrapping = TextWrapping.Wrap }, IsChecked = GetPref("kopia-pelna") != "0", Margin = new Thickness(0, 0, 0, 6) };
+            fullBox.Click += (s, e) => SetPref("kopia-pelna", fullBox.IsChecked == true ? "1" : "0");
+            sp.Children.Add(fullBox);
             var lastInfo = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(0, 0, 0, 6) };
             Action showLast = () =>
             {
@@ -222,7 +234,8 @@ namespace Przegladarka
                 var path = NewBackupPath(); var dir = BackupDir;
                 try
                 {
-                    var n = await Task.Run(() => { var c = CreateBackup(path); TrimBackups(dir, 5); return c; });
+                    bool full = fullBox.IsChecked == true;
+                    var n = await Task.Run(() => { var c = CreateBackup(path, full); TrimBackups(dir, 5); return c; });
                     SetPref("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
                     ShowToast(L.T("💾 Kopia gotowa: ") + Path.GetFileName(path) + " (" + n + L.T(" plików, ") + Mb(new FileInfo(path).Length) + ")", path);
                 }

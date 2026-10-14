@@ -87,7 +87,8 @@ namespace Przegladarka
             var last = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             altB = key("ą ę ł", 96); altB.FontSize = 15; altB.ToolTip = L.T("Polskie znaki (jak prawy Alt)"); altB.Click += (s, e) => { alt = !alt; refresh(); };
             var at = key("@", 46); at.Click += (s, e) => SendKey(0, '@');
-            var space = key("", 380); space.Click += (s, e) => SendKey(0, ' ');
+            var space = key(new TextBlock { Text = "Velivo", FontSize = 15, FontWeight = FontWeights.SemiBold, Opacity = 0.55, Margin = new Thickness(0, 0, -3, 0),
+                Foreground = new LinearGradientBrush(Color.FromRgb(0xA7, 0x8B, 0xFA), Color.FromRgb(0x22, 0xD3, 0xEE), 0), FontStretch = FontStretches.Expanded }, 380);   // subtelny napis na spacji space.Click += (s, e) => SendKey(0, ' ');
             var dot = key(".com", 66); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") SendKey(0, ch); };
             var lf = key("◀", 46); lf.Click += (s, e) => SendKey(0x25, '\0');
             var dn = key("▼", 46); dn.Click += (s, e) => SendKey(0x28, '\0');

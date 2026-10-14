@@ -100,6 +100,13 @@ namespace Przegladarka
             }
             try
             {
+                if (!IsVisible)   // okno w zasobniku / jeszcze niepokazane - nad paskiem zadan glownego ekranu
+                {
+                    var wa0 = SystemParameters.WorkArea; double below0 = 0;
+                    foreach (var t in _toasts) { if (t == toast) break; if (t.IsLoaded) below0 += t.ActualHeight + 8; }
+                    toast.Left = wa0.Left + (wa0.Width - toast.ActualWidth) / 2; toast.Top = Math.Max(wa0.Top, wa0.Bottom - toast.ActualHeight - 16 - below0);
+                    return;
+                }
                 var src = PresentationSource.FromVisual(this);
                 var tl = PointToScreen(new Point(0, 0)); var br = PointToScreen(new Point(ActualWidth, ActualHeight));
                 var wa = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle).WorkingArea;
@@ -127,7 +134,8 @@ namespace Przegladarka
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
             var toast = new Window
             {
-                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = this, Topmost = true,
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = IsLoaded ? this : null, Topmost = true,   // okno jeszcze niepokazane (start w zasobniku) - bez wlasciciela
+               
                 SizeToContent = SizeToContent.WidthAndHeight, Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x29, 0x37)),
                 ShowActivated = false, Content = panel
             };

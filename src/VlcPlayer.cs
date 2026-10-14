@@ -1522,7 +1522,7 @@ namespace Przegladarka
                     if (extra.Count > 0) infoText.Children.Add(ft(string.Join("   ·   ", extra), 12.5, FontWeights.Normal, Brushes.Silver));
                     if (roomy && fm != null && !string.IsNullOrEmpty(fm.Overview)) { var od = ft(fm.Overview, 13.5, FontWeights.Normal, Brushes.Gainsboro); od.MaxHeight = 58 * infoK; od.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(od); }
                     if (_playIndex < _playlist.Count - 1) infoText.Children.Add(ft("⏭ " + L.T("Następny: ") + System.IO.Path.GetFileNameWithoutExtension(_playlist[_playIndex + 1]), 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
-                    infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);
+                    infoBox.Margin = new Thickness(16, 0, 16, (controls.ActualHeight > 0 ? controls.ActualHeight : 70) + 10);   // stale miejsce nad paskiem - nie opada, gdy pasek znika
                     infoBox.Visibility = Visibility.Visible; infoShownFor = null;
                     infoTimer.Stop(); infoTimer.Interval = TimeSpan.FromSeconds(IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec); infoTimer.Start();
                     return;
@@ -1548,7 +1548,7 @@ namespace Przegladarka
                 infoLogo.Source = null;
                 var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
                 if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) infoLogo.Source = t.Result; }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
-                infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);   // nad paskiem sterowania
+                infoBox.Margin = new Thickness(16, 0, 16, (controls.ActualHeight > 0 ? controls.ActualHeight : 70) + 10);   // stale miejsce nad paskiem - nie opada, gdy pasek znika   // nad paskiem sterowania
                 infoBox.Visibility = Visibility.Visible;
                 infoShownFor = p0 != null ? pth + p0.Start.Ticks : pth;
                 infoTimer.Stop();
@@ -1856,7 +1856,6 @@ namespace Przegladarka
             controls.IsVisibleChanged += (s, e) =>
             {
                 if (controls.IsVisible && infoBox.Visibility != Visibility.Visible) { if (IptvSt.InfoOnMove) showInfo(true); }
-                else if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16);
             };
             win.Closed += (s, e) => infoTimer.Stop();
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)

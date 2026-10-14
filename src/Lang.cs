@@ -737,6 +737,7 @@ namespace Przegladarka
             { "Po najechaniu myszką na film pojawia się przycisk ⧉ – film przechodzi do małego okienka zawsze na wierzchu.", "Hovering over a video shows a ⧉ button – the video moves to a small always-on-top window." },
             { "🧠 Gdzie ja to czytałem?", "🧠 Where did I read that?" },
             { "🧠 Gdzie ja to czytałem? (Ctrl+Shift+F)", "🧠 Where did I read that? (Ctrl+Shift+F)" },
+            { "🔑 Zapisane hasła i loginy", "🔑 Saved passwords and logins" },
             { "🧠 Szukaj w treści stron…", "🧠 Search page contents…" },
             { "Wyczyść pamięć stron", "Clear page memory" },
             { "  ·  zapamiętywanie jest wyłączone w ustawieniach", "  ·  remembering is turned off in settings" },

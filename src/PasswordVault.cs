@@ -540,7 +540,11 @@ namespace Przegladarka
                         if (h.Length > 0) e.Host = h;
                     }
             }
-            catch (Exception ex) { App.LogError(ex); }
+            catch (Exception ex)
+            {   // nieczytelna baza (uszkodzony plik, inne konto Windows): kopia obok, zanim pierwszy zapis ja nadpisze - hasla da sie jeszcze odzyskac
+                App.LogError(ex);
+                try { var bad = PasswordVaultFile + ".nieczytelna-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"); if (File.Exists(PasswordVaultFile)) File.Copy(PasswordVaultFile, bad, false); } catch (Exception) { }
+            }
         }
 
         void SavePasswordVault()
@@ -556,7 +560,10 @@ namespace Przegladarka
                 };
                 var plain = JsonSerializer.SerializeToUtf8Bytes(data, new JsonSerializerOptions { WriteIndented = true });
                 var enc = ProtectedData.Protect(plain, PasswordVaultEntropy, DataProtectionScope.CurrentUser);
-                File.WriteAllText(PasswordVaultFile, Convert.ToBase64String(enc));
+                // najpierw do pliku tymczasowego, potem podmiana - przerwany zapis (wylaczenie pradu) nie psuje bazy
+                var tmp = PasswordVaultFile + ".tmp";
+                File.WriteAllText(tmp, Convert.ToBase64String(enc));
+                File.Move(tmp, PasswordVaultFile, true);
                 NotifyLanStateChanged();
             }
             catch (Exception ex) { App.LogError(ex); }

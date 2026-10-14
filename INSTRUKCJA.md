@@ -776,6 +776,8 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 
 ## 15. Hasła i Sejf
 
+- **Gdzie są zapisane hasła:** prawy klik na stronie → **Narzędzia → 🔑 Zapisane hasła i loginy** (albo Ustawienia → Menedżer haseł lokalnych…). Baza jest zaszyfrowana kluczem Twojego konta Windows (DPAPI) i zapisywana bezpiecznie – przerwany zapis nie psuje bazy, a gdy bazy nie da się odczytać, Velivo zostawia jej kopię `hasla.vault.nieczytelna-…` do odzyskania.
+
 - **Sejf** (osobny program autora) przechowuje hasła zaszyfrowane offline. Gdy strona ma pole logowania, na pasku pojawia się **🔑**, a kliknięcie wypełnia formularz.
 - **Zapis do Sejfu:** po zalogowaniu Velivo pyta, czy zapisać albo zaktualizować hasło.
 - **Własna zaszyfrowana baza Velivo** (Menedżer haseł lokalnych) z **generatorem silnych haseł**.

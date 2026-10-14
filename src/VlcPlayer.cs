@@ -1238,7 +1238,9 @@ namespace Przegladarka
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 4) };
             btnRow.Children.Add(left); btnRow.Children.Add(right);
             // pasek nakladany na obraz (jak w "Na wierzchu"): chowa sie po chwili bez ruchu myszy, film nie zmienia rozmiaru
-            var controls = new StackPanel { Background = new SolidColorBrush(Color.FromArgb(0xD9, 0x1C, 0x1C, 0x1C)), VerticalAlignment = VerticalAlignment.Bottom };
+            // tlo paska sterowania: przezroczystosc z ustawienia (ikona 👁), domyslnie 15%
+            Func<int, Brush> barBg = pct => new SolidColorBrush(Color.FromArgb((byte)(255 * (100 - Math.Max(0, Math.Min(80, pct))) / 100), 0x1C, 0x1C, 0x1C));
+            var controls = new StackPanel { Background = barBg(int.TryParse(GetPref("pasek-alfa"), out var ba) ? ba : 15), VerticalAlignment = VerticalAlignment.Bottom };
             // pasek postepu tak szeroki jak przyciski (konczy sie za "100%"); miejsce z prawej - na szybkie ikony
             var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };   // do dolu - rzad przyciskow w jednej linii z szybkimi ikonami
             mainCol.Children.Add(seekRow); mainCol.Children.Add(btnRow);
@@ -1257,7 +1259,7 @@ namespace Przegladarka
             var qInfo = qBtn("info", L.T("Pokaż pasek informacji (I)")); var qRefresh = qBtn("refresh", L.T("Odśwież kanał (F5)")); var qLists = qBtn("playlists", L.T("Playlisty i moja kolejka"));
             var qFavTv = qFavBtn("tv", L.T("Moje ulubione kanały TV")); var qFavFilm = qFavBtn("film", L.T("Moje ulubione filmy"));
             var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 2, 4, 4) };   // ta sama wysokosc co rzad przyciskow (btnRow: 2 u gory, 4 u dolu)
-            var qBarTime = qBtn("eye", L.T("Jak długo pasek zostaje widoczny po ruchu myszy"));
+            var qBarTime = qBtn("eye", L.T("Pasek sterowania: jak długo zostaje widoczny i jak bardzo przezroczysty"));
             foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
             quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });   // separator - ustawienia paska osobno
             quick.Children.Add(qBarTime);
@@ -2680,6 +2682,15 @@ namespace Przegladarka
                 {
                     var v = v0; var mi = new MenuItem { Header = v == 0 ? L.T("nie znika (zawsze widoczny)") : v.ToString("0.#", System.Globalization.CultureInfo.CurrentCulture) + " s", IsCheckable = true, IsChecked = Math.Abs(barSec() - v) < 0.01 };
                     mi.Click += (q, w2) => { SetPref("pasek-czas", v.ToString(System.Globalization.CultureInfo.InvariantCulture)); if (v > 0) hideTimer.Interval = TimeSpan.FromSeconds(v); showOsd(v == 0 ? L.T("Pasek: zawsze widoczny") : L.T("Pasek znika po ") + v + " s"); };
+                    cm.Items.Add(mi);
+                }
+                cm.Items.Add(new Separator());
+                cm.Items.Add(new MenuItem { Header = L.T("Przezroczystość paska:"), IsEnabled = false });
+                int curA = int.TryParse(GetPref("pasek-alfa"), out var ca) ? ca : 15;
+                foreach (var a0 in new[] { 0, 15, 30, 45, 60 })
+                {
+                    var a = a0; var mi = new MenuItem { Header = a + " %" + (a == 0 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = curA == a };
+                    mi.Click += (q, w2) => { SetPref("pasek-alfa", a.ToString()); controls.Background = barBg(a); };
                     cm.Items.Add(mi);
                 }
                 cm.IsOpen = true;

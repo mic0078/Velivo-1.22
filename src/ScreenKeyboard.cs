@@ -247,6 +247,39 @@ namespace Przegladarka
         internal static void ShowScreenKeyboard() { ShowScreenKeyboard(IntPtr.Zero); }
 
         [DllImport("user32.dll")] static extern bool GetCursorPos(out PointStruct p);
+        [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr h);
+        [DllImport("user32.dll")] static extern bool PostThreadMessage(uint tid, uint msg, IntPtr wp, IntPtr lp);
+
+        // zwykla klawiatura -> fala na klawiaturze ekranowej; podsluch tylko gdy klawiatura Velivo jest otwarta, nic nie zapisuje
+        static Action<int> _onPhysKey;
+        static LowLevelProc _keyProc; static IntPtr _keyHook; static uint _keyThread;
+        static void StartKeyEcho()
+        {
+            if (_keyHook != IntPtr.Zero || _keyThread != 0) return;
+            _keyProc = (code, wp, lp) =>
+            {
+                if (code >= 0 && ((int)wp == 0x100 || (int)wp == 0x104))   // WM_KEYDOWN / WM_SYSKEYDOWN
+                {
+                    int vk = Marshal.ReadInt32(lp), flags = Marshal.ReadInt32(lp, 8);
+                    if ((flags & 0x10) == 0) { var f = _onPhysKey; if (f != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => f(vk))); }   // bez znakow wyslanych przez sama klawiature Velivo
+                }
+                return CallNextHookEx(_keyHook, code, wp, lp);
+            };
+            var th = new System.Threading.Thread(() =>
+            {
+                _keyThread = (uint)GetCurrentThreadId();
+                _keyHook = SetWindowsHookEx(13, _keyProc, GetModuleHandle(null), 0);   // WH_KEYBOARD_LL
+                while (GetMessage(out var m, IntPtr.Zero, 0, 0) > 0) { }
+                if (_keyHook != IntPtr.Zero) UnhookWindowsHookEx(_keyHook);
+                _keyHook = IntPtr.Zero; _keyThread = 0;
+            }) { IsBackground = true, Name = "Velivo-klawisze" };
+            th.Start();
+        }
+        static void StopKeyEcho()
+        {
+            _onPhysKey = null;
+            if (_keyThread != 0) PostThreadMessage(_keyThread, 0x12, IntPtr.Zero, IntPtr.Zero);   // WM_QUIT - koniec podsluchu
+        }
 
         // jak zagiel (Velivo): klawiatura wplywa lagodnie od dolu i rozjasnia sie, przy zamknieciu odplywa w dol i gasnie (ok. 0,3 s)
         static void Sail(Window w, UIElement content, bool open, Action done)
@@ -299,7 +332,8 @@ namespace Przegladarka
             var letters = new System.Collections.Generic.List<(Button B, char C)>();
             var root = new StackPanel { Margin = new Thickness(10) };
             var allKeys = new System.Collections.Generic.List<Button>();   // do kolorow przechodzacych po klawiszach
-            Action<Button> wave = null;   // fala przy nacisnieciu (ustawiana nizej, gdy jest juz plotno)
+            Action<Button> wave = null;
+            var vkKeys = new Dictionary<int, Button>();   // klawisz zwyklej klawiatury -> klawisz na ekranie (tylko do pokazania fali)   // fala przy nacisnieciu (ustawiana nizej, gdy jest juz plotno)
             Func<object, double, Button> key = (content, w) =>
             {
                 var b = new Button { Content = content, Width = w, Height = 46, Margin = new Thickness(2), Focusable = false, FontSize = 18, Foreground = Brushes.White, Background = keyBg, BorderThickness = new Thickness(0), Cursor = Cursors.Hand };
@@ -323,8 +357,8 @@ namespace Przegladarka
             };
             // nauka slow (jak na Androidzie): slowo wpisane litera po literze trafia do wlasnego slownika po spacji / Enter / znaku
             var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
-            title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
+            title.Inlines.Add(new System.Windows.Documents.Run(" by Michael") { Foreground = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)) });
             List<Point> lastTrace = null; double lastKeyW = 52; string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
             Action<string> learn = wd =>
             {
@@ -408,7 +442,7 @@ namespace Przegladarka
             foreach (var r in rows)
             {
                 var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                if (r == rows[1]) { var t = key("⇥", 66); t.ToolTip = L.T("Tab – następne pole"); t.Click += (s, e) => tap(0x09, '\0'); row.Children.Add(t); }
+                if (r == rows[1]) { var t = key("⇥", 66); vkKeys[0x09] = t; t.ToolTip = L.T("Tab – następne pole"); t.Click += (s, e) => tap(0x09, '\0'); row.Children.Add(t); }
                 if (r == rows[2]) { capsB = key("⇪", 78); capsB.ToolTip = L.T("Caps Lock – wszystkie litery wielkie, aż klikniesz znowu"); capsB.Click += (s, e) => { caps = !caps; refresh(); }; row.Children.Add(capsB); }
                 if (r == rows[3]) { shiftB = key("⇧", 96); shiftB.ToolTip = L.T("Shift – następna litera wielka (albo znak z góry klawisza)"); shiftB.Click += (s, e) => { shift = !shift; refresh(); }; row.Children.Add(shiftB); }
                 foreach (var c0 in r)
@@ -417,19 +451,19 @@ namespace Przegladarka
                     b.Click += (s, e) => { tap(0, map(c)); if (shift || alt) { shift = false; alt = false; refresh(); } };
                     letters.Add((b, c)); row.Children.Add(b);
                 }
-                if (r == rows[0]) { var bs = key("⌫", 86); bs.ToolTip = L.T("Usuń znak przed kursorem"); bs.Click += (s, e) => tap(0x08, '\0'); row.Children.Add(bs); }
-                if (r == rows[2]) { var en = key("⏎", 96); en.ToolTip = L.T("Enter – zatwierdź / nowa linia"); en.Background = accent; en.Foreground = accentText; en.Click += (s, e) => tap(0x0D, '\0'); row.Children.Add(en); }
-                if (r == rows[3]) { var up = key("▲", 46); up.ToolTip = L.T("Kursor w górę"); up.Click += (s, e) => tap(0x26, '\0'); row.Children.Add(up); }
+                if (r == rows[0]) { var bs = key("⌫", 86); vkKeys[0x08] = bs; bs.ToolTip = L.T("Usuń znak przed kursorem"); bs.Click += (s, e) => tap(0x08, '\0'); row.Children.Add(bs); }
+                if (r == rows[2]) { var en = key("⏎", 96); vkKeys[0x0D] = en; en.ToolTip = L.T("Enter – zatwierdź / nowa linia"); en.Background = accent; en.Foreground = accentText; en.Click += (s, e) => tap(0x0D, '\0'); row.Children.Add(en); }
+                if (r == rows[3]) { var up = key("▲", 46); vkKeys[0x26] = up; up.ToolTip = L.T("Kursor w górę"); up.Click += (s, e) => tap(0x26, '\0'); row.Children.Add(up); }
                 root.Children.Add(row);
             }
             var last = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             altB = key("ą ę ł", 96); altB.FontSize = 15; altB.ToolTip = L.T("Polskie znaki (jak prawy Alt)"); altB.Click += (s, e) => { alt = !alt; refresh(); };
             var at = key("@", 46); at.Click += (s, e) => tap(0, '@');
-            var space = key("", 380); space.ToolTip = L.T("Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych"); space.Click += (s, e) => tap(0, ' ');
+            var space = key("", 380); vkKeys[0x20] = space; space.ToolTip = L.T("Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych"); space.Click += (s, e) => tap(0, ' ');
             var dot = key(".com", 66); dot.ToolTip = L.T("Wpisuje „.com”"); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") tap(0, ch); };
-            var lf = key("◀", 46); lf.ToolTip = L.T("Kursor w lewo"); lf.Click += (s, e) => tap(0x25, '\0');
-            var dn = key("▼", 46); dn.ToolTip = L.T("Kursor w dół"); dn.Click += (s, e) => tap(0x28, '\0');
-            var rt = key("▶", 46); rt.ToolTip = L.T("Kursor w prawo"); rt.Click += (s, e) => tap(0x27, '\0');
+            var lf = key("◀", 46); vkKeys[0x25] = lf; lf.ToolTip = L.T("Kursor w lewo"); lf.Click += (s, e) => tap(0x25, '\0');
+            var dn = key("▼", 46); vkKeys[0x28] = dn; dn.ToolTip = L.T("Kursor w dół"); dn.Click += (s, e) => tap(0x28, '\0');
+            var rt = key("▶", 46); vkKeys[0x27] = rt; rt.ToolTip = L.T("Kursor w prawo"); rt.Click += (s, e) => tap(0x27, '\0');
             foreach (var b in new[] { altB, at, space, dot, lf, dn, rt }) last.Children.Add(b);
             root.Children.Add(last);
             refresh = () =>
@@ -687,7 +721,17 @@ namespace Przegladarka
             };
             w.Closing += (s, e) => SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.ActualHeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
             w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); };
+            // pisanie na zwyklej klawiaturze: na ekranie fala na tym samym klawiszu (nic nie jest zapisywane; w polu hasla - nic)
+            foreach (var (b, c) in letters) if (char.IsLetterOrDigit(c)) vkKeys[char.ToUpperInvariant(c)] = b;
+            vkKeys[0x14] = capsB; vkKeys[0xA0] = vkKeys[0xA1] = vkKeys[0x10] = shiftB;
+            DateTime secretAt = DateTime.MinValue; bool secret = false;
+            _onPhysKey = vk =>
+            {
+                if ((DateTime.UtcNow - secretAt).TotalMilliseconds > 800) { secret = SecretField(); secretAt = DateTime.UtcNow; }   // sprawdzane najwyzej co 0,8 s
+                if (!secret && vkKeys.TryGetValue(vk, out var kb)) wave?.Invoke(kb);
+            };
+            StartKeyEcho();
+            w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); StopKeyEcho(); };
             _kbd = w; w.Show();
         }
 

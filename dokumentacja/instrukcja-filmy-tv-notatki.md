@@ -95,3 +95,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Film: w linii jakości także kodek obrazu (np. FHD 1920×1080 · H.264 · 8,2 Mb/s · 24 kl/s; dźwięk tylko w podpowiedzi, żeby linia mieściła się nad wykresem); podpowiedź = pełne dane techniczne (plik, rozmiar, kontener, długość, obraz, wszystkie ścieżki dźwięku, napisy); te dane też w vlc.log.
 - Klik w obraz przy otwartym menu tylko zamyka menu – nie zatrzymuje filmu ani TV na żywo.
 - Klawiatura „żagiel”: wpływa łagodnie od dołu z rozjaśnieniem (ok. 0,3 s), odpływa w dół przy zamknięciu; fala w kolorach logo od naciśniętego klawisza (0,4 s). Kandydat do wersji Pro (motyw / animacje), razem z: nagrywaniem TV, PiP, wspólnym oglądaniem w LAN, kopiami przyrostowymi, pisaniem myszką z nauką ruchów.
+- Klawiatura „Velivo by Michael”: pisanie na zwykłej klawiaturze pokazuje falę na tym samym klawiszu ekranowym (podsłuch tylko gdy klawiatura otwarta, nic nie zapisuje, w polach haseł nic się nie zapala).

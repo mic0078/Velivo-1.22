@@ -42,7 +42,8 @@ namespace Przegladarka
         Window _vlcWin;
         Button _filmBtn, _playerBtn;
         bool _hiddenForPlayer;
-        Func<IptvChannel, bool> _pipShow;   // podglad PiP w otwartym odtwarzaczu (gdy gra TV) - takze z okna telewizji   // przegladarka schowana do zasobnika przez przycisk odtwarzacza - wraca po zamknieciu odtwarzacza
+        Func<IptvChannel, bool> _pipShow;
+        Func<string, bool> _pipShowFilm;   // film w podgladzie PiP otwartego odtwarzacza (z biblioteki)   // podglad PiP w otwartym odtwarzaczu (gdy gra TV) - takze z okna telewizji   // przegladarka schowana do zasobnika przez przycisk odtwarzacza - wraca po zamknieciu odtwarzacza
 
         // sam odtwarzacz (jak typowy program do filmow): czarny ekran, przegladarka do zasobnika
         void OpenEmptyPlayer()
@@ -819,6 +820,7 @@ namespace Przegladarka
                     return;
                 }
                 addItem(L.T("▶ Odtwórz"), play);
+                if (_pipShowFilm != null) addItem(L.T("⧉ Pokaż w PiP (podgląd w odtwarzaczu)"), () => { var ps = selPaths(); if (ps.Length > 0) _pipShowFilm(ps[0]); });
                 int nSel = list.SelectedItems.Count;
                 Action<List<string>> rememberMine = q => { var p0 = LoadPlaylists(); p0.Mine = q.ToList(); SavePlaylists(p0); };   // moja kolejka zostaje (takze po wlaczeniu innego filmu i po zamknieciu)
                 if (nSel > 1) addItem(L.T("▶ Odtwórz zaznaczone jako kolejkę (") + nSel + ")", () => { var ps = selPaths(); if (ps.Length == 0) return; rememberMine(ps.ToList()); _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); });
@@ -1697,6 +1699,13 @@ namespace Przegladarka
                         else { var paths = films.Select(x => x.Path).ToList(); PlayVideos(paths.ToArray(), k); }   // ta lista staje sie lista odtwarzania
                         showChannelsRefresh();
                     };
+                    {   // prawy przycisk na filmie: otworz, podglad PiP
+                        var fcm = new ContextMenu(); var fp = f.Path; int fi = k;
+                        var o1 = new MenuItem { Header = L.T("▶ Otwórz") }; o1.Click += (q, w2) => { if (fk == fCur) _vlcLoad(fi); else PlayVideos(films.Select(x => x.Path).ToArray(), fi); showChannelsRefresh(); }; fcm.Items.Add(o1);
+                        var o2 = new MenuItem { Header = L.T("⧉ Pokaż w PiP (podgląd)"), IsEnabled = !string.Equals(fp, curP, StringComparison.OrdinalIgnoreCase) }; o2.Click += (q, w2) => _pipShowFilm?.Invoke(fp); fcm.Items.Add(o2);
+                        fcm.Opened += (q, w2) => chHide.Stop();
+                        it.ContextMenu = fcm;
+                    }
                     chList.Items.Add(it);
                 };
                 if (remoteCur)
@@ -2355,7 +2364,8 @@ namespace Przegladarka
                 if (grM.Items.Count > 0) cm.Items.Add(grM);
             };
             _pipShow = ch => { if (_vlcWin != win) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p1 == ch.Url) return false; pipShow(ch); return true; };   // z okna TV
-            win.Closed += (s, e) => _pipShow = null;
+            _pipShowFilm = path1 => { if (_vlcWin != win || !File.Exists(path1)) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (string.Equals(p1, path1, StringComparison.OrdinalIgnoreCase)) return false; pipShow(pipFilm(path1)); return true; };
+            win.Closed += (s, e) => { _pipShow = null; _pipShowFilm = null; };
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();
             win.SizeChanged += (s, e) => pipPlace();

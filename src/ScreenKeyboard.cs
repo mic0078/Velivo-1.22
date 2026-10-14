@@ -64,6 +64,8 @@ namespace Przegladarka
         // jezyk klawiatury (slownik przeciagania, czytanie na glos): wybrany przelacznikiem, domyslnie jezyk Velivo
         static string KbLang => GetPref("klawiatura-jezyk") ?? (L.En ? "en" : "pl");
         static string _swLang;
+        // jezyk czytania na glos (osobno od jezyka klawiatury), domyslnie jak klawiatura
+        static string ReadLang => GetPref("klawiatura-czytaj-jezyk") ?? KbLang;
 
         // slownik wbudowany (polski albo angielski) + wlasne slowa - w tle, przy otwarciu i zmianie jezyka
         static void LoadSwipeDictionary()
@@ -129,13 +131,15 @@ namespace Przegladarka
                     }
                     catch (Exception) { }
                 if (string.IsNullOrWhiteSpace(text)) { (Application.Current?.MainWindow as MainWindow)?.ShowToast(L.T("🗣 Nic do przeczytania – zaznacz tekst myszą i spróbuj jeszcze raz."), null); return; }
-                (Application.Current?.MainWindow as MainWindow)?.KbSpeak(text.Length > 3000 ? text.Substring(0, 3000) : text, KbLang);
+                (Application.Current?.MainWindow as MainWindow)?.KbSpeak(text.Length > 3000 ? text.Substring(0, 3000) : text, ReadLang);
             }
             catch (Exception ex) { App.LogError(ex); }
         }
 
         // czytanie na glos tego, co sie pisze - glosem lektora Velivo (Piper albo glos Windows), slowo po slowie
         System.Windows.Media.MediaPlayer _kbdVoice;
+        void KbStopSpeaking() { try { _kbdVoice?.Stop(); } catch (Exception) { } }
+
         async void KbSpeak(string text, string lang)
         {
             try
@@ -410,7 +414,7 @@ namespace Przegladarka
             Action<string> say = wd =>
             {   // czytanie na glos skonczonego slowa (nigdy w polu hasla)
                 if (wd.Length == 0 || GetPref("klawiatura-czytaj") != "1" || SecretField()) return;
-                (Application.Current?.MainWindow as MainWindow)?.KbSpeak(wd, KbLang);
+                (Application.Current?.MainWindow as MainWindow)?.KbSpeak(wd, ReadLang);
             };
             Action<ushort, char> tap = (vk, ch) =>
             {
@@ -550,7 +554,16 @@ namespace Przegladarka
                 now.Click += (q, w2) => ReadSelectionAloud();
                 var live = new MenuItem { Header = L.T("Czytaj na bieżąco to, co piszę"), IsCheckable = true, IsChecked = GetPref("klawiatura-czytaj") == "1" };
                 live.Click += (q, w2) => { SetPref("klawiatura-czytaj", live.IsChecked ? "1" : "0"); sayApply(); };
-                cm.Items.Add(now); cm.Items.Add(live); cm.IsOpen = true;
+                var stop = new MenuItem { Header = L.T("⏹ Zatrzymaj czytanie") };
+                stop.Click += (q, w2) => (Application.Current?.MainWindow as MainWindow)?.KbStopSpeaking();
+                var langM = new MenuItem { Header = L.T("Język czytania") };
+                foreach (var (code, name) in new[] { ("pl", "Polski"), ("en", "English") })
+                {
+                    var li = new MenuItem { Header = name, IsCheckable = true, IsChecked = ReadLang == code };
+                    li.Click += (q, w2) => SetPref("klawiatura-czytaj-jezyk", code);
+                    langM.Items.Add(li);
+                }
+                cm.Items.Add(now); cm.Items.Add(stop); cm.Items.Add(new Separator()); cm.Items.Add(langM); cm.Items.Add(live); cm.IsOpen = true;
             };
             sayApply(); head.Children.Add(sayB);
             var langB = key(KbLang.ToUpperInvariant(), 40); langB.Height = 28; langB.FontSize = 12.5; langB.FontWeight = FontWeights.SemiBold; langB.Background = Brushes.Transparent; DockPanel.SetDock(langB, Dock.Right);

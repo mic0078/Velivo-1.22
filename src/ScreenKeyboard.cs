@@ -503,10 +503,10 @@ namespace Przegladarka
             };
             // naglowek do przeciagania i zamkniecia
             var head = new DockPanel { Margin = new Thickness(14, 8, 8, 0), Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
-            var close = key("✕", 34); close.Height = 28; close.FontSize = 13; close.Background = Brushes.Transparent; DockPanel.SetDock(close, Dock.Right);
+            var close = key(ico("\uE711", null), 34); close.Height = 28; close.FontSize = 13; close.Background = Brushes.Transparent; DockPanel.SetDock(close, Dock.Right);
             head.Children.Add(close);
             // wlasny slownik (jak na Androidzie): podglad i usuwanie wyuczonych slow
-            var dictB = key("📖", 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
+            var dictB = key(ico("\uE82D", null), 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
             dictB.ToolTip = L.T("Mój słownik – słowa, których Velivo nauczyło się od Ciebie (klik w słowo usuwa je)");
             dictB.Click += (s, e) =>
             {
@@ -523,15 +523,15 @@ namespace Przegladarka
             };
             head.Children.Add(dictB);
             // 🎮 sterowanie padem
-            var padB = key("🎮", 34); padB.Height = 28; padB.FontSize = 13; padB.Background = Brushes.Transparent; DockPanel.SetDock(padB, Dock.Right);
+            var padB = key(ico("\uE7FC", null), 34); padB.Height = 28; padB.FontSize = 13; padB.Background = Brushes.Transparent; DockPanel.SetDock(padB, Dock.Right);
             padB.ToolTip = L.T("Pad (Xbox i zgodne): krzyżak / lewa gałka – wybór klawisza, A – naciśnij, B – ⌫, X – spacja, Y – ⇧, LB / RB – kursor ◀ ▶, LT – ą ę ł, Start – ⏎, Back – zamknij");
             head.Children.Add(padB);
             // 🎤 dyktowanie (pisanie glosem Windows, Win+H), 🔊 czytanie na glos tego, co piszesz, PL / EN - jezyk
-            var micB = key("🎤", 34); micB.Height = 28; micB.FontSize = 13; micB.Background = Brushes.Transparent; DockPanel.SetDock(micB, Dock.Right);
+            var micB = key(ico("\uE720", null), 34); micB.Height = 28; micB.FontSize = 13; micB.Background = Brushes.Transparent; DockPanel.SetDock(micB, Dock.Right);
             micB.ToolTip = L.T("Pisz głosem – dyktowanie Windows (Win+H); mówisz, a tekst pojawia się w polu. Potrzebny mikrofon i internet (usługa Microsoft).");
             micB.Click += (s, e) => SendCombo(0x5B, 0x48);
             head.Children.Add(micB);
-            var sayB = key("🗣", 34); sayB.Height = 28; sayB.FontSize = 13; DockPanel.SetDock(sayB, Dock.Right);
+            var sayB = key(ico("\uE8F2", null), 34); sayB.Height = 28; sayB.FontSize = 13; DockPanel.SetDock(sayB, Dock.Right);
             sayB.ToolTip = L.T("Czytanie na głos: zaznaczony tekst w dowolnym programie albo na bieżąco to, co piszesz (w polach haseł nigdy)");
             Action sayApply = () => sayB.Background = GetPref("klawiatura-czytaj") == "1" ? (Brush)accent : Brushes.Transparent;
             sayB.Click += (s, e) =>

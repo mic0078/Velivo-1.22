@@ -262,7 +262,7 @@ namespace Przegladarka
             var allKeys = new System.Collections.Generic.List<Button>();   // do kolorow przechodzacych po klawiszach
             Func<object, double, Button> key = (content, w) =>
             {
-                var b = new Button { Content = content, Width = w, Height = 46, Margin = new Thickness(3), Focusable = false, FontSize = 18, Foreground = Brushes.White, Background = keyBg, BorderThickness = new Thickness(0), Cursor = Cursors.Hand };
+                var b = new Button { Content = content, Width = w, Height = 46, Margin = new Thickness(2), Focusable = false, FontSize = 18, Foreground = Brushes.White, Background = keyBg, BorderThickness = new Thickness(0), Cursor = Cursors.Hand };
                 var tpl = new ControlTemplate(typeof(Button));
                 var bd = new FrameworkElementFactory(typeof(Border)); bd.Name = "bd";
                 bd.SetValue(Border.CornerRadiusProperty, new CornerRadius(8)); bd.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
@@ -282,6 +282,9 @@ namespace Przegladarka
                 return c;
             };
             // nauka slow (jak na Androidzie): slowo wpisane litera po literze trafia do wlasnego slownika po spacji / Enter / znaku
+            var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
+            title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
+            title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
             string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
             Action<string> learn = wd =>
             {
@@ -301,16 +304,17 @@ namespace Przegladarka
             };
             Action<ushort, char> tap = (vk, ch) =>
             {
-                SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Hidden;
+                SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
                 if (vk == 0 && char.IsLetter(ch)) cur += ch;
                 else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
                 else { learn(cur); say(cur); cur = ""; }
             };
-            // podpowiedzi nad klawiszami po przeciagnieciu - klik podmienia ostatnie slowo
-            var sugRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Height = 40, Margin = new Thickness(0, 0, 0, 2) };
+            // propozycje po przeciagnieciu - w naglowku zamiast napisu (bez osobnego, zwykle pustego rzedu); klik podmienia ostatnie slowo
+            var sugRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            sugRow.Children.Add(title);
             for (int i = 0; i < 3; i++)
             {
-                var sb = key("", 210); sb.Height = 34; sb.FontSize = 16; sb.Visibility = Visibility.Hidden;
+                var sb = key("", double.NaN); sb.Height = 26; sb.MinWidth = 70; sb.Padding = new Thickness(12, 0, 12, 0); sb.FontSize = 14; sb.Visibility = Visibility.Collapsed;
                 sb.Click += (s, e) =>
                 {
                     var alt0 = ((Button)s).DataContext as string;
@@ -319,27 +323,34 @@ namespace Przegladarka
                     var lw = lastSwipe.ToLowerInvariant(); if (_swLearned.TryGetValue(lw, out var n) && n > 0) _swLearned[lw] = n - 1;   // to nie bylo to slowo
                     foreach (var ch in alt0) SendKey(0, ch); SendKey(0, ' ');
                     learn(alt0); lastSwipe = alt0;
-                    foreach (var x in sugs) x.Visibility = Visibility.Hidden;
+                    foreach (var x in sugs) x.Visibility = Visibility.Collapsed;
+                    title.Visibility = Visibility.Visible;
                 };
                 sugs.Add(sb); sugRow.Children.Add(sb);
             }
-            root.Children.Add(sugRow);
             // rzad skrotow: poczta, glosnosc Windows, Velivo, wylaczenie komputera
             var fnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-            Func<string, double, string, Action, Button> fn = (txt, wdt, tip, act) =>
+            Func<object, double, string, Action, Button> fn = (txt, wdt, tip, act) =>
             {
-                var b = key(txt, wdt); b.Height = 34; b.FontSize = 14; b.ToolTip = tip; b.Click += (s, e) => act(); fnRow.Children.Add(b); return b;
+                var b = key(txt, wdt); b.Height = 32; b.FontSize = 14; b.ToolTip = tip; b.Click += (s, e) => act(); fnRow.Children.Add(b); return b;
             };
-            fn("📧 E-mail", 110, L.T("Otwiera domyślny program pocztowy – nowa wiadomość"), () => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("mailto:") { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } });
-            fn("🔇", 50, L.T("Wycisz / włącz dźwięk komputera"), () => SendCombo(0xAD));
-            fn("🔉", 50, L.T("Ciszej (głośność Windows)"), () => SendCombo(0xAE));
-            fn("🔊", 50, L.T("Głośniej (głośność Windows)"), () => SendCombo(0xAF));
-            fn("🌐 Velivo", 110, L.T("Pokazuje okno przeglądarki Velivo"), () =>
+            Func<string, string, object> ico = (glyph, label) =>
+            {   // ikona jak na pasku Velivo (Segoe MDL2) + opcjonalny napis
+                var sp = new StackPanel { Orientation = Orientation.Horizontal };
+                sp.Children.Add(new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
+                if (label != null) sp.Children.Add(new TextBlock { Text = label, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+                return sp;
+            };
+            fn(ico("\uE715", "E-mail"), 110, L.T("Otwiera domyślny program pocztowy – nowa wiadomość"), () => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("mailto:") { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } });
+            fn(ico("\uE74F", null), 50, L.T("Wycisz / włącz dźwięk komputera"), () => SendCombo(0xAD));
+            fn(ico("\uE993", null), 50, L.T("Ciszej (głośność Windows)"), () => SendCombo(0xAE));
+            fn(ico("\uE995", null), 50, L.T("Głośniej (głośność Windows)"), () => SendCombo(0xAF));
+            fn(ico("\uE774", "Velivo"), 110, L.T("Pokazuje okno przeglądarki Velivo"), () =>
             {
                 var mw = Application.Current?.MainWindow as MainWindow; if (mw == null) return;
                 if (!mw.IsVisible) mw.ShowFromTray(); else { if (mw.WindowState == WindowState.Minimized) mw.WindowState = WindowState.Normal; mw.Activate(); }
             });
-            fn("⏻", 50, L.T("Wyłącz komputer (z potwierdzeniem, 30 s na rozmyślenie)"), () =>
+            fn(ico("\uE7E8", null), 50, L.T("Wyłącz komputer (z potwierdzeniem, 30 s na rozmyślenie)"), () =>
             {
                 bool pending = DateTime.Now < _shutdownAt;   // drugi klik w ciagu 30 s - odwolanie
                 if (MessageBox.Show(pending ? L.T("Odwołać wyłączanie komputera?") : L.T("Wyłączyć komputer?\n\nZa 30 sekund – zapisz otwarte prace. Kliknij ⏻ jeszcze raz, aby odwołać."),
@@ -424,9 +435,6 @@ namespace Przegladarka
             langB.ToolTip = L.T("Język klawiatury: polski / angielski (słownik pisania przeciągnięciem i czytanie na głos)");
             langB.Click += (s, e) => { SetPref("klawiatura-jezyk", KbLang == "pl" ? "en" : "pl"); langB.Content = KbLang.ToUpperInvariant(); LoadSwipeDictionary(); };
             head.Children.Add(langB);
-            var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
-            title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
-            title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
             // z przodu logo Velivo: zaokraglony kwadrat w gradiencie, biale "V" i 3 smugi predkosci (coraz bledsze)
             var logo = new Canvas { Width = 24, Height = 24, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             logo.Children.Add(new Border { Width = 24, Height = 24, CornerRadius = new CornerRadius(6),
@@ -440,7 +448,7 @@ namespace Przegladarka
                 Canvas.SetLeft(st, x); Canvas.SetTop(st, y); logo.Children.Add(st);
             }
             DockPanel.SetDock(logo, Dock.Left); head.Children.Add(logo);
-            head.Children.Add(title);
+            head.Children.Add(sugRow);
             // 3 smugi z logo pociagniete pedzlem po klawiszach - zwezane, fiolet -> turkus, gasnace; nie przeszkadzaja w klikaniu
             var paint = new Canvas { Width = 790, Height = 270, IsHitTestVisible = false, Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 2.5 } };
             var brushFill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromArgb(0, 0x8B, 0x5C, 0xF6), 0), new GradientStop(Color.FromArgb(0x8C, 0x8B, 0x5C, 0xF6), 0.35), new GradientStop(Color.FromArgb(0x0D, 0x06, 0xB6, 0xD4), 1) }, new Point(0, 0), new Point(1, 0));
@@ -576,7 +584,7 @@ namespace Przegladarka
                     for (int i = 0; i < sugs.Count; i++)
                     {
                         var w0 = i + 1 < found.Count ? found[i + 1] : null;
-                        sugs[i].DataContext = w0; sugs[i].Content = w0 ?? ""; sugs[i].Visibility = w0 == null ? Visibility.Hidden : Visibility.Visible;
+                        sugs[i].DataContext = w0; sugs[i].Content = w0 ?? ""; sugs[i].Visibility = w0 == null ? Visibility.Collapsed : Visibility.Visible;
                     }
                 }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
             };

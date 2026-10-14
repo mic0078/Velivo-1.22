@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -73,6 +73,8 @@ namespace Przegladarka
                     var row = new StackPanel { Orientation = Orientation.Horizontal };
                     var img = new Image { Width = 32, Height = 18, Margin = new Thickness(0, 0, 6, 0), Stretch = Stretch.Uniform };
                     row.Children.Add(img); row.Children.Add(new TextBlock { Text = (fav.Contains(ch.Url) ? "⭐ " : "") + ch.Name, VerticalAlignment = VerticalAlignment.Center });
+                    if (HasCatchup(ch)) row.Children.Add(new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Margin = new Thickness(7, 1, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                        Fill = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), ToolTip = L.T("Archiwum: ") + ch.CatchupDays + L.T(" dni wstecz") });   // kanal z archiwum
                     chans.Items.Add(new ListBoxItem { Content = row, Tag = ch });
                     var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
                     if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) img.Source = t.Result; }, TaskScheduler.FromCurrentSynchronizationContext());
@@ -93,10 +95,10 @@ namespace Przegladarka
                 foreach (var x in l)
                 {
                     if (x.Start.Date != day) { day = x.Start.Date; progs.Items.Add(new ListBoxItem { Content = new TextBlock { Text = day.ToString("dddd, d MMMM"), FontWeight = FontWeights.Bold, Foreground = Brushes.SteelBlue, Margin = new Thickness(0, 6, 0, 2) }, IsEnabled = false }); }
-                    bool live = x.Start <= now && x.Stop > now, past = x.Stop <= now;
-                    var tb = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4), Opacity = past ? 0.55 : 1 };
+                    bool live = x.Start <= now && x.Stop > now, past = x.Stop <= now, arch = past && InCatchup(ch, x, now);
+                    var tb = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 4), Opacity = past && !arch ? 0.55 : 1, ToolTip = arch ? L.T("⏪ Z archiwum – dwuklik, aby obejrzeć") : null };
                     var mark = JobFor(ch, x, "rec") != null ? "⏺ " : JobFor(ch, x, "switch") != null ? "⏰ " : "";
-                    tb.Inlines.Add(new Run((live ? "▶ " : "") + mark + x.Start.ToString("HH:mm") + " (" + ((int)(x.Stop - x.Start).TotalMinutes / 60).ToString("00") + ":" + ((int)(x.Stop - x.Start).TotalMinutes % 60).ToString("00") + ") ") { FontWeight = FontWeights.Bold, Foreground = Brushes.SeaGreen });
+                    tb.Inlines.Add(new Run((live ? "▶ " : arch ? "⏪ " : "") + mark + x.Start.ToString("HH:mm") + " (" + ((int)(x.Stop - x.Start).TotalMinutes / 60).ToString("00") + ":" + ((int)(x.Stop - x.Start).TotalMinutes % 60).ToString("00") + ") ") { FontWeight = FontWeights.Bold, Foreground = Brushes.SeaGreen });
                     tb.Inlines.Add(new Run(x.Title ?? "") { FontWeight = FontWeights.Bold });
                     if (!string.IsNullOrEmpty(x.Sub)) tb.Inlines.Add(new Run(" – " + x.Sub) { FontStyle = FontStyles.Italic });
                     if (!string.IsNullOrEmpty(x.Desc)) tb.Inlines.Add(new Run("\n" + x.Desc));
@@ -136,6 +138,8 @@ namespace Przegladarka
                 bool live = x != null && x.Start <= DateTime.Now && x.Stop > DateTime.Now, future = x != null && x.Start > DateTime.Now;
                 add(L.T("▶ Oglądaj ten kanał teraz"), watch, ch != null);
                 var sw = JobFor(ch, x, "switch"); var rec = JobFor(ch, x, "rec");
+                if (ch != null && InCatchup(ch, x, DateTime.Now))   // archiwum: minione albo od poczatku trwajacego
+                    add(live ? L.T("⏮ Oglądaj od początku (archiwum)") : L.T("⏪ Oglądaj z archiwum"), () => PlayArchive(ch, x), true);
                 if (sw != null) add(L.T("❌ Odwołaj przełączenie o ") + x.Start.ToString("HH:mm"), () => CancelJob(sw), true);
                 else add(L.T("⏰ Przełącz na ten program o czasie"), () => SwitchAt(ch, x), ch != null && future);
                 if (rec != null) add(_recording.ContainsKey(rec.Id) ? L.T("⏹ Zatrzymaj nagrywanie") : L.T("❌ Odwołaj nagranie"), () => CancelJob(rec), true);
@@ -149,7 +153,8 @@ namespace Przegladarka
             progs.MouseDoubleClick += (s, a) =>
             {
                 var ch = curCh(); var x = (progs.SelectedItem as ListBoxItem)?.Tag as EpgItem; if (ch == null || x == null) return;
-                if (x.Start <= DateTime.Now) watch(); else { SwitchAt(ch, x); fillProgs(); }
+                if (x.Stop <= DateTime.Now) { if (InCatchup(ch, x, DateTime.Now)) PlayArchive(ch, x); }   // minione - z archiwum
+                else if (x.Start <= DateTime.Now) watch(); else { SwitchAt(ch, x); fillProgs(); }
             };
             chans.MouseDoubleClick += (s, a) => watch();
 

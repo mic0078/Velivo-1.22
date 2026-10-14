@@ -1676,7 +1676,8 @@ else if(s.length===6&&so.length)set(so[0],so[0].maxLength>0&&so[0].maxLength<8?s
             panel.Children.Add(later);
             toast = new Window
             {
-                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = this, Topmost = true,
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = IsLoaded ? this : null, Topmost = true,   // okno jeszcze niepokazane (start w zasobniku) - bez wlasciciela
+               
                 SizeToContent = SizeToContent.WidthAndHeight, ShowActivated = false, Content = panel, Tag = "velivo-bank",
                 Background = new SolidColorBrush(Color.FromRgb(0x06, 0x4E, 0x3B)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)), BorderThickness = new Thickness(1)
             };
@@ -1714,7 +1715,8 @@ else if(s.length===6&&so.length)set(so[0],so[0].maxLength>0&&so[0].maxLength<8?s
             panel.Children.Add(buttons);
             toast = new Window
             {
-                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = this, Topmost = true,
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = IsLoaded ? this : null, Topmost = true,   // okno jeszcze niepokazane (start w zasobniku) - bez wlasciciela
+               
                 SizeToContent = SizeToContent.WidthAndHeight, ShowActivated = false, Content = panel,
                 Background = new SolidColorBrush(Color.FromRgb(0x06, 0x4E, 0x3B)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)), BorderThickness = new Thickness(1)
             };

@@ -7,8 +7,12 @@
 - Do `main` scalaj dopiero po teście właściciela na instalatorze testowym i jego wyraźnym „scal”.
 
 ## Instalator testowy
-- Każdy push na `rozwoj` ze zmianą w `src/` buduje instalator testowy (workflow `instalator-rozwoj.yml`) – tylko jako artefakt w GitHub Actions, bez zapisu do repozytorium.
-- Po każdej zmianie SAM poczekaj na zbudowanie instalatora i od razu podaj właścicielowi link do artefaktu (właściciel nie powinien sprawdzać, czy już gotowe).
+- Każdy push na `rozwoj` ze zmianą w `src/` uruchamia workflow `instalator-rozwoj.yml` – dwa równoległe zadania: `instalator` (sam instalator testowy, ok. 3 min, tylko jako artefakt w GitHub Actions, bez zapisu do repozytorium) i `testy` (wszystkie testy, w tym bezpieczeństwa, ok. 7 min).
+- Na gałęzi roboczej budujemy tylko to, co właściciel testuje (instalator) – bez wersji przenośnej i samodzielnego exe.
+- Link do pobrania podawaj ZAWSZE i bez pytania, gdy tylko instalator jest gotowy (pełny adres `https://github.com/mic0078/Velivo-1.22/actions/runs/<run>/artifacts/<id>`).
+- Po każdej zmianie SAM poczekaj na zadanie `instalator` i od razu podaj właścicielowi link do artefaktu (właściciel nie powinien sprawdzać, czy już gotowe); potem SAM sprawdź zadanie `testy` i zgłoś wynik – czerwone testy naprawiasz od razu.
+- Przy niewielkich poprawkach: od razu link do instalatora, testy sprawdzaj w tle (nie blokuj rozmowy czekaniem) i potem podaj krótkie podsumowanie wyniku.
+- Scalenie do `main` tylko przy zielonych testach na ostatniej zmianie.
 
 ## Procedura poprawki
 1. Najpierw test odtwarzający problem (wynik „przed poprawką”).
@@ -18,6 +22,9 @@
 
 ## Interfejs
 - Każda lista w Velivo ma sortowanie (klik w nagłówek albo wybór) i zapamiętuje je – razem z miejscem i rozmiarem okna oraz szerokością kolumn.
+
+## Dokumentacja
+- Każdą nową funkcję lub zmianę zachowania w filmach / TV dopisuj od razu do `dokumentacja/instrukcja-filmy-tv-notatki.md` i do wersji roboczej `dokumentacja/instrukcja-filmy-tv.md` (podstawa przyszłej instrukcji wbudowanej w Velivo).
 
 ## Inne
 - Odpowiadaj po polsku.

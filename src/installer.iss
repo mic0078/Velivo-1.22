@@ -110,6 +110,8 @@ Type: filesandordirs; Name: "{app}\zh-Hant"
 
 [Files]
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; kopia tego instalatora w folderze programu - Velivo dolacza ja do kopii bezpieczenstwa (odtworzenie bez internetu)
+Source: "{srcexe}"; DestDir: "{app}"; DestName: "Velivo-instalator.exe"; Flags: external ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\Velivo.exe"

@@ -115,6 +115,7 @@ namespace Przegladarka
                     try { System.Diagnostics.Process.GetProcessById(pid).WaitForExit(15000); } catch (Exception) { }
                 args.RemoveRange(w, Math.Min(2, args.Count - w));
             }
+            Przegladarka.MainWindow.ApplyPendingRestore();   // przywracanie kopii danych - zanim cokolwiek otworzy pliki
             var urls = args.Where(a => a.Length > 0).Select(Przegladarka.MainWindow.ArgToUrl).ToArray();
             // Velivo juz dziala: oddaj mu adresy (otworzy je w nowych kartach) i zakoncz.
             // Gdyby przekazanie sie nie udalo, otwieramy normalnie drugie okno.

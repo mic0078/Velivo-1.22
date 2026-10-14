@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -16,6 +16,54 @@ namespace Przegladarka
     // Klucz = tytul okna bez zmiennej czesci ("Film – Odtwarzacz filmow" -> "Odtwarzacz filmow"); zapis w okna.txt.
     public partial class MainWindow
     {
+        // okna wyboru pliku / folderu z Windows (Otworz, Zapisz, Wybierz folder): Windows pamieta ich rozmiar dla programu
+        // i potrafi otworzyc je wyzsze niz ekran - pasek tytulu poza ekranem, nie da sie ich przesunac. Pilnujemy, by miescily sie na ekranie.
+        [StructLayout(LayoutKind.Sequential)] struct DlgRect { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential)] struct DlgMonInfo { public int Size; public DlgRect Monitor, Work; public int Flags; }
+        delegate bool DlgEnumProc(IntPtr hwnd, IntPtr lp);
+        [DllImport("user32.dll")] static extern bool EnumThreadWindows(int threadId, DlgEnumProc cb, IntPtr lp);
+        [DllImport("kernel32.dll")] static extern int GetCurrentThreadId();
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder sb, int max);
+        [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+        [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out DlgRect r);
+        [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);
+        [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr mon, ref DlgMonInfo mi);
+        [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int w, int h, int flags);
+        [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr hwnd);
+        [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hwnd, int cmd);
+        static readonly HashSet<IntPtr> _dlgFitted = new HashSet<IntPtr>();
+
+        void StartDialogGuard()
+        {
+            var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };   // dziala takze w czasie otwartego okna wyboru (petla okna modalnego)
+            t.Tick += (s, e) =>
+            {
+                try
+                {
+                    EnumThreadWindows(GetCurrentThreadId(), (h, lp) =>
+                    {
+                        if (_dlgFitted.Contains(h) || !IsWindowVisible(h)) return true;
+                        var sb = new System.Text.StringBuilder(32); GetClassName(h, sb, sb.Capacity);
+                        if (sb.ToString() != "#32770") return true;   // tylko okna dialogowe Windows
+                        _dlgFitted.Add(h);
+                        if (IsZoomed(h)) ShowWindow(h, 9);   // zapamietane jako zmaksymalizowane - przywroc zwykle okno (da sie przesunac i zmienic rozmiar)
+                        if (!GetWindowRect(h, out var r)) return true;
+                        var mi = new DlgMonInfo { Size = Marshal.SizeOf<DlgMonInfo>() };
+                        if (!GetMonitorInfo(MonitorFromWindow(h, 2), ref mi)) return true;
+                        var wa = mi.Work; int ww = wa.Right - wa.Left, wh = wa.Bottom - wa.Top;
+                        bool bad = r.Top < wa.Top || r.Bottom > wa.Bottom + 8 || r.Right - r.Left > ww + 8 || r.Left < wa.Left - 8 || r.Right > wa.Right + 8;
+                        if (!bad) return true;
+                        int w = Math.Min(r.Right - r.Left, ww * 8 / 10), hh = Math.Min(r.Bottom - r.Top, wh * 8 / 10);
+                        SetWindowPos(h, IntPtr.Zero, wa.Left + (ww - w) / 2, wa.Top + (wh - hh) / 2, w, hh, 0x0004 | 0x0010);   // bez zmiany kolejnosci, bez aktywacji
+                        return true;
+                    }, IntPtr.Zero);
+                    if (_dlgFitted.Count > 200) _dlgFitted.Clear();
+                }
+                catch (Exception) { }
+            };
+            t.Start();
+        }
+
         static string WindowsFile { get { return Path.Combine(DataDir, "okna.txt"); } }
         static Dictionary<string, string> _winBounds;
 

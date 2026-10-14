@@ -67,6 +67,44 @@ namespace Przegladarka
             PlayVideos(grp.Select(c => c.Url).ToArray(), at);
         }
 
+        // archiwum TV: audycja z przeszlosci (albo trwajaca - od poczatku) jak film: pauza, przewijanie; kanal zostaje kanalem (logo, program)
+        internal static IptvChannel LiveOf(IptvChannel c)
+        {
+            if (c?.LiveUrl == null) return c;
+            var l = new IptvChannel { Name = c.Name, Url = c.LiveUrl, Group = c.Group, Logo = c.Logo, TvgId = c.TvgId, Catchup = c.Catchup, CatchupSource = c.CatchupSource, CatchupDays = c.CatchupDays };
+            l.Opts.AddRange(c.Opts); return l;
+        }
+
+        // serwer kanalu - dzialajaca odmiana adresu archiwum zapamietana dla niego
+        static string ArchiveHost(string url) { try { return new Uri(url).Authority.ToLowerInvariant(); } catch (Exception) { return ""; } }
+
+        internal void PlayArchive(IptvChannel ch, EpgItem p, int variant = -1)
+        {
+            var live = LiveOf(ch);
+            if (variant < 0) variant = IptvSt.CatchupVariant != null && IptvSt.CatchupVariant.TryGetValue(ArchiveHost(live.Url), out var kv) ? kv : 0;
+            var url = CatchupUrl(live, p.Start, p.Stop, DateTime.Now, variant);
+            if (url == null && variant > 0) { variant = 0; url = CatchupUrl(live, p.Start, p.Stop, DateTime.Now, 0); }
+            if (url == null) return;
+            var a = new IptvChannel { Name = live.Name, Url = url, Group = live.Group, Logo = live.Logo, TvgId = live.TvgId, Catchup = live.Catchup, CatchupSource = live.CatchupSource, CatchupDays = live.CatchupDays, LiveUrl = live.Url, ArchiveStart = p.Start, ArchiveStop = p.Stop, ArchiveVariant = variant,
+                OrigName = live.OrigName, OrigLogo = live.OrigLogo };
+            a.Opts.AddRange(live.Opts);
+            _iptvPlaying[url] = a;
+            PlayVideos(new[] { url }, 0);
+        }
+
+        // 📺 na gornym pasku: od razu ostatni kanal w odtwarzaczu (w swojej grupie), przegladarka do zasobnika - jak ▶;
+        // okno listy kanalow tylko przy pierwszym uruchomieniu (brak listy / nic jeszcze nie ogladane)
+        void StartTv()
+        {
+            var pl = KnownPlaylist();
+            var last = pl == null ? null : IptvSt.Recent.Select(u => pl.Channels.FirstOrDefault(c => c.Url == u)).FirstOrDefault(c => c != null);
+            if (last == null || !EnsureLibVlc()) { ShowIptv(this); return; }
+            var cur = _vlcWin != null && _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+            if (cur == null || !_iptvPlaying.ContainsKey(cur)) PlayChannelInGroup(last, pl);   // juz leci TV - tylko na wierzch
+            else { if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal; _vlcWin.Activate(); }
+            if (IsVisible) { EnsureTray(); Hide(); _inTray = true; _hiddenForPlayer = true; }
+        }
+
         // ---------- biblioteka ----------
 
         internal sealed class LibraryVideo
@@ -1074,11 +1112,40 @@ namespace Przegladarka
             { "close", "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" },
             { "lector", "M9,5A4,4 0 0,1 13,9A4,4 0 0,1 9,13A4,4 0 0,1 5,9A4,4 0 0,1 9,5M9,15C11.67,15 17,16.34 17,19V21H1V19C1,16.34 6.33,15 9,15M16.76,5.36C18.78,7.56 18.78,10.61 16.76,12.63L15.08,10.94C15.92,9.76 15.92,8.23 15.08,7.05L16.76,5.36M20.07,2C24,6.05 23.97,12.11 20.07,16L18.44,14.37C21.21,11.19 21.21,6.65 18.44,3.63L20.07,2Z" },
             { "pinned", "M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" },
+            // ulubione, wylacznik, PiP i szybkie ikony - ten sam rysowany styl
+            { "star", "M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z" },
+            { "starfill", "M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z" },
+            { "moon", "M2,12A10,10 0 0,0 12,22C16.5,22 20.3,19 21.5,14.9C20.4,15.6 19,16 17.5,16A8.5,8.5 0 0,1 9,7.5C9,6 9.4,4.6 10.1,3.5C6,4.7 2,7.5 2,12M4,12C4,9.3 5.4,7 7.4,5.7C7.1,6.3 7,6.9 7,7.5A10.5,10.5 0 0,0 17.5,18C18,18 18.5,18 19,17.9C17.5,19.2 14.9,20 12,20A8,8 0 0,1 4,12Z" },
+            { "pip", "M4,4H16V6H6V16H4V4M8,8H20V20H8V8M10,10V18H18V10H10Z" },   // dwa nakladajace sie okna - inna niz tryb mini
+            { "rec", "M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7Z" },
+            { "recstop", "M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M9,9V15H15V9Z" },
+            { "timer", "M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M19.03,7.39L20.45,5.97C20,5.46 19.55,5 19.04,4.56L17.62,6C16.07,4.74 14.12,4 12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22C17,22 21,17.97 21,13C21,10.88 20.26,8.93 19.03,7.39M11,14H13V8H11M15,1H9V3H15V1Z" },
+            { "folder", "M20,18H4V8H20M20,6H12L10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6Z" },
+            { "tv", "M21,17H3V5H21M21,3H3A2,2 0 0,0 1,5V17A2,2 0 0,0 3,19H8V21H16V19H21A2,2 0 0,0 23,17V5A2,2 0 0,0 21,3Z" },
+            { "guide", "M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M17,12H12V17H17V12Z" },
+            { "info", "M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z" },
+            { "refresh", "M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" },
+            { "playlists", "M19,9H2V11H19V9M19,5H2V7H19V5M2,15H15V13H2V15M17,13V19L22,16L17,13Z" },
+            { "tune", "M3,17V19H9V17H3M3,5V7H13V5H3M13,21V19H21V17H13V15H11V21H13M7,9V11H3V13H7V15H9V9H7M21,13V11H11V13H21M15,9H17V7H21V5H17V3H15V9Z" },
+            { "eye", "M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" },
+            { "film", "M18,4L20,8H17L15,4H13L15,8H12L10,4H8L10,8H7L5,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V4H18Z" },
         };
 
         internal static System.Windows.Shapes.Path PlayerIcon(string name)
         {
             return new System.Windows.Shapes.Path { Data = Geometry.Parse(PlayerIcons[name]), Fill = Brushes.White, Width = 20, Height = 20, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
+        }
+
+        // nowoczesny suwak (pasek postepu, glosnosc, PiP): cienka linia, niebieska czesc do uchwytu, okragly bialy uchwyt
+        internal static Style ModernSliderStyle()
+        {
+            return (Style)System.Windows.Markup.XamlReader.Parse(@"<Style TargetType='Slider' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Slider'>
+  <Grid Height='16' Background='Transparent'><Border Height='4' CornerRadius='2' Background='#55FFFFFF' VerticalAlignment='Center'/>
+    <Track x:Name='PART_Track' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+      <Track.DecreaseRepeatButton><RepeatButton Command='Slider.DecreaseLarge'><RepeatButton.Template><ControlTemplate><Border Height='4' CornerRadius='2' Background='#3B82F6' VerticalAlignment='Center'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+      <Track.IncreaseRepeatButton><RepeatButton Command='Slider.IncreaseLarge'><RepeatButton.Template><ControlTemplate><Border Background='Transparent'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
+      <Track.Thumb><Thumb><Thumb.Template><ControlTemplate><Ellipse Width='12' Height='12' Fill='White'/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+    </Track></Grid></ControlTemplate></Setter.Value></Setter></Style>");
         }
 
         // przyciski odtwarzacza: bez ramki, zaokraglone podswietlenie pod mysza, wylaczony = przygaszony
@@ -1137,11 +1204,28 @@ namespace Przegladarka
                 FontSize = 14, FontWeight = FontWeights.SemiBold,
             };
             var timeNow = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 8, 0), Text = "0:00", MinWidth = 52, TextAlignment = TextAlignment.Right };
-            var timeLen = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 10, 0), Text = "0:00", MinWidth = 52 };
-            var seek = new Slider { Minimum = 0, Maximum = 1000, IsMoveToPointEnabled = true, VerticalAlignment = VerticalAlignment.Center };
+            var timeLen = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0), Text = "0:00", MinWidth = 52, TextAlignment = TextAlignment.Right };   // koniec rowno z "100%" ponizej
+            var seek = new Slider { Minimum = 0, Maximum = 1000, IsMoveToPointEnabled = true, VerticalAlignment = VerticalAlignment.Center, Style = ModernSliderStyle(), Cursor = Cursors.Hand };
             var seekRow = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
             DockPanel.SetDock(timeNow, Dock.Left); DockPanel.SetDock(timeLen, Dock.Right);
-            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(seek);
+            // TV na zywo: zamiast paska postepu przesuwajacy sie napis - co leci i krotki opis
+            var ticker = new Canvas { ClipToBounds = true, Height = 21, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            var tickerText = new TextBlock { Foreground = fg, FontSize = 14.5, RenderTransform = new TranslateTransform() };
+            // przed napisem: nazwa stacji pogrubiona (stoi w miejscu) i cienki separator
+            var tickerName = new TextBlock { Foreground = fg, FontSize = 14.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            var tickerSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x88, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(10, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            DockPanel.SetDock(tickerName, Dock.Left); DockPanel.SetDock(tickerSep, Dock.Left);
+            ticker.Children.Add(tickerText);
+            Action tickerRun = () =>
+            {
+                var tt = (TranslateTransform)tickerText.RenderTransform;
+                tickerText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                double w = tickerText.DesiredSize.Width, cw = Math.Max(50, ticker.ActualWidth);
+                var anim = new System.Windows.Media.Animation.DoubleAnimation(cw, -w, TimeSpan.FromSeconds((cw + w) / 60.0)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };   // ok. 60 px/s - spokojnie, czytelnie
+                tt.BeginAnimation(TranslateTransform.XProperty, anim);
+            };
+            ticker.SizeChanged += (s, e) => { if (ticker.Visibility == Visibility.Visible) tickerRun(); };
+            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(tickerName); seekRow.Children.Add(tickerSep); seekRow.Children.Add(seek); seekRow.Children.Add(ticker);
 
             var prev = glyphBtn("prev", L.T("Poprzedni (P)"));
             var play = glyphBtn("pause", L.T("Pauza / odtwarzaj (spacja)"));
@@ -1160,22 +1244,104 @@ namespace Przegladarka
             var mute = glyphBtn("volume", L.T("Wycisz (M)"));
             var top = glyphBtn("pin", L.T("Zawsze na wierzchu"));
             var mini = glyphBtn("mini", L.T("Tryb mini – małe okienko na wierzchu (jak dla YouTube)"));
-            var fav = textBtn("☆", L.T("Ulubione – kanał do ⭐ Ulubionych, film do playlisty ⭐ Ulubione"));
-            var sleep = textBtn("⏾", L.T("Wyłącznik czasowy – zatrzymaj po czasie albo po końcu filmu"));
-            var pipBtn = textBtn("⧉", L.T("Obraz w obrazie (PiP) – podgląd drugiego kanału TV"));
-            fav.FontSize = sleep.FontSize = pipBtn.FontSize = 22; fav.FontWeight = sleep.FontWeight = pipBtn.FontWeight = FontWeights.Normal;   // znaki jak ikony obok
-            var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };
+            var fav = glyphBtn("star", L.T("Ulubione – kanał do ⭐ Ulubionych, film do playlisty ⭐ Ulubione"));
+            var sleep = glyphBtn("moon", L.T("Wyłącznik czasowy – zatrzymaj po czasie albo po końcu filmu")); sleep.Width = double.NaN; sleep.MinWidth = 40; sleep.Padding = new Thickness(8, 0, 8, 0);
+            var pipBtn = glyphBtn("pip", L.T("Obraz w obrazie (PiP) – podgląd drugiego kanału TV"));
+            var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, Style = ModernSliderStyle(), Cursor = Cursors.Hand, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
             var left = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var b in new UIElement[] { prev, play, stop, next, back10, fwd10, speed }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var b in new UIElement[] { fav, sleep, pipBtn, subs, lector, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
-            var btnRow = new DockPanel { Margin = new Thickness(4, 2, 4, 4) };
-            DockPanel.SetDock(left, Dock.Left); DockPanel.SetDock(right, Dock.Right);
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 4) };
             btnRow.Children.Add(left); btnRow.Children.Add(right);
             // pasek nakladany na obraz (jak w "Na wierzchu"): chowa sie po chwili bez ruchu myszy, film nie zmienia rozmiaru
-            var controls = new StackPanel { Background = new SolidColorBrush(Color.FromArgb(0xD9, 0x1C, 0x1C, 0x1C)), VerticalAlignment = VerticalAlignment.Bottom };
-            controls.Children.Add(seekRow); controls.Children.Add(btnRow);
+            // tlo paska sterowania: przezroczystosc z ustawienia (ikona 👁), domyslnie 15%
+            Func<int, Brush> barBg = pct => new SolidColorBrush(Color.FromArgb((byte)(255 * (100 - Math.Max(0, Math.Min(80, pct))) / 100), 0x1C, 0x1C, 0x1C));
+            var controls = new StackPanel { Background = barBg(int.TryParse(GetPref("pasek-alfa"), out var ba) ? ba : 15), VerticalAlignment = VerticalAlignment.Bottom };
+            // pasek postepu tak szeroki jak przyciski (konczy sie za "100%"); miejsce z prawej - na szybkie ikony
+            var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };   // do dolu - rzad przyciskow w jednej linii z szybkimi ikonami
+            mainCol.Children.Add(seekRow); mainCol.Children.Add(btnRow);
+            // szybkie ikony z prawej (te same znaki co w menu pod prawym przyciskiem, rozmiar jak przyciski obok)
+            // szybkie ikony z prawej - ten sam rysowany styl i wysokosc co przyciski obok
+            Func<string, string, Button> qBtn = glyphBtn;
+            Func<string, string, Button> qFavBtn = (badge, tip) =>
+            {   // gwiazdka z malym znakiem (TV / film) w rogu
+                var b = glyphBtn("star", tip); var g = new Grid { Width = 22, Height = 20 };
+                var st = PlayerIcon("star"); st.Width = st.Height = 18; st.HorizontalAlignment = HorizontalAlignment.Left; st.VerticalAlignment = VerticalAlignment.Top;
+                var bd = PlayerIcon(badge); bd.Width = bd.Height = 10; bd.HorizontalAlignment = HorizontalAlignment.Right; bd.VerticalAlignment = VerticalAlignment.Bottom;
+                g.Children.Add(st); g.Children.Add(bd); b.Content = g; return b;
+            };
+            var qRec = qBtn("rec", L.T("Nagrywaj ten kanał TV")); var qRecStop = qBtn("recstop", L.T("Zatrzymaj nagrywanie")); var qRecSet = qBtn("timer", L.T("Zapas nagrywania (minuty przed i po audycji)"));
+            var qRecDir = qBtn("folder", L.T("Folder z nagraniami")); var qTv = qBtn("tv", L.T("Kanały telewizji")); var qGuide = qBtn("guide", L.T("Pełny program TV"));
+            var qInfo = qBtn("info", L.T("Pokaż pasek informacji (I)")); var qRefresh = qBtn("refresh", L.T("Odśwież kanał (F5)")); var qLists = qBtn("playlists", L.T("Playlisty i moja kolejka"));
+            var qFavTv = qFavBtn("tv", L.T("Moje ulubione kanały TV")); var qFavFilm = qFavBtn("film", L.T("Moje ulubione filmy"));
+            var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 2, 4, 4) };   // ta sama wysokosc co rzad przyciskow (btnRow: 2 u gory, 4 u dolu)
+            var qBarTime = qBtn("eye", L.T("Pasek sterowania: jak długo zostaje widoczny i jak bardzo przezroczysty"));
+            foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
+            quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });   // separator - ustawienia paska osobno
+            var qInfoSet = qBtn("tune", L.T("Pasek informacji: kiedy się pokazuje, znikanie, przezroczystość, wielkość tekstu"));
+            quick.Children.Add(qBarTime); quick.Children.Add(qInfoSet);
+            // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data
+            quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+            var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
+            var netGraph = new Canvas { Width = 120, Height = 28, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)) };
+            var netUpLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };   // wysylanie (np. film dla drugiego komputera w LAN)
+            netGraph.Children.Add(netLine); netGraph.Children.Add(netUpLine);
+            var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 18, 0), MinWidth = 84, LineHeight = 14 };
+            var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
+            var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center };
+            var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
+            var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
+            netBox.Children.Add(netGraph); netBox.Children.Add(netText);
+            quick.Children.Add(netBox); quick.Children.Add(clockBox);
+            long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
+            var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            netTimer.Tick += (s, e) =>
+            {
+                var n = DateTime.Now; nowTime.Text = n.ToString("HH:mm"); nowDate.Text = n.ToString("ddd d.MM");
+                long total = 0, sent = 0;
+                try
+                {
+                    foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                        if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                        { var st0 = ni.GetIPStatistics(); total += st0.BytesReceived; sent += st0.BytesSent; }
+                }
+                catch (Exception) { return; }
+                if (netLast >= 0)
+                {
+                    double bps = Math.Max(0, total - netLast), ups = Math.Max(0, sent - netUpLast);
+                    netHist.Add(bps); if (netHist.Count > 30) netHist.RemoveAt(0);
+                    netUpHist.Add(ups); if (netUpHist.Count > 30) netUpHist.RemoveAt(0);
+                    double max = Math.Max(1, Math.Max(netHist.Max(), netUpHist.Max()));   // wspolna skala obu linii
+                    Func<List<double>, PointCollection> line = h => { var pts = new PointCollection(); for (int k = 0; k < h.Count; k++) pts.Add(new Point(120 - (h.Count - 1 - k) * 4.0, 27 - 24 * h[k] / max)); return pts; };
+                    netLine.Points = line(netHist); netUpLine.Points = line(netUpHist);
+                    Func<double, string> sp = v => v >= 1048576 ? (v / 1048576).ToString("0.0") + " MB/s" : (v / 1024).ToString("0") + " KB/s";
+                    netText.Text = "↓ " + sp(bps) + "\n↑ " + sp(ups);
+                }
+                netLast = total; netUpLast = sent;
+            };
+            netTimer.Start(); win.Closed += (s, e) => netTimer.Stop();
+            // nad szybkimi ikonami: znacznik nagrywania (czerwona pigulka, tylko gdy cos sie nagrywa) i licznik polaczen z dostawca
+            var recPill = new Button { Cursor = Cursors.Hand, Padding = new Thickness(10, 1, 10, 1), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed, BorderThickness = new Thickness(0), Foreground = Brushes.White, FontSize = 12.5, FontWeight = FontWeights.SemiBold,
+                Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)), ToolTip = L.T("Trwające nagrania – kliknij: zatrzymaj albo przedłuż"),
+                Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse("<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Border Background='{TemplateBinding Background}' CornerRadius='10' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border></ControlTemplate>") };
+            recPill.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.55, TimeSpan.FromSeconds(1.1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });   // delikatne pulsowanie jak w dekoderze
+            var connText = new Button { Cursor = Cursors.Hand, Padding = new Thickness(6, 1, 6, 1), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed,
+                Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse("<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Border Background='Transparent' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border></ControlTemplate>") };
+            var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 4, 4, 0), Height = 21, VerticalAlignment = VerticalAlignment.Top };   // ta sama wysokosc i linia co rzad z czasem / NA ZYWO
+            statusRow.Children.Add(recPill); statusRow.Children.Add(connText);
+            var quickCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; quickCol.Children.Add(statusRow); quickCol.Children.Add(quick);
+            var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quickCol);
+            // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
+            var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+            recDot.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.35, TimeSpan.FromSeconds(1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+            var recOnText = new TextBlock { Foreground = Brushes.White, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
+            var recOn = new Border { Background = new SolidColorBrush(Color.FromArgb(0x88, 0, 0, 0)), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 3, 10, 3), Margin = new Thickness(0, 10, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false, Visibility = Visibility.Collapsed,
+                Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { recDot, recOnText } } };
+            overlay.Children.Add(recOn);
+            controls.Children.Add(ctlRow);
             overlay.Children.Add(controls);
             // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
             var miniTitle = new TextBlock { Foreground = Brushes.White, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
@@ -1205,12 +1371,14 @@ namespace Przegladarka
             var osdTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(3500) };   // komunikaty (dzwiek, glosnosc...) - czas na przeczytanie
             osdTimer.Tick += (s, e) => { osdTimer.Stop(); osd.Visibility = Visibility.Collapsed; };
             Action<string> showOsd = t => { osd.Text = t; osd.Visibility = Visibility.Visible; osdTimer.Stop(); osdTimer.Start(); };
-            var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+            // czas widocznosci paska (ustawienie ikona na koncu paska); 0 = zawsze widoczny
+            Func<double> barSec = () => double.TryParse(GetPref("pasek-czas"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bs) ? bs : 2.5;
+            var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(barSec() > 0 ? barSec() : 2.5) };
             // chowanie paska: tylko gdy film gra, mysz nie jest nad paskiem i zadne menu (napisy, dzwiek) nie jest otwarte
             hideTimer.Tick += (s, e) =>
             {
                 hideTimer.Stop();
-                if (!mp.IsPlaying || controls.IsMouseOver || controls.ContextMenu != null && controls.ContextMenu.IsOpen || Mouse.Captured != null) { hideTimer.Start(); return; }
+                if (barSec() <= 0 || !mp.IsPlaying || controls.IsMouseOver || controls.ContextMenu != null && controls.ContextMenu.IsOpen || Mouse.Captured != null) { hideTimer.Start(); return; }
                 if (miniBar.IsMouseOver) { hideTimer.Start(); return; }
                 controls.Visibility = Visibility.Collapsed; miniBar.Visibility = Visibility.Collapsed; overlay.Cursor = Cursors.None;
             };
@@ -1480,7 +1648,7 @@ namespace Przegladarka
             double infoK = 1;
             Action showChannelsRefresh = null;
             Action infoScale = () => infoK = Math.Max(0.65, Math.Min(1.7, win.ActualWidth / 1280.0)) * Math.Max(50, Math.Min(200, IptvSt.InfoScale)) / 100.0;
-            Action<bool> showInfoRef = null;
+            Action<bool> showInfoRef = null; Func<bool> tvShownRef = null;
             var infoResize = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             infoResize.Tick += (s, e) => { infoResize.Stop(); if (infoBox.Visibility == Visibility.Visible) showInfoRef?.Invoke(true); };   // po zmianie rozmiaru - zbudowany od nowa
             win.SizeChanged += (s, e) => { infoResize.Stop(); infoResize.Start(); };
@@ -1522,17 +1690,18 @@ namespace Przegladarka
                     if (extra.Count > 0) infoText.Children.Add(ft(string.Join("   ·   ", extra), 12.5, FontWeights.Normal, Brushes.Silver));
                     if (roomy && fm != null && !string.IsNullOrEmpty(fm.Overview)) { var od = ft(fm.Overview, 13.5, FontWeights.Normal, Brushes.Gainsboro); od.MaxHeight = 58 * infoK; od.TextTrimming = TextTrimming.WordEllipsis; infoText.Children.Add(od); }
                     if (_playIndex < _playlist.Count - 1) infoText.Children.Add(ft("⏭ " + L.T("Następny: ") + System.IO.Path.GetFileNameWithoutExtension(_playlist[_playIndex + 1]), 13.5, FontWeights.SemiBold, Brushes.LightSkyBlue));
-                    infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);
+                    infoBox.Margin = new Thickness(16, 0, 16, (controls.ActualHeight > 0 ? controls.ActualHeight : 70) + 10);   // stale miejsce nad paskiem - nie opada, gdy pasek znika
                     infoBox.Visibility = Visibility.Visible; infoShownFor = null;
                     infoTimer.Stop(); infoTimer.Interval = TimeSpan.FromSeconds(IptvSt.InfoSec == 0 ? 8 : IptvSt.InfoSec); infoTimer.Start();
                     return;
                 }
                 infoLogo.Visibility = Visibility.Visible; infoLogo.Width = 72 * infoK; infoLogo.Height = 44 * infoK;
-                var l = EpgFor(_iptvEpg, ch); var now = DateTime.Now; var p0 = EpgAt(l, now); var nx = l?.FirstOrDefault(x => x.Start >= (p0?.Stop ?? now));
+                // archiwum: "teraz" = miejsce w odtwarzanej audycji
+                var l = EpgFor(_iptvEpg, ch); var now = ch.ArchiveStart.HasValue ? ch.ArchiveStart.Value.AddMilliseconds(Math.Max(0, mp.Time)) : DateTime.Now; var p0 = EpgAt(l, now); var nx = l?.FirstOrDefault(x => x.Start >= (p0?.Stop ?? now));
                 infoBox.Background = new SolidColorBrush(Color.FromArgb((byte)(255 * Math.Max(20, Math.Min(100, IptvSt.InfoAlpha)) / 100), 0x14, 0x16, 0x1A));
                 infoText.Children.Clear();
                 Func<string, double, FontWeight, Brush, TextBlock> tb = (t, size, w, b) => new TextBlock { Text = t, FontSize = size * infoK, FontWeight = w, Foreground = b, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 1) };
-                infoText.Children.Add(tb((IsRecording(pth) ? "⏺ REC   " : "") + ch.Name, 15, FontWeights.SemiBold, Brushes.LightGray));
+                infoText.Children.Add(tb((IsRecording(pth) ? "⏺ REC   " : "") + (ch.ArchiveStart.HasValue ? L.T("⏪ Archiwum · ") + ch.ArchiveStart.Value.ToString("ddd d.MM") + " · " : HasCatchup(ch) ? "● " : "") + ch.Name, 15, FontWeights.SemiBold, ch.ArchiveStart.HasValue ? Brushes.LightGreen : Brushes.LightGray));
                 if (p0 == null) infoText.Children.Add(tb(_iptvEpg == null ? L.T("Brak programu TV") : L.T("Brak programu dla tego kanału"), 16, FontWeights.Normal, Brushes.White));
                 else
                 {
@@ -1548,7 +1717,7 @@ namespace Przegladarka
                 infoLogo.Source = null;
                 var logo = !string.IsNullOrEmpty(ch.Logo) ? ch.Logo : ByChannel(_iptvIcons, ch);
                 if (logo != null) GetLogo(logo).ContinueWith(t => { if (t.Result != null) infoLogo.Source = t.Result; }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
-                infoBox.Margin = new Thickness(16, 0, 16, controls.Visibility == Visibility.Visible ? controls.ActualHeight + 10 : 16);   // nad paskiem sterowania
+                infoBox.Margin = new Thickness(16, 0, 16, (controls.ActualHeight > 0 ? controls.ActualHeight : 70) + 10);   // stale miejsce nad paskiem - nie opada, gdy pasek znika   // nad paskiem sterowania
                 infoBox.Visibility = Visibility.Visible;
                 infoShownFor = p0 != null ? pth + p0.Start.Ticks : pth;
                 infoTimer.Stop();
@@ -1556,6 +1725,9 @@ namespace Przegladarka
                 infoTimer.Interval = TimeSpan.FromSeconds(sec); infoTimer.Start();
             };
             showInfoRef = showInfo;
+            // program TV wczytal sie (okno TV / w tle) - od razu odswiez pasek informacji i napis, bez czekania na kolejny kanal
+            Action onEpg = () => Dispatcher.BeginInvoke(new Action(() => { if (_vlcWin != win) return; if (infoBox.Visibility == Visibility.Visible) showInfo(false); tvShownRef?.Invoke(); }));
+            _iptvLoaded += onEpg; win.Closed += (s, e) => _iptvLoaded -= onEpg;
 
             // lista kanalow nad filmem (z lewej): kanaly biezacej grupy z logo i tym, co leci; klik = przelacz, kolko = przewijanie
             var chList = new ListBox { Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.White, HorizontalContentAlignment = HorizontalAlignment.Stretch };
@@ -1646,7 +1818,11 @@ namespace Przegladarka
                 }
                 fillSort("sort-lista-filmow", new[] { "az", "za", "ocena", "rok" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: ocena", "Sortuj: rok (najnowsze)" });
                 // otwarcie listy: biezaca lista, a gdy to tylko jeden film (start z "Kontynuuj", z dysku innego komputera) - wszystkie filmy
-                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedItem = chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (realQueue ? fCur : fAll));
+                if (chPanel.Visibility != Visibility.Visible)   // kazde otwarcie: ostatnio wybrana grupa (zapamietana), inaczej kolejka / wszystkie
+                {
+                    var keepF = GetPref("grupa-filmow"); var items = chGroup.Items.Cast<ComboBoxItem>();
+                    chGroup.SelectedItem = items.FirstOrDefault(i => !string.IsNullOrEmpty(keepF) && (string)i.Tag == keepF && (keepF != fCur || realQueue)) ?? items.FirstOrDefault(i => (string)i.Tag == (realQueue ? fCur : fAll));
+                }
                 var fk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? (realQueue ? fCur : fAll);
                 var how = GetPref("sort-lista-filmow") ?? "az";
                 var libAll = LoadLibrary();
@@ -1749,11 +1925,13 @@ namespace Przegladarka
                 fillSort("sort-lista-kanalow", new[] { "az", "za", "nr" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: jak na liście" });
                 if (chPanel.Visibility != Visibility.Visible)   // kazde otwarcie: biezaca lista i biezacy kanal; gdy to jeden kanal (program TV, wznowienie) - jego grupa
                 {
-                    chGroup.SelectedIndex = 0;
-                    var tvCount = _playlist.Count(u => _iptvPlaying.ContainsKey(u));
+                    // ostatnio wybrana grupa (zapamietana), jesli jest w niej obecny kanal; inaczej grupa obecnego kanalu - nie "Kolejka"
                     var nowCh = _playlist.Count > _playIndex && _iptvPlaying.TryGetValue(_playlist[_playIndex], out var nc) ? nc : null;
-                    var grp = nowCh == null ? null : chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (i.Tag as string) == (plAll?.Channels.FirstOrDefault(c => c.Url == nowCh.Url)?.Group ?? nowCh.Group));
-                    if (tvCount <= 1 && grp != null) chGroup.SelectedItem = grp;
+                    var items = chGroup.Items.Cast<ComboBoxItem>().ToList();
+                    var keepG = GetPref("grupa-kanalow");
+                    Func<string, bool> hasNow = g => nowCh == null || (g == favKey ? IptvSt.Fav.Contains(nowCh.Url) : g == recKey ? IptvSt.Recent.Contains(nowCh.Url) : g == curKey || (plAll?.Channels.Any(c => c.Url == nowCh.Url && c.Group == g) ?? false));
+                    var grp = nowCh == null ? null : items.FirstOrDefault(i => (i.Tag as string) == (plAll?.Channels.FirstOrDefault(c => c.Url == nowCh.Url)?.Group ?? nowCh.Group));
+                    chGroup.SelectedItem = items.FirstOrDefault(i => !string.IsNullOrEmpty(keepG) && (i.Tag as string) == keepG && hasNow(keepG)) ?? grp ?? items.FirstOrDefault();
                 }
                 var gk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? curKey;
                 chSort.Visibility = gk == curKey || gk == recKey ? Visibility.Collapsed : Visibility.Visible;   // kolejnosc przelaczania / od najnowszego
@@ -1782,7 +1960,7 @@ namespace Przegladarka
                     var img = new Image { Width = 40, Height = 24, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
                     var nowP = EpgAt(EpgFor(_iptvEpg, ch), now);
                     var txt = new StackPanel();
-                    txt.Children.Add(new TextBlock { Text = ch.Name, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+                    txt.Children.Add(new TextBlock { Text = (IsRecording(ch.Url) ? "⏺ " : "") + ch.Name, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
                     if (nowP != null)
                     {
                         txt.Children.Add(new TextBlock { Text = nowP.Start.ToString("HH:mm") + "–" + nowP.Stop.ToString("HH:mm") + "  " + nowP.Title, FontSize = 11.5, Foreground = Brushes.Silver, TextTrimming = TextTrimming.CharacterEllipsis });
@@ -1793,7 +1971,9 @@ namespace Przegladarka
                             ToolTip = L.T("zostało ") + Math.Max(0, (int)Math.Ceiling(span - gone)) + " min" });
                     }
                     var star = new TextBlock { Text = IptvSt.Fav.Contains(ch.Url) ? "★" : "", Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18)), FontSize = 14, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };   // ulubiony - gwiazdka z prawej
-                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); DockPanel.SetDock(star, Dock.Right); row.Children.Add(img); row.Children.Add(star); row.Children.Add(txt);
+                    var arch = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Fill = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), Margin = new Thickness(6, 6, 0, 0), VerticalAlignment = VerticalAlignment.Top,
+                        Visibility = HasCatchup(ch) ? Visibility.Visible : Visibility.Collapsed, ToolTip = L.T("Archiwum: ") + ch.CatchupDays + L.T(" dni wstecz") };   // kanal z archiwum
+                    var row = new DockPanel(); DockPanel.SetDock(img, Dock.Left); DockPanel.SetDock(star, Dock.Right); DockPanel.SetDock(arch, Dock.Right); row.Children.Add(img); row.Children.Add(star); row.Children.Add(arch); row.Children.Add(txt);
                     var it = new ListBoxItem { Content = row, Padding = new Thickness(8, 4, 8, 4), Cursor = Cursors.Hand };
                     {   // prawy przycisk na kanale: otworz, ulubione, nagrywanie, program, sortowanie listy
                         var rcm = new ContextMenu();
@@ -1810,6 +1990,7 @@ namespace Przegladarka
                         if (IsRecording(ch.Url)) radd(L.T("⏹ Zatrzymaj nagrywanie"), () => { StopRecording(ch.Url); showChannelsRefresh(); }, true);
                         else radd(L.T("⏺ Nagrywaj w tle"), () => RecordNow(ch, win), true);
                         radd(L.T("⧉ Pokaż w PiP (podgląd)"), () => pipShow?.Invoke(ch), ch.Url != curUrl);
+                        radd(L.T("✏ Edytuj kanał (nazwa, ikona)…"), () => EditChannel(ch, Window.GetWindow(overlay) ?? win, () => { showChannelsRefresh(); showInfo(false); }), true);
                         radd(L.T("📅 Program TV kanału"), () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, ch.Url), true);
                         if (gk != curKey && gk != recKey)
                         {
@@ -1842,6 +2023,7 @@ namespace Przegladarka
             chGroup.SelectionChanged += (s, e) =>
             {
                 if (chGroup.Tag != null || !(chGroup.SelectedItem is ComboBoxItem gi) || !(gi.Tag is string g)) return;
+                if (chTvMode == true) SetPref("grupa-kanalow", g); else if (chTvMode == false) SetPref("grupa-filmow", g);   // zapamietana grupa (takze po ponownym uruchomieniu)
                 if (chPanel.Visibility == Visibility.Visible) showChannels(true);
             };
             chGroup.DropDownOpened += (s, e) => chHide.Stop();   // wybieranie grupy - lista nie chowa sie
@@ -1849,7 +2031,6 @@ namespace Przegladarka
             controls.IsVisibleChanged += (s, e) =>
             {
                 if (controls.IsVisible && infoBox.Visibility != Visibility.Visible) { if (IptvSt.InfoOnMove) showInfo(true); }
-                else if (infoBox.Visibility == Visibility.Visible) infoBox.Margin = new Thickness(16, 0, 16, controls.IsVisible ? controls.ActualHeight + 10 : 16);
             };
             win.Closed += (s, e) => infoTimer.Stop();
             // tytul okna: nazwa (+ przy kanale TV: co teraz leci); gdy sie nie miesci - przesuwa sie (koncowka " – Odtwarzacz filmow" stala)
@@ -1906,7 +2087,7 @@ namespace Przegladarka
                 _iptvPlaying.TryGetValue(path, out var tv);   // kanal telewizji (IPTV) - bez biblioteki, napisow i wznawiania
                 if (tv != null) current = null;
                 else if (rf == null) { var lib0 = LoadLibrary(); current = FindEntry(lib0, path, _playShared); TakeNewestProgress(lib0, current); }
-                SaveTvResume(tv != null ? _playIndex : -1);   // ostatni program wraca po uruchomieniu Velivo
+                SaveTvResume(tv != null && tv.ArchiveStart == null ? _playIndex : -1);   // ostatni program wraca po uruchomieniu Velivo
                 bool stream = path.Contains("://");
                 var name = rf != null ? rf.Title : tv != null ? tv.Name : System.IO.Path.GetFileNameWithoutExtension(path);
                 curTitle = name; marqueePos = 0;
@@ -1983,7 +2164,7 @@ namespace Przegladarka
                 };   // VLC przyjmuje glosnosc pewnie dopiero po starcie filmu
                 tracksTimer.Start();
                 if (tv != null && _recording.Count > 0) WarnOneConnection();   // trwa nagrywanie - drugie polaczenie
-                if (tv != null) { IptvSt.Watched[path] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var rc = IptvSt.Recent; rc.Remove(path); rc.Insert(0, path); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); LoadIptvInBackground(() => { if (_vlcWin == win) showInfo(false); }); }   // lista kanalow odswieza "Ostatnio ogladane"   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
+                if (tv != null) { var rk = tv.LiveUrl ?? path; IptvSt.Watched[rk] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var rc = IptvSt.Recent; rc.Remove(rk); rc.Insert(0, rk); if (rc.Count > 30) rc.RemoveRange(30, rc.Count - 30); SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); LoadIptvInBackground(() => { if (_vlcWin == win) showInfo(false); }); }   // lista kanalow odswieza "Ostatnio ogladane"   // ostatnio ogladane - takze po zmianie kanalu w odtwarzaczu
                 if (tv != null) showOsd("📺 " + (i + 1) + ". " + tv.Name);
                 var infoOnce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(tv != null ? 700 : 1500) };   // film - gdy znana jest dlugosc
                 infoOnce.Tick += (s, e) => { infoOnce.Stop(); if (_playlist.Count > _playIndex && _playlist[_playIndex] == path) showInfo(false); };
@@ -1992,9 +2173,37 @@ namespace Przegladarka
                 prev.IsEnabled = i > 0; next.IsEnabled = i < _playlist.Count - 1;
             };
 
-            mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(guard(() => timeLen.Text = FormatTime(e.Length)));
+            // telewizja: na zywo - postep audycji z programu TV i "NA ZYWO"; archiwum - godzina w audycji
+            Func<IptvChannel> liveCh = () => { var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; return p1 != null && _iptvPlaying.TryGetValue(p1, out var c1) && curRecFile == null ? c1 : null; };
+            Func<bool> tvShown = null;
+            tvShown = () =>
+            {
+                var c = liveCh();
+                if (c == null || c.ArchiveStart.HasValue) { if (ticker.Visibility == Visibility.Visible) { ticker.Visibility = tickerName.Visibility = tickerSep.Visibility = Visibility.Collapsed; ((TranslateTransform)tickerText.RenderTransform).BeginAnimation(TranslateTransform.XProperty, null); } seek.Visibility = Visibility.Visible; }   // film / archiwum - zwykly pasek
+                if (c == null) { seek.IsEnabled = true; return false; }
+                if (c.ArchiveStart.HasValue)
+                {
+                    seek.IsEnabled = mp.Length > 0;
+                    timeNow.Text = c.ArchiveStart.Value.AddMilliseconds(Math.Max(0, mp.Time)).ToString("HH:mm:ss"); timeLen.Text = L.T("⏪ ARCHIWUM");
+                    if (mp.Length > 0 && !seeking) seek.Value = 1000.0 * mp.Time / mp.Length;
+                    return true;
+                }
+                seek.IsEnabled = false;   // na zywo nie przewijamy
+                var p = EpgAt(EpgFor(_iptvEpg, c), DateTime.Now);
+                if (p != null) { timeNow.Text = p.Start.ToString("HH:mm"); timeLen.Text = p.Stop.ToString("HH:mm") + L.T("  ● NA ŻYWO"); }
+                else { timeNow.Text = ""; timeLen.Text = L.T("● NA ŻYWO"); }
+                // napis: tytul, odcinek i poczatek opisu (zmienia sie z audycja)
+                tickerName.Text = c.Name; tickerName.Visibility = tickerSep.Visibility = Visibility.Visible;
+                var desc = p == null ? L.T("brak programu TV") : "▶ " + p.Title + (string.IsNullOrEmpty(p.Sub) ? "" : " – " + p.Sub) + (string.IsNullOrEmpty(p.Desc) ? "" : "   ·   " + (p.Desc.Length > 160 ? p.Desc.Substring(0, 160).TrimEnd() + "…" : p.Desc));
+                seek.Visibility = Visibility.Collapsed;
+                if (ticker.Visibility != Visibility.Visible || tickerText.Text != desc) { ticker.Visibility = Visibility.Visible; tickerText.Text = desc; Dispatcher.BeginInvoke(tickerRun, DispatcherPriority.Loaded); }
+                return true;
+            };
+            tvShownRef = () => tvShown();
+            mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(guard(() => { if (!tvShown()) timeLen.Text = FormatTime(e.Length); }));
             mp.TimeChanged += (s, e) => Dispatcher.BeginInvoke(guard(() =>
             {
+                if (tvShown()) return;
                 timeNow.Text = FormatTime(e.Time);
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
@@ -2019,10 +2228,38 @@ namespace Przegladarka
                 if (current != null) { var l = LoadLibrary(); var v = FindEntry(l, current.Path, IsShared(current)); if (v != null) { v.Last = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); v.Done = true; v.Pos = 0; SaveLibrary(l); _libRefresh?.Invoke(); } current = null; }
                 // z nagrania: dojechalismy do konca zapisanego pliku - ponownie otworz plik (urosl) od tego miejsca
                 if (curRecFile != null && _playlist.Count > _playIndex) { recResume = Math.Max(0, mp.Length - 1000); _vlcLoad(_playIndex); return; }
+                if (_playlist.Count > _playIndex && _iptvPlaying.TryGetValue(_playlist[_playIndex], out var tvEnd) && tvEnd.ArchiveStart.HasValue)
+                {   // koniec audycji z archiwum: nastepna z archiwum, a gdy juz trwa - na zywo
+                    var el = EpgFor(_iptvEpg, tvEnd); var cur0 = EpgAt(el, tvEnd.ArchiveStart.Value); var nx0 = el?.FirstOrDefault(x => x.Start >= (cur0?.Stop ?? tvEnd.ArchiveStart.Value.AddMinutes(1)));
+                    if (!stopHere && nx0 != null && nx0.Stop <= DateTime.Now) { PlayArchive(tvEnd, nx0); return; }
+                    if (!stopHere) PlayChannelInGroup(LiveOf(tvEnd), KnownPlaylist());
+                    return;
+                }
                 if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału – łączę ponownie…")); return; }   // telewizja: bez przeskoku na nastepny kanal; strażnik polaczy ponownie
                 if (!stopHere && _playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
-            mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(guard(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));
+            mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(guard(() =>
+            {
+                // archiwum: serwer nie przyjal tej odmiany adresu - kolejna (jak w odtwarzaczach IPTV), az ktoras zadziala
+                var pe = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (pe != null && _iptvPlaying.TryGetValue(pe, out var ta) && ta.ArchiveStart.HasValue && ta.ArchiveStop.HasValue)
+                {
+                    var live = LiveOf(ta); int nv = ta.ArchiveVariant + 1;
+                    if (nv < 10 && CatchupUrl(live, ta.ArchiveStart.Value, ta.ArchiveStop.Value, DateTime.Now, nv) != null)
+                    { showOsd(L.T("⏪ Próbuję inny format archiwum…")); PlayArchive(ta, new EpgItem { Start = ta.ArchiveStart.Value, Stop = ta.ArchiveStop.Value }, nv); return; }
+                    showOsd(L.T("⏪ Serwer nie udostępnia tej audycji z archiwum")); return;
+                }
+                showOsd(L.T("Nie da się odtworzyć tego pliku"));
+            }));
+            // archiwum ruszylo - ta odmiana adresu dziala u tego dostawcy (nastepnym razem od razu)
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() =>
+            {
+                var pp = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (pp == null || !_iptvPlaying.TryGetValue(pp, out var ta) || !ta.ArchiveStart.HasValue) return;
+                if (IptvSt.CatchupVariant == null) IptvSt.CatchupVariant = new Dictionary<string, int>();
+                var host = ArchiveHost(ta.LiveUrl ?? "");
+                if (!IptvSt.CatchupVariant.TryGetValue(host, out var old) || old != ta.ArchiveVariant) { IptvSt.CatchupVariant[host] = ta.ArchiveVariant; SaveIptv(IptvSt); }
+            }));
 
             Action togglePlay = () =>
             {
@@ -2130,7 +2367,7 @@ namespace Przegladarka
                 if (_iptvPlaying.ContainsKey(p0)) return IptvSt.Fav.Contains(p0);
                 return LoadPlaylists().Named.TryGetValue(favList, out var l0) && l0.Contains(p0, StringComparer.OrdinalIgnoreCase);
             };
-            Action updFav = () => fav.Content = isFav() ? "★" : "☆";
+            Action updFav = () => { var on = isFav(); var ic = PlayerIcon(on ? "starfill" : "star"); if (on) ic.Fill = new SolidColorBrush(Color.FromRgb(0xF5, 0xC5, 0x18)); fav.Content = ic; };
             fav.Click += (s, e) =>
             {
                 var p0 = favPath(); if (p0 == null) return;
@@ -2151,7 +2388,10 @@ namespace Przegladarka
             updSleep = () =>
             {
                 var left = sleepAt.HasValue ? sleepAt.Value - DateTime.Now : TimeSpan.Zero;
-                sleep.Content = (sleepEnd ? "⏾ ⏹" : sleepAt.HasValue ? "⏾ " + Math.Max(1, (int)Math.Ceiling(left.TotalMinutes)) : "⏾") + (sleepPc && (sleepEnd || sleepAt.HasValue) ? " 💻" : "");
+                var sTxt = (sleepEnd ? L.T("koniec") : sleepAt.HasValue ? Math.Max(1, (int)Math.Ceiling(left.TotalMinutes)) + L.T(" min") : "") + (sleepPc && (sleepEnd || sleepAt.HasValue) ? " 💻" : "");
+                var sp0 = new StackPanel { Orientation = Orientation.Horizontal }; sp0.Children.Add(PlayerIcon("moon"));
+                if (sTxt.Length > 0) sp0.Children.Add(new TextBlock { Text = sTxt, Foreground = Brushes.White, FontSize = 12.5, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+                sleep.Content = sp0;
                 if (sleepAt.HasValue) sleepTimer.Start(); else sleepTimer.Stop();
             };
             sleepTimer.Tick += (s, e) =>
@@ -2217,7 +2457,9 @@ namespace Przegladarka
             // klik = zamiana z glownym; pozycja i wielkosc zapamietane wzgledem okna odtwarzacza (domyslnie prawy dolny rog)
             LibVLCSharp.Shared.MediaPlayer pipMp = null; Window pipWin = null; IptvChannel pipCh = null; TextBlock pipName = null; bool pipPlacing = false;
             var inv = System.Globalization.CultureInfo.InvariantCulture;
-            double? pipX = null, pipY = null, pipW = null;   // biezace miejsce (przesuniete mysza); na stale dopiero "Zapisz to miejsce"
+            double? pipX = null, pipY = null, pipW = null;   // miejsce i wielkosc ustawione mysza - zapisywane same (chwile po ostatniej zmianie)
+            var pipKeep = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+            pipKeep.Tick += (s, e) => { pipKeep.Stop(); if (pipX == null) return; SetPref("pip-x", pipX.Value.ToString(inv)); SetPref("pip-y", pipY.Value.ToString(inv)); SetPref("pip-w", pipW.Value.ToString(inv)); };
             Func<string, double, double> prefD = (k, d) => double.TryParse(GetPref(k), System.Globalization.NumberStyles.Float, inv, out var x) ? x : d;
             Func<Rect> pipHost = () =>
             {
@@ -2225,6 +2467,9 @@ namespace Przegladarka
                 var tl = src.CompositionTarget.TransformFromDevice.Transform(view.PointToScreen(new Point(0, 0)));
                 return new Rect(tl.X, tl.Y, view.ActualWidth, view.ActualHeight);
             };
+            // wlasciciel podgladu: warstwa obrazu (klik nie trafia w glowny), a gdy jeszcze niewidoczna (minimalizacja, start) - okno odtwarzacza;
+            // Windows nie pozwala przypiac okna do niepokazanego okna
+            Func<Window> pipOwner = () => { var ow = Window.GetWindow(overlay); return ow != null && ow != win && ow.IsVisible ? ow : win; };
             Action pipPlace = () =>
             {
                 if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
@@ -2232,17 +2477,28 @@ namespace Przegladarka
                 double fx = pipX ?? prefD("pip-x", -1), fy = pipY ?? prefD("pip-y", -1);
                 double x = fx < 0 ? r.Width - w : fx * r.Width, y = fy < 0 ? r.Height - h - (controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0) : fy * r.Height;
                 x = Math.Max(0, Math.Min(r.Width - w, x)); y = Math.Max(0, Math.Min(r.Height - h, y));
-                var ow = Window.GetWindow(overlay); if (ow != null && pipWin.Owner != ow) pipWin.Owner = ow;   // warstwa obrazu bywa tworzona na nowo (zmiana rozmiaru) - podglad zawsze nad nia
+                var ow = pipOwner(); if (pipWin.Owner != ow) pipWin.Owner = ow;   // warstwa obrazu bywa tworzona na nowo (zmiana rozmiaru) - podglad zawsze nad nia
                 pipPlacing = true; pipWin.Width = w; pipWin.Height = h; pipWin.Left = r.X + x; pipWin.Top = r.Y + y; pipPlacing = false;
             };
             Action pipSave = () =>
             {
                 if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
                 pipX = (pipWin.Left - r.X) / r.Width; pipY = (pipWin.Top - r.Y) / r.Height; pipW = pipWin.Width / r.Width;
+                pipKeep.Stop(); pipKeep.Start();
+            };
+            // dzwiek z podgladu albo z glownego: wylaczana sama sciezka dzwieku (nie glosnosc - ta jest wspolna dla calego programu)
+            bool pipSound = false; int mainTrack = -1;
+            Action<bool> pipAudio = on =>
+            {
+                if (pipMp == null) return;
+                if (on && !pipSound) { mainTrack = mp.AudioTrack; mp.SetAudioTrack(-1); var t = pipMp.AudioTrackDescription.FirstOrDefault(x => x.Id >= 0); if (t.Name != null) pipMp.SetAudioTrack(t.Id); }
+                else if (!on && pipSound) { pipMp.SetAudioTrack(-1); var t = mp.AudioTrackDescription.FirstOrDefault(x => x.Id == mainTrack); mp.SetAudioTrack(t.Name != null ? mainTrack : mp.AudioTrackDescription.FirstOrDefault(x => x.Id >= 0).Id); }
+                pipSound = on;
             };
             Action pipClose = () =>
             {
                 if (pipWin == null) return;
+                pipAudio(false);   // dzwiek wraca do glownego
                 var m = pipMp; var w0 = pipWin; pipMp = null; pipWin = null; pipCh = null;
                 try { m.Stop(); } catch (Exception) { }
                 w0.Close();
@@ -2273,17 +2529,21 @@ namespace Przegladarka
                     var pl = new Grid { Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), Cursor = Cursors.SizeAll, ToolTip = L.T("Klik – zamień z głównym • przeciągnij – przesuń • krawędź – wielkość • prawy – opcje") };
                     pipName = new TextBlock { Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 4, 30, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
                         TextTrimming = TextTrimming.CharacterEllipsis, Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 1, BlurRadius = 3 } };
-                    var px = new Button { Content = "✕", Width = 24, Height = 22, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Cursor = Cursors.Hand,
-                        Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Foreground = Brushes.White, BorderThickness = new Thickness(0), ToolTip = L.T("Zamknij PiP") };
+                    // przyciski podgladu: te same wektorowe ikony co na pasku (znaki tekstowe nie wyswietlaly sie w okienku obrazu)
+                    var pStyle = PlayerButtonStyle();
+                    Func<string, string, Button> pBtn = (icon, tip) => { var ic = PlayerIcon(icon); ic.Width = ic.Height = 14; return new Button { Content = ic, Style = pStyle, Width = 28, Height = 24, Padding = new Thickness(4), ToolTip = tip }; };
+                    var px = pBtn("close", L.T("Zamknij PiP")); px.HorizontalAlignment = HorizontalAlignment.Right; px.VerticalAlignment = VerticalAlignment.Top; px.Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)); px.Margin = new Thickness(0, 3, 3, 0);
                     px.Click += (q, w2) => pipClose();
                     // sterowanie filmem w podgladzie: pauza / odtwarzaj, stop (od poczatku), pasek postepu do przewijania
-                    var pPlay = new Button { Content = "⏸", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Pauza / odtwarzaj") };
-                    var pStop = new Button { Content = "⏹", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Stop") };
-                    var pSeek = new Slider { Minimum = 0, Maximum = 1000, IsMoveToPointEnabled = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 6, 0), Cursor = Cursors.Hand };
-                    var pBar = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(0xB0, 0, 0, 0)), Visibility = Visibility.Collapsed, Cursor = Cursors.Arrow };
+                    var pPlay = pBtn("pause", L.T("Pauza / odtwarzaj"));
+                    var pStop = pBtn("stop", L.T("Stop"));
+                    // cienki pasek postepu: niebieska czesc obejrzana, okragly uchwyt
+                    var pSeek = new Slider { Minimum = 0, Maximum = 1000, IsMoveToPointEnabled = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 10, 0), Cursor = Cursors.Hand,
+                        Style = ModernSliderStyle() };
+                    var pBar = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Height = 30, Background = new SolidColorBrush(Color.FromArgb(0xB0, 0, 0, 0)), Visibility = Visibility.Collapsed, Cursor = Cursors.Arrow };
                     // TV w podgladzie: poprzedni / nastepny kanal z jego grupy
-                    var pPrev = new Button { Content = "⏮", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Poprzedni kanał") };
-                    var pNext = new Button { Content = "⏭", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Następny kanał") };
+                    var pPrev = pBtn("prev", L.T("Poprzedni kanał"));
+                    var pNext = pBtn("next", L.T("Następny kanał"));
                     Action<int> pStep = d =>
                     {
                         var c = pipCh; if (c == null) return;
@@ -2297,7 +2557,36 @@ namespace Przegladarka
                     };
                     pPrev.Click += (q, w2) => pStep(-1); pNext.Click += (q, w2) => pStep(1);
                     foreach (var b0 in new[] { pPrev, pNext, pPlay, pStop }) DockPanel.SetDock(b0, Dock.Left);
-                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek);
+                    var pSnd = pBtn("mute", L.T("Dźwięk z podglądu / z głównego okna")); DockPanel.SetDock(pSnd, Dock.Right);
+                    pSnd.Click += (q, w2) => { pipAudio(!pipSound); var ic = PlayerIcon(pipSound ? "volume" : "mute"); ic.Width = ic.Height = 14; pSnd.Content = ic; showOsd(pipSound ? L.T("🔊 Dźwięk z podglądu") : L.T("🔊 Dźwięk z głównego okna")); };
+                    // TV w podgladzie: separator po ⏭, przewijany napis (co leci), godzina konca przed dzwiekiem
+                    var pSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x77, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(6, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(pSep, Dock.Left);
+                    var pEnd = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) }; DockPanel.SetDock(pEnd, Dock.Right);
+                    var pTicker = new Canvas { ClipToBounds = true, Height = 18, VerticalAlignment = VerticalAlignment.Center };
+                    var pTickText = new TextBlock { Foreground = Brushes.White, FontSize = 12.5, RenderTransform = new TranslateTransform() }; pTicker.Children.Add(pTickText);
+                    Action pTickRun = () =>
+                    {
+                        pTickText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                        double w = pTickText.DesiredSize.Width, cw = Math.Max(40, pTicker.ActualWidth);
+                        ((TranslateTransform)pTickText.RenderTransform).BeginAnimation(TranslateTransform.XProperty, new System.Windows.Media.Animation.DoubleAnimation(cw, -w, TimeSpan.FromSeconds((cw + w) / 50.0)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+                    };
+                    pTicker.SizeChanged += (q, w2) => { if (pTicker.Visibility == Visibility.Visible) pTickRun(); };
+                    pBar.Children.Add(pSnd); pBar.Children.Add(pEnd);
+                    pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pSep); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek); pBar.Children.Add(pTicker);
+                    // glowny zmienil kanal / film przy dzwieku z podgladu - jego sciezka znow wylaczona (po ustawieniu sciezek)
+                    mp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() => { if (!pipSound) return; var t1 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1300) }; t1.Tick += (a1, b1) => { t1.Stop(); if (pipSound) { mainTrack = mp.AudioTrack >= 0 ? mp.AudioTrack : mainTrack; mp.SetAudioTrack(-1); } }; t1.Start(); }));
+                    // nowy kanal / film w podgladzie - bez dzwieku, dopoki nie przelaczysz; sciezka dzwieku pojawia sie chwile po starcie, wiec ponawiamy do skutku
+                    pipMp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        int tries = 0; var mt = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+                        mt.Tick += (a1, b1) =>
+                        {
+                            if (pipMp == null || pipSound || ++tries > 40) { mt.Stop(); return; }
+                            if (pipMp.AudioTrackCount > 0 && pipMp.AudioTrack != -1) pipMp.SetAudioTrack(-1);
+                            else if (pipMp.AudioTrackCount > 0 && tries > 8) mt.Stop();   // wylaczona i tak zostaje
+                        };
+                        mt.Start();
+                    }));
                     bool pSeeking = false;
                     pPlay.Click += (q, w2) => { if (pipMp.IsPlaying) pipMp.SetPause(true); else if (pipMp.State == VLCState.Stopped || pipMp.State == VLCState.Ended) { var c = pipCh; pipStart = 0; pipShow(c); } else pipMp.SetPause(false); };
                     pStop.Click += (q, w2) => { pipMp.Stop(); pSeek.Value = 0; };
@@ -2310,14 +2599,24 @@ namespace Przegladarka
                         bool film = pipCh?.Group == pipFilmGrp;
                         pBar.Visibility = pipCh != null ? Visibility.Visible : Visibility.Collapsed;
                         var fv = film ? Visibility.Visible : Visibility.Collapsed; var tv0 = film ? Visibility.Collapsed : Visibility.Visible;
-                        pPlay.Visibility = pStop.Visibility = pSeek.Visibility = fv; pPrev.Visibility = pNext.Visibility = tv0;
+                        pPlay.Visibility = pStop.Visibility = pSeek.Visibility = fv; pPrev.Visibility = pNext.Visibility = pSep.Visibility = pTicker.Visibility = pEnd.Visibility = tv0;
+                        if (!film && pipCh != null)
+                        {   // co leci na kanale z podgladu i do ktorej
+                            var pp = EpgAt(EpgFor(_iptvEpg, pipCh), DateTime.Now);
+                            pEnd.Text = pp != null ? L.T("do ") + pp.Stop.ToString("HH:mm") : "";
+                            var txt = pp == null ? L.T("brak programu TV") : "▶ " + pp.Title + (string.IsNullOrEmpty(pp.Sub) ? "" : " – " + pp.Sub) + (string.IsNullOrEmpty(pp.Desc) ? "" : "   ·   " + (pp.Desc.Length > 120 ? pp.Desc.Substring(0, 120).TrimEnd() + "…" : pp.Desc));
+                            if (pTickText.Text != txt) { pTickText.Text = txt; Dispatcher.BeginInvoke(pTickRun, DispatcherPriority.Loaded); }
+                        }
+                        var sw = pipSound ? "volume" : "mute";
+                        if ((string)pSnd.Tag != sw) { var si = PlayerIcon(sw); si.Width = si.Height = 14; pSnd.Content = si; pSnd.Tag = sw; }
                         if (!film) return;
-                        pPlay.Content = pipMp.IsPlaying ? "⏸" : "▶";
+                        var want = pipMp.IsPlaying ? "pause" : "play";
+                        if ((string)pPlay.Tag != want) { var ic = PlayerIcon(want); ic.Width = ic.Height = 14; pPlay.Content = ic; pPlay.Tag = want; }
                         if (!pSeeking && pipMp.Length > 0) { pSeek.Value = pipMp.Position * 1000; pSeek.ToolTip = FormatTime(pipMp.Time) + " / " + FormatTime(pipMp.Length); }
                     };
                     pTick.Start();
                     pl.Children.Add(pipName); pl.Children.Add(px); pl.Children.Add(pBar); pv.Content = pl;
-                    var pw = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, ShowInTaskbar = false, ShowActivated = false, Owner = Window.GetWindow(overlay) ?? win,   // nad warstwa obrazu glownego (inaczej klik trafial w glowny = pauza)
+                    var pw = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize, ShowInTaskbar = false, ShowActivated = false, Owner = pipOwner(),   // nad warstwa obrazu glownego (inaczej klik trafial w glowny = pauza)
                          Topmost = win.Topmost, Background = Brushes.Black, Width = 320, Height = 180,
                         // ramka do lapania mysza: obraz VLC zakrywa krawedzie okna, wiec wielkosc zmienia sie za ten pasek
                         Content = new Border { Child = pv, BorderThickness = new Thickness(5), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3D, 0x44)) } };
@@ -2351,7 +2650,7 @@ namespace Przegladarka
                             if (st0 > 0) media.AddOption(":start-time=" + (st0 / 1000).ToString(inv));
                         }
                         pipStart = -1;
-                        media.AddOption(":no-audio");   // podglad bez dzwieku: wyciszanie VLC dziala na caly program (znikal dzwiek glownego), dzwiek = zamiana kanalow
+                        // podglad startuje bez dzwieku (sciezka wylaczana po starcie), dzwiek przelacza ikona 🔊 na pasku podgladu
                         pipMp.Play(media);
                     }
                 }
@@ -2359,6 +2658,7 @@ namespace Przegladarka
             };
             pipSwap = () =>
             {
+                pipAudio(false);   // po zamianie dzwiek z glownego
                 var a = pipCh; var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (a == null) return;
                 // glowny idzie do podgladu: kanal albo film z tego komputera (od biezacego miejsca); film strumieniowany z innego komputera - podglad sie zamyka
@@ -2377,13 +2677,7 @@ namespace Przegladarka
                 if (pipWin != null)
                 {
                     pa(cm, L.T("⇄ Zamień z głównym (klik w podgląd)"), () => pipSwap(), true);
-                    pa(cm, L.T("📌 Zapisz to miejsce i wielkość"), () =>
-                    {
-                        pipSave(); if (pipX == null) return;
-                        SetPref("pip-x", pipX.Value.ToString(inv)); SetPref("pip-y", pipY.Value.ToString(inv)); SetPref("pip-w", pipW.Value.ToString(inv));
-                        showOsd(L.T("⧉ PiP: miejsce zapisane"));
-                    }, true);
-                    pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { pipX = pipY = pipW = null; SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
+                    pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { pipKeep.Stop(); pipX = pipY = pipW = null; SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
                     pa(cm, L.T("✖ Zamknij PiP"), pipClose, true);
                     cm.Items.Add(new Separator());
                 }
@@ -2425,6 +2719,146 @@ namespace Przegladarka
             _pipShow = ch => { if (_vlcWin != win) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p1 == ch.Url) return false; pipShow(ch); return true; };   // z okna TV
             _pipShowFilm = path1 => { if (_vlcWin != win || !File.Exists(path1)) return false; var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (string.Equals(p1, path1, StringComparison.OrdinalIgnoreCase)) return false; pipShow(pipFilm(path1)); return true; };
             win.Closed += (s, e) => { _pipShow = null; _pipShowFilm = null; };
+            // szybkie ikony: dzialanie i stan (nagrywanie na czerwono, rzeczy z TV tylko przy telewizji)
+            Func<IptvChannel> qTvCh = () => { var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; return p1 != null && _iptvPlaying.TryGetValue(p1, out var c1) ? c1 : null; };
+            Action updQuick = () =>
+            {
+                var c = qTvCh(); bool rec = c != null && IsRecording(c.Url);
+                var recAll = IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList();
+                qRec.IsEnabled = c != null && !rec && !c.ArchiveStart.HasValue; qRecStop.IsEnabled = recAll.Count > 0;   // zatrzymanie - kazdego trwajacego nagrania, takze innego kanalu
+                if (qRec.Content is System.Windows.Shapes.Path rp) rp.Fill = rec ? Brushes.Red : Brushes.White;
+                qRec.ToolTip = rec ? L.T("⏺ Trwa nagrywanie tego kanału") : recAll.Count > 0 ? L.T("Nagrywaj także ten kanał (") + string.Join(", ", recAll.Select(x => x.Channel)) + L.T(" nagrywa się dalej)") : L.T("Nagrywaj ten kanał TV");
+                qRecStop.ToolTip = recAll.Count == 1 ? L.T("Zatrzymaj nagrywanie: ") + recAll[0].Channel : recAll.Count > 1 ? L.T("Zatrzymaj nagrywanie – wybierz kanał") : L.T("Zatrzymaj nagrywanie");
+                qRefresh.IsEnabled = c != null;
+                // znacznik nagrywania i licznik polaczen
+                var recs = IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList();
+                recPill.Visibility = recs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                recOn.Visibility = recs.Count > 0 && !mini0 ? Visibility.Visible : Visibility.Collapsed;
+                recOnText.Text = recs.Count == 0 ? "" : recs.Count > 1 ? L.T("Trwa nagrywanie: ") + string.Join(", ", recs.Select(x => x.Channel))
+                    : c != null && (c.LiveUrl ?? c.Url) == recs[0].Url ? L.T("Trwa nagrywanie tego kanału") : L.T("Trwa nagrywanie: ") + recs[0].Channel;
+                if (recs.Count == 1) recPill.Content = (c != null && (c.LiveUrl ?? c.Url) == recs[0].Url ? L.T("⏺ REC  Nagrywasz ten kanał") : "⏺ REC  " + recs[0].Channel) + L.T(" · do ") + LocalOf(recs[0].Stop).ToString("HH:mm");
+                else if (recs.Count > 1) recPill.Content = L.T("⏺ REC  ") + recs.Count + L.T(" kanały");
+                int used = (c != null && curRecFile == null ? 1 : 0) + recs.Count + (pipCh != null && pipCh.Group != pipFilmGrp ? 1 : 0);
+                connText.Visibility = IptvInstalled && (used > 0) ? Visibility.Visible : Visibility.Collapsed;
+                connText.Content = L.T("🔌 Połączenia z dostawcą: ") + used + (IptvSt.MaxConn > 0 ? " / " + IptvSt.MaxConn : "");
+                connText.Foreground = IptvSt.MaxConn > 0 && used >= IptvSt.MaxConn ? Brushes.Orange : Brushes.Silver;
+                connText.ToolTip = L.T("Połączenia z dostawcą IPTV teraz: ") + used + L.T(" (oglądanie, nagrania, podgląd PiP)") + (IptvSt.MaxConn > 0 ? L.T("\nLimit dostawcy: ") + IptvSt.MaxConn : L.T("\nKliknij, aby podać limit dostawcy"));
+                bool tvOn = IptvInstalled; qTv.IsEnabled = qGuide.IsEnabled = qFavTv.IsEnabled = qRecDir.IsEnabled = qRecSet.IsEnabled = tvOn;
+            };
+            var qTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            qTimer.Tick += (s, e) => updQuick(); qTimer.Start(); win.Closed += (s, e) => qTimer.Stop();
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(updQuick));
+            qRec.Click += (s, e) => { var c = qTvCh(); if (c != null) { RecordNow(c, win); updQuick(); } };
+            qRecStop.Click += (s, e) =>
+            {   // biezacy kanal, jedyne nagranie albo wybor z listy (gdy nagrywa sie kilka)
+                var c = qTvCh(); var recAll = IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList();
+                if (c != null && IsRecording(c.Url)) StopRecording(c.Url);
+                else if (recAll.Count == 1) { if (_recording.TryGetValue(recAll[0].Id, out var cts)) cts.Cancel(); }
+                else if (recAll.Count > 1) { recPill.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); return; }
+                updQuick();
+            };
+            qRecDir.Click += (s, e) => OpenRecDir();
+            // ustawienia paska informacji - ikona obok 👁 (z menu ⚙ przeniesione tutaj)
+            Action<ItemsControl> infoSettings = to =>
+            {
+                    var moveM = new MenuItem { Header = L.T("Pokazuj przy ruchu myszy"), IsCheckable = true, IsChecked = IptvSt.InfoOnMove };
+                    moveM.Click += (q, w2) => { IptvSt.InfoOnMove = moveM.IsChecked; SaveIptv(IptvSt); showOsd(IptvSt.InfoOnMove ? L.T("Pasek informacji: przy ruchu myszy") : L.T("Pasek informacji: tylko klawisz I")); };
+                    to.Items.Add(moveM);
+                    var hideM = new MenuItem { Header = L.T("⏱ Znikanie po") };
+                    foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
+                    {
+                        var sec = sec0; var mi = new MenuItem { Header = sec == 0 ? L.T("nie pokazuj sam (tylko klawisz I)") : sec + " s", IsCheckable = true, IsChecked = IptvSt.InfoSec == sec };
+                        mi.Click += (q, w2) => { IptvSt.InfoSec = sec; SaveIptv(IptvSt); showInfo(true); };
+                        hideM.Items.Add(mi);
+                    }
+                    var alphaM = new MenuItem { Header = L.T("🌓 Przezroczystość tła") };
+                    foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
+                    {
+                        var al = a0; var mi = new MenuItem { Header = (100 - al) + " %" + (al == 100 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = IptvSt.InfoAlpha == al };
+                        mi.Click += (q, w2) => { IptvSt.InfoAlpha = al; SaveIptv(IptvSt); showInfo(true); };
+                        alphaM.Items.Add(mi);
+                    }
+                    var sizeM = new MenuItem { Header = L.T("🔠 Wielkość tekstu (względem okna)") };
+                    foreach (var z0 in new[] { new object[] { 85, "Mały" }, new object[] { 100, "Normalny" }, new object[] { 125, "Duży" }, new object[] { 150, "Bardzo duży" } })
+                    {
+                        var z = (int)z0[0]; var mi = new MenuItem { Header = L.T((string)z0[1]), IsCheckable = true, IsChecked = IptvSt.InfoScale == z };
+                        mi.Click += (q, w2) => { IptvSt.InfoScale = z; SaveIptv(IptvSt); showInfo(true); };
+                        sizeM.Items.Add(mi);
+                    }
+                    to.Items.Add(hideM); to.Items.Add(alphaM); to.Items.Add(sizeM);
+            };
+            qInfoSet.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = qInfoSet, Placement = PlacementMode.Top }; infoSettings(cm); cm.IsOpen = true; };
+            qBarTime.Click += (s, e) =>
+            {   // czas wyswietlania paska
+                var cm = new ContextMenu { PlacementTarget = qBarTime, Placement = PlacementMode.Top };
+                cm.Items.Add(new MenuItem { Header = L.T("Pasek znika po:"), IsEnabled = false });
+                foreach (var v0 in new[] { 2.5, 5.0, 10.0, 20.0, 0.0 })
+                {
+                    var v = v0; var mi = new MenuItem { Header = v == 0 ? L.T("nie znika (zawsze widoczny)") : v.ToString("0.#", System.Globalization.CultureInfo.CurrentCulture) + " s", IsCheckable = true, IsChecked = Math.Abs(barSec() - v) < 0.01 };
+                    mi.Click += (q, w2) => { SetPref("pasek-czas", v.ToString(System.Globalization.CultureInfo.InvariantCulture)); if (v > 0) hideTimer.Interval = TimeSpan.FromSeconds(v); showOsd(v == 0 ? L.T("Pasek: zawsze widoczny") : L.T("Pasek znika po ") + v + " s"); };
+                    cm.Items.Add(mi);
+                }
+                cm.Items.Add(new Separator());
+                cm.Items.Add(new MenuItem { Header = L.T("Przezroczystość paska:"), IsEnabled = false });
+                int curA = int.TryParse(GetPref("pasek-alfa"), out var ca) ? ca : 15;
+                foreach (var a0 in new[] { 0, 15, 30, 45, 60 })
+                {
+                    var a = a0; var mi = new MenuItem { Header = a + " %" + (a == 0 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = curA == a };
+                    mi.Click += (q, w2) => { SetPref("pasek-alfa", a.ToString()); controls.Background = barBg(a); };
+                    cm.Items.Add(mi);
+                }
+                cm.IsOpen = true;
+            };
+            recPill.Click += (s, e) =>
+            {   // trwajace nagrania: zatrzymaj / przedluz
+                var cm = new ContextMenu { PlacementTarget = recPill, Placement = PlacementMode.Top };
+                foreach (var j0 in IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList())
+                {
+                    var j = j0; var m = new MenuItem { Header = "⏺ " + j.Channel + (string.IsNullOrEmpty(j.Title) ? "" : " – " + j.Title) + L.T(" (do ") + LocalOf(j.Stop).ToString("HH:mm") + ")" };
+                    var st0 = new MenuItem { Header = L.T("⏹ Zatrzymaj nagrywanie") }; st0.Click += (q, w2) => { if (_recording.TryGetValue(j.Id, out var cts)) cts.Cancel(); updQuick(); }; m.Items.Add(st0);
+                    foreach (var min0 in new[] { 15, 30, 60 }) { var min = min0; var ex = new MenuItem { Header = L.T("➕ Przedłuż o ") + min + " min" }; ex.Click += (q, w2) => { j.Stop += min * 60000L; SaveIptv(IptvSt); _iptvJobsChanged?.Invoke(); showOsd(L.T("⏺ Nagranie do ") + LocalOf(j.Stop).ToString("HH:mm")); updQuick(); }; m.Items.Add(ex); }
+                    cm.Items.Add(m);
+                }
+                if (cm.Items.Count > 0) cm.IsOpen = true;
+            };
+            connText.Click += (s, e) =>
+            {   // limit polaczen dostawcy - ostrzezenie tylko po jego przekroczeniu
+                var cm = new ContextMenu { PlacementTarget = connText, Placement = PlacementMode.Top };
+                cm.Items.Add(new MenuItem { Header = L.T("Mój dostawca IPTV pozwala na:"), IsEnabled = false });
+                foreach (var n0 in new[] { 1, 2, 3, 4, 5 }) { var n = n0; var mi = new MenuItem { Header = n + (n == 1 ? L.T(" połączenie") : n < 5 ? L.T(" połączenia") : L.T(" połączeń")), IsCheckable = true, IsChecked = IptvSt.MaxConn == n }; mi.Click += (q, w2) => { IptvSt.MaxConn = n; SaveIptv(IptvSt); updQuick(); }; cm.Items.Add(mi); }
+                cm.IsOpen = true;
+            };
+            qRecSet.Click += (s, e) => RecMarginDialog(Window.GetWindow(overlay) ?? win);
+            qTv.Click += (s, e) => ShowIptv(Window.GetWindow(overlay) ?? win);
+            qGuide.Click += (s, e) => ShowEpgGuide(Window.GetWindow(overlay) ?? win, qTvCh()?.LiveUrl ?? qTvCh()?.Url);
+            qInfo.Click += (s, e) => showInfo(true);
+            qRefresh.Click += (s, e) => { if (qTvCh() != null) { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); } };
+            Action<Button, Action<ContextMenu>> qMenu = (b, fill) => b.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = b, Placement = PlacementMode.Top }; fill(cm); if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("(pusto)"), IsEnabled = false }); cm.IsOpen = true; };
+            qMenu(qLists, cm =>
+            {
+                var pls = LoadPlaylists();
+                Action<string, List<string>> one = (t, paths) => { var mi = new MenuItem { Header = t }; mi.Click += (q, w2) => PlayVideos(paths.ToArray(), 0); cm.Items.Add(mi); };
+                if (pls.Mine.Count > 0) one(L.T("📋 Moja kolejka (") + pls.Mine.Count + ")", pls.Mine);
+                foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) one("🎞 " + n + " (" + pls.Named[n].Count + ")", pls.Named[n]);
+            });
+            qMenu(qFavTv, cm =>
+            {   // ulubione kanaly - klik: gra, a PgUp/PgDn po ulubionych
+                var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
+                var favs = IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
+                for (int k = 0; k < favs.Count; k++) { int i0 = k; var mi = new MenuItem { Header = favs[k].Name }; mi.Click += (q, w2) => { foreach (var c in favs) _iptvPlaying[c.Url] = c; PlayVideos(favs.Select(c => c.Url).ToArray(), i0); }; cm.Items.Add(mi); }
+            });
+            qMenu(qFavFilm, cm =>
+            {   // ulubione filmy (playlista "⭐ Ulubione") - klik: gra, nastepny/poprzedni po ulubionych
+                var lib = LoadLibrary();
+                var favs = (LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>()).Where(File.Exists).ToList();
+                for (int k = 0; k < favs.Count; k++)
+                {
+                    int i0 = k; var v = FindEntry(lib, favs[k], null);
+                    var mi = new MenuItem { Header = v != null ? ShownTitle(v, MetaFor(v.Path)) : System.IO.Path.GetFileNameWithoutExtension(favs[k]) };
+                    mi.Click += (q, w2) => PlayVideos(favs.ToArray(), i0); cm.Items.Add(mi);
+                }
+            });
+            updQuick();
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();
             win.SizeChanged += (s, e) => pipPlace();
@@ -2604,33 +3038,7 @@ namespace Przegladarka
                     }
                     cm.Items.Add(flM);
                 }
-                var infoM = new MenuItem { Header = L.T("ℹ Pasek informacji") };
-                var moveM = new MenuItem { Header = L.T("Pokazuj przy ruchu myszy"), IsCheckable = true, IsChecked = IptvSt.InfoOnMove };
-                moveM.Click += (q, w2) => { IptvSt.InfoOnMove = moveM.IsChecked; SaveIptv(IptvSt); showOsd(IptvSt.InfoOnMove ? L.T("Pasek informacji: przy ruchu myszy") : L.T("Pasek informacji: tylko klawisz I")); };
-                infoM.Items.Add(moveM);
-                var hideM = new MenuItem { Header = L.T("⏱ Znikanie po") };
-                foreach (var sec0 in new[] { 3, 5, 8, 10, 15, 0 })
-                {
-                    var sec = sec0; var mi = new MenuItem { Header = sec == 0 ? L.T("nie pokazuj sam (tylko klawisz I)") : sec + " s", IsCheckable = true, IsChecked = IptvSt.InfoSec == sec };
-                    mi.Click += (q, w2) => { IptvSt.InfoSec = sec; SaveIptv(IptvSt); showInfo(true); };
-                    hideM.Items.Add(mi);
-                }
-                var alphaM = new MenuItem { Header = L.T("🌓 Przezroczystość tła") };
-                foreach (var a0 in new[] { 100, 85, 70, 55, 40 })
-                {
-                    var al = a0; var mi = new MenuItem { Header = (100 - al) + " %" + (al == 100 ? L.T(" (pełne tło)") : ""), IsCheckable = true, IsChecked = IptvSt.InfoAlpha == al };
-                    mi.Click += (q, w2) => { IptvSt.InfoAlpha = al; SaveIptv(IptvSt); showInfo(true); };
-                    alphaM.Items.Add(mi);
-                }
-                var sizeM = new MenuItem { Header = L.T("🔠 Wielkość tekstu (względem okna)") };
-                foreach (var z0 in new[] { new object[] { 85, "Mały" }, new object[] { 100, "Normalny" }, new object[] { 125, "Duży" }, new object[] { 150, "Bardzo duży" } })
-                {
-                    var z = (int)z0[0]; var mi = new MenuItem { Header = L.T((string)z0[1]), IsCheckable = true, IsChecked = IptvSt.InfoScale == z };
-                    mi.Click += (q, w2) => { IptvSt.InfoScale = z; SaveIptv(IptvSt); showInfo(true); };
-                    sizeM.Items.Add(mi);
-                }
-                infoM.Items.Add(hideM); infoM.Items.Add(alphaM); infoM.Items.Add(sizeM);
-                cm.Items.Add(infoM);
+
                 add(L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(true, Window.GetWindow(overlay) ?? win); if (fs != null) PlayVideos(fs, 0); }, true);
                 {   // ostatnio ogladane - osobno TV i filmy, po 20 ostatnich, najnowsze na gorze
                     var rf = new MenuItem { Header = L.T("🕘 Ostatnio oglądane Filmy") };
@@ -2669,6 +3077,8 @@ namespace Przegladarka
                 {
                     var tvNow = _iptvPlaying[path]; var epgL = EpgFor(_iptvEpg, tvNow); var nowP = EpgAt(epgL, DateTime.Now);
                     var nextP = epgL?.FirstOrDefault(x => x.Start >= (nowP?.Stop ?? DateTime.Now));
+                    if (tvNow.ArchiveStart.HasValue) add(L.T("⏩ Na żywo (wróć z archiwum)"), () => PlayChannelInGroup(LiveOf(tvNow), KnownPlaylist()), true);
+                    else if (nowP != null && HasCatchup(tvNow)) add(L.T("⏮ Od początku programu (archiwum)"), () => PlayArchive(tvNow, nowP), true);
                     if (nowP != null) add(L.T("▶ Teraz: ") + nowP.Title + L.T(" (do ") + nowP.Stop.ToString("HH:mm") + ")", () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
                     if (nextP != null) add(L.T("⏭ Następnie: ") + nextP.Start.ToString("HH:mm") + " " + nextP.Title, () => ShowEpgGuide(Window.GetWindow(overlay) ?? win, path), true);
                     bool isFav = IptvSt.Fav.Contains(path);
@@ -2692,6 +3102,7 @@ namespace Przegladarka
                         bufM.Items.Add(bi);
                     }
                     cm.Items.Add(bufM);
+                    cm.Items.Add(RecMarginMenu());
                     var tvCh = _iptvPlaying[path];
                     if (IsRecording(path)) add(L.T("⏹ Zatrzymaj nagrywanie"), () => StopRecording(path), true);
                     else add(L.T("⏺ Nagrywaj ten kanał"), () => RecordNow(tvCh, win), true);
@@ -2762,14 +3173,17 @@ namespace Przegladarka
                 var groups = new List<(string Title, string[] Prefixes)>
                 {
                     (null, new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop" }),
-                    (null, new[] { "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
+                    (null, new[] { "⏩ Na żywo (wróć", "⏮ Od początku programu", "▶ Teraz: ", "⏭ Następnie: ", "⏮ Poprzedni kanał", "⏭ Następny kanał", "🔄 Odśwież kanał", "⏩ Na żywo", "⏺ Oglądaj z nagrania", "⏺ Nagrywaj", "⏹ Zatrzymaj nagrywanie" }),
                     (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
                     (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
-                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "ℹ Pasek informacji", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "➕ Dodaj do: ", "(film strumieniowany" }),
+                    (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "⚙ Opcje połączenia", "⏱ Bufor kanałów", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
-                var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().ToList();
+                // co jest ikona na pasku - nie powtarzamy w menu (krotsze menu)
+                var onBar = new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop", "⏮ Poprzedni kanał", "⏭ Następny kanał", "ℹ Pokaż informacje", "🔄 Odśwież kanał", "⏺ Nagrywaj ten kanał", "⏹ Zatrzymaj nagrywanie",
+                    "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅 Pełny program TV", "⭐ ", "⏾ Wyłącznik czasowy", "⧉ Obraz w obrazie", "🎞 Playlisty i moja kolejka", "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki" };
+                var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().Where(m => !starts(H(m), onBar)).ToList();
                 cm.Items.Clear();
                 var used = new HashSet<MenuItem>();
                 foreach (var g in groups)

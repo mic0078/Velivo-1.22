@@ -1646,7 +1646,11 @@ namespace Przegladarka
                 }
                 fillSort("sort-lista-filmow", new[] { "az", "za", "ocena", "rok" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: ocena", "Sortuj: rok (najnowsze)" });
                 // otwarcie listy: biezaca lista, a gdy to tylko jeden film (start z "Kontynuuj", z dysku innego komputera) - wszystkie filmy
-                if (chPanel.Visibility != Visibility.Visible) chGroup.SelectedItem = chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == (realQueue ? fCur : fAll));
+                if (chPanel.Visibility != Visibility.Visible)   // kazde otwarcie: ostatnio wybrana grupa (zapamietana), inaczej kolejka / wszystkie
+                {
+                    var keepF = GetPref("grupa-filmow"); var items = chGroup.Items.Cast<ComboBoxItem>();
+                    chGroup.SelectedItem = items.FirstOrDefault(i => !string.IsNullOrEmpty(keepF) && (string)i.Tag == keepF && (keepF != fCur || realQueue)) ?? items.FirstOrDefault(i => (string)i.Tag == (realQueue ? fCur : fAll));
+                }
                 var fk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? (realQueue ? fCur : fAll);
                 var how = GetPref("sort-lista-filmow") ?? "az";
                 var libAll = LoadLibrary();
@@ -1749,11 +1753,13 @@ namespace Przegladarka
                 fillSort("sort-lista-kanalow", new[] { "az", "za", "nr" }, new[] { "Sortuj: nazwa A–Z", "Sortuj: nazwa Z–A", "Sortuj: jak na liście" });
                 if (chPanel.Visibility != Visibility.Visible)   // kazde otwarcie: biezaca lista i biezacy kanal; gdy to jeden kanal (program TV, wznowienie) - jego grupa
                 {
-                    chGroup.SelectedIndex = 0;
-                    var tvCount = _playlist.Count(u => _iptvPlaying.ContainsKey(u));
+                    // ostatnio wybrana grupa (zapamietana), jesli jest w niej obecny kanal; inaczej grupa obecnego kanalu - nie "Kolejka"
                     var nowCh = _playlist.Count > _playIndex && _iptvPlaying.TryGetValue(_playlist[_playIndex], out var nc) ? nc : null;
-                    var grp = nowCh == null ? null : chGroup.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (i.Tag as string) == (plAll?.Channels.FirstOrDefault(c => c.Url == nowCh.Url)?.Group ?? nowCh.Group));
-                    if (tvCount <= 1 && grp != null) chGroup.SelectedItem = grp;
+                    var items = chGroup.Items.Cast<ComboBoxItem>().ToList();
+                    var keepG = GetPref("grupa-kanalow");
+                    Func<string, bool> hasNow = g => nowCh == null || (g == favKey ? IptvSt.Fav.Contains(nowCh.Url) : g == recKey ? IptvSt.Recent.Contains(nowCh.Url) : g == curKey || (plAll?.Channels.Any(c => c.Url == nowCh.Url && c.Group == g) ?? false));
+                    var grp = nowCh == null ? null : items.FirstOrDefault(i => (i.Tag as string) == (plAll?.Channels.FirstOrDefault(c => c.Url == nowCh.Url)?.Group ?? nowCh.Group));
+                    chGroup.SelectedItem = items.FirstOrDefault(i => !string.IsNullOrEmpty(keepG) && (i.Tag as string) == keepG && hasNow(keepG)) ?? grp ?? items.FirstOrDefault();
                 }
                 var gk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? curKey;
                 chSort.Visibility = gk == curKey || gk == recKey ? Visibility.Collapsed : Visibility.Visible;   // kolejnosc przelaczania / od najnowszego
@@ -1842,6 +1848,7 @@ namespace Przegladarka
             chGroup.SelectionChanged += (s, e) =>
             {
                 if (chGroup.Tag != null || !(chGroup.SelectedItem is ComboBoxItem gi) || !(gi.Tag is string g)) return;
+                if (chTvMode == true) SetPref("grupa-kanalow", g); else if (chTvMode == false) SetPref("grupa-filmow", g);   // zapamietana grupa (takze po ponownym uruchomieniu)
                 if (chPanel.Visibility == Visibility.Visible) showChannels(true);
             };
             chGroup.DropDownOpened += (s, e) => chHide.Stop();   // wybieranie grupy - lista nie chowa sie

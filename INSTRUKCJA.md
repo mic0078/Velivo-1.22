@@ -12,6 +12,26 @@ Przeglądarka jest projektowana tak, żeby dało się ją w pełni obsłużyć s
 
 ---
 
+## Co nowego (w skrócie)
+
+| Gdzie | Co | Jak |
+|---|---|---|
+| ⌨ Klawiatura | otwieranie | **klik rolką w pole** do pisania; **przytrzymanie rolki 1 s** – wszędzie (także dokumenty, inne programy) |
+| ⌨ Klawiatura | pisanie przeciągnięciem | wciśnij na pierwszej literze i przeciągnij po kolejnych; nad klawiszami 2 propozycje |
+| ⌨ Klawiatura | rozmiar | ciągnij brzeg albo róg |
+| ⌨ Klawiatura | pasek skrótów | 📧 e-mail · 🔇 🔉 🔊 głośność · 🌐 Velivo · ⏻ wyłącz komputer (drugi klik odwołuje) |
+| ⌨ Klawiatura | nagłówek | **PL/EN** język · **🗣** czytaj, co piszę · **🎤** pisz głosem · **🎮** pad · **📖** Mój słownik |
+| 🔑 Hasła | gdzie są | prawy klik na stronie → Narzędzia → **🔑 Zapisane hasła i loginy** |
+| 🔑 Hasła | wpisywanie | pod polem hasła pastylka **🔑 Wpisz** / **⚡ Generuj**, lista kont z kółkami |
+| 🔑 Hasła | bezpieczeństwo | tylko w zaszyfrowanej bazie Velivo; klawiatura nic nie zapamiętuje z pól haseł |
+| 📺 Odtwarzacz | wykres sieci | **klik** – opcje połączenia i bufor kanałów |
+| 📺 Odtwarzacz | zegar na pasku | **klik** – zegar na obrazie (pozycja, wielkość, przezroczystość) |
+| 📺 Odtwarzacz | jakość | nad wykresem: rozdzielczość · kodek (film) · Mb/s · kl/s; pomarańczowe „utracone” = przycięcia |
+| 🧹 Porządki | kopie | **💾 Kopia przyrostowa teraz** albo **💾 Pełna kopia teraz** |
+| Wszędzie | podpowiedzi | najedź myszą na przycisk – po chwili podpowiedź, co robi |
+
+---
+
 ## Pełna lista funkcji Velivo 1.22
 
 Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-FUNKCJONALNY.md](docs/AUDYT-FUNKCJONALNY.md), porównanie z innymi przeglądarkami: [docs/PORÓWNANIE-FUNKCJI.md](docs/PORÓWNANIE-FUNKCJI.md)). **UI** = dostępne z interfejsu, **Sys.** = działa samo w tle.

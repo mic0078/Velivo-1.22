@@ -138,7 +138,7 @@ namespace Przegladarka
                             if (!document.getElementById('__velivoPwdIconsStyle')) {
                                 const style = document.createElement('style');
                                 style.id = '__velivoPwdIconsStyle';
-                                style.textContent = '.velivo-pwd-panel{position:fixed!important;z-index:2147483647!important;display:none;gap:2px;align-items:center;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:2px;box-shadow:0 2px 10px rgba(15,23,42,.18);font:12px/1 Segoe UI,sans-serif}.velivo-pwd-panel>button{display:inline-flex;align-items:center;gap:5px;height:26px;border:0;background:transparent;color:#1e293b;border-radius:999px;padding:0 10px;cursor:pointer;font:inherit;font-weight:600;white-space:nowrap}.velivo-pwd-panel>button:hover{background:#e0ecff;color:#1d4ed8}.velivo-pwd-panel>button:disabled{opacity:.4;cursor:default;background:transparent}.velivo-pwd-choices{display:none;position:absolute;z-index:2147483647;width:280px;max-width:calc(100vw - 12px);max-height:220px;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;touch-action:pan-y;pointer-events:auto;background:#fff;color:#111827;border:1px solid #94a3b8;border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:3px}.velivo-pwd-choice{display:block;width:100%;text-align:left;white-space:normal;border:0!important;border-radius:4px!important;background:#fff!important;padding:7px 9px!important;color:#111827!important}.velivo-pwd-choice:hover,.velivo-pwd-choice:focus{background:#e8f0fe!important}.velivo-pwd-choice-name{display:block;font-weight:600}.velivo-pwd-choice-user{display:block;margin-top:3px;color:#475569;font-size:11px}';
+                                style.textContent = '.velivo-pwd-panel{position:fixed!important;z-index:2147483647!important;display:none;gap:2px;align-items:center;background:linear-gradient(135deg,#1E1838,#132A35);border:1px solid rgba(139,92,246,.6);border-radius:999px;padding:3px;box-shadow:0 4px 14px rgba(76,29,149,.35);font:12.5px/1 Segoe UI,sans-serif}.velivo-pwd-panel>button{display:inline-flex;align-items:center;gap:6px;height:28px;border:0;background:transparent;color:#fff;border-radius:999px;padding:0 12px;cursor:pointer;font:inherit;font-weight:600;white-space:nowrap}.velivo-pwd-panel>button[data-v=fill]{background:linear-gradient(90deg,#7C3AED,#06B6D4)}.velivo-pwd-panel>button:hover{filter:brightness(1.18);background-color:rgba(255,255,255,.08)}.velivo-pwd-panel>button:disabled{opacity:.4;cursor:default;filter:none}.velivo-pwd-choices{display:none;position:absolute;z-index:2147483647;width:300px;max-width:calc(100vw - 12px);max-height:260px;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;touch-action:pan-y;pointer-events:auto;background:linear-gradient(160deg,#1E1838,#191B33 55%,#132A35);color:#fff;border:1px solid rgba(139,92,246,.55);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.35);padding:6px}.velivo-pwd-choice{display:flex!important;align-items:center;gap:10px;width:100%;text-align:left;white-space:normal;border:0!important;border-radius:8px!important;background:transparent!important;padding:8px!important;color:#fff!important;cursor:pointer;font:inherit}.velivo-pwd-choice:hover,.velivo-pwd-choice:focus{background:rgba(255,255,255,.09)!important;outline:none}.velivo-pwd-choice-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;font-weight:700;font-size:14px;color:#fff}.velivo-pwd-choice-txt{display:block;min-width:0;flex:1}.velivo-pwd-choice-name{display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis}.velivo-pwd-choice-user{display:block;margin-top:3px;color:#c4c9e8;font-size:11.5px;overflow:hidden;text-overflow:ellipsis}.velivo-pwd-choice-key{flex:none;color:#9aa3c7;font-size:12px;letter-spacing:1px}.velivo-pwd-other{color:#c4c9e8!important;font-size:12.5px;border-top:1px solid rgba(255,255,255,.1)!important;border-radius:0 0 8px 8px!important;margin-top:4px}';
                                 document.documentElement.appendChild(style);
                             }
                             let panel = document.getElementById('__velivoPwdPanel');
@@ -312,20 +312,34 @@ namespace Przegladarka
                             button.className = 'velivo-pwd-choice';
                             button.dataset.v = 'choose';
                             button.dataset.index = String(item.index);
+                            // kolko z pierwsza litera (kolor wg nazwy - rozne konta latwo odroznic), nazwa, 👤 login, 🔑 •••
+                            const title = item.entry.n || item.entry.u || 'Zapisane konto';
+                            const av = document.createElement('span');
+                            av.className = 'velivo-pwd-choice-av';
+                            av.textContent = (title.replace(/^(https?:\/\/)?(www\.)?/i, '').trim()[0] || '?').toUpperCase();
+                            const pal = ['linear-gradient(135deg,#8B5CF6,#06B6D4)', '#E11D48', '#F59E0B', '#10B981', '#3B82F6', '#EC4899', '#14B8A6', '#6366F1'];
+                            let hsh = 0; for (const ch of title) hsh = (hsh * 31 + ch.charCodeAt(0)) | 0;
+                            av.style.background = pal[Math.abs(hsh) % pal.length];
+                            const txt = document.createElement('span');
+                            txt.className = 'velivo-pwd-choice-txt';
                             const name = document.createElement('span');
                             name.className = 'velivo-pwd-choice-name';
-                            name.textContent = item.entry.n || item.entry.u || 'Zapisane konto';
+                            name.textContent = title;
                             const user = document.createElement('span');
                             user.className = 'velivo-pwd-choice-user';
-                            user.textContent = item.entry.u || item.entry.url || '';
-                            button.append(name, user);
+                            user.textContent = item.entry.u ? '👤 ' + item.entry.u : (item.entry.url || '');
+                            txt.append(name, user);
+                            const key = document.createElement('span');
+                            key.className = 'velivo-pwd-choice-key';
+                            key.textContent = '🔑 ••••••';
+                            button.append(av, txt, key);
                             choices.appendChild(button);
                         }
                         const other = document.createElement('button');
                         other.type = 'button';
-                        other.className = 'velivo-pwd-choice';
+                        other.className = 'velivo-pwd-choice velivo-pwd-other';
                         other.dataset.v = 'pick';
-                        other.textContent = '🔎 __VT_OTHER__';
+                        other.textContent = '🗂 __VT_OTHER__';
                         choices.appendChild(other);
                         choices.style.display = 'block';
                         positionPanel(state.activePassword || state.activeLogin);

@@ -548,7 +548,7 @@ namespace Przegladarka
                 var p = e.GetPosition(trailC); var lp = trace[trace.Count - 1];
                 if (Math.Abs(p.X - lp.X) + Math.Abs(p.Y - lp.Y) < 4) return;   // co kilka pikseli - mniej rysowania
                 trace.Add(p);
-                if (!swiping && (Math.Abs(p.X - trace[0].X) > 30 || Math.Abs(p.Y - trace[0].Y) > 30))
+                if (!swiping && (Math.Abs(p.X - trace[0].X) > 45 || Math.Abs(p.Y - trace[0].Y) > 45))   // drzaca reka przy kliknieciu to jeszcze nie przeciagniecie (prawie caly klawisz)
                 {   // to juz przeciagniecie, nie klikniecie klawisza
                     swiping = true; root.CaptureMouse();
                     trail.BeginAnimation(UIElement.OpacityProperty, null); trail.Opacity = 0.85;

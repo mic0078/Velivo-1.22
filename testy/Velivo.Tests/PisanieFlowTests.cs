@@ -39,6 +39,25 @@ public class PisanieFlowTests
         Assert.Equal("telewizor", SwipeTyping.Recognize(Slad("telewizor", k), k, 52)[0]);
     }
 
+    // wolny ruch z drzeniem reki (np. przy niepelnosprawnosci): duzo punktow, zatrzymania na klawiszach
+    [Fact]
+    public void WolneDrzacePrzeciagniecie()
+    {
+        SwipeTyping.Load(new[] { "nie", "to", "dom", "dobry", "dzień", "kot", "telewizor", "film", "źle", "kocham", "mama", "jak" });
+        var k = Klawisze(); var rnd = new System.Random(7);
+        foreach (var w in new[] { "dom", "dzień", "telewizor", "źle", "kocham", "mama" })
+        {
+            var pts = new List<Point>(); char prev = ' ';
+            foreach (var c in w)
+            {
+                var b = SwipeTyping.BaseKey(c); if (b == prev) continue; prev = b; var p = k[b];
+                if (pts.Count > 0) { var q = pts[pts.Count - 1]; for (int s = 1; s < 30; s++) pts.Add(new Point(q.X + (p.X - q.X) * s / 30 + rnd.Next(-14, 14), q.Y + (p.Y - q.Y) * s / 30 + rnd.Next(-14, 14))); }
+                for (int s = 0; s < 12; s++) pts.Add(new Point(p.X + rnd.Next(-16, 16), p.Y + rnd.Next(-14, 14)));
+            }
+            Assert.Equal(w, SwipeTyping.Recognize(pts, k, 52)[0]);
+        }
+    }
+
     [Fact]
     public void WlasneSlowoDajeSiePisacPrzeciagnieciem()
     {

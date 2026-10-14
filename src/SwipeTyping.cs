@@ -10,11 +10,30 @@ namespace Przegladarka
     // przez srodki klawiszy kazdego slowa ze slownika; wygrywa najblizszy slad, a przy podobnych - czestsze slowo.
     internal static class SwipeTyping
     {
-        // polskie litery leza na klawiszu litery podstawowej (jak z prawym Alt)
+        // polskie litery przeciaga sie przez litere podstawowa - takze "ź" przez "z" (jak w telefonie)
         internal static char BaseKey(char c)
         {
             var i = "ąćęłńóśżź".IndexOf(c);
-            return i >= 0 ? "acelnoszx"[i] : c;
+            return i >= 0 ? "acelnoszz"[i] : c;
+        }
+
+        // wolny ruch reki z drzeniem: wygladzenie (srednia z sasiednich punktow) i pominiecie drobnych drgan
+        // (punkt dopiero co ok. pol klawisza) - zostaje sam ksztalt sladu, jak przy szybkim przeciagnieciu
+        internal static List<Point> Steady(IList<Point> pts, double keyW)
+        {
+            var sm = new List<Point>();
+            for (int i = 0; i < pts.Count; i++)
+            {   // srednia tylko z bliskich punktow (wolny ruch) - szybki slad z rzadkimi punktami zostaje bez zmian, zakrety nie sa scinane
+                double x = 0, y = 0; int n = 0;
+                for (int j = Math.Max(0, i - 3); j <= Math.Min(pts.Count - 1, i + 3); j++)
+                    if (Dist(pts[j], pts[i]) <= keyW * 0.35) { x += pts[j].X; y += pts[j].Y; n++; }
+                sm.Add(new Point(x / n, y / n));
+            }
+            var res = new List<Point> { sm[0] };
+            foreach (var p in sm) if (Dist(p, res[res.Count - 1]) >= keyW * 0.45) res.Add(p);
+            if (Dist(res[res.Count - 1], sm[sm.Count - 1]) > 0.5) res.Add(sm[sm.Count - 1]);
+            res[0] = pts[0]; res[res.Count - 1] = pts[pts.Count - 1];   // poczatek i koniec - tam, gdzie naprawde
+            return res;
         }
 
         static readonly byte[] Entropy = System.Text.Encoding.UTF8.GetBytes("Velivo.Keyboard.v1");
@@ -108,6 +127,7 @@ namespace Przegladarka
             var result = new List<string>();
             if (_words == null || trace.Count < 2 || keys.Count == 0) return result;
             const int N = 32;
+            trace = Steady(trace, keyW);
             var g = Resample(trace, N);
             // klawisze w poblizu poczatku i konca sladu
             Func<Point, List<char>> near = p =>

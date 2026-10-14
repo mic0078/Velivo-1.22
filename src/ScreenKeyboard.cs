@@ -246,10 +246,29 @@ namespace Przegladarka
 
         internal static void ShowScreenKeyboard() { ShowScreenKeyboard(IntPtr.Zero); }
 
+        [DllImport("user32.dll")] static extern bool GetCursorPos(out PointStruct p);
+
+        // klawiatura nie moze zaslaniac pola, w ktore kliknieto (kursor myszy) - przesuwa sie pod nie, a gdy brak miejsca - nad nie
+        static void AvoidField(Window w)
+        {
+            try
+            {
+                if (!GetCursorPos(out var cp)) return;
+                var src = PresentationSource.FromVisual(w); if (src?.CompositionTarget == null) return;
+                var c = src.CompositionTarget.TransformFromDevice.Transform(new Point(cp.X, cp.Y));
+                double h = w.ActualHeight > 0 ? w.ActualHeight : w.Height, wd = w.ActualWidth > 0 ? w.ActualWidth : w.Width;
+                if (c.X < w.Left - 20 || c.X > w.Left + wd + 20 || c.Y < w.Top - 40 || c.Y > w.Top + h + 40) return;   // pole nie jest zasloniete
+                var wa = SystemParameters.WorkArea;
+                if (c.Y + 50 + h <= wa.Bottom) w.Top = c.Y + 50;
+                else if (c.Y - 50 - h >= wa.Top) w.Top = c.Y - 50 - h;
+            }
+            catch (Exception) { }
+        }
+
         static void ShowScreenKeyboard(IntPtr target)
         {
             _kbdTarget = target != IntPtr.Zero ? target : GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
-            if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; return; }
+            if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; AvoidField(_kbd); return; }
             LoadSwipeDictionary();
             bool shift = false, caps = false, alt = false;
             // subtelnie w kolorach logo Velivo: ciemne tlo z lekkim fioletowo-turkusowym odcieniem, klawisze ze szkla,
@@ -625,6 +644,7 @@ namespace Przegladarka
                 if (p.Length == 2 && double.TryParse(p[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x) && double.TryParse(p[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y)
                     && x >= SystemParameters.VirtualScreenLeft && y >= SystemParameters.VirtualScreenTop && x + 120 <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth && y + 60 <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight) { w.Left = x; w.Top = y; }
                 else { w.Left = wa.Left + (wa.Width - ww) / 2; w.Top = wa.Bottom - wh - 10; }
+                AvoidField(w);
             };
             w.Closing += (s, e) => SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.ActualHeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
             w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));

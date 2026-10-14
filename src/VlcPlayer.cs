@@ -1962,7 +1962,7 @@ namespace Przegladarka
                 }
                 var fk = (chGroup.SelectedItem as ComboBoxItem)?.Tag as string ?? (realQueue ? fCur : fAll);
                 var how = GetPref("sort-lista-filmow") ?? "az";
-                var libAll = LoadLibrary();
+                var libAll = LoadLibrary(); var recDirs = TvRecDirs();   // nagrania TV - tylko w "Nagrane z TV"
                 var curP = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 _remoteFilms.TryGetValue(curP ?? "", out var rfCur);
                 bool remoteCur = fk == fCur && rfCur != null;
@@ -1977,7 +1977,7 @@ namespace Przegladarka
                     : fk == fRec ? libAll.Where(v => v.Last > 0 && v.Peer == null).ToList()
                     : fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? (fk.StartsWith("\u0001mine") ? pls.Mine : pls.Named.TryGetValue(fk.Substring(4), out var pl0) ? pl0 : new List<string>())
                         .Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList()   // kolejnosc playlisty
-                    : SortFilms(libAll.Where(v => v.Peer == null), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
+                    : SortFilms(libAll.Where(v => v.Peer == null && !UnderAny(v.Path, recDirs)), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
                 // sortowanie nie dotyczy kolejnosci odtwarzania ani ostatnio ogladanych (zawsze od najnowszego)
                 chSort.Visibility = fk == fRec || fk == fCur && !remoteCur || fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? Visibility.Collapsed : Visibility.Visible;
                 chList.Items.Clear(); ListBoxItem cur = null;
@@ -2852,7 +2852,8 @@ namespace Przegladarka
                 fSub(L.T("🕘 Ostatnio oglądane"), libF.Where(v => v.Last > 0).OrderByDescending(v => v.Last).Take(20));
                 var favF = LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>();
                 fSub(L.T("⭐ Ulubione"), favF.Select(u => libF.FirstOrDefault(v => string.Equals(v.Path, u, StringComparison.OrdinalIgnoreCase))).Where(v => v != null));
-                fSub(L.T("📚 Wszystkie filmy (") + libF.Count + ")", libF.OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
+                var recD = TvRecDirs(); var allF = libF.Where(v => !UnderAny(v.Path, recD)).ToList();   // nagrania TV - tylko w "Nagrane z TV"
+                fSub(L.T("📚 Wszystkie filmy (") + allF.Count + ")", allF.OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
                 if (fm.Items.Count > 0) fm.Items.Add(new Separator());
                 pa(fm, L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(false, Window.GetWindow(overlay) ?? win); if (fs != null && fs.Length > 0) pipShow(pipFilm(fs[0])); }, true);
                 cm.Items.Add(fm);

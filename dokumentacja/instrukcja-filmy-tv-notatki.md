@@ -54,7 +54,7 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - 2 min przed końcem: okienko „Nagrywać dalej?” (+15/+30/+60 / zakończ o czasie).
 - Oglądanie jednego kanału przy nagrywaniu innego (osobne połączenia); „⏺ Oglądaj z nagrania” dla tego samego kanału.
 - Po restarcie Velivo trwające zaplanowane nagranie się wznawia („Wznawiam nagrywanie… do HH:mm”).
-- Nagrania trafiają do biblioteki „Nagrane z TV”; folder nagrań do zmiany.
+- Nagrania trafiają do biblioteki „Nagrane z TV”; folder nagrań do zmiany. Nagrania nie pojawiają się w „Wszystkie filmy” (biblioteka, lista w odtwarzaczu, menu okienka) – są tylko w „Nagrane z TV”.
 
 ## 9. PiP (obraz w obrazie)
 - Kanał TV albo film w podglądzie (przy TV i przy filmie); wybór: Telewizja (ostatnio, ulubione, ta grupa, wszystkie grupy), Filmy (ostatnio, ulubione, wszystkie, otwórz plik).

@@ -48,6 +48,8 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 | ⏹ | Zatrzymaj nagrywanie – działa z każdego kanału; przy kilku nagraniach pokaże listę |
 | ⏱ | Zapas nagrywania – ile minut przed i po audycji |
 | 📁 | Folder z nagraniami |
+
+Nagrania z TV są tylko w bibliotece „📺 Nagrane z TV” – nie trafiają do „Wszystkie filmy”, bo nie mają opisów ani plakatów.
 | 📺 | Kanały telewizji |
 | 📅 | Pełny program TV |
 | ℹ | Pasek informacji |

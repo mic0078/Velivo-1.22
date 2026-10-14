@@ -34,7 +34,6 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - 🌙 **Wyłącznik czasowy** – zatrzymuje po 15–120 minutach, po końcu filmu albo (przy TV) po końcu programu. Możesz zaznaczyć „💻 Potem wyłącz komputer” – masz 60 sekund, żeby to anulować. W ostatnich 30 sekundach dźwięk łagodnie cichnie.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.
 - CC napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki, biblioteka, zawsze na wierzchu, tryb mini, pełny ekran, głośność.
-- Wspólne oglądanie w sieci: napisy, lektor i ścieżka dźwięku przechodzą na drugi komputer, a głośność każdy ustawia u siebie – ściszenie u Ciebie nie wycisza filmu u drugiej osoby.
 
 **Pasek postępu:**
 - przy filmie – czas i przewijanie,

@@ -66,11 +66,10 @@ namespace Przegladarka
         // film z innego komputera w playliscie odtwarzacza (klucz = adres strumienia albo sciezka NAS)
         sealed class RemoteFilm { public string PeerId, Id, Title, Sub; public long Pos, Len; public LibraryVideo Prefs; }
 
-        // ustawienia filmu do przeslania (bez sciezki - drugi komputer jej nie potrzebuje; bez glosnosci - kazdy komputer ma swoje glosniki,
-        // sciszenie u siebie, np. do zera przy ogladaniu razem w jednym pokoju, nie moze wyciszyc filmu na drugim)
+        // ustawienia filmu do przeslania (bez sciezki - drugi komputer jej nie potrzebuje)
         internal static LibraryVideo PrefsOf(LibraryVideo v)
         {
-            return v == null ? null : new LibraryVideo { LVol = v.LVol, LRate = v.LRate, LDuck = v.LDuck, LVoice = v.LVoice, Spu = v.Spu, Audio = v.Audio };
+            return v == null ? null : new LibraryVideo { Vol = v.Vol, LVol = v.LVol, LRate = v.LRate, LDuck = v.LDuck, LVoice = v.LVoice, Spu = v.Spu, Audio = v.Audio };
         }
 
         internal static void ApplyPrefs(LibraryVideo target, LibraryVideo p)

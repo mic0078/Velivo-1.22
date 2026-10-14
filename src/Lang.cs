@@ -756,6 +756,8 @@ namespace Przegladarka
             { "Język klawiatury: polski / angielski (słownik pisania przeciągnięciem i czytanie na głos)", "Keyboard language: Polish / English (swipe typing dictionary and reading aloud)" },
             { "Klawiatura", "Keyboard" },
             { "Klawiatura Velivo", "Velivo Keyboard" },
+            { "🗣 Brak głosu lektora – zainstaluj głos w Ustawieniach (Czytanie na głos).", "🗣 No narrator voice – install a voice in Settings (Read aloud)." },
+            { "🗣 Nic do przeczytania – zaznacz tekst myszą i spróbuj jeszcze raz.", "🗣 Nothing to read – select text with the mouse and try again." },
             { "Czytanie na głos: zaznaczony tekst w dowolnym programie albo na bieżąco to, co piszesz (w polach haseł nigdy)", "Read aloud: selected text in any program or live as you type (never in password fields)" },
             { "🗣 Przeczytaj zaznaczony tekst (każdy program – OpenOffice, Word, strony)", "🗣 Read selected text (any program – OpenOffice, Word, pages)" },
             { "Czytaj na bieżąco to, co piszę", "Read aloud as I type" },

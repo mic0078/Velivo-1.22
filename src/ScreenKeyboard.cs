@@ -107,7 +107,10 @@ namespace Przegladarka
         {
             try
             {
-                if (SecretField()) return;
+                // menu przy przycisku aktywowalo Velivo - najpierw powrot do okna z zaznaczonym tekstem, inaczej Ctrl+C trafia do Velivo
+                if (_kbdTarget != IntPtr.Zero && GetForegroundWindow() != _kbdTarget) { SetForegroundWindow(_kbdTarget); await System.Threading.Tasks.Task.Delay(150); }
+                bool pass = false; try { pass = System.Windows.Automation.AutomationElement.FocusedElement?.Current.IsPassword == true; } catch (Exception) { }
+                if (pass) return;   // pole hasla - nigdy na glos
                 string old = null; try { if (Clipboard.ContainsText()) old = Clipboard.GetText(); } catch (Exception) { }
                 try { Clipboard.Clear(); } catch (Exception) { }
                 SendCombo(0x11, 0x43);   // Ctrl+C
@@ -125,7 +128,7 @@ namespace Przegladarka
                         }
                     }
                     catch (Exception) { }
-                if (string.IsNullOrWhiteSpace(text)) return;
+                if (string.IsNullOrWhiteSpace(text)) { (Application.Current?.MainWindow as MainWindow)?.ShowToast(L.T("🗣 Nic do przeczytania – zaznacz tekst myszą i spróbuj jeszcze raz."), null); return; }
                 (Application.Current?.MainWindow as MainWindow)?.KbSpeak(text.Length > 3000 ? text.Substring(0, 3000) : text, KbLang);
             }
             catch (Exception ex) { App.LogError(ex); }
@@ -138,7 +141,7 @@ namespace Przegladarka
             try
             {
                 var wav = await LectorSynthesizeAsync(text, lang, 1.0);
-                if (wav == null) return;
+                if (wav == null) { ShowToast(L.T("🗣 Brak głosu lektora – zainstaluj głos w Ustawieniach (Czytanie na głos)."), null); return; }
                 if (_kbdVoice == null) _kbdVoice = new System.Windows.Media.MediaPlayer();
                 var file = wav; EventHandler done = null;
                 done = (s, e) => { _kbdVoice.MediaEnded -= done; try { File.Delete(file); } catch (Exception) { } };

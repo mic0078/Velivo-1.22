@@ -22,6 +22,13 @@
 3. Test „po poprawce” + istniejące testy bezpieczeństwa.
 4. Uczciwy raport: co sprawdzone, a czego nie.
 
+## Nic nie może przestać działać
+- Niedopuszczalne: zmiana, po której coś, co działało, nagle przestaje działać.
+- Nowa funkcja to dodatek: osobno, domyślnie wyłączona albo bez wpływu na resztę, dopóki właściciel jej nie przetestuje. Nie zmieniaj przy okazji istniejących zachowań.
+- Przed każdym pushem: porównaj zmiany z ostatnią działającą wersją (`git diff`) i upewnij się, że dotykają tylko tego, o co chodziło.
+- Jedna sprawa naraz: najpierw dokończ i niech właściciel potwierdzi, dopiero potem następna.
+- Gdy coś się zepsuło: najpierw przywróć działanie (ostatnia dobra wersja), potem szukaj przyczyny.
+
 ## Rozmiar kodu
 - Nie dodawaj – poprawiaj. Zanim dopiszesz nową funkcję lub plik, sprawdź, czy da się rozszerzyć albo poprawić istniejący kod; kod nie może rosnąć w nieskończoność.
 - Przy każdej zmianie usuń to, co staje się zbędne (stare warianty, nieużywane metody, powtórzenia) – bilans linii ma być jak najmniejszy.

@@ -107,8 +107,20 @@ namespace Przegladarka
             {
                 try
                 {
-                    var el = System.Windows.Automation.AutomationElement.FromPoint(new Point(pt.X, pt.Y));
-                    if (!IsEditable(el)) return;
+                    // programy na Chromium / WebView2 (WhatsApp, Discord, aplikacja Claude) buduja drzewo dostepnosci dopiero
+                    // przy pierwszym pytaniu - jesli za pierwszym razem nie ma pola, pytamy jeszcze raz chwile pozniej
+                    var el = FindEditable(System.Windows.Automation.AutomationElement.FromPoint(new Point(pt.X, pt.Y)));
+                    if (el == null) { System.Threading.Thread.Sleep(250); el = FindEditable(System.Windows.Automation.AutomationElement.FromPoint(new Point(pt.X, pt.Y))); }
+                    if (el == null)
+                    {   // do zgloszenia: w jakim programie i na czym kliknieto, gdy pola nie rozpoznano
+                        try
+                        {
+                            var u = System.Windows.Automation.AutomationElement.FromPoint(new Point(pt.X, pt.Y));
+                            File.AppendAllText(Path.Combine(DataDir, "klawiatura.log"), DateTime.Now.ToString("s") + "  " + System.Diagnostics.Process.GetProcessById((int)pid).ProcessName + "  " + u.Current.ControlType.ProgrammaticName + "  " + u.Current.ClassName + "  " + u.Current.FrameworkId + "\n");
+                        }
+                        catch (Exception) { }
+                        return;
+                    }
                     try { el.SetFocus(); } catch (Exception) { }
                     Application.Current?.Dispatcher.BeginInvoke(new Action(() => { SetForegroundWindow(top); ShowScreenKeyboard(top); }));
                 }
@@ -116,14 +128,28 @@ namespace Przegladarka
             });
         }
 
+        // pole do pisania pod kursorem albo jego rodzic (w polu wiadomosci pod myszka bywa tekst / akapit, a polem jest element wyzej)
+        static System.Windows.Automation.AutomationElement FindEditable(System.Windows.Automation.AutomationElement el)
+        {
+            var walker = System.Windows.Automation.TreeWalker.RawViewWalker;
+            for (int i = 0; el != null && i < 8; i++, el = walker.GetParent(el))
+            {
+                var ct = el.Current.ControlType;
+                if (ct == System.Windows.Automation.ControlType.Window || ct == System.Windows.Automation.ControlType.Pane && i > 0) break;   // dalej to juz cale okno
+                if (IsEditable(el)) return el;
+            }
+            return null;
+        }
+
         static bool IsEditable(System.Windows.Automation.AutomationElement el)
         {
-            if (el == null) return false;
             var ct = el.Current.ControlType;
-            if (ct != System.Windows.Automation.ControlType.Edit && ct != System.Windows.Automation.ControlType.Document && ct != System.Windows.Automation.ControlType.ComboBox) return false;
             if (!el.Current.IsEnabled) return false;
-            if (el.TryGetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern, out var vp)) return !((System.Windows.Automation.ValuePattern)vp).Current.IsReadOnly;
-            return el.Current.IsKeyboardFocusable;
+            bool writable = el.TryGetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern, out var vp) && !((System.Windows.Automation.ValuePattern)vp).Current.IsReadOnly;
+            if (ct == System.Windows.Automation.ControlType.Edit || ct == System.Windows.Automation.ControlType.ComboBox)
+                return writable || el.Current.IsKeyboardFocusable && !(el.TryGetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern, out _));
+            // dokument (cala strona) tylko gdy da sie do niego pisac - inaczej klik rolka w zwykla strone otwieralby klawiature
+            return ct == System.Windows.Automation.ControlType.Document && writable;
         }
 
         internal static void ShowScreenKeyboard() { ShowScreenKeyboard(IntPtr.Zero); }

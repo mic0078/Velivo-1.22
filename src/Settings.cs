@@ -67,7 +67,7 @@ namespace Przegladarka
         public bool DarkPatterns = true;        // wykrywacz sztuczek presji w sklepach
         public bool PrivacyReceipt = true;      // paragon prywatnosci na tarczy   // samo klika "Odrzuc" / "Tylko niezbedne" na banerach zgod
         public bool MouseGestures = true;       // prawy przycisk + ruch myszy
-        public bool ScreenKeyboard = false;     // klawiatura ekranowa Velivo - tylko na zyczenie uzytkownika
+        public bool ScreenKeyboard = true;      // klawiatura ekranowa Velivo - wylaczysz w ustawieniach
         public bool PipButton = true;
         public bool VideoDownloadButton = true;
         public bool VideoPlayer = true;        // filmy z dysku w odtwarzaczu Velivo (offline)

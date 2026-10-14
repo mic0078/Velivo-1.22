@@ -35,10 +35,11 @@ namespace Przegladarka
         {
             if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; return; }
             bool shift = false, caps = false, alt = false;
-            // jak logo Velivo: tlo przechodzi fiolet -> niebieski -> turkus, klawisze ze szkla, wlaczone / wcisniete - biale
-            var violet = Color.FromRgb(0x4C, 0x1D, 0x95); var cyan = Color.FromRgb(0x0E, 0x74, 0x90);   // przyciemnione kolory logo
-            var keyBg = new SolidColorBrush(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF)); var keyHover = new SolidColorBrush(Color.FromArgb(0x3D, 0xFF, 0xFF, 0xFF));
-            var accent = Brushes.White; var accentText = new SolidColorBrush(Color.FromRgb(0x5B, 0x3F, 0xD9));
+            // subtelnie w kolorach logo Velivo: ciemne tlo z lekkim fioletowo-turkusowym odcieniem, klawisze ze szkla,
+            // wlaczone / wcisniete - gradient logo (fiolet -> turkus)
+            var violet = Color.FromRgb(0x8B, 0x5C, 0xF6); var cyan = Color.FromRgb(0x06, 0xB6, 0xD4);
+            var keyBg = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)); var keyHover = new SolidColorBrush(Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF));
+            var accent = new LinearGradientBrush(Color.FromRgb(0x7C, 0x3A, 0xED), cyan, 0); var accentText = Brushes.White;
             var rows = new[] { "1234567890-=", "qwertyuiop[]", "asdfghjkl;'", "zxcvbnm,./" };
             const string shifted = "!@#$%^&*()_+{}:\"<>?";
             const string shiftSrc = "1234567890-=[];',./";
@@ -103,16 +104,21 @@ namespace Przegladarka
             var close = key("✕", 34); close.Height = 28; close.FontSize = 13; close.Background = Brushes.Transparent; DockPanel.SetDock(close, Dock.Right);
             head.Children.Add(close);
             var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
-            title.Inlines.Add(new System.Windows.Documents.Run("⌨ " + L.T("Klawiatura") + " "));
+            title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
+            // z przodu 3 smugi jak w logo: coraz krotsze i bledsze, wyrownane do prawej
+            var waves = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            foreach (var (len, op) in new[] { (18.0, 1.0), (14.0, 0.7), (10.0, 0.45) })
+                waves.Children.Add(new Border { Width = len, Height = 3, CornerRadius = new CornerRadius(1.5), Margin = new Thickness(18 - len, 1.5, 0, 1.5), Opacity = op, Background = new LinearGradientBrush(violet, cyan, 0) });
+            DockPanel.SetDock(waves, Dock.Left); head.Children.Add(waves);
             head.Children.Add(title);
             var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(root);
             var w = new Window
             {
                 Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ResizeMode = ResizeMode.NoResize,
                 SizeToContent = SizeToContent.WidthAndHeight, Topmost = true, ShowActivated = false, ShowInTaskbar = false,
-                Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(violet, 0), new GradientStop(Color.FromRgb(0x2A, 0x3A, 0x8F), 0.5), new GradientStop(cyan, 1) }, new Point(0, 0), new Point(1, 1)),
-                    CornerRadius = new CornerRadius(14), BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), Child = all,
+                Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromRgb(0x1E, 0x18, 0x38), 0), new GradientStop(Color.FromRgb(0x19, 0x1B, 0x33), 0.55), new GradientStop(Color.FromRgb(0x13, 0x2A, 0x35), 1) }, new Point(0, 0), new Point(1, 1)),
+                    CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(Color.FromArgb(0x90, 0x8B, 0x5C, 0xF6), Color.FromArgb(0x90, 0x06, 0xB6, 0xD4), 45), BorderThickness = new Thickness(1), Child = all,
                     Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 20, ShadowDepth = 0, Opacity = 0.55, Color = violet } }
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };

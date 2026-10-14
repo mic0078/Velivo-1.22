@@ -103,7 +103,7 @@ public class PisanieFlowTests
         Assert.NotNull(name);
         // bez wydluzen z napisow ("taak", "taaak") - przy przeciaganiu wygladaja jak "tak"
         using var rd = new System.IO.StreamReader(typeof(MainWindow).Assembly.GetManifestResourceStream(name));
-        var words = rd.ReadToEnd().Split('\n');
+        var words = rd.ReadToEnd().Split('\n').Select(x => x.Trim()).ToArray();   // na Windows linie koncza sie \r\n
         Assert.Contains("tak", words);
         Assert.DoesNotContain("taak", words);
         Assert.DoesNotContain("taaak", words);

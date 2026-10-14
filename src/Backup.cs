@@ -214,11 +214,11 @@ namespace Przegladarka
             sp.Children.Add(new TextBlock { Text = L.T("Rodzaj kopii:"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 2, 0, 2) });
             Func<string, string, RadioButton> kind = (t, d) => new RadioButton { GroupName = "rodzaj-kopii", Margin = new Thickness(0, 2, 0, 2),
                 Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Inlines = { new System.Windows.Documents.Run(t) { FontWeight = FontWeights.SemiBold }, new System.Windows.Documents.Run(" – " + d) { Foreground = Brushes.Gray } } } };
-            var fullBox = kind(L.T("Pełna"), L.T("wszystko oprócz pamięci podręcznej: dane, program TV, ikony kanałów, głosy lektora, narzędzia, dane stron. Po przywróceniu nic do pobierania. Około 0,7–1 GB."));
-            var dataBox = kind(L.T("Same dane"), L.T("hasła, zakładki, historia, ustawienia, profile, listy kanałów, ulubione, biblioteka filmów z okładkami, playlisty, tryb bankowy, logowania. Około 90 MB; resztę Velivo pobierze samo."));
+            var fullBox = kind(L.T("Pełna"), L.T("wszystko bez śmieci: dane, program TV, ikony kanałów, głosy lektora, narzędzia, dane stron. Po przywróceniu nic do pobierania. Około 0,7–1 GB."));
+            var dataBox = kind(L.T("Podstawowa"), L.T("same dane bez śmieci: hasła, zakładki, historia, ustawienia, profile, listy kanałów, ulubione, biblioteka filmów z okładkami, playlisty, tryb bankowy, logowania. Około 90 MB; resztę Velivo pobierze samo."));
             fullBox.IsChecked = GetPref("kopia-pelna") != "0"; dataBox.IsChecked = !fullBox.IsChecked;
             fullBox.Checked += (s, e) => SetPref("kopia-pelna", "1"); dataBox.Checked += (s, e) => SetPref("kopia-pelna", "0");
-            sp.Children.Add(fullBox); sp.Children.Add(dataBox);
+            sp.Children.Add(dataBox); sp.Children.Add(fullBox);
             var lastInfo = new TextBlock { Foreground = Brushes.Gray, Margin = new Thickness(0, 0, 0, 6) };
             Action showLast = () =>
             {

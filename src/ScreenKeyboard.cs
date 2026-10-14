@@ -139,6 +139,8 @@ namespace Przegladarka
         [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint flags);
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [StructLayout(LayoutKind.Sequential)] struct PointStruct { public int X, Y; }
+        [StructLayout(LayoutKind.Sequential)] struct MsgStruct { public IntPtr Hwnd; public uint Message; public IntPtr WParam, LParam; public uint Time; public int X, Y; }
+        [DllImport("user32.dll")] static extern int GetMessage(out MsgStruct m, IntPtr h, uint min, uint max);
         [StructLayout(LayoutKind.Sequential)] struct RectStruct { public int Left, Top, Right, Bottom; }
         // pad (Xbox i zgodne z XInput - wiekszosc popularnych; PlayStation przez Steam / DS4Windows)
         [StructLayout(LayoutKind.Sequential)] struct PadState { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
@@ -173,8 +175,14 @@ namespace Przegladarka
                 if (top != IntPtr.Zero && pid != (uint)Environment.ProcessId) SetForegroundWindow(top);
                 ShowScreenKeyboard(top);
             };
-            _mouseHook = SetWindowsHookEx(14, _mouseProc, GetModuleHandle(null), 0);   // WH_MOUSE_LL
-            if (_mouseHook == IntPtr.Zero) App.LogError(new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()));
+            // podsluch w osobnym watku z wlasna petla wiadomosci - ruch myszy w calym systemie nie czeka na okno Velivo
+            var th = new System.Threading.Thread(() =>
+            {
+                _mouseHook = SetWindowsHookEx(14, _mouseProc, GetModuleHandle(null), 0);   // WH_MOUSE_LL
+                if (_mouseHook == IntPtr.Zero) { App.LogError(new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error())); return; }
+                while (GetMessage(out var m, IntPtr.Zero, 0, 0) > 0) { }
+            }) { IsBackground = true, Name = "Velivo-rolka" };
+            th.Start();
         }
 
         static void CheckForeignField(PointStruct pt)

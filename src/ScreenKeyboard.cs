@@ -45,6 +45,7 @@ namespace Przegladarka
             const string shiftSrc = "1234567890-=[];',./";
             var letters = new System.Collections.Generic.List<(Button B, char C)>();
             var root = new StackPanel { Margin = new Thickness(10) };
+            var allKeys = new System.Collections.Generic.List<Button>();   // do kolorow przechodzacych po klawiszach
             Func<object, double, Button> key = (content, w) =>
             {
                 var b = new Button { Content = content, Width = w, Height = 46, Margin = new Thickness(3), Focusable = false, FontSize = 18, Foreground = Brushes.White, Background = keyBg, BorderThickness = new Thickness(0), Cursor = Cursors.Hand };
@@ -55,7 +56,7 @@ namespace Przegladarka
                 bd.AppendChild(cp); tpl.VisualTree = bd;
                 var tr = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; tr.Setters.Add(new Setter(Border.BackgroundProperty, keyHover, "bd")); tpl.Triggers.Add(tr);
                 var tp = new Trigger { Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, Value = true }; tp.Setters.Add(new Setter(Border.BackgroundProperty, accent, "bd")); tp.Setters.Add(new Setter(TextElement.ForegroundProperty, accentText, "bd")); tpl.Triggers.Add(tp);
-                b.Template = tpl; return b;
+                b.Template = tpl; allKeys.Add(b); return b;
             };
             Action refresh = null;
             Func<char, char> map = c =>
@@ -87,8 +88,7 @@ namespace Przegladarka
             var last = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             altB = key("ą ę ł", 96); altB.FontSize = 15; altB.ToolTip = L.T("Polskie znaki (jak prawy Alt)"); altB.Click += (s, e) => { alt = !alt; refresh(); };
             var at = key("@", 46); at.Click += (s, e) => SendKey(0, '@');
-            var space = key(new TextBlock { Text = "Velivo", FontSize = 15, FontWeight = FontWeights.SemiBold, Opacity = 0.55, Margin = new Thickness(0, 0, -3, 0),
-                Foreground = new LinearGradientBrush(Color.FromRgb(0xA7, 0x8B, 0xFA), Color.FromRgb(0x22, 0xD3, 0xEE), 0), FontStretch = FontStretches.Expanded }, 380);   // subtelny napis na spacji space.Click += (s, e) => SendKey(0, ' ');
+            var space = key("", 380); space.Click += (s, e) => SendKey(0, ' ');
             var dot = key(".com", 66); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") SendKey(0, ch); };
             var lf = key("◀", 46); lf.Click += (s, e) => SendKey(0x25, '\0');
             var dn = key("▼", 46); dn.Click += (s, e) => SendKey(0x28, '\0');
@@ -98,7 +98,7 @@ namespace Przegladarka
             refresh = () =>
             {
                 foreach (var (b, c) in letters) b.Content = map(c).ToString();
-                foreach (var (b, on) in new[] { (shiftB, shift), (capsB, caps), (altB, alt) }) { b.Background = on ? accent : keyBg; b.Foreground = on ? accentText : Brushes.White; }
+                foreach (var (b, on) in new[] { (shiftB, shift), (capsB, caps), (altB, alt) }) { b.Background = on ? accent : (b.Tag as Brush ?? keyBg); b.Foreground = on ? accentText : Brushes.White; }
             };
             // naglowek do przeciagania i zamkniecia
             var head = new DockPanel { Margin = new Thickness(14, 8, 8, 0), Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
@@ -121,14 +121,26 @@ namespace Przegladarka
             }
             DockPanel.SetDock(logo, Dock.Left); head.Children.Add(logo);
             head.Children.Add(title);
-            // logo wpisane w klawisze: 3 smugi pociagniete pedzlem i duze "V" - zwezane, fiolet -> turkus, gasnace; nie przeszkadzaja w klikaniu
+            // 3 smugi z logo pociagniete pedzlem po klawiszach - zwezane, fiolet -> turkus, gasnace; nie przeszkadzaja w klikaniu
             var paint = new Canvas { Width = 790, Height = 270, IsHitTestVisible = false, Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 2.5 } };
             var brushFill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromArgb(0, 0x8B, 0x5C, 0xF6), 0), new GradientStop(Color.FromArgb(0x8C, 0x8B, 0x5C, 0xF6), 0.35), new GradientStop(Color.FromArgb(0x0D, 0x06, 0xB6, 0xD4), 1) }, new Point(0, 0), new Point(1, 0));
             foreach (var (d, op) in new[] { ("M60 64 C 200 52, 330 50, 452 56 C 330 60, 210 66, 60 72 Z", 1.0), ("M130 124 C 250 114, 370 112, 478 116 C 370 120, 260 126, 130 130 Z", 0.75), ("M200 182 C 300 174, 410 172, 505 176 C 410 180, 310 186, 200 189 Z", 0.5) })
                 paint.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(d), Fill = brushFill, Opacity = op });
-            // duze, ledwo widoczne "V" z logo - smugi koncza sie na jego lewym ramieniu
-            paint.Children.Add(new System.Windows.Shapes.Polyline { Points = new PointCollection { new Point(470, 24), new Point(545, 226), new Point(620, 24) }, StrokeThickness = 34, Opacity = 0.16,
-                Stroke = new LinearGradientBrush(Color.FromRgb(0xA7, 0x8B, 0xFA), Color.FromRgb(0x22, 0xD3, 0xEE), 45), StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round });
+            // kolory przechodza po klawiszach jak w logo: lewy gorny fiolet -> niebieski -> prawy dolny turkus (subtelnie)
+            root.Loaded += (s, e) =>
+            {
+                var stops = new[] { violet, Color.FromRgb(0x4F, 0x6B, 0xED), cyan };
+                foreach (var b in allKeys)
+                {
+                    if (!root.IsAncestorOf(b) || b.Background == accent) continue;
+                    var c = b.TranslatePoint(new Point(b.ActualWidth / 2, b.ActualHeight / 2), root);
+                    double u = Math.Max(0, Math.Min(1, c.X / root.ActualWidth * 0.8 + c.Y / root.ActualHeight * 0.2));
+                    int sg = u < 0.5 ? 0 : 1; double f = u < 0.5 ? u * 2 : (u - 0.5) * 2;
+                    Func<byte, byte, byte> mix = (x, y) => (byte)(x + (y - x) * f);
+                    var br = new SolidColorBrush(Color.FromArgb(0x4D, mix(stops[sg].R, stops[sg + 1].R), mix(stops[sg].G, stops[sg + 1].G), mix(stops[sg].B, stops[sg + 1].B)));
+                    b.Tag = br; b.Background = br;
+                }
+            };
             var keys = new Grid(); keys.Children.Add(root); var vb = new Viewbox { Stretch = Stretch.Fill, Child = paint, IsHitTestVisible = false };
             vb.SetBinding(FrameworkElement.WidthProperty, new System.Windows.Data.Binding("ActualWidth") { Source = root }); vb.SetBinding(FrameworkElement.HeightProperty, new System.Windows.Data.Binding("ActualHeight") { Source = root });   // tylko na obszarze klawiszy
             keys.Children.Add(vb);

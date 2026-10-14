@@ -2426,7 +2426,18 @@ namespace Przegladarka
                     pBar.Children.Add(pPrev); pBar.Children.Add(pNext); pBar.Children.Add(pPlay); pBar.Children.Add(pStop); pBar.Children.Add(pSeek);
                     // glowny zmienil kanal / film przy dzwieku z podgladu - jego sciezka znow wylaczona (po ustawieniu sciezek)
                     mp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() => { if (!pipSound) return; var t1 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1300) }; t1.Tick += (a1, b1) => { t1.Stop(); if (pipSound) { mainTrack = mp.AudioTrack >= 0 ? mp.AudioTrack : mainTrack; mp.SetAudioTrack(-1); } }; t1.Start(); }));
-                    pipMp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() => { if (pipMp != null && !pipSound) pipMp.SetAudioTrack(-1); }));   // nowy kanal / film w podgladzie - bez dzwieku, dopoki nie przelaczysz
+                    // nowy kanal / film w podgladzie - bez dzwieku, dopoki nie przelaczysz; sciezka dzwieku pojawia sie chwile po starcie, wiec ponawiamy do skutku
+                    pipMp.Playing += (q, w2) => Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        int tries = 0; var mt = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+                        mt.Tick += (a1, b1) =>
+                        {
+                            if (pipMp == null || pipSound || ++tries > 40) { mt.Stop(); return; }
+                            if (pipMp.AudioTrackCount > 0 && pipMp.AudioTrack != -1) pipMp.SetAudioTrack(-1);
+                            else if (pipMp.AudioTrackCount > 0 && tries > 8) mt.Stop();   // wylaczona i tak zostaje
+                        };
+                        mt.Start();
+                    }));
                     bool pSeeking = false;
                     pPlay.Click += (q, w2) => { if (pipMp.IsPlaying) pipMp.SetPause(true); else if (pipMp.State == VLCState.Stopped || pipMp.State == VLCState.Ended) { var c = pipCh; pipStart = 0; pipShow(c); } else pipMp.SetPause(false); };
                     pStop.Click += (q, w2) => { pipMp.Stop(); pSeek.Value = 0; };

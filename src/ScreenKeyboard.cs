@@ -299,6 +299,7 @@ namespace Przegladarka
             var letters = new System.Collections.Generic.List<(Button B, char C)>();
             var root = new StackPanel { Margin = new Thickness(10) };
             var allKeys = new System.Collections.Generic.List<Button>();   // do kolorow przechodzacych po klawiszach
+            Action<Button> wave = null;   // fala przy nacisnieciu (ustawiana nizej, gdy jest juz plotno)
             Func<object, double, Button> key = (content, w) =>
             {
                 var b = new Button { Content = content, Width = w, Height = 46, Margin = new Thickness(2), Focusable = false, FontSize = 18, Foreground = Brushes.White, Background = keyBg, BorderThickness = new Thickness(0), Cursor = Cursors.Hand };
@@ -309,7 +310,7 @@ namespace Przegladarka
                 bd.AppendChild(cp); tpl.VisualTree = bd;
                 var tr = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; tr.Setters.Add(new Setter(Border.BackgroundProperty, keyHover, "bd")); tpl.Triggers.Add(tr);
                 var tp = new Trigger { Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, Value = true }; tp.Setters.Add(new Setter(Border.BackgroundProperty, accent, "bd")); tp.Setters.Add(new Setter(TextElement.ForegroundProperty, accentText, "bd")); tpl.Triggers.Add(tp);
-                b.Template = tpl; allKeys.Add(b); return b;
+                b.Template = tpl; allKeys.Add(b); b.Click += (s, e) => wave?.Invoke(b); return b;
             };
             Action refresh = null;
             Func<char, char> map = c =>
@@ -510,6 +511,23 @@ namespace Przegladarka
             var trail = new System.Windows.Shapes.Polyline { Stroke = new LinearGradientBrush(violet, cyan, 0), StrokeThickness = 7, Opacity = 0.85,
                 StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round };
             trailC.Children.Add(trail); keys.Children.Add(trailC);
+            // fala jak na wodzie: od nacisnietego klawisza rozchodzi sie kolko w kolorach logo i gasnie (0,4 s, jedno na klik)
+            var waveBrush = new LinearGradientBrush(violet, cyan, 45); waveBrush.Freeze();
+            wave = b =>
+            {
+                if (!root.IsAncestorOf(b)) return;
+                var c = b.TranslatePoint(new Point(b.ActualWidth / 2, b.ActualHeight / 2), trailC);
+                var ring = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Stroke = waveBrush, StrokeThickness = 3, IsHitTestVisible = false, RenderTransformOrigin = new Point(0.5, 0.5),
+                    RenderTransform = new ScaleTransform(1, 1) };
+                Canvas.SetLeft(ring, c.X - 5); Canvas.SetTop(ring, c.Y - 5); trailC.Children.Add(ring);
+                var t = TimeSpan.FromMilliseconds(400);
+                var grow = new System.Windows.Media.Animation.DoubleAnimation(1, 11, t) { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+                var fadeOut = new System.Windows.Media.Animation.DoubleAnimation(0.7, 0, t);
+                fadeOut.Completed += (s, e) => trailC.Children.Remove(ring);
+                ((ScaleTransform)ring.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+                ((ScaleTransform)ring.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+                ring.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+            };
             // pad: ramka na wybranym klawiszu, odczyt pada 60 razy na sekunde tylko gdy 🎮 wlaczone i klawiatura otwarta
             var padSel = new Border { BorderThickness = new Thickness(2.5), CornerRadius = new CornerRadius(9), BorderBrush = new LinearGradientBrush(violet, cyan, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
             trailC.Children.Add(padSel);

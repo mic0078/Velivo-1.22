@@ -436,6 +436,7 @@ namespace Przegladarka
                 StartQuickAccessLanListener(_lanCts.Token);
                 _ = Task.Run(() => LanListenLoop(_lanCts.Token));
                 _lanStartedUtc = DateTime.UtcNow;
+                _ = Task.Run(() => { try { SharedForPeers(); } catch (Exception ex) { App.LogError(ex); } });   // wspolna biblioteka gotowa, zanim drugi komputer zapyta
 
                 _lanTick = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
                 _lanTick.Tick += (s, e) =>

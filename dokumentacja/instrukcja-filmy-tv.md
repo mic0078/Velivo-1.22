@@ -35,6 +35,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.
 - CC napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki, biblioteka, zawsze na wierzchu, tryb mini, pełny ekran, głośność.
 - Wspólne oglądanie w sieci: napisy, lektor i ścieżka dźwięku przechodzą na drugi komputer, a głośność każdy ustawia u siebie – ściszenie u Ciebie nie wycisza filmu u drugiej osoby.
+- Komputery w sieci przygotowują wspólną bibliotekę zaraz po uruchomieniu Velivo, więc wolniejszy komputer odpowiada od razu, bez długiego wczytywania za pierwszym razem.
 
 **Pasek postępu:**
 - przy filmie – czas i przewijanie,

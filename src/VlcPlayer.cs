@@ -105,6 +105,21 @@ namespace Przegladarka
             if (IsVisible) { EnsureTray(); Hide(); _inTray = true; _hiddenForPlayer = true; }
         }
 
+        // nazwa kodeka z kodu VLC (fourcc) - czytelna, jak w MediaInfo
+        internal static string CodecName(uint fourcc)
+        {
+            var c = new string(BitConverter.GetBytes(fourcc).Select(b => (char)b).ToArray()).Trim('\0', ' ').ToLowerInvariant();
+            switch (c)
+            {
+                case "h264": case "avc1": return "H.264"; case "hevc": case "h265": case "hvc1": return "H.265";
+                case "av01": return "AV1"; case "vp90": case "vp09": return "VP9"; case "vp80": return "VP8"; case "mpgv": case "mp2v": return "MPEG-2"; case "mp4v": case "xvid": case "divx": case "dx50": return "MPEG-4";
+                case "a52": return "AC3"; case "eac3": return "E-AC3"; case "mp4a": return "AAC"; case "mpga": case "mp3": return "MP3"; case "dts": return "DTS";
+                case "opus": return "Opus"; case "vorb": return "Vorbis"; case "flac": return "FLAC"; case "truehd": case "mlp": return "TrueHD"; case "araw": case "s16l": return "PCM";
+                default: return c.ToUpperInvariant();
+            }
+        }
+        internal static string ChannelsName(uint ch) { return ch == 1 ? "mono" : ch == 2 ? "stereo" : ch == 6 ? "5.1" : ch == 8 ? "7.1" : ch + "ch"; }
+
         // ---------- biblioteka ----------
 
         internal sealed class LibraryVideo
@@ -1299,6 +1314,7 @@ namespace Przegladarka
             // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
             var streamInfo = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0),
                 ToolTip = L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.") };
+            string techKey = null, techShort = "", techFull = "";   // dane techniczne biezacego filmu (raz na film)
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             netTimer.Tick += (s, e) =>
             {
@@ -1317,6 +1333,25 @@ namespace Przegladarka
                 {   // jakosc biezacego strumienia (statystyki VLC)
                     string info = "";
                     var md = mp.Media;
+                    var pNow = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                    bool isFilm = pNow != null && !_iptvPlaying.ContainsKey(pNow);
+                    if (md != null && isFilm && techKey != pNow && md.Tracks.Length > 0)
+                    {   // film: dane techniczne raz na film - linia (krotko), podpowiedz (wszystko) i vlc.log
+                        techKey = pNow;
+                        var tr = md.Tracks; var vt = tr.FirstOrDefault(x => x.TrackType == TrackType.Video); var at = tr.Where(x => x.TrackType == TrackType.Audio).ToList();
+                        long size = 0; try { if (File.Exists(pNow)) size = new FileInfo(pNow).Length; } catch (Exception) { }
+                        var vS = vt.TrackType == TrackType.Video ? CodecName(vt.Codec) : "";
+                        var aS = at.Count > 0 ? CodecName(at[0].Codec) + " " + ChannelsName(at[0].Data.Audio.Channels) : "";
+                        techShort = string.Join(" · ", new[] { vS, aS }.Where(x => x.Length > 0));
+                        var full = new System.Text.StringBuilder();
+                        full.AppendLine(L.T("Plik: ") + System.IO.Path.GetFileName(pNow) + (size > 0 ? "  (" + (size / 1073741824.0 >= 1 ? (size / 1073741824.0).ToString("0.00") + " GB" : (size / 1048576.0).ToString("0") + " MB") + ")" : ""));
+                        full.AppendLine(L.T("Kontener: ") + System.IO.Path.GetExtension(pNow).TrimStart('.').ToUpperInvariant() + L.T("   Długość: ") + FormatTime(mp.Length));
+                        if (vt.TrackType == TrackType.Video) full.AppendLine(L.T("Obraz: ") + vS + "  " + vt.Data.Video.Width + "×" + vt.Data.Video.Height + (vt.Data.Video.FrameRateDen > 0 ? "  " + (vt.Data.Video.FrameRateNum / (double)vt.Data.Video.FrameRateDen).ToString("0.###") + L.T(" kl/s") : "") + (vt.Bitrate > 0 ? "  " + (vt.Bitrate / 1000000.0).ToString("0.0") + " Mb/s" : ""));
+                        foreach (var a in at) full.AppendLine(L.T("Dźwięk: ") + CodecName(a.Codec) + "  " + ChannelsName(a.Data.Audio.Channels) + "  " + (a.Data.Audio.Rate / 1000.0).ToString("0.#") + " kHz" + (string.IsNullOrEmpty(a.Language) ? "" : "  [" + a.Language + "]") + (string.IsNullOrEmpty(a.Description) ? "" : "  " + a.Description));
+                        int subsN = tr.Count(x => x.TrackType == TrackType.Text); if (subsN > 0) full.AppendLine(L.T("Napisy w pliku: ") + subsN);
+                        techFull = full.ToString().TrimEnd();
+                        try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, "--- dane filmu ---\n" + techFull.Replace("\r", "") + "\n------------------\n"); } catch (Exception) { }   // przy zgloszeniu problemu od razu widac, co to za plik
+                    }
                     if (md != null && (mp.IsPlaying || mp.State == VLCState.Paused))
                     {
                         uint vw = 0, vh = 0; mp.Size(0, ref vw, ref vh);
@@ -1325,6 +1360,7 @@ namespace Przegladarka
                         var q = vh >= 2000 ? "4K" : vh >= 1000 ? "FHD" : vh >= 700 ? "HD" : vh > 0 ? "SD" : "";
                         var parts = new List<string>();
                         if (vh > 0) parts.Add(q + " " + vw + "×" + vh);
+                        if (isFilm && techKey == pNow && techShort.Length > 0) parts.Add(techShort);   // film: kodek obrazu i dzwiek
                         if (kbps > 0) parts.Add(kbps >= 1000 ? (kbps / 1000).ToString("0.0") + " Mb/s" : kbps.ToString("0") + " kb/s");
                         var fps = mp.Fps; if (fps > 0) parts.Add(fps.ToString("0.#") + L.T(" kl/s"));
                         info = string.Join(" · ", parts);
@@ -1333,6 +1369,8 @@ namespace Przegladarka
                         var col = lost > 0 ? Brushes.Orange : Brushes.Silver; if (streamInfo.Foreground != col) streamInfo.Foreground = col;
                     }
                     if (streamInfo.Text != info) streamInfo.Text = info;
+                    var tip = isFilm && techKey == pNow ? techFull + L.T("\n\nUtracone klatki (pomarańczowe) – przycina komputer.") : L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.");
+                    if ((string)streamInfo.ToolTip != tip) streamInfo.ToolTip = tip;
                 }
                 catch (Exception) { }
                 if (netLast >= 0)

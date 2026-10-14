@@ -1193,7 +1193,20 @@ namespace Przegladarka
             var seek = new Slider { Minimum = 0, Maximum = 1000, IsMoveToPointEnabled = true, VerticalAlignment = VerticalAlignment.Center, Style = ModernSliderStyle(), Cursor = Cursors.Hand };
             var seekRow = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
             DockPanel.SetDock(timeNow, Dock.Left); DockPanel.SetDock(timeLen, Dock.Right);
-            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(seek);
+            // TV na zywo: zamiast paska postepu przesuwajacy sie napis - co leci i krotki opis
+            var ticker = new Canvas { ClipToBounds = true, Height = 18, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            var tickerText = new TextBlock { Foreground = fg, FontSize = 13, RenderTransform = new TranslateTransform() };
+            ticker.Children.Add(tickerText);
+            Action tickerRun = () =>
+            {
+                var tt = (TranslateTransform)tickerText.RenderTransform;
+                tickerText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                double w = tickerText.DesiredSize.Width, cw = Math.Max(50, ticker.ActualWidth);
+                var anim = new System.Windows.Media.Animation.DoubleAnimation(cw, -w, TimeSpan.FromSeconds((cw + w) / 60.0)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };   // ok. 60 px/s - spokojnie, czytelnie
+                tt.BeginAnimation(TranslateTransform.XProperty, anim);
+            };
+            ticker.SizeChanged += (s, e) => { if (ticker.Visibility == Visibility.Visible) tickerRun(); };
+            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(seek); seekRow.Children.Add(ticker);
 
             var prev = glyphBtn("prev", L.T("Poprzedni (P)"));
             var play = glyphBtn("pause", L.T("Pauza / odtwarzaj (spacja)"));
@@ -2093,7 +2106,9 @@ namespace Przegladarka
             Func<IptvChannel> liveCh = () => { var p1 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; return p1 != null && _iptvPlaying.TryGetValue(p1, out var c1) && curRecFile == null ? c1 : null; };
             Func<bool> tvShown = () =>
             {
-                var c = liveCh(); if (c == null) { seek.IsEnabled = true; return false; }
+                var c = liveCh();
+                if (c == null || c.ArchiveStart.HasValue) { if (ticker.Visibility == Visibility.Visible) { ticker.Visibility = Visibility.Collapsed; ((TranslateTransform)tickerText.RenderTransform).BeginAnimation(TranslateTransform.XProperty, null); } seek.Visibility = Visibility.Visible; }   // film / archiwum - zwykly pasek
+                if (c == null) { seek.IsEnabled = true; return false; }
                 if (c.ArchiveStart.HasValue)
                 {
                     seek.IsEnabled = mp.Length > 0;
@@ -2103,8 +2118,12 @@ namespace Przegladarka
                 }
                 seek.IsEnabled = false;   // na zywo nie przewijamy
                 var p = EpgAt(EpgFor(_iptvEpg, c), DateTime.Now);
-                if (p != null) { timeNow.Text = p.Start.ToString("HH:mm"); timeLen.Text = p.Stop.ToString("HH:mm") + L.T("  ● NA ŻYWO"); seek.Value = 1000.0 * Math.Max(0, Math.Min(1, (DateTime.Now - p.Start).TotalSeconds / Math.Max(1, (p.Stop - p.Start).TotalSeconds))); }
-                else { timeNow.Text = ""; timeLen.Text = L.T("● NA ŻYWO"); seek.Value = 0; }
+                if (p != null) { timeNow.Text = p.Start.ToString("HH:mm"); timeLen.Text = p.Stop.ToString("HH:mm") + L.T("  ● NA ŻYWO"); }
+                else { timeNow.Text = ""; timeLen.Text = L.T("● NA ŻYWO"); }
+                // napis: tytul, odcinek i poczatek opisu (zmienia sie z audycja)
+                var desc = p == null ? c.Name : "▶ " + p.Title + (string.IsNullOrEmpty(p.Sub) ? "" : " – " + p.Sub) + (string.IsNullOrEmpty(p.Desc) ? "" : "   ·   " + (p.Desc.Length > 160 ? p.Desc.Substring(0, 160).TrimEnd() + "…" : p.Desc));
+                seek.Visibility = Visibility.Collapsed;
+                if (ticker.Visibility != Visibility.Visible || tickerText.Text != desc) { ticker.Visibility = Visibility.Visible; tickerText.Text = desc; Dispatcher.BeginInvoke(tickerRun, DispatcherPriority.Loaded); }
                 return true;
             };
             mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(guard(() => { if (!tvShown()) timeLen.Text = FormatTime(e.Length); }));

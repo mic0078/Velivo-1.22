@@ -19,7 +19,7 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Nad szybkimi ikonami: czerwona pulsująca pigułka „⏺ REC kanał · do HH:mm” (klik: zatrzymaj / przedłuż +15/+30/+60) i „🔌 Połączenia z dostawcą: N / limit” (klik: ustaw limit dostawcy; ostrzeżenie tylko po przekroczeniu).
 - Na obrazie u góry: czerwona kropka „Trwa nagrywanie: kanał” / „Trwa nagrywanie tego kanału” – także przy schowanym pasku.
 - Pasek informacji (I): kanał, audycja z godzinami i postępem, opis, następna; stałe miejsce nad paskiem (nie opada); opcja „pokazuj przy ruchu myszy”, czas znikania, przezroczystość, wielkość tekstu.
-- Zegar na obrazie (pozycja, wielkość, przezroczystość).
+- Zegar na obrazie (pokazuj, pozycja, wielkość, przezroczystość) – klik w zegar z datą na pasku (zniknął z menu kontekstowego).
 - Skróty: spacja, ←/→, ↑/↓ głośność, F pełny ekran, M wycisz, I informacje, L lista, PgUp/PgDn kanał, F5 odśwież, G/H przesunięcie napisów, [ ] prędkość, P/N poprzedni/następny.
 
 ## 3. Menu pod prawym przyciskiem (odtwarzacz)

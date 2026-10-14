@@ -94,7 +94,7 @@ Kliknij prawym przyciskiem na obrazie. Menu zawiera tylko to, czego nie ma jako 
 - **Telewizja:** co teraz leci i co następnie, **⏮ Od początku programu** (archiwum), **⏩ Na żywo**.
 - **📂 Otwórz plik…**
 - **🕘 Ostatnio oglądane TV** i **🕘 Ostatnio oglądane Filmy** – po 20 ostatnich, najnowsze na górze. Kanał włączony stąd gra w swojej grupie.
-- **📋 Lista kanałów / filmów**, **⏰ Zaplanuj włączenie**, napisy i lektor, zegar na obrazie.
+- **📋 Lista kanałów / filmów**, **⏰ Zaplanuj włączenie**, napisy i lektor. Zegar na obrazie ustawiasz klikając zegar z datą na pasku.
 - **⚙ Ustawienia** – przezroczystość listy, opcje połączenia, bufor kanałów, zapas nagrywania. Ustawienia paska sterowania (👁) i paska informacji (ikona z suwakami) są na końcu szybkich ikon.
 
 Rzeczy, które są ikonami na pasku (pauza, ulubione, nagrywanie, PiP, wyłącznik czasowy itd.), nie powtarzają się w tym menu – dzięki temu jest krótkie.

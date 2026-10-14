@@ -1866,6 +1866,30 @@ namespace Przegladarka
                 double bottom = controls.Visibility == Visibility.Visible ? controls.ActualHeight + 12 : 16;   // nad paskiem sterowania
                 clock.Margin = new Thickness(18, pos.EndsWith("g") ? 16 : 0, 18, pos.EndsWith("d") ? bottom : 0);
             };
+            clockBox.Cursor = Cursors.Hand; clockBox.Background = Brushes.Transparent;
+            clockBox.ToolTip = L.T("Kliknij: zegar na obrazie (pokazuj, pozycja, wielkość, przezroczystość)");
+            clockBox.MouseLeftButtonUp += (s, e) =>
+            {   // zegar na obrazie: wlacz, pozycja, wielkosc, przezroczystosc (zamiast w menu kontekstowym)
+                var clM = new ContextMenu { PlacementTarget = clockBox, Placement = PlacementMode.Top };
+                var on = new MenuItem { Header = L.T("Pokazuj zegar"), IsCheckable = true, IsChecked = GetPref("zegar") == "1" };
+                on.Click += (q, w2) => { SetPref("zegar", on.IsChecked ? "1" : "0"); layoutClock(); };
+                clM.Items.Add(on);
+                Action<string, string, (string, string)[]> opts = (title, pref, items) =>
+                {
+                    var sub = new MenuItem { Header = title };
+                    foreach (var it0 in items)
+                    {
+                        var it = it0; var mi = new MenuItem { Header = it.Item2, IsCheckable = true, IsChecked = (GetPref(pref) ?? (pref == "zegar-poz" ? "pg" : pref == "zegar-wielk" ? "2" : "85")) == it.Item1 };
+                        mi.Click += (q, w2) => { SetPref(pref, it.Item1); SetPref("zegar", "1"); layoutClock(); };
+                        sub.Items.Add(mi);
+                    }
+                    clM.Items.Add(sub);
+                };
+                opts(L.T("📍 Pozycja"), "zegar-poz", new[] { ("lg", L.T("↖ Lewy górny róg")), ("sg", L.T("⬆ Góra – środek")), ("pg", L.T("↗ Prawy górny róg")), ("ld", L.T("↙ Lewy dolny róg")), ("sd", L.T("⬇ Dół – środek")), ("pd", L.T("↘ Prawy dolny róg")) });
+                opts(L.T("🔠 Wielkość"), "zegar-wielk", new[] { ("0", L.T("Bardzo mały")), ("1", L.T("Mały")), ("2", L.T("Średni")), ("3", L.T("Duży")) });
+                opts(L.T("🌓 Przezroczystość"), "zegar-alfa", new[] { ("100", "0 %"), ("85", "15 %"), ("65", "35 %"), ("45", "55 %"), ("30", "70 %"), ("20", "80 %"), ("10", "90 %") });
+                clM.IsOpen = true; e.Handled = true;
+            };
             var clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             clockTimer.Tick += (s, e) => { if (clock.Visibility == Visibility.Visible) clockText.Text = DateTime.Now.ToString("HH:mm"); };
             clockTimer.Start(); clockText.Text = DateTime.Now.ToString("HH:mm");
@@ -3231,27 +3255,6 @@ namespace Przegladarka
                 add(L.T("🔲 Tryb mini"), toggleMini, true);
                 add(L.T("🖥 Pełny ekran"), toggleFull, true);
                 add(L.T("📷 Zrzut klatki"), click(snap), true);
-                {   // zegar: wlacz, pozycja, wielkosc, przezroczystosc
-                    var clM = new MenuItem { Header = L.T("🕐 Zegar na obrazie") };
-                    var on = new MenuItem { Header = L.T("Pokazuj zegar"), IsCheckable = true, IsChecked = GetPref("zegar") == "1" };
-                    on.Click += (q, w2) => { SetPref("zegar", on.IsChecked ? "1" : "0"); layoutClock(); };
-                    clM.Items.Add(on);
-                    Action<string, string, (string, string)[]> opts = (title, pref, items) =>
-                    {
-                        var sub = new MenuItem { Header = title };
-                        foreach (var it0 in items)
-                        {
-                            var it = it0; var mi = new MenuItem { Header = it.Item2, IsCheckable = true, IsChecked = (GetPref(pref) ?? (pref == "zegar-poz" ? "pg" : pref == "zegar-wielk" ? "2" : "85")) == it.Item1 };
-                            mi.Click += (q, w2) => { SetPref(pref, it.Item1); SetPref("zegar", "1"); layoutClock(); };
-                            sub.Items.Add(mi);
-                        }
-                        clM.Items.Add(sub);
-                    };
-                    opts(L.T("📍 Pozycja"), "zegar-poz", new[] { ("lg", L.T("↖ Lewy górny róg")), ("sg", L.T("⬆ Góra – środek")), ("pg", L.T("↗ Prawy górny róg")), ("ld", L.T("↙ Lewy dolny róg")), ("sd", L.T("⬇ Dół – środek")), ("pd", L.T("↘ Prawy dolny róg")) });
-                    opts(L.T("🔠 Wielkość"), "zegar-wielk", new[] { ("0", L.T("Bardzo mały")), ("1", L.T("Mały")), ("2", L.T("Średni")), ("3", L.T("Duży")) });
-                    opts(L.T("🌓 Przezroczystość"), "zegar-alfa", new[] { ("100", "0 %"), ("85", "15 %"), ("65", "35 %"), ("45", "55 %"), ("30", "70 %"), ("20", "80 %"), ("10", "90 %") });
-                    cm.Items.Add(clM);
-                }
                 // porzadek: odtwarzanie, telewizja / film, listy, udostepnianie, widok, a ustawienia w jednym podmenu
                 string H(object o) => (o as MenuItem)?.Header as string ?? "";
                 Func<string, string[], bool> starts = (h, ps) => ps.Any(p0 => h.StartsWith(L.T(p0)));
@@ -3262,7 +3265,7 @@ namespace Przegladarka
                     (null, new[] { "📋 Lista ", "ℹ Pokaż informacje", "📂 Otwórz plik", "🕘 Ostatnio oglądane", "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅", "🎞 Playlisty", "⭐ ", "⏾ ", "⧉ ", "⏰ Zaplanuj" }),
                     (null, new[] { "💬 Pobierz napisy", "💬 Napisy na ekranie", "🗣 " }),
                     (null, new[] { "📺 Odtwórz na", "👥 ", "👋 " }),
-                    (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki", "🕐 Zegar" }),
+                    (null, new[] { "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki" }),
                     (L.T("⚙ Ustawienia"), new[] { "📋 Przezroczystość listy", "⏱ Zapas nagrywania", "➕ Dodaj do: ", "(film strumieniowany" }),
                 };
                 // co jest ikona na pasku - nie powtarzamy w menu (krotsze menu)

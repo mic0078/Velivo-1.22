@@ -101,6 +101,36 @@ namespace Przegladarka
             SendInput((uint)ins.Length, ins, Marshal.SizeOf(typeof(KbdInput)));
         }
 
+        // przeczytaj zaznaczony tekst z okna, w ktorym sie pisze: Ctrl+C w tym programie (dziala wszedzie, takze OpenOffice),
+        // a gdy nic nie zaznaczono - tekst pola z dostepnosci Windows; schowek wraca do poprzedniej zawartosci; pole hasla - nigdy
+        static async void ReadSelectionAloud()
+        {
+            try
+            {
+                if (SecretField()) return;
+                string old = null; try { if (Clipboard.ContainsText()) old = Clipboard.GetText(); } catch (Exception) { }
+                try { Clipboard.Clear(); } catch (Exception) { }
+                SendCombo(0x11, 0x43);   // Ctrl+C
+                await System.Threading.Tasks.Task.Delay(250);
+                string text = null; try { if (Clipboard.ContainsText()) text = Clipboard.GetText(); } catch (Exception) { }
+                try { if (old != null) Clipboard.SetText(old); else Clipboard.Clear(); } catch (Exception) { }
+                if (string.IsNullOrWhiteSpace(text))
+                    try
+                    {   // bez zaznaczenia: cale pole (gdy program je udostepnia)
+                        var el = System.Windows.Automation.AutomationElement.FocusedElement;
+                        if (el != null && !el.Current.IsPassword)
+                        {
+                            if (el.TryGetCurrentPattern(System.Windows.Automation.TextPattern.Pattern, out var tp)) text = ((System.Windows.Automation.TextPattern)tp).DocumentRange.GetText(5000);
+                            else if (el.TryGetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern, out var vp)) text = ((System.Windows.Automation.ValuePattern)vp).Current.Value;
+                        }
+                    }
+                    catch (Exception) { }
+                if (string.IsNullOrWhiteSpace(text)) return;
+                (Application.Current?.MainWindow as MainWindow)?.KbSpeak(text.Length > 3000 ? text.Substring(0, 3000) : text, KbLang);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         // czytanie na glos tego, co sie pisze - glosem lektora Velivo (Piper albo glos Windows), slowo po slowie
         System.Windows.Media.MediaPlayer _kbdVoice;
         async void KbSpeak(string text, string lang)
@@ -502,9 +532,17 @@ namespace Przegladarka
             micB.Click += (s, e) => SendCombo(0x5B, 0x48);
             head.Children.Add(micB);
             var sayB = key("🗣", 34); sayB.Height = 28; sayB.FontSize = 13; DockPanel.SetDock(sayB, Dock.Right);
-            sayB.ToolTip = L.T("Czytaj na głos to, co piszę – każde skończone słowo przeczyta lektor Velivo (w polach haseł nigdy)");
+            sayB.ToolTip = L.T("Czytanie na głos: zaznaczony tekst w dowolnym programie albo na bieżąco to, co piszesz (w polach haseł nigdy)");
             Action sayApply = () => sayB.Background = GetPref("klawiatura-czytaj") == "1" ? (Brush)accent : Brushes.Transparent;
-            sayB.Click += (s, e) => { SetPref("klawiatura-czytaj", GetPref("klawiatura-czytaj") == "1" ? "0" : "1"); sayApply(); };
+            sayB.Click += (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = sayB, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                var now = new MenuItem { Header = L.T("🗣 Przeczytaj zaznaczony tekst (każdy program – OpenOffice, Word, strony)") };
+                now.Click += (q, w2) => ReadSelectionAloud();
+                var live = new MenuItem { Header = L.T("Czytaj na bieżąco to, co piszę"), IsCheckable = true, IsChecked = GetPref("klawiatura-czytaj") == "1" };
+                live.Click += (q, w2) => { SetPref("klawiatura-czytaj", live.IsChecked ? "1" : "0"); sayApply(); };
+                cm.Items.Add(now); cm.Items.Add(live); cm.IsOpen = true;
+            };
             sayApply(); head.Children.Add(sayB);
             var langB = key(KbLang.ToUpperInvariant(), 40); langB.Height = 28; langB.FontSize = 12.5; langB.FontWeight = FontWeights.SemiBold; langB.Background = Brushes.Transparent; DockPanel.SetDock(langB, Dock.Right);
             langB.ToolTip = L.T("Język klawiatury: polski / angielski (słownik pisania przeciągnięciem i czytanie na głos)");

@@ -156,6 +156,8 @@ namespace Przegladarka
                 }
                 File.WriteAllText(marker, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 Exit += (s, a) => { try { File.Delete(marker); } catch (Exception) { } };
+                // zamkniecie przez instalator nowej wersji (Menedzer ponownego uruchamiania) albo wylaczenie Windows - to nie awaria
+                SessionEnding += (s, a) => { try { File.Delete(marker); } catch (Exception) { } };
             }
             catch (Exception ex) { LogError(ex); }
         }

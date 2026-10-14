@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -24,6 +27,32 @@ namespace Przegladarka
         const uint KeyUp = 2, KeyUnicode = 4;
 
         static Window _kbd;
+        // pisanie przeciagnieciem: wybierane slowa i wlasny slownik
+        static readonly Dictionary<string, int> _swLearned = new Dictionary<string, int>();
+        static readonly HashSet<string> _swOwn = new HashSet<string>();
+        static string SwipeFile => Path.Combine(DataDir, "klawiatura-slowa.txt");
+
+        // slownik polski (wbudowany) + wlasne slowa - w tle, raz na uruchomienie
+        static void LoadSwipeDictionary()
+        {
+            if (SwipeTyping.Loaded) return;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    var asm = typeof(MainWindow).Assembly;
+                    var name = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith("slowa-pl.txt", StringComparison.Ordinal));
+                    if (name == null) return;
+                    var words = new List<string>();
+                    using (var st = asm.GetManifestResourceStream(name)) using (var rd = new StreamReader(st, System.Text.Encoding.UTF8)) { string l; while ((l = rd.ReadLine()) != null) words.Add(l); }
+                    var own = new HashSet<string>(); var learned = SwipeTyping.LoadLearned(SwipeFile, own);
+                    SwipeTyping.Load(words);
+                    foreach (var w in own) SwipeTyping.AddUserWord(w);
+                    lock (_swLearned) { foreach (var kv in learned) _swLearned[kv.Key] = kv.Value; foreach (var w in own) _swOwn.Add(w); }
+                }
+                catch (Exception ex) { App.LogError(ex); }
+            });
+        }
         static IntPtr _kbdHwnd, _kbdTarget;   // okno klawiatury i okno, do ktorego piszemy
 
         static void SendKey(ushort vk, char ch)
@@ -42,6 +71,7 @@ namespace Przegladarka
         {
             _kbdTarget = GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
             if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; return; }
+            LoadSwipeDictionary();
             bool shift = false, caps = false, alt = false;
             // subtelnie w kolorach logo Velivo: ciemne tlo z lekkim fioletowo-turkusowym odcieniem, klawisze ze szkla,
             // wlaczone / wcisniete - gradient logo (fiolet -> turkus)
@@ -75,32 +105,70 @@ namespace Przegladarka
                 if (shift) { var i = shiftSrc.IndexOf(c); if (i >= 0) return shifted[i]; }
                 return c;
             };
+            // nauka slow (jak na Androidzie): slowo wpisane litera po literze trafia do wlasnego slownika po spacji / Enter / znaku
+            string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
+            Action<string> learn = wd =>
+            {
+                if (wd.Length < 2 || !SwipeTyping.Loaded) return;
+                var lw = wd.ToLowerInvariant();
+                lock (_swLearned)
+                {
+                    _swLearned[lw] = (_swLearned.TryGetValue(lw, out var n) ? n : 0) + 1;
+                    if (!SwipeTyping.IsKnown(lw)) { _swOwn.Add(lw); SwipeTyping.AddUserWord(lw); }
+                    SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
+                }
+            };
+            Action<ushort, char> tap = (vk, ch) =>
+            {
+                SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Hidden;
+                if (vk == 0 && char.IsLetter(ch)) cur += ch;
+                else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
+                else { learn(cur); cur = ""; }
+            };
+            // podpowiedzi nad klawiszami po przeciagnieciu - klik podmienia ostatnie slowo
+            var sugRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Height = 40, Margin = new Thickness(0, 0, 0, 2) };
+            for (int i = 0; i < 3; i++)
+            {
+                var sb = key("", 210); sb.Height = 34; sb.FontSize = 16; sb.Visibility = Visibility.Hidden;
+                sb.Click += (s, e) =>
+                {
+                    var alt0 = ((Button)s).DataContext as string;
+                    if (lastSwipe == null || alt0 == null) return;
+                    for (int k = 0; k <= lastSwipe.Length; k++) SendKey(0x08, '\0');   // slowo + spacja
+                    var lw = lastSwipe.ToLowerInvariant(); if (_swLearned.TryGetValue(lw, out var n) && n > 0) _swLearned[lw] = n - 1;   // to nie bylo to slowo
+                    foreach (var ch in alt0) SendKey(0, ch); SendKey(0, ' ');
+                    learn(alt0); lastSwipe = alt0;
+                    foreach (var x in sugs) x.Visibility = Visibility.Hidden;
+                };
+                sugs.Add(sb); sugRow.Children.Add(sb);
+            }
+            root.Children.Add(sugRow);
             Button shiftB = null, capsB = null, altB = null;
             foreach (var r in rows)
             {
                 var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                if (r == rows[1]) { var t = key("⇥", 66); t.Click += (s, e) => SendKey(0x09, '\0'); row.Children.Add(t); }
+                if (r == rows[1]) { var t = key("⇥", 66); t.Click += (s, e) => tap(0x09, '\0'); row.Children.Add(t); }
                 if (r == rows[2]) { capsB = key("⇪", 78); capsB.Click += (s, e) => { caps = !caps; refresh(); }; row.Children.Add(capsB); }
                 if (r == rows[3]) { shiftB = key("⇧", 96); shiftB.Click += (s, e) => { shift = !shift; refresh(); }; row.Children.Add(shiftB); }
                 foreach (var c0 in r)
                 {
                     var c = c0; var b = key(c.ToString(), 46);
-                    b.Click += (s, e) => { SendKey(0, map(c)); if (shift || alt) { shift = false; alt = false; refresh(); } };
+                    b.Click += (s, e) => { tap(0, map(c)); if (shift || alt) { shift = false; alt = false; refresh(); } };
                     letters.Add((b, c)); row.Children.Add(b);
                 }
-                if (r == rows[0]) { var bs = key("⌫", 86); bs.Click += (s, e) => SendKey(0x08, '\0'); row.Children.Add(bs); }
-                if (r == rows[2]) { var en = key("⏎", 96); en.Background = accent; en.Foreground = accentText; en.Click += (s, e) => SendKey(0x0D, '\0'); row.Children.Add(en); }
-                if (r == rows[3]) { var up = key("▲", 46); up.Click += (s, e) => SendKey(0x26, '\0'); row.Children.Add(up); }
+                if (r == rows[0]) { var bs = key("⌫", 86); bs.Click += (s, e) => tap(0x08, '\0'); row.Children.Add(bs); }
+                if (r == rows[2]) { var en = key("⏎", 96); en.Background = accent; en.Foreground = accentText; en.Click += (s, e) => tap(0x0D, '\0'); row.Children.Add(en); }
+                if (r == rows[3]) { var up = key("▲", 46); up.Click += (s, e) => tap(0x26, '\0'); row.Children.Add(up); }
                 root.Children.Add(row);
             }
             var last = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             altB = key("ą ę ł", 96); altB.FontSize = 15; altB.ToolTip = L.T("Polskie znaki (jak prawy Alt)"); altB.Click += (s, e) => { alt = !alt; refresh(); };
-            var at = key("@", 46); at.Click += (s, e) => SendKey(0, '@');
-            var space = key("", 380); space.Click += (s, e) => SendKey(0, ' ');
-            var dot = key(".com", 66); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") SendKey(0, ch); };
-            var lf = key("◀", 46); lf.Click += (s, e) => SendKey(0x25, '\0');
-            var dn = key("▼", 46); dn.Click += (s, e) => SendKey(0x28, '\0');
-            var rt = key("▶", 46); rt.Click += (s, e) => SendKey(0x27, '\0');
+            var at = key("@", 46); at.Click += (s, e) => tap(0, '@');
+            var space = key("", 380); space.Click += (s, e) => tap(0, ' ');
+            var dot = key(".com", 66); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") tap(0, ch); };
+            var lf = key("◀", 46); lf.Click += (s, e) => tap(0x25, '\0');
+            var dn = key("▼", 46); dn.Click += (s, e) => tap(0x28, '\0');
+            var rt = key("▶", 46); rt.Click += (s, e) => tap(0x27, '\0');
             foreach (var b in new[] { altB, at, space, dot, lf, dn, rt }) last.Children.Add(b);
             root.Children.Add(last);
             refresh = () =>
@@ -112,6 +180,23 @@ namespace Przegladarka
             var head = new DockPanel { Margin = new Thickness(14, 8, 8, 0), Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
             var close = key("✕", 34); close.Height = 28; close.FontSize = 13; close.Background = Brushes.Transparent; DockPanel.SetDock(close, Dock.Right);
             head.Children.Add(close);
+            // wlasny slownik (jak na Androidzie): podglad i usuwanie wyuczonych slow
+            var dictB = key("📖", 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
+            dictB.ToolTip = L.T("Mój słownik – słowa, których Velivo nauczyło się od Ciebie (klik w słowo usuwa je)");
+            dictB.Click += (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = dictB, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                List<string> own; lock (_swLearned) own = _swOwn.OrderBy(x => x).ToList();
+                cm.Items.Add(new MenuItem { Header = own.Count == 0 ? L.T("Mój słownik jest pusty – słowa wpisane literami dopiszą się same") : L.T("Mój słownik (klik usuwa): ") + own.Count, IsEnabled = false });
+                foreach (var w0 in own.Take(200))
+                {
+                    var wd = w0; var mi = new MenuItem { Header = wd };
+                    mi.Click += (q, w2) => { lock (_swLearned) { _swOwn.Remove(wd); _swLearned.Remove(wd); SwipeTyping.RemoveUserWord(wd); SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); } };
+                    cm.Items.Add(mi);
+                }
+                cm.IsOpen = true;
+            };
+            head.Children.Add(dictB);
             var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.White };
             title.Inlines.Add(new System.Windows.Documents.Run(L.T("Klawiatura") + " "));
             title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold });
@@ -152,6 +237,59 @@ namespace Przegladarka
             var keys = new Grid(); keys.Children.Add(root); var vb = new Viewbox { Stretch = Stretch.Fill, Child = paint, IsHitTestVisible = false };
             vb.SetBinding(FrameworkElement.WidthProperty, new System.Windows.Data.Binding("ActualWidth") { Source = root }); vb.SetBinding(FrameworkElement.HeightProperty, new System.Windows.Data.Binding("ActualHeight") { Source = root });   // tylko na obszarze klawiszy
             keys.Children.Add(vb);
+            // pisanie przeciagnieciem: slad w gradiencie logo; lekki (punkty co kilka px, bez efektow) - plynny przy ruchu myszy
+            var trailC = new Canvas { IsHitTestVisible = false };
+            var trail = new System.Windows.Shapes.Polyline { Stroke = new LinearGradientBrush(violet, cyan, 0), StrokeThickness = 7, Opacity = 0.85,
+                StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round };
+            trailC.Children.Add(trail); keys.Children.Add(trailC);
+            vb.CacheMode = new BitmapCache();   // rozmyte smugi liczone raz, nie przy kazdym ruchu sladu
+            var trace = new List<Point>(); bool down = false, swiping = false;
+            root.PreviewMouseLeftButtonDown += (s, e) =>
+            {
+                down = true; swiping = false; trace.Clear(); trace.Add(e.GetPosition(trailC));
+            };
+            root.PreviewMouseMove += (s, e) =>
+            {
+                if (!down) return;
+                if (e.LeftButton != MouseButtonState.Pressed) { down = false; return; }
+                var p = e.GetPosition(trailC); var lp = trace[trace.Count - 1];
+                if (Math.Abs(p.X - lp.X) + Math.Abs(p.Y - lp.Y) < 4) return;   // co kilka pikseli - mniej rysowania
+                trace.Add(p);
+                if (!swiping && (Math.Abs(p.X - trace[0].X) > 30 || Math.Abs(p.Y - trace[0].Y) > 30))
+                {   // to juz przeciagniecie, nie klikniecie klawisza
+                    swiping = true; root.CaptureMouse();
+                    trail.BeginAnimation(UIElement.OpacityProperty, null); trail.Opacity = 0.85;
+                    trail.Points = new PointCollection(trace);
+                }
+                else if (swiping) trail.Points.Add(p);
+            };
+            root.PreviewMouseLeftButtonUp += (s, e) =>
+            {
+                down = false;
+                if (!swiping) return;
+                swiping = false; e.Handled = true; root.ReleaseMouseCapture();
+                trail.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(350)));
+                if (!SwipeTyping.Loaded) return;
+                // srodki klawiszy liter wzgledem sladu
+                var centers = new Dictionary<char, Point>();
+                foreach (var (b, c) in letters) if (c >= 'a' && c <= 'z') centers[c] = b.TranslatePoint(new Point(b.ActualWidth / 2, b.ActualHeight / 2), trailC);
+                var pts = trace.ToList(); bool upper = shift ^ caps;
+                Dictionary<string, int> learnedCopy; lock (_swLearned) learnedCopy = new Dictionary<string, int>(_swLearned);
+                System.Threading.Tasks.Task.Run(() => SwipeTyping.Recognize(pts, centers, 52, learnedCopy)).ContinueWith(t =>
+                {
+                    if (t.IsFaulted || t.Result.Count == 0) return;
+                    var found = t.Result.Select(x => upper ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
+                    learn(cur); cur = "";
+                    foreach (var ch in found[0]) SendKey(0, ch); SendKey(0, ' ');
+                    learn(found[0]); lastSwipe = found[0];
+                    if (shift) { shift = false; refresh(); }
+                    for (int i = 0; i < sugs.Count; i++)
+                    {
+                        var w0 = i + 1 < found.Count ? found[i + 1] : null;
+                        sugs[i].DataContext = w0; sugs[i].Content = w0 ?? ""; sugs[i].Visibility = w0 == null ? Visibility.Hidden : Visibility.Visible;
+                    }
+                }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
+            };
             var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(keys);
             var w = new Window
             {

@@ -191,6 +191,8 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 - Kliknij **rolką** (środkowym przyciskiem myszy) w pole do pisania – np. szukanie kanału lub filmu, a także pola na stronach.
 - Pojawia się ciemna klawiatura Velivo; litery trafiają do pola, w którym piszesz. **⇧** – wielka litera / znak, **⇪** – stałe wielkie, **ą ę ł** – polskie znaki, **⏎** – zatwierdź.
 - Przeciągnij ją za nagłówek – zapamięta miejsce. **✕** zamyka.
+- **Pisanie przeciągnięciem (jak „Flow” w telefonie):** wciśnij lewy przycisk na pierwszej literze słowa i bez puszczania przeciągnij po kolejnych literach – za myszą zostaje ślad w kolorach logo. Po puszczeniu Velivo wpisze najbardziej pasujące słowo ze spacją, a nad klawiszami pokaże jeszcze 2–3 inne propozycje – klik w propozycję podmienia słowo. Polskie litery (ą, ę, ł…) wystarczy przeciągnąć przez literę podstawową (a, e, l…).
+- **Nauka słów i Mój słownik:** Velivo zapamiętuje słowa, które wybierasz (pokazuje je wyżej), a słowo wpisane literami, którego nie ma w słowniku, samo trafia do **📖 Mojego słownika** (przycisk w nagłówku klawiatury) – potem można je pisać przeciągnięciem. Klik w słowo w Moim słowniku usuwa je.
 
 ## 12. 🧹 Porządki i kopia bezpieczeństwa
 

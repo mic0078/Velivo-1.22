@@ -29,6 +29,7 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="app.ico" />
+    <EmbeddedResource Include="slowa-pl.txt" />
     <None Include="filters.txt" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="UbolExtension\**\*" Condition="Exists('UbolExtension\manifest.json')">
       <Link>Dodatki\uBlock Origin Lite\%(RecursiveDir)%(Filename)%(Extension)</Link>

@@ -1210,7 +1210,7 @@ namespace Przegladarka
             DockPanel.SetDock(timeNow, Dock.Left); DockPanel.SetDock(timeLen, Dock.Right);
             // TV na zywo: zamiast paska postepu przesuwajacy sie napis - co leci i krotki opis
             var ticker = new Canvas { ClipToBounds = true, Height = 21, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
-            var tickerText = new TextBlock { Foreground = fg, FontSize = 14.5, RenderTransform = new TranslateTransform() };
+            var tickerText = new TextBlock { Foreground = fg, FontSize = 14.5, RenderTransform = new TranslateTransform(), CacheMode = new BitmapCache() };   // przesuwany jako gotowy obrazek - plynniej
             // przed napisem: nazwa stacji pogrubiona (stoi w miejscu) i cienki separator
             var tickerName = new TextBlock { Foreground = fg, FontSize = 14.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
             var tickerSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x88, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(10, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
@@ -1299,7 +1299,8 @@ namespace Przegladarka
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             netTimer.Tick += (s, e) =>
             {
-                var n = DateTime.Now; nowTime.Text = n.ToString("HH:mm"); nowDate.Text = n.ToString("ddd d.MM");
+                // zmiany tylko gdy naprawde inne - kazda zmiana przerysowuje cala warstwe paska (przesuwany napis by sie zacinal)
+                var n = DateTime.Now; var tt0 = n.ToString("HH:mm"); if (nowTime.Text != tt0) { nowTime.Text = tt0; nowDate.Text = n.ToString("ddd d.MM"); }
                 long total = 0, sent = 0;
                 try
                 {
@@ -1308,6 +1309,7 @@ namespace Przegladarka
                         { var st0 = ni.GetIPStatistics(); total += st0.BytesReceived; sent += st0.BytesSent; }
                 }
                 catch (Exception) { return; }
+                if (netLast >= 0 && controls.Visibility != Visibility.Visible) { netLast = total; netUpLast = sent; return; }   // pasek schowany - bez rysowania
                 if (netLast >= 0)
                 {
                     double bps = Math.Max(0, total - netLast), ups = Math.Max(0, sent - netUpLast);
@@ -2190,10 +2192,11 @@ namespace Przegladarka
                 }
                 seek.IsEnabled = false;   // na zywo nie przewijamy
                 var p = EpgAt(EpgFor(_iptvEpg, c), DateTime.Now);
-                if (p != null) { timeNow.Text = p.Start.ToString("HH:mm"); timeLen.Text = p.Stop.ToString("HH:mm") + L.T("  ● NA ŻYWO"); }
-                else { timeNow.Text = ""; timeLen.Text = L.T("● NA ŻYWO"); }
+                var tn = p != null ? p.Start.ToString("HH:mm") : ""; var tl = p != null ? p.Stop.ToString("HH:mm") + L.T("  ● NA ŻYWO") : L.T("● NA ŻYWO");
+                if (timeNow.Text != tn) timeNow.Text = tn; if (timeLen.Text != tl) timeLen.Text = tl;
+                if (tickerName.Text != c.Name) tickerName.Text = c.Name;
                 // napis: tytul, odcinek i poczatek opisu (zmienia sie z audycja)
-                tickerName.Text = c.Name; tickerName.Visibility = tickerSep.Visibility = Visibility.Visible;
+                tickerName.Visibility = tickerSep.Visibility = Visibility.Visible;
                 var desc = p == null ? L.T("brak programu TV") : "▶ " + p.Title + (string.IsNullOrEmpty(p.Sub) ? "" : " – " + p.Sub) + (string.IsNullOrEmpty(p.Desc) ? "" : "   ·   " + (p.Desc.Length > 160 ? p.Desc.Substring(0, 160).TrimEnd() + "…" : p.Desc));
                 seek.Visibility = Visibility.Collapsed;
                 if (ticker.Visibility != Visibility.Visible || tickerText.Text != desc) { ticker.Visibility = Visibility.Visible; tickerText.Text = desc; Dispatcher.BeginInvoke(tickerRun, DispatcherPriority.Loaded); }
@@ -2201,8 +2204,11 @@ namespace Przegladarka
             };
             tvShownRef = () => tvShown();
             mp.LengthChanged += (s, e) => Dispatcher.BeginInvoke(guard(() => { if (!tvShown()) timeLen.Text = FormatTime(e.Length); }));
+            DateTime tvLastUpd = DateTime.MinValue;
             mp.TimeChanged += (s, e) => Dispatcher.BeginInvoke(guard(() =>
             {
+                var lc = liveCh();
+                if (lc != null && !lc.ArchiveStart.HasValue) { if ((DateTime.Now - tvLastUpd).TotalSeconds < 5) return; tvLastUpd = DateTime.Now; }   // na zywo: co 5 s wystarczy (godziny i napis zmieniaja sie z audycja)
                 if (tvShown()) return;
                 timeNow.Text = FormatTime(e.Time);
                 if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
@@ -2563,7 +2569,7 @@ namespace Przegladarka
                     var pSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x77, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(6, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(pSep, Dock.Left);
                     var pEnd = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) }; DockPanel.SetDock(pEnd, Dock.Right);
                     var pTicker = new Canvas { ClipToBounds = true, Height = 18, VerticalAlignment = VerticalAlignment.Center };
-                    var pTickText = new TextBlock { Foreground = Brushes.White, FontSize = 12.5, RenderTransform = new TranslateTransform() }; pTicker.Children.Add(pTickText);
+                    var pTickText = new TextBlock { Foreground = Brushes.White, FontSize = 12.5, RenderTransform = new TranslateTransform(), CacheMode = new BitmapCache() }; pTicker.Children.Add(pTickText);
                     Action pTickRun = () =>
                     {
                         pTickText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -2603,7 +2609,7 @@ namespace Przegladarka
                         if (!film && pipCh != null)
                         {   // co leci na kanale z podgladu i do ktorej
                             var pp = EpgAt(EpgFor(_iptvEpg, pipCh), DateTime.Now);
-                            pEnd.Text = pp != null ? L.T("do ") + pp.Stop.ToString("HH:mm") : "";
+                            var pe = pp != null ? L.T("do ") + pp.Stop.ToString("HH:mm") : ""; if (pEnd.Text != pe) pEnd.Text = pe;   // tylko przy zmianie - bez przerysowania co chwile
                             var txt = pp == null ? L.T("brak programu TV") : "▶ " + pp.Title + (string.IsNullOrEmpty(pp.Sub) ? "" : " – " + pp.Sub) + (string.IsNullOrEmpty(pp.Desc) ? "" : "   ·   " + (pp.Desc.Length > 120 ? pp.Desc.Substring(0, 120).TrimEnd() + "…" : pp.Desc));
                             if (pTickText.Text != txt) { pTickText.Text = txt; Dispatcher.BeginInvoke(pTickRun, DispatcherPriority.Loaded); }
                         }

@@ -20,7 +20,12 @@
 3. Test „po poprawce” + istniejące testy bezpieczeństwa.
 4. Uczciwy raport: co sprawdzone, a czego nie.
 
+## Rozmiar kodu
+- Nie dodawaj – poprawiaj. Zanim dopiszesz nową funkcję lub plik, sprawdź, czy da się rozszerzyć albo poprawić istniejący kod; kod nie może rosnąć w nieskończoność.
+- Przy każdej zmianie usuń to, co staje się zbędne (stare warianty, nieużywane metody, powtórzenia) – bilans linii ma być jak najmniejszy.
+
 ## Interfejs
+- Każdy przycisk, ikona i pozycja menu ma podpowiedź po krótkim najechaniu myszą (PL i EN) – także w klawiaturze ekranowej i odtwarzaczu.
 - Każda lista w Velivo ma sortowanie (klik w nagłówek albo wybór) i zapamiętuje je – razem z miejscem i rozmiarem okna oraz szerokością kolumn.
 
 ## Dokumentacja

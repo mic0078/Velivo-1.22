@@ -35,7 +35,7 @@ namespace Przegladarka
             // archiwum (catch-up) z listy: rodzaj (flussonic, default, append, shift, xc), ile dni wstecz, wzor adresu
             public string Catchup, CatchupSource; public int CatchupDays;
             // kanal odtwarzany z archiwum: adres na zywo i poczatek odtwarzanej audycji
-            public string LiveUrl; public DateTime? ArchiveStart;
+            public string LiveUrl; public DateTime? ArchiveStart, ArchiveStop; public int ArchiveVariant;
             // wlasna nazwa / ikona (edycja kanalu): oryginal z listy - do programu TV i do przywrocenia ("" = brak ikony w liscie)
             public string OrigName, OrigLogo;
         }
@@ -78,6 +78,7 @@ namespace Przegladarka
             public int InfoScale { get; set; } = 100;
             public int ListAlpha { get; set; } = 85;     // nieprzezroczystosc listy kanalow nad filmem (%)    // wielkosc tekstu paska informacji (%), dodatkowo dopasowana do rozmiaru okna
             public Dictionary<string, string> EpgMap { get; set; } = new Dictionary<string, string>();
+            public Dictionary<string, int> CatchupVariant { get; set; } = new Dictionary<string, int>();   // dzialajaca odmiana adresu archiwum: serwer -> numer
             public Dictionary<string, string> MyNames { get; set; } = new Dictionary<string, string>();   // wlasna nazwa kanalu: adres -> nazwa
             public Dictionary<string, string> MyLogos { get; set; } = new Dictionary<string, string>();   // wlasna ikona: adres -> plik albo adres obrazka   // reczne przypisanie programu TV: adres kanalu -> id w EPG
             public string Sort { get; set; }     // sortowanie: "kolumna" albo "kolumna,desc"      // miejsce i rozmiar okna listy: "x,y,szer,wys"
@@ -157,7 +158,8 @@ namespace Przegladarka
         // adres audycji z archiwum - formaty jak w popularnych odtwarzaczach IPTV (Kodi IPTV Simple, TiviMate):
         // flussonic: .../index.m3u8 -> .../index-{start}-{dlugosc}.m3u8, .../mpegts -> .../timeshift_abs-{start}.ts; shift: ?utc=&lutc=;
         // xc: /live/u/h/id.ts -> /timeshift/u/h/{minuty}/{rrrr-mm-dd:gg-mm}/id.ts; default / append: wzor z catchup-source
-        internal static string CatchupUrl(IptvChannel c, DateTime start, DateTime end, DateTime now)
+        // variant: kolejne odmiany adresu u tego samego rodzaju (serwery roznia sie) - null, gdy wiecej nie ma
+        internal static string CatchupUrl(IptvChannel c, DateTime start, DateTime end, DateTime now, int variant = 0)
         {
             if (!HasCatchup(c)) return null;
             long s = new DateTimeOffset(start).ToUnixTimeSeconds(), e = new DateTimeOffset(end).ToUnixTimeSeconds(), n = new DateTimeOffset(now).ToUnixTimeSeconds();
@@ -174,25 +176,44 @@ namespace Przegladarka
             };
             switch (c.Catchup)
             {
-                case "append": return c.Url + fill(c.CatchupSource ?? "");
-                case "shift": return c.Url + (c.Url.Contains("?") ? "&" : "?") + "utc=" + s + "&lutc=" + n;
+                case "append": return variant == 0 ? c.Url + fill(c.CatchupSource ?? "") : null;
+                case "shift": return variant == 0 ? c.Url + (c.Url.Contains("?") ? "&" : "?") + "utc=" + s + "&lutc=" + n : null;
                 case "xc":
                     {
-                        var m = XcLive.Match(c.Url); if (!m.Success) return null;
+                        var m = XcLive.Match(c.Url); if (!m.Success || variant > 0) return null;
                         return m.Groups[1].Value + "/timeshift/" + m.Groups[2].Value + "/" + m.Groups[3].Value + "/" + (dur / 60) + "/" + start.ToString("yyyy-MM-dd:HH-mm", CultureInfo.InvariantCulture) + "/" + m.Groups[4].Value + ".ts";
                     }
                 case "default":
-                    if (!string.IsNullOrEmpty(c.CatchupSource)) return fill(c.CatchupSource);
+                    if (!string.IsNullOrEmpty(c.CatchupSource)) return variant == 0 ? fill(c.CatchupSource) : null;
                     goto case "flussonic";
                 case "flussonic": case "fs": case "flussonic-hls": case "flussonic-ts":
                     {
                         int sl = url.LastIndexOf('/'); if (sl < 0) return null;
                         var dir = url.Substring(0, sl + 1); var last = url.Substring(sl + 1);
-                        if (last.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)) return dir + last.Substring(0, last.Length - 5) + "-" + s + "-" + dur + ".m3u8" + q;
-                        return dir + "timeshift_abs-" + s + ".ts" + q;   // strumien mpegts
+                        if (last.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var b = last.Substring(0, last.Length - 5);
+                            switch (variant)   // odmiany Flussonic dla HLS (rozne serwery / posrednicy)
+                            {
+                                case 0: return dir + b + "-" + s + "-" + dur + ".m3u8" + q;
+                                case 1: return dir + "archive-" + s + "-" + dur + ".m3u8" + q;
+                                case 2: return dir + "timeshift_abs-" + s + ".m3u8" + q;
+                                case 3: return dir + b + "-" + s + "-now.m3u8" + q;
+                                case 4: return dir + "timeshift_abs-" + s + ".ts" + q;
+                                case 5: return c.Url + (c.Url.Contains("?") ? "&" : "?") + "utc=" + s + "&lutc=" + n;
+                                default: return null;
+                            }
+                        }
+                        switch (variant)   // strumien mpegts
+                        {
+                            case 0: return dir + "timeshift_abs-" + s + ".ts" + q;
+                            case 1: return dir + "archive-" + s + "-" + dur + ".ts" + q;
+                            case 2: return c.Url + (c.Url.Contains("?") ? "&" : "?") + "utc=" + s + "&lutc=" + n;
+                            default: return null;
+                        }
                     }
                 default:
-                    return !string.IsNullOrEmpty(c.CatchupSource) ? fill(c.CatchupSource) : null;
+                    return variant == 0 && !string.IsNullOrEmpty(c.CatchupSource) ? fill(c.CatchupSource) : null;
             }
         }
 

@@ -20,6 +20,15 @@ public class ArchiwumTvTests
     }
 
     [Fact]
+    public void FlussonicOdmianyAdresu()
+    {
+        var c = new MainWindow.IptvChannel { Url = "http://s.test/ch1/index.m3u8?token=T", Catchup = "flussonic", CatchupDays = 3 };
+        Assert.Equal("http://s.test/ch1/archive-" + U(Start) + "-6000.m3u8?token=T", MainWindow.CatchupUrl(c, Start, End, End, 1));
+        Assert.Equal("http://s.test/ch1/timeshift_abs-" + U(Start) + ".m3u8?token=T", MainWindow.CatchupUrl(c, Start, End, End, 2));
+        Assert.Null(MainWindow.CatchupUrl(c, Start, End, End, 99));   // kolejne odmiany sie koncza
+    }
+
+    [Fact]
     public void FlussonicMpegts()
     {
         var c = new MainWindow.IptvChannel { Url = "http://s.test/kanal/mpegts?token=X", Catchup = "flussonic", CatchupDays = 2 };

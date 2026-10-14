@@ -75,10 +75,18 @@ namespace Przegladarka
             l.Opts.AddRange(c.Opts); return l;
         }
 
-        internal void PlayArchive(IptvChannel ch, EpgItem p)
+        // serwer kanalu - dzialajaca odmiana adresu archiwum zapamietana dla niego
+        static string ArchiveHost(string url) { try { return new Uri(url).Authority.ToLowerInvariant(); } catch (Exception) { return ""; } }
+
+        internal void PlayArchive(IptvChannel ch, EpgItem p, int variant = -1)
         {
-            var live = LiveOf(ch); var url = CatchupUrl(live, p.Start, p.Stop, DateTime.Now); if (url == null) return;
-            var a = new IptvChannel { Name = live.Name, Url = url, Group = live.Group, Logo = live.Logo, TvgId = live.TvgId, Catchup = live.Catchup, CatchupSource = live.CatchupSource, CatchupDays = live.CatchupDays, LiveUrl = live.Url, ArchiveStart = p.Start };
+            var live = LiveOf(ch);
+            if (variant < 0) variant = IptvSt.CatchupVariant != null && IptvSt.CatchupVariant.TryGetValue(ArchiveHost(live.Url), out var kv) ? kv : 0;
+            var url = CatchupUrl(live, p.Start, p.Stop, DateTime.Now, variant);
+            if (url == null && variant > 0) { variant = 0; url = CatchupUrl(live, p.Start, p.Stop, DateTime.Now, 0); }
+            if (url == null) return;
+            var a = new IptvChannel { Name = live.Name, Url = url, Group = live.Group, Logo = live.Logo, TvgId = live.TvgId, Catchup = live.Catchup, CatchupSource = live.CatchupSource, CatchupDays = live.CatchupDays, LiveUrl = live.Url, ArchiveStart = p.Start, ArchiveStop = p.Stop, ArchiveVariant = variant,
+                OrigName = live.OrigName, OrigLogo = live.OrigLogo };
             a.Opts.AddRange(live.Opts);
             _iptvPlaying[url] = a;
             PlayVideos(new[] { url }, 0);
@@ -2056,7 +2064,28 @@ namespace Przegladarka
                 if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("📺 Brak sygnału – łączę ponownie…")); return; }   // telewizja: bez przeskoku na nastepny kanal; strażnik polaczy ponownie
                 if (!stopHere && _playIndex < _playlist.Count - 1) _vlcLoad(_playIndex + 1);   // nastepny z listy (VLC nie moze startowac w swoim watku zdarzen)
             }));
-            mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(guard(() => showOsd(L.T("Nie da się odtworzyć tego pliku"))));
+            mp.EncounteredError += (s, e) => Dispatcher.BeginInvoke(guard(() =>
+            {
+                // archiwum: serwer nie przyjal tej odmiany adresu - kolejna (jak w odtwarzaczach IPTV), az ktoras zadziala
+                var pe = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (pe != null && _iptvPlaying.TryGetValue(pe, out var ta) && ta.ArchiveStart.HasValue && ta.ArchiveStop.HasValue)
+                {
+                    var live = LiveOf(ta); int nv = ta.ArchiveVariant + 1;
+                    if (nv < 10 && CatchupUrl(live, ta.ArchiveStart.Value, ta.ArchiveStop.Value, DateTime.Now, nv) != null)
+                    { showOsd(L.T("⏪ Próbuję inny format archiwum…")); PlayArchive(ta, new EpgItem { Start = ta.ArchiveStart.Value, Stop = ta.ArchiveStop.Value }, nv); return; }
+                    showOsd(L.T("⏪ Serwer nie udostępnia tej audycji z archiwum")); return;
+                }
+                showOsd(L.T("Nie da się odtworzyć tego pliku"));
+            }));
+            // archiwum ruszylo - ta odmiana adresu dziala u tego dostawcy (nastepnym razem od razu)
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() =>
+            {
+                var pp = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                if (pp == null || !_iptvPlaying.TryGetValue(pp, out var ta) || !ta.ArchiveStart.HasValue) return;
+                if (IptvSt.CatchupVariant == null) IptvSt.CatchupVariant = new Dictionary<string, int>();
+                var host = ArchiveHost(ta.LiveUrl ?? "");
+                if (!IptvSt.CatchupVariant.TryGetValue(host, out var old) || old != ta.ArchiveVariant) { IptvSt.CatchupVariant[host] = ta.ArchiveVariant; SaveIptv(IptvSt); }
+            }));
 
             Action togglePlay = () =>
             {

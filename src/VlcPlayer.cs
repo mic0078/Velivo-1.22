@@ -1196,8 +1196,12 @@ namespace Przegladarka
             var seekRow = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
             DockPanel.SetDock(timeNow, Dock.Left); DockPanel.SetDock(timeLen, Dock.Right);
             // TV na zywo: zamiast paska postepu przesuwajacy sie napis - co leci i krotki opis
-            var ticker = new Canvas { ClipToBounds = true, Height = 18, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
-            var tickerText = new TextBlock { Foreground = fg, FontSize = 13, RenderTransform = new TranslateTransform() };
+            var ticker = new Canvas { ClipToBounds = true, Height = 21, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            var tickerText = new TextBlock { Foreground = fg, FontSize = 14.5, RenderTransform = new TranslateTransform() };
+            // przed napisem: nazwa stacji pogrubiona (stoi w miejscu) i cienki separator
+            var tickerName = new TextBlock { Foreground = fg, FontSize = 14.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            var tickerSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x88, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(10, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            DockPanel.SetDock(tickerName, Dock.Left); DockPanel.SetDock(tickerSep, Dock.Left);
             ticker.Children.Add(tickerText);
             Action tickerRun = () =>
             {
@@ -1208,7 +1212,7 @@ namespace Przegladarka
                 tt.BeginAnimation(TranslateTransform.XProperty, anim);
             };
             ticker.SizeChanged += (s, e) => { if (ticker.Visibility == Visibility.Visible) tickerRun(); };
-            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(seek); seekRow.Children.Add(ticker);
+            seekRow.Children.Add(timeNow); seekRow.Children.Add(timeLen); seekRow.Children.Add(tickerName); seekRow.Children.Add(tickerSep); seekRow.Children.Add(seek); seekRow.Children.Add(ticker);
 
             var prev = glyphBtn("prev", L.T("Poprzedni (P)"));
             var play = glyphBtn("pause", L.T("Pauza / odtwarzaj (spacja)"));
@@ -2118,7 +2122,7 @@ namespace Przegladarka
             Func<bool> tvShown = () =>
             {
                 var c = liveCh();
-                if (c == null || c.ArchiveStart.HasValue) { if (ticker.Visibility == Visibility.Visible) { ticker.Visibility = Visibility.Collapsed; ((TranslateTransform)tickerText.RenderTransform).BeginAnimation(TranslateTransform.XProperty, null); } seek.Visibility = Visibility.Visible; }   // film / archiwum - zwykly pasek
+                if (c == null || c.ArchiveStart.HasValue) { if (ticker.Visibility == Visibility.Visible) { ticker.Visibility = tickerName.Visibility = tickerSep.Visibility = Visibility.Collapsed; ((TranslateTransform)tickerText.RenderTransform).BeginAnimation(TranslateTransform.XProperty, null); } seek.Visibility = Visibility.Visible; }   // film / archiwum - zwykly pasek
                 if (c == null) { seek.IsEnabled = true; return false; }
                 if (c.ArchiveStart.HasValue)
                 {
@@ -2132,7 +2136,8 @@ namespace Przegladarka
                 if (p != null) { timeNow.Text = p.Start.ToString("HH:mm"); timeLen.Text = p.Stop.ToString("HH:mm") + L.T("  ● NA ŻYWO"); }
                 else { timeNow.Text = ""; timeLen.Text = L.T("● NA ŻYWO"); }
                 // napis: tytul, odcinek i poczatek opisu (zmienia sie z audycja)
-                var desc = p == null ? c.Name : "▶ " + p.Title + (string.IsNullOrEmpty(p.Sub) ? "" : " – " + p.Sub) + (string.IsNullOrEmpty(p.Desc) ? "" : "   ·   " + (p.Desc.Length > 160 ? p.Desc.Substring(0, 160).TrimEnd() + "…" : p.Desc));
+                tickerName.Text = c.Name; tickerName.Visibility = tickerSep.Visibility = Visibility.Visible;
+                var desc = p == null ? L.T("brak programu TV") : "▶ " + p.Title + (string.IsNullOrEmpty(p.Sub) ? "" : " – " + p.Sub) + (string.IsNullOrEmpty(p.Desc) ? "" : "   ·   " + (p.Desc.Length > 160 ? p.Desc.Substring(0, 160).TrimEnd() + "…" : p.Desc));
                 seek.Visibility = Visibility.Collapsed;
                 if (ticker.Visibility != Visibility.Visible || tickerText.Text != desc) { ticker.Visibility = Visibility.Visible; tickerText.Text = desc; Dispatcher.BeginInvoke(tickerRun, DispatcherPriority.Loaded); }
                 return true;

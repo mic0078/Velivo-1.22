@@ -85,3 +85,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Ikona PiP: dwa nakładające się okna (inna niż tryb mini); rząd przycisków w jednej linii z szybkimi ikonami.
 - Ikona ustawień paska informacji (suwaki) obok 👁: pokazywanie przy ruchu myszy, znikanie, przezroczystość tła, wielkość tekstu – przeniesione z menu ⚙.
 - Menu pod prawym przyciskiem odchudzone: bez pozycji, które są ikonami na pasku (pauza, stop, kanał ±, informacje, odśwież, nagrywanie, biblioteka, kanały, program TV, ulubione, wyłącznik, PiP, playlisty, na wierzchu, mini, pełny ekran, zrzut).
+- Napis przy TV na żywo: nazwa stacji pogrubiona (stoi), separator, potem przewijany tytuł i opis; większa czcionka.

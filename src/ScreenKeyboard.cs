@@ -34,8 +34,10 @@ namespace Przegladarka
         {
             if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; return; }
             bool shift = false, caps = false, alt = false;
-            var keyBg = new SolidColorBrush(Color.FromRgb(0x2B, 0x2F, 0x38)); var keyHover = new SolidColorBrush(Color.FromRgb(0x3A, 0x40, 0x4C));
-            var accent = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6));
+            // kolory logo Velivo: fiolet (#7C3AED) -> turkus (#06B6D4) na ciemnym, lekko fioletowym tle
+            var violet = Color.FromRgb(0x7C, 0x3A, 0xED); var cyan = Color.FromRgb(0x06, 0xB6, 0xD4);
+            var keyBg = new SolidColorBrush(Color.FromRgb(0x29, 0x25, 0x3D)); var keyHover = new SolidColorBrush(Color.FromRgb(0x3A, 0x33, 0x58));
+            var accent = new LinearGradientBrush(violet, cyan, 0);
             var rows = new[] { "1234567890-=", "qwertyuiop[]", "asdfghjkl;'", "zxcvbnm,./" };
             const string shifted = "!@#$%^&*()_+{}:\"<>?";
             const string shiftSrc = "1234567890-=[];',./";
@@ -99,14 +101,17 @@ namespace Przegladarka
             var head = new DockPanel { Margin = new Thickness(14, 8, 8, 0), Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
             var close = key("✕", 34); close.Height = 28; close.FontSize = 13; close.Background = Brushes.Transparent; DockPanel.SetDock(close, Dock.Right);
             head.Children.Add(close);
-            head.Children.Add(new TextBlock { Text = L.T("⌨ Klawiatura Velivo"), Foreground = Brushes.Silver, FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
+            var title = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.Silver };
+            title.Inlines.Add(new System.Windows.Documents.Run("⌨ " + L.T("Klawiatura") + " "));
+            title.Inlines.Add(new System.Windows.Documents.Run("Velivo") { FontWeight = FontWeights.SemiBold, Foreground = new LinearGradientBrush(violet, cyan, 0) });
+            head.Children.Add(title);
             var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(root);
             var w = new Window
             {
                 Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ResizeMode = ResizeMode.NoResize,
                 SizeToContent = SizeToContent.WidthAndHeight, Topmost = true, ShowActivated = false, ShowInTaskbar = false,
-                Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x16, 0x19, 0x20)), CornerRadius = new CornerRadius(14), BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), Child = all,
-                    Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.6 } }
+                Content = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF5, 0x15, 0x12, 0x24)), CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(violet, cyan, 45), BorderThickness = new Thickness(1.5), Child = all,
+                    Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 20, ShadowDepth = 0, Opacity = 0.55, Color = violet } }
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };
             close.Click += (s, e) => w.Close();

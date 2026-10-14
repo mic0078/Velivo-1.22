@@ -2197,6 +2197,7 @@ namespace Przegladarka
             // klik = zamiana z glownym; pozycja i wielkosc zapamietane wzgledem okna odtwarzacza (domyslnie prawy dolny rog)
             LibVLCSharp.Shared.MediaPlayer pipMp = null; Window pipWin = null; IptvChannel pipCh = null; TextBlock pipName = null; bool pipPlacing = false;
             var inv = System.Globalization.CultureInfo.InvariantCulture;
+            double? pipX = null, pipY = null, pipW = null;   // biezace miejsce (przesuniete mysza); na stale dopiero "Zapisz to miejsce"
             Func<string, double, double> prefD = (k, d) => double.TryParse(GetPref(k), System.Globalization.NumberStyles.Float, inv, out var x) ? x : d;
             Func<Rect> pipHost = () =>
             {
@@ -2207,8 +2208,8 @@ namespace Przegladarka
             Action pipPlace = () =>
             {
                 if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
-                double w = r.Width * Math.Max(0.1, Math.Min(0.7, prefD("pip-w", 0.28))), h = w * 9 / 16;
-                double fx = prefD("pip-x", -1), fy = prefD("pip-y", -1);
+                double w = r.Width * Math.Max(0.1, Math.Min(0.7, pipW ?? prefD("pip-w", 0.28))), h = w * 9 / 16;
+                double fx = pipX ?? prefD("pip-x", -1), fy = pipY ?? prefD("pip-y", -1);
                 double x = fx < 0 ? r.Width - w : fx * r.Width, y = fy < 0 ? r.Height - h - (controls.Visibility == Visibility.Visible ? controls.ActualHeight : 0) : fy * r.Height;
                 x = Math.Max(0, Math.Min(r.Width - w, x)); y = Math.Max(0, Math.Min(r.Height - h, y));
                 var ow = Window.GetWindow(overlay); if (ow != null && pipWin.Owner != ow) pipWin.Owner = ow;   // warstwa obrazu bywa tworzona na nowo (zmiana rozmiaru) - podglad zawsze nad nia
@@ -2217,8 +2218,7 @@ namespace Przegladarka
             Action pipSave = () =>
             {
                 if (pipWin == null) return; var r = pipHost(); if (r.IsEmpty || r.Width < 50) return;
-                SetPref("pip-x", ((pipWin.Left - r.X) / r.Width).ToString(inv)); SetPref("pip-y", ((pipWin.Top - r.Y) / r.Height).ToString(inv));
-                SetPref("pip-w", (pipWin.Width / r.Width).ToString(inv));
+                pipX = (pipWin.Left - r.X) / r.Width; pipY = (pipWin.Top - r.Y) / r.Height; pipW = pipWin.Width / r.Width;
             };
             Action pipClose = () =>
             {
@@ -2304,7 +2304,13 @@ namespace Przegladarka
                 if (pipWin != null)
                 {
                     pa(cm, tvNow ? L.T("⇄ Zamień z głównym (klik w podgląd)") : L.T("📺 Oglądaj ten kanał (klik w podgląd)"), () => pipSwap(), true);
-                    pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
+                    pa(cm, L.T("📌 Zapisz to miejsce i wielkość"), () =>
+                    {
+                        pipSave(); if (pipX == null) return;
+                        SetPref("pip-x", pipX.Value.ToString(inv)); SetPref("pip-y", pipY.Value.ToString(inv)); SetPref("pip-w", pipW.Value.ToString(inv));
+                        showOsd(L.T("⧉ PiP: miejsce zapisane"));
+                    }, true);
+                    pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { pipX = pipY = pipW = null; SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
                     pa(cm, L.T("✖ Zamknij PiP"), pipClose, true);
                     cm.Items.Add(new Separator());
                 }

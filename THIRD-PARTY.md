@@ -11,5 +11,5 @@
 - Źródło / Source: FrequencyWords (Hermit Dave), listy 50 000 najczęstszych słów polskich i angielskich z napisów OpenSubtitles (2018)
 - Licencja / License: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)
 - Kod źródłowy / Source: https://github.com/hermitdave/FrequencyWords
-- Zmiany / Changes: tylko słowa z polskich liter, bez powtórzeń bez polskich znaków, 40 000 słów, bez liczb częstości (`src/slowa-pl.txt`, `src/slowa-en.txt`).
+- Zmiany / Changes: tylko słowa z polskich liter, bez powtórzeń bez polskich znaków, słownik polski 100 000 słów (pełna lista), angielski 40 000; bez liczb częstości (`src/slowa-pl.txt`, `src/slowa-en.txt`).
   Only Polish-letter words, duplicates without diacritics removed, 40,000 words, frequencies dropped.

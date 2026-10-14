@@ -9,6 +9,7 @@
 ## Instalator testowy
 - Każdy push na `rozwoj` ze zmianą w `src/` uruchamia workflow `instalator-rozwoj.yml` – dwa równoległe zadania: `instalator` (sam instalator testowy, ok. 3 min, tylko jako artefakt w GitHub Actions, bez zapisu do repozytorium) i `testy` (wszystkie testy, w tym bezpieczeństwa, ok. 7 min).
 - Na gałęzi roboczej budujemy tylko to, co właściciel testuje (instalator) – bez wersji przenośnej i samodzielnego exe.
+- Link do pobrania podawaj ZAWSZE i bez pytania, gdy tylko instalator jest gotowy (pełny adres `https://github.com/mic0078/Velivo-1.22/actions/runs/<run>/artifacts/<id>`).
 - Po każdej zmianie SAM poczekaj na zadanie `instalator` i od razu podaj właścicielowi link do artefaktu (właściciel nie powinien sprawdzać, czy już gotowe); potem SAM sprawdź zadanie `testy` i zgłoś wynik – czerwone testy naprawiasz od razu.
 - Scalenie do `main` tylko przy zielonych testach na ostatniej zmianie.
 

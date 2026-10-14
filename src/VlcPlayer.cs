@@ -2273,17 +2273,27 @@ namespace Przegladarka
                     var pl = new Grid { Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), Cursor = Cursors.SizeAll, ToolTip = L.T("Klik – zamień z głównym • przeciągnij – przesuń • krawędź – wielkość • prawy – opcje") };
                     pipName = new TextBlock { Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(6, 4, 30, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
                         TextTrimming = TextTrimming.CharacterEllipsis, Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 1, BlurRadius = 3 } };
-                    var px = new Button { Content = "✕", Width = 24, Height = 22, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Cursor = Cursors.Hand,
-                        Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Foreground = Brushes.White, BorderThickness = new Thickness(0), ToolTip = L.T("Zamknij PiP") };
+                    // przyciski podgladu: te same wektorowe ikony co na pasku (znaki tekstowe nie wyswietlaly sie w okienku obrazu)
+                    var pStyle = PlayerButtonStyle();
+                    Func<string, string, Button> pBtn = (icon, tip) => { var ic = PlayerIcon(icon); ic.Width = ic.Height = 14; return new Button { Content = ic, Style = pStyle, Width = 28, Height = 24, Padding = new Thickness(4), ToolTip = tip }; };
+                    var px = pBtn("close", L.T("Zamknij PiP")); px.HorizontalAlignment = HorizontalAlignment.Right; px.VerticalAlignment = VerticalAlignment.Top; px.Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)); px.Margin = new Thickness(0, 3, 3, 0);
                     px.Click += (q, w2) => pipClose();
                     // sterowanie filmem w podgladzie: pauza / odtwarzaj, stop (od poczatku), pasek postepu do przewijania
-                    var pPlay = new Button { Content = "⏸", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Pauza / odtwarzaj") };
-                    var pStop = new Button { Content = "⏹", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Stop") };
-                    var pSeek = new Slider { Minimum = 0, Maximum = 1000, IsMoveToPointEnabled = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 6, 0), Cursor = Cursors.Hand };
-                    var pBar = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(0xB0, 0, 0, 0)), Visibility = Visibility.Collapsed, Cursor = Cursors.Arrow };
+                    var pPlay = pBtn("pause", L.T("Pauza / odtwarzaj"));
+                    var pStop = pBtn("stop", L.T("Stop"));
+                    // cienki pasek postepu: niebieska czesc obejrzana, okragly uchwyt
+                    var pSeek = new Slider { Minimum = 0, Maximum = 1000, IsMoveToPointEnabled = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 10, 0), Cursor = Cursors.Hand,
+                        Style = (Style)System.Windows.Markup.XamlReader.Parse(@"<Style TargetType='Slider' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Slider'>
+  <Grid Height='16' Background='Transparent'><Border Height='4' CornerRadius='2' Background='#55FFFFFF' VerticalAlignment='Center'/>
+    <Track x:Name='PART_Track' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+      <Track.DecreaseRepeatButton><RepeatButton Command='Slider.DecreaseLarge'><RepeatButton.Template><ControlTemplate><Border Height='4' CornerRadius='2' Background='#3B82F6' VerticalAlignment='Center'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+      <Track.IncreaseRepeatButton><RepeatButton Command='Slider.IncreaseLarge'><RepeatButton.Template><ControlTemplate><Border Background='Transparent'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
+      <Track.Thumb><Thumb><Thumb.Template><ControlTemplate><Ellipse Width='12' Height='12' Fill='White'/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+    </Track></Grid></ControlTemplate></Setter.Value></Setter></Style>") };
+                    var pBar = new DockPanel { VerticalAlignment = VerticalAlignment.Bottom, Height = 30, Background = new SolidColorBrush(Color.FromArgb(0xB0, 0, 0, 0)), Visibility = Visibility.Collapsed, Cursor = Cursors.Arrow };
                     // TV w podgladzie: poprzedni / nastepny kanal z jego grupy
-                    var pPrev = new Button { Content = "⏮", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Poprzedni kanał") };
-                    var pNext = new Button { Content = "⏭", Width = 26, Height = 22, Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, ToolTip = L.T("Następny kanał") };
+                    var pPrev = pBtn("prev", L.T("Poprzedni kanał"));
+                    var pNext = pBtn("next", L.T("Następny kanał"));
                     Action<int> pStep = d =>
                     {
                         var c = pipCh; if (c == null) return;
@@ -2312,7 +2322,8 @@ namespace Przegladarka
                         var fv = film ? Visibility.Visible : Visibility.Collapsed; var tv0 = film ? Visibility.Collapsed : Visibility.Visible;
                         pPlay.Visibility = pStop.Visibility = pSeek.Visibility = fv; pPrev.Visibility = pNext.Visibility = tv0;
                         if (!film) return;
-                        pPlay.Content = pipMp.IsPlaying ? "⏸" : "▶";
+                        var want = pipMp.IsPlaying ? "pause" : "play";
+                        if ((string)pPlay.Tag != want) { var ic = PlayerIcon(want); ic.Width = ic.Height = 14; pPlay.Content = ic; pPlay.Tag = want; }
                         if (!pSeeking && pipMp.Length > 0) { pSeek.Value = pipMp.Position * 1000; pSeek.ToolTip = FormatTime(pipMp.Time) + " / " + FormatTime(pipMp.Length); }
                     };
                     pTick.Start();

@@ -2549,8 +2549,11 @@ namespace Przegladarka
             Action updQuick = () =>
             {
                 var c = qTvCh(); bool rec = c != null && IsRecording(c.Url);
-                qRec.IsEnabled = c != null && !rec && !c.ArchiveStart.HasValue; qRecStop.IsEnabled = rec;
-                qRec.Foreground = rec ? Brushes.Red : Brushes.White; qRec.ToolTip = rec ? L.T("⏺ Trwa nagrywanie tego kanału") : L.T("Nagrywaj ten kanał TV");
+                var recAll = IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList();
+                qRec.IsEnabled = c != null && !rec && !c.ArchiveStart.HasValue; qRecStop.IsEnabled = recAll.Count > 0;   // zatrzymanie - kazdego trwajacego nagrania, takze innego kanalu
+                qRec.Foreground = rec ? Brushes.Red : Brushes.White;
+                qRec.ToolTip = rec ? L.T("⏺ Trwa nagrywanie tego kanału") : recAll.Count > 0 ? L.T("Nagrywaj także ten kanał (") + string.Join(", ", recAll.Select(x => x.Channel)) + L.T(" nagrywa się dalej)") : L.T("Nagrywaj ten kanał TV");
+                qRecStop.ToolTip = recAll.Count == 1 ? L.T("Zatrzymaj nagrywanie: ") + recAll[0].Channel : recAll.Count > 1 ? L.T("Zatrzymaj nagrywanie – wybierz kanał") : L.T("Zatrzymaj nagrywanie");
                 qRefresh.IsEnabled = c != null;
                 // znacznik nagrywania i licznik polaczen
                 var recs = IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList();
@@ -2568,7 +2571,14 @@ namespace Przegladarka
             qTimer.Tick += (s, e) => updQuick(); qTimer.Start(); win.Closed += (s, e) => qTimer.Stop();
             mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(updQuick));
             qRec.Click += (s, e) => { var c = qTvCh(); if (c != null) { RecordNow(c, win); updQuick(); } };
-            qRecStop.Click += (s, e) => { var c = qTvCh(); if (c != null) { StopRecording(c.Url); updQuick(); } };
+            qRecStop.Click += (s, e) =>
+            {   // biezacy kanal, jedyne nagranie albo wybor z listy (gdy nagrywa sie kilka)
+                var c = qTvCh(); var recAll = IptvSt.Jobs.Where(x => x.Kind == "rec" && _recording.ContainsKey(x.Id)).ToList();
+                if (c != null && IsRecording(c.Url)) StopRecording(c.Url);
+                else if (recAll.Count == 1) { if (_recording.TryGetValue(recAll[0].Id, out var cts)) cts.Cancel(); }
+                else if (recAll.Count > 1) { recPill.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); return; }
+                updQuick();
+            };
             qRecDir.Click += (s, e) => OpenRecDir();
             recPill.Click += (s, e) =>
             {   // trwajace nagrania: zatrzymaj / przedluz

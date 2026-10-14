@@ -11,6 +11,7 @@
 - Na gałęzi roboczej budujemy tylko to, co właściciel testuje (instalator) – bez wersji przenośnej i samodzielnego exe.
 - Link do pobrania podawaj ZAWSZE i bez pytania, gdy tylko instalator jest gotowy (pełny adres `https://github.com/mic0078/Velivo-1.22/actions/runs/<run>/artifacts/<id>`).
 - Po każdej zmianie SAM poczekaj na zadanie `instalator` i od razu podaj właścicielowi link do artefaktu (właściciel nie powinien sprawdzać, czy już gotowe); potem SAM sprawdź zadanie `testy` i zgłoś wynik – czerwone testy naprawiasz od razu.
+- Przy niewielkich poprawkach: od razu link do instalatora, testy sprawdzaj w tle (nie blokuj rozmowy czekaniem) i potem podaj krótkie podsumowanie wyniku.
 - Scalenie do `main` tylko przy zielonych testach na ostatniej zmianie.
 
 ## Procedura poprawki

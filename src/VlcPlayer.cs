@@ -1044,7 +1044,7 @@ namespace Przegladarka
 
         bool EnsureLibVlc()
         {
-            var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-stats", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
+            var args = new List<string> { "--no-video-title-show", "--avcodec-hw=any", "--no-lua", "--no-osd", "--mmdevice-passthrough=0", "--no-spdif" };
             if (!Surround51) args.Add("--stereo-mode=1");
             var key = string.Join(" ", args);
             if (_libVlc != null && (key == _libVlcKey || _vlcWin != null)) return true;   // zmiana ustawien dzwieku - od nastepnego otwarcia odtwarzacza
@@ -1296,6 +1296,9 @@ namespace Przegladarka
             netBox.Children.Add(netGraph); netBox.Children.Add(netText);
             quick.Children.Add(netBox); quick.Children.Add(clockBox);
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
+            // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
+            var streamInfo = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0),
+                ToolTip = L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.") };
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             netTimer.Tick += (s, e) =>
             {
@@ -1310,6 +1313,28 @@ namespace Przegladarka
                 }
                 catch (Exception) { return; }
                 if (netLast >= 0 && controls.Visibility != Visibility.Visible) { netLast = total; netUpLast = sent; return; }   // pasek schowany - bez rysowania
+                try
+                {   // jakosc biezacego strumienia (statystyki VLC)
+                    string info = "";
+                    var md = mp.Media;
+                    if (md != null && (mp.IsPlaying || mp.State == VLCState.Paused))
+                    {
+                        uint vw = 0, vh = 0; mp.Size(0, ref vw, ref vh);
+                        var st = md.Statistics;
+                        double kbps = Math.Max(0, st.DemuxBitrate) * 8000;   // VLC: bajty na ms -> kb/s
+                        var q = vh >= 2000 ? "4K" : vh >= 1000 ? "FHD" : vh >= 700 ? "HD" : vh > 0 ? "SD" : "";
+                        var parts = new List<string>();
+                        if (vh > 0) parts.Add(q + " " + vw + "×" + vh);
+                        if (kbps > 0) parts.Add(kbps >= 1000 ? (kbps / 1000).ToString("0.0") + " Mb/s" : kbps.ToString("0") + " kb/s");
+                        var fps = mp.Fps; if (fps > 0) parts.Add(fps.ToString("0.#") + L.T(" kl/s"));
+                        info = string.Join(" · ", parts);
+                        int lost = st.LostPictures;
+                        if (lost > 0) info += L.T("  ⚠ utracone: ") + lost;
+                        var col = lost > 0 ? Brushes.Orange : Brushes.Silver; if (streamInfo.Foreground != col) streamInfo.Foreground = col;
+                    }
+                    if (streamInfo.Text != info) streamInfo.Text = info;
+                }
+                catch (Exception) { }
                 if (netLast >= 0)
                 {
                     double bps = Math.Max(0, total - netLast), ups = Math.Max(0, sent - netUpLast);
@@ -1331,8 +1356,9 @@ namespace Przegladarka
             recPill.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.55, TimeSpan.FromSeconds(1.1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });   // delikatne pulsowanie jak w dekoderze
             var connText = new Button { Cursor = Cursors.Hand, Padding = new Thickness(6, 1, 6, 1), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed,
                 Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse("<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Border Background='Transparent' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border></ControlTemplate>") };
-            var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 4, 4, 0), Height = 21, VerticalAlignment = VerticalAlignment.Top };   // ta sama wysokosc i linia co rzad z czasem / NA ZYWO
-            statusRow.Children.Add(recPill); statusRow.Children.Add(connText);
+            var statusRow = new DockPanel { LastChildFill = false, Margin = new Thickness(12, 4, 4, 0), Height = 21, VerticalAlignment = VerticalAlignment.Top };   // ta sama wysokosc i linia co rzad z czasem / NA ZYWO
+            DockPanel.SetDock(recPill, Dock.Left); DockPanel.SetDock(connText, Dock.Left); DockPanel.SetDock(streamInfo, Dock.Right);
+            statusRow.Children.Add(recPill); statusRow.Children.Add(connText); statusRow.Children.Add(streamInfo);
             var quickCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; quickCol.Children.Add(statusRow); quickCol.Children.Add(quick);
             var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quickCol);
             // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa

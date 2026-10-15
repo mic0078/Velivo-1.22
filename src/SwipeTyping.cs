@@ -129,6 +129,31 @@ namespace Przegladarka
             return char.IsUpper(typed[0]) ? char.ToUpperInvariant(r[0]) + r.Substring(1) : r;
         }
 
+        // watpliwosc (slowa nie ma w slowniku, a pewnej poprawki brak): do 3 propozycji - polskie znaki albo jedna litera, takze rzadkie slowa
+        internal static List<string> Suggest(string typed, ICollection<string> keep = null, int count = 3)
+        {
+            var res = new List<string>();
+            if (_words == null || string.IsNullOrEmpty(typed) || typed.Length < 3 || !typed.All(char.IsLetter)) return res;
+            var w = typed.ToLowerInvariant();
+            if (keep != null && keep.Contains(w)) return res;
+            Correct("xx"); var fold = _fold; var main = _main; if (fold == null || main == null || main.Contains(w)) return res;
+            var fw = new string(w.Select(BaseKey).ToArray());
+            var found = new Dictionary<string, Entry>();
+            Action<string> cand = v => { if (fold.TryGetValue(v, out var e)) found[e.Word] = e; };
+            cand(fw);
+            const string abc = "abcdefghijklmnopqrstuvwxyz";
+            for (int i = 0; i < fw.Length; i++)
+            {
+                cand(fw.Remove(i, 1));
+                if (i + 1 < fw.Length) cand(fw.Substring(0, i) + fw[i + 1] + fw[i] + fw.Substring(i + 2));
+                foreach (var c in abc) { if (c != fw[i]) cand(fw.Substring(0, i) + c + fw.Substring(i + 1)); cand(fw.Insert(i, c.ToString())); }
+            }
+            foreach (var c in abc) cand(fw + c);
+            foreach (var e in found.Values.OrderBy(x => x.Rank).Take(count))
+                res.Add(char.IsUpper(typed[0]) ? char.ToUpperInvariant(e.Word[0]) + e.Word.Substring(1) : e.Word);
+            return res;
+        }
+
         // podwojne litery to ten sam klawisz - na sladzie jeden punkt
         static string Collapse(string keys)
         {

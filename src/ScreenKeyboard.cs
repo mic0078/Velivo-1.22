@@ -332,7 +332,7 @@ namespace Przegladarka
         // Klik myszy, inny klawisz albo przerwa > 4 s = nowe slowo (nie wiemy, gdzie jest kursor). Pole hasla - nic.
         static volatile Func<string, string> _physCorrect;      // null = wylaczona (klawiatura zamknieta / korekta wylaczona)
         static volatile bool _physSecret = true;                // pole hasla (sprawdzane przez klawiature co 0,3 s); na start - bezpiecznie
-        static Action<string, string> _physNotify, _physUndone;
+        static Action<string, string> _physNotify, _physUndone; static Action<string> _physAsk;
         static string _pWord = "", _pFixFrom, _pFixTo; static long _pLast; static char _pPrev; static bool _pCap;
         static void Inject(IEnumerable<KbdInput> ins) { var a = ins.ToArray(); if (a.Length > 0) SendInput((uint)a.Length, a, Marshal.SizeOf(typeof(KbdInput))); }
         static IEnumerable<KbdInput> KeyIn(ushort vk, char ch)
@@ -377,7 +377,7 @@ namespace Przegladarka
             string word = _pWord; _pWord = ""; _pPrev = sep; _pCap = capAfter;
             if (word.Length < 2) return false;
             var fix = corr(word);
-            if (fix == null) return false;
+            if (fix == null) { var a = _physAsk; if (a != null && sep == ' ') Application.Current?.Dispatcher.BeginInvoke(new Action(() => a(word))); return false; }
             Inject(Enumerable.Range(0, word.Length).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn(fix + sep)));   // ten znak zamiast przepuszczonego
             _pFixFrom = word; _pFixTo = fix;
             var n = _physNotify; if (n != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => n(word, fix)));
@@ -386,7 +386,7 @@ namespace Przegladarka
 
         static void StopKeyEcho()
         {
-            _onPhysKey = null; _physCorrect = null; _physNotify = _physUndone = null;
+            _onPhysKey = null; _physCorrect = null; _physNotify = _physUndone = null; _physAsk = null;
             if (_keyThread != 0) PostThreadMessage(_keyThread, 0x12, IntPtr.Zero, IntPtr.Zero);   // WM_QUIT - koniec podsluchu
         }
 
@@ -493,6 +493,7 @@ namespace Przegladarka
             string fixFrom = null, fixTo = null;
             var noFix = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));   // cofniete poprawki - tych slow nie poprawiamy
             char lastSent = '\0'; bool capNext = false;   // wielka litera po ". " / "! " / "? "
+            Action<string, List<string>> askFix = null;   // watpliwosc: "Poprawić na:" z propozycjami (klik podmienia slowo)
             Action<ushort, char> tap = null;
             tap = (vk, ch) =>
             {
@@ -524,6 +525,11 @@ namespace Przegladarka
                     fixFrom = origNow; fixTo = fixedNow;
                     ask.Text = L.T("Poprawiono: ") + origNow + " → " + fixedNow + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
                 }
+                else if (vk == 0 && ch == ' ' && autoOn && origNow.Length >= 3 && !SecretField())
+                {   // pewnej poprawki brak, ale slowa nie ma w slowniku - pytamy
+                    List<string> sg; lock (noFix) sg = SwipeTyping.Suggest(origNow, noFix);
+                    if (sg.Count > 0) askFix(origNow, sg);
+                }
                 if (vk == 0 && char.IsLetter(ch)) cur += ch;
                 else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
                 else { learn(cur); say(cur); cur = ""; }
@@ -551,6 +557,12 @@ namespace Przegladarka
                 };
                 sugs.Add(sb); sugRow.Children.Add(sb);
             }
+            askFix = (word, list) =>
+            {
+                lastSwipe = word; lastTrace = null;   // klik w propozycje podmienia to slowo (+ spacja); bez nauki ruchu
+                for (int i = 0; i < sugs.Count; i++) { bool on = i < list.Count; sugs[i].Visibility = on ? Visibility.Visible : Visibility.Collapsed; if (on) { sugs[i].Content = list[i]; sugs[i].DataContext = list[i]; } }
+                ask.Text = L.T("Poprawić na:"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
+            };
             // rzad skrotow: notatka, karteczki, poczta, glosnosc Windows, Velivo, kalkulator, wycinanie, szukanie, wylaczenie komputera
             var fnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             Func<object, double, string, Action, Button> fn = (txt, wdt, tip, act) =>
@@ -1004,6 +1016,7 @@ namespace Przegladarka
                 if (added) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
                 ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
             };
+            _physAsk = word => { if (GetPref("klawiatura-korekta") == "0" || _physSecret) return; List<string> sg; lock (noFix) sg = SwipeTyping.Suggest(word, noFix); if (sg.Count > 0) askFix(word, sg); };
             physApply();
             StartKeyEcho();
             w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); secretTimer.Stop(); StopKeyEcho(); };

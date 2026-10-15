@@ -153,6 +153,7 @@ namespace Przegladarka
                 using (var doc = JsonDocument.Parse(e.WebMessageAsJson))
                 {
                     var root = doc.RootElement;
+                    if (root.ValueKind != JsonValueKind.Object) return;   // inne wiadomosci strony (zwykly tekst) - nie do Szybkiego Dostepu
                     if (!root.TryGetProperty("typ", out var type) || type.GetString() != "velivo-quick-access" ||
                         !root.TryGetProperty("id", out var idElement) || !idElement.TryGetInt32(out int id) ||
                         !root.TryGetProperty("zadanie", out var request) || request.ValueKind != JsonValueKind.Object ||

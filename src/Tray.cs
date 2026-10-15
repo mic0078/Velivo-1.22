@@ -36,6 +36,26 @@ namespace Przegladarka
         }
         bool _trayHintShown;
 
+        // autostart z Windows: okno schowane w zasobniku, a w tle (niski priorytet) przygotowanie modulow - po kliknieciu wszystko gotowe od razu
+        internal bool SilentStart;
+        void StartSilently()
+        {
+            _trayHintShown = true;   // bez dymka - start z Windows ma byc cichy
+            EnsureTray(); Hide(); _inTray = true;
+            try { System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.BelowNormal; } catch (Exception) { }
+            var warm = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            warm.Tick += (s, e) =>
+            {
+                warm.Stop();
+                try { if (IptvInstalled) LoadIptvInBackground(null); } catch (Exception ex) { App.LogError(ex); }   // lista kanalow i program TV (stare - pobrane po cichu)
+                try { if (VlcInstalled) EnsureLibVlc(); } catch (Exception ex) { App.LogError(ex); }   // silnik odtwarzacza filmow i TV
+                var normal = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
+                normal.Tick += (s2, e2) => { normal.Stop(); try { System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.Normal; } catch (Exception) { } };
+                normal.Start();
+            };
+            warm.Start();
+        }
+
         void EnsureTray()
         {
             if (_tray != null) { _tray.Visible = true; return; }
@@ -107,7 +127,8 @@ namespace Przegladarka
         {
             _inTray = false;
             Show();
-            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            if (WindowState == WindowState.Minimized) WindowState = SilentStart ? WindowState.Maximized : WindowState.Normal;
+            if (SilentStart) { SilentStart = false; ShowInTaskbar = true; try { System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.Normal; } catch (Exception) { } }   // otwarte - pelna szybkosc od razu
             Activate();
             Topmost = true; Topmost = false;
         }

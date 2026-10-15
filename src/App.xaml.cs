@@ -129,6 +129,7 @@ namespace Przegladarka
             WatchUncleanExit();
             var main = new Przegladarka.MainWindow(urls);
             if (Przegladarka.MainWindow.OnlyVlcVideos(urls)) main.WindowState = WindowState.Minimized;   // dwuklik w film: od razu odtwarzacz, przegladarka czeka na pasku zadan
+            else if (autoDelay >= 0 && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
             main.Show();
         }
 

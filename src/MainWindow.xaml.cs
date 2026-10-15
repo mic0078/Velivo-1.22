@@ -196,11 +196,12 @@ namespace Przegladarka
                     SaveSessionSoon();
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie
                     StartLanSync();
-                    AskDefaultBrowserOnce();
+                    if (!SilentStart) AskDefaultBrowserOnce();
                     EnsureFileTypes();
                     StartSleepTabs();
                     TabScroller.ContextMenu = BuildTabStripMenu();   // prawy przycisk na pustym pasku kart
                     NewTabBtn.ContextMenu = BuildTabStripMenu();     // i na "+" (zwykle klikniecie: nowa karta)
+                    if (SilentStart) StartSilently();
                 }
                 catch (Exception ex)
                 {

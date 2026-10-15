@@ -127,6 +127,7 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | Panel diagnostyczny LAN | urządzenia, status, liczniki, log (250 wpisów), odśwież, wyczyść | LanSync.cs | ✔ | ✔ | – |
 | Ostrzeżenia: różnica zegarów, za duży pakiet, błędy odbioru i nadawania | | LanSync.cs 898, 722 | ✔ | ✔ | ✔ |
 | Zostań w zasobniku | zamknięcie okna = ikonka przy zegarze; menu: Otwórz, Synchronizuj teraz, Zamknij | Tray.cs | ✔ | ✔ | ✔ |
+| Cichy start z Windows | autostart: Velivo od razu w zasobniku (bez okna), w tle z niskim priorytetem przygotowuje listę kanałów i program TV oraz odtwarzacz – po kliknięciu ikonki wszystko gotowe | Tray.cs StartSilently, App.xaml.cs | ✔ | ✔ | ✔ |
 | Synchronizacja E2E plikiem | eksport i import paczki: hasło + AES-GCM, PBKDF2 600 tys. | SyncE2E.cs | ✔ | ✔ | – |
 
 ### D. Wideo (`FloatingVideo.cs`, `Extras.cs`, `DefaultBrowser.cs`)

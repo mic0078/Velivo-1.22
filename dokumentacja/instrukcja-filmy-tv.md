@@ -35,6 +35,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.
 - CC napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki, biblioteka, zawsze na wierzchu, tryb mini, pełny ekran, głośność.
 - Dwuklik w plik filmu w Windows otwiera od razu sam odtwarzacz Velivo – przeglądarka nie wyskakuje (czeka zminimalizowana na pasku zadań).
+- Gdy Velivo uruchamia się razem z Windows, po cichu przygotowuje telewizję (kanały, program TV) i odtwarzacz – po otwarciu wszystko działa od razu.
 
 **Pasek postępu:**
 - przy filmie – czas i przewijanie,

@@ -55,8 +55,8 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 | ℹ | Pasek informacji |
 | 🔄 | Odśwież kanał |
 | 🎞 | Playlisty i moja kolejka |
-| ⭐📺 | Moje ulubione kanały |
-| ⭐🎬 | Moje ulubione filmy |
+| ⭐📺 | Moje ulubione kanały (alfabetycznie) |
+| ⭐🎬 | Moje ulubione filmy (alfabetycznie) |
 | 👁 | Pasek sterowania: po ilu sekundach znika (albo zawsze widoczny) i jak bardzo przezroczysty |
 | ⚟ (suwaki) | Pasek informacji: pokazywanie przy ruchu myszy, czas znikania, przezroczystość, wielkość tekstu |
 

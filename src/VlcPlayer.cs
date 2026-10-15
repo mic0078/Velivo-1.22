@@ -2834,8 +2834,8 @@ namespace Przegladarka
                 Func<string, IptvChannel> byUrl = u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : allc.FirstOrDefault(c => c.Url == u);
                 var tvM = new MenuItem { Header = L.T("📺 Telewizja") };
                 chSub(tvM, L.T("🕘 Ostatnio oglądane"), IptvSt.Recent.Select(byUrl).Take(20));
-                chSub(tvM, L.T("⭐ Ulubione"), IptvSt.Fav.Select(byUrl));
-                if (tvNow) chSub(tvM, L.T("📺 Kanały tej grupy"), _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]));
+                chSub(tvM, L.T("⭐ Ulubione"), IptvSt.Fav.Select(byUrl).Where(c => c != null).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase));
+                if (tvNow) chSub(tvM, L.T("📺 Kanały tej grupy"), _playlist.Where(u => _iptvPlaying.ContainsKey(u)).Select(u => _iptvPlaying[u]).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase));
                 var grM = new MenuItem { Header = L.T("📂 Wszystkie grupy") };
                 foreach (var g0 in allc.Select(c => c.Group).Distinct().OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase))
                 { var g = g0; chSub(grM, g.Length == 0 ? L.T("(bez grupy)") : g, allc.Where(c => c.Group == g).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)); }
@@ -2851,7 +2851,7 @@ namespace Przegladarka
                 };
                 fSub(L.T("🕘 Ostatnio oglądane"), libF.Where(v => v.Last > 0).OrderByDescending(v => v.Last).Take(20));
                 var favF = LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>();
-                fSub(L.T("⭐ Ulubione"), favF.Select(u => libF.FirstOrDefault(v => string.Equals(v.Path, u, StringComparison.OrdinalIgnoreCase))).Where(v => v != null));
+                fSub(L.T("⭐ Ulubione"), favF.Select(u => libF.FirstOrDefault(v => string.Equals(v.Path, u, StringComparison.OrdinalIgnoreCase))).Where(v => v != null).OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
                 var recD = TvRecDirs(); var allF = libF.Where(v => !UnderAny(v.Path, recD)).ToList();   // nagrania TV - tylko w "Nagrane z TV"
                 fSub(L.T("📚 Wszystkie filmy (") + allF.Count + ")", allF.OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
                 if (fm.Items.Count > 0) fm.Items.Add(new Separator());
@@ -2986,17 +2986,18 @@ namespace Przegladarka
             qMenu(qFavTv, cm =>
             {   // ulubione kanaly - klik: gra, a PgUp/PgDn po ulubionych
                 var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
-                var favs = IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
+                var favs = IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();   // lista bez wyboru sortowania - alfabetycznie
                 for (int k = 0; k < favs.Count; k++) { int i0 = k; var mi = new MenuItem { Header = favs[k].Name }; mi.Click += (q, w2) => { foreach (var c in favs) _iptvPlaying[c.Url] = c; PlayVideos(favs.Select(c => c.Url).ToArray(), i0); }; cm.Items.Add(mi); }
             });
             qMenu(qFavFilm, cm =>
             {   // ulubione filmy (playlista "⭐ Ulubione") - klik: gra, nastepny/poprzedni po ulubionych
                 var lib = LoadLibrary();
-                var favs = (LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>()).Where(File.Exists).ToList();
+                Func<string, string> title = f => { var v = FindEntry(lib, f, null); return v != null ? ShownTitle(v, MetaFor(v.Path)) : System.IO.Path.GetFileNameWithoutExtension(f); };
+                var favs = (LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>()).Where(File.Exists).OrderBy(title, StringComparer.CurrentCultureIgnoreCase).ToList();   // alfabetycznie
                 for (int k = 0; k < favs.Count; k++)
                 {
-                    int i0 = k; var v = FindEntry(lib, favs[k], null);
-                    var mi = new MenuItem { Header = v != null ? ShownTitle(v, MetaFor(v.Path)) : System.IO.Path.GetFileNameWithoutExtension(favs[k]) };
+                    int i0 = k;
+                    var mi = new MenuItem { Header = title(favs[k]) };
                     mi.Click += (q, w2) => PlayVideos(favs.ToArray(), i0); cm.Items.Add(mi);
                 }
             });

@@ -1122,6 +1122,9 @@ namespace Przegladarka
             { "play", "M8,5.14V19.14L19,12.14Z" },
             { "pause", "M14,19H18V5H14M6,19H10V5H6Z" },
             { "stop", "M6,6H18V18H6Z" },
+            { "chback", "M12.5,8C9.85,8 7.45,9 5.6,10.6L2,7V16H11L7.38,12.38C8.77,11.22 10.54,10.5 12.5,10.5C16.04,10.5 19.05,12.81 20.1,16L22.47,15.22C21.08,11.03 17.15,8 12.5,8Z" },
+            { "chfirst", "M18.41,16.59L13.82,12L18.41,7.41L17,6L11,12L17,18L18.41,16.59M6,6H8V18H6V6Z" },
+            { "chhist", "M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z" },
             { "subs", "M18,11H16.5V10.5H14.5V13.5H16.5V13H18V14A1,1 0 0,1 17,15H14A1,1 0 0,1 13,14V10A1,1 0 0,1 14,9H17A1,1 0 0,1 18,10M11,11H9.5V10.5H7.5V13.5H9.5V13H11V14A1,1 0 0,1 10,15H7A1,1 0 0,1 6,14V10A1,1 0 0,1 7,9H10A1,1 0 0,1 11,10M19,4H5C3.89,4 3,4.89 3,6V18A2,2 0 0,0 5,20H19A2,2 0 0,0 21,18V6C21,4.89 20.1,4 19,4Z" },
             { "audio", "M12,3V13.55C11.41,13.21 10.73,13 10,13A4,4 0 0,0 6,17A4,4 0 0,0 10,21A4,4 0 0,0 14,17V7H18V3H12Z" },
             { "aspect", "M19,12H17V15H14V17H19V12M7,9H10V7H5V12H7V9M21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19V5A2,2 0 0,0 21,3M21,19H3V5H21V19Z" },
@@ -1277,9 +1280,9 @@ namespace Przegladarka
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
             var left = new StackPanel { Orientation = Orientation.Horizontal };
             // telewizja na zywo: zamiast -10 s / +10 s / predkosci - powrot po ostatnio przelaczanych kanalach (pamiec 20)
-            var chBack = textBtn("↶", L.T("Poprzedni kanał – cofa po kolei po kanałach, które przełączałeś"));
-            var chFirst = textBtn("⇤", L.T("Wróć do pierwszego kanału – tego, od którego zacząłeś przełączać"));
-            var chHistBtn = textBtn("🕘", L.T("Historia kanałów – ostatnie 20 (alfabetycznie)"));
+            var chBack = glyphBtn("chback", L.T("Poprzedni kanał – cofa po kolei po kanałach, które przełączałeś"));
+            var chFirst = glyphBtn("chfirst", L.T("Wróć do pierwszego kanału – tego, od którego zacząłeś przełączać"));
+            var chHistBtn = glyphBtn("chhist", L.T("Historia kanałów – ostatnie 20 (alfabetycznie)"));
             var filmNav = new StackPanel { Orientation = Orientation.Horizontal }; foreach (var b in new UIElement[] { back10, fwd10, speed }) filmNav.Children.Add(b);
             var tvNav = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed }; foreach (var b in new UIElement[] { chBack, chFirst, chHistBtn }) tvNav.Children.Add(b);
             foreach (var b in new UIElement[] { prev, play, stop, next, filmNav, tvNav }) left.Children.Add(b);

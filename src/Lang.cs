@@ -778,6 +778,7 @@ namespace Przegladarka
             { "Kursor w prawo", "Cursor right" },
             { "Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych", "Space. Swipe typing: press on the first letter of a word and drag across the next ones" },
             { "Zamknij klawiaturę", "Close the keyboard" },
+            { "Schowaj klawiaturę (wraca po kliknięciu rolką w pole albo przytrzymaniu rolki)", "Hide the keyboard (it comes back when you middle-click a field or hold the wheel)" },
             { "🧠 Szukaj w treści stron…", "🧠 Search page contents…" },
             { "Wyczyść pamięć stron", "Clear page memory" },
             { "  ·  zapamiętywanie jest wyłączone w ustawieniach", "  ·  remembering is turned off in settings" },

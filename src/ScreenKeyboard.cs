@@ -355,7 +355,7 @@ namespace Przegladarka
         static void ShowScreenKeyboard(IntPtr target)
         {
             _kbdTarget = target != IntPtr.Zero ? target : GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
-            if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; AvoidField(_kbd); return; }
+            if (_kbd != null) { if (!_kbd.IsVisible) { var wa = SystemParameters.WorkArea; _kbd.Left = wa.Left + (wa.Width - _kbd.ActualWidth) / 2; _kbd.Top = wa.Bottom - _kbd.ActualHeight - 10; _kbd.Show(); if (_kbd.Content is Border bd && bd.Child is Viewbox vb && vb.Child is FrameworkElement fe) Sail(_kbd, fe, true, null); } _kbd.Topmost = false; _kbd.Topmost = true; AvoidField(_kbd); return; }   // schowana - wraca
             LoadSwipeDictionary();
             bool shift = false, caps = false, alt = false;
             // subtelnie w kolorach logo Velivo: ciemne tlo z lekkim fioletowo-turkusowym odcieniem, klawisze ze szkla,
@@ -518,6 +518,10 @@ namespace Przegladarka
             var head = new DockPanel { Margin = new Thickness(14, 8, 8, 0), Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
             var close = key(ico("\uE711", null), 34); close.Height = 28; close.FontSize = 13; close.Background = Brushes.Transparent; DockPanel.SetDock(close, Dock.Right);
             head.Children.Add(close);
+            // minimalizacja: klawiatura chowa sie (bez paska zadan), wraca kliknieciem rolka w pole albo przytrzymaniem rolki
+            var minB = key(ico("\uE921", null), 34); minB.Height = 28; minB.FontSize = 13; minB.Background = Brushes.Transparent; DockPanel.SetDock(minB, Dock.Right);
+            minB.ToolTip = L.T("Schowaj klawiaturę (wraca po kliknięciu rolką w pole albo przytrzymaniu rolki)");
+            head.Children.Add(minB);
             // wlasny slownik (jak na Androidzie): podglad i usuwanie wyuczonych slow
             var dictB = key(ico("\uE82D", null), 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
             dictB.ToolTip = L.T("Mój słownik – słowa, których Velivo nauczyło się od Ciebie (klik w słowo usuwa je)");
@@ -652,6 +656,7 @@ namespace Przegladarka
             {
                 PadState st = default; bool ok = false;
                 try { for (int i = 0; i < 4 && !ok; i++) ok = XInputGetState(i, out st) == 0; } catch (Exception) { padTimer.Stop(); return; }   // brak XInput w systemie
+                padSel.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;   // ramka tylko przy podlaczonym padzie (bez pada nie stoi na "t")
                 if (!ok) return;
                 ushort bt = st.Buttons;
                 // galka jak krzyzak
@@ -680,7 +685,7 @@ namespace Przegladarka
             {
                 bool on = GetPref("klawiatura-pad") == "1";
                 padB.Background = on ? accent : Brushes.Transparent;
-                padSel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                if (!on) padSel.Visibility = Visibility.Collapsed;
                 if (on) { padShow(); padTimer.Start(); } else padTimer.Stop();
             };
             padB.Click += (s, e) => { SetPref("klawiatura-pad", GetPref("klawiatura-pad") == "1" ? "0" : "1"); padApply(); };
@@ -750,6 +755,7 @@ namespace Przegladarka
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };
             close.Click += (s, e) => Sail(w, all, false, w.Close); close.ToolTip = L.T("Zamknij klawiaturę");
+            minB.Click += (s, e) => Sail(w, all, false, w.Hide);
             // brzegi i rogi do zmiany rozmiaru (okno bez ramki) - szerokosc i wysokosc dowolnie, mysza
             System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome { ResizeBorderThickness = new Thickness(7), CaptionHeight = 0, GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(14), UseAeroCaptionButtons = false });
             w.SourceInitialized += (s, e) =>
@@ -773,18 +779,15 @@ namespace Przegladarka
                 var sz = (GetPref("klawiatura-rozmiar") ?? "").Split(';');
                 if (sz.Length == 2 && double.TryParse(sz[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sw) && double.TryParse(sz[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sh))
                 { w.Width = Math.Max(w.MinWidth, Math.Min(wa.Width, sw)); w.Height = Math.Max(w.MinHeight, Math.Min(wa.Height, sh)); }
-                else { w.Width = wa.Width * 0.33; w.Height = w.Width * nh / nw; }
-                // zapamietane miejsce (gdy na ekranie), a pierwszy raz: na dole ekranu, na srodku
+                else { w.Width = Math.Min(wa.Width * 0.9, 870); w.Height = w.Width * nh / nw; }   // na start ok. 870 punktow szerokosci
+                // zawsze na srodku ekranu, tuz nad paskiem zadan
                 double ww = double.IsNaN(w.Width) ? nw : w.Width, wh = double.IsNaN(w.Height) ? nh : w.Height;
-                var p = (GetPref("klawiatura-poz") ?? "").Split(';');
-                if (p.Length == 2 && double.TryParse(p[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x) && double.TryParse(p[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y)
-                    && x >= SystemParameters.VirtualScreenLeft && y >= SystemParameters.VirtualScreenTop && x + 120 <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth && y + 60 <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight) { w.Left = x; w.Top = y; }
-                else { w.Left = wa.Left + (wa.Width - ww) / 2; w.Top = wa.Bottom - wh - 10; }
+                w.Left = wa.Left + (wa.Width - ww) / 2; w.Top = wa.Bottom - wh - 10;
                 AvoidField(w);
                 Sail(w, all, true, null);
             };
-            w.Closing += (s, e) => SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.ActualHeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // rozmiar zapisywany od razu po zmianie (takze gdy Velivo zamknie sie z otwarta klawiatura)
+            w.SizeChanged += (s, e) => { if (w.IsLoaded && w.SizeToContent == SizeToContent.Manual) SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.ActualHeight.ToString(System.Globalization.CultureInfo.InvariantCulture)); };
             // pisanie na zwyklej klawiaturze: na ekranie fala na tym samym klawiszu (nic nie jest zapisywane; w polu hasla - nic)
             foreach (var (b, c) in letters) if (char.IsLetterOrDigit(c)) vkKeys[char.ToUpperInvariant(c)] = b;
             vkKeys[0x14] = capsB; vkKeys[0xA0] = vkKeys[0xA1] = vkKeys[0x10] = shiftB;

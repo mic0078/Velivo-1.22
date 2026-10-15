@@ -182,9 +182,19 @@ namespace Przegladarka
             if (WinBounds().TryGetValue(AlphaKey(w), out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) && a < 1) ApplyAlpha(w, Math.Max(0.2, a));
         }
 
+        static bool IsInButton(DependencyObject d)
+        {
+            for (; d != null; d = d is Visual || d is System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+                if (d is System.Windows.Controls.Primitives.ButtonBase) return true;
+            return false;
+        }
+
         internal static void AlphaWheel(object sender, MouseWheelEventArgs e)
         {
-            if (Keyboard.Modifiers != ModifierKeys.Alt || !(sender is Window w)) return;
+            if (!(sender is Window w)) return;
+            // klawiatura ekranowa: sama rolka poza klawiszami (tlo, naglowek); inne okna: Alt + rolka
+            bool kbdBg = w == _kbd && !(e.OriginalSource is DependencyObject d0 && IsInButton(d0));
+            if (Keyboard.Modifiers != ModifierKeys.Alt && !kbdBg) return;
             if (w.AllowsTransparency && w.Owner != null) w = w.Owner;   // kolko nad filmem (warstwa) - cale okno odtwarzacza
             var a = NextAlpha(_alpha.TryGetValue(w, out var cur) ? (double)cur : 1.0, e.Delta);
             ApplyAlpha(w, a);

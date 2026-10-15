@@ -2216,12 +2216,15 @@ namespace Przegladarka
             bool vlcClosed = false, aoutDs = false;
             DateTime? sleepAt = null; bool sleepEnd = false, sleepPc = false; Action updSleep = () => { }, pcOff = () => { };   // wylacznik czasowy
             Func<Action, Action> guard = a => () => { if (!vlcClosed) a(); };
-            var chHist = new List<IptvChannel>();   // ostatnio przelaczane kanaly (najstarszy pierwszy), najwyzej 20
+            // historia przelaczania (zapisana - zostaje po zamknieciu TV), chPos = gdzie jestesmy; powrot nie kasuje historii
+            var chHist = IptvSt.Hist; int chPos = chHist.Count - 1; bool chNav = false;
+            Func<string, IptvChannel> chOf = u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : KnownPlaylist()?.Channels.FirstOrDefault(c => c.Url == u);
             Action<IptvChannel> chGo = c =>
             {
                 int idx = _playlist.IndexOf(c.Url);
                 if (idx >= 0) _vlcLoad(idx); else { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }
             };
+            Func<int, bool> chJump = to => { var c = chOf(chHist[to]); if (c == null) { showOsd(L.T("Tego kanału nie ma już na liście")); return false; } chPos = to; chNav = true; chGo(c); return true; };
             _vlcLoad = i =>
             {
                 userStopped = false; lastTvProgress = DateTime.Now;
@@ -2239,7 +2242,9 @@ namespace Przegladarka
                 _iptvPlaying.TryGetValue(path, out var tv);   // kanal telewizji (IPTV) - bez biblioteki, napisow i wznawiania
                 bool liveTv = tv != null && tv.ArchiveStart == null;
                 filmNav.Visibility = liveTv ? Visibility.Collapsed : Visibility.Visible; tvNav.Visibility = liveTv ? Visibility.Visible : Visibility.Collapsed;
-                if (liveTv && (chHist.Count == 0 || chHist[chHist.Count - 1].Url != tv.Url)) { chHist.Add(tv); if (chHist.Count > 20) chHist.RemoveAt(0); }
+                if (liveTv && !chNav && (chHist.Count == 0 || chHist[chHist.Count - 1] != tv.Url)) { chHist.Add(tv.Url); if (chHist.Count > 20) chHist.RemoveAt(0); SaveIptv(IptvSt); }
+                if (liveTv && !chNav) chPos = chHist.Count - 1;   // zwykle przelaczenie - jestesmy na koncu historii
+                chNav = false;
                 if (tv != null) current = null;
                 else if (rf == null) { var lib0 = LoadLibrary(); current = FindEntry(lib0, path, _playShared); TakeNewestProgress(lib0, current); }
                 SaveTvResume(tv != null && tv.ArchiveStart == null ? _playIndex : -1);   // ostatni program wraca po uruchomieniu Velivo
@@ -3031,13 +3036,13 @@ namespace Przegladarka
             prev.Click += (s, e) => step(-1);
             next.Click += (s, e) => step(1);
             back10.Click += (s, e) => jump(-10000);
-            chBack.Click += (s, e) => { if (chHist.Count < 2) { showOsd(L.T("Brak poprzedniego kanału")); return; } chHist.RemoveAt(chHist.Count - 1); chGo(chHist[chHist.Count - 1]); };
-            chFirst.Click += (s, e) => { if (chHist.Count < 2) { showOsd(L.T("To jest pierwszy kanał")); return; } var f = chHist[0]; chHist.RemoveRange(1, chHist.Count - 1); chGo(f); };
+            chBack.Click += (s, e) => { if (chPos <= 0 || chHist.Count < 2) { showOsd(L.T("Brak poprzedniego kanału")); return; } chJump(Math.Min(chPos, chHist.Count) - 1); };
+            chFirst.Click += (s, e) => { if (chHist.Count < 2 || chPos == 0) { showOsd(L.T("To jest pierwszy kanał")); return; } chJump(0); };
             chHistBtn.Click += (s, e) =>
             {
                 var cm = new ContextMenu { PlacementTarget = chHistBtn, Placement = PlacementMode.Top };
-                var cur = chHist.Count > 0 ? chHist[chHist.Count - 1].Url : null;
-                foreach (var c0 in chHist.Where(c => c.Url != cur).GroupBy(c => c.Url).Select(g => g.Last()).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase))
+                var cur = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
+                foreach (var c0 in chHist.Distinct().Where(u => u != cur).Select(chOf).Where(c => c != null).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase))
                 { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (a, b) => chGo(c); cm.Items.Add(mi); }
                 if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("Historia jest pusta – przełącz kanał"), IsEnabled = false });
                 cm.IsOpen = true;

@@ -111,6 +111,8 @@ namespace Przegladarka
                 Application.Current.Shutdown();
                 return;
             }
+            // sam film (skojarzenie plikow, odtwarzacz "jak VLC"): tylko okno odtwarzacza - bez wyciagania przegladarki na wierzch
+            if (OnlyVlcVideos(urls)) { foreach (var u in urls) OpenArg(u); return; }
             if (_inTray) { ShowFromTray(); if (urls.Length == 0) return; }
             if (urls.Length == 0) AddTab(NewTabUrl);
             foreach (var u in urls) OpenArg(u);

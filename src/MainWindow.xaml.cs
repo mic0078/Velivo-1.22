@@ -190,7 +190,8 @@ namespace Przegladarka
                     if (session.Count == 0 && pinned.Count == 0 && !keptOpened && _startUrls.Length == 0) AddTab("");
                     if (session.Count == 0 && (pinned.Count > 0 || keptOpened) && _startUrls.Length == 0) SelectTab(_tabs[0]);   // start od pierwszej przypietej
                     foreach (var u in _startUrls) OpenArg(u);
-                    if (_tabs.Count == 0) AddTab("");   // start samym torrentem
+                    if (_tabs.Count == 0 && !OnlyVlcVideos(_startUrls)) AddTab("");   // start samym torrentem (dwuklik w film: sam odtwarzacz, bez strony)
+                    if (_tabs.Count == 0) { EventHandler first = null; first = (o, a2) => { if (WindowState != WindowState.Minimized && _tabs.Count == 0) { StateChanged -= first; if (WindowState == WindowState.Normal) WindowState = WindowState.Maximized; AddTab(""); } }; StateChanged += first; }   // przegladarka otwarta pozniej z paska zadan
                     _sessionLoaded = true;
                     SaveSessionSoon();
                     StartInstanceServer(); // linki z innych programow -> nowe karty w tym oknie

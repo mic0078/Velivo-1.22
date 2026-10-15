@@ -305,6 +305,9 @@ namespace Przegladarka
             return null;
         }
 
+        // same filmy otwierane w odtwarzaczu "jak VLC" (osobne okno) - przegladarka nie jest potrzebna
+        internal static bool OnlyVlcVideos(string[] args) { return VlcInstalled && args.Length > 0 && args.All(x => VideoArg(x) != null); }
+
         // otwarcie z zewnatrz: torrent trafia do pobran, film z dysku do odtwarzacza, reszta do nowej karty
         void OpenArg(string a)
         {

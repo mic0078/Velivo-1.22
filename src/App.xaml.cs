@@ -127,7 +127,9 @@ namespace Przegladarka
                 return;
             }
             WatchUncleanExit();
-            new Przegladarka.MainWindow(urls).Show();
+            var main = new Przegladarka.MainWindow(urls);
+            if (Przegladarka.MainWindow.OnlyVlcVideos(urls)) main.WindowState = WindowState.Minimized;   // dwuklik w film: od razu odtwarzacz, przegladarka czeka na pasku zadan
+            main.Show();
         }
 
         // nagle zamkniecie (blad w VLC / WebView2 / systemie - bez wpisu w bledy.log): znacznik dziala.txt zostaje,

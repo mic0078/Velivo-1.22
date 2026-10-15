@@ -184,6 +184,7 @@ namespace Przegladarka
 
         // przezroczystosc z przyciskow (klawiatura ekranowa - okno bez aktywacji nie dostaje rolki): 10-100%, zapamietana
         internal static double WindowAlpha(Window w) { return _alpha.TryGetValue(w, out var cur) ? (double)cur : 1.0; }
+        internal static double SavedAlpha(string title) { return WinBounds().TryGetValue("przezroczystosc:" + WindowKey(title), out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) ? Math.Max(0.1, Math.Min(1, a)) : 1.0; }
         internal static void SetWindowAlpha(Window w, double a)
         {
             a = Math.Round(Math.Max(0.1, Math.Min(1.0, a)), 2);

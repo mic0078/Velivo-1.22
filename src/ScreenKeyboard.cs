@@ -811,9 +811,10 @@ namespace Przegladarka
                 }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
             };
             var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(keys);
+            bool seeThrough = SavedAlpha(L.T("Klawiatura Velivo")) < 0.999;   // przezroczysta tylko na zyczenie - nieprzezroczysta rysuje slad plynniej
             var w = new Window
             {
-                Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, Background = new SolidColorBrush(Color.FromRgb(0x19, 0x1B, 0x33)), ResizeMode = ResizeMode.CanResize,   // bez przezroczystosci okna - rysowanie na karcie graficznej, plynny slad
+                Title = L.T("Klawiatura Velivo"), AllowsTransparency = seeThrough, WindowStyle = WindowStyle.None, Background = seeThrough ? Brushes.Transparent : new SolidColorBrush(Color.FromRgb(0x19, 0x1B, 0x33)), ResizeMode = ResizeMode.CanResize,   // bez przezroczystosci okna - rysowanie na karcie graficznej, plynny slad
                 SizeToContent = SizeToContent.WidthAndHeight, Topmost = GetPref("klawiatura-wierzch") == "1", ShowActivated = false, ShowInTaskbar = false,
                 Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromRgb(0x1E, 0x18, 0x38), 0), new GradientStop(Color.FromRgb(0x19, 0x1B, 0x33), 0.55), new GradientStop(Color.FromRgb(0x13, 0x2A, 0x35), 1) }, new Point(0, 0), new Point(1, 1)),
                     CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(Color.FromArgb(0x90, 0x8B, 0x5C, 0xF6), Color.FromArgb(0x90, 0x06, 0xB6, 0xD4), 45), BorderThickness = new Thickness(1), Child = new Viewbox { Child = all, Stretch = Stretch.Fill } }   // klawisze wypelniaja okno - szerokosc i wysokosc ustawiasz niezaleznie
@@ -823,7 +824,11 @@ namespace Przegladarka
             minB.Click += (s, e) => Sail(w, all, false, w.Hide);
             Action alphaShow = () => alphaText.Text = (int)Math.Round(WindowAlpha(w) * 100) + "%";
             alphaPlus.Click += (s, e) => { SetWindowAlpha(w, WindowAlpha(w) + 0.05); alphaShow(); };
-            alphaMinus.Click += (s, e) => { SetWindowAlpha(w, WindowAlpha(w) - 0.05); alphaShow(); };
+            alphaMinus.Click += (s, e) =>
+            {
+                SetWindowAlpha(w, WindowAlpha(w) - 0.05); alphaShow();
+                if (!w.AllowsTransparency) { var t = _kbdTarget; w.Close(); ShowScreenKeyboard(t); }   // pierwsze sciszenie widocznosci: klawiatura otwiera sie od nowa jako przezroczysta (Windows nie zmienia tego w otwartym oknie)
+            };
             w.Loaded += (s, e) => alphaShow();
             pinB.Click += (s, e) => { bool on = GetPref("klawiatura-wierzch") != "1"; SetPref("klawiatura-wierzch", on ? "1" : "0"); w.Topmost = on; pinShow(); };
             // brzegi i rogi do zmiany rozmiaru (okno bez ramki) - szerokosc i wysokosc dowolnie, mysza

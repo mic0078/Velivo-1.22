@@ -141,8 +141,9 @@ public class PisanieFlowTests
         Assert.Null(SwipeTyping.Correct("dom"));
         Assert.Null(SwipeTyping.Correct("xyzq"));                    // nic podobnego - bez zmian
         Assert.Null(SwipeTyping.Correct("dm"));                      // krotkich nie zgadujemy
-        SwipeTyping.AddUserWord("zolw");                             // literowka wyuczona dawniej z pisania - nie blokuje poprawki
-        Assert.Equal("żółw", SwipeTyping.Correct("zolw"));
+        Assert.Equal("żółw", SwipeTyping.Correct("zolw", null, true));  // rozpoznanie literowki (dawne literowki usuwane z Mojego slownika przy otwarciu)
+        SwipeTyping.AddUserWord("zolw");                             // slowo dodane do Mojego slownika - zostaje jak jest
+        Assert.Null(SwipeTyping.Correct("zolw"));
         Assert.Null(SwipeTyping.Correct("zolw", new System.Collections.Generic.HashSet<string> { "zolw" }));   // poprawka cofnieta - zostaje
     }
 }

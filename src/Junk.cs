@@ -105,6 +105,7 @@ namespace Przegladarka
         // W trakcie pracy: silnik czysci cache stron sam; cache grafiki jest zajety - usuwamy go przy nastepnym starcie.
         async Task<long> CleanJunkNow()
         {
+            if (!Dispatcher.CheckAccess()) return await Dispatcher.Invoke(CleanJunkNow);   // z "Porzadkow" (watek w tle) - silnik przegladarki tylko w watku okna
             long before = JunkSize();
             var profile = LiveProfile;
             if (profile != null) await profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);

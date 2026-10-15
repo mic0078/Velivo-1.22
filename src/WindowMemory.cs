@@ -179,22 +179,23 @@ namespace Przegladarka
         internal static void RestoreAlpha(Window w)
         {
             if (w.AllowsTransparency && w.Owner != null) return;   // warstwa na filmie - przezroczystosc ma okno odtwarzacza
-            if (WinBounds().TryGetValue(AlphaKey(w), out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) && a < 1) ApplyAlpha(w, Math.Max(0.2, a));
+            if (WinBounds().TryGetValue(AlphaKey(w), out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) && a < 1) ApplyAlpha(w, Math.Max(w == _kbd ? 0.1 : 0.2, a));
         }
 
-        static bool IsInButton(DependencyObject d)
+        // przezroczystosc z przyciskow (klawiatura ekranowa - okno bez aktywacji nie dostaje rolki): 10-100%, zapamietana
+        internal static double WindowAlpha(Window w) { return _alpha.TryGetValue(w, out var cur) ? (double)cur : 1.0; }
+        internal static void SetWindowAlpha(Window w, double a)
         {
-            for (; d != null; d = d is Visual || d is System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
-                if (d is System.Windows.Controls.Primitives.ButtonBase) return true;
-            return false;
+            a = Math.Round(Math.Max(0.1, Math.Min(1.0, a)), 2);
+            ApplyAlpha(w, a);
+            WinBounds()[AlphaKey(w)] = a.ToString(CultureInfo.InvariantCulture);
+            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+            catch (Exception ex) { App.LogError(ex); }
         }
 
         internal static void AlphaWheel(object sender, MouseWheelEventArgs e)
         {
-            if (!(sender is Window w)) return;
-            // klawiatura ekranowa: sama rolka poza klawiszami (tlo, naglowek); inne okna: Alt + rolka
-            bool kbdBg = w == _kbd && !(e.OriginalSource is DependencyObject d0 && IsInButton(d0));
-            if (Keyboard.Modifiers != ModifierKeys.Alt && !kbdBg) return;
+            if (Keyboard.Modifiers != ModifierKeys.Alt || !(sender is Window w)) return;
             if (w.AllowsTransparency && w.Owner != null) w = w.Owner;   // kolko nad filmem (warstwa) - cale okno odtwarzacza
             var a = NextAlpha(_alpha.TryGetValue(w, out var cur) ? (double)cur : 1.0, e.Delta);
             ApplyAlpha(w, a);

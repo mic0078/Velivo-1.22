@@ -355,7 +355,7 @@ namespace Przegladarka
         static void ShowScreenKeyboard(IntPtr target)
         {
             _kbdTarget = target != IntPtr.Zero ? target : GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
-            if (_kbd != null) { if (!_kbd.IsVisible) { var wa = SystemParameters.WorkArea; _kbd.Left = wa.Left + (wa.Width - _kbd.ActualWidth) / 2; _kbd.Top = wa.Bottom - _kbd.ActualHeight - 10; _kbd.Show(); if (_kbd.Content is Border bd && bd.Child is Viewbox vb && vb.Child is FrameworkElement fe) Sail(_kbd, fe, true, null); } _kbd.Topmost = false; _kbd.Topmost = true; AvoidField(_kbd); return; }   // schowana - wraca
+            if (_kbd != null) { if (!_kbd.IsVisible) { var wa = SystemParameters.WorkArea; _kbd.Left = wa.Left + (wa.Width - _kbd.ActualWidth) / 2; _kbd.Top = wa.Bottom - _kbd.ActualHeight - 10; _kbd.Show(); if (_kbd.Content is Border bd && bd.Child is Viewbox vb && vb.Child is FrameworkElement fe) Sail(_kbd, fe, true, null); } _kbd.Topmost = false; _kbd.Topmost = true; _kbd.Topmost = GetPref("klawiatura-wierzch") == "1"; AvoidField(_kbd); return; }   // schowana - wraca
             LoadSwipeDictionary();
             bool shift = false, caps = false, alt = false;
             // subtelnie w kolorach logo Velivo: ciemne tlo z lekkim fioletowo-turkusowym odcieniem, klawisze ze szkla,
@@ -577,6 +577,15 @@ namespace Przegladarka
             var minB = key(ico("\uE921", null), 34); minB.Height = 28; minB.FontSize = 13; minB.Background = Brushes.Transparent; DockPanel.SetDock(minB, Dock.Right);
             minB.ToolTip = L.T("Schowaj klawiaturę (wraca po kliknięciu rolką w pole albo przytrzymaniu rolki)");
             head.Children.Add(minB);
+            // 📌 zawsze na wierzchu (wl./wyl., zapamietane) i przezroczystosc − / + co 5% (10-100%)
+            var pinB = key(ico("\uE718", null), 34); pinB.Height = 28; pinB.FontSize = 13; DockPanel.SetDock(pinB, Dock.Right);
+            Action pinShow = () => { bool on = GetPref("klawiatura-wierzch") == "1"; pinB.Background = on ? accent : Brushes.Transparent; pinB.ToolTip = on ? L.T("Zawsze na wierzchu: włączone (kliknij, aby wyłączyć)") : L.T("Zawsze na wierzchu: wyłączone (kliknij, aby włączyć)"); };
+            pinShow();
+            var alphaPlus = key(ico("\uE710", null), 30); alphaPlus.Height = 28; alphaPlus.FontSize = 12; alphaPlus.Background = Brushes.Transparent; DockPanel.SetDock(alphaPlus, Dock.Right);
+            var alphaText = new TextBlock { Foreground = Brushes.White, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Width = 38, TextAlignment = TextAlignment.Center, ToolTip = L.T("Przezroczystość klawiatury (widoczność)") }; DockPanel.SetDock(alphaText, Dock.Right);
+            var alphaMinus = key(ico("\uE738", null), 30); alphaMinus.Height = 28; alphaMinus.FontSize = 12; alphaMinus.Background = Brushes.Transparent; DockPanel.SetDock(alphaMinus, Dock.Right);
+            alphaPlus.ToolTip = L.T("Mniej przezroczysta (+5%)"); alphaMinus.ToolTip = L.T("Bardziej przezroczysta (−5%)");
+            head.Children.Add(pinB); head.Children.Add(alphaPlus); head.Children.Add(alphaText); head.Children.Add(alphaMinus);
             // wlasny slownik (jak na Androidzie): podglad i usuwanie wyuczonych slow
             var dictB = key(ico("\uE82D", null), 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
             dictB.ToolTip = L.T("Mój słownik – słowa, których Velivo nauczyło się od Ciebie (klik w słowo usuwa je)");
@@ -805,13 +814,18 @@ namespace Przegladarka
             var w = new Window
             {
                 Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, Background = new SolidColorBrush(Color.FromRgb(0x19, 0x1B, 0x33)), ResizeMode = ResizeMode.CanResize,   // bez przezroczystosci okna - rysowanie na karcie graficznej, plynny slad
-                SizeToContent = SizeToContent.WidthAndHeight, Topmost = true, ShowActivated = false, ShowInTaskbar = false,
+                SizeToContent = SizeToContent.WidthAndHeight, Topmost = GetPref("klawiatura-wierzch") == "1", ShowActivated = false, ShowInTaskbar = false,
                 Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromRgb(0x1E, 0x18, 0x38), 0), new GradientStop(Color.FromRgb(0x19, 0x1B, 0x33), 0.55), new GradientStop(Color.FromRgb(0x13, 0x2A, 0x35), 1) }, new Point(0, 0), new Point(1, 1)),
                     CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(Color.FromArgb(0x90, 0x8B, 0x5C, 0xF6), Color.FromArgb(0x90, 0x06, 0xB6, 0xD4), 45), BorderThickness = new Thickness(1), Child = new Viewbox { Child = all, Stretch = Stretch.Fill } }   // klawisze wypelniaja okno - szerokosc i wysokosc ustawiasz niezaleznie
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };
             close.Click += (s, e) => Sail(w, all, false, w.Close); close.ToolTip = L.T("Zamknij klawiaturę");
             minB.Click += (s, e) => Sail(w, all, false, w.Hide);
+            Action alphaShow = () => alphaText.Text = (int)Math.Round(WindowAlpha(w) * 100) + "%";
+            alphaPlus.Click += (s, e) => { SetWindowAlpha(w, WindowAlpha(w) + 0.05); alphaShow(); };
+            alphaMinus.Click += (s, e) => { SetWindowAlpha(w, WindowAlpha(w) - 0.05); alphaShow(); };
+            w.Loaded += (s, e) => alphaShow();
+            pinB.Click += (s, e) => { bool on = GetPref("klawiatura-wierzch") != "1"; SetPref("klawiatura-wierzch", on ? "1" : "0"); w.Topmost = on; pinShow(); };
             // brzegi i rogi do zmiany rozmiaru (okno bez ramki) - szerokosc i wysokosc dowolnie, mysza
             System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome { ResizeBorderThickness = new Thickness(7), CaptionHeight = 0, GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(14), UseAeroCaptionButtons = false });
             w.SourceInitialized += (s, e) =>

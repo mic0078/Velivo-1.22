@@ -100,3 +100,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Dwuklik w plik filmu (Velivo jako odtwarzacz w Windows): otwiera się sam odtwarzacz – bez strony przeglądarki; przeglądarka czeka zminimalizowana na pasku zadań (gdy Velivo już działa, nie wyskakuje na wierzch).
 - Autostart z Windows: Velivo startuje po cichu w zasobniku i w tle przygotowuje listę kanałów i program TV (stare pobiera) oraz odtwarzacz – telewizja i filmy gotowe od razu po otwarciu.
 - Listy bez wyboru sortowania (⭐ ulubione kanały i ⭐ ulubione filmy z paska odtwarzacza, menu okienka PiP: ulubione, kanały tej grupy) – zawsze alfabetycznie. „Ostatnio oglądane” zostaje od najnowszego.
+- TV na żywo: zamiast −10 s / +10 s / 1× przyciski ↶ poprzedni kanał (po kolei), ⇤ do pierwszego, 🕘 historia (20 ostatnich, alfabetycznie). Przy filmie i archiwum bez zmian.

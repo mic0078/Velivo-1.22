@@ -42,6 +42,11 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - przy telewizji na żywo – zamiast paska: **pogrubiona nazwa stacji │ przewijany napis z tym, co leci** (tytuł i krótki opis), po bokach godziny audycji i **● NA ŻYWO** (na żywo nie da się przewijać),
 - przy archiwum – godzina w audycji i **⏪ ARCHIWUM**.
 
+**Przy telewizji na żywo** zamiast −10 s / +10 s / 1× są przyciski powrotu po kanałach (Velivo pamięta 20 ostatnio przełączanych):
+- **↶ Poprzedni kanał** – każde kliknięcie cofa o jeden kanał, po kolei,
+- **⇤ Do pierwszego** – od razu wraca do kanału, od którego zacząłeś przełączać,
+- **🕘 Historia kanałów** – lista ostatnich kanałów (alfabetycznie), klik przełącza.
+
 **Szybkie ikony z prawej:**
 
 | Ikona | Działanie |

@@ -1276,7 +1276,13 @@ namespace Przegladarka
             var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, Style = ModernSliderStyle(), Cursor = Cursors.Hand, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
             var left = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var b in new UIElement[] { prev, play, stop, next, back10, fwd10, speed }) left.Children.Add(b);
+            // telewizja na zywo: zamiast -10 s / +10 s / predkosci - powrot po ostatnio przelaczanych kanalach (pamiec 20)
+            var chBack = textBtn("↶", L.T("Poprzedni kanał – cofa po kolei po kanałach, które przełączałeś"));
+            var chFirst = textBtn("⇤", L.T("Wróć do pierwszego kanału – tego, od którego zacząłeś przełączać"));
+            var chHistBtn = textBtn("🕘", L.T("Historia kanałów – ostatnie 20 (alfabetycznie)"));
+            var filmNav = new StackPanel { Orientation = Orientation.Horizontal }; foreach (var b in new UIElement[] { back10, fwd10, speed }) filmNav.Children.Add(b);
+            var tvNav = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed }; foreach (var b in new UIElement[] { chBack, chFirst, chHistBtn }) tvNav.Children.Add(b);
+            foreach (var b in new UIElement[] { prev, play, stop, next, filmNav, tvNav }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var b in new UIElement[] { fav, sleep, pipBtn, subs, lector, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 4) };
@@ -2207,6 +2213,12 @@ namespace Przegladarka
             bool vlcClosed = false, aoutDs = false;
             DateTime? sleepAt = null; bool sleepEnd = false, sleepPc = false; Action updSleep = () => { }, pcOff = () => { };   // wylacznik czasowy
             Func<Action, Action> guard = a => () => { if (!vlcClosed) a(); };
+            var chHist = new List<IptvChannel>();   // ostatnio przelaczane kanaly (najstarszy pierwszy), najwyzej 20
+            Action<IptvChannel> chGo = c =>
+            {
+                int idx = _playlist.IndexOf(c.Url);
+                if (idx >= 0) _vlcLoad(idx); else { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }
+            };
             _vlcLoad = i =>
             {
                 userStopped = false; lastTvProgress = DateTime.Now;
@@ -2222,6 +2234,9 @@ namespace Przegladarka
                     ApplyPrefs(current, rf.Prefs); rf.Prefs = current;
                 }
                 _iptvPlaying.TryGetValue(path, out var tv);   // kanal telewizji (IPTV) - bez biblioteki, napisow i wznawiania
+                bool liveTv = tv != null && tv.ArchiveStart == null;
+                filmNav.Visibility = liveTv ? Visibility.Collapsed : Visibility.Visible; tvNav.Visibility = liveTv ? Visibility.Visible : Visibility.Collapsed;
+                if (liveTv && (chHist.Count == 0 || chHist[chHist.Count - 1].Url != tv.Url)) { chHist.Add(tv); if (chHist.Count > 20) chHist.RemoveAt(0); }
                 if (tv != null) current = null;
                 else if (rf == null) { var lib0 = LoadLibrary(); current = FindEntry(lib0, path, _playShared); TakeNewestProgress(lib0, current); }
                 SaveTvResume(tv != null && tv.ArchiveStart == null ? _playIndex : -1);   // ostatni program wraca po uruchomieniu Velivo
@@ -3013,6 +3028,17 @@ namespace Przegladarka
             prev.Click += (s, e) => step(-1);
             next.Click += (s, e) => step(1);
             back10.Click += (s, e) => jump(-10000);
+            chBack.Click += (s, e) => { if (chHist.Count < 2) { showOsd(L.T("Brak poprzedniego kanału")); return; } chHist.RemoveAt(chHist.Count - 1); chGo(chHist[chHist.Count - 1]); };
+            chFirst.Click += (s, e) => { if (chHist.Count < 2) { showOsd(L.T("To jest pierwszy kanał")); return; } var f = chHist[0]; chHist.RemoveRange(1, chHist.Count - 1); chGo(f); };
+            chHistBtn.Click += (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = chHistBtn, Placement = PlacementMode.Top };
+                var cur = chHist.Count > 0 ? chHist[chHist.Count - 1].Url : null;
+                foreach (var c0 in chHist.Where(c => c.Url != cur).GroupBy(c => c.Url).Select(g => g.Last()).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase))
+                { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (a, b) => chGo(c); cm.Items.Add(mi); }
+                if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("Historia jest pusta – przełącz kanał"), IsEnabled = false });
+                cm.IsOpen = true;
+            };
             fwd10.Click += (s, e) => jump(10000);
             speed.Click += (s, e) => setSpeed(speedIdx == speeds.Length - 1 ? -speedIdx : 1);
             speed.MouseRightButtonUp += (s, e) => { speedIdx = 3; setSpeed(0); e.Handled = true; };

@@ -141,5 +141,8 @@ public class PisanieFlowTests
         Assert.Null(SwipeTyping.Correct("dom"));
         Assert.Null(SwipeTyping.Correct("xyzq"));                    // nic podobnego - bez zmian
         Assert.Null(SwipeTyping.Correct("dm"));                      // krotkich nie zgadujemy
+        SwipeTyping.AddUserWord("zolw");                             // literowka wyuczona dawniej z pisania - nie blokuje poprawki
+        Assert.Equal("żółw", SwipeTyping.Correct("zolw"));
+        Assert.Null(SwipeTyping.Correct("zolw", new System.Collections.Generic.HashSet<string> { "zolw" }));   // poprawka cofnieta - zostaje
     }
 }

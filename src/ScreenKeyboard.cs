@@ -24,7 +24,9 @@ namespace Przegladarka
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int idx, int val);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
-        const uint KeyUp = 2, KeyUnicode = 4;
+        const uint KeyUp = 2, KeyUnicode = 4, KeyExt = 1;
+        // strzalki, Home/End, PgUp/PgDn, Insert/Delete - klawisze rozszerzone (bez tego z Shift dzialaja jak klawiatura numeryczna: brak zaznaczenia)
+        static uint ExtOf(ushort vk) { return vk >= 0x21 && vk <= 0x28 || vk == 0x2D || vk == 0x2E ? KeyExt : 0; }
 
         static Window _kbd;
         internal static volatile bool KeyboardOn;   // Ustawienia: klawiatura wlaczona (domyslnie nie - tylko na zyczenie)
@@ -96,8 +98,8 @@ namespace Przegladarka
         // kombinacja klawiszy (np. Win+H - dyktowanie Windows): wcisniecie po kolei, puszczenie w odwrotnej kolejnosci
         static void SendCombo(params ushort[] vks)
         {
-            var ins = vks.Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v } } })
-                .Concat(vks.Reverse().Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v, Flags = KeyUp } } })).ToArray();
+            var ins = vks.Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v, Flags = ExtOf(v) } } })
+                .Concat(vks.Reverse().Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v, Flags = KeyUp | ExtOf(v) } } })).ToArray();
             var fg = GetForegroundWindow();
             if (fg == _kbdHwnd && _kbdTarget != IntPtr.Zero) SetForegroundWindow(_kbdTarget);
             SendInput((uint)ins.Length, ins, Marshal.SizeOf(typeof(KbdInput)));
@@ -157,7 +159,7 @@ namespace Przegladarka
 
         static void SendKey(ushort vk, char ch)
         {
-            uint fl = vk == 0 ? KeyUnicode : 0;
+            uint fl = vk == 0 ? KeyUnicode : ExtOf(vk);
             ushort sc = vk == 0 ? ch : (ushort)0;
             var ins = new[] { new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl } } }, new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl | KeyUp } } } };
             // klik w klawiature mogl ja aktywowac - znaki maja trafic do okna z polem, nie do klawiatury
@@ -419,25 +421,33 @@ namespace Przegladarka
             // autokorekta (przycisk w naglowku, domyslnie wlaczona): po spacji / Enterze / znaku slowo spoza slownika -> poprawione,
             // ⌫ zaraz potem przywraca to, co wpisano; nigdy w polu hasla
             string fixFrom = null, fixTo = null;
+            var noFix = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));   // cofniete poprawki - tych slow nie poprawiamy
+            char lastSent = '\0'; bool capNext = false;   // wielka litera po ". " / "! " / "? "
             Action<ushort, char> tap = null;
             tap = (vk, ch) =>
             {
                 if (vk == 0x08 && fixTo != null)
-                {   // cofniecie poprawki: znak oddzielajacy i poprawione slowo -> wpisane slowo
+                {   // cofniecie poprawki: znak oddzielajacy i poprawione slowo -> wpisane slowo (zapamietane - wiecej go nie poprawiamy)
                     for (int k = 0; k <= fixTo.Length; k++) SendKey(0x08, '\0');
                     foreach (var c2 in fixFrom) SendKey(0, c2);
+                    if (noFix.Add(fixFrom.ToLowerInvariant())) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
                     cur = fixFrom; fixFrom = fixTo = null; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
                     return;
                 }
+                bool autoOn = GetPref("klawiatura-korekta") != "0";
+                if (vk == 0 && char.IsLetter(ch) && capNext && autoOn && !SecretField()) ch = char.ToUpper(ch);
+                if (vk != 0 || ch != ' ') capNext = false;
                 bool sep = vk == 0 ? !char.IsLetter(ch) : vk == 0x0D || vk == 0x09;
                 string fixedNow = null, origNow = cur;
-                if (sep && cur.Length >= 2 && GetPref("klawiatura-korekta") != "0" && !SecretField())
+                if (sep && cur.Length >= 2 && autoOn && !SecretField())
                 {
-                    var fix = SwipeTyping.Correct(cur);
+                    var fix = SwipeTyping.Correct(cur, noFix);
                     if (fix != null) { for (int k = 0; k < cur.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in fix) SendKey(0, c2); cur = fix; fixedNow = fix; }
                 }
                 fixFrom = fixTo = null;
                 SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; ask.Visibility = Visibility.Collapsed;
+                if (vk == 0 && ch == ' ' && (lastSent == '.' || lastSent == '!' || lastSent == '?')) capNext = true;
+                lastSent = vk == 0 ? ch : '\0';
                 if (fixedNow != null)
                 {
                     fixFrom = origNow; fixTo = fixedNow;
@@ -830,7 +840,8 @@ namespace Przegladarka
                 System.Threading.Tasks.Task.Run(() => SwipeTyping.Recognize(pts, centers, kw, learnedCopy, 4, prevWord)).ContinueWith(t =>
                 {
                     if (t.IsFaulted || t.Result.Count == 0) return;
-                    var found = t.Result.Select(x => upper ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
+                    bool up0 = upper || capNext && GetPref("klawiatura-korekta") != "0" && !SecretField(); capNext = false; lastSent = ' ';   // po ". " wielka litera
+                    var found = t.Result.Select(x => up0 ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
                     learn(cur); cur = "";
                     foreach (var ch in found[0]) SendKey(0, ch); SendKey(0, ' ');
                     prevBeforeSwipe = prevWord;

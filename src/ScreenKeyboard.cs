@@ -446,7 +446,7 @@ namespace Przegladarka
                 };
                 sugs.Add(sb); sugRow.Children.Add(sb);
             }
-            // rzad skrotow: poczta, glosnosc Windows, Velivo, wylaczenie komputera
+            // rzad skrotow: notatka, karteczki, poczta, glosnosc Windows, Velivo, kalkulator, wycinanie, szukanie, wylaczenie komputera
             var fnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             Func<object, double, string, Action, Button> fn = (txt, wdt, tip, act) =>
             {
@@ -459,14 +459,69 @@ namespace Przegladarka
                 if (label != null) sp.Children.Add(new TextBlock { Text = label, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
                 return sp;
             };
+            Func<MainWindow> mainW = () => Application.Current?.MainWindow as MainWindow;
+            Action showMain = () =>
+            {
+                var mw = mainW(); if (mw == null) return;
+                if (!mw.IsVisible) mw.ShowFromTray(); else { if (mw.WindowState == WindowState.Minimized) mw.WindowState = WindowState.Normal; mw.Activate(); }
+            };
+            // 📝 Notes: nowy dokument tekstowy w wybranym folderze (domyslnie Dokumenty\Velivo Notatki), otwarty w programie z Windows; prawy - folder
+            Func<string> notesDir = () => { var d = GetPref("klawiatura-notatki-folder"); return string.IsNullOrWhiteSpace(d) ? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Velivo Notatki") : d; };
+            var notesB = fn(ico("\uE8A5", "Notes"), 96, L.T("Nowa notatka: tworzy i otwiera dokument tekstowy w Twoim folderze notatek (prawy przycisk – zmień folder)"), () =>
+            {
+                try
+                {
+                    var dir = notesDir(); System.IO.Directory.CreateDirectory(dir);
+                    var f = System.IO.Path.Combine(dir, L.T("Notatka") + " " + DateTime.Now.ToString("yyyy-MM-dd HH.mm.ss") + ".txt");
+                    System.IO.File.WriteAllText(f, "");
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(f) { UseShellExecute = true });
+                }
+                catch (Exception ex) { App.LogError(ex); MessageBox.Show(L.T("Nie udało się utworzyć notatki:\n") + ex.Message, "Velivo"); }
+            });
+            notesB.ContextMenu = new ContextMenu();
+            notesB.ContextMenuOpening += (s, e) =>
+            {
+                var cm = notesB.ContextMenu; cm.Items.Clear();
+                cm.Items.Add(new MenuItem { Header = L.T("Folder notatek: ") + notesDir(), IsEnabled = false });
+                var open = new MenuItem { Header = L.T("📂 Otwórz folder notatek") }; open.Click += (a, b) => { try { var d = notesDir(); System.IO.Directory.CreateDirectory(d); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(d) { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } };
+                var change = new MenuItem { Header = L.T("📁 Zmień folder notatek…") }; change.Click += (a, b) => { var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Folder notatek"), InitialDirectory = notesDir() }; if (dlg.ShowDialog() == true) SetPref("klawiatura-notatki-folder", dlg.FolderName); };
+                cm.Items.Add(open); cm.Items.Add(change);
+            };
+            // 🗒 karteczki na pulpit Velivo - te same rodzaje co w menu strony
+            var stickyB = fn(ico("\uE70B", null), 50, L.T("Karteczki na pulpit (nowa karteczka albo wszystkie)"), () => { });
+            stickyB.Click += (s, e) =>
+            {
+                var mw = mainW(); if (mw == null) return;
+                var cm = new ContextMenu { PlacementTarget = stickyB, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                foreach (var kk in NoteKinds) { var kind = kk[0]; var it = new MenuItem { Header = kk[1] + "  " + L.T(kk[2]) }; it.Click += (a, b) => mw.NewNote(kind); cm.Items.Add(it); }
+                cm.Items.Add(new Separator());
+                var all = new MenuItem { Header = L.T("Pokaż wszystkie karteczki") }; all.Click += (a, b) => mw.ShowAllNotes(); cm.Items.Add(all);
+                cm.IsOpen = true;
+            };
             fn(ico("\uE715", "E-mail"), 110, L.T("Otwiera domyślny program pocztowy – nowa wiadomość"), () => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("mailto:") { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } });
             fn(ico("\uE74F", null), 50, L.T("Wycisz / włącz dźwięk komputera"), () => SendCombo(0xAD));
             fn(ico("\uE993", null), 50, L.T("Ciszej (głośność Windows)"), () => SendCombo(0xAE));
             fn(ico("\uE995", null), 50, L.T("Głośniej (głośność Windows)"), () => SendCombo(0xAF));
-            fn(ico("\uE774", "Velivo"), 110, L.T("Pokazuje okno przeglądarki Velivo"), () =>
+            fn(ico("\uE774", "Velivo"), 110, L.T("Pokazuje okno przeglądarki Velivo"), showMain);
+            Action<string> run = cmd => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(cmd) { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } };
+            fn(ico("\uE8EF", null), 50, L.T("Kalkulator Windows"), () => run("calc.exe"));
+            fn(ico("\uE8C6", null), 50, L.T("Wycinanie – zaznacz fragment ekranu (narzędzie Windows)"), () => run("ms-screenclip:"));
+            // 🔎 szybkie szukanie: wpisz (tez ta klawiatura) i Enter - Velivo otwiera wyniki w nowej karcie
+            fn(ico("\uE721", null), 50, L.T("Szukaj w internecie przez Velivo – wpisz i naciśnij Enter"), () =>
             {
-                var mw = Application.Current?.MainWindow as MainWindow; if (mw == null) return;
-                if (!mw.IsVisible) mw.ShowFromTray(); else { if (mw.WindowState == WindowState.Minimized) mw.WindowState = WindowState.Normal; mw.Activate(); }
+                var mw = mainW(); if (mw == null) return;
+                var box = new TextBox { FontSize = 18, Padding = new Thickness(8, 6, 8, 6), MinWidth = 420, BorderThickness = new Thickness(0) };
+                var sw = new Window { Title = L.T("Szukaj w internecie"), Content = box, SizeToContent = SizeToContent.WidthAndHeight, WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize, Topmost = true, ShowInTaskbar = false };
+                if (_kbd != null) { sw.Left = _kbd.Left + 20; sw.Top = Math.Max(SystemParameters.WorkArea.Top, _kbd.Top - 80); } else sw.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                box.KeyDown += (a, b) =>
+                {
+                    if (b.Key == Key.Escape) sw.Close();
+                    if (b.Key != Key.Enter || box.Text.Trim().Length == 0) return;
+                    var q = box.Text.Trim(); sw.Close();
+                    showMain(); mw.AddTab(mw._settings.SearchUrl(q));
+                };
+                sw.Loaded += (a, b) => { sw.Activate(); box.Focus(); };
+                sw.Show();
             });
             fn(ico("\uE7E8", null), 50, L.T("Wyłącz komputer (z potwierdzeniem, 30 s na rozmyślenie)"), () =>
             {
@@ -629,7 +684,7 @@ namespace Przegladarka
             // pad: ramka na wybranym klawiszu, odczyt pada 60 razy na sekunde tylko gdy 🎮 wlaczone i klawiatura otwarta
             var padSel = new Border { BorderThickness = new Thickness(2.5), CornerRadius = new CornerRadius(9), BorderBrush = new LinearGradientBrush(violet, cyan, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
             trailC.Children.Add(padSel);
-            int padR = 2, padC = 5; ushort padPrev = 0; DateTime padNext = DateTime.MinValue; int padDir = 0;
+            bool padUsed = false; int padR = 2, padC = 5; ushort padPrev = 0; DateTime padNext = DateTime.MinValue; int padDir = 0;
             Func<List<List<Button>>> padRows = () => root.Children.OfType<StackPanel>().Select(rw => rw.Children.OfType<Button>().Where(b => b.IsVisible).ToList()).Where(l => l.Count > 0).ToList();
             Action padShow = () =>
             {
@@ -656,9 +711,10 @@ namespace Przegladarka
             {
                 PadState st = default; bool ok = false;
                 try { for (int i = 0; i < 4 && !ok; i++) ok = XInputGetState(i, out st) == 0; } catch (Exception) { padTimer.Stop(); return; }   // brak XInput w systemie
-                padSel.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;   // ramka tylko przy podlaczonym padzie (bez pada nie stoi na "t")
-                if (!ok) return;
+                if (!ok) { padSel.Visibility = Visibility.Collapsed; return; }
                 ushort bt = st.Buttons;
+                if (st.Buttons != 0 || Math.Abs((int)st.LX) > 16000 || Math.Abs((int)st.LY) > 16000) padUsed = true;
+                padSel.Visibility = padUsed ? Visibility.Visible : Visibility.Collapsed;   // ramka dopiero po uzyciu pada (Windows czasem zglasza pad, ktorego nikt nie uzywa)
                 // galka jak krzyzak
                 if (st.LY > 16000) bt |= 0x1; if (st.LY < -16000) bt |= 0x2; if (st.LX < -16000) bt |= 0x4; if (st.LX > 16000) bt |= 0x8;
                 if (st.LT > 120) bt |= 0x0800;   // LT jako przycisk (nieuzywany bit)

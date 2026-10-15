@@ -128,4 +128,18 @@ public class PisanieFlowTests
         Assert.DoesNotContain("taak", words);
         Assert.DoesNotContain("taaak", words);
     }
+
+    [Fact]
+    public void AutokorektaPolskieZnakiILiterowka()
+    {
+        SwipeTyping.Load(new[] { "nie", "jest", "żółw", "który", "dziękuję", "komputer", "dom", "pisze", "piszę" });
+        Assert.Equal("żółw", SwipeTyping.Correct("zolw"));
+        Assert.Equal("Który", SwipeTyping.Correct("Ktory"));
+        Assert.Equal("dziękuję", SwipeTyping.Correct("dziekuje"));
+        Assert.Equal("komputer", SwipeTyping.Correct("komputr"));   // brakujaca litera
+        Assert.Null(SwipeTyping.Correct("pisze"));                   // znane slowo - bez zmian
+        Assert.Null(SwipeTyping.Correct("dom"));
+        Assert.Null(SwipeTyping.Correct("xyzq"));                    // nic podobnego - bez zmian
+        Assert.Null(SwipeTyping.Correct("dm"));                      // krotkich nie zgadujemy
+    }
 }

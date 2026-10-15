@@ -75,6 +75,7 @@ namespace Przegladarka
             if (!keys.All(k => k >= 'a' && k <= 'z')) return;
             var e = new Entry { Word = w, Keys = Collapse(keys), Rank = 3000 };   // jak srednio czeste slowo
             _words.Add(e);
+            lock (_ownFold) _ownFold[Fold(w)] = w;
             var k2 = "" + e.Keys[0] + e.Keys[e.Keys.Length - 1];
             if (!_byEnds.TryGetValue(k2, out var l)) _byEnds[k2] = l = new List<Entry>();
             l.Add(e);
@@ -85,6 +86,7 @@ namespace Przegladarka
             var w = (word ?? "").ToLowerInvariant();
             if (_words == null) return;
             _words.RemoveAll(e => e.Word == w && e.Rank == 3000);
+            lock (_ownFold) { var f = Fold(w); if (_ownFold.TryGetValue(f, out var o) && o == w) _ownFold.Remove(f); }
             foreach (var l in _byEnds.Values) l.RemoveAll(e => e.Word == w && e.Rank == 3000);
         }
 
@@ -92,6 +94,10 @@ namespace Przegladarka
         // (zolw -> żółw) albo jedna litera (brakujaca, nadmiarowa, inna, zamienione dwie sasiednie); null = zostaw jak jest
         static Dictionary<string, Entry> _fold;   // slowo bez polskich znakow -> najczestsze slowo slownika
         static HashSet<string> _main;               // slowa slownika glownego (bez wyuczonych z pisania)
+        static Dictionary<string, List<Entry>> _foldAll;   // bez polskich znakow -> wszystkie slowa (droga: droga, drogą)
+        static string[] _sortedFold; static Entry[] _sortedEntry;   // do dopowiadania slowa w trakcie pisania
+        static readonly Dictionary<string, string> _ownFold = new Dictionary<string, string>();   // Moj slownik: bez polskich znakow -> slowo
+        static string Fold(string w) { return new string(w.ToLowerInvariant().Select(BaseKey).ToArray()); }
         // anyRank: literowka tez do rzadkiego slowa (do rozpoznania literowek w Moim slowniku, nie do poprawiania w trakcie pisania)
         internal static string Correct(string typed, ICollection<string> keep = null, bool anyRank = false)
         {
@@ -105,13 +111,20 @@ namespace Przegladarka
                 main = new HashSet<string>(_words.Where(x => x.Rank != 3000).Select(x => x.Word));
                 fold = new Dictionary<string, Entry>();
                 foreach (var e in _words.Where(x => x.Rank != 3000)) { var f = new string(e.Word.Select(BaseKey).ToArray()); if (!fold.TryGetValue(f, out var b) || e.Rank < b.Rank) fold[f] = e; }
+                var all = new Dictionary<string, List<Entry>>();
+                foreach (var e in _words.Where(x => x.Rank != 3000)) { var f = Fold(e.Word); if (!all.TryGetValue(f, out var l)) all[f] = l = new List<Entry>(); l.Add(e); }
+                var sorted = _words.Where(x => x.Rank != 3000).Select(e => (F: Fold(e.Word), E: e)).OrderBy(x => x.F, StringComparer.Ordinal).ToArray();
+                _foldAll = all; _sortedFold = sorted.Select(x => x.F).ToArray(); _sortedEntry = sorted.Select(x => x.E).ToArray();
                 _main = main; _fold = fold;
             }
-            if (main.Contains(w)) return null;   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
+            if (main.Contains(w)) return null;
+            lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
             var fw = new string(w.Select(BaseKey).ToArray());
             Entry best = null;
             if (fold.TryGetValue(fw, out var same)) best = same;   // tylko polskie znaki
-            else if (w.Length >= 4)   // jedna litera rozni (krotkich slow nie zgadujemy)
+            string ownSame; lock (_ownFold) _ownFold.TryGetValue(fw, out ownSame);
+            if (best == null && ownSame != null && ownSame != w) best = new Entry { Word = ownSame, Rank = 3000 };   // Moje slowo bez polskich znakow
+            else if (best == null && w.Length >= 4)   // jedna litera rozni (krotkich slow nie zgadujemy)
             {
                 const string abc = "abcdefghijklmnopqrstuvwxyz";
                 Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && (anyRank || e.Rank < 15000) && (best == null || e.Rank < best.Rank)) best = e; };   // literowka -> tylko czeste slowo (rzadkie poprawne slowo spoza slownika zostaje)
@@ -151,6 +164,30 @@ namespace Przegladarka
             foreach (var c in abc) cand(fw + c);
             foreach (var e in found.Values.OrderBy(x => x.Rank).Take(count))
                 res.Add(char.IsUpper(typed[0]) ? char.ToUpperInvariant(e.Word[0]) + e.Word.Substring(1) : e.Word);
+            return res;
+        }
+
+        // pasek propozycji: w trakcie pisania - inne formy tego slowa (droga -> drogą) i dokonczenia (klaw -> klawiatura);
+        // po skonczonym slowie (done) - tylko inne formy z polskimi znakami. Najczestsze najpierw, Moje slowa tez.
+        internal static List<string> Predict(string typed, bool done, int count = 3)
+        {
+            var res = new List<string>();
+            if (_words == null || string.IsNullOrEmpty(typed) || !typed.All(char.IsLetter)) return res;
+            Correct("xx"); var all = _foldAll; var sf = _sortedFold; var se = _sortedEntry; if (all == null || sf == null) return res;
+            var w = typed.ToLowerInvariant(); var fw = Fold(w);
+            Action<string> add = x => { if (x != w && !res.Contains(x) && res.Count < count) res.Add(x); };
+            if (all.TryGetValue(fw, out var same)) foreach (var e in same.OrderBy(x => x.Rank)) add(e.Word);
+            lock (_ownFold) if (_ownFold.TryGetValue(fw, out var ow)) add(ow);
+            if (!done && fw.Length >= 2 && res.Count < count)
+            {
+                int lo = 0, hi = sf.Length;
+                while (lo < hi) { int mid = (lo + hi) / 2; if (string.CompareOrdinal(sf[mid], fw) < 0) lo = mid + 1; else hi = mid; }
+                var comp = new List<Entry>();
+                for (int i = lo; i < sf.Length && i < lo + 4000 && sf[i].StartsWith(fw, StringComparison.Ordinal); i++) if (sf[i].Length > fw.Length) comp.Add(se[i]);
+                foreach (var e in comp.OrderBy(x => x.Rank)) add(e.Word);
+                lock (_ownFold) foreach (var o in _ownFold.Where(kv => kv.Key.StartsWith(fw, StringComparison.Ordinal) && kv.Key.Length > fw.Length).Select(kv => kv.Value).OrderBy(x => x)) add(o);
+            }
+            if (typed.Length > 0 && char.IsUpper(typed[0])) for (int i = 0; i < res.Count; i++) res[i] = char.ToUpperInvariant(res[i][0]) + res[i].Substring(1);
             return res;
         }
 

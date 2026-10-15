@@ -331,8 +331,9 @@ namespace Przegladarka
         // spacja / Enter / znak po slowie spoza slownika -> slowo poprawione + ten znak; wielka litera po ". "; ⌫ zaraz potem cofa.
         // Klik myszy, inny klawisz albo przerwa > 4 s = nowe slowo (nie wiemy, gdzie jest kursor). Pole hasla - nic.
         static volatile Func<string, string> _physCorrect;      // null = wylaczona (klawiatura zamknieta / korekta wylaczona)
-        static volatile bool _physSecret = true;                // pole hasla (sprawdzane przez klawiature co 0,3 s); na start - bezpiecznie
-        static Action<string, string> _physNotify, _physUndone; static Action<string> _physAsk;
+        static volatile bool _physSecret = true;
+        static volatile bool _physPause;   // okienko "Dodaj słowo" - wpisujesz nowe slowo, bez poprawiania                // pole hasla (sprawdzane przez klawiature co 0,3 s); na start - bezpiecznie
+        static Action<string, string> _physNotify, _physUndone; static Action<string> _physAsk; static Action<string, bool> _physPred;
         static string _pWord = "", _pFixFrom, _pFixTo; static long _pLast; static char _pPrev; static bool _pCap;
         static void Inject(IEnumerable<KbdInput> ins) { var a = ins.ToArray(); if (a.Length > 0) SendInput((uint)a.Length, a, Marshal.SizeOf(typeof(KbdInput))); }
         static IEnumerable<KbdInput> KeyIn(ushort vk, char ch)
@@ -343,10 +344,11 @@ namespace Przegladarka
         }
         static IEnumerable<KbdInput> TextIn(string t) { return t.SelectMany(c => c == '\n' ? KeyIn(0x0D, '\0') : KeyIn(0, c)); }
         static void PhysReset() { _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; }
+        static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
         {
             var corr = _physCorrect;
-            if (corr == null || _physSecret) { PhysReset(); return false; }
+            if (corr == null || _physSecret || _physPause) { PhysReset(); return false; }
             if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;   // same modyfikatory - bez zmian
             long now = Environment.TickCount64; if (now - _pLast > 4000) PhysReset(); _pLast = now;
             bool sh = GetAsyncKeyState(0x10) < 0, ctrl = GetAsyncKeyState(0x11) < 0, alt = GetAsyncKeyState(0x12) < 0, caps = (GetKeyState(0x14) & 1) != 0;
@@ -360,7 +362,7 @@ namespace Przegladarka
                     return true;
                 }
                 if (_pWord.Length > 0) _pWord = _pWord.Substring(0, _pWord.Length - 1);
-                _pFixFrom = _pFixTo = null; return false;
+                _pFixFrom = _pFixTo = null; PhysPred(_pWord, false); return false;
             }
             _pFixFrom = _pFixTo = null;
             if (vk >= 0x41 && vk <= 0x5A && (!ctrl && !alt || ctrl && alt))
@@ -368,15 +370,16 @@ namespace Przegladarka
                 char c = (char)(vk + 32);
                 if (ctrl && alt) { var i = "acelnoszx".IndexOf(c); if (i < 0) { PhysReset(); return false; } c = "ąćęłńóśżź"[i]; }
                 bool upper = sh ^ caps;
-                if (_pCap && !upper) { _pCap = false; c = char.ToUpper(c); _pWord += c; _pPrev = c; Inject(KeyIn(0, c)); return true; }   // poczatek zdania - wielka litera zamiast malej
-                _pCap = false; _pWord += upper ? char.ToUpper(c) : c; _pPrev = c; return false;
+                if (_pCap && !upper) { _pCap = false; c = char.ToUpper(c); _pWord += c; _pPrev = c; Inject(KeyIn(0, c)); PhysPred(_pWord, false); return true; }   // poczatek zdania - wielka litera zamiast malej
+                _pCap = false; _pWord += upper ? char.ToUpper(c) : c; _pPrev = c; PhysPred(_pWord, false); return false;
             }
             char sep = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : '\0';
-            if (sep == '\0' || ctrl || alt) { PhysReset(); return false; }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
+            if (sep == '\0' || ctrl || alt) { PhysReset(); PhysPred(null, false); return false; }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
             bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;
             string word = _pWord; _pWord = ""; _pPrev = sep; _pCap = capAfter;
-            if (word.Length < 2) return false;
+            if (word.Length < 2) { PhysPred(null, false); return false; }
             var fix = corr(word);
+            PhysPred(sep == ' ' ? fix ?? word : null, true);   // po spacji - inne formy skonczonego slowa
             if (fix == null) { var a = _physAsk; if (a != null && sep == ' ') Application.Current?.Dispatcher.BeginInvoke(new Action(() => a(word))); return false; }
             Inject(Enumerable.Range(0, word.Length).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn(fix + sep)));   // ten znak zamiast przepuszczonego
             _pFixFrom = word; _pFixTo = fix;
@@ -386,7 +389,7 @@ namespace Przegladarka
 
         static void StopKeyEcho()
         {
-            _onPhysKey = null; _physCorrect = null; _physNotify = _physUndone = null; _physAsk = null;
+            _onPhysKey = null; _physCorrect = null; _physNotify = _physUndone = null; _physAsk = null; _physPred = null;
             if (_keyThread != 0) PostThreadMessage(_keyThread, 0x12, IntPtr.Zero, IntPtr.Zero);   // WM_QUIT - koniec podsluchu
         }
 
@@ -493,7 +496,8 @@ namespace Przegladarka
             string fixFrom = null, fixTo = null;
             var noFix = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));   // cofniete poprawki - tych slow nie poprawiamy
             char lastSent = '\0'; bool capNext = false;   // wielka litera po ". " / "! " / "? "
-            Action<string, List<string>> askFix = null;   // watpliwosc: "Poprawić na:" z propozycjami (klik podmienia slowo)
+            Action<string, List<string>> askFix = null;
+            Action<string, bool> predShow = (wd, dn) => { };   // pasek propozycji (ustawiany nizej)   // watpliwosc: "Poprawić na:" z propozycjami (klik podmienia slowo)
             Action<ushort, char> tap = null;
             tap = (vk, ch) =>
             {
@@ -506,7 +510,7 @@ namespace Przegladarka
                     cur = fixFrom; fixFrom = fixTo = null; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
                     return;
                 }
-                bool autoOn = GetPref("klawiatura-korekta") != "0";
+                bool autoOn = GetPref("klawiatura-korekta") != "0" && !_physPause;
                 if (vk == 0 && char.IsLetter(ch) && capNext && autoOn && !SecretField()) ch = char.ToUpper(ch);
                 if (vk != 0 || ch != ' ') capNext = false;
                 bool sep = vk == 0 ? !char.IsLetter(ch) : vk == 0x0D || vk == 0x09;
@@ -533,6 +537,8 @@ namespace Przegladarka
                 if (vk == 0 && char.IsLetter(ch)) cur += ch;
                 else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
                 else { learn(cur); say(cur); cur = ""; }
+                if (vk == 0 && char.IsLetter(ch) || vk == 0x08) predShow(cur, false);
+                else predShow(vk == 0 && ch == ' ' ? (fixedNow ?? origNow) : null, true);   // po spacji - inne formy skonczonego slowa
             };
             // propozycje po przeciagnieciu - w naglowku zamiast napisu (bez osobnego, zwykle pustego rzedu); klik podmienia ostatnie slowo
             var sugRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -652,6 +658,32 @@ namespace Przegladarka
                 }
                 catch (Exception ex) { App.LogError(ex); }
             });
+            // pasek propozycji nad klawiszami (jak w telefonie): inne formy slowa (droga -> drogą) i dokonczenia; klik wstawia slowo
+            var predRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Height = 38 };
+            var preds = new List<Button>();
+            string predWord = null; bool predDone = false;
+            for (int i = 0; i < 3; i++)
+            {
+                var pb = key("", 200); pb.Height = 32; pb.FontSize = 15; pb.Visibility = Visibility.Hidden;
+                pb.ToolTip = L.T("Propozycja słowa – kliknij, aby wstawić");
+                pb.Click += (s, e) =>
+                {
+                    var choice = ((Button)s).DataContext as string; if (choice == null || predWord == null) return;
+                    int back = predWord.Length + (predDone ? 1 : 0);
+                    for (int k = 0; k < back; k++) SendKey(0x08, '\0');
+                    foreach (var c2 in choice) SendKey(0, c2); SendKey(0, ' ');
+                    learn(choice); cur = ""; lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
+                    predShow(null, false);
+                };
+                preds.Add(pb); predRow.Children.Add(pb);
+            }
+            predShow = (word, done) =>
+            {
+                var list = word == null || word.Length == 0 || _physSecret || GetPref("klawiatura-korekta") == "0" ? new List<string>() : SwipeTyping.Predict(word, done);
+                predWord = list.Count > 0 ? word : null; predDone = done;
+                for (int i = 0; i < preds.Count; i++) { bool on = i < list.Count; preds[i].Visibility = on ? Visibility.Visible : Visibility.Hidden; if (on) { preds[i].Content = list[i]; preds[i].DataContext = list[i]; } }
+            };
+            root.Children.Add(predRow);
             root.Children.Add(fnRow);
             Button shiftB = null, capsB = null, altB = null;
             foreach (var r in rows)
@@ -724,6 +756,25 @@ namespace Przegladarka
             {
                 var cm = new ContextMenu { PlacementTarget = dictB, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
                 List<string> own; lock (_swLearned) own = _swOwn.OrderBy(x => x).ToList();
+                // ➕ wlasne slowo: autokorekta go nie zmienia, pasek propozycji i przeciaganie je podsuwaja
+                var addW = new MenuItem { Header = L.T("➕ Dodaj słowo…") };
+                addW.Click += (q, w2) =>
+                {
+                    var box = new TextBox { FontSize = 18, Padding = new Thickness(8, 6, 8, 6), MinWidth = 320, BorderThickness = new Thickness(0) };
+                    var aw = new Window { Title = L.T("Dodaj słowo do Mojego słownika (Enter)"), Content = box, SizeToContent = SizeToContent.WidthAndHeight, WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize, Topmost = true, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+                    box.KeyDown += (a, b) =>
+                    {
+                        if (b.Key == Key.Escape) aw.Close();
+                        if (b.Key != Key.Enter) return;
+                        var nw = box.Text.Trim().ToLowerInvariant();
+                        if (nw.Length >= 2 && nw.All(char.IsLetter)) lock (_swLearned) { _swOwn.Add(nw); SwipeTyping.AddUserWord(nw); SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
+                        aw.Close();
+                    };
+                    aw.Loaded += (a, b) => { _physPause = true; aw.Activate(); box.Focus(); };
+                    aw.Closed += (a, b) => _physPause = false;
+                    aw.Show();
+                };
+                cm.Items.Add(addW);
                 cm.Items.Add(new MenuItem { Header = own.Count == 0 ? L.T("Mój słownik jest pusty – słowa wpisane literami dopiszą się same") : L.T("Mój słownik (klik usuwa): ") + own.Count, IsEnabled = false });
                 foreach (var w0 in own.Take(200))
                 {
@@ -1017,6 +1068,7 @@ namespace Przegladarka
                 ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
             };
             _physAsk = word => { if (GetPref("klawiatura-korekta") == "0" || _physSecret) return; List<string> sg; lock (noFix) sg = SwipeTyping.Suggest(word, noFix); if (sg.Count > 0) askFix(word, sg); };
+            _physPred = (wd, dn) => predShow(wd, dn);
             physApply();
             StartKeyEcho();
             w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); secretTimer.Stop(); StopKeyEcho(); };

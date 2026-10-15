@@ -557,12 +557,20 @@ namespace Przegladarka
             var last = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             altB = key("ą ę ł", 96); altB.FontSize = 15; altB.ToolTip = L.T("Polskie znaki (jak prawy Alt)"); altB.Click += (s, e) => { alt = !alt; refresh(); };
             var at = key("@", 46); at.Click += (s, e) => tap(0, '@');
-            var space = key("", 380); vkKeys[0x20] = space; space.ToolTip = L.T("Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych"); space.Click += (s, e) => tap(0, ' ');
+            var space = key("", 284); vkKeys[0x20] = space; space.ToolTip = L.T("Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych"); space.Click += (s, e) => tap(0, ' ');
             var dot = key(".com", 66); dot.ToolTip = L.T("Wpisuje „.com”"); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") tap(0, ch); };
             var lf = key("◀", 46); vkKeys[0x25] = lf; lf.ToolTip = L.T("Kursor w lewo"); lf.Click += (s, e) => tap(0x25, '\0');
             var dn = key("▼", 46); vkKeys[0x28] = dn; dn.ToolTip = L.T("Kursor w dół"); dn.Click += (s, e) => tap(0x28, '\0');
             var rt = key("▶", 46); vkKeys[0x27] = rt; rt.ToolTip = L.T("Kursor w prawo"); rt.Click += (s, e) => tap(0x27, '\0');
-            foreach (var b in new[] { altB, at, space, dot, lf, dn, rt }) last.Children.Add(b);
+            // ⌫ slowo: kazde klikniecie usuwa jedno slowo przed kursorem (Ctrl+Shift+← zaznacza slowo, Delete je usuwa - dziala tez w starszych programach)
+            var wordDel = key(ico("\uE750", L.T("słowo")), 96); wordDel.FontSize = 14;
+            wordDel.ToolTip = L.T("Usuń ostatnie słowo – każde kliknięcie usuwa kolejne słowo przed kursorem");
+            wordDel.Click += (s, e) =>
+            {
+                SendCombo(0x11, 0x10, 0x25); SendCombo(0x2E);
+                cur = ""; lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; ask.Visibility = Visibility.Collapsed;
+            };
+            foreach (var b in new[] { altB, at, space, wordDel, dot, lf, dn, rt }) last.Children.Add(b);
             root.Children.Add(last);
             refresh = () =>
             {

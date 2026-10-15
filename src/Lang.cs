@@ -778,6 +778,8 @@ namespace Przegladarka
             { "Kursor w prawo", "Cursor right" },
             { "Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych", "Space. Swipe typing: press on the first letter of a word and drag across the next ones" },
             { "Zamknij klawiaturę", "Close the keyboard" },
+            { "słowo", "word" },
+            { "Usuń ostatnie słowo – każde kliknięcie usuwa kolejne słowo przed kursorem", "Delete the last word – each click deletes the next word before the cursor" },
             { "Zawsze na wierzchu: włączone (kliknij, aby wyłączyć)", "Always on top: on (click to turn off)" },
             { "Zawsze na wierzchu: wyłączone (kliknij, aby włączyć)", "Always on top: off (click to turn on)" },
             { "Przezroczystość klawiatury (widoczność)", "Keyboard opacity (visibility)" },

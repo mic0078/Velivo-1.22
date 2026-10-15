@@ -23,8 +23,6 @@ namespace Przegladarka
         [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int idx);
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int idx, int val);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
-        [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vk);
-        [DllImport("user32.dll")] static extern short GetKeyState(int vk);
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
         const uint KeyUp = 2, KeyUnicode = 4, KeyExt = 1;
         // strzalki, Home/End, PgUp/PgDn, Insert/Delete - klawisze rozszerzone (bez tego z Shift dzialaja jak klawiatura numeryczna: brak zaznaczenia)
@@ -302,8 +300,7 @@ namespace Przegladarka
                 if (code >= 0 && ((int)wp == 0x100 || (int)wp == 0x104))   // WM_KEYDOWN / WM_SYSKEYDOWN
                 {
                     int vk = Marshal.ReadInt32(lp), flags = Marshal.ReadInt32(lp, 8);
-                    int mods = (GetAsyncKeyState(0x10) < 0 ? 1 << 16 : 0) | (GetAsyncKeyState(0x11) < 0 ? 1 << 17 : 0) | (GetAsyncKeyState(0x12) < 0 ? 1 << 18 : 0) | ((GetKeyState(0x14) & 1) != 0 ? 1 << 19 : 0);   // Shift, Ctrl, Alt, Caps Lock
-                    if ((flags & 0x10) == 0) { var f = _onPhysKey; if (f != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => f(vk | mods))); }   // bez znakow wyslanych przez sama klawiature Velivo
+                    if ((flags & 0x10) == 0) { var f = _onPhysKey; if (f != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => f(vk))); }   // bez znakow wyslanych przez sama klawiature Velivo
                 }
                 return CallNextHookEx(_keyHook, code, wp, lp);
             };
@@ -421,41 +418,9 @@ namespace Przegladarka
                 if (wd.Length == 0 || GetPref("klawiatura-czytaj") != "1" || SecretField()) return;
                 (Application.Current?.MainWindow as MainWindow)?.KbSpeak(wd, ReadLang);
             };
-            // autokorekta (przycisk w naglowku, domyslnie wlaczona): po spacji / Enterze / znaku slowo spoza slownika -> poprawione,
-            // ⌫ zaraz potem przywraca to, co wpisano; nigdy w polu hasla
-            string fixFrom = null, fixTo = null;
-            var noFix = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));   // cofniete poprawki - tych slow nie poprawiamy
-            char lastSent = '\0'; bool capNext = false;   // wielka litera po ". " / "! " / "? "
-            Action<ushort, char> tap = null;
-            tap = (vk, ch) =>
+            Action<ushort, char> tap = (vk, ch) =>
             {
-                if (vk == 0x08 && fixTo != null)
-                {   // cofniecie poprawki: znak oddzielajacy i poprawione slowo -> wpisane slowo (zapamietane - wiecej go nie poprawiamy)
-                    for (int k = 0; k <= fixTo.Length; k++) SendKey(0x08, '\0');
-                    foreach (var c2 in fixFrom) SendKey(0, c2);
-                    if (noFix.Add(fixFrom.ToLowerInvariant())) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
-                    cur = fixFrom; fixFrom = fixTo = null; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
-                    return;
-                }
-                bool autoOn = GetPref("klawiatura-korekta") != "0";
-                if (vk == 0 && char.IsLetter(ch) && capNext && autoOn && !SecretField()) ch = char.ToUpper(ch);
-                if (vk != 0 || ch != ' ') capNext = false;
-                bool sep = vk == 0 ? !char.IsLetter(ch) : vk == 0x0D || vk == 0x09;
-                string fixedNow = null, origNow = cur;
-                if (sep && cur.Length >= 2 && autoOn && !SecretField())
-                {
-                    var fix = SwipeTyping.Correct(cur, noFix);
-                    if (fix != null) { for (int k = 0; k < cur.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in fix) SendKey(0, c2); cur = fix; fixedNow = fix; }
-                }
-                fixFrom = fixTo = null;
                 SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; ask.Visibility = Visibility.Collapsed;
-                if (vk == 0 && ch == ' ' && (lastSent == '.' || lastSent == '!' || lastSent == '?')) capNext = true;
-                lastSent = vk == 0 ? ch : '\0';
-                if (fixedNow != null)
-                {
-                    fixFrom = origNow; fixTo = fixedNow;
-                    ask.Text = L.T("Poprawiono: ") + origNow + " → " + fixedNow + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
-                }
                 if (vk == 0 && char.IsLetter(ch)) cur += ch;
                 else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
                 else { learn(cur); say(cur); cur = ""; }
@@ -630,11 +595,6 @@ namespace Przegladarka
             var alphaText = new TextBlock { Foreground = Brushes.White, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Width = 38, TextAlignment = TextAlignment.Center, ToolTip = L.T("Przezroczystość klawiatury (widoczność)") }; DockPanel.SetDock(alphaText, Dock.Right);
             var alphaMinus = key(ico("\uE738", null), 30); alphaMinus.Height = 28; alphaMinus.FontSize = 12; alphaMinus.Background = Brushes.Transparent; DockPanel.SetDock(alphaMinus, Dock.Right);
             alphaPlus.ToolTip = L.T("Mniej przezroczysta (+5%)"); alphaMinus.ToolTip = L.T("Bardziej przezroczysta (−5%)");
-            // ✓ autokorekta pisowni (wl./wyl., domyslnie wlaczona) - takze polskie znaki: zolw -> żółw
-            var fixB = key(ico("\uE8FB", "abc"), 58); fixB.Height = 28; fixB.FontSize = 12; DockPanel.SetDock(fixB, Dock.Right);
-            Action fixShow = () => { bool on = GetPref("klawiatura-korekta") != "0"; fixB.Background = on ? accent : Brushes.Transparent; fixB.ToolTip = on ? L.T("Autokorekta pisowni: włączona – słowo spoza słownika poprawiane po spacji (też polskie znaki: zolw → żółw); ⌫ zaraz po poprawce cofa ją. Kliknij, aby wyłączyć") : L.T("Autokorekta pisowni: wyłączona (kliknij, aby włączyć)"); };
-            fixShow(); fixB.Click += (s, e) => { SetPref("klawiatura-korekta", GetPref("klawiatura-korekta") != "0" ? "0" : "1"); fixShow(); };
-            head.Children.Add(fixB);
             head.Children.Add(pinB); head.Children.Add(alphaPlus); head.Children.Add(alphaText); head.Children.Add(alphaMinus);
             // wlasny slownik (jak na Androidzie): podglad i usuwanie wyuczonych slow
             var dictB = key(ico("\uE82D", null), 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
@@ -843,13 +803,12 @@ namespace Przegladarka
                 System.Threading.Tasks.Task.Run(() => SwipeTyping.Recognize(pts, centers, kw, learnedCopy, 4, prevWord)).ContinueWith(t =>
                 {
                     if (t.IsFaulted || t.Result.Count == 0) return;
-                    bool up0 = upper || capNext && GetPref("klawiatura-korekta") != "0" && !SecretField(); capNext = false; lastSent = ' ';   // po ". " wielka litera
-                    var found = t.Result.Select(x => up0 ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
+                    var found = t.Result.Select(x => upper ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
                     learn(cur); cur = "";
                     foreach (var ch in found[0]) SendKey(0, ch); SendKey(0, ' ');
                     prevBeforeSwipe = prevWord;
                     bool unsure = SwipeTyping.LastUncertain && found.Count > 1;
-                    ask.Text = L.T("Poprawić na:"); ask.Visibility = unsure ? Visibility.Visible : Visibility.Collapsed; title.Visibility = unsure ? Visibility.Collapsed : Visibility.Visible;
+                    ask.Visibility = unsure ? Visibility.Visible : Visibility.Collapsed; title.Visibility = unsure ? Visibility.Collapsed : Visibility.Visible;
                     lastTrace = pts; if (!SecretField()) SwipeTyping.LearnShape(found[0], pts, lastKeyW);   // nauka Twojego ruchu (nie w polu hasla)
                     learn(found[0]); say(found[0]); lastSwipe = found[0];
                     if (shift) { shift = false; refresh(); }
@@ -918,54 +877,10 @@ namespace Przegladarka
             foreach (var (b, c) in letters) if (char.IsLetterOrDigit(c)) vkKeys[char.ToUpperInvariant(c)] = b;
             vkKeys[0x14] = capsB; vkKeys[0xA0] = vkKeys[0xA1] = vkKeys[0x10] = shiftB;
             DateTime secretAt = DateTime.MinValue; bool secret = false;
-            // zwykla klawiatura (gdy klawiatura Velivo otwarta): autokorekta slowa po spacji / Enterze / znaku i wielka litera po ". "
-            // jak przy klikaniu; ⌫ zaraz po poprawce ja cofa; nigdy w polu hasla. Przerwa > 4 s albo inny klawisz = nowe slowo
-            string pWord = ""; DateTime pLast = DateTime.MinValue; char pPrev = '\0'; bool pCap = false; string pFixFrom = null, pFixTo = null;
-            _onPhysKey = vk0 =>
+            _onPhysKey = vk =>
             {
-                int vk = vk0 & 0xFFFF; bool sh = (vk0 & 1 << 16) != 0, ctrl = (vk0 & 1 << 17) != 0, altK = (vk0 & 1 << 18) != 0, capsOn = (vk0 & 1 << 19) != 0;
                 if ((DateTime.UtcNow - secretAt).TotalMilliseconds > 800) { secret = SecretField(); secretAt = DateTime.UtcNow; }   // sprawdzane najwyzej co 0,8 s
                 if (!secret && vkKeys.TryGetValue(vk, out var kb)) wave?.Invoke(kb);
-                if (secret || GetPref("klawiatura-korekta") == "0") { pWord = ""; return; }
-                if ((DateTime.UtcNow - pLast).TotalSeconds > 4) { pWord = ""; pPrev = '\0'; pCap = false; }
-                pLast = DateTime.UtcNow;
-                if (vk == 0x08)
-                {
-                    if (pFixTo != null)
-                    {   // cofniecie poprawki: znak oddzielajacy juz usuniety tym ⌫ - poprawione slowo -> wpisane
-                        for (int k = 0; k < pFixTo.Length; k++) SendKey(0x08, '\0');
-                        foreach (var c2 in pFixFrom) SendKey(0, c2);
-                        if (noFix.Add(pFixFrom.ToLowerInvariant())) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
-                        pWord = pFixFrom; pFixFrom = pFixTo = null; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; return;
-                    }
-                    if (pWord.Length > 0) pWord = pWord.Substring(0, pWord.Length - 1);
-                    return;
-                }
-                pFixFrom = pFixTo = null;
-                if (vk >= 0x41 && vk <= 0x5A && (!ctrl || altK) && !(altK && !ctrl))
-                {   // litera (AltGr = Ctrl+Alt: polskie znaki)
-                    char c = (char)(vk + 32);
-                    if (ctrl && altK) { var i = "acelnoszx".IndexOf(c); if (i < 0) { pWord = ""; return; } c = "ąćęłńóśżź"[i]; }
-                    bool upper = sh ^ capsOn;
-                    if (pCap && !upper) { SendKey(0x08, '\0'); SendKey(0, char.ToUpper(c)); upper = true; }   // poczatek zdania - wielka litera
-                    pCap = false; pWord += upper ? char.ToUpper(c) : c; pPrev = c; return;
-                }
-                char sepCh = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : '\0';
-                if (sepCh == '\0' || ctrl) { pWord = ""; pCap = false; pPrev = '\0'; return; }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
-                if (pWord.Length >= 2)
-                {
-                    var fix = SwipeTyping.Correct(pWord, noFix);
-                    if (fix != null)
-                    {   // znak juz wpisany: usun go i slowo, wpisz poprawione i ten znak
-                        for (int k = 0; k <= pWord.Length; k++) SendKey(0x08, '\0');
-                        foreach (var c2 in fix) SendKey(0, c2);
-                        if (sepCh == '\n') SendKey(0x0D, '\0'); else SendKey(0, sepCh);
-                        pFixFrom = pWord; pFixTo = fix;
-                        ask.Text = L.T("Poprawiono: ") + pWord + " → " + fix + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
-                    }
-                }
-                pCap = sepCh == ' ' && (pPrev == '.' || pPrev == '!' || pPrev == '?');
-                pPrev = sepCh; pWord = "";
             };
             StartKeyEcho();
             w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); StopKeyEcho(); };

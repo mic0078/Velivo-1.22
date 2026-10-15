@@ -58,7 +58,7 @@ namespace Przegladarka
                 if (!ends.TryGetValue(k2, out var l)) ends[k2] = l = new List<Entry>();
                 l.Add(e);
             }
-            _words = list; _byEnds = ends; _fold = null;
+            _words = list; _byEnds = ends;
         }
 
         internal static bool Loaded => _words != null;
@@ -73,7 +73,7 @@ namespace Przegladarka
             var keys = new string(w.Select(BaseKey).ToArray());
             if (!keys.All(k => k >= 'a' && k <= 'z')) return;
             var e = new Entry { Word = w, Keys = Collapse(keys), Rank = 3000 };   // jak srednio czeste slowo
-            _words.Add(e); _fold = null;
+            _words.Add(e);
             var k2 = "" + e.Keys[0] + e.Keys[e.Keys.Length - 1];
             if (!_byEnds.TryGetValue(k2, out var l)) _byEnds[k2] = l = new List<Entry>();
             l.Add(e);
@@ -83,45 +83,8 @@ namespace Przegladarka
         {
             var w = (word ?? "").ToLowerInvariant();
             if (_words == null) return;
-            _words.RemoveAll(e => e.Word == w && e.Rank == 3000); _fold = null;
+            _words.RemoveAll(e => e.Word == w && e.Rank == 3000);
             foreach (var l in _byEnds.Values) l.RemoveAll(e => e.Word == w && e.Rank == 3000);
-        }
-
-        // autokorekta pisania litera po literze: slowo spoza slownika -> najczestsze znane slowo, ktore rozni sie tylko polskimi znakami
-        // (zolw -> żółw) albo jedna litera (brakujaca, nadmiarowa, inna, zamienione dwie sasiednie); null = zostaw jak jest
-        static Dictionary<string, Entry> _fold;   // slowo bez polskich znakow -> najczestsze slowo slownika
-        internal static string Correct(string typed, ICollection<string> keep = null)
-        {
-            if (_words == null || string.IsNullOrEmpty(typed) || typed.Length < 2 || !typed.All(char.IsLetter)) return null;
-            var w = typed.ToLowerInvariant();
-            if (keep != null && keep.Contains(w)) return null;   // slowo, ktorego poprawke uzytkownik cofnal
-            var fold = _fold;
-            if (fold == null)
-            {
-                fold = new Dictionary<string, Entry>();
-                foreach (var e in _words.Where(x => x.Rank != 3000)) { var f = new string(e.Word.Select(BaseKey).ToArray()); if (!fold.TryGetValue(f, out var b) || e.Rank < b.Rank) fold[f] = e; }
-                _fold = fold;
-            }
-            if (_words.Any(e => e.Word == w && e.Rank != 3000)) return null;   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
-            var fw = new string(w.Select(BaseKey).ToArray());
-            Entry best = null;
-            if (fold.TryGetValue(fw, out var same)) best = same;   // tylko polskie znaki
-            else if (w.Length >= 4)   // jedna litera rozni (krotkich slow nie zgadujemy)
-            {
-                const string abc = "abcdefghijklmnopqrstuvwxyz";
-                Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && e.Rank < 15000 && (best == null || e.Rank < best.Rank)) best = e; };   // literowka -> tylko czeste slowo (rzadkie poprawne slowo spoza slownika zostaje)
-                for (int i = 0; i < fw.Length; i++)
-                {
-                    cand(fw.Remove(i, 1));
-                    if (i + 1 < fw.Length) cand(fw.Substring(0, i) + fw[i + 1] + fw[i] + fw.Substring(i + 2));
-                    foreach (var c in abc) { if (c != fw[i]) cand(fw.Substring(0, i) + c + fw.Substring(i + 1)); cand(fw.Insert(i, c.ToString())); }
-                }
-                foreach (var c in abc) cand(fw + c);
-            }
-            if (best == null || best.Word == w) return null;
-            var r = best.Word;
-            if (typed.All(char.IsUpper) && typed.Length > 1) return r.ToUpperInvariant();
-            return char.IsUpper(typed[0]) ? char.ToUpperInvariant(r[0]) + r.Substring(1) : r;
         }
 
         // podwojne litery to ten sam klawisz - na sladzie jeden punkt

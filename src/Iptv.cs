@@ -490,7 +490,8 @@ namespace Przegladarka
                         });
                         if (data == null) { _logoFailed.Add(url); return null; }
                         Directory.CreateDirectory(LogoDir);
-                        File.WriteAllBytes(file, data);
+                        try { File.WriteAllBytes(file, data); }
+                        catch (IOException) { return null; }   // plik zajety (drugie okno / drugie Velivo zapisuje to samo logo) - nastepnym razem
                     }
                 }
                 finally { LogoGate.Release(); }

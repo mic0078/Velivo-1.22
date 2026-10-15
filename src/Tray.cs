@@ -42,6 +42,7 @@ namespace Przegladarka
         {
             _trayHintShown = true;   // bez dymka - start z Windows ma byc cichy
             EnsureTray(); Hide(); _inTray = true;
+            ShowActivated = true;   // przy pokazaniu (ikonka, koniec filmu) okno normalnie aktywne - inaczej Windows nie pokaze okna zmaksymalizowanego
             try { System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.BelowNormal; } catch (Exception) { }
             var warm = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
             warm.Tick += (s, e) =>

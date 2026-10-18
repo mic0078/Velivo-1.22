@@ -36,6 +36,7 @@ Velivo is designed to be fully usable with the mouse alone, even from the sofa i
 20. [Keyboard shortcuts](#20-keyboard-shortcuts)
 21. [Settings – every option explained](#21-settings--every-option-explained)
 22. [Troubleshooting and where data is stored](#22-troubleshooting-and-where-data-is-stored)
+23. [Velivo for Android](#23-velivo-for-android)
 
 ---
 
@@ -617,6 +618,17 @@ Right-click a tab → **📺 Send to… → computer name**. On the other comput
 
 The connection status is in Settings → **LAN diagnostics panel…**.
 
+### 📎 Sending files
+
+Right-click a tab → **📺 Send to… → 📎 Send a file to: name** and pick a file (up to 100 MB). The other device asks with the file name and size – **nothing is transferred without the recipient's consent**. An accepted file goes to **Downloads**. The file is encrypted with the pairing key and the recipient checks its checksum.
+
+### 📱 Phone (Velivo for Android)
+
+The phone pairs the same way (see chapter 23). The computer is the main device:
+- bookmarks, passwords and Quick Access come from the computer to the phone automatically,
+- **new** bookmarks and passwords from the phone are shown on the computer in a "The phone … wants to add" question with a list (passwords hidden) and are added only after **Yes**. Declined items do not come back.
+
+
 ---
 
 ## 18. History and downloads
@@ -840,3 +852,46 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 | Error log | `bledy.log` in the profile data folder |
 
 All data stays on your computer. Velivo has no server and no account, and sends nothing about you.
+
+---
+
+## 23. Velivo for Android
+
+Velivo for phones is a light, private browser on the Android WebView engine (the same Chromium as Edge). It needs Android 10 or newer.
+
+### Browsing
+
+| Feature | How |
+| --- | --- |
+| Tabs | The button with a number – a list with thumbnails; tap to switch, ✕ or a sideways swipe closes. Normal tabs come back after a restart |
+| 🕶 Private tab | A separate profile (cookies, sign-ins) erased when the last private tab closes; no history |
+| ＋ New tab | Opens Quick Access – the same as on the computer (tiles, groups, icons) |
+| ⌂ Start page | Startpage; searches from the address bar also go to Startpage |
+| Bookmarks, history | Menu ⋮ – a list with search, sorting (newest / A–Z) and ✕ |
+| Downloads | To the Downloads folder, with a notification |
+| Full-screen videos | The phone rotates with the video; Back leaves |
+| Background playback | Video / music keep playing after leaving the app (notification with "Stop"); ⋮ → Play in background |
+| Theme | ⋮ → Theme: like the phone / light / dark |
+
+### Privacy and security
+
+- **Ad blocking** – the same lists as on the computer (EasyList, EasyPrivacy, KAD), refreshed every 4 days; on YouTube ads are removed from the player data.
+- **Passwords** – encrypted with a key in the Android Keystore (the key never leaves the phone). Velivo offers to save them after signing in and fills them in (https pages and the home network: router, NAS). ⋮ → **Fill in password** when the form appeared later. The password list (⋮ → Passwords) opens after a fingerprint or PIN; **Copy password** marks it as sensitive in the clipboard.
+- **Banking mode** – ⋮ → Banking mode: entry with fingerprint / PIN, a separate permanent profile, no history, no screenshots, locked after 10 minutes of inactivity.
+
+### Connecting to the computer
+
+1. Phone and computer on the same Wi-Fi, Velivo open on both.
+2. Phone: ⋮ → **Sync with computer → Pair with Velivo on Windows** (waits 3 minutes; the window shows what arrives from the network).
+3. Computer: Settings → Sync (LAN) → **Pair a device on the network…**. Compare the 6-digit code on both screens and confirm.
+
+With several computers use the recovery file instead of pairing: on the computer **Save recovery file…**, on the phone **Load pairing recovery file** – the key does not change and other computers stay paired. In the same menu you set the **phone name on the network** (e.g. "Michael's phone").
+
+| What | How |
+| --- | --- |
+| Bookmarks, passwords, Quick Access | From the computer to the phone – automatically while Velivo is open |
+| New bookmarks and passwords from the phone | To the computer – the computer asks whether to add them |
+| A file from the phone | **Share → Velivo** in the gallery / file manager; the computer asks for consent |
+| A file from the computer | On the computer 📎 Send a file to: phone; the phone asks, saved to Downloads |
+
+Sync works while Velivo is open on the phone. On Xiaomi phones turn off battery saving for Velivo (Settings → Apps → Velivo → Battery saver → No restrictions).

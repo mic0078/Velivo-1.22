@@ -333,6 +333,7 @@ Pełny opis: [`dokumentacja/instrukcja-filmy-tv.md`](dokumentacja/instrukcja-fil
 20. [Skróty klawiszowe](#20-skróty-klawiszowe)
 21. [Ustawienia – co gdzie jest (każda opcja)](#21-ustawienia--co-gdzie-jest-każda-opcja)
 22. [Rozwiązywanie problemów i miejsce danych](#22-rozwiązywanie-problemów-i-miejsce-danych)
+23. [Velivo na Androida](#23-velivo-na-androida)
 
 ---
 
@@ -959,6 +960,17 @@ Prawy przycisk na karcie → **📺 Wyślij do… → nazwa komputera**. Na drug
 
 Stan połączenia pokazuje Ustawienia → **Panel diagnostyczny LAN…**.
 
+### 📎 Wysyłanie plików
+
+Prawy przycisk na karcie → **📺 Wyślij do… → 📎 Wyślij plik do: nazwa** i wybierz plik (do 100 MB). Na drugim urządzeniu pojawia się pytanie z nazwą i rozmiarem pliku – **nic nie jest przesyłane bez zgody odbiorcy**. Przyjęty plik trafia do folderu **Pobrane**. Plik jest szyfrowany kluczem z parowania, a odbiorca sprawdza jego sumę kontrolną.
+
+### 📱 Telefon (Velivo na Androida)
+
+Telefon paruje się tak samo (patrz rozdział 23). Komputer jest główny:
+- zakładki, hasła i Szybki Dostęp przychodzą z komputera na telefon same,
+- **nowe** zakładki i hasła z telefonu komputer pokazuje w pytaniu „Telefon … chce dodać” z listą (hasła ukryte) i dodaje dopiero po **Tak**. Odrzucone nie wracają.
+
+
 ---
 
 ## 18. Historia i pobrane pliki
@@ -1166,3 +1178,46 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 | Dziennik błędów | `bledy.log` w folderze danych profilu |
 
 Wszystkie dane są tylko na Twoim komputerze. Velivo nie ma serwera ani konta i niczego o Tobie nie wysyła.
+
+---
+
+## 23. Velivo na Androida
+
+Velivo na telefon to lekka, prywatna przeglądarka na silniku Android WebView (ten sam Chromium co w Edge). Wymaga Androida 10 lub nowszego.
+
+### Przeglądanie
+
+| Funkcja | Jak |
+| --- | --- |
+| Karty | Przycisk z liczbą – lista z miniaturami; stuknięcie przełącza, ✕ albo przesunięcie w bok zamyka. Zwykłe karty wracają po ponownym uruchomieniu |
+| 🕶 Karta prywatna | Osobny profil (ciasteczka, logowania) kasowany po zamknięciu ostatniej prywatnej karty; bez historii |
+| ＋ Nowa karta | Otwiera Szybki Dostęp – ten sam co na komputerze (kafelki, grupy, ikony) |
+| ⌂ Strona startowa | Startpage; wyszukiwanie z paska adresu też przez Startpage |
+| Zakładki, historia | Menu ⋮ – lista z wyszukiwaniem, sortowaniem (najnowsze / A–Z) i ✕ |
+| Pobieranie | Do folderu Pobrane, z powiadomieniem |
+| Pełny ekran filmów | Telefon obraca się z filmem; Wstecz wychodzi |
+| Odtwarzanie w tle | Film / muzyka grają po wyjściu z aplikacji (powiadomienie z „Zatrzymaj”); ⋮ → Odtwarzanie w tle |
+| Motyw | ⋮ → Motyw: jak w telefonie / jasny / ciemny |
+
+### Prywatność i bezpieczeństwo
+
+- **Blokowanie reklam** – te same listy co na komputerze (EasyList, EasyPrivacy, KAD), odświeżane co 4 dni; na YouTube reklamy usuwane z danych odtwarzacza.
+- **Hasła** – zaszyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). Velivo pyta o zapis po zalogowaniu i wpisuje je samo (strony https oraz sieć domowa: router, NAS). ⋮ → **Wpisz hasło**, gdy formularz pojawił się później. Lista haseł (⋮ → Hasła) otwiera się po odcisku palca lub PIN-ie; **Kopiuj hasło** oznacza je w schowku jako poufne.
+- **Tryb bankowy** – ⋮ → Tryb bankowy: wejście odciskiem / PIN-em, osobny stały profil, bez historii, bez zrzutów ekranu, blokada po 10 minutach bezczynności.
+
+### Połączenie z komputerem
+
+1. Telefon i komputer w tej samej sieci Wi-Fi, Velivo otwarte na obu.
+2. Telefon: ⋮ → **Synchronizacja z komputerem → Sparuj z Velivo na Windows** (czeka 3 minuty, okno pokazuje, co dochodzi z sieci).
+3. Komputer: Ustawienia → Synchronizacja (LAN) → **Sparuj urządzenie w sieci…**. Porównaj 6-cyfrowy kod na obu ekranach i potwierdź.
+
+Przy kilku komputerach zamiast parowania użyj pliku odzyskiwania: na komputerze **Zapisz plik odzyskiwania…**, w telefonie **Wczytaj plik odzyskiwania** – klucz się nie zmienia, inne komputery zostają sparowane. W tym samym menu ustawisz **nazwę telefonu w sieci** (np. „Telefon Michała”).
+
+| Co | Jak |
+| --- | --- |
+| Zakładki, hasła, Szybki Dostęp | Z komputera na telefon – same, gdy Velivo jest otwarte |
+| Nowe zakładki i hasła z telefonu | Na komputer – komputer pyta, czy dodać |
+| Plik z telefonu | **Udostępnij → Velivo** w galerii / menedżerze plików; komputer pyta o zgodę |
+| Plik z komputera | Na komputerze 📎 Wyślij plik do: telefon; telefon pyta, zapis w Pobranych |
+
+Synchronizacja działa, gdy Velivo jest otwarte na telefonie. Na Xiaomi warto wyłączyć oszczędzanie baterii dla Velivo (Ustawienia → Aplikacje → Velivo → Oszczędzanie baterii → Brak ograniczeń).

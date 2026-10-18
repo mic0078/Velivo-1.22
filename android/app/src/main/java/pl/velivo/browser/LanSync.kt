@@ -399,7 +399,7 @@ class LanSync(
         val hash = MessageDigest.getInstance("SHA-256").digest(plain).joinToString("") { "%02X".format(it) }
         if (!hash.equals(h.optString("Hash"), ignoreCase = true)) return
         saveFile(name, plain, dev)
-        out.write(hmac(a, "file-ack\n" + h.optString("Hash")).also { }); out.flush()
+        out.write(hmac(a, ("file-ack\n" + h.optString("Hash")).toByteArray(Charsets.UTF_8))); out.flush()
     }
 
     // Wysłanie pliku do komputera, z którym telefon się synchronizuje. Wynik: "ok", "odrzucono" albo opis błędu.

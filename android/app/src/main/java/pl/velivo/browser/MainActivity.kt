@@ -787,6 +787,10 @@ set(p0,p);})"""
             last > 0 -> getString(R.string.lan_status, pc ?: "?", java.text.DateFormat.getDateTimeInstance().format(java.util.Date(last)))
             else -> getString(R.string.lan_waiting)
         }
+        val qa = listOfNotNull(
+            lan.tcpError?.let { getString(R.string.lan_tcp_error, it) },
+            lan.qaStep.takeIf { it.isNotEmpty() }?.let { getString(R.string.quick_access) + ": " + it },
+        ).joinToString("\n")
         val items = arrayOf(
             getString(if (on) R.string.lan_turn_off else R.string.lan_turn_on),
             getString(R.string.lan_pair),
@@ -796,7 +800,7 @@ set(p0,p);})"""
             getString(R.string.lan_name) + ": " + (prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL),
         )
         AlertDialog.Builder(this)
-            .setTitle(getString(R.string.lan_sync) + "\n" + status)
+            .setTitle(getString(R.string.lan_sync) + "\n" + status + (if (qa.isEmpty()) "" else "\n" + qa))
             .setItems(items) { _, i ->
                 when (i) {
                     0 -> { prefs.edit().putBoolean("lan", !on).apply(); if (on) stopLan() else startLan() }

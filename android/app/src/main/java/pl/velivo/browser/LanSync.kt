@@ -56,7 +56,9 @@ class LanSync(
     @Volatile var lastFrom = ""
     @Volatile var lastType = ""
     @Volatile var socketError: String? = null
-    @Volatile var pairStep = ""   // ostatni krok parowania (do okna oczekiwania)
+    @Volatile var pairStep = ""
+    @Volatile var qaStep = ""     // Szybki Dostęp: ostatni krok odbioru (do okna synchronizacji)
+    @Volatile var tcpError: String? = null   // ostatni krok parowania (do okna oczekiwania)
     private var udp: DatagramSocket? = null
     private var tcp: ServerSocket? = null
     private val pending = HashMap<String, Pair<KeyPair, ByteArray>>()   // pairId -> (moje klucze ECDH, klucz transportu)
@@ -268,12 +270,14 @@ class LanSync(
 
     // Duży stan (np. z trybem bankowym) Windows wysyła TCP: 4 bajty długości nagłówka, nagłówek JSON, pakiet.
     private fun tcpLoop() {
+        tcpError = null
         runCatching {
             tcp = ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(PORT)) }
             while (running) {
                 val s = tcp?.accept() ?: break
                 Thread {
                     runCatching {
+                        qaStep = qaStep.ifEmpty { "połączenie TCP z " + s.inetAddress.hostAddress }
                         s.use {
                             it.soTimeout = 15000
                             val inp = DataInputStream(it.getInputStream())
@@ -288,23 +292,24 @@ class LanSync(
                             val data = ByteArray(len).also { b -> inp.readFully(b) }
                             handle(data, it.inetAddress)
                         }
-                    }
+                    }.onFailure { qaStep = "błąd: " + (it.message ?: it.javaClass.simpleName) }
                 }.start()
             }
-        }
+        }.onFailure { if (running) tcpError = it.message ?: it.javaClass.simpleName }
     }
 
     // Szybki Dostęp z Windows (QuickAccessLanSync.cs): ZIP folderu "Szybki Dostęp", AES-GCM, nagłówek podpisany HMAC.
     // Po odebraniu odsyłamy potwierdzenie - inaczej komputer co minutę zapisuje w logu błąd wysyłki.
     private fun quickAccess(h: JSONObject, inp: DataInputStream, out: java.io.OutputStream) {
-        val k = encKey ?: return
+        qaStep = "połączenie od " + h.optString("Device").take(40)
+        val k = encKey ?: run { qaStep = "brak klucza"; return }
         val a = authKey ?: return
         val len = h.optInt("Length")
-        if (len <= 0 || len > QA_LIMIT || h.optString("Id").length != 32 || h.optString("Id") == id) return
-        if (Math.abs(h.optLong("Timestamp") - System.currentTimeMillis()) > 300000) return
+        if (len <= 0 || len > QA_LIMIT || h.optString("Id").length != 32 || h.optString("Id") == id) { qaStep = "zły rozmiar: $len"; return }
+        if (Math.abs(h.optLong("Timestamp") - System.currentTimeMillis()) > 300000) { qaStep = "różnica zegarów"; return }
         val ad = listOf(h.optString("Type"), h.optString("Id"), h.optString("Device"), h.optString("Profile"),
             h.optLong("Timestamp").toString(), h.optString("Hash"), len.toString()).joinToString("\n").toByteArray(Charsets.UTF_8)
-        if (!MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(a, ad))) return   // nie od sparowanego komputera
+        if (!MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(a, ad))) { qaStep = "zły podpis"; return }   // nie od sparowanego komputera
         val nonce = unb64(h.optString("Nonce"))
         val tag = unb64(h.optString("Tag"))
         if (nonce.size != 12 || tag.size != 16) return
@@ -314,11 +319,13 @@ class LanSync(
         c.updateAAD(ad)
         val zip = c.doFinal(cipher + tag)
         val hash = MessageDigest.getInstance("SHA-256").digest(zip).joinToString("") { "%02X".format(it) }
-        if (hash != h.optString("Hash")) return
+        if (hash != h.optString("Hash")) { qaStep = "zła suma kontrolna"; return }
         val dev = h.optString("Device").filter { !it.isISOControl() }.take(64)
+        qaStep = "odebrano " + (zip.size / 1024) + " KB"
         onQuickAccess(dev, zip)
         out.write(hmac(a, "ack\n$hash".toByteArray(Charsets.UTF_8)))
         out.flush()
+        qaStep = "odebrano i potwierdzono (" + (zip.size / 1024) + " KB) " + java.text.DateFormat.getTimeInstance().format(java.util.Date())
     }
 
     private fun hmac(key: ByteArray, data: ByteArray) =

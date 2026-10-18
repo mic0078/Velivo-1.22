@@ -247,7 +247,11 @@ namespace Przegladarka
             _hookStarted = true;
             _mouseProc = (code, wp, lp) =>
             {
-                if (code >= 0 && ((int)wp == 0x0201 || (int)wp == 0x0204)) PhysReset();   // klik - kursor tekstu mogl sie przeniesc: nowe slowo dla autokorekty
+                if (code >= 0 && ((int)wp == 0x0201 || (int)wp == 0x0204))
+                {   // klik - kursor tekstu mogl sie przeniesc: nowe slowo dla autokorekty (klik w klawiature Velivo, np. w propozycje - kontekst zostaje)
+                    var cp = Marshal.PtrToStructure<PointStruct>(lp); var ch = WindowFromPoint(cp);
+                    if (_kbdHwnd == IntPtr.Zero || ch == IntPtr.Zero || GetAncestor(ch, 2) != _kbdHwnd) PhysReset();
+                }
                 if (!KeyboardOn) { }   // wylaczona w ustawieniach - nic nie robimy, tylko przekazujemy dalej
                 else if (code >= 0 && (int)wp == 0x0207)   // WM_MBUTTONDOWN
                 {
@@ -414,6 +418,7 @@ namespace Przegladarka
             yield return new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl | KeyUp } } };
         }
         static IEnumerable<KbdInput> TextIn(string t) { return t.SelectMany(c => c == '\n' ? KeyIn(0x0D, '\0') : KeyIn(0, c)); }
+        static void PhysAfterInsert(string word, string before) { _pWord = ""; _pFixFrom = _pFixTo = null; _pPrev = ' '; _pPrevWord = word; _pPrevWord2 = before; _pPrevSpace = true; _pLast = Environment.TickCount64; }
         static void PhysReset() { _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
@@ -797,8 +802,13 @@ namespace Przegladarka
                 {
                     var choice = ((Button)s).DataContext as string; if (choice == null || predWord == null) return;
                     int back = predNext ? 0 : predWord.Length + (predDone ? 1 : 0);   // nastepne slowo - tylko dopisujemy
+                    bool phys = _pLast > _tapLast - 50;   // ostatnio pisane zwykla klawiatura
+                    var before = predNext ? predWord : predDone ? (phys ? _pPrevWord2 : tPrevWord2) : (phys ? _pPrevWord : tPrevWord);   // slowo przed wstawianym - do przecinka (mam nadzieję że -> mam nadzieję, że)
+                    bool comma = GetPref("klawiatura-korekta") != "0" && !_physSecret && SwipeTyping.NeedsComma(choice.Split(' ')[0], before);
+                    if (comma) back++;   // spacja przed slowem -> ", "
                     for (int k = 0; k < back; k++) SendKey(0x08, '\0');
-                    foreach (var c2 in choice) SendKey(0, c2); SendKey(0, ' ');
+                    foreach (var c2 in (comma ? ", " : "") + choice) SendKey(0, c2); SendKey(0, ' ');
+                    var lastW = choice.Split(' ').Last(); tPrevWord = lastW; tPrevSpace = true; PhysAfterInsert(lastW, before);   // kontekst dla nastepnego slowa
                     foreach (var pw in choice.Split(' ')) learn(pw); cur = "";   // caly zwrot - kazde slowo lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
                     predShow(null, false);
                 };

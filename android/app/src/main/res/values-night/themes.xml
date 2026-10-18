@@ -4,5 +4,6 @@
         <item name="android:colorAccent">#B3A6FF</item>
         <item name="android:colorPrimary">#B3A6FF</item>
         <item name="android:colorControlActivated">#B3A6FF</item>
+        <item name="android:alertDialogTheme">@style/Velivo.Dialog.Dark</item>
     </style>
 </resources>

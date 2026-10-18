@@ -71,6 +71,7 @@ class QuickAccess(private val ctx: Context) {
 
     @Synchronized
     private fun handle(m: JSONObject): Any? {
+        if (m.optString("op") == "most") return most(m.optJSONObject("dane") ?: return null)
         val area = m.optString("obszar").takeIf { it in setOf("local", "sync", "session") } ?: return null
         val store = load(area)
         return when (m.optString("op")) {
@@ -87,6 +88,28 @@ class QuickAccess(private val ctx: Context) {
             "size" -> store.toString().length
             else -> null
         }
+    }
+
+    // Most do plików strony (jak w Velivo na Windows): tylko folder "dane/" w danych Szybkiego Dostępu z komputera.
+    private fun most(z: JSONObject): JSONObject {
+        val c = z.optString("c")
+        if (c == "ping") return JSONObject().put("ok", true).put("baza", "Velivo Android").put("velivo", true)
+        val path = z.optString("p").replace('\\', '/')
+        if (!(path == "dane" || path.startsWith("dane/")) || !safe(path)) return JSONObject().put("ok", false)
+        val f = File(fromPc, path)
+        return runCatching {
+            when (c) {
+                "read" -> if (f.isFile) JSONObject().put("ok", true).put("b64", android.util.Base64.encodeToString(f.readBytes(), android.util.Base64.NO_WRAP)) else JSONObject().put("ok", false)
+                "write" -> {
+                    val bytes = android.util.Base64.decode(z.optString("b64"), android.util.Base64.DEFAULT)
+                    if (bytes.size > 12 * 1024 * 1024) JSONObject().put("ok", false)
+                    else { f.parentFile?.mkdirs(); f.writeBytes(bytes); JSONObject().put("ok", true) }
+                }
+                "list" -> JSONObject().put("ok", true).put("pliki", JSONArray((f.listFiles()?.filter { it.isFile }?.map { it.name }) ?: emptyList<String>()))
+                "del" -> { f.delete(); JSONObject().put("ok", true) }
+                else -> JSONObject().put("ok", false)
+            }
+        }.getOrDefault(JSONObject().put("ok", false))
     }
 
     // Pliki strony z assets; newtab.html z dołączoną nakładką, język wg telefonu.

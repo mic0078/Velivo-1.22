@@ -20,14 +20,16 @@ namespace Velivo
         const string ArticleCoreScript = @"const velivoArticle = () => {
   // gdy scisle odrzucanie zostawi za malo tekstu (artykul w bloku nazwanym np. ""share"" / ""video""), drugi przebieg
   // odrzuca tylko to, co na pewno nie jest trescia: menu, stopke, panel boczny, formularze, komentarze
+  // ramki ze skrotem / podsumowaniem artykulu - ten sam tekst drugi raz
+  const SUMMARY = '[class*=summary i], [class*=podsumow i], [class*=skrot i], [class*=tldr i], [class*=highlight i], [class*=key-point i], [class*=keypoint i]';
   const STRICT = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, figcaption, [aria-hidden=true], [hidden], ' +
     '.ad, .ads, .advert, .share, .social, .related, .comments, [class*=related i], [class*=recommend i], [class*=polecam i], [class*=promo i], ' +
     '[class*=newsletter i], [class*=cookie i], [class*=consent i], [class*=comment i], [id*=comment i], [class*=sponsor i], [class*=advert i], ' +
     '[class*=reklam i], [class*=breadcrumb i], [class*=share i], [class*=social i], [class*=paywall i], [class*=subscribe i], [class*=author-box i], ' +
     '[class*=tags i], [class*=see-also i], [class*=read-more i], [class*=readmore i], [id*=taboola i], [class*=taboola i], [class*=outbrain i], ' +
-    '[class*=caption i], [class*=credit i], [class*=gallery i], [class*=video i], [class*=player i], [role=navigation], [role=complementary]';
+    '[class*=caption i], [class*=credit i], [class*=gallery i], [class*=video i], [class*=player i], [role=navigation], [role=complementary], ' + SUMMARY;
   const RELAXED = 'nav, footer, aside, form, script, style, noscript, figcaption, [aria-hidden=true], [hidden], [class*=comment i], [id*=comment i], ' +
-    '[role=navigation], [role=complementary], [id*=taboola i], [class*=taboola i], [class*=outbrain i]';
+    '[role=navigation], [role=complementary], [id*=taboola i], [class*=taboola i], [class*=outbrain i], ' + SUMMARY;
   const JUNK_TXT = /^(czytaj (też|także|również|więcej|dalej)|zobacz (też|także|również|wideo|więcej)|polecamy|polecane|reklama|artykuł sponsorowany|materiał (sponsorowany|partnera)|advertisement|sponsored|tagi:|tags:|źródło:|fot\.|foto:|zdjęcie:|autor zdjęcia|udostępnij|share|subskrybuj|zapisz się|newsletter|komentarze|dodaj komentarz|dołącz do|pobierz aplikację|obserwuj nas|kup teraz|więcej na ten temat|read more|related|see also|follow us)/i;
   const visible = el => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
   const linkLen = el => { let n = 0; for (const a of el.querySelectorAll('a')) n += (a.innerText || '').length; return n; };
@@ -59,18 +61,26 @@ namespace Velivo
     if (t.length < 60 && t === t.toUpperCase() && /[A-ZĄĆĘŁŃÓŚŹŻ]{4}/.test(t)) return true;   // krzyczace etykiety (ZOBACZ, REKLAMA)
     return false;
   };
-  const blocks = [], seen = new Set();
+  // powtorzenia: ten sam tekst inaczej zapisany (wielkosc liter, znaki) albo krotki blok zawarty w juz przeczytanym (tytul w zajawce)
+  const blocks = [], keys = [];
+  const key = t => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const dup = t => { const k = key(t); if (!k) return true; for (const o of keys) if (o === k || (k.length < 200 && o.includes(k)) || (o.length < 200 && k.includes(o) && o.length > k.length * 0.6)) return true; keys.push(k); return false; };
   for (const el of root.querySelectorAll('h1, h2, h3, h4, p, li, blockquote, pre, dd')) {
     if (el.querySelector('p, li, h1, h2, h3, h4, blockquote')) continue;   // tylko najglebsze bloki
     if (junk(el) || !visible(el)) continue;
     const t = el.innerText.replace(/\s+/g, ' ').trim();
-    if (t.length < 2 || seen.has(t)) continue;
-    seen.add(t); blocks.push({ el, text: t });
+    if (t.length < 2 || dup(t)) continue;
+    blocks.push({ el, text: t });
   }
   let fallback = false;   // nie znaleziono akapitow - caly tekst bloku (awaryjnie, przegrywa z prawdziwa trescia)
   if (blocks.length === 0) { const t = (root.innerText || '').replace(/\s+/g, ' ').trim(); if (t) { blocks.push({ el: root, text: t }); fallback = true; } }
   const h1 = document.querySelector('h1');   // tytul na poczatek, jesli jest poza trescia
-  if (h1 && !root.contains(h1) && visible(h1)) blocks.unshift({ el: h1, text: h1.innerText.replace(/\s+/g, ' ').trim() });
+  if (h1 && !root.contains(h1) && visible(h1)) {
+    const ht = h1.innerText.replace(/\s+/g, ' ').trim(), hk = key(ht);
+    // tytul, ktory i tak jest w tresci (np. powtorzony w zajawce), nie idzie drugi raz
+    for (let i = 0; i < blocks.length; i++) { const k = key(blocks[i].text); if (k === hk || (k.length < 200 && hk.includes(k))) { blocks.splice(i, 1); i--; } }
+    blocks.unshift({ el: h1, text: ht });
+  }
   return { root, blocks, fallback };
   };
   const words = r => r.fallback ? 0 : r.blocks.reduce((n, b) => n + (b.text.length > 40 ? b.text.length : 0), 0);

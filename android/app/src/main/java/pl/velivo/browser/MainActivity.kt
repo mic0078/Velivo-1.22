@@ -743,14 +743,20 @@ window.__vStop=function(){mark(null);ov.remove();window.__vPick=null;};})()""", 
     private var tts: android.speech.tts.TextToSpeech? = null
 
     private fun readArticle(done: (String, String) -> Unit) {
+        // tytuł raz (z <h1>), bez powtórzeń i bez ramek ze skrótem / podsumowaniem artykułu (to ten sam tekst drugi raz)
         val js = """(function(){var best=document.body,max=0;
 document.querySelectorAll('article,main,[role=main],section,div').forEach(function(e){var n=0;
 e.querySelectorAll(':scope > p').forEach(function(p){n+=p.innerText.length});if(n>max){max=n;best=e}});
-var root=document.querySelector('article')||best,out=[];
-root.querySelectorAll('h1,h2,h3,p,li,blockquote').forEach(function(e){var t=e.innerText.trim();
-if(t.length>1&&!e.closest('nav,footer,aside,form'))out.push(t)});
+var root=document.querySelector('article')||best,out=[],keys=[];
+var h=document.querySelector('h1'),title=((h&&h.innerText)||document.title).replace(/\s+/g,' ').trim();
+function key(t){return t.toLowerCase().replace(/[^0-9a-ząćęłńóśźżäöüéèàç]+/g,' ').trim();}
+function dup(t){var k=key(t);if(!k)return true;for(var i=0;i<keys.length;i++){var o=keys[i];if(o==k||(k.length<200&&o.indexOf(k)>=0)||(o.length<200&&k.indexOf(o)>=0&&o.length>k.length*0.6))return true;}keys.push(k);return false;}
+dup(title);
+var SKIP='nav,footer,aside,form,[class*=summary i],[class*=podsumow i],[class*=skrot i],[class*=tldr i],[class*=highlight i],[class*=key-point i],[class*=keypoint i],[class*=lead-points i]';
+root.querySelectorAll('h1,h2,h3,p,li,blockquote').forEach(function(e){var t=e.innerText.replace(/\s+/g,' ').trim();
+if(t.length>1&&!e.closest(SKIP)&&!dup(t))out.push(t)});
 if(!out.length)out=[document.body.innerText];
-return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
+return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val w = web() ?: return
         w.evaluateJavascript(js) { r ->
             try {

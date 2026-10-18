@@ -576,7 +576,7 @@ namespace Przegladarka
             // slowo swiadomie zostawione (cofnieta poprawka, Dodaj slowo): bez poprawiania, do Mojego slownika (propozycje, przeciaganie), nigdy usuwane jako literowka
             Action<string> keepWord = kw =>
             {
-                var lw0 = (kw ?? "").Trim().ToLowerInvariant(); if (lw0.Length < 2 || !lw0.All(char.IsLetter)) return;
+                var lw0 = (kw ?? "").Trim().ToLowerInvariant(); if (lw0.Length < 2 || !lw0.All(char.IsLetter) || SwipeTyping.IsMisspelling(lw0)) return;   // bledna pisownia (napewno) - cofniecie dziala tylko ten raz, nie zapamietujemy
                 bool added0; lock (noFix) added0 = noFix.Add(lw0);
                 if (added0) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
                 lock (_swLearned) { _swOwn.Add(lw0); SwipeTyping.AddUserWord(lw0); _swLearned[lw0] = (_swLearned.TryGetValue(lw0, out var c0) ? c0 : 0) + 1; SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }

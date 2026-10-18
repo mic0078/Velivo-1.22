@@ -838,6 +838,10 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
             17 -> toggleDesktop()
             20 -> startPick()
             21 -> sendTabToComputer()
+            22 -> runCatching {
+                // język tylko dla Velivo (Android 13+), starsze - ustawienia aplikacji
+                startActivity(Intent(if (Build.VERSION.SDK_INT >= 33) android.provider.Settings.ACTION_APP_LOCALE_SETTINGS else android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            }
             18 -> readArticle { t, b -> showReader(t, b) }
             19 -> if (tts?.isSpeaking == true) stopSpeaking() else readArticle { t, b -> speak(t + ".\n" + b) }
             1 -> newTab(false, QuickAccess.URL)
@@ -931,17 +935,20 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
             }
             box.addView(grid, LinearLayout.LayoutParams(-1, -2))
         }
+        // po 3 w rzędzie, pełne rzędy: karty, ta strona, moje, ustawienia
         section(R.string.menu_tabs, listOf(
             Triple("＋", R.string.new_tab, 1), Triple("🕶", R.string.new_private_tab, 2), Triple("⭐", R.string.quick_access, 14),
-            Triple("🏦", R.string.bank_mode, 10), Triple("🔎", R.string.find_in_page, 16), Triple("🖥", R.string.desktop_mode, 17),
-            Triple("📖", R.string.reader, 18), Triple("🎯", R.string.hide_element, 20), Triple("💻", R.string.send_tab, 21), Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19)),
+            Triple("🏦", R.string.bank_mode, 10), Triple("📤", R.string.send_tab, 21), Triple("🖥", R.string.desktop_mode, 17)),
             mapOf(17 to (tabs.getOrNull(cur)?.desktop == true)))
+        section(R.string.menu_page, listOf(
+            Triple("🔎", R.string.find_in_page, 16), Triple("📖", R.string.reader, 18),
+            Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19),
+            Triple("🎯", R.string.hide_element, 20), Triple("➕", R.string.add_bookmark, 3), Triple("✍", R.string.fill_password, 15)))
         section(R.string.menu_mine, listOf(
-            Triple("🔖", R.string.bookmarks, 4), Triple("➕", R.string.add_bookmark, 3), Triple("🕘", R.string.history, 5),
-            Triple("🔑", R.string.passwords, 9), Triple("✍", R.string.fill_password, 15)))
+            Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9)))
         section(R.string.menu_settings, listOf(
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
-            Triple("💻", R.string.lan_sync, 13), Triple("🧹", R.string.clear_history, 6)),
+            Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6)),
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
         dlg.setContentView(ScrollView(this).apply { addView(box) })
         dlg.window?.apply {

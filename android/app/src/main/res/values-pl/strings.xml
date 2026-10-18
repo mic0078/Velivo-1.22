@@ -127,4 +127,6 @@
     <string name="hide_copied">Skopiowano kod – wklej go w zgłoszeniu</string>
     <string name="hide_ask">Usunąć zaznaczony element? Na tej stronie zostanie ukryty na stałe.</string>
     <string name="hide_yes">Usuń</string>
+    <string name="menu_page">Ta strona</string>
+    <string name="language">Język</string>
 </resources>

@@ -57,6 +57,18 @@ namespace Przegladarka
             return best;
         }
 
+        // najblizszy termin (dzis lub pozniej) z dat w tresci i powtarzania - do napisu na karteczce
+        internal static DateTime? NoteNext(string text, DateTime today, string repeat)
+        {
+            DateTime? best = null;
+            for (int d = 0; d <= 800; d++)
+            {   // pierwszy dzien od dzis, ktory jest terminem (NoteDue sprawdza "dzis" = 2)
+                if (NoteDue(text, today.AddDays(d), repeat) == 2) { best = today.AddDays(d); break; }
+                if (string.IsNullOrEmpty(repeat) && d > 400) break;
+            }
+            return best;
+        }
+
         // rodzaj -> ikona, tytul, poczatkowa tresc
         internal static readonly string[][] NoteKinds =
         {
@@ -207,7 +219,8 @@ namespace Przegladarka
             var rep = headBtn("", ""); rep.Content = new TextBlock { Text = "\uE8EE", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 15, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)) };   // ikona powtarzania jak w Windows (emoji 🔁 bylo nieczytelne) rep.HorizontalAlignment = HorizontalAlignment.Left; rep.Margin = new Thickness(6, 0, 0, 0);
             Func<string, string> repName = r => string.IsNullOrEmpty(r) ? L.T("jednorazowo") : r == "7d" ? L.T("co tydzień") : r == "14d" ? L.T("co 2 tygodnie") : r == "1m" ? L.T("co miesiąc") : r == "1y" ? L.T("co rok")
                 : r.EndsWith("d") ? string.Format(L.T("co {0} dni"), r.TrimEnd('d')) : r.EndsWith("m") ? string.Format(L.T("co {0} mies."), r.TrimEnd('m')) : string.Format(L.T("co {0} lat(a)"), r.TrimEnd('y'));
-            Action repShow = () => { rep.Opacity = string.IsNullOrEmpty(n.Repeat) ? 0.6 : 1; rep.Background = string.IsNullOrEmpty(n.Repeat) ? Brushes.Transparent : new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)); rep.ToolTip = L.T("Powtarzanie terminu z treści karteczki: ") + repName(n.Repeat); };
+            Action repInfoUpd = () => { };   // napis "powtarza sie… nastepny termin" na dole karteczki (ustawiany nizej)
+            Action repShow = () => { repInfoUpd(); rep.Opacity = string.IsNullOrEmpty(n.Repeat) ? 0.6 : 1; rep.Background = string.IsNullOrEmpty(n.Repeat) ? Brushes.Transparent : new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)); rep.ToolTip = L.T("Powtarzanie terminu z treści karteczki: ") + repName(n.Repeat); };
             repShow();
             var titleRow = new StackPanel { Orientation = Orientation.Horizontal }; titleRow.Children.Add(title); titleRow.Children.Add(rep);
             DockPanel.SetDock(btns, Dock.Right); head.Children.Add(btns); head.Children.Add(titleRow);
@@ -229,7 +242,17 @@ namespace Przegladarka
             date.ToolTip = L.T("Wstaw datę z kalendarza");
             btns.Children.Insert(0, date);
             var root = new DockPanel();
-            DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); root.Children.Add(box);
+            // na dole karteczki: ze termin sie powtarza, co ile i kiedy nastepny
+            var repInfo = new TextBlock { FontSize = 12, Margin = new Thickness(10, 2, 10, 6), Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)), TextWrapping = TextWrapping.Wrap };
+            repInfoUpd = () =>
+            {
+                if (string.IsNullOrEmpty(n.Repeat)) { repInfo.Visibility = Visibility.Collapsed; return; }
+                var nx = NoteNext(n.Text, DateTime.Today, n.Repeat);
+                repInfo.Text = L.T("Powtarza się ") + repName(n.Repeat) + (nx.HasValue ? L.T(" · następny termin: ") + nx.Value.ToString("dd.MM.yyyy") : L.T(" · wpisz datę w treści"));
+                repInfo.Visibility = Visibility.Visible;
+            };
+            repInfoUpd(); box.TextChanged += (s, e) => repInfoUpd();
+            DockPanel.SetDock(head, Dock.Top); DockPanel.SetDock(repInfo, Dock.Bottom); root.Children.Add(head); root.Children.Add(repInfo); root.Children.Add(box);
             w.Content = root;
 
             Action toggleOpen = () =>

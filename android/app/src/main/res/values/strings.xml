@@ -46,11 +46,7 @@
     <string name="lan_pair">Pair with Velivo on Windows</string>
     <string name="lan_pair_help">For 3 minutes the phone waits for pairing. On the computer open Velivo → Settings → LAN sync → Pair. Both devices must be on the same Wi-Fi network. Note: pairing changes the sync key on the computer – other computers must be paired again. With several computers use a recovery file instead.</string>
     <string name="lan_pair_confirm">Confirm pairing</string>
-    <string name="lan_pair_code">%1$s wants to pair with this phone.
-
-Code: %2$s
-
-Accept only if the computer shows the same code.</string>
+    <string name="lan_pair_code">%1$s wants to pair with this phone.\n\nCode: %2$s\n\nAccept only if the computer shows the same code.</string>
     <string name="lan_codes_match">Codes match</string>
     <string name="lan_paired">Paired with %1$s</string>
     <string name="lan_recovery">Load pairing recovery file (.vlpair)</string>

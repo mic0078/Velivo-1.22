@@ -421,7 +421,12 @@ function zwin(){var all=d.querySelectorAll('div,span,p,section,aside,ins');for(v
 if(e.children.length<=3&&lab(e)){__vUp(e);continue;}
 // miejsce na reklamę po nazwie klasy/id (AdSlot, AdPlaceholder, ad-container, reklama...) - tylko gdy puste
 var n=(typeof e.className=='string'?e.className:'')+' '+e.id;
-if(R.test(n)&&e.offsetHeight>0&&empty(e))__vUp(e);}}
+if(R.test(n)&&empty(e))__vUp(e);}
+// ramki reklam (to samo, co znajduje ręczne usuwanie): pusta / zablokowana ramka albo oznaczona jako reklama w niej lub w 3 poziomach wyżej
+var fr=d.querySelectorAll('iframe,ins');for(var j=0;j<fr.length;j++){var f=fr[j];if(f.style.display=='none')continue;
+var src=f.getAttribute('src')||'',blank=!src||src.indexOf('about:')==0,ad=f.tagName=='INS'||/google_ads|doubleclick|adserver|\/ads?\//i.test(src+' '+f.id+' '+f.name);
+for(var k=0,a=f;!ad&&a&&k<4;k++,a=a.parentElement){var an=(typeof a.className=='string'?a.className:'')+' '+a.id;if(R.test(an)||(blank&&L.test((a.innerText||'').trim())))ad=true;}
+if(ad&&!/youtube|vimeo|player|video|embed|recaptcha|captcha/i.test(src+' '+f.id+' '+f.className))__vUp(f);}}
 var t=0;window.__vZwin=new MutationObserver(function(){clearTimeout(t);t=setTimeout(zwin,400)});
 window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();})()""", null)
     }

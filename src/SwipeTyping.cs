@@ -159,6 +159,22 @@ namespace Przegladarka
             return char.IsUpper(typed[0]) ? char.ToUpperInvariant(r[0]) + r.Substring(1) : r;
         }
 
+        // spacja: poprawka, a gdy jej nie ma - dokonczenie widoczne w pasku propozycji (klawi -> klawiatura).
+        // Poprawne slowo (dom, nie) i Moje slowa zostaja jak sa; dokonczenie tylko do czestego slowa
+        internal static string Complete(string typed, ICollection<string> keep = null)
+        {
+            var fix = Correct(typed, keep);
+            if (fix != null && (fix.Contains(' ') || Fold(fix) == Fold(typed))) return fix;   // polskie znaki, napewno, niewiem - pewna poprawka
+            if (_main == null || typed.Length < 3 || !typed.All(char.IsLetter)) return fix;
+            var w = typed.ToLowerInvariant();
+            if (keep != null && keep.Contains(w) || _main.Contains(w)) return fix;
+            lock (_ownFold) if (_ownFold.ContainsValue(w)) return fix;
+            var p = Predict(typed, false, 1).FirstOrDefault();   // to samo, co pierwsze w pasku propozycji
+            if (p == null || p.Length <= typed.Length || !Fold(p).StartsWith(Fold(w), StringComparison.Ordinal)) return fix;
+            if (_foldAll != null && _foldAll.TryGetValue(Fold(p), out var pl) && pl.All(e => e.Rank >= 60000)) return fix;   // bardzo rzadkie slowo - nie zgadujemy
+            return p;
+        }
+
         // watpliwosc (slowa nie ma w slowniku, a pewnej poprawki brak): do 3 propozycji - polskie znaki albo jedna litera, takze rzadkie slowa
         internal static List<string> Suggest(string typed, ICollection<string> keep = null, int count = 3)
         {

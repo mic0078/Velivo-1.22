@@ -151,6 +151,17 @@ public class PisanieFlowTests
     }
 
     [Fact]
+    public void SpacjaWstawiaDokonczenieZPaska()
+    {
+        SwipeTyping.Load(new[] { "nie", "dom", "komputer", "przepraszam", "dziękuję" });
+        Assert.Equal("komputer", SwipeTyping.Complete("komp"));
+        Assert.Equal("Przepraszam", SwipeTyping.Complete("Przepr"));
+        Assert.Equal("dziękuję", SwipeTyping.Complete("dziekuje"));   // pewna poprawka przed dokonczeniem
+        Assert.Null(SwipeTyping.Complete("dom"));                     // poprawne slowo zostaje
+        Assert.Null(SwipeTyping.Complete("komp", new[] { "komp" }));  // cofniete - zostaje
+    }
+
+    [Fact]
     public void AutokorektaPolskieZnakiILiterowka()
     {
         SwipeTyping.Load(new[] { "nie", "jest", "żółw", "który", "dziękuję", "komputer", "dom", "pisze", "piszę" });

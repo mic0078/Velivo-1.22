@@ -603,7 +603,7 @@ namespace Przegladarka
                 string fixedNow = null, origNow = cur;
                 if (sep && cur.Length >= 2 && autoOn && !SecretField())
                 {
-                    string fix; lock (noFix) fix = SwipeTyping.Correct(cur, noFix);
+                    string fix; lock (noFix) fix = SwipeTyping.Complete(cur, noFix);
                     if (fix != null) { for (int k = 0; k < cur.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in fix) SendKey(0, c2); cur = fix; fixedNow = fix; }
                 }
                 fixFrom = fixTo = null;
@@ -859,7 +859,7 @@ namespace Przegladarka
             // ✓ autokorekta pisowni (wl./wyl., domyslnie wlaczona) - takze polskie znaki: zolw -> żółw
             var fixB = key(ico("\uE8FB", "abc"), 58); fixB.Height = 28; fixB.FontSize = 12; DockPanel.SetDock(fixB, Dock.Right);
             Action fixShow = () => { bool on = GetPref("klawiatura-korekta") != "0"; fixB.Background = on ? accent : Brushes.Transparent; fixB.ToolTip = on ? L.T("Autokorekta pisowni: włączona – słowo spoza słownika poprawiane po spacji (też polskie znaki: zolw → żółw); ⌫ zaraz po poprawce cofa ją. Kliknij, aby wyłączyć") : L.T("Autokorekta pisowni: wyłączona (kliknij, aby włączyć)"); };
-            Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) return SwipeTyping.Correct(wd, noFix); }) : null;
+            Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) return SwipeTyping.Complete(wd, noFix); }) : null;
             fixShow(); fixB.Click += (s, e) => { SetPref("klawiatura-korekta", GetPref("klawiatura-korekta") != "0" ? "0" : "1"); fixShow(); physApply(); };
             head.Children.Add(fixB);
             // 🔈 klik przy pisaniu (wl./wyl., domyslnie wlaczony)

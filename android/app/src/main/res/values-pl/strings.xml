@@ -77,4 +77,5 @@
     <string name="copied">Skopiowano</string>
     <string name="fill_password">Wpisz hasło</string>
     <string name="no_passwords_here">Brak zapisanych haseł dla tej strony</string>
+    <string name="qa_received">Szybki Dostęp z %1$s zaktualizowany</string>
 </resources>

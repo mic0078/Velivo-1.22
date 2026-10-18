@@ -738,6 +738,14 @@ set(p0,p);})"""
             },
             onPaired = { dev -> lan.pairingUntil = 0; prefs.edit().putString("lan-komputer", dev).apply(); toast(getString(R.string.lan_paired, dev)) },
             onState = { dev, bookmarks, pwds -> applyLanState(dev, bookmarks, pwds) },
+            onQuickAccess = { dev, zip ->
+                runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
+                    runOnUiThread {
+                        toast(getString(R.string.qa_received, dev))
+                        tabs.filter { QuickAccess.isQuickAccess(it.web.url) }.forEach { it.web.reload() }
+                    }
+                }
+            },
         )
     }
     private var multicastLock: WifiManager.MulticastLock? = null

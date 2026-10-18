@@ -77,4 +77,5 @@
     <string name="copied">Copied</string>
     <string name="fill_password">Fill in password</string>
     <string name="no_passwords_here">No saved passwords for this page</string>
+    <string name="qa_received">Quick Access from %1$s updated</string>
 </resources>

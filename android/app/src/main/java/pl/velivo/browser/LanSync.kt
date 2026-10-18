@@ -43,6 +43,7 @@ class LanSync(
     private val confirmPair: (device: String, code: String, accept: () -> Unit) -> Unit,
     private val onPaired: (device: String) -> Unit,
     private val onState: (device: String, bookmarks: String?, passwords: String?) -> Unit,
+    private val onQuickAccess: (device: String, zip: ByteArray) -> Unit = { _, _ -> },
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -281,6 +282,7 @@ class LanSync(
                                 ((lb[2].toInt() and 0xff) shl 16) or ((lb[3].toInt() and 0xff) shl 24)
                             if (hl <= 0 || hl > 4096) return@use
                             val header = JSONObject(String(ByteArray(hl).also { b -> inp.readFully(b) }, Charsets.UTF_8))
+                            if (header.optString("Type") == "quick-access") { quickAccess(header, inp, it.getOutputStream()); return@use }
                             val len = header.optInt("Length")
                             if (header.optString("Type") != "lan-state" || len <= 0 || len > TCP_LIMIT) return@use
                             val data = ByteArray(len).also { b -> inp.readFully(b) }
@@ -292,6 +294,33 @@ class LanSync(
         }
     }
 
+    // Szybki Dostęp z Windows (QuickAccessLanSync.cs): ZIP folderu "Szybki Dostęp", AES-GCM, nagłówek podpisany HMAC.
+    // Po odebraniu odsyłamy potwierdzenie - inaczej komputer co minutę zapisuje w logu błąd wysyłki.
+    private fun quickAccess(h: JSONObject, inp: DataInputStream, out: java.io.OutputStream) {
+        val k = encKey ?: return
+        val a = authKey ?: return
+        val len = h.optInt("Length")
+        if (len <= 0 || len > QA_LIMIT || h.optString("Id").length != 32 || h.optString("Id") == id) return
+        if (Math.abs(h.optLong("Timestamp") - System.currentTimeMillis()) > 300000) return
+        val ad = listOf(h.optString("Type"), h.optString("Id"), h.optString("Device"), h.optString("Profile"),
+            h.optLong("Timestamp").toString(), h.optString("Hash"), len.toString()).joinToString("\n").toByteArray(Charsets.UTF_8)
+        if (!MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(a, ad))) return   // nie od sparowanego komputera
+        val nonce = unb64(h.optString("Nonce"))
+        val tag = unb64(h.optString("Tag"))
+        if (nonce.size != 12 || tag.size != 16) return
+        val cipher = ByteArray(len).also { inp.readFully(it) }
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, nonce))
+        c.updateAAD(ad)
+        val zip = c.doFinal(cipher + tag)
+        val hash = MessageDigest.getInstance("SHA-256").digest(zip).joinToString("") { "%02X".format(it) }
+        if (hash != h.optString("Hash")) return
+        val dev = h.optString("Device").filter { !it.isISOControl() }.take(64)
+        onQuickAccess(dev, zip)
+        out.write(hmac(a, "ack\n$hash".toByteArray(Charsets.UTF_8)))
+        out.flush()
+    }
+
     private fun hmac(key: ByteArray, data: ByteArray) =
         Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)
 
@@ -299,6 +328,7 @@ class LanSync(
         const val PORT = 41919
         val MODEL = (Build.MANUFACTURER + " " + Build.MODEL).trim()
         const val TCP_LIMIT = 8 * 1024 * 1024
+        const val QA_LIMIT = 24 * 1024 * 1024
 
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))

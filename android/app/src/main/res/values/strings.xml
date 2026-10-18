@@ -123,7 +123,7 @@
     <string name="send_tab_bad">This tab can\'t be sent (it isn\'t a normal web page)</string>
     <string name="send_tab_private">Private and banking tabs aren\'t sent</string>
     <string name="tab_received">📺 Tab from %1$s: %2$s</string>
-    <string name="hide_copy">Copy the element's code (to report an advert)</string>
+    <string name="hide_copy">Copy the element\'s code (to report an advert)</string>
     <string name="hide_copied">Code copied – paste it into your report</string>
     <string name="hide_ask">Remove the highlighted element? It will stay hidden on this site.</string>
     <string name="hide_yes">Remove</string>

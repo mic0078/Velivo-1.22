@@ -37,6 +37,7 @@ class LanSync(
     private val lanKey: () -> String?,
     private val saveKey: (String) -> Unit,
     private val profile: () -> String,
+    private val deviceName: () -> String,
     private val saveProfile: (String) -> Unit,
     private val ui: (Runnable) -> Unit,
     private val confirmPair: (device: String, code: String, accept: () -> Unit) -> Unit,
@@ -45,7 +46,6 @@ class LanSync(
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
-    private val device = (Build.MANUFACTURER + " " + Build.MODEL).trim()
     @Volatile private var encKey: ByteArray? = null
     @Volatile private var authKey: ByteArray? = null
     @Volatile private var running = false
@@ -115,7 +115,7 @@ class LanSync(
     }
 
     private fun packet(t: String) = JSONObject()
-        .put("t", t).put("id", id).put("device", device).put("profile", profile())
+        .put("t", t).put("id", id).put("device", deviceName()).put("profile", profile())
         .put("ts", System.currentTimeMillis())
 
     // Dane powiązane z pakietem (jak LanAssociatedData): t, id, device, profile, ts, hash - po jednym w linii.
@@ -271,6 +271,7 @@ class LanSync(
 
     companion object {
         const val PORT = 41919
+        val MODEL = (Build.MANUFACTURER + " " + Build.MODEL).trim()
         const val TCP_LIMIT = 8 * 1024 * 1024
 
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)

@@ -579,6 +579,7 @@ set(p0,p);})"""
             lanKey = { passwords.lanKey },
             saveKey = { passwords.lanKey = it },
             profile = { prefs.getString("lan-profil", "domyslny")!! },
+            deviceName = { prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL },
             saveProfile = { prefs.edit().putString("lan-profil", it.ifBlank { "domyslny" }).apply() },
             ui = { runOnUiThread(it) },
             confirmPair = { dev, code, accept ->
@@ -638,6 +639,7 @@ set(p0,p);})"""
             getString(R.string.lan_recovery),
             getString(R.string.lan_sync_now),
             getString(R.string.lan_forget),
+            getString(R.string.lan_name) + ": " + (prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL),
         )
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.lan_sync) + "\n" + status)
@@ -648,11 +650,20 @@ set(p0,p);})"""
                         prefs.edit().putBoolean("lan", true).apply()
                         startLan()
                         lan.pairingUntil = System.currentTimeMillis() + 3 * 60 * 1000
-                        AlertDialog.Builder(this).setTitle(R.string.lan_pair).setMessage(R.string.lan_pair_help)
+                        val name = prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL
+                        AlertDialog.Builder(this).setTitle(R.string.lan_pair).setMessage(getString(R.string.lan_pair_help, name))
                             .setPositiveButton(android.R.string.ok, null).show()
                     }
                     2 -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), REQ_VLPAIR)
                     3 -> { if (!lan.paired) toast(getString(R.string.lan_not_paired)) else { startLan(); lan.syncNow() } }
+                    5 -> {
+                        val input = EditText(this).apply { setText(prefs.getString("lan-nazwa", "")); hint = LanSync.MODEL; setSingleLine() }
+                        AlertDialog.Builder(this).setTitle(R.string.lan_name).setMessage(R.string.lan_name_help).setView(input)
+                            .setPositiveButton(android.R.string.ok) { _, _ ->
+                                prefs.edit().putString("lan-nazwa", input.text.toString().filter { !it.isISOControl() }.trim().take(40)).apply()
+                            }
+                            .setNegativeButton(android.R.string.cancel, null).show()
+                    }
                     4 -> { passwords.lanKey = null; prefs.edit().remove("lan-komputer").remove("lan-czas").putBoolean("lan", false).apply(); stopLan() }
                 }
             }

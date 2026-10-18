@@ -44,7 +44,7 @@
     <string name="lan_turn_on">Turn on</string>
     <string name="lan_turn_off">Turn off</string>
     <string name="lan_pair">Pair with Velivo on Windows</string>
-    <string name="lan_pair_help">For 3 minutes the phone waits for pairing. On the computer open Velivo → Settings → real-time sync (LAN) → “Pair a device on the network…”. Both devices must be on the same Wi-Fi network. Note: pairing changes the sync key on the computer – other computers must be paired again. With several computers, use “Save recovery file…” on the computer instead and load it on the phone.</string>
+    <string name="lan_pair_help">For 3 minutes this phone (“%1$s”) waits for pairing. On the computer open Velivo → Settings → real-time sync (LAN) → “Pair a device on the network…”. Both devices must be on the same Wi-Fi network. Note: pairing changes the sync key on the computer – other computers must be paired again. With several computers, use “Save recovery file…” on the computer instead and load it on the phone.</string>
     <string name="lan_pair_confirm">Confirm pairing</string>
     <string name="lan_pair_code">%1$s wants to pair with this phone.\n\nCode: %2$s\n\nAccept only if the computer shows the same code.</string>
     <string name="lan_codes_match">Codes match</string>
@@ -60,4 +60,6 @@
     <string name="lan_waiting">Paired – waiting for the computer</string>
     <string name="lan_status">Last sync: %1$s, %2$s</string>
     <string name="lan_received">From %1$s: bookmarks %2$d, passwords %3$d</string>
+    <string name="lan_name">Phone name on the network</string>
+    <string name="lan_name_help">The computer shows this name when pairing – e.g. “Michael\'s phone”, so it is easy to tell phones apart.</string>
 </resources>

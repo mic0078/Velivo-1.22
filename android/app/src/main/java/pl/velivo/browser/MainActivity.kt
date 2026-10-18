@@ -340,7 +340,9 @@ set(p0,p);})"""
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, req.url)) }
                 return true
             }
+            override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url) }
             override fun onPageFinished(view: WebView, url: String) {
+                hideAds(view, url)
                 val qa = QuickAccess.isQuickAccess(url)
                 if (!quiet && !qa) passwordsOnPage(view)
                 if (view == web()) address.setText(if (qa) "" else url)
@@ -372,6 +374,24 @@ set(p0,p);})"""
         tabs.add(Tab(w, priv, bank))
         show(tabs.size - 1)
         w.loadUrl(url)
+    }
+
+    // Ukrywanie reklam (reguły "##" z list) i zwijanie pustych ramek z napisem "REKLAMA" -
+    // po zablokowanej reklamie nie zostaje dziura ani strona błędu w ramce.
+    private fun hideAds(view: WebView, url: String) {
+        if (!prefs.getBoolean("adblock", true) || QuickAccess.isQuickAccess(url)) return
+        val css = org.json.JSONObject.quote(blocker.hidingCss(Uri.parse(url).host))
+        view.evaluateJavascript("""(function(){var d=document;if(!d.documentElement)return;
+var s=d.getElementById('velivo-reklamy');if(!s){s=d.createElement('style');s.id='velivo-reklamy';(d.head||d.documentElement).appendChild(s);}
+s.textContent=$css;
+if(window.__vZwin)return;
+var L=/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane|materiał sponsorowany)$/i;
+function zwin(){var all=d.querySelectorAll('div,span,p,section,aside,ins');for(var i=0;i<all.length;i++){var e=all[i];
+if(e.children.length>3||!L.test((e.textContent||'').trim()))continue;
+var b=e;while(b.parentElement&&b.parentElement!=d.body&&L.test((b.parentElement.textContent||'').trim()))b=b.parentElement;
+b.style.setProperty('display','none','important');}}
+var t=0;window.__vZwin=new MutationObserver(function(){clearTimeout(t);t=setTimeout(zwin,400)});
+window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();})()""", null)
     }
 
     private fun isBlocked(u: Uri) = (u.scheme == "http" || u.scheme == "https") && blocker.matches(u.host)

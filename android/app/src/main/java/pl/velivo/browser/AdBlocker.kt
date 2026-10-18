@@ -5,9 +5,27 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-// Lekki filtr jak w Velivo na Windows: tylko reguły domenowe "||domena^" z list EasyList, EasyPrivacy i KAD.
-// Sprawdzanie: host i wszystkie domeny nadrzędne w HashSet.
-class AdBlocker(private val blocked: Set<String>, private val allowed: Set<String>) {
+// Lekki filtr jak w Velivo na Windows: reguły domenowe "||domena^" z list EasyList, EasyPrivacy i KAD
+// (host i domeny nadrzędne w HashSet) oraz reguły ukrywania "##selektor", żeby po reklamie nie zostawało puste miejsce.
+class AdBlocker(
+    private val blocked: Set<String>, private val allowed: Set<String>,
+    private val generic: List<String> = emptyList(), private val perSite: Map<String, List<String>> = emptyMap(),
+) {
+    // Ogólne reguły są wspólne dla wszystkich stron - CSS składany raz.
+    private val genericCss by lazy { toCss(generic) }
+
+    // Arkusz ukrywania dla strony: ogólne + reguły tej domeny i domen nadrzędnych.
+    fun hidingCss(host: String?): String {
+        val own = ArrayList<String>()
+        var h = host?.lowercase()?.removePrefix("www.") ?: return genericCss
+        while (true) {
+            perSite[h]?.let { own.addAll(it) }
+            val dot = h.indexOf('.')
+            if (dot < 0) break
+            h = h.substring(dot + 1)
+        }
+        return genericCss + toCss(own)
+    }
 
     fun matches(host: String?): Boolean {
         var h = host?.lowercase() ?: return false
@@ -29,6 +47,27 @@ class AdBlocker(private val blocked: Set<String>, private val allowed: Set<Strin
         private const val MAX_AGE = 4L * 24 * 3600 * 1000
         private val unsupported = listOf("domain=", "~", "redirect", "csp", "removeparam", "badfilter", "rewrite", "header=", "permissions", "urltransform", "replace=", "denyallow", "to=", "from=", "method=")
 
+        // Jeden błędny selektor unieważnia całą regułę CSS - dzielimy na małe paczki.
+        private fun toCss(sel: List<String>) = sel.chunked(20).joinToString("") { it.joinToString(",") + "{display:none!important}" }
+
+        // Rozszerzenia składni uBlock/ABP, których CSS nie rozumie.
+        private val notCss = listOf(":-abp", ":has-text", ":upward", ":xpath", ":style", ":remove", ":matches", ":min-text", ":watch", ":others", ":if", ":contains", "+js", "{")
+
+        private fun parseHiding(line: String, generic: MutableSet<String>, exceptions: MutableSet<String>, perSite: MutableMap<String, MutableList<String>>) {
+            val i = line.indexOf("##").takeIf { it >= 0 } ?: line.indexOf("#@#").takeIf { it >= 0 } ?: return
+            val except = line.startsWith("#@#", i)
+            val sel = line.substring(i + if (except) 3 else 2).trim()
+            if (sel.isEmpty() || sel.startsWith("^") || notCss.any { sel.contains(it) }) return
+            val domains = line.substring(0, i)
+            if (domains.isEmpty()) { if (except) exceptions.add(sel) else generic.add(sel); return }
+            if (except) return
+            for (d in domains.split(',')) {
+                val dd = d.trim().lowercase()
+                if (dd.isEmpty() || dd.startsWith("~") || dd.contains('*')) continue
+                perSite.getOrPut(dd) { ArrayList() }.add(sel)
+            }
+        }
+
         private fun dir(ctx: Context) = File(ctx.filesDir, "filtry").apply { mkdirs() }
 
         fun build(ctx: Context): AdBlocker {
@@ -38,11 +77,17 @@ class AdBlocker(private val blocked: Set<String>, private val allowed: Set<Strin
                 val t = l.trim()
                 if (t.isNotEmpty() && !t.startsWith("#")) blocked.add(t)
             }
+            val generic = LinkedHashSet<String>()
+            val exceptions = HashSet<String>()
+            val perSite = HashMap<String, MutableList<String>>()
             for ((name, _) in sources) {
                 val f = File(dir(ctx), name)
-                if (f.exists()) f.forEachLine { parse(it, blocked, allowed) }
+                if (f.exists()) f.forEachLine {
+                    val l = it.trim()
+                    if (l.contains("##") || l.contains("#@#")) parseHiding(l, generic, exceptions, perSite) else parse(l, blocked, allowed)
+                }
             }
-            return AdBlocker(blocked, allowed)
+            return AdBlocker(blocked, allowed, (generic - exceptions).toList(), perSite)
         }
 
         private fun parse(raw: String, blocked: MutableSet<String>, allowed: MutableSet<String>) {

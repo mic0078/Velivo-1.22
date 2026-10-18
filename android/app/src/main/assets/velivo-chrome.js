@@ -89,6 +89,21 @@
     connectNative: function () { throw new Error('brak mostu na Androidzie'); }
   };
   window.chrome.permissions = { contains: nie, request: nie, remove: nie };
+  // Kanał "Velivo" jak w WebView2 na Windows: strona wie, że synchronizację robi Velivo (sieć LAN),
+  // więc nie prosi o folder i nie pokazuje "BRAK SYNCHRONIZACJI". Prośby o miniatury dostają od razu pustą odpowiedź.
+  var webviewSluchacze = [];
+  window.chrome.webview = {
+    addEventListener: function (t, f) { if (t === 'message') webviewSluchacze.push(f); },
+    removeEventListener: function () {},
+    postMessage: function (m) {
+      if (!m || m.typ !== 'velivo-quick-access') return;
+      setTimeout(function () {
+        webviewSluchacze.forEach(function (f) {
+          try { f({ data: { typ: 'velivo-quick-access-odpowiedz', id: m.id, odpowiedz: null } }); } catch (e) {}
+        });
+      }, 0);
+    }
+  };
   window.chrome.tabs = {
     getCurrent: function () { return Promise.resolve(null); },
     update: function (id, o) { if (o && o.url) location.href = o.url; return Promise.resolve(); },

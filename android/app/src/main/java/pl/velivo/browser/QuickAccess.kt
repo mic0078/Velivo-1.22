@@ -104,7 +104,7 @@ class QuickAccess(private val ctx: Context) {
             else -> runCatching { ctx.assets.open(name).use { it.readBytes() } }.getOrNull() ?: return notFound()
         }
         val out = when (name) {
-            "newtab.html" -> String(bytes).replaceFirst("<head>", "<head><script src=\"velivo-chrome.js\"></script>").toByteArray()
+            "newtab.html" -> String(bytes).replaceFirst("<head>", "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><script src=\"velivo-chrome.js\"></script>").toByteArray()
             // tłumaczenie strony działa też poza chrome-extension://
             "jezyk.js" -> String(bytes).replace("location.protocol !== 'chrome-extension:'", "false").toByteArray()
             else -> bytes

@@ -502,9 +502,10 @@ namespace Przegladarka
                 return true;
             }
             if (sep == '\0' || ctrl || alt) { PhysReset(); PhysPred(null, false); return false; }
-            if (autoSp && _pWord.Length == 0 && ",.!?:;".IndexOf(sep) >= 0)
-            {   // "kot ," -> "kot, " (po slowie z paska)
-                Inject(KeyIn(0x08, '\0').Concat(TextIn(sep + " "))); SentAdd(null, sep, false, null, !_physStale); _pPrev = ' '; _pCap = ".!?".IndexOf(sep) >= 0; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
+            if (_pWord.Length == 0 && ",.!?:;".IndexOf(sep) >= 0 && (autoSp || _pPrev == ' ' && _pPrevSpace && !string.IsNullOrEmpty(_pPrevWord)) && !_physStale)
+            {   // znak przylega do slowa: "kot ." -> "kot." (po slowie z paska tez spacja za nim: "kot, ")
+                Inject(KeyIn(0x08, '\0').Concat(TextIn(autoSp ? sep + " " : sep.ToString()))); SentAdd(null, sep, false, null, true);
+                _pPrev = autoSp ? ' ' : sep; _pCap = autoSp && ".!?".IndexOf(sep) >= 0; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
                 PhysPred(null, false); return true;
             }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
             bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;

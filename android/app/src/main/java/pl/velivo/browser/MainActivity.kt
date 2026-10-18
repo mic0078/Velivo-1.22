@@ -343,7 +343,7 @@ set(p0,p);})"""
             override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url) }
             // ramka z reklamą, która się nie wczytała - zapamiętaj adres, żeby ją zwinąć zamiast strony błędu
             override fun onReceivedError(view: WebView, req: WebResourceRequest, err: android.webkit.WebResourceError) {
-                if (!req.isForMainFrame) { failedFrames.add(req.url.toString()); collapseFrames(view) }
+                if (!req.isForMainFrame) { failedFrames.add(req.url.host ?: ""); collapseFrames(view) }
             }
             override fun onPageFinished(view: WebView, url: String) {
                 hideAds(view, url)
@@ -412,7 +412,7 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
             val srcs = runCatching { org.json.JSONArray(org.json.JSONTokener(r).nextValue() as String) }.getOrNull() ?: return@evaluateJavascript
             val bad = (0 until srcs.length()).filter { i ->
                 val u = srcs.optString(i)
-                u.isNotEmpty() && (u in failedFrames || isBlocked(Uri.parse(u)))
+                u.isNotEmpty() && Uri.parse(u).let { it.host in failedFrames || isBlocked(it) }
             }
             if (bad.isNotEmpty()) view.evaluateJavascript("(function(){var f=document.querySelectorAll('iframe');${bad.joinToString(",", "[", "]")}.forEach(function(i){var e=f[i];if(e)(window.__vUp?__vUp(e):e.style.setProperty('display','none','important'))})})()", null)
         }
@@ -423,8 +423,14 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
     // Najpierw to, co już jest na telefonie, potem w tle świeże listy (co 4 dni).
     private fun startFilters() = Thread {
         blocker = AdBlocker.build(this)
-        if (AdBlocker.stale(this) && AdBlocker.download(this) > 0) blocker = AdBlocker.build(this)
+        reapplyFilters()
+        if (AdBlocker.stale(this) && AdBlocker.download(this) > 0) { blocker = AdBlocker.build(this); reapplyFilters() }
     }.start()
+
+    // Karty przywrócone przy starcie wczytują się, zanim listy są gotowe - po wczytaniu list posprzątaj je jeszcze raz.
+    private fun reapplyFilters() = runOnUiThread {
+        tabs.forEach { t -> t.web.url?.let { hideAds(t.web, it); collapseFrames(t.web) } }
+    }
 
     private fun show(i: Int) {
         if (::findBar.isInitialized && findBar.visibility == View.VISIBLE) closeFind()   // szukanie dotyczy jednej karty

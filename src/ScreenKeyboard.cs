@@ -418,9 +418,11 @@ namespace Przegladarka
             yield return new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl | KeyUp } } };
         }
         static IEnumerable<KbdInput> TextIn(string t) { return t.SelectMany(c => c == '\n' ? KeyIn(0x0D, '\0') : KeyIn(0, c)); }
-        static void PhysAfterInsert(string word, string before) { _pWord = ""; _pFixFrom = _pFixTo = null; _pPrev = ' '; _pPrevWord = word; _pPrevWord2 = before; _pPrevSpace = true; _pAutoSpace = true; _pLast = Environment.TickCount64; }
+        static void PhysAfterInsert(string word, string before) { _pWord = ""; _pFixFrom = _pFixTo = null; _pPrev = ' '; _pPrevWord = word; _pPrevWord2 = before; _pPrevSpace = true; _pAutoSpace = true; _pRetype = null; _pLast = Environment.TickCount64; }
         static bool _pAutoSpace;   // spacja wstawiona przez Velivo (propozycja z paska) - przecinek / kropka zastapi ja jak na Androidzie
-        static void PhysReset() { _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
+        static string _pRetype;   // slowo skasowane ⌫ zaraz po wpisaniu - wpisane od nowa uczy poprawki (kmoputer -> komputer)
+        static Action<string, string> _physFixLearned;
+        static void PhysReset() { _pRetype = null; _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
         {
@@ -453,6 +455,12 @@ namespace Przegladarka
                     _pWord = from; var u = _physUndone; if (u != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => u(from, to)));
                     return true;
                 }
+                if (_pWord.Length == 0 && _pRetype == null && _pPrev == ' ' && _pPrevSpace && !string.IsNullOrEmpty(_pPrevWord))
+                {   // ⌫ tuz po slowie i spacji: wracamy do tego slowa (kursor na jego koncu)
+                    _pRetype = _pWord = _pPrevWord; _pPrevWord = _pPrevWord2; _pPrevWord2 = null; _pPrev = _pWord[_pWord.Length - 1];
+                    PhysPred(null, false); return false;
+                }
+                else if (_pWord.Length == 0) { PhysReset(); PhysPred(null, false); return false; }   // dalej w tyl - poprzednie slowo nieznane
                 if (_pWord.Length > 0) _pWord = _pWord.Substring(0, _pWord.Length - 1);
                 _pFixFrom = _pFixTo = null; PhysPred(_pWord, false); return false;
             }
@@ -474,13 +482,14 @@ namespace Przegladarka
                 PhysPred(null, false); return true;
             }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
             bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;
-            string word = _pWord; _pWord = ""; _pPrev = sep; _pCap = capAfter;
+            string word = _pWord; _pWord = ""; var retyped = _pRetype; _pRetype = null; _pPrev = sep; _pCap = capAfter;
             string prevW = _pPrevWord, prevW2 = _pPrevWord2; bool prevSpace = _pPrevSpace; _pPrevWord = sep == ' ' ? word : null; _pPrevSpace = sep == ' ';
             var ze = prevSpace && word.Length > 0 ? SwipeTyping.ZeAsZe(prevW, word, prevW2) : null;   // ze to -> że to (ze mną zostaje)
             if (ze != null) prevW = "że";
             _pPrevWord2 = sep == ' ' ? prevW : null;
             if (word.Length < 2 && ze == null && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { PhysPred(null, false); return false; }
             var fix = word.Length >= 2 ? corr(word) : null;
+            if (retyped != null && SwipeTyping.LearnFix(retyped, fix ?? word)) { var lf = _physFixLearned; if (lf != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => lf(retyped, fix ?? word))); }
             var fin = fix ?? word; if (sep == ' ') _pPrevWord = fin;
             bool comma = sep == ' ' && prevSpace && SwipeTyping.NeedsComma(fin, prevW);   // wiem że -> wiem, że
             PhysPred(sep == ' ' ? fin : null, true);   // po spacji - inne formy skonczonego slowa
@@ -610,7 +619,8 @@ namespace Przegladarka
                 if (added0) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
                 lock (_swLearned) { _swOwn.Add(lw0); SwipeTyping.AddUserWord(lw0); _swLearned[lw0] = (_swLearned.TryGetValue(lw0, out var c0) ? c0 : 0) + 1; SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
             };   // cofniete poprawki - tych slow nie poprawiamy
-            char lastSent = '\0'; bool capNext = false; string tPrevWord = null, tPrevWord2 = null; bool tPrevSpace = false;   // poprzednie slowo - do przecinka   // wielka litera po ". " / "! " / "? "
+            Action<string, string> fixLearned = null;   // ustawiane nizej (pasek komunikatu)
+            char lastSent = '\0'; bool capNext = false; string tPrevWord = null, tPrevWord2 = null, tRetype = null; bool tPrevSpace = false;   // poprzednie slowo - do przecinka   // wielka litera po ". " / "! " / "? "
             Action<string, List<string>> askFix = null;
             Action<string, bool> predShow = (wd, dn) => { };   // pasek propozycji (ustawiany nizej)   // watpliwosc: "Poprawić na:" z propozycjami (klik podmienia slowo)
             Action<ushort, char> tap = null;
@@ -626,6 +636,15 @@ namespace Przegladarka
                     return;
                 }
                 bool autoOn = GetPref("klawiatura-korekta") != "0" && !_physPause;
+                if (vk == 0x08 && cur.Length == 0)
+                {
+                    if (tRetype == null && lastSent == ' ' && tPrevWord != null && autoOn && !SecretField())
+                    {   // ⌫ tuz po slowie i spacji: wracamy do tego slowa - wpisane od nowa uczy poprawki (kmoputer -> komputer)
+                        SendKey(0x08, '\0'); cur = tRetype = tPrevWord; tPrevWord = tPrevWord2; tPrevWord2 = null; tPrevSpace = tPrevWord != null; lastSent = cur[cur.Length - 1];
+                        predShow(cur, false); return;
+                    }
+                    tRetype = null; tPrevWord = tPrevWord2 = null; tPrevSpace = false;   // dalej w tyl - poprzednie slowo nieznane
+                }
                 if (vk == 0 && cur.Length == 0 && lastSent == ' ' && tPrevWord != null && autoOn && (",.!?:;".IndexOf(ch) >= 0 || ch == ' ') && !SecretField())
                 {   // jak na Androidzie: "kot ," -> "kot, " (znak przylega do slowa), dwie spacje -> ". "
                     var pc = ch == ' ' ? '.' : ch;
@@ -646,6 +665,8 @@ namespace Przegladarka
                 if (sep)
                 {   // przecinek przed spojnikiem / ktory (wiem że -> wiem, że)
                     var fin = fixedNow ?? origNow;
+                    var retyped = tRetype; tRetype = null;
+                    if (retyped != null && fin.Length > 0 && !SecretField() && SwipeTyping.LearnFix(retyped, fin)) fixLearned(retyped, fin);
                     var ze = autoOn && tPrevSpace && fin.Length > 0 && fin.All(char.IsLetter) && !SecretField() ? SwipeTyping.ZeAsZe(tPrevWord, fin, tPrevWord2) : null;   // ze to -> że to
                     if (ze != null) { for (int k = 0; k < fin.Length + (ze[0] == ',' ? 4 : 3); k++) SendKey(0x08, '\0'); foreach (var c2 in ze + " " + fin) SendKey(0, c2); tPrevWord = "że"; }
                     if (vk == 0 && ch == ' ' && autoOn && tPrevSpace && fin.Length > 0 && SwipeTyping.NeedsComma(fin, tPrevWord) && !SecretField())
@@ -1258,6 +1279,12 @@ namespace Przegladarka
             secretTimer.Tick += (s, e) => { if (Environment.TickCount64 - _pLast > 20000 && Environment.TickCount64 - _tapLast > 20000) { _physSecret = true; return; } try { _physSecret = SecretField(); } catch (Exception) { _physSecret = true; } };
             secretTimer.Start();
             _physNotify = (from, to) => { ask.Text = L.T("Poprawiono: ") + from + " → " + to + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed; };
+            fixLearned = (typo, good) =>
+            {   // nowe slowo (imie, nazwa) - do Mojego slownika; znane - tylko zapis poprawki
+                if (!SwipeTyping.IsKnown(good)) keepWord(good); else lock (_swLearned) SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
+                ask.Text = L.T("Zapamiętano poprawkę: ") + typo + " → " + good; ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
+            };
+            _physFixLearned = fixLearned;
             _physUndone = (from, to) =>
             {
                 keepWord(from);

@@ -121,6 +121,7 @@ namespace Przegladarka
                 _foldAll = all; _sortedFold = sorted.Select(x => x.F).ToArray(); _sortedEntry = sorted.Select(x => x.E).ToArray();
                 _main = main; _fold = fold;
             }
+            lock (_myFix) if (_myFix.TryGetValue(w, out var mf)) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(mf[0]) + mf.Substring(1) : mf;   // Twoja poprawka (skasowane i wpisane od nowa)
             if (w == "ze") return null;
             if (_polite.Contains(w)) return typed[0] == char.ToUpperInvariant(typed[0]) ? null : Polite(w);   // ty -> Ty   // ze / że - rozstrzyga nastepne slowo (ZeAsZe): ze mną, że to
             // stale zwroty pisane blednie razem albo bez polskich znakow: napewno -> na pewno, wogole -> w ogóle
@@ -394,6 +395,32 @@ namespace Przegladarka
         }
 
         // trojki slow (zwroty): "daj znać" -> "jak"; ten sam zapis co pary (klucz z dwiema spacjami)
+        // Twoje poprawki: slowo skasowane i wpisane od nowa (kmoputer -> komputer) - nastepnym razem poprawiane samo
+        static readonly Dictionary<string, string> _myFix = new Dictionary<string, string>();
+        internal static bool LearnFix(string typo, string fix)
+        {
+            if (string.IsNullOrEmpty(typo) || string.IsNullOrEmpty(fix) || typo.Length < 3 || fix.Length < 2 || !typo.All(char.IsLetter) || !fix.All(char.IsLetter)) return false;
+            string t = typo.ToLowerInvariant(), f = fix.ToLowerInvariant();
+            if (t == f || _main == null || _main.Contains(t) || Edits(t, f) > Math.Max(1, Math.Min(2, t.Length / 3))) return false;   // poprawne slowo zmienione na inne albo zupelnie inne slowo - to nie literowka
+            lock (_myFix) { _myFix[t] = f; if (_myFix.Count > 2000) _myFix.Remove(_myFix.Keys.First()); }
+            return true;
+        }
+        // odleglosc edycyjna z zamiana sasiednich liter (kmoputer / komputer = 1)
+        static int Edits(string a, string b)
+        {
+            var d = new int[a.Length + 1, b.Length + 1];
+            for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+            for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+            for (int i = 1; i <= a.Length; i++)
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
+                    if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+                }
+            return d[a.Length, b.Length];
+        }
+        static IEnumerable<string> FixLines() { lock (_myFix) return _myFix.Select(kv => ">" + kv.Key + "\t" + kv.Value).ToList(); }
+
         static int PairCount(string k) { lock (_pairs) return _pairs.TryGetValue(k, out var c) ? c : 0; }
         internal static void LearnTriple(string prev2, string prev, string word)
         {
@@ -456,7 +483,8 @@ namespace Przegladarka
                 var text = string.Join("\n", learned.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).Take(5000).Select(kv => kv.Key + "\t" + kv.Value)
                     .Concat(own.Select(w => "+" + w))
                     .Concat(ShapeLines())
-                    .Concat(PairLines()));
+                    .Concat(PairLines())
+                    .Concat(FixLines()));
                 // zaszyfrowane kontem Windows - w folderze danych nie ma jawnej listy wpisywanych slow
                 File.WriteAllBytes(file, System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(text), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser));
             }
@@ -506,6 +534,7 @@ namespace Przegladarka
                     {
                         if (line.StartsWith("+")) { if (line.Length > 2) own?.Add(line.Substring(1)); continue; }
                         if (line.StartsWith("~")) { ReadShape(line); continue; }
+                        if (line.StartsWith(">")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && q[0].Length > 0 && q[1].Length > 0) lock (_myFix) _myFix[q[0]] = q[1]; continue; }
                         if (line.StartsWith("=")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[1], out var pc)) lock (_pairs) _pairs[q[0]] = pc; continue; }
                         var p = line.Split('\t');
                         if (p.Length == 2 && int.TryParse(p[1], out var n) && p[0].Length > 0) d[p[0]] = n;

@@ -164,6 +164,16 @@ public class PisanieFlowTests
     }
 
     [Fact]
+    public void UczySiePoprawkiPoSkasowaniuSlowa()
+    {
+        SwipeTyping.Load(new[] { "nie", "kot", "kit", "komputer" });
+        Assert.True(SwipeTyping.LearnFix("kmoputer", "komputer"));     // skasowane i wpisane od nowa
+        Assert.Equal("komputer", SwipeTyping.Correct("kmoputer"));
+        Assert.False(SwipeTyping.LearnFix("kot", "kit"));              // poprawne slowo zmienione na inne - to nie literowka
+        Assert.False(SwipeTyping.LearnFix("abcdef", "komputer"));      // zupelnie inne slowo
+    }
+
+    [Fact]
     public void AutokorektaPolskieZnakiILiterowka()
     {
         SwipeTyping.Load(new[] { "nie", "jest", "żółw", "który", "dziękuję", "komputer", "dom", "pisze", "piszę" });

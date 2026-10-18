@@ -356,6 +356,16 @@ set(p0,p);})"""
                 applyHidden(view, url)
             }
         }
+        // Przytrzymanie palca na reklamie / pustym polu (bez tekstu i linku) - Velivo samo proponuje usunięcie.
+        // Na tekście i linkach zostaje zwykłe zaznaczanie.
+        var touchX = 0f; var touchY = 0f
+        w.setOnTouchListener { _, e -> if (e.action == android.view.MotionEvent.ACTION_DOWN) { touchX = e.x; touchY = e.y }; false }
+        w.setOnLongClickListener {
+            val type = w.hitTestResult.type
+            if (type == WebView.HitTestResult.EDIT_TEXT_TYPE || type == WebView.HitTestResult.SRC_ANCHOR_TYPE || type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) return@setOnLongClickListener false
+            if (w == web() && prefs.getBoolean("adblock", true)) longPressHide(w, touchX, touchY)
+            false
+        }
         w.webChromeClient = object : WebChromeClient() {
             // 🎯 stuknięty element - zaproponuj usunięcie (sygnał tylko z naszego skryptu, z losowym znacznikiem)
             override fun onJsPrompt(view: WebView, url: String?, message: String?, def: String?, result: android.webkit.JsPromptResult): Boolean {
@@ -606,6 +616,19 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
 
     private fun hostKey(url: String?) = "ukryte_" + (Uri.parse(url ?: "").host ?: "").removePrefix("www.")
 
+    private fun longPressHide(w: WebView, x: Float, y: Float) {
+        val js = "(function(x,y){var r=window.devicePixelRatio||1,l=document.elementsFromPoint(x/r,y/r);for(var i=0;i<l.length;i++){var e=l[i];" +
+            "if(e==document.body||e==document.documentElement)break;if(e.tagName=='IFRAME'||e.tagName=='INS')return true;" +
+            "var n=(typeof e.className=='string'?e.className:'')+' '+e.id;if(/AdSlot|AdPlaceholder|CenterAd|ad-slot|ad_slot|google_ads|reklama/i.test(n))return true;}" +
+            "var e=l[0];if(!e||e==document.body)return false;var t=(e.innerText||'').trim();" +
+            "return !t||/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane)$/i.test(t)})($x,$y)"
+        w.evaluateJavascript(js) { r ->
+            if (r != "true") return@evaluateJavascript
+            startPick()
+            w.evaluateJavascript("window.__vAt&&__vAt($x,$y)", null)
+        }
+    }
+
     private fun startPick() {
         val w = web() ?: return
         pickBar.visibility = View.VISIBLE
@@ -616,8 +639,14 @@ var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;z-
 function txt(e){return (e.innerText||'').trim();}
 function best(e){var L=/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane)$/i;
 while(e.parentElement&&e.parentElement!=document.body&&e.parentElement.offsetHeight<window.innerHeight*0.9){var t=txt(e.parentElement);if(t&&!L.test(t)&&t!=txt(e))break;e=e.parentElement;}return e;}
-window.__vPick=function(ev){ev.preventDefault();ev.stopPropagation();ov.style.pointerEvents='none';var t=document.elementFromPoint(ev.clientX,ev.clientY);ov.style.pointerEvents='auto';if(t&&t!=ov){mark(best(t));setTimeout(function(){prompt('$pickToken','')},50);}};
+// reklama bywa schowana pod przezroczystą warstwą strony - przeglądamy wszystkie warstwy pod palcem
+var AD=/(^|[\s_-])(ad|ads|advert|adslot|adbox|adunit|reklama|baner|banner)([\s_-]|$)|AdSlot|AdPlaceholder|CenterAd|placeholder|ad-slot|ad_slot|-ad-|_ad_|google_ads/i;
+function at(x,y){ov.style.pointerEvents='none';var l=document.elementsFromPoint(x,y).filter(function(e){return e!=ov&&e!=document.body&&e!=document.documentElement;});ov.style.pointerEvents='auto';
+for(var i=0;i<l.length;i++){var e=l[i],n=(typeof e.className=='string'?e.className:'')+' '+e.id;if(e.tagName=='IFRAME'||e.tagName=='INS'||AD.test(n))return e;}return l[0];}
+function choose(t){if(t){mark(best(t));setTimeout(function(){prompt('$pickToken','')},50);}}
+window.__vPick=function(ev){ev.preventDefault();ev.stopPropagation();choose(at(ev.clientX,ev.clientY));};
 ov.addEventListener('click',__vPick,true);document.documentElement.appendChild(ov);
+window.__vAt=function(x,y){var r=window.devicePixelRatio||1;choose(at(x/r,y/r));};
 window.__vBig=function(){if(cur&&cur.parentElement&&cur.parentElement!=document.body)mark(cur.parentElement);};
 function sel(e){var p=[];while(e&&e.nodeType==1&&e!=document.body){var s=e.tagName.toLowerCase();
 if(e.id&&!/\d{3}/.test(e.id)){p.unshift(s+'#'+CSS.escape(e.id));break;}

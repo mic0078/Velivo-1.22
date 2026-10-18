@@ -44,6 +44,8 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączo
 4. **🗑** – usuń. Element znika i nie zajmuje miejsca; na tej stronie zostanie ukryty także przy następnych wizytach.
 5. **↺** – przywróć wszystko, co usunięto na tej stronie. **✕** – koniec.
 
+Szybciej: **przytrzymaj palec** na reklamie albo pustym polu „REKLAMA” – Velivo samo zapyta, czy je usunąć (na tekście i linkach przytrzymanie działa jak zwykle). Velivo sprawdza wszystkie warstwy pod palcem, więc znajdzie też reklamę schowaną pod przezroczystą warstwą strony.
+
 Reguły są zapisane tylko w telefonie (nie synchronizują się z komputerem).
 
 ## 3. Moje

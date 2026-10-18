@@ -44,6 +44,8 @@ Velivo for Android is a light, private browser in Velivo colours, linked to Veli
 4. **🗑** – remove. The element disappears and takes up no space; it stays hidden on this site on later visits too.
 5. **↺** – restore everything removed on this site. **✕** – finish.
 
+Quicker: **press and hold** on an advert or an empty "ADVERT" box – Velivo asks whether to remove it (on text and links a long press works as usual). Velivo checks every layer under your finger, so it also finds adverts hidden beneath a transparent layer of the page.
+
 The rules are kept on the phone only (they do not sync with the computer).
 
 ## 3. Mine

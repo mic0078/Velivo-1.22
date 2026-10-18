@@ -183,4 +183,8 @@
     <string name="unit_months">months</string>
     <string name="unit_years">years</string>
     <string name="ui_scale">Velivo size: %1$d%%</string>
+    <string name="crash_title">Velivo closed because of an error</string>
+    <string name="crash_msg">Sorry! Tap Copy and send the description to the Velivo developer – it helps fix it quickly.</string>
+    <string name="crash_copy">Copy</string>
+    <string name="crash_copied">Error description copied</string>
 </resources>

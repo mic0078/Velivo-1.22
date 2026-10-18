@@ -183,4 +183,8 @@
     <string name="unit_months">miesięcy</string>
     <string name="unit_years">lat</string>
     <string name="ui_scale">Wielkość Velivo: %1$d%%</string>
+    <string name="crash_title">Velivo zamknęło się przez błąd</string>
+    <string name="crash_msg">Przepraszam! Stuknij Kopiuj i wklej opis twórcy Velivo – pomoże szybko to naprawić.</string>
+    <string name="crash_copy">Kopiuj</string>
+    <string name="crash_copied">Skopiowano opis błędu</string>
 </resources>

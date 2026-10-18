@@ -91,6 +91,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(if (dark) R.style.Velivo_Dark else R.style.Velivo_Light)
         super.onCreate(savedInstanceState)
+        catchCrashes()
         window.statusBarColor = BAR
         window.navigationBarColor = BAR
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BAR) }
@@ -157,6 +158,7 @@ class MainActivity : Activity() {
         }
 
         startFilters()
+        window.decorView.post { showLastCrash() }
         Karteczki.schedule(this)
         Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
@@ -648,8 +650,10 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
         private var pinching = false
         private val det = android.view.ScaleGestureDetector(context, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
-                uiScale = (uiScale * d.scaleFactor).coerceIn(0.8f, 2.2f)
-                applyScale(content); chrome.forEach { applyScale(it) }
+                runCatching {
+                    uiScale = (uiScale * d.scaleFactor).coerceIn(0.8f, 2.2f)
+                    applyScale(content); chrome.forEach { applyScale(it) }
+                }.onFailure { android.util.Log.e("Velivo", "powiekszanie", it) }
                 return true
             }
             override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
@@ -664,7 +668,8 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
             if (ev.pointerCount > 1 && !pinching) {
                 pinching = true
                 val c = MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL }   // przewijanie / stuknięcie pod palcami - anuluj
-                super.dispatchTouchEvent(c); c.recycle()
+                runCatching { super.dispatchTouchEvent(c) }
+                c.recycle()
             }
             if (pinching) {
                 if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) pinching = false
@@ -1845,6 +1850,33 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         stopService(Intent(this, PlaybackService::class.java))
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)
+    }
+
+    // Gdy Velivo się zamknie przez błąd: opis zapisany lokalnie (bez adresów i treści stron - sam przebieg błędu),
+    // przy następnym uruchomieniu okno z przyciskiem Kopiuj - do zgłoszenia.
+    private fun catchCrashes() {
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching {
+                java.io.File(filesDir, "blad.txt").writeText("Velivo ${packageManager.getPackageInfo(packageName, 0).versionName}, Android ${Build.VERSION.RELEASE}, ${Build.MODEL}\n" + android.util.Log.getStackTraceString(e).lines().take(40).joinToString("\n"))
+            }
+            prev?.uncaughtException(t, e)
+        }
+    }
+
+    private fun showLastCrash() {
+        val f = java.io.File(filesDir, "blad.txt")
+        if (!f.exists()) return
+        val text = runCatching { f.readText() }.getOrDefault("")
+        f.delete()
+        if (text.isBlank()) return
+        AlertDialog.Builder(this).setTitle(R.string.crash_title)
+            .setMessage(getString(R.string.crash_msg) + "\n\n" + text.lines().take(8).joinToString("\n"))
+            .setPositiveButton(R.string.crash_copy) { _, _ ->
+                (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Velivo", text))
+                toast(getString(R.string.crash_copied))
+            }
+            .setNegativeButton(R.string.close_tab_short, null).show()
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

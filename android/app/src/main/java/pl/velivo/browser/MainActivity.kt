@@ -392,10 +392,11 @@ s.textContent=$css;
 if(window.__vZwin)return;
 var R=/(^|[\s_-])(ad|ads|advert|adslot|adbox|adunit|adplaceholder|adcontainer|reklama|reklamy|baner|banner)([\s_-]|$)|AdSlot|AdPlaceholder|CenterAd|adPlaceholder|ad-slot|ad_slot|placeholderAd|-ad-|_ad_/i;
 var L=/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane|materiał sponsorowany)$/i;
-function lab(e){var t=(e.textContent||'').trim();if(t)return L.test(t);
+function lab(e){var t=(e.textContent||'').trim();if(t)return t.length<40&&L.test((e.innerText||t).trim());
+for(var a=0;a<e.attributes.length;a++)if(e.attributes[a].name.indexOf('data-')==0&&L.test(e.attributes[a].value.trim()))return true;
 var c=(getComputedStyle(e,'::before').content+' '+getComputedStyle(e,'::after').content).replace(/["']/g,'').trim();return /reklama|advert|ogłoszenie|sponsor/i.test(c);}
-// pusta ramka: tylko napis REKLAMA, ramki (iframe) i puste elementy
-function empty(e){var t=(e.textContent||'').trim();if(t&&!L.test(t))return false;if(e.querySelector('h1,h2,h3,article'))return false;
+// pusta ramka: tylko napis REKLAMA, ramki (iframe), skrypty i puste elementy (innerText pomija <script>)
+function empty(e){var t=(e.innerText||'').trim();if(t&&!L.test(t))return false;if(e.querySelector('h1,h2,h3,article'))return false;
 var m=e.querySelectorAll('img,video,picture');for(var i=0;i<m.length;i++)if(m[i].offsetWidth>40&&m[i].offsetHeight>40)return false;return true;}
 window.__vUp=function(e){var b=e;while(b.parentElement&&b.parentElement!=d.body&&b.parentElement.offsetHeight<900&&empty(b.parentElement))b=b.parentElement;
 b.style.setProperty('display','none','important');};

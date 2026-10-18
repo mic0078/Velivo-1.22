@@ -67,4 +67,5 @@
     <string name="lan_rx_some">Odebrano z sieci: %1$d pakietów\nostatnio od: %2$s (%3$s)\nzostało %4$d s</string>
     <string name="lan_socket_error">Telefon nie może nasłuchiwać w sieci: %1$s</string>
     <string name="lan_pair_timeout">Czas minął – stuknij Sparuj jeszcze raz.</string>
+    <string name="quick_access">Szybki Dostęp</string>
 </resources>

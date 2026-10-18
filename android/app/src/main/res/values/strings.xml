@@ -67,4 +67,5 @@
     <string name="lan_rx_some">Received from the network: %1$d packets\nlast from: %2$s (%3$s)\n%4$d s left</string>
     <string name="lan_socket_error">The phone cannot listen on the network: %1$s</string>
     <string name="lan_pair_timeout">Time is up – tap Pair again.</string>
+    <string name="quick_access">Quick Access</string>
 </resources>

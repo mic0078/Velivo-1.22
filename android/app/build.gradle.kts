@@ -25,6 +25,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    // Szybki Dostęp: ta sama strona co w Velivo na Windows - jedno źródło dla obu wersji
+    sourceSets["main"].assets.srcDirs("src/main/assets", "../../src/QuickAccessExtension/kod")
 }
 
 dependencies {

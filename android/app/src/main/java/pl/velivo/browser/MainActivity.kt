@@ -75,6 +75,7 @@ class MainActivity : Activity() {
     @Volatile private var blockedCount = 0
 
     private val home = "https://www.startpage.com/"
+    private val quickAccess by lazy { QuickAccess(this) }
     private val youtubeJs by lazy { assets.open("youtube.js").bufferedReader().use { it.readText() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -110,7 +111,7 @@ class MainActivity : Activity() {
         navBtn(button("▶", R.string.forward, BLUE, BLUE_BG) { web()?.let { if (it.canGoForward()) it.goForward() } })
         navBtn(button("⟳", R.string.reload, GREEN, GREEN_BG) { web()?.reload() })
         navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) { web()?.loadUrl(home) })
-        navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, home) })
+        navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, QuickAccess.URL) })
         root.addView(bar)
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -288,8 +289,10 @@ set(p0,p);})"""
             WebViewCompat.addDocumentStartJavaScript(w, youtubeJs, YOUTUBE_ORIGINS)
         val quiet = priv || bank
         if (!quiet) w.addJavascriptInterface(PasswordBridge(w), "VelivoHasla")
+        if (!quiet) quickAccess.attach(w)
         w.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
+                if (req.url.host == QuickAccess.HOST) return if (quiet) null else quickAccess.serve(req.url)
                 if (prefs.getBoolean("adblock", true) && isBlocked(req.url)) {
                     blockedCount++
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
@@ -303,9 +306,10 @@ set(p0,p);})"""
                 return true
             }
             override fun onPageFinished(view: WebView, url: String) {
-                if (!quiet) passwordsOnPage(view)
-                if (view == web()) address.setText(url)
-                if (!quiet) addHistory(view.title ?: url, url)
+                val qa = QuickAccess.isQuickAccess(url)
+                if (!quiet && !qa) passwordsOnPage(view)
+                if (view == web()) address.setText(if (qa) "" else url)
+                if (!quiet && !qa) addHistory(view.title ?: url, url)
                 if (bank) bankUsed = System.currentTimeMillis()
             }
         }
@@ -348,7 +352,7 @@ set(p0,p);})"""
         frame.removeAllViews()
         val t = tabs[i]
         frame.addView(t.web)
-        address.setText(t.web.url ?: "")
+        address.setText(t.web.url?.takeIf { !QuickAccess.isQuickAccess(it) } ?: "")
         address.background = round(if (t.bank) BANK_BG else if (t.priv) PRIV_BG else FIELD)
         tabsBtn.text = tabs.size.toString()
         // Karta bankowa: bez zrzutów ekranu i podglądu na liście ostatnich aplikacji.
@@ -395,7 +399,7 @@ set(p0,p);})"""
         val dlg = AlertDialog.Builder(this)
             .setTitle(R.string.tabs)
             .setView(ScrollView(this).apply { addView(list) })
-            .setPositiveButton(R.string.new_tab) { _, _ -> newTab(false, home) }
+            .setPositiveButton(R.string.new_tab) { _, _ -> newTab(false, QuickAccess.URL) }
             .setNeutralButton(R.string.new_private_tab) { _, _ -> newTab(true, home) }
             .setNegativeButton(R.string.bank_mode) { _, _ -> openBank() }
             .create()
@@ -453,6 +457,7 @@ set(p0,p);})"""
         val m = PopupMenu(this, anchor)
         m.menu.add(0, 1, 0, R.string.new_tab)
         m.menu.add(0, 2, 0, R.string.new_private_tab)
+        m.menu.add(0, 14, 0, R.string.quick_access)
         m.menu.add(0, 3, 0, R.string.add_bookmark)
         m.menu.add(0, 4, 0, R.string.bookmarks)
         m.menu.add(0, 5, 0, R.string.history)
@@ -466,7 +471,7 @@ set(p0,p);})"""
         m.menu.add(0, 8, 0, getString(R.string.blocked, blockedCount)).isEnabled = false
         m.setOnMenuItemClickListener {
             when (it.itemId) {
-                1 -> newTab(false, home)
+                1 -> newTab(false, QuickAccess.URL)
                 2 -> newTab(true, home)
                 3 -> web()?.let { w -> w.url?.let { u -> addTo("zakladki", w.title ?: u, u, 500); toast(getString(R.string.added)) } }
                 4 -> pick("zakladki", R.string.bookmarks)
@@ -476,6 +481,7 @@ set(p0,p);})"""
                 10 -> openBank()
                 11 -> chooseTheme()
                 13 -> unlock { showLanSync() }
+                14 -> web()?.loadUrl(QuickAccess.URL)
                 12 -> {
                     val on = !prefs.getBoolean("tlo", true)
                     prefs.edit().putBoolean("tlo", on).apply()
@@ -819,7 +825,7 @@ set(p0,p);})"""
     }
 
     private fun restoreTabs(): Boolean {
-        val urls = prefs.getString("karty", "")!!.lines().filter { it.startsWith("http") }
+        val urls = prefs.getString("karty", "")!!.lines().filter { it.startsWith("https://") || it.startsWith("http://") }
         if (urls.isEmpty()) return false
         urls.forEach { newTab(false, it) }
         show(prefs.getInt("karta", 0).coerceIn(0, tabs.size - 1))

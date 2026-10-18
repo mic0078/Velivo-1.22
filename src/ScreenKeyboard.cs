@@ -648,6 +648,13 @@ namespace Przegladarka
                 if (added0) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
                 lock (_swLearned) { _swOwn.Add(lw0); SwipeTyping.AddUserWord(lw0); _swLearned[lw0] = (_swLearned.TryGetValue(lw0, out var c0) ? c0 : 0) + 1; SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
             };   // cofniete poprawki - tych slow nie poprawiamy
+            // cofnieta poprawka (⌫): do konca tej sesji bez poprawiania; do Mojego slownika tylko po kliknieciu ➕ (nie kazde dziwne slowo)
+            Action<string> keepOnce = kw =>
+            {
+                var lw1 = (kw ?? "").Trim().ToLowerInvariant(); if (lw1.Length < 2 || !lw1.All(char.IsLetter) || SwipeTyping.IsMisspelling(lw1)) return;
+                lock (noFix) noFix.Add(lw1);
+                if (!SwipeTyping.IsKnown(lw1)) askAdd(kw.Trim());
+            };
             Action<string, string> fixLearned = null;   // ustawiane nizej (pasek komunikatu)
             char lastSent = '\0'; bool capNext = false; string tPrevWord = null, tPrevWord2 = null, tRetype = null; bool tPrevSpace = false;   // poprzednie slowo - do przecinka   // wielka litera po ". " / "! " / "? "
             Action<string, List<string>> askFix = null;
@@ -660,8 +667,7 @@ namespace Przegladarka
                 {   // cofniecie poprawki: znak oddzielajacy i poprawione slowo -> wpisane slowo (zapamietane - wiecej go nie poprawiamy)
                     for (int k = 0; k <= fixTo.Length; k++) SendKey(0x08, '\0');
                     foreach (var c2 in fixFrom) SendKey(0, c2);
-                    keepWord(fixFrom);
-                    cur = fixFrom; fixFrom = fixTo = null; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
+                    var kf = fixFrom; cur = fixFrom; fixFrom = fixTo = null; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; keepOnce(kf);
                     return;
                 }
                 bool autoOn = GetPref("klawiatura-korekta") != "0" && !_physPause;
@@ -1370,14 +1376,15 @@ namespace Przegladarka
             _physNotify = (from, to) => { ask.Text = L.T("Poprawiono: ") + from + " → " + to + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed; };
             fixLearned = (typo, good) =>
             {   // nowe slowo (imie, nazwa) - do Mojego slownika; znane - tylko zapis poprawki
-                if (!SwipeTyping.IsKnown(good)) keepWord(good); else lock (_swLearned) SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
+                lock (_swLearned) SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
                 ask.Text = L.T("Zapamiętano poprawkę: ") + typo + " → " + good; ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
+                if (!SwipeTyping.IsKnown(good)) askAdd(good);   // nowe slowo (imie, nazwa) - do Mojego slownika po kliknieciu ➕
             };
             _physFixLearned = fixLearned;
             _physUndone = (from, to) =>
             {
-                keepWord(from);
                 ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
+                keepOnce(from);   // pytanie "dodać do słownika?" zamiast dopisywania od razu
             };
             _physAsk = word => { if (GetPref("klawiatura-korekta") == "0" || _physSecret) return; List<string> sg; lock (noFix) sg = SwipeTyping.Suggest(word, noFix); if (sg.Count > 0) askFix(word, sg); };
             _physPred = (wd, dn) => { if (dn && wd != null) learn(wd); predShow(wd, dn); };   // najpierw nauka (poprzednie slowa), potem propozycje   // zwykla klawiatura: skonczone slowo tez uczy (czesto pisane - wyzej w propozycjach)

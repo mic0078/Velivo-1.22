@@ -1511,6 +1511,11 @@ Velivo na Androida (10 lub nowszy) to lekka, prywatna przeglądarka w kolorach V
 ### 31.12 Wygląd i język
 - **Co robi:** motyw jak w telefonie / jasny / ciemny w kolorach Velivo, także okna dialogowe; 🌐 Język – polski lub angielski tylko dla Velivo.
 
+### 31.13 Powiększanie dwoma palcami
+- **Do czego:** dla słabszego wzroku – większe napisy i przyciski w całym Velivo.
+- **Jak używać:** rozsuń dwa palce w menu, na liście kart, zakładek, historii, haseł albo karteczek; zsuń, by zmniejszyć.
+- **Co robi:** 80–220%, rośnie też pasek u góry i przyciski na dole; przy dużym powiększeniu kafelki menu po 2 w rzędzie; tekst stron powiększa się tak samo (nie mniej niż 100%); ustawienie zapamiętane. W czytniku dwa palce zmieniają wielkość tekstu (do 48 pt).
+
 # Funkcje NIE DOSTĘPNE W 1.22
 
 Poniższe rzeczy były omawiane, ale **w wersji 1.22 ich nie ma**:
@@ -1926,3 +1931,4 @@ Opisanych funkcji: **290**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **31.10** Karteczki
 - **31.11** Synchronizacja z komputerem
 - **31.12** Wygląd i język
+- **31.13** Powiększanie dwoma palcami

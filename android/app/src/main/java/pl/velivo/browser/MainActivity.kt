@@ -317,6 +317,7 @@ set(p0,p);})"""
             else toast(getString(R.string.private_limited))
         }
         w.settings.apply {
+            textZoom = (uiScale * 100).toInt().coerceAtLeast(100)   // tekst stron też większy, gdy Velivo powiększone (nie mniejszy niż 100%)
             javaScriptEnabled = true
             domStorageEnabled = !priv || privateSupported
             builtInZoomControls = true
@@ -649,6 +650,7 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
             }
             override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
                 prefs.edit().putFloat("skala", uiScale).apply()
+                tabs.forEach { it.web.settings.textZoom = (uiScale * 100).toInt().coerceAtLeast(100) }
                 toast(getString(R.string.ui_scale, Math.round(uiScale * 100)))
             }
         })

@@ -9,6 +9,12 @@ Velivo for Android is a light, private browser in Velivo colours, linked to Veli
 - **Velivo logo** – the menu. Tiles are in four groups, three to a row: **Tabs**, **This page** (find, reader view, read aloud, remove element, add bookmark, fill in password), **Mine**, **Settings** (with a **🌐 Language** tile). The blocked-ads counter is at the top.
 - **Bottom bar** – ◀ back, ▶ forward, ⟳ reload, ⌂ start page, ＋ new tab (Quick Access).
 
+## 1a. Zoom (for weaker eyesight)
+
+- **Spread two fingers** in the menu or the lists of tabs, bookmarks, history, passwords and notes – everything gets bigger; pinch – smaller (80–220%). The top bar and the bottom buttons grow too, and at large sizes the menu shows tiles two to a row.
+- The same size applies to **text on web pages** (never below 100%). Velivo remembers it – set it once.
+- In **reader view** two fingers change the text size (up to 48 pt), like A− / A+.
+
 ## 2. Tabs
 
 | Tile | What it does |

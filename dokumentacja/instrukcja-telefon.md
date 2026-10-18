@@ -9,6 +9,12 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączo
 - **Logo Velivo** – menu. Kafelki są w czterech grupach, po 3 w rzędzie: **Karty**, **Ta strona** (szukaj, czytnik, czytanie na głos, usuń element, dodaj zakładkę, wpisz hasło), **Moje**, **Ustawienia** (z kafelkiem **🌐 Język**). Na górze licznik zablokowanych reklam.
 - **Dolny pasek** – ◀ wstecz, ▶ dalej, ⟳ odśwież, ⌂ strona startowa, ＋ nowa karta (Szybki Dostęp).
 
+## 1a. Powiększanie (dla słabszego wzroku)
+
+- **Dwa palce rozsuwane** w menu, na liście kart, zakładek, historii, haseł i karteczek – wszystko większe; zsuwane – mniejsze (80–220%). Razem z tym rośnie górny pasek i dolne przyciski, a przy dużym powiększeniu menu ma kafelki po 2 w rzędzie.
+- Ta sama wielkość obowiązuje dla **tekstu na stronach** (nie mniej niż 100%). Velivo pamięta ustawienie – wystarczy raz.
+- W **czytniku** dwa palce zmieniają wielkość tekstu (do 48 pt), tak jak A− / A+.
+
 ## 2. Karty
 
 | Kafelek | Co robi |

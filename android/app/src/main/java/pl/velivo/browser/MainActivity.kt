@@ -141,6 +141,9 @@ class MainActivity : Activity() {
         root.addView(buildFindBar())
         root.addView(buildPickBar())
         root.addView(nav)
+        uiScale = prefs.getFloat("skala", 1f)
+        chrome = listOf(bar, nav)
+        chrome.forEach { applyScale(it) }
         setContentView(root)
         if (Build.VERSION.SDK_INT >= 30) {
             val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
@@ -609,12 +612,68 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
     }
 
     // Lista kart: miniatura, tytuł i adres; stuknięcie przełącza, ✕ lub przesunięcie w bok zamyka.
+    // --- Powiększanie dwoma palcami (dla słabszego wzroku): menu, listy, karteczki, pasek i dolne przyciski ---
+    // Jedna skala dla całego Velivo (80-220%), zapamiętana; strony powiększa się jak zwykle w samej stronie.
+    private var uiScale = 1f
+    private var chrome = listOf<View>()
+    private val scaleBase = java.util.WeakHashMap<View, FloatArray>()   // oryginalne: tekst, szerokość, wysokość, min. wysokość
+
+    private fun applyScale(v: View) {
+        val s = uiScale
+        val lp = v.layoutParams
+        val o = scaleBase.getOrPut(v) {
+            floatArrayOf(if (v is TextView) v.textSize else 0f, (lp?.width ?: -1).toFloat(), (lp?.height ?: -1).toFloat(), v.minimumHeight.toFloat())
+        }
+        if (v is TextView && o[0] > 0f) {
+            if (v.autoSizeTextType != TextView.AUTO_SIZE_TEXT_TYPE_NONE)
+                v.setAutoSizeTextTypeUniformWithConfiguration((9 * s).toInt().coerceAtLeast(6), (12 * s).toInt().coerceAtLeast(7), 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+            else v.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, o[0] * s)
+        }
+        if (lp != null) {
+            if (o[1] > 0f) lp.width = (o[1] * s).toInt()
+            if (o[2] > 0f) lp.height = (o[2] * s).toInt()
+            v.layoutParams = lp
+        }
+        if (v is android.widget.GridLayout) v.columnCount = if (s >= 1.35f) 2 else 3   // duże kafelki - po 2 w rzędzie
+        if (v is ViewGroup) for (i in 0 until v.childCount) applyScale(v.getChildAt(i))
+    }
+
+    // Opakowanie okna: dwa palce rozsuwane / zsuwane = większe / mniejsze; jeden palec działa jak zwykle.
+    private inner class PinchFrame(private val content: View) : FrameLayout(this@MainActivity) {
+        private var pinching = false
+        private val det = android.view.ScaleGestureDetector(context, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                uiScale = (uiScale * d.scaleFactor).coerceIn(0.8f, 2.2f)
+                applyScale(content); chrome.forEach { applyScale(it) }
+                return true
+            }
+            override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
+                prefs.edit().putFloat("skala", uiScale).apply()
+                toast(getString(R.string.ui_scale, Math.round(uiScale * 100)))
+            }
+        })
+        init { addView(content); applyScale(content) }
+        override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+            det.onTouchEvent(ev)
+            if (ev.pointerCount > 1 && !pinching) {
+                pinching = true
+                val c = MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL }   // przewijanie / stuknięcie pod palcami - anuluj
+                super.dispatchTouchEvent(c); c.recycle()
+            }
+            if (pinching) {
+                if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) pinching = false
+                return true
+            }
+            return super.dispatchTouchEvent(ev)
+        }
+    }
+
     private fun showTabs() {
         tabs.getOrNull(cur)?.let { snap(it) }
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)) }
         val dlg = AlertDialog.Builder(this)
             .setTitle(R.string.tabs)
-            .setView(ScrollView(this).apply { addView(list) })
+            .setView(PinchFrame(ScrollView(this).apply { addView(list) }))
             .setPositiveButton(R.string.new_tab) { _, _ -> newTab(false, QuickAccess.URL) }
             .setNeutralButton(R.string.new_private_tab) { _, _ -> newTab(true, home) }
             .setNegativeButton(R.string.bank_mode) { _, _ -> openBank() }
@@ -625,6 +684,7 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
                 closeTab(tabs.indexOf(t))
                 fill()
             }) }
+            applyScale(list)
         }
         fill()
         dlg.show()
@@ -914,7 +974,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); setBackgroundColor(BAR) }
         bar.addView(TextView(this).apply { this.text = "📖 " + getString(R.string.reader); textSize = 16f; setTextColor(TEXT); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
-        fun resize(d: Float) { size = (size + d).coerceIn(14f, 30f); text.textSize = size; prefs.edit().putFloat("czytnik_rozmiar", size).apply() }
+        fun resize(d: Float) { size = (size + d).coerceIn(14f, 48f); text.textSize = size; prefs.edit().putFloat("czytnik_rozmiar", size).apply() }
         bar.addView(button("A−", R.string.text_smaller, BLUE, BLUE_BG) { resize(-1f) })
         bar.addView(button("A+", R.string.text_larger, BLUE, BLUE_BG) { resize(1f) })
         bar.addView(button("🔊", R.string.read_aloud, BLUE, BLUE_BG) { if (tts?.isSpeaking == true) stopSpeaking() else speak(title + ".\n" + body) })
@@ -932,7 +992,15 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val key = "czytnik_poz_" + (web()?.url ?: title).hashCode()
         val scroll = root.getChildAt(1) as android.widget.ScrollView
         dlg.setOnDismissListener { prefs.edit().putInt(key, scroll.scrollY).apply(); stopSpeaking() }
-        dlg.setContentView(root)
+        // dwa palce w czytniku = większy / mniejszy tekst (jak A− / A+)
+        val det = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean { resize(size * d.scaleFactor - size); return true }
+        })
+        val frame = object : FrameLayout(this) {
+            override fun dispatchTouchEvent(ev: MotionEvent): Boolean { det.onTouchEvent(ev); return if (ev.pointerCount > 1) true else super.dispatchTouchEvent(ev) }
+        }
+        frame.addView(root)
+        dlg.setContentView(frame)
         dlg.show()
         val pos = prefs.getInt(key, 0)
         if (pos > 0) scroll.post { scroll.scrollTo(0, pos); toast(getString(R.string.reader_resumed)) }
@@ -1063,7 +1131,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
             Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6)),
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
-        dlg.setContentView(ScrollView(this).apply { addView(box) })
+        dlg.setContentView(PinchFrame(ScrollView(this).apply { addView(box) }))
         dlg.window?.apply {
             setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
             setLayout(-1, -2)
@@ -1149,6 +1217,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 v.addView(button("✕", R.string.delete, TEXT, GRAY_BG) {
                     onDelete(row); source.remove(row); refreshList(); if (source.isEmpty()) dlg.dismiss()
                 }.apply { isFocusable = false })   // inaczej ListView nie przyjmuje stuknięć w wiersz
+                applyScale(v)
                 return v
             }
             fun refreshList() {
@@ -1174,7 +1243,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         box.addView(top)
         box.addView(listView, LinearLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.6).toInt()))
         listView.setPadding(dp(12), 0, dp(12), 0)
-        val b = AlertDialog.Builder(this).setTitle(getString(title) + " (" + all.size + ")").setView(box)
+        val b = AlertDialog.Builder(this).setTitle(getString(title) + " (" + all.size + ")").setView(PinchFrame(box))
             .setNegativeButton(R.string.close_tab_short, null)
         extra?.let { (label, act) -> b.setNeutralButton(label) { _, _ -> act() } }
         dlg = b.create()
@@ -1336,13 +1405,14 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 card.setOnClickListener { editNote(n) { fill() } }
                 col.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
             }
+            applyScale(col)
         }
         bar.addView(button("＋", R.string.note_new, Color.WHITE, BRAND1) { newNoteThen { fill() } }.velivo())
         bar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { dlg.dismiss() })
         root.addView(bar)
         root.addView(ScrollView(this).apply { addView(col) }, LinearLayout.LayoutParams(-1, 0, 1f))
         fill()
-        dlg.setContentView(root)
+        dlg.setContentView(PinchFrame(root))
         dlg.show()
         openId?.let { id -> Karteczki.load(this).firstOrNull { it.id == id }?.let { editNote(it) { fill() } } }
     }
@@ -1429,7 +1499,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         root.addView(ScrollView(this).apply { isFillViewport = true; addView(box) }, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(info)
         upd()
-        dlg.setContentView(root)
+        dlg.setContentView(PinchFrame(root))
         dlg.show()
         box.requestFocus()
         box.setSelection(Karteczki.startText(n.kind).indexOf('\n').takeIf { it > 0 && n.text == Karteczki.startText(n.kind) } ?: box.text.length)

@@ -182,4 +182,5 @@
     <string name="unit_weeks">tygodni</string>
     <string name="unit_months">miesięcy</string>
     <string name="unit_years">lat</string>
+    <string name="ui_scale">Wielkość Velivo: %1$d%%</string>
 </resources>

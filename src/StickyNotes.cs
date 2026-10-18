@@ -28,6 +28,7 @@ namespace Przegladarka
             public double H { get; set; }
             public string Color { get; set; }
             public bool Top { get; set; }
+            public bool Free { get; set; }   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
         }
 
         // rodzaj -> ikona, tytul, poczatkowa tresc
@@ -48,6 +49,27 @@ namespace Przegladarka
         readonly List<StickyNote> _notes = new List<StickyNote>();
         readonly Dictionary<StickyNote, Window> _noteWindows = new Dictionary<StickyNote, Window>();
         DispatcherTimer _notesTimer;
+        readonly HashSet<StickyNote> _noteOpen = new HashSet<StickyNote>();   // przypiete karteczki rozwiniete w gore
+        bool _notesLayout;
+
+        // przypiete karteczki: jedna obok drugiej tuz nad paskiem zadan (od lewej); zwinieta = sam pasek, rozwinieta - w gore
+        void LayoutDockedNotes()
+        {
+            if (_notesLayout) return;
+            _notesLayout = true;
+            try
+            {
+                var wa = SystemParameters.WorkArea; double x = wa.Left + 8;
+                foreach (var n in _notes.Where(q => !q.Free))
+                {
+                    if (!_noteWindows.TryGetValue(n, out var w)) continue;
+                    double width = Math.Max(200, n.W), h = _noteOpen.Contains(n) ? Math.Max(120, n.H) : 30;
+                    w.Width = width; w.Height = h; w.Left = x; w.Top = wa.Bottom - h;
+                    x += width + 6;
+                }
+            }
+            finally { _notesLayout = false; }
+        }
 
         internal static string[] NoteKind(string kind) { return NoteKinds.FirstOrDefault(k => k[0] == kind) ?? NoteKinds[0]; }
 
@@ -128,7 +150,7 @@ namespace Przegladarka
             Func<Color> col = () => { try { return (Color)ColorConverter.ConvertFromString("#" + n.Color); } catch (Exception) { return Color.FromRgb(0xFF, 0xF5, 0x9D); } };
             var w = new Window
             {
-                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResizeWithGrip, ShowInTaskbar = false, Topmost = n.Top,
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResizeWithGrip, ShowInTaskbar = false, Topmost = n.Top || !n.Free,
                 Width = Math.Max(160, n.W), Height = Math.Max(120, n.H), Left = n.X, Top = n.Y, Title = L.T(k[2]),
                 Background = new SolidColorBrush(col()), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)), BorderThickness = new Thickness(1),
             };
@@ -147,8 +169,9 @@ namespace Przegladarka
             var paint = headBtn("🎨", L.T("Kolor karteczki"));
             var add = headBtn("➕", L.T("Nowa karteczka"));
             var del = headBtn("✕", L.T("Usuń karteczkę"));
+            var dock = headBtn("📎", L.T("Przypnij nad paskiem zadań / odepnij na pulpit"));
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            foreach (var b in new[] { pin, paint, add, del }) btns.Children.Add(b);
+            foreach (var b in new[] { dock, pin, paint, add, del }) btns.Children.Add(b);
             var head = new DockPanel { Height = 30, Background = new SolidColorBrush(Color.FromArgb(28, 0, 0, 0)), Cursor = Cursors.SizeAll };
             DockPanel.SetDock(btns, Dock.Right); head.Children.Add(btns); head.Children.Add(title);
             var box = new TextBox
@@ -172,7 +195,23 @@ namespace Przegladarka
             DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); root.Children.Add(box);
             w.Content = root;
 
-            head.MouseLeftButtonDown += (s, e) => { if (e.ClickCount == 1) try { w.DragMove(); } catch (InvalidOperationException) { } };
+            // przypieta: klik w pasek rozwija / zwija w gore; odpieta: przeciaganie jak dotad
+            head.MouseLeftButtonDown += (s, e) =>
+            {
+                if (e.ClickCount != 1) return;
+                if (n.Free) { try { w.DragMove(); } catch (InvalidOperationException) { } return; }
+                if (!_noteOpen.Remove(n)) _noteOpen.Add(n);
+                LayoutDockedNotes();
+                if (_noteOpen.Contains(n)) { box.Focus(); box.CaretIndex = box.Text.Length; }
+            };
+            head.ToolTip = n.Free ? null : L.T("Kliknij, aby rozwinąć / zwinąć karteczkę");
+            dock.Click += (s, e) =>
+            {
+                n.Free = !n.Free; w.Topmost = n.Top || !n.Free; _noteOpen.Remove(n);
+                head.Cursor = n.Free ? Cursors.SizeAll : Cursors.Hand; head.ToolTip = n.Free ? null : L.T("Kliknij, aby rozwinąć / zwinąć karteczkę");
+                if (n.Free) { var wa = SystemParameters.WorkArea; w.Height = Math.Max(120, n.H); w.Top = Math.Max(wa.Top, wa.Bottom - w.Height - 40); }
+                SaveNotes(); LayoutDockedNotes();
+            };
             box.TextChanged += (s, e) => { n.Text = box.Text; SaveNotesSoon(); };
             box.PreviewMouseDoubleClick += (s, e) =>
             {
@@ -181,8 +220,14 @@ namespace Przegladarka
                 if (t == box.Text) return;
                 int caret = box.CaretIndex; box.Text = t; box.CaretIndex = Math.Min(caret, t.Length); e.Handled = true;
             };
-            w.LocationChanged += (s, e) => { n.X = w.Left; n.Y = w.Top; SaveNotesSoon(); };
-            w.SizeChanged += (s, e) => { n.W = w.ActualWidth; n.H = w.ActualHeight; SaveNotesSoon(); };
+            w.LocationChanged += (s, e) => { if (!n.Free) return; n.X = w.Left; n.Y = w.Top; SaveNotesSoon(); };
+            w.SizeChanged += (s, e) =>
+            {
+                if (_notesLayout) return;
+                n.W = w.ActualWidth; if (n.Free || _noteOpen.Contains(n)) n.H = w.ActualHeight;
+                SaveNotesSoon();
+                if (!n.Free) LayoutDockedNotes();   // przypieta: dol zostaje przy pasku, sasiednie karteczki sie przesuwaja
+            };
             pin.Click += (s, e) => { n.Top = !n.Top; w.Topmost = n.Top; pin.Content = n.Top ? "📌" : "📍"; SaveNotes(); };
             paint.Click += (s, e) =>
             {
@@ -198,11 +243,14 @@ namespace Przegladarka
             {
                 if (!string.IsNullOrWhiteSpace(n.Text.Replace("•", "").Replace("✓", "")) &&
                     MessageBox.Show(w, L.T("Usunąć tę karteczkę?"), "Velivo", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
-                _notes.Remove(n); SaveNotes(); w.Close();
+                _notes.Remove(n); _noteOpen.Remove(n); SaveNotes(); w.Close(); LayoutDockedNotes();
             };
             w.Closed += (s, e) => _noteWindows.Remove(n);
             _noteWindows[n] = w;
+            if (!n.Free) head.Cursor = Cursors.Hand;
             w.Show();
+            LayoutDockedNotes();
+            if (!n.Free && (string.IsNullOrEmpty(n.Text) || n.Text == k[3])) { _noteOpen.Add(n); LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
             if (string.IsNullOrEmpty(n.Text) || n.Text == k[3]) { box.Focus(); box.CaretIndex = k[3].IndexOf('\n') is int nl && nl > 0 ? nl : box.Text.Length; }
         }
 

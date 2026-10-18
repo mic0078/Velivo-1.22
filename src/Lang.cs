@@ -778,6 +778,8 @@ namespace Przegladarka
             { "Kursor w prawo", "Cursor right" },
             { "Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych", "Space. Swipe typing: press on the first letter of a word and drag across the next ones" },
             { "Zamknij klawiaturę", "Close the keyboard" },
+            { "Przypnij nad paskiem zadań / odepnij na pulpit", "Pin above the taskbar / unpin to the desktop" },
+            { "Kliknij, aby rozwinąć / zwinąć karteczkę", "Click to expand / collapse the note" },
             { "Dodaj to słowo do Mojego słownika – autokorekta go nie zmieni, a propozycje je podsuną", "Add this word to My dictionary – autocorrect won't change it and suggestions will offer it" },
             { "Nowe słowo – dodać do słownika?", "New word – add to dictionary?" },
             { "Dźwięk klawiszy: włączony (kliknij, aby wyciszyć)", "Key sound: on (click to mute)" },

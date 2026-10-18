@@ -287,6 +287,19 @@ namespace Przegladarka
             "który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi" };
         static readonly HashSet<string> _noCommaAfter = new HashSet<string> { "mimo", "pomimo", "chyba", "zwłaszcza", "tylko", "dlatego", "tak", "podczas", "zanim", "nim", "przy", "po", "w", "z", "na", "do", "o", "od", "za", "przez", "dla", "u", "tam", "wtedy", "zawsze", "nawet", "właśnie", "jak", "jakby", "kiedy", "gdy", "gdzie", "dlaczego", "więc", "zatem", "natomiast",
             "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "to", "co", "jak", "niż" };
+        // po tych slowach "ze" to prawie zawsze "że" - poprawiamy od razu po spacji (myślę ze -> myślę, że), bez czekania na nastepne slowo
+        static readonly HashSet<string> _zeHeads = new HashSet<string> { "myślę", "myśli", "myślisz", "myślał", "myślała", "myśleliśmy", "wiem", "wiesz", "wie", "wiemy", "wiedział", "wiedziała",
+            "mówię", "mówi", "mówisz", "mówił", "mówiła", "mówią", "powiem", "powiedział", "powiedziała", "powiedziałem", "powiedziałam", "sądzę", "sądzi", "uważam", "uważa", "uważasz",
+            "czuję", "widzę", "widać", "widzisz", "słyszę", "słyszałem", "słyszałam", "nadzieję", "wydaje", "wydawało", "okazało", "okazuje", "pamiętam", "pamiętaj", "zapomniałem", "zapomniałam",
+            "cieszę", "obiecuję", "obiecałem", "twierdzi", "twierdzę", "przyznaję", "wierzę", "wątpię", "rozumiem", "napisał", "napisała", "pisze", "dowiedziałem", "dowiedziałam",
+            "prawda", "pewnie", "jasne", "ważne", "możliwe", "szkoda", "dobrze", "fakt", "znaczy", "chodzi", "tak", "chyba", "mimo", "pomimo", "to", "dlatego", "zwłaszcza", "tylko", "się", "sam", "sama" };
+        internal static string ZeNow(string ze, string prev)
+        {
+            if (!string.Equals(ze, "ze", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(prev) || !_zeHeads.Contains(prev.ToLowerInvariant())) return null;
+            if (PairCount(prev.ToLowerInvariant() + " ze") > PairCount(prev.ToLowerInvariant() + " że")) return null;   // u Ciebie po tym slowie zwykle "ze" (wyuczone)
+            return char.IsUpper(ze[0]) ? "Że" : "że";
+        }
+
         // "ze" zamiast "że" (bez AltGr): rozpoznane po nastepnym slowie. Przyimek zostaje: ze mną, ze szkoły, ze względu, ze wszystkimi;
         // "że" przed zwyklym slowem albo czasownikiem: ze to -> że to, ze zrobił -> że zrobił. Zwraca zamiennik "ze" (z przecinkiem) albo null
         internal static string ZeAsZe(string ze, string next, string before)

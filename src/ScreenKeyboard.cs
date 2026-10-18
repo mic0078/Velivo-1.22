@@ -486,7 +486,7 @@ namespace Przegladarka
                 _pCap = false; _pWord += upper ? char.ToUpper(c) : c; _pPrev = c; PhysPred(_pWord, false); return false;
             }
             bool autoSp = _pAutoSpace; _pAutoSpace = false;
-            char sep = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : '\0';
+            char sep = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : vk == 0xBD && !sh ? '-' : '\0';
             if (vk == 0x20 && ctrl && !alt && !sh && _sentRest == null && !_physStale && _pWord.Length >= 2 && _pWord.All(char.IsLetter) && !SwipeTyping.IsKnown(_pWord))
             {   // Ctrl+Spacja po nowym slowie (spoza slownika): do Mojego slownika i spacja
                 var nw = _pWord; var ins = new List<KbdInput>();
@@ -532,6 +532,7 @@ namespace Przegladarka
             if (_physStale) { SentAdd(word, sep, false, null, false); PhysPred(null, false); return false; }   // pierwsza chwila po przerwie: slowo zapamietane (przecinek przed nastepnym), bez poprawek i nauki
             if (word.Length < 2 && ze == null && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { SentAdd(word, sep, false, null, true); PhysPred(null, false); return false; }
             var fix = word.Length >= 2 ? corr(word) : null;
+            if (fix == null && sep == ' ' && prevSpace) fix = SwipeTyping.ZeNow(word, prevW);   // myślę ze -> myślę, że
             if (retyped != null && SwipeTyping.LearnFix(retyped, fix ?? word)) { var lf = _physFixLearned; if (lf != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => lf(retyped, fix ?? word))); }
             var fin = fix ?? word; if (sep == ' ') _pPrevWord = fin;
             bool comma = sep == ' ' && prevSpace && SwipeTyping.NeedsComma(fin, prevW);   // wiem że -> wiem, że
@@ -709,6 +710,7 @@ namespace Przegladarka
                 if (sep && cur.Length >= 2 && autoOn && !SecretField())
                 {
                     string fix; lock (noFix) fix = SwipeTyping.Complete(cur, noFix);
+                    if (fix == null && vk == 0 && ch == ' ' && tPrevSpace) fix = SwipeTyping.ZeNow(cur, tPrevWord);   // myślę ze -> myślę, że
                     if (fix != null) { for (int k = 0; k < cur.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in fix) SendKey(0, c2); cur = fix; fixedNow = fix; }
                 }
                 fixFrom = fixTo = null;

@@ -237,7 +237,7 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); }
         }
 
-        static volatile bool _kbdAuto;   // klawiatura sama po kliknieciu w pole tekstowe (domyslnie wylaczone)
+        internal static volatile bool _kbdAuto;   // klawiatura sama po kliknieciu w pole tekstowe (domyslnie wylaczone)
         internal static void StartGlobalKeyboardHook()
         {
             _kbdAuto = GetPref("klawiatura-sama") == "1";
@@ -1242,17 +1242,19 @@ namespace Przegladarka
         // pola tekstowe w oknach Velivo (wyszukiwanie, nazwy, hasla, edytowalne listy)
         internal static void KeyboardOnMiddleClick(object sender, MouseButtonEventArgs e)
         {
-            if (e.ChangedButton != MouseButton.Middle || !KeyboardOn) return;
+            bool auto = e.ChangedButton == MouseButton.Left && _kbdAuto && (_kbd == null || !_kbd.IsVisible) && !ReferenceEquals(sender, _kbd);   // klawiatura sama po kliknieciu w pole
+            if (e.ChangedButton != MouseButton.Middle && !auto || !KeyboardOn) return;
             var d = e.OriginalSource as DependencyObject;
             while (d != null && !(d is TextBox) && !(d is PasswordBox) && !(d is ComboBox)) d = VisualTreeHelper.GetParent(d) ?? LogicalTreeHelper.GetParent(d);
             if (d is ComboBox cb && !cb.IsEditable) return;
             if (d is TextBox tb && tb.IsReadOnly) return;
             if (d == null) return;
+            if (auto) { Application.Current.Dispatcher.BeginInvoke(new Action(ShowScreenKeyboard)); return; }   // zwykly klik dziala dalej (kursor w miejscu klikniecia)
             ((UIElement)d).Focus(); e.Handled = true;
             ShowScreenKeyboard();
         }
 
         // strona: klik rolka w pole do pisania - fokus w polu i znacznik do okna (bez tresci); bez autoprzewijania
-        const string KeyboardPageScript = "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button!==1)return;var t=e.target;if(!t||!t.closest)return;var f=t.closest('input,textarea,[contenteditable=\"\"],[contenteditable=true]');if(!f||f.disabled||f.readOnly)return;if(f.tagName==='INPUT'&&/^(button|submit|reset|checkbox|radio|file|image|range|color|hidden)$/i.test(f.type))return;e.preventDefault();try{f.focus();}catch(x){}pm('velivo:klawiatura');},true);var sec=function(t){return !!(t&&t.tagName==='INPUT'&&(t.type==='password'||/password|one-time-code/i.test(t.autocomplete||'')));};document.addEventListener('focusin',function(e){pm('velivo:kbd-haslo:'+(sec(e.target)?'1':'0'));},true);}catch(x){}})();";
+        const string KeyboardPageScript = "(function(){try{if(!window.chrome||!chrome.webview)return;var pm=chrome.webview.postMessage.bind(chrome.webview);document.addEventListener('mousedown',function(e){if(e.button!==1)return;var t=e.target;if(!t||!t.closest)return;var f=t.closest('input,textarea,[contenteditable=\"\"],[contenteditable=true]');if(!f||f.disabled||f.readOnly)return;if(f.tagName==='INPUT'&&/^(button|submit|reset|checkbox|radio|file|image|range|color|hidden)$/i.test(f.type))return;e.preventDefault();try{f.focus();}catch(x){}pm('velivo:klawiatura');},true);document.addEventListener('mouseup',function(e){if(e.button!==0)return;var t=e.target;if(!t||!t.closest)return;var f=t.closest('input,textarea,[contenteditable=\"\"],[contenteditable=true]');if(!f||f.disabled||f.readOnly)return;if(f.tagName==='INPUT'&&/^(button|submit|reset|checkbox|radio|file|image|range|color|hidden)$/i.test(f.type))return;pm('velivo:kbd-pole');},true);var sec=function(t){return !!(t&&t.tagName==='INPUT'&&(t.type==='password'||/password|one-time-code/i.test(t.autocomplete||'')));};document.addEventListener('focusin',function(e){pm('velivo:kbd-haslo:'+(sec(e.target)?'1':'0'));},true);}catch(x){}})();";
     }
 }

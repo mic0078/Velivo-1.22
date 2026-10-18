@@ -756,6 +756,7 @@ namespace Przegladarka
             { "💾 Zapisz", "💾 Save" },
             { "Zapisz Mój słownik (Ctrl+S)", "Save My dictionary (Ctrl+S)" },
             { "Słów: ", "Words: " },
+            { "Twoje często pisane zdanie – kliknij albo Ctrl+Spacja, aby wstawić resztę", "A sentence you often type – click or press Ctrl+Space to insert the rest" },
             { "Zapamiętano poprawkę: ", "Correction remembered: " },
             { "Otwieraj samą po kliknięciu w pole tekstowe", "Open automatically when you click a text field" },
             { "Jak klawiatura dotykowa Windows: klik w pole do pisania w dowolnym programie pokazuje klawiaturę Velivo", "Like the Windows touch keyboard: clicking a text field in any program shows the Velivo keyboard" },

@@ -174,6 +174,19 @@ public class PisanieFlowTests
     }
 
     [Fact]
+    public void PodpowiadaCzestoPisaneZdanie()
+    {
+        var b = new SwipeTyping.SentenceBuf();
+        b.Word("Mam", false, false); b.Word("nadzieję", false, false); b.Word("że", true, false); b.Word("wszystko", false, false); b.Word("dobrze", false, false);
+        var t = b.Text(false) + ".";
+        Assert.Equal("Mam nadzieję, że wszystko dobrze.", t);
+        SwipeTyping.LearnSentence(t);
+        Assert.Null(SwipeTyping.SentenceRest("Mam nad"));               // raz napisane - jeszcze nie podpowiadamy
+        SwipeTyping.LearnSentence(t);
+        Assert.Equal("zieję, że wszystko dobrze.", SwipeTyping.SentenceRest("Mam nad"));
+    }
+
+    [Fact]
     public void AutokorektaPolskieZnakiILiterowka()
     {
         SwipeTyping.Load(new[] { "nie", "jest", "żółw", "który", "dziękuję", "komputer", "dom", "pisze", "piszę" });

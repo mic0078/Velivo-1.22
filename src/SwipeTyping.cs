@@ -426,6 +426,37 @@ namespace Przegladarka
         }
         static IEnumerable<string> FixLines() { lock (_myFix) return _myFix.Select(kv => ">" + kv.Key + "\t" + kv.Value).ToList(); }
 
+        // cale zdania: czesto powtarzane (co najmniej 2 razy) podsuwane na pasku nad propozycjami, Ctrl+Spacja wstawia reszte
+        static readonly Dictionary<string, int> _sentences = new Dictionary<string, int>();
+        internal static void LearnSentence(string text)
+        {
+            text = text?.Trim(); if (string.IsNullOrEmpty(text) || text.Length < 8 || text.Length > 200 || text.Count(c => c == ' ') < 2) return;
+            lock (_sentences) { _sentences[text] = (_sentences.TryGetValue(text, out var n) ? n : 0) + 1; if (_sentences.Count > 500) _sentences.Remove(_sentences.OrderBy(x => x.Value).First().Key); }
+        }
+        internal static string SentenceRest(string prefix)
+        {
+            prefix = prefix?.TrimStart(); if (string.IsNullOrEmpty(prefix) || prefix.Length < 4) return null;
+            lock (_sentences)
+            {
+                var best = _sentences.Where(kv => kv.Value >= 2 && kv.Key.Length > prefix.Length + 2 && kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).OrderByDescending(kv => kv.Value).FirstOrDefault();
+                return best.Key?.Substring(prefix.Length);
+            }
+        }
+        static IEnumerable<string> SentenceLines() { lock (_sentences) return _sentences.Select(kv => "*" + kv.Value + "\t" + kv.Key).ToList(); }
+        // biezace zdanie (slowa juz w tekscie, z przecinkami) - do nauki i podpowiedzi zdan
+        internal sealed class SentenceBuf
+        {
+            readonly List<string> _w = new List<string>(); readonly List<bool> _comma = new List<bool>();
+            internal void Word(string w, bool commaBefore, bool commaAfter)
+            {
+                lock (_w) { if (commaBefore && _comma.Count > 0) _comma[_comma.Count - 1] = true; _w.Add(w); _comma.Add(commaAfter); if (_w.Count > 40) Clear(); }
+            }
+            internal void Replace(string last, bool commaBefore) { lock (_w) if (_w.Count > 0) { _w[_w.Count - 1] = last; if (commaBefore && _w.Count > 1) _comma[_w.Count - 2] = true; } }
+            internal void RemoveLast() { lock (_w) if (_w.Count > 0) { _w.RemoveAt(_w.Count - 1); _comma.RemoveAt(_comma.Count - 1); } }
+            internal void Clear() { lock (_w) { _w.Clear(); _comma.Clear(); } }
+            internal string Text(bool trailing) { lock (_w) return string.Concat(_w.Select((x, i) => x + (i < _w.Count - 1 || trailing ? (_comma[i] ? ", " : " ") : ""))); }
+        }
+
         static int PairCount(string k) { lock (_pairs) return _pairs.TryGetValue(k, out var c) ? c : 0; }
         internal static void LearnTriple(string prev2, string prev, string word)
         {
@@ -489,7 +520,8 @@ namespace Przegladarka
                     .Concat(own.Select(w => "+" + w))
                     .Concat(ShapeLines())
                     .Concat(PairLines())
-                    .Concat(FixLines()));
+                    .Concat(FixLines())
+                    .Concat(SentenceLines()));
                 // zaszyfrowane kontem Windows - w folderze danych nie ma jawnej listy wpisywanych slow
                 File.WriteAllBytes(file, System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(text), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser));
             }
@@ -539,6 +571,7 @@ namespace Przegladarka
                     {
                         if (line.StartsWith("+")) { if (line.Length > 2) own?.Add(line.Substring(1)); continue; }
                         if (line.StartsWith("~")) { ReadShape(line); continue; }
+                        if (line.StartsWith("*")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[0], out var sc) && q[1].Length > 0) lock (_sentences) _sentences[q[1]] = sc; continue; }
                         if (line.StartsWith(">")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && q[0].Length > 0 && q[1].Length > 0) lock (_myFix) _myFix[q[0]] = q[1]; continue; }
                         if (line.StartsWith("=")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[1], out var pc)) lock (_pairs) _pairs[q[0]] = pc; continue; }
                         var p = line.Split('\t');

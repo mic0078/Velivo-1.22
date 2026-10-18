@@ -421,9 +421,19 @@ namespace Przegladarka
         static IEnumerable<KbdInput> TextIn(string t) { return t.SelectMany(c => c == '\n' ? KeyIn(0x0D, '\0') : KeyIn(0, c)); }
         static void PhysAfterInsert(string word, string before) { _pWord = ""; _pFixFrom = _pFixTo = null; _pPrev = ' '; _pPrevWord = word; _pPrevWord2 = before; _pPrevSpace = true; _pAutoSpace = true; _pRetype = null; _pLast = Environment.TickCount64; }
         static bool _pAutoSpace;   // spacja wstawiona przez Velivo (propozycja z paska) - przecinek / kropka zastapi ja jak na Androidzie
+        // biezace zdanie (nauka calych zdan) i podpowiadana reszta zdania (Ctrl+Spacja / klik wstawia)
+        static readonly SwipeTyping.SentenceBuf _sent = new SwipeTyping.SentenceBuf();
+        static volatile string _sentRest;
+        static void SentAdd(string w, char sep, bool comma, string ze, bool learnOk)
+        {
+            if (ze != null) _sent.Replace(ze.TrimStart(',', ' '), ze[0] == ',');
+            if (!string.IsNullOrEmpty(w)) _sent.Word(w, comma, sep == ',');
+            if (".!?".IndexOf(sep) >= 0) { var t = _sent.Text(false); if (learnOk && t.Length > 0) SwipeTyping.LearnSentence(t + sep); _sent.Clear(); }
+            else if (sep != ' ' && sep != ',') _sent.Clear();   // nowa linia, srednik, dwukropek - zdanie od nowa
+        }
         static string _pRetype;   // slowo skasowane ⌫ zaraz po wpisaniu - wpisane od nowa uczy poprawki (kmoputer -> komputer)
         static Action<string, string> _physFixLearned;
-        static void PhysReset() { _pRetype = null; _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
+        static void PhysReset() { _sent.Clear(); _pRetype = null; _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
         {
@@ -458,7 +468,7 @@ namespace Przegladarka
                 }
                 if (_pWord.Length == 0 && _pRetype == null && _pPrev == ' ' && _pPrevSpace && !string.IsNullOrEmpty(_pPrevWord))
                 {   // ⌫ tuz po slowie i spacji: wracamy do tego slowa (kursor na jego koncu)
-                    _pRetype = _pWord = _pPrevWord; _pPrevWord = _pPrevWord2; _pPrevWord2 = null; _pPrev = _pWord[_pWord.Length - 1];
+                    _sent.RemoveLast(); _pRetype = _pWord = _pPrevWord; _pPrevWord = _pPrevWord2; _pPrevWord2 = null; _pPrev = _pWord[_pWord.Length - 1];
                     PhysPred(null, false); return false;
                 }
                 else if (_pWord.Length == 0) { PhysReset(); PhysPred(null, false); return false; }   // dalej w tyl - poprzednie slowo nieznane
@@ -476,10 +486,25 @@ namespace Przegladarka
             }
             bool autoSp = _pAutoSpace; _pAutoSpace = false;
             char sep = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : '\0';
+            if (vk == 0x20 && ctrl && !alt && !sh && _sentRest != null)
+            {   // Ctrl+Spacja: reszta podpowiadanego zdania (tylko gdy zdanie jest na pasku - inaczej skrot dziala jak zawsze)
+                var rest = _sentRest; _sentRest = null;
+                var ins = new List<KbdInput>();
+                bool lc = GetAsyncKeyState(0xA2) < 0, rc = GetAsyncKeyState(0xA3) < 0;
+                if (lc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2, Flags = KeyUp } } });
+                if (rc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA3, Flags = KeyUp | KeyExt } } });
+                ins.AddRange(TextIn(_pWord.Length > 0 || rest.StartsWith(",") ? rest + " " : rest.TrimStart() + " "));
+                if (lc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2 } } });
+                if (rc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA3, Flags = KeyExt } } });
+                Inject(ins);
+                var full = (_sent.Text(true) + _pWord + rest).Trim(); if (!_physStale) SwipeTyping.LearnSentence(full);
+                PhysReset(); _pPrev = ' '; _pCap = ".!?".IndexOf(full[full.Length - 1]) >= 0; _pLast = Environment.TickCount64; PhysPred(null, false);
+                return true;
+            }
             if (sep == '\0' || ctrl || alt) { PhysReset(); PhysPred(null, false); return false; }
             if (autoSp && _pWord.Length == 0 && ",.!?:;".IndexOf(sep) >= 0)
             {   // "kot ," -> "kot, " (po slowie z paska)
-                Inject(KeyIn(0x08, '\0').Concat(TextIn(sep + " "))); _pPrev = ' '; _pCap = ".!?".IndexOf(sep) >= 0; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
+                Inject(KeyIn(0x08, '\0').Concat(TextIn(sep + " "))); SentAdd(null, sep, false, null, !_physStale); _pPrev = ' '; _pCap = ".!?".IndexOf(sep) >= 0; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
                 PhysPred(null, false); return true;
             }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
             bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;
@@ -488,12 +513,13 @@ namespace Przegladarka
             var ze = prevSpace && word.Length > 0 ? SwipeTyping.ZeAsZe(prevW, word, prevW2) : null;   // ze to -> że to (ze mną zostaje)
             if (ze != null) prevW = "że";
             _pPrevWord2 = sep == ' ' ? prevW : null;
-            if (_physStale) { PhysPred(null, false); return false; }   // pierwsza chwila po przerwie: slowo zapamietane (przecinek przed nastepnym), bez poprawek i nauki
-            if (word.Length < 2 && ze == null && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { PhysPred(null, false); return false; }
+            if (_physStale) { SentAdd(word, sep, false, null, false); PhysPred(null, false); return false; }   // pierwsza chwila po przerwie: slowo zapamietane (przecinek przed nastepnym), bez poprawek i nauki
+            if (word.Length < 2 && ze == null && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { SentAdd(word, sep, false, null, true); PhysPred(null, false); return false; }
             var fix = word.Length >= 2 ? corr(word) : null;
             if (retyped != null && SwipeTyping.LearnFix(retyped, fix ?? word)) { var lf = _physFixLearned; if (lf != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => lf(retyped, fix ?? word))); }
             var fin = fix ?? word; if (sep == ' ') _pPrevWord = fin;
             bool comma = sep == ' ' && prevSpace && SwipeTyping.NeedsComma(fin, prevW);   // wiem że -> wiem, że
+            SentAdd(fin, sep, comma, ze, true);
             PhysPred(sep == ' ' ? fin : null, true);   // po spacji - inne formy skonczonego slowa
             if (fix == null && !comma && ze == null) { var a = _physAsk; if (a != null && sep == ' ') Application.Current?.Dispatcher.BeginInvoke(new Action(() => a(word))); return false; }
             Inject(Enumerable.Range(0, word.Length + (comma ? 1 : 0) + (ze == null ? 0 : ze[0] == ',' ? 4 : 3)).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn((ze != null ? ze + " " : "") + (comma ? ", " : "") + fin + sep)));   // ten znak zamiast przepuszczonego
@@ -642,15 +668,15 @@ namespace Przegladarka
                 {
                     if (tRetype == null && lastSent == ' ' && tPrevWord != null && autoOn && !SecretField())
                     {   // ⌫ tuz po slowie i spacji: wracamy do tego slowa - wpisane od nowa uczy poprawki (kmoputer -> komputer)
-                        SendKey(0x08, '\0'); cur = tRetype = tPrevWord; tPrevWord = tPrevWord2; tPrevWord2 = null; tPrevSpace = tPrevWord != null; lastSent = cur[cur.Length - 1];
+                        SendKey(0x08, '\0'); _sent.RemoveLast(); cur = tRetype = tPrevWord; tPrevWord = tPrevWord2; tPrevWord2 = null; tPrevSpace = tPrevWord != null; lastSent = cur[cur.Length - 1];
                         predShow(cur, false); return;
                     }
-                    tRetype = null; tPrevWord = tPrevWord2 = null; tPrevSpace = false;   // dalej w tyl - poprzednie slowo nieznane
+                    tRetype = null; tPrevWord = tPrevWord2 = null; tPrevSpace = false; _sent.Clear();   // dalej w tyl - poprzednie slowo nieznane
                 }
                 if (vk == 0 && cur.Length == 0 && lastSent == ' ' && tPrevWord != null && autoOn && (",.!?:;".IndexOf(ch) >= 0 || ch == ' ') && !SecretField())
                 {   // jak na Androidzie: "kot ," -> "kot, " (znak przylega do slowa), dwie spacje -> ". "
                     var pc = ch == ' ' ? '.' : ch;
-                    SendKey(0x08, '\0'); SendKey(0, pc); SendKey(0, ' ');
+                    SendKey(0x08, '\0'); SendKey(0, pc); SendKey(0, ' '); SentAdd(null, pc, false, null, true);
                     capNext = ".!?".IndexOf(pc) >= 0; lastSent = ' '; tPrevWord = tPrevWord2 = null; tPrevSpace = false; fixFrom = fixTo = null;
                     predShow(null, false); return;
                 }
@@ -671,8 +697,9 @@ namespace Przegladarka
                     if (retyped != null && fin.Length > 0 && !SecretField() && SwipeTyping.LearnFix(retyped, fin)) fixLearned(retyped, fin);
                     var ze = autoOn && tPrevSpace && fin.Length > 0 && fin.All(char.IsLetter) && !SecretField() ? SwipeTyping.ZeAsZe(tPrevWord, fin, tPrevWord2) : null;   // ze to -> że to
                     if (ze != null) { for (int k = 0; k < fin.Length + (ze[0] == ',' ? 4 : 3); k++) SendKey(0x08, '\0'); foreach (var c2 in ze + " " + fin) SendKey(0, c2); tPrevWord = "że"; }
-                    if (vk == 0 && ch == ' ' && autoOn && tPrevSpace && fin.Length > 0 && SwipeTyping.NeedsComma(fin, tPrevWord) && !SecretField())
-                    { for (int k = 0; k <= fin.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in ", " + fin) SendKey(0, c2); }
+                    bool tComma = vk == 0 && ch == ' ' && autoOn && tPrevSpace && fin.Length > 0 && SwipeTyping.NeedsComma(fin, tPrevWord) && !SecretField();
+                    if (tComma) { for (int k = 0; k <= fin.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in ", " + fin) SendKey(0, c2); }
+                    if (!SecretField()) SentAdd(fin, vk == 0 ? ch : '\n', tComma, ze, true); else _sent.Clear();
                     tPrevWord2 = vk == 0 && ch == ' ' ? tPrevWord : null;
                     tPrevWord = vk == 0 && ch == ' ' && fin.Length > 0 ? fin : null; tPrevSpace = vk == 0 && ch == ' ' && fin.Length > 0;
                 }
@@ -845,14 +872,33 @@ namespace Przegladarka
                     if (comma) back++;   // spacja przed slowem -> ", "
                     for (int k = 0; k < back; k++) SendKey(0x08, '\0');
                     foreach (var c2 in (comma ? ", " : "") + choice) SendKey(0, c2); SendKey(0, ' ');
+                    if (predDone && !predNext) foreach (var _ in predWord.Split(' ')) _sent.RemoveLast();   // podmienione slowo (slowa) juz w zdaniu
+                    { int wi = 0; foreach (var cw in choice.Split(' ')) _sent.Word(cw, wi++ == 0 && comma, false); }
                     var lastW = choice.Split(' ').Last(); tPrevWord = lastW; tPrevSpace = true; lastSent = ' '; capNext = false; PhysAfterInsert(lastW, before);   // kontekst dla nastepnego slowa
                     foreach (var pw in choice.Split(' ')) learn(pw); cur = "";   // caly zwrot - kazde slowo lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
                     predShow(null, false);
                 };
                 preds.Add(pb); predRow.Children.Add(pb);
             }
+            // pasek zdania nad propozycjami: czesto pisane cale zdanie (nauczone) - klik albo Ctrl+Spacja wstawia reszte
+            var sentB = key("", double.NaN); sentB.Padding = new Thickness(14, 0, 14, 0); sentB.Height = 30; sentB.FontSize = 14; sentB.Visibility = Visibility.Collapsed; sentB.HorizontalAlignment = HorizontalAlignment.Center;
+            sentB.ToolTip = L.T("Twoje często pisane zdanie – kliknij albo Ctrl+Spacja, aby wstawić resztę");
+            sentB.Click += (s, e) =>
+            {
+                var rest = _sentRest; if (rest == null) return; _sentRest = null;
+                var part = _pLast > _tapLast - 50 ? _pWord : cur;   // biezace slowo (zwykla klawiatura albo ekranowa)
+                foreach (var c2 in part.Length > 0 || rest.StartsWith(",") ? rest + " " : rest.TrimStart() + " ") SendKey(0, c2);
+                var full = (_sent.Text(true) + part + rest).Trim(); if (!SecretField()) SwipeTyping.LearnSentence(full);
+                _sent.Clear(); PhysReset(); cur = ""; tPrevWord = tPrevWord2 = null; tPrevSpace = false; lastSent = ' '; capNext = ".!?".IndexOf(full[full.Length - 1]) >= 0;
+                predShow(null, false);
+            };
             predShow = (word, done) =>
             {
+                {   // zdanie: to, co juz w nim jest, i biezace slowo
+                    var rest = word != null && !_physSecret && GetPref("klawiatura-korekta") != "0" ? SwipeTyping.SentenceRest(_sent.Text(true) + (done ? "" : word)) : null;
+                    _sentRest = rest; sentB.Visibility = rest == null ? Visibility.Collapsed : Visibility.Visible;
+                    if (rest != null) sentB.Content = "… " + (rest.Length > 70 ? rest.Substring(0, 70) + "…" : rest.TrimStart()) + "   (Ctrl+Spacja)";
+                }
                 var list = word == null || word.Length == 0 || _physSecret || GetPref("klawiatura-korekta") == "0" ? new List<string>() : SwipeTyping.Predict(word, done);
                 predNext = false;
                 if (done && word != null && GetPref("klawiatura-korekta") != "0" && !_physSecret)
@@ -864,6 +910,7 @@ namespace Przegladarka
                 predWord = list.Count > 0 ? word : null; predDone = done;
                 for (int i = 0; i < preds.Count; i++) { bool on = i < list.Count; preds[i].Visibility = on ? Visibility.Visible : Visibility.Hidden; if (on) { preds[i].Content = list[i]; preds[i].DataContext = list[i]; } }
             };
+            root.Children.Add(sentB);
             root.Children.Add(predRow);
             root.Children.Add(fnRow);
             Button shiftB = null, capsB = null, altB = null;

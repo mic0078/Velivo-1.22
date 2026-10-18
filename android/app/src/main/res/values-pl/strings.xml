@@ -20,4 +20,5 @@
     <string name="empty">Pusto</string>
     <string name="download_started">Pobieranie…</string>
     <string name="adblock">Blokuj reklamy</string>
+    <string name="home">Strona startowa</string>
 </resources>

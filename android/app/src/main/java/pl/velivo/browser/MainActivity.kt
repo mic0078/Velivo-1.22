@@ -7,6 +7,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -52,27 +53,35 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE) }
-        val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(8, 8, 8, 8) }
+        window.statusBarColor = BAR
+        window.navigationBarColor = BAR
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BAR) }
+        val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(6), dp(6), dp(6)) }
         address = EditText(this).apply {
             hint = getString(R.string.address_hint)
             setSingleLine()
             imeOptions = EditorInfo.IME_ACTION_GO
             inputType = EditorInfo.TYPE_TEXT_VARIATION_URI
             setSelectAllOnFocus(true)
+            textSize = 15f
+            setTextColor(TEXT)
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            background = round(Color.WHITE)
             setOnEditorActionListener { _, _, _ -> go(text.toString()); true }
         }
         bar.addView(address, LinearLayout.LayoutParams(0, -2, 1f))
-        tabsBtn = button("1", R.string.tabs) { showTabs() }
+        tabsBtn = button("1", R.string.tabs, BLUE, BLUE_BG) { showTabs() }
         bar.addView(tabsBtn)
-        bar.addView(button("⋮", R.string.menu) { showMenu(it) })
+        bar.addView(button("⋮", R.string.menu, TEXT, GRAY_BG) { showMenu(it) })
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
         frame = FrameLayout(this)
-        val nav = LinearLayout(this).apply { gravity = Gravity.CENTER }
-        nav.addView(button("◀", R.string.back) { web()?.let { if (it.canGoBack()) it.goBack() } }, LinearLayout.LayoutParams(0, -2, 1f))
-        nav.addView(button("▶", R.string.forward) { web()?.let { if (it.canGoForward()) it.goForward() } }, LinearLayout.LayoutParams(0, -2, 1f))
-        nav.addView(button("⟳", R.string.reload) { web()?.reload() }, LinearLayout.LayoutParams(0, -2, 1f))
-        nav.addView(button("＋", R.string.new_tab) { newTab(false, home) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val nav = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)) }
+        fun navBtn(b: Button) = nav.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f))
+        navBtn(button("◀", R.string.back, BLUE, BLUE_BG) { web()?.let { if (it.canGoBack()) it.goBack() } })
+        navBtn(button("▶", R.string.forward, BLUE, BLUE_BG) { web()?.let { if (it.canGoForward()) it.goForward() } })
+        navBtn(button("⟳", R.string.reload, GREEN, GREEN_BG) { web()?.reload() })
+        navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) { web()?.loadUrl(home) })
+        navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, home) })
         root.addView(bar)
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -88,13 +97,37 @@ class MainActivity : Activity() {
         newTab(false, intent?.dataString ?: home)
     }
 
+    // Kolory jak w Velivo na Windows.
+    private companion object {
+        val BAR = Color.parseColor("#E5E7EB")
+        val TEXT = Color.parseColor("#1F2937")
+        val GRAY_BG = Color.parseColor("#F3F4F6")
+        val BLUE = Color.parseColor("#1D4ED8")
+        val BLUE_BG = Color.parseColor("#DBEAFE")
+        val GREEN = Color.parseColor("#15803D")
+        val GREEN_BG = Color.parseColor("#DCFCE7")
+        val ORANGE = Color.parseColor("#C2410C")
+        val ORANGE_BG = Color.parseColor("#FFEDD5")
+        val PRIV_BG = Color.parseColor("#EDE9FE")
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.dataString?.let { newTab(false, it) }
     }
 
-    private fun button(label: String, tip: Int, click: (View) -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    private fun round(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(8).toFloat() }
+
+    private fun button(label: String, tip: Int, fg: Int, bg: Int, click: (View) -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
         text = label
+        textSize = 18f
+        setTextColor(fg)
+        background = round(bg)
+        setPadding(dp(12), 0, dp(12), 0)
+        minHeight = dp(40)
+        layoutParams = LinearLayout.LayoutParams(-2, dp(40)).apply { setMargins(dp(3), 0, dp(3), 0) }
         contentDescription = getString(tip)
         tooltipText = getString(tip)
         minWidth = 0
@@ -173,7 +206,7 @@ class MainActivity : Activity() {
         val t = tabs[i]
         frame.addView(t.web)
         address.setText(t.web.url ?: "")
-        address.setBackgroundColor(if (t.priv) Color.rgb(230, 220, 245) else Color.TRANSPARENT)
+        address.background = round(if (t.priv) PRIV_BG else Color.WHITE)
         tabsBtn.text = tabs.size.toString()
     }
 

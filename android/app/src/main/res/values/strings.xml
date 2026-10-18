@@ -20,4 +20,5 @@
     <string name="empty">Empty</string>
     <string name="download_started">Downloading…</string>
     <string name="adblock">Block ads</string>
+    <string name="home">Home page</string>
 </resources>

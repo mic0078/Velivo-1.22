@@ -918,14 +918,16 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
                     foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(60, 128, 128, 128)), null, round(Color.WHITE))
                     setOnClickListener { dlg.dismiss(); menuAction(id) }
                 }
-                tile.addView(TextView(this).apply { text = icon; textSize = 24f; gravity = Gravity.CENTER })
+                // jednakowe kafelki: ikona w stałym polu, napis zawsze w 2 liniach (dłuższy - mniejsza czcionka)
+                tile.addView(TextView(this).apply { text = icon; textSize = 24f; gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, dp(34)))
                 tile.addView(TextView(this).apply {
-                    text = getString(label) + (if (on != null) "\n" + getString(if (on) R.string.on else R.string.off) else "")
-                    textSize = 12f; setTextColor(fg); gravity = Gravity.CENTER; maxLines = 3
-                })
+                    text = getString(label) + (if (on != null) " · " + getString(if (on) R.string.on else R.string.off) else "")
+                    setTextColor(fg); gravity = Gravity.CENTER; setLines(2); ellipsize = TextUtils.TruncateAt.END
+                    setAutoSizeTextTypeUniformWithConfiguration(9, 12, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+                }, LinearLayout.LayoutParams(-1, dp(36)).apply { topMargin = dp(4) })
                 grid.addView(tile, android.widget.GridLayout.LayoutParams(
                     android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED), android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
-                ).apply { width = 0; setMargins(dp(4), dp(4), dp(4), dp(4)) })
+                ).apply { width = 0; height = dp(96); setMargins(dp(4), dp(4), dp(4), dp(4)) })
             }
             box.addView(grid, LinearLayout.LayoutParams(-1, -2))
         }

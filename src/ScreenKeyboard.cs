@@ -948,7 +948,14 @@ namespace Przegladarka
                 for (int i = 0; i < preds.Count; i++) { bool on = i < list.Count; preds[i].Visibility = on ? Visibility.Visible : Visibility.Hidden; if (on) { preds[i].Content = list[i]; preds[i].DataContext = list[i]; } }
             };
             root.Children.Add(sentB);
-            root.Children.Add(predRow);
+            // Alt+Tab (poprzednie okno) - nad szukaniem i wylaczaniem, na wysokosci paska propozycji (jak Zaznacz wszystko)
+            var altTab = key(ico("\uE8F9", "Alt+Tab"), 104); altTab.Height = 30; altTab.Margin = new Thickness(2, 4, 2, 4); altTab.FontSize = 12;
+            altTab.HorizontalAlignment = HorizontalAlignment.Right; altTab.ToolTip = L.T("Przełącz na poprzednie okno (Alt+Tab)");
+            altTab.Click += (s, e) => SendCombo(0x12, 0x09);
+            var predArea = new Grid(); predArea.Children.Add(predRow); predArea.Children.Add(altTab);
+            Action alignAlt = () => { var off = Math.Max(0, (predArea.ActualWidth - fnRow.ActualWidth) / 2); altTab.Margin = new Thickness(2, 4, off + 2, 4); };   // rowno z prawym brzegiem paska Notes / E-mail
+            fnRow.SizeChanged += (s, e) => alignAlt(); predArea.SizeChanged += (s, e) => alignAlt();
+            root.Children.Add(predArea);
             root.Children.Add(fnRow);
             Button shiftB = null, capsB = null, altB = null;
             foreach (var r in rows)

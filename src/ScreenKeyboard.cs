@@ -617,7 +617,7 @@ namespace Przegladarka
                 bd.AppendChild(cp); tpl.VisualTree = bd;
                 var tr = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; tr.Setters.Add(new Setter(Border.BackgroundProperty, keyHover, "bd")); tpl.Triggers.Add(tr);
                 var tp = new Trigger { Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, Value = true }; tp.Setters.Add(new Setter(Border.BackgroundProperty, accent, "bd")); tp.Setters.Add(new Setter(TextElement.ForegroundProperty, accentText, "bd")); tpl.Triggers.Add(tp);
-                b.Template = tpl; allKeys.Add(b); b.Click += (s, e) => wave?.Invoke(b); return b;
+                b.Template = tpl; allKeys.Add(b); b.Click += (s, e) => { wave?.Invoke(b); if (!"ctx".Equals(b.Tag)) PhysReset(); }; return b;   // przycisk klawiatury (Notes, Zaznacz wszystko, klawisz...) - tekst mogl sie zmienic: zwykla klawiatura zaczyna nowe slowo
             };
             Action refresh = null;
             Func<char, char> map = c =>
@@ -883,7 +883,7 @@ namespace Przegladarka
             for (int i = 0; i < 3; i++)
             {
                 var pb = key("", double.NaN); pb.MinWidth = 150; pb.Padding = new Thickness(14, 0, 14, 0); pb.Height = 32; pb.FontSize = 15; pb.Visibility = Visibility.Hidden;   // dluzszy zwrot - szerszy przycisk
-                pb.ToolTip = L.T("Propozycja słowa – kliknij, aby wstawić");
+                pb.ToolTip = L.T("Propozycja słowa – kliknij, aby wstawić"); pb.Tag = "ctx";   // kontekst (poprzednie slowo) zostaje
                 pb.Click += (s, e) =>
                 {
                     var choice = ((Button)s).DataContext as string; if (choice == null || predWord == null) return;
@@ -904,7 +904,7 @@ namespace Przegladarka
             }
             // pasek zdania nad propozycjami: czesto pisane cale zdanie (nauczone) - klik albo Ctrl+Spacja wstawia reszte
             var sentB = key("", double.NaN); sentB.Padding = new Thickness(14, 0, 14, 0); sentB.Height = 30; sentB.FontSize = 14; sentB.Visibility = Visibility.Collapsed; sentB.HorizontalAlignment = HorizontalAlignment.Center;
-            sentB.ToolTip = L.T("Twoje często pisane zdanie – kliknij albo Ctrl+Spacja, aby wstawić resztę");
+            sentB.ToolTip = L.T("Twoje często pisane zdanie – kliknij albo Ctrl+Spacja, aby wstawić resztę"); sentB.Tag = "ctx";
             sentB.Click += (s, e) =>
             {
                 var rest = _sentRest; if (rest == null) return; _sentRest = null;

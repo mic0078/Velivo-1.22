@@ -6,7 +6,7 @@ Velivo for Android is a light, private browser in Velivo colours, linked to Veli
 
 - **Address bar** – type an address or search words (searches go through Startpage).
 - **🕶** – new private tab. **The button with a number** – the tab list with thumbnails (tap = switch, ✕ or a sideways swipe = close).
-- **Velivo logo** – the menu. Tiles are in three groups: **Tabs**, **Mine**, **Settings**. The blocked-ads counter is at the top.
+- **Velivo logo** – the menu. Tiles are in four groups, three to a row: **Tabs**, **This page** (find, reader view, read aloud, remove element, add bookmark, fill in password), **Mine**, **Settings** (with a **🌐 Language** tile). The blocked-ads counter is at the top.
 - **Bottom bar** – ◀ back, ▶ forward, ⟳ reload, ⌂ start page, ＋ new tab (Quick Access).
 
 ## 2. Tabs

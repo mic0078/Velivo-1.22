@@ -6,7 +6,7 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączo
 
 - **Pasek adresu** – wpisz adres albo szukane słowa (wyszukiwanie przez Startpage).
 - **🕶** – nowa karta prywatna. **Przycisk z liczbą** – lista kart z miniaturami (stuknij = przełącz, ✕ lub przesunięcie w bok = zamknij).
-- **Logo Velivo** – menu. Kafelki są w trzech grupach: **Karty**, **Moje**, **Ustawienia**. Na górze licznik zablokowanych reklam.
+- **Logo Velivo** – menu. Kafelki są w czterech grupach, po 3 w rzędzie: **Karty**, **Ta strona** (szukaj, czytnik, czytanie na głos, usuń element, dodaj zakładkę, wpisz hasło), **Moje**, **Ustawienia** (z kafelkiem **🌐 Język**). Na górze licznik zablokowanych reklam.
 - **Dolny pasek** – ◀ wstecz, ▶ dalej, ⟳ odśwież, ⌂ strona startowa, ＋ nowa karta (Szybki Dostęp).
 
 ## 2. Karty

@@ -574,7 +574,7 @@ set(p0,p);})"""
     }
 
     // --- Synchronizacja z Velivo na Windows (sieć domowa) -------------------------
-    private val lan by lazy {
+    private val lan: LanSync by lazy {
         LanSync(
             lanKey = { passwords.lanKey },
             saveKey = { passwords.lanKey = it },

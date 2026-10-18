@@ -773,9 +773,32 @@ set(p0,p);})"""
             addTo("zakladki", parts.getOrNull(1)?.ifBlank { null } ?: url, url, 2000)
             added++
         }
-        val pw = pwds?.let { passwords.saveAll(LanSync.parsePasswords(it)) } ?: 0
+        val pcPasswords = pwds?.let { LanSync.parsePasswords(it) } ?: emptyList()
+        val pw = passwords.saveAll(pcPasswords)
         prefs.edit().putString("lan-komputer", dev).putLong("lan-czas", System.currentTimeMillis()).apply()
         if (added + pw > 0) toast(getString(R.string.lan_received, dev, added, pw))
+        // co komputer już ma - tego telefon nie wysyła
+        if (bookmarks != null && pwds != null) {
+            val pcUrls = bookmarks.lines().map { it.split('\t')[0].trim() }.filter { it.startsWith("http") }.toSet()
+            sendNewToComputer(pcUrls, pcPasswords.map { secretKey(it.first, it.second, it.third) }.toSet())
+        }
+    }
+
+    // Telefon → komputer: tylko nowe zakładki i hasła, każde raz (komputer potwierdza; odrzucone nie wracają).
+    private fun secretKey(host: String, user: String, pass: String) =
+        java.security.MessageDigest.getInstance("SHA-256").digest("$host\t$user\t$pass".toByteArray()).joinToString("") { "%02x".format(it) }
+
+    private fun sendNewToComputer(pcUrls: Set<String>, pcSecrets: Set<String>) {
+        val sent = prefs.getStringSet("wyslane-na-komputer", emptySet())!!
+        val newBookmarks = list("zakladki").map { it.substringAfter('\t') to it.substringBefore('\t') }
+            .filter { (url, _) -> url.startsWith("http") && url !in pcUrls && "z:$url" !in sent }
+        val newPasswords = passwords.all().map { Triple(it.host, it.user, it.pass) }
+            .filter { val k = secretKey(it.first, it.second, it.third); k !in pcSecrets && "h:$k" !in sent }
+        if (newBookmarks.isEmpty() && newPasswords.isEmpty()) return
+        if (!lan.sendPhoneAdd(newBookmarks, newPasswords)) return
+        prefs.edit().putStringSet("wyslane-na-komputer", sent + newBookmarks.map { "z:" + it.first } +
+            newPasswords.map { "h:" + secretKey(it.first, it.second, it.third) }).apply()
+        toast(getString(R.string.lan_sent_to_pc, newBookmarks.size, newPasswords.size))
     }
 
     private fun showLanSync() {

@@ -173,7 +173,7 @@ class LanSync(
         when (p.optString("t")) {
             "pair-offer" -> pairOffer(p)
             "pair-key" -> pairKey(p, sender)
-            "state" -> state(p)
+            "state" -> state(p, sender)
         }
     }
 
@@ -236,7 +236,11 @@ class LanSync(
     }
 
     // --- Stan z Windows: zakładki i hasła ------------------------------------
-    private fun state(p: JSONObject) {
+    // Komputer, z którym ostatnio się zsynchronizowano - do niego idą nowe zakładki i hasła z telefonu.
+    @Volatile private var pcId: String? = null
+    @Volatile private var pcAddress: InetAddress? = null
+
+    private fun state(p: JSONObject, sender: InetAddress?) {
         val k = encKey ?: return
         val winProfile = p.optString("profile")
         if (winProfile != profile()) saveProfile(winProfile)
@@ -249,8 +253,40 @@ class LanSync(
         c.updateAAD(ad(p))
         val plain = runCatching { c.doFinal(cipher + tag) }.getOrNull() ?: return   // zły klucz / podrobiony pakiet
         val json = JSONObject(String(gunzip(plain), Charsets.UTF_8))
+        pcId = p.optString("id")
+        if (sender != null) pcAddress = sender
         val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
         ui(Runnable { onState(dev, json.optString("bookmarks", null), json.optString("passwords", null)) })
+    }
+
+    // Telefon → komputer: zaszyfrowana paczka "phone-add" (jak "tab" w Velivo na Windows - LanPhone.cs).
+    // Komputer pyta użytkownika i dodaje dopiero po potwierdzeniu. Zwraca false, gdy nie ma do kogo wysłać.
+    fun sendPhoneAdd(bookmarks: List<Pair<String, String>>, passwords: List<Triple<String, String, String>>): Boolean {
+        val k = encKey ?: return false
+        val to = pcId ?: return false
+        val target = pcAddress
+        Thread {
+            runCatching {
+                val items = bookmarks.map { (url, title) -> "b" to JSONObject().put("url", url).put("title", title) } +
+                    passwords.map { (h, u, pw) -> "p" to JSONObject().put("host", h).put("user", u).put("pass", pw) }
+                for (chunk in items.chunked(100)) {
+                    val payload = JSONObject().put("to", to)
+                        .put("bookmarks", JSONArray(chunk.filter { it.first == "b" }.map { it.second }))
+                        .put("passwords", JSONArray(chunk.filter { it.first == "p" }.map { it.second }))
+                    val pkt = packet("phone-add").put("hash", "")
+                    val zipped = ByteArrayOutputStream().also { o -> java.util.zip.GZIPOutputStream(o).use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) } }.toByteArray()
+                    val c = Cipher.getInstance("AES/GCM/NoPadding")
+                    val nonce = ByteArray(12).also { random.nextBytes(it) }
+                    c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, nonce))
+                    c.updateAAD(ad(pkt))
+                    val out = c.doFinal(zipped)
+                    pkt.put("nonce", b64(nonce)).put("data", b64(out.copyOfRange(0, out.size - 16))).put("tag", b64(out.copyOfRange(out.size - 16, out.size)))
+                    if (target != null) sendTo(pkt, target) else send(pkt)
+                    Thread.sleep(150)
+                }
+            }
+        }.start()
+        return true
     }
 
     private fun gunzip(d: ByteArray): ByteArray {

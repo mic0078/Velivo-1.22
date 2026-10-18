@@ -569,6 +569,7 @@ namespace Velivo
             LanSyncPayload state = null;
             LanHistoryPayload hist = null;
             LanTabPayload sentTab = null;
+            LanPhoneAdd phoneAdd = null;
             LanFilmMsg film = null;
             if (pkt.t == "film")   // filmy w sieci (LanVideo.cs) - tylko sparowane, zaszyfrowane
             {
@@ -589,6 +590,16 @@ namespace Velivo
                 catch (JsonException) { return; }
                 catch (InvalidDataException) { return; }
                 if (sentTab == null) return;
+            }
+            else if (pkt.t == "phone-add")   // telefon dodaje zakladki i hasla (LanPhone.cs) - tylko sparowane, zaszyfrowane
+            {
+                if (_lanLegacyNoKeyMode) return;
+                try { phoneAdd = DecryptLanBlob<LanPhoneAdd>(pkt); }
+                catch (CryptographicException) { return; }
+                catch (FormatException) { return; }
+                catch (JsonException) { return; }
+                catch (InvalidDataException) { return; }
+                if (phoneAdd == null) return;
             }
             else if (pkt.t == "hist")
             {
@@ -634,6 +645,12 @@ namespace Velivo
             {
                 var fm = film; var fp = pkt;
                 await Dispatcher.InvokeAsync(() => ReceiveLanFilm(fp, fm));
+                return;
+            }
+            if (pkt.t == "phone-add")
+            {
+                var pa = phoneAdd; var pp = pkt;
+                await Dispatcher.InvokeAsync(() => ReceivePhoneAdd(pp, pa));
                 return;
             }
             if (pkt.t == "tab")

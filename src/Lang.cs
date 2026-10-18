@@ -491,6 +491,8 @@ namespace Velivo
             { "🌐 Zsynchronizowano z Velivo w sieci lokalnej.", "🌐 Synced with Velivo on the local network." },
             { "Zsynchronizowano z ", "Synced with " },
             { " (ustawienia przyjęte)", " (settings accepted)" },
+            { "Odrzucono dane z telefonu ", "Rejected data from the phone " },
+            { "Dodano z telefonu ", "Added from the phone " },
             { ", zakładki połączone.", ", bookmarks merged." },
             { "Błąd importu LAN: ", "LAN import error: " },
             { "W sieci jest drugi Velivo:\n\nUrządzenie: ", "Another Velivo is on the network:\n\nDevice: " },

@@ -79,4 +79,5 @@
     <string name="no_passwords_here">No saved passwords for this page</string>
     <string name="qa_received">Quick Access from %1$s updated</string>
     <string name="lan_tcp_error">The phone cannot receive larger data: %1$s</string>
+    <string name="lan_sent_to_pc">Sent to the computer for approval: bookmarks %1$d, passwords %2$d</string>
 </resources>

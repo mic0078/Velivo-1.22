@@ -266,7 +266,7 @@ namespace Przegladarka
             if (n.Top) { w.Topmost = false; w.Topmost = true; }   // od razu nad innymi oknami (bez klikania ikonki)
             LayoutDockedNotes();
             if (!fresh && !n.Free && n.Open) { _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // zostawiona rozwinieta
-            if (fresh && !n.Free) { n.Open = true; _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
+            if (fresh && !n.Free) { n.Open = true; SaveNotesSoon(); _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
             if (fresh || n.Free && (string.IsNullOrEmpty(n.Text) || n.Text == k[3])) { box.Focus(); box.CaretIndex = k[3].IndexOf('\n') is int nl && nl > 0 ? nl : box.Text.Length; }
         }
 

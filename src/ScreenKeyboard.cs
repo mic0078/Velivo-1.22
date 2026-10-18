@@ -1225,7 +1225,9 @@ namespace Przegladarka
             var padSel = new Border { BorderThickness = new Thickness(2.5), CornerRadius = new CornerRadius(9), BorderBrush = new LinearGradientBrush(violet, cyan, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
             trailC.Children.Add(padSel);
             bool padUsed = false; int padR = 2, padC = 5; ushort padPrev = 0; DateTime padNext = DateTime.MinValue; int padDir = 0;
-            Func<List<List<Button>>> padRows = () => root.Children.OfType<StackPanel>().Select(rw => rw.Children.OfType<Button>().Where(b => b.IsVisible).ToList()).Where(l => l.Count > 0).ToList();
+            Func<UIElement, IEnumerable<Button>> rowBtns = null;   // rzad: przyciski w panelu, takze pasek propozycji z Alt+Tab (Grid) i pasek zdania
+            rowBtns = el => el is Button bb ? new[] { bb } : el is Panel pn ? pn.Children.OfType<UIElement>().SelectMany(rowBtns) : Enumerable.Empty<Button>();
+            Func<List<List<Button>>> padRows = () => root.Children.OfType<UIElement>().Select(rw => rowBtns(rw).Where(b => b.IsVisible).ToList()).Where(l => l.Count > 0).ToList();
             Action padShow = () =>
             {
                 var rs = padRows(); if (rs.Count == 0) return;

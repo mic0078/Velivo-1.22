@@ -197,8 +197,43 @@ namespace Przegladarka
         static System.Windows.Threading.DispatcherTimer _holdTimer;   // przytrzymanie rolki 1 s = klawiatura wszedzie
         static PointStruct _holdAt;
 
+        // ikonka klawiatury w zasobniku (obok Velivo): klik - pokaz / schowaj klawiature; prawy - menu
+        static System.Windows.Forms.NotifyIcon _kbdTray;
+        static void EnsureKbdTray()
+        {
+            if (_kbdTray != null) return;
+            try
+            {
+                System.Drawing.Icon icon;
+                using (var bmp = new System.Drawing.Bitmap(32, 32))
+                {
+                    using (var g = System.Drawing.Graphics.FromImage(bmp))
+                    {
+                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias; g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                        using (var bg = new System.Drawing.Drawing2D.LinearGradientBrush(new System.Drawing.Rectangle(0, 0, 32, 32), System.Drawing.Color.FromArgb(0x8B, 0x5C, 0xF6), System.Drawing.Color.FromArgb(0x06, 0xB6, 0xD4), 45f))
+                        using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+                        { path.AddArc(0, 0, 12, 12, 180, 90); path.AddArc(20, 0, 12, 12, 270, 90); path.AddArc(20, 20, 12, 12, 0, 90); path.AddArc(0, 20, 12, 12, 90, 90); path.CloseFigure(); g.FillPath(bg, path); }
+                        using (var f = new System.Drawing.Font("Segoe MDL2 Assets", 15f, System.Drawing.GraphicsUnit.Pixel))
+                        using (var sf = new System.Drawing.StringFormat { Alignment = System.Drawing.StringAlignment.Center, LineAlignment = System.Drawing.StringAlignment.Center })
+                            g.DrawString("\uE765", f, System.Drawing.Brushes.White, new System.Drawing.RectangleF(0, 1, 32, 32), sf);
+                    }
+                    icon = System.Drawing.Icon.FromHandle(bmp.GetHicon());
+                }
+                _kbdTray = new System.Windows.Forms.NotifyIcon { Icon = icon, Text = L.T("Klawiatura Velivo – kliknij, aby pokazać / schować"), Visible = true };
+                Action toggle = () => { if (_kbd != null && _kbd.IsVisible) _kbd.Hide(); else ShowScreenKeyboard(); };
+                _kbdTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Application.Current?.Dispatcher.BeginInvoke(toggle); };
+                var menu = new System.Windows.Forms.ContextMenuStrip();
+                menu.Items.Add(L.T("⌨ Pokaż / schowaj klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(toggle));
+                menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => _kbd?.Close())));
+                _kbdTray.ContextMenuStrip = menu;
+                Application.Current.Exit += (s, e) => { try { _kbdTray.Visible = false; _kbdTray.Dispose(); } catch (Exception) { } };
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         internal static void StartGlobalKeyboardHook()
         {
+            EnsureKbdTray();
             if (_hookStarted) return;
             _hookStarted = true;
             _mouseProc = (code, wp, lp) =>
@@ -335,6 +370,26 @@ namespace Przegladarka
         static volatile bool _physSecret = true;
         static volatile bool _physPause;   // okienko "Dodaj słowo" - wpisujesz nowe slowo, bez poprawiania                // pole hasla (sprawdzane przez klawiature co 0,3 s); na start - bezpiecznie
         static Action<string, string> _physNotify, _physUndone; static Action<string> _physAsk; static Action<string, bool> _physPred;
+        // delikatny klik klawisza: krotki (25 ms), cichy dzwiek wygenerowany w pamieci - bez plikow, bez opoznienia
+        static System.Media.SoundPlayer _click;
+        static void KeyClick()
+        {
+            if (GetPref("klawiatura-klik") == "0") return;
+            try
+            {
+                if (_click == null)
+                {
+                    int rate = 22050, n = rate * 25 / 1000; var ms = new MemoryStream(); var bw = new BinaryWriter(ms);
+                    bw.Write(System.Text.Encoding.ASCII.GetBytes("RIFF")); bw.Write(36 + n * 2); bw.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt ")); bw.Write(16); bw.Write((short)1); bw.Write((short)1); bw.Write(rate); bw.Write(rate * 2); bw.Write((short)2); bw.Write((short)16);
+                    bw.Write(System.Text.Encoding.ASCII.GetBytes("data")); bw.Write(n * 2);
+                    for (int i = 0; i < n; i++) { double t = (double)i / rate, env = Math.Exp(-t * 220); bw.Write((short)(Math.Sin(2 * Math.PI * 1500 * t) * env * 2600)); }
+                    ms.Position = 0; _click = new System.Media.SoundPlayer(ms); _click.Load();
+                }
+                _click.Play();
+            }
+            catch (Exception) { }
+        }
+        static long _tapLast;   // ostatnie klikniecie klawisza ekranowego
         static string _pWord = "", _pFixFrom, _pFixTo, _pPrevWord; static bool _pPrevSpace; static long _pLast; static char _pPrev; static bool _pCap;
         static void Inject(IEnumerable<KbdInput> ins) { var a = ins.ToArray(); if (a.Length > 0) SendInput((uint)a.Length, a, Marshal.SizeOf(typeof(KbdInput))); }
         static IEnumerable<KbdInput> KeyIn(ushort vk, char ch)
@@ -348,7 +403,7 @@ namespace Przegladarka
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
         {
-            var corr = _physCorrect;
+            var corr = _physCorrect; _tapLast = Environment.TickCount64;   // pisanie trwa - sprawdzanie pola hasla aktywne
             if (corr == null || _physSecret || _physPause) { PhysReset(); return false; }
             if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;   // same modyfikatory - bez zmian
             long now = Environment.TickCount64; if (now - _pLast > 4000) PhysReset(); _pLast = now;
@@ -452,7 +507,7 @@ namespace Przegladarka
         static void ShowScreenKeyboard(IntPtr target)
         {
             _kbdTarget = target != IntPtr.Zero ? target : GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
-            if (_kbd != null) { if (!_kbd.IsVisible) { var wa = SystemParameters.WorkArea; _kbd.Left = wa.Left + (wa.Width - _kbd.ActualWidth) / 2; _kbd.Top = wa.Bottom - _kbd.ActualHeight - 10; _kbd.Show(); if (_kbd.Content is Border bd && bd.Child is Viewbox vb && vb.Child is FrameworkElement fe) Sail(_kbd, fe, true, null); } _kbd.Topmost = false; _kbd.Topmost = true; _kbd.Topmost = GetPref("klawiatura-wierzch") == "1"; AvoidField(_kbd); return; }   // schowana - wraca
+            if (_kbd != null) { if (!_kbd.IsVisible) { var wa = SystemParameters.WorkArea; _kbd.Left = wa.Right - _kbd.ActualWidth - 10; _kbd.Top = wa.Bottom - _kbd.ActualHeight - 10; _kbd.Show(); if (_kbd.Content is Border bd && bd.Child is Viewbox vb && vb.Child is FrameworkElement fe) Sail(_kbd, fe, true, null); } _kbd.Topmost = false; _kbd.Topmost = true; _kbd.Topmost = GetPref("klawiatura-wierzch") == "1"; AvoidField(_kbd); return; }   // schowana - wraca
             LoadSwipeDictionary();
             bool shift = false, caps = false, alt = false;
             // subtelnie w kolorach logo Velivo: ciemne tlo z lekkim fioletowo-turkusowym odcieniem, klawisze ze szkla,
@@ -495,6 +550,7 @@ namespace Przegladarka
             title.Inlines.Add(new System.Windows.Documents.Run(" by Michael") { Foreground = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)) });
             List<Point> lastTrace = null; double lastKeyW = 52; string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
             var ask = new TextBlock { Text = L.T("Poprawić na:"), FontSize = 13, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0), Visibility = Visibility.Collapsed };
+            Action<string> askAdd = aw0 => { }; Action hideAdd = () => { };   // pytanie "Dodać do słownika?" (ustawiane nizej)
             string prevWord = null, prevBeforeSwipe = null;   // poprzednie slowo - do nauki kolejnosci slow
             Action<string> learn = wd =>
             {
@@ -504,7 +560,7 @@ namespace Przegladarka
                 lock (_swLearned)
                 {
                     _swLearned[lw] = (_swLearned.TryGetValue(lw, out var n) ? n : 0) + 1;
-                    if (!SwipeTyping.IsKnown(lw) && !SwipeTyping.IsTypo(lw)) { _swOwn.Add(lw); SwipeTyping.AddUserWord(lw); }   // literowka znanego slowa (zolw) - nie do Mojego slownika
+                    if (!SwipeTyping.IsKnown(lw) && !SwipeTyping.IsTypo(lw)) askAdd(wd);   // nowe slowo - najpierw pytamy (literowki znanego slowa wcale)
                     SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
                 }
             };
@@ -531,6 +587,7 @@ namespace Przegladarka
             Action<ushort, char> tap = null;
             tap = (vk, ch) =>
             {
+                _tapLast = Environment.TickCount64; KeyClick(); if (vk == 0 && char.IsLetter(ch)) hideAdd();
                 if (vk == 0x08 && fixTo != null)
                 {   // cofniecie poprawki: znak oddzielajacy i poprawione slowo -> wpisane slowo (zapamietane - wiecej go nie poprawiamy)
                     for (int k = 0; k <= fixTo.Length; k++) SendKey(0x08, '\0');
@@ -580,6 +637,20 @@ namespace Przegladarka
             var sugRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             sugRow.Children.Add(title);
             sugRow.Children.Add(ask);
+            // ➕ nowe slowo spoza slownika: jedno klikniecie dopisuje do Mojego slownika (bez klikniecia - nic nie zapisujemy)
+            var addB = key("", double.NaN); addB.Height = 26; addB.MinWidth = 70; addB.Padding = new Thickness(12, 0, 12, 0); addB.FontSize = 14; addB.Visibility = Visibility.Collapsed;
+            addB.ToolTip = L.T("Dodaj to słowo do Mojego słownika – autokorekta go nie zmieni, a propozycje je podsuną");
+            sugRow.Children.Add(addB);
+            string addWord = null;
+            addB.Click += (s, e) => { if (addWord != null) keepWord(addWord); addWord = null; addB.Visibility = Visibility.Collapsed; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; };
+            hideAdd = () => { addB.Visibility = Visibility.Collapsed; addWord = null; };
+            askAdd = aw0 =>
+            {
+                if (aw0 == null || aw0.Length < 2 || _physSecret) return;
+                lock (noFix) if (noFix.Contains(aw0.ToLowerInvariant())) return;
+                addWord = aw0; addB.Content = "➕ " + aw0; addB.Visibility = Visibility.Visible;
+                ask.Text = L.T("Nowe słowo – dodać do słownika?"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
+            };
             for (int i = 0; i < 3; i++)
             {
                 var sb = key("", double.NaN); sb.Height = 26; sb.MinWidth = 70; sb.Padding = new Thickness(12, 0, 12, 0); sb.FontSize = 14; sb.Visibility = Visibility.Collapsed;
@@ -697,7 +768,7 @@ namespace Przegladarka
             // pasek propozycji nad klawiszami (jak w telefonie): inne formy slowa (droga -> drogą) i dokonczenia; klik wstawia slowo
             var predRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Height = 38 };
             var preds = new List<Button>();
-            string predWord = null; bool predDone = false;
+            string predWord = null; bool predDone = false, predNext = false;
             for (int i = 0; i < 3; i++)
             {
                 var pb = key("", 200); pb.Height = 32; pb.FontSize = 15; pb.Visibility = Visibility.Hidden;
@@ -705,7 +776,7 @@ namespace Przegladarka
                 pb.Click += (s, e) =>
                 {
                     var choice = ((Button)s).DataContext as string; if (choice == null || predWord == null) return;
-                    int back = predWord.Length + (predDone ? 1 : 0);
+                    int back = predNext ? 0 : predWord.Length + (predDone ? 1 : 0);   // nastepne slowo - tylko dopisujemy
                     for (int k = 0; k < back; k++) SendKey(0x08, '\0');
                     foreach (var c2 in choice) SendKey(0, c2); SendKey(0, ' ');
                     learn(choice); cur = ""; lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
@@ -716,6 +787,8 @@ namespace Przegladarka
             predShow = (word, done) =>
             {
                 var list = word == null || word.Length == 0 || _physSecret || GetPref("klawiatura-korekta") == "0" ? new List<string>() : SwipeTyping.Predict(word, done);
+                predNext = false;
+                if (done && list.Count == 0 && word != null && !_physSecret && GetPref("klawiatura-korekta") != "0") { list = SwipeTyping.NextWords(word); predNext = list.Count > 0; }   // po spacji: co zwykle piszesz dalej
                 predWord = list.Count > 0 ? word : null; predDone = done;
                 for (int i = 0; i < preds.Count; i++) { bool on = i < list.Count; preds[i].Visibility = on ? Visibility.Visible : Visibility.Hidden; if (on) { preds[i].Content = list[i]; preds[i].DataContext = list[i]; } }
             };
@@ -784,6 +857,11 @@ namespace Przegladarka
             Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) return SwipeTyping.Correct(wd, noFix); }) : null;
             fixShow(); fixB.Click += (s, e) => { SetPref("klawiatura-korekta", GetPref("klawiatura-korekta") != "0" ? "0" : "1"); fixShow(); physApply(); };
             head.Children.Add(fixB);
+            // 🔈 klik przy pisaniu (wl./wyl., domyslnie wlaczony)
+            var clickB = key(ico("\uE995", null), 34); clickB.Height = 28; clickB.FontSize = 13; DockPanel.SetDock(clickB, Dock.Right);
+            Action clickShow = () => { bool on = GetPref("klawiatura-klik") != "0"; clickB.Background = on ? accent : Brushes.Transparent; clickB.Content = ico(on ? "\uE995" : "\uE74F", null); clickB.ToolTip = on ? L.T("Dźwięk klawiszy: włączony (kliknij, aby wyciszyć)") : L.T("Dźwięk klawiszy: wyciszony (kliknij, aby włączyć)"); };
+            clickShow(); clickB.Click += (s, e) => { SetPref("klawiatura-klik", GetPref("klawiatura-klik") != "0" ? "0" : "1"); clickShow(); };
+            head.Children.Add(clickB);
             head.Children.Add(pinB); head.Children.Add(alphaPlus); head.Children.Add(alphaText); head.Children.Add(alphaMinus);
             // wlasny slownik (jak na Androidzie): podglad i usuwanie wyuczonych slow
             var dictB = key(ico("\uE82D", null), 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
@@ -889,7 +967,19 @@ namespace Przegladarka
                     b.Tag = br; b.Background = br;
                 }
             };
-            var keys = new Grid(); keys.Children.Add(root);
+            // klawiatura numeryczna po prawej (wykorzystuje wolne miejsce obok liter): cyfry, dzialania, Enter
+            var numPad = new StackPanel { Margin = new Thickness(0, 10, 10, 10), VerticalAlignment = VerticalAlignment.Bottom };
+            foreach (var nr in new[] { "789/", "456*", "123-", "0.,+" })
+            {
+                var nrow = new StackPanel { Orientation = Orientation.Horizontal };
+                foreach (var c0 in nr) { var c = c0; var nb = key(c.ToString(), 46); nb.Click += (s, e) => tap(0, c); nrow.Children.Add(nb); }
+                numPad.Children.Add(nrow);
+            }
+            var numEnter = key("⏎", 196); numEnter.Background = accent; numEnter.Foreground = accentText; numEnter.ToolTip = L.T("Enter – zatwierdź / nowa linia"); numEnter.Click += (s, e) => tap(0x0D, '\0');
+            numPad.Children.Add(numEnter);
+            numPad.Visibility = GetPref("klawiatura-numeryczna") == "0" ? Visibility.Collapsed : Visibility.Visible;
+            var keysRow = new StackPanel { Orientation = Orientation.Horizontal }; keysRow.Children.Add(root); keysRow.Children.Add(numPad);
+            var keys = new Grid(); keys.Children.Add(keysRow);
             // pisanie przeciagnieciem: slad w gradiencie logo; lekki (punkty co kilka px, bez efektow) - plynny przy ruchu myszy
             var trailC = new Canvas { IsHitTestVisible = false };
             var trail = new System.Windows.Shapes.Polyline { Stroke = new LinearGradientBrush(violet, cyan, 0), StrokeThickness = 7, Opacity = 0.85,
@@ -1077,10 +1167,10 @@ namespace Przegladarka
                 var sz = (GetPref("klawiatura-rozmiar") ?? "").Split(';');
                 if (sz.Length == 2 && double.TryParse(sz[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sw) && double.TryParse(sz[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sh))
                 { w.Width = Math.Max(w.MinWidth, Math.Min(wa.Width, sw)); w.Height = Math.Max(w.MinHeight, Math.Min(wa.Height, sh)); }
-                else { w.Width = Math.Min(wa.Width * 0.9, 870); w.Height = w.Width * nh / nw; }   // na start ok. 870 punktow szerokosci
-                // zawsze na srodku ekranu, tuz nad paskiem zadan
+                else { w.Width = Math.Min(wa.Width * 0.9, 640); w.Height = w.Width * nh / nw; }   // na start ok. 640 punktow szerokosci
+                // zawsze w prawym dolnym rogu, tuz nad paskiem zadan
                 double ww = double.IsNaN(w.Width) ? nw : w.Width, wh = double.IsNaN(w.Height) ? nh : w.Height;
-                w.Left = wa.Left + (wa.Width - ww) / 2; w.Top = wa.Bottom - wh - 10;
+                w.Left = wa.Right - ww - 10; w.Top = wa.Bottom - wh - 10;   // prawy dolny rog, nad zegarem
                 AvoidField(w);
                 Sail(w, all, true, null);
             };
@@ -1098,7 +1188,8 @@ namespace Przegladarka
             // zwykla klawiatura: autokorekta w podsluchu (PhysKey); pole hasla sprawdzane co 0,3 s - tam nic nie poprawiamy
             _physSecret = true;
             var secretTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-            secretTimer.Tick += (s, e) => { try { _physSecret = SecretField(); } catch (Exception) { _physSecret = true; } };
+            // bez pisania przez 20 s - nie pytamy Windows co 0,3 s (mniej obciazenia, bez przycinek); wtedy bezpiecznie "pole hasla" do pierwszego sprawdzenia
+            secretTimer.Tick += (s, e) => { if (Environment.TickCount64 - _pLast > 20000 && Environment.TickCount64 - _tapLast > 20000) { _physSecret = true; return; } try { _physSecret = SecretField(); } catch (Exception) { _physSecret = true; } };
             secretTimer.Start();
             _physNotify = (from, to) => { ask.Text = L.T("Poprawiono: ") + from + " → " + to + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed; };
             _physUndone = (from, to) =>

@@ -306,6 +306,14 @@ namespace Przegladarka
             lock (_pairs) { _pairs[k] = (_pairs.TryGetValue(k, out var n) ? n : 0) + 1; if (_pairs.Count > 20000) _pairs.Remove(_pairs.OrderBy(x => x.Value).First().Key); }
         }
 
+        // nastepne slowo: to, co uzytkownik najczesciej pisze po danym slowie (wyuczone pary - takze cale zwroty z czasem)
+        internal static List<string> NextWords(string prev, int count = 3)
+        {
+            if (string.IsNullOrEmpty(prev)) return new List<string>();
+            var k = prev.ToLowerInvariant() + " ";
+            lock (_pairs) return _pairs.Where(kv => kv.Key.StartsWith(k, StringComparison.Ordinal) && kv.Value >= 2).OrderByDescending(kv => kv.Value).Take(count).Select(kv => kv.Key.Substring(k.Length)).ToList();
+        }
+
         static IEnumerable<string> ShapeLines()
         {
             var ci = System.Globalization.CultureInfo.InvariantCulture;

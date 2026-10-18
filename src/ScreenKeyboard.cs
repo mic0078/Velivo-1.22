@@ -969,6 +969,11 @@ namespace Przegladarka
             };
             // klawiatura numeryczna po prawej (wykorzystuje wolne miejsce obok liter): cyfry, dzialania, Enter
             var numPad = new StackPanel { Margin = new Thickness(0, 10, 10, 10), VerticalAlignment = VerticalAlignment.Bottom };
+            // nad cyframi: kopiuj, wklej, cofnij, ponow (Ctrl+C / V / Z / Y w oknie, w ktorym piszesz)
+            var editRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+            foreach (var (g, tip, vk) in new[] { ("\uE8C8", L.T("Kopiuj (Ctrl+C)"), (ushort)0x43), ("\uE77F", L.T("Wklej (Ctrl+V)"), (ushort)0x56), ("\uE7A7", L.T("Cofnij (Ctrl+Z)"), (ushort)0x5A), ("\uE7A6", L.T("Ponów (Ctrl+Y)"), (ushort)0x59) })
+            { var kb2 = key(ico(g, null), 46); kb2.ToolTip = tip; var v2 = vk; kb2.Click += (s, e) => SendCombo(0x11, v2); editRow.Children.Add(kb2); }
+            numPad.Children.Add(editRow);
             foreach (var nr in new[] { "789/", "456*", "123-", "0.,+" })
             {
                 var nrow = new StackPanel { Orientation = Orientation.Horizontal };

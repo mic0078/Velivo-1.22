@@ -67,7 +67,16 @@ namespace Velivo
                 _trayFrames = new[] { 1f, 0.92f, 0.82f, 0.72f, 0.65f, 0.72f, 0.82f, 0.92f }.Select(a => MakeDimIcon(_trayIcon, a)).ToArray();
                 _tray = new System.Windows.Forms.NotifyIcon { Icon = _trayIcon, Text = "Velivo", Visible = true };
                 var menu = new System.Windows.Forms.ContextMenuStrip();
-                menu.Items.Add(L.T("Otwórz Velivo"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));
+                menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));
+                var filmItem = menu.Items.Add(L.T("🎬 Biblioteka filmów"), null, (s, e) => Dispatcher.Invoke(ShowVideoLibrary));
+                var playerItem = menu.Items.Add(L.T("▶ Uruchom odtwarzacz wideo"), null, (s, e) => Dispatcher.Invoke(OpenEmptyPlayer));
+                var tvItem = menu.Items.Add(L.T("📺 Uruchom TV"), null, (s, e) => Dispatcher.Invoke(StartTv));
+                menu.Items.Add(L.T("🧹 Porządki i kopia bezpieczeństwa"), null, (s, e) => Dispatcher.Invoke(ShowTidy));
+                menu.Items.Add(L.T("🕶 Otwórz kartę incognito"), null, (s, e) => Dispatcher.Invoke(() => { ShowFromTray(); PrivateTab_Click(this, new RoutedEventArgs()); }));
+                menu.Items.Add(L.T("🏦 Otwórz w trybie bankowym"), null, (s, e) => Dispatcher.Invoke(() => { ShowFromTray(); OpenBankTab(); }));
+                // jak przyciski na pasku Velivo: filmy i TV tylko, gdy sa wlaczone / zainstalowane
+                menu.Opening += (s, e) => { tvItem.Visible = _tvBtn != null; filmItem.Visible = _filmBtn != null; playerItem.Visible = _playerBtn != null; };
+                menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
                 menu.Items.Add(L.T("Synchronizuj teraz"), null, (s, e) => Dispatcher.Invoke(() => { TrayPulse(4); try { LanBroadcastState(true); } catch (Exception ex) { App.LogError(ex); } }));
                 menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
                 menu.Items.Add(L.T("Zamknij Velivo całkowicie"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
@@ -140,6 +149,14 @@ namespace Velivo
             try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); _tray = null; } } catch (Exception) { }
             Close();
             Application.Current.Shutdown();
+        }
+
+        // Po zamknieciu nic nie moze zostac w tle (watki odtwarzacza, synchronizacji, haki klawiatury) - inaczej proces
+        // trzymal pliki danych, a kolejne uruchomienie oddawalo adresy niewidocznemu Velivo. Po 5 s konczymy proces na pewno.
+        internal static void EnsureProcessEnds()
+        {
+            var t = new System.Threading.Thread(() => { System.Threading.Thread.Sleep(5000); Environment.Exit(0); }) { IsBackground = true };
+            t.Start();
         }
 
         // przy wylaczeniu opcji w Ustawieniach - ikonka znika

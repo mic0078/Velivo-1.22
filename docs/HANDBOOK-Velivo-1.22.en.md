@@ -1281,7 +1281,7 @@ You open Settings with the ⚙ button. Below is every option in the window's ord
 
 ### 25.17 Stay in the tray
 - **Where:** "Stay in the tray when the window is closed (background sync, instant start)".
-- **What it does:** closing the window hides Velivo to the icon by the clock: background pages are paused (the "Video on top" window keeps playing), LAN sync works, and the next opening is instant. The first time it hides a bubble explains this. Right-click the icon: **Open Velivo**, **Sync now**, **Close Velivo completely**. The icon pulses while syncing.
+- **What it does:** closing the window hides Velivo to the icon by the clock: background pages are paused (the "Video on top" window keeps playing), LAN sync works, and the next opening is instant. The first time it hides a bubble explains this. Right-click the icon: **🌐 Open the browser**, **🎬 Video library**, **▶ Open the video player**, **📺 Open TV**, **🧹 Clean-up and backup**, **🕶 Open an incognito tab**, **🏦 Open in banking mode**, **Sync now**, **Close Velivo completely** (nothing is left running in the background). The icon pulses while syncing.
 - **Silent autostart:** with autostart with Windows Velivo starts silently in the tray and prepares the channel list, TV guide and player in the background – after opening everything is ready.
 
 ### 25.18 Connections per downloaded file

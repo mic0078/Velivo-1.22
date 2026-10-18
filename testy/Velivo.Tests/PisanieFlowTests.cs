@@ -146,4 +146,19 @@ public class PisanieFlowTests
         Assert.Null(SwipeTyping.Correct("zolw"));
         Assert.Null(SwipeTyping.Correct("zolw", new System.Collections.Generic.HashSet<string> { "zolw" }));   // poprawka cofnieta - zostaje
     }
+
+    [Fact]
+    public void PrzecinekPrzedSpojnikiemISlowaZPolskimiZnakami()
+    {
+        Assert.True(SwipeTyping.NeedsComma("że", "wiem"));        // wiem, że
+        Assert.True(SwipeTyping.NeedsComma("który", "dom"));      // dom, który
+        Assert.True(SwipeTyping.NeedsComma("bo", "idę"));
+        Assert.False(SwipeTyping.NeedsComma("że", "mimo"));       // mimo że - bez przecinka miedzy
+        Assert.False(SwipeTyping.NeedsComma("że", "i"));          // i że
+        Assert.False(SwipeTyping.NeedsComma("że", null));         // poczatek zdania
+        Assert.False(SwipeTyping.NeedsComma("dom", "wiem"));
+        SwipeTyping.Load(new[] { "klawiatura", "żółw" });
+        Assert.True(SwipeTyping.IsTypo("zolw"));                  // literowka - nie do Mojego slownika
+        Assert.False(SwipeTyping.IsTypo("klawiaturą"));           // z polskimi znakami - swiadomie wpisane slowo
+    }
 }

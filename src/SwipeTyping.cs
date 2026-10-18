@@ -97,6 +97,9 @@ namespace Przegladarka
         static Dictionary<string, List<Entry>> _foldAll;   // bez polskich znakow -> wszystkie slowa (droga: droga, drogą)
         static string[] _sortedFold; static Entry[] _sortedEntry;   // do dopowiadania slowa w trakcie pisania
         static readonly Dictionary<string, string> _ownFold = new Dictionary<string, string>();   // Moj slownik: bez polskich znakow -> slowo
+        // nauka wyborow: ile razy uzytkownik napisal / wybral slowo (ustawia klawiatura) - czesciej uzywane slowa wyzej
+        internal static Func<string, int> UseCount;
+        static double Score(Entry e) { int n = 0; try { n = UseCount?.Invoke(e.Word) ?? 0; } catch (Exception) { } return e.Rank / (1.0 + 3.0 * Math.Min(n, 50)); }
         static string Fold(string w) { return new string(w.ToLowerInvariant().Select(BaseKey).ToArray()); }
         // anyRank: literowka tez do rzadkiego slowa (do rozpoznania literowek w Moim slowniku, nie do poprawiania w trakcie pisania)
         internal static string Correct(string typed, ICollection<string> keep = null, bool anyRank = false)
@@ -121,13 +124,14 @@ namespace Przegladarka
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
             var fw = new string(w.Select(BaseKey).ToArray());
             Entry best = null;
-            if (fold.TryGetValue(fw, out var same)) best = same;   // tylko polskie znaki
+            if (_foldAll != null && _foldAll.TryGetValue(fw, out var sameAll)) best = sameAll.OrderBy(Score).First();   // tylko polskie znaki (najczesciej wybierane przez Ciebie najpierw)
+            else if (fold.TryGetValue(fw, out var same)) best = same;
             string ownSame; lock (_ownFold) _ownFold.TryGetValue(fw, out ownSame);
             if (best == null && ownSame != null && ownSame != w) best = new Entry { Word = ownSame, Rank = 3000 };   // Moje slowo bez polskich znakow
             else if (best == null && w.Length >= 4)   // jedna litera rozni (krotkich slow nie zgadujemy)
             {
                 const string abc = "abcdefghijklmnopqrstuvwxyz";
-                Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && (anyRank || e.Rank < 15000) && (best == null || e.Rank < best.Rank)) best = e; };   // literowka -> tylko czeste slowo (rzadkie poprawne slowo spoza slownika zostaje)
+                Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && (anyRank || e.Rank < 15000) && (best == null || Score(e) < Score(best))) best = e; };   // literowka -> tylko czeste slowo (rzadkie poprawne slowo spoza slownika zostaje)
                 for (int i = 0; i < fw.Length; i++)
                 {
                     cand(fw.Remove(i, 1));
@@ -162,7 +166,7 @@ namespace Przegladarka
                 foreach (var c in abc) { if (c != fw[i]) cand(fw.Substring(0, i) + c + fw.Substring(i + 1)); cand(fw.Insert(i, c.ToString())); }
             }
             foreach (var c in abc) cand(fw + c);
-            foreach (var e in found.Values.OrderBy(x => x.Rank).Take(count))
+            foreach (var e in found.Values.OrderBy(Score).Take(count))
                 res.Add(char.IsUpper(typed[0]) ? char.ToUpperInvariant(e.Word[0]) + e.Word.Substring(1) : e.Word);
             return res;
         }
@@ -176,7 +180,7 @@ namespace Przegladarka
             Correct("xx"); var all = _foldAll; var sf = _sortedFold; var se = _sortedEntry; if (all == null || sf == null) return res;
             var w = typed.ToLowerInvariant(); var fw = Fold(w);
             Action<string> add = x => { if (x != w && !res.Contains(x) && res.Count < count) res.Add(x); };
-            if (all.TryGetValue(fw, out var same)) foreach (var e in same.OrderBy(x => x.Rank)) add(e.Word);
+            if (all.TryGetValue(fw, out var same)) foreach (var e in same.OrderBy(Score)) add(e.Word);
             lock (_ownFold) if (_ownFold.TryGetValue(fw, out var ow)) add(ow);
             if (!done && fw.Length >= 2 && res.Count < count)
             {
@@ -184,11 +188,27 @@ namespace Przegladarka
                 while (lo < hi) { int mid = (lo + hi) / 2; if (string.CompareOrdinal(sf[mid], fw) < 0) lo = mid + 1; else hi = mid; }
                 var comp = new List<Entry>();
                 for (int i = lo; i < sf.Length && i < lo + 4000 && sf[i].StartsWith(fw, StringComparison.Ordinal); i++) if (sf[i].Length > fw.Length) comp.Add(se[i]);
-                foreach (var e in comp.OrderBy(x => x.Rank)) add(e.Word);
+                foreach (var e in comp.OrderBy(Score)) add(e.Word);
                 lock (_ownFold) foreach (var o in _ownFold.Where(kv => kv.Key.StartsWith(fw, StringComparison.Ordinal) && kv.Key.Length > fw.Length).Select(kv => kv.Value).OrderBy(x => x)) add(o);
             }
             if (typed.Length > 0 && char.IsUpper(typed[0])) for (int i = 0; i < res.Count; i++) res[i] = char.ToUpperInvariant(res[i][0]) + res[i].Substring(1);
             return res;
+        }
+
+        // literowka znanego slowa (zolw, zzolw) - nie do Mojego slownika; slowo z polskimi znakami (klawiaturą) piszesz swiadomie - to nie literowka
+        internal static bool IsTypo(string w) { return !string.IsNullOrEmpty(w) && w.IndexOfAny("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ".ToCharArray()) < 0 && Correct(w, null, true) != null; }
+
+        // interpunkcja: przecinek przed spojnikami i zaimkami wzglednymi (wiem, że...; dom, który...; idę, bo...).
+        // Bez przecinka, gdy slowo zaczyna zdanie albo poprzednie slowo to czesc spojnika (mimo że, chyba że, zwłaszcza że)
+        // albo spojnik laczacy (i że, a że, oraz że, lub że, czy że, albo że) - tam przecinka nie stawiamy.
+        static readonly HashSet<string> _commaBefore = new HashSet<string> { "że", "żeby", "aby", "bo", "ale", "lecz", "gdyż", "ponieważ", "jeśli", "jeżeli", "chociaż", "choć", "czyli",
+            "który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi" };
+        static readonly HashSet<string> _noCommaAfter = new HashSet<string> { "mimo", "pomimo", "chyba", "zwłaszcza", "tylko", "dlatego", "tak", "podczas", "zanim", "nim", "przy", "po", "w", "z", "na", "do", "o", "od", "za", "przez", "dla", "u",
+            "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "to", "co", "jak", "niż" };
+        internal static bool NeedsComma(string word, string prev)
+        {
+            if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(prev) || !prev.All(char.IsLetter)) return false;
+            return _commaBefore.Contains(word.ToLowerInvariant()) && !_noCommaAfter.Contains(prev.ToLowerInvariant());
         }
 
         // podwojne litery to ten sam klawisz - na sladzie jeden punkt

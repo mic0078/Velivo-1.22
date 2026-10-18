@@ -836,7 +836,7 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 | A cookie banner is still shown | That banner has no "Reject" button. Velivo never clicks "Accept" |
 | Computers don't see each other | Same profile on both, the firewall allows Velivo, automatic Windows time on both (a difference over 5 minutes blocks the exchange) |
 | YouTube download fails | Wait a moment and try again. yt-dlp updates itself, and YouTube sometimes changes things |
-| No icons in Quick Access | Open a new tab and wait a few minutes; "⋮" menu → Fill in missing icons |
+| No icons in Quick Access | Open a new tab and wait a few minutes; "⋮" Menu → Fill in missing icons |
 | An offline voice doesn't read | Delete the `Piper` folder (below). It downloads again |
 | Antivirus blocks the installer | The file has no paid code signature – add an exception |
 | "An unexpected error occurred" | Velivo keeps running. Details are in `bledy.log` – attach it when reporting |
@@ -867,22 +867,34 @@ Velivo for phones is a light, private browser on the Android WebView engine (the
 | 🕶 Private tab | A separate profile (cookies, sign-ins) erased when the last private tab closes; no history |
 | ＋ New tab | Opens Quick Access – the same as on the computer (tiles, groups, icons) |
 | ⌂ Start page | Startpage; searches from the address bar also go to Startpage |
-| Bookmarks, history | Menu ⋮ – a list with search, sorting (newest / A–Z) and ✕ |
+| Bookmarks, history | Menu (Velivo logo) – a list with search, sorting (newest / A–Z) and ✕ |
 | Downloads | To the Downloads folder, with a notification |
 | Full-screen videos | The phone rotates with the video; Back leaves |
-| Background playback | Video / music keep playing after leaving the app (notification with "Stop"); ⋮ → Play in background |
-| Theme | ⋮ → Theme: like the phone / light / dark |
+| Background playback | Video / music keep playing after leaving the app (notification with "Stop"); Menu → Play in background |
+| Theme | Menu → Theme: like the phone / light / dark |
+
+### Reading and pages
+
+| Feature | How |
+| --- | --- |
+| 🔎 Find in page | A bar with a counter, ▲ ▼ previous / next match |
+| 🖥 Desktop site | The desktop version of the page for the current tab |
+| 📖 Reader view | Just the article text; A− / A+, remembers where you left off |
+| 🔊 Read aloud | Also with the screen off (notification with "Stop"); Back stops it; no speech engine – offers to download Google Speech Services |
+| 🎯 Remove element | Tap an advert, ⬆ larger area, 🗑 remove (remembered for the site), ↺ restore |
+
+The full phone guide is a separate manual: `dokumentacja/instrukcja-telefon.en.md`.
 
 ### Privacy and security
 
 - **Ad blocking** – the same lists as on the computer (EasyList, EasyPrivacy, KAD), refreshed every 4 days; on YouTube ads are removed from the player data.
-- **Passwords** – encrypted with a key in the Android Keystore (the key never leaves the phone). Velivo offers to save them after signing in and fills them in (https pages and the home network: router, NAS). ⋮ → **Fill in password** when the form appeared later. The password list (⋮ → Passwords) opens after a fingerprint or PIN; **Copy password** marks it as sensitive in the clipboard.
-- **Banking mode** – ⋮ → Banking mode: entry with fingerprint / PIN, a separate permanent profile, no history, no screenshots, locked after 10 minutes of inactivity.
+- **Passwords** – encrypted with a key in the Android Keystore (the key never leaves the phone). Velivo offers to save them after signing in and fills them in (https pages and the home network: router, NAS). Menu → **Fill in password** when the form appeared later. The password list (Menu → Passwords) opens after a fingerprint or PIN; **Copy password** marks it as sensitive in the clipboard.
+- **Banking mode** – Menu → Banking mode: entry with fingerprint / PIN, a separate permanent profile, no history, no screenshots, locked after 10 minutes of inactivity.
 
 ### Connecting to the computer
 
 1. Phone and computer on the same Wi-Fi, Velivo open on both.
-2. Phone: ⋮ → **Sync with computer → Pair with Velivo on Windows** (waits 3 minutes; the window shows what arrives from the network).
+2. Phone: Menu → **Sync with computer → Pair with Velivo on Windows** (waits 3 minutes; the window shows what arrives from the network).
 3. Computer: Settings → Sync (LAN) → **Pair a device on the network…**. Compare the 6-digit code on both screens and confirm.
 
 With several computers use the recovery file instead of pairing: on the computer **Save recovery file…**, on the phone **Load pairing recovery file** – the key does not change and other computers stay paired. In the same menu you set the **phone name on the network** (e.g. "Michael's phone").

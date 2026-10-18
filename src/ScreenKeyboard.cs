@@ -438,6 +438,7 @@ namespace Przegladarka
             if (".!?".IndexOf(sep) >= 0) { var t = _sent.Text(false); if (learnOk && t.Length > 0) SwipeTyping.LearnSentence(t + sep); _sent.Clear(); }
             else if (sep != ' ' && sep != ',') _sent.Clear();   // nowa linia, srednik, dwukropek - zdanie od nowa
         }
+        static bool _pAfterComma;
         static bool _pZeAuto, _pZeComma;   // "że" wstawione od razu (myślę ze -> że); "mną", "sobą"... dalej - wraca "ze"
         static string _pRetype;   // slowo skasowane ⌫ zaraz po wpisaniu - wpisane od nowa uczy poprawki (kmoputer -> komputer)
         static Action<string, string> _physFixLearned;
@@ -449,6 +450,7 @@ namespace Przegladarka
             var corr = _physCorrect; _tapLast = Environment.TickCount64;   // pisanie trwa - sprawdzanie pola hasla aktywne
             if (corr == null || _physSecret && !_physStale || _physPause) { PhysReset(); return false; }
             if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;   // same modyfikatory - bez zmian
+            bool afterComma = _pAfterComma; _pAfterComma = false;   // przecinek tuz za slowem - nastepna litera dostaje spacje przed soba
             long now = Environment.TickCount64; if (now - _pLast > 60000) PhysReset(); _pLast = now;
             bool sh = GetAsyncKeyState(0x10) < 0, ctrl = GetAsyncKeyState(0x11) < 0, alt = GetAsyncKeyState(0x12) < 0, caps = (GetKeyState(0x14) & 1) != 0;
             if (vk == 0x08 && ctrl && !alt)
@@ -490,6 +492,11 @@ namespace Przegladarka
                 char c = (char)(vk + 32);
                 if (ctrl && alt) { var i = "acelnoszx".IndexOf(c); if (i < 0) { PhysReset(); return false; } c = "ąćęłńóśżź"[i]; }
                 bool upper = sh ^ caps;
+                if (afterComma && !_physStale)
+                {   // "kot,pies" -> "kot, pies" (po przecinku zawsze spacja; wpisana sama - nic nie dodajemy)
+                    c = upper || _pCap ? char.ToUpper(c) : c; _pCap = false; _pWord += c; _pPrev = c;
+                    Inject(TextIn(" " + c)); PhysPred(_pWord, false); return true;
+                }
                 if (_pCap && !upper && !_physStale) { _pCap = false; c = char.ToUpper(c); _pWord += c; _pPrev = c; Inject(KeyIn(0, c)); PhysPred(_pWord, false); return true; }   // poczatek zdania - wielka litera zamiast malej
                 _pCap = false; _pWord += upper ? char.ToUpper(c) : c; _pPrev = c; PhysPred(_pWord, false); return false;
             }
@@ -528,10 +535,11 @@ namespace Przegladarka
             if (_pWord.Length == 0 && ",.!?:;".IndexOf(sep) >= 0 && (autoSp || _pPrev == ' ' && _pPrevSpace && !string.IsNullOrEmpty(_pPrevWord)) && !_physStale)
             {   // znak przylega do slowa: "kot ." -> "kot." (po slowie z paska tez spacja za nim: "kot, ")
                 Inject(KeyIn(0x08, '\0').Concat(TextIn(autoSp ? sep + " " : sep.ToString()))); SentAdd(null, sep, false, null, true);
-                _pPrev = autoSp ? ' ' : sep; _pCap = autoSp && ".!?".IndexOf(sep) >= 0; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
+                _pPrev = autoSp ? ' ' : sep; _pCap = autoSp && ".!?".IndexOf(sep) >= 0; _pAfterComma = sep == ',' && !autoSp; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
                 PhysPred(null, false); return true;
             }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
             bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;
+            _pAfterComma = sep == ',' && _pWord.Length > 0 && _pWord.All(char.IsLetter);
             string word = _pWord; _pWord = ""; var retyped = _pRetype; _pRetype = null; _pPrev = sep; _pCap = capAfter;
             string prevW = _pPrevWord, prevW2 = _pPrevWord2; bool prevSpace = _pPrevSpace; _pPrevWord = sep == ' ' ? word : null; _pPrevSpace = sep == ' ';
             var ze = prevSpace && word.Length > 0 ? SwipeTyping.ZeAsZe(prevW, word, prevW2) : null;   // ze to -> że to (ze mną zostaje)
@@ -716,6 +724,7 @@ namespace Przegladarka
                     capNext = ".!?".IndexOf(pc) >= 0; lastSent = ' '; tPrevWord = tPrevWord2 = null; tPrevSpace = false; fixFrom = fixTo = null;
                     predShow(null, false); return;
                 }
+                if (vk == 0 && char.IsLetter(ch) && lastSent == ',' && cur.Length == 0 && autoOn && !SecretField()) SendKey(0, ' ');   // po przecinku zawsze spacja: "kot,pies" -> "kot, pies"
                 if (vk == 0 && char.IsLetter(ch) && capNext && autoOn && !SecretField()) ch = char.ToUpper(ch);
                 if (vk != 0 || ch != ' ') capNext = false;
                 bool sep = vk == 0 ? !char.IsLetter(ch) : vk == 0x0D || vk == 0x09;

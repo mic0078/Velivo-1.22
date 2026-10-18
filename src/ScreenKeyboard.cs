@@ -1261,6 +1261,7 @@ namespace Przegladarka
                 if (st.LY > 16000) bt |= 0x1; if (st.LY < -16000) bt |= 0x2; if (st.LX < -16000) bt |= 0x4; if (st.LX > 16000) bt |= 0x8;
                 if (st.LT > 120) bt |= 0x0800;   // LT jako przycisk (nieuzywany bit)
                 ushort fresh = (ushort)(bt & ~padPrev); padPrev = bt;
+                if (_kbd == null || !_kbd.IsVisible) { if ((fresh & 0x0020) != 0) ShowScreenKeyboard(); return; }   // schowana w zasobniku: Back ja pokazuje, reszta pada nic nie pisze
                 // kierunki z powtarzaniem przy przytrzymaniu
                 int dir = (bt & 0x1) != 0 ? 1 : (bt & 0x2) != 0 ? 2 : (bt & 0x4) != 0 ? 3 : (bt & 0x8) != 0 ? 4 : 0;
                 if (dir != 0 && (dir != padDir || DateTime.Now >= padNext))
@@ -1277,7 +1278,7 @@ namespace Przegladarka
                 if ((fresh & 0x0100) != 0) tap(0x25, '\0');   // LB
                 if ((fresh & 0x0200) != 0) tap(0x27, '\0');   // RB
                 if ((fresh & 0x0010) != 0) tap(0x0D, '\0');   // Start
-                if ((fresh & 0x0020) != 0) _kbd?.Close();   // Back
+                if ((fresh & 0x0020) != 0) { var kw = _kbd; if (kw != null) { _kbdUserHid = true; if (kw.Content is Border kbd0 && kbd0.Child is Viewbox kvb && kvb.Child is FrameworkElement kfe) Sail(kw, kfe, false, kw.Hide); else kw.Hide(); } }   // Back: chowa do zasobnika (dziala w tle), ponowne Back - pokazuje
             };
             Action padApply = () =>
             {

@@ -1118,7 +1118,7 @@ namespace Przegladarka
             head.Children.Add(dictB);
             // 🎮 sterowanie padem
             var padB = key(ico("\uE7FC", null), 34); padB.Height = 28; padB.FontSize = 13; padB.Background = Brushes.Transparent; DockPanel.SetDock(padB, Dock.Right);
-            padB.ToolTip = L.T("Pad (Xbox i zgodne): krzyżak / lewa gałka – wybór klawisza, A – naciśnij, B – ⌫, X – spacja, Y – ⇧, LB / RB – kursor ◀ ▶, LT – ą ę ł, Start – ⏎, Back – zamknij");
+            padB.ToolTip = L.T("Pad (Xbox i zgodne): krzyżak / lewa gałka – wybór klawisza, A – naciśnij, B – ⌫, X – spacja, Y – ⇧, LB / RB – kursor ◀ ▶, LT – ą ę ł, Start – ⏎, R3 – przełączanie okien, Back – schowaj / pokaż");
             head.Children.Add(padB);
             // 🎤 dyktowanie (pisanie glosem Windows, Win+H), 🔊 czytanie na glos tego, co piszesz, PL / EN - jezyk
             var micB = key(ico("\uE720", null), 34); micB.Height = 28; micB.FontSize = 13; micB.Background = Brushes.Transparent; DockPanel.SetDock(micB, Dock.Right);
@@ -1224,7 +1224,7 @@ namespace Przegladarka
             // pad: ramka na wybranym klawiszu, odczyt pada 60 razy na sekunde tylko gdy 🎮 wlaczone i klawiatura otwarta
             var padSel = new Border { BorderThickness = new Thickness(2.5), CornerRadius = new CornerRadius(9), BorderBrush = new LinearGradientBrush(violet, cyan, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
             trailC.Children.Add(padSel);
-            bool padUsed = false; int padR = 2, padC = 5; ushort padPrev = 0; DateTime padNext = DateTime.MinValue; int padDir = 0;
+            bool padUsed = false; int padR = 2, padC = 5; ushort padPrev = 0; DateTime padNext = DateTime.MinValue; int padDir = 0; DateTime padSwitch = DateTime.MinValue;   // R3: okno przelaczania okien otwarte
             Func<UIElement, IEnumerable<Button>> rowBtns = null;   // rzad: przyciski w panelu, takze pasek propozycji z Alt+Tab (Grid) i pasek zdania
             rowBtns = el => el is Button bb ? new[] { bb } : el is Panel pn ? pn.Children.OfType<UIElement>().SelectMany(rowBtns) : Enumerable.Empty<Button>();
             Func<List<List<Button>>> padRows = () => root.Children.OfType<UIElement>().Select(rw => rowBtns(rw).Where(b => b.IsVisible).ToList()).Where(l => l.Count > 0).ToList();
@@ -1261,6 +1261,15 @@ namespace Przegladarka
                 if (st.LY > 16000) bt |= 0x1; if (st.LY < -16000) bt |= 0x2; if (st.LX < -16000) bt |= 0x4; if (st.LX > 16000) bt |= 0x8;
                 if (st.LT > 120) bt |= 0x0800;   // LT jako przycisk (nieuzywany bit)
                 ushort fresh = (ushort)(bt & ~padPrev); padPrev = bt;
+                if ((fresh & 0x0080) != 0) { SendCombo(0x11, 0x12, 0x09); padSwitch = DateTime.Now.AddSeconds(20); return; }   // R3: przelaczanie okien (Ctrl+Alt+Tab)
+                if (DateTime.Now < padSwitch)
+                {   // w oknie przelaczania: krzyzak / galka - wybor okna, A - przelacz, B albo Back - anuluj
+                    if ((fresh & 0x1) != 0) SendCombo(0x26); if ((fresh & 0x2) != 0) SendCombo(0x28); if ((fresh & 0x4) != 0) SendCombo(0x25); if ((fresh & 0x8) != 0) SendCombo(0x27);
+                    if ((fresh & 0x1000) != 0) { SendCombo(0x0D); padSwitch = DateTime.MinValue; }
+                    else if ((fresh & 0x2000) != 0 || (fresh & 0x0020) != 0) { SendCombo(0x1B); padSwitch = DateTime.MinValue; }
+                    else if (fresh != 0) padSwitch = DateTime.Now.AddSeconds(20);
+                    return;
+                }
                 if (_kbd == null || !_kbd.IsVisible) { if ((fresh & 0x0020) != 0) ShowScreenKeyboard(); return; }   // schowana w zasobniku: Back ja pokazuje, reszta pada nic nie pisze
                 // kierunki z powtarzaniem przy przytrzymaniu
                 int dir = (bt & 0x1) != 0 ? 1 : (bt & 0x2) != 0 ? 2 : (bt & 0x4) != 0 ? 3 : (bt & 0x8) != 0 ? 4 : 0;

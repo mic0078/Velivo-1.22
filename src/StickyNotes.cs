@@ -135,7 +135,7 @@ namespace Przegladarka
             };
             _notes.Add(n);
             SaveNotes();
-            ShowNote(n);
+            ShowNote(n, true);
         }
 
         void ShowAllNotes()
@@ -144,7 +144,7 @@ namespace Przegladarka
             foreach (var n in _notes) if (_noteWindows.TryGetValue(n, out var w)) { if (w.WindowState == WindowState.Minimized) w.WindowState = WindowState.Normal; w.Activate(); } else ShowNote(n);
         }
 
-        void ShowNote(StickyNote n)
+        void ShowNote(StickyNote n, bool fresh = false)   // fresh: nowo utworzona - od razu rozwinieta do pisania; po starcie - sam pasek
         {
             var k = NoteKind(n.Kind);
             Func<Color> col = () => { try { return (Color)ColorConverter.ConvertFromString("#" + n.Color); } catch (Exception) { return Color.FromRgb(0xFF, 0xF5, 0x9D); } };
@@ -263,8 +263,8 @@ namespace Przegladarka
             w.Show();
             if (n.Top) { w.Topmost = false; w.Topmost = true; }   // od razu nad innymi oknami (bez klikania ikonki)
             LayoutDockedNotes();
-            if (!n.Free && (string.IsNullOrEmpty(n.Text) || n.Text == k[3])) { _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
-            if (string.IsNullOrEmpty(n.Text) || n.Text == k[3]) { box.Focus(); box.CaretIndex = k[3].IndexOf('\n') is int nl && nl > 0 ? nl : box.Text.Length; }
+            if (fresh && !n.Free) { _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
+            if (fresh || n.Free && (string.IsNullOrEmpty(n.Text) || n.Text == k[3])) { box.Focus(); box.CaretIndex = k[3].IndexOf('\n') is int nl && nl > 0 ? nl : box.Text.Length; }
         }
 
         // menu "🗒 Karteczki" (pasek kart, tryb bankowy): nowe karteczki ze wzorow + pokaz wszystkie

@@ -390,15 +390,20 @@ set(p0,p);})"""
 var s=d.getElementById('velivo-reklamy');if(!s){s=d.createElement('style');s.id='velivo-reklamy';(d.head||d.documentElement).appendChild(s);}
 s.textContent=$css;
 if(window.__vZwin)return;
+var R=/(^|[\s_-])(ad|ads|advert|adslot|adbox|adunit|adplaceholder|adcontainer|reklama|reklamy|baner|banner)([\s_-]|$)|AdSlot|AdPlaceholder|CenterAd|adPlaceholder|ad-slot|ad_slot|placeholderAd|-ad-|_ad_/i;
 var L=/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane|materiał sponsorowany)$/i;
 function lab(e){var t=(e.textContent||'').trim();if(t)return L.test(t);
 var c=(getComputedStyle(e,'::before').content+' '+getComputedStyle(e,'::after').content).replace(/["']/g,'').trim();return /reklama|advert|ogłoszenie|sponsor/i.test(c);}
 // pusta ramka: tylko napis REKLAMA, ramki (iframe) i puste elementy
-function empty(e){return !(e.querySelector('img:not([width="1"]),video,a[href] img,h1,h2,h3,article'))&&(!(e.textContent||'').trim()||L.test((e.textContent||'').trim()));}
+function empty(e){var t=(e.textContent||'').trim();if(t&&!L.test(t))return false;if(e.querySelector('h1,h2,h3,article'))return false;
+var m=e.querySelectorAll('img,video,picture');for(var i=0;i<m.length;i++)if(m[i].offsetWidth>40&&m[i].offsetHeight>40)return false;return true;}
 window.__vUp=function(e){var b=e;while(b.parentElement&&b.parentElement!=d.body&&b.parentElement.offsetHeight<900&&empty(b.parentElement))b=b.parentElement;
 b.style.setProperty('display','none','important');};
 function zwin(){var all=d.querySelectorAll('div,span,p,section,aside,ins');for(var i=0;i<all.length;i++){var e=all[i];
-if(e.children.length>3||!lab(e))continue;__vUp(e);}}
+if(e.children.length<=3&&lab(e)){__vUp(e);continue;}
+// miejsce na reklamę po nazwie klasy/id (AdSlot, AdPlaceholder, ad-container, reklama...) - tylko gdy puste
+var n=(typeof e.className=='string'?e.className:'')+' '+e.id;
+if(R.test(n)&&e.offsetHeight>0&&empty(e))__vUp(e);}}
 var t=0;window.__vZwin=new MutationObserver(function(){clearTimeout(t);t=setTimeout(zwin,400)});
 window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();})()""", null)
     }

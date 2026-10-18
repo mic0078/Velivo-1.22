@@ -128,4 +128,49 @@ public class PisanieFlowTests
         Assert.DoesNotContain("taak", words);
         Assert.DoesNotContain("taaak", words);
     }
+
+    [Fact]
+    public void AutokorektaPolskieZnakiILiterowka()
+    {
+        SwipeTyping.Load(new[] { "nie", "jest", "żółw", "który", "dziękuję", "komputer", "dom", "pisze", "piszę" });
+        Assert.Equal("żółw", SwipeTyping.Correct("zolw"));
+        Assert.Equal("Który", SwipeTyping.Correct("Ktory"));
+        Assert.Equal("dziękuję", SwipeTyping.Correct("dziekuje"));
+        Assert.Equal("komputer", SwipeTyping.Correct("komputr"));   // brakujaca litera
+        Assert.Null(SwipeTyping.Correct("pisze"));                   // znane slowo - bez zmian
+        Assert.Null(SwipeTyping.Correct("dom"));
+        Assert.Null(SwipeTyping.Correct("xyzq"));                    // nic podobnego - bez zmian
+        Assert.Null(SwipeTyping.Correct("dm"));                      // krotkich nie zgadujemy
+        Assert.Equal("żółw", SwipeTyping.Correct("zolw", null, true));  // rozpoznanie literowki (dawne literowki usuwane z Mojego slownika przy otwarciu)
+        SwipeTyping.AddUserWord("zolw");                             // slowo dodane do Mojego slownika - zostaje jak jest
+        Assert.Null(SwipeTyping.Correct("zolw"));
+        Assert.Null(SwipeTyping.Correct("zolw", new System.Collections.Generic.HashSet<string> { "zolw" }));   // poprawka cofnieta - zostaje
+    }
+
+    [Fact]
+    public void PrzecinekPrzedSpojnikiemISlowaZPolskimiZnakami()
+    {
+        Assert.True(SwipeTyping.NeedsComma("że", "wiem"));        // wiem, że
+        Assert.True(SwipeTyping.NeedsComma("który", "dom"));      // dom, który
+        Assert.True(SwipeTyping.NeedsComma("bo", "idę"));
+        Assert.False(SwipeTyping.NeedsComma("że", "mimo"));       // mimo że - bez przecinka miedzy
+        Assert.False(SwipeTyping.NeedsComma("że", "i"));          // i że
+        Assert.False(SwipeTyping.NeedsComma("że", null));         // poczatek zdania
+        Assert.False(SwipeTyping.NeedsComma("dom", "wiem"));
+        SwipeTyping.Load(new[] { "klawiatura", "żółw" });
+        Assert.True(SwipeTyping.IsTypo("zolw"));                  // literowka - nie do Mojego slownika
+        Assert.False(SwipeTyping.IsTypo("klawiaturą"));           // z polskimi znakami - swiadomie wpisane slowo
+    }
+
+    [Fact]
+    public void UczySieZwrotowUzytkownika()
+    {
+        SwipeTyping.Load(new[] { "daj", "znać", "jak", "dotrzesz" });
+        string p2 = null, p1 = null;
+        for (int r = 0; r < 3; r++) foreach (var w in new[] { "daj", "znać", "jak", "dotrzesz" }) { SwipeTyping.LearnPair(p1, w); SwipeTyping.LearnTriple(p2, p1, w); p2 = p1; p1 = w; }
+        var po1 = SwipeTyping.NextWords("daj");
+        Assert.Equal("znać jak dotrzesz", po1[0]);                 // caly zwrot pisany czesto
+        Assert.Contains("znać", po1);
+        Assert.Equal("jak dotrzesz", SwipeTyping.NextWords("znać", "daj")[0]);   // po dwoch slowach - dalsza czesc zwrotu
+    }
 }

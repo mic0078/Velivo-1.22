@@ -1219,8 +1219,7 @@ namespace Przegladarka
                             !status.RootElement.TryGetProperty("inputsSeen", out _) ||
                             !status.RootElement.TryGetProperty("activeCandidateDetected", out _))
                             throw new JsonException("Unexpected helper status shape.");
-                        if (!status.RootElement.GetProperty("panelCreated").GetBoolean())
-                            throw new InvalidOperationException("Password helper panel was not created.");
+                        if (!status.RootElement.GetProperty("panelCreated").GetBoolean()) return false;   // strona bez pol logowania - panel niepotrzebny, to nie blad
                         return true;
                     }
                     catch (Exception ex)

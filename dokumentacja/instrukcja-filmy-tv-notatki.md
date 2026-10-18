@@ -97,3 +97,8 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Klawiatura „żagiel”: wpływa łagodnie od dołu z rozjaśnieniem (ok. 0,3 s), odpływa w dół przy zamknięciu; fala w kolorach logo od naciśniętego klawisza (0,4 s). Kandydat do wersji Pro (motyw / animacje), razem z: nagrywaniem TV, PiP, wspólnym oglądaniem w LAN, kopiami przyrostowymi, pisaniem myszką z nauką ruchów.
 - Klawiatura „Velivo by Michael”: pisanie na zwykłej klawiaturze pokazuje falę na tym samym klawiszu ekranowym (podsłuch tylko gdy klawiatura otwarta, nic nie zapisuje, w polach haseł nic się nie zapala).
 - 🗣 w nagłówku klawiatury: menu – „Przeczytaj zaznaczony tekst” (Ctrl+C w programie docelowym, schowek przywracany; bez zaznaczenia tekst pola przez UI Automation) i „Czytaj na bieżąco”; nigdy w polu hasła.
+- Dwuklik w plik filmu (Velivo jako odtwarzacz w Windows): otwiera się sam odtwarzacz – bez strony przeglądarki; przeglądarka czeka zminimalizowana na pasku zadań (gdy Velivo już działa, nie wyskakuje na wierzch).
+- Autostart z Windows: Velivo startuje po cichu w zasobniku i w tle przygotowuje listę kanałów i program TV (stare pobiera) oraz odtwarzacz – telewizja i filmy gotowe od razu po otwarciu.
+- Listy bez wyboru sortowania (⭐ ulubione kanały i ⭐ ulubione filmy z paska odtwarzacza, menu okienka PiP: ulubione, kanały tej grupy) – zawsze alfabetycznie. „Ostatnio oglądane” zostaje od najnowszego.
+- TV na żywo: zamiast −10 s / +10 s / 1× przyciski ↶ poprzedni kanał (po kolei), ⇤ do pierwszego, 🕘 historia (20 ostatnich, alfabetycznie). Przy filmie i archiwum bez zmian.
+- Historia kanałów zapisana na stałe (IptvSt.Hist, 20 ostatnich, aktualizowana na bieżąco); ↶ i ⇤ tylko przesuwają się po historii – nic nie kasują.

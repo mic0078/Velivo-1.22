@@ -63,6 +63,7 @@ namespace Przegladarka
             public List<IptvSource> Sources { get; set; } = new List<IptvSource>();
             public List<string> Fav { get; set; } = new List<string>();      // adresy ulubionych kanalow
             public List<string> Recent { get; set; } = new List<string>();   // ostatnio ogladane (najnowsze pierwsze)
+            public List<string> Hist { get; set; } = new List<string>();     // historia przelaczania kanalow na zywo (najstarszy pierwszy, najwyzej 20) - przyciski powrotu
             public string Last { get; set; }
             public List<IptvJob> Jobs { get; set; } = new List<IptvJob>();   // zaplanowane nagrania i przelaczenia
             public string RecDir { get; set; }   // folder nagran (puste = Wideo\Velivo TV)
@@ -490,7 +491,8 @@ namespace Przegladarka
                         });
                         if (data == null) { _logoFailed.Add(url); return null; }
                         Directory.CreateDirectory(LogoDir);
-                        File.WriteAllBytes(file, data);
+                        try { File.WriteAllBytes(file, data); }
+                        catch (IOException) { return null; }   // plik zajety (drugie okno / drugie Velivo zapisuje to samo logo) - nastepnym razem
                     }
                 }
                 finally { LogoGate.Release(); }

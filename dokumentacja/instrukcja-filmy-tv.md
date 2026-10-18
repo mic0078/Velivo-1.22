@@ -34,11 +34,18 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - 🌙 **Wyłącznik czasowy** – zatrzymuje po 15–120 minutach, po końcu filmu albo (przy TV) po końcu programu. Możesz zaznaczyć „💻 Potem wyłącz komputer” – masz 60 sekund, żeby to anulować. W ostatnich 30 sekundach dźwięk łagodnie cichnie.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.
 - CC napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki, biblioteka, zawsze na wierzchu, tryb mini, pełny ekran, głośność.
+- Dwuklik w plik filmu w Windows otwiera od razu sam odtwarzacz Velivo – przeglądarka nie wyskakuje (czeka zminimalizowana na pasku zadań).
+- Gdy Velivo uruchamia się razem z Windows, po cichu przygotowuje telewizję (kanały, program TV) i odtwarzacz – po otwarciu wszystko działa od razu.
 
 **Pasek postępu:**
 - przy filmie – czas i przewijanie,
 - przy telewizji na żywo – zamiast paska: **pogrubiona nazwa stacji │ przewijany napis z tym, co leci** (tytuł i krótki opis), po bokach godziny audycji i **● NA ŻYWO** (na żywo nie da się przewijać),
 - przy archiwum – godzina w audycji i **⏪ ARCHIWUM**.
+
+**Przy telewizji na żywo** zamiast −10 s / +10 s / 1× są przyciski powrotu po kanałach (Velivo pamięta 20 ostatnio przełączanych – także po zamknięciu telewizji i ponownym uruchomieniu; powrót nie kasuje historii):
+- **↶ Poprzedni kanał** – każde kliknięcie cofa o jeden kanał, po kolei,
+- **⇤ Do pierwszego** – od razu wraca do kanału, od którego zacząłeś przełączać,
+- **🕘 Historia kanałów** – lista ostatnich kanałów (alfabetycznie), klik przełącza.
 
 **Szybkie ikony z prawej:**
 
@@ -53,8 +60,8 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 | ℹ | Pasek informacji |
 | 🔄 | Odśwież kanał |
 | 🎞 | Playlisty i moja kolejka |
-| ⭐📺 | Moje ulubione kanały |
-| ⭐🎬 | Moje ulubione filmy |
+| ⭐📺 | Moje ulubione kanały (alfabetycznie) |
+| ⭐🎬 | Moje ulubione filmy (alfabetycznie) |
 | 👁 | Pasek sterowania: po ilu sekundach znika (albo zawsze widoczny) i jak bardzo przezroczysty |
 | ⚟ (suwaki) | Pasek informacji: pokazywanie przy ruchu myszy, czas znikania, przezroczystość, wielkość tekstu |
 

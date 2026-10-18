@@ -23,8 +23,12 @@ namespace Przegladarka
         [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int idx);
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int idx, int val);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vk);
+        [DllImport("user32.dll")] static extern short GetKeyState(int vk);
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
-        const uint KeyUp = 2, KeyUnicode = 4;
+        const uint KeyUp = 2, KeyUnicode = 4, KeyExt = 1;
+        // strzalki, Home/End, PgUp/PgDn, Insert/Delete - klawisze rozszerzone (bez tego z Shift dzialaja jak klawiatura numeryczna: brak zaznaczenia)
+        static uint ExtOf(ushort vk) { return vk >= 0x21 && vk <= 0x28 || vk == 0x2D || vk == 0x2E ? KeyExt : 0; }
 
         static Window _kbd;
         internal static volatile bool KeyboardOn;   // Ustawienia: klawiatura wlaczona (domyslnie nie - tylko na zyczenie)
@@ -85,6 +89,11 @@ namespace Przegladarka
                     try { File.Delete(Path.Combine(DataDir, "klawiatura-slowa.txt")); } catch (Exception) { }   // dawny jawny plik - nauka od nowa, juz zaszyfrowana
                     var own = new HashSet<string>(); var learned = SwipeTyping.LoadLearned(SwipeFile, own);
                     SwipeTyping.Load(words);
+                    // dawniej do Mojego slownika trafialy tez literowki (zolw, zzolw) - pisanie przeciagnieciem je podsuwalo: usuwamy je
+                    var mine = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));   // dodane recznie / cofniete poprawki - zawsze zostaja
+                    var typos = own.Where(w => !mine.Contains(w) && SwipeTyping.IsTypo(w)).ToList();
+                    foreach (var w in typos) { own.Remove(w); learned.Remove(w); }
+                    if (typos.Count > 0) SwipeTyping.SaveLearned(SwipeFile, learned, own);
                     foreach (var w in own) SwipeTyping.AddUserWord(w);
                     lock (_swLearned) { foreach (var kv in learned) _swLearned[kv.Key] = kv.Value; foreach (var w in own) _swOwn.Add(w); }
                 }
@@ -96,8 +105,8 @@ namespace Przegladarka
         // kombinacja klawiszy (np. Win+H - dyktowanie Windows): wcisniecie po kolei, puszczenie w odwrotnej kolejnosci
         static void SendCombo(params ushort[] vks)
         {
-            var ins = vks.Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v } } })
-                .Concat(vks.Reverse().Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v, Flags = KeyUp } } })).ToArray();
+            var ins = vks.Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v, Flags = ExtOf(v) } } })
+                .Concat(vks.Reverse().Select(v => new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = v, Flags = KeyUp | ExtOf(v) } } })).ToArray();
             var fg = GetForegroundWindow();
             if (fg == _kbdHwnd && _kbdTarget != IntPtr.Zero) SetForegroundWindow(_kbdTarget);
             SendInput((uint)ins.Length, ins, Marshal.SizeOf(typeof(KbdInput)));
@@ -157,7 +166,7 @@ namespace Przegladarka
 
         static void SendKey(ushort vk, char ch)
         {
-            uint fl = vk == 0 ? KeyUnicode : 0;
+            uint fl = vk == 0 ? KeyUnicode : ExtOf(vk);
             ushort sc = vk == 0 ? ch : (ushort)0;
             var ins = new[] { new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl } } }, new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl | KeyUp } } } };
             // klik w klawiature mogl ja aktywowac - znaki maja trafic do okna z polem, nie do klawiatury
@@ -188,12 +197,48 @@ namespace Przegladarka
         static System.Windows.Threading.DispatcherTimer _holdTimer;   // przytrzymanie rolki 1 s = klawiatura wszedzie
         static PointStruct _holdAt;
 
+        // ikonka klawiatury w zasobniku (obok Velivo): klik - pokaz / schowaj klawiature; prawy - menu
+        static System.Windows.Forms.NotifyIcon _kbdTray;
+        static void EnsureKbdTray()
+        {
+            if (_kbdTray != null) return;
+            try
+            {
+                System.Drawing.Icon icon;
+                using (var bmp = new System.Drawing.Bitmap(32, 32))
+                {
+                    using (var g = System.Drawing.Graphics.FromImage(bmp))
+                    {
+                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias; g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                        using (var bg = new System.Drawing.Drawing2D.LinearGradientBrush(new System.Drawing.Rectangle(0, 0, 32, 32), System.Drawing.Color.FromArgb(0x8B, 0x5C, 0xF6), System.Drawing.Color.FromArgb(0x06, 0xB6, 0xD4), 45f))
+                        using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+                        { path.AddArc(0, 0, 12, 12, 180, 90); path.AddArc(20, 0, 12, 12, 270, 90); path.AddArc(20, 20, 12, 12, 0, 90); path.AddArc(0, 20, 12, 12, 90, 90); path.CloseFigure(); g.FillPath(bg, path); }
+                        using (var f = new System.Drawing.Font("Segoe MDL2 Assets", 15f, System.Drawing.GraphicsUnit.Pixel))
+                        using (var sf = new System.Drawing.StringFormat { Alignment = System.Drawing.StringAlignment.Center, LineAlignment = System.Drawing.StringAlignment.Center })
+                            g.DrawString("\uE765", f, System.Drawing.Brushes.White, new System.Drawing.RectangleF(0, 1, 32, 32), sf);
+                    }
+                    icon = System.Drawing.Icon.FromHandle(bmp.GetHicon());
+                }
+                _kbdTray = new System.Windows.Forms.NotifyIcon { Icon = icon, Text = L.T("Klawiatura Velivo – kliknij, aby pokazać / schować"), Visible = true };
+                Action toggle = () => { if (_kbd != null && _kbd.IsVisible) _kbd.Hide(); else ShowScreenKeyboard(); };
+                _kbdTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Application.Current?.Dispatcher.BeginInvoke(toggle); };
+                var menu = new System.Windows.Forms.ContextMenuStrip();
+                menu.Items.Add(L.T("⌨ Pokaż / schowaj klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(toggle));
+                menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => _kbd?.Close())));
+                _kbdTray.ContextMenuStrip = menu;
+                Application.Current.Exit += (s, e) => { try { _kbdTray.Visible = false; _kbdTray.Dispose(); } catch (Exception) { } };
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         internal static void StartGlobalKeyboardHook()
         {
+            EnsureKbdTray();
             if (_hookStarted) return;
             _hookStarted = true;
             _mouseProc = (code, wp, lp) =>
             {
+                if (code >= 0 && ((int)wp == 0x0201 || (int)wp == 0x0204)) PhysReset();   // klik - kursor tekstu mogl sie przeniesc: nowe slowo dla autokorekty
                 if (!KeyboardOn) { }   // wylaczona w ustawieniach - nic nie robimy, tylko przekazujemy dalej
                 else if (code >= 0 && (int)wp == 0x0207)   // WM_MBUTTONDOWN
                 {
@@ -298,7 +343,13 @@ namespace Przegladarka
                 if (code >= 0 && ((int)wp == 0x100 || (int)wp == 0x104))   // WM_KEYDOWN / WM_SYSKEYDOWN
                 {
                     int vk = Marshal.ReadInt32(lp), flags = Marshal.ReadInt32(lp, 8);
-                    if ((flags & 0x10) == 0) { var f = _onPhysKey; if (f != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => f(vk))); }   // bez znakow wyslanych przez sama klawiature Velivo
+                    if ((flags & 0x10) == 0)   // bez znakow wyslanych przez sama klawiature Velivo
+                    {
+                        var f = _onPhysKey; if (f != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => f(vk)));
+                        bool swallow = false;
+                        try { swallow = PhysKey(vk); } catch (Exception) { _pWord = ""; }
+                        if (swallow) return (IntPtr)1;   // klawisz zastapiony poprawionym tekstem
+                    }
                 }
                 return CallNextHookEx(_keyHook, code, wp, lp);
             };
@@ -312,9 +363,110 @@ namespace Przegladarka
             }) { IsBackground = true, Name = "Velivo-klawisze" };
             th.Start();
         }
+        // autokorekta przy pisaniu ZWYKLA klawiatura (gdy klawiatura Velivo otwarta) - w podsluchu, zanim klawisz trafi do programu:
+        // spacja / Enter / znak po slowie spoza slownika -> slowo poprawione + ten znak; wielka litera po ". "; ⌫ zaraz potem cofa.
+        // Klik myszy, inny klawisz albo przerwa > 4 s = nowe slowo (nie wiemy, gdzie jest kursor). Pole hasla - nic.
+        static volatile Func<string, string> _physCorrect;      // null = wylaczona (klawiatura zamknieta / korekta wylaczona)
+        static volatile bool _physSecret = true;
+        static volatile bool _physPause;   // okienko "Dodaj słowo" - wpisujesz nowe slowo, bez poprawiania                // pole hasla (sprawdzane przez klawiature co 0,3 s); na start - bezpiecznie
+        static Action<string, string> _physNotify, _physUndone; static Action<string> _physAsk; static Action<string, bool> _physPred;
+        // delikatny klik klawisza: krotki (25 ms), cichy dzwiek wygenerowany w pamieci - bez plikow, bez opoznienia
+        static System.Media.SoundPlayer _click;
+        static void KeyClick()
+        {
+            if (GetPref("klawiatura-klik") == "0") return;
+            try
+            {
+                if (_click == null)
+                {
+                    int rate = 22050, n = rate * 25 / 1000; var ms = new MemoryStream(); var bw = new BinaryWriter(ms);
+                    bw.Write(System.Text.Encoding.ASCII.GetBytes("RIFF")); bw.Write(36 + n * 2); bw.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt ")); bw.Write(16); bw.Write((short)1); bw.Write((short)1); bw.Write(rate); bw.Write(rate * 2); bw.Write((short)2); bw.Write((short)16);
+                    bw.Write(System.Text.Encoding.ASCII.GetBytes("data")); bw.Write(n * 2);
+                    for (int i = 0; i < n; i++) { double t = (double)i / rate, env = Math.Exp(-t * 220); bw.Write((short)(Math.Sin(2 * Math.PI * 1500 * t) * env * 2600)); }
+                    ms.Position = 0; _click = new System.Media.SoundPlayer(ms); _click.Load();
+                }
+                _click.Play();
+            }
+            catch (Exception) { }
+        }
+        static long _tapLast;   // ostatnie klikniecie klawisza ekranowego
+        static string _pWord = "", _pFixFrom, _pFixTo, _pPrevWord; static bool _pPrevSpace; static long _pLast; static char _pPrev; static bool _pCap;
+        static void Inject(IEnumerable<KbdInput> ins) { var a = ins.ToArray(); if (a.Length > 0) SendInput((uint)a.Length, a, Marshal.SizeOf(typeof(KbdInput))); }
+        static IEnumerable<KbdInput> KeyIn(ushort vk, char ch)
+        {
+            uint fl = vk == 0 ? KeyUnicode : ExtOf(vk); ushort sc = vk == 0 ? ch : (ushort)0;
+            yield return new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl } } };
+            yield return new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl | KeyUp } } };
+        }
+        static IEnumerable<KbdInput> TextIn(string t) { return t.SelectMany(c => c == '\n' ? KeyIn(0x0D, '\0') : KeyIn(0, c)); }
+        static void PhysReset() { _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = null; _pPrevSpace = false; }
+        static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
+        static bool PhysKey(int vk)
+        {
+            var corr = _physCorrect; _tapLast = Environment.TickCount64;   // pisanie trwa - sprawdzanie pola hasla aktywne
+            if (corr == null || _physSecret || _physPause) { PhysReset(); return false; }
+            if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;   // same modyfikatory - bez zmian
+            long now = Environment.TickCount64; if (now - _pLast > 4000) PhysReset(); _pLast = now;
+            bool sh = GetAsyncKeyState(0x10) < 0, ctrl = GetAsyncKeyState(0x11) < 0, alt = GetAsyncKeyState(0x12) < 0, caps = (GetKeyState(0x14) & 1) != 0;
+            if (vk == 0x08 && ctrl && !alt)
+            {   // Ctrl+Backspace (lewy albo prawy): usun slowo przed kursorem - takze w programach, ktore tego nie umieja
+                var del = new List<KbdInput>();
+                del.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0x10 } } });
+                del.AddRange(KeyIn(0x25, '\0'));   // Ctrl (trzymany) + Shift + ← = zaznacz slowo
+                del.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0x10, Flags = KeyUp } } });
+                bool lc = GetAsyncKeyState(0xA2) < 0, rc = GetAsyncKeyState(0xA3) < 0;
+                if (lc) del.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2, Flags = KeyUp } } });
+                if (rc) del.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA3, Flags = KeyUp | KeyExt } } });
+                del.AddRange(KeyIn(0x2E, '\0'));   // Delete bez Ctrl - usun zaznaczenie
+                if (lc) del.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2 } } });
+                if (rc) del.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA3, Flags = KeyExt } } });   // Ctrl dalej trzymany - jak przed
+                Inject(del); PhysReset(); PhysPred(null, false);
+                return true;
+            }
+            if (vk == 0x08)
+            {
+                if (_pFixTo != null && !ctrl)
+                {   // cofniecie poprawki: znak i poprawione slowo -> to, co wpisano
+                    string from = _pFixFrom, to = _pFixTo; _pFixFrom = _pFixTo = null;
+                    Inject(Enumerable.Range(0, to.Length + 1).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn(from)));
+                    _pWord = from; var u = _physUndone; if (u != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => u(from, to)));
+                    return true;
+                }
+                if (_pWord.Length > 0) _pWord = _pWord.Substring(0, _pWord.Length - 1);
+                _pFixFrom = _pFixTo = null; PhysPred(_pWord, false); return false;
+            }
+            _pFixFrom = _pFixTo = null;
+            if (vk >= 0x41 && vk <= 0x5A && (!ctrl && !alt || ctrl && alt))
+            {   // litera (AltGr = Ctrl+Alt: polskie znaki)
+                char c = (char)(vk + 32);
+                if (ctrl && alt) { var i = "acelnoszx".IndexOf(c); if (i < 0) { PhysReset(); return false; } c = "ąćęłńóśżź"[i]; }
+                bool upper = sh ^ caps;
+                if (_pCap && !upper) { _pCap = false; c = char.ToUpper(c); _pWord += c; _pPrev = c; Inject(KeyIn(0, c)); PhysPred(_pWord, false); return true; }   // poczatek zdania - wielka litera zamiast malej
+                _pCap = false; _pWord += upper ? char.ToUpper(c) : c; _pPrev = c; PhysPred(_pWord, false); return false;
+            }
+            char sep = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : '\0';
+            if (sep == '\0' || ctrl || alt) { PhysReset(); PhysPred(null, false); return false; }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
+            bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;
+            string word = _pWord; _pWord = ""; _pPrev = sep; _pCap = capAfter;
+            string prevW = _pPrevWord; bool prevSpace = _pPrevSpace; _pPrevWord = sep == ' ' ? word : null; _pPrevSpace = sep == ' ';
+            if (word.Length < 2 && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { PhysPred(null, false); return false; }
+            var fix = word.Length >= 2 ? corr(word) : null;
+            var fin = fix ?? word; if (sep == ' ') _pPrevWord = fin;
+            bool comma = sep == ' ' && prevSpace && SwipeTyping.NeedsComma(fin, prevW);   // wiem że -> wiem, że
+            PhysPred(sep == ' ' ? fin : null, true);   // po spacji - inne formy skonczonego slowa
+            if (fix == null && !comma) { var a = _physAsk; if (a != null && sep == ' ') Application.Current?.Dispatcher.BeginInvoke(new Action(() => a(word))); return false; }
+            Inject(Enumerable.Range(0, word.Length + (comma ? 1 : 0)).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn((comma ? ", " : "") + fin + sep)));   // ten znak zamiast przepuszczonego
+            if (fix != null)
+            {
+                _pFixFrom = word; _pFixTo = fix;
+                var n = _physNotify; if (n != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => n(word, fix)));
+            }
+            return true;
+        }
+
         static void StopKeyEcho()
         {
-            _onPhysKey = null;
+            _onPhysKey = null; _physCorrect = null; _physNotify = _physUndone = null; _physAsk = null; _physPred = null;
             if (_keyThread != 0) PostThreadMessage(_keyThread, 0x12, IntPtr.Zero, IntPtr.Zero);   // WM_QUIT - koniec podsluchu
         }
 
@@ -355,7 +507,7 @@ namespace Przegladarka
         static void ShowScreenKeyboard(IntPtr target)
         {
             _kbdTarget = target != IntPtr.Zero ? target : GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
-            if (_kbd != null) { _kbd.Topmost = false; _kbd.Topmost = true; AvoidField(_kbd); return; }
+            if (_kbd != null) { if (!_kbd.IsVisible) { var wa = SystemParameters.WorkArea; _kbd.Left = wa.Right - _kbd.ActualWidth - 10; _kbd.Top = wa.Bottom - _kbd.ActualHeight - 10; _kbd.Show(); if (_kbd.Content is Border bd && bd.Child is Viewbox vb && vb.Child is FrameworkElement fe) Sail(_kbd, fe, true, null); } _kbd.Topmost = false; _kbd.Topmost = true; _kbd.Topmost = GetPref("klawiatura-wierzch") == "1"; AvoidField(_kbd); return; }   // schowana - wraca
             LoadSwipeDictionary();
             bool shift = false, caps = false, alt = false;
             // subtelnie w kolorach logo Velivo: ciemne tlo z lekkim fioletowo-turkusowym odcieniem, klawisze ze szkla,
@@ -398,16 +550,17 @@ namespace Przegladarka
             title.Inlines.Add(new System.Windows.Documents.Run(" by Michael") { Foreground = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)) });
             List<Point> lastTrace = null; double lastKeyW = 52; string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
             var ask = new TextBlock { Text = L.T("Poprawić na:"), FontSize = 13, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0), Visibility = Visibility.Collapsed };
-            string prevWord = null, prevBeforeSwipe = null;   // poprzednie slowo - do nauki kolejnosci slow
+            Action<string> askAdd = aw0 => { }; Action hideAdd = () => { };   // pytanie "Dodać do słownika?" (ustawiane nizej)
+            string prevWord = null, prevWord2 = null, prevBeforeSwipe = null;   // poprzednie slowo - do nauki kolejnosci slow
             Action<string> learn = wd =>
             {
                 if (wd.Length < 2 || !SwipeTyping.Loaded || SecretField()) return;   // pole hasla - bez nauki
                 var lw = wd.ToLowerInvariant();
-                SwipeTyping.LearnPair(prevWord, lw); prevWord = lw;   // kolejnosc slow
+                SwipeTyping.LearnPair(prevWord, lw); SwipeTyping.LearnTriple(prevWord2, prevWord, lw); prevWord2 = prevWord; prevWord = lw;   // kolejnosc slow i zwroty (2 poprzednie)
                 lock (_swLearned)
                 {
                     _swLearned[lw] = (_swLearned.TryGetValue(lw, out var n) ? n : 0) + 1;
-                    if (!SwipeTyping.IsKnown(lw)) { _swOwn.Add(lw); SwipeTyping.AddUserWord(lw); }
+                    if (!SwipeTyping.IsKnown(lw) && !SwipeTyping.IsTypo(lw)) askAdd(wd);   // nowe slowo - najpierw pytamy (literowki znanego slowa wcale)
                     SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
                 }
             };
@@ -416,17 +569,88 @@ namespace Przegladarka
                 if (wd.Length == 0 || GetPref("klawiatura-czytaj") != "1" || SecretField()) return;
                 (Application.Current?.MainWindow as MainWindow)?.KbSpeak(wd, ReadLang);
             };
-            Action<ushort, char> tap = (vk, ch) =>
+            // autokorekta (przycisk w naglowku, domyslnie wlaczona): po spacji / Enterze / znaku slowo spoza slownika -> poprawione,
+            // ⌫ zaraz potem przywraca to, co wpisano; nigdy w polu hasla
+            string fixFrom = null, fixTo = null;
+            var noFix = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));
+            // slowo swiadomie zostawione (cofnieta poprawka, Dodaj slowo): bez poprawiania, do Mojego slownika (propozycje, przeciaganie), nigdy usuwane jako literowka
+            Action<string> keepWord = kw =>
             {
+                var lw0 = (kw ?? "").Trim().ToLowerInvariant(); if (lw0.Length < 2 || !lw0.All(char.IsLetter)) return;
+                bool added0; lock (noFix) added0 = noFix.Add(lw0);
+                if (added0) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
+                lock (_swLearned) { _swOwn.Add(lw0); SwipeTyping.AddUserWord(lw0); _swLearned[lw0] = (_swLearned.TryGetValue(lw0, out var c0) ? c0 : 0) + 1; SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
+            };   // cofniete poprawki - tych slow nie poprawiamy
+            char lastSent = '\0'; bool capNext = false; string tPrevWord = null; bool tPrevSpace = false;   // poprzednie slowo - do przecinka   // wielka litera po ". " / "! " / "? "
+            Action<string, List<string>> askFix = null;
+            Action<string, bool> predShow = (wd, dn) => { };   // pasek propozycji (ustawiany nizej)   // watpliwosc: "Poprawić na:" z propozycjami (klik podmienia slowo)
+            Action<ushort, char> tap = null;
+            tap = (vk, ch) =>
+            {
+                _tapLast = Environment.TickCount64; KeyClick(); if (vk == 0 && char.IsLetter(ch)) hideAdd();
+                if (vk == 0x08 && fixTo != null)
+                {   // cofniecie poprawki: znak oddzielajacy i poprawione slowo -> wpisane slowo (zapamietane - wiecej go nie poprawiamy)
+                    for (int k = 0; k <= fixTo.Length; k++) SendKey(0x08, '\0');
+                    foreach (var c2 in fixFrom) SendKey(0, c2);
+                    keepWord(fixFrom);
+                    cur = fixFrom; fixFrom = fixTo = null; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
+                    return;
+                }
+                bool autoOn = GetPref("klawiatura-korekta") != "0" && !_physPause;
+                if (vk == 0 && char.IsLetter(ch) && capNext && autoOn && !SecretField()) ch = char.ToUpper(ch);
+                if (vk != 0 || ch != ' ') capNext = false;
+                bool sep = vk == 0 ? !char.IsLetter(ch) : vk == 0x0D || vk == 0x09;
+                string fixedNow = null, origNow = cur;
+                if (sep && cur.Length >= 2 && autoOn && !SecretField())
+                {
+                    string fix; lock (noFix) fix = SwipeTyping.Correct(cur, noFix);
+                    if (fix != null) { for (int k = 0; k < cur.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in fix) SendKey(0, c2); cur = fix; fixedNow = fix; }
+                }
+                fixFrom = fixTo = null;
+                if (sep)
+                {   // przecinek przed spojnikiem / ktory (wiem że -> wiem, że)
+                    var fin = fixedNow ?? origNow;
+                    if (vk == 0 && ch == ' ' && autoOn && tPrevSpace && fin.Length > 0 && SwipeTyping.NeedsComma(fin, tPrevWord) && !SecretField())
+                    { for (int k = 0; k <= fin.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in ", " + fin) SendKey(0, c2); }
+                    tPrevWord = vk == 0 && ch == ' ' && fin.Length > 0 ? fin : null; tPrevSpace = vk == 0 && ch == ' ' && fin.Length > 0;
+                }
                 SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; ask.Visibility = Visibility.Collapsed;
+                if (vk == 0 && ch == ' ' && (lastSent == '.' || lastSent == '!' || lastSent == '?')) capNext = true;
+                lastSent = vk == 0 ? ch : '\0';
+                if (fixedNow != null)
+                {
+                    fixFrom = origNow; fixTo = fixedNow;
+                    ask.Text = L.T("Poprawiono: ") + origNow + " → " + fixedNow + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
+                }
+                else if (vk == 0 && ch == ' ' && autoOn && origNow.Length >= 3 && !SecretField())
+                {   // pewnej poprawki brak, ale slowa nie ma w slowniku - pytamy
+                    List<string> sg; lock (noFix) sg = SwipeTyping.Suggest(origNow, noFix);
+                    if (sg.Count > 0) askFix(origNow, sg);
+                }
                 if (vk == 0 && char.IsLetter(ch)) cur += ch;
                 else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
                 else { learn(cur); say(cur); cur = ""; }
+                if (vk == 0 && char.IsLetter(ch) || vk == 0x08) predShow(cur, false);
+                else predShow(vk == 0 && ch == ' ' ? (fixedNow ?? origNow) : null, true);   // po spacji - inne formy skonczonego slowa
             };
             // propozycje po przeciagnieciu - w naglowku zamiast napisu (bez osobnego, zwykle pustego rzedu); klik podmienia ostatnie slowo
             var sugRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             sugRow.Children.Add(title);
             sugRow.Children.Add(ask);
+            // ➕ nowe slowo spoza slownika: jedno klikniecie dopisuje do Mojego slownika (bez klikniecia - nic nie zapisujemy)
+            var addB = key("", double.NaN); addB.Height = 26; addB.MinWidth = 70; addB.Padding = new Thickness(12, 0, 12, 0); addB.FontSize = 14; addB.Visibility = Visibility.Collapsed;
+            addB.ToolTip = L.T("Dodaj to słowo do Mojego słownika – autokorekta go nie zmieni, a propozycje je podsuną");
+            sugRow.Children.Add(addB);
+            string addWord = null;
+            addB.Click += (s, e) => { if (addWord != null) keepWord(addWord); addWord = null; addB.Visibility = Visibility.Collapsed; ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; };
+            hideAdd = () => { addB.Visibility = Visibility.Collapsed; addWord = null; };
+            askAdd = aw0 =>
+            {
+                if (aw0 == null || aw0.Length < 2 || _physSecret) return;
+                lock (noFix) if (noFix.Contains(aw0.ToLowerInvariant())) return;
+                addWord = aw0; addB.Content = "➕ " + aw0; addB.Visibility = Visibility.Visible;
+                ask.Text = L.T("Nowe słowo – dodać do słownika?"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
+            };
             for (int i = 0; i < 3; i++)
             {
                 var sb = key("", double.NaN); sb.Height = 26; sb.MinWidth = 70; sb.Padding = new Thickness(12, 0, 12, 0); sb.FontSize = 14; sb.Visibility = Visibility.Collapsed;
@@ -446,7 +670,13 @@ namespace Przegladarka
                 };
                 sugs.Add(sb); sugRow.Children.Add(sb);
             }
-            // rzad skrotow: poczta, glosnosc Windows, Velivo, wylaczenie komputera
+            askFix = (word, list) =>
+            {
+                lastSwipe = word; lastTrace = null;   // klik w propozycje podmienia to slowo (+ spacja); bez nauki ruchu
+                for (int i = 0; i < sugs.Count; i++) { bool on = i < list.Count; sugs[i].Visibility = on ? Visibility.Visible : Visibility.Collapsed; if (on) { sugs[i].Content = list[i]; sugs[i].DataContext = list[i]; } }
+                ask.Text = L.T("Poprawić na:"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
+            };
+            // rzad skrotow: notatka, karteczki, poczta, glosnosc Windows, Velivo, kalkulator, wycinanie, szukanie, wylaczenie komputera
             var fnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             Func<object, double, string, Action, Button> fn = (txt, wdt, tip, act) =>
             {
@@ -459,14 +689,69 @@ namespace Przegladarka
                 if (label != null) sp.Children.Add(new TextBlock { Text = label, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
                 return sp;
             };
+            Func<MainWindow> mainW = () => Application.Current?.MainWindow as MainWindow;
+            Action showMain = () =>
+            {
+                var mw = mainW(); if (mw == null) return;
+                if (!mw.IsVisible) mw.ShowFromTray(); else { if (mw.WindowState == WindowState.Minimized) mw.WindowState = WindowState.Normal; mw.Activate(); }
+            };
+            // 📝 Notes: nowy dokument tekstowy w wybranym folderze (domyslnie Dokumenty\Velivo Notatki), otwarty w programie z Windows; prawy - folder
+            Func<string> notesDir = () => { var d = GetPref("klawiatura-notatki-folder"); return string.IsNullOrWhiteSpace(d) ? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Velivo Notatki") : d; };
+            var notesB = fn(ico("\uE8A5", "Notes"), 96, L.T("Nowa notatka: tworzy i otwiera dokument tekstowy w Twoim folderze notatek (prawy przycisk – zmień folder)"), () =>
+            {
+                try
+                {
+                    var dir = notesDir(); System.IO.Directory.CreateDirectory(dir);
+                    var f = System.IO.Path.Combine(dir, L.T("Notatka") + " " + DateTime.Now.ToString("yyyy-MM-dd HH.mm.ss") + ".txt");
+                    System.IO.File.WriteAllText(f, "");
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(f) { UseShellExecute = true });
+                }
+                catch (Exception ex) { App.LogError(ex); MessageBox.Show(L.T("Nie udało się utworzyć notatki:\n") + ex.Message, "Velivo"); }
+            });
+            notesB.ContextMenu = new ContextMenu();
+            notesB.ContextMenuOpening += (s, e) =>
+            {
+                var cm = notesB.ContextMenu; cm.Items.Clear();
+                cm.Items.Add(new MenuItem { Header = L.T("Folder notatek: ") + notesDir(), IsEnabled = false });
+                var open = new MenuItem { Header = L.T("📂 Otwórz folder notatek") }; open.Click += (a, b) => { try { var d = notesDir(); System.IO.Directory.CreateDirectory(d); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(d) { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } };
+                var change = new MenuItem { Header = L.T("📁 Zmień folder notatek…") }; change.Click += (a, b) => { var dlg = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Folder notatek"), InitialDirectory = notesDir() }; if (dlg.ShowDialog() == true) SetPref("klawiatura-notatki-folder", dlg.FolderName); };
+                cm.Items.Add(open); cm.Items.Add(change);
+            };
+            // 🗒 karteczki na pulpit Velivo - te same rodzaje co w menu strony
+            var stickyB = fn(ico("\uE70B", null), 50, L.T("Karteczki na pulpit (nowa karteczka albo wszystkie)"), () => { });
+            stickyB.Click += (s, e) =>
+            {
+                var mw = mainW(); if (mw == null) return;
+                var cm = new ContextMenu { PlacementTarget = stickyB, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+                foreach (var kk in NoteKinds) { var kind = kk[0]; var it = new MenuItem { Header = kk[1] + "  " + L.T(kk[2]) }; it.Click += (a, b) => mw.NewNote(kind); cm.Items.Add(it); }
+                cm.Items.Add(new Separator());
+                var all = new MenuItem { Header = L.T("Pokaż wszystkie karteczki") }; all.Click += (a, b) => mw.ShowAllNotes(); cm.Items.Add(all);
+                cm.IsOpen = true;
+            };
             fn(ico("\uE715", "E-mail"), 110, L.T("Otwiera domyślny program pocztowy – nowa wiadomość"), () => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("mailto:") { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } });
             fn(ico("\uE74F", null), 50, L.T("Wycisz / włącz dźwięk komputera"), () => SendCombo(0xAD));
             fn(ico("\uE993", null), 50, L.T("Ciszej (głośność Windows)"), () => SendCombo(0xAE));
             fn(ico("\uE995", null), 50, L.T("Głośniej (głośność Windows)"), () => SendCombo(0xAF));
-            fn(ico("\uE774", "Velivo"), 110, L.T("Pokazuje okno przeglądarki Velivo"), () =>
+            fn(ico("\uE774", "Velivo"), 110, L.T("Pokazuje okno przeglądarki Velivo"), showMain);
+            Action<string> run = cmd => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(cmd) { UseShellExecute = true }); } catch (Exception ex) { App.LogError(ex); } };
+            fn(ico("\uE8EF", null), 50, L.T("Kalkulator Windows"), () => run("calc.exe"));
+            fn(ico("\uE8C6", null), 50, L.T("Wycinanie – zaznacz fragment ekranu (narzędzie Windows)"), () => run("ms-screenclip:"));
+            // 🔎 szybkie szukanie: wpisz (tez ta klawiatura) i Enter - Velivo otwiera wyniki w nowej karcie
+            fn(ico("\uE721", null), 50, L.T("Szukaj w internecie przez Velivo – wpisz i naciśnij Enter"), () =>
             {
-                var mw = Application.Current?.MainWindow as MainWindow; if (mw == null) return;
-                if (!mw.IsVisible) mw.ShowFromTray(); else { if (mw.WindowState == WindowState.Minimized) mw.WindowState = WindowState.Normal; mw.Activate(); }
+                var mw = mainW(); if (mw == null) return;
+                var box = new TextBox { FontSize = 18, Padding = new Thickness(8, 6, 8, 6), MinWidth = 420, BorderThickness = new Thickness(0) };
+                var sw = new Window { Title = L.T("Szukaj w internecie"), Content = box, SizeToContent = SizeToContent.WidthAndHeight, WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize, Topmost = true, ShowInTaskbar = false };
+                if (_kbd != null) { sw.Left = _kbd.Left + 20; sw.Top = Math.Max(SystemParameters.WorkArea.Top, _kbd.Top - 80); } else sw.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                box.KeyDown += (a, b) =>
+                {
+                    if (b.Key == Key.Escape) sw.Close();
+                    if (b.Key != Key.Enter || box.Text.Trim().Length == 0) return;
+                    var q = box.Text.Trim(); sw.Close();
+                    showMain(); mw.AddTab(mw._settings.SearchUrl(q));
+                };
+                sw.Loaded += (a, b) => { sw.Activate(); box.Focus(); };
+                sw.Show();
             });
             fn(ico("\uE7E8", null), 50, L.T("Wyłącz komputer (z potwierdzeniem, 30 s na rozmyślenie)"), () =>
             {
@@ -480,6 +765,34 @@ namespace Przegladarka
                 }
                 catch (Exception ex) { App.LogError(ex); }
             });
+            // pasek propozycji nad klawiszami (jak w telefonie): inne formy slowa (droga -> drogą) i dokonczenia; klik wstawia slowo
+            var predRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Height = 38 };
+            var preds = new List<Button>();
+            string predWord = null; bool predDone = false, predNext = false;
+            for (int i = 0; i < 3; i++)
+            {
+                var pb = key("", double.NaN); pb.MinWidth = 150; pb.Padding = new Thickness(14, 0, 14, 0); pb.Height = 32; pb.FontSize = 15; pb.Visibility = Visibility.Hidden;   // dluzszy zwrot - szerszy przycisk
+                pb.ToolTip = L.T("Propozycja słowa – kliknij, aby wstawić");
+                pb.Click += (s, e) =>
+                {
+                    var choice = ((Button)s).DataContext as string; if (choice == null || predWord == null) return;
+                    int back = predNext ? 0 : predWord.Length + (predDone ? 1 : 0);   // nastepne slowo - tylko dopisujemy
+                    for (int k = 0; k < back; k++) SendKey(0x08, '\0');
+                    foreach (var c2 in choice) SendKey(0, c2); SendKey(0, ' ');
+                    foreach (var pw in choice.Split(' ')) learn(pw); cur = "";   // caly zwrot - kazde slowo lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
+                    predShow(null, false);
+                };
+                preds.Add(pb); predRow.Children.Add(pb);
+            }
+            predShow = (word, done) =>
+            {
+                var list = word == null || word.Length == 0 || _physSecret || GetPref("klawiatura-korekta") == "0" ? new List<string>() : SwipeTyping.Predict(word, done);
+                predNext = false;
+                if (done && list.Count == 0 && word != null && !_physSecret && GetPref("klawiatura-korekta") != "0") { list = SwipeTyping.NextWords(word, prevWord2); predNext = list.Count > 0; }   // po spacji: co zwykle piszesz dalej
+                predWord = list.Count > 0 ? word : null; predDone = done;
+                for (int i = 0; i < preds.Count; i++) { bool on = i < list.Count; preds[i].Visibility = on ? Visibility.Visible : Visibility.Hidden; if (on) { preds[i].Content = list[i]; preds[i].DataContext = list[i]; } }
+            };
+            root.Children.Add(predRow);
             root.Children.Add(fnRow);
             Button shiftB = null, capsB = null, altB = null;
             foreach (var r in rows)
@@ -502,12 +815,20 @@ namespace Przegladarka
             var last = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             altB = key("ą ę ł", 96); altB.FontSize = 15; altB.ToolTip = L.T("Polskie znaki (jak prawy Alt)"); altB.Click += (s, e) => { alt = !alt; refresh(); };
             var at = key("@", 46); at.Click += (s, e) => tap(0, '@');
-            var space = key("", 380); vkKeys[0x20] = space; space.ToolTip = L.T("Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych"); space.Click += (s, e) => tap(0, ' ');
+            var space = key("", 284); vkKeys[0x20] = space; space.ToolTip = L.T("Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych"); space.Click += (s, e) => tap(0, ' ');
             var dot = key(".com", 66); dot.ToolTip = L.T("Wpisuje „.com”"); dot.FontSize = 15; dot.Click += (s, e) => { foreach (var ch in ".com") tap(0, ch); };
             var lf = key("◀", 46); vkKeys[0x25] = lf; lf.ToolTip = L.T("Kursor w lewo"); lf.Click += (s, e) => tap(0x25, '\0');
             var dn = key("▼", 46); vkKeys[0x28] = dn; dn.ToolTip = L.T("Kursor w dół"); dn.Click += (s, e) => tap(0x28, '\0');
             var rt = key("▶", 46); vkKeys[0x27] = rt; rt.ToolTip = L.T("Kursor w prawo"); rt.Click += (s, e) => tap(0x27, '\0');
-            foreach (var b in new[] { altB, at, space, dot, lf, dn, rt }) last.Children.Add(b);
+            // ⌫ slowo: kazde klikniecie usuwa jedno slowo przed kursorem (Ctrl+Shift+← zaznacza slowo, Delete je usuwa - dziala tez w starszych programach)
+            var wordDel = key(ico("\uE750", L.T("słowo")), 96); wordDel.FontSize = 14;
+            wordDel.ToolTip = L.T("Usuń ostatnie słowo – każde kliknięcie usuwa kolejne słowo przed kursorem");
+            wordDel.Click += (s, e) =>
+            {
+                SendCombo(0x11, 0x10, 0x25); SendCombo(0x2E);
+                cur = ""; lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; ask.Visibility = Visibility.Collapsed;
+            };
+            foreach (var b in new[] { altB, at, space, wordDel, dot, lf, dn, rt }) last.Children.Add(b);
             root.Children.Add(last);
             refresh = () =>
             {
@@ -518,6 +839,30 @@ namespace Przegladarka
             var head = new DockPanel { Margin = new Thickness(14, 8, 8, 0), Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
             var close = key(ico("\uE711", null), 34); close.Height = 28; close.FontSize = 13; close.Background = Brushes.Transparent; DockPanel.SetDock(close, Dock.Right);
             head.Children.Add(close);
+            // minimalizacja: klawiatura chowa sie (bez paska zadan), wraca kliknieciem rolka w pole albo przytrzymaniem rolki
+            var minB = key(ico("\uE921", null), 34); minB.Height = 28; minB.FontSize = 13; minB.Background = Brushes.Transparent; DockPanel.SetDock(minB, Dock.Right);
+            minB.ToolTip = L.T("Schowaj klawiaturę (wraca po kliknięciu rolką w pole albo przytrzymaniu rolki)");
+            head.Children.Add(minB);
+            // 📌 zawsze na wierzchu (wl./wyl., zapamietane) i przezroczystosc − / + co 5% (10-100%)
+            var pinB = key(ico("\uE718", null), 34); pinB.Height = 28; pinB.FontSize = 13; DockPanel.SetDock(pinB, Dock.Right);
+            Action pinShow = () => { bool on = GetPref("klawiatura-wierzch") == "1"; pinB.Background = on ? accent : Brushes.Transparent; pinB.ToolTip = on ? L.T("Zawsze na wierzchu: włączone (kliknij, aby wyłączyć)") : L.T("Zawsze na wierzchu: wyłączone (kliknij, aby włączyć)"); };
+            pinShow();
+            var alphaPlus = key(ico("\uE710", null), 30); alphaPlus.Height = 28; alphaPlus.FontSize = 12; alphaPlus.Background = Brushes.Transparent; DockPanel.SetDock(alphaPlus, Dock.Right);
+            var alphaText = new TextBlock { Foreground = Brushes.White, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Width = 38, TextAlignment = TextAlignment.Center, ToolTip = L.T("Przezroczystość klawiatury (widoczność)") }; DockPanel.SetDock(alphaText, Dock.Right);
+            var alphaMinus = key(ico("\uE738", null), 30); alphaMinus.Height = 28; alphaMinus.FontSize = 12; alphaMinus.Background = Brushes.Transparent; DockPanel.SetDock(alphaMinus, Dock.Right);
+            alphaPlus.ToolTip = L.T("Mniej przezroczysta (+5%)"); alphaMinus.ToolTip = L.T("Bardziej przezroczysta (−5%)");
+            // ✓ autokorekta pisowni (wl./wyl., domyslnie wlaczona) - takze polskie znaki: zolw -> żółw
+            var fixB = key(ico("\uE8FB", "abc"), 58); fixB.Height = 28; fixB.FontSize = 12; DockPanel.SetDock(fixB, Dock.Right);
+            Action fixShow = () => { bool on = GetPref("klawiatura-korekta") != "0"; fixB.Background = on ? accent : Brushes.Transparent; fixB.ToolTip = on ? L.T("Autokorekta pisowni: włączona – słowo spoza słownika poprawiane po spacji (też polskie znaki: zolw → żółw); ⌫ zaraz po poprawce cofa ją. Kliknij, aby wyłączyć") : L.T("Autokorekta pisowni: wyłączona (kliknij, aby włączyć)"); };
+            Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) return SwipeTyping.Correct(wd, noFix); }) : null;
+            fixShow(); fixB.Click += (s, e) => { SetPref("klawiatura-korekta", GetPref("klawiatura-korekta") != "0" ? "0" : "1"); fixShow(); physApply(); };
+            head.Children.Add(fixB);
+            // 🔈 klik przy pisaniu (wl./wyl., domyslnie wlaczony)
+            var clickB = key(ico("\uE995", null), 34); clickB.Height = 28; clickB.FontSize = 13; DockPanel.SetDock(clickB, Dock.Right);
+            Action clickShow = () => { bool on = GetPref("klawiatura-klik") != "0"; clickB.Background = on ? accent : Brushes.Transparent; clickB.Content = ico(on ? "\uE995" : "\uE74F", null); clickB.ToolTip = on ? L.T("Dźwięk klawiszy: włączony (kliknij, aby wyciszyć)") : L.T("Dźwięk klawiszy: wyciszony (kliknij, aby włączyć)"); };
+            clickShow(); clickB.Click += (s, e) => { SetPref("klawiatura-klik", GetPref("klawiatura-klik") != "0" ? "0" : "1"); clickShow(); };
+            head.Children.Add(clickB);
+            head.Children.Add(pinB); head.Children.Add(alphaPlus); head.Children.Add(alphaText); head.Children.Add(alphaMinus);
             // wlasny slownik (jak na Androidzie): podglad i usuwanie wyuczonych slow
             var dictB = key(ico("\uE82D", null), 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
             dictB.ToolTip = L.T("Mój słownik – słowa, których Velivo nauczyło się od Ciebie (klik w słowo usuwa je)");
@@ -525,11 +870,34 @@ namespace Przegladarka
             {
                 var cm = new ContextMenu { PlacementTarget = dictB, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
                 List<string> own; lock (_swLearned) own = _swOwn.OrderBy(x => x).ToList();
+                // ➕ wlasne slowo: autokorekta go nie zmienia, pasek propozycji i przeciaganie je podsuwaja
+                var addW = new MenuItem { Header = L.T("➕ Dodaj słowo…") };
+                addW.Click += (q, w2) =>
+                {
+                    var box = new TextBox { FontSize = 18, Padding = new Thickness(8, 6, 8, 6), MinWidth = 320, BorderThickness = new Thickness(0) };
+                    var aw = new Window { Title = L.T("Dodaj słowo do Mojego słownika (Enter)"), Content = box, SizeToContent = SizeToContent.WidthAndHeight, WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize, Topmost = true, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+                    box.KeyDown += (a, b) =>
+                    {
+                        if (b.Key == Key.Escape) aw.Close();
+                        if (b.Key != Key.Enter) return;
+                        var nw = box.Text.Trim().ToLowerInvariant();
+                        keepWord(nw);
+                        aw.Close();
+                    };
+                    aw.Loaded += (a, b) => { _physPause = true; aw.Activate(); box.Focus(); };
+                    aw.Closed += (a, b) => _physPause = false;
+                    aw.Show();
+                };
+                cm.Items.Add(addW);
                 cm.Items.Add(new MenuItem { Header = own.Count == 0 ? L.T("Mój słownik jest pusty – słowa wpisane literami dopiszą się same") : L.T("Mój słownik (klik usuwa): ") + own.Count, IsEnabled = false });
                 foreach (var w0 in own.Take(200))
                 {
                     var wd = w0; var mi = new MenuItem { Header = wd };
-                    mi.Click += (q, w2) => { lock (_swLearned) { _swOwn.Remove(wd); _swLearned.Remove(wd); SwipeTyping.RemoveUserWord(wd); SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); } };
+                    mi.Click += (q, w2) =>
+                    {
+                        lock (_swLearned) { _swOwn.Remove(wd); _swLearned.Remove(wd); SwipeTyping.RemoveUserWord(wd); SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
+                        bool rem; lock (noFix) rem = noFix.Remove(wd); if (rem) SetPref("klawiatura-bez-korekty", string.Join("|", noFix));
+                    };
                     cm.Items.Add(mi);
                 }
                 cm.IsOpen = true;
@@ -599,7 +967,24 @@ namespace Przegladarka
                     b.Tag = br; b.Background = br;
                 }
             };
-            var keys = new Grid(); keys.Children.Add(root);
+            // klawiatura numeryczna po prawej (wykorzystuje wolne miejsce obok liter): cyfry, dzialania, Enter
+            var numPad = new StackPanel { Margin = new Thickness(0, 10, 10, 10), VerticalAlignment = VerticalAlignment.Bottom };
+            // nad cyframi: kopiuj, wklej, cofnij, ponow (Ctrl+C / V / Z / Y w oknie, w ktorym piszesz)
+            var editRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+            foreach (var (g, tip, vk) in new[] { ("\uE8C8", L.T("Kopiuj (Ctrl+C)"), (ushort)0x43), ("\uE77F", L.T("Wklej (Ctrl+V)"), (ushort)0x56), ("\uE7A7", L.T("Cofnij (Ctrl+Z)"), (ushort)0x5A), ("\uE7A6", L.T("Ponów (Ctrl+Y)"), (ushort)0x59) })
+            { var kb2 = key(ico(g, null), 46); kb2.ToolTip = tip; var v2 = vk; kb2.Click += (s, e) => SendCombo(0x11, v2); editRow.Children.Add(kb2); }
+            numPad.Children.Add(editRow);
+            foreach (var nr in new[] { "789/", "456*", "123-", "0.,+" })
+            {
+                var nrow = new StackPanel { Orientation = Orientation.Horizontal };
+                foreach (var c0 in nr) { var c = c0; var nb = key(c.ToString(), 46); nb.Click += (s, e) => tap(0, c); nrow.Children.Add(nb); }
+                numPad.Children.Add(nrow);
+            }
+            var numEnter = key("⏎", 196); numEnter.Background = accent; numEnter.Foreground = accentText; numEnter.ToolTip = L.T("Enter – zatwierdź / nowa linia"); numEnter.Click += (s, e) => tap(0x0D, '\0');
+            numPad.Children.Add(numEnter);
+            numPad.Visibility = GetPref("klawiatura-numeryczna") == "0" ? Visibility.Collapsed : Visibility.Visible;
+            var keysRow = new StackPanel { Orientation = Orientation.Horizontal }; keysRow.Children.Add(root); keysRow.Children.Add(numPad);
+            var keys = new Grid(); keys.Children.Add(keysRow);
             // pisanie przeciagnieciem: slad w gradiencie logo; lekki (punkty co kilka px, bez efektow) - plynny przy ruchu myszy
             var trailC = new Canvas { IsHitTestVisible = false };
             var trail = new System.Windows.Shapes.Polyline { Stroke = new LinearGradientBrush(violet, cyan, 0), StrokeThickness = 7, Opacity = 0.85,
@@ -625,7 +1010,7 @@ namespace Przegladarka
             // pad: ramka na wybranym klawiszu, odczyt pada 60 razy na sekunde tylko gdy 🎮 wlaczone i klawiatura otwarta
             var padSel = new Border { BorderThickness = new Thickness(2.5), CornerRadius = new CornerRadius(9), BorderBrush = new LinearGradientBrush(violet, cyan, 0), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
             trailC.Children.Add(padSel);
-            int padR = 2, padC = 5; ushort padPrev = 0; DateTime padNext = DateTime.MinValue; int padDir = 0;
+            bool padUsed = false; int padR = 2, padC = 5; ushort padPrev = 0; DateTime padNext = DateTime.MinValue; int padDir = 0;
             Func<List<List<Button>>> padRows = () => root.Children.OfType<StackPanel>().Select(rw => rw.Children.OfType<Button>().Where(b => b.IsVisible).ToList()).Where(l => l.Count > 0).ToList();
             Action padShow = () =>
             {
@@ -652,8 +1037,10 @@ namespace Przegladarka
             {
                 PadState st = default; bool ok = false;
                 try { for (int i = 0; i < 4 && !ok; i++) ok = XInputGetState(i, out st) == 0; } catch (Exception) { padTimer.Stop(); return; }   // brak XInput w systemie
-                if (!ok) return;
+                if (!ok) { padSel.Visibility = Visibility.Collapsed; return; }
                 ushort bt = st.Buttons;
+                if (st.Buttons != 0 || Math.Abs((int)st.LX) > 16000 || Math.Abs((int)st.LY) > 16000) padUsed = true;
+                padSel.Visibility = padUsed ? Visibility.Visible : Visibility.Collapsed;   // ramka dopiero po uzyciu pada (Windows czasem zglasza pad, ktorego nikt nie uzywa)
                 // galka jak krzyzak
                 if (st.LY > 16000) bt |= 0x1; if (st.LY < -16000) bt |= 0x2; if (st.LX < -16000) bt |= 0x4; if (st.LX > 16000) bt |= 0x8;
                 if (st.LT > 120) bt |= 0x0800;   // LT jako przycisk (nieuzywany bit)
@@ -680,7 +1067,7 @@ namespace Przegladarka
             {
                 bool on = GetPref("klawiatura-pad") == "1";
                 padB.Background = on ? accent : Brushes.Transparent;
-                padSel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                if (!on) padSel.Visibility = Visibility.Collapsed;
                 if (on) { padShow(); padTimer.Start(); } else padTimer.Stop();
             };
             padB.Click += (s, e) => { SetPref("klawiatura-pad", GetPref("klawiatura-pad") == "1" ? "0" : "1"); padApply(); };
@@ -723,12 +1110,13 @@ namespace Przegladarka
                 System.Threading.Tasks.Task.Run(() => SwipeTyping.Recognize(pts, centers, kw, learnedCopy, 4, prevWord)).ContinueWith(t =>
                 {
                     if (t.IsFaulted || t.Result.Count == 0) return;
-                    var found = t.Result.Select(x => upper ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
+                    bool up0 = upper || capNext && GetPref("klawiatura-korekta") != "0" && !SecretField(); capNext = false; lastSent = ' ';   // po ". " wielka litera
+                    var found = t.Result.Select(x => up0 ? char.ToUpper(x[0]) + x.Substring(1) : x).ToList();
                     learn(cur); cur = "";
                     foreach (var ch in found[0]) SendKey(0, ch); SendKey(0, ' ');
                     prevBeforeSwipe = prevWord;
                     bool unsure = SwipeTyping.LastUncertain && found.Count > 1;
-                    ask.Visibility = unsure ? Visibility.Visible : Visibility.Collapsed; title.Visibility = unsure ? Visibility.Collapsed : Visibility.Visible;
+                    ask.Text = L.T("Poprawić na:"); ask.Visibility = unsure ? Visibility.Visible : Visibility.Collapsed; title.Visibility = unsure ? Visibility.Collapsed : Visibility.Visible;
                     lastTrace = pts; if (!SecretField()) SwipeTyping.LearnShape(found[0], pts, lastKeyW);   // nauka Twojego ruchu (nie w polu hasla)
                     learn(found[0]); say(found[0]); lastSwipe = found[0];
                     if (shift) { shift = false; refresh(); }
@@ -741,15 +1129,26 @@ namespace Przegladarka
                 }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
             };
             var all = new DockPanel(); DockPanel.SetDock(head, Dock.Top); all.Children.Add(head); all.Children.Add(keys);
+            bool seeThrough = SavedAlpha(L.T("Klawiatura Velivo")) < 0.999;   // przezroczysta tylko na zyczenie - nieprzezroczysta rysuje slad plynniej
             var w = new Window
             {
-                Title = L.T("Klawiatura Velivo"), WindowStyle = WindowStyle.None, Background = new SolidColorBrush(Color.FromRgb(0x19, 0x1B, 0x33)), ResizeMode = ResizeMode.CanResize,   // bez przezroczystosci okna - rysowanie na karcie graficznej, plynny slad
-                SizeToContent = SizeToContent.WidthAndHeight, Topmost = true, ShowActivated = false, ShowInTaskbar = false,
+                Title = L.T("Klawiatura Velivo"), AllowsTransparency = seeThrough, WindowStyle = WindowStyle.None, Background = seeThrough ? Brushes.Transparent : new SolidColorBrush(Color.FromRgb(0x19, 0x1B, 0x33)), ResizeMode = ResizeMode.CanResize,   // bez przezroczystosci okna - rysowanie na karcie graficznej, plynny slad
+                SizeToContent = SizeToContent.WidthAndHeight, Topmost = GetPref("klawiatura-wierzch") == "1", ShowActivated = false, ShowInTaskbar = false,
                 Content = new Border { Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromRgb(0x1E, 0x18, 0x38), 0), new GradientStop(Color.FromRgb(0x19, 0x1B, 0x33), 0.55), new GradientStop(Color.FromRgb(0x13, 0x2A, 0x35), 1) }, new Point(0, 0), new Point(1, 1)),
                     CornerRadius = new CornerRadius(14), BorderBrush = new LinearGradientBrush(Color.FromArgb(0x90, 0x8B, 0x5C, 0xF6), Color.FromArgb(0x90, 0x06, 0xB6, 0xD4), 45), BorderThickness = new Thickness(1), Child = new Viewbox { Child = all, Stretch = Stretch.Fill } }   // klawisze wypelniaja okno - szerokosc i wysokosc ustawiasz niezaleznie
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };
             close.Click += (s, e) => Sail(w, all, false, w.Close); close.ToolTip = L.T("Zamknij klawiaturę");
+            minB.Click += (s, e) => Sail(w, all, false, w.Hide);
+            Action alphaShow = () => alphaText.Text = (int)Math.Round(WindowAlpha(w) * 100) + "%";
+            alphaPlus.Click += (s, e) => { SetWindowAlpha(w, WindowAlpha(w) + 0.05); alphaShow(); };
+            alphaMinus.Click += (s, e) =>
+            {
+                SetWindowAlpha(w, WindowAlpha(w) - 0.05); alphaShow();
+                if (!w.AllowsTransparency) { var t = _kbdTarget; w.Close(); ShowScreenKeyboard(t); }   // pierwsze sciszenie widocznosci: klawiatura otwiera sie od nowa jako przezroczysta (Windows nie zmienia tego w otwartym oknie)
+            };
+            w.Loaded += (s, e) => alphaShow();
+            pinB.Click += (s, e) => { bool on = GetPref("klawiatura-wierzch") != "1"; SetPref("klawiatura-wierzch", on ? "1" : "0"); w.Topmost = on; pinShow(); };
             // brzegi i rogi do zmiany rozmiaru (okno bez ramki) - szerokosc i wysokosc dowolnie, mysza
             System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome { ResizeBorderThickness = new Thickness(7), CaptionHeight = 0, GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(14), UseAeroCaptionButtons = false });
             w.SourceInitialized += (s, e) =>
@@ -773,18 +1172,15 @@ namespace Przegladarka
                 var sz = (GetPref("klawiatura-rozmiar") ?? "").Split(';');
                 if (sz.Length == 2 && double.TryParse(sz[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sw) && double.TryParse(sz[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sh))
                 { w.Width = Math.Max(w.MinWidth, Math.Min(wa.Width, sw)); w.Height = Math.Max(w.MinHeight, Math.Min(wa.Height, sh)); }
-                else { w.Width = wa.Width * 0.33; w.Height = w.Width * nh / nw; }
-                // zapamietane miejsce (gdy na ekranie), a pierwszy raz: na dole ekranu, na srodku
+                else { w.Width = Math.Min(wa.Width * 0.9, 640); w.Height = w.Width * nh / nw; }   // na start ok. 640 punktow szerokosci
+                // zawsze w prawym dolnym rogu, tuz nad paskiem zadan
                 double ww = double.IsNaN(w.Width) ? nw : w.Width, wh = double.IsNaN(w.Height) ? nh : w.Height;
-                var p = (GetPref("klawiatura-poz") ?? "").Split(';');
-                if (p.Length == 2 && double.TryParse(p[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x) && double.TryParse(p[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y)
-                    && x >= SystemParameters.VirtualScreenLeft && y >= SystemParameters.VirtualScreenTop && x + 120 <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth && y + 60 <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight) { w.Left = x; w.Top = y; }
-                else { w.Left = wa.Left + (wa.Width - ww) / 2; w.Top = wa.Bottom - wh - 10; }
+                w.Left = wa.Right - ww - 10; w.Top = wa.Bottom - wh - 10;   // prawy dolny rog, nad zegarem
                 AvoidField(w);
                 Sail(w, all, true, null);
             };
-            w.Closing += (s, e) => SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.ActualHeight.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            w.Closing += (s, e) => SetPref("klawiatura-poz", w.Left.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.Top.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // rozmiar zapisywany od razu po zmianie (takze gdy Velivo zamknie sie z otwarta klawiatura)
+            w.SizeChanged += (s, e) => { if (w.IsLoaded && w.SizeToContent == SizeToContent.Manual) SetPref("klawiatura-rozmiar", w.ActualWidth.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";" + w.ActualHeight.ToString(System.Globalization.CultureInfo.InvariantCulture)); };
             // pisanie na zwyklej klawiaturze: na ekranie fala na tym samym klawiszu (nic nie jest zapisywane; w polu hasla - nic)
             foreach (var (b, c) in letters) if (char.IsLetterOrDigit(c)) vkKeys[char.ToUpperInvariant(c)] = b;
             vkKeys[0x14] = capsB; vkKeys[0xA0] = vkKeys[0xA1] = vkKeys[0x10] = shiftB;
@@ -794,8 +1190,24 @@ namespace Przegladarka
                 if ((DateTime.UtcNow - secretAt).TotalMilliseconds > 800) { secret = SecretField(); secretAt = DateTime.UtcNow; }   // sprawdzane najwyzej co 0,8 s
                 if (!secret && vkKeys.TryGetValue(vk, out var kb)) wave?.Invoke(kb);
             };
+            // zwykla klawiatura: autokorekta w podsluchu (PhysKey); pole hasla sprawdzane co 0,3 s - tam nic nie poprawiamy
+            _physSecret = true;
+            var secretTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            // bez pisania przez 20 s - nie pytamy Windows co 0,3 s (mniej obciazenia, bez przycinek); wtedy bezpiecznie "pole hasla" do pierwszego sprawdzenia
+            secretTimer.Tick += (s, e) => { if (Environment.TickCount64 - _pLast > 20000 && Environment.TickCount64 - _tapLast > 20000) { _physSecret = true; return; } try { _physSecret = SecretField(); } catch (Exception) { _physSecret = true; } };
+            secretTimer.Start();
+            _physNotify = (from, to) => { ask.Text = L.T("Poprawiono: ") + from + " → " + to + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed; };
+            _physUndone = (from, to) =>
+            {
+                keepWord(from);
+                ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
+            };
+            _physAsk = word => { if (GetPref("klawiatura-korekta") == "0" || _physSecret) return; List<string> sg; lock (noFix) sg = SwipeTyping.Suggest(word, noFix); if (sg.Count > 0) askFix(word, sg); };
+            _physPred = (wd, dn) => { if (dn && wd != null) learn(wd); predShow(wd, dn); };   // najpierw nauka (poprzednie slowa), potem propozycje   // zwykla klawiatura: skonczone slowo tez uczy (czesto pisane - wyzej w propozycjach)
+            SwipeTyping.UseCount = wd => { lock (_swLearned) return _swLearned.TryGetValue(wd, out var n) ? n : 0; };
+            physApply();
             StartKeyEcho();
-            w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); StopKeyEcho(); };
+            w.Closed += (s, e) => { _kbd = null; _kbdHwnd = IntPtr.Zero; padTimer.Stop(); secretTimer.Stop(); StopKeyEcho(); };
             _kbd = w; w.Show();
         }
 

@@ -179,7 +179,19 @@ namespace Przegladarka
         internal static void RestoreAlpha(Window w)
         {
             if (w.AllowsTransparency && w.Owner != null) return;   // warstwa na filmie - przezroczystosc ma okno odtwarzacza
-            if (WinBounds().TryGetValue(AlphaKey(w), out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) && a < 1) ApplyAlpha(w, Math.Max(0.2, a));
+            if (WinBounds().TryGetValue(AlphaKey(w), out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) && a < 1) ApplyAlpha(w, Math.Max(w == _kbd ? 0.1 : 0.2, a));
+        }
+
+        // przezroczystosc z przyciskow (klawiatura ekranowa - okno bez aktywacji nie dostaje rolki): 10-100%, zapamietana
+        internal static double WindowAlpha(Window w) { return _alpha.TryGetValue(w, out var cur) ? (double)cur : 1.0; }
+        internal static double SavedAlpha(string title) { return WinBounds().TryGetValue("przezroczystosc:" + WindowKey(title), out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var a) ? Math.Max(0.1, Math.Min(1, a)) : 1.0; }
+        internal static void SetWindowAlpha(Window w, double a)
+        {
+            a = Math.Round(Math.Max(0.1, Math.Min(1.0, a)), 2);
+            ApplyAlpha(w, a);
+            WinBounds()[AlphaKey(w)] = a.ToString(CultureInfo.InvariantCulture);
+            try { Directory.CreateDirectory(DataDir); File.WriteAllLines(WindowsFile, WinBounds().Select(kv => kv.Key + "\t" + kv.Value)); }
+            catch (Exception ex) { App.LogError(ex); }
         }
 
         internal static void AlphaWheel(object sender, MouseWheelEventArgs e)

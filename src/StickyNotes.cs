@@ -30,12 +30,17 @@ namespace Przegladarka
             public bool Top { get; set; }
             public bool Free { get; set; }
             public bool Open { get; set; }
-            public string Seen { get; set; }   // dzien (yyyy-MM-dd), w ktorym przypomnienie o terminie zostalo juz obejrzane   // przypieta i rozwinieta przez uzytkownika - po starcie wraca rozwinieta   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
+            public string Seen { get; set; }
+            public string Repeat { get; set; }   // powtarzanie terminu: "7d" (co 7 dni), "1m" (co miesiac), "1y" (co rok); puste - jednorazowo   // dzien (yyyy-MM-dd), w ktorym przypomnienie o terminie zostalo juz obejrzane   // przypieta i rozwinieta przez uzytkownika - po starcie wraca rozwinieta   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
         }
 
         // termin w tresci karteczki (12.05.2026, 12.05, 2026-05-12, 12/05/2026): 2 - dzis, 1 - jutro, 0 - brak
-        internal static int NoteDue(string text, DateTime today)
+        internal static int NoteDue(string text, DateTime today, string repeat = null)
         {
+            // powtarzanie: kolejny termin od daty z tresci co N dni / miesiecy / lat (17.10 + co 7 dni -> 24.10, 31.10...)
+            int every = 0; char unit = 'd';
+            if (!string.IsNullOrEmpty(repeat) && repeat.Length > 1 && int.TryParse(repeat.Substring(0, repeat.Length - 1), out every) && every > 0) unit = repeat[repeat.Length - 1]; else every = 0;
+            Func<DateTime, DateTime> next = dt => unit == 'm' ? dt.AddMonths(every) : unit == 'y' ? dt.AddYears(every) : dt.AddDays(every);
             if (string.IsNullOrEmpty(text)) return 0;
             int best = 0;
             foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text, @"(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)|(?<![\d.])(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?![\d/])"))
@@ -45,6 +50,7 @@ namespace Przegladarka
                 else { d = int.Parse(m.Groups[4].Value); mo = int.Parse(m.Groups[5].Value); y = m.Groups[6].Success ? int.Parse(m.Groups[6].Value) : today.Year; if (y < 100) y += 2000; }
                 if (y < 1 || y > 9999 || mo < 1 || mo > 12 || d < 1 || d > DateTime.DaysInMonth(y, mo)) continue;
                 var dt = new DateTime(y, mo, d);
+                for (int i = 0; every > 0 && dt < today.Date && i < 20000; i++) dt = next(dt);   // pierwszy termin od dzis
                 if (dt == today.Date) return 2;
                 if (dt == today.Date.AddDays(1)) best = 1;
             }
@@ -197,7 +203,14 @@ namespace Przegladarka
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             foreach (var b in new[] { open, dock, pin, paint, add, del }) btns.Children.Add(b);
             var head = new DockPanel { Height = 30, Background = new SolidColorBrush(Color.FromArgb(28, 0, 0, 0)), Cursor = Cursors.SizeAll };
-            DockPanel.SetDock(btns, Dock.Right); head.Children.Add(btns); head.Children.Add(title);
+            // 🔁 powtarzanie terminu (obok ikony karteczki): jednorazowo, co tydzien, co 2 tygodnie, co miesiac, co rok albo wlasny odstep
+            var rep = headBtn("🔁", ""); rep.HorizontalAlignment = HorizontalAlignment.Left; rep.Margin = new Thickness(6, 0, 0, 0);
+            Func<string, string> repName = r => string.IsNullOrEmpty(r) ? L.T("jednorazowo") : r == "7d" ? L.T("co tydzień") : r == "14d" ? L.T("co 2 tygodnie") : r == "1m" ? L.T("co miesiąc") : r == "1y" ? L.T("co rok")
+                : r.EndsWith("d") ? string.Format(L.T("co {0} dni"), r.TrimEnd('d')) : r.EndsWith("m") ? string.Format(L.T("co {0} mies."), r.TrimEnd('m')) : string.Format(L.T("co {0} lat(a)"), r.TrimEnd('y'));
+            Action repShow = () => { rep.Opacity = string.IsNullOrEmpty(n.Repeat) ? 0.45 : 1; rep.ToolTip = L.T("Powtarzanie terminu z treści karteczki: ") + repName(n.Repeat); };
+            repShow();
+            var titleRow = new StackPanel { Orientation = Orientation.Horizontal }; titleRow.Children.Add(title); titleRow.Children.Add(rep);
+            DockPanel.SetDock(btns, Dock.Right); head.Children.Add(btns); head.Children.Add(titleRow);
             var box = new TextBox
             {
                 Text = n.Text ?? "", AcceptsReturn = true, AcceptsTab = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -285,7 +298,7 @@ namespace Przegladarka
             bool pulsing = false;
             Action dueCheck = () =>
             {
-                var today = DateTime.Today; int due = NoteDue(n.Text, today);
+                var today = DateTime.Today; int due = NoteDue(n.Text, today, n.Repeat);
                 bool on = due > 0 && n.Seen != today.ToString("yyyy-MM-dd");
                 title.ToolTip = due == 2 ? L.T("⏰ Termin dziś") : due == 1 ? L.T("⏰ Termin jutro") : L.T(k[2]);
                 if (on == pulsing) return; pulsing = on;
@@ -298,6 +311,37 @@ namespace Przegladarka
             var dueTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) }; dueTimer.Tick += (s, e) => dueCheck(); dueTimer.Start();   // nowy dzien - jutro staje sie dzis
             w.Closed += (s, e) => dueTimer.Stop();
             dueCheck();
+            rep.Click += (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = rep };
+                Action<string> set = r => { n.Repeat = r; SaveNotes(); repShow(); dueCheck(); };
+                foreach (var r in new[] { "", "7d", "14d", "1m", "1y" })
+                { var r0 = r; var mi = new MenuItem { Header = repName(r0), IsCheckable = true, IsChecked = (n.Repeat ?? "") == r0 }; mi.Click += (a, b) => set(r0); cm.Items.Add(mi); }
+                cm.Items.Add(new Separator());
+                var own = new MenuItem { Header = L.T("Własny odstęp…") };
+                own.Click += (a, b) =>
+                {   // co N dni / tygodni / miesiecy / lat
+                    var num = new TextBox { Width = 60, Text = "10", Margin = new Thickness(0, 0, 8, 0), VerticalContentAlignment = VerticalAlignment.Center };
+                    var unitBox = new ComboBox { Width = 120 };
+                    foreach (var u in new[] { L.T("dni"), L.T("tygodni"), L.T("miesięcy"), L.T("lat") }) unitBox.Items.Add(u);
+                    unitBox.SelectedIndex = 0;
+                    var ok = new Button { Content = "OK", Width = 70, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
+                    var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12) };
+                    row.Children.Add(new TextBlock { Text = L.T("Co"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+                    row.Children.Add(num); row.Children.Add(unitBox); row.Children.Add(ok);
+                    var dlg = new Window { Title = L.T("Powtarzaj termin"), Content = row, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = w, WindowStartupLocation = WindowStartupLocation.CenterOwner, Topmost = true, ShowInTaskbar = false };
+                    ok.Click += (c, d) =>
+                    {
+                        if (!int.TryParse(num.Text.Trim(), out var v) || v < 1 || v > 999) { num.Focus(); num.SelectAll(); return; }
+                        set(unitBox.SelectedIndex == 1 ? (v * 7) + "d" : unitBox.SelectedIndex == 2 ? v + "m" : unitBox.SelectedIndex == 3 ? v + "y" : v + "d");
+                        dlg.Close();
+                    };
+                    dlg.Loaded += (c, d) => { num.Focus(); num.SelectAll(); };
+                    dlg.ShowDialog();
+                };
+                cm.Items.Add(own);
+                cm.IsOpen = true;
+            };
             w.Closed += (s, e) => _noteWindows.Remove(n);
             _noteWindows[n] = w;
             if (!n.Free) head.Cursor = Cursors.Hand;

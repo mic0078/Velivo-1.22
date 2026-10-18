@@ -1459,6 +1459,11 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 ### 30.3 Przypomnienie o terminie
 - **Co robi:** gdy w treści jest data (19.10.2026, 19.10, 2026-10-19), dzień wcześniej i w dniu terminu ikona mruga, a pasek pulsuje, aż otworzysz karteczkę.
 
+### 30.4 Powtarzanie terminu
+- **Gdzie:** przycisk 🔁 obok ikony karteczki.
+- **Jak używać:** wybierz: jednorazowo, co tydzień, co 2 tygodnie, co miesiąc, co rok albo „Własny odstęp…” (co N dni, tygodni, miesięcy lub lat).
+- **Co robi:** od daty z treści liczy kolejne terminy – np. „17.10.2026 insulina” co tydzień przypomni 24.10, 31.10 i dalej. Przy włączonym powtarzaniu ikona 🔁 jest wyraźna, a podpowiedź pokazuje odstęp.
+
 # Funkcje NIE DOSTĘPNE W 1.22
 
 Poniższe rzeczy były omawiane, ale **w wersji 1.22 ich nie ma**:
@@ -1472,7 +1477,7 @@ Poniższe rzeczy były omawiane, ale **w wersji 1.22 ich nie ma**:
 
 # PEŁNA LISTA FUNKCJI VELIVO 1.22
 
-Opisanych funkcji: **289**. Numer przy funkcji wskazuje jej opis w podręczniku. Pozycje, które w podręczniku są tylko odsyłaczami do innego miejsca (40), nie są tu liczone drugi raz.
+Opisanych funkcji: **290**. Numer przy funkcji wskazuje jej opis w podręczniku. Pozycje, które w podręczniku są tylko odsyłaczami do innego miejsca (40), nie są tu liczone drugi raz.
 
 
 ## 1. Pierwsze uruchomienie
@@ -1858,3 +1863,4 @@ Opisanych funkcji: **289**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **30.1** Nowa karteczka
 - **30.2** Karteczki nad paskiem zadań
 - **30.3** Przypomnienie o terminie
+- **30.4** Powtarzanie terminu

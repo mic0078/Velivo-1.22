@@ -244,7 +244,7 @@ A **pinned tab** is not closed by the ↓ gesture (just like it has no close but
 
 - The 🗒 button on the keyboard: a new note (plain, to-do, shopping, call, important, idea, today) or show all.
 - Docked above the taskbar side by side; click the bar to expand upward, 📎 undocks to the desktop, 🎨 color, 📌 always on top, 📅 inserts a date, double-click a line to tick it.
-- **⏰ Reminder:** when a note contains a date (19.10.2026, 19.10, 2026-10-19), its icon blinks and its bar pulses the day before and on the day until you open it.
+- **⏰ Reminder:** when a note contains a date (19.10.2026, 19.10, 2026-10-19), its icon blinks and its bar pulses the day before and on the day until you open it. **🔁** next to the note icon sets the date to repeat – one-off, weekly, every 2 weeks, monthly, yearly or a custom interval in days, weeks, months or years – so one date is enough, e.g. "17.10.2026 insulin" weekly reminds you on 24.10, 31.10 and so on.
 
 ## 7. Tabs
 

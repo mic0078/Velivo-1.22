@@ -1461,6 +1461,11 @@ You open Settings with the ⚙ button. Below is every option in the window's ord
 ### 30.3 Due-date reminder
 - **What it does:** when a note contains a date (19.10.2026, 19.10, 2026-10-19), its icon blinks and its bar pulses the day before and on the day until you open the note.
 
+### 30.4 Repeating the date
+- **Where:** the 🔁 button next to the note icon.
+- **How to use:** choose: one-off, weekly, every 2 weeks, monthly, yearly or "Custom interval…" (every N days, weeks, months or years).
+- **What it does:** counts the next dates from the date in the note – e.g. "17.10.2026 insulin" weekly reminds you on 24.10, 31.10 and so on. With repeating on, the 🔁 icon is bright and its tooltip shows the interval.
+
 # Features NOT AVAILABLE IN 1.22
 
 These things were discussed, but **version 1.22 doesn't have them**:
@@ -1474,7 +1479,7 @@ These things were discussed, but **version 1.22 doesn't have them**:
 
 # FULL LIST OF VELIVO 1.22 FEATURES
 
-Features described: **338**. The number next to each feature points to its description in the handbook.
+Features described: **339**. The number next to each feature points to its description in the handbook.
 
 ## 1. First start
 
@@ -1903,3 +1908,4 @@ Features described: **338**. The number next to each feature points to its descr
 - **30.1** A new note
 - **30.2** Notes above the taskbar
 - **30.3** Due-date reminder
+- **30.4** Repeating the date

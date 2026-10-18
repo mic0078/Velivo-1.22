@@ -61,7 +61,7 @@ Hasła są szyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). 
 
 | Kafelek | Co robi |
 | --- | --- |
-| Blokuj reklamy | Te same listy co na komputerze (EasyList, EasyPrivacy, KAD), odświeżane co 4 dni; na YouTube bez reklam |
+| Blokuj reklamy | Te same listy co na komputerze (EasyList, EasyPrivacy, KAD) – dołączone do aplikacji, odświeżane co 4 dni. Po reklamie nie zostaje puste pole ani błąd w ramce (reguły ukrywania jak w uBlock Origin); na YouTube bez reklam |
 | Odtwarzanie w tle | Film / muzyka grają po wyjściu z aplikacji (powiadomienie z „Zatrzymaj”) |
 | Motyw | Jak w telefonie / jasny / ciemny – w kolorach Velivo |
 | Synchronizacja z komputerem | Parowanie, plik odzyskiwania, nazwa telefonu w sieci |

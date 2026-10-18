@@ -91,6 +91,9 @@ namespace Przegladarka
                     SwipeTyping.Load(words);
                     // dawniej do Mojego slownika trafialy tez literowki (zolw, zzolw) - pisanie przeciagnieciem je podsuwalo: usuwamy je
                     var mine = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));   // dodane recznie / cofniete poprawki - zawsze zostaja
+                    // bledna pisownia (napewno, niewiem) - usuwana zawsze, takze dodana recznie / cofnieta
+                    var bad = mine.Where(SwipeTyping.IsMisspelling).ToList();
+                    if (bad.Count > 0) { mine.ExceptWith(bad); SetPref("klawiatura-bez-korekty", string.Join("|", mine)); }
                     var typos = own.Where(w => !mine.Contains(w) && SwipeTyping.IsTypo(w)).ToList();
                     foreach (var w in typos) { own.Remove(w); learned.Remove(w); }
                     if (typos.Count > 0) SwipeTyping.SaveLearned(SwipeFile, learned, own);
@@ -406,7 +409,7 @@ namespace Przegladarka
             var corr = _physCorrect; _tapLast = Environment.TickCount64;   // pisanie trwa - sprawdzanie pola hasla aktywne
             if (corr == null || _physSecret || _physPause) { PhysReset(); return false; }
             if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;   // same modyfikatory - bez zmian
-            long now = Environment.TickCount64; if (now - _pLast > 4000) PhysReset(); _pLast = now;
+            long now = Environment.TickCount64; if (now - _pLast > 60000) PhysReset(); _pLast = now;
             bool sh = GetAsyncKeyState(0x10) < 0, ctrl = GetAsyncKeyState(0x11) < 0, alt = GetAsyncKeyState(0x12) < 0, caps = (GetKeyState(0x14) & 1) != 0;
             if (vk == 0x08 && ctrl && !alt)
             {   // Ctrl+Backspace (lewy albo prawy): usun slowo przed kursorem - takze w programach, ktore tego nie umieja
@@ -569,7 +572,7 @@ namespace Przegladarka
             // autokorekta (przycisk w naglowku, domyslnie wlaczona): po spacji / Enterze / znaku slowo spoza slownika -> poprawione,
             // ⌫ zaraz potem przywraca to, co wpisano; nigdy w polu hasla
             string fixFrom = null, fixTo = null;
-            var noFix = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));
+            var noFix = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0 && !SwipeTyping.IsMisspelling(x)));   // bez blednej pisowni (napewno) - ta jest zawsze poprawiana
             // slowo swiadomie zostawione (cofnieta poprawka, Dodaj slowo): bez poprawiania, do Mojego slownika (propozycje, przeciaganie), nigdy usuwane jako literowka
             Action<string> keepWord = kw =>
             {

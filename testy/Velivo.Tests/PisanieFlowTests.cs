@@ -144,6 +144,10 @@ public class PisanieFlowTests
         Assert.Equal("w ogóle", SwipeTyping.Correct("wogole"));
         Assert.Equal("naprawdę", SwipeTyping.JoinPair("na", "prawdę"));
         Assert.Null(SwipeTyping.JoinPair("na", "pewno"));
+        Assert.True(SwipeTyping.IsTypo("napewno"));                  // bledna pisownia nie trafia do Mojego slownika
+        SwipeTyping.AddUserWord("napewno");                          // dawniej wyuczona - i tak poprawiana
+        Assert.Equal("na pewno", SwipeTyping.Correct("napewno"));
+        Assert.False(SwipeTyping.IsMisspelling("dobry"));
     }
 
     [Fact]

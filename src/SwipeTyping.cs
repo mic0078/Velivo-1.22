@@ -209,7 +209,9 @@ namespace Przegladarka
         }
 
         // literowka znanego slowa (zolw, zzolw) - nie do Mojego slownika; slowo z polskimi znakami (klawiaturą) piszesz swiadomie - to nie literowka
-        internal static bool IsTypo(string w) { return !string.IsNullOrEmpty(w) && w.IndexOfAny("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ".ToCharArray()) < 0 && Correct(w, null, true) != null; }
+        internal static bool IsTypo(string w) { return !string.IsNullOrEmpty(w) && (IsMisspelling(w) || w.IndexOfAny("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ".ToCharArray()) < 0 && Correct(w, null, true) != null); }
+        // bledna pisownia (napewno, niewiem) - nigdy do Mojego slownika ani do slow bez poprawiania
+        internal static bool IsMisspelling(string w) { var c = string.IsNullOrEmpty(w) ? null : Correct(w); return c != null && c.Contains(' '); }
 
         // czasownik (po koncowce albo jedna z najczestszych form) - z "nie" zawsze osobno (slownik z tekstow ma tez bledy: niewiem, niemam)
         static readonly HashSet<string> _verbs = new HashSet<string> { "ma", "jest", "są", "może", "musi", "chce", "wie", "będzie", "było", "trzeba", "wolno", "umie", "zna", "lubi", "widzi", "mówi", "robi", "idzie", "je", "pije", "śpi", "daje", "da", "żyje", "działa", "pasuje", "wiadomo", "warto", "boli", "mam", "wiem", "umiem", "jem", "dam", "znam", "chcę", "mogę", "lubię", "rozumiem", "pamiętam" };

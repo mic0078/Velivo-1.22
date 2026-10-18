@@ -412,6 +412,23 @@ namespace Velivo
 
         Window _libWin;
         Action _libRefresh;
+
+        // Odswiezenie z Jellyfin (przycisk 🔄 i samo co interwal): dane filmow, nowe filmy do biblioteki, raport niedostepnych;
+        // askOwner != null - od razu pytanie o filmy usuniete z Jellyfin. Zwraca tekst dymka.
+        async System.Threading.Tasks.Task<string> JellyfinRefreshAsync(JellyfinConf jc, bool shared, bool tvView, Window askOwner)
+        {
+            var syncMsg = await System.Threading.Tasks.Task.Run(() => SyncJellyfin(jc, _ => { }));
+            if (tvView || !File.Exists(JellyfinFilesFile)) return syncMsg;
+            var jfFiles = File.ReadAllLines(JellyfinFilesFile).ToList();
+            var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), File.Exists));
+            int n = 0;
+            if (add.Count > 0) { var l = LoadLibrary(); n = AddToLibrary(l, add, shared); SaveLibrary(l); }
+            // brakujace pliki (Jellyfin zna, tu niedostepne) - do raportu, zeby bylo widac dlaczego
+            var missing = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), p => !File.Exists(p)));
+            try { File.AppendAllLines(System.IO.Path.Combine(DataDir, "jellyfin-raport.txt"), new[] { "", "Pliki z Jellyfin niedostępne na tym komputerze (" + missing.Count + "):" }.Concat(missing.Select(m => "  " + m))); } catch (Exception) { }
+            if (askOwner != null) AskRemovedFromJellyfin(askOwner);
+            return L.T("🎬 Nowe filmy z Jellyfin: ") + n + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : "");
+        }
         bool _libSharedView;   // otwarta biblioteka: wspolna albo tego komputera
         bool _libTvView;
         List<KeyValuePair<LanPeerInfo, LanFilmItem>> _peerFilms = new List<KeyValuePair<LanPeerInfo, LanFilmItem>>();   // wspolna biblioteka innych komputerow (ostatnio wczytana)       // otwarta biblioteka "Nagrane z TV" (pliki z folderow nagran)
@@ -1005,20 +1022,8 @@ namespace Velivo
                 var jc = LoadJellyfinConf();
                 if (jc == null || string.IsNullOrEmpty(jc.Url)) return;
                 ShowToast(L.T("🔄 Pobieram dane z Jellyfin…"), null);
-                string syncMsg;
-                try { syncMsg = await System.Threading.Tasks.Task.Run(() => SyncJellyfin(jc, _ => { })); fill(); }
-                catch (Exception ex) { App.LogError(ex); ShowToast(L.T("⚠ Jellyfin: ") + ex.Message, null); return; }   // serwer wylaczony - zostaje lokalna baza
-                // nowe filmy z Jellyfin (plik dostepny tutaj) - do biblioteki, ktora jest otwarta
-                if (_libTvView || !File.Exists(JellyfinFilesFile)) { ShowToast(syncMsg, null); return; }
-                bool sh = _libSharedView;
-                var jfFiles = File.ReadAllLines(JellyfinFilesFile).ToList();
-                var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), File.Exists));
-                int n = 0;
-                if (add.Count > 0) { var l = LoadLibrary(); n = AddToLibrary(l, add, sh); SaveLibrary(l); fill(); }
-                // brakujace pliki (Jellyfin zna, tu niedostepne) - do raportu, zeby bylo widac dlaczego
-                var missing = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), p => !File.Exists(p)));
-                try { File.AppendAllLines(System.IO.Path.Combine(DataDir, "jellyfin-raport.txt"), new[] { "", "Pliki z Jellyfin niedostępne na tym komputerze (" + missing.Count + "):" }.Concat(missing.Select(m => "  " + m))); } catch (Exception) { }
-                ShowToast(L.T("🎬 Nowe filmy z Jellyfin: ") + n + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : ""), null);
+                try { ShowToast(await JellyfinRefreshAsync(jc, _libSharedView, _libTvView, win), null); fill(); }
+                catch (Exception ex) { App.LogError(ex); ShowToast(L.T("⚠ Jellyfin: ") + ex.Message, null); }   // serwer wylaczony - zostaje lokalna baza
             }));
             buttons.Children.Add(SmallButton(L.T("🎞 Jellyfin…"), () => ShowJellyfinDialog(win)));
             // opis zaznaczonego filmu (z Jellyfin): plakat, tytul, rok, ocena, gatunek, rezyser, obsada, opis

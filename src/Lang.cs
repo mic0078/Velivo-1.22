@@ -2141,6 +2141,17 @@ namespace Velivo
             // ---- okna (WindowMemory.cs) ----
             { "Tak", "Yes" },
             { "Nie", "No" },
+            // ---- Jellyfin: samo odswiezanie i filmy usuniete z Jellyfin ----
+            { "Odświeżaj bibliotekę filmów z Jellyfin samo:", "Refresh the film library from Jellyfin automatically:" },
+            { "wyłączone (tylko przyciskiem 🔄 Odśwież)", "off (only with the 🔄 Refresh button)" },
+            { "co godzinę", "every hour" },
+            { "co 6 godzin", "every 6 hours" },
+            { "raz dziennie", "once a day" },
+            { "Nowe filmy z Jellyfin trafiają do biblioteki same; o filmach usuniętych z Jellyfin Velivo zapyta przy 🔄 Odśwież", "New films from Jellyfin are added to the library automatically; Velivo asks about films removed from Jellyfin when you click 🔄 Refresh" },
+            { "🎬 Usunięte z Jellyfin: ", "🎬 Removed from Jellyfin: " },
+            { " – kliknij 🔄 Odśwież w bibliotece, aby zdecydować", " – click 🔄 Refresh in the library to decide" },
+            { "Te filmy usunięto z Jellyfin: ", "These films were removed from Jellyfin: " },
+            { "\n\nUsunąć je także z biblioteki Velivo? Pliki na dysku zostają.", "\n\nRemove them from the Velivo library too? The files on the disk stay." },
         };
     }
 }

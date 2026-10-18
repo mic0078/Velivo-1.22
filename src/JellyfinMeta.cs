@@ -34,11 +34,19 @@ namespace Velivo
             public string Poster { get; set; }   // plik plakatu w bazie (nazwa)
         }
 
-        sealed class JellyfinConf { public string Url { get; set; } public string Key { get; set; } public long Synced { get; set; } }
+        sealed class JellyfinConf
+        {
+            public string Url { get; set; }
+            public string Key { get; set; }
+            public long Synced { get; set; }
+            public int AutoHours { get; set; }   // samo odswiezanie biblioteki z Jellyfin co tyle godzin (0 = wylaczone)
+        }
 
         static string MetaDir { get { return Path.Combine(DataDir, "filmy-info"); } }
         static string MetaFile { get { return Path.Combine(MetaDir, "baza.json"); } }
         static string JellyfinFilesFile { get { return Path.Combine(MetaDir, "pliki.txt"); } }
+        // filmy, ktore zniknely z Jellyfin od ostatniego pobrania - czekaja na decyzje uzytkownika (usunac z biblioteki Velivo?)
+        static string JellyfinRemovedFile { get { return Path.Combine(MetaDir, "usuniete-z-jellyfin.txt"); } }
 
         // nowe filmy z Jellyfin, ktorych plik jest dostepny na tym komputerze, a nie ma ich w bibliotece (ten sam plik z dwoch bibliotek Jellyfin - raz)
         internal static List<string> NewJellyfinFiles(List<string> jellyfinPaths, IEnumerable<string> libraryPaths, Func<string, bool> exists)
@@ -468,6 +476,16 @@ namespace Velivo
                     rep.Append("\nFilmy w Jellyfin bez pliku o tej nazwie w bibliotece Velivo:\n");
                     foreach (var j in jfAll.Where(j => !libKeys.Contains(MetaKey(j.Path))).OrderBy(j => j.Path)) rep.Append("  " + j.Name + "   <-   " + j.Path + "\n");
                     File.WriteAllText(Path.Combine(DataDir, "jellyfin-raport.txt"), rep.ToString());
+                    // co zniknelo z Jellyfin od poprzedniego pobrania; gdy serwer zwrocil wyraznie mniej (blad, odlaczony dysk) - nic nie oznaczamy
+                    var oldFiles = File.Exists(JellyfinFilesFile) ? File.ReadAllLines(JellyfinFilesFile).ToList() : new List<string>();
+                    var nowKeys = new HashSet<string>(jfAll.Select(j => MetaKey(j.Path)));
+                    if (oldFiles.Count > 0 && jfAll.Count >= oldFiles.Count / 2)
+                    {
+                        var pending = File.Exists(JellyfinRemovedFile) ? File.ReadAllLines(JellyfinRemovedFile).ToList() : new List<string>();
+                        pending = pending.Concat(oldFiles.Where(o => !nowKeys.Contains(MetaKey(o))))
+                            .Where(o => !nowKeys.Contains(MetaKey(o))).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                        if (pending.Count > 0) File.WriteAllLines(JellyfinRemovedFile, pending); else File.Delete(JellyfinRemovedFile);
+                    }
                     File.WriteAllLines(JellyfinFilesFile, jfAll.Select(j => j.Path));   // pliki filmow Jellyfin - Odswiez w bibliotece dopisuje nowe
                 }
                 catch (Exception ex) { App.LogError(ex); }
@@ -492,6 +510,62 @@ namespace Velivo
         }
 
         // okno: adres serwera, klucz API, pobierz / uzupelnij teraz
+        // Samo odswiezanie z Jellyfin (ustawienie w oknie "🎞 Jellyfin…"): sprawdzane co 10 min, odswiezenie, gdy minal interwal.
+        System.Windows.Threading.DispatcherTimer _jellyfinTimer;
+        bool _jellyfinSyncing;
+        void StartJellyfinAutoSync()
+        {
+            if (_jellyfinTimer != null) return;
+            _jellyfinTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+            _jellyfinTimer.Tick += async (s, e) =>
+            {
+                _jellyfinTimer.Interval = TimeSpan.FromMinutes(10);
+                var c = LoadJellyfinConf();
+                if (_jellyfinSyncing || c == null || c.AutoHours <= 0 || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key)) return;
+                if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - c.Synced < c.AutoHours * 3600000L) return;
+                _jellyfinSyncing = true;
+                try
+                {
+                    var msg = await JellyfinRefreshAsync(c, false, false, null);
+                    _libRefresh?.Invoke();
+                    var removed = PendingRemovedFromJellyfin().Count;
+                    if (removed > 0) ShowToast(L.T("🎬 Usunięte z Jellyfin: ") + removed + L.T(" – kliknij 🔄 Odśwież w bibliotece, aby zdecydować"), null);
+                    else if (msg.StartsWith("🎬")) ShowToast(msg, null);
+                }
+                catch (Exception ex) { App.LogError(ex); }   // serwer wylaczony - sprobujemy przy nastepnym sprawdzeniu
+                finally { _jellyfinSyncing = false; }
+            };
+            _jellyfinTimer.Interval = TimeSpan.FromMinutes(2);   // pierwsze sprawdzenie chwile po starcie, gdy Velivo juz sie wczytalo
+            _jellyfinTimer.Start();
+        }
+
+        // filmy z biblioteki Velivo, ktore zniknely z Jellyfin
+        List<LibraryVideo> PendingRemovedFromJellyfin()
+        {
+            if (!File.Exists(JellyfinRemovedFile)) return new List<LibraryVideo>();
+            var keys = new HashSet<string>(File.ReadAllLines(JellyfinRemovedFile).Select(MetaKey));
+            return LoadLibrary().Where(v => keys.Contains(MetaKey(v.Path))).ToList();
+        }
+
+        // Pyta, czy usunac z biblioteki Velivo filmy usuniete w Jellyfin. Pliki na dysku zostaja; decyzja jest zapamietana.
+        void AskRemovedFromJellyfin(Window owner)
+        {
+            var hits = PendingRemovedFromJellyfin();
+            if (hits.Count == 0) { try { File.Delete(JellyfinRemovedFile); } catch (Exception) { } return; }
+            var names = hits.Take(15).Select(v => "• " + (MetaTitle(MetaFor(v.Path)) ?? CleanTitle(v.Title))).ToList();
+            var text = L.T("Te filmy usunięto z Jellyfin: ") + hits.Count + "\n\n" + string.Join("\n", names) +
+                (hits.Count > names.Count ? "\n… " + (hits.Count - names.Count) : "") +
+                L.T("\n\nUsunąć je także z biblioteki Velivo? Pliki na dysku zostają.");
+            if (MessageBox.Show(owner ?? this, text, "Velivo – Jellyfin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                var keys = new HashSet<string>(hits.Select(v => MetaKey(v.Path)));
+                var lib = LoadLibrary();
+                lib.RemoveAll(v => keys.Contains(MetaKey(v.Path)));
+                SaveLibrary(lib);
+            }
+            try { File.Delete(JellyfinRemovedFile); } catch (Exception) { }
+        }
+
         void ShowJellyfinDialog(Window owner)
         {
             var c = LoadJellyfinConf() ?? new JellyfinConf { Url = "http://" };
@@ -502,6 +576,12 @@ namespace Velivo
             Func<string, string, TextBox> field = (label, value) => { p.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 8, 0, 2) }); var t = new TextBox { Text = value ?? "", Padding = new Thickness(4) }; p.Children.Add(t); return t; };
             var url = field(L.T("Adres serwera (jak w przeglądarce, np. http://192.168.1.20:8096):"), c.Url);
             var key = field(L.T("Klucz API (Jellyfin: Panel sterowania → Klucze API):"), c.Key);
+            p.Children.Add(new TextBlock { Text = L.T("Odświeżaj bibliotekę filmów z Jellyfin samo:"), Margin = new Thickness(0, 8, 0, 2) });
+            var hours = new[] { 0, 1, 6, 24 };
+            var auto = new ComboBox { ItemsSource = new[] { L.T("wyłączone (tylko przyciskiem 🔄 Odśwież)"), L.T("co godzinę"), L.T("co 6 godzin"), L.T("raz dziennie") },
+                SelectedIndex = Math.Max(0, Array.IndexOf(hours, c.AutoHours)), ToolTip = L.T("Nowe filmy z Jellyfin trafiają do biblioteki same; o filmach usuniętych z Jellyfin Velivo zapyta przy 🔄 Odśwież") };
+            auto.SelectionChanged += (s, e) => { var cur = LoadJellyfinConf() ?? c; cur.AutoHours = hours[Math.Max(0, auto.SelectedIndex)]; c.AutoHours = cur.AutoHours; SaveJellyfinConf(cur); };
+            p.Children.Add(auto);
             var info = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), Text = c.Synced > 0 ? L.T("Ostatnio pobrano: ") + DateTimeOffset.FromUnixTimeMilliseconds(c.Synced).LocalDateTime.ToString("dd.MM.yyyy HH:mm") + L.T(" · filmów w bazie: ") + Meta.Count : "" };
             p.Children.Add(info);
             var ok = new Button { Content = L.T("⬇ Pobierz / uzupełnij teraz"), Height = 30, Padding = new Thickness(12, 0, 12, 0), IsDefault = true, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };

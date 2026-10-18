@@ -832,7 +832,7 @@ namespace Przegladarka
             { "Wycinanie – zaznacz fragment ekranu (narzędzie Windows)", "Snipping – select part of the screen (Windows tool)" },
             { "Szukaj w internecie przez Velivo – wpisz i naciśnij Enter", "Search the web with Velivo – type and press Enter" },
             { "Szukaj w internecie", "Search the web" },
-            { "Schowaj klawiaturę (wraca po kliknięciu rolką w pole albo przytrzymaniu rolki)", "Hide the keyboard (it comes back when you middle-click a field or hold the wheel)" },
+            { "Schowaj klawiaturę – poprawki przy pisaniu działają dalej w tle (wraca po kliknięciu rolką w pole, przytrzymaniu rolki albo ikoną przy zegarze)", "Hide the keyboard – typing corrections keep working in the background (it comes back with a middle click in a field, holding the wheel or the tray icon)" },
             { "🧠 Szukaj w treści stron…", "🧠 Search page contents…" },
             { "Wyczyść pamięć stron", "Clear page memory" },
             { "  ·  zapamiętywanie jest wyłączone w ustawieniach", "  ·  remembering is turned off in settings" },

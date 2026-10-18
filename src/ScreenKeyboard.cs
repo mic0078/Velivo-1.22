@@ -223,7 +223,7 @@ namespace Przegladarka
                     icon = System.Drawing.Icon.FromHandle(bmp.GetHicon());
                 }
                 _kbdTray = new System.Windows.Forms.NotifyIcon { Icon = icon, Text = L.T("Klawiatura Velivo – kliknij, aby pokazać / schować"), Visible = true };
-                Action toggle = () => { if (_kbd != null && _kbd.IsVisible) _kbd.Hide(); else ShowScreenKeyboard(); };
+                Action toggle = () => { if (_kbd != null && _kbd.IsVisible) { _kbdUserHid = true; _kbd.Hide(); } else ShowScreenKeyboard(); };
                 _kbdTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Application.Current?.Dispatcher.BeginInvoke(toggle); };
                 var menu = new System.Windows.Forms.ContextMenuStrip();
                 menu.Items.Add(L.T("⌨ Pokaż / schowaj klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(toggle));
@@ -237,7 +237,8 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); }
         }
 
-        internal static volatile bool _kbdAuto;   // klawiatura sama po kliknieciu w pole tekstowe (domyslnie wylaczone)
+        internal static volatile bool _kbdAuto;
+        internal static volatile bool _kbdUserHid;   // schowana przyciskiem: dziala w tle (poprawki przy pisaniu), klik w pole jej nie wyciaga   // klawiatura sama po kliknieciu w pole tekstowe (domyslnie wylaczone)
         internal static void StartGlobalKeyboardHook()
         {
             _kbdAuto = GetPref("klawiatura-sama") == "1";
@@ -257,7 +258,7 @@ namespace Przegladarka
                 else if (code >= 0 && (int)wp == 0x0202 && _kbdAuto)   // WM_LBUTTONUP: klik w pole tekstowe innego programu - klawiatura sama
                 {
                     var pt = Marshal.PtrToStructure<PointStruct>(lp);
-                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => { if (_kbd == null || !_kbd.IsVisible) CheckForeignField(pt, true); }));
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => { if ((_kbd == null || !_kbd.IsVisible) && !_kbdUserHid) CheckForeignField(pt, true); }));
                 }
                 else if (code >= 0 && (int)wp == 0x0208)   // WM_MBUTTONUP - puszczona przed czasem: bez wymuszania
                     Application.Current?.Dispatcher.BeginInvoke(new Action(() => _holdTimer.Stop()));
@@ -520,6 +521,7 @@ namespace Przegladarka
 
         static void ShowScreenKeyboard(IntPtr target)
         {
+            _kbdUserHid = false;
             _kbdTarget = target != IntPtr.Zero ? target : GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
             if (_kbd != null) { if (!_kbd.IsVisible) { var wa = SystemParameters.WorkArea; _kbd.Left = wa.Right - _kbd.ActualWidth - 10; _kbd.Top = wa.Bottom - _kbd.ActualHeight - 10; _kbd.Show(); if (_kbd.Content is Border bd && bd.Child is Viewbox vb && vb.Child is FrameworkElement fe) Sail(_kbd, fe, true, null); } _kbd.Topmost = false; _kbd.Topmost = true; _kbd.Topmost = GetPref("klawiatura-wierzch") == "1"; AvoidField(_kbd); return; }   // schowana - wraca
             LoadSwipeDictionary();
@@ -857,7 +859,7 @@ namespace Przegladarka
             head.Children.Add(close);
             // minimalizacja: klawiatura chowa sie (bez paska zadan), wraca kliknieciem rolka w pole albo przytrzymaniem rolki
             var minB = key(ico("\uE921", null), 34); minB.Height = 28; minB.FontSize = 13; minB.Background = Brushes.Transparent; DockPanel.SetDock(minB, Dock.Right);
-            minB.ToolTip = L.T("Schowaj klawiaturę (wraca po kliknięciu rolką w pole albo przytrzymaniu rolki)");
+            minB.ToolTip = L.T("Schowaj klawiaturę – poprawki przy pisaniu działają dalej w tle (wraca po kliknięciu rolką w pole, przytrzymaniu rolki albo ikoną przy zegarze)");
             head.Children.Add(minB);
             // 📌 zawsze na wierzchu (wl./wyl., zapamietane) i przezroczystosc − / + co 5% (10-100%)
             var pinB = key(ico("\uE718", null), 34); pinB.Height = 28; pinB.FontSize = 13; DockPanel.SetDock(pinB, Dock.Right);
@@ -1167,7 +1169,7 @@ namespace Przegladarka
             };
             head.MouseLeftButtonDown += (s, e) => { try { w.DragMove(); } catch (InvalidOperationException) { } };
             close.Click += (s, e) => Sail(w, all, false, w.Close); close.ToolTip = L.T("Zamknij klawiaturę");
-            minB.Click += (s, e) => Sail(w, all, false, w.Hide);
+            minB.Click += (s, e) => { _kbdUserHid = true; Sail(w, all, false, w.Hide); };
             Action alphaShow = () => alphaText.Text = (int)Math.Round(WindowAlpha(w) * 100) + "%";
             alphaPlus.Click += (s, e) => { SetWindowAlpha(w, WindowAlpha(w) + 0.05); alphaShow(); };
             alphaMinus.Click += (s, e) =>
@@ -1242,7 +1244,7 @@ namespace Przegladarka
         // pola tekstowe w oknach Velivo (wyszukiwanie, nazwy, hasla, edytowalne listy)
         internal static void KeyboardOnMiddleClick(object sender, MouseButtonEventArgs e)
         {
-            bool auto = e.ChangedButton == MouseButton.Left && _kbdAuto && (_kbd == null || !_kbd.IsVisible) && !ReferenceEquals(sender, _kbd);   // klawiatura sama po kliknieciu w pole
+            bool auto = e.ChangedButton == MouseButton.Left && _kbdAuto && !_kbdUserHid && (_kbd == null || !_kbd.IsVisible) && !ReferenceEquals(sender, _kbd);   // klawiatura sama po kliknieciu w pole
             if (e.ChangedButton != MouseButton.Middle && !auto || !KeyboardOn) return;
             var d = e.OriginalSource as DependencyObject;
             while (d != null && !(d is TextBox) && !(d is PasswordBox) && !(d is ComboBox)) d = VisualTreeHelper.GetParent(d) ?? LogicalTreeHelper.GetParent(d);

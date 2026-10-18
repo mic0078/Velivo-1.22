@@ -166,7 +166,7 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | FFmpeg | najlepsza jakość ≤1080p (MP4) i MP3 | VideoDownloader.cs | ✔ | ✔ | – |
 | Tryby: najlepsza, prosta (1 plik), M4A, MP3 | | VideoDownloader.cs 206 | ✔ | ✔ | – |
 | Wybór folderu filmów (zapamiętany) | | VideoDownloader.cs 97 | ✔ | ✔ | – |
-| Napisy | **brak** | – | – | – | – |
+| Napisy do filmów | w odtwarzaczu i bibliotece: 💬 Pobierz napisy… z OpenSubtitles.com (Twoje konto), zapis obok filmu; przy pobieraniu z YouTube napisów nie ma | OpenSubtitles.cs | ✔ | ✔ | ✔ |
 | Weryfikacja SHA-256 narzędzi | yt-dlp, FFmpeg, Piper, uBOL | Integrity.cs | ✔ | – | ✔ |
 | Znacznik „plik z internetu” (MOTW) | | Integrity.cs 30 | ✔ | – | ✔ |
 | Separator `--` dla yt-dlp | | VideoDownloader.cs | ✔ | – | ✔ |
@@ -278,6 +278,35 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | Bez konta i bez chmury | | całość | ✔ | – | ✔ |
 | Osobny folder danych (`PRZEGLADARKA_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
 
+### K. Odtwarzacz filmów i telewizja (`VlcPlayer.cs`, `Iptv.cs`, `OpenSubtitles.cs`, `SubtitleLector.cs`, `LanVideo.cs`)
+| Funkcja | Opis | Kod | Impl. | UI | Sys. |
+|---|---|---|:-:|:-:|:-:|
+| Odtwarzacz jak VLC (opcjonalny) | AVI, MKV, WMV i inne; instalowany w instalatorze albo później w Velivo | VlcPlayer.cs | ✔ | ✔ | ✔ |
+| Dwuklik w film | sam odtwarzacz, bez okna przeglądarki | App.xaml.cs | ✔ | – | ✔ |
+| Biblioteka filmów | lista, sortowanie, wznawianie od miejsca, własne tytuły | VlcPlayer.cs | ✔ | ✔ | – |
+| Telewizja | kanały, program TV, ulubione, historia kanałów, archiwum, nagrywanie | Iptv.cs | ✔ | ✔ | ✔ |
+| Napisy | pobieranie z OpenSubtitles.com, przesunięcie G / H zapamiętane dla filmu, ukrywanie na obrazie | OpenSubtitles.cs | ✔ | ✔ | ✔ |
+| Lektor | czyta napisy na głos (Piper / głos Windows), ustawienia dla filmu | SubtitleLector.cs | ✔ | ✔ | – |
+| Obraz w obrazie, wyłącznik czasowy, planowanie | | VlcPlayer.cs | ✔ | ✔ | – |
+| Filmy z innego komputera w domu | wspólna biblioteka w sieci domowej | LanVideo.cs | ✔ | ✔ | ✔ |
+
+Pełny opis: [`dokumentacja/instrukcja-filmy-tv.md`](dokumentacja/instrukcja-filmy-tv.md).
+
+### L. Klawiatura ekranowa i karteczki (`ScreenKeyboard.cs`, `SwipeTyping.cs`, `StickyNotes.cs`)
+| Funkcja | Opis | Kod | Impl. | UI | Sys. |
+|---|---|---|:-:|:-:|:-:|
+| Klawiatura ekranowa dla każdego programu | rolka, przytrzymanie rolki, ikona przy zegarze, skrót Velivo Klawiatura, otwieranie po kliknięciu w pole | ScreenKeyboard.cs | ✔ | ✔ | ✔ |
+| Autokorekta | polskie znaki, literówki, „nie”, stałe zwroty, „ze/że”, Ty/Ci wielką literą; ⌫ cofa | SwipeTyping.cs | ✔ | ✔ | – |
+| Interpunkcja | przecinki przed spójnikami, znak przy słowie, spacja po przecinku, wielka litera po kropce | ScreenKeyboard.cs | ✔ | – | – |
+| Podpowiedzi | dokończenia (spacja wstawia), następne słowo, całe zdania (Ctrl+Spacja) | SwipeTyping.cs | ✔ | ✔ | – |
+| Nauka | słowa, zwroty, zdania i Twoje poprawki; zaszyfrowane, nigdy w polach haseł | SwipeTyping.cs | ✔ | – | ✔ |
+| 📖 Mój słownik | okno z listą, dodawanie hurtem i z pliku, szukanie, porządkowanie | ScreenKeyboard.cs | ✔ | ✔ | – |
+| Pisanie przeciągnięciem | uczy się Twoich ruchów | SwipeTyping.cs | ✔ | ✔ | – |
+| Klawiatura numeryczna, Zaznacz wszystko, kopiuj / wklej / cofnij / ponów, Alt+Tab | | ScreenKeyboard.cs | ✔ | ✔ | – |
+| Pad | wybór klawiszy, kursor myszy prawą gałką (RT, L3), kliknięcia, R3 przełączanie okien, ustawienia | ScreenKeyboard.cs | ✔ | ✔ | ✔ |
+| Działanie w tle | schowana do zasobnika poprawia dalej pisanie zwykłą klawiaturą | ScreenKeyboard.cs | ✔ | – | ✔ |
+| Karteczki | przypięte nad paskiem zadań, kolory, listy, kalendarzyk, przypomnienie o terminie | StickyNotes.cs | ✔ | ✔ | – |
+
 
 ---
 
@@ -329,6 +358,9 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | **🔐 Hasła odporne na podróbki** | Hasło trafia wyłącznie do prawdziwej domeny. Strona nie może podmienić pomocnika, „kliknąć” za Ciebie ani wyłudzić danych ukrytym polem. |
 | **📥 Przeprowadzka z innej przeglądarki** | Zakładki z Chrome, Edge, Brave, Opery i Vivaldi odczytywane wprost; hasła z KeePassXC i innych przez CSV. |
 | **🖱 Gesty myszy i obsługa samą myszką** | Wstecz, dalej, nowa karta, zamknięcie, odświeżanie i powiększenie – bez klawiatury. |
+| **⌨ Klawiatura, która pisze poprawnie** | Klawiatura ekranowa dla każdego programu: sama poprawia polskie znaki, literówki, „nie”, „ze/że” i zwroty, stawia przecinki, podpowiada słowa i całe zdania, uczy się Twojego pisania. Działa też przy zwykłej klawiaturze i padem (z kursorem myszy). W polach haseł – nigdy. |
+| **🗒 Karteczki z przypomnieniem** | Karteczki przypięte nad paskiem zadań; gdy jest w nich data, dzień wcześniej i w dniu terminu mrugają, aż je otworzysz. |
+| **🎬 Odtwarzacz i telewizja** | Odtwarzacz jak VLC z biblioteką, telewizją z archiwum i nagrywaniem, pobieraniem napisów i lektorem czytającym napisy. |
 
 ---
 
@@ -336,15 +368,15 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 
 | Co | Ile |
 | --- | --- |
-| **Instalator** `Velivo-Setup-1.22.exe` | **ok. 13 MB** (z czego ok. 6 MB to listy reguł wbudowanego uBlock Origin Lite) |
-| **Program po instalacji** | ok. 30–40 MB (wraz ze składnikami Windows i dodatkiem Szybki Dostęp) |
+| **Instalator** `Velivo-Setup-1.22.exe` | **ok. 60 MB** – razem z wbudowanym .NET 10 i listami reguł uBlock Origin Lite; nic nie trzeba doinstalowywać |
+| **Program po instalacji** | ok. 190 MB (w tym .NET 10 i dodatek Szybki Dostęp) |
 | **Pamięć RAM samego programu Velivo** (proces `Velivo.exe`) | zwykle **50–80 MB** |
 | Dla porównania: instalator Chrome lub Firefoksa | ok. 100–130 MB |
 
 ### Dlaczego instalator jest taki mały
 
 1. **Velivo nie dźwiga własnej kopii silnika przeglądarki.** Chrome, Opera czy Brave mają w instalacji cały silnik Chromium, czyli ponad 100 MB. Velivo korzysta z silnika Microsoft Edge (WebView2), który jest już w Windows 10 i 11 i aktualizuje go Windows Update. Velivo dokłada tylko to, co własne: okno, karty, prywatność, pobieranie i synchronizację.
-2. **Obudowa jest natywnym programem Windows (WPF, .NET),** a nie stroną internetową udającą program jak w Electronie. Taki kod jest bardzo zwarty.
+2. **Obudowa jest natywnym programem Windows (WPF, .NET),** a nie stroną internetową udającą program jak w Electronie. Taki kod jest bardzo zwarty. .NET jest dołączony do instalatora, więc na komputerze nie trzeba niczego doinstalowywać.
 3. **Duże dodatki pobierają się dopiero wtedy, gdy ich potrzebujesz, i tylko za Twoją zgodą:**
    - pełne listy blokowania reklam pobierają się w tle po pierwszym uruchomieniu;
    - naturalne głosy offline do czytania to ok. 60 MB na głos;
@@ -367,10 +399,9 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 
 **Wymagania:**
 - Windows 10 w wersji 1809 lub nowszej albo Windows 11, 64-bit;
-- .NET 10 Desktop Runtime (x64);
-- Microsoft Edge WebView2 Runtime (w Windows 11 jest zawsze).
+- internet podczas instalacji tylko wtedy, gdy brakuje WebView2 albo wybierzesz odtwarzacz filmów.
 
-Gdy czegoś brakuje, instalator sam to wykryje i otworzy stronę pobierania.
+**.NET 10 jest wbudowany w Velivo** – nie trzeba go instalować. **Microsoft Edge WebView2** (silnik stron) jest w Windows 11 i aktualnym Windows 10; gdy go brakuje, instalator sam pobierze go od Microsoftu i zainstaluje. Odtwarzacz filmów jak VLC (ok. 145 MB, oficjalna paczka VideoLAN) instaluje się tylko wtedy, gdy zaznaczysz go w instalatorze.
 
 **Instalacja krok po kroku:**
 1. Pobierz `Velivo-Setup-1.22.exe` z folderu [`Instalator`](Instalator).
@@ -501,21 +532,21 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 
 **Domyślnie włączona.** Włączanie / wyłączanie: **⚙ Ustawienia** (zębatka na górnym pasku, po prawej) → pole **„⌨ Klawiatura ekranowa Velivo”** (zaraz pod „Gesty myszy”) → **Zapisz**. Wyłączona – rolka działa jak zwykle, a Velivo nie nasłuchuje myszy w innych programach.
 
-**Jak ją otworzyć:** kliknij **rolką** (środkowym przyciskiem) w pole do pisania albo **przytrzymaj rolkę ok. 1 s** w dowolnym miejscu (także w innych programach). Sama się nie pokazuje.
+**Jak ją otworzyć:** kliknij **rolką** (środkowym przyciskiem) w pole do pisania, **przytrzymaj rolkę ok. 1 s** w dowolnym miejscu (także w innych programach), kliknij **ikonę klawiatury przy zegarze** albo skrót **Velivo Klawiatura** (menu Start, pasek zadań). Może też otwierać się sama po kliknięciu w pole tekstowe – opcja w menu ikony przy zegarze (opis niżej).
 
 - **Klik rolką (środkowym przyciskiem) w pole do pisania** otwiera klawiaturę Velivo – na stronach, w oknach Velivo i **w innych programach** (np. WhatsApp, Notatnik, komunikatory), gdy Velivo jest włączone. Na linkach rolka dalej otwiera nową kartę.
 - **Przytrzymanie rolki ok. 1 sekundy** otwiera klawiaturę **wszędzie**, także tam, gdzie Velivo nie rozpozna pola (dokumenty, edytory). Najpierw kliknij lewym w miejsce pisania – litery trafią tam, gdzie miga kursor.
-- **Rozmiar:** chwyć brzeg albo róg klawiatury i przeciągnij – szerokość i wysokość ustawiasz dowolnie; na start ma ok. 870 punktów szerokości i zawsze pojawia się na środku ekranu, tuż nad paskiem zadań; pamięta Twój rozmiar.
+- **Rozmiar:** chwyć brzeg albo róg klawiatury i przeciągnij – szerokość i wysokość ustawiasz dowolnie; na start ma ok. 640 punktów szerokości i pojawia się w prawym dolnym rogu, nad zegarem; pamięta Twój rozmiar.
 - **✓ abc – autokorekta pisowni** (nagłówek, domyślnie włączona): słowo wpisane literami, którego nie ma w słowniku, po spacji / Enterze / znaku zamienia się na najbliższe znane – także polskie znaki (zolw → żółw, ktory → który, dziekuje → dziękuję) i jedna literówka (komputr → komputer). Nad klawiszami widać „Poprawiono: … → …”; **⌫ zaraz po poprawce przywraca to, co wpisałeś**. Cofnięte słowo nie trafia samo do Mojego słownika – Velivo pyta „Nowe słowo – dodać do słownika?” i dodaje je dopiero po kliknięciu ➕. Działa **przy klikaniu w klawiaturę Velivo i przy pisaniu zwykłą klawiaturą**, gdy klawiatura Velivo jest otwarta (poprawka dzieje się w chwili naciśnięcia spacji – zanim program dostanie kolejne litery). Gdy ma wątpliwości (rzadkie słowo, kilka podobnych), **pyta „Poprawić na:”** i pokazuje do 3 propozycji – klik podmienia słowo. Po „. ” / „! ” / „? ” następna litera jest wielka. Literówek nie zapamiętuje w Moim słowniku (dawne same usuwa). Nigdy w polu hasła. Kliknięcie przycisku wyłącza / włącza.
-- **Pasek propozycji** nad klawiszami (jak w telefonie): w trakcie pisania inne formy słowa i dokończenia (droga → drogą, drogach; klaw → klawisze, klawiaturze), po spacji – inne formy skończonego słowa (droga → drogą). Klik wstawia słowo. Działa też przy pisaniu zwykłą klawiaturą.
+- **Pasek propozycji** nad klawiszami (jak w telefonie): w trakcie pisania inne formy słowa i dokończenia (droga → drogą, drogach; klaw → klawisze, klawiaturze), po spacji – inne formy skończonego słowa (droga → drogą). Klik wstawia słowo (z przecinkiem, gdy trzeba – np. „że” po „wiem”). Działa też przy pisaniu zwykłą klawiaturą.
 - **📖 Mój słownik** – otwiera okno z listą własnych słów (np. imiona, nazwy), jedno słowo w linii: autokorekta ich nie zmienia, a pasek propozycji i przeciąganie je podsuwają. Wklej listę, aby dodać wiele słów naraz, albo **📂 Wczytaj z pliku…** (.txt); skasuj linię, aby usunąć słowo. **A→Z Sortuj** porządkuje listę i usuwa powtórzenia. **🧹 Porządkuj** usuwa słowa, które są już we wbudowanym słowniku (np. „że”, „życie” – i tak są rozpoznawane), oraz literówki; zostają Twoje imiona, nazwy i skróty. Przed usunięciem pokazuje, ile słów i które literówki; Ctrl+Z cofa. Pole **🔍 Szukaj…** nad listą: wpisz fragment, a pasujące słowo zostanie zaznaczone (najpierw słowa zaczynające się od wpisanego tekstu); Enter – następne, Esc – czyści. Zapis: **💾 Zapisz**, Ctrl+S albo zamknięcie okna.
-- **Nauka:** słowa, które częściej wybierasz i piszesz, są wyżej w propozycjach i poprawkach; po spacji pasek podsuwa to, co zwykle piszesz dalej – patrzy na 2 poprzednie słowa, a zwrot pisany często (co najmniej 3 razy) podsuwa w całości, np. po „daj” → „znać jak dotrzesz”; klik wstawia cały zwrot. Nowe, poprawnie wpisane słowo spoza słownika – klawiatura **pyta „Nowe słowo – dodać do słownika?”** (➕ dodaje). Cofnięta poprawka (⌫) dopisuje słowo do słownika.
+- **Nauka:** słowa, które częściej wybierasz i piszesz, są wyżej w propozycjach i poprawkach; po spacji pasek podsuwa to, co zwykle piszesz dalej – patrzy na 2 poprzednie słowa, a zwrot pisany często (co najmniej 3 razy) podsuwa w całości, np. po „daj” → „znać jak dotrzesz”; klik wstawia cały zwrot. Nowe słowo spoza słownika – klawiatura **pyta „Nowe słowo – dodać do słownika?”**; do Mojego słownika trafia dopiero po kliknięciu ➕ (albo Ctrl+Spacja, opis niżej).
 - **Interpunkcja:** przecinek przed że, żeby, aby, bo, ale, a, lecz, więc, zatem, natomiast, ponieważ, gdyż, jeśli, chociaż, czyli, gdy, kiedy, gdzie, dlaczego, jakby i który/która/które… (np. „wiem że” → „wiem, że”, „idę a ty” → „idę, a ty”); bez przecinka po „mimo”, „chyba”, „i”, „a”, „oraz”, „tam”, „wtedy” itp. (mimo że, tam gdzie, wtedy gdy).
 - **Ctrl+Backspace** (lewy albo prawy Ctrl) – usuwa słowo przed kursorem, także w programach, które tego nie umieją (gdy klawiatura Velivo jest otwarta).
 - **Klawiatura numeryczna** po prawej: 0–9, / * - + . , i Enter, a nad nią wąski pasek **Zaznacz wszystko** (Ctrl+A) oraz **kopiuj, wklej, cofnij, ponów** (Ctrl+C / V / Z / Y). **🔊 Dźwięk klawiszy** – delikatny klik, wyciszany przyciskiem w nagłówku.
 - **Ikona klawiatury w zasobniku** (przy zegarze): klik pokazuje / chowa klawiaturę. Na start klawiatura pojawia się w prawym dolnym rogu, nad zegarem.
 - **⌫ słowo** (obok spacji): każde kliknięcie usuwa jedno słowo przed kursorem – kolejne kliknięcia usuwają kolejne słowa.
-- **Przezroczystość:** przyciski **−** / **+** w nagłówku (co 5%, od 10% do 100%; obok widać obecną wartość, zapamiętana). **📌 Zawsze na wierzchu** – włącz / wyłącz (domyślnie wyłączone, zapamiętane). **— (minimalizuj)** w nagłówku chowa klawiaturę; wraca po kliknięciu rolką w pole albo przytrzymaniu rolki.
+- **Przezroczystość:** przyciski **−** / **+** w nagłówku (co 5%, od 10% do 100%; obok widać obecną wartość, zapamiętana). **📌 Zawsze na wierzchu** – włącz / wyłącz (domyślnie wyłączone, zapamiętane). **— (schowaj)** w nagłówku chowa klawiaturę do zasobnika – dalej działa w tle (autokorekta, przecinki, pisownia przy pisaniu zwykłą klawiaturą); wraca po kliknięciu ikony przy zegarze, rolką w pole albo przytrzymaniu rolki.
 - **🎮 Pad** (Xbox i zgodne z XInput; PlayStation przez Steam lub DS4Windows): włącz przyciskiem 🎮 w nagłówku klawiatury. Krzyżak / lewa gałka – wybór klawisza (ramka w kolorach logo, pokazuje się po pierwszym użyciu pada; także propozycje słów, Alt+Tab i podpowiedź zdania – klawiatura numeryczna padem niedostępna), **A** – naciśnij, **B** – ⌫, **X** – spacja, **Y** – ⇧, **LT** – ą ę ł, **LB / RB** – kursor ◀ ▶, **Start** – ⏎, **R3** (wciśnięcie prawej gałki) – przełączanie okien jak Alt+Tab: krzyżak / gałka wybiera okno, **A** przełącza, **B** lub **Back** anuluje (działa także przy schowanej klawiaturze), **Back** – schowaj klawiaturę do zasobnika, a gdy jest schowana – pokaż ją (schowana nic nie pisze padem). Przytrzymany kierunek powtarza ruch. **Prawa gałka – kursor myszy** (także przy schowanej klawiaturze): **RT** przyspiesza, przytrzymane **L3** spowalnia do precyzyjnego celowania; przy schowanej klawiaturze **A** – lewy klik, **X** – prawy klik, **Y** – dwuklik (otwiera plik / folder pod kursorem), **Start** – Enter (otwiera zaznaczone). **Prawy klik na 🎮** – ustawienia pada: kursor prawą gałką (wł./wył.), czułość kursora (niska / średnia / wysoka / bardzo wysoka), przyspieszenie RT, precyzja L3. Ustawienie zapamiętane.
 - **Pasek skrótów** nad klawiszami: **📄 Notes** (nowy dokument tekstowy w Twoim folderze notatek – domyślnie Dokumenty\Velivo Notatki; prawy przycisk: otwórz albo zmień folder), **🗒** (karteczki: nowa karteczka albo wszystkie; domyślnie przypięte nad paskiem zadań – jedna obok drugiej, klik w nazwę rozwija / zwija w górę, uchwyt w rogu zmienia rozmiar, **📎** odpina na pulpit i przypina z powrotem; **⏰ przypomnienie**: gdy w treści jest data – np. 19.10.2026, 19.10 albo 2026-10-19, także z kalendarzyka 📅 – dzień wcześniej i w tym dniu ikona karteczki mruga, a pasek pulsuje na pomarańczowo, aż ją otworzysz; potem spokój do następnego dnia), **📧 E-mail** (nowa wiadomość w programie pocztowym), **🔇 🔉 🔊** (głośność Windows), **🌐 Velivo** (pokazuje okno przeglądarki), **🧮** (kalkulator Windows), **✂** (wycinanie fragmentu ekranu), **🔎** (szybkie szukanie: wpisz i Enter – Velivo od razu otwiera wyniki), **⏻** (wyłączenie komputera za 30 s z potwierdzeniem; drugi klik odwołuje). Nad 🔎 i ⏻ – wąski przycisk **Alt+Tab** – otwiera okno przełączania okien; wybierasz kliknięciem albo strzałkami i Enter (Esc zamyka).
 - **W nagłówku:** **PL / EN** – język klawiatury (słownik przeciągania i czytanie), **🗣** – czytaj na głos zaznaczony tekst (nigdy w polu hasła), **🎤** – pisanie głosem (dyktowanie Windows, Win+H; wymaga mikrofonu i internetu – usługa Microsoft), **🎮** – pad, **📖** – Mój słownik.
@@ -535,7 +566,7 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 - **🗣 Czytanie na głos:** klik 🗣 w nagłówku → „Przeczytaj zaznaczony tekst” – zaznacz tekst w dowolnym programie (OpenOffice, Word, Notatnik, strony) i lektor Velivo go przeczyta; bez zaznaczenia przeczyta całe pole, jeśli program je udostępnia. W tym samym menu: **⏹ Zatrzymaj czytanie** i **Język czytania** (Polski / English). W polach haseł – nigdy.
 - **Kolejność słów i pytanie o poprawkę:** Velivo zapamiętuje, jakie słowo zwykle piszesz po jakim (np. „jestem” → „michał”). Gdy nie jest pewne (dwa słowa pasują prawie tak samo), wpisze najlepsze i zapyta nad klawiszami **„Poprawić na:”** z podświetlonymi propozycjami – klik poprawia i uczy.
 - **Uczy się Twoich ruchów myszą:** każde przyjęte słowo zapamiętuje, jak je przeciągasz (także wolno, z drżeniem ręki czy omijając klawisz). Gdy klikniesz propozycję zamiast wpisanego słowa, Velivo zapamiętuje, że ten ruch znaczył właśnie to słowo. Im dłużej piszesz, tym trafniej.
-- **Nauka i 📖 Mój słownik:** słowa, które wybierasz, pojawiają się wyżej; słowo wpisane literami, którego nie ma w słowniku, samo trafia do **📖 Mojego słownika** (przycisk w nagłówku klawiatury). Słowa usuwasz w oknie Mojego słownika.
+- **📖 Mój słownik – co do niego trafia:** tylko słowa dodane przez Ciebie: ➕ przy pytaniu „Nowe słowo – dodać do słownika?”, Ctrl+Spacja po nowym słowie albo wpisane w oknie Mojego słownika. Literówek i błędnej pisowni nie przyjmuje. Słowa usuwasz w oknie Mojego słownika.
 - **Hasła są bezpieczne:** gdy piszesz w polu hasła, klawiatura niczego nie zapamiętuje (ani nauki, ani Mojego słownika). Nauka i Mój słownik są zapisane zaszyfrowane kontem Windows.
 - Gdy w jakimś programie klawiatura się nie otwiera, Velivo zapisuje, co tam kliknięto, w pliku `klawiatura.log` w folderze danych – przyda się przy zgłoszeniu.
 
@@ -612,14 +643,16 @@ Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy 
 
 Przezroczystość wymaga Windows 10 w wersji 1809 lub nowszej, bo okienko używa składnika Windows do rysowania obrazu.
 
-### 🎬 Odtwarzacz filmów z dysku (offline)
+### 🎬 Odtwarzacz filmów i telewizja
 
-- **Otwieranie:** dwuklik na pliku wideo w Windows (instalator dodaje Velivo do „Otwórz za pomocą” dla MP4, WebM, MKV, MOV, M4V, OGV; na stałe – w „Aplikacjach domyślnych” przy Velivo), **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **📂 Otwórz plik z dysku**.
-- Film otwiera się w karcie na całe okno, bez internetu. Na filmie działają **⧉ Obraz w obrazie** i **▣ Film na wierzchu** (okienko zawsze na wierzchu, przezroczystość kółkiem).
-- **Sterowanie:** pasek odtwarzacza (start/pauza, przewijanie, głośność, pełny ekran) oraz skróty: spacja albo klik – pauza, ← → – 5 s, ↑ ↓ – głośność, **F** – pełny ekran, **M** – wycisz.
-- **Gdy Velivo nie ma na liście „Otwórz za pomocą”:** uruchom Velivo raz (samo dopisuje się do Windows) albo użyj przycisku **Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”**.
-- **Ustawienia → Odtwarzacz filmów:** otwieranie filmów w Velivo, odtwarzanie od razu, wznawianie od miejsca, w którym skończyłeś (tylko na tym komputerze), powtarzanie w kółko.
-- **Formaty:** najpewniej MP4 (H.264) i WebM. Gdy kodek nie jest obsługiwany (np. HEVC/H.265), pojawia się komunikat.
+- **Otwieranie:** dwuklik na pliku wideo w Windows otwiera sam odtwarzacz Velivo – bez okna przeglądarki. Także **Ctrl+O** albo prawy przycisk → Narzędzia Velivo → **📂 Otwórz plik z dysku**.
+- **Odtwarzacz jak VLC** (AVI, MKV, WMV, MP4 i inne) instalujesz opcjonalnie w instalatorze albo później w Velivo (ok. 145 MB z oficjalnej paczki VideoLAN). Bez niego filmy MP4 i WebM grają w karcie przeglądarki.
+- **Biblioteka filmów**, **telewizja** z programem, archiwum i nagrywaniem, **⧉ obraz w obrazie**, wyłącznik czasowy i planowanie, filmy z innego komputera w domu.
+- **Napisy:** prawy przycisk na filmie albo w bibliotece → **💬 Pobierz napisy…** (OpenSubtitles.com, logujesz się swoim kontem; hasło zaszyfrowane na tym komputerze). Napisy zapisują się obok filmu i wczytują same. **G / H** przesuwa napisy, gdy się spóźniają lub wyprzedzają – Velivo zapamięta to dla filmu.
+- **Lektor** czyta napisy na głos (naturalny głos offline Piper albo głos Windows); ustawienia zapamiętywane dla filmu.
+- **Gdy Velivo nie ma na liście „Otwórz za pomocą”:** uruchom Velivo raz albo użyj **Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”**.
+
+Pełny opis odtwarzacza i telewizji: [`dokumentacja/instrukcja-filmy-tv.md`](dokumentacja/instrukcja-filmy-tv.md).
 
 ### ⧉ Obraz w obrazie
 

@@ -10,8 +10,8 @@ android {
         applicationId = "pl.velivo.browser"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "1.22"
     }
     buildTypes {
         release {
@@ -28,6 +28,9 @@ android {
     // Szybki Dostęp: ta sama strona co w Velivo na Windows - jedno źródło dla obu wersji
     sourceSets["main"].assets.srcDirs("src/main/assets", "../../src/QuickAccessExtension/kod")
 }
+
+// plik instalacyjny: Velivo-release.apk (zamiast app-release.apk)
+base { archivesName.set("Velivo") }
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -215,6 +216,13 @@ namespace Velivo
                     lookTimer.Tick += (s5, e5) => { lookTimer.Stop(); try { _settings.Save(DataDir); } catch (Exception) { } };
                     modeBox.SelectionChanged += (s5, e5) => { _settings.ReaderTheme = (string)((ComboBoxItem)modeBox.SelectedItem).Tag; applyLook(); lookTimer.Stop(); lookTimer.Start(); };
                     night.ValueChanged += (s5, e5) => { nightValue.Text = (int)night.Value + "%"; _settings.ReaderNight = (int)night.Value; applyLook(); lookTimer.Stop(); lookTimer.Start(); };
+                    // wielkosc tekstu (jak w czytniku na telefonie) - zapamietywana
+                    Action applyFont = () => { if (view.CoreWebView2 != null) _ = view.CoreWebView2.ExecuteScriptAsync("document.documentElement.style.setProperty('--vf','" + _settings.ReaderFont + "px')"); };
+                    Action<int> resize = d => { _settings.ReaderFont = Math.Max(14, Math.Min(34, _settings.ReaderFont + d)); applyFont(); lookTimer.Stop(); lookTimer.Start(); };
+                    var smaller = SmallButton("A−", () => resize(-1)); smaller.ToolTip = L.T("Mniejszy tekst");
+                    var larger = SmallButton("A+", () => resize(1)); larger.ToolTip = L.T("Większy tekst");
+                    bar.Children.Add(smaller);
+                    bar.Children.Add(larger);
                     bar.Children.Add(modeBox);
                     bar.Children.Add(nightLabel);
                     bar.Children.Add(night);
@@ -227,8 +235,12 @@ namespace Velivo
                     bar.Children.Add(stopBtn);
                     win.Content = Docked(bar, view);
 
+                    // miejsce, w ktorym skonczyles czytac (jak na telefonie): ulamek przewiniecia, klucz = skrot adresu (bez adresow w pliku)
+                    double readPos = 0;
+                    var posKey = ReaderPosKey(url ?? title ?? "");
                     win.Closed += (a, b) =>
                     {
+                        SaveReaderPos(posKey, readPos);
                         try { if (view.CoreWebView2 != null) _ = view.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.stop()"); } catch (Exception) { }
                         view.Dispose();
                     };
@@ -246,6 +258,12 @@ namespace Velivo
                                 if (!e2.IsSuccess) return;
                                 await view.CoreWebView2.ExecuteScriptAsync(ReaderScript);
                                 applyLook();
+                                applyFont();
+                                view.CoreWebView2.WebMessageReceived += (s6, e6) => { double v; if (double.TryParse(e6.TryGetWebMessageAsString(), NumberStyles.Float, CultureInfo.InvariantCulture, out v)) readPos = Math.Max(0, Math.Min(1, v)); };
+                                var startPos = LoadReaderPos(posKey);
+                                await view.CoreWebView2.ExecuteScriptAsync("(function(p){var t=0;addEventListener('scroll',function(){clearTimeout(t);t=setTimeout(function(){var h=document.documentElement.scrollHeight-innerHeight;window.chrome.webview.postMessage(String(h>0?scrollY/h:0));},300);});" +
+                                    "if(p>0.02){scrollTo(0,p*(document.documentElement.scrollHeight-innerHeight));}})(" + Num(startPos) + ")");
+                                if (startPos > 0.02) { readPos = startPos; ShowToast(L.T("📖 Wracam do miejsca, w którym skończyłeś czytać"), null); }
                                 await view.CoreWebView2.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
                                 await PreparePiperReading(view.CoreWebView2);
                                 // klikniecie w tekst = czytaj od tego miejsca (przeciaganie/zaznaczanie i linki dzialaja jak zwykle)
@@ -282,6 +300,43 @@ namespace Velivo
             }
         }
 
+        static string ReaderPosKey(string url)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+                return Convert.ToBase64String(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(url))).Substring(0, 16);
+        }
+
+        // czytnik-miejsca.txt: "skrot;ulamek" - ostatnie 300 artykulow
+        string ReaderPosFile => System.IO.Path.Combine(DataDir, "czytnik-miejsca.txt");
+
+        double LoadReaderPos(string key)
+        {
+            try
+            {
+                if (!System.IO.File.Exists(ReaderPosFile)) return 0;
+                foreach (var l in System.IO.File.ReadAllLines(ReaderPosFile))
+                {
+                    var p = l.Split(';');
+                    double v;
+                    if (p.Length == 2 && p[0] == key && double.TryParse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture, out v)) return v;
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            return 0;
+        }
+
+        void SaveReaderPos(string key, double pos)
+        {
+            try
+            {
+                var lines = System.IO.File.Exists(ReaderPosFile) ? System.IO.File.ReadAllLines(ReaderPosFile).Where(l => !l.StartsWith(key + ";")).ToList() : new List<string>();
+                if (pos > 0.02 && pos < 0.98) lines.Add(key + ";" + pos.ToString("0.0000", CultureInfo.InvariantCulture));   // przeczytane do konca - od poczatku nastepnym razem
+                if (lines.Count > 300) lines = lines.Skip(lines.Count - 300).ToList();
+                System.IO.File.WriteAllLines(ReaderPosFile, lines);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         async System.Threading.Tasks.Task ReadSummaryInReader(WebView2 view)
         {
             if (view == null || view.CoreWebView2 == null) return;
@@ -295,9 +350,9 @@ namespace Velivo
             var body = T(text).Replace("\n\n", "</p><p>").Replace("\n", "<br/>");
             var sum = T(summary).Replace("\n", "<br/>");
             return "<!doctype html><html lang='pl'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'/>" +
-                   "<title>Tryb czytania</title><style>body{font-family:Georgia,serif;line-height:1.72;max-width:900px;margin:0 auto;padding:24px;background:#f8fafc;color:#111827}h1{font-size:34px;margin:0 0 8px}small{color:#6b7280}#velivo-summary{background:#ecfeff;border:1px solid #bae6fd;border-left:5px solid #0891b2;padding:14px;border-radius:10px;margin:14px 0 20px;font-size:18px}article{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}p{margin:0 0 14px;font-size:21px}" +
+                   "<title>Tryb czytania</title><style>body{font-family:Georgia,serif;line-height:1.72;max-width:900px;margin:0 auto;padding:24px;background:#FBF8F1;color:#2A2150}h1{font-size:34px;margin:0 0 8px}small{color:#7A6FA8}#velivo-summary{background:#F1EDFC;border:1px solid #D3C8F7;border-left:5px solid #6D3FDB;padding:14px;border-radius:10px;margin:14px 0 20px;font-size:18px}article{background:#fff;border:1px solid #E4DDFB;border-radius:12px;padding:18px}p{margin:0 0 14px;font-size:var(--vf,21px)}a{color:#5B3FD0}" +
                    "body,article,#velivo-summary{transition:background-color .25s,color .25s,border-color .25s}" +
-                   "body.dark{background:#111827;color:#e5e7eb}body.dark small{color:#9ca3af}body.dark article{background:#1f2937;border-color:#374151}body.dark #velivo-summary{background:#0f2a33;border-color:#155e75;color:#e5e7eb}body.dark a{color:#93c5fd}" +
+                   "body.dark{background:#15121F;color:#E6E1F5}body.dark small{color:#A79FD0}body.dark article{background:#1B1733;border-color:#2E2768}body.dark #velivo-summary{background:#231C45;border-color:#4B3D8F;border-left-color:#B3A6FF;color:#E6E1F5}body.dark a{color:#B3A6FF}" +
                    "#velivo-night{position:fixed;inset:0;pointer-events:none;background:#ff8a00;mix-blend-mode:multiply;opacity:0;transition:opacity .25s;z-index:2147483647}</style>" +
                    "<script>window.__velivoLook=function(m,s){var b=document.body;if(!b)return;b.classList.toggle('dark',m==='dark');var n=document.getElementById('velivo-night');if(!n){n=document.createElement('div');n.id='velivo-night';document.documentElement.appendChild(n);}n.style.opacity=m==='night'?(Math.max(5,Math.min(100,s))/100*0.45).toFixed(3):'0';};</script></head><body>" +
                    "<h1>" + T(title) + "</h1><small>" + T(url) + "</small>" +

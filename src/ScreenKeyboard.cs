@@ -1301,10 +1301,12 @@ namespace Przegladarka
                     return;
                 }
                 if (_kbd == null || !_kbd.IsVisible)
-                {   // schowana w zasobniku: Back ja pokazuje; z kursorem na prawej galce A - lewy klik, X - prawy; reszta pada nic nie pisze
+                {   // schowana w zasobniku: Back ja pokazuje; z kursorem na prawej galce A - lewy klik, X - prawy, Y - dwuklik; Start - Enter; reszta pada nic nie pisze
                     if ((fresh & 0x0020) != 0) ShowScreenKeyboard();
                     else if (padMouse && (fresh & 0x1000) != 0) MouseClick(false);
                     else if (padMouse && (fresh & 0x4000) != 0) MouseClick(true);
+                    else if (padMouse && (fresh & 0x8000) != 0) { MouseClick(false); MouseClick(false); }   // Y - dwuklik (otworz plik / folder)
+                    else if ((fresh & 0x0010) != 0) SendCombo(0x0D);   // Start - Enter (otwiera zaznaczone)
                     return;
                 }   // schowana w zasobniku: Back ja pokazuje, reszta pada nic nie pisze
                 // kierunki z powtarzaniem przy przytrzymaniu
@@ -1343,7 +1345,7 @@ namespace Przegladarka
                     mi.Click += (a, b) => { SetPref(pref, mi.IsChecked ? "1" : "0"); padPrefs(); };
                     return mi;
                 };
-                cm.Items.Add(chk("Kursor myszy prawą gałką", "Prawa gałka przesuwa kursor; przy schowanej klawiaturze A – lewy klik, X – prawy klik", "klawiatura-pad-mysz"));
+                cm.Items.Add(chk("Kursor myszy prawą gałką", "Prawa gałka przesuwa kursor; przy schowanej klawiaturze A – lewy klik, X – prawy klik, Y – dwuklik (otwórz), Start – Enter", "klawiatura-pad-mysz"));
                 var sens = new MenuItem { Header = L.T("Czułość kursora"), ToolTip = L.T("Jak szybko kursor jedzie przy pełnym wychyleniu gałki") };
                 foreach (var (lvl, name) in new[] { (1, "Niska"), (2, "Średnia"), (3, "Wysoka"), (4, "Bardzo wysoka") })
                 {

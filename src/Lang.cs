@@ -757,7 +757,7 @@ namespace Przegladarka
             { "Zapisz Mój słownik (Ctrl+S)", "Save My dictionary (Ctrl+S)" },
             { "Słów: ", "Words: " },
             { "Kursor myszy prawą gałką", "Mouse cursor with the right stick" },
-            { "Prawa gałka przesuwa kursor; przy schowanej klawiaturze A – lewy klik, X – prawy klik", "The right stick moves the cursor; with the keyboard hidden A – left click, X – right click" },
+            { "Prawa gałka przesuwa kursor; przy schowanej klawiaturze A – lewy klik, X – prawy klik, Y – dwuklik (otwórz), Start – Enter", "The right stick moves the cursor; with the keyboard hidden A – left click, X – right click, Y – double-click (open), Start – Enter" },
             { "Czułość kursora", "Cursor sensitivity" },
             { "Jak szybko kursor jedzie przy pełnym wychyleniu gałki", "How fast the cursor moves at full stick tilt" },
             { "Niska", "Low" },

@@ -95,4 +95,10 @@
     <string name="on">włączone</string>
     <string name="off">wyłączone</string>
     <string name="history_cleared">Historia wyczyszczona</string>
+    <string name="find_in_page">Szukaj na stronie</string>
+    <string name="find_prev">Poprzedni</string>
+    <string name="find_next">Następny</string>
+    <string name="desktop_mode">Tryb pulpitu</string>
+    <string name="desktop_on">Tryb pulpitu włączony – strona jak na komputerze</string>
+    <string name="desktop_off">Wersja na telefon</string>
 </resources>

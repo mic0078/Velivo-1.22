@@ -95,4 +95,10 @@
     <string name="on">on</string>
     <string name="off">off</string>
     <string name="history_cleared">History cleared</string>
+    <string name="find_in_page">Find in page</string>
+    <string name="find_prev">Previous</string>
+    <string name="find_next">Next</string>
+    <string name="desktop_mode">Desktop site</string>
+    <string name="desktop_on">Desktop site on – the page looks like on a computer</string>
+    <string name="desktop_off">Mobile site</string>
 </resources>

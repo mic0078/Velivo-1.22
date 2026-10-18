@@ -45,6 +45,7 @@ import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.BaseAdapter
@@ -70,6 +71,7 @@ class MainActivity : Activity() {
     private class Tab(val web: WebView, val priv: Boolean, val bank: Boolean = false) {
         val quiet get() = priv || bank   // bez historii, haseł i zapisu sesji
         var thumb: Bitmap? = null
+        var desktop = false   // tryb pulpitu: strona jak na komputerze
     }
 
     private val tabs = mutableListOf<Tab>()
@@ -135,6 +137,7 @@ class MainActivity : Activity() {
         root.addView(bar)
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(buildFindBar())
         root.addView(nav)
         setContentView(root)
         if (Build.VERSION.SDK_INT >= 30) {
@@ -377,6 +380,7 @@ set(p0,p);})"""
     }.start()
 
     private fun show(i: Int) {
+        if (::findBar.isInitialized && findBar.visibility == View.VISIBLE) closeFind()   // szukanie dotyczy jednej karty
         tabs.getOrNull(cur)?.let { snap(it) }
         cur = i
         frame.removeAllViews()
@@ -483,9 +487,71 @@ set(p0,p);})"""
         return row
     }
 
+    // --- Szukaj na stronie: pasek nad dolnymi przyciskami, licznik trafień, poprzedni / następny ---
+    private lateinit var findBar: LinearLayout
+    private lateinit var findText: EditText
+    private lateinit var findCount: TextView
+
+    private fun buildFindBar(): View {
+        findBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)); visibility = View.GONE }
+        findText = EditText(this).apply {
+            hint = getString(R.string.find_in_page); setSingleLine(); textSize = 15f
+            setTextColor(TEXT); setHintTextColor(c("#7A6FA8", "#A79FD0")); background = round(FIELD); setPadding(dp(12), dp(6), dp(12), dp(6))
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setOnEditorActionListener { _, _, _ -> web()?.findNext(true); true }
+            addTextChangedListener(object : TextWatcher {
+                override fun afterTextChanged(e: Editable?) { web()?.findAllAsync(e?.toString() ?: "") }
+                override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+                override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            })
+        }
+        findCount = TextView(this).apply { setTextColor(TEXT); setPadding(dp(8), 0, dp(4), 0); textSize = 13f }
+        findBar.addView(findText, LinearLayout.LayoutParams(0, -2, 1f))
+        findBar.addView(findCount)
+        findBar.addView(button("▲", R.string.find_prev, BLUE, BLUE_BG) { web()?.findNext(false) })
+        findBar.addView(button("▼", R.string.find_next, BLUE, BLUE_BG) { web()?.findNext(true) })
+        findBar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { closeFind() })
+        return findBar
+    }
+
+    private fun openFind() {
+        val w = web() ?: return
+        w.setFindListener { active, total, _ -> findCount.text = if (total == 0) "0" else "${active + 1} / $total" }
+        findBar.visibility = View.VISIBLE
+        findText.requestFocus()
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(findText, 0)
+        if (findText.text.isNotEmpty()) w.findAllAsync(findText.text.toString())
+    }
+
+    private fun closeFind() {
+        web()?.clearMatches()
+        findBar.visibility = View.GONE
+        findCount.text = ""
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(findText.windowToken, 0)
+    }
+
+    // --- Tryb pulpitu: strona jak na komputerze (bez "Android" i "Mobile" w identyfikatorze przeglądarki) ---
+    private fun toggleDesktop() {
+        val t = tabs.getOrNull(cur) ?: return
+        t.desktop = !t.desktop
+        val st = t.web.settings
+        st.userAgentString = if (t.desktop) desktopAgent(WebSettings.getDefaultUserAgent(this)) else null
+        st.useWideViewPort = t.desktop
+        st.loadWithOverviewMode = t.desktop
+        t.web.reload()
+        toast(getString(if (t.desktop) R.string.desktop_on else R.string.desktop_off))
+    }
+
+    private fun desktopAgent(mobile: String): String {
+        val chrome = Regex("Chrome/[\\d.]+").find(mobile)?.value ?: "Chrome/130.0.0.0"
+        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) $chrome Safari/537.36"
+    }
+
     // Menu Velivo: wysuwane od dołu, logo i licznik reklam na górze, kolorowe kafelki jak przyciski Velivo na Windows.
     private fun menuAction(id: Int) {
         when (id) {
+            16 -> openFind()
+            17 -> toggleDesktop()
             1 -> newTab(false, QuickAccess.URL)
             2 -> newTab(true, home)
             3 -> web()?.let { w -> w.url?.let { u -> addTo("zakladki", w.title ?: u, u, 500); toast(getString(R.string.added)) } }
@@ -576,7 +642,8 @@ set(p0,p);})"""
         }
         section(R.string.menu_tabs, listOf(
             Triple("＋", R.string.new_tab, 1), Triple("🕶", R.string.new_private_tab, 2), Triple("⭐", R.string.quick_access, 14),
-            Triple("🏦", R.string.bank_mode, 10)))
+            Triple("🏦", R.string.bank_mode, 10), Triple("🔎", R.string.find_in_page, 16), Triple("🖥", R.string.desktop_mode, 17)),
+            mapOf(17 to (tabs.getOrNull(cur)?.desktop == true)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("➕", R.string.add_bookmark, 3), Triple("🕘", R.string.history, 5),
             Triple("🔑", R.string.passwords, 9), Triple("✍", R.string.fill_password, 15)))

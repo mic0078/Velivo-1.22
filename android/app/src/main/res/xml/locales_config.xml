@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Języki do wyboru tylko dla Velivo (Android 13+: Ustawienia → Aplikacje → Velivo → Język) -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="pl" />
+    <locale android:name="en" />
+</locale-config>

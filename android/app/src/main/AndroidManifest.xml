@@ -12,6 +12,7 @@
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:supportsRtl="true"
+        android:localeConfig="@xml/locales_config"
         android:theme="@style/Velivo">
         <activity
             android:name=".MainActivity"

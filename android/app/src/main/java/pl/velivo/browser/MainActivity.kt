@@ -590,7 +590,7 @@ set(p0,p);})"""
                     .setNegativeButton(android.R.string.cancel, null)
                     .show()
             },
-            onPaired = { dev -> prefs.edit().putString("lan-komputer", dev).apply(); toast(getString(R.string.lan_paired, dev)) },
+            onPaired = { dev -> lan.pairingUntil = 0; prefs.edit().putString("lan-komputer", dev).apply(); toast(getString(R.string.lan_paired, dev)) },
             onState = { dev, bookmarks, pwds -> applyLanState(dev, bookmarks, pwds) },
         )
     }
@@ -650,9 +650,7 @@ set(p0,p);})"""
                         prefs.edit().putBoolean("lan", true).apply()
                         startLan()
                         lan.pairingUntil = System.currentTimeMillis() + 3 * 60 * 1000
-                        val name = prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL
-                        AlertDialog.Builder(this).setTitle(R.string.lan_pair).setMessage(getString(R.string.lan_pair_help, name))
-                            .setPositiveButton(android.R.string.ok, null).show()
+                        showPairingWait()
                     }
                     2 -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), REQ_VLPAIR)
                     3 -> { if (!lan.paired) toast(getString(R.string.lan_not_paired)) else { startLan(); lan.syncNow() } }
@@ -668,6 +666,36 @@ set(p0,p);})"""
                 }
             }
             .show()
+    }
+
+    // Okno oczekiwania na parowanie: trzyma Velivo na ekranie (synchronizacja działa tylko przy otwartej aplikacji)
+    // i na żywo pokazuje, co telefon odbiera z sieci - od razu widać, czy pakiety z komputera w ogóle dochodzą.
+    private fun showPairingWait() {
+        val name = prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL
+        val info = TextView(this).apply { setPadding(dp(20), dp(12), dp(20), 0); setTextColor(TEXT) }
+        val live = TextView(this).apply { setPadding(dp(20), dp(12), dp(20), dp(8)); setTextColor(BLUE) }
+        info.text = getString(R.string.lan_pair_help, name)
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(info); addView(live) }
+        val dlg = AlertDialog.Builder(this).setTitle(R.string.lan_pair).setView(ScrollView(this).apply { addView(box) })
+            .setNegativeButton(R.string.close_tab_short) { _, _ -> lan.pairingUntil = 0 }
+            .setOnDismissListener { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+            .create()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val tick = object : Runnable {
+            override fun run() {
+                if (!dlg.isShowing) return
+                val left = ((lan.pairingUntil - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+                live.text = when {
+                    lan.socketError != null -> getString(R.string.lan_socket_error, lan.socketError)
+                    lan.rxCount == 0 -> getString(R.string.lan_rx_none, left)
+                    else -> getString(R.string.lan_rx_some, lan.rxCount, lan.lastFrom, lan.lastType, left)
+                }
+                if (left == 0L) { live.append("\n" + getString(R.string.lan_pair_timeout)); return }
+                idle.postDelayed(this, 1000)
+            }
+        }
+        dlg.show()
+        idle.post(tick)
     }
 
     @Deprecated("Activity API")

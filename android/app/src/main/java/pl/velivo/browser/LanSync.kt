@@ -50,6 +50,11 @@ class LanSync(
     @Volatile private var authKey: ByteArray? = null
     @Volatile private var running = false
     @Volatile var pairingUntil = 0L
+    // Diagnostyka dla okna parowania: ile pakietów Velivo przyszło z sieci i od kogo.
+    @Volatile var rxCount = 0
+    @Volatile var lastFrom = ""
+    @Volatile var lastType = ""
+    @Volatile var socketError: String? = null
     private var udp: DatagramSocket? = null
     private var tcp: ServerSocket? = null
     private val pending = HashMap<String, Pair<KeyPair, ByteArray>>()   // pairId -> (moje klucze ECDH, klucz transportu)
@@ -63,6 +68,7 @@ class LanSync(
         Thread {
             runCatching { deriveKeys() }
             runCatching {
+                socketError = null
                 udp = DatagramSocket(null).apply { reuseAddress = true; broadcast = true; bind(InetSocketAddress(PORT)) }
                 Thread { tcpLoop() }.start()
                 Thread { helloLoop() }.start()
@@ -73,7 +79,7 @@ class LanSync(
                     val data = p.data.copyOf(p.length)
                     runCatching { handle(data) }
                 }
-            }
+            }.onFailure { if (running) socketError = it.message ?: it.javaClass.simpleName }
         }.start()
     }
 
@@ -147,6 +153,9 @@ class LanSync(
         val from = p.optString("id")
         if (from == id || from.length != 32) return
         val now = System.currentTimeMillis()
+        rxCount++
+        lastFrom = p.optString("device").filter { !it.isISOControl() }.take(64)
+        lastType = p.optString("t")
         if (Math.abs(p.optLong("ts") - now) > 300000) return
         when (p.optString("t")) {
             "pair-offer" -> pairOffer(p)

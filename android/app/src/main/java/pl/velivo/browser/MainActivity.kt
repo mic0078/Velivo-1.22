@@ -3,19 +3,31 @@ package pl.velivo.browser
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.KeyguardManager
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
+import android.os.Build
 import android.os.Bundle
+import android.os.CancellationSignal
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
+import android.view.WindowInsetsController
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
@@ -29,9 +41,12 @@ import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.webkit.ProfileStore
 import androidx.webkit.WebSettingsCompat
@@ -41,7 +56,11 @@ import org.json.JSONObject
 import java.io.ByteArrayInputStream
 
 class MainActivity : Activity() {
-    private class Tab(val web: WebView, val priv: Boolean)
+    // bank: tryb bankowy - osobny stały profil, bez historii i zapisu sesji, wejście odciskiem palca / PIN-em.
+    private class Tab(val web: WebView, val priv: Boolean, val bank: Boolean = false) {
+        val quiet get() = priv || bank   // bez historii, haseł i zapisu sesji
+        var thumb: Bitmap? = null
+    }
 
     private val tabs = mutableListOf<Tab>()
     private var cur = -1
@@ -56,6 +75,7 @@ class MainActivity : Activity() {
     private val home = "https://www.startpage.com/"
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(if (dark) android.R.style.Theme_Material_NoActionBar else android.R.style.Theme_Material_Light_NoActionBar)
         super.onCreate(savedInstanceState)
         window.statusBarColor = BAR
         window.navigationBarColor = BAR
@@ -93,6 +113,10 @@ class MainActivity : Activity() {
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav)
         setContentView(root)
+        if (Build.VERSION.SDK_INT >= 30) {
+            val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(if (dark) 0 else light, light)
+        }
         // Android 15+ rysuje pod paskami systemu - zostaw na nie miejsce (i na klawiaturę).
         root.setOnApplyWindowInsetsListener { v, insets ->
             val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
@@ -107,8 +131,14 @@ class MainActivity : Activity() {
         if (link != null) newTab(false, link)
     }
 
-    // Kolory jak w Velivo na Windows; ciemne, gdy telefon ma tryb ciemny.
-    private val dark by lazy { (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES }
+    // Kolory jak w Velivo na Windows; motyw: 0 = jak telefon, 1 = jasny, 2 = ciemny.
+    private val dark by lazy {
+        when (prefs.getInt("motyw", 0)) {
+            1 -> false
+            2 -> true
+            else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        }
+    }
     private fun c(light: String, night: String) = Color.parseColor(if (dark) night else light)
     private val BAR by lazy { c("#E5E7EB", "#1F2937") }
     private val TEXT by lazy { c("#1F2937", "#E5E7EB") }
@@ -122,9 +152,12 @@ class MainActivity : Activity() {
     private val ORANGE_BG by lazy { c("#FFEDD5", "#7C2D12") }
     private val PRIV_BG by lazy { c("#EDE9FE", "#4C1D95") }
     private val PURPLE by lazy { c("#5B21B6", "#DDD6FE") }
+    private val BANK_BG by lazy { c("#CCFBF1", "#134E4A") }
 
     private companion object {
         const val PRIVATE_PROFILE = "prywatna"
+        const val BANK_PROFILE = "bank"
+        const val BANK_IDLE_MS = 10 * 60 * 1000L
 
         // Przy wysłaniu formularza: pierwsze wypełnione pole hasła i pole tekstowe przed nim.
         const val CAPTURE_JS = """(function(){if(window.__vh||!window.VelivoHasla)return;window.__vh=1;
@@ -173,8 +206,9 @@ set(p0,p);})"""
     private fun web(): WebView? = tabs.getOrNull(cur)?.web
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun newTab(priv: Boolean, url: String) {
+    private fun newTab(priv: Boolean, url: String, bank: Boolean = false) {
         val w = WebView(this)
+        if (bank) WebViewCompat.setProfile(w, BANK_PROFILE)
         // Karta prywatna: osobny profil (ciasteczka, pamięć stron), kasowany po zamknięciu ostatniej prywatnej karty.
         if (priv) {
             if (privateSupported) WebViewCompat.setProfile(w, PRIVATE_PROFILE)
@@ -192,7 +226,8 @@ set(p0,p);})"""
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING))
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(w.settings, true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(w, false)
-        if (!priv) w.addJavascriptInterface(PasswordBridge(w), "VelivoHasla")
+        val quiet = priv || bank
+        if (!quiet) w.addJavascriptInterface(PasswordBridge(w), "VelivoHasla")
         w.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
                 if (prefs.getBoolean("adblock", true) && isBlocked(req.url)) {
@@ -208,9 +243,10 @@ set(p0,p);})"""
                 return true
             }
             override fun onPageFinished(view: WebView, url: String) {
-                if (!priv) passwordsOnPage(view)
+                if (!quiet) passwordsOnPage(view)
                 if (view == web()) address.setText(url)
-                if (!priv) addHistory(view.title ?: url, url)
+                if (!quiet) addHistory(view.title ?: url, url)
+                if (bank) bankUsed = System.currentTimeMillis()
             }
         }
         w.webChromeClient = object : WebChromeClient() {
@@ -227,11 +263,11 @@ set(p0,p);})"""
                 .addRequestHeader("User-Agent", ua)
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
-            if (!priv) CookieManager.getInstance().getCookie(dUrl)?.let { req.addRequestHeader("Cookie", it) }
+            if (!quiet) CookieManager.getInstance().getCookie(dUrl)?.let { req.addRequestHeader("Cookie", it) }
             (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
             toast(getString(R.string.download_started))
         }
-        tabs.add(Tab(w, priv))
+        tabs.add(Tab(w, priv, bank))
         show(tabs.size - 1)
         w.loadUrl(url)
     }
@@ -245,19 +281,35 @@ set(p0,p);})"""
     }.start()
 
     private fun show(i: Int) {
+        tabs.getOrNull(cur)?.let { snap(it) }
         cur = i
         frame.removeAllViews()
         val t = tabs[i]
         frame.addView(t.web)
         address.setText(t.web.url ?: "")
-        address.background = round(if (t.priv) PRIV_BG else FIELD)
+        address.background = round(if (t.bank) BANK_BG else if (t.priv) PRIV_BG else FIELD)
         tabsBtn.text = tabs.size.toString()
+        // Karta bankowa: bez zrzutów ekranu i podglądu na liście ostatnich aplikacji.
+        if (t.bank) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
+    // Miniatura karty (1/4 rozmiaru, tylko w pamięci); karty bankowe bez miniatur.
+    private fun snap(t: Tab) {
+        val w = t.web
+        if (t.bank || w.width < 4 || w.height < 4) return
+        runCatching {
+            val b = Bitmap.createBitmap(w.width / 4, w.height / 4, Bitmap.Config.RGB_565)
+            Canvas(b).apply { scale(0.25f, 0.25f); w.draw(this) }
+            t.thumb = b
+        }
     }
 
     private fun closeTab(i: Int) {
         val t = tabs.removeAt(i)
         t.web.destroy()
         if (t.priv && tabs.none { it.priv }) dropPrivateProfile()
+        if (t.bank && tabs.none { it.bank }) bankUnlocked = false
         if (tabs.isEmpty()) { cur = -1; newTab(false, home) } else show(minOf(i, tabs.size - 1))
     }
 
@@ -274,16 +326,65 @@ set(p0,p);})"""
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(address.windowToken, 0)
     }
 
+    // Lista kart: miniatura, tytuł i adres; stuknięcie przełącza, ✕ lub przesunięcie w bok zamyka.
     private fun showTabs() {
-        val names = tabs.mapIndexed { i, t ->
-            (if (t.priv) "🕶 " else "") + (t.web.title?.takeIf { it.isNotBlank() } ?: t.web.url ?: "…") + if (i == cur) "  ●" else ""
-        }.toTypedArray()
-        AlertDialog.Builder(this)
+        tabs.getOrNull(cur)?.let { snap(it) }
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)) }
+        val dlg = AlertDialog.Builder(this)
             .setTitle(R.string.tabs)
-            .setItems(names) { _, i -> show(i) }
-            .setPositiveButton(R.string.close_tab) { _, _ -> closeTab(cur) }
+            .setView(ScrollView(this).apply { addView(list) })
+            .setPositiveButton(R.string.new_tab) { _, _ -> newTab(false, home) }
             .setNeutralButton(R.string.new_private_tab) { _, _ -> newTab(true, home) }
-            .show()
+            .setNegativeButton(R.string.bank_mode) { _, _ -> openBank() }
+            .create()
+        fun fill() {
+            list.removeAllViews()
+            tabs.toList().forEachIndexed { i, t -> list.addView(tabRow(t, i == cur, { show(tabs.indexOf(t)); dlg.dismiss() }) {
+                closeTab(tabs.indexOf(t))
+                fill()
+            }) }
+        }
+        fill()
+        dlg.show()
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun tabRow(t: Tab, active: Boolean, open: () -> Unit, close: () -> Unit): View {
+        val row = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            background = round(if (t.bank) BANK_BG else if (t.priv) PRIV_BG else if (active) BLUE_BG else GRAY_BG)
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(3), 0, dp(3)) }
+        }
+        val img = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            t.thumb?.let { setImageBitmap(it) } ?: setBackgroundColor(FIELD)
+        }
+        row.addView(img, LinearLayout.LayoutParams(dp(72), dp(96)))
+        val title = (if (t.bank) "🏦 " else if (t.priv) "🕶 " else "") + (t.web.title?.takeIf { it.isNotBlank() } ?: "…")
+        row.addView(TextView(this).apply {
+            text = title + "\n" + (Uri.parse(t.web.url ?: "").host ?: "")
+            setTextColor(TEXT)
+            maxLines = 3
+            setPadding(dp(10), 0, dp(6), 0)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(button("✕", R.string.close_tab, TEXT, GRAY_BG) { close() })
+        // Przesunięcie w bok o 1/3 szerokości zamyka kartę; krótkie stuknięcie otwiera.
+        var x0 = 0f
+        row.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { x0 = e.rawX; true }
+                MotionEvent.ACTION_MOVE -> { v.translationX = e.rawX - x0; v.alpha = 1f - minOf(0.7f, Math.abs(v.translationX) / v.width); true }
+                MotionEvent.ACTION_UP -> {
+                    val dx = e.rawX - x0
+                    if (Math.abs(dx) > v.width / 3f) close()
+                    else { v.animate().translationX(0f).alpha(1f).start(); if (Math.abs(dx) < dp(10)) open() }
+                    true
+                }
+                else -> { v.animate().translationX(0f).alpha(1f).start(); true }
+            }
+        }
+        return row
     }
 
     private fun showMenu(anchor: View) {
@@ -295,6 +396,8 @@ set(p0,p);})"""
         m.menu.add(0, 5, 0, R.string.history)
         m.menu.add(0, 6, 0, R.string.clear_history)
         m.menu.add(0, 9, 0, R.string.passwords)
+        m.menu.add(0, 10, 0, R.string.bank_mode)
+        m.menu.add(0, 11, 0, R.string.theme)
         m.menu.add(0, 7, 0, R.string.adblock).apply { isCheckable = true; isChecked = prefs.getBoolean("adblock", true) }
         m.menu.add(0, 8, 0, getString(R.string.blocked, blockedCount)).isEnabled = false
         m.setOnMenuItemClickListener {
@@ -305,7 +408,9 @@ set(p0,p);})"""
                 4 -> pick("zakladki", R.string.bookmarks)
                 5 -> pick("historia", R.string.history)
                 6 -> { prefs.edit().remove("historia").apply(); web()?.clearHistory() }
-                9 -> showPasswords()
+                9 -> unlock { showPasswords() }
+                10 -> openBank()
+                11 -> chooseTheme()
                 7 -> prefs.edit().putBoolean("adblock", !prefs.getBoolean("adblock", true)).apply()
             }
             true
@@ -398,6 +503,67 @@ set(p0,p);})"""
             .show()
     }
 
+    // --- Motyw ----------------------------------------------------------------
+    private fun chooseTheme() {
+        val names = arrayOf(getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark))
+        AlertDialog.Builder(this)
+            .setTitle(R.string.theme)
+            .setSingleChoiceItems(names, prefs.getInt("motyw", 0)) { d, i ->
+                d.dismiss()
+                if (i != prefs.getInt("motyw", 0)) { prefs.edit().putInt("motyw", i).apply(); saveTabs(); recreate() }
+            }
+            .show()
+    }
+
+    // --- Blokada odciskiem palca / PIN-em telefonu -----------------------------
+    private fun unlock(onOk: () -> Unit) {
+        if (!getSystemService(KeyguardManager::class.java).isDeviceSecure) { toast(getString(R.string.no_lock)); onOk(); return }
+        val b = BiometricPrompt.Builder(this).setTitle(getString(R.string.unlock))
+        if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+        else setCredentialAllowed(b)
+        b.build().authenticate(CancellationSignal(), mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onOk()
+        })
+    }
+
+    @Suppress("DEPRECATION")
+    private fun setCredentialAllowed(b: BiometricPrompt.Builder) { b.setDeviceCredentialAllowed(true) }
+
+    // --- Tryb bankowy ---------------------------------------------------------
+    private var bankUnlocked = false
+    private var bankUsed = 0L
+    private val idle = Handler(Looper.getMainLooper())
+    private val idleCheck = object : Runnable {
+        override fun run() { lockBankIfIdle(); idle.postDelayed(this, 30_000) }
+    }
+
+    private fun openBank() {
+        if (!privateSupported) { toast(getString(R.string.bank_unavailable)); return }
+        lockBankIfIdle()
+        val go = { bankUnlocked = true; bankUsed = System.currentTimeMillis(); newTab(false, home, bank = true) }
+        if (bankUnlocked) go() else unlock(go)
+    }
+
+    // Po 10 min bezczynności karty bankowe się zamykają (logowania w profilu bankowym zostają).
+    private fun lockBankIfIdle() {
+        if (!bankUnlocked || System.currentTimeMillis() - bankUsed < BANK_IDLE_MS) return
+        bankUnlocked = false
+        if (tabs.none { it.bank }) return
+        tabs.filter { it.bank }.forEach { closeTab(tabs.indexOf(it)) }
+        toast(getString(R.string.bank_locked))
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (tabs.getOrNull(cur)?.bank == true) bankUsed = System.currentTimeMillis()
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lockBankIfIdle()
+        idle.postDelayed(idleCheck, 30_000)
+    }
+
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -414,8 +580,9 @@ set(p0,p);})"""
 
     // Otwarte karty (bez prywatnych) wracają po ponownym uruchomieniu.
     private fun saveTabs() {
-        val open = tabs.filter { !it.priv }.mapNotNull { it.web.url }
-        val sel = tabs.getOrNull(cur)?.takeIf { !it.priv }?.let { t -> tabs.filter { !it.priv }.indexOf(t) } ?: 0
+        val keep = tabs.filter { !it.quiet }
+        val open = keep.mapNotNull { it.web.url }
+        val sel = tabs.getOrNull(cur)?.let { keep.indexOf(it) }?.takeIf { it >= 0 } ?: 0
         prefs.edit().putString("karty", open.joinToString("\n")).putInt("karta", sel).apply()
     }
 
@@ -428,6 +595,7 @@ set(p0,p);})"""
     }
 
     override fun onPause() {
+        idle.removeCallbacks(idleCheck)
         saveTabs()
         super.onPause()
     }

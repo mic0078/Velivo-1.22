@@ -29,4 +29,13 @@
     <string name="not_now">Nie teraz</string>
     <string name="delete">Usuń</string>
     <string name="delete_q">Usunąć zapisane hasło dla %1$s?</string>
+    <string name="theme">Motyw</string>
+    <string name="theme_system">Jak w telefonie</string>
+    <string name="theme_light">Jasny</string>
+    <string name="theme_dark">Ciemny</string>
+    <string name="bank_mode">Tryb bankowy</string>
+    <string name="bank_locked">Tryb bankowy zablokowany po 10 minutach bezczynności</string>
+    <string name="bank_unavailable">Tryb bankowy wymaga nowszego Android System WebView</string>
+    <string name="unlock">Odblokuj Velivo</string>
+    <string name="no_lock">Telefon nie ma blokady ekranu – ustaw PIN, aby chronić hasła i tryb bankowy</string>
 </resources>

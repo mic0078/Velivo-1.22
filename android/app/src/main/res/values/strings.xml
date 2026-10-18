@@ -29,4 +29,13 @@
     <string name="not_now">Not now</string>
     <string name="delete">Delete</string>
     <string name="delete_q">Delete the saved password for %1$s?</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">Like the phone</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="bank_mode">Banking mode</string>
+    <string name="bank_locked">Banking mode locked after 10 minutes of inactivity</string>
+    <string name="bank_unavailable">Banking mode needs a newer Android System WebView</string>
+    <string name="unlock">Unlock Velivo</string>
+    <string name="no_lock">This phone has no screen lock – set a PIN to protect passwords and banking mode</string>
 </resources>

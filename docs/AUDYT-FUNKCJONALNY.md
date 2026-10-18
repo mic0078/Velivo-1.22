@@ -151,7 +151,7 @@ Kolumny: **Impl.** = zaimplementowane w kodzie · **UI** = dostępne z interfejs
 | FFmpeg | najlepsza jakość ≤1080p (MP4) i MP3 | VideoDownloader.cs | ✔ | ✔ | – |
 | Tryby: najlepsza, prosta (1 plik), M4A, MP3 | | VideoDownloader.cs 206 | ✔ | ✔ | – |
 | Wybór folderu filmów (zapamiętany) | | VideoDownloader.cs 97 | ✔ | ✔ | – |
-| Napisy | **brak** | – | – | – | – |
+| Napisy do filmów | w odtwarzaczu i bibliotece: OpenSubtitles.com (konto użytkownika), zapis obok filmu; przy pobieraniu z YouTube – brak | OpenSubtitles.cs | ✔ | ✔ | ✔ |
 | Weryfikacja SHA-256 narzędzi | yt-dlp, FFmpeg, Piper, uBOL | Integrity.cs | ✔ | – | ✔ |
 | Znacznik „plik z internetu” (MOTW) | | Integrity.cs 30 | ✔ | – | ✔ |
 | Separator `--` dla yt-dlp | | VideoDownloader.cs | ✔ | – | ✔ |

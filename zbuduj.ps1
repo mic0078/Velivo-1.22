@@ -8,7 +8,10 @@ Set-Location $PSScriptRoot
 
 Write-Host "1/4 Najnowsze zmiany (git pull)..." -ForegroundColor Cyan
 git checkout -- Instalator 2>$null   # poprzednio zbudowany instalator (plik z repozytorium) nie blokuje pobrania zmian
-git pull
+git checkout rozwoj   # instalator testowy zawsze z galezi roboczej (main = wersja publiczna)
+git pull origin rozwoj
+if ($LASTEXITCODE -ne 0) { Write-Host "Nie udalo sie pobrac zmian z galezi rozwoj." -ForegroundColor Red; exit 1 }
+Write-Host ("Budowana wersja: " + (git log --oneline -1)) -ForegroundColor Cyan
 
 if (-not $BezTestow) {
     Write-Host "2/4 Testy..." -ForegroundColor Cyan

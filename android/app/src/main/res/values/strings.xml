@@ -129,4 +129,23 @@
     <string name="hide_yes">Remove</string>
     <string name="menu_page">This page</string>
     <string name="language">Language</string>
+    <string name="privacy_panel">Privacy panel for this site</string>
+    <string name="fake_title">⚠ Warning – possible scam</string>
+    <string name="fake_brand">%1$s looks like a fake of %2$s. Scammers use pages like this to steal passwords, card details and BLIK codes. Don\'t enter any details here.</string>
+    <string name="fake_xn">The address %1$s contains characters disguised as ordinary letters – a common scammers\' trick. Don\'t enter any details here.</string>
+    <string name="fake_back">Go back (safe)</string>
+    <string name="fake_trust">I know this site – continue</string>
+    <string name="http_title">Unencrypted site</string>
+    <string name="http_warn">%1$s has no secure connection (https). Anyone on the same network could see what you type here. Don\'t enter passwords or card details.</string>
+    <string name="http_open">Open anyway</string>
+    <string name="apk_title">⚠ App download</string>
+    <string name="apk_warn">%1$s wants to download an app (APK file) from outside Google Play. Scammers send apps like this to take over phones and bank accounts. Only install apps from Google Play.</string>
+    <string name="apk_cancel">Don\'t download</string>
+    <string name="apk_anyway">Download anyway</string>
+    <string name="priv_secure">🔒 Encrypted connection (https)</string>
+    <string name="priv_insecure">⚠ Unencrypted connection (http)</string>
+    <string name="priv_blocked_page">Blocked on this page: %1$d (from %2$d domains)</string>
+    <string name="priv_site_off">Ad blocking is turned off on this site.</string>
+    <string name="priv_disable">Turn off blocking here</string>
+    <string name="priv_enable">Turn on blocking here</string>
 </resources>

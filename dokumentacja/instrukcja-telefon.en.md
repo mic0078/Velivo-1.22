@@ -88,6 +88,11 @@ With several computers use the **recovery file** (computer: Save recovery file�
 
 ## 6. Privacy
 
+- **Privacy panel:** menu → tap the green "🛡 Blocked ads" counter at the top. It shows whether the connection is encrypted (🔒 https), how many adverts and trackers were blocked on this page and from which domains. **Turn off blocking here** – for a site that misbehaves with blocking (remembered for that site; **Turn on blocking here** undoes it).
+- **Scam protection** (works on its own, offline, as in Velivo for Windows):
+  - **fake sites** of banks and well-known companies (e.g. `mbank-logowanie.com`, `rnbank.pl`, `paypa1.com`, `olx.pl.dostawa-pay.xyz`, addresses with characters disguised as letters) – a red warning, **Go back (safe)** or **I know this site – continue**; fakes of sites you have saved passwords for are caught too;
+  - **app (APK) downloads from outside Google Play** – a warning, **Don't download** by default;
+  - **HTTPS first** – pages open encrypted; if that fails, Velivo asks whether to open the page unencrypted (home network – router, NAS – without asking). A bad certificate is always blocked.
 - The phone never sends its whole profile – only new items, which the computer confirms.
 - The connection is encrypted (AES-GCM) with the key from pairing; other phones on the network can read nothing.
 - Your reading position, removed elements and settings stay on the phone.

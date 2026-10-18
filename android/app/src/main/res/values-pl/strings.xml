@@ -129,4 +129,23 @@
     <string name="hide_yes">Usuń</string>
     <string name="menu_page">Ta strona</string>
     <string name="language">Język</string>
+    <string name="privacy_panel">Panel prywatności tej strony</string>
+    <string name="fake_title">⚠ Uwaga – możliwe oszustwo</string>
+    <string name="fake_brand">Strona %1$s wygląda jak podróbka %2$s. Oszuści tak wyłudzają hasła, dane karty i kody BLIK. Nie wpisuj tu żadnych danych.</string>
+    <string name="fake_xn">Adres %1$s zawiera znaki udające zwykłe litery – typowy sposób oszustów. Nie wpisuj tu żadnych danych.</string>
+    <string name="fake_back">Wróć (bezpiecznie)</string>
+    <string name="fake_trust">Znam tę stronę – wejdź</string>
+    <string name="http_title">Strona bez szyfrowania</string>
+    <string name="http_warn">%1$s nie ma bezpiecznego połączenia (https). Wszystko, co tu wpiszesz, może podejrzeć ktoś w tej samej sieci. Nie wpisuj haseł ani danych karty.</string>
+    <string name="http_open">Otwórz mimo to</string>
+    <string name="apk_title">⚠ Pobieranie aplikacji</string>
+    <string name="apk_warn">Strona %1$s chce pobrać aplikację (plik APK) spoza Sklepu Play. Oszuści podsyłają tak aplikacje, które przejmują telefon i konto w banku. Instaluj aplikacje tylko ze Sklepu Play.</string>
+    <string name="apk_cancel">Nie pobieraj</string>
+    <string name="apk_anyway">Pobierz mimo to</string>
+    <string name="priv_secure">🔒 Połączenie szyfrowane (https)</string>
+    <string name="priv_insecure">⚠ Połączenie bez szyfrowania (http)</string>
+    <string name="priv_blocked_page">Na tej stronie zablokowano: %1$d (z %2$d domen)</string>
+    <string name="priv_site_off">Blokowanie reklam na tej stronie jest wyłączone.</string>
+    <string name="priv_disable">Wyłącz blokowanie tu</string>
+    <string name="priv_enable">Włącz blokowanie tu</string>
 </resources>

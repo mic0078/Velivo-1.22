@@ -88,6 +88,11 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
 
 ## 6. Prywatność
 
+- **Panel prywatności:** menu → stuknij zielony licznik „🛡 Zablokowane reklamy” u góry. Widać: czy połączenie jest szyfrowane (🔒 https), ile reklam i elementów śledzących zablokowano na tej stronie i z jakich domen. Przycisk **Wyłącz blokowanie tu** – gdy jakaś strona przez blokowanie źle działa (zapamiętane dla tej strony; **Włącz blokowanie tu** cofa).
+- **Ochrona przed oszustwami** (działa sama, bez internetu, jak w Velivo na Windows):
+  - **podróbki stron** banków i znanych firm (np. `mbank-logowanie.com`, `rnbank.pl`, `paypa1.com`, `olx.pl.dostawa-pay.xyz`, adresy ze znakami udającymi litery) – czerwone ostrzeżenie, **Wróć (bezpiecznie)** albo **Znam tę stronę – wejdź**; wykrywane są też podróbki stron, do których masz zapisane hasła;
+  - **pobieranie aplikacji (APK) spoza Sklepu Play** – ostrzeżenie, domyślnie **Nie pobieraj**;
+  - **najpierw https** – strona otwiera się szyfrowana; gdy się nie da, Velivo pyta, czy otworzyć bez szyfrowania (sieć domowa – router, NAS – bez pytania). Błędny certyfikat jest zawsze blokowany.
 - Telefon nigdy nie wysyła całego profilu – tylko nowe pozycje, które komputer potwierdza.
 - Połączenie jest szyfrowane (AES-GCM) kluczem z parowania; inne telefony w sieci nic nie odczytają.
 - Pozycja w czytniku, ukryte elementy i ustawienia zostają w telefonie.

@@ -154,6 +154,7 @@ class MainActivity : Activity() {
         }
 
         startFilters()
+        Thread { runCatching { vaultDomains = passwords.all().map { Ochrona.regDomain(it.host) }.filter { it.contains('.') }.toHashSet() } }.start()
         // Powiadomienie odtwarzania w tle wymaga zgody (Android 13+).
         if (Build.VERSION.SDK_INT >= 33 && prefs.getBoolean("tlo", true) && !prefs.getBoolean("zapytano-powiadomienia", false)) {
             prefs.edit().putBoolean("zapytano-powiadomienia", true).apply()
@@ -329,11 +330,29 @@ set(p0,p);})"""
         w.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
                 if (req.url.host == QuickAccess.HOST) return if (quiet) null else quickAccess.serve(req.url)
-                if (prefs.getBoolean("adblock", true) && isBlocked(req.url)) {
+                if (prefs.getBoolean("adblock", true) && !siteAllowed(pageHost[view]) && isBlocked(req.url)) {
                     blockedCount++
+                    req.url.host?.let { h -> pageBlocked[view]?.merge(Ochrona.regDomain(h), 1, Int::plus) }
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
                 }
                 return null
+            }
+            // każda nowa strona w karcie: licznik prywatności od zera, ochrona przed podróbkami, najpierw https
+            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                val u = Uri.parse(url)
+                val host = u.host?.lowercase() ?: return
+                if (host == QuickAccess.HOST) return
+                pageHost[view] = host
+                pageBlocked[view] = java.util.concurrent.ConcurrentHashMap()
+                // strona sama wraca z https na http - zostaw ją (inaczej pętla)
+                if (u.scheme == "http" && host in httpsTried) { httpsTried.remove(host); httpAllowed.add(host) }
+                if (u.scheme == "http" && !isHomeNetwork(host) && host !in httpAllowed) {
+                    view.stopLoading(); httpsTried.add(host)
+                    view.loadUrl(url.replaceFirst("http://", "https://")); return
+                }
+                if (u.scheme != "http" && u.scheme != "https") return
+                val fake = if (host in protectionAllowed) null else Ochrona.checkLookalike(host, vaultDomains)
+                if (fake != null) { view.stopLoading(); warnLookalike(view, url, host, fake) }
             }
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val s = req.url.scheme ?: return false
@@ -343,10 +362,19 @@ set(p0,p);})"""
             }
             override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url) }
             // ramka z reklamą, która się nie wczytała - zapamiętaj adres, żeby ją zwinąć zamiast strony błędu
+            override fun onReceivedSslError(view: WebView, handler: android.webkit.SslErrorHandler, err: android.net.http.SslError) {
+                handler.cancel()   // nigdy nie przepuszczamy błędnego certyfikatu
+                val h = Uri.parse(err.url ?: "").host?.lowercase()
+                if (h != null && err.url == view.url && httpsTried.remove(h)) askHttp(view, err.url.replaceFirst("https://", "http://"), h)
+            }
             override fun onReceivedError(view: WebView, req: WebResourceRequest, err: android.webkit.WebResourceError) {
+                // strona nie działa po https - zapytaj, czy otworzyć bez szyfrowania
+                val h = req.url.host?.lowercase()
+                if (req.isForMainFrame && req.url.scheme == "https" && h != null && httpsTried.remove(h)) { askHttp(view, req.url.toString().replaceFirst("https://", "http://"), h); return }
                 if (!req.isForMainFrame) { failedFrames.add(req.url.host ?: ""); collapseFrames(view) }
             }
             override fun onPageFinished(view: WebView, url: String) {
+                if (url.startsWith("https://")) Uri.parse(url).host?.let { httpsTried.remove(it.lowercase()) }
                 hideAds(view, url)
                 for (ms in longArrayOf(0, 1500, 4000, 9000)) view.postDelayed({ collapseFrames(view) }, ms)
                 val qa = QuickAccess.isQuickAccess(url)
@@ -385,24 +413,36 @@ set(p0,p);})"""
         }
         w.setDownloadListener { dUrl, ua, disp, mime, _ ->
             val name = URLUtil.guessFileName(dUrl, disp, mime)
-            val req = DownloadManager.Request(Uri.parse(dUrl))
-                .setMimeType(mime)
-                .addRequestHeader("User-Agent", ua)
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
-            if (!quiet) CookieManager.getInstance().getCookie(dUrl)?.let { req.addRequestHeader("Cookie", it) }
-            (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
-            toast(getString(R.string.download_started))
+            // aplikacja spoza Sklepu Play - najczęstszy sposób oszustów na przejęcie telefonu
+            if (name.endsWith(".apk", true)) {
+                AlertDialog.Builder(this).setTitle(R.string.apk_title).setMessage(getString(R.string.apk_warn, Uri.parse(dUrl).host ?: ""))
+                    .setPositiveButton(R.string.apk_cancel, null)
+                    .setNegativeButton(R.string.apk_anyway) { _, _ -> startDownload(dUrl, ua, name, mime, quiet) }
+                    .show()
+                return@setDownloadListener
+            }
+            startDownload(dUrl, ua, name, mime, quiet)
         }
         tabs.add(Tab(w, priv, bank))
         show(tabs.size - 1)
         w.loadUrl(url)
     }
 
+    private fun startDownload(dUrl: String, ua: String, name: String, mime: String, quiet: Boolean) {
+        val req = DownloadManager.Request(Uri.parse(dUrl))
+            .setMimeType(mime)
+            .addRequestHeader("User-Agent", ua)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+        if (!quiet) CookieManager.getInstance().getCookie(dUrl)?.let { req.addRequestHeader("Cookie", it) }
+        (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
+        toast(getString(R.string.download_started))
+    }
+
     // Ukrywanie reklam (reguły "##" z list) i zwijanie pustych ramek z napisem "REKLAMA" -
     // po zablokowanej reklamie nie zostaje dziura ani strona błędu w ramce.
     private fun hideAds(view: WebView, url: String) {
-        if (!prefs.getBoolean("adblock", true) || QuickAccess.isQuickAccess(url)) return
+        if (!prefs.getBoolean("adblock", true) || QuickAccess.isQuickAccess(url) || siteAllowed(Uri.parse(url).host)) return
         val css = org.json.JSONObject.quote(blocker.hidingCss(Uri.parse(url).host))
         view.evaluateJavascript("""(function(){var d=document;if(!d.documentElement)return;
 var s=d.getElementById('velivo-reklamy');if(!s){s=d.createElement('style');s.id='velivo-reklamy';(d.head||d.documentElement).appendChild(s);}
@@ -436,7 +476,7 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
 
     // Ramki z zablokowanych lub niedziałających adresów reklam - zwiń je razem z pustym otoczeniem.
     private fun collapseFrames(view: WebView) = runOnUiThread {
-        if (!prefs.getBoolean("adblock", true)) return@runOnUiThread
+        if (!prefs.getBoolean("adblock", true) || siteAllowed(Uri.parse(view.url ?: "").host)) return@runOnUiThread
         view.evaluateJavascript("JSON.stringify([].map.call(document.querySelectorAll('iframe'),function(f){return f.src||''}))") { r ->
             val srcs = runCatching { org.json.JSONArray(org.json.JSONTokener(r).nextValue() as String) }.getOrNull() ?: return@evaluateJavascript
             val bad = (0 until srcs.length()).filter { i ->
@@ -445,6 +485,61 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
             }
             if (bad.isNotEmpty()) view.evaluateJavascript("(function(){var f=document.querySelectorAll('iframe');${bad.joinToString(",", "[", "]")}.forEach(function(i){var e=f[i];if(e)(window.__vUp?__vUp(e):e.style.setProperty('display','none','important'))})})()", null)
         }
+    }
+
+    // --- Prywatność i ochrona przed oszustwami (jak Ochrona.cs na Windows) ---
+    private val pageHost: MutableMap<WebView, String> = java.util.Collections.synchronizedMap(java.util.WeakHashMap())
+    private val pageBlocked: MutableMap<WebView, java.util.concurrent.ConcurrentHashMap<String, Int>> = java.util.Collections.synchronizedMap(java.util.WeakHashMap())
+    private val httpAllowed = java.util.Collections.synchronizedSet(HashSet<String>())   // na tę sesję: zgoda na stronę bez szyfrowania
+    private val httpsTried = java.util.Collections.synchronizedSet(HashSet<String>())
+    @Volatile private var vaultDomains: Set<String> = emptySet()   // domeny z zapisanymi hasłami - ich podróbki też wykrywamy
+    private val protectionAllowed get() = prefs.getStringSet("ochrona-dozwolone", emptySet()) ?: emptySet()
+
+    // strony, na których użytkownik wyłączył blokowanie reklam
+    private fun siteAllowed(host: String?) = host != null && Ochrona.regDomain(host) in (prefs.getStringSet("adblock-wyjatki", emptySet()) ?: emptySet())
+
+    private fun warnLookalike(view: WebView, url: String, host: String, fake: String) {
+        val msg = if (fake == "xn") getString(R.string.fake_xn, host) else getString(R.string.fake_brand, host, fake)
+        AlertDialog.Builder(this).setTitle(R.string.fake_title).setMessage(msg).setCancelable(false)
+            .setPositiveButton(R.string.fake_back) { _, _ -> if (view.canGoBack()) view.goBack() else view.loadUrl(home) }
+            .setNegativeButton(R.string.fake_trust) { _, _ ->
+                prefs.edit().putStringSet("ochrona-dozwolone", protectionAllowed + host).apply()
+                view.loadUrl(url)
+            }
+            .show()
+    }
+
+    private fun askHttp(view: WebView, url: String, host: String) {
+        AlertDialog.Builder(this).setTitle(R.string.http_title).setMessage(getString(R.string.http_warn, host))
+            .setPositiveButton(R.string.fake_back) { _, _ -> if (view.canGoBack()) view.goBack() else view.loadUrl(home) }
+            .setNegativeButton(R.string.http_open) { _, _ -> httpAllowed.add(host); view.loadUrl(url) }
+            .show()
+    }
+
+    private fun showPrivacy() {
+        val w = web() ?: return
+        val u = Uri.parse(w.url ?: "")
+        val host = u.host ?: return
+        val blocked = pageBlocked[w]?.entries?.sortedByDescending { it.value } ?: emptyList()
+        val secure = u.scheme == "https"
+        val off = siteAllowed(host)
+        val text = StringBuilder()
+            .append(if (secure) getString(R.string.priv_secure) else getString(R.string.priv_insecure)).append("\n\n")
+            .append(getString(R.string.priv_blocked_page, blocked.sumOf { it.value }, blocked.size)).append("\n")
+        blocked.take(12).forEach { text.append("  • ").append(it.key).append(" (").append(it.value).append(")\n") }
+        text.append("\n").append(getString(R.string.blocked, blockedCount))
+        if (off) text.append("\n\n").append(getString(R.string.priv_site_off))
+        AlertDialog.Builder(this).setTitle("🛡 " + host.removePrefix("www."))
+            .setMessage(text.toString())
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(if (off) R.string.priv_enable else R.string.priv_disable) { _, _ ->
+                val set = (prefs.getStringSet("adblock-wyjatki", emptySet()) ?: emptySet()).toMutableSet()
+                val d = Ochrona.regDomain(host)
+                if (off) set.remove(d) else set.add(d)
+                prefs.edit().putStringSet("adblock-wyjatki", set).apply()
+                w.reload()
+            }
+            .show()
     }
 
     private fun isBlocked(u: Uri) = (u.scheme == "http" || u.scheme == "https") && blocker.matches(u.host)
@@ -897,6 +992,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         head.addView(TextView(this).apply {
             text = "🛡 " + getString(R.string.blocked, blockedCount)
             textSize = 13f; setTextColor(GREEN); background = round(GREEN_BG); setPadding(dp(10), dp(5), dp(10), dp(5))
+            // stuknięcie: panel prywatności tej strony
+            contentDescription = getString(R.string.privacy_panel); tooltipText = getString(R.string.privacy_panel)
+            setOnClickListener { dlg.dismiss(); showPrivacy() }
         })
         box.addView(head)
 

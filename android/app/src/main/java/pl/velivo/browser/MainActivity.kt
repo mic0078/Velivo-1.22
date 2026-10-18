@@ -114,9 +114,10 @@ class MainActivity : Activity() {
         bar.addView(tabsBtn)
         // logo Velivo zamiast ⋮ - otwiera menu Velivo
         bar.addView(ImageView(this).apply {
+            // logo na całą wysokość przycisku (samo jest zaokrąglonym kafelkiem - bez dodatkowej ramki)
             setImageResource(R.mipmap.ic_launcher)
-            setPadding(dp(5), dp(5), dp(5), dp(5))
-            background = round(GRAY_BG)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            adjustViewBounds = true
             contentDescription = getString(R.string.menu)
             tooltipText = getString(R.string.menu)
             isClickable = true

@@ -227,6 +227,9 @@ namespace Przegladarka
                 _kbdTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Application.Current?.Dispatcher.BeginInvoke(toggle); };
                 var menu = new System.Windows.Forms.ContextMenuStrip();
                 menu.Items.Add(L.T("⌨ Pokaż / schowaj klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(toggle));
+                var autoIt = new System.Windows.Forms.ToolStripMenuItem(L.T("Otwieraj samą po kliknięciu w pole tekstowe")) { Checked = _kbdAuto, ToolTipText = L.T("Jak klawiatura dotykowa Windows: klik w pole do pisania w dowolnym programie pokazuje klawiaturę Velivo") };
+                autoIt.Click += (s, e) => { _kbdAuto = !_kbdAuto; autoIt.Checked = _kbdAuto; Application.Current?.Dispatcher.BeginInvoke(new Action(() => SetPref("klawiatura-sama", _kbdAuto ? "1" : "0"))); };
+                menu.Items.Add(autoIt);
                 menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => _kbd?.Close())));
                 _kbdTray.ContextMenuStrip = menu;
                 Application.Current.Exit += (s, e) => { try { _kbdTray.Visible = false; _kbdTray.Dispose(); } catch (Exception) { } };
@@ -234,8 +237,10 @@ namespace Przegladarka
             catch (Exception ex) { App.LogError(ex); }
         }
 
+        static volatile bool _kbdAuto;   // klawiatura sama po kliknieciu w pole tekstowe (domyslnie wylaczone)
         internal static void StartGlobalKeyboardHook()
         {
+            _kbdAuto = GetPref("klawiatura-sama") == "1";
             EnsureKbdTray();
             if (_hookStarted) return;
             _hookStarted = true;
@@ -248,6 +253,11 @@ namespace Przegladarka
                     var pt = Marshal.PtrToStructure<PointStruct>(lp);
                     _holdAt = pt;
                     Application.Current?.Dispatcher.BeginInvoke(new Action(() => { _holdTimer.Stop(); _holdTimer.Start(); CheckForeignField(pt); }));
+                }
+                else if (code >= 0 && (int)wp == 0x0202 && _kbdAuto)   // WM_LBUTTONUP: klik w pole tekstowe innego programu - klawiatura sama
+                {
+                    var pt = Marshal.PtrToStructure<PointStruct>(lp);
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => { if (_kbd == null || !_kbd.IsVisible) CheckForeignField(pt, true); }));
                 }
                 else if (code >= 0 && (int)wp == 0x0208)   // WM_MBUTTONUP - puszczona przed czasem: bez wymuszania
                     Application.Current?.Dispatcher.BeginInvoke(new Action(() => _holdTimer.Stop()));
@@ -273,7 +283,7 @@ namespace Przegladarka
             th.Start();
         }
 
-        static void CheckForeignField(PointStruct pt)
+        static void CheckForeignField(PointStruct pt, bool auto = false)
         {
             var hw = WindowFromPoint(pt);
             if (hw == IntPtr.Zero) return;
@@ -288,7 +298,7 @@ namespace Przegladarka
                     // przy pierwszym pytaniu - jesli za pierwszym razem nie ma pola, pytamy jeszcze raz chwile pozniej
                     var el = FindEditable(System.Windows.Automation.AutomationElement.FromPoint(new Point(pt.X, pt.Y)));
                     if (el == null) { System.Threading.Thread.Sleep(250); el = FindEditable(System.Windows.Automation.AutomationElement.FromPoint(new Point(pt.X, pt.Y))); }
-                    if (el == null)
+                    if (el == null && !auto)
                     {   // do zgloszenia: w jakim programie i na czym kliknieto, gdy pola nie rozpoznano
                         try
                         {
@@ -298,6 +308,7 @@ namespace Przegladarka
                         catch (Exception) { }
                         return;
                     }
+                    if (el == null) return;   // klik poza polem do pisania - bez klawiatury
                     try { el.SetFocus(); } catch (Exception) { }
                     Application.Current?.Dispatcher.BeginInvoke(new Action(() => { SetForegroundWindow(top); ShowScreenKeyboard(top); }));
                 }

@@ -756,6 +756,8 @@ namespace Przegladarka
             { "💾 Zapisz", "💾 Save" },
             { "Zapisz Mój słownik (Ctrl+S)", "Save My dictionary (Ctrl+S)" },
             { "Słów: ", "Words: " },
+            { "Otwieraj samą po kliknięciu w pole tekstowe", "Open automatically when you click a text field" },
+            { "Jak klawiatura dotykowa Windows: klik w pole do pisania w dowolnym programie pokazuje klawiaturę Velivo", "Like the Windows touch keyboard: clicking a text field in any program shows the Velivo keyboard" },
             { "Pliki tekstowe", "Text files" },
             { "📖 Mój słownik", "📖 My dictionary" },
             { "Pad (Xbox i zgodne): krzyżak / lewa gałka – wybór klawisza, A – naciśnij, B – ⌫, X – spacja, Y – ⇧, LB / RB – kursor ◀ ▶, LT – ą ę ł, Start – ⏎, Back – zamknij", "Gamepad (Xbox and compatible): D-pad / left stick – choose a key, A – press, B – ⌫, X – space, Y – ⇧, LB / RB – cursor ◀ ▶, LT – ą ę ł, Start – ⏎, Back – close" },

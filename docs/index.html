@@ -176,11 +176,6 @@ details .tbl { margin-top: 10px; }
 .filter span { color: var(--muted); font-size: 14px; }
 @media (max-width: 860px) { .guard { grid-template-columns: 1fr; } }
 
-.shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
-.shots img { width: 100%; border-radius: 8px; display: block; }
-.shotwin { padding-block: 0 10px; }
-.shotwin img { width: 100%; border-radius: 14px; border: 1px solid var(--line); display: block; }
-@media (max-width: 480px) { .shots { grid-template-columns: 1fr; } }
 
 footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-top: 1px solid var(--line); margin-top: 30px; }
 
@@ -249,10 +244,6 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
   </div>
 </section>
 
-<section class="block shotwin">
-  <div class="wrap"><img src="zrzuty/velivo-okno.png" alt="Okno Velivo z okienkiem Film na wierzchu w rogu"></div>
-</section>
-
 <section class="block">
   <div class="wrap">
     <h2 class="pl">Tylko w Velivo</h2><h2 class="en">Only in Velivo</h2>
@@ -263,7 +254,6 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
         <h3><i>▣</i><span class="pl">Film na wierzchu</span><span class="en">Video on top</span></h3>
         <p class="pl">Własne okienko z filmem, które zmniejszysz prawie do znaczka (od 160×90). Przezroczystość ustawiasz kółkiem myszy, od 15 do 100%. Przypinka „zawsze na wierzchu” włącza się jednym kliknięciem. Film gra dalej po zamknięciu karty, a nawet całej przeglądarki. Przycisk ↩ wraca do strony od tego samego miejsca. Sam film – reklamy zablokowane, a reklamy wideo YouTube pomijane.</p>
         <p class="en">Velivo's own video window you can shrink almost to an icon (from 160×90). Set transparency with the mouse wheel, from 15 to 100%. The "always on top" pin toggles with one click. The video keeps playing after you close the tab, and even the whole browser. The ↩ button returns to the page at the same moment. Just the video, with ads blocked and YouTube video ads skipped.</p>
-        <div class="shots"><img src="zrzuty/film-na-wierzchu.png" alt="Okienko Film na wierzchu"><img src="zrzuty/film-maly-w-rogu.png" alt="Okienko w rogu ekranu"><img src="zrzuty/film-przezroczysty.png" alt="Przezroczyste okienko nad pulpitem"></div>
       </article>
       <article>
         <h3><i>🧠</i><span class="pl">Gdzie ja to czytałem?</span><span class="en">Where did I read that?</span></h3>
@@ -440,6 +430,9 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
           <tr><td>Odtwarzacz i TV</td><td>Odtwarzacz jak VLC (AVI, MKV, WMV…), biblioteka filmów, telewizja z programem, archiwum i nagrywaniem, obraz w obrazie, wyłącznik czasowy</td></tr>
           <tr><td>Napisy i lektor</td><td>Pobieranie napisów z OpenSubtitles.com (Twoje konto), przesuwanie napisów G / H zapamiętane dla filmu, lektor czytający napisy na głos</td></tr>
           <tr><td>Klawiatura ekranowa</td><td>Autokorekta (polskie znaki, literówki, „nie”, „ze/że”, stałe zwroty), przecinki, podpowiedzi słów i zdań, Mój słownik, pisanie przeciągnięciem, klawiatura numeryczna, pad z kursorem myszy, otwieranie po kliknięciu w pole</td></tr>
+          <tr><td>Tryb bankowy</td><td>Osobny, zaszyfrowany profil na banki i zakupy otwierany hasłem albo kluczem sprzętowym (YubiKey, Titan): Moje banki i sklepy, wpisywanie wybranych znaków hasła, karty, notatki, loginy, dokumenty z przypomnieniem o ważności, rachunki do opłacenia z przypomnieniami, arkusz rachunków, strażnik przelewu, kopia zapasowa</td></tr>
+          <tr><td>Szybki Dostęp</td><td>Strona nowej karty ze skrótami w grupach, miniaturami, profilami (z PIN-em) i motywami tła</td></tr>
+          <tr><td>Pliki</td><td>Czytnik PDF (także czytanie na głos), torrenty przez aria2 w osobnej strefie (opcjonalnie), otwieranie plików z dysku (Ctrl+O)</td></tr>
           <tr><td>Karteczki</td><td>Przypięte nad paskiem zadań, kolory, listy do odhaczania, kalendarzyk, przypomnienie o terminie</td></tr>
           <tr><td>Czytanie</td><td>Na głos (głosy Windows i naturalne offline), „Czytaj od tego miejsca”, tryb czytania z lokalnym streszczeniem bez AI, pomijanie reklam i „Czytaj także”</td></tr>
           <tr><td>Historia</td><td>Dzień → witryna → strony, „Gdzie ja to czytałem?”, historia pobranych z datą i źródłem</td></tr>
@@ -465,6 +458,9 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
           <tr><td>Player and TV</td><td>VLC-like player (AVI, MKV, WMV…), video library, TV with guide, catch-up and recording, picture in picture, sleep timer</td></tr>
           <tr><td>Subtitles and narrator</td><td>Subtitle download from OpenSubtitles.com (your account), G / H subtitle shift remembered per film, narrator reading subtitles aloud</td></tr>
           <tr><td>On-screen keyboard</td><td>Autocorrect (Polish letters, typos, „nie”, „ze/że”, fixed phrases), commas, word and sentence suggestions, My dictionary, swipe typing, numeric keypad, gamepad with mouse cursor, opens on a text-field click</td></tr>
+          <tr><td>Banking mode</td><td>A separate encrypted profile for banks and shopping, opened with a password or a hardware key (YubiKey, Titan): my banks and shops, selected password characters, cards, notes, logins, documents with expiry reminders, bills with reminders, bills sheet, transfer guard, backup</td></tr>
+          <tr><td>Quick Access</td><td>New tab page with grouped shortcuts, thumbnails, profiles (with a PIN) and background themes</td></tr>
+          <tr><td>Files</td><td>PDF reader (with read aloud), torrents via aria2 in a separate zone (optional), opening files from disk (Ctrl+O)</td></tr>
           <tr><td>Sticky notes</td><td>Docked above the taskbar, colors, check lists, date picker, due-date reminder</td></tr>
           <tr><td>Reading</td><td>Read aloud (Windows and natural offline voices), "Read from here", reader mode with a local summary (no AI), skips ads and "Read also"</td></tr>
           <tr><td>History</td><td>Day → site → pages, "Where did I read that?", download history with date and source</td></tr>
@@ -486,8 +482,8 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
 <section class="block" id="manual">
   <div class="wrap">
     <h2 class="pl">Instrukcja</h2><h2 class="en">Manual</h2>
-    <p class="sub pl">Kliknij rozdział, aby go rozwinąć. Pełna wersja jest w pliku <a href="https://github.com/mic0078/Velivo-1.22/blob/main/INSTRUKCJA.md">INSTRUKCJA.md</a>.</p>
-    <p class="sub en">Click a chapter to expand it. The full version is in <a href="https://github.com/mic0078/Velivo-1.22/blob/main/MANUAL.en.md">MANUAL.en.md</a>.</p>
+    <p class="sub pl">Kliknij rozdział, aby go rozwinąć. Pełna wersja: <a href="https://github.com/mic0078/Velivo-1.22/blob/main/INSTRUKCJA.md">INSTRUKCJA.md</a> · PDF: <a href="Velivo-1.22-Instrukcja.pdf">Instrukcja</a> · <a href="Velivo-1.22-Podrecznik.pdf">Podręcznik (katalog funkcji)</a>.</p>
+    <p class="sub en">Click a chapter to expand it. The full version is in <a href="https://github.com/mic0078/Velivo-1.22/blob/main/MANUAL.en.md">MANUAL.en.md</a> · PDF (Polish): <a href="Velivo-1.22-Instrukcja.pdf">Manual</a> · <a href="Velivo-1.22-Podrecznik.pdf">Handbook</a>.</p>
     <div class="manual">
 
       <details open>
@@ -717,6 +713,108 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
         </ul>
       </details>
 
+      <details>
+        <summary><span class="num">14</span><span class="pl">Wyszukiwanie i pasek adresu</span><span class="en">Search and the address bar</span></summary>
+        <ul class="pl">
+          <li>Wpisz słowa zamiast adresu – Velivo szuka w wybranej wyszukiwarce (Ustawienia → Wyszukiwanie i start).</li>
+          <li>Skróty: <code>yt koty</code>, <code>g przepis</code>, <code>ddg pogoda</code>, <code>wiki Kraków</code>, <code>allegro rower</code>, <code>olx kanapa</code>, <code>ceneo telewizor</code>, <code>mapy Gdańsk</code>, <code>filmweb Matrix</code>, <code>tlumacz hello</code>; własne: <b>Skróty wyszukiwania…</b> (<code>skrót=adres z %s</code>).</li>
+          <li>Prawy przycisk na pasku adresu → <b>Wklej i przejdź</b>.</li>
+        </ul>
+        <ul class="en">
+          <li>Type words instead of an address – Velivo searches your chosen engine (Settings → Search and start).</li>
+          <li>Shortcuts: <code>yt cats</code>, <code>g recipe</code>, <code>ddg weather</code>, <code>wiki Kraków</code>, <code>allegro bike</code>, <code>olx sofa</code>, <code>mapy Gdańsk</code>, <code>tlumacz hello</code>; your own: <b>Search shortcuts…</b> (<code>key=address with %s</code>).</li>
+          <li>Right-click the address bar → <b>Paste and go</b>.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">15</span><span class="pl">Wygląd</span><span class="en">Look</span></summary>
+        <ul class="pl">
+          <li>Styl <b>Nowoczesny</b> (jak Windows 11) albo <b>Kolorowy</b>; 10 motywów: Jasny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.</li>
+          <li>Tryb strony: ☀ jasny, 🌙 ciemny (zdjęcia w prawdziwych kolorach), 🌅 nocny z natężeniem kółkiem – zapamiętany osobno dla każdej strony.</li>
+          <li>Powiększenie i wersja telefonu zapamiętane dla strony; efekt wejścia treści (z wyostrzenia, kinowo z ciemności) z szybkością 0–5 s; język polski albo angielski.</li>
+        </ul>
+        <ul class="en">
+          <li><b>Modern</b> style (like Windows 11) or <b>Colorful</b>; 10 themes: Light, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.</li>
+          <li>Page mode: ☀ light, 🌙 dark (photos keep real colors), 🌅 night with wheel strength – remembered per site.</li>
+          <li>Zoom and phone version remembered per site; page entrance effect (focus-in, cinematic from darkness) at 0–5 s; Polish or English.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">16</span><span class="pl">Szybki Dostęp</span><span class="en">Quick Access</span></summary>
+        <ul class="pl">
+          <li>Strona nowej karty: skróty w grupach (np. Start, Finanse, Muzyka), ikony i miniatury stron robione w tle.</li>
+          <li>Profile Szybkiego Dostępu (opcjonalnie z PIN-em) i motywy tła; dodawanie przyciskiem <b>+ Skrót</b>, z menu strony albo z zakładek.</li>
+          <li>Synchronizacja z komputerami w domu – skróty i grupy są łączone.</li>
+        </ul>
+        <ul class="en">
+          <li>New tab page: grouped shortcuts (e.g. Start, Finance, Music), icons and page thumbnails made in the background.</li>
+          <li>Quick Access profiles (optionally with a PIN) and background themes; add with <b>+ Shortcut</b>, from the page menu or from bookmarks.</li>
+          <li>Sync with computers at home – shortcuts and groups are merged.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">17</span><span class="pl">Hasła i autouzupełnianie</span><span class="en">Passwords and autofill</span></summary>
+        <ul class="pl">
+          <li>Przy polu logowania: <b>🔑 Wpisz · ⚡ Generuj</b>; lista kont strony i wyszukiwarka całej bazy (z ostrzeżeniem przed podróbkami). Hasło trafia tylko na prawdziwą domenę.</li>
+          <li>Po zalogowaniu Velivo pyta o zapis lub aktualizację (także w kartach prywatnych). Menedżer haseł: szukanie, kopiowanie, edycja, import i eksport CSV (KeePassXC, Chrome), współpraca z Sejfem.</li>
+          <li>Przeprowadzka: zakładki z Chrome, Edge, Brave, Opery i Vivaldi odczytywane wprost, hasła przez CSV – zrób to przed odinstalowaniem starej przeglądarki.</li>
+          <li>Autouzupełnianie: adres, karta (bez CVC) i konto bankowe – klik w puste pole wypełnia formularz; karta i konto po potwierdzeniu.</li>
+        </ul>
+        <ul class="en">
+          <li>By the login field: <b>🔑 Fill in · ⚡ Generate</b>; the site's accounts and a search of the whole vault (with a fake-site warning). Passwords go only to the real domain.</li>
+          <li>After logging in Velivo offers to save or update (private tabs too). Password manager: search, copy, edit, CSV import and export (KeePassXC, Chrome), works with Sejf.</li>
+          <li>Moving in: bookmarks read directly from Chrome, Edge, Brave, Opera and Vivaldi, passwords via CSV – do it before uninstalling the old browser.</li>
+          <li>Autofill: address, card (no CVC) and bank account – clicking an empty field fills the form; card and account after confirmation.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">18</span><span class="pl">Tryb bankowy</span><span class="en">Banking mode</span></summary>
+        <ul class="pl">
+          <li>Zielony <b>🏦</b> na pasku kart: osobny, odizolowany profil z zaszyfrowaną bazą, bez dodatków i historii. Otwierasz hasłem albo kluczem sprzętowym FIDO2 (YubiKey, Google Titan); blokuje się sam po bezczynności.</li>
+          <li><b>Moje banki / Moje sklepy</b>, dane logowania, <b>🔢 wybrane znaki hasła</b> wpisywane same, 💳 karty, 📝 notatki, 🔑 loginy (tylko na właściwej domenie), 📄 dokumenty z przypomnieniem o ważności, 🏦 rachunki bankowe.</li>
+          <li><b>🧾 Rachunki do opłacenia</b> z przypomnieniami i <b>📊 arkusz rachunków</b> jak w Excelu (import CSV); <b>🛡 strażnik przelewu</b> sprawdza numer rachunku.</li>
+          <li>Ostrzeżenie przed podróbkami banku, pytanie „Przełącz na tryb bankowy” w zwykłej karcie, dziennik otwarć, profile bankowe, kopia <code>.vbank</code>, synchronizacja w domu.</li>
+        </ul>
+        <ul class="en">
+          <li>Green <b>🏦</b> on the tab bar: a separate, isolated profile with an encrypted database, no extensions or history. Open with a password or a FIDO2 hardware key (YubiKey, Google Titan); locks itself when idle.</li>
+          <li><b>My banks / My shops</b>, login details, <b>🔢 selected password characters</b> filled in automatically, 💳 cards, 📝 notes, 🔑 logins (only on the right domain), 📄 documents with expiry reminders, 🏦 bank accounts.</li>
+          <li><b>🧾 Bills to pay</b> with reminders and an Excel-like <b>📊 bills sheet</b> (CSV import); the <b>🛡 transfer guard</b> checks account numbers.</li>
+          <li>Fake-bank warnings, a "Switch to banking mode" prompt in a normal tab, an opening log, banking profiles, <code>.vbank</code> backup, home sync.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">19</span><span class="pl">Historia, pobrane i torrenty</span><span class="en">History, downloads and torrents</span></summary>
+        <ul class="pl">
+          <li>Historia (Ctrl+H): dzień → witryna → podstrony, wyszukiwanie po tytułach i <b>🧠 w treści stron</b>.</li>
+          <li>Pobrane (Ctrl+J): do 16 połączeń, pauza i wznawianie po ponownym uruchomieniu, historia z datą i źródłem.</li>
+          <li>Torrenty (Ustawienia → Torrenty, domyślnie wyłączone): magnet i <code>.torrent</code> przez darmowy aria2 (ok. 2,5 MB, za zgodą), osobny folder, limity prędkości, udostępnianie; strona nie uruchomi torrenta sama, w trybie bankowym nigdy.</li>
+        </ul>
+        <ul class="en">
+          <li>History (Ctrl+H): day → site → pages, search by title and <b>🧠 in page content</b>.</li>
+          <li>Downloads (Ctrl+J): up to 16 connections, pause and resume after restart, history with date and source.</li>
+          <li>Torrents (Settings → Torrents, off by default): magnet and <code>.torrent</code> via the free aria2 (about 2.5 MB, with consent), a separate folder, speed limits, seeding; a page can't start a torrent by itself, never in banking mode.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><span class="num">20</span><span class="pl">Dodatki, profile i narzędzia</span><span class="en">Extensions, profiles and tools</span></summary>
+        <ul class="pl">
+          <li>Dodatki Chrome z Chrome Web Store, linku albo folderu; przycisk 🧩 z przypinaniem ikonek na pasku.</li>
+          <li>🛡 uBlock Origin Lite wbudowany i włączony od razu, aktualizowany co tydzień; wyniki na tarczy.</li>
+          <li>Profile użytkowników, zrzut całej strony, tłumaczenie strony lub zaznaczenia, wykrywanie mediów, czytnik PDF (Ctrl+O), pamięć podręczna na RAM dysku (wystarczy wskazać folder).</li>
+        </ul>
+        <ul class="en">
+          <li>Chrome extensions from the Chrome Web Store, a link or a folder; the 🧩 button with pinning to the toolbar.</li>
+          <li>🛡 uBlock Origin Lite built in and on from the start, updated weekly; results on the shield.</li>
+          <li>User profiles, full-page screenshots, page or selection translation, media detection, PDF reader (Ctrl+O), page cache on a RAM disk (just pick a folder).</li>
+        </ul>
+      </details>
+
     </div>
   </div>
 </section>
@@ -740,7 +838,8 @@ footer { padding-block: 40px 60px; color: var(--muted); font-size: 15px; border-
   }
   var saved = null;
   try { saved = localStorage.getItem('velivo-lang'); } catch (e) {}
-  setLang(saved === 'en' ? 'en' : 'pl');
+  if (saved !== 'pl' && saved !== 'en') { var nl = ((navigator.languages && navigator.languages[0]) || navigator.language || 'pl').toLowerCase(); saved = nl.indexOf('pl') === 0 ? 'pl' : 'en'; }   // jezyk systemu, gdy nie wybrano recznie
+  setLang(saved);
   document.getElementById('lang-pl').addEventListener('click', function () { setLang('pl'); });
   document.getElementById('lang-en').addEventListener('click', function () { setLang('en'); });
 

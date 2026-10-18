@@ -29,7 +29,6 @@
 
 <p align="center"><b><a href="Instalator/Velivo-Setup-1.22.exe">⬇ Download Velivo for free</a></b> · <a href="MANUAL.en.md">📖 Manual</a> · ⭐ Star it if you like it</p>
 
-
 A lightweight, private browser for Windows that keeps your data with you: no account, no cloud, no history or passwords sent to outside servers. It runs on the Microsoft Edge engine (WebView2), so pages look the same as in Edge and Chrome.
 
 Your computers share data through local network (LAN) sync, encrypted after the devices are paired. Velivo ships with the **Quick Access** add-on (a new tab page with shortcuts) and works with **Sejf**, a program that keeps passwords encrypted offline.
@@ -38,13 +37,7 @@ The interface is available in **Polish and English**. The installer asks for the
 
 **[⬇ Download the installer Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (about 64 MB – .NET and uBlock Origin Lite included, nothing else to install) · **[📖 Complete user manual](MANUAL.en.md)**
 
-![Velivo – the browser window, with the Video on top window playing in the bottom-right corner](docs/zrzuty/velivo-okno.png)
-
 ## What no other browser has
-
-| ![](docs/zrzuty/film-na-wierzchu.png) | ![](docs/zrzuty/film-maly-w-rogu.png) | ![](docs/zrzuty/film-przezroczysty.png) |
-| --- | --- | --- |
-| ▣ Video on top | shrunk in a corner | transparent over the desktop |
 
 **Velivo goes beyond the limits of today's browsers** – in protection too: it detects fake bank and shop sites offline, hides the window from screen recording during payments, and gives passwords only to the real sites.
 

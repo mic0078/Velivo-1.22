@@ -307,7 +307,6 @@ Pełny opis: [`dokumentacja/instrukcja-filmy-tv.md`](dokumentacja/instrukcja-fil
 | Działanie w tle | schowana do zasobnika poprawia dalej pisanie zwykłą klawiaturą | ScreenKeyboard.cs | ✔ | – | ✔ |
 | Karteczki | przypięte nad paskiem zadań, kolory, listy, kalendarzyk, przypomnienie o terminie | StickyNotes.cs | ✔ | ✔ | – |
 
-
 ---
 
 ## Spis treści
@@ -420,8 +419,6 @@ Instalacja nie wymaga uprawnień administratora. Program trafia do `%LOCALAPPDAT
 ---
 
 ## 4. Pierwsze kroki – pasek narzędzi
-
-![Okno Velivo: karty, pasek narzędzi, tarcza z licznikiem, a w rogu okienko Film na wierzchu](docs/zrzuty/velivo-okno.png)
 
 Velivo startuje na pełnym ekranie. Od lewej:
 
@@ -599,12 +596,6 @@ Zwykły prawy klik bez ruchu otwiera menu jak zawsze. Gesty wyłączysz w Ustawi
 Po najechaniu myszką na film, w jego prawym górnym rogu, pojawiają się trzy przyciski: **⬇ Pobierz · ▣ Na wierzchu · ⧉ Obraz w obrazie**. Działa to także na YouTube.
 
 ### ▣ Film na wierzchu (wyłącznie Velivo)
-
-![Przyciski nad filmem: Pobierz, Na wierzchu, Obraz w obrazie](docs/zrzuty/przyciski-filmu.png)
-
-| Okienko z filmem | Zmniejszone w rogu ekranu | Prawie przezroczyste nad pulpitem |
-| --- | --- | --- |
-| ![Okienko Film na wierzchu](docs/zrzuty/film-na-wierzchu.png) | ![Małe okienko przy zegarze](docs/zrzuty/film-maly-w-rogu.png) | ![Przezroczyste okienko – widać ikony pulpitu](docs/zrzuty/film-przezroczysty.png) |
 
 1. Kliknij **▣ Na wierzchu**. Film w karcie się zatrzyma, a w małym okienku ruszy od tego samego miejsca.
 2. Okienko obsługujesz tak:
@@ -1052,10 +1043,6 @@ Każdą z tych rzeczy zrobisz też samą myszką: przyciskiem, gestem albo prawy
 ---
 
 ## 21. Ustawienia – co gdzie jest (każda opcja)
-
-![Ustawienia, część 1: import, wyszukiwanie, prywatność, wygląd, uBlock Origin Lite i bezpieczeństwo](docs/zrzuty/ustawienia-1.png)
-
-![Ustawienia, część 2: śmieci na RAM dysku, dane, profile i synchronizacja](docs/zrzuty/ustawienia-2.png)
 
 Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po kolei**, w tej samej kolejności co w oknie.
 

@@ -119,8 +119,6 @@ No administrator rights are needed. The program goes to `%LOCALAPPDATA%\Programs
 
 ## 4. Getting started – the toolbar
 
-![The Velivo window: tabs, toolbar, shield with counter, and the Video on top window in the corner](docs/zrzuty/velivo-okno.png)
-
 Velivo starts maximized. From the left:
 
 | Item | What it does |
@@ -275,12 +273,6 @@ A **pinned tab** is not closed by the ↓ gesture (just like it has no close but
 Hover over a video and three buttons appear in its top right corner: **⬇ Download · ▣ On top · ⧉ Picture in picture**. This works on YouTube too.
 
 ### ▣ Video on top (Velivo only)
-
-![Buttons over a video: Download, On top, Picture in picture](docs/zrzuty/przyciski-filmu.png)
-
-| The video window | Shrunk in a screen corner | Almost transparent over the desktop |
-| --- | --- | --- |
-| ![Video on top window](docs/zrzuty/film-na-wierzchu.png) | ![Small window by the clock](docs/zrzuty/film-maly-w-rogu.png) | ![Transparent window – desktop icons show through](docs/zrzuty/film-przezroczysty.png) |
 
 1. Click **▣ On top**. The video in the tab pauses and continues in a small window from the same moment.
 2. Using the window:
@@ -721,12 +713,6 @@ If you have a RAM disk (for example ImDisk, SoftPerfect RAM Disk or your own too
 You can also do each of these with the mouse alone: a button, a gesture or the right-click menu.
 
 ---
-
-### The Settings window
-
-![Settings, part 1: import, search, privacy, look, uBlock Origin Lite and security](docs/zrzuty/ustawienia-1.png)
-
-![Settings, part 2: junk on a RAM disk, data, profiles and sync](docs/zrzuty/ustawienia-2.png)
 
 ---
 

@@ -572,9 +572,10 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
     }
 
     private fun speak(text: String) {
-        val go = {
+        val go = speakGo@{
             val t = tts!!
-            t.language = resources.configuration.locales[0]
+            val lang = t.setLanguage(resources.configuration.locales[0])
+            if (lang == android.speech.tts.TextToSpeech.LANG_MISSING_DATA || lang == android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED) { offerTts(); return@speakGo }
             // TTS przyjmuje ograniczona dlugosc - dzielimy po akapitach
             val parts = text.split("\n").map { it.trim() }.filter { it.isNotEmpty() }.flatMap { it.chunked(3500) }
             // ostatni fragment przeczytany -> zdejmij powiadomienie, ktore trzymalo czytanie przy zgaszonym ekranie
@@ -588,8 +589,21 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
             toast(getString(R.string.reading_started))
         }
         if (tts != null) go() else tts = android.speech.tts.TextToSpeech(this) { st ->
-            if (st == android.speech.tts.TextToSpeech.SUCCESS) go() else toast(getString(R.string.tts_missing))
+            if (st == android.speech.tts.TextToSpeech.SUCCESS) go() else { tts = null; offerTts() }
         }
+    }
+
+    // brak syntezatora albo glosu w jezyku telefonu - zaproponuj pobranie
+    private fun offerTts() {
+        AlertDialog.Builder(this).setTitle(R.string.read_aloud).setMessage(R.string.tts_missing)
+            .setPositiveButton(R.string.download) { _, _ ->
+                runCatching { startActivity(Intent(android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)) }.onFailure {
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.tts"))) }.onFailure {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.tts")))
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun stopSpeaking() { tts?.stop(); stopService(Intent(this, PlaybackService::class.java)) }

@@ -106,8 +106,9 @@
     <string name="stop_reading">Stop reading</string>
     <string name="reader_empty">No readable text on this page</string>
     <string name="reading_started">Reading aloud…</string>
-    <string name="tts_missing">Speech engine unavailable – install Google Speech Services</string>
+    <string name="tts_missing">Your phone needs a speech engine or a voice for this language. Would you like to download Google Speech Services?</string>
     <string name="text_smaller">Smaller text</string>
     <string name="text_larger">Larger text</string>
     <string name="reader_resumed">Carrying on where you left off</string>
+    <string name="download">Download</string>
 </resources>

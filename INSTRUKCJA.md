@@ -798,7 +798,7 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - **Styl** (Ustawienia → Wygląd):
   - **Nowoczesny** (domyślny): spokojne przyciski bez kolorowych teł, ikony Windows 11, jeden niebieski akcent, a kolor tylko przy najechaniu albo gdy coś jest włączone;
   - **Kolorowy**: kolorowe przyciski i emoji.
-- **10 motywów:** Jasny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
+- **11 motywów:** Velivo (domyślny, kolory z ikony: fiolet i turkus), Velivo nocny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
 - **Tryby stron** (przycisk trybu – ikona pokazuje obecny tryb: ☀ jasny, 🌙 ciemny, 🌅 nocny):
   - jasny;
   - **ciemny** – strony przyciemnione, a zdjęcia zostają w prawdziwych kolorach;
@@ -1077,7 +1077,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
   - **Delikatne przyciemnienie** – krótkie, subtelne przyciemnienie i powrót;
   - **Brak** – strona pojawia się od razu.
 - **Szybkość efektu wejścia** – suwak od 0 do 5 s co 0,1 s (0 = automatycznie). Przykładowe wartości: szybkie 0,15 s, delikatne 0,3 s, wolne 0,5 s, spokojne 1 s, bardzo spokojne 2 s, senne 3 s, najwolniejsze 4 s.
-- **Motyw przeglądarki** – kolory pasków i kart: Jasny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
+- **Motyw przeglądarki** – kolory pasków i kart: Velivo (domyślny), Velivo nocny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
 - **Styl wyglądu** – **Nowoczesny** (spokojny, jak Windows 11: ikony Windows, jeden niebieski akcent) albo **Kolorowy** (kolorowe przyciski i emoji).
 - **Język interfejsu** – automatycznie (z instalatora / Windows), polski albo angielski. Zmiana działa po ponownym uruchomieniu.
 - **Zawsze kompaktowy pasek narzędzi** – mniejsze etykiety, część przycisków w menu „…”, nawet na szerokim oknie.

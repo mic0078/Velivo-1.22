@@ -243,7 +243,7 @@ namespace Velivo
               <Setter TargetName='Bd' Property='BorderBrush' Value='#93C5FD'/>
             </Trigger>
             <Trigger Property='IsPressed' Value='True'>
-              <Setter TargetName='Bd' Property='Background' Value='#DBEAFE'/>
+              <Setter TargetName='Bd' Property='Background' Value='#E4DDFB'/>
             </Trigger>
             <Trigger Property='IsDefault' Value='True'>
               <Setter TargetName='Bd' Property='Background' Value='#2563EB'/>
@@ -255,8 +255,8 @@ namespace Velivo
                 <Condition Property='IsDefault' Value='True'/>
                 <Condition Property='IsMouseOver' Value='True'/>
               </MultiTrigger.Conditions>
-              <Setter TargetName='Bd' Property='Background' Value='#1D4ED8'/>
-              <Setter TargetName='Bd' Property='BorderBrush' Value='#1D4ED8'/>
+              <Setter TargetName='Bd' Property='Background' Value='#5B3FD0'/>
+              <Setter TargetName='Bd' Property='BorderBrush' Value='#5B3FD0'/>
             </MultiTrigger>
             <Trigger Property='IsEnabled' Value='False'>
               <Setter Property='Opacity' Value='0.5'/>
@@ -302,7 +302,7 @@ namespace Velivo
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='Bd' Property='Background' Value='#F1F5F9'/></Trigger>
-            <Trigger Property='IsSelected' Value='True'><Setter TargetName='Bd' Property='Background' Value='#DBEAFE'/></Trigger>
+            <Trigger Property='IsSelected' Value='True'><Setter TargetName='Bd' Property='Background' Value='#E4DDFB'/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>

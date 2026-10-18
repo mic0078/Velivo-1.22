@@ -756,6 +756,8 @@ namespace Przegladarka
             { "💾 Zapisz", "💾 Save" },
             { "Zapisz Mój słownik (Ctrl+S)", "Save My dictionary (Ctrl+S)" },
             { "Słów: ", "Words: " },
+            { "Szukaj słowa – wpisz fragment; Enter: następne, Esc: wyczyść", "Find a word – type part of it; Enter: next, Esc: clear" },
+            { "Szukaj…", "Search…" },
             { "Twoje często pisane zdanie – kliknij albo Ctrl+Spacja, aby wstawić resztę", "A sentence you often type – click or press Ctrl+Space to insert the rest" },
             { "Zapamiętano poprawkę: ", "Correction remembered: " },
             { "Otwieraj samą po kliknięciu w pole tekstowe", "Open automatically when you click a text field" },

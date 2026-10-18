@@ -1027,8 +1027,30 @@ namespace Przegladarka
                 bar.Children.Add(count);
                 foreach (var bb in new[] { saveB, sortB, loadB }) { DockPanel.SetDock(bb, Dock.Right); bar.Children.Add(bb); }
                 var root = new DockPanel();
-                DockPanel.SetDock(info, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
-                root.Children.Add(info); root.Children.Add(bar); root.Children.Add(box);
+                // 🔍 szukanie: wpisz fragment - zaznacza pierwsze pasujace slowo (od poczatku slowa najpierw), Enter - nastepne
+                var find = new TextBox { Margin = new Thickness(8, 0, 8, 6), Padding = new Thickness(6, 3, 6, 3), FontSize = 14, ToolTip = L.T("Szukaj słowa – wpisz fragment; Enter: następne, Esc: wyczyść") };
+                var findHint = new TextBlock { Text = "🔍 " + L.T("Szukaj…"), IsHitTestVisible = false, Opacity = 0.5, Margin = new Thickness(16, 3, 0, 0), FontSize = 14 };
+                var findBox = new Grid(); findBox.Children.Add(find); findBox.Children.Add(findHint);
+                int findAt = -1;
+                Action<bool> findNext = next =>
+                {
+                    findHint.Visibility = find.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+                    var q = find.Text.Trim(); if (q.Length == 0) { findAt = -1; return; }
+                    var lines = box.Text.Split('\n');
+                    var hits = Enumerable.Range(0, lines.Length).Where(i => lines[i].Trim().StartsWith(q, StringComparison.CurrentCultureIgnoreCase))
+                        .Concat(Enumerable.Range(0, lines.Length).Where(i => lines[i].IndexOf(q, StringComparison.CurrentCultureIgnoreCase) > 0)).Distinct().ToList();
+                    if (hits.Count == 0) { find.Foreground = Brushes.IndianRed; return; }
+                    find.ClearValue(TextBox.ForegroundProperty);
+                    int k = next ? (hits.IndexOf(findAt) + 1) % hits.Count : 0; findAt = hits[k];
+                    int start = lines.Take(findAt).Sum(l => l.Length + 1);
+                    box.Select(start, lines[findAt].TrimEnd('\r').Length); box.ScrollToLine(findAt);
+                    count.Text = L.T("Słów: ") + words().Count + "   🔍 " + (k + 1) + "/" + hits.Count;
+                };
+                find.TextChanged += (a, b) => findNext(false);
+                find.KeyDown += (a, b) => { if (b.Key == Key.Enter) { findNext(true); b.Handled = true; } else if (b.Key == Key.Escape) { find.Text = ""; b.Handled = true; } };
+                box.IsInactiveSelectionHighlightEnabled = true;   // zaznaczenie widac, gdy kursor jest w polu szukania
+                DockPanel.SetDock(info, Dock.Top); DockPanel.SetDock(findBox, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
+                root.Children.Add(info); root.Children.Add(findBox); root.Children.Add(bar); root.Children.Add(box);
                 dictWin = new Window { Title = L.T("📖 Mój słownik"), Content = root, Width = 420, Height = 520, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen };
                 dictWin.PreviewKeyDown += (a, b) => { if (b.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { save(); b.Handled = true; } };
                 dictWin.Loaded += (a, b) => { _physPause = true; box.Focus(); box.CaretIndex = box.Text.Length; };

@@ -12,7 +12,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 from reportlab.lib.enums import TA_CENTER
 
 ROOT, MAIN, APPX, OUT = sys.argv[1:5]
-EN = APPX == '-'   # wersja angielska: MANUAL.en.md bez dodatku technicznego (ten jest tylko po polsku)
+EN = len(sys.argv) > 5 and sys.argv[5] == 'en'   # wersja angielska: MANUAL.en.md + technical-appendix.en.md
 NAME = 'Velivo 1.22 – User manual' if EN else 'Velivo 1.22 – Instrukcja obsługi'
 D = '/usr/share/fonts/truetype/dejavu/'
 pdfmetrics.registerFont(RLTTF('DV', D + 'DejaVuSans.ttf'))
@@ -150,11 +150,15 @@ def render(lines, h0, h1, h2, story, skip_sections=()):
 
 if EN:
     story = [Spacer(1, 55*mm), Paragraph('Velivo 1.22', st['title']),
-             Paragraph('User manual – every feature explained', st['sub']), Spacer(1, 46*mm),
+             Paragraph('User manual – every feature explained', st['sub']), Spacer(1, 6*mm),
+             Paragraph('Part I – User manual · Part II – Technical appendix (detailed description)', st['sub']), Spacer(1, 40*mm),
              Paragraph('Version 1.22 · documentation 2026-10-18', st['sub']), PageBreak()]
     toc = TableOfContents(); toc.levelStyles = [st['toc1'], st['toc2']]
     story += [Paragraph('Contents', st['h1']), toc, PageBreak()]
+    story += [Spacer(1, 90*mm), Paragraph('Part I', st['part']), Paragraph('User manual', st['sub']), PageBreak()]
     render(open(MAIN, encoding='utf-8').read().split('\n'), 2, 3, 4, story, skip_sections=('Contents',))
+    story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Part II', st['part']), Paragraph('Technical appendix – every feature step by step', st['sub']), PageBreak()]
+    render(open(APPX, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
 else:
     story = [Spacer(1, 55*mm), Paragraph('Velivo 1.22', st['title']),
              Paragraph('Instrukcja obsługi – pełny opis wszystkich funkcji', st['sub']), Spacer(1, 6*mm),

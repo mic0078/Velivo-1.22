@@ -47,7 +47,7 @@ Velivo 1.22 działa na Windows 10 (wersja 1809 lub nowsza) i Windows 11, 64-bit.
 ### 1.6 Sprawdzenie, czy plik jest oryginalny
 - **Do czego:** potwierdzenie, że pobrany instalator nie został zmieniony.
 - **Jak używać:** w PowerShellu `Get-FileHash .\Velivo-Setup-1.22.exe -Algorithm SHA256`.
-- **Co robi:** wynik musi być `01919B13F638C7ABD4B7A44157DFE13278550D08887C3DF4A53614B7671C9975` (instalator 1.22), a dla `Velivo-1.22.exe`: `A65A74A8B68BC74F34ECF10C90484F092DF93B6D2DFEFE56831A5AAD3672D494`.
+- **Co robi:** porównaj wynik z sumą SHA-256 opublikowaną razem z pobranym wydaniem.
 
 ## Pierwsze kroki
 
@@ -74,7 +74,7 @@ Velivo 1.22 działa na Windows 10 (wersja 1809 lub nowsza) i Windows 11, 64-bit.
 - **Co robi:** tłumaczy wszystkie okna, menu, podpowiedzi oraz Szybki Dostęp.
 
 ### 1.11 Wszystko w jednym – bez dodatkowych programów
-- **Co to znaczy:** Velivo zastępuje kilka osobnych programów: **odtwarzacz filmów z dysku** (7.16 – z obrazem w obrazie i „Filmem na wierzchu”), **czytnik PDF** (1.8) i **torrenty** (8.19). Nie trzeba ich instalować ani aktualizować osobno.
+- **Co to znaczy:** Velivo zastępuje kilka osobnych programów: **odtwarzacz filmów** (rozdział 28 – biblioteka, telewizja, napisy, lektor; do tego obraz w obrazie i „Film na wierzchu”), **czytnik PDF** (1.8) i **torrenty** (8.19). Nie trzeba ich instalować ani aktualizować osobno.
 - **Jak używać:** dwuklik na pliku albo prawy przycisk → „Otwórz za pomocą” → Velivo; na stałe – Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”.
 
 # 2. Interfejs
@@ -404,13 +404,13 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 ### 7.15 Wyciszenie filmu w karcie
 - Menu karty → „Wycisz kartę” (4.11).
 
-### 7.16 Odtwarzacz filmów z dysku (offline)
-- **Gdzie:** dwuklik na pliku wideo (MP4, WebM, MKV, MOV, M4V, OGV – instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „📂 Otwórz plik z dysku”.
-- **Co robi:** film w karcie na całe okno, bez internetu; działają ⧉ Obraz w obrazie i ▣ Film na wierzchu.
-- **Sterowanie:** pasek odtwarzacza; spacja / klik – pauza, ← → – 5 s, ↑ ↓ – głośność, F – pełny ekran, M – wycisz.
+### 7.16 Filmy z dysku
+- **Gdzie:** dwuklik na pliku wideo (instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „📂 Otwórz plik z dysku”.
+- **Co robi:** z zainstalowanym opcjonalnym odtwarzaczem jak VLC plik otwiera się w odtwarzaczu Velivo (rozdział 28 – biblioteka, telewizja, napisy, lektor). Bez niego MP4 i WebM grają w karcie, bez internetu, z ⧉ Obrazem w obrazie i ▣ Filmem na wierzchu.
+- **Sterowanie w karcie:** pasek odtwarzacza; spacja / klik – pauza, ← → – 5 s, ↑ ↓ – głośność, F – pełny ekran, M – wycisz.
 - **Ustawienia:** sekcja „Odtwarzacz filmów” (25.26) – otwieranie w Velivo, odtwarzanie od razu, wznawianie od miejsca (tylko ten komputer), powtarzanie.
 - **Prywatność:** miejsce w filmie zapisywane pod zaszyfrowanym kluczem (SHA-256 z losową solą Velivo) – inne pliki HTML z dysku nie odczytają, jakie filmy oglądasz.
-- **Ograniczenia:** najpewniej MP4 (H.264) i WebM; nieobsługiwany kodek (np. HEVC/H.265) – komunikat.
+- **Ograniczenia:** w karcie najpewniej MP4 (H.264) i WebM; nieobsługiwany kodek (np. HEVC/H.265) – komunikat; odtwarzacz VLC go odtworzy.
 
 # 8. Pobieranie plików, filmów i muzyki
 
@@ -1307,7 +1307,10 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 - **Gdzie:** Ustawienia → sekcja „Torrenty”: włączanie (domyślnie wyłączone), folder strefy, prędkość pobierania i wysyłania, udostępnianie po pobraniu (współczynnik i czas), liczba uczestników. Opis – 8.19.
 
 ### 25.26 Odtwarzacz filmów
-- **Gdzie:** Ustawienia → sekcja „Odtwarzacz filmów”: otwieranie filmów z dysku w Velivo, odtwarzanie od razu, wznawianie od miejsca, powtarzanie. Opis – 7.16.
+- **Gdzie:** Ustawienia → sekcja „Odtwarzacz filmów”: otwieranie filmów z dysku w Velivo, odtwarzanie od razu, wznawianie od miejsca, powtarzanie. Opis – 7.16 i rozdział 28.
+
+### 25.27 Klawiatura ekranowa
+- **Gdzie:** Ustawienia → „⌨ Klawiatura ekranowa Velivo” (domyślnie włączona). Opis – rozdział 29.
 
 # 26. Wydajność
 
@@ -1316,8 +1319,8 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 - **Co robi:** Velivo zaczyna pobierać stronę, gdy najedziesz na link, i z wyprzedzeniem łączy się z serwerami widocznych linków.
 - **Ograniczenia:** wyłączone w kartach prywatnych i bankowych; przy limicie danych lepiej wyłączyć.
 
-### 26.2 Mały instalator i lekki program
-- **Co robi:** Velivo używa silnika WebView2 wbudowanego w Windows, więc nie zawiera własnej kopii silnika – instalator jest mały, a pamięć jest współdzielona z systemem.
+### 26.2 Lekki program
+- **Co robi:** Velivo używa silnika WebView2 wbudowanego w Windows, więc nie zawiera własnej kopii silnika – pamięć jest współdzielona z systemem. .NET jest dołączony do instalatora, więc nic nie trzeba doinstalowywać.
 
 ### 26.3 Szybki bloker reklam
 - **Co robi:** filtr ok. 100 tys. reguł jest budowany w tle i podmieniany w całości, bez przycinania przeglądania.
@@ -1373,7 +1376,7 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 | Komputery się nie widzą | ten sam profil na obu, zapora przepuszcza Velivo, automatyczny czas Windows (różnica ponad 5 minut blokuje wymianę) |
 | Pobieranie z YouTube się nie udaje | spróbuj za chwilę – yt-dlp aktualizuje się samo, a serwisy czasem się zmieniają |
 | Antywirus blokuje instalator | plik nie ma płatnego podpisu cyfrowego – dodaj wyjątek albo sprawdź sumę SHA-256 (1.6) |
-| Program się nie uruchamia | sprawdź WebView2 Runtime i .NET 10 (1.2); zajrzyj do `bledy.log` |
+| Program się nie uruchamia | sprawdź WebView2 Runtime (1.2); zajrzyj do `bledy.log` |
 
 # 28. Odtwarzacz filmów i telewizja
 
@@ -1469,7 +1472,7 @@ Poniższe rzeczy były omawiane, ale **w wersji 1.22 ich nie ma**:
 
 # PEŁNA LISTA FUNKCJI VELIVO 1.22
 
-Opisanych funkcji: **288**. Numer przy funkcji wskazuje jej opis w podręczniku. Pozycje, które w podręczniku są tylko odsyłaczami do innego miejsca (40), nie są tu liczone drugi raz.
+Opisanych funkcji: **289**. Numer przy funkcji wskazuje jej opis w podręczniku. Pozycje, które w podręczniku są tylko odsyłaczami do innego miejsca (40), nie są tu liczone drugi raz.
 
 
 ## 1. Pierwsze uruchomienie
@@ -1566,7 +1569,7 @@ Opisanych funkcji: **288**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **7.13** Przykłady użycia
 - **7.14** Obraz w obrazie (PiP)
 - **7.15** Wyciszenie filmu w karcie
-- **7.16** Odtwarzacz filmów z dysku (offline)
+- **7.16** Filmy z dysku
 
 ## 8. Pobieranie plików, filmów i muzyki
 
@@ -1810,11 +1813,12 @@ Opisanych funkcji: **288**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **25.24** Zapis ustawień
 - **25.25** Torrenty
 - **25.26** Odtwarzacz filmów
+- **25.27** Klawiatura ekranowa
 
 ## 26. Wydajność
 
 - **26.1** Szybsze otwieranie stron
-- **26.2** Mały instalator i lekki program
+- **26.2** Lekki program
 - **26.3** Szybki bloker reklam
 - **26.4** Mniej obciążenia okna
 - **26.5** Lekki tryb „tylko film”

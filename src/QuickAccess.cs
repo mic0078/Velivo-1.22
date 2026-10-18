@@ -60,12 +60,16 @@ namespace Przegladarka
             {
                 var own = Path.Combine(QuickAccessDataDir, "dane");
                 if (File.Exists(Path.Combine(own, "kopia.json"))) return;
+                // folder danych Sejfu: obok jego mostu albo wyzej, czasem w podfolderze "Szybki Dostep"
+                var roots = new List<string> { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Sejf") };
                 var most = FindSejfMost();
-                if (most == null) return;
-                var dir = Path.GetDirectoryName(most);
-                var root = string.Equals(Path.GetFileName(dir), "most", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(dir) : dir;
-                var source = Path.Combine(root, "dane");
-                if (!File.Exists(Path.Combine(source, "kopia.json"))) return;
+                for (var d = most == null ? null : Path.GetDirectoryName(most); d != null && roots.Count < 5; d = Path.GetDirectoryName(d)) roots.Add(d);
+                var source = roots
+                    .SelectMany(r => new[] { r, Path.Combine(r, "Szybki Dostep"), Path.Combine(r, "Szybki Dostęp") })
+                    .Select(r => Path.Combine(r, "dane"))
+                    .FirstOrDefault(d => File.Exists(Path.Combine(d, "kopia.json")) &&
+                        !string.Equals(Path.GetFullPath(d), Path.GetFullPath(own), StringComparison.OrdinalIgnoreCase));
+                if (source == null) return;
                 foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
                 {
                     if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) continue;

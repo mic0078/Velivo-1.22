@@ -44,7 +44,7 @@
     <string name="lan_turn_on">Włącz</string>
     <string name="lan_turn_off">Wyłącz</string>
     <string name="lan_pair">Sparuj z Velivo na Windows</string>
-    <string name="lan_pair_help">Przez 3 minuty telefon czeka na parowanie. Na komputerze otwórz Velivo → Ustawienia → Synchronizacja LAN → Sparuj. Oba urządzenia muszą być w tej samej sieci Wi-Fi. Uwaga: parowanie zmienia klucz synchronizacji na komputerze – inne komputery trzeba sparować ponownie. Przy kilku komputerach użyj pliku odzyskiwania.</string>
+    <string name="lan_pair_help">Przez 3 minuty telefon czeka na parowanie. Na komputerze otwórz Velivo → Ustawienia → Synchronizacja w czasie rzeczywistym (LAN) → „Sparuj urządzenie w sieci…”. Oba urządzenia muszą być w tej samej sieci Wi-Fi. Uwaga: parowanie zmienia klucz synchronizacji na komputerze – inne komputery trzeba sparować ponownie. Przy kilku komputerach zamiast tego zapisz na komputerze „Zapisz plik odzyskiwania…” i wczytaj go w telefonie.</string>
     <string name="lan_pair_confirm">Potwierdź parowanie</string>
     <string name="lan_pair_code">%1$s chce sparować się z tym telefonem.\n\nKod: %2$s\n\nAkceptuj tylko, gdy komputer pokazuje ten sam kod.</string>
     <string name="lan_codes_match">Kody są takie same</string>

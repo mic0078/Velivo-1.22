@@ -154,6 +154,9 @@ class MainActivity : Activity() {
         }
 
         startFilters()
+        Karteczki.schedule(this)
+        Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
+        if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
         Thread { runCatching { vaultDomains = passwords.all().map { Ochrona.regDomain(it.host) }.filter { it.contains('.') }.toHashSet() } }.start()
         // Powiadomienie odtwarzania w tle wymaga zgody (Android 13+).
         if (Build.VERSION.SDK_INT >= 33 && prefs.getBoolean("tlo", true) && !prefs.getBoolean("zapytano-powiadomienia", false)) {
@@ -221,6 +224,7 @@ set(p0,p);})"""
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
         if (intent.action == PlaybackService.ACTION_STOP) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             tts?.stop()
@@ -940,6 +944,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             17 -> toggleDesktop()
             20 -> startPick()
             21 -> sendTabToComputer()
+            23 -> showNotes()
+            24 -> newNote()
+            25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
             22 -> runCatching {
                 // język tylko dla Velivo (Android 13+), starsze - ustawienia aplikacji
                 startActivity(Intent(if (Build.VERSION.SDK_INT >= 33) android.provider.Settings.ACTION_APP_LOCALE_SETTINGS else android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
@@ -1050,7 +1057,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19),
             Triple("🎯", R.string.hide_element, 20), Triple("➕", R.string.add_bookmark, 3), Triple("✍", R.string.fill_password, 15)))
         section(R.string.menu_mine, listOf(
-            Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9)))
+            Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9),
+            Triple("🗒", R.string.notes, 23), Triple("📝", R.string.note_new, 24), Triple("📥", R.string.downloads, 25)))
         section(R.string.menu_settings, listOf(
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
             Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6)),
@@ -1281,6 +1289,152 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // --- Synchronizacja z Velivo na Windows (sieć domowa) -------------------------
     // --- Karta między telefonem a komputerem (z miejscem w filmie, jak 📺 Wyślij do… na Windows) ---
+    // --- 🗒 Karteczki (jak na Windows): termin w treści, powtarzanie, przypomnienie dzień wcześniej i w dniu terminu ---
+    private fun repeatName(r: String?): String = when {
+        r.isNullOrEmpty() -> getString(R.string.rep_once)
+        r == "7d" -> getString(R.string.rep_week); r == "14d" -> getString(R.string.rep_2weeks)
+        r == "1m" -> getString(R.string.rep_month); r == "1y" -> getString(R.string.rep_year)
+        r.endsWith("d") -> getString(R.string.rep_days, r.dropLast(1)); r.endsWith("m") -> getString(R.string.rep_months, r.dropLast(1))
+        else -> getString(R.string.rep_years, r.dropLast(1))
+    }
+
+    private fun noteInfo(n: Karteczki.Note): String {
+        val today = java.time.LocalDate.now()
+        val d = Karteczki.due(n.text, today, n.repeat)
+        val parts = mutableListOf<String>()
+        if (d == 2) parts.add("⏰ " + getString(R.string.note_due_today)) else if (d == 1) parts.add("⏰ " + getString(R.string.note_due_tomorrow))
+        else Karteczki.next(n.text, today, n.repeat)?.let { parts.add("📅 " + it.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))) }
+        if (!n.repeat.isNullOrEmpty()) parts.add("🔁 " + repeatName(n.repeat))
+        return parts.joinToString(" · ")
+    }
+
+    private fun newNote() = newNoteThen {}
+
+    private fun showNotes(openId: String? = null) {
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(c("#F7F4FF", "#15121F")) }
+        val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); setBackgroundColor(BAR) }
+        bar.addView(TextView(this).apply { text = "🗒 " + getString(R.string.notes); textSize = 18f; setTextColor(TEXT); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(10), dp(10), dp(24)) }
+        fun fill() {
+            col.removeAllViews()
+            val today = java.time.LocalDate.now()
+            // najbliższy termin na górze, karteczki bez terminu na końcu
+            val list = Karteczki.load(this).sortedBy { Karteczki.next(it.text, today, it.repeat)?.toEpochDay() ?: Long.MAX_VALUE }
+            if (list.isEmpty()) col.addView(TextView(this).apply { text = getString(R.string.notes_empty); setTextColor(TEXT); textSize = 15f; setPadding(dp(8), dp(24), dp(8), 0); gravity = Gravity.CENTER })
+            for (n in list) {
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(12))
+                    background = GradientDrawable().apply { setColor(Color.parseColor("#" + n.color)); cornerRadius = dp(14).toFloat() }
+                    isClickable = true
+                    foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(50, 0, 0, 0)), null, null)
+                }
+                card.addView(TextView(this).apply { text = Karteczki.icon(n.kind) + "  " + getString(Karteczki.title(n.kind)); textSize = 13f; setTextColor(Color.parseColor("#333333")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
+                card.addView(TextView(this).apply { text = n.text.trim().ifEmpty { "…" }; textSize = 16f; setTextColor(Color.parseColor("#222222")); maxLines = 5; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0) })
+                val info = noteInfo(n)
+                if (info.isNotEmpty()) card.addView(TextView(this).apply { text = info; textSize = 12f; setTextColor(Color.parseColor(if (info.startsWith("⏰")) "#B91C1C" else "#555555")); setPadding(0, dp(6), 0, 0) })
+                card.setOnClickListener { editNote(n) { fill() } }
+                col.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+            }
+        }
+        bar.addView(button("＋", R.string.note_new, Color.WHITE, BRAND1) { newNoteThen { fill() } }.velivo())
+        bar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { dlg.dismiss() })
+        root.addView(bar)
+        root.addView(ScrollView(this).apply { addView(col) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        fill()
+        dlg.setContentView(root)
+        dlg.show()
+        openId?.let { id -> Karteczki.load(this).firstOrNull { it.id == id }?.let { editNote(it) { fill() } } }
+    }
+
+    private fun newNoteThen(done: () -> Unit) {
+        val labels = Karteczki.kinds.map { it.second + "  " + getString(it.third) }.toTypedArray()
+        AlertDialog.Builder(this).setTitle(R.string.note_new).setItems(labels) { _, i ->
+            val k = Karteczki.kinds[i].first
+            val list = Karteczki.load(this)
+            val n = Karteczki.Note(java.util.UUID.randomUUID().toString().replace("-", ""), k, Karteczki.startText(k), Karteczki.colors[0], "")
+            list.add(n); Karteczki.save(this, list)
+            editNote(n, done)
+        }.show()
+    }
+
+    private fun editNote(n: Karteczki.Note, done: () -> Unit) {
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_Light_NoActionBar)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.parseColor("#" + n.color)) }
+        val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(6), dp(6), dp(6)); setBackgroundColor(Color.argb(28, 0, 0, 0)) }
+        val dark = Color.parseColor("#333333"); val clear = Color.TRANSPARENT
+        head.addView(TextView(this).apply { text = Karteczki.icon(n.kind) + " " + getString(Karteczki.title(n.kind)); textSize = 16f; setTextColor(dark); setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val box = EditText(this).apply {
+            setText(n.text); textSize = 17f; setTextColor(Color.parseColor("#222222")); gravity = Gravity.TOP
+            background = null; setPadding(dp(16), dp(12), dp(16), dp(12))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+        val info = TextView(this).apply { textSize = 13f; setTextColor(Color.parseColor("#555555")); setPadding(dp(16), dp(6), dp(16), dp(12)) }
+        fun upd() { n.text = box.text.toString(); info.text = noteInfo(n).ifEmpty { getString(R.string.note_hint) } }
+        box.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(e: Editable?) = upd()
+            override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+        })
+        fun store() {
+            n.text = box.text.toString()
+            val list = Karteczki.load(this)
+            val i = list.indexOfFirst { it.id == n.id }
+            if (i >= 0) list[i] = n else list.add(n)
+            Karteczki.save(this, list)
+        }
+        // 📅 ustal termin: data z kalendarza wstawiana w miejscu kursora (jak na Windows)
+        head.addView(button("📅", R.string.note_date, dark, clear) {
+            val t = java.time.LocalDate.now()
+            android.app.DatePickerDialog(this, { _, y, m, d ->
+                val v = String.format("%02d.%02d.%04d", d, m + 1, y)
+                val at = box.selectionStart.coerceAtLeast(0)
+                box.text.insert(at, if (at > 0 && !box.text[at - 1].isWhitespace()) " $v" else v)
+            }, t.year, t.monthValue - 1, t.dayOfMonth).show()
+        })
+        head.addView(button("🔁", R.string.note_repeat, dark, clear) {
+            val opts = listOf("", "7d", "14d", "1m", "1y")
+            val labels = (opts.map { repeatName(it) } + getString(R.string.rep_own)).toTypedArray()
+            AlertDialog.Builder(this).setTitle(R.string.note_repeat).setSingleChoiceItems(labels, opts.indexOf(n.repeat)) { d, i ->
+                d.dismiss()
+                if (i < opts.size) { n.repeat = opts[i]; upd(); return@setSingleChoiceItems }
+                // własny odstęp: co N dni / tygodni / miesięcy / lat
+                val num = EditText(this).apply { setText("10"); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSelectAllOnFocus(true) }
+                val units = arrayOf(getString(R.string.unit_days), getString(R.string.unit_weeks), getString(R.string.unit_months), getString(R.string.unit_years))
+                var u = 0
+                val lay = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0); addView(num) }
+                AlertDialog.Builder(this).setTitle(R.string.rep_own).setView(lay)
+                    .setSingleChoiceItems(units, 0) { _, k -> u = k }
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        val v = num.text.toString().toIntOrNull()?.takeIf { it in 1..999 } ?: return@setPositiveButton
+                        n.repeat = when (u) { 1 -> "${v * 7}d"; 2 -> "${v}m"; 3 -> "${v}y"; else -> "${v}d" }
+                        upd()
+                    }.setNegativeButton(android.R.string.cancel, null).show()
+            }.show()
+        })
+        head.addView(button("🎨", R.string.note_color, dark, clear) {
+            val i = (Karteczki.colors.indexOf(n.color) + 1) % Karteczki.colors.size
+            n.color = Karteczki.colors[i]; root.setBackgroundColor(Color.parseColor("#" + n.color))
+        })
+        head.addView(button("🗑", R.string.note_delete, dark, clear) {
+            AlertDialog.Builder(this).setMessage(R.string.note_delete_ask)
+                .setPositiveButton(R.string.note_delete) { _, _ ->
+                    Karteczki.save(this, Karteczki.load(this).filter { it.id != n.id })
+                    dlg.setOnDismissListener { done() }; dlg.dismiss()
+                }.setNegativeButton(android.R.string.cancel, null).show()
+        })
+        head.addView(button("✓", R.string.note_done, dark, clear) { dlg.dismiss() })
+        dlg.setOnDismissListener { store(); done() }
+        root.addView(head)
+        root.addView(ScrollView(this).apply { isFillViewport = true; addView(box) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(info)
+        upd()
+        dlg.setContentView(root)
+        dlg.show()
+        box.requestFocus()
+        box.setSelection(Karteczki.startText(n.kind).indexOf('\n').takeIf { it > 0 && n.text == Karteczki.startText(n.kind) } ?: box.text.length)
+    }
+
     private fun sendTabToComputer() {
         val w = web() ?: return
         val url = w.url ?: return

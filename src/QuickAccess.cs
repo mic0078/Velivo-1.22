@@ -52,6 +52,32 @@ namespace Przegladarka
             }
         }
 
+        // Jednorazowo: kafelki zapisane dawniej przez most programu Sejf kopiujemy do folderu Velivo, bo teraz strona
+        // Szybkiego Dostepu czyta i zapisuje tylko tam. Folder Sejfu zostaje nietkniety; istniejacych plikow nie nadpisujemy.
+        static void MigrateSejfQuickAccessData()
+        {
+            try
+            {
+                var own = Path.Combine(QuickAccessDataDir, "dane");
+                if (File.Exists(Path.Combine(own, "kopia.json"))) return;
+                var most = FindSejfMost();
+                if (most == null) return;
+                var dir = Path.GetDirectoryName(most);
+                var root = string.Equals(Path.GetFileName(dir), "most", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(dir) : dir;
+                var source = Path.Combine(root, "dane");
+                if (!File.Exists(Path.Combine(source, "kopia.json"))) return;
+                foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+                {
+                    if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) continue;
+                    var target = Path.Combine(own, Path.GetRelativePath(source, file));
+                    if (File.Exists(target)) continue;
+                    Directory.CreateDirectory(Path.GetDirectoryName(target));
+                    File.Copy(file, target);
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         static bool IsSafeQuickAccessArchivePath(string relative)
         {
             if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith("/", StringComparison.Ordinal) || relative.Contains(":")) return false;

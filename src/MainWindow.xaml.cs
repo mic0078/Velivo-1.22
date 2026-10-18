@@ -172,6 +172,7 @@ namespace Przegladarka
                     EnsureSejfMostAllowedOrigins();
                     EnsureOneTimeQuickAccessWebViewReset();
                     MigrateQuickAccessProfilePath();
+                    MigrateSejfQuickAccessData();
                     // smieci sprzatamy tylko, gdy nie dziala inne okno przegladarki (jego silnik trzyma te pliki)
                     if (System.Diagnostics.Process.GetProcessesByName("Velivo").Length <= 1) CleanJunkAtStartup();
                     _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"),

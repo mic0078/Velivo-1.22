@@ -757,6 +757,9 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - **„W skrócie”** – kilka najważniejszych zdań artykułu, liczone na Twoim komputerze. Tylko pełne, samodzielne zdania: bez śródtytułów, wyrwanych cytatów i zdań, które bez poprzedniego nie mają sensu. Gdy takich nie ma, ramki po prostu nie ma.
 - Czytnik znajduje artykuł także wtedy, gdy strona ukrywa go w nietypowym bloku (np. przy wpisach z X czy filmach) – zamiast „za mało treści” pokazuje treść bez menu i polecanych.
 - Przyciski „Czytaj podsumowanie” i „Czytaj całość”. Kliknięcie w tekst czyta od tego miejsca.
+- Kolory Velivo (papierowe tło, fiolet; ciemny – granatowy fiolet). **A− / A+** zmienia wielkość tekstu (zapamiętywana).
+- Czytnik **pamięta, gdzie skończyłeś czytać** artykuł, i przy następnym otwarciu wraca w to miejsce (zapis tylko na tym komputerze, bez adresów stron).
+- Tytuł czytany raz; ramki ze skrótem artykułu na stronie i powtórzenia są pomijane.
 
 ### 🧠 „Gdzie ja to czytałem?” (Ctrl+Shift+F)
 

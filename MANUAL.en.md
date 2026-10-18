@@ -415,6 +415,9 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - **"In short"** – a few key sentences of the article, computed on your computer. Only complete, self-contained sentences: no subheadings, torn-out quotes or sentences that make no sense without the previous one. If there are none, the box is simply not shown.
 - Reader finds the article even when the page hides it in an unusual block (e.g. next to X posts or videos) – instead of "not enough content" it shows the text without menus and recommendations.
 - "Read summary" and "Read all" buttons. Clicking the text reads from that point.
+- Velivo colours (paper background, violet; dark – deep navy violet). **A− / A+** changes the text size (remembered).
+- Reader **remembers where you left off** in an article and takes you back there next time (stored on this computer only, without page addresses).
+- The title is read once; summary boxes on the page and repeats are skipped.
 
 ### 🧠 "Where did I read that?" (Ctrl+Shift+F)
 

@@ -190,7 +190,7 @@ Settings → Search and start → "Home page" and "Quick Access as the new tab p
 Settings → "Set Velivo as the default browser…". Velivo registers with Windows (class `VelivoHTML`, `StartMenuInternet\Velivo`) and opens "Default apps". Windows does not let a program set itself – you have to click "Set default".
 
 ## 5.9 Working from the tray
-Settings → "Stay in the tray when the window is closed". Closing the window hides Velivo to the icon by the clock. Background pages are paused (a video in the "Video on top" window keeps playing). LAN sync keeps working. Right-click the icon: Open Velivo, Sync now, Close Velivo completely. The icon pulses while syncing.
+Settings → "Stay in the tray when the window is closed". Closing the window hides Velivo to the icon by the clock. Background pages are paused (a video in the "Video on top" window keeps playing). LAN sync keeps working. Right-click the icon: 🌐 Open the browser, 🎬 Video library, ▶ Open the video player, 📺 Open TV, 🧹 Clean-up and backup, 🕶 Open an incognito tab, 🏦 Open in banking mode, Sync now, Close Velivo completely (nothing is left running in the background). The icon pulses while syncing.
 
 # 6. Quick Access (new tab page)
 

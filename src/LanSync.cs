@@ -242,9 +242,20 @@ namespace Velivo
             return BankProfiles().Count == 1 && main.Length > 0 ? "\n--bank--\n" + main : "\n--banks--\n" + all;
         }
 
+        // Odcisk do porownania z drugim komputerem: tylko to, co synchronizacja faktycznie przenosi. Ustawienia
+        // lokalne komputera (jezyk, foldery, glos, rozmiary okien - LanSettingsBlockedKeys) sa na kazdym inne;
+        // liczone w odcisku sprawialy, ze odciski nigdy sie nie zgadzaly i komputery odsylaly sobie stan co 3 s.
+        static string SharedLanSettings(string settingsText)
+        {
+            return string.Join("\n", (settingsText ?? "").Split('\n')
+                .Select(l => l.Trim())
+                .Where(l => { if (l.Length == 0) return false; int i = l.IndexOf('='); return i <= 0 || !LanSettingsBlockedKeys.Contains(l.Substring(0, i).Trim()); })
+                .OrderBy(l => l, StringComparer.Ordinal));
+        }
+
         string CurrentLanFingerprint()
         {
-            var settings = ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt"));
+            var settings = SharedLanSettings(ReadTextOrEmpty(Path.Combine(DataDir, "ustawienia.txt")));
             var bookmarks = ReadTextOrEmpty(Path.Combine(DataDir, "zakladki.txt"));
             var session = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt"));
             var sessionActive = ReadTextOrEmpty(Path.Combine(DataDir, "sesja.txt.aktywna"));
@@ -558,6 +569,7 @@ namespace Velivo
             LanSyncPayload state = null;
             LanHistoryPayload hist = null;
             LanTabPayload sentTab = null;
+            LanPhoneAdd phoneAdd = null;
             LanFilmMsg film = null;
             if (pkt.t == "film")   // filmy w sieci (LanVideo.cs) - tylko sparowane, zaszyfrowane
             {
@@ -578,6 +590,16 @@ namespace Velivo
                 catch (JsonException) { return; }
                 catch (InvalidDataException) { return; }
                 if (sentTab == null) return;
+            }
+            else if (pkt.t == "phone-add")   // telefon dodaje zakladki i hasla (LanPhone.cs) - tylko sparowane, zaszyfrowane
+            {
+                if (_lanLegacyNoKeyMode) return;
+                try { phoneAdd = DecryptLanBlob<LanPhoneAdd>(pkt); }
+                catch (CryptographicException) { return; }
+                catch (FormatException) { return; }
+                catch (JsonException) { return; }
+                catch (InvalidDataException) { return; }
+                if (phoneAdd == null) return;
             }
             else if (pkt.t == "hist")
             {
@@ -623,6 +645,12 @@ namespace Velivo
             {
                 var fm = film; var fp = pkt;
                 await Dispatcher.InvokeAsync(() => ReceiveLanFilm(fp, fm));
+                return;
+            }
+            if (pkt.t == "phone-add")
+            {
+                var pa = phoneAdd; var pp = pkt;
+                await Dispatcher.InvokeAsync(() => ReceivePhoneAdd(pp, pa));
                 return;
             }
             if (pkt.t == "tab")
@@ -761,7 +789,7 @@ namespace Velivo
             var extensions = ReadTextOrEmpty(ExtensionsSyncListFile);
             var passwords = _lanLegacyNoKeyMode ? "[]" : ExportPasswordsForSync(); // bez sparowania pakiet jest jawny - bez hasel
 
-            var fingerprint = Sha256(settings + "\n--\n" + bookmarks + "\n--\n" + ReadTextOrEmpty(BookmarkTombstonesFile) + "\n--\n" + privacy + "\n--\n" + profiles + "\n--\n" + extensions + "\n--\n" + passwords + "\n--\n" + ReadTextOrEmpty(PinnedFile) + BankSyncTerm());
+            var fingerprint = CurrentLanFingerprint();
             // dane rozne od ostatnio zapamietanych = zmiana zrobiona tu, przez uzytkownika -> nowy znacznik czasu
             LoadLanChange();
             var contentFp = LanContentFingerprint();

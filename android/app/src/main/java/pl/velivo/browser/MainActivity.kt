@@ -144,7 +144,8 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
         }
         dropPrivateProfile() // resztki po poprzedniej sesji
-        val link = intent?.dataString
+        if (intent?.action == Intent.ACTION_SEND) sendSharedFile(intent)
+        val link = intent?.dataString?.takeIf { intent?.action != Intent.ACTION_SEND }
         if (!restoreTabs() && link == null) newTab(false, home)
         if (link != null) newTab(false, link)
     }
@@ -206,6 +207,7 @@ set(p0,p);})"""
         startLan()
             return
         }
+        if (intent.action == Intent.ACTION_SEND) { sendSharedFile(intent); return }
         intent.dataString?.let { newTab(false, it) }
     }
 
@@ -738,6 +740,16 @@ set(p0,p);})"""
             },
             onPaired = { dev -> lan.pairingUntil = 0; prefs.edit().putString("lan-komputer", dev).apply(); toast(getString(R.string.lan_paired, dev)) },
             onState = { dev, bookmarks, pwds -> applyLanState(dev, bookmarks, pwds) },
+            askFile = { dev, name, size, accept ->
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.file_title)
+                    .setMessage(getString(R.string.file_ask, dev, name, android.text.format.Formatter.formatShortFileSize(this, size.toLong())))
+                    .setPositiveButton(R.string.file_accept) { _, _ -> accept(true) }
+                    .setNegativeButton(android.R.string.cancel) { _, _ -> accept(false) }
+                    .setOnCancelListener { accept(false) }
+                    .show()
+            },
+            saveFile = { name, data, dev -> saveToDownloads(name, data, dev) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
                     runOnUiThread {
@@ -763,6 +775,49 @@ set(p0,p);})"""
         multicastLock?.release()
     }
 
+    // Plik z komputera do Pobranych (MediaStore - bez dodatkowych uprawnień).
+    private fun saveToDownloads(name: String, data: ByteArray, dev: String) {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+        val ok = runCatching {
+            val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)!!
+            contentResolver.openOutputStream(uri)!!.use { it.write(data) }
+        }.isSuccess
+        runOnUiThread { toast(getString(if (ok) R.string.file_saved else R.string.file_failed, name, dev)) }
+    }
+
+    // Udostępnij → Velivo: plik z galerii / menedżera plików idzie do komputera (komputer pyta o zgodę).
+    private fun sendSharedFile(intent: Intent) {
+        @Suppress("DEPRECATION")
+        val uri = (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)) ?: return
+        if (!lan.paired) { toast(getString(R.string.lan_not_paired)); return }
+        prefs.edit().putBoolean("lan", true).apply()
+        startLan()
+        val name = runCatching {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }.getOrNull() ?: uri.lastPathSegment ?: "plik"
+        toast(getString(R.string.file_waiting, name))
+        Thread {
+            // komputer musi się najpierw odezwać w sieci (adres) - czekamy do 30 s
+            var waited = 0
+            while (lan.computer == null && waited < 30) { Thread.sleep(1000); waited++ }
+            val result = runCatching {
+                val size = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                if (size > LanSync.FILE_LIMIT) "plik większy niż 100 MB"
+                else lan.sendFile(name, contentResolver.openInputStream(uri)!!.use { it.readBytes() })
+            }.getOrElse { it.message ?: "błąd" }
+            runOnUiThread {
+                toast(when (result) {
+                    "ok" -> getString(R.string.file_sent, name)
+                    "odrzucono" -> getString(R.string.file_declined)
+                    else -> getString(R.string.file_send_failed, result)
+                })
+            }
+        }.start()
+    }
+
     // Zakładki (Windows: "adres<TAB>tytuł") i hasła z komputera dopisywane do telefonu; nic nie jest usuwane.
     private fun applyLanState(dev: String, bookmarks: String?, pwds: String?) {
         var added = 0
@@ -773,9 +828,32 @@ set(p0,p);})"""
             addTo("zakladki", parts.getOrNull(1)?.ifBlank { null } ?: url, url, 2000)
             added++
         }
-        val pw = pwds?.let { passwords.saveAll(LanSync.parsePasswords(it)) } ?: 0
+        val pcPasswords = pwds?.let { LanSync.parsePasswords(it) } ?: emptyList()
+        val pw = passwords.saveAll(pcPasswords)
         prefs.edit().putString("lan-komputer", dev).putLong("lan-czas", System.currentTimeMillis()).apply()
         if (added + pw > 0) toast(getString(R.string.lan_received, dev, added, pw))
+        // co komputer już ma - tego telefon nie wysyła
+        if (bookmarks != null && pwds != null) {
+            val pcUrls = bookmarks.lines().map { it.split('\t')[0].trim() }.filter { it.startsWith("http") }.toSet()
+            sendNewToComputer(pcUrls, pcPasswords.map { secretKey(it.first, it.second, it.third) }.toSet())
+        }
+    }
+
+    // Telefon → komputer: tylko nowe zakładki i hasła, każde raz (komputer potwierdza; odrzucone nie wracają).
+    private fun secretKey(host: String, user: String, pass: String) =
+        java.security.MessageDigest.getInstance("SHA-256").digest("$host\t$user\t$pass".toByteArray()).joinToString("") { "%02x".format(it) }
+
+    private fun sendNewToComputer(pcUrls: Set<String>, pcSecrets: Set<String>) {
+        val sent = prefs.getStringSet("wyslane-na-komputer", emptySet())!!
+        val newBookmarks = list("zakladki").map { it.substringAfter('\t') to it.substringBefore('\t') }
+            .filter { (url, _) -> url.startsWith("http") && url !in pcUrls && "z:$url" !in sent }
+        val newPasswords = passwords.all().map { Triple(it.host, it.user, it.pass) }
+            .filter { val k = secretKey(it.first, it.second, it.third); k !in pcSecrets && "h:$k" !in sent }
+        if (newBookmarks.isEmpty() && newPasswords.isEmpty()) return
+        if (!lan.sendPhoneAdd(newBookmarks, newPasswords)) return
+        prefs.edit().putStringSet("wyslane-na-komputer", sent + newBookmarks.map { "z:" + it.first } +
+            newPasswords.map { "h:" + secretKey(it.first, it.second, it.third) }).apply()
+        toast(getString(R.string.lan_sent_to_pc, newBookmarks.size, newPasswords.size))
     }
 
     private fun showLanSync() {

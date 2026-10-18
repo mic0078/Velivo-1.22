@@ -132,6 +132,8 @@ Otwórz klawiszem **L** albo przesuń kursor do lewej krawędzi obrazu.
 - **🎲 Wylosuj filmy** – gdy nie wiesz, co obejrzeć.
 - **✏ Zmień tytuł**, **🔎 Wyszukaj informacje w sieci**, **📝 Uzupełnij informacje ręcznie**.
 - Opisy i okładki mogą pochodzić z Jellyfin i Filmwebu.
+- **🔄 Odśwież** pobiera nowe dane z Jellyfin i dopisuje do biblioteki nowe filmy. Jeśli jakieś filmy usunięto z Jellyfin, Velivo pokaże ich listę i usunie je z biblioteki dopiero po **Tak** – pliki na dysku zostają.
+- **Samo odświeżanie:** w **🎞 Jellyfin…** wybierz „co godzinę”, „co 6 godzin” albo „raz dziennie”. Nowe filmy trafiają do biblioteki same; o usuniętych Velivo przypomni dymkiem i zapyta przy 🔄 Odśwież.
 
 ---
 

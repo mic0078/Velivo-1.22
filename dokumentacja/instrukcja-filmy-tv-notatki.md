@@ -102,3 +102,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Listy bez wyboru sortowania (⭐ ulubione kanały i ⭐ ulubione filmy z paska odtwarzacza, menu okienka PiP: ulubione, kanały tej grupy) – zawsze alfabetycznie. „Ostatnio oglądane” zostaje od najnowszego.
 - TV na żywo: zamiast −10 s / +10 s / 1× przyciski ↶ poprzedni kanał (po kolei), ⇤ do pierwszego, 🕘 historia (20 ostatnich, alfabetycznie). Przy filmie i archiwum bez zmian.
 - Historia kanałów zapisana na stałe (IptvSt.Hist, 20 ostatnich, aktualizowana na bieżąco); ↶ i ⇤ tylko przesuwają się po historii – nic nie kasują.
+- Jellyfin: 🔄 Odśwież pyta o filmy usunięte z Jellyfin (lista, usuwa z biblioteki Velivo dopiero po „Tak”, pliki zostają; gdy serwer zwróci wyraźnie mniej filmów – nic nie oznacza). Samo odświeżanie w oknie 🎞 Jellyfin…: wyłączone / co godzinę / co 6 godzin / raz dziennie (sprawdzane co 10 min, pierwsze 2 min po starcie).

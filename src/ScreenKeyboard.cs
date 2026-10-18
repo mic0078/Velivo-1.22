@@ -237,11 +237,21 @@ namespace Velivo
                 var autoIt = new System.Windows.Forms.ToolStripMenuItem(L.T("Otwieraj samą po kliknięciu w pole tekstowe")) { Checked = _kbdAuto, ToolTipText = L.T("Jak klawiatura dotykowa Windows: klik w pole do pisania w dowolnym programie pokazuje klawiaturę Velivo") };
                 autoIt.Click += (s, e) => { _kbdAuto = !_kbdAuto; autoIt.Checked = _kbdAuto; Application.Current?.Dispatcher.BeginInvoke(new Action(() => SetPref("klawiatura-sama", _kbdAuto ? "1" : "0"))); };
                 menu.Items.Add(autoIt);
-                menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() => _kbd?.Close())));
+                menu.Items.Add(L.T("✕ Zamknij klawiaturę"), null, (s, e) => Application.Current?.Dispatcher.BeginInvoke(new Action(CloseKeyboardFully)));
                 _kbdTray.ContextMenuStrip = menu;
                 Application.Current.Exit += (s, e) => { try { _kbdTray.Visible = false; _kbdTray.Dispose(); } catch (Exception) { } };
             }
             catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // "Zamknij klawiature" z zasobnika: zamyka okno (takze schowane), zdejmuje ikonke i nie otwiera sie sama po kliknieciu
+        // w pole - do ponownego otwarcia klawiatury (rolka, skrot, przycisk). Wczesniej przy schowanej klawiaturze nic sie nie dzialo.
+        static void CloseKeyboardFully()
+        {
+            _kbdUserHid = true;
+            try { _kbd?.Close(); } catch (Exception) { }
+            try { if (_kbdTray != null) { _kbdTray.Visible = false; _kbdTray.Dispose(); } } catch (Exception) { }
+            _kbdTray = null;
         }
 
         internal static volatile bool _kbdAuto;
@@ -612,6 +622,7 @@ namespace Velivo
         static void ShowScreenKeyboard(IntPtr target)
         {
             _kbdUserHid = false;
+            EnsureKbdTray();   // po "Zamknij klawiature" ikonka wraca razem z klawiatura
             _kbdTarget = target != IntPtr.Zero ? target : GetForegroundWindow();   // okno z polem, w ktore kliknieto rolka
             if (_kbd != null) { if (!_kbd.IsVisible) { var wa = SystemParameters.WorkArea; _kbd.Left = wa.Right - _kbd.ActualWidth - 10; _kbd.Top = wa.Bottom - _kbd.ActualHeight - 10; _kbd.Show(); if (_kbd.Content is Border bd && bd.Child is Viewbox vb && vb.Child is FrameworkElement fe) Sail(_kbd, fe, true, null); } _kbd.Topmost = false; _kbd.Topmost = true; _kbd.Topmost = GetPref("klawiatura-wierzch") == "1"; AvoidField(_kbd); return; }   // schowana - wraca
             LoadSwipeDictionary();

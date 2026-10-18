@@ -188,7 +188,7 @@ Ustawienia → Wyszukiwanie i start → „Strona startowa” oraz „Szybki Dos
 Ustawienia → „Ustaw Velivo jako domyślną przeglądarkę…”. Velivo rejestruje się w Windows (klasa `VelivoHTML`, `StartMenuInternet\Velivo`) i otwiera „Aplikacje domyślne”. Windows nie pozwala programowi ustawić się samemu – trzeba kliknąć „Ustaw domyślne”.
 
 ## 5.9 Praca w zasobniku
-Ustawienia → „Po zamknięciu okna zostań w zasobniku”. Zamknięcie okna chowa Velivo do ikony przy zegarze. Strony w tle są pauzowane (film w okienku „Film na wierzchu” gra dalej). Synchronizacja LAN działa nadal. Prawy klik na ikonie: Otwórz Velivo, Synchronizuj teraz, Zamknij Velivo całkowicie. Ikona pulsuje przy synchronizacji.
+Ustawienia → „Po zamknięciu okna zostań w zasobniku”. Zamknięcie okna chowa Velivo do ikony przy zegarze. Strony w tle są pauzowane (film w okienku „Film na wierzchu” gra dalej). Synchronizacja LAN działa nadal. Prawy klik na ikonie: 🌐 Uruchom przeglądarkę, 🎬 Biblioteka filmów, ▶ Uruchom odtwarzacz wideo, 📺 Uruchom TV, 🧹 Porządki i kopia bezpieczeństwa, 🕶 Otwórz kartę incognito, 🏦 Otwórz w trybie bankowym, Synchronizuj teraz, Zamknij Velivo całkowicie (zamknięcie nie zostawia żadnego procesu w tle). Ikona pulsuje przy synchronizacji.
 
 # 6. Szybki Dostęp (strona nowej karty)
 

@@ -1,0 +1,26 @@
+/* Velivo na Androida: Szybki Dostęp dopasowany do telefonu (ta sama strona co na Windows,
+   ten arkusz dokłada tylko aplikacja na Androida - wygląd na komputerze się nie zmienia). */
+
+/* Zawsze (pion i poziom): nic nie wystaje poza ekran - inaczej przeglądarka pomniejsza całą stronę */
+html, body { overflow-x: hidden; }
+header { padding: 8px 10px; gap: 8px; }
+.grupy { flex-wrap: nowrap; overflow-x: auto; width: 100%; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.grupy::-webkit-scrollbar { display: none; }
+.grupy button { flex: 0 0 auto; white-space: nowrap; padding: 6px 12px; }
+.narzedzia { flex-wrap: wrap; width: 100%; gap: 6px; }
+.narzedzia input[type="search"] { flex: 1 1 220px; width: auto; min-width: 0; }
+.narzedzia select { min-width: 0; }
+.narzedzia button { flex: 0 0 auto; }
+main { padding: 12px 10px 40px; }
+dialog, .menu, .pasek { max-width: calc(100vw - 20px); min-width: 0 !important; }
+.listaKosza { min-width: 0; }
+
+/* Pion (wąski ekran): filtr na całą linię, dwie kolumny kafelków o stałej wielkości */
+@media (max-width: 600px) {
+  .narzedzia input[type="search"] { order: -1; flex: 1 1 100%; }
+  .narzedzia select { flex: 1 1 40%; }
+  #rozmiar { display: none; }
+  :root { --kafel: 150px !important; --ikona: 30px !important; --odstep: 10px !important; }
+  .siatka { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .kafel { padding-left: 8px !important; padding-right: 8px !important; }
+}

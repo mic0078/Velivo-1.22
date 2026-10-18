@@ -27,18 +27,26 @@ namespace Velivo
             {
                 if (!Directory.Exists(OldRoot)) return;
                 // inne okno Velivo (albo klawiatura) uzywa danych - nie ruszamy
-                if (Process.GetProcessesByName("Velivo").Length > 1) return;
+                if (Process.GetProcessesByName("Velivo").Length > 1) { Log("inne okno Velivo jest uruchomione"); return; }
                 if (Directory.Exists(NewRoot))
                 {
                     // pusty folder (np. utworzony przez cos innego) nie blokuje przeniesienia; z danymi - zostawiamy oba
-                    if (Directory.GetFileSystemEntries(NewRoot).Length > 0) return;
+                    if (Directory.GetFileSystemEntries(NewRoot).Length > 0) { Log("folder " + NewRoot + " juz zawiera dane"); return; }
                     Directory.Delete(NewRoot);
                 }
                 Directory.CreateDirectory(Path.GetDirectoryName(NewRoot));
                 Directory.Move(OldRoot, NewRoot);
                 FixPaths();
             }
-            catch (Exception) { /* zostajemy na starym folderze - kolejna proba przy nastepnym starcie */ }
+            // zostajemy na starym folderze - kolejna proba przy nastepnym starcie; przyczyna w bledy.log
+            // (najczesciej: folder otwarty w Eksploratorze / Total Commanderze albo drugi proces Velivo)
+            catch (Exception ex) { Log(ex.GetType().Name + ": " + ex.Message); }
+        }
+
+        static void Log(string why)
+        {
+            try { File.AppendAllText(Path.Combine(OldRoot, "bledy.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  Nie przeniesiono folderu danych do " + NewRoot + ": " + why + Environment.NewLine); }
+            catch (Exception) { }
         }
 
         // Pelne sciezki zapisane w ustawieniach i w profilu silnika przegladarki (np. dodatki) wskazuja stary folder.

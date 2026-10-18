@@ -28,6 +28,7 @@ namespace Velivo
             public string Nonce { get; set; }
             public string Tag { get; set; }
             public int Length { get; set; }
+            public string Name { get; set; }   // plik przesylany miedzy urzadzeniami (LanFiles.cs)
         }
 
         const int QuickAccessLanPort = LanPort;
@@ -296,6 +297,11 @@ namespace Velivo
                     var headerBytes = new byte[headerLength];
                     if (!await ReadExactAsync(stream, headerBytes, headerBytes.Length, token)) return;
                     header = JsonSerializer.Deserialize<QuickAccessLanHeader>(headerBytes);
+                    if (header != null && header.Type == "file")
+                    {
+                        await ReceiveLanFileAsync(stream, header, client.Client.RemoteEndPoint as IPEndPoint, token);
+                        return;
+                    }
                     if (header != null && header.Type == "lan-state")
                     {
                         await ReceiveLanStateTcpAsync(stream, header, client.Client.RemoteEndPoint as IPEndPoint, token);
@@ -344,6 +350,12 @@ namespace Velivo
                     var receivedArchive = archive;
                     var current = await Task.Run(CreateQuickAccessArchive, token);
                     var currentHash = Convert.ToHexString(SHA256.HashData(current));
+                    // Czy MY mielismy cos nowego od ostatniej wymiany z tym komputerem? Tylko wtedy odsylamy po scaleniu.
+                    // Wczesniej po kazdym scaleniu oba komputery odsylaly sobie cala paczke (pliki zawsze troche inne,
+                    // bo kazdy ma wlasna kopia.json) - wymiana w kolko co kilka sekund.
+                    bool weHadNew = true;
+                    var preHash = currentHash;
+                    await Dispatcher.InvokeAsync(() => weHadNew = !_quickAccessLanSent.TryGetValue(header.Id, out var prev) || prev != preHash);
                     if (!string.Equals(currentHash, header.Hash, StringComparison.Ordinal))
                     {
                         await Task.Run(() => ImportQuickAccessArchive(receivedArchive), token);
@@ -361,10 +373,9 @@ namespace Velivo
                         _quickAccessLanArchive = cachedArchive;
                         _quickAccessLanHash = currentHash;
                         _quickAccessLanStamp = QuickAccessFilesStamp();
-                        // Oznaczamy jako wyslane tylko, gdy oba komputery maja identyczne dane. Po scaleniu
-                        // (currentHash != header.Hash) odbiorca musi odeslac swoje skroty - inaczej synchronizacja
-                        // dzialala tylko w jedna strone i zmiany z tego komputera nigdy nie trafialy do nadawcy.
-                        if (string.Equals(currentHash, header.Hash, StringComparison.Ordinal)) _quickAccessLanSent[header.Id] = currentHash;
+                        // Odsylamy po scaleniu tylko, gdy mielismy wlasne zmiany, ktorych nadawca jeszcze nie dostal -
+                        // wtedy nadal dziala w obie strony, ale bez wymiany w kolko.
+                        if (string.Equals(currentHash, header.Hash, StringComparison.Ordinal) || !weHadNew) _quickAccessLanSent[header.Id] = currentHash;
                         else _quickAccessLanSent.Remove(header.Id);
                         _quickAccessLanPeerStamps[header.Id] = header.Timestamp;
                         LanLog(L.T("Zsynchronizowano skróty i grafiki Szybkiego Dostępu z ") + header.Device + ".");

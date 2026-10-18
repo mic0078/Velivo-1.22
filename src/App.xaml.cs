@@ -43,6 +43,7 @@ namespace Velivo
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            Exit += (s, a) => Velivo.MainWindow.EnsureProcessEnds();   // nic nie zostaje w tle po zamknieciu
             VelivoData.Migrate();   // %LOCALAPPDATA%\Przegladarka -> %LOCALAPPDATA%\Programs\Velivo\Dane, zanim cokolwiek siegnie po dane
             // okna o tym samym rozmiarze otwierane w tym samym miejscu - kaskadowo jak w Windows (najnowsze na wierzchu, przesuniete w dol)
             EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s, a) =>

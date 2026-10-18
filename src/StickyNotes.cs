@@ -29,7 +29,26 @@ namespace Przegladarka
             public string Color { get; set; }
             public bool Top { get; set; }
             public bool Free { get; set; }
-            public bool Open { get; set; }   // przypieta i rozwinieta przez uzytkownika - po starcie wraca rozwinieta   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
+            public bool Open { get; set; }
+            public string Seen { get; set; }   // dzien (yyyy-MM-dd), w ktorym przypomnienie o terminie zostalo juz obejrzane   // przypieta i rozwinieta przez uzytkownika - po starcie wraca rozwinieta   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
+        }
+
+        // termin w tresci karteczki (12.05.2026, 12.05, 2026-05-12, 12/05/2026): 2 - dzis, 1 - jutro, 0 - brak
+        internal static int NoteDue(string text, DateTime today)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            int best = 0;
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text, @"(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)|(?<![\d.])(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?![\d/])"))
+            {
+                int y, mo, d;
+                if (m.Groups[1].Success) { y = int.Parse(m.Groups[1].Value); mo = int.Parse(m.Groups[2].Value); d = int.Parse(m.Groups[3].Value); }
+                else { d = int.Parse(m.Groups[4].Value); mo = int.Parse(m.Groups[5].Value); y = m.Groups[6].Success ? int.Parse(m.Groups[6].Value) : today.Year; if (y < 100) y += 2000; }
+                if (y < 1 || y > 9999 || mo < 1 || mo > 12 || d < 1 || d > DateTime.DaysInMonth(y, mo)) continue;
+                var dt = new DateTime(y, mo, d);
+                if (dt == today.Date) return 2;
+                if (dt == today.Date.AddDays(1)) best = 1;
+            }
+            return best;
         }
 
         // rodzaj -> ikona, tytul, poczatkowa tresc
@@ -259,6 +278,26 @@ namespace Przegladarka
                     MessageBox.Show(w, L.T("Usunąć tę karteczkę?"), "Velivo", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 _notes.Remove(n); _noteOpen.Remove(n); SaveNotes(); w.Close(); LayoutDockedNotes();
             };
+            // ⏰ przypomnienie: termin dzis albo jutro - ikona karteczki mruga, pasek pulsuje, az ja otworzysz (raz dziennie)
+            var dueAnim = new System.Windows.Media.Animation.DoubleAnimation(1, 0.25, TimeSpan.FromSeconds(0.7)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };
+            var headBg = (SolidColorBrush)head.Background; var headBase = headBg.Color;
+            var colAnim = new System.Windows.Media.Animation.ColorAnimation(headBase, Color.FromArgb(150, 0xFF, 0x7A, 0x00), TimeSpan.FromSeconds(0.7)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };
+            bool pulsing = false;
+            Action dueCheck = () =>
+            {
+                var today = DateTime.Today; int due = NoteDue(n.Text, today);
+                bool on = due > 0 && n.Seen != today.ToString("yyyy-MM-dd");
+                title.ToolTip = due == 2 ? L.T("⏰ Termin dziś") : due == 1 ? L.T("⏰ Termin jutro") : L.T(k[2]);
+                if (on == pulsing) return; pulsing = on;
+                title.BeginAnimation(UIElement.OpacityProperty, on ? dueAnim : null);
+                headBg.BeginAnimation(SolidColorBrush.ColorProperty, on ? colAnim : null);
+            };
+            Action seen = () => { if (!pulsing) return; n.Seen = DateTime.Today.ToString("yyyy-MM-dd"); SaveNotesSoon(); dueCheck(); };
+            box.TextChanged += (s, e) => dueCheck();
+            box.GotKeyboardFocus += (s, e) => seen();   // otwarta i czytana - przypomnienie obejrzane
+            var dueTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) }; dueTimer.Tick += (s, e) => dueCheck(); dueTimer.Start();   // nowy dzien - jutro staje sie dzis
+            w.Closed += (s, e) => dueTimer.Stop();
+            dueCheck();
             w.Closed += (s, e) => _noteWindows.Remove(n);
             _noteWindows[n] = w;
             if (!n.Free) head.Cursor = Cursors.Hand;

@@ -1411,7 +1411,7 @@ You open Settings with the ⚙ button. Below is every option in the window's ord
 - **What it does:** reads subtitles aloud (a natural offline Piper voice or a Windows voice), lowers the film's volume while reading; settings remembered per film.
 
 ### 28.7 Full description of the player
-- **Where:** the `dokumentacja/instrukcja-filmy-tv.md` file in the repository (Polish) – all buttons, shortcuts and menus.
+- **Where:** Part III of the user manual PDF (`Velivo-1.22-Manual-EN.pdf`) and the `dokumentacja/instrukcja-filmy-tv.en.md` file – all buttons, shortcuts and menus.
 
 # 29. Velivo on-screen keyboard
 

@@ -1409,7 +1409,7 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 - **Co robi:** czyta napisy na głos (naturalny głos offline Piper albo głos Windows), ścisza film podczas czytania; ustawienia zapamiętywane dla filmu.
 
 ### 28.7 Pełny opis odtwarzacza
-- **Gdzie:** plik `dokumentacja/instrukcja-filmy-tv.md` w repozytorium – wszystkie przyciski, skróty i menu.
+- **Gdzie:** część III instrukcji PDF (`Velivo-1.22-Instrukcja.pdf`) i plik `dokumentacja/instrukcja-filmy-tv.md` – wszystkie przyciski, skróty i menu.
 
 # 29. Klawiatura ekranowa Velivo
 

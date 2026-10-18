@@ -12,7 +12,8 @@ from reportlab.platypus.tableofcontents import TableOfContents
 from reportlab.lib.enums import TA_CENTER
 
 ROOT, MAIN, APPX, OUT = sys.argv[1:5]
-EN = len(sys.argv) > 5 and sys.argv[5] == 'en'   # wersja angielska: MANUAL.en.md + technical-appendix.en.md
+EN = len(sys.argv) > 5 and sys.argv[5] == 'en'
+TV = sys.argv[6] if len(sys.argv) > 6 else None   # opcjonalnie czesc III: instrukcja filmow i TV   # wersja angielska: MANUAL.en.md + technical-appendix.en.md
 NAME = 'Velivo 1.22 – User manual' if EN else 'Velivo 1.22 – Instrukcja obsługi'
 D = '/usr/share/fonts/truetype/dejavu/'
 pdfmetrics.registerFont(RLTTF('DV', D + 'DejaVuSans.ttf'))
@@ -151,7 +152,7 @@ def render(lines, h0, h1, h2, story, skip_sections=()):
 if EN:
     story = [Spacer(1, 55*mm), Paragraph('Velivo 1.22', st['title']),
              Paragraph('User manual – every feature explained', st['sub']), Spacer(1, 6*mm),
-             Paragraph('Part I – User manual · Part II – Technical appendix (detailed description)', st['sub']), Spacer(1, 40*mm),
+             Paragraph('Part I – User manual · Part II – Technical appendix · Part III – Videos and TV', st['sub']), Spacer(1, 40*mm),
              Paragraph('Version 1.22 · documentation 2026-10-18', st['sub']), PageBreak()]
     toc = TableOfContents(); toc.levelStyles = [st['toc1'], st['toc2']]
     story += [Paragraph('Contents', st['h1']), toc, PageBreak()]
@@ -159,10 +160,13 @@ if EN:
     render(open(MAIN, encoding='utf-8').read().split('\n'), 2, 3, 4, story, skip_sections=('Contents',))
     story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Part II', st['part']), Paragraph('Technical appendix – every feature step by step', st['sub']), PageBreak()]
     render(open(APPX, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
+    if TV:
+        story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Part III', st['part']), Paragraph('Videos and TV – the player in detail', st['sub']), PageBreak()]
+        render(open(TV, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
 else:
     story = [Spacer(1, 55*mm), Paragraph('Velivo 1.22', st['title']),
              Paragraph('Instrukcja obsługi – pełny opis wszystkich funkcji', st['sub']), Spacer(1, 6*mm),
-             Paragraph('Część I – Instrukcja obsługi · Część II – Dodatek techniczny (opis szczegółowy)', st['sub']), Spacer(1, 40*mm),
+             Paragraph('Część I – Instrukcja obsługi · Część II – Dodatek techniczny · Część III – Filmy i telewizja', st['sub']), Spacer(1, 40*mm),
              Paragraph('Wersja 1.22 · dokumentacja 2026-10-18', st['sub']), PageBreak()]
     toc = TableOfContents(); toc.levelStyles = [st['toc1'], st['toc2']]
     story += [Paragraph('Spis treści', st['h1']), toc, PageBreak()]
@@ -170,4 +174,7 @@ else:
     render(open(MAIN, encoding='utf-8').read().split('\n'), 2, 3, 4, story, skip_sections=('Spis treści',))
     story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Część II', st['part']), Paragraph('Dodatek techniczny – opis szczegółowy funkcji krok po kroku', st['sub']), PageBreak()]
     render(open(APPX, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
+    if TV:
+        story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Część III', st['part']), Paragraph('Filmy i telewizja – odtwarzacz szczegółowo', st['sub']), PageBreak()]
+        render(open(TV, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
 doc = Doc(OUT); doc.multiBuild(story); print('stron:', doc.page)

@@ -387,6 +387,7 @@ namespace Przegladarka
         // Klik myszy, inny klawisz albo przerwa > 4 s = nowe slowo (nie wiemy, gdzie jest kursor). Pole hasla - nic.
         static volatile Func<string, string> _physCorrect;      // null = wylaczona (klawiatura zamknieta / korekta wylaczona)
         static volatile bool _physSecret = true;
+        static volatile bool _physStale;   // po dluzszej przerwie pole nie jest jeszcze sprawdzone (do 0,3 s): slowa liczymy, ale niczego nie zmieniamy
         static volatile bool _physPause;   // okienko "Dodaj słowo" - wpisujesz nowe slowo, bez poprawiania                // pole hasla (sprawdzane przez klawiature co 0,3 s); na start - bezpiecznie
         static Action<string, string> _physNotify, _physUndone; static Action<string> _physAsk; static Action<string, bool> _physPred;
         // delikatny klik klawisza: krotki (25 ms), cichy dzwiek wygenerowany w pamieci - bez plikow, bez opoznienia
@@ -427,7 +428,7 @@ namespace Przegladarka
         static bool PhysKey(int vk)
         {
             var corr = _physCorrect; _tapLast = Environment.TickCount64;   // pisanie trwa - sprawdzanie pola hasla aktywne
-            if (corr == null || _physSecret || _physPause) { PhysReset(); return false; }
+            if (corr == null || _physSecret && !_physStale || _physPause) { PhysReset(); return false; }
             if (vk == 0x10 || vk == 0x11 || vk == 0x12 || vk >= 0xA0 && vk <= 0xA5 || vk == 0x14) return false;   // same modyfikatory - bez zmian
             long now = Environment.TickCount64; if (now - _pLast > 60000) PhysReset(); _pLast = now;
             bool sh = GetAsyncKeyState(0x10) < 0, ctrl = GetAsyncKeyState(0x11) < 0, alt = GetAsyncKeyState(0x12) < 0, caps = (GetKeyState(0x14) & 1) != 0;
@@ -470,7 +471,7 @@ namespace Przegladarka
                 char c = (char)(vk + 32);
                 if (ctrl && alt) { var i = "acelnoszx".IndexOf(c); if (i < 0) { PhysReset(); return false; } c = "ąćęłńóśżź"[i]; }
                 bool upper = sh ^ caps;
-                if (_pCap && !upper) { _pCap = false; c = char.ToUpper(c); _pWord += c; _pPrev = c; Inject(KeyIn(0, c)); PhysPred(_pWord, false); return true; }   // poczatek zdania - wielka litera zamiast malej
+                if (_pCap && !upper && !_physStale) { _pCap = false; c = char.ToUpper(c); _pWord += c; _pPrev = c; Inject(KeyIn(0, c)); PhysPred(_pWord, false); return true; }   // poczatek zdania - wielka litera zamiast malej
                 _pCap = false; _pWord += upper ? char.ToUpper(c) : c; _pPrev = c; PhysPred(_pWord, false); return false;
             }
             bool autoSp = _pAutoSpace; _pAutoSpace = false;
@@ -487,6 +488,7 @@ namespace Przegladarka
             var ze = prevSpace && word.Length > 0 ? SwipeTyping.ZeAsZe(prevW, word, prevW2) : null;   // ze to -> że to (ze mną zostaje)
             if (ze != null) prevW = "że";
             _pPrevWord2 = sep == ' ' ? prevW : null;
+            if (_physStale) { PhysPred(null, false); return false; }   // pierwsza chwila po przerwie: slowo zapamietane (przecinek przed nastepnym), bez poprawek i nauki
             if (word.Length < 2 && ze == null && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { PhysPred(null, false); return false; }
             var fix = word.Length >= 2 ? corr(word) : null;
             if (retyped != null && SwipeTyping.LearnFix(retyped, fix ?? word)) { var lf = _physFixLearned; if (lf != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => lf(retyped, fix ?? word))); }
@@ -1276,7 +1278,7 @@ namespace Przegladarka
             _physSecret = true;
             var secretTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
             // bez pisania przez 20 s - nie pytamy Windows co 0,3 s (mniej obciazenia, bez przycinek); wtedy bezpiecznie "pole hasla" do pierwszego sprawdzenia
-            secretTimer.Tick += (s, e) => { if (Environment.TickCount64 - _pLast > 20000 && Environment.TickCount64 - _tapLast > 20000) { _physSecret = true; return; } try { _physSecret = SecretField(); } catch (Exception) { _physSecret = true; } };
+            secretTimer.Tick += (s, e) => { if (Environment.TickCount64 - _pLast > 20000 && Environment.TickCount64 - _tapLast > 20000) { _physStale = true; return; } try { _physSecret = SecretField(); } catch (Exception) { _physSecret = true; } _physStale = false; };   // przerwa: bez sprawdzania (oszczednosc), pierwsze litery po niej nie gina
             secretTimer.Start();
             _physNotify = (from, to) => { ask.Text = L.T("Poprawiono: ") + from + " → " + to + L.T("  (⌫ cofa)"); ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed; };
             fixLearned = (typo, good) =>

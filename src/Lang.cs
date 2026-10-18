@@ -498,7 +498,6 @@ namespace Velivo
             { "📺 Uruchom TV", "📺 Open TV" },
             { "▶ Uruchom odtwarzacz wideo", "▶ Open the video player" },
             { "🕶 Otwórz kartę incognito", "🕶 Open an incognito tab" },
-            { "🎬 Biblioteka filmów", "🎬 Video library" },
             { "🧹 Porządki i kopia bezpieczeństwa", "🧹 Clean-up and backup" },
             { "🏦 Otwórz w trybie bankowym", "🏦 Open in banking mode" },
             { ", zakładki połączone.", ", bookmarks merged." },

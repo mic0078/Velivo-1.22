@@ -99,6 +99,7 @@ namespace Przegladarka
         void LoadNotes()
         {
             try { if (File.Exists(NotesFile)) _notes.AddRange(ParseNotes(File.ReadAllText(NotesFile))); } catch (IOException) { }
+            if (GetPref("karteczki-wierzch") != "1") { foreach (var n in _notes.Where(q => !q.Free)) n.Top = true; SetPref("karteczki-wierzch", "1"); }   // raz: dawne karteczki przypiete nad paskiem - na wierzchu (potem Twoj wybor zostaje)
             foreach (var n in _notes.ToList()) ShowNote(n);
         }
 
@@ -131,7 +132,7 @@ namespace Przegladarka
             var n = new StickyNote
             {
                 Id = Guid.NewGuid().ToString("N"), Kind = k[0], Text = k[3], W = 240, H = 220,
-                X = wa.Right - 270 - i * 24, Y = wa.Top + 40 + i * 24, Color = NoteColors[0],
+                X = wa.Right - 270 - i * 24, Y = wa.Top + 40 + i * 24, Color = NoteColors[0], Top = true,   // przypieta nad paskiem - na wierzchu
             };
             _notes.Add(n);
             SaveNotes();
@@ -150,7 +151,7 @@ namespace Przegladarka
             Func<Color> col = () => { try { return (Color)ColorConverter.ConvertFromString("#" + n.Color); } catch (Exception) { return Color.FromRgb(0xFF, 0xF5, 0x9D); } };
             var w = new Window
             {
-                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResizeWithGrip, ShowInTaskbar = false, Topmost = n.Top || !n.Free,
+                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResizeWithGrip, ShowInTaskbar = false, Topmost = n.Top,
                 Width = Math.Max(160, n.W), Height = Math.Max(120, n.H), Left = n.X, Top = n.Y, Title = L.T(k[2]),
                 Background = new SolidColorBrush(col()), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)), BorderThickness = new Thickness(1),
                 Tag = "own-bounds",   // miejsce i rozmiar ustawia karteczka (nie wspolna pamiec okien po tytule)
@@ -219,7 +220,7 @@ namespace Przegladarka
             open.Visibility = n.Free ? Visibility.Collapsed : Visibility.Visible;
             dock.Click += (s, e) =>
             {
-                n.Free = !n.Free; w.Topmost = n.Top || !n.Free; _noteOpen.Remove(n);
+                n.Free = !n.Free; if (!n.Free) n.Top = true; w.Topmost = n.Top; pin.Content = n.Top ? "📌" : "📍"; _noteOpen.Remove(n);
                 head.Cursor = n.Free ? Cursors.SizeAll : Cursors.Hand; open.Visibility = n.Free ? Visibility.Collapsed : Visibility.Visible; head.ToolTip = n.Free ? null : L.T("Kliknij, aby rozwinąć / zwinąć karteczkę");
                 if (n.Free) { var wa = SystemParameters.WorkArea; w.Height = Math.Max(120, n.H); w.Top = Math.Max(wa.Top, wa.Bottom - w.Height - 40); }
                 SaveNotes(); LayoutDockedNotes();
@@ -261,6 +262,7 @@ namespace Przegladarka
             _noteWindows[n] = w;
             if (!n.Free) head.Cursor = Cursors.Hand;
             w.Show();
+            if (n.Top) { w.Topmost = false; w.Topmost = true; }   // od razu nad innymi oknami (bez klikania ikonki)
             LayoutDockedNotes();
             if (!n.Free && (string.IsNullOrEmpty(n.Text) || n.Text == k[3])) { _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
             if (string.IsNullOrEmpty(n.Text) || n.Text == k[3]) { box.Focus(); box.CaretIndex = k[3].IndexOf('\n') is int nl && nl > 0 ? nl : box.Text.Length; }

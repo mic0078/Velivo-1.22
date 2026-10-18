@@ -14,6 +14,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.Build
@@ -164,6 +165,7 @@ class MainActivity : Activity() {
     private companion object {
         const val PRIVATE_PROFILE = "prywatna"
         const val BANK_PROFILE = "bank"
+        const val REQ_VLPAIR = 7
         val YOUTUBE_ORIGINS = setOf("https://www.youtube.com", "https://m.youtube.com", "https://youtube.com", "https://music.youtube.com")
         const val BANK_IDLE_MS = 10 * 60 * 1000L
 
@@ -191,6 +193,7 @@ set(p0,p);})"""
         if (intent.action == PlaybackService.ACTION_STOP) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             stopService(Intent(this, PlaybackService::class.java))
+        startLan()
             return
         }
         intent.dataString?.let { newTab(false, it) }
@@ -457,6 +460,7 @@ set(p0,p);})"""
         m.menu.add(0, 9, 0, R.string.passwords)
         m.menu.add(0, 10, 0, R.string.bank_mode)
         m.menu.add(0, 11, 0, R.string.theme)
+        m.menu.add(0, 13, 0, R.string.lan_sync)
         m.menu.add(0, 12, 0, R.string.background_play).apply { isCheckable = true; isChecked = prefs.getBoolean("tlo", true) }
         m.menu.add(0, 7, 0, R.string.adblock).apply { isCheckable = true; isChecked = prefs.getBoolean("adblock", true) }
         m.menu.add(0, 8, 0, getString(R.string.blocked, blockedCount)).isEnabled = false
@@ -471,6 +475,7 @@ set(p0,p);})"""
                 9 -> unlock { showPasswords() }
                 10 -> openBank()
                 11 -> chooseTheme()
+                13 -> unlock { showLanSync() }
                 12 -> {
                     val on = !prefs.getBoolean("tlo", true)
                     prefs.edit().putBoolean("tlo", on).apply()
@@ -568,6 +573,125 @@ set(p0,p);})"""
             .show()
     }
 
+    // --- Synchronizacja z Velivo na Windows (sieć domowa) -------------------------
+    private val lan by lazy {
+        LanSync(
+            lanKey = { passwords.lanKey },
+            saveKey = { passwords.lanKey = it },
+            profile = { prefs.getString("lan-profil", "domyslny")!! },
+            saveProfile = { prefs.edit().putString("lan-profil", it.ifBlank { "domyslny" }).apply() },
+            ui = { runOnUiThread(it) },
+            confirmPair = { dev, code, accept ->
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.lan_pair_confirm)
+                    .setMessage(getString(R.string.lan_pair_code, dev, code))
+                    .setPositiveButton(R.string.lan_codes_match) { _, _ -> accept() }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            },
+            onPaired = { dev -> prefs.edit().putString("lan-komputer", dev).apply(); toast(getString(R.string.lan_paired, dev)) },
+            onState = { dev, bookmarks, pwds -> applyLanState(dev, bookmarks, pwds) },
+        )
+    }
+    private var multicastLock: WifiManager.MulticastLock? = null
+
+    private fun startLan() {
+        if (!prefs.getBoolean("lan", false)) return
+        if (multicastLock == null) multicastLock = (applicationContext.getSystemService(WIFI_SERVICE) as WifiManager)
+            .createMulticastLock("velivo-lan").apply { setReferenceCounted(false) }
+        multicastLock?.acquire()
+        lan.start()
+    }
+
+    private fun stopLan() {
+        lan.stop()
+        multicastLock?.release()
+    }
+
+    // Zakładki (Windows: "adres<TAB>tytuł") i hasła z komputera dopisywane do telefonu; nic nie jest usuwane.
+    private fun applyLanState(dev: String, bookmarks: String?, pwds: String?) {
+        var added = 0
+        bookmarks?.lines()?.reversed()?.forEach { line ->
+            val parts = line.split('\t')
+            val url = parts[0].trim()
+            if (!url.startsWith("http") || list("zakladki").any { it.endsWith("\t" + url) }) return@forEach
+            addTo("zakladki", parts.getOrNull(1)?.ifBlank { null } ?: url, url, 2000)
+            added++
+        }
+        val pw = pwds?.let { passwords.saveAll(LanSync.parsePasswords(it)) } ?: 0
+        prefs.edit().putString("lan-komputer", dev).putLong("lan-czas", System.currentTimeMillis()).apply()
+        if (added + pw > 0) toast(getString(R.string.lan_received, dev, added, pw))
+    }
+
+    private fun showLanSync() {
+        val on = prefs.getBoolean("lan", false)
+        val pc = prefs.getString("lan-komputer", null)
+        val last = prefs.getLong("lan-czas", 0)
+        val status = when {
+            !lan.paired -> getString(R.string.lan_not_paired)
+            last > 0 -> getString(R.string.lan_status, pc ?: "?", java.text.DateFormat.getDateTimeInstance().format(java.util.Date(last)))
+            else -> getString(R.string.lan_waiting)
+        }
+        val items = arrayOf(
+            getString(if (on) R.string.lan_turn_off else R.string.lan_turn_on),
+            getString(R.string.lan_pair),
+            getString(R.string.lan_recovery),
+            getString(R.string.lan_sync_now),
+            getString(R.string.lan_forget),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.lan_sync) + "\n" + status)
+            .setItems(items) { _, i ->
+                when (i) {
+                    0 -> { prefs.edit().putBoolean("lan", !on).apply(); if (on) stopLan() else startLan() }
+                    1 -> {
+                        prefs.edit().putBoolean("lan", true).apply()
+                        startLan()
+                        lan.pairingUntil = System.currentTimeMillis() + 3 * 60 * 1000
+                        AlertDialog.Builder(this).setTitle(R.string.lan_pair).setMessage(R.string.lan_pair_help)
+                            .setPositiveButton(android.R.string.ok, null).show()
+                    }
+                    2 -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), REQ_VLPAIR)
+                    3 -> { if (!lan.paired) toast(getString(R.string.lan_not_paired)) else { startLan(); lan.syncNow() } }
+                    4 -> { passwords.lanKey = null; prefs.edit().remove("lan-komputer").remove("lan-czas").putBoolean("lan", false).apply(); stopLan() }
+                }
+            }
+            .show()
+    }
+
+    @Deprecated("Activity API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_VLPAIR || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        val text = runCatching {
+            contentResolver.openInputStream(uri)!!.use { s -> String(s.readBytes().take(1024 * 1024).toByteArray(), Charsets.UTF_8) }
+        }.getOrNull() ?: return
+        val input = EditText(this).apply {
+            inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_PASSWORD
+            hint = getString(R.string.lan_recovery_pass)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.lan_recovery)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val pass = input.text.toString()
+                toast(getString(R.string.lan_recovery_wait))
+                Thread {
+                    val key = LanSync.readRecovery(text, pass)
+                    runOnUiThread {
+                        if (key == null) { toast(getString(R.string.lan_recovery_bad)); return@runOnUiThread }
+                        passwords.lanKey = key
+                        prefs.edit().putBoolean("lan", true).apply()
+                        stopLan(); startLan()
+                        toast(getString(R.string.lan_recovery_ok))
+                    }
+                }.start()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     // --- Motyw ----------------------------------------------------------------
     private fun chooseTheme() {
         val names = arrayOf(getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark))
@@ -662,6 +786,7 @@ set(p0,p);})"""
     }
 
     override fun onPause() {
+        stopLan()
         idle.removeCallbacks(idleCheck)
         backgroundPlayback()
         saveTabs()

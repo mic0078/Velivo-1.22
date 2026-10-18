@@ -40,4 +40,28 @@
     <string name="no_lock">Telefon nie ma blokady ekranu – ustaw PIN, aby chronić hasła i tryb bankowy</string>
     <string name="background_play">Odtwarzanie w tle</string>
     <string name="stop">Zatrzymaj</string>
+    <string name="lan_sync">Synchronizacja z komputerem</string>
+    <string name="lan_turn_on">Włącz</string>
+    <string name="lan_turn_off">Wyłącz</string>
+    <string name="lan_pair">Sparuj z Velivo na Windows</string>
+    <string name="lan_pair_help">Przez 3 minuty telefon czeka na parowanie. Na komputerze otwórz Velivo → Ustawienia → Synchronizacja LAN → Sparuj. Oba urządzenia muszą być w tej samej sieci Wi-Fi. Uwaga: parowanie zmienia klucz synchronizacji na komputerze – inne komputery trzeba sparować ponownie. Przy kilku komputerach użyj pliku odzyskiwania.</string>
+    <string name="lan_pair_confirm">Potwierdź parowanie</string>
+    <string name="lan_pair_code">%1$s chce sparować się z tym telefonem.
+
+Kod: %2$s
+
+Akceptuj tylko, gdy komputer pokazuje ten sam kod.</string>
+    <string name="lan_codes_match">Kody są takie same</string>
+    <string name="lan_paired">Sparowano z %1$s</string>
+    <string name="lan_recovery">Wczytaj plik odzyskiwania parowania (.vlpair)</string>
+    <string name="lan_recovery_pass">Hasło do pliku odzyskiwania</string>
+    <string name="lan_recovery_wait">Sprawdzam… (kilka sekund)</string>
+    <string name="lan_recovery_bad">Złe hasło albo uszkodzony plik</string>
+    <string name="lan_recovery_ok">Sparowano – synchronizacja włączona</string>
+    <string name="lan_sync_now">Synchronizuj teraz</string>
+    <string name="lan_forget">Rozłącz</string>
+    <string name="lan_not_paired">Nie sparowano</string>
+    <string name="lan_waiting">Sparowano – czekam na komputer</string>
+    <string name="lan_status">Ostatnio: %1$s, %2$s</string>
+    <string name="lan_received">Z %1$s: zakładki %2$d, hasła %3$d</string>
 </resources>

@@ -40,4 +40,28 @@
     <string name="no_lock">This phone has no screen lock – set a PIN to protect passwords and banking mode</string>
     <string name="background_play">Play in background</string>
     <string name="stop">Stop</string>
+    <string name="lan_sync">Sync with computer</string>
+    <string name="lan_turn_on">Turn on</string>
+    <string name="lan_turn_off">Turn off</string>
+    <string name="lan_pair">Pair with Velivo on Windows</string>
+    <string name="lan_pair_help">For 3 minutes the phone waits for pairing. On the computer open Velivo → Settings → LAN sync → Pair. Both devices must be on the same Wi-Fi network. Note: pairing changes the sync key on the computer – other computers must be paired again. With several computers use a recovery file instead.</string>
+    <string name="lan_pair_confirm">Confirm pairing</string>
+    <string name="lan_pair_code">%1$s wants to pair with this phone.
+
+Code: %2$s
+
+Accept only if the computer shows the same code.</string>
+    <string name="lan_codes_match">Codes match</string>
+    <string name="lan_paired">Paired with %1$s</string>
+    <string name="lan_recovery">Load pairing recovery file (.vlpair)</string>
+    <string name="lan_recovery_pass">Recovery file password</string>
+    <string name="lan_recovery_wait">Checking… (a few seconds)</string>
+    <string name="lan_recovery_bad">Wrong password or damaged file</string>
+    <string name="lan_recovery_ok">Paired – sync is on</string>
+    <string name="lan_sync_now">Sync now</string>
+    <string name="lan_forget">Unpair</string>
+    <string name="lan_not_paired">Not paired</string>
+    <string name="lan_waiting">Paired – waiting for the computer</string>
+    <string name="lan_status">Last sync: %1$s, %2$s</string>
+    <string name="lan_received">From %1$s: bookmarks %2$d, passwords %3$d</string>
 </resources>

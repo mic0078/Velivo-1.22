@@ -123,4 +123,6 @@
     <string name="send_tab_bad">Tej karty nie da się wysłać (to nie jest zwykła strona)</string>
     <string name="send_tab_private">Karty prywatnej i bankowej nie wysyłam</string>
     <string name="tab_received">📺 Karta z: %1$s – %2$s</string>
+    <string name="hide_copy">Kopiuj kod elementu (do zgłoszenia reklamy)</string>
+    <string name="hide_copied">Skopiowano kod – wklej go w zgłoszeniu</string>
 </resources>

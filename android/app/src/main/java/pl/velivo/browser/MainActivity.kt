@@ -591,6 +591,7 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
         pickBar.addView(TextView(this).apply { text = getString(R.string.hide_hint); setTextColor(TEXT); textSize = 13f; setPadding(dp(6), 0, dp(4), 0) }, LinearLayout.LayoutParams(0, -2, 1f))
         pickBar.addView(button("⬆", R.string.hide_bigger, BLUE, BLUE_BG) { web()?.evaluateJavascript("window.__vBig&&__vBig()", null) })
         pickBar.addView(button("🗑", R.string.hide_element, GREEN, GREEN_BG) { hidePicked() })
+        pickBar.addView(button("📋", R.string.hide_copy, BLUE, BLUE_BG) { copyPicked() })
         pickBar.addView(button("↺", R.string.hide_restore, ORANGE, ORANGE_BG) { restoreHidden() })
         pickBar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { stopPick() })
         return pickBar
@@ -613,8 +614,20 @@ var c=[].filter.call(e.classList,function(x){return !/\d{3}|^(active|show|open|h
 if(c.length)s+='.'+c.map(CSS.escape).join('.');
 var n=1,x=e;while((x=x.previousElementSibling))if(x.tagName==e.tagName)n++;s+=':nth-of-type('+n+')';
 p.unshift(s);e=e.parentElement;}return p.join(' > ');}
+window.__vInfo=function(){if(!cur)return '';var p=[],e=cur;while(e&&e!=document.body){p.unshift(e.tagName.toLowerCase()+(e.id?'#'+e.id:'')+(typeof e.className=='string'&&e.className?'.'+e.className.trim().split(/\s+/).join('.'):''));e=e.parentElement;}
+var h=cur.outerHTML.replace(/<script[\s\S]*?<\/script>/gi,'<script/>');return location.host+'\n'+p.join(' > ')+'\n\n'+h.slice(0,3000);};
 window.__vTake=function(){if(!cur)return '';var s=sel(cur);cur.style.setProperty('display','none','important');cur=null;return s;};
 window.__vStop=function(){mark(null);ov.remove();window.__vPick=null;};})()""", null)
+    }
+
+    // Diagnostyka: kod zaznaczonego pola do schowka - do zgłoszenia reklamy, której Velivo nie ukrywa
+    private fun copyPicked() {
+        web()?.evaluateJavascript("window.__vInfo?__vInfo():''") { r ->
+            val t = runCatching { org.json.JSONTokener(r).nextValue() as String }.getOrDefault("")
+            if (t.isEmpty()) { toast(getString(R.string.hide_hint)); return@evaluateJavascript }
+            (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Velivo", t))
+            toast(getString(R.string.hide_copied))
+        }
     }
 
     private fun stopPick() {

@@ -261,7 +261,7 @@ Kolumny: **Impl.** = zaimplementowane w kodzie · **UI** = dostępne z interfejs
 | Pamięć podręczna profilu bankowego w RAM | odczyt pliku tylko po zmianie | Bank.cs 54 | ✔ | – | ✔ |
 | WebView2 (silnik Edge) | wspólny z systemem | MainWindow.xaml.cs | ✔ | – | ✔ |
 | Bez konta i bez chmury | | całość | ✔ | – | ✔ |
-| Osobny folder danych (`PRZEGLADARKA_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
+| Osobny folder danych (`VELIVO_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
 
 ## BRAKUJE W TABELI
 Funkcje znalezione w kodzie, których nie było w poprzedniej tabeli porównawczej:
@@ -403,4 +403,4 @@ Funkcje znalezione w kodzie, których nie było w poprzedniej tabeli porównawcz
 136. Folder cache z czyszczeniem tylko własnego podfolderu
 137. Filtr reklam budowany w tle
 138. Pomijanie zdjęć i czcionek w przechwytywaniu żądań (szybkość)
-139. Osobny folder danych `PRZEGLADARKA_DANE` i log `VELIVO_DEBUG`
+139. Osobny folder danych `VELIVO_DANE` i log `VELIVO_DEBUG`

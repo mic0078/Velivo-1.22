@@ -11,7 +11,7 @@ using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Obsluga tego, czego WebView2 nie daje dodatkom: pasek ikon z okienkami (popup),
     // strona nowej karty z dodatku (chrome_url_overrides.newtab) i strona opcji.

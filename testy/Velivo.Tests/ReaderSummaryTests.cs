@@ -1,5 +1,5 @@
 using System.Linq;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Streszczenie w trybie czytania: tylko pelne, samodzielne zdania artykulu - bez srodtytulow, wyrwanych cytatow i zdan,

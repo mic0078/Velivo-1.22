@@ -41,7 +41,7 @@ Konwencje: **Gdzie** – miejsce w interfejsie. **Kroki** – kolejność czynno
 
 ## 1.3 Parametry uruchomienia i zmienne
 - `--profil <nazwa>` – start z wybranym profilem użytkownika.
-- `PRZEGLADARKA_DANE=<folder>` – osobny folder danych (np. do testów); wtedy także osobne jedno-okno.
+- `VELIVO_DANE=<folder>` – osobny folder danych (np. do testów); wtedy także osobne jedno-okno.
 - `VELIVO_DEBUG=1` – zapis zdarzeń zamykania okna do `debug.log`.
 - Siatka bezpieczeństwa: nieobsłużony wyjątek nie zamyka programu; trafia do `bledy.log`, a komunikat pojawia się najwyżej raz na 30 s dla tego samego błędu.
 

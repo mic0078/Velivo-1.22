@@ -10,7 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Interop;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Kazde okno Velivo (biblioteka, odtwarzacz, notatki, PDF...) pamieta swoje miejsce i rozmiar - jak lista kanalow.
     // Klucz = tytul okna bez zmiennej czesci ("Film – Odtwarzacz filmow" -> "Odtwarzacz filmow"); zapis w okna.txt.

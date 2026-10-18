@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Jezyk interfejsu: polski (oryginal w kodzie) albo angielski (slownik ponizej).
     // L.T("polski tekst") zwraca tlumaczenie, gdy wybrano angielski, a gdy brak wpisu - tekst polski.

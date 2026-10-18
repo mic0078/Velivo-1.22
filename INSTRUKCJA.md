@@ -276,7 +276,7 @@ Lista powstała z audytu kodu (szczegóły i lokalizacje w kodzie: [docs/AUDYT-F
 | Pamięć podręczna profilu bankowego w RAM | odczyt pliku tylko po zmianie | Bank.cs 54 | ✔ | – | ✔ |
 | WebView2 (silnik Edge) | wspólny z systemem | MainWindow.xaml.cs | ✔ | – | ✔ |
 | Bez konta i bez chmury | | całość | ✔ | – | ✔ |
-| Osobny folder danych (`PRZEGLADARKA_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
+| Osobny folder danych (`VELIVO_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
 
 ### K. Odtwarzacz filmów i telewizja (`VlcPlayer.cs`, `Iptv.cs`, `OpenSubtitles.cs`, `SubtitleLector.cs`, `LanVideo.cs`)
 | Funkcja | Opis | Kod | Impl. | UI | Sys. |

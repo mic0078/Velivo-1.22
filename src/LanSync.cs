@@ -15,7 +15,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Synchronizacja LAN w czasie rzeczywistym dla aktywnego profilu (ustawienia, zakladki, sesja, reguly prywatnosci).
     public partial class MainWindow

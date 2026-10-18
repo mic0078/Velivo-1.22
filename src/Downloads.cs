@@ -15,7 +15,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Menedzer pobierania w stylu IDM: Velivo samo pobiera plik (kilka polaczen naraz, wstrzymywanie,
     // wznawianie, ponawianie), niezaleznie od kart i od silnika WebView2.

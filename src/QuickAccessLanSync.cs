@@ -12,7 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace Przegladarka
+namespace Velivo
 {
     public partial class MainWindow
     {

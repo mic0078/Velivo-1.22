@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Testy wywoluja prawdziwy kod Velivo (klasa Integrity z Velivo.exe), nie kopie.

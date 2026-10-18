@@ -12,7 +12,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Napisy z OpenSubtitles.com (jak w Jellyfin): wyszukiwanie po skrocie pliku (dokladne dopasowanie) i po nazwie,
     // zapis obok filmu jako "film.pl.srt" - odtwarzacz i lektor wczytuja je same. Klucz aplikacji wbudowany, uzytkownik - swoje konto;

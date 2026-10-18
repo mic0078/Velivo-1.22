@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Odtwarzacz filmow: wszystkie ikony (wektorowe) i styl przyciskow wczytuja sie w WPF - blad w danych ikony wyszedlby dopiero po otwarciu filmu.

@@ -11,7 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Telewizja IPTV: nagrywanie (teraz albo zaplanowane, do wybranego folderu) i automatyczne przelaczanie na program o czasie.
     // Nagranie = zapis strumienia kanalu wprost do pliku .ts (MPEG-TS albo HLS .m3u8) - bez przekodowania; Velivo musi byc wtedy wlaczone.

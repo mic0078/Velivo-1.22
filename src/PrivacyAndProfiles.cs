@@ -10,7 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     public partial class MainWindow
     {

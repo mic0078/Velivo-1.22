@@ -42,7 +42,7 @@ Conventions: **Where** – the place in the interface. **Steps** – the order o
 ## 1.3 Launch parameters and variables
 - `--profil <name>` – start with the chosen user profile.
 - `--klawiatura` – open only the on-screen keyboard (the "Velivo Klawiatura" shortcut).
-- `PRZEGLADARKA_DANE=<folder>` – a separate data folder (e.g. for tests); also a separate single window.
+- `VELIVO_DANE=<folder>` – a separate data folder (e.g. for tests); also a separate single window.
 - `VELIVO_DEBUG=1` – logs window-closing events to `debug.log`.
 - Safety net: an unhandled exception does not close the program; it goes to `bledy.log`, and a message appears at most once every 30 s for the same error.
 

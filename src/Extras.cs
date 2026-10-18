@@ -11,7 +11,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Dodatki do przegladania: odrzucanie banerow z ciasteczkami, gesty myszy, przycisk "obraz w obrazie",
     // skroty wyszukiwania w pasku adresu i szukanie w otwartych kartach.

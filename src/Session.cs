@@ -5,7 +5,7 @@ using System.Linq;
 using System.Windows.Controls;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Przywracanie kart po ponownym uruchomieniu + ponowne otwieranie zamknietych kart (Ctrl+Shift+T).
     // Karty prywatne nie sa nigdzie zapisywane. Przy "czysc dane przy zamknieciu" sesja tez nie jest zapisywana.

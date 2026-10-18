@@ -9,7 +9,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Wykrywanie URL-i audio/wideo na bieżącej stronie i dodawanie do menedżera pobrań.
     public partial class MainWindow

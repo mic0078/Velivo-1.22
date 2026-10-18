@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Autostart z Windows z opoznieniem: wpis w Run = "Velivo.exe" --autostart N; przy starcie Velivo czeka N s.

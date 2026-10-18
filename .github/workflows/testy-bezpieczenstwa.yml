@@ -32,7 +32,7 @@ jobs:
 
       - name: Kompilacja Velivo PO poprawkach
         shell: pwsh
-        run: dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\po
+        run: dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\po
 
       - name: Kompilacja Velivo PRZED poprawkami (main 285d73b) - wersja odniesienia
         shell: pwsh

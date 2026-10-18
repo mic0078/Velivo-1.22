@@ -1,4 +1,4 @@
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Wypelnianie w trybie bankowym - prawdziwy kod Velivo (MainWindow.DistinctLogins): konta z bazy trybu do jednej strony.

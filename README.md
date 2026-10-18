@@ -203,7 +203,7 @@ Każda zmiana w `src/` wysłana na GitHub automatycznie buduje nowy instalator (
 Ręcznie (Windows, .NET 10 SDK, Inno Setup 6):
 
 ```
-dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained false -o build\velivo
+dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained false -o build\velivo
 "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" src\installer.iss
 ```
 

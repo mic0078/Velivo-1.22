@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Usypianie nieuzywanych kart (jak w Edge, Chrome i Safari): karta, ktorej dawno nie ogladasz, przestaje zajmowac
     // procesor i pamiec; po kliknieciu budzi sie od razu. Nie zasypia: ogladana, przypieta ani grajaca (muzyka, film,

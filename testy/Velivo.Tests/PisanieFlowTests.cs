@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Pisanie przeciagnieciem po klawiaturze ekranowej: dopasowanie sladu do slow ze slownika i wlasny slownik.

@@ -12,7 +12,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Zrzut ekranu strony: widoczna czesc albo cala strona (przewijana). Zapis do Obrazy\Zrzuty Velivo
     // i kopia w schowku; potem dymek z przyciskami "Otworz" i "Pokaz w folderze".

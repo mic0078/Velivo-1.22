@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Folder danych uzytkownika: %LOCALAPPDATA%\Programs\Velivo\Dane - wszystko w folderze Velivo, ale osobno od plikow
     // programu (instalator nadpisuje tylko swoje pliki; dezinstalacja zostawia dane). Sciezka stala, niezalezna od tego,

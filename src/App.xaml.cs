@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace Przegladarka
+namespace Velivo
 {
     public partial class App : Application
     {
@@ -48,16 +48,16 @@ namespace Przegladarka
             EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s, a) =>
             {
                 var w = s as Window;
-                if (w != null) { Przegladarka.MainWindow.RememberWindow(w); Przegladarka.MainWindow.RestoreAlpha(w); Przegladarka.MainWindow.ApplyWindowTheme(w); }   // ostatnie miejsce, rozmiar i przezroczystosc okna
+                if (w != null) { Velivo.MainWindow.RememberWindow(w); Velivo.MainWindow.RestoreAlpha(w); Velivo.MainWindow.ApplyWindowTheme(w); }   // ostatnie miejsce, rozmiar i przezroczystosc okna
                 if (w == null || w.WindowStyle == WindowStyle.None || w.WindowState != WindowState.Normal || w == MainWindow) return;
                 var others = Windows.Cast<Window>().Where(o => o != w && o.IsVisible && o.WindowState == WindowState.Normal).Select(o => new Rect(o.Left, o.Top, o.ActualWidth, o.ActualHeight));
                 var p = CascadeSpot(new Rect(w.Left, w.Top, w.ActualWidth, w.ActualHeight), others, SystemParameters.WorkArea);
                 w.Left = p.X; w.Top = p.Y;
             }));
             // Alt + kolko myszy = przezroczystosc okna (kazdego okna Velivo)
-            EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseWheelEvent, new System.Windows.Input.MouseWheelEventHandler(Przegladarka.MainWindow.AlphaWheel));
+            EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseWheelEvent, new System.Windows.Input.MouseWheelEventHandler(Velivo.MainWindow.AlphaWheel));
             // klik rolka w pole do pisania = klawiatura ekranowa (kazde okno Velivo; tylko gdy wlaczona w ustawieniach)
-            EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseDownEvent, new System.Windows.Input.MouseButtonEventHandler(Przegladarka.MainWindow.KeyboardOnMiddleClick));
+            EventManager.RegisterClassHandler(typeof(Window), UIElement.PreviewMouseDownEvent, new System.Windows.Input.MouseButtonEventHandler(Velivo.MainWindow.KeyboardOnMiddleClick));
             // Siatka bezpieczenstwa: nieprzewidziany blad nie wylacza przegladarki - zapis do pliku i komunikat.
             // Komunikat najwyzej jeden naraz i nie czesciej niz raz na 30 s dla tego samego bledu
             // (powtarzajacy sie blad nie moze zasypac ekranu okienkami) - kazdy blad i tak trafia do bledy.log.
@@ -80,7 +80,7 @@ namespace Przegladarka
 
             var args = e.Args.ToList();
             // start z Windows (autostart): poczekaj ustawiony czas, zanim cokolwiek sie wczyta
-            int autoDelay = Przegladarka.MainWindow.TakeAutostartArg(args);
+            int autoDelay = Velivo.MainWindow.TakeAutostartArg(args);
             bool kbdOnly = args.Remove("--klawiatura");   // skrot "Velivo Klawiatura" (do przypiecia na pasku zadan): sama klawiatura ekranowa
             if (autoDelay > 0) System.Threading.Thread.Sleep(autoDelay * 1000);
             int p = args.IndexOf("--profil");
@@ -97,10 +97,10 @@ namespace Przegladarka
             }
             if (requestedProfile == null) requestedProfile = "domyslny";
 
-            if (Environment.GetEnvironmentVariable("PRZEGLADARKA_DANE") == null)
+            if (Environment.GetEnvironmentVariable("VELIVO_DANE") == null)
             {
                 string dir = requestedProfile == "domyslny" ? DefaultRoot : Path.Combine(DefaultRoot, "Profiles", requestedProfile);
-                Environment.SetEnvironmentVariable("PRZEGLADARKA_DANE", dir);
+                Environment.SetEnvironmentVariable("VELIVO_DANE", dir);
             }
             Environment.SetEnvironmentVariable("VELIVO_PROFILE", requestedProfile);
             try
@@ -119,21 +119,21 @@ namespace Przegladarka
                     try { System.Diagnostics.Process.GetProcessById(pid).WaitForExit(15000); } catch (Exception) { }
                 args.RemoveRange(w, Math.Min(2, args.Count - w));
             }
-            Przegladarka.MainWindow.ApplyPendingRestore();   // przywracanie kopii danych - zanim cokolwiek otworzy pliki
-            var urls = args.Where(a => a.Length > 0).Select(Przegladarka.MainWindow.ArgToUrl).ToArray();
+            Velivo.MainWindow.ApplyPendingRestore();   // przywracanie kopii danych - zanim cokolwiek otworzy pliki
+            var urls = args.Where(a => a.Length > 0).Select(Velivo.MainWindow.ArgToUrl).ToArray();
             // Velivo juz dziala: oddaj mu adresy (otworzy je w nowych kartach) i zakoncz.
             // Gdyby przekazanie sie nie udalo, otwieramy normalnie drugie okno.
-            if (!Przegladarka.MainWindow.TryBecomePrimary() && Przegladarka.MainWindow.SendToPrimary(kbdOnly ? new[] { "--klawiatura" } : urls))
+            if (!Velivo.MainWindow.TryBecomePrimary() && Velivo.MainWindow.SendToPrimary(kbdOnly ? new[] { "--klawiatura" } : urls))
             {
                 Shutdown();
                 return;
             }
             WatchUncleanExit();
-            var main = new Przegladarka.MainWindow(urls);
-            if (Przegladarka.MainWindow.OnlyVlcVideos(urls)) main.WindowState = WindowState.Minimized;   // dwuklik w film: od razu odtwarzacz, przegladarka czeka na pasku zadan
+            var main = new Velivo.MainWindow(urls);
+            if (Velivo.MainWindow.OnlyVlcVideos(urls)) main.WindowState = WindowState.Minimized;   // dwuklik w film: od razu odtwarzacz, przegladarka czeka na pasku zadan
             else if ((autoDelay >= 0 || kbdOnly) && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
             main.Show();
-            if (kbdOnly) main.Dispatcher.BeginInvoke(new Action(Przegladarka.MainWindow.ShowScreenKeyboard), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if (kbdOnly) main.Dispatcher.BeginInvoke(new Action(Velivo.MainWindow.ShowScreenKeyboard), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         // nagle zamkniecie (blad w VLC / WebView2 / systemie - bez wpisu w bledy.log): znacznik dziala.txt zostaje,
@@ -142,7 +142,7 @@ namespace Przegladarka
         {
             try
             {
-                var marker = Path.Combine(Przegladarka.MainWindow.DataFolder, "dziala.txt");
+                var marker = Path.Combine(Velivo.MainWindow.DataFolder, "dziala.txt");
                 if (File.Exists(marker))
                 {
                     var since = File.GetLastWriteTime(marker).AddMinutes(-1);
@@ -173,7 +173,7 @@ namespace Przegladarka
             if (ex == null) return;
             try
             {
-                File.AppendAllText(Path.Combine(Przegladarka.MainWindow.DataFolder, "bledy.log"),
+                File.AppendAllText(Path.Combine(Velivo.MainWindow.DataFolder, "bledy.log"),
                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\n" + ex + "\n\n");
             }
             catch (Exception) { }

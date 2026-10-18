@@ -9,7 +9,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Tryb bankowy: propozycja pod klikniętym polem. Klikasz w login, haslo, wybrane znaki, numer karty albo numer konta
     // odbiorcy - jesli baza trybu ma pasujace dane dla tej strony, tuz pod polem pojawia sie wybor (jedno klikniecie wypelnia);

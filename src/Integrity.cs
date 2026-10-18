@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Sprawdzanie pobranych komponentow (yt-dlp, FFmpeg, Piper, uBlock Origin Lite) przed ich uzyciem.
     // Plik, ktorego suma SHA-256 nie zgadza sie z oczekiwana, jest usuwany i nie zostanie uruchomiony.

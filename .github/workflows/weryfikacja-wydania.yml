@@ -71,7 +71,7 @@ jobs:
         run: |
           $data = Join-Path $env:RUNNER_TEMP 'velivo-portable'
           New-Item -ItemType Directory $data -Force | Out-Null
-          $env:PRZEGLADARKA_DANE = $data
+          $env:VELIVO_DANE = $data
           $p = Start-Process 'Instalator\Velivo-1.22.exe' -PassThru
           Start-Sleep -Seconds 45
           $p.Refresh()
@@ -100,7 +100,7 @@ jobs:
           Write-Host "Plikow zainstalowanych: $(@(Get-ChildItem $dir -Recurse -File).Count)"
           $data = Join-Path $env:RUNNER_TEMP 'velivo-zainstalowany'
           New-Item -ItemType Directory $data -Force | Out-Null
-          $env:PRZEGLADARKA_DANE = $data
+          $env:VELIVO_DANE = $data
           $p = Start-Process $exe -PassThru
           Start-Sleep -Seconds 45
           $p.Refresh()

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Glosniki Velivo: dzwiek nie ginie, gdy program muzyczny (Ableton, Cubase - ASIO/WASAPI exclusive) zajmie karte.
     // Co 2 s sprawdzamy, czy wybrane (albo domyslne) wyjscie jest wolne. Zajete -> dzwiek Velivo idzie na inne aktywne

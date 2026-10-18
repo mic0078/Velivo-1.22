@@ -23,7 +23,7 @@ Write-Host "3/4 Kompilacja programu..." -ForegroundColor Cyan
 dotnet build-server shutdown 2>$null | Out-Null   # zwalnia pliki trzymane przez poprzednia kompilacje / testy
 Remove-Item -Recurse -Force src\bin\Release\net10.0-windows10.0.19041.0\win-x64 -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
-dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\velivo
+dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\velivo
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja nie powiodla sie." -ForegroundColor Red; exit 1 }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan

@@ -1090,7 +1090,7 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Co robi:** śmieci są usuwane tylko wtedy, gdy nie działa inne okno Velivo (silnik trzyma te pliki).
 
 ### 19.7 Osobny folder danych (dla zaawansowanych)
-- **Co robi:** zmienna środowiskowa `PRZEGLADARKA_DANE` uruchamia Velivo na całkiem osobnym folderze danych – np. do testów.
+- **Co robi:** zmienna środowiskowa `VELIVO_DANE` uruchamia Velivo na całkiem osobnym folderze danych – np. do testów.
 
 # 20. RAM dysk
 

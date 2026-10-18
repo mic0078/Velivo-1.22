@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Reczne blokowanie elementow strony (plywajace reklamy, banery, okienka), gdy filtry cos przeocza.
     // Regula = domena + selektor CSS; element jest ukrywany (display:none) przy kazdym wejsciu na strone.

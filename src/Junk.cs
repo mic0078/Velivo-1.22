@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // "Smieci" przegladarki: pamiec podreczna stron, skompilowany JavaScript i cache grafiki.
     // To NIE sa dane (logowania, ciasteczka, dane dodatkow i Service Worker) - te zostaja zawsze.

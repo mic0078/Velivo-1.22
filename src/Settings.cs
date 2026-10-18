@@ -9,7 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Ustawienia zapisywane w %LOCALAPPDATA%\Programs\Velivo\Dane\ustawienia.txt (klucz=wartosc).
     public sealed class AppSettings

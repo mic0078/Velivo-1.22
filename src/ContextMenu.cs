@@ -2,7 +2,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Menu prawego przycisku: "Wyszukaj ..." dla zaznaczonego tekstu (jak w Chrome)
     // oraz "Przejdz do ..." gdy zaznaczenie wyglada jak adres strony.

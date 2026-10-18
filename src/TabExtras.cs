@@ -9,7 +9,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Karty: wyciszanie, automatyczne odswiezanie, zapisane zestawy kart i kolorowe grupy kart.
     public partial class MainWindow

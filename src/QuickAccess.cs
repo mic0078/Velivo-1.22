@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     public partial class MainWindow
     {
@@ -16,7 +16,7 @@ namespace Przegladarka
         {
             get
             {
-                var overrideDir = Environment.GetEnvironmentVariable("PRZEGLADARKA_DANE");
+                var overrideDir = Environment.GetEnvironmentVariable("VELIVO_DANE");
                 var root = string.IsNullOrWhiteSpace(overrideDir) ? AppContext.BaseDirectory : overrideDir;
                 return Path.Combine(root, "Szybki Dostęp");
             }

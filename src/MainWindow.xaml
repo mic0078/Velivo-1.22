@@ -1,4 +1,4 @@
-﻿<Window x:Class="Przegladarka.MainWindow"
+﻿<Window x:Class="Velivo.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Velivo 1.22" Icon="app.ico" Width="1200" Height="800" WindowStartupLocation="CenterScreen" WindowState="Maximized" Background="#F3F4F6">

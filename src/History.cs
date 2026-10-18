@@ -8,7 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Historia pogrupowana jak w Chrome: dzien -> sesja (jedno uruchomienie przegladarki) -> strony.
     // Plik historia.txt: czas \t adres \t tytul \t sesja (znacznik uruchomienia - zostaje w formacie pliku: synchronizacja LAN ze starszymi wersjami).

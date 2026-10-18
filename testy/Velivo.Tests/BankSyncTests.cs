@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Synchronizacja trybu bankowego przez LAN - prawdziwy kod Velivo (MainWindow.MergeSyncedBank).

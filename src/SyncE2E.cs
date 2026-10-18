@@ -9,7 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Lokalna synchronizacja E2E: eksport/import paczki zaszyfrowanej haslem.
     public partial class MainWindow

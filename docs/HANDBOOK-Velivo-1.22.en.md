@@ -1091,7 +1091,7 @@ When you hover over a video, three buttons appear in its top right corner: **⬇
 - **What it does:** junk is deleted only when no other Velivo window is running (the engine holds these files).
 
 ### 19.7 Separate data folder (advanced)
-- **What it does:** the `PRZEGLADARKA_DANE` environment variable starts Velivo with a completely separate data folder – e.g. for tests.
+- **What it does:** the `VELIVO_DANE` environment variable starts Velivo with a completely separate data folder – e.g. for tests.
 
 # 20. RAM disk
 

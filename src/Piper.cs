@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Naturalne glosy offline - Piper (https://github.com/rhasspy/piper, licencja MIT).
     // Program i glos pobieraja sie raz, przy pierwszym uzyciu, do %LOCALAPPDATA%\Programs\Velivo\Dane\Piper.

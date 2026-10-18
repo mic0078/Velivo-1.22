@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Win32;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Domyslna przegladarka + jedno okno programu.
     // Windows nie pozwala programowi samemu ustawic sie jako domyslny - program sie rejestruje,
@@ -28,7 +28,7 @@ namespace Przegladarka
 
         static Mutex _instanceMutex;
 
-        // Nazwa zalezy od folderu danych, zeby osobny profil (PRZEGLADARKA_DANE) dzialal niezaleznie.
+        // Nazwa zalezy od folderu danych, zeby osobny profil (VELIVO_DANE) dzialal niezaleznie.
         static string InstanceKey
         {
             get
@@ -105,7 +105,7 @@ namespace Przegladarka
                     psi.ArgumentList.Add("--czekaj-na");
                     psi.ArgumentList.Add(Environment.ProcessId.ToString());
                     foreach (var u in urls) psi.ArgumentList.Add(u);
-                    if (Environment.GetEnvironmentVariable("PRZEGLADARKA_DANE") != null) psi.Environment["PRZEGLADARKA_DANE"] = DataDir;
+                    if (Environment.GetEnvironmentVariable("VELIVO_DANE") != null) psi.Environment["VELIVO_DANE"] = DataDir;
                     System.Diagnostics.Process.Start(psi);
                 }
                 catch (Exception ex) { App.LogError(ex); }

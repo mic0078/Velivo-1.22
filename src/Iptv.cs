@@ -15,7 +15,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Xml;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Telewizja IPTV (osobny modul wybierany w instalatorze, wymaga odtwarzacza filmow): listy kanalow M3U z pliku albo adresu URL,
     // program TV (EPG, XMLTV - takze .gz). Przycisk 📺 obok 🎬: klik = lista kanalow, prawy przycisk = dodaj liste, odinstaluj modul.

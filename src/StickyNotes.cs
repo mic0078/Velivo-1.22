@@ -9,7 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Karteczki (sticky notes): zolte karteczki na pulpicie - przesuwane, ze zmiana rozmiaru, opcjonalnie zawsze na wierzchu.
     // Dostepne zawsze (bez trybu bankowego). Zapis lokalny w karteczki.json; po uruchomieniu Velivo wracaja na swoje miejsca.

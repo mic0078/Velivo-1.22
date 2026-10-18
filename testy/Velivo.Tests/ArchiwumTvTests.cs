@@ -1,5 +1,5 @@
 using System;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // archiwum TV (catch-up): odczyt z listy i adresy audycji z przeszlosci w roznych formatach dostawcow (token zmyslony)

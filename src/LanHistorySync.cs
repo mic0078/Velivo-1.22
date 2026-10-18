@@ -6,7 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Synchronizacja historii w sieci lokalnej. Historia jest za duza na wspolny pakiet stanu (limit UDP),
     // wiec idzie osobnym, szyfrowanym pakietem "hist": najnowsze wpisy, ile sie zmiesci.

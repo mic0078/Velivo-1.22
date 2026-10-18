@@ -10,7 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Lokalne autouzupełnianie (adresy i karty) z szyfrowaniem DPAPI per użytkownik Windows.
     public partial class MainWindow

@@ -7,7 +7,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Motyw okien Velivo (biblioteka, telewizja, program TV, notatki, ustawienia...): jasny / ciemny / jak Windows.
     // Ciemny: ciemny pasek tytulu (DWM), tlo i tekst okna, list, pol, naglowkow i przyciskow; okno glowne ma swoje motywy.

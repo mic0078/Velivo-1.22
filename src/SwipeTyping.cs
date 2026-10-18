@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Pisanie przeciagnieciem (jak "Flow"): slad palca / myszy po klawiszach porownany z idealna sciezka
     // przez srodki klawiszy kazdego slowa ze slownika; wygrywa najblizszy slad, a przy podobnych - czestsze slowo.

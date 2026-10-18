@@ -1,4 +1,4 @@
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Karteczki na pulpit (karteczki.json): odczyt, odhaczanie wierszy listy (• / ✓), wzory z ikonkami.

@@ -3,7 +3,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Tryb "zostan w zasobniku": zamkniecie okna chowa Velivo do ikonki przy zegarze. Synchronizacja LAN dziala dalej,
     // a ponowne otwarcie jest natychmiastowe. Ikonka pulsuje, gdy trwa synchronizacja. Opcja w Ustawieniach.

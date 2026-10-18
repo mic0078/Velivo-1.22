@@ -12,13 +12,13 @@ using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
-namespace Przegladarka
+namespace Velivo
 {
     public partial class MainWindow : Window
     {
         string HomeUrl { get { return _settings.Home; } }
-        // PRZEGLADARKA_DANE pozwala uruchomic program na osobnym folderze danych (np. do testow)
-        static readonly string DataDir = Environment.GetEnvironmentVariable("PRZEGLADARKA_DANE") ?? VelivoData.Root;
+        // VELIVO_DANE pozwala uruchomic program na osobnym folderze danych (np. do testow)
+        static readonly string DataDir = Environment.GetEnvironmentVariable("VELIVO_DANE") ?? VelivoData.Root;
         static readonly string HistoryFile = Path.Combine(DataDir, "historia.txt");
         static readonly string AppVersionLabel =
             System.Reflection.Assembly.GetExecutingAssembly().GetName().Version != null

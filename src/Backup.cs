@@ -8,7 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // 🧹 Porzadki i kopia: czyszczenie smieci (pamiec stron, miniatury, stary program TV, ikony kanalow, logi)
     // i kopia bezpieczenstwa samych danych uzytkownika (bez smieci, ktore Velivo pobierze samo)

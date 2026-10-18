@@ -6,7 +6,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Powiekszenie stron: domyslne dla wszystkich + zapamietane osobno dla kazdej strony (hosta).
     // Ctrl+kolko / Ctrl+plus / Ctrl+minus / Ctrl+0 obsluguje silnik - my tylko zapisujemy i przywracamy.

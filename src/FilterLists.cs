@@ -4,7 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Pelne listy filtrow AdBlocka: pobierane w tle, trzymane na dysku, odswiezane co 4 dni.
     public partial class MainWindow

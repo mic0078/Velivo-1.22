@@ -295,7 +295,8 @@ namespace Przegladarka
             "prawda", "pewnie", "jasne", "ważne", "możliwe", "szkoda", "dobrze", "fakt", "znaczy", "chodzi", "tak", "chyba", "mimo", "pomimo", "to", "dlatego", "zwłaszcza", "tylko", "się", "sam", "sama" };
         internal static string ZeNow(string ze, string prev)
         {
-            if (!string.Equals(ze, "ze", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(prev) || !_zeHeads.Contains(prev.ToLowerInvariant())) return null;
+            if (!string.Equals(ze, "ze", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(prev) || !prev.All(char.IsLetter)) return null;
+            if (!_zeHeads.Contains(prev.ToLowerInvariant()) && !IsVerbish(prev)) return null;   // po czasowniku (powiedzieć ze, wiedział ze) - tez "że"; "ze mną" dalej wraca do "ze"
             if (PairCount(prev.ToLowerInvariant() + " ze") > PairCount(prev.ToLowerInvariant() + " że")) return null;   // u Ciebie po tym slowie zwykle "ze" (wyuczone)
             return char.IsUpper(ze[0]) ? "Że" : "że";
         }
@@ -310,6 +311,7 @@ namespace Przegladarka
             bool prep = ze2 != zz ? ze2 > zz : n.StartsWith("mn", StringComparison.Ordinal) || n == "sobą" || n == "sobie"
                 || n.StartsWith("wszystk", StringComparison.Ordinal) && n != "wszystko" && n != "wszystkie"
                 || n.Length > 1 && "szśźżwfł".IndexOf(n[0]) >= 0 && v.IndexOf(n[1]) < 0 && !n.StartsWith("wszys", StringComparison.Ordinal)
+                    && (n[0] != 'w' || "szłrnśżź".IndexOf(n[1]) >= 0)   // ze wsi, ze względu, ze włosów; ale że wpisywanie, że wcale
                     && !new[] { "ł", "łem", "łam", "łeś", "łaś", "ć" }.Any(x => n.EndsWith(x, StringComparison.Ordinal));   // ze zrobił -> że zrobił
             if (prep) return null;
             var r = char.IsUpper(ze[0]) ? "Że" : "że";

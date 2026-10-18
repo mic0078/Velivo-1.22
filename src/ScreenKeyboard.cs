@@ -669,7 +669,7 @@ namespace Przegladarka
                 lock (_swLearned)
                 {
                     _swLearned[lw] = (_swLearned.TryGetValue(lw, out var n) ? n : 0) + 1;
-                    if (!SwipeTyping.IsKnown(lw) && !SwipeTyping.IsTypo(lw)) askAdd(wd);   // nowe slowo - najpierw pytamy (literowki znanego slowa wcale)
+                    if (lw != "ze" && !SwipeTyping.IsKnown(lw) && !SwipeTyping.IsTypo(lw)) askAdd(wd);   // nowe slowo - najpierw pytamy (literowki znanego slowa wcale)
                     SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
                 }
             };

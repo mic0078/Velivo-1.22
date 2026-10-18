@@ -225,7 +225,9 @@ public class PisanieFlowTests
         Assert.Null(SwipeTyping.ZeAsZe("ze", "szkoły", "wracam"));
         Assert.Equal("Że", SwipeTyping.ZeAsZe("Ze", "się", null));
         Assert.Equal("że", SwipeTyping.ZeNow("ze", "Myślę"));          // myślę ze -> myślę, że (od razu po spacji)
-        Assert.Null(SwipeTyping.ZeNow("ze", "idę"));                   // idę ze ... - rozstrzyga nastepne slowo
+        Assert.Null(SwipeTyping.ZeNow("ze", "dom"));                   // dom ze ... - rozstrzyga nastepne slowo
+        Assert.Equal("że", SwipeTyping.ZeNow("ze", "powiedzieć"));     // po czasowniku - od razu "że" (ze mną potem wraca)
+        Assert.Equal(", że", SwipeTyping.ZeAsZe("ze", "wpisywanie", "powiedzieć"));
         SwipeTyping.Load(new[] { "klawiatura", "żółw" });
         Assert.True(SwipeTyping.IsTypo("zolw"));                  // literowka - nie do Mojego slownika
         Assert.False(SwipeTyping.IsTypo("klawiaturą"));           // z polskimi znakami - swiadomie wpisane slowo

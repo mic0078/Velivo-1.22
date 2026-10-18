@@ -471,6 +471,7 @@ set(p0,p);})"""
         m.menu.add(0, 4, 0, R.string.bookmarks)
         m.menu.add(0, 5, 0, R.string.history)
         m.menu.add(0, 6, 0, R.string.clear_history)
+        m.menu.add(0, 15, 0, R.string.fill_password)
         m.menu.add(0, 9, 0, R.string.passwords)
         m.menu.add(0, 10, 0, R.string.bank_mode)
         m.menu.add(0, 11, 0, R.string.theme)
@@ -491,6 +492,7 @@ set(p0,p);})"""
                 11 -> chooseTheme()
                 13 -> unlock { showLanSync() }
                 14 -> web()?.loadUrl(QuickAccess.URL)
+                15 -> fillFromMenu()
                 12 -> {
                     val on = !prefs.getBoolean("tlo", true)
                     prefs.edit().putBoolean("tlo", on).apply()
@@ -658,15 +660,34 @@ set(p0,p);})"""
     private fun passwordsOnPage(w: WebView) {
         w.evaluateJavascript(CAPTURE_JS, null)
         val host = secureHost(w) ?: return
-        val saved = passwords.forHost(host)
+        val saved = accountsFor(host)
         if (saved.isEmpty()) return
         w.evaluateJavascript("document.querySelector('input[type=password]')!=null") { has ->
             if (has != "true" || w != web()) return@evaluateJavascript
-            if (saved.size == 1) fill(w, saved[0])
-            else AlertDialog.Builder(this)
-                .setTitle(R.string.passwords)
-                .setItems(saved.map { it.user.ifEmpty { "—" } }.toTypedArray()) { _, i -> fill(w, saved[i]) }
-                .show()
+            if (saved.size == 1) fill(w, saved[0]) else chooseAccount(w, saved)
+        }
+    }
+
+    // To samo konto zapisane np. dla cda.pl i www.cda.pl - na liście raz.
+    private fun accountsFor(host: String) = passwords.forHost(host).distinctBy { it.user to it.pass }
+
+    private fun chooseAccount(w: WebView, saved: List<Passwords.Entry>) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.fill_password)
+            .setItems(saved.map { it.user.ifEmpty { "—" } + "   (" + it.host + ")" }.toTypedArray()) { _, i -> fill(w, saved[i]) }
+            .show()
+    }
+
+    // Ręcznie z menu - gdy formularz logowania pojawił się dopiero po załadowaniu strony.
+    private fun fillFromMenu() {
+        val w = web() ?: return
+        if (tabs.getOrNull(cur)?.quiet == true) return
+        val host = secureHost(w) ?: run { toast(getString(R.string.no_passwords_here)); return }
+        val saved = accountsFor(host)
+        when (saved.size) {
+            0 -> toast(getString(R.string.no_passwords_here))
+            1 -> fill(w, saved[0])
+            else -> chooseAccount(w, saved)
         }
     }
 

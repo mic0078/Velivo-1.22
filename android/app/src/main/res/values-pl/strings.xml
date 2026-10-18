@@ -75,4 +75,6 @@
     <string name="copy_password">Kopiuj hasło</string>
     <string name="copy_login">Kopiuj login</string>
     <string name="copied">Skopiowano</string>
+    <string name="fill_password">Wpisz hasło</string>
+    <string name="no_passwords_here">Brak zapisanych haseł dla tej strony</string>
 </resources>

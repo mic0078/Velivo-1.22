@@ -75,4 +75,6 @@
     <string name="copy_password">Copy password</string>
     <string name="copy_login">Copy login</string>
     <string name="copied">Copied</string>
+    <string name="fill_password">Fill in password</string>
+    <string name="no_passwords_here">No saved passwords for this page</string>
 </resources>

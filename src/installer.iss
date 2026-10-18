@@ -115,6 +115,8 @@ Source: "{srcexe}"; DestDir: "{app}"; DestName: "Velivo-instalator.exe"; Flags: 
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\Velivo.exe"
+; sama klawiatura ekranowa - osobny identyfikator, wiec po przypieciu ma wlasna ikone na pasku zadan
+Name: "{autoprograms}\{#AppName} Klawiatura"; Filename: "{app}\Velivo.exe"; Parameters: "--klawiatura"; AppUserModelID: "Velivo.Klawiatura"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\Velivo.exe"; Tasks: desktopicon
 
 [Registry]

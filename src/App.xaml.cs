@@ -80,6 +80,7 @@ namespace Przegladarka
             var args = e.Args.ToList();
             // start z Windows (autostart): poczekaj ustawiony czas, zanim cokolwiek sie wczyta
             int autoDelay = Przegladarka.MainWindow.TakeAutostartArg(args);
+            bool kbdOnly = args.Remove("--klawiatura");   // skrot "Velivo Klawiatura" (do przypiecia na pasku zadan): sama klawiatura ekranowa
             if (autoDelay > 0) System.Threading.Thread.Sleep(autoDelay * 1000);
             int p = args.IndexOf("--profil");
             string requestedProfile = null;
@@ -121,7 +122,7 @@ namespace Przegladarka
             var urls = args.Where(a => a.Length > 0).Select(Przegladarka.MainWindow.ArgToUrl).ToArray();
             // Velivo juz dziala: oddaj mu adresy (otworzy je w nowych kartach) i zakoncz.
             // Gdyby przekazanie sie nie udalo, otwieramy normalnie drugie okno.
-            if (!Przegladarka.MainWindow.TryBecomePrimary() && Przegladarka.MainWindow.SendToPrimary(urls))
+            if (!Przegladarka.MainWindow.TryBecomePrimary() && Przegladarka.MainWindow.SendToPrimary(kbdOnly ? new[] { "--klawiatura" } : urls))
             {
                 Shutdown();
                 return;
@@ -129,8 +130,9 @@ namespace Przegladarka
             WatchUncleanExit();
             var main = new Przegladarka.MainWindow(urls);
             if (Przegladarka.MainWindow.OnlyVlcVideos(urls)) main.WindowState = WindowState.Minimized;   // dwuklik w film: od razu odtwarzacz, przegladarka czeka na pasku zadan
-            else if (autoDelay >= 0 && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
+            else if ((autoDelay >= 0 || kbdOnly) && urls.Length == 0) { main.SilentStart = true; main.WindowState = WindowState.Minimized; main.ShowInTaskbar = false; main.ShowActivated = false; }   // autostart z Windows: po cichu do zasobnika
             main.Show();
+            if (kbdOnly) main.Dispatcher.BeginInvoke(new Action(Przegladarka.MainWindow.ShowScreenKeyboard), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         // nagle zamkniecie (blad w VLC / WebView2 / systemie - bez wpisu w bledy.log): znacznik dziala.txt zostaje,

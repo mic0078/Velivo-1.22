@@ -117,4 +117,10 @@
     <string name="hide_restore">Restore removed elements on this site</string>
     <string name="hidden_saved">Removed – it will stay hidden on this site</string>
     <string name="hide_restored">Removed elements restored</string>
+    <string name="send_tab">Send to computer</string>
+    <string name="send_tab_done">📺 Sent to %1$s</string>
+    <string name="send_tab_wait">Waiting for the computer – open Velivo on the computer and try again in a moment</string>
+    <string name="send_tab_bad">This tab can\'t be sent (it isn\'t a normal web page)</string>
+    <string name="send_tab_private">Private and banking tabs aren\'t sent</string>
+    <string name="tab_received">📺 Tab from %1$s: %2$s</string>
 </resources>

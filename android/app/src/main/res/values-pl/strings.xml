@@ -117,4 +117,10 @@
     <string name="hide_restore">Przywróć usunięte elementy na tej stronie</string>
     <string name="hidden_saved">Usunięto – na tej stronie zostanie ukryte</string>
     <string name="hide_restored">Przywrócono usunięte elementy</string>
+    <string name="send_tab">Wyślij na komputer</string>
+    <string name="send_tab_done">📺 Wysłano do: %1$s</string>
+    <string name="send_tab_wait">Czekam na komputer – otwórz Velivo na komputerze i spróbuj za chwilę</string>
+    <string name="send_tab_bad">Tej karty nie da się wysłać (to nie jest zwykła strona)</string>
+    <string name="send_tab_private">Karty prywatnej i bankowej nie wysyłam</string>
+    <string name="tab_received">📺 Karta z: %1$s – %2$s</string>
 </resources>

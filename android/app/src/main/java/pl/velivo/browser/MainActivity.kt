@@ -763,6 +763,7 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
             16 -> openFind()
             17 -> toggleDesktop()
             20 -> startPick()
+            21 -> sendTabToComputer()
             18 -> readArticle { t, b -> showReader(t, b) }
             19 -> if (tts?.isSpeaking == true) stopSpeaking() else readArticle { t, b -> speak(t + ".\n" + b) }
             1 -> newTab(false, QuickAccess.URL)
@@ -857,7 +858,7 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
         section(R.string.menu_tabs, listOf(
             Triple("＋", R.string.new_tab, 1), Triple("🕶", R.string.new_private_tab, 2), Triple("⭐", R.string.quick_access, 14),
             Triple("🏦", R.string.bank_mode, 10), Triple("🔎", R.string.find_in_page, 16), Triple("🖥", R.string.desktop_mode, 17),
-            Triple("📖", R.string.reader, 18), Triple("🎯", R.string.hide_element, 20), Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19)),
+            Triple("📖", R.string.reader, 18), Triple("🎯", R.string.hide_element, 20), Triple("💻", R.string.send_tab, 21), Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19)),
             mapOf(17 to (tabs.getOrNull(cur)?.desktop == true)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("➕", R.string.add_bookmark, 3), Triple("🕘", R.string.history, 5),
@@ -1091,6 +1092,32 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
     }
 
     // --- Synchronizacja z Velivo na Windows (sieć domowa) -------------------------
+    // --- Karta między telefonem a komputerem (z miejscem w filmie, jak 📺 Wyślij do… na Windows) ---
+    private fun sendTabToComputer() {
+        val w = web() ?: return
+        val url = w.url ?: return
+        if (tabs.getOrNull(cur)?.let { it.priv || it.bank } == true) { toast(getString(R.string.send_tab_private)); return }
+        if (!(url.startsWith("http://") || url.startsWith("https://"))) { toast(getString(R.string.send_tab_bad)); return }
+        if (!prefs.getBoolean("lan", false) || !lan.paired) { toast(getString(R.string.lan_not_paired)); return }
+        w.evaluateJavascript("(function(){var v=[].slice.call(document.querySelectorAll('video')).filter(function(x){return x.currentTime>0}).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight})[0];return v?v.currentTime:0})()") { r ->
+            val time = r.toDoubleOrNull() ?: 0.0
+            if (lan.sendTab(url, w.title ?: url, time)) toast(getString(R.string.send_tab_done, prefs.getString("lan-komputer", "") ?: ""))
+            else toast(getString(R.string.send_tab_wait))
+        }
+    }
+
+    private fun receiveTab(dev: String, url: String, title: String, time: Double) {
+        var u = url
+        // YouTube: czas w adresie działa najpewniej
+        if (time > 5 && (u.contains("youtube.com/watch") || u.contains("youtu.be/"))) {
+            u = u.replace(Regex("([?&])t=[^&]*&?"), "$1").trimEnd('&', '?')
+            u += (if (u.contains("?")) "&" else "?") + "t=" + time.toInt() + "s"
+        }
+        newTab(false, u)
+        if (time > 5) web()?.let { w -> w.postDelayed({ w.evaluateJavascript("(function(t){var v=[].slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight})[0];if(v&&Math.abs(v.currentTime-t)>5)v.currentTime=t})($time)", null) }, 4000) }
+        toast(getString(R.string.tab_received, dev, title.ifBlank { u }))
+    }
+
     private val lan: LanSync by lazy {
         LanSync(
             lanKey = { passwords.lanKey },
@@ -1119,6 +1146,7 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
                     .show()
             },
             saveFile = { name, data, dev -> saveToDownloads(name, data, dev) },
+            onTab = { dev, url, title, time -> receiveTab(dev, url, title, time) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
                     runOnUiThread {

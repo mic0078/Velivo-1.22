@@ -47,6 +47,8 @@ class LanSync(
     // plik z komputera: pytanie (odpowiedź przez accept(true/false)), potem zapis
     private val askFile: (device: String, name: String, size: Int, accept: (Boolean) -> Unit) -> Unit = { _, _, _, a -> a(false) },
     private val saveFile: (name: String, data: ByteArray, device: String) -> Unit = { _, _, _ -> },
+    // karta wysłana z komputera (📺 Wyślij do… w Velivo na Windows)
+    private val onTab: (device: String, url: String, title: String, time: Double) -> Unit = { _, _, _, _ -> },
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -177,6 +179,7 @@ class LanSync(
             "pair-offer" -> pairOffer(p)
             "pair-key" -> pairKey(p, sender)
             "state" -> state(p, sender)
+            "tab" -> tab(p)
         }
     }
 
@@ -262,10 +265,58 @@ class LanSync(
         ui(Runnable { onState(dev, json.optString("bookmarks", null), json.optString("passwords", null)) })
     }
 
+    // Paczka zaszyfrowana kluczem z parowania (DecryptLanBlob w Velivo na Windows).
+    private fun openBlob(p: JSONObject): JSONObject? {
+        val k = encKey ?: return null
+        val nonce = unb64(p.optString("nonce"))
+        val tag = unb64(p.optString("tag"))
+        val cipher = unb64(p.optString("data"))
+        if (nonce.size != 12 || tag.size != 16 || cipher.isEmpty() || cipher.size > 60000) return null
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, nonce))
+        c.updateAAD(ad(p))
+        val plain = runCatching { c.doFinal(cipher + tag) }.getOrNull() ?: return null
+        return runCatching { JSONObject(String(gunzip(plain), Charsets.UTF_8)) }.getOrNull()
+    }
+
+    private fun sealBlob(type: String, payload: JSONObject): JSONObject? {
+        val k = encKey ?: return null
+        val pkt = packet(type).put("hash", "")
+        val zipped = ByteArrayOutputStream().also { o -> java.util.zip.GZIPOutputStream(o).use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) } }.toByteArray()
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        val nonce = ByteArray(12).also { random.nextBytes(it) }
+        c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, nonce))
+        c.updateAAD(ad(pkt))
+        val out = c.doFinal(zipped)
+        return pkt.put("nonce", b64(nonce)).put("data", b64(out.copyOfRange(0, out.size - 16))).put("tag", b64(out.copyOfRange(out.size - 16, out.size)))
+    }
+
+    private fun tab(p: JSONObject) {
+        val j = openBlob(p) ?: return
+        val url = j.optString("url")
+        if (j.optString("to") != id || url.length > 4000 || !(url.startsWith("http://") || url.startsWith("https://"))) return
+        val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
+        ui(Runnable { onTab(dev, url, j.optString("title").take(300), j.optDouble("time", 0.0)) })
+    }
+
+    // Telefon → komputer: karta (ten sam format co "📺 Wyślij do…" na Windows).
+    fun sendTab(url: String, title: String, time: Double): Boolean {
+        val to = pcId ?: return false
+        if (encKey == null) return false
+        val target = pcAddress
+        Thread {
+            runCatching {
+                val pkt = sealBlob("tab", JSONObject().put("url", url).put("title", title).put("time", time).put("to", to)) ?: return@runCatching
+                if (target != null) sendTo(pkt, target) else send(pkt)
+            }
+        }.start()
+        return true
+    }
+
     // Telefon → komputer: zaszyfrowana paczka "phone-add" (jak "tab" w Velivo na Windows - LanPhone.cs).
     // Komputer pyta użytkownika i dodaje dopiero po potwierdzeniu. Zwraca false, gdy nie ma do kogo wysłać.
     fun sendPhoneAdd(bookmarks: List<Pair<String, String>>, passwords: List<Triple<String, String, String>>): Boolean {
-        val k = encKey ?: return false
+        if (encKey == null) return false
         val to = pcId ?: return false
         val target = pcAddress
         Thread {
@@ -276,14 +327,7 @@ class LanSync(
                     val payload = JSONObject().put("to", to)
                         .put("bookmarks", JSONArray(chunk.filter { it.first == "b" }.map { it.second }))
                         .put("passwords", JSONArray(chunk.filter { it.first == "p" }.map { it.second }))
-                    val pkt = packet("phone-add").put("hash", "")
-                    val zipped = ByteArrayOutputStream().also { o -> java.util.zip.GZIPOutputStream(o).use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) } }.toByteArray()
-                    val c = Cipher.getInstance("AES/GCM/NoPadding")
-                    val nonce = ByteArray(12).also { random.nextBytes(it) }
-                    c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, nonce))
-                    c.updateAAD(ad(pkt))
-                    val out = c.doFinal(zipped)
-                    pkt.put("nonce", b64(nonce)).put("data", b64(out.copyOfRange(0, out.size - 16))).put("tag", b64(out.copyOfRange(out.size - 16, out.size)))
+                    val pkt = sealBlob("phone-add", payload) ?: return@runCatching
                     if (target != null) sendTo(pkt, target) else send(pkt)
                     Thread.sleep(150)
                 }

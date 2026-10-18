@@ -357,6 +357,13 @@ set(p0,p);})"""
             }
         }
         w.webChromeClient = object : WebChromeClient() {
+            // 🎯 stuknięty element - zaproponuj usunięcie (sygnał tylko z naszego skryptu, z losowym znacznikiem)
+            override fun onJsPrompt(view: WebView, url: String?, message: String?, def: String?, result: android.webkit.JsPromptResult): Boolean {
+                if (message != pickToken) return false
+                result.confirm("")
+                if (view == web()) askHide()
+                return true
+            }
             override fun onShowCustomView(v: View, cb: CustomViewCallback) = enterFullscreen(v, cb)
             override fun onHideCustomView() = exitFullscreen()
             override fun onProgressChanged(view: WebView, p: Int) {
@@ -605,7 +612,11 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
         w.evaluateJavascript("""(function(){if(window.__vPick)return;var cur=null;
 function mark(e){if(cur)cur.style.outline=cur.__vo||'';cur=e;if(e){e.__vo=e.style.outline;e.style.outline='3px solid #6D3FDB';}}
 var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(109,63,219,.06);touch-action:pan-y';
-window.__vPick=function(ev){ev.preventDefault();ev.stopPropagation();ov.style.pointerEvents='none';var t=document.elementFromPoint(ev.clientX,ev.clientY);ov.style.pointerEvents='auto';if(t&&t!=ov)mark(t);};
+// najlepszy kandydat: od stukniętego elementu w górę, dopóki otoczenie jest puste (sama reklama / napis REKLAMA)
+function txt(e){return (e.innerText||'').trim();}
+function best(e){var L=/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane)$/i;
+while(e.parentElement&&e.parentElement!=document.body&&e.parentElement.offsetHeight<window.innerHeight*0.9){var t=txt(e.parentElement);if(t&&!L.test(t)&&t!=txt(e))break;e=e.parentElement;}return e;}
+window.__vPick=function(ev){ev.preventDefault();ev.stopPropagation();ov.style.pointerEvents='none';var t=document.elementFromPoint(ev.clientX,ev.clientY);ov.style.pointerEvents='auto';if(t&&t!=ov){mark(best(t));setTimeout(function(){prompt('$pickToken','')},50);}};
 ov.addEventListener('click',__vPick,true);document.documentElement.appendChild(ov);
 window.__vBig=function(){if(cur&&cur.parentElement&&cur.parentElement!=document.body)mark(cur.parentElement);};
 function sel(e){var p=[];while(e&&e.nodeType==1&&e!=document.body){var s=e.tagName.toLowerCase();
@@ -628,6 +639,16 @@ window.__vStop=function(){mark(null);ov.remove();window.__vPick=null;};})()""", 
             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Velivo", t))
             toast(getString(R.string.hide_copied))
         }
+    }
+
+    private val pickToken = "velivo-pick-" + java.util.UUID.randomUUID()
+
+    private fun askHide() {
+        AlertDialog.Builder(this).setTitle(R.string.hide_element).setMessage(R.string.hide_ask)
+            .setPositiveButton(R.string.hide_yes) { _, _ -> hidePicked() }
+            .setNeutralButton(R.string.hide_bigger) { _, _ -> web()?.evaluateJavascript("window.__vBig&&__vBig()") { askHide() } }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun stopPick() {

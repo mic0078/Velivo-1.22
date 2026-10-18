@@ -39,8 +39,8 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączo
 ### Usuwanie elementów palcem
 
 1. Menu → **🎯 Usuń element**. Strona dostaje lekko fioletową nakładkę, na górze pasek.
-2. Stuknij reklamę – dostaje fioletową ramkę. Działa też na reklamach w ramkach (iframe).
-3. **⬆** – zaznacz większy obszar (gdy zostaje puste szare pole).
+2. Stuknij reklamę – Velivo sam dobiera całe pole reklamy (fioletowa ramka) i pyta **„Usunąć?”**: **Usuń**, **Zaznacz większy obszar** albo **Anuluj**. Działa też na reklamach w ramkach (iframe).
+3. Na pasku: **⬆** – większy obszar, **📋** – kopiuj kod elementu (do zgłoszenia reklamy, której Velivo nie ukrywa).
 4. **🗑** – usuń. Element znika i nie zajmuje miejsca; na tej stronie zostanie ukryty także przy następnych wizytach.
 5. **↺** – przywróć wszystko, co usunięto na tej stronie. **✕** – koniec.
 

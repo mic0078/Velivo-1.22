@@ -39,8 +39,8 @@ Velivo for Android is a light, private browser in Velivo colours, linked to Veli
 ### Removing elements with your finger
 
 1. Menu → **🎯 Remove element**. The page gets a light violet overlay and a bar appears at the top.
-2. Tap the advert – it gets a violet outline. It also works on adverts inside frames (iframes).
-3. **⬆** – select a larger area (when an empty grey box is left behind).
+2. Tap the advert – Velivo picks the whole advert box (violet outline) and asks **"Remove?"**: **Remove**, **Select a larger area** or **Cancel**. It also works on adverts inside frames (iframes).
+3. On the bar: **⬆** – larger area, **📋** – copy the element's code (to report an advert Velivo doesn't hide).
 4. **🗑** – remove. The element disappears and takes up no space; it stays hidden on this site on later visits too.
 5. **↺** – restore everything removed on this site. **✕** – finish.
 

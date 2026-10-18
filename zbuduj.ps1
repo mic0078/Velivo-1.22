@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
 Write-Host "1/4 Najnowsze zmiany (git pull)..." -ForegroundColor Cyan
+git checkout -- Instalator 2>$null   # poprzednio zbudowany instalator (plik z repozytorium) nie blokuje pobrania zmian
 git pull
 
 if (-not $BezTestow) {

@@ -113,3 +113,14 @@ With several computers use the **recovery file** (computer: Save recovery file�
 - The phone never sends its whole profile – only new items, which the computer confirms.
 - The connection is encrypted (AES-GCM) with the key from pairing; other phones on the network can read nothing.
 - Your reading position, removed elements and settings stay on the phone.
+
+## 7. Velivo for people with weaker eyesight – step-by-step setup
+
+Best set up once, together with the person who will use the phone:
+
+1. **Size:** open the menu (the V logo) and spread two fingers in it until the text is comfortable (up to 220%). All of Velivo grows – the bar, buttons, menu, lists and page text. Velivo remembers it.
+2. **Theme:** menu → 🌓 Theme → light or dark – whichever is easier to see.
+3. **Reading:** on a long article, menu → 📖 **Reader view** (just the text, two fingers = larger text) or 🔊 **Read aloud** (works with the screen off too; Back stops it).
+4. **Safety:** warnings about fake bank sites and about installing apps from outside Google Play work on their own – it is worth saying: "if Velivo shows **⚠ Warning**, tap **Go back (safe)**".
+5. **Reminders:** 🗒 Sticky notes with a date (e.g. doctor 24.10) – a notification the day before and on the day; 🔁 for medicines every week or month.
+6. **Adverts:** blocked straight away; for a leftover "ADVERT" box press and hold on it and tap **Remove**.

@@ -912,4 +912,6 @@ With several computers use the recovery file instead of pairing: on the computer
 | A file from the phone | **Share → Velivo** in the gallery / file manager; the computer asks for consent |
 | A file from the computer | On the computer 📎 Send a file to: phone; the phone asks, saved to Downloads |
 
+**For weaker eyesight:** two fingers in the menu enlarge all of Velivo and the page text (up to 220%); reader view and read aloud make long texts easier – step-by-step setup in the phone guide, chapter 7.
+
 Sync works while Velivo is open on the phone. On Xiaomi phones turn off battery saving for Velivo (Settings → Apps → Velivo → Battery saver → No restrictions).

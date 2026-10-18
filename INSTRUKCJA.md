@@ -1238,4 +1238,6 @@ Przy kilku komputerach zamiast parowania użyj pliku odzyskiwania: na komputerze
 | Plik z telefonu | **Udostępnij → Velivo** w galerii / menedżerze plików; komputer pyta o zgodę |
 | Plik z komputera | Na komputerze 📎 Wyślij plik do: telefon; telefon pyta, zapis w Pobranych |
 
+**Dla osób ze słabszym wzrokiem:** dwa palce w menu powiększają całe Velivo i tekst stron (do 220%), czytnik i czytanie na głos ułatwiają długie teksty – ustawienie krok po kroku w instrukcji telefonu, rozdział 7.
+
 Synchronizacja działa, gdy Velivo jest otwarte na telefonie. Na Xiaomi warto wyłączyć oszczędzanie baterii dla Velivo (Ustawienia → Aplikacje → Velivo → Oszczędzanie baterii → Brak ograniczeń).

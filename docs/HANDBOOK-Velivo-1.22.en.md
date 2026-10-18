@@ -1518,6 +1518,11 @@ Velivo for Android (10 or newer) is a light, private browser in Velivo colours, 
 - **How to use:** spread two fingers in the menu or the lists of tabs, bookmarks, history, passwords or notes; pinch to make it smaller.
 - **What it does:** 80–220%; the top bar and the bottom buttons grow too; at large sizes the menu tiles are two to a row; page text grows the same way (never below 100%); the setting is remembered. In reader view two fingers change the text size (up to 48 pt).
 
+### 31.14 Velivo for people with weaker eyesight
+- **What for:** comfortable browsing for older people and the partially sighted.
+- **How to set up (once):** spread two fingers in the menu to a comfortable size (up to 220% – all of Velivo and the page text grow); pick a light or dark theme; show 📖 Reader view and 🔊 Read aloud; agree on "⚠ Warning → Go back (safe)"; notes with a date remind about the doctor and medicines the day before.
+- **What it does:** everything larger and remembered, long texts to listen to, protection against fake bank sites and suspicious apps with no setup at all.
+
 # Features NOT AVAILABLE IN 1.22
 
 These things were discussed, but **version 1.22 doesn't have them**:
@@ -1977,3 +1982,4 @@ Features described: **339**. The number next to each feature points to its descr
 - **31.11** Sync with the computer
 - **31.12** Look and language
 - **31.13** Two-finger zoom
+- **31.14** Velivo for people with weaker eyesight

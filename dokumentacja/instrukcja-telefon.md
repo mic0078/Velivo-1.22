@@ -113,3 +113,14 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
 - Telefon nigdy nie wysyła całego profilu – tylko nowe pozycje, które komputer potwierdza.
 - Połączenie jest szyfrowane (AES-GCM) kluczem z parowania; inne telefony w sieci nic nie odczytają.
 - Pozycja w czytniku, ukryte elementy i ustawienia zostają w telefonie.
+
+## 7. Velivo dla osób ze słabszym wzrokiem – ustawienie krok po kroku
+
+Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
+
+1. **Wielkość:** otwórz menu (logo V) i rozsuń w nim dwa palce, aż napisy będą wygodne (do 220%). Rośnie całe Velivo – pasek, przyciski, menu, listy i tekst stron. Velivo to zapamięta.
+2. **Motyw:** menu → 🌓 Motyw → jasny albo ciemny – ten, który lepiej widać.
+3. **Czytanie:** na długim artykule menu → 📖 **Czytnik** (sam tekst, dwa palce = większy tekst) albo 🔊 **Czytaj na głos** (działa też przy zgaszonym ekranie; Wstecz zatrzymuje).
+4. **Bezpieczeństwo:** ostrzeżenia przed fałszywymi stronami banków i przed instalacją aplikacji spoza Sklepu Play działają same – warto powiedzieć: „jak Velivo pokaże **⚠ Uwaga**, stuknij **Wróć (bezpiecznie)**”.
+5. **Przypomnienia:** 🗒 Karteczki z datą (np. lekarz 24.10) – powiadomienie dzień wcześniej i w dniu terminu; 🔁 dla leków co tydzień lub co miesiąc.
+6. **Reklamy:** blokowane od razu; pozostałe pole „REKLAMA” – przytrzymaj na nim palec i stuknij **Usuń**.

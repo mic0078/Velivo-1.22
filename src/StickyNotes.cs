@@ -99,7 +99,6 @@ namespace Przegladarka
         void LoadNotes()
         {
             try { if (File.Exists(NotesFile)) _notes.AddRange(ParseNotes(File.ReadAllText(NotesFile))); } catch (IOException) { }
-            if (GetPref("karteczki-wierzch") != "1") { foreach (var n in _notes.Where(q => !q.Free)) n.Top = true; SetPref("karteczki-wierzch", "1"); }   // raz: dawne karteczki przypiete nad paskiem - na wierzchu (potem Twoj wybor zostaje)
             foreach (var n in _notes.ToList()) ShowNote(n);
         }
 
@@ -132,7 +131,7 @@ namespace Przegladarka
             var n = new StickyNote
             {
                 Id = Guid.NewGuid().ToString("N"), Kind = k[0], Text = k[3], W = 240, H = 220,
-                X = wa.Right - 270 - i * 24, Y = wa.Top + 40 + i * 24, Color = NoteColors[0], Top = true,   // przypieta nad paskiem - na wierzchu
+                X = wa.Right - 270 - i * 24, Y = wa.Top + 40 + i * 24, Color = NoteColors[0],
             };
             _notes.Add(n);
             SaveNotes();
@@ -220,7 +219,7 @@ namespace Przegladarka
             open.Visibility = n.Free ? Visibility.Collapsed : Visibility.Visible;
             dock.Click += (s, e) =>
             {
-                n.Free = !n.Free; if (!n.Free) n.Top = true; w.Topmost = n.Top; pin.Content = n.Top ? "📌" : "📍"; _noteOpen.Remove(n);
+                n.Free = !n.Free; _noteOpen.Remove(n);
                 head.Cursor = n.Free ? Cursors.SizeAll : Cursors.Hand; open.Visibility = n.Free ? Visibility.Collapsed : Visibility.Visible; head.ToolTip = n.Free ? null : L.T("Kliknij, aby rozwinąć / zwinąć karteczkę");
                 if (n.Free) { var wa = SystemParameters.WorkArea; w.Height = Math.Max(120, n.H); w.Top = Math.Max(wa.Top, wa.Bottom - w.Height - 40); }
                 SaveNotes(); LayoutDockedNotes();

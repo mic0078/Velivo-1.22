@@ -341,8 +341,13 @@ set(p0,p);})"""
                 return true
             }
             override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url) }
+            // ramka z reklamą, która się nie wczytała - zapamiętaj adres, żeby ją zwinąć zamiast strony błędu
+            override fun onReceivedError(view: WebView, req: WebResourceRequest, err: android.webkit.WebResourceError) {
+                if (!req.isForMainFrame) { failedFrames.add(req.url.toString()); collapseFrames(view) }
+            }
             override fun onPageFinished(view: WebView, url: String) {
                 hideAds(view, url)
+                for (ms in longArrayOf(0, 1500, 4000, 9000)) view.postDelayed({ collapseFrames(view) }, ms)
                 val qa = QuickAccess.isQuickAccess(url)
                 if (!quiet && !qa) passwordsOnPage(view)
                 if (view == web()) address.setText(if (qa) "" else url)
@@ -386,12 +391,31 @@ var s=d.getElementById('velivo-reklamy');if(!s){s=d.createElement('style');s.id=
 s.textContent=$css;
 if(window.__vZwin)return;
 var L=/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane|materiał sponsorowany)$/i;
+function lab(e){var t=(e.textContent||'').trim();if(t)return L.test(t);
+var c=(getComputedStyle(e,'::before').content+' '+getComputedStyle(e,'::after').content).replace(/["']/g,'').trim();return /reklama|advert|ogłoszenie|sponsor/i.test(c);}
+// pusta ramka: tylko napis REKLAMA, ramki (iframe) i puste elementy
+function empty(e){return !(e.querySelector('img:not([width="1"]),video,a[href] img,h1,h2,h3,article'))&&(!(e.textContent||'').trim()||L.test((e.textContent||'').trim()));}
+window.__vUp=function(e){var b=e;while(b.parentElement&&b.parentElement!=d.body&&b.parentElement.offsetHeight<900&&empty(b.parentElement))b=b.parentElement;
+b.style.setProperty('display','none','important');};
 function zwin(){var all=d.querySelectorAll('div,span,p,section,aside,ins');for(var i=0;i<all.length;i++){var e=all[i];
-if(e.children.length>3||!L.test((e.textContent||'').trim()))continue;
-var b=e;while(b.parentElement&&b.parentElement!=d.body&&L.test((b.parentElement.textContent||'').trim()))b=b.parentElement;
-b.style.setProperty('display','none','important');}}
+if(e.children.length>3||!lab(e))continue;__vUp(e);}}
 var t=0;window.__vZwin=new MutationObserver(function(){clearTimeout(t);t=setTimeout(zwin,400)});
 window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();})()""", null)
+    }
+
+    private val failedFrames = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    // Ramki z zablokowanych lub niedziałających adresów reklam - zwiń je razem z pustym otoczeniem.
+    private fun collapseFrames(view: WebView) = runOnUiThread {
+        if (!prefs.getBoolean("adblock", true)) return@runOnUiThread
+        view.evaluateJavascript("JSON.stringify([].map.call(document.querySelectorAll('iframe'),function(f){return f.src||''}))") { r ->
+            val srcs = runCatching { org.json.JSONArray(org.json.JSONTokener(r).nextValue() as String) }.getOrNull() ?: return@evaluateJavascript
+            val bad = (0 until srcs.length()).filter { i ->
+                val u = srcs.optString(i)
+                u.isNotEmpty() && (u in failedFrames || isBlocked(Uri.parse(u)))
+            }
+            if (bad.isNotEmpty()) view.evaluateJavascript("(function(){var f=document.querySelectorAll('iframe');${bad.joinToString(",", "[", "]")}.forEach(function(i){var e=f[i];if(e)(window.__vUp?__vUp(e):e.style.setProperty('display','none','important'))})})()", null)
+        }
     }
 
     private fun isBlocked(u: Uri) = (u.scheme == "http" || u.scheme == "https") && blocker.matches(u.host)

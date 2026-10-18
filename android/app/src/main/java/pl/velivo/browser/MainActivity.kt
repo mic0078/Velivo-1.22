@@ -103,7 +103,7 @@ class MainActivity : Activity() {
             setSelectAllOnFocus(true)
             textSize = 15f
             setTextColor(TEXT)
-            setHintTextColor(c("#7A6FA8", "#A79FD0"))
+            setHintTextColor(c("#4F4380", "#A79FD0"))
             setPadding(dp(14), dp(8), dp(14), dp(8))
             background = round(FIELD)
             setOnEditorActionListener { _, _, _ -> go(text.toString()); true }
@@ -180,13 +180,13 @@ class MainActivity : Activity() {
     private val TEXT by lazy { c("#2A2150", "#ECE8FF") }
     private val FIELD by lazy { c("#FFFFFF", "#120F24") }
     private val GRAY_BG by lazy { c("#E2DBF7", "#2A2450") }
-    private val BLUE by lazy { c("#5B3FD0", "#B3A6FF") }
+    private val BLUE by lazy { c("#4A2FB8", "#B3A6FF") }
     private val BLUE_BG by lazy { c("#E4DDFB", "#2E2768") }
     private val GREEN by lazy { c("#15803D", "#86EFAC") }
     private val GREEN_BG by lazy { c("#DCFCE7", "#14532D") }
     private val ORANGE by lazy { c("#C2410C", "#FDBA74") }
     private val ORANGE_BG by lazy { c("#FFEDD5", "#7C2D12") }
-    private val PRIV_BG by lazy { c("#EDE9FE", "#4C1D95") }
+    private val PRIV_BG by lazy { c("#E6DEFD", "#4C1D95") }
     private val PURPLE by lazy { c("#5B21B6", "#DDD6FE") }
     private val BANK_BG by lazy { c("#CCFBF1", "#134E4A") }
 
@@ -496,7 +496,7 @@ set(p0,p);})"""
         findBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)); visibility = View.GONE }
         findText = EditText(this).apply {
             hint = getString(R.string.find_in_page); setSingleLine(); textSize = 15f
-            setTextColor(TEXT); setHintTextColor(c("#7A6FA8", "#A79FD0")); background = round(FIELD); setPadding(dp(12), dp(6), dp(12), dp(6))
+            setTextColor(TEXT); setHintTextColor(c("#4F4380", "#A79FD0")); background = round(FIELD); setPadding(dp(12), dp(6), dp(12), dp(6))
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             setOnEditorActionListener { _, _, _ -> web()?.findNext(true); true }
             addTextChangedListener(object : TextWatcher {
@@ -579,7 +579,8 @@ set(p0,p);})"""
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(18))
             background = GradientDrawable().apply {
-                setColor(BAR)
+                // jasny: biale tlo, zeby kafelki odcinaly sie wyraznie
+                setColor(c("#FFFFFF", "#1B1733"))
                 cornerRadii = floatArrayOf(dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), 0f, 0f, 0f, 0f)
             }
         }
@@ -602,7 +603,7 @@ set(p0,p);})"""
 
         fun section(title: Int, items: List<Triple<String, Int, Int>>, toggles: Map<Int, Boolean> = emptyMap()) {
             box.addView(TextView(this).apply {
-                text = getString(title); textSize = 13f; setTextColor(c("#7A6FA8", "#A79FD0")); setPadding(dp(2), dp(14), 0, dp(6))
+                text = getString(title); textSize = 13f; setTextColor(c("#4F4380", "#A79FD0")); setPadding(dp(2), dp(14), 0, dp(6))
             })
             val grid = android.widget.GridLayout(this).apply { columnCount = 3 }
             for ((icon, label, id) in items) {
@@ -611,7 +612,7 @@ set(p0,p);})"""
                 val (fg, bg) = when {
                     primary -> Color.WHITE to BRAND1
                     on == true -> GREEN to GREEN_BG
-                    on == false -> c("#7A6FA8", "#A79FD0") to GRAY_BG
+                    on == false -> c("#4F4380", "#A79FD0") to GRAY_BG
                     id == 2 -> PURPLE to PRIV_BG
                     id == 10 -> c("#0F766E", "#5EEAD4") to BANK_BG
                     id == 6 -> c("#B91C1C", "#FCA5A5") to c("#FEE2E2", "#450A0A")
@@ -696,7 +697,7 @@ set(p0,p);})"""
             hint = getString(R.string.search_hint)
             setSingleLine()
             setTextColor(TEXT)
-            setHintTextColor(c("#7A6FA8", "#A79FD0"))
+            setHintTextColor(c("#4F4380", "#A79FD0"))
             background = round(GRAY_BG)
             setPadding(dp(12), dp(8), dp(12), dp(8))
         }
@@ -731,7 +732,7 @@ set(p0,p);})"""
                     text = row.title; textSize = 15f; setTextColor(TEXT); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
                 })
                 texts.addView(TextView(this@MainActivity).apply {
-                    text = row.sub; textSize = 12f; setTextColor(c("#7A6FA8", "#A79FD0")); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+                    text = row.sub; textSize = 12f; setTextColor(c("#4F4380", "#A79FD0")); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
                 })
                 v.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
                 v.addView(button("✕", R.string.delete, TEXT, GRAY_BG) {

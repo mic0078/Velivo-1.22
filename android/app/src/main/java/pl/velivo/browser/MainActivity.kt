@@ -220,6 +220,7 @@ set(p0,p);})"""
         super.onNewIntent(intent)
         if (intent.action == PlaybackService.ACTION_STOP) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            tts?.stop()
             stopService(Intent(this, PlaybackService::class.java))
         startLan()
             return
@@ -575,8 +576,15 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
             val t = tts!!
             t.language = resources.configuration.locales[0]
             // TTS przyjmuje ograniczona dlugosc - dzielimy po akapitach
-            text.split("\n").map { it.trim() }.filter { it.isNotEmpty() }.flatMap { it.chunked(3500) }
-                .forEachIndexed { i, part -> t.speak(part, if (i == 0) android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD, null, "v$i") }
+            val parts = text.split("\n").map { it.trim() }.filter { it.isNotEmpty() }.flatMap { it.chunked(3500) }
+            // ostatni fragment przeczytany -> zdejmij powiadomienie, ktore trzymalo czytanie przy zgaszonym ekranie
+            t.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(id: String?) {}
+                override fun onDone(id: String?) { if (id == "v${parts.size - 1}") stopService(Intent(this@MainActivity, PlaybackService::class.java)) }
+                @Deprecated("") override fun onError(id: String?) {}
+            })
+            parts.forEachIndexed { i, part -> t.speak(part, if (i == 0) android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD, null, "v$i") }
+            runCatching { startForegroundService(Intent(this, PlaybackService::class.java).putExtra(PlaybackService.EXTRA_TITLE, "🔊 " + (web()?.title ?: ""))) }
             toast(getString(R.string.reading_started))
         }
         if (tts != null) go() else tts = android.speech.tts.TextToSpeech(this) { st ->
@@ -584,7 +592,7 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
         }
     }
 
-    private fun stopSpeaking() { tts?.stop() }
+    private fun stopSpeaking() { tts?.stop(); stopService(Intent(this, PlaybackService::class.java)) }
 
     private fun showReader(title: String, body: String) {
         val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)

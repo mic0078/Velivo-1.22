@@ -189,6 +189,10 @@ public class PisanieFlowTests
         Assert.False(SwipeTyping.NeedsComma("że", "i"));          // i że
         Assert.False(SwipeTyping.NeedsComma("że", null));         // poczatek zdania
         Assert.False(SwipeTyping.NeedsComma("dom", "wiem"));
+        Assert.True(SwipeTyping.NeedsComma("a", "idę"));          // idę, a ty
+        Assert.True(SwipeTyping.NeedsComma("gdzie", "wiem"));     // nie wiem, gdzie
+        Assert.False(SwipeTyping.NeedsComma("a", "od"));          // od a do z
+        Assert.False(SwipeTyping.NeedsComma("gdzie", "tam"));     // tam gdzie
         SwipeTyping.Load(new[] { "klawiatura", "żółw" });
         Assert.True(SwipeTyping.IsTypo("zolw"));                  // literowka - nie do Mojego slownika
         Assert.False(SwipeTyping.IsTypo("klawiaturą"));           // z polskimi znakami - swiadomie wpisane slowo

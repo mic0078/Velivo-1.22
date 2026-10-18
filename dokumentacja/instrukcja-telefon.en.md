@@ -56,8 +56,19 @@ The rules are kept on the phone only (they do not sync with the computer).
 | Add bookmark | Adds the current page |
 | Passwords | The password list after a fingerprint / PIN; **Copy password** marks it as sensitive in the clipboard |
 | Fill in password | Fills in a saved password when the form appeared later |
+| 🗒 Sticky notes, 📝 New note | Notes as on Windows – see below |
+| 📥 Downloads | Downloaded files |
 
 Passwords are encrypted with a key in the Android Keystore (the key never leaves the phone). Velivo fills them in only on https pages and on the home network (router, NAS).
+
+### Sticky notes
+
+1. Menu → **📝 New note** → choose a kind: 📝 Note, ✅ To do, 🛒 Shopping, 📞 Ring, ❗ Important, 💡 Idea, ⭐ For today.
+2. Type. **The deadline** is a date in the text (e.g. `24.10`, `24.10.2026`, `2026-10-24`) – or tap **📅** and pick a day from the calendar (it is inserted at the cursor).
+3. **🔁 Repeat deadline:** one-off, every week, every 2 weeks, every month, every year or **Custom interval…** (every N days, weeks, months, years). Velivo counts the next dates from the one in the text, e.g. "4.10 bins" every week → 11.10, 18.10…
+4. **🎨** changes the colour, **🗑** deletes, **✓** (or Back) saves.
+
+**Reminder:** a notification **the day before** ("⏰ Due tomorrow") and **on the day** ("⏰ Due today") – daily at about 9:00, also after the phone is switched back on. Tapping it opens the note. The **🗒 Sticky notes** list is sorted by the nearest date; the date and repeat show under the text.
 
 ## 4. Settings
 

@@ -884,6 +884,7 @@ Velivo for phones is a light, private browser on the Android WebView engine (the
 | 🖥 Desktop site | The desktop version of the page for the current tab |
 | 📖 Reader view | Just the article text; A− / A+, remembers where you left off |
 | 🔊 Read aloud | Also with the screen off (notification with "Stop"); Back stops it; no speech engine – offers to download Google Speech Services |
+| 🗒 Sticky notes | As on Windows: a date in the text or 📅, 🔁 repeat, colours; a notification the day before and on the day |
 | 🎯 Remove element | Tap an advert, ⬆ larger area, 🗑 remove (remembered for the site), ↺ restore |
 
 The full phone guide is a separate manual: `dokumentacja/instrukcja-telefon.en.md`.

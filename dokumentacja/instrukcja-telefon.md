@@ -56,8 +56,19 @@ Reguły są zapisane tylko w telefonie (nie synchronizują się z komputerem).
 | Dodaj zakładkę | Dodaje bieżącą stronę |
 | Hasła | Lista haseł po odcisku palca / PIN-ie; **Kopiuj hasło** oznacza je w schowku jako poufne |
 | Wpisz hasło | Wpisuje zapisane hasło, gdy formularz pojawił się później |
+| 🗒 Karteczki, 📝 Nowa karteczka | Karteczki jak na Windows – opis niżej |
+| 📥 Pobrane | Pobrane pliki |
 
 Hasła są szyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). Velivo wpisuje je tylko na stronach https i w sieci domowej (router, NAS).
+
+### Karteczki
+
+1. Menu → **📝 Nowa karteczka** → wybierz rodzaj: 📝 Karteczka, ✅ Do zrobienia, 🛒 Zakupy, 📞 Zadzwoń, ❗ Ważne, 💡 Pomysł, ⭐ Na dziś.
+2. Pisz. **Termin** to data w treści (np. `24.10`, `24.10.2026`, `2026-10-24`) – albo stuknij **📅** i wybierz dzień z kalendarza (data wstawi się w miejscu kursora).
+3. **🔁 Powtarzaj termin:** jednorazowo, co tydzień, co 2 tygodnie, co miesiąc, co rok albo **Własny odstęp…** (co N dni, tygodni, miesięcy, lat). Od daty z treści Velivo liczy kolejne terminy, np. „4.10 śmieci” co tydzień → 11.10, 18.10…
+4. **🎨** zmienia kolor, **🗑** usuwa, **✓** (albo Wstecz) zapisuje.
+
+**Przypomnienie:** powiadomienie **dzień wcześniej** („⏰ Termin jutro”) i **w dniu terminu** („⏰ Termin dziś”) – codziennie około 9:00, także po ponownym włączeniu telefonu. Stuknięcie otwiera karteczkę. Lista **🗒 Karteczki** jest ułożona od najbliższego terminu; pod treścią widać termin i powtarzanie.
 
 ## 4. Ustawienia
 

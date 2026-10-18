@@ -619,7 +619,12 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
     private var chrome = listOf<View>()
     private val scaleBase = java.util.WeakHashMap<View, FloatArray>()   // oryginalne: tekst, szerokość, wysokość, min. wysokość
 
+    // błąd jednego elementu nie może zamknąć Velivo - zostaje w dzienniku (Logcat: Velivo)
     private fun applyScale(v: View) {
+        runCatching { scaleOne(v) }.onFailure { android.util.Log.e("Velivo", "powiekszanie", it) }
+    }
+
+    private fun scaleOne(v: View) {
         val s = uiScale
         val lp = v.layoutParams
         val o = scaleBase.getOrPut(v) {
@@ -635,7 +640,6 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
             if (o[2] > 0f) lp.height = (o[2] * s).toInt()
             v.layoutParams = lp
         }
-        if (v is android.widget.GridLayout) v.columnCount = if (s >= 1.35f) 2 else 3   // duże kafelki - po 2 w rzędzie
         if (v is ViewGroup) for (i in 0 until v.childCount) applyScale(v.getChildAt(i))
     }
 
@@ -1079,7 +1083,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             box.addView(TextView(this).apply {
                 text = getString(title); textSize = 13f; setTextColor(c("#4F4380", "#A79FD0")); setPadding(dp(2), dp(14), 0, dp(6))
             })
-            val grid = android.widget.GridLayout(this).apply { columnCount = 3 }
+            // duże powiększenie - kafelki po 2 w rzędzie (liczba kolumn ustalana przy otwarciu menu)
+            val grid = android.widget.GridLayout(this).apply { columnCount = if (uiScale >= 1.35f) 2 else 3 }
             for ((icon, label, id) in items) {
                 val on = toggles[id]
                 val primary = id == 1 || id == 14   // nowa karta, Szybki Dostep - gradient Velivo

@@ -73,6 +73,7 @@ class MainActivity : Activity() {
     @Volatile private var blockedCount = 0
 
     private val home = "https://www.startpage.com/"
+    private val youtubeJs by lazy { assets.open("youtube.js").bufferedReader().use { it.readText() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(if (dark) android.R.style.Theme_Material_NoActionBar else android.R.style.Theme_Material_Light_NoActionBar)
@@ -157,6 +158,7 @@ class MainActivity : Activity() {
     private companion object {
         const val PRIVATE_PROFILE = "prywatna"
         const val BANK_PROFILE = "bank"
+        val YOUTUBE_ORIGINS = setOf("https://www.youtube.com", "https://m.youtube.com", "https://youtube.com", "https://music.youtube.com")
         const val BANK_IDLE_MS = 10 * 60 * 1000L
 
         // Przy wysłaniu formularza: pierwsze wypełnione pole hasła i pole tekstowe przed nim.
@@ -226,6 +228,9 @@ set(p0,p);})"""
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING))
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(w.settings, true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(w, false)
+        // Reklamy na YouTube: skrypt uruchamiany przed stroną (tylko na domenach YouTube).
+        if (prefs.getBoolean("adblock", true) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
+            WebViewCompat.addDocumentStartJavaScript(w, youtubeJs, YOUTUBE_ORIGINS)
         val quiet = priv || bank
         if (!quiet) w.addJavascriptInterface(PasswordBridge(w), "VelivoHasla")
         w.webViewClient = object : WebViewClient() {

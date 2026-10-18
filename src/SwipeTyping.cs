@@ -170,11 +170,16 @@ namespace Przegladarka
             if (fix != null && (fix.Contains(' ') || Fold(fix) == Fold(typed))) return fix;   // polskie znaki, napewno, niewiem - pewna poprawka
             if (_main == null || typed.Length < 3 || !typed.All(char.IsLetter)) return fix;
             var w = typed.ToLowerInvariant();
-            if (keep != null && keep.Contains(w) || _main.Contains(w)) return fix;
+            if (keep != null && keep.Contains(w)) return fix;
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return fix;
-            var p = Predict(typed, false, 1).FirstOrDefault();   // to samo, co pierwsze w pasku propozycji
-            if (p == null || p.Length <= typed.Length || !Fold(p).StartsWith(Fold(w), StringComparison.Ordinal)) return fix;
-            if (_foldAll != null && _foldAll.TryGetValue(Fold(p), out var pl) && pl.All(e => e.Rank >= 60000)) return fix;   // bardzo rzadkie slowo - nie zgadujemy
+            var p = Predict(typed, false, 3).FirstOrDefault(x => x.Length > typed.Length && Fold(x).StartsWith(Fold(w), StringComparison.Ordinal));   // pierwsze dokonczenie w pasku propozycji
+            if (p == null || _foldAll == null || !_foldAll.TryGetValue(Fold(p), out var pl)) return fix;
+            var pe = pl.OrderBy(Score).First(); if (pe.Rank >= 60000) return fix;   // bardzo rzadkie slowo - nie zgadujemy
+            if (_main.Contains(w))
+            {   // wpisane to tez slowo: zostaje, chyba ze rzadkie, a dokonczenie duzo czestsze (pra -> prawda; dom, nie, kot zostaja)
+                var we = _foldAll.TryGetValue(Fold(w), out var wl) ? wl.FirstOrDefault(e => e.Word == w) : null;
+                if (we == null || Score(we) < 5000 || Score(pe) * 4 > Score(we)) return fix;
+            }
             return p;
         }
 

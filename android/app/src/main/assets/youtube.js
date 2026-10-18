@@ -26,36 +26,19 @@
     } catch (e) {}
   });
 
-  // 2. Reklamy na liście, w wynikach i pod filmem - ukryte.
-  var css = 'ytd-ad-slot-renderer,ytd-in-feed-ad-layout-renderer,ytd-promoted-sparkles-web-renderer,' +
-    'ytd-display-ad-renderer,ytd-companion-slot-renderer,ytd-action-companion-ad-renderer,' +
-    'ytd-banner-promo-renderer,ytd-statement-banner-renderer,ytd-player-legacy-desktop-watch-ads-renderer,' +
-    '#player-ads,#masthead-ad,.ytp-ad-overlay-container,.ytp-ad-image-overlay,' +
-    'ytm-promoted-sparkles-web-renderer,ytm-promoted-video-renderer,ytm-companion-ad-renderer,' +
-    'ad-slot-renderer,ytm-ad-slot-renderer,.ytm-promoted-sparkles-text-search-root' +
-    '{display:none!important}';
-  function addCss() {
-    if (document.getElementById('velivo-yt')) return;
-    var s = document.createElement('style');
-    s.id = 'velivo-yt';
-    s.textContent = css;
-    (document.head || document.documentElement).appendChild(s);
-  }
-
-  // 3. Gdy reklama jednak się przedrze: przewinięcie na koniec i "Pomiń".
+  // 2. Reklama, która się przedrze: "Pomiń" i wyciszenie na jej czas.
+  // Bez przewijania na koniec - YouTube wkleja reklamy w strumień filmu i przeskakiwało cały film
+  // (jak w Velivo na Windows). Bez ukrywania miejsc na reklamy - YouTube wykrywał to jako bloker
+  // i zamiast filmu pokazywał "Zezwól na reklamy".
   function skip() {
-    var p = document.querySelector('.ad-showing,.ad-interrupting');
-    if (!p) return;
-    var v = p.querySelector('video');
-    if (v && isFinite(v.duration) && v.duration > 0) { v.muted = true; v.currentTime = v.duration; }
-    var b = document.querySelector('.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,.ytm-skip-ad-button,button[class*="skip-ad"]');
+    var p = document.querySelector('.html5-video-player,#movie_player');
+    var b = document.querySelector('.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,.ytm-skip-ad-button');
     if (b) b.click();
+    var v = p && p.querySelector('video');
+    if (!v) return;
+    if (p.classList.contains('ad-showing')) { if (!v.muted) { v.muted = true; v.__velivoAdMuted = true; } }
+    else if (v.__velivoAdMuted) { v.muted = false; v.__velivoAdMuted = false; }
   }
 
-  function start() {
-    addCss();
-    new MutationObserver(skip).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-    setInterval(skip, 500);
-  }
-  if (document.documentElement) start(); else document.addEventListener('DOMContentLoaded', start);
+  setInterval(function () { try { skip(); } catch (e) {} }, 300);
 })();

@@ -138,6 +138,8 @@ class MainActivity : Activity() {
         contentDescription = getString(tip)
         tooltipText = getString(tip)
         minWidth = 0
+        minimumWidth = 0
+        minimumHeight = 0
         setOnClickListener(click)
     }
 

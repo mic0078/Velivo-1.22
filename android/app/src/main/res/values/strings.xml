@@ -111,4 +111,10 @@
     <string name="text_larger">Larger text</string>
     <string name="reader_resumed">Carrying on where you left off</string>
     <string name="download">Download</string>
+    <string name="hide_element">Remove element</string>
+    <string name="hide_hint">Tap an advert or box to remove it</string>
+    <string name="hide_bigger">Select a larger area</string>
+    <string name="hide_restore">Restore removed elements on this site</string>
+    <string name="hidden_saved">Removed – it will stay hidden on this site</string>
+    <string name="hide_restored">Removed elements restored</string>
 </resources>

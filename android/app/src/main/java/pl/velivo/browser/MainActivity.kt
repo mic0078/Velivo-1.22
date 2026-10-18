@@ -138,6 +138,7 @@ class MainActivity : Activity() {
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(buildFindBar())
+        root.addView(buildPickBar())
         root.addView(nav)
         setContentView(root)
         if (Build.VERSION.SDK_INT >= 30) {
@@ -345,6 +346,7 @@ set(p0,p);})"""
                 if (view == web()) address.setText(if (qa) "" else url)
                 if (!quiet && !qa) addHistory(view.title ?: url, url)
                 if (bank) bankUsed = System.currentTimeMillis()
+                applyHidden(view, url)
             }
         }
         w.webChromeClient = object : WebChromeClient() {
@@ -382,6 +384,7 @@ set(p0,p);})"""
 
     private fun show(i: Int) {
         if (::findBar.isInitialized && findBar.visibility == View.VISIBLE) closeFind()   // szukanie dotyczy jednej karty
+        if (::pickBar.isInitialized && pickBar.visibility == View.VISIBLE) stopPick()
         tabs.getOrNull(cur)?.let { snap(it) }
         cur = i
         frame.removeAllViews()
@@ -524,6 +527,68 @@ set(p0,p);})"""
         if (findText.text.isNotEmpty()) w.findAllAsync(findText.text.toString())
     }
 
+    // --- Usun element palcem (jak w Velivo na Windows): regula CSS zapamietana dla domeny ---
+    private lateinit var pickBar: LinearLayout
+
+    private fun buildPickBar(): View {
+        pickBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)); visibility = View.GONE }
+        pickBar.addView(TextView(this).apply { text = getString(R.string.hide_hint); setTextColor(TEXT); textSize = 13f; setPadding(dp(6), 0, dp(4), 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        pickBar.addView(button("⬆", R.string.hide_bigger, BLUE, BLUE_BG) { web()?.evaluateJavascript("window.__vBig&&__vBig()", null) })
+        pickBar.addView(button("🗑", R.string.hide_element, GREEN, GREEN_BG) { hidePicked() })
+        pickBar.addView(button("↺", R.string.hide_restore, ORANGE, ORANGE_BG) { restoreHidden() })
+        pickBar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { stopPick() })
+        return pickBar
+    }
+
+    private fun hostKey(url: String?) = "ukryte_" + (Uri.parse(url ?: "").host ?: "").removePrefix("www.")
+
+    private fun startPick() {
+        val w = web() ?: return
+        pickBar.visibility = View.VISIBLE
+        w.evaluateJavascript("""(function(){if(window.__vPick)return;var cur=null;
+function mark(e){if(cur)cur.style.outline=cur.__vo||'';cur=e;if(e){e.__vo=e.style.outline;e.style.outline='3px solid #6D3FDB';}}
+window.__vPick=function(ev){ev.preventDefault();ev.stopPropagation();mark(ev.target);};
+window.__vBig=function(){if(cur&&cur.parentElement&&cur.parentElement!=document.body)mark(cur.parentElement);};
+function sel(e){var p=[];while(e&&e.nodeType==1&&e!=document.body){var s=e.tagName.toLowerCase();
+if(e.id&&!/\d{3}/.test(e.id)){p.unshift(s+'#'+CSS.escape(e.id));break;}
+var c=[].filter.call(e.classList,function(x){return !/\d{3}|^(active|show|open|hover)$/.test(x)}).slice(0,2);
+if(c.length)s+='.'+c.map(CSS.escape).join('.');
+var n=1,x=e;while((x=x.previousElementSibling))if(x.tagName==e.tagName)n++;s+=':nth-of-type('+n+')';
+p.unshift(s);e=e.parentElement;}return p.join(' > ');}
+window.__vTake=function(){if(!cur)return '';var s=sel(cur);cur.style.setProperty('display','none','important');cur=null;return s;};
+window.__vStop=function(){mark(null);document.removeEventListener('click',__vPick,true);window.__vPick=null;};
+document.addEventListener('click',__vPick,true);})()""", null)
+    }
+
+    private fun stopPick() {
+        pickBar.visibility = View.GONE
+        web()?.evaluateJavascript("window.__vStop&&__vStop()", null)
+    }
+
+    private fun hidePicked() {
+        val w = web() ?: return
+        w.evaluateJavascript("window.__vTake?__vTake():''") { r ->
+            val sel = runCatching { org.json.JSONTokener(r).nextValue() as String }.getOrDefault("")
+            if (sel.isEmpty()) { toast(getString(R.string.hide_hint)); return@evaluateJavascript }
+            val key = hostKey(w.url)
+            val rules = (prefs.getStringSet(key, emptySet()) ?: emptySet()) + sel
+            prefs.edit().putStringSet(key, rules).apply()
+            toast(getString(R.string.hidden_saved))
+        }
+    }
+
+    private fun restoreHidden() {
+        val w = web() ?: return
+        prefs.edit().remove(hostKey(w.url)).apply()
+        stopPick(); w.reload(); toast(getString(R.string.hide_restored))
+    }
+
+    private fun applyHidden(view: WebView, url: String) {
+        val rules = prefs.getStringSet(hostKey(url), null) ?: return
+        val css = org.json.JSONObject.quote(rules.joinToString(",") + "{display:none!important}")
+        view.evaluateJavascript("(function(){var s=document.getElementById('velivo-ukryte')||document.createElement('style');s.id='velivo-ukryte';s.textContent=$css;(document.head||document.documentElement).appendChild(s);})()", null)
+    }
+
     private fun closeFind() {
         web()?.clearMatches()
         findBar.visibility = View.GONE
@@ -646,6 +711,7 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
         when (id) {
             16 -> openFind()
             17 -> toggleDesktop()
+            20 -> startPick()
             18 -> readArticle { t, b -> showReader(t, b) }
             19 -> if (tts?.isSpeaking == true) stopSpeaking() else readArticle { t, b -> speak(t + ".\n" + b) }
             1 -> newTab(false, QuickAccess.URL)
@@ -740,7 +806,7 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
         section(R.string.menu_tabs, listOf(
             Triple("＋", R.string.new_tab, 1), Triple("🕶", R.string.new_private_tab, 2), Triple("⭐", R.string.quick_access, 14),
             Triple("🏦", R.string.bank_mode, 10), Triple("🔎", R.string.find_in_page, 16), Triple("🖥", R.string.desktop_mode, 17),
-            Triple("📖", R.string.reader, 18), Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19)),
+            Triple("📖", R.string.reader, 18), Triple("🎯", R.string.hide_element, 20), Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19)),
             mapOf(17 to (tabs.getOrNull(cur)?.desktop == true)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("➕", R.string.add_bookmark, 3), Triple("🕘", R.string.history, 5),

@@ -5,6 +5,8 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.KeyguardManager
 import android.app.DownloadManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -23,10 +25,15 @@ import android.os.CancellationSignal
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.os.PersistableBundle
+import android.text.Editable
+import android.text.TextUtils
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -40,11 +47,13 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -505,13 +514,102 @@ set(p0,p);})"""
 
     private fun addHistory(title: String, url: String) = addTo("historia", title, url, 300)
 
+    private fun removeFrom(key: String, url: String) =
+        prefs.edit().putString(key, list(key).filter { !it.endsWith("\t" + url) }.joinToString("\n")).apply()
+
     private fun pick(key: String, title: Int) {
-        val l = list(key)
-        if (l.isEmpty()) { toast(getString(R.string.empty)); return }
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setItems(l.map { it.substringBefore('\t') }.toTypedArray()) { _, i -> web()?.loadUrl(l[i].substringAfter('\t')) }
-            .show()
+        val rows = list(key).map { val url = it.substringAfter('\t'); Row(it.substringBefore('\t').ifBlank { url }, url, url) }
+        showList(title, rows, key, extra = if (key == "historia") R.string.clear_history to {
+            prefs.edit().remove("historia").apply(); web()?.clearHistory()
+        } else null, onOpen = { row, d -> d.dismiss(); web()?.loadUrl(row.key as String) },
+            onDelete = { row -> removeFrom(key, row.key as String) })
+    }
+
+    // --- Lista (zakładki, historia, hasła): litera strony, tytuł, adres, szukanie, sortowanie, ✕ ----
+    private class Row(val title: String, val sub: String, val key: Any)
+
+    private fun showList(title: Int, all: List<Row>, sortKey: String, extra: Pair<Int, () -> Unit>? = null,
+                         onOpen: (Row, AlertDialog) -> Unit, onDelete: (Row) -> Unit) {
+        if (all.isEmpty()) { toast(getString(R.string.empty)); return }
+        val source = all.toMutableList()
+        var shown = listOf<Row>()
+        var sortAz = prefs.getBoolean("sort-$sortKey", false)   // false = najnowsze na górze (kolejność zapisu)
+        val search = EditText(this).apply {
+            hint = getString(R.string.search_hint)
+            setSingleLine()
+            setTextColor(TEXT)
+            setHintTextColor(c("#6B7280", "#9CA3AF"))
+            background = round(GRAY_BG)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+        }
+        val sortBtn = button("", R.string.sort, BLUE, BLUE_BG) {}
+        val listView = ListView(this).apply { divider = null }
+        lateinit var dlg: AlertDialog
+        val adapter = object : BaseAdapter() {
+            override fun getCount() = shown.size
+            override fun getItem(i: Int) = shown[i]
+            override fun getItemId(i: Int) = i.toLong()
+            override fun getView(i: Int, convert: View?, parent: ViewGroup?): View {
+                val row = shown[i]
+                val v = LinearLayout(this@MainActivity).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(4), dp(8), dp(4), dp(8))
+                }
+                val host = (Uri.parse(row.sub).host ?: row.title).removePrefix("www.")
+                val letter = host.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "•"
+                val hue = (host.hashCode() and 0x7fffffff) % 360
+                v.addView(TextView(this@MainActivity).apply {
+                    text = letter
+                    gravity = Gravity.CENTER
+                    textSize = 16f
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(Color.HSVToColor(floatArrayOf(hue.toFloat(), 0.55f, if (dark) 0.55f else 0.75f)))
+                    }
+                }, LinearLayout.LayoutParams(dp(36), dp(36)))
+                val texts = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(6), 0) }
+                texts.addView(TextView(this@MainActivity).apply {
+                    text = row.title; textSize = 15f; setTextColor(TEXT); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+                })
+                texts.addView(TextView(this@MainActivity).apply {
+                    text = row.sub; textSize = 12f; setTextColor(c("#6B7280", "#9CA3AF")); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+                })
+                v.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+                v.addView(button("✕", R.string.delete, TEXT, GRAY_BG) {
+                    onDelete(row); source.remove(row); refreshList(); if (source.isEmpty()) dlg.dismiss()
+                }.apply { isFocusable = false })   // inaczej ListView nie przyjmuje stuknięć w wiersz
+                return v
+            }
+            fun refreshList() {
+                val q = search.text.toString().trim().lowercase()
+                val f = if (q.isEmpty()) source else source.filter { it.title.lowercase().contains(q) || it.sub.lowercase().contains(q) }
+                shown = if (sortAz) f.sortedBy { it.title.lowercase() } else f
+                sortBtn.text = getString(if (sortAz) R.string.sort_az else R.string.sort_newest)
+                notifyDataSetChanged()
+            }
+        }
+        sortBtn.setOnClickListener { sortAz = !sortAz; prefs.edit().putBoolean("sort-$sortKey", sortAz).apply(); adapter.refreshList() }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(e: Editable?) = adapter.refreshList()
+            override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+        })
+        listView.adapter = adapter
+        listView.setOnItemClickListener { _, _, i, _ -> onOpen(shown[i], dlg) }
+        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(4), dp(16), dp(4)) }
+        top.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(sortBtn)
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(top)
+        box.addView(listView, LinearLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.6).toInt()))
+        listView.setPadding(dp(12), 0, dp(12), 0)
+        val b = AlertDialog.Builder(this).setTitle(getString(title) + " (" + all.size + ")").setView(box)
+            .setNegativeButton(R.string.close_tab_short, null)
+        extra?.let { (label, act) -> b.setNeutralButton(label) { _, _ -> act() } }
+        dlg = b.create()
+        adapter.refreshList()
+        dlg.show()
     }
 
     // --- Hasła ---------------------------------------------------------------
@@ -565,18 +663,25 @@ set(p0,p);})"""
     }
 
     private fun showPasswords() {
-        val list = passwords.all().sortedBy { it.host }
-        if (list.isEmpty()) { toast(getString(R.string.empty)); return }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.passwords)
-            .setItems(list.map { it.host + "\n" + it.user.ifEmpty { "—" } }.toTypedArray()) { _, i ->
-                AlertDialog.Builder(this)
-                    .setMessage(getString(R.string.delete_q, list[i].host))
-                    .setPositiveButton(R.string.delete) { _, _ -> passwords.remove(list[i]) }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
-            }
-            .show()
+        val rows = passwords.all().map { Row(it.host, it.user.ifEmpty { "—" }, it) }
+        showList(R.string.passwords, rows, "hasla", onOpen = { row, _ ->
+            val e = row.key as Passwords.Entry
+            AlertDialog.Builder(this)
+                .setTitle(e.host)
+                .setMessage(e.user.ifEmpty { "—" })
+                .setPositiveButton(R.string.copy_password) { _, _ -> copySecret(e.pass) }
+                .setNeutralButton(R.string.copy_login) { _, _ -> copySecret(e.user, sensitive = false) }
+                .setNegativeButton(R.string.close_tab_short, null)
+                .show()
+        }, onDelete = { row -> passwords.remove(row.key as Passwords.Entry) })
+    }
+
+    // Hasło w schowku oznaczone jako poufne - Android nie pokazuje go w podglądzie schowka.
+    private fun copySecret(text: String, sensitive: Boolean = true) {
+        val clip = ClipData.newPlainText("Velivo", text)
+        if (sensitive) clip.description.extras = PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
+        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+        toast(getString(R.string.copied))
     }
 
     // --- Synchronizacja z Velivo na Windows (sieć domowa) -------------------------

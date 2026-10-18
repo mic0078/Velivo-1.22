@@ -68,4 +68,11 @@
     <string name="lan_socket_error">Telefon nie może nasłuchiwać w sieci: %1$s</string>
     <string name="lan_pair_timeout">Czas minął – stuknij Sparuj jeszcze raz.</string>
     <string name="quick_access">Szybki Dostęp</string>
+    <string name="search_hint">Szukaj</string>
+    <string name="sort">Sortowanie</string>
+    <string name="sort_az">A–Z</string>
+    <string name="sort_newest">Najnowsze</string>
+    <string name="copy_password">Kopiuj hasło</string>
+    <string name="copy_login">Kopiuj login</string>
+    <string name="copied">Skopiowano</string>
 </resources>

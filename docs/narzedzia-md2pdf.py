@@ -12,6 +12,9 @@ from reportlab.platypus.tableofcontents import TableOfContents
 from reportlab.lib.enums import TA_CENTER
 
 ROOT, MAIN, APPX, OUT = sys.argv[1:5]
+EN = len(sys.argv) > 5 and sys.argv[5] == 'en'
+TV = sys.argv[6] if len(sys.argv) > 6 else None   # opcjonalnie czesc III: instrukcja filmow i TV   # wersja angielska: MANUAL.en.md + technical-appendix.en.md
+NAME = 'Velivo 1.22 – User manual' if EN else 'Velivo 1.22 – Instrukcja obsługi'
 D = '/usr/share/fonts/truetype/dejavu/'
 pdfmetrics.registerFont(RLTTF('DV', D + 'DejaVuSans.ttf'))
 pdfmetrics.registerFont(RLTTF('DVB', D + 'DejaVuSans-Bold.ttf'))
@@ -57,13 +60,13 @@ st = {
 class Doc(BaseDocTemplate):
     def __init__(self, fn):
         super().__init__(fn, pagesize=A4, leftMargin=18*mm, rightMargin=18*mm, topMargin=18*mm, bottomMargin=18*mm,
-                         title='Velivo 1.22 – Instrukcja obsługi', author='Velivo')
+                         title=NAME, author='Velivo')
         self.addPageTemplates([PageTemplate(id='p', frames=[Frame(self.leftMargin, self.bottomMargin, self.width, self.height)], onPage=self.deco)])
     def deco(self, c, d):
         if d.page == 1: return
         c.saveState(); c.setFont('DV', 8); c.setFillColor(colors.HexColor('#666666'))
-        c.drawString(18*mm, 10*mm, 'Velivo 1.22 – Instrukcja obsługi')
-        c.drawRightString(A4[0]-18*mm, 10*mm, 'Strona %d' % d.page)
+        c.drawString(18*mm, 10*mm, NAME)
+        c.drawRightString(A4[0]-18*mm, 10*mm, ('Page %d' if EN else 'Strona %d') % d.page)
         c.restoreState()
     def afterFlowable(self, fl):
         if isinstance(fl, Paragraph) and getattr(fl, 'toc', None):
@@ -146,14 +149,32 @@ def render(lines, h0, h1, h2, story, skip_sections=()):
         i += 1
     flush()
 
-story = [Spacer(1, 55*mm), Paragraph('Velivo 1.22', st['title']),
-         Paragraph('Instrukcja obsługi – pełny opis wszystkich funkcji', st['sub']), Spacer(1, 6*mm),
-         Paragraph('Część I – Instrukcja obsługi · Część II – Dodatek techniczny (opis szczegółowy)', st['sub']), Spacer(1, 40*mm),
-         Paragraph('Wersja 1.22 · instalator z commita 1f08f31 · dokumentacja 2026-10-05', st['sub']), PageBreak()]
-toc = TableOfContents(); toc.levelStyles = [st['toc1'], st['toc2']]
-story += [Paragraph('Spis treści', st['h1']), toc, PageBreak()]
-story += [Spacer(1, 90*mm), Paragraph('Część I', st['part']), Paragraph('Instrukcja obsługi', st['sub']), PageBreak()]
-render(open(MAIN, encoding='utf-8').read().split('\n'), 2, 3, 4, story, skip_sections=('Spis treści',))
-story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Część II', st['part']), Paragraph('Dodatek techniczny – opis szczegółowy funkcji krok po kroku', st['sub']), PageBreak()]
-render(open(APPX, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
+if EN:
+    story = [Spacer(1, 55*mm), Paragraph('Velivo 1.22', st['title']),
+             Paragraph('User manual – every feature explained', st['sub']), Spacer(1, 6*mm),
+             Paragraph('Part I – User manual · Part II – Technical appendix · Part III – Videos and TV', st['sub']), Spacer(1, 40*mm),
+             Paragraph('Version 1.22 · documentation 2026-10-18', st['sub']), PageBreak()]
+    toc = TableOfContents(); toc.levelStyles = [st['toc1'], st['toc2']]
+    story += [Paragraph('Contents', st['h1']), toc, PageBreak()]
+    story += [Spacer(1, 90*mm), Paragraph('Part I', st['part']), Paragraph('User manual', st['sub']), PageBreak()]
+    render(open(MAIN, encoding='utf-8').read().split('\n'), 2, 3, 4, story, skip_sections=('Contents',))
+    story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Part II', st['part']), Paragraph('Technical appendix – every feature step by step', st['sub']), PageBreak()]
+    render(open(APPX, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
+    if TV:
+        story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Part III', st['part']), Paragraph('Videos and TV – the player in detail', st['sub']), PageBreak()]
+        render(open(TV, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
+else:
+    story = [Spacer(1, 55*mm), Paragraph('Velivo 1.22', st['title']),
+             Paragraph('Instrukcja obsługi – pełny opis wszystkich funkcji', st['sub']), Spacer(1, 6*mm),
+             Paragraph('Część I – Instrukcja obsługi · Część II – Dodatek techniczny · Część III – Filmy i telewizja', st['sub']), Spacer(1, 40*mm),
+             Paragraph('Wersja 1.22 · dokumentacja 2026-10-18', st['sub']), PageBreak()]
+    toc = TableOfContents(); toc.levelStyles = [st['toc1'], st['toc2']]
+    story += [Paragraph('Spis treści', st['h1']), toc, PageBreak()]
+    story += [Spacer(1, 90*mm), Paragraph('Część I', st['part']), Paragraph('Instrukcja obsługi', st['sub']), PageBreak()]
+    render(open(MAIN, encoding='utf-8').read().split('\n'), 2, 3, 4, story, skip_sections=('Spis treści',))
+    story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Część II', st['part']), Paragraph('Dodatek techniczny – opis szczegółowy funkcji krok po kroku', st['sub']), PageBreak()]
+    render(open(APPX, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
+    if TV:
+        story += [PageBreak(), Spacer(1, 90*mm), Paragraph('Część III', st['part']), Paragraph('Filmy i telewizja – odtwarzacz szczegółowo', st['sub']), PageBreak()]
+        render(open(TV, encoding='utf-8').read().split('\n'), 1, 2, 3, story)
 doc = Doc(OUT); doc.multiBuild(story); print('stron:', doc.page)

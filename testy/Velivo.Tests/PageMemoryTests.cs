@@ -1,4 +1,4 @@
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // "Gdzie ja to czytalem?" - prawdziwy kod Velivo (MainWindow.MemoryAllowed): co trafia do pamieci stron.

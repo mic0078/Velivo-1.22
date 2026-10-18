@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Biblioteka: sortowanie po tytule takim, jaki widac (nie po surowej nazwie pliku z [dopiskami]),

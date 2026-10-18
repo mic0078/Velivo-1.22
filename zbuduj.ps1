@@ -8,7 +8,10 @@ Set-Location $PSScriptRoot
 
 Write-Host "1/4 Najnowsze zmiany (git pull)..." -ForegroundColor Cyan
 git checkout -- Instalator 2>$null   # poprzednio zbudowany instalator (plik z repozytorium) nie blokuje pobrania zmian
-git pull
+git checkout rozwoj   # instalator testowy zawsze z galezi roboczej (main = wersja publiczna)
+git pull origin rozwoj
+if ($LASTEXITCODE -ne 0) { Write-Host "Nie udalo sie pobrac zmian z galezi rozwoj." -ForegroundColor Red; exit 1 }
+Write-Host ("Budowana wersja: " + (git log --oneline -1)) -ForegroundColor Cyan
 
 if (-not $BezTestow) {
     Write-Host "2/4 Testy..." -ForegroundColor Cyan
@@ -17,8 +20,10 @@ if (-not $BezTestow) {
 } else { Write-Host "2/4 Testy pominiete" -ForegroundColor Yellow }
 
 Write-Host "3/4 Kompilacja programu..." -ForegroundColor Cyan
+dotnet build-server shutdown 2>$null | Out-Null   # zwalnia pliki trzymane przez poprzednia kompilacje / testy
+Remove-Item -Recurse -Force src\bin\Release\net10.0-windows10.0.19041.0\win-x64 -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
-dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\velivo
+dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\velivo
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja nie powiodla sie." -ForegroundColor Red; exit 1 }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan

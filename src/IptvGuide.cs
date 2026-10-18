@@ -7,7 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Pelny program TV (EPG): kanaly z lewej, caly program wybranego kanalu z opisami z prawej.
     // Prawy przycisk na audycji: oglądaj, przelacz o czasie, nagraj; na gorze odswiezanie (co ile i teraz).

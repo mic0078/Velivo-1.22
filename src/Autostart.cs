@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Microsoft.Win32;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Uruchamianie Velivo przy starcie Windows (wpis uzytkownika w HKCU\...\Run - bez uprawnien administratora)
     // z opoznieniem: system startuje szybciej, a Velivo wlacza sie po podanej liczbie sekund. Domyslnie wylaczone.

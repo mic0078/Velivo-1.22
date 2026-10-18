@@ -41,7 +41,7 @@ jobs:
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
-          dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\velivo
+          dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\velivo
 
       - name: Inno Setup
         shell: pwsh
@@ -56,7 +56,7 @@ jobs:
       - name: Samodzielny plik Velivo-1.22.exe (bez instalacji i bez .NET)
         shell: pwsh
         run: |
-          dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\single `
+          dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\single `
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true
           Copy-Item build\single\Velivo.exe Instalator\Velivo-1.22.exe -Force
           $mb = (Get-Item Instalator\Velivo-1.22.exe).Length / 1MB

@@ -11,7 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Pobieranie filmow (jak Internet Download Manager): przycisk "Pobierz" nad filmem i w menu prawego przycisku.
     // Zwykly plik wideo -> menedzer pobran Velivo (do 16 polaczen). YouTube, strumienie (m3u8/blob) i inne serwisy ->

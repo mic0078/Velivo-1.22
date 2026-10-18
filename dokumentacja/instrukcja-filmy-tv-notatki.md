@@ -66,7 +66,7 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Wyłącznik (patrz pasek); ⏰ Zaplanuj włączenie filmu lub kanału o dacie/godzinie.
 
 ## 11. Napisy i lektor
-- Pobieranie napisów, przesunięcie na żywo (G/H, suwak) zapamiętane dla filmu; lektor (Piper / głos Windows), ustawienia lektora dla filmu.
+- Pobieranie napisów z OpenSubtitles.com (konto użytkownika, zapis film.pl.srt obok filmu), przesunięcie na żywo (G/H, suwak) zapamiętane dla filmu; lektor (Piper / głos Windows), ustawienia lektora dla filmu.
 
 ## 12. 🧹 Porządki i kopia bezpieczeństwa (górny pasek)
 - Czyszczenie: pamięć stron, miniatury, ikony kanałów, stary program TV, dzienniki – z rozmiarami.

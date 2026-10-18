@@ -1,5 +1,5 @@
 using System.Linq;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Grupy kart (grupy-kart.json): zawsze wracaja po ponownym uruchomieniu, takze gdy przywracanie kart jest wylaczone.

@@ -1,7 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Text;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Lektor w odtwarzaczu filmow: odczyt napisow (SRT, VTT, ASS, polskie znaki w Windows-1250), kwestia w danej chwili,

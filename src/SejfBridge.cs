@@ -13,7 +13,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Loginy z Sejfu bez otwierania okienka dodatku: gdy strona ma pole hasla, Velivo pyta Sejf
     // (przez ten sam SejfMost.exe co dodatek Szybki Dostep) o loginy dla TEJ domeny. Jesli sa,

@@ -61,8 +61,8 @@ jobs:
       - name: Kompilacja
         shell: pwsh
         run: |
-          dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\velivo
-          dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained true -o build\single `
+          dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\velivo
+          dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\single `
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true
 
       - name: Podpis Velivo.exe (przed pakowaniem)

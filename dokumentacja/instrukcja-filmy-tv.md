@@ -190,7 +190,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 
 ## 11. Napisy i lektor
 
-- **Pobierz napisy** – z menu pod prawym przyciskiem.
+- **💬 Pobierz napisy…** – z menu pod prawym przyciskiem (na filmie albo w bibliotece). Napisy pochodzą z OpenSubtitles.com: logujesz się raz swoim kontem (hasło zapisane zaszyfrowane na tym komputerze), Velivo szuka po odcisku pliku i po nazwie, a wybrane napisy zapisuje obok filmu jako `film.pl.srt` – wczytują się same.
 - **G / H** – przesuwasz napisy, gdy się spóźniają lub wyprzedzają; Velivo zapamięta to dla filmu.
 - **Lektor** czyta napisy na głos; ustawienia lektora są zapamiętywane dla każdego filmu.
 
@@ -227,6 +227,6 @@ Hasła są zaszyfrowane dla Twojego konta Windows – przywracaj na tym samym ko
 | Ostrzeżenie o połączeniach | kliknij 🔌 i ustaw limit swojego dostawcy |
 | Okno wyboru pliku za duże | Velivo samo je dopasuje; ręcznie: Alt+Spacja → Przywróć |
 
-**Pliki do zgłaszania problemów** (folder danych `%LOCALAPPDATA%\Przegladarka`):
+**Pliki do zgłaszania problemów** (folder danych `%LOCALAPPDATA%\Programs\Velivo\Dane`):
 - `vlc.log` – ostatni film lub kanał (przed wysłaniem zamień token na XXX),
 - `bledy.log` – błędy programu (pojawia się tylko, gdy coś pójdzie nie tak).

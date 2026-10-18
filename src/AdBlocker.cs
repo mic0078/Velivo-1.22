@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Lekki filtr: domeny w HashSet (sprawdzanie O(liczba czlonow hosta)), fragmenty URL jako lista.
     // Czyta tez listy w formacie EasyList - z nich bierze tylko reguly blokujace cale domeny (||domena^),

@@ -9,7 +9,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Wyglad "Nowoczesny": spokojny pasek bez kolorowych tel, jednokolorowe ikony Windows 11,
     // jeden kolor akcentu (niebieski Velivo), kolor tylko przy najechaniu albo gdy cos jest wlaczone.

@@ -163,6 +163,9 @@ function mostGniazdo() {
 }
 
 function mostWyslij(zadanie) {
+  // W Velivo pliki Szybkiego Dostepu obsluguje samo Velivo (jego folder "Szybki Dostęp") - te same polecenia
+  // co most: ping/read/write/list/del. Zewnetrzny most (program Sejf) tylko w zwyklej przegladarce.
+  if (window.chrome && chrome.webview) return velivoZapytaj(zadanie);
   return new Promise((gotowe) => {
     const g = mostGniazdo();
     if (!g) { gotowe(null); return; }

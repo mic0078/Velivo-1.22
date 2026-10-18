@@ -13,7 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Filmy w sieci lokalnej (dodatek "odtwarzacz filmow" + sparowana synchronizacja LAN):
     // - "Odtworz na: <komputer>" - film z tej biblioteki gra na drugim Velivo,

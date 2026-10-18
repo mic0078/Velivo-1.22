@@ -26,9 +26,9 @@ Velivo 1.22 działa na Windows 10 (wersja 1809 lub nowsza) i Windows 11, 64-bit.
 - **Ograniczenia:** pliki nie mają płatnego podpisu cyfrowego, stąd ostrzeżenie „Nieznany wydawca”.
 
 ### 1.2 Sprawdzenie składników systemu
-- **Do czego:** Velivo potrzebuje .NET 10 Desktop Runtime i Microsoft Edge WebView2 Runtime.
+- **Do czego:** Velivo potrzebuje .NET 10 (jest wbudowany w instalator) i Microsoft Edge WebView2 Runtime.
 - **Jak używać:** nic nie trzeba robić – instalator sam sprawdza oba składniki.
-- **Co robi:** gdy czegoś brakuje, instalator proponuje pobranie (ok. 55 MB dla .NET) albo otwarcie strony pobierania. WebView2 jest zwykle w Windows 11.
+- **Co robi:** .NET 10 jest dołączony do instalatora (ok. 60 MB), więc nie trzeba go instalować. Gdy brakuje WebView2, instalator sam pobiera go od Microsoftu i instaluje. WebView2 jest w Windows 11 i aktualnym Windows 10.
 - **Ograniczenia:** bez WebView2 przeglądarka nie wyświetli stron.
 
 ### 1.3 Aktualizacja albo czysta instalacja
@@ -47,7 +47,7 @@ Velivo 1.22 działa na Windows 10 (wersja 1809 lub nowsza) i Windows 11, 64-bit.
 ### 1.6 Sprawdzenie, czy plik jest oryginalny
 - **Do czego:** potwierdzenie, że pobrany instalator nie został zmieniony.
 - **Jak używać:** w PowerShellu `Get-FileHash .\Velivo-Setup-1.22.exe -Algorithm SHA256`.
-- **Co robi:** wynik musi być `01919B13F638C7ABD4B7A44157DFE13278550D08887C3DF4A53614B7671C9975` (instalator 1.22), a dla `Velivo-1.22.exe`: `A65A74A8B68BC74F34ECF10C90484F092DF93B6D2DFEFE56831A5AAD3672D494`.
+- **Co robi:** porównaj wynik z sumą SHA-256 opublikowaną razem z pobranym wydaniem.
 
 ## Pierwsze kroki
 
@@ -74,7 +74,7 @@ Velivo 1.22 działa na Windows 10 (wersja 1809 lub nowsza) i Windows 11, 64-bit.
 - **Co robi:** tłumaczy wszystkie okna, menu, podpowiedzi oraz Szybki Dostęp.
 
 ### 1.11 Wszystko w jednym – bez dodatkowych programów
-- **Co to znaczy:** Velivo zastępuje kilka osobnych programów: **odtwarzacz filmów z dysku** (7.16 – z obrazem w obrazie i „Filmem na wierzchu”), **czytnik PDF** (1.8) i **torrenty** (8.19). Nie trzeba ich instalować ani aktualizować osobno.
+- **Co to znaczy:** Velivo zastępuje kilka osobnych programów: **odtwarzacz filmów** (rozdział 28 – biblioteka, telewizja, napisy, lektor; do tego obraz w obrazie i „Film na wierzchu”), **czytnik PDF** (1.8) i **torrenty** (8.19). Nie trzeba ich instalować ani aktualizować osobno.
 - **Jak używać:** dwuklik na pliku albo prawy przycisk → „Otwórz za pomocą” → Velivo; na stałe – Ustawienia → Odtwarzacz filmów → „Otwieraj filmy i PDF w Velivo (Windows)…”.
 
 # 2. Interfejs
@@ -404,13 +404,13 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 ### 7.15 Wyciszenie filmu w karcie
 - Menu karty → „Wycisz kartę” (4.11).
 
-### 7.16 Odtwarzacz filmów z dysku (offline)
-- **Gdzie:** dwuklik na pliku wideo (MP4, WebM, MKV, MOV, M4V, OGV – instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „📂 Otwórz plik z dysku”.
-- **Co robi:** film w karcie na całe okno, bez internetu; działają ⧉ Obraz w obrazie i ▣ Film na wierzchu.
-- **Sterowanie:** pasek odtwarzacza; spacja / klik – pauza, ← → – 5 s, ↑ ↓ – głośność, F – pełny ekran, M – wycisz.
+### 7.16 Filmy z dysku
+- **Gdzie:** dwuklik na pliku wideo (instalator dodaje Velivo do „Otwórz za pomocą”), Ctrl+O, prawy klik → Narzędzia Velivo → „📂 Otwórz plik z dysku”.
+- **Co robi:** z zainstalowanym opcjonalnym odtwarzaczem jak VLC plik otwiera się w odtwarzaczu Velivo (rozdział 28 – biblioteka, telewizja, napisy, lektor). Bez niego MP4 i WebM grają w karcie, bez internetu, z ⧉ Obrazem w obrazie i ▣ Filmem na wierzchu.
+- **Sterowanie w karcie:** pasek odtwarzacza; spacja / klik – pauza, ← → – 5 s, ↑ ↓ – głośność, F – pełny ekran, M – wycisz.
 - **Ustawienia:** sekcja „Odtwarzacz filmów” (25.26) – otwieranie w Velivo, odtwarzanie od razu, wznawianie od miejsca (tylko ten komputer), powtarzanie.
 - **Prywatność:** miejsce w filmie zapisywane pod zaszyfrowanym kluczem (SHA-256 z losową solą Velivo) – inne pliki HTML z dysku nie odczytają, jakie filmy oglądasz.
-- **Ograniczenia:** najpewniej MP4 (H.264) i WebM; nieobsługiwany kodek (np. HEVC/H.265) – komunikat.
+- **Ograniczenia:** w karcie najpewniej MP4 (H.264) i WebM; nieobsługiwany kodek (np. HEVC/H.265) – komunikat; odtwarzacz VLC go odtworzy.
 
 # 8. Pobieranie plików, filmów i muzyki
 
@@ -481,8 +481,9 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Co robi:** pokazuje listę źródeł audio i wideo na stronie z przyciskami „Pobierz”, „Pobierz jako audio” i „Pokaż”.
 - **Ograniczenia:** źródła typu `blob:` (dane tymczasowe w pamięci strony) nie są plikami; użyj wtedy przycisku ⬇ nad filmem.
 
-### 8.17 Pobieranie napisów – **NIE DOSTĘPNE W 1.22**
-- Velivo 1.22 nie pobiera napisów do filmów.
+### 8.17 Pobieranie napisów do filmów
+- **Gdzie:** odtwarzacz filmów i biblioteka – prawy przycisk → „💬 Pobierz napisy…” (opis w 28.4).
+- **Ograniczenia:** przy pobieraniu filmów z YouTube (⬇ Pobierz) napisy nie są pobierane.
 
 ### 8.18 Pobieranie z YouTube w trybie „Wykryj media” – ograniczenie
 - Na YouTube Velivo nie udostępnia pobierania przez „Wykryj media” – służy do tego przycisk ⬇ Pobierz (yt-dlp).
@@ -573,7 +574,7 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Co robi:** pobrany program Piper jest sprawdzany sumą kontrolną SHA-256 zapisaną w Velivo; niezgodny plik jest odrzucany.
 
 ### 10.4 Gdzie leżą głosy
-- `%LOCALAPPDATA%\Przegladarka\Piper` – można usunąć ten folder, by zwolnić miejsce; głos pobierze się ponownie przy kolejnym użyciu.
+- `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper` – można usunąć ten folder, by zwolnić miejsce; głos pobierze się ponownie przy kolejnym użyciu.
 
 # 11. Prywatność
 
@@ -1089,7 +1090,7 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Co robi:** śmieci są usuwane tylko wtedy, gdy nie działa inne okno Velivo (silnik trzyma te pliki).
 
 ### 19.7 Osobny folder danych (dla zaawansowanych)
-- **Co robi:** zmienna środowiskowa `PRZEGLADARKA_DANE` uruchamia Velivo na całkiem osobnym folderze danych – np. do testów.
+- **Co robi:** zmienna środowiskowa `VELIVO_DANE` uruchamia Velivo na całkiem osobnym folderze danych – np. do testów.
 
 # 20. RAM dysk
 
@@ -1306,7 +1307,10 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 - **Gdzie:** Ustawienia → sekcja „Torrenty”: włączanie (domyślnie wyłączone), folder strefy, prędkość pobierania i wysyłania, udostępnianie po pobraniu (współczynnik i czas), liczba uczestników. Opis – 8.19.
 
 ### 25.26 Odtwarzacz filmów
-- **Gdzie:** Ustawienia → sekcja „Odtwarzacz filmów”: otwieranie filmów z dysku w Velivo, odtwarzanie od razu, wznawianie od miejsca, powtarzanie. Opis – 7.16.
+- **Gdzie:** Ustawienia → sekcja „Odtwarzacz filmów”: otwieranie filmów z dysku w Velivo, odtwarzanie od razu, wznawianie od miejsca, powtarzanie. Opis – 7.16 i rozdział 28.
+
+### 25.27 Klawiatura ekranowa
+- **Gdzie:** Ustawienia → „⌨ Klawiatura ekranowa Velivo” (domyślnie włączona). Opis – rozdział 29.
 
 # 26. Wydajność
 
@@ -1315,8 +1319,8 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 - **Co robi:** Velivo zaczyna pobierać stronę, gdy najedziesz na link, i z wyprzedzeniem łączy się z serwerami widocznych linków.
 - **Ograniczenia:** wyłączone w kartach prywatnych i bankowych; przy limicie danych lepiej wyłączyć.
 
-### 26.2 Mały instalator i lekki program
-- **Co robi:** Velivo używa silnika WebView2 wbudowanego w Windows, więc nie zawiera własnej kopii silnika – instalator jest mały, a pamięć jest współdzielona z systemem.
+### 26.2 Lekki program
+- **Co robi:** Velivo używa silnika WebView2 wbudowanego w Windows, więc nie zawiera własnej kopii silnika – pamięć jest współdzielona z systemem. .NET jest dołączony do instalatora, więc nic nie trzeba doinstalowywać.
 
 ### 26.3 Szybki bloker reklam
 - **Co robi:** filtr ok. 100 tys. reguł jest budowany w tle i podmieniany w całości, bez przycinania przeglądania.
@@ -1362,7 +1366,7 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 - 2.10. Plik `bledy.log` w folderze danych przydaje się przy zgłaszaniu problemów.
 
 ### 27.10 Gdzie leżą dane
-- **Co robi:** wszystkie dane profilu domyślnego są w `%LOCALAPPDATA%\Przegladarka` (inne profile: `…\Przegladarka\Profiles\nazwa`). Najważniejsze pliki: `ustawienia.txt`, `zakladki.txt`, `historia.txt`, `sesja.txt`, `hasla.vault` (zaszyfrowane), `autouzupelnianie.vault` (zaszyfrowane), `bank.json` (zaszyfrowane pola), `bledy.log`.
+- **Co robi:** wszystkie dane profilu domyślnego są w `%LOCALAPPDATA%\Programs\Velivo\Dane` (inne profile: `…\Dane\Profiles\nazwa`). Najważniejsze pliki: `ustawienia.txt`, `zakladki.txt`, `historia.txt`, `sesja.txt`, `hasla.vault` (zaszyfrowane), `autouzupelnianie.vault` (zaszyfrowane), `bank.json` (zaszyfrowane pola), `bledy.log`.
 
 ### 27.11 Rozwiązywanie problemów
 | Problem | Co zrobić |
@@ -1372,12 +1376,97 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 | Komputery się nie widzą | ten sam profil na obu, zapora przepuszcza Velivo, automatyczny czas Windows (różnica ponad 5 minut blokuje wymianę) |
 | Pobieranie z YouTube się nie udaje | spróbuj za chwilę – yt-dlp aktualizuje się samo, a serwisy czasem się zmieniają |
 | Antywirus blokuje instalator | plik nie ma płatnego podpisu cyfrowego – dodaj wyjątek albo sprawdź sumę SHA-256 (1.6) |
-| Program się nie uruchamia | sprawdź WebView2 Runtime i .NET 10 (1.2); zajrzyj do `bledy.log` |
+| Program się nie uruchamia | sprawdź WebView2 Runtime (1.2); zajrzyj do `bledy.log` |
+
+# 28. Odtwarzacz filmów i telewizja
+
+### 28.1 Odtwarzacz filmów jak VLC
+- **Do czego:** filmy z dysku w każdym popularnym formacie (AVI, MKV, WMV, MP4…).
+- **Gdzie:** instalator (opcja „Odtwarzacz filmów”) albo później w Velivo; dwuklik w plik wideo w Windows.
+- **Co robi:** otwiera sam odtwarzacz, bez okna przeglądarki. Ok. 145 MB z oficjalnej paczki VideoLAN, sprawdzanej sumą kontrolną.
+- **Ograniczenia:** bez tego dodatku MP4 i WebM grają w karcie przeglądarki.
+
+### 28.2 Biblioteka filmów
+- **Gdzie:** odtwarzacz → biblioteka.
+- **Co robi:** lista filmów z sortowaniem, wznawianie od miejsca, w którym skończyłeś, własne tytuły, filmy z innego komputera w sieci domowej.
+
+### 28.3 Telewizja, archiwum i nagrywanie
+- **Gdzie:** odtwarzacz → 📺 Telewizja.
+- **Co robi:** kanały z programem TV, ulubione, historia ostatnich kanałów, oglądanie tego, co już było (archiwum), nagrywanie, planowanie i wyłącznik czasowy.
+- **Ograniczenia:** potrzebujesz własnej listy kanałów; Velivo nie zapisuje tokenów dostępu w logach.
+
+### 28.4 Napisy z OpenSubtitles.com
+- **Gdzie:** prawy przycisk na filmie albo w bibliotece → „💬 Pobierz napisy…”.
+- **Jak używać:** zaloguj się swoim kontem OpenSubtitles.com (hasło zapisane zaszyfrowane na tym komputerze), wybierz napisy z listy.
+- **Co robi:** szuka po odcisku pliku (dokładne dopasowanie) i po nazwie, zapisuje napisy obok filmu jako „film.pl.srt”; odtwarzacz i lektor wczytują je same.
+
+### 28.5 Przesunięcie napisów
+- **Jak używać:** **G** / **H** albo suwak w menu napisów.
+- **Co robi:** przesuwa napisy, gdy się spóźniają lub wyprzedzają; Velivo zapamiętuje przesunięcie dla filmu.
+
+### 28.6 Lektor
+- **Gdzie:** przycisk lektora na pasku odtwarzacza.
+- **Co robi:** czyta napisy na głos (naturalny głos offline Piper albo głos Windows), ścisza film podczas czytania; ustawienia zapamiętywane dla filmu.
+
+### 28.7 Pełny opis odtwarzacza
+- **Gdzie:** część III instrukcji PDF (`Velivo-1.22-Instrukcja.pdf`) i plik `dokumentacja/instrukcja-filmy-tv.md` – wszystkie przyciski, skróty i menu.
+
+# 29. Klawiatura ekranowa Velivo
+
+### 29.1 Otwieranie klawiatury
+- **Jak używać:** klik rolką w pole, przytrzymanie rolki 1 s, ikona klawiatury przy zegarze, skrót „Velivo Klawiatura” z menu Start (można przypiąć do paska zadań) albo opcja „Otwieraj samą po kliknięciu w pole tekstowe” (menu ikony przy zegarze).
+- **Co robi:** klawiatura nie zabiera kursora – litery trafiają do pola, w którym piszesz, w dowolnym programie.
+
+### 29.2 Autokorekta
+- **Co robi:** po spacji poprawia polskie znaki (zolw → żółw), literówki, „nie” z czasownikiem (niewiem → nie wiem), stałe zwroty (napewno → na pewno), „ze/że”, zwroty do adresata (ty → Ty). ⌫ zaraz po poprawce ją cofa.
+- **Ograniczenia:** nigdy w polach haseł.
+
+### 29.3 Interpunkcja
+- **Co robi:** przecinek przed że, który, bo, ale, a…; kropka i przecinek przylegają do słowa; spacja po przecinku; wielka litera po kropce.
+
+### 29.4 Podpowiedzi słów i zdań
+- **Co robi:** pasek nad klawiszami pokazuje dokończenia (spacja wstawia pierwsze), następne słowo i całe często pisane zdania (klik albo Ctrl+Spacja).
+
+### 29.5 Nauka
+- **Co robi:** zapamiętuje Twoje słowa, zwroty, zdania i poprawki (skasowane i wpisane od nowa słowo). Dane zaszyfrowane kontem Windows, tylko na tym komputerze.
+
+### 29.6 📖 Mój słownik
+- **Gdzie:** przycisk 📖 w nagłówku klawiatury.
+- **Co robi:** okno z listą Twoich słów: dodawanie wielu naraz i z pliku .txt, szukanie, sortowanie, 🧹 porządkowanie (usuwa zwykłe słowa i literówki). Nowe słowo dodasz też ➕ albo Ctrl+Spacja.
+
+### 29.7 Pisanie przeciągnięciem
+- **Co robi:** przeciągasz myszą po literach, Velivo wpisuje słowo i uczy się Twoich ruchów.
+
+### 29.8 Klawiatura numeryczna i skróty
+- **Co robi:** cyfry, Zaznacz wszystko, kopiuj, wklej, cofnij, ponów, Alt+Tab, Notes, karteczki, e-mail, głośność, kalkulator, wycinanie ekranu, szybkie szukanie, wyłączanie komputera.
+
+### 29.9 Pad
+- **Jak używać:** przycisk 🎮; prawy klik – ustawienia.
+- **Co robi:** krzyżak wybiera klawisz, A naciska; prawa gałka steruje kursorem myszy (RT szybciej, L3 wolniej, czułość w ustawieniach); przy schowanej klawiaturze A/X/Y – klik, prawy klik, dwuklik; R3 – przełączanie okien; Back – schowaj / pokaż.
+
+### 29.10 Działanie w tle
+- **Co robi:** schowana klawiatura (przycisk „—”, Back na padzie albo ikona przy zegarze) dalej poprawia pisanie zwykłą klawiaturą.
+
+# 30. Karteczki
+
+### 30.1 Nowa karteczka
+- **Gdzie:** przycisk 🗒 na klawiaturze.
+- **Co robi:** karteczka zwykła, do zrobienia, zakupy, zadzwoń, ważne, pomysł albo na dziś.
+
+### 30.2 Karteczki nad paskiem zadań
+- **Co robi:** przypięte jedna obok drugiej; klik w pasek rozwija w górę, 📎 odpina na pulpit, 🎨 kolor, 📌 zawsze na wierzchu, 📅 wstawia datę; dwuklik w linię odhacza ją na liście.
+
+### 30.3 Przypomnienie o terminie
+- **Co robi:** gdy w treści jest data (19.10.2026, 19.10, 2026-10-19), dzień wcześniej i w dniu terminu ikona mruga, a pasek pulsuje, aż otworzysz karteczkę.
+
+### 30.4 Powtarzanie terminu
+- **Gdzie:** przycisk 🔁 obok ikony karteczki.
+- **Jak używać:** wybierz: jednorazowo, co tydzień, co 2 tygodnie, co miesiąc, co rok albo „Własny odstęp…” (co N dni, tygodni, miesięcy lub lat).
+- **Co robi:** od daty z treści liczy kolejne terminy – np. „17.10.2026 insulina” co tydzień przypomni 24.10, 31.10 i dalej. Przy włączonym powtarzaniu ikona 🔁 jest wyraźna, a podpowiedź pokazuje odstęp.
 
 # Funkcje NIE DOSTĘPNE W 1.22
 
 Poniższe rzeczy były omawiane, ale **w wersji 1.22 ich nie ma**:
-- **Pobieranie napisów do filmów** – NIE DOSTĘPNE W 1.22.
 - **Zmiana (fałszowanie) odcisku palca przeglądarki** – NIE DOSTĘPNE W 1.22; Velivo wykrywa i raportuje fingerprinting (11.9).
 - **8 głosów offline Piper** – NIE DOSTĘPNE W 1.22; dostępnych jest 6 (3 polskie, 3 angielskie).
 - **Wspólny panel środowiska dla wielu komputerów** – NIE DOSTĘPNE W 1.22; jest panel diagnostyczny LAN (17.13).
@@ -1388,7 +1477,7 @@ Poniższe rzeczy były omawiane, ale **w wersji 1.22 ich nie ma**:
 
 # PEŁNA LISTA FUNKCJI VELIVO 1.22
 
-Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku. Pozycje, które w podręczniku są tylko odsyłaczami do innego miejsca (40), nie są tu liczone drugi raz.
+Opisanych funkcji: **290**. Numer przy funkcji wskazuje jej opis w podręczniku. Pozycje, które w podręczniku są tylko odsyłaczami do innego miejsca (40), nie są tu liczone drugi raz.
 
 
 ## 1. Pierwsze uruchomienie
@@ -1485,7 +1574,7 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **7.13** Przykłady użycia
 - **7.14** Obraz w obrazie (PiP)
 - **7.15** Wyciszenie filmu w karcie
-- **7.16** Odtwarzacz filmów z dysku (offline)
+- **7.16** Filmy z dysku
 
 ## 8. Pobieranie plików, filmów i muzyki
 
@@ -1505,7 +1594,7 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **8.14** FFmpeg – pobierany raz
 - **8.15** Sprawdzanie pobranych narzędzi
 - **8.16** Wykryj media do pobrania
-- **8.17** Pobieranie napisów – **NIE DOSTĘPNE W 1.22**
+- **8.17** Pobieranie napisów do filmów
 - **8.18** Pobieranie z YouTube w trybie „Wykryj media” – ograniczenie
 - **8.19** Torrenty (magnet i .torrent) – włączane w Ustawieniach
 
@@ -1729,11 +1818,12 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **25.24** Zapis ustawień
 - **25.25** Torrenty
 - **25.26** Odtwarzacz filmów
+- **25.27** Klawiatura ekranowa
 
 ## 26. Wydajność
 
 - **26.1** Szybsze otwieranie stron
-- **26.2** Mały instalator i lekki program
+- **26.2** Lekki program
 - **26.3** Szybki bloker reklam
 - **26.4** Mniej obciążenia okna
 - **26.5** Lekki tryb „tylko film”
@@ -1744,3 +1834,33 @@ Opisanych funkcji: **268**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **27.2** Historia (Ctrl+H)
 - **27.10** Gdzie leżą dane
 - **27.11** Rozwiązywanie problemów
+
+## 28. Odtwarzacz filmów i telewizja
+
+- **28.1** Odtwarzacz filmów jak VLC
+- **28.2** Biblioteka filmów
+- **28.3** Telewizja, archiwum i nagrywanie
+- **28.4** Napisy z OpenSubtitles.com
+- **28.5** Przesunięcie napisów
+- **28.6** Lektor
+- **28.7** Pełny opis odtwarzacza
+
+## 29. Klawiatura ekranowa Velivo
+
+- **29.1** Otwieranie klawiatury
+- **29.2** Autokorekta
+- **29.3** Interpunkcja
+- **29.4** Podpowiedzi słów i zdań
+- **29.5** Nauka
+- **29.6** 📖 Mój słownik
+- **29.7** Pisanie przeciągnięciem
+- **29.8** Klawiatura numeryczna i skróty
+- **29.9** Pad
+- **29.10** Działanie w tle
+
+## 30. Karteczki
+
+- **30.1** Nowa karteczka
+- **30.2** Karteczki nad paskiem zadań
+- **30.3** Przypomnienie o terminie
+- **30.4** Powtarzanie terminu

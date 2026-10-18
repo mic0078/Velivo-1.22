@@ -1,4 +1,4 @@
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Filmy w sieci lokalnej: zakresy bajtow (przewijanie strumienia), identyfikator filmu i przekazywanie ustawien filmu.

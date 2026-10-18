@@ -1,5 +1,5 @@
 using System.Windows;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Okna pamietaja miejsce i rozmiar: klucz bez zmiennej czesci tytulu, zapis "x,y,szer,wys[,max]".

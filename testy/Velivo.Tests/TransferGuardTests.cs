@@ -1,4 +1,4 @@
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Straznik przelewu w trybie bankowym - prawdziwy kod Velivo (MainWindow.CanonicalAccount / AccountChecksumOk / SameAccount).

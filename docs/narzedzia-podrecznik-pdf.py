@@ -12,6 +12,8 @@ from reportlab.platypus.tableofcontents import TableOfContents
 from reportlab.lib.enums import TA_CENTER
 
 ROOT, MAIN, OUT = sys.argv[1:4]
+EN = len(sys.argv) > 4 and sys.argv[4] == 'en'   # angielski podrecznik (HANDBOOK-Velivo-1.22.en.md)
+NAME = 'Velivo 1.22 – Complete guide and feature catalogue' if EN else 'Velivo 1.22 – Kompletna instrukcja i katalog funkcji'
 D = '/usr/share/fonts/truetype/dejavu/'
 pdfmetrics.registerFont(RLTTF('DV', D + 'DejaVuSans.ttf'))
 pdfmetrics.registerFont(RLTTF('DVB', D + 'DejaVuSans-Bold.ttf'))
@@ -57,13 +59,13 @@ st = {
 class Doc(BaseDocTemplate):
     def __init__(self, fn):
         super().__init__(fn, pagesize=A4, leftMargin=18*mm, rightMargin=18*mm, topMargin=18*mm, bottomMargin=18*mm,
-                         title='Velivo 1.22 – Kompletna instrukcja i katalog funkcji', author='Velivo')
+                         title=NAME, author='Velivo')
         self.addPageTemplates([PageTemplate(id='p', frames=[Frame(self.leftMargin, self.bottomMargin, self.width, self.height)], onPage=self.deco)])
     def deco(self, c, d):
         if d.page == 1: return
         c.saveState(); c.setFont('DV', 8); c.setFillColor(colors.HexColor('#666666'))
-        c.drawString(18*mm, 10*mm, 'Velivo 1.22 – Kompletna instrukcja i katalog funkcji')
-        c.drawRightString(A4[0]-18*mm, 10*mm, 'Strona %d' % d.page)
+        c.drawString(18*mm, 10*mm, NAME)
+        c.drawRightString(A4[0]-18*mm, 10*mm, ('Page %d' if EN else 'Strona %d') % d.page)
         c.restoreState()
     def afterFlowable(self, fl):
         if isinstance(fl, Paragraph) and getattr(fl, 'toc', None):
@@ -147,10 +149,10 @@ def render(lines, h0, h1, h2, story, skip_sections=()):
     flush()
 
 story = [Spacer(1, 50*mm), Paragraph('VELIVO 1.22', st['title']),
-         Paragraph('KOMPLETNA INSTRUKCJA I KATALOG FUNKCJI', st['part']), Spacer(1, 8*mm),
-         Paragraph('Podręcznik użytkownika – wszystkie funkcje krok po kroku', st['sub']), Spacer(1, 50*mm),
-         Paragraph('Wersja programu 1.22 · instalator 1f08f31 · październik 2026', st['sub']), PageBreak()]
+         Paragraph('COMPLETE GUIDE AND FEATURE CATALOGUE' if EN else 'KOMPLETNA INSTRUKCJA I KATALOG FUNKCJI', st['part']), Spacer(1, 8*mm),
+         Paragraph('User handbook – every feature step by step' if EN else 'Podręcznik użytkownika – wszystkie funkcje krok po kroku', st['sub']), Spacer(1, 50*mm),
+         Paragraph('Program version 1.22 · documentation 18 October 2026' if EN else 'Wersja programu 1.22 · dokumentacja 18 października 2026', st['sub']), PageBreak()]
 toc = TableOfContents(); toc.levelStyles = [st['toc1'], st['toc2']]
-story += [Paragraph('Spis treści', st['h1']), toc, PageBreak()]
+story += [Paragraph('Contents' if EN else 'Spis treści', st['h1']), toc, PageBreak()]
 render(open(MAIN, encoding='utf-8').read().split('\n')[1:], 1, 2, 3, story)
 doc = Doc(OUT); doc.multiBuild(story); print('stron:', doc.page)

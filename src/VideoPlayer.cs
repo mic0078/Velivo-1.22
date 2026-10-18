@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Odtwarzacz filmow z dysku (offline): plik wideo otwiera sie w karcie na prostej stronie Velivo z filmem
     // na cale okno. Na filmie dzialaja zwykle przyciski Velivo (⧉ obraz w obrazie, ▣ Film na wierzchu), a skroty:

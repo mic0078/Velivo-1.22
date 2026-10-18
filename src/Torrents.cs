@@ -12,7 +12,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Torrenty (wlaczane w Ustawieniach, domyslnie wylaczone): linki magnet: i pliki .torrent pobiera darmowy aria2 -
     // doinstalowany dopiero przy pierwszym uzyciu (za zgoda), z przypieta suma SHA-256. Osobna strefa: wlasny folder

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Motywy samej przegladarki (pasek kart, pasek narzedzi, zakladki) - jak motywy tla w Szybkim Dostepie.
     public partial class MainWindow

@@ -8,7 +8,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Ochrona przed kradzieza danych (obok SmartScreen):
     //  1. wykrywanie stron-podrobek (offline): marka w adresie na obcej domenie, literowki i podmienione znaki,

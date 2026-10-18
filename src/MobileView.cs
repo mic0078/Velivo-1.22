@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Wersja telefonu dla wybranych stron: Velivo przedstawia sie stronie jako telefon z Androidem,
     // a strona sama wysyla swoja wersje mobilna. Zapamietywane osobno dla kazdej strony (jak powiekszenie).

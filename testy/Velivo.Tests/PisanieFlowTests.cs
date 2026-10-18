@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Pisanie przeciagnieciem po klawiaturze ekranowej: dopasowanie sladu do slow ze slownika i wlasny slownik.
@@ -130,6 +130,65 @@ public class PisanieFlowTests
     }
 
     [Fact]
+    public void PisowniaNieIStalychZwrotow()
+    {
+        SwipeTyping.Load(new[] { "nie", "wiem", "mam", "mogę", "dobry", "niedobry", "pewno", "razie", "naprawdę" });
+        Assert.Equal("nie wiem", SwipeTyping.Correct("niewiem"));
+        Assert.Equal("nie mam", SwipeTyping.Correct("niemam"));
+        Assert.Equal("Nie mogę", SwipeTyping.Correct("Niemoge"));
+        Assert.Null(SwipeTyping.Correct("niedobry"));
+        Assert.Equal("niedobry", SwipeTyping.JoinNie("nie", "dobry"));
+        Assert.Null(SwipeTyping.JoinNie("nie", "wiem"));
+        Assert.Equal("na pewno", SwipeTyping.Correct("napewno"));
+        Assert.Equal("Na razie", SwipeTyping.Correct("Narazie"));
+        Assert.Equal("w ogóle", SwipeTyping.Correct("wogole"));
+        Assert.Equal("naprawdę", SwipeTyping.JoinPair("na", "prawdę"));
+        Assert.Null(SwipeTyping.JoinPair("na", "pewno"));
+        Assert.Equal("Ci", SwipeTyping.Correct("ci"));                 // zwracajac sie do kogos - wielka litera
+        Assert.Null(SwipeTyping.Correct("ze"));                        // ze / że rozstrzyga nastepne slowo
+        Assert.True(SwipeTyping.IsTypo("napewno"));                  // bledna pisownia nie trafia do Mojego slownika
+        SwipeTyping.AddUserWord("napewno");                          // dawniej wyuczona - i tak poprawiana
+        Assert.Equal("na pewno", SwipeTyping.Correct("napewno"));
+        Assert.False(SwipeTyping.IsMisspelling("dobry"));
+    }
+
+    [Fact]
+    public void SpacjaWstawiaDokonczenieZPaska()
+    {
+        SwipeTyping.Load(new[] { "nie", "dom", "komputer", "przepraszam", "dziękuję" });
+        Assert.Equal("komputer", SwipeTyping.Complete("komp"));
+        Assert.Equal("Przepraszam", SwipeTyping.Complete("Przepr"));
+        Assert.Equal("dziękuję", SwipeTyping.Complete("dziekuje"));   // pewna poprawka przed dokonczeniem
+        Assert.Null(SwipeTyping.Complete("dom"));                     // poprawne slowo zostaje
+        Assert.Null(SwipeTyping.Complete("komp", new[] { "komp" }));  // cofniete - zostaje
+        SwipeTyping.AddUserWord("chwalińska");
+        Assert.Equal("Chwalińska", SwipeTyping.Complete("Chwalin"));   // Moje slowo (nazwisko) - spacja tez je wstawia
+    }
+
+    [Fact]
+    public void UczySiePoprawkiPoSkasowaniuSlowa()
+    {
+        SwipeTyping.Load(new[] { "nie", "kot", "kit", "komputer" });
+        Assert.True(SwipeTyping.LearnFix("kmoputer", "komputer"));     // skasowane i wpisane od nowa
+        Assert.Equal("komputer", SwipeTyping.Correct("kmoputer"));
+        Assert.False(SwipeTyping.LearnFix("kot", "kit"));              // poprawne slowo zmienione na inne - to nie literowka
+        Assert.False(SwipeTyping.LearnFix("abcdef", "komputer"));      // zupelnie inne slowo
+    }
+
+    [Fact]
+    public void PodpowiadaCzestoPisaneZdanie()
+    {
+        var b = new SwipeTyping.SentenceBuf();
+        b.Word("Mam", false, false); b.Word("nadzieję", false, false); b.Word("że", true, false); b.Word("wszystko", false, false); b.Word("dobrze", false, false);
+        var t = b.Text(false) + ".";
+        Assert.Equal("Mam nadzieję, że wszystko dobrze.", t);
+        SwipeTyping.LearnSentence(t);
+        Assert.Null(SwipeTyping.SentenceRest("Mam nad"));               // raz napisane - jeszcze nie podpowiadamy
+        SwipeTyping.LearnSentence(t);
+        Assert.Equal("zieję, że wszystko dobrze.", SwipeTyping.SentenceRest("Mam nad"));
+    }
+
+    [Fact]
     public void AutokorektaPolskieZnakiILiterowka()
     {
         SwipeTyping.Load(new[] { "nie", "jest", "żółw", "który", "dziękuję", "komputer", "dom", "pisze", "piszę" });
@@ -157,6 +216,18 @@ public class PisanieFlowTests
         Assert.False(SwipeTyping.NeedsComma("że", "i"));          // i że
         Assert.False(SwipeTyping.NeedsComma("że", null));         // poczatek zdania
         Assert.False(SwipeTyping.NeedsComma("dom", "wiem"));
+        Assert.True(SwipeTyping.NeedsComma("a", "idę"));          // idę, a ty
+        Assert.True(SwipeTyping.NeedsComma("gdzie", "wiem"));     // nie wiem, gdzie
+        Assert.False(SwipeTyping.NeedsComma("a", "od"));          // od a do z
+        Assert.False(SwipeTyping.NeedsComma("gdzie", "tam"));     // tam gdzie
+        Assert.Equal(", że", SwipeTyping.ZeAsZe("ze", "to", "wiem"));   // wiem ze to -> wiem, że to
+        Assert.Null(SwipeTyping.ZeAsZe("ze", "mną", "idź"));           // ze mną - przyimek
+        Assert.Null(SwipeTyping.ZeAsZe("ze", "szkoły", "wracam"));
+        Assert.Equal("Że", SwipeTyping.ZeAsZe("Ze", "się", null));
+        Assert.Equal("że", SwipeTyping.ZeNow("ze", "Myślę"));          // myślę ze -> myślę, że (od razu po spacji)
+        Assert.Null(SwipeTyping.ZeNow("ze", "dom"));                   // dom ze ... - rozstrzyga nastepne slowo
+        Assert.Equal("że", SwipeTyping.ZeNow("ze", "powiedzieć"));     // po czasowniku - od razu "że" (ze mną potem wraca)
+        Assert.Equal(", że", SwipeTyping.ZeAsZe("ze", "wpisywanie", "powiedzieć"));
         SwipeTyping.Load(new[] { "klawiatura", "żółw" });
         Assert.True(SwipeTyping.IsTypo("zolw"));                  // literowka - nie do Mojego slownika
         Assert.False(SwipeTyping.IsTypo("klawiaturą"));           // z polskimi znakami - swiadomie wpisane slowo

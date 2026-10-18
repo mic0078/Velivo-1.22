@@ -9,7 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Wpf;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Tryb czytania + lokalne streszczenie (bez wysyłania treści do chmury).
     public partial class MainWindow

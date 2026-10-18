@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Torrenty - prawdziwy kod Velivo (MainWindow.Aria2Args / MagnetName / TorrentProgress / IsMagnet).

@@ -9,7 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Karteczki (sticky notes): zolte karteczki na pulpicie - przesuwane, ze zmiana rozmiaru, opcjonalnie zawsze na wierzchu.
     // Dostepne zawsze (bez trybu bankowego). Zapis lokalny w karteczki.json; po uruchomieniu Velivo wracaja na swoje miejsca.
@@ -29,7 +29,44 @@ namespace Przegladarka
             public string Color { get; set; }
             public bool Top { get; set; }
             public bool Free { get; set; }
-            public bool Open { get; set; }   // przypieta i rozwinieta przez uzytkownika - po starcie wraca rozwinieta   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
+            public bool Open { get; set; }
+            public string Seen { get; set; }
+            public string Repeat { get; set; }   // powtarzanie terminu: "7d" (co 7 dni), "1m" (co miesiac), "1y" (co rok); puste - jednorazowo   // dzien (yyyy-MM-dd), w ktorym przypomnienie o terminie zostalo juz obejrzane   // przypieta i rozwinieta przez uzytkownika - po starcie wraca rozwinieta   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
+        }
+
+        // termin w tresci karteczki (12.05.2026, 12.05, 2026-05-12, 12/05/2026): 2 - dzis, 1 - jutro, 0 - brak
+        internal static int NoteDue(string text, DateTime today, string repeat = null)
+        {
+            // powtarzanie: kolejny termin od daty z tresci co N dni / miesiecy / lat (17.10 + co 7 dni -> 24.10, 31.10...)
+            int every = 0; char unit = 'd';
+            if (!string.IsNullOrEmpty(repeat) && repeat.Length > 1 && int.TryParse(repeat.Substring(0, repeat.Length - 1), out every) && every > 0) unit = repeat[repeat.Length - 1]; else every = 0;
+            Func<DateTime, DateTime> next = dt => unit == 'm' ? dt.AddMonths(every) : unit == 'y' ? dt.AddYears(every) : dt.AddDays(every);
+            if (string.IsNullOrEmpty(text)) return 0;
+            int best = 0;
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text, @"(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)|(?<![\d.])(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?![\d/])"))
+            {
+                int y, mo, d;
+                if (m.Groups[1].Success) { y = int.Parse(m.Groups[1].Value); mo = int.Parse(m.Groups[2].Value); d = int.Parse(m.Groups[3].Value); }
+                else { d = int.Parse(m.Groups[4].Value); mo = int.Parse(m.Groups[5].Value); y = m.Groups[6].Success ? int.Parse(m.Groups[6].Value) : today.Year; if (y < 100) y += 2000; }
+                if (y < 1 || y > 9999 || mo < 1 || mo > 12 || d < 1 || d > DateTime.DaysInMonth(y, mo)) continue;
+                var dt = new DateTime(y, mo, d);
+                for (int i = 0; every > 0 && dt < today.Date && i < 20000; i++) dt = next(dt);   // pierwszy termin od dzis
+                if (dt == today.Date) return 2;
+                if (dt == today.Date.AddDays(1)) best = 1;
+            }
+            return best;
+        }
+
+        // najblizszy termin (dzis lub pozniej) z dat w tresci i powtarzania - do napisu na karteczce
+        internal static DateTime? NoteNext(string text, DateTime today, string repeat)
+        {
+            DateTime? best = null;
+            for (int d = 0; d <= 800; d++)
+            {   // pierwszy dzien od dzis, ktory jest terminem (NoteDue sprawdza "dzis" = 2)
+                if (NoteDue(text, today.AddDays(d), repeat) == 2) { best = today.AddDays(d); break; }
+                if (string.IsNullOrEmpty(repeat) && d > 400) break;
+            }
+            return best;
         }
 
         // rodzaj -> ikona, tytul, poczatkowa tresc
@@ -178,7 +215,15 @@ namespace Przegladarka
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             foreach (var b in new[] { open, dock, pin, paint, add, del }) btns.Children.Add(b);
             var head = new DockPanel { Height = 30, Background = new SolidColorBrush(Color.FromArgb(28, 0, 0, 0)), Cursor = Cursors.SizeAll };
-            DockPanel.SetDock(btns, Dock.Right); head.Children.Add(btns); head.Children.Add(title);
+            // 🔁 powtarzanie terminu (obok ikony karteczki): jednorazowo, co tydzien, co 2 tygodnie, co miesiac, co rok albo wlasny odstep
+            var rep = headBtn("", ""); rep.Content = new TextBlock { Text = "\uE8EE", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 15, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)) };   // ikona powtarzania jak w Windows (emoji 🔁 bylo nieczytelne) rep.HorizontalAlignment = HorizontalAlignment.Left; rep.Margin = new Thickness(6, 0, 0, 0);
+            Func<string, string> repName = r => string.IsNullOrEmpty(r) ? L.T("jednorazowo") : r == "7d" ? L.T("co tydzień") : r == "14d" ? L.T("co 2 tygodnie") : r == "1m" ? L.T("co miesiąc") : r == "1y" ? L.T("co rok")
+                : r.EndsWith("d") ? string.Format(L.T("co {0} dni"), r.TrimEnd('d')) : r.EndsWith("m") ? string.Format(L.T("co {0} mies."), r.TrimEnd('m')) : string.Format(L.T("co {0} lat(a)"), r.TrimEnd('y'));
+            Action repInfoUpd = () => { };   // napis "powtarza sie… nastepny termin" na dole karteczki (ustawiany nizej)
+            Action repShow = () => { repInfoUpd(); rep.Opacity = string.IsNullOrEmpty(n.Repeat) ? 0.6 : 1; rep.Background = string.IsNullOrEmpty(n.Repeat) ? Brushes.Transparent : new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)); rep.ToolTip = L.T("Powtarzanie terminu z treści karteczki: ") + repName(n.Repeat); };
+            repShow();
+            var titleRow = new StackPanel { Orientation = Orientation.Horizontal }; titleRow.Children.Add(title); titleRow.Children.Add(rep);
+            DockPanel.SetDock(btns, Dock.Right); head.Children.Add(btns); head.Children.Add(titleRow);
             var box = new TextBox
             {
                 Text = n.Text ?? "", AcceptsReturn = true, AcceptsTab = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -197,7 +242,17 @@ namespace Przegladarka
             date.ToolTip = L.T("Wstaw datę z kalendarza");
             btns.Children.Insert(0, date);
             var root = new DockPanel();
-            DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); root.Children.Add(box);
+            // na dole karteczki: ze termin sie powtarza, co ile i kiedy nastepny
+            var repInfo = new TextBlock { FontSize = 12, Margin = new Thickness(10, 2, 10, 6), Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)), TextWrapping = TextWrapping.Wrap };
+            repInfoUpd = () =>
+            {
+                if (string.IsNullOrEmpty(n.Repeat)) { repInfo.Visibility = Visibility.Collapsed; return; }
+                var nx = NoteNext(n.Text, DateTime.Today, n.Repeat);
+                repInfo.Text = L.T("Powtarza się ") + repName(n.Repeat) + (nx.HasValue ? L.T(" · następny termin: ") + nx.Value.ToString("dd.MM.yyyy") : L.T(" · wpisz datę w treści"));
+                repInfo.Visibility = Visibility.Visible;
+            };
+            repInfoUpd(); box.TextChanged += (s, e) => repInfoUpd();
+            DockPanel.SetDock(head, Dock.Top); DockPanel.SetDock(repInfo, Dock.Bottom); root.Children.Add(head); root.Children.Add(repInfo); root.Children.Add(box);
             w.Content = root;
 
             Action toggleOpen = () =>
@@ -258,6 +313,57 @@ namespace Przegladarka
                 if (!string.IsNullOrWhiteSpace(n.Text.Replace("•", "").Replace("✓", "")) &&
                     MessageBox.Show(w, L.T("Usunąć tę karteczkę?"), "Velivo", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 _notes.Remove(n); _noteOpen.Remove(n); SaveNotes(); w.Close(); LayoutDockedNotes();
+            };
+            // ⏰ przypomnienie: termin dzis albo jutro - ikona karteczki mruga, pasek pulsuje, az ja otworzysz (raz dziennie)
+            var dueAnim = new System.Windows.Media.Animation.DoubleAnimation(1, 0.25, TimeSpan.FromSeconds(0.7)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };
+            var headBg = (SolidColorBrush)head.Background; var headBase = headBg.Color;
+            var colAnim = new System.Windows.Media.Animation.ColorAnimation(headBase, Color.FromArgb(150, 0xFF, 0x7A, 0x00), TimeSpan.FromSeconds(0.7)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };
+            bool pulsing = false;
+            Action dueCheck = () =>
+            {
+                var today = DateTime.Today; int due = NoteDue(n.Text, today, n.Repeat);
+                bool on = due > 0 && n.Seen != today.ToString("yyyy-MM-dd");
+                title.ToolTip = due == 2 ? L.T("⏰ Termin dziś") : due == 1 ? L.T("⏰ Termin jutro") : L.T(k[2]);
+                if (on == pulsing) return; pulsing = on;
+                title.BeginAnimation(UIElement.OpacityProperty, on ? dueAnim : null);
+                headBg.BeginAnimation(SolidColorBrush.ColorProperty, on ? colAnim : null);
+            };
+            Action seen = () => { if (!pulsing) return; n.Seen = DateTime.Today.ToString("yyyy-MM-dd"); SaveNotesSoon(); dueCheck(); };
+            box.TextChanged += (s, e) => dueCheck();
+            box.GotKeyboardFocus += (s, e) => seen();   // otwarta i czytana - przypomnienie obejrzane
+            var dueTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) }; dueTimer.Tick += (s, e) => dueCheck(); dueTimer.Start();   // nowy dzien - jutro staje sie dzis
+            w.Closed += (s, e) => dueTimer.Stop();
+            dueCheck();
+            rep.Click += (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = rep };
+                Action<string> set = r => { n.Repeat = r; SaveNotes(); repShow(); dueCheck(); };
+                foreach (var r in new[] { "", "7d", "14d", "1m", "1y" })
+                { var r0 = r; var mi = new MenuItem { Header = repName(r0), IsCheckable = true, IsChecked = (n.Repeat ?? "") == r0 }; mi.Click += (a, b) => set(r0); cm.Items.Add(mi); }
+                cm.Items.Add(new Separator());
+                var own = new MenuItem { Header = L.T("Własny odstęp…") };
+                own.Click += (a, b) =>
+                {   // co N dni / tygodni / miesiecy / lat
+                    var num = new TextBox { Width = 60, Text = "10", Margin = new Thickness(0, 0, 8, 0), VerticalContentAlignment = VerticalAlignment.Center };
+                    var unitBox = new ComboBox { Width = 120 };
+                    foreach (var u in new[] { L.T("dni"), L.T("tygodni"), L.T("miesięcy"), L.T("lat") }) unitBox.Items.Add(u);
+                    unitBox.SelectedIndex = 0;
+                    var ok = new Button { Content = "OK", Width = 70, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
+                    var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12) };
+                    row.Children.Add(new TextBlock { Text = L.T("Co"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+                    row.Children.Add(num); row.Children.Add(unitBox); row.Children.Add(ok);
+                    var dlg = new Window { Title = L.T("Powtarzaj termin"), Content = row, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = w, WindowStartupLocation = WindowStartupLocation.CenterOwner, Topmost = true, ShowInTaskbar = false };
+                    ok.Click += (c, d) =>
+                    {
+                        if (!int.TryParse(num.Text.Trim(), out var v) || v < 1 || v > 999) { num.Focus(); num.SelectAll(); return; }
+                        set(unitBox.SelectedIndex == 1 ? (v * 7) + "d" : unitBox.SelectedIndex == 2 ? v + "m" : unitBox.SelectedIndex == 3 ? v + "y" : v + "d");
+                        dlg.Close();
+                    };
+                    dlg.Loaded += (c, d) => { num.Focus(); num.SelectAll(); };
+                    dlg.ShowDialog();
+                };
+                cm.Items.Add(own);
+                cm.IsOpen = true;
             };
             w.Closed += (s, e) => _noteWindows.Remove(n);
             _noteWindows[n] = w;

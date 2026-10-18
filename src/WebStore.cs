@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Instalacja dodatkow z Chrome Web Store. WebView2 nie ma API sklepu (chrome.webstorePrivate),
     // wiec pobieramy paczke .crx z serwera aktualizacji Google, zdejmujemy naglowek CRX i rozpakowujemy ZIP.

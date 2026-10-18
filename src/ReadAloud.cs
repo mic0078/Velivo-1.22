@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Czytanie na glos (glosy Windows przez speechSynthesis silnika): glowna tresc strony albo zaznaczenie.
     // Czytany akapit jest podswietlany i przewijany na srodek - latwo sledzic wzrokiem.

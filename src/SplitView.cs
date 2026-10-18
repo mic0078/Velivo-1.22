@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Podzial ekranu (jak Split Screen w Edge): dwie karty obok siebie, srodkowy pasek przesuwany myszka.
     // Aktywna jest ta, w ktora klikniesz (adres, przyciski). Wlaczanie: prawy przycisk na karcie -> "Pokaz obok".

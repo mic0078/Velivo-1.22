@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Lista filmow w odtwarzaczu: sortowanie (wybor zapamietany) i kolejny film z listy innego komputera.

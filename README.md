@@ -18,7 +18,8 @@
   🎨 <b>Piękny, nowoczesny wygląd</b> jak Windows 11 – 10 motywów, tryb ciemny i nocny<br>
   🧩 <b>Lekkie, wbudowane dodatki</b> – bez szukania w sklepie i bez spowalniania<br>
   🎬 Film w przezroczystym okienku nad wszystkim – gra nawet po zamknięciu przeglądarki<br>
-  🎞 <b>Wszystko w jednym</b> – filmy z dysku, PDF i torrenty bez instalowania dodatkowych programów<br>
+  🎞 <b>Wszystko w jednym</b> – filmy z dysku, telewizja, napisy z lektorem, PDF i torrenty bez instalowania dodatkowych programów<br>
+  ⌨ <b>Klawiatura, która pisze poprawnie</b> – w każdym programie poprawia polskie znaki, literówki i przecinki, podpowiada słowa i zdania, działa z padem · 🗒 karteczki z przypomnieniem<br>
   🏦 <b>Tryb bankowy</b> – osobny, zaszyfrowany sejf na banki, sklepy, karty i hasła, otwierany <b>kluczem sprzętowym</b> (YubiKey, Google Titan) albo hasłem<br>
   ✨ Efekty wejścia stron (kinowe z ciemności, wyostrzenie) i <b>wczytywanie strony już przy najechaniu na link</b><br>
   🛡 Wbudowany uBlock Origin Lite i wykrywanie fałszywych stron banków bez internetu<br>
@@ -28,20 +29,13 @@
 
 <p align="center"><b><a href="Instalator/Velivo-Setup-1.22.exe">⬇ Pobierz Velivo za darmo</a></b> · <a href="INSTRUKCJA.md">📖 Instrukcja</a> · ⭐ Dodaj gwiazdkę, jeśli Ci się podoba</p>
 
-
 Lekka, prywatna przeglądarka dla Windows, która trzyma Twoje dane u Ciebie: bez konta, bez chmury, bez wysyłania historii czy haseł na zewnętrzne serwery. Działa na silniku Microsoft Edge (WebView2), więc strony wyświetlają się tak samo jak w Edge i Chrome.
 
 Dane między Twoimi komputerami przenosi synchronizacja w sieci lokalnej (LAN), szyfrowana po sparowaniu urządzeń. W zestawie jest dodatek **Szybki Dostęp** (strona nowej karty ze skrótami) oraz współpraca z programem **Sejf**, który przechowuje hasła zaszyfrowane offline.
 
 **[⬇ Pobierz instalator Velivo-Setup-1.22.exe](Instalator/Velivo-Setup-1.22.exe)** (ok. 64 MB – .NET i uBlock Origin Lite są w środku, nic nie trzeba doinstalowywać) · **[📖 Pełna instrukcja obsługi](INSTRUKCJA.md)**
 
-![Velivo – okno przeglądarki, w prawym dolnym rogu gra okienko Film na wierzchu](docs/zrzuty/velivo-okno.png)
-
 ## Czego nie znajdziesz w innych przeglądarkach
-
-| ![](docs/zrzuty/film-na-wierzchu.png) | ![](docs/zrzuty/film-maly-w-rogu.png) | ![](docs/zrzuty/film-przezroczysty.png) |
-| --- | --- | --- |
-| ▣ Film na wierzchu | zmniejszony w rogu | przezroczysty nad pulpitem |
 
 **Velivo wykracza poza granice obecnych przeglądarek** – także w ochronie: wykrywa fałszywe strony banków i sklepów bez internetu, ukrywa okno przed nagrywaniem ekranu przy płatnościach, a hasła podaje wyłącznie prawdziwym stronom.
 
@@ -118,7 +112,7 @@ Velivo instaluje się jednym plikiem `Velivo-Setup-1.22.exe`, bez uprawnień adm
     - **Czysta instalacja** – start od zera; stare dane trafiają do kopii zapasowej z dopiskiem `.kopia-<data>`.
 4. Opcjonalnie zaznacz skrót na pulpicie i zakończ instalację.
 
-Antywirus może jednorazowo zapytać o nowe pliki. Najwygodniej dodać do zaufanych folder programu oraz `%LOCALAPPDATA%\Przegladarka\Piper` (głosy offline).
+Antywirus może jednorazowo zapytać o nowe pliki. Najwygodniej dodać do zaufanych folder programu oraz `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper` (głosy offline).
 
 ## Jak używać
 
@@ -190,8 +184,8 @@ Stan połączenia pokazuje Ustawienia → „Panel diagnostyczny LAN…”. Has�
 **Gdzie leżą dane**
 
 - Program: `%LOCALAPPDATA%\Programs\Velivo`
-- Ustawienia, zakładki, hasła, historia: `%LOCALAPPDATA%\Przegladarka` (profil inny niż domyślny: podfolder `Profiles\<nazwa>`)
-- Głosy offline: `%LOCALAPPDATA%\Przegladarka\Piper`
+- Ustawienia, zakładki, hasła, historia: `%LOCALAPPDATA%\Programs\Velivo\Dane` (profil inny niż domyślny: podfolder `Profiles\<nazwa>`)
+- Głosy offline: `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper`
 - Dziennik błędów: plik `bledy.log` w folderze danych profilu – przydaje się przy zgłaszaniu problemów.
 
 ## Dla programistów
@@ -209,7 +203,7 @@ Każda zmiana w `src/` wysłana na GitHub automatycznie buduje nowy instalator (
 Ręcznie (Windows, .NET 10 SDK, Inno Setup 6):
 
 ```
-dotnet publish src\Przegladarka.csproj -c Release -r win-x64 --self-contained false -o build\velivo
+dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained false -o build\velivo
 "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" src\installer.iss
 ```
 

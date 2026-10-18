@@ -1,0 +1,34 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "pl.velivo.browser"
+    compileSdk = 35
+    defaultConfig {
+        applicationId = "pl.velivo.browser"
+        minSdk = 29
+        targetSdk = 35
+        versionCode = 1
+        versionName = "0.1"
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+    // Szybki Dostęp: ta sama strona co w Velivo na Windows - jedno źródło dla obu wersji
+    sourceSets["main"].assets.srcDirs("src/main/assets", "../../src/QuickAccessExtension/kod")
+}
+
+dependencies {
+    implementation("androidx.webkit:webkit:1.12.1")
+}

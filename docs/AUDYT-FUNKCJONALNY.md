@@ -151,7 +151,7 @@ Kolumny: **Impl.** = zaimplementowane w kodzie · **UI** = dostępne z interfejs
 | FFmpeg | najlepsza jakość ≤1080p (MP4) i MP3 | VideoDownloader.cs | ✔ | ✔ | – |
 | Tryby: najlepsza, prosta (1 plik), M4A, MP3 | | VideoDownloader.cs 206 | ✔ | ✔ | – |
 | Wybór folderu filmów (zapamiętany) | | VideoDownloader.cs 97 | ✔ | ✔ | – |
-| Napisy | **brak** | – | – | – | – |
+| Napisy do filmów | w odtwarzaczu i bibliotece: OpenSubtitles.com (konto użytkownika), zapis obok filmu; przy pobieraniu z YouTube – brak | OpenSubtitles.cs | ✔ | ✔ | ✔ |
 | Weryfikacja SHA-256 narzędzi | yt-dlp, FFmpeg, Piper, uBOL | Integrity.cs | ✔ | – | ✔ |
 | Znacznik „plik z internetu” (MOTW) | | Integrity.cs 30 | ✔ | – | ✔ |
 | Separator `--` dla yt-dlp | | VideoDownloader.cs | ✔ | – | ✔ |
@@ -261,7 +261,7 @@ Kolumny: **Impl.** = zaimplementowane w kodzie · **UI** = dostępne z interfejs
 | Pamięć podręczna profilu bankowego w RAM | odczyt pliku tylko po zmianie | Bank.cs 54 | ✔ | – | ✔ |
 | WebView2 (silnik Edge) | wspólny z systemem | MainWindow.xaml.cs | ✔ | – | ✔ |
 | Bez konta i bez chmury | | całość | ✔ | – | ✔ |
-| Osobny folder danych (`PRZEGLADARKA_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
+| Osobny folder danych (`VELIVO_DANE`), log diagnostyczny (`VELIVO_DEBUG`) | | MainWindow.xaml.cs 20, 122 | ✔ | – | ✔ |
 
 ## BRAKUJE W TABELI
 Funkcje znalezione w kodzie, których nie było w poprzedniej tabeli porównawczej:
@@ -403,4 +403,4 @@ Funkcje znalezione w kodzie, których nie było w poprzedniej tabeli porównawcz
 136. Folder cache z czyszczeniem tylko własnego podfolderu
 137. Filtr reklam budowany w tle
 138. Pomijanie zdjęć i czcionek w przechwytywaniu żądań (szybkość)
-139. Osobny folder danych `PRZEGLADARKA_DANE` i log `VELIVO_DEBUG`
+139. Osobny folder danych `VELIVO_DANE` i log `VELIVO_DEBUG`

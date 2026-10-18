@@ -9,7 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Zakladki, pobieranie plikow i dodatki (rozpakowane rozszerzenia Chromium).
     public partial class MainWindow

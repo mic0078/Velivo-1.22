@@ -3,7 +3,7 @@ using System.Reflection;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
-namespace Przegladarka
+namespace Velivo
 {
     public partial class MainWindow
     {

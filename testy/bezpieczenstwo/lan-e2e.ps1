@@ -20,7 +20,7 @@ $settings = "lanSync=1`r`nsearch=startpage`r`n"
 if ($Mode -eq 'paired') { $settings += "lanSyncKey=$key`r`n" }
 Set-Content -Path (Join-Path $data 'ustawienia.txt') -Value $settings -NoNewline -Encoding utf8
 
-$env:PRZEGLADARKA_DANE = $data
+$env:VELIVO_DANE = $data
 $env:VELIVO_PROFILE = 'domyslny'
 $proc = Start-Process -FilePath $Exe -PassThru
 Log "Velivo PID $($proc.Id), dane: $data"

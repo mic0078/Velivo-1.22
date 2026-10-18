@@ -119,7 +119,9 @@ Legenda: 🟢 jest · ⚠️ częściowo, inaczej, zależnie od ustawień albo p
 | FFmpeg – najlepsza jakość do 1080p (MP4) | 🟢 | 🔴 | 🔴 | 🔴 | 🔴 |
 | Tylko dźwięk MP3 / M4A | 🟢 | 🔴 | 🔴 | 🔴 | 🔴 |
 | Wykrywanie mediów na stronie | 🟢 | 🔴 | 🔴 | 🔴 | 🔴 |
-| Napisy do filmów | 🔴 **nie zaimplementowane** | 🔴 | 🔴 | 🔴 | 🔴 |
+| Napisy do filmów (OpenSubtitles.com w odtwarzaczu, lektor czytający napisy) | 🟢 | 🔴 | 🔴 | 🔴 | 🔴 |
+| Klawiatura ekranowa z autokorektą PL, przecinkami, podpowiedziami zdań i padem | 🟢 | 🔴 | 🔴 | 🔴 | 🔴 |
+| Karteczki na pulpicie z przypomnieniem o terminie | 🟢 | 🔴 | 🔴 | ⚠️ notatki w panelu | 🔴 |
 | Sprawdzanie integralności narzędzi (SHA-256) | 🟢 | n/d | n/d | n/d | n/d |
 
 ## 7. Czytanie
@@ -194,7 +196,7 @@ Legenda: 🟢 jest · ⚠️ częściowo, inaczej, zależnie od ustawień albo p
 | Odtworzenie parowania z pliku | 🟢 | ⚠️ | 🔴 | 🔴 | 🔴 |
 
 ## Czego Velivo nie ma (z listy wymagań)
-- **Pobieranie napisów** do filmów – w kodzie nie ma takiej opcji (yt-dlp nie jest wywoływany z napisami).
+- **Napisy przy pobieraniu z YouTube** – yt-dlp nie jest wywoływany z napisami (napisy do filmów z dysku pobiera odtwarzacz z OpenSubtitles.com).
 - **„Wspólny panel środowiska”** dla wielu komputerów – nie istnieje jako osobna funkcja. Jest panel diagnostyczny LAN (urządzenia, status, log).
 - **Fałszowanie odczytów fingerprintingu** – Velivo wykrywa i raportuje próby (paragon prywatności), ale nie zmienia odczytów jak Brave czy Firefox.
 - **Podpis cyfrowy programu** – brak (patrz `PODPIS-CYFROWY.md`).

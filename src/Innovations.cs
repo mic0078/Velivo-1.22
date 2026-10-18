@@ -14,7 +14,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // 1. "Gdzie ja to czytalem?" - lokalna pamiec tresci stron z wyszukiwaniem po tresci.
     // 2. Wykrywacz sztuczek presji w sklepach (liczniki, "ostatnie sztuki", zaznaczone dodatki, ukryte oplaty).

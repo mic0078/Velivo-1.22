@@ -35,7 +35,7 @@ function Licz($plik) { if (Test-Path $plik) { @(Select-String -Path $plik -Patte
 $srv = Start-Process python -ArgumentList '-m', 'http.server', '8765', '--bind', '127.0.0.1' -WorkingDirectory "$here\strony" -PassThru -WindowStyle Hidden
 $data = Join-Path $env:RUNNER_TEMP 'velivo-pv'; Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory $data -Force | Out-Null
 $log = Join-Path $data 'bledy.log'
-$env:PRZEGLADARKA_DANE = $data
+$env:VELIVO_DANE = $data
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
 $base = 'http://127.0.0.1:8765/'
 $p = Start-Process $Exe -ArgumentList ($base + 'logowanie.html') -PassThru

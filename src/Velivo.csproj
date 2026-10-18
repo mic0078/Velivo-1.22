@@ -12,7 +12,7 @@
     <Product>Velivo</Product>
     <AssemblyTitle>Velivo Browser</AssemblyTitle>
     <Company>andro</Company>
-    <RootNamespace>Przegladarka</RootNamespace>
+    <RootNamespace>Velivo</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Version>1.22</Version>
     <!-- Velivo jest po polsku i angielsku: bez tlumaczen .NET/WPF na inne jezyki (ok. 12 folderow cs, de, ja, zh-Hans...) -->

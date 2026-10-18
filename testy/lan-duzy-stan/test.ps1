@@ -21,7 +21,7 @@ Set-Content (Join-Path $data 'ustawienia.txt') "lanSync=1`r`nlanSyncKey=$key`r`n
 # duzy profil bankowy: ~90 KB zaszyfrowanych (losowych) danych - jak u uzytkownika po dodaniu kart/notatek
 $bank = [ordered]@{ Owner = 'test'; Salt = (Losowy 16); Hash = (Losowy 32); Iter = 600000; Cards = (Losowy 68000) }
 Set-Content (Join-Path $data 'bank-duzy.json') ($bank | ConvertTo-Json -Compress) -NoNewline -Encoding utf8
-$env:PRZEGLADARKA_DANE = $data
+$env:VELIVO_DANE = $data
 $env:VELIVO_PROFILE = 'domyslny'
 $proc = Start-Process -FilePath $Exe -PassThru
 Start-Sleep -Seconds 40

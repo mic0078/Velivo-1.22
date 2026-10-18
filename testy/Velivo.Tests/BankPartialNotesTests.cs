@@ -1,4 +1,4 @@
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Wybrane znaki z Moich notatek: dane z notatki i skojarzenie notatki ze strona banku (propozycja w okienku na stronie banku).

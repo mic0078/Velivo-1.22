@@ -11,7 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Informacje o filmach z serwera Jellyfin (w sieci domowej): tytul, rok, opis, ocena, gatunki, obsada, plakat.
     // Kopia we wlasnej bazie Velivo (filmy-info\) - dziala tez przy wylaczonym serwerze; uzupelniana przy kazdym polaczeniu.

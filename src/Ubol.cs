@@ -8,7 +8,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Wbudowany uBlock Origin Lite (GPL-3.0, https://github.com/uBlockOrigin/uBOL-home) - instalator zawiera najnowsze
     // wydanie, Velivo wlacza je samo. Jesli uBOL jest juz zainstalowany ze sklepu, zostaje ten (bez dubli).

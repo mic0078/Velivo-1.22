@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Pisanie przeciagnieciem (jak "Flow"): slad palca / myszy po klawiszach porownany z idealna sciezka
     // przez srodki klawiszy kazdego slowa ze slownika; wygrywa najblizszy slad, a przy podobnych - czestsze slowo.
@@ -65,6 +65,9 @@ namespace Przegladarka
 
         internal static bool Loaded => _words != null;
 
+        // slowo z wbudowanego slownika (bez Moich slow) - w Moim slowniku zbedne
+        internal static bool InMain(string word) { Correct("xx"); var m = _main; return m != null && !string.IsNullOrEmpty(word) && m.Contains(word.ToLowerInvariant()); }
+
         internal static bool IsKnown(string word) { var w = word.ToLowerInvariant(); return _words != null && _words.Any(e => e.Word == w); }
 
         // wlasny slownik (jak na Androidzie): slowo wpisane litera po literze, ktorego nie ma w slowniku, od razu da sie pisac przeciagnieciem
@@ -121,6 +124,21 @@ namespace Przegladarka
                 _foldAll = all; _sortedFold = sorted.Select(x => x.F).ToArray(); _sortedEntry = sorted.Select(x => x.E).ToArray();
                 _main = main; _fold = fold;
             }
+            lock (_myFix) if (_myFix.TryGetValue(w, out var mf)) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(mf[0]) + mf.Substring(1) : mf;   // Twoja poprawka (skasowane i wpisane od nowa)
+            if (w == "ze") return null;
+            if (_polite.Contains(w)) return typed[0] == char.ToUpperInvariant(typed[0]) ? null : Polite(w);   // ty -> Ty   // ze / że - rozstrzyga nastepne slowo (ZeAsZe): ze mną, że to
+            // stale zwroty pisane blednie razem albo bez polskich znakow: napewno -> na pewno, wogole -> w ogóle
+            if (_phraseFix.TryGetValue(Fold(w), out var ph) && ph != w)
+                return char.IsUpper(typed[0]) ? char.ToUpperInvariant(ph[0]) + ph.Substring(1) : ph;
+            // "nie" z czasownikiem osobno: niewiem -> nie wiem (sklejonego nie ma w slowniku, reszta to czeste slowo); tez bez polskich znakow (niemoge -> nie mogę)
+            if (w.Length >= 5 && w.StartsWith("nie", StringComparison.Ordinal))
+            {
+                var rest = w.Substring(3); string restOk = null;
+                if (_foldAll != null && _foldAll.TryGetValue(Fold(rest), out var rl))   // tylko bardzo czeste slowo (wiem, mam, mogę) - rzadkie "niezaplanowany" zostaje razem
+                    restOk = rl.Where(e => e.Rank < 4000).OrderBy(e => e.Word == rest ? -1 : Score(e)).Select(e => e.Word).FirstOrDefault();
+                if (restOk != null && (IsVerbish(restOk) || !_foldAll.ContainsKey(Fold(w))))   // czasownik - osobno, nawet gdy blad "niewiem" jest w slowniku z tekstow
+                    return (char.IsUpper(typed[0]) ? "Nie " : "nie ") + restOk;
+            }
             if (main.Contains(w)) return null;
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
             var fw = new string(w.Select(BaseKey).ToArray());
@@ -142,9 +160,32 @@ namespace Przegladarka
                 foreach (var c in abc) cand(fw + c);
             }
             if (best == null || best.Word == w) return null;
-            var r = best.Word;
+            var r = Polite(best.Word);
             if (typed.All(char.IsUpper) && typed.Length > 1) return r.ToUpperInvariant();
             return char.IsUpper(typed[0]) ? char.ToUpperInvariant(r[0]) + r.Substring(1) : r;
+        }
+
+        // spacja: poprawka, a gdy jej nie ma - dokonczenie widoczne w pasku propozycji (klawi -> klawiatura).
+        // Poprawne slowo (dom, nie) i Moje slowa zostaja jak sa; dokonczenie tylko do czestego slowa
+        internal static string Complete(string typed, ICollection<string> keep = null)
+        {
+            var fix = Correct(typed, keep);
+            if (fix != null && (fix.Contains(' ') || Fold(fix) == Fold(typed))) return fix;   // polskie znaki, napewno, niewiem - pewna poprawka
+            if (_main == null || typed.Length < 3 || !typed.All(char.IsLetter)) return fix;
+            var w = typed.ToLowerInvariant();
+            if (keep != null && keep.Contains(w)) return fix;
+            lock (_ownFold) if (_ownFold.ContainsValue(w)) return fix;
+            var p = Predict(typed, false, 3).FirstOrDefault(x => x.Length > typed.Length && Fold(x).StartsWith(Fold(w), StringComparison.Ordinal));   // pierwsze dokonczenie w pasku propozycji
+            if (p == null || _foldAll == null) return fix;
+            bool ownP; lock (_ownFold) ownP = _ownFold.ContainsValue(p.ToLowerInvariant());
+            if (!_foldAll.TryGetValue(Fold(p), out var pl)) return ownP ? p : fix;   // Moje slowo (imie, nazwisko) - tez wstawiamy
+            var pe = pl.OrderBy(Score).First(); if (pe.Rank >= 60000 && !ownP) return fix;   // bardzo rzadkie slowo - nie zgadujemy
+            if (_main.Contains(w))
+            {   // wpisane to tez slowo: zostaje, chyba ze rzadkie, a dokonczenie duzo czestsze (pra -> prawda; dom, nie, kot zostaja)
+                var we = _foldAll.TryGetValue(Fold(w), out var wl) ? wl.FirstOrDefault(e => e.Word == w) : null;
+                if (we == null || Score(we) < 5000 || Score(pe) * 4 > Score(we)) return fix;
+            }
+            return p;
         }
 
         // watpliwosc (slowa nie ma w slowniku, a pewnej poprawki brak): do 3 propozycji - polskie znaki albo jedna litera, takze rzadkie slowa
@@ -197,15 +238,86 @@ namespace Przegladarka
         }
 
         // literowka znanego slowa (zolw, zzolw) - nie do Mojego slownika; slowo z polskimi znakami (klawiaturą) piszesz swiadomie - to nie literowka
-        internal static bool IsTypo(string w) { return !string.IsNullOrEmpty(w) && w.IndexOfAny("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ".ToCharArray()) < 0 && Correct(w, null, true) != null; }
+        internal static bool IsTypo(string w) { return !string.IsNullOrEmpty(w) && (IsMisspelling(w) || w.IndexOfAny("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ".ToCharArray()) < 0 && Correct(w, null, true) != null); }
+        // bledna pisownia (napewno, niewiem) - nigdy do Mojego slownika ani do slow bez poprawiania
+        internal static bool IsMisspelling(string w) { var c = string.IsNullOrEmpty(w) ? null : Correct(w); return c != null && c.Contains(' '); }
+
+        // czasownik (po koncowce albo jedna z najczestszych form) - z "nie" zawsze osobno (slownik z tekstow ma tez bledy: niewiem, niemam)
+        static readonly HashSet<string> _verbs = new HashSet<string> { "ma", "jest", "są", "może", "musi", "chce", "wie", "będzie", "było", "trzeba", "wolno", "umie", "zna", "lubi", "widzi", "mówi", "robi", "idzie", "je", "pije", "śpi", "daje", "da", "żyje", "działa", "pasuje", "wiadomo", "warto", "boli", "mam", "wiem", "umiem", "jem", "dam", "znam", "chcę", "mogę", "lubię", "rozumiem", "pamiętam" };
+        internal static bool IsVerbish(string w)
+        {
+            if (string.IsNullOrEmpty(w)) return false;
+            w = w.ToLowerInvariant();
+            return _verbs.Contains(w) || new[] { "ć", "ł", "ła", "ło", "li", "ły", "my", "cie", "sz", "ę", "em", "am" }.Any(x => w.EndsWith(x, StringComparison.Ordinal) && w.Length > x.Length + 1);
+        }
+
+        // czeste bledy w pisowni stalych zwrotow (klucz bez polskich znakow)
+        static readonly Dictionary<string, string> _phraseFix = new Dictionary<string, string> {
+            ["napewno"] = "na pewno", ["narazie"] = "na razie", ["wogole"] = "w ogóle", ["poprostu"] = "po prostu", ["naprzyklad"] = "na przykład",
+            ["conajmniej"] = "co najmniej", ["conajwyzej"] = "co najwyżej", ["spowrotem"] = "z powrotem", ["zpowrotem"] = "z powrotem", ["wkoncu"] = "w końcu",
+            ["napoczatku"] = "na początku", ["wszczegolnosci"] = "w szczególności", ["pozatym"] = "poza tym", ["wrazie"] = "w razie",
+            ["nazewnatrz"] = "na zewnątrz", ["dowidzenia"] = "do widzenia", ["naszczescie"] = "na szczęście", ["przedewszystkim"] = "przede wszystkim",
+            ["ztad"] = "stąd", ["zkad"] = "skąd" };
+        // zwracajac sie do kogos - wielka litera (grzecznosc w listach i wiadomosciach): ty -> Ty, cie -> Cię, twoja -> Twoja
+        static readonly HashSet<string> _polite = new HashSet<string> { "ty", "ci", "cię", "ciebie", "tobie", "tobą", "twój", "twoja", "twoją", "twoje", "twojego", "twojej", "twojemu", "twoim", "twoich", "twoimi" };
+        static string Polite(string r) { return r != null && _polite.Contains(r) ? char.ToUpperInvariant(r[0]) + r.Substring(1) : r; }
+        // dwa slowa, ktore piszemy razem: na prawdę -> naprawdę (klucz bez polskich znakow)
+        static readonly Dictionary<string, string> _pairFix = new Dictionary<string, string> {
+            ["na prawde"] = "naprawdę", ["na przeciwko"] = "naprzeciwko", ["na przeciw"] = "naprzeciw", ["z posrod"] = "spośród", ["z pod"] = "spod",
+            ["z nad"] = "znad", ["po mimo"] = "pomimo", ["z reszta"] = "zresztą", ["na reszcie"] = "nareszcie", ["do okola"] = "dookoła" };
+        internal static string JoinPair(string prev, string word)
+        {
+            if (string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(word)) return null;
+            if (!_pairFix.TryGetValue(Fold(prev.ToLowerInvariant()) + " " + Fold(word.ToLowerInvariant()), out var j)) return null;
+            return char.IsUpper(prev[0]) ? char.ToUpperInvariant(j[0]) + j.Substring(1) : j;
+        }
+
+        // "nie" + slowo, ktore piszemy razem (przymiotnik, przyslowek, rzeczownik): nie dobry -> niedobry - propozycja, nie automat (bywa "nie ma" / "niema")
+        internal static string JoinNie(string prev, string word)
+        {
+            if (_main == null || string.IsNullOrEmpty(word) || !string.Equals(prev, "nie", StringComparison.OrdinalIgnoreCase) || !word.All(char.IsLetter)) return null;
+            var j = "nie" + word.ToLowerInvariant();
+            return _main.Contains(j) && !IsVerbish(word) ? (char.IsUpper(prev[0]) ? "N" + j.Substring(1) : j) : null;
+        }
 
         // interpunkcja: przecinek przed spojnikami i zaimkami wzglednymi (wiem, że...; dom, który...; idę, bo...).
         // Bez przecinka, gdy slowo zaczyna zdanie albo poprzednie slowo to czesc spojnika (mimo że, chyba że, zwłaszcza że)
         // albo spojnik laczacy (i że, a że, oraz że, lub że, czy że, albo że) - tam przecinka nie stawiamy.
-        static readonly HashSet<string> _commaBefore = new HashSet<string> { "że", "żeby", "aby", "bo", "ale", "lecz", "gdyż", "ponieważ", "jeśli", "jeżeli", "chociaż", "choć", "czyli",
+        static readonly HashSet<string> _commaBefore = new HashSet<string> { "że", "żeby", "aby", "bo", "ale", "lecz", "gdyż", "ponieważ", "jeśli", "jeżeli", "chociaż", "choć", "czyli", "a", "więc", "zatem", "natomiast", "gdy", "kiedy", "gdzie", "dlaczego", "jakby",
             "który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi" };
-        static readonly HashSet<string> _noCommaAfter = new HashSet<string> { "mimo", "pomimo", "chyba", "zwłaszcza", "tylko", "dlatego", "tak", "podczas", "zanim", "nim", "przy", "po", "w", "z", "na", "do", "o", "od", "za", "przez", "dla", "u",
+        static readonly HashSet<string> _noCommaAfter = new HashSet<string> { "mimo", "pomimo", "chyba", "zwłaszcza", "tylko", "dlatego", "tak", "podczas", "zanim", "nim", "przy", "po", "w", "z", "na", "do", "o", "od", "za", "przez", "dla", "u", "tam", "wtedy", "zawsze", "nawet", "właśnie", "jak", "jakby", "kiedy", "gdy", "gdzie", "dlaczego", "więc", "zatem", "natomiast",
             "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "to", "co", "jak", "niż" };
+        // po tych slowach "ze" to prawie zawsze "że" - poprawiamy od razu po spacji (myślę ze -> myślę, że), bez czekania na nastepne slowo
+        static readonly HashSet<string> _zeHeads = new HashSet<string> { "myślę", "myśli", "myślisz", "myślał", "myślała", "myśleliśmy", "wiem", "wiesz", "wie", "wiemy", "wiedział", "wiedziała",
+            "mówię", "mówi", "mówisz", "mówił", "mówiła", "mówią", "powiem", "powiedział", "powiedziała", "powiedziałem", "powiedziałam", "sądzę", "sądzi", "uważam", "uważa", "uważasz",
+            "czuję", "widzę", "widać", "widzisz", "słyszę", "słyszałem", "słyszałam", "nadzieję", "wydaje", "wydawało", "okazało", "okazuje", "pamiętam", "pamiętaj", "zapomniałem", "zapomniałam",
+            "cieszę", "obiecuję", "obiecałem", "twierdzi", "twierdzę", "przyznaję", "wierzę", "wątpię", "rozumiem", "napisał", "napisała", "pisze", "dowiedziałem", "dowiedziałam",
+            "prawda", "pewnie", "jasne", "ważne", "możliwe", "szkoda", "dobrze", "fakt", "znaczy", "chodzi", "tak", "chyba", "mimo", "pomimo", "to", "dlatego", "zwłaszcza", "tylko", "się", "sam", "sama" };
+        internal static string ZeNow(string ze, string prev)
+        {
+            if (!string.Equals(ze, "ze", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(prev) || !prev.All(char.IsLetter)) return null;
+            if (!_zeHeads.Contains(prev.ToLowerInvariant()) && !IsVerbish(prev)) return null;   // po czasowniku (powiedzieć ze, wiedział ze) - tez "że"; "ze mną" dalej wraca do "ze"
+            if (PairCount(prev.ToLowerInvariant() + " ze") > PairCount(prev.ToLowerInvariant() + " że")) return null;   // u Ciebie po tym slowie zwykle "ze" (wyuczone)
+            return char.IsUpper(ze[0]) ? "Że" : "że";
+        }
+
+        // "ze" zamiast "że" (bez AltGr): rozpoznane po nastepnym slowie. Przyimek zostaje: ze mną, ze szkoły, ze względu, ze wszystkimi;
+        // "że" przed zwyklym slowem albo czasownikiem: ze to -> że to, ze zrobił -> że zrobił. Zwraca zamiennik "ze" (z przecinkiem) albo null
+        internal static string ZeAsZe(string ze, string next, string before)
+        {
+            if (!string.Equals(ze, "ze", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(next) || !next.All(char.IsLetter)) return null;
+            var n = next.ToLowerInvariant(); const string v = "aąeęioóuy";
+            int ze2 = PairCount("ze " + n), zz = PairCount("że " + n);   // kontekst wyuczony z Twojego pisania ma pierwszenstwo
+            bool prep = ze2 != zz ? ze2 > zz : n.StartsWith("mn", StringComparison.Ordinal) || n == "sobą" || n == "sobie"
+                || n.StartsWith("wszystk", StringComparison.Ordinal) && n != "wszystko" && n != "wszystkie"
+                || n.Length > 1 && "szśźżwfł".IndexOf(n[0]) >= 0 && v.IndexOf(n[1]) < 0 && !n.StartsWith("wszys", StringComparison.Ordinal)
+                    && (n[0] != 'w' || "szłrnśżź".IndexOf(n[1]) >= 0)   // ze wsi, ze względu, ze włosów; ale że wpisywanie, że wcale
+                    && !new[] { "ł", "łem", "łam", "łeś", "łaś", "ć" }.Any(x => n.EndsWith(x, StringComparison.Ordinal));   // ze zrobił -> że zrobił
+            if (prep) return null;
+            var r = char.IsUpper(ze[0]) ? "Że" : "że";
+            return NeedsComma("że", before) ? ", " + r : r;
+        }
+
         internal static bool NeedsComma(string word, string prev)
         {
             if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(prev) || !prev.All(char.IsLetter)) return false;
@@ -308,6 +420,64 @@ namespace Przegladarka
         }
 
         // trojki slow (zwroty): "daj znać" -> "jak"; ten sam zapis co pary (klucz z dwiema spacjami)
+        // Twoje poprawki: slowo skasowane i wpisane od nowa (kmoputer -> komputer) - nastepnym razem poprawiane samo
+        static readonly Dictionary<string, string> _myFix = new Dictionary<string, string>();
+        internal static bool LearnFix(string typo, string fix)
+        {
+            if (string.IsNullOrEmpty(typo) || string.IsNullOrEmpty(fix) || typo.Length < 3 || fix.Length < 2 || !typo.All(char.IsLetter) || !fix.All(char.IsLetter)) return false;
+            string t = typo.ToLowerInvariant(), f = fix.ToLowerInvariant();
+            if (t == f || _main == null || _main.Contains(t) || Edits(t, f) > Math.Max(1, Math.Min(2, t.Length / 3))) return false;   // poprawne slowo zmienione na inne albo zupelnie inne slowo - to nie literowka
+            lock (_myFix) { _myFix[t] = f; if (_myFix.Count > 2000) _myFix.Remove(_myFix.Keys.First()); }
+            return true;
+        }
+        // odleglosc edycyjna z zamiana sasiednich liter (kmoputer / komputer = 1)
+        static int Edits(string a, string b)
+        {
+            var d = new int[a.Length + 1, b.Length + 1];
+            for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+            for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+            for (int i = 1; i <= a.Length; i++)
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
+                    if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+                }
+            return d[a.Length, b.Length];
+        }
+        static IEnumerable<string> FixLines() { lock (_myFix) return _myFix.Select(kv => ">" + kv.Key + "\t" + kv.Value).ToList(); }
+
+        // cale zdania: czesto powtarzane (co najmniej 2 razy) podsuwane na pasku nad propozycjami, Ctrl+Spacja wstawia reszte
+        static readonly Dictionary<string, int> _sentences = new Dictionary<string, int>();
+        internal static void LearnSentence(string text)
+        {
+            text = text?.Trim(); if (string.IsNullOrEmpty(text) || text.Length < 8 || text.Length > 200 || text.Count(c => c == ' ') < 2) return;
+            lock (_sentences) { _sentences[text] = (_sentences.TryGetValue(text, out var n) ? n : 0) + 1; if (_sentences.Count > 500) _sentences.Remove(_sentences.OrderBy(x => x.Value).First().Key); }
+        }
+        internal static string SentenceRest(string prefix)
+        {
+            prefix = prefix?.TrimStart(); if (string.IsNullOrEmpty(prefix) || prefix.Length < 4) return null;
+            lock (_sentences)
+            {
+                var best = _sentences.Where(kv => kv.Value >= 2 && kv.Key.Length > prefix.Length + 2 && kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).OrderByDescending(kv => kv.Value).FirstOrDefault();
+                return best.Key?.Substring(prefix.Length);
+            }
+        }
+        static IEnumerable<string> SentenceLines() { lock (_sentences) return _sentences.Select(kv => "*" + kv.Value + "\t" + kv.Key).ToList(); }
+        // biezace zdanie (slowa juz w tekscie, z przecinkami) - do nauki i podpowiedzi zdan
+        internal sealed class SentenceBuf
+        {
+            readonly List<string> _w = new List<string>(); readonly List<bool> _comma = new List<bool>();
+            internal void Word(string w, bool commaBefore, bool commaAfter)
+            {
+                lock (_w) { if (commaBefore && _comma.Count > 0) _comma[_comma.Count - 1] = true; _w.Add(w); _comma.Add(commaAfter); if (_w.Count > 40) Clear(); }
+            }
+            internal void Replace(string last, bool commaBefore) { lock (_w) if (_w.Count > 0) { _w[_w.Count - 1] = last; if (commaBefore && _w.Count > 1) _comma[_w.Count - 2] = true; } }
+            internal void RemoveLast() { lock (_w) if (_w.Count > 0) { _w.RemoveAt(_w.Count - 1); _comma.RemoveAt(_comma.Count - 1); } }
+            internal void Clear() { lock (_w) { _w.Clear(); _comma.Clear(); } }
+            internal string Text(bool trailing) { lock (_w) return string.Concat(_w.Select((x, i) => x + (i < _w.Count - 1 || trailing ? (_comma[i] ? ", " : " ") : ""))); }
+        }
+
+        static int PairCount(string k) { lock (_pairs) return _pairs.TryGetValue(k, out var c) ? c : 0; }
         internal static void LearnTriple(string prev2, string prev, string word)
         {
             if (string.IsNullOrEmpty(prev2) || string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(word)) return;
@@ -369,7 +539,9 @@ namespace Przegladarka
                 var text = string.Join("\n", learned.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).Take(5000).Select(kv => kv.Key + "\t" + kv.Value)
                     .Concat(own.Select(w => "+" + w))
                     .Concat(ShapeLines())
-                    .Concat(PairLines()));
+                    .Concat(PairLines())
+                    .Concat(FixLines())
+                    .Concat(SentenceLines()));
                 // zaszyfrowane kontem Windows - w folderze danych nie ma jawnej listy wpisywanych slow
                 File.WriteAllBytes(file, System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(text), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser));
             }
@@ -419,6 +591,8 @@ namespace Przegladarka
                     {
                         if (line.StartsWith("+")) { if (line.Length > 2) own?.Add(line.Substring(1)); continue; }
                         if (line.StartsWith("~")) { ReadShape(line); continue; }
+                        if (line.StartsWith("*")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[0], out var sc) && q[1].Length > 0) lock (_sentences) _sentences[q[1]] = sc; continue; }
+                        if (line.StartsWith(">")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && q[0].Length > 0 && q[1].Length > 0) lock (_myFix) _myFix[q[0]] = q[1]; continue; }
                         if (line.StartsWith("=")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[1], out var pc)) lock (_pairs) _pairs[q[0]] = pc; continue; }
                         var p = line.Split('\t');
                         if (p.Length == 2 && int.TryParse(p[1], out var n) && p[0].Length > 0) d[p[0]] = n;

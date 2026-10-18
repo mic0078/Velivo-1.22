@@ -13,7 +13,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Tryb bankowy: osobny, odizolowany profil przegladarki na banki i zakupy.
     //  - wlasne ciasteczka / logowania / pamiec (zwykle karty nic z niego nie widza i odwrotnie),

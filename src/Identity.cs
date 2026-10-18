@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Velivo przedstawia sie stronom jak zwykly Microsoft Edge (ten sam silnik).
     // WebView2 dopisuje do Client Hints marke "Microsoft Edge WebView2", po ktorej m.in. Google

@@ -11,7 +11,7 @@ using System.Windows.Shell;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
-namespace Przegladarka
+namespace Velivo
 {
     // "Film na wierzchu": wlasne okienko Velivo z samym filmem, zawsze na wierzchu, dowolnie male (od 160x90).
     // Dziala niezaleznie od kart - zamkniecie karty nie zatrzymuje filmu; zamkniecie okienka - tak.

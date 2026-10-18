@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Informacje o filmach z Jellyfin: dopasowanie po nazwie pliku (rozne sciezki na komputerach) i odczyt danych filmu.

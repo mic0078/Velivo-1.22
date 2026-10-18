@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Tekst z otwartego PDF (do trybu czytania i czytania na glos). Wbudowany czytnik PDF silnika nie daje dostepu do tekstu,
     // wiec Velivo czyta plik sam - lokalnie, biblioteka pdf.js (Mozilla) z katalogu programu, w ukrytym silniku bez dostepu

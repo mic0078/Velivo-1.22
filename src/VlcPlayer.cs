@@ -12,7 +12,7 @@ using System.Windows.Threading;
 using LibVLCSharp.Shared;
 using LibVLCSharp.WPF;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Odtwarzacz filmow jak VLC (dodatek wybierany w instalatorze): AVI, MKV, WMV, FLV, MPG, TS i inne kodeki przez biblioteke VLC
     // (libvlc w folderze programu vlc\ - pobierana przez instalator z oficjalnej paczki VideoLAN). Bez dodatku Velivo dziala jak dotad

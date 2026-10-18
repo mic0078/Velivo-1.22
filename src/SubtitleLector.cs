@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Lektor w odtwarzaczu filmow: czyta napisy na glos w chwili ich pojawienia sie (jak lektor w TV), film na ten czas
     // sciszony. Napisy z pliku obok filmu (film.srt, film.pl.srt, .ass/.ssa/.vtt) albo wczytane recznie. Glos: Piper (wybrany

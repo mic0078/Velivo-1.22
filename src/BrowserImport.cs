@@ -8,7 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Import z innych przegladarek (Chrome, Edge, Brave, Opera, Vivaldi): zakladki czytane wprost z ich plikow,
     // hasla - przez eksport CSV (przegladarki szyfruja hasla tak, ze inny program nie moze ich odczytac).

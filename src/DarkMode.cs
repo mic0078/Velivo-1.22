@@ -7,7 +7,7 @@ using System.Windows;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 
-namespace Przegladarka
+namespace Velivo
 {
     // Tryb ciemny stron (przycisk z ksiezycem):
     //  1) strony z wlasnym ciemnym wygladem dostaja prosbe o niego (prefers-color-scheme: dark) - od razu,
@@ -242,7 +242,7 @@ namespace Przegladarka
                 var psi = new ProcessStartInfo(Process.GetCurrentProcess().MainModule.FileName) { UseShellExecute = false };
                 psi.ArgumentList.Add("--czekaj-na");
                 psi.ArgumentList.Add(Environment.ProcessId.ToString());
-                if (Environment.GetEnvironmentVariable("PRZEGLADARKA_DANE") != null) psi.Environment["PRZEGLADARKA_DANE"] = DataDir;
+                if (Environment.GetEnvironmentVariable("VELIVO_DANE") != null) psi.Environment["VELIVO_DANE"] = DataDir;
                 Process.Start(psi);
                 Close();
             }

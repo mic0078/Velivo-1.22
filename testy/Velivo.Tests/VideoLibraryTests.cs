@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
-using Przegladarka;
+using Velivo;
 using Xunit;
 
 // Biblioteka filmow (filmy.json) i wznawianie - logika bez biblioteki VLC.
@@ -136,8 +136,8 @@ public class VideoLibraryTests
     {
         var work = new System.Windows.Rect(0, 0, 1920, 1040);
         var a = new System.Windows.Rect(100, 100, 400, 300);
-        var p = Przegladarka.App.CascadeSpot(a, new[] { a, new System.Windows.Rect(130, 130, 400, 300) }, work);
+        var p = Velivo.App.CascadeSpot(a, new[] { a, new System.Windows.Rect(130, 130, 400, 300) }, work);
         Assert.Equal(new System.Windows.Point(160, 160), p);   // trzecie okno - po skosie dalej
-        Assert.Equal(new System.Windows.Point(100, 100), Przegladarka.App.CascadeSpot(a, new[] { new System.Windows.Rect(100, 100, 800, 600) }, work));   // inny rozmiar - bez zmian
+        Assert.Equal(new System.Windows.Point(100, 100), Velivo.App.CascadeSpot(a, new[] { new System.Windows.Rect(100, 100, 800, 600) }, work));   // inny rozmiar - bez zmian
     }
 }

@@ -89,4 +89,10 @@
     <string name="file_sent">Sent: %1$s</string>
     <string name="file_declined">The computer declined the file</string>
     <string name="file_send_failed">Could not send the file: %1$s</string>
+    <string name="menu_tabs">Tabs</string>
+    <string name="menu_mine">My things</string>
+    <string name="menu_settings">Settings</string>
+    <string name="on">on</string>
+    <string name="off">off</string>
+    <string name="history_cleared">History cleared</string>
 </resources>

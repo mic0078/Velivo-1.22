@@ -89,4 +89,10 @@
     <string name="file_sent">Wysłano: %1$s</string>
     <string name="file_declined">Komputer nie przyjął pliku</string>
     <string name="file_send_failed">Nie udało się wysłać pliku: %1$s</string>
+    <string name="menu_tabs">Karty</string>
+    <string name="menu_mine">Moje</string>
+    <string name="menu_settings">Ustawienia</string>
+    <string name="on">włączone</string>
+    <string name="off">wyłączone</string>
+    <string name="history_cleared">Historia wyczyszczona</string>
 </resources>

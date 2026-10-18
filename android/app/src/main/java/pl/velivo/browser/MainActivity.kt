@@ -54,7 +54,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
-import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
@@ -111,7 +110,16 @@ class MainActivity : Activity() {
         tabsBtn = button("1", R.string.tabs, BLUE, BLUE_BG) { showTabs() }
         bar.addView(button("🕶", R.string.new_private_tab, PURPLE, PRIV_BG) { newTab(true, home) })
         bar.addView(tabsBtn)
-        bar.addView(button("⋮", R.string.menu, TEXT, GRAY_BG) { showMenu(it) })
+        // logo Velivo zamiast ⋮ - otwiera menu Velivo
+        bar.addView(ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher)
+            setPadding(dp(5), dp(5), dp(5), dp(5))
+            background = round(GRAY_BG)
+            contentDescription = getString(R.string.menu)
+            tooltipText = getString(R.string.menu)
+            isClickable = true
+            setOnClickListener { showMenu(it) }
+        }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { setMargins(dp(3), 0, dp(3), 0) })
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
         frame = FrameLayout(this)
         val nav = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)) }
@@ -464,47 +472,110 @@ set(p0,p);})"""
         return row
     }
 
-    private fun showMenu(anchor: View) {
-        val m = PopupMenu(this, anchor)
-        m.menu.add(0, 1, 0, R.string.new_tab)
-        m.menu.add(0, 2, 0, R.string.new_private_tab)
-        m.menu.add(0, 14, 0, R.string.quick_access)
-        m.menu.add(0, 3, 0, R.string.add_bookmark)
-        m.menu.add(0, 4, 0, R.string.bookmarks)
-        m.menu.add(0, 5, 0, R.string.history)
-        m.menu.add(0, 6, 0, R.string.clear_history)
-        m.menu.add(0, 15, 0, R.string.fill_password)
-        m.menu.add(0, 9, 0, R.string.passwords)
-        m.menu.add(0, 10, 0, R.string.bank_mode)
-        m.menu.add(0, 11, 0, R.string.theme)
-        m.menu.add(0, 13, 0, R.string.lan_sync)
-        m.menu.add(0, 12, 0, R.string.background_play).apply { isCheckable = true; isChecked = prefs.getBoolean("tlo", true) }
-        m.menu.add(0, 7, 0, R.string.adblock).apply { isCheckable = true; isChecked = prefs.getBoolean("adblock", true) }
-        m.menu.add(0, 8, 0, getString(R.string.blocked, blockedCount)).isEnabled = false
-        m.setOnMenuItemClickListener {
-            when (it.itemId) {
-                1 -> newTab(false, QuickAccess.URL)
-                2 -> newTab(true, home)
-                3 -> web()?.let { w -> w.url?.let { u -> addTo("zakladki", w.title ?: u, u, 500); toast(getString(R.string.added)) } }
-                4 -> pick("zakladki", R.string.bookmarks)
-                5 -> pick("historia", R.string.history)
-                6 -> { prefs.edit().remove("historia").apply(); web()?.clearHistory() }
-                9 -> unlock { showPasswords() }
-                10 -> openBank()
-                11 -> chooseTheme()
-                13 -> unlock { showLanSync() }
-                14 -> web()?.loadUrl(QuickAccess.URL)
-                15 -> fillFromMenu()
-                12 -> {
-                    val on = !prefs.getBoolean("tlo", true)
-                    prefs.edit().putBoolean("tlo", on).apply()
-                    if (on && Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
-                }
-                7 -> prefs.edit().putBoolean("adblock", !prefs.getBoolean("adblock", true)).apply()
+    // Menu Velivo: wysuwane od dołu, logo i licznik reklam na górze, kolorowe kafelki jak przyciski Velivo na Windows.
+    private fun menuAction(id: Int) {
+        when (id) {
+            1 -> newTab(false, QuickAccess.URL)
+            2 -> newTab(true, home)
+            3 -> web()?.let { w -> w.url?.let { u -> addTo("zakladki", w.title ?: u, u, 500); toast(getString(R.string.added)) } }
+            4 -> pick("zakladki", R.string.bookmarks)
+            5 -> pick("historia", R.string.history)
+            6 -> { prefs.edit().remove("historia").apply(); web()?.clearHistory(); toast(getString(R.string.history_cleared)) }
+            9 -> unlock { showPasswords() }
+            10 -> openBank()
+            11 -> chooseTheme()
+            13 -> unlock { showLanSync() }
+            14 -> web()?.loadUrl(QuickAccess.URL)
+            15 -> fillFromMenu()
+            12 -> {
+                val on = !prefs.getBoolean("tlo", true)
+                prefs.edit().putBoolean("tlo", on).apply()
+                if (on && Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
             }
-            true
+            7 -> prefs.edit().putBoolean("adblock", !prefs.getBoolean("adblock", true)).apply()
         }
-        m.show()
+    }
+
+    private fun showMenu(@Suppress("UNUSED_PARAMETER") anchor: View) {
+        val dlg = android.app.Dialog(this)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(18))
+            background = GradientDrawable().apply {
+                setColor(BAR)
+                cornerRadii = floatArrayOf(dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), 0f, 0f, 0f, 0f)
+            }
+        }
+        // uchwyt do przeciągnięcia (jak w menu Androida)
+        box.addView(View(this).apply { background = round(GRAY_BG) }, LinearLayout.LayoutParams(dp(40), dp(5)).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(12) })
+        // nagłówek: logo Velivo, nazwa, licznik zablokowanych reklam
+        val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        head.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher) }, LinearLayout.LayoutParams(dp(40), dp(40)))
+        head.addView(TextView(this).apply {
+            text = "Velivo"; textSize = 22f; setTextColor(TEXT); setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        head.addView(TextView(this).apply {
+            text = "🛡 " + getString(R.string.blocked, blockedCount)
+            textSize = 13f; setTextColor(GREEN); background = round(GREEN_BG); setPadding(dp(10), dp(5), dp(10), dp(5))
+        })
+        box.addView(head)
+
+        fun section(title: Int, items: List<Triple<String, Int, Int>>, toggles: Map<Int, Boolean> = emptyMap()) {
+            box.addView(TextView(this).apply {
+                text = getString(title); textSize = 13f; setTextColor(c("#6B7280", "#9CA3AF")); setPadding(dp(2), dp(14), 0, dp(6))
+            })
+            val grid = android.widget.GridLayout(this).apply { columnCount = 3 }
+            for ((icon, label, id) in items) {
+                val on = toggles[id]
+                val (fg, bg) = when {
+                    on == true -> GREEN to GREEN_BG
+                    on == false -> c("#6B7280", "#9CA3AF") to GRAY_BG
+                    id == 2 -> PURPLE to PRIV_BG
+                    id == 10 -> c("#0F766E", "#5EEAD4") to BANK_BG
+                    id == 6 -> c("#B91C1C", "#FCA5A5") to c("#FEE2E2", "#450A0A")
+                    id in setOf(11, 13) -> ORANGE to ORANGE_BG
+                    else -> BLUE to BLUE_BG
+                }
+                val tile = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    background = round(bg)
+                    setPadding(dp(4), dp(10), dp(4), dp(10))
+                    contentDescription = getString(label)
+                    tooltipText = getString(label)
+                    isClickable = true
+                    foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(60, 128, 128, 128)), null, round(Color.WHITE))
+                    setOnClickListener { dlg.dismiss(); menuAction(id) }
+                }
+                tile.addView(TextView(this).apply { text = icon; textSize = 24f; gravity = Gravity.CENTER })
+                tile.addView(TextView(this).apply {
+                    text = getString(label) + (if (on != null) "\n" + getString(if (on) R.string.on else R.string.off) else "")
+                    textSize = 12f; setTextColor(fg); gravity = Gravity.CENTER; maxLines = 3
+                })
+                grid.addView(tile, android.widget.GridLayout.LayoutParams(
+                    android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED), android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
+                ).apply { width = 0; setMargins(dp(4), dp(4), dp(4), dp(4)) })
+            }
+            box.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        }
+        section(R.string.menu_tabs, listOf(
+            Triple("＋", R.string.new_tab, 1), Triple("🕶", R.string.new_private_tab, 2), Triple("⭐", R.string.quick_access, 14),
+            Triple("🏦", R.string.bank_mode, 10)))
+        section(R.string.menu_mine, listOf(
+            Triple("🔖", R.string.bookmarks, 4), Triple("➕", R.string.add_bookmark, 3), Triple("🕘", R.string.history, 5),
+            Triple("🔑", R.string.passwords, 9), Triple("✍", R.string.fill_password, 15)))
+        section(R.string.menu_settings, listOf(
+            Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
+            Triple("💻", R.string.lan_sync, 13), Triple("🧹", R.string.clear_history, 6)),
+            mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
+        dlg.setContentView(ScrollView(this).apply { addView(box) })
+        dlg.window?.apply {
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+            setLayout(-1, -2)
+            setGravity(Gravity.BOTTOM)
+            attributes = attributes.apply { windowAnimations = android.R.style.Animation_InputMethod }
+        }
+        dlg.show()
     }
 
     // Zapis listy: każda pozycja to "tytuł\turl", najnowsze na górze.

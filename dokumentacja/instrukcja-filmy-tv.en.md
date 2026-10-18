@@ -132,6 +132,8 @@ Open it with **L** or move the cursor to the left edge of the picture.
 - **🎲 Pick random videos** – when you don't know what to watch.
 - **✏ Rename**, **🔎 Look up information online**, **📝 Fill in information manually**.
 - Descriptions and covers can come from Jellyfin and Filmweb.
+- **🔄 Refresh** downloads new data from Jellyfin and adds new films to the library. If films were removed from Jellyfin, Velivo shows a list and removes them from the library only after **Yes** – the files on the disk stay.
+- **Automatic refresh:** in **🎞 Jellyfin…** choose "every hour", "every 6 hours" or "once a day". New films are added to the library automatically; Velivo reminds you about removed ones with a notification and asks when you click 🔄 Refresh.
 
 ---
 

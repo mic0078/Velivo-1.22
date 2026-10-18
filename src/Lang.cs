@@ -756,6 +756,7 @@ namespace Przegladarka
             { "💾 Zapisz", "💾 Save" },
             { "Zapisz Mój słownik (Ctrl+S)", "Save My dictionary (Ctrl+S)" },
             { "Słów: ", "Words: " },
+            { "➕ Dodano do słownika: ", "➕ Added to dictionary: " },
             { "🧹 Porządkuj", "🧹 Clean up" },
             { "Usuń słowa, które są już we wbudowanym słowniku, i literówki – zostaną Twoje imiona, nazwy i skróty (Ctrl+Z cofa)", "Remove words that are already in the built-in dictionary and typos – your names and abbreviations stay (Ctrl+Z undoes)" },
             { "nic do usunięcia", "nothing to remove" },

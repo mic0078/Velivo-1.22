@@ -433,6 +433,7 @@ namespace Przegladarka
         }
         static string _pRetype;   // slowo skasowane ⌫ zaraz po wpisaniu - wpisane od nowa uczy poprawki (kmoputer -> komputer)
         static Action<string, string> _physFixLearned;
+        static Action<string> _physAddWord;   // Ctrl+Spacja: slowo do Mojego slownika
         static void PhysReset() { _sent.Clear(); _pRetype = null; _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
@@ -486,6 +487,20 @@ namespace Przegladarka
             }
             bool autoSp = _pAutoSpace; _pAutoSpace = false;
             char sep = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : '\0';
+            if (vk == 0x20 && ctrl && !alt && !sh && _sentRest == null && !_physStale && _pWord.Length >= 2 && _pWord.All(char.IsLetter) && !SwipeTyping.IsKnown(_pWord))
+            {   // Ctrl+Spacja po nowym slowie (spoza slownika): do Mojego slownika i spacja
+                var nw = _pWord; var ins = new List<KbdInput>();
+                bool lc = GetAsyncKeyState(0xA2) < 0, rc = GetAsyncKeyState(0xA3) < 0;
+                if (lc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2, Flags = KeyUp } } });
+                if (rc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA3, Flags = KeyUp | KeyExt } } });
+                ins.AddRange(TextIn(" "));
+                if (lc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA2 } } });
+                if (rc) ins.Add(new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = 0xA3, Flags = KeyExt } } });
+                Inject(ins);
+                SentAdd(nw, ' ', false, null, true); var pw = _pPrevWord; PhysAfterInsert(nw, pw); _pAutoSpace = false; _pPrev = ' ';
+                var aw = _physAddWord; if (aw != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => aw(nw)));
+                PhysPred(null, false); return true;
+            }
             if (vk == 0x20 && ctrl && !alt && !sh && _sentRest != null)
             {   // Ctrl+Spacja: reszta podpowiadanego zdania (tylko gdy zdanie jest na pasku - inaczej skrot dziala jak zawsze)
                 var rest = _sentRest; _sentRest = null;
@@ -534,7 +549,7 @@ namespace Przegladarka
 
         static void StopKeyEcho()
         {
-            _onPhysKey = null; _physCorrect = null; _physNotify = _physUndone = null; _physAsk = null; _physPred = null;
+            _onPhysKey = null; _physCorrect = null; _physNotify = _physUndone = null; _physAsk = null; _physPred = null; _physAddWord = null;
             if (_keyThread != 0) PostThreadMessage(_keyThread, 0x12, IntPtr.Zero, IntPtr.Zero);   // WM_QUIT - koniec podsluchu
         }
 
@@ -1381,6 +1396,11 @@ namespace Przegladarka
                 if (!SwipeTyping.IsKnown(good)) askAdd(good);   // nowe slowo (imie, nazwa) - do Mojego slownika po kliknieciu ➕
             };
             _physFixLearned = fixLearned;
+            _physAddWord = nw =>
+            {
+                keepWord(nw); hideAdd();
+                ask.Text = L.T("➕ Dodano do słownika: ") + nw; ask.Visibility = Visibility.Visible; title.Visibility = Visibility.Collapsed;
+            };
             _physUndone = (from, to) =>
             {
                 ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;

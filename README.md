@@ -18,7 +18,8 @@
   🎨 <b>Piękny, nowoczesny wygląd</b> jak Windows 11 – 10 motywów, tryb ciemny i nocny<br>
   🧩 <b>Lekkie, wbudowane dodatki</b> – bez szukania w sklepie i bez spowalniania<br>
   🎬 Film w przezroczystym okienku nad wszystkim – gra nawet po zamknięciu przeglądarki<br>
-  🎞 <b>Wszystko w jednym</b> – filmy z dysku, PDF i torrenty bez instalowania dodatkowych programów<br>
+  🎞 <b>Wszystko w jednym</b> – filmy z dysku, telewizja, napisy z lektorem, PDF i torrenty bez instalowania dodatkowych programów<br>
+  ⌨ <b>Klawiatura, która pisze poprawnie</b> – w każdym programie poprawia polskie znaki, literówki i przecinki, podpowiada słowa i zdania, działa z padem · 🗒 karteczki z przypomnieniem<br>
   🏦 <b>Tryb bankowy</b> – osobny, zaszyfrowany sejf na banki, sklepy, karty i hasła, otwierany <b>kluczem sprzętowym</b> (YubiKey, Google Titan) albo hasłem<br>
   ✨ Efekty wejścia stron (kinowe z ciemności, wyostrzenie) i <b>wczytywanie strony już przy najechaniu na link</b><br>
   🛡 Wbudowany uBlock Origin Lite i wykrywanie fałszywych stron banków bez internetu<br>

@@ -190,7 +190,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 
 ## 11. Napisy i lektor
 
-- **Pobierz napisy** – z menu pod prawym przyciskiem.
+- **💬 Pobierz napisy…** – z menu pod prawym przyciskiem (na filmie albo w bibliotece). Napisy pochodzą z OpenSubtitles.com: logujesz się raz swoim kontem (hasło zapisane zaszyfrowane na tym komputerze), Velivo szuka po odcisku pliku i po nazwie, a wybrane napisy zapisuje obok filmu jako `film.pl.srt` – wczytują się same.
 - **G / H** – przesuwasz napisy, gdy się spóźniają lub wyprzedzają; Velivo zapamięta to dla filmu.
 - **Lektor** czyta napisy na głos; ustawienia lektora są zapamiętywane dla każdego filmu.
 

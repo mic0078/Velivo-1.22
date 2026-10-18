@@ -149,7 +149,7 @@ def render(lines, h0, h1, h2, story, skip_sections=()):
 story = [Spacer(1, 50*mm), Paragraph('VELIVO 1.22', st['title']),
          Paragraph('KOMPLETNA INSTRUKCJA I KATALOG FUNKCJI', st['part']), Spacer(1, 8*mm),
          Paragraph('Podręcznik użytkownika – wszystkie funkcje krok po kroku', st['sub']), Spacer(1, 50*mm),
-         Paragraph('Wersja programu 1.22 · instalator 1f08f31 · październik 2026', st['sub']), PageBreak()]
+         Paragraph('Wersja programu 1.22 · dokumentacja 18 października 2026', st['sub']), PageBreak()]
 toc = TableOfContents(); toc.levelStyles = [st['toc1'], st['toc2']]
 story += [Paragraph('Spis treści', st['h1']), toc, PageBreak()]
 render(open(MAIN, encoding='utf-8').read().split('\n')[1:], 1, 2, 3, story)

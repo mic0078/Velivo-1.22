@@ -18,7 +18,8 @@
   🎨 <b>Beautiful, modern look</b> like Windows 11 – 10 themes, dark and night mode<br>
   🧩 <b>Light, built-in add-ons</b> – no store hunting and no slowdown<br>
   🎬 Video in a see-through window above everything – keeps playing even after the browser is closed<br>
-  🎞 <b>All in one</b> – videos from disk, PDFs and torrents without installing extra programs<br>
+  🎞 <b>All in one</b> – videos from disk, TV, subtitles with a narrator, PDFs and torrents without installing extra programs<br>
+  ⌨ <b>A keyboard that writes correctly</b> – in any program it fixes Polish letters, typos and commas, suggests words and sentences, works with a gamepad · 🗒 sticky notes with reminders<br>
   🏦 <b>Banking mode</b> – a separate, encrypted vault for banks, shops, cards and passwords, opened with a <b>hardware security key</b> (YubiKey, Google Titan) or a password<br>
   ✨ Page entrance effects (cinematic from darkness, focus-in) and <b>pages that start loading when you hover a link</b><br>
   🛡 Built-in uBlock Origin Lite and offline detection of fake bank sites<br>

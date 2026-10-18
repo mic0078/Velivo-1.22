@@ -67,8 +67,8 @@ Velivo is designed to be fully usable with the mouse alone, even from the sofa i
 
 | Item | Size |
 | --- | --- |
-| **Installer** `Velivo-Setup-1.22.exe` | **about 13 MB** (about 6 MB of it are the rule lists of the built-in uBlock Origin Lite) |
-| **Installed program** | about 30–40 MB (including Windows components and the Quick Access add-on) |
+| **Installer** `Velivo-Setup-1.22.exe` | **about 60 MB** – including the built-in .NET 10 and the uBlock Origin Lite rule lists; nothing else to install |
+| **Installed program** | about 190 MB (including .NET 10 and the Quick Access add-on) |
 | **RAM used by Velivo itself** (`Velivo.exe`) | typically **50–80 MB** |
 | For comparison: Chrome or Firefox installer | about 100–130 MB |
 
@@ -98,10 +98,9 @@ Velivo is designed to be fully usable with the mouse alone, even from the sofa i
 
 **Requirements:**
 - Windows 10 version 1809 or newer, or Windows 11, 64-bit;
-- .NET 10 Desktop Runtime (x64);
-- Microsoft Edge WebView2 Runtime (always present in Windows 11).
+- internet during setup only if WebView2 is missing or you choose the video player.
 
-If something is missing, the installer detects it and opens the download page.
+**.NET 10 is built into Velivo** – no need to install it. **Microsoft Edge WebView2** (the page engine) is in Windows 11 and current Windows 10; if it is missing, the installer downloads it from Microsoft and installs it. The VLC-like video player (about 145 MB, official VideoLAN package) is installed only if you tick it in the installer.
 
 **Step by step:**
 1. Download `Velivo-Setup-1.22.exe` from the [`Instalator`](Instalator) folder.
@@ -229,6 +228,26 @@ A **pinned tab** is not closed by the ↓ gesture (just like it has no close but
 
 ---
 
+### ⌨ Velivo on-screen keyboard
+
+**On by default** (Settings → "⌨ Velivo on-screen keyboard").
+
+- **Opening:** middle-click a text field, hold the wheel for about 1 s anywhere, click the keyboard icon by the clock, or use the **Velivo Klawiatura** shortcut in the Start menu (right-click → Pin to taskbar). Optional: right-click the tray icon → **Open automatically when you click a text field**. The **—** button hides it to the tray; hidden, it keeps correcting what you type on a physical keyboard.
+- **Correct spelling** (✓ abc in the header): after Space it fixes Polish letters and typos (zolw → żółw), „nie” with verbs (niewiem → nie wiem), fixed phrases (napewno → na pewno), „ze/że” by context, polite capitals (ty → Ty). **⌫ right after a correction undoes it.**
+- **Punctuation:** commas before że, który, bo, ale, a…; a comma or period sticks to the word („kot ,” → „kot,”); a space is added after a comma; capital letter after a period.
+- **Suggestions:** the strip above the keys shows completions (Space inserts the first one), the next word you usually type, and whole sentences you type often (click or **Ctrl+Space**).
+- **Learning:** your words, phrases, sentences and corrections (delete a word right after typing it and retype it – Velivo remembers the fix). Encrypted with your Windows account, on this computer only.
+- **📖 My dictionary:** a window with your words – paste many at once or load a .txt file, search, sort, 🧹 clean up (removes ordinary words and typos). Add a new word with ➕ or **Ctrl+Space** right after typing it.
+- **Swipe typing**, **numeric keypad** with Select all, copy, paste, undo, redo, **Alt+Tab** (window switcher), shortcut bar: Notes, 🗒 sticky notes, e-mail, volume, calculator, snipping, quick search, shutdown.
+- **🎮 Gamepad** (Xbox / XInput): D-pad picks a key, A presses, B ⌫, X space, Y ⇧, LT Polish letters, LB/RB cursor, Start ⏎; **right stick moves the mouse cursor** (RT faster, held L3 slower); with the keyboard hidden A – click, X – right-click, Y – double-click, Start – Enter; **R3** – window switcher; **Back** – hide / show. Right-click 🎮 – settings (cursor on/off, sensitivity, RT, L3).
+- **Passwords are safe:** nothing is corrected, suggested or learned in password fields.
+
+### 🗒 Sticky notes
+
+- The 🗒 button on the keyboard: a new note (plain, to-do, shopping, call, important, idea, today) or show all.
+- Docked above the taskbar side by side; click the bar to expand upward, 📎 undocks to the desktop, 🎨 color, 📌 always on top, 📅 inserts a date, double-click a line to tick it.
+- **⏰ Reminder:** when a note contains a date (19.10.2026, 19.10, 2026-10-19), its icon blinks and its bar pulses the day before and on the day until you open it.
+
 ## 7. Tabs
 
 - **Pinning:** right-click a tab → Pin tab.
@@ -300,14 +319,14 @@ Hover over a video and three buttons appear in its top right corner: **⬇ Downl
 
 Transparency needs Windows 10 version 1809 or newer, because the window uses a Windows component to draw the picture.
 
-### 🎬 Offline video player
+### 🎬 Video player and TV
 
-- **Opening:** double-click a video file in Windows (the installer adds Velivo to "Open with" for MP4, WebM, MKV, MOV, M4V, OGV; make it permanent in Default apps → Velivo), **Ctrl+O** or right-click → Velivo tools → **📂 Open a file**.
-- The video opens in a tab, filling the window, with no internet needed. **⧉ Picture in picture** and **▣ Video on top** work on it.
-- **Controls:** the player bar (play/pause, seek, volume, full screen) and keys: Space or click – pause, ← → – 5 s, ↑ ↓ – volume, **F** – full screen, **M** – mute.
-- **If Velivo isn't in "Open with":** start Velivo once (it registers itself with Windows) or use **Settings → Video player → "Open videos and PDFs in Velivo (Windows)…"**.
-- **Settings → Video player:** open videos in Velivo, play right away, resume where you left off (this computer only), loop.
-- **Formats:** MP4 (H.264) and WebM work best. If the codec isn't supported (e.g. HEVC/H.265), a message appears.
+- **Opening:** double-clicking a video file in Windows opens just the Velivo player – no browser window. Also **Ctrl+O** or right-click → Velivo tools → **📂 Open a file**.
+- **VLC-like player** (AVI, MKV, WMV, MP4 and more) – optional in the installer or later in Velivo (about 145 MB from the official VideoLAN package). Without it, MP4 and WebM play in a browser tab.
+- **Video library**, **TV** with guide, catch-up and recording, **⧉ picture in picture**, sleep timer and scheduling, videos from another computer at home.
+- **Subtitles:** right-click the video or the library → **💬 Download subtitles…** (OpenSubtitles.com, sign in with your own account; the password is encrypted on this computer). Subtitles are saved next to the film and load automatically. **G / H** shifts subtitles – remembered per film.
+- **Narrator** reads subtitles aloud (Piper offline voice or a Windows voice); settings remembered per film.
+- **If Velivo isn't in "Open with":** start Velivo once or use **Settings → Video player → "Open videos and PDFs in Velivo (Windows)…"**.
 
 ### ⧉ Picture in picture
 

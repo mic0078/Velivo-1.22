@@ -477,7 +477,7 @@ Velivo samo pobiera pliki (jak Internet Download Manager):
 **Gdzie:** przycisk ⬇ Pobierz po najechaniu na film (Ustawienia → „Przycisk Pobierz nad filmami”), prawy klik → „⬇ Pobierz film…”, Narzędzia → „Wykryj media do pobrania”.
 **Tryby:** **Najlepsza jakość** (wideo ≤1080p MP4 + dźwięk M4A, łączone FFmpeg), **Prosta** (jeden plik bez FFmpeg), **Tylko dźwięk M4A**, **Tylko dźwięk MP3** (FFmpeg, najwyższa jakość). Folder filmów zapamiętany.
 **Technicznie:** zwykły plik wideo → menedżer Velivo; YouTube, strumienie (m3u8/mpd/blob) i inne serwisy → **yt-dlp** (pobierany raz, ok. 18 MB, z GitHub; aktualizacja `-U` co 14 dni). **FFmpeg** (ok. 140 MB) pobierany raz przy pierwszej potrzebie. Oba narzędzia są sprawdzane sumą **SHA-256** z pliku sum tego samego wydania; niezgodny plik jest usuwany i nie jest uruchamiany. Adres strony przekazywany po separatorze `--`.
-**Uwagi:** **napisów nie ma** – Velivo nie pobiera napisów. W trybie „Wykryj media” źródło `blob:` nie jest plikiem i nie da się go pobrać bezpośrednio.
+**Uwagi:** przy pobieraniu z YouTube napisy nie są pobierane – napisy do filmów pobierasz w odtwarzaczu (18.3). W trybie „Wykryj media” źródło `blob:` nie jest plikiem i nie da się go pobrać bezpośrednio.
 
 ## 12.3 Wykryj media do pobrania
 Lista źródeł audio/wideo na stronie z przyciskami „Pobierz”, „Pobierz jako audio”, „Pokaż”. Komunikat „Nie wykryto źródeł audio/wideo” gdy brak.
@@ -536,16 +536,50 @@ Ustawienia → „Śmieci przeglądarki (pamięć podręczna)”:
 
 - Instalator `Velivo-Setup-1.22.exe` (Inno Setup): wybór języka (polski / English), instalacja do `%LOCALAPPDATA%\Programs\Velivo` bez uprawnień administratora, skrót w menu Start i opcjonalnie na pulpicie, rejestracja jako przeglądarka.
 - Gdy wykryje dane z wcześniejszej instalacji: „Zachowaj moje ustawienia i dane (aktualizacja)” albo „Czysta instalacja” (stare dane przenoszone do kopii zapasowej z dopiskiem „kopia-…”).
-- Brak .NET 10 Desktop Runtime lub WebView2 Runtime – instalator proponuje pobranie.
+- .NET 10 jest dołączony do instalatora (ok. 60 MB). Gdy brakuje WebView2 Runtime, instalator sam pobiera go od Microsoftu i instaluje po cichu.
+- Opcja „Odtwarzacz filmów” pobiera biblioteki VLC (ok. 145 MB, oficjalna paczka VideoLAN, sprawdzana SHA-256) – tylko gdy ją zaznaczysz.
 - Ciche instalowanie: `Velivo-Setup-1.22.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LANG=pl /DIR=<folder>`; odinstalowanie: `unins000.exe /VERYSILENT`.
 - Wersja bez instalacji: `Velivo-1.22.exe` (jeden plik) albo `Velivo-1.22-portable.zip`.
 - **Pliki nie są podpisane cyfrowo** – Windows może pokazać „Nieznany wydawca” → „Więcej informacji” → „Uruchom mimo to”. Sumy SHA-256 wydania są w `docs/VELIVO-SECURITY-AUDIT-CERTIFICATE.md`.
 
 # 17. Czego Velivo nie ma (stan 1.22)
 
-- Pobierania napisów do filmów.
 - Fałszowania odczytów fingerprintingu (jest wykrywanie i raport).
 - „Wspólnego panelu środowiska” dla wielu komputerów (jest panel diagnostyczny LAN).
 - Synchronizacji otwartych kart (jest „Wyślij do…”).
 - Połączenia z bankiem – płatności oznacza się ręcznie.
 - Podpisu cyfrowego plików programu.
+
+# 18. Odtwarzacz filmów i telewizja
+
+## 18.1 Odtwarzacz
+- Odtwarzacz oparty na libVLC (`VlcPlayer.cs`), instalowany opcjonalnie do `{app}\vlc`. Dwuklik w plik wideo (skojarzenie z Velivo) otwiera sam odtwarzacz – okno przeglądarki zostaje zminimalizowane.
+- Biblioteka filmów z wznawianiem, własnymi tytułami i filmami z innego komputera w sieci domowej (`LanVideo.cs`).
+
+## 18.2 Telewizja
+- Kanały z listy użytkownika (`Iptv.cs`), program TV, ulubione, historia 20 ostatnich kanałów, archiwum, nagrywanie, planowanie i wyłącznik czasowy. Tokeny dostępu nie trafiają do logów.
+
+## 18.3 Napisy
+- OpenSubtitles.com (`OpenSubtitles.cs`): wyszukiwanie po odcisku pliku i po nazwie, zapis obok filmu jako `film.pl.srt`; konto użytkownika, hasło zaszyfrowane DPAPI (`napisy-konto.bin`).
+- Przesunięcie napisów G / H zapamiętane dla filmu; napisy można ukryć na obrazie.
+
+## 18.4 Lektor
+- `SubtitleLector.cs`: czyta napisy głosem Piper (offline) albo głosem Windows, ścisza film na czas czytania; ustawienia zapamiętane dla filmu.
+
+# 19. Klawiatura ekranowa i karteczki
+
+## 19.1 Klawiatura
+- `ScreenKeyboard.cs`: okno bez aktywacji (nie zabiera kursora), wstrzykiwanie znaków przez `SendInput`; podsłuch klawiatury (`WH_KEYBOARD_LL`) tylko przy otwartej albo schowanej klawiaturze, we własnym wątku; poprawki wykonywane synchronicznie w chwili naciśnięcia spacji.
+- Otwieranie: rolka, przytrzymanie rolki, ikona w zasobniku, skrót `Velivo.exe --klawiatura` („Velivo Klawiatura” w menu Start, osobny AppUserModelID), opcjonalnie klik w pole tekstowe (UI Automation).
+- Pola haseł wykrywane co 0,3 s (UI Automation) – wtedy brak poprawek, nauki i podpowiedzi.
+
+## 19.2 Słownik, autokorekta i nauka
+- `SwipeTyping.cs`: słownik PL ok. 90 tys. słów (tylko formy poprawne wg SJP), EN; poprawki: polskie znaki, literówki (edycja 1), „nie”, stałe zwroty, „ze/że” z kontekstu, zwroty do adresata, Twoje poprawki.
+- Nauka (słowa, pary, trójki słów, zdania, poprawki, Mój słownik) zapisana w jednym pliku zaszyfrowanym DPAPI.
+
+## 19.3 Pad
+- XInput (`xinput1_4.dll`), odczyt co 16 ms; prawa gałka – kursor (`SetCursorPos`), kliknięcia przez `SendInput`; ustawienia w preferencjach (`klawiatura-pad-*`).
+
+## 19.4 Karteczki
+- `StickyNotes.cs`: zapis w `karteczki.json`; przypomnienie o terminie – data w treści (dd.mm[.rrrr], rrrr-mm-dd, dd/mm/rrrr), sprawdzane co 10 min, stan „obejrzane” zapisany na dzień.
+

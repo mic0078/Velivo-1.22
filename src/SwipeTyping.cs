@@ -59,6 +59,7 @@ namespace Przegladarka
                 l.Add(e);
             }
             _words = list; _byEnds = ends; _fold = null; _main = null;
+            lock (_ownFold) _ownFold.Clear();   // Moje slowa dodawane po wczytaniu od nowa (inny jezyk - bez slow z poprzedniego)
             Correct("xx");   // indeks autokorekty od razu (w tle) - przy pisaniu sprawdzenie slowa trwa ulamek milisekundy
         }
 

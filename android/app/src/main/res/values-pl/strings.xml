@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Velivo</string>
+    <string name="address_hint">Szukaj lub wpisz adres</string>
+    <string name="back">Wstecz</string>
+    <string name="forward">Dalej</string>
+    <string name="reload">Odśwież</string>
+    <string name="tabs">Karty</string>
+    <string name="menu">Menu</string>
+    <string name="new_tab">Nowa karta</string>
+    <string name="new_private_tab">Nowa karta prywatna</string>
+    <string name="bookmarks">Zakładki</string>
+    <string name="add_bookmark">Dodaj zakładkę</string>
+    <string name="history">Historia</string>
+    <string name="clear_history">Wyczyść historię</string>
+    <string name="close_tab">Zamknij kartę</string>
+    <string name="private_label">Prywatna</string>
+    <string name="blocked">Zablokowane reklamy: %d</string>
+    <string name="added">Dodano</string>
+    <string name="empty">Pusto</string>
+    <string name="download_started">Pobieranie…</string>
+    <string name="adblock">Blokuj reklamy</string>
+</resources>

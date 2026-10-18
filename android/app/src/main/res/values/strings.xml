@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Velivo</string>
+    <string name="address_hint">Search or type an address</string>
+    <string name="back">Back</string>
+    <string name="forward">Forward</string>
+    <string name="reload">Reload</string>
+    <string name="tabs">Tabs</string>
+    <string name="menu">Menu</string>
+    <string name="new_tab">New tab</string>
+    <string name="new_private_tab">New private tab</string>
+    <string name="bookmarks">Bookmarks</string>
+    <string name="add_bookmark">Add bookmark</string>
+    <string name="history">History</string>
+    <string name="clear_history">Clear history</string>
+    <string name="close_tab">Close tab</string>
+    <string name="private_label">Private</string>
+    <string name="blocked">Blocked ads: %d</string>
+    <string name="added">Added</string>
+    <string name="empty">Empty</string>
+    <string name="download_started">Downloading…</string>
+    <string name="adblock">Block ads</string>
+</resources>

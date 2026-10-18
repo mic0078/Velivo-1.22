@@ -81,11 +81,13 @@ class AdBlocker(
             val exceptions = HashSet<String>()
             val perSite = HashMap<String, MutableList<String>>()
             for ((name, _) in sources) {
+                // pobrana (świeższa) lista, a do pierwszego pobrania - lista dołączona do aplikacji
                 val f = File(dir(ctx), name)
-                if (f.exists()) f.forEachLine {
+                val reader = if (f.exists()) f.bufferedReader() else runCatching { ctx.assets.open("filtry-$name").bufferedReader() }.getOrNull() ?: continue
+                reader.useLines { lines -> lines.forEach {
                     val l = it.trim()
                     if (l.contains("##") || l.contains("#@#")) parseHiding(l, generic, exceptions, perSite) else parse(l, blocked, allowed)
-                }
+                } }
             }
             return AdBlocker(blocked, allowed, (generic - exceptions).toList(), perSite)
         }

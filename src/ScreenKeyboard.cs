@@ -998,6 +998,7 @@ namespace Przegladarka
                 Func<string, Button> btn = t => new Button { Content = L.T(t), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(6, 0, 0, 0) };
                 var loadB = btn("📂 Wczytaj z pliku…"); loadB.ToolTip = L.T("Dopisz słowa z pliku tekstowego (.txt)");
                 var sortB = btn("A→Z Sortuj"); sortB.ToolTip = L.T("Sortuj alfabetycznie i usuń powtórzenia");
+                var cleanB = btn("🧹 Porządkuj"); cleanB.ToolTip = L.T("Usuń słowa, które są już we wbudowanym słowniku, i literówki – zostaną Twoje imiona, nazwy i skróty (Ctrl+Z cofa)");
                 var saveB = btn("💾 Zapisz"); saveB.ToolTip = L.T("Zapisz Mój słownik (Ctrl+S)"); saveB.IsDefault = false;
                 var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
                 Func<List<string>> words = () => box.Text.Split(new[] { '\r', '\n', ' ', '\t', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
@@ -1024,9 +1025,21 @@ namespace Przegladarka
                     box.Text = string.Join("\r\n", nw.OrderBy(x => x, StringComparer.CurrentCulture));
                 };
                 saveB.Click += (a, b) => save();
+                cleanB.Click += (a, b) =>
+                {
+                    var all = words();
+                    var common = all.Where(SwipeTyping.InMain).ToList();
+                    var typos = all.Where(x => !common.Contains(x) && SwipeTyping.IsTypo(x)).ToList();
+                    if (common.Count + typos.Count == 0) { count.Text = L.T("Słów: ") + all.Count + "   ✓ " + L.T("nic do usunięcia"); return; }
+                    if (MessageBox.Show(dictWin, string.Format(L.T("Usunąć {0} zwykłych słów (są już w słowniku) i {1} literówek?\nZostanie {2} Twoich słów. Ctrl+Z cofa."), common.Count, typos.Count, all.Count - common.Count - typos.Count)
+                        + (typos.Count > 0 ? "\n\n" + L.T("Literówki: ") + string.Join(", ", typos.Take(30)) + (typos.Count > 30 ? "…" : "") : ""), "Velivo", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                    var rm = new HashSet<string>(common.Concat(typos));
+                    box.SelectAll(); box.SelectedText = string.Join("\r\n", all.Where(x => !rm.Contains(x)));   // przez zaznaczenie - Ctrl+Z przywraca
+                    box.CaretIndex = 0; box.ScrollToHome();
+                };
                 var bar = new DockPanel { Margin = new Thickness(8, 4, 8, 8), LastChildFill = false };
                 bar.Children.Add(count);
-                foreach (var bb in new[] { saveB, sortB, loadB }) { DockPanel.SetDock(bb, Dock.Right); bar.Children.Add(bb); }
+                foreach (var bb in new[] { saveB, cleanB, sortB, loadB }) { DockPanel.SetDock(bb, Dock.Right); bar.Children.Add(bb); }
                 var root = new DockPanel();
                 // 🔍 szukanie: wpisz fragment - zaznacza pierwsze pasujace slowo (od poczatku slowa najpierw), Enter - nastepne
                 var find = new TextBox { Margin = new Thickness(8, 0, 8, 6), Padding = new Thickness(6, 3, 6, 3), FontSize = 14, ToolTip = L.T("Szukaj słowa – wpisz fragment; Enter: następne, Esc: wyczyść") };
@@ -1052,7 +1065,7 @@ namespace Przegladarka
                 box.IsInactiveSelectionHighlightEnabled = true;   // zaznaczenie widac, gdy kursor jest w polu szukania
                 DockPanel.SetDock(info, Dock.Top); DockPanel.SetDock(findBox, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
                 root.Children.Add(info); root.Children.Add(findBox); root.Children.Add(bar); root.Children.Add(box);
-                dictWin = new Window { Title = L.T("📖 Mój słownik"), Content = root, Width = 420, Height = 520, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+                dictWin = new Window { Title = L.T("📖 Mój słownik"), Content = root, Width = 540, MinWidth = 520, Height = 520, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen };
                 dictWin.PreviewKeyDown += (a, b) => { if (b.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { save(); b.Handled = true; } };
                 dictWin.Loaded += (a, b) => { _physPause = true; box.Focus(); box.CaretIndex = box.Text.Length; };
                 dictWin.Closing += (a, b) => save();

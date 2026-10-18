@@ -65,6 +65,9 @@ namespace Przegladarka
 
         internal static bool Loaded => _words != null;
 
+        // slowo z wbudowanego slownika (bez Moich slow) - w Moim slowniku zbedne
+        internal static bool InMain(string word) { Correct("xx"); var m = _main; return m != null && !string.IsNullOrEmpty(word) && m.Contains(word.ToLowerInvariant()); }
+
         internal static bool IsKnown(string word) { var w = word.ToLowerInvariant(); return _words != null && _words.Any(e => e.Word == w); }
 
         // wlasny slownik (jak na Androidzie): slowo wpisane litera po literze, ktorego nie ma w slowniku, od razu da sie pisac przeciagnieciem

@@ -671,6 +671,7 @@ set(p0,p);})"""
     // Okno oczekiwania na parowanie: trzyma Velivo na ekranie (synchronizacja działa tylko przy otwartej aplikacji)
     // i na żywo pokazuje, co telefon odbiera z sieci - od razu widać, czy pakiety z komputera w ogóle dochodzą.
     private fun showPairingWait() {
+        lan.pairStep = ""
         val name = prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL
         val info = TextView(this).apply { setPadding(dp(20), dp(12), dp(20), 0); setTextColor(TEXT) }
         val live = TextView(this).apply { setPadding(dp(20), dp(12), dp(20), dp(8)); setTextColor(BLUE) }
@@ -690,6 +691,7 @@ set(p0,p);})"""
                     lan.rxCount == 0 -> getString(R.string.lan_rx_none, left)
                     else -> getString(R.string.lan_rx_some, lan.rxCount, lan.lastFrom, lan.lastType, left)
                 }
+                if (lan.pairStep.isNotEmpty()) live.append("\n\n" + lan.pairStep)
                 if (left == 0L) { live.append("\n" + getString(R.string.lan_pair_timeout)); return }
                 idle.postDelayed(this, 1000)
             }

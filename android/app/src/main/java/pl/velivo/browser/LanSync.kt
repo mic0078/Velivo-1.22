@@ -55,6 +55,7 @@ class LanSync(
     @Volatile var lastFrom = ""
     @Volatile var lastType = ""
     @Volatile var socketError: String? = null
+    @Volatile var pairStep = ""   // ostatni krok parowania (do okna oczekiwania)
     private var udp: DatagramSocket? = null
     private var tcp: ServerSocket? = null
     private val pending = HashMap<String, Pair<KeyPair, ByteArray>>()   // pairId -> (moje klucze ECDH, klucz transportu)
@@ -77,7 +78,8 @@ class LanSync(
                     val p = DatagramPacket(buf, buf.size)
                     udp?.receive(p) ?: break
                     val data = p.data.copyOf(p.length)
-                    runCatching { handle(data) }
+                    val from = p.address
+                    runCatching { handle(data, from) }.onFailure { if (pairStep.isNotEmpty()) pairStep = "błąd: " + (it.message ?: it.javaClass.simpleName) }
                 }
             }.onFailure { if (running) socketError = it.message ?: it.javaClass.simpleName }
         }.start()
@@ -137,6 +139,11 @@ class LanSync(
             runCatching { s.send(DatagramPacket(data, data.size, target, PORT)) }
     }
 
+    private fun sendTo(p: JSONObject, target: InetAddress) {
+        val data = p.toString().toByteArray(Charsets.UTF_8)
+        udp?.send(DatagramPacket(data, data.size, target, PORT))
+    }
+
     private fun broadcastTargets(): List<InetAddress> {
         val list = mutableListOf(InetAddress.getByName("255.255.255.255"))
         runCatching {
@@ -148,7 +155,7 @@ class LanSync(
         return list
     }
 
-    private fun handle(data: ByteArray) {
+    private fun handle(data: ByteArray, sender: InetAddress? = null) {
         val p = JSONObject(String(data, Charsets.UTF_8))
         val from = p.optString("id")
         if (from == id || from.length != 32) return
@@ -159,7 +166,7 @@ class LanSync(
         if (Math.abs(p.optLong("ts") - now) > 300000) return
         when (p.optString("t")) {
             "pair-offer" -> pairOffer(p)
-            "pair-key" -> pairKey(p)
+            "pair-key" -> pairKey(p, sender)
             "state" -> state(p)
         }
     }
@@ -186,6 +193,7 @@ class LanSync(
         ui(Runnable {
             confirmPair(dev, code) {
                 Thread {
+                    pairStep = "kod potwierdzony, czekam na klucz z komputera"
                     synchronized(pending) { pending[pairId] = mine to transport }
                     saveProfile(winProfile)
                     send(packet("pair-response").put("pairId", pairId).put("pub", b64(mine.public.encoded)))
@@ -194,9 +202,10 @@ class LanSync(
         })
     }
 
-    private fun pairKey(p: JSONObject) {
+    private fun pairKey(p: JSONObject, sender: InetAddress?) {
         val pairId = p.optString("pairId")
         val (_, transport) = synchronized(pending) { pending.remove(pairId) } ?: return
+        pairStep = "odebrano klucz"
         val nonce = unb64(p.optString("nonce"))
         val cipher = unb64(p.optString("data"))
         val tag = unb64(p.optString("tag"))
@@ -207,7 +216,11 @@ class LanSync(
         val key = c.doFinal(cipher + tag)
         saveKey(b64(key))
         val proof = b64(hmac(transport, "ack\n$pairId\n$id\n${p.optString("id")}".toByteArray()))
-        send(packet("pair-ack").put("pairId", pairId).put("proof", proof))
+        val ack = packet("pair-ack").put("pairId", pairId).put("proof", proof)
+        // Potwierdzenie prosto do komputera, który przysłał klucz (pewniejsze niż rozgłoszenie w Wi-Fi);
+        // rozgłoszenie tylko, gdy adres nieznany. Jeden pakiet - Windows przy każdym potwierdzeniu pyta o ustawienia.
+        if (sender != null) sendTo(ack, sender) else send(ack)
+        pairStep = "wysłano potwierdzenie do komputera"
         pairingUntil = 0
         deriveKeys()
         hello()
@@ -267,7 +280,7 @@ class LanSync(
                             val len = header.optInt("Length")
                             if (header.optString("Type") != "lan-state" || len <= 0 || len > TCP_LIMIT) return@use
                             val data = ByteArray(len).also { b -> inp.readFully(b) }
-                            handle(data)
+                            handle(data, it.inetAddress)
                         }
                     }
                 }.start()

@@ -778,6 +778,7 @@ namespace Przegladarka
             { "Kursor w prawo", "Cursor right" },
             { "Spacja. Pisanie przeciągnięciem: wciśnij na pierwszej literze słowa i przeciągnij po kolejnych", "Space. Swipe typing: press on the first letter of a word and drag across the next ones" },
             { "Zamknij klawiaturę", "Close the keyboard" },
+            { "Czytanie na głos zaznaczonego tekstu w dowolnym programie (w polach haseł nigdy)", "Read aloud the selected text in any program (never in password fields)" },
             { "Kopiuj (Ctrl+C)", "Copy (Ctrl+C)" },
             { "Wklej (Ctrl+V)", "Paste (Ctrl+V)" },
             { "Cofnij (Ctrl+Z)", "Undo (Ctrl+Z)" },

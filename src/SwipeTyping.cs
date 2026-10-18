@@ -121,6 +121,18 @@ namespace Przegladarka
                 _foldAll = all; _sortedFold = sorted.Select(x => x.F).ToArray(); _sortedEntry = sorted.Select(x => x.E).ToArray();
                 _main = main; _fold = fold;
             }
+            // stale zwroty pisane blednie razem albo bez polskich znakow: napewno -> na pewno, wogole -> w ogóle
+            if (_phraseFix.TryGetValue(Fold(w), out var ph) && ph != w)
+                return char.IsUpper(typed[0]) ? char.ToUpperInvariant(ph[0]) + ph.Substring(1) : ph;
+            // "nie" z czasownikiem osobno: niewiem -> nie wiem (sklejonego nie ma w slowniku, reszta to czeste slowo); tez bez polskich znakow (niemoge -> nie mogę)
+            if (w.Length >= 5 && w.StartsWith("nie", StringComparison.Ordinal))
+            {
+                var rest = w.Substring(3); string restOk = null;
+                if (_foldAll != null && _foldAll.TryGetValue(Fold(rest), out var rl))   // tylko bardzo czeste slowo (wiem, mam, mogę) - rzadkie "niezaplanowany" zostaje razem
+                    restOk = rl.Where(e => e.Rank < 4000).OrderBy(e => e.Word == rest ? -1 : Score(e)).Select(e => e.Word).FirstOrDefault();
+                if (restOk != null && (IsVerbish(restOk) || !_foldAll.ContainsKey(Fold(w))))   // czasownik - osobno, nawet gdy blad "niewiem" jest w slowniku z tekstow
+                    return (char.IsUpper(typed[0]) ? "Nie " : "nie ") + restOk;
+            }
             if (main.Contains(w)) return null;
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
             var fw = new string(w.Select(BaseKey).ToArray());
@@ -198,6 +210,41 @@ namespace Przegladarka
 
         // literowka znanego slowa (zolw, zzolw) - nie do Mojego slownika; slowo z polskimi znakami (klawiaturą) piszesz swiadomie - to nie literowka
         internal static bool IsTypo(string w) { return !string.IsNullOrEmpty(w) && w.IndexOfAny("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ".ToCharArray()) < 0 && Correct(w, null, true) != null; }
+
+        // czasownik (po koncowce albo jedna z najczestszych form) - z "nie" zawsze osobno (slownik z tekstow ma tez bledy: niewiem, niemam)
+        static readonly HashSet<string> _verbs = new HashSet<string> { "ma", "jest", "są", "może", "musi", "chce", "wie", "będzie", "było", "trzeba", "wolno", "umie", "zna", "lubi", "widzi", "mówi", "robi", "idzie", "je", "pije", "śpi", "daje", "da", "żyje", "działa", "pasuje", "wiadomo", "warto", "boli", "mam", "wiem", "umiem", "jem", "dam", "znam", "chcę", "mogę", "lubię", "rozumiem", "pamiętam" };
+        internal static bool IsVerbish(string w)
+        {
+            if (string.IsNullOrEmpty(w)) return false;
+            w = w.ToLowerInvariant();
+            return _verbs.Contains(w) || new[] { "ć", "ł", "ła", "ło", "li", "ły", "my", "cie", "sz", "ę", "em", "am" }.Any(x => w.EndsWith(x, StringComparison.Ordinal) && w.Length > x.Length + 1);
+        }
+
+        // czeste bledy w pisowni stalych zwrotow (klucz bez polskich znakow)
+        static readonly Dictionary<string, string> _phraseFix = new Dictionary<string, string> {
+            ["napewno"] = "na pewno", ["narazie"] = "na razie", ["wogole"] = "w ogóle", ["poprostu"] = "po prostu", ["naprzyklad"] = "na przykład",
+            ["conajmniej"] = "co najmniej", ["conajwyzej"] = "co najwyżej", ["spowrotem"] = "z powrotem", ["zpowrotem"] = "z powrotem", ["wkoncu"] = "w końcu",
+            ["napoczatku"] = "na początku", ["wszczegolnosci"] = "w szczególności", ["pozatym"] = "poza tym", ["wrazie"] = "w razie",
+            ["nazewnatrz"] = "na zewnątrz", ["dowidzenia"] = "do widzenia", ["naszczescie"] = "na szczęście", ["przedewszystkim"] = "przede wszystkim",
+            ["ztad"] = "stąd", ["zkad"] = "skąd" };
+        // dwa slowa, ktore piszemy razem: na prawdę -> naprawdę (klucz bez polskich znakow)
+        static readonly Dictionary<string, string> _pairFix = new Dictionary<string, string> {
+            ["na prawde"] = "naprawdę", ["na przeciwko"] = "naprzeciwko", ["na przeciw"] = "naprzeciw", ["z posrod"] = "spośród", ["z pod"] = "spod",
+            ["z nad"] = "znad", ["po mimo"] = "pomimo", ["z reszta"] = "zresztą", ["na reszcie"] = "nareszcie", ["do okola"] = "dookoła" };
+        internal static string JoinPair(string prev, string word)
+        {
+            if (string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(word)) return null;
+            if (!_pairFix.TryGetValue(Fold(prev.ToLowerInvariant()) + " " + Fold(word.ToLowerInvariant()), out var j)) return null;
+            return char.IsUpper(prev[0]) ? char.ToUpperInvariant(j[0]) + j.Substring(1) : j;
+        }
+
+        // "nie" + slowo, ktore piszemy razem (przymiotnik, przyslowek, rzeczownik): nie dobry -> niedobry - propozycja, nie automat (bywa "nie ma" / "niema")
+        internal static string JoinNie(string prev, string word)
+        {
+            if (_main == null || string.IsNullOrEmpty(word) || !string.Equals(prev, "nie", StringComparison.OrdinalIgnoreCase) || !word.All(char.IsLetter)) return null;
+            var j = "nie" + word.ToLowerInvariant();
+            return _main.Contains(j) && !IsVerbish(word) ? (char.IsUpper(prev[0]) ? "N" + j.Substring(1) : j) : null;
+        }
 
         // interpunkcja: przecinek przed spojnikami i zaimkami wzglednymi (wiem, że...; dom, który...; idę, bo...).
         // Bez przecinka, gdy slowo zaczyna zdanie albo poprzednie slowo to czesc spojnika (mimo że, chyba że, zwłaszcza że)

@@ -552,8 +552,10 @@ namespace Przegladarka
             var ask = new TextBlock { Text = L.T("Poprawić na:"), FontSize = 13, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0), Visibility = Visibility.Collapsed };
             Action<string> askAdd = aw0 => { }; Action hideAdd = () => { };   // pytanie "Dodać do słownika?" (ustawiane nizej)
             string prevWord = null, prevWord2 = null, prevBeforeSwipe = null;   // poprzednie slowo - do nauki kolejnosci slow
-            Action<string> learn = wd =>
+            Action<string> learn = null;
+            learn = wd =>
             {
+                if (wd != null && wd.Contains(' ')) { foreach (var part in wd.Split(' ')) learn(part); return; }   // poprawka na dwa slowa (nie wiem)
                 if (wd.Length < 2 || !SwipeTyping.Loaded || SecretField()) return;   // pole hasla - bez nauki
                 var lw = wd.ToLowerInvariant();
                 SwipeTyping.LearnPair(prevWord, lw); SwipeTyping.LearnTriple(prevWord2, prevWord, lw); prevWord2 = prevWord; prevWord = lw;   // kolejnosc slow i zwroty (2 poprzednie)
@@ -563,11 +565,6 @@ namespace Przegladarka
                     if (!SwipeTyping.IsKnown(lw) && !SwipeTyping.IsTypo(lw)) askAdd(wd);   // nowe slowo - najpierw pytamy (literowki znanego slowa wcale)
                     SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
                 }
-            };
-            Action<string> say = wd =>
-            {   // czytanie na glos skonczonego slowa (nigdy w polu hasla)
-                if (wd.Length == 0 || GetPref("klawiatura-czytaj") != "1" || SecretField()) return;
-                (Application.Current?.MainWindow as MainWindow)?.KbSpeak(wd, ReadLang);
             };
             // autokorekta (przycisk w naglowku, domyslnie wlaczona): po spacji / Enterze / znaku slowo spoza slownika -> poprawione,
             // ⌫ zaraz potem przywraca to, co wpisano; nigdy w polu hasla
@@ -629,7 +626,7 @@ namespace Przegladarka
                 }
                 if (vk == 0 && char.IsLetter(ch)) cur += ch;
                 else if (vk == 0x08) { if (cur.Length > 0) cur = cur.Substring(0, cur.Length - 1); }
-                else { learn(cur); say(cur); cur = ""; }
+                else { learn(cur); cur = ""; }
                 if (vk == 0 && char.IsLetter(ch) || vk == 0x08) predShow(cur, false);
                 else predShow(vk == 0 && ch == ' ' ? (fixedNow ?? origNow) : null, true);   // po spacji - inne formy skonczonego slowa
             };
@@ -788,6 +785,11 @@ namespace Przegladarka
             {
                 var list = word == null || word.Length == 0 || _physSecret || GetPref("klawiatura-korekta") == "0" ? new List<string>() : SwipeTyping.Predict(word, done);
                 predNext = false;
+                if (done && word != null && GetPref("klawiatura-korekta") != "0" && !_physSecret)
+                {   // nie dobry -> niedobry: podmiana obu slow ("nie " + slowo)
+                    var jn = SwipeTyping.JoinNie(prevWord2, word) ?? SwipeTyping.JoinPair(prevWord2, word);
+                    if (jn != null) { list.Insert(0, jn); word = prevWord2 + " " + word; }
+                }
                 if (done && list.Count == 0 && word != null && !_physSecret && GetPref("klawiatura-korekta") != "0") { list = SwipeTyping.NextWords(word, prevWord2); predNext = list.Count > 0; }   // po spacji: co zwykle piszesz dalej
                 predWord = list.Count > 0 ? word : null; predDone = done;
                 for (int i = 0; i < preds.Count; i++) { bool on = i < list.Count; preds[i].Visibility = on ? Visibility.Visible : Visibility.Hidden; if (on) { preds[i].Content = list[i]; preds[i].DataContext = list[i]; } }
@@ -913,15 +915,12 @@ namespace Przegladarka
             micB.Click += (s, e) => SendCombo(0x5B, 0x48);
             head.Children.Add(micB);
             var sayB = key(ico("\uE8F2", null), 34); sayB.Height = 28; sayB.FontSize = 13; DockPanel.SetDock(sayB, Dock.Right);
-            sayB.ToolTip = L.T("Czytanie na głos: zaznaczony tekst w dowolnym programie albo na bieżąco to, co piszesz (w polach haseł nigdy)");
-            Action sayApply = () => sayB.Background = GetPref("klawiatura-czytaj") == "1" ? (Brush)accent : Brushes.Transparent;
+            sayB.ToolTip = L.T("Czytanie na głos zaznaczonego tekstu w dowolnym programie (w polach haseł nigdy)"); sayB.Background = Brushes.Transparent;
             sayB.Click += (s, e) =>
             {
                 var cm = new ContextMenu { PlacementTarget = sayB, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
                 var now = new MenuItem { Header = L.T("🗣 Przeczytaj zaznaczony tekst (każdy program – OpenOffice, Word, strony)") };
                 now.Click += (q, w2) => ReadSelectionAloud();
-                var live = new MenuItem { Header = L.T("Czytaj na bieżąco to, co piszę"), IsCheckable = true, IsChecked = GetPref("klawiatura-czytaj") == "1" };
-                live.Click += (q, w2) => { SetPref("klawiatura-czytaj", live.IsChecked ? "1" : "0"); sayApply(); };
                 var stop = new MenuItem { Header = L.T("⏹ Zatrzymaj czytanie") };
                 stop.Click += (q, w2) => (Application.Current?.MainWindow as MainWindow)?.KbStopSpeaking();
                 var langM = new MenuItem { Header = L.T("Język czytania") };
@@ -931,9 +930,9 @@ namespace Przegladarka
                     li.Click += (q, w2) => SetPref("klawiatura-czytaj-jezyk", code);
                     langM.Items.Add(li);
                 }
-                cm.Items.Add(now); cm.Items.Add(stop); cm.Items.Add(new Separator()); cm.Items.Add(langM); cm.Items.Add(live); cm.IsOpen = true;
+                cm.Items.Add(now); cm.Items.Add(stop); cm.Items.Add(new Separator()); cm.Items.Add(langM); cm.IsOpen = true;
             };
-            sayApply(); head.Children.Add(sayB);
+            head.Children.Add(sayB);
             var langB = key(KbLang.ToUpperInvariant(), 40); langB.Height = 28; langB.FontSize = 12.5; langB.FontWeight = FontWeights.SemiBold; langB.Background = Brushes.Transparent; DockPanel.SetDock(langB, Dock.Right);
             langB.ToolTip = L.T("Język klawiatury: polski / angielski (słownik pisania przeciągnięciem i czytanie na głos)");
             langB.Click += (s, e) => { SetPref("klawiatura-jezyk", KbLang == "pl" ? "en" : "pl"); langB.Content = KbLang.ToUpperInvariant(); LoadSwipeDictionary(); };
@@ -1118,7 +1117,7 @@ namespace Przegladarka
                     bool unsure = SwipeTyping.LastUncertain && found.Count > 1;
                     ask.Text = L.T("Poprawić na:"); ask.Visibility = unsure ? Visibility.Visible : Visibility.Collapsed; title.Visibility = unsure ? Visibility.Collapsed : Visibility.Visible;
                     lastTrace = pts; if (!SecretField()) SwipeTyping.LearnShape(found[0], pts, lastKeyW);   // nauka Twojego ruchu (nie w polu hasla)
-                    learn(found[0]); say(found[0]); lastSwipe = found[0];
+                    learn(found[0]); lastSwipe = found[0];
                     if (shift) { shift = false; refresh(); }
                     for (int i = 0; i < sugs.Count; i++)
                     {

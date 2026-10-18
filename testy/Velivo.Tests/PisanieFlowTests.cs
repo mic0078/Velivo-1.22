@@ -130,6 +130,23 @@ public class PisanieFlowTests
     }
 
     [Fact]
+    public void PisowniaNieIStalychZwrotow()
+    {
+        SwipeTyping.Load(new[] { "nie", "wiem", "mam", "mogę", "dobry", "niedobry", "pewno", "razie", "naprawdę" });
+        Assert.Equal("nie wiem", SwipeTyping.Correct("niewiem"));
+        Assert.Equal("nie mam", SwipeTyping.Correct("niemam"));
+        Assert.Equal("Nie mogę", SwipeTyping.Correct("Niemoge"));
+        Assert.Null(SwipeTyping.Correct("niedobry"));
+        Assert.Equal("niedobry", SwipeTyping.JoinNie("nie", "dobry"));
+        Assert.Null(SwipeTyping.JoinNie("nie", "wiem"));
+        Assert.Equal("na pewno", SwipeTyping.Correct("napewno"));
+        Assert.Equal("Na razie", SwipeTyping.Correct("Narazie"));
+        Assert.Equal("w ogóle", SwipeTyping.Correct("wogole"));
+        Assert.Equal("naprawdę", SwipeTyping.JoinPair("na", "prawdę"));
+        Assert.Null(SwipeTyping.JoinPair("na", "pewno"));
+    }
+
+    [Fact]
     public void AutokorektaPolskieZnakiILiterowka()
     {
         SwipeTyping.Load(new[] { "nie", "jest", "żółw", "który", "dziękuję", "komputer", "dom", "pisze", "piszę" });

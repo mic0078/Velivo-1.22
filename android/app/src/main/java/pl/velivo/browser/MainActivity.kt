@@ -7,6 +7,7 @@ import android.app.KeyguardManager
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -126,6 +127,11 @@ class MainActivity : Activity() {
         }
 
         startFilters()
+        // Powiadomienie odtwarzania w tle wymaga zgody (Android 13+).
+        if (Build.VERSION.SDK_INT >= 33 && prefs.getBoolean("tlo", true) && !prefs.getBoolean("zapytano-powiadomienia", false)) {
+            prefs.edit().putBoolean("zapytano-powiadomienia", true).apply()
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
         dropPrivateProfile() // resztki po poprzedniej sesji
         val link = intent?.dataString
         if (!restoreTabs() && link == null) newTab(false, home)
@@ -182,7 +188,53 @@ set(p0,p);})"""
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == PlaybackService.ACTION_STOP) {
+            tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            stopService(Intent(this, PlaybackService::class.java))
+            return
+        }
         intent.dataString?.let { newTab(false, it) }
+    }
+
+    // --- Pełny ekran filmów: na cały ekran, bez pasków systemu, telefon obraca się wg filmu ------
+    private var fullView: View? = null
+    private var fullCallback: WebChromeClient.CustomViewCallback? = null
+
+    private fun enterFullscreen(v: View, cb: WebChromeClient.CustomViewCallback) {
+        if (fullView != null) { cb.onCustomViewHidden(); return }
+        fullView = v
+        fullCallback = cb
+        (window.decorView as FrameLayout).addView(v, FrameLayout.LayoutParams(-1, -1))
+        v.setBackgroundColor(Color.BLACK)
+        window.insetsController?.let {
+            it.hide(WindowInsets.Type.systemBars())
+            it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+    }
+
+    private fun exitFullscreen() {
+        val v = fullView ?: return
+        (window.decorView as FrameLayout).removeView(v)
+        fullView = null
+        window.insetsController?.show(WindowInsets.Type.systemBars())
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        fullCallback?.onCustomViewHidden()
+        fullCallback = null
+    }
+
+    // --- Odtwarzanie w tle -----------------------------------------------------
+    // Po wyjściu z Velivo: jeśli gra film lub muzyka, powiadomienie trzyma odtwarzanie przy życiu.
+    private fun backgroundPlayback() {
+        if (!prefs.getBoolean("tlo", true)) return
+        val w = web() ?: return
+        if (tabs.getOrNull(cur)?.bank == true) return
+        w.evaluateJavascript("[].some.call(document.querySelectorAll('video,audio'),function(m){return !m.paused&&!m.ended})") { playing ->
+            if (playing != "true") return@evaluateJavascript
+            runCatching {
+                startForegroundService(Intent(this, PlaybackService::class.java).putExtra(PlaybackService.EXTRA_TITLE, w.title))
+            }
+        }
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -255,6 +307,8 @@ set(p0,p);})"""
             }
         }
         w.webChromeClient = object : WebChromeClient() {
+            override fun onShowCustomView(v: View, cb: CustomViewCallback) = enterFullscreen(v, cb)
+            override fun onHideCustomView() = exitFullscreen()
             override fun onProgressChanged(view: WebView, p: Int) {
                 if (view != web()) return
                 progress.progress = p
@@ -403,6 +457,7 @@ set(p0,p);})"""
         m.menu.add(0, 9, 0, R.string.passwords)
         m.menu.add(0, 10, 0, R.string.bank_mode)
         m.menu.add(0, 11, 0, R.string.theme)
+        m.menu.add(0, 12, 0, R.string.background_play).apply { isCheckable = true; isChecked = prefs.getBoolean("tlo", true) }
         m.menu.add(0, 7, 0, R.string.adblock).apply { isCheckable = true; isChecked = prefs.getBoolean("adblock", true) }
         m.menu.add(0, 8, 0, getString(R.string.blocked, blockedCount)).isEnabled = false
         m.setOnMenuItemClickListener {
@@ -416,6 +471,11 @@ set(p0,p);})"""
                 9 -> unlock { showPasswords() }
                 10 -> openBank()
                 11 -> chooseTheme()
+                12 -> {
+                    val on = !prefs.getBoolean("tlo", true)
+                    prefs.edit().putBoolean("tlo", on).apply()
+                    if (on && Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+                }
                 7 -> prefs.edit().putBoolean("adblock", !prefs.getBoolean("adblock", true)).apply()
             }
             true
@@ -565,6 +625,7 @@ set(p0,p);})"""
 
     override fun onResume() {
         super.onResume()
+        stopService(Intent(this, PlaybackService::class.java))
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)
     }
@@ -572,6 +633,7 @@ set(p0,p);})"""
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK && fullView != null) { exitFullscreen(); return true }
         val w = web()
         if (keyCode == KeyEvent.KEYCODE_BACK && w != null && w.canGoBack()) { w.goBack(); return true }
         return super.onKeyDown(keyCode, event)
@@ -601,6 +663,7 @@ set(p0,p);})"""
 
     override fun onPause() {
         idle.removeCallbacks(idleCheck)
+        backgroundPlayback()
         saveTabs()
         super.onPause()
     }

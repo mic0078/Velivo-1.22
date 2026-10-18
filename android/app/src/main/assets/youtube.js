@@ -42,3 +42,15 @@
 
   setInterval(function () { try { skip(); } catch (e) {} }, 300);
 })();
+
+// Odtwarzanie w tle: YouTube pauzuje film, gdy strona jest niewidoczna - strona zawsze widzi się jako widoczna.
+(function () {
+  try {
+    Object.defineProperty(document, 'hidden', { get: function () { return false; } });
+    Object.defineProperty(document, 'visibilityState', { get: function () { return 'visible'; } });
+    Object.defineProperty(document, 'webkitVisibilityState', { get: function () { return 'visible'; } });
+    ['visibilitychange', 'webkitvisibilitychange'].forEach(function (t) {
+      document.addEventListener(t, function (e) { e.stopImmediatePropagation(); }, true);
+    });
+  } catch (e) {}
+})();

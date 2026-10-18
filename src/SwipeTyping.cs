@@ -173,8 +173,10 @@ namespace Przegladarka
             if (keep != null && keep.Contains(w)) return fix;
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return fix;
             var p = Predict(typed, false, 3).FirstOrDefault(x => x.Length > typed.Length && Fold(x).StartsWith(Fold(w), StringComparison.Ordinal));   // pierwsze dokonczenie w pasku propozycji
-            if (p == null || _foldAll == null || !_foldAll.TryGetValue(Fold(p), out var pl)) return fix;
-            var pe = pl.OrderBy(Score).First(); if (pe.Rank >= 60000) return fix;   // bardzo rzadkie slowo - nie zgadujemy
+            if (p == null || _foldAll == null) return fix;
+            bool ownP; lock (_ownFold) ownP = _ownFold.ContainsValue(p.ToLowerInvariant());
+            if (!_foldAll.TryGetValue(Fold(p), out var pl)) return ownP ? p : fix;   // Moje slowo (imie, nazwisko) - tez wstawiamy
+            var pe = pl.OrderBy(Score).First(); if (pe.Rank >= 60000 && !ownP) return fix;   // bardzo rzadkie slowo - nie zgadujemy
             if (_main.Contains(w))
             {   // wpisane to tez slowo: zostaje, chyba ze rzadkie, a dokonczenie duzo czestsze (pra -> prawda; dom, nie, kot zostaja)
                 var we = _foldAll.TryGetValue(Fold(w), out var wl) ? wl.FirstOrDefault(e => e.Word == w) : null;

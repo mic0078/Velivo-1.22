@@ -161,6 +161,8 @@ public class PisanieFlowTests
         Assert.Equal("dziękuję", SwipeTyping.Complete("dziekuje"));   // pewna poprawka przed dokonczeniem
         Assert.Null(SwipeTyping.Complete("dom"));                     // poprawne slowo zostaje
         Assert.Null(SwipeTyping.Complete("komp", new[] { "komp" }));  // cofniete - zostaje
+        SwipeTyping.AddUserWord("chwalińska");
+        Assert.Equal("Chwalińska", SwipeTyping.Complete("Chwalin"));   // Moje slowo (nazwisko) - spacja tez je wstawia
     }
 
     [Fact]

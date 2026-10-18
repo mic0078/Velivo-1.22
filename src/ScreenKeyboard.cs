@@ -577,6 +577,7 @@ namespace Przegladarka
                 if (wd != null && wd.Contains(' ')) { foreach (var part in wd.Split(' ')) learn(part); return; }   // poprawka na dwa slowa (nie wiem)
                 if (wd.Length < 2 || !SwipeTyping.Loaded || SecretField()) return;   // pole hasla - bez nauki
                 var lw = wd.ToLowerInvariant();
+                if (prevWord == "ze" && SwipeTyping.ZeAsZe("ze", lw, prevWord2) != null) prevWord = "że";   // ze to -> że to: uczymy sie tego, co zostalo w tekscie
                 SwipeTyping.LearnPair(prevWord, lw); SwipeTyping.LearnTriple(prevWord2, prevWord, lw); prevWord2 = prevWord; prevWord = lw;   // kolejnosc slow i zwroty (2 poprzednie)
                 lock (_swLearned)
                 {

@@ -282,7 +282,8 @@ namespace Przegladarka
         {
             if (!string.Equals(ze, "ze", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(next) || !next.All(char.IsLetter)) return null;
             var n = next.ToLowerInvariant(); const string v = "aąeęioóuy";
-            bool prep = n.StartsWith("mn", StringComparison.Ordinal) || n == "sobą" || n == "sobie"
+            int ze2 = PairCount("ze " + n), zz = PairCount("że " + n);   // kontekst wyuczony z Twojego pisania ma pierwszenstwo
+            bool prep = ze2 != zz ? ze2 > zz : n.StartsWith("mn", StringComparison.Ordinal) || n == "sobą" || n == "sobie"
                 || n.StartsWith("wszystk", StringComparison.Ordinal) && n != "wszystko" && n != "wszystkie"
                 || n.Length > 1 && "szśźżwfł".IndexOf(n[0]) >= 0 && v.IndexOf(n[1]) < 0 && !n.StartsWith("wszys", StringComparison.Ordinal)
                     && !new[] { "ł", "łem", "łam", "łeś", "łaś", "ć" }.Any(x => n.EndsWith(x, StringComparison.Ordinal));   // ze zrobił -> że zrobił
@@ -393,6 +394,7 @@ namespace Przegladarka
         }
 
         // trojki slow (zwroty): "daj znać" -> "jak"; ten sam zapis co pary (klucz z dwiema spacjami)
+        static int PairCount(string k) { lock (_pairs) return _pairs.TryGetValue(k, out var c) ? c : 0; }
         internal static void LearnTriple(string prev2, string prev, string word)
         {
             if (string.IsNullOrEmpty(prev2) || string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(word)) return;

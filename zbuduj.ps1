@@ -24,6 +24,9 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja nie powiodla sie." -Foreground
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSetup" -ForegroundColor Red; exit 1 }
+$old = Join-Path $PSScriptRoot 'Instalator\Velivo-Setup-1.22.exe'
+for ($i = 0; $i -lt 10 -and (Test-Path $old); $i++) { try { Remove-Item $old -Force -ErrorAction Stop } catch { Start-Sleep 2 } }   # stary instalator (otwarty / sprawdzany przez antywirus) - kilka prob
+if (Test-Path $old) { Write-Host "Stary instalator jest w uzyciu - zamknij okno instalacji Velivo i uruchom skrypt ponownie." -ForegroundColor Red; exit 1 }
 & $iscc /DPelny src\installer.iss
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 

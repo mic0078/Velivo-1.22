@@ -63,7 +63,7 @@ namespace Przegladarka
                 foreach (var n in _notes.Where(q => !q.Free))
                 {
                     if (!_noteWindows.TryGetValue(n, out var w)) continue;
-                    double width = Math.Max(200, n.W), h = _noteOpen.Contains(n) ? Math.Max(120, n.H) : 30;
+                    double width = Math.Max(200, n.W), h = _noteOpen.Contains(n) ? Math.Max(120, n.H) : 32;   // zwinieta: caly pasek (30) + ramka
                     w.Width = width; w.Height = h; w.Left = x; w.Top = wa.Bottom - h;
                     x += width + 6;
                 }
@@ -153,7 +153,10 @@ namespace Przegladarka
                 WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResizeWithGrip, ShowInTaskbar = false, Topmost = n.Top || !n.Free,
                 Width = Math.Max(160, n.W), Height = Math.Max(120, n.H), Left = n.X, Top = n.Y, Title = L.T(k[2]),
                 Background = new SolidColorBrush(col()), BorderBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)), BorderThickness = new Thickness(1),
+                Tag = "own-bounds",   // miejsce i rozmiar ustawia karteczka (nie wspolna pamiec okien po tytule)
             };
+            // bez bialej ramki Windows u gory (zjadala pol paska i klikniecia); brzegi dalej do zmiany rozmiaru
+            System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(5), GlassFrameThickness = new Thickness(0), UseAeroCaptionButtons = false });
             // karteczka musi byc widoczna na ktoryms ekranie (np. po odlaczeniu monitora)
             if (w.Left < SystemParameters.VirtualScreenLeft || w.Left > SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 60 ||
                 w.Top < SystemParameters.VirtualScreenTop || w.Top > SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 40)
@@ -170,8 +173,9 @@ namespace Przegladarka
             var add = headBtn("➕", L.T("Nowa karteczka"));
             var del = headBtn("✕", L.T("Usuń karteczkę"));
             var dock = headBtn("📎", L.T("Przypnij nad paskiem zadań / odepnij na pulpit"));
+            var open = headBtn("▲", L.T("Rozwiń / zwiń karteczkę"));
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            foreach (var b in new[] { dock, pin, paint, add, del }) btns.Children.Add(b);
+            foreach (var b in new[] { open, dock, pin, paint, add, del }) btns.Children.Add(b);
             var head = new DockPanel { Height = 30, Background = new SolidColorBrush(Color.FromArgb(28, 0, 0, 0)), Cursor = Cursors.SizeAll };
             DockPanel.SetDock(btns, Dock.Right); head.Children.Add(btns); head.Children.Add(title);
             var box = new TextBox
@@ -195,20 +199,28 @@ namespace Przegladarka
             DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); root.Children.Add(box);
             w.Content = root;
 
+            Action toggleOpen = () =>
+            {
+                if (n.Free) return;
+                if (!_noteOpen.Remove(n)) _noteOpen.Add(n);
+                open.Content = _noteOpen.Contains(n) ? "▼" : "▲";
+                LayoutDockedNotes();
+                if (_noteOpen.Contains(n)) { w.Activate(); box.Focus(); box.CaretIndex = box.Text.Length; }
+            };
             // przypieta: klik w pasek rozwija / zwija w gore; odpieta: przeciaganie jak dotad
             head.MouseLeftButtonDown += (s, e) =>
             {
                 if (e.ClickCount != 1) return;
                 if (n.Free) { try { w.DragMove(); } catch (InvalidOperationException) { } return; }
-                if (!_noteOpen.Remove(n)) _noteOpen.Add(n);
-                LayoutDockedNotes();
-                if (_noteOpen.Contains(n)) { box.Focus(); box.CaretIndex = box.Text.Length; }
+                toggleOpen();
             };
             head.ToolTip = n.Free ? null : L.T("Kliknij, aby rozwinąć / zwinąć karteczkę");
+            open.Click += (s, e) => toggleOpen();
+            open.Visibility = n.Free ? Visibility.Collapsed : Visibility.Visible;
             dock.Click += (s, e) =>
             {
                 n.Free = !n.Free; w.Topmost = n.Top || !n.Free; _noteOpen.Remove(n);
-                head.Cursor = n.Free ? Cursors.SizeAll : Cursors.Hand; head.ToolTip = n.Free ? null : L.T("Kliknij, aby rozwinąć / zwinąć karteczkę");
+                head.Cursor = n.Free ? Cursors.SizeAll : Cursors.Hand; open.Visibility = n.Free ? Visibility.Collapsed : Visibility.Visible; head.ToolTip = n.Free ? null : L.T("Kliknij, aby rozwinąć / zwinąć karteczkę");
                 if (n.Free) { var wa = SystemParameters.WorkArea; w.Height = Math.Max(120, n.H); w.Top = Math.Max(wa.Top, wa.Bottom - w.Height - 40); }
                 SaveNotes(); LayoutDockedNotes();
             };
@@ -250,7 +262,7 @@ namespace Przegladarka
             if (!n.Free) head.Cursor = Cursors.Hand;
             w.Show();
             LayoutDockedNotes();
-            if (!n.Free && (string.IsNullOrEmpty(n.Text) || n.Text == k[3])) { _noteOpen.Add(n); LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
+            if (!n.Free && (string.IsNullOrEmpty(n.Text) || n.Text == k[3])) { _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
             if (string.IsNullOrEmpty(n.Text) || n.Text == k[3]) { box.Focus(); box.CaretIndex = k[3].IndexOf('\n') is int nl && nl > 0 ? nl : box.Text.Length; }
         }
 

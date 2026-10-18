@@ -193,6 +193,13 @@ namespace Przegladarka
         [DllImport("user32.dll")] static extern int GetMessage(out MsgStruct m, IntPtr h, uint min, uint max);
         // pad (Xbox i zgodne z XInput - wiekszosc popularnych; PlayStation przez Steam / DS4Windows)
         [StructLayout(LayoutKind.Sequential)] struct PadState { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
+        [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+        static void MouseClick(bool right)
+        {   // klik myszy w miejscu kursora (pad: A - lewy, X - prawy)
+            uint dn = right ? 0x0008u : 0x0002u, up = right ? 0x0010u : 0x0004u;
+            var ins = new[] { new KbdInput { Type = 0, U = new InputUnion { Ms = new MouseData { Flags = dn } } }, new KbdInput { Type = 0, U = new InputUnion { Ms = new MouseData { Flags = up } } } };
+            SendInput((uint)ins.Length, ins, Marshal.SizeOf(typeof(KbdInput)));
+        }
         [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")] static extern int XInputGetState(int user, out PadState st);
         static LowLevelProc _mouseProc;   // trzymane, zeby GC nie zebral delegata
         static IntPtr _mouseHook;
@@ -1118,7 +1125,7 @@ namespace Przegladarka
             head.Children.Add(dictB);
             // 🎮 sterowanie padem
             var padB = key(ico("\uE7FC", null), 34); padB.Height = 28; padB.FontSize = 13; padB.Background = Brushes.Transparent; DockPanel.SetDock(padB, Dock.Right);
-            padB.ToolTip = L.T("Pad (Xbox i zgodne): krzyżak / lewa gałka – wybór klawisza, A – naciśnij, B – ⌫, X – spacja, Y – ⇧, LB / RB – kursor ◀ ▶, LT – ą ę ł, Start – ⏎, R3 – przełączanie okien, Back – schowaj / pokaż");
+            padB.ToolTip = L.T("Pad (Xbox i zgodne): krzyżak / lewa gałka – wybór klawisza, A – naciśnij, B – ⌫, X – spacja, Y – ⇧, LB / RB – kursor ◀ ▶, LT – ą ę ł, Start – ⏎, R3 – przełączanie okien, Back – schowaj / pokaż, prawa gałka – kursor (RT szybciej, L3 wolniej). Prawy klik – ustawienia pada");
             head.Children.Add(padB);
             // 🎤 dyktowanie (pisanie glosem Windows, Win+H), 🔊 czytanie na glos tego, co piszesz, PL / EN - jezyk
             var micB = key(ico("\uE720", null), 34); micB.Height = 28; micB.FontSize = 13; micB.Background = Brushes.Transparent; DockPanel.SetDock(micB, Dock.Right);
@@ -1249,6 +1256,14 @@ namespace Przegladarka
             };
             Action<Button> press = b => b?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             var padTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            // kursor myszy prawa galka (ustawienia: prawy klik na 🎮): czulosc 1-4, RT przyspiesza, przytrzymane L3 zwalnia (precyzja)
+            bool padMouse = true, padRt = true, padL3 = true; int padSens = 2; double padFx = 0, padFy = 0;
+            Action padPrefs = () =>
+            {
+                padMouse = GetPref("klawiatura-pad-mysz") != "0"; padRt = GetPref("klawiatura-pad-rt") != "0"; padL3 = GetPref("klawiatura-pad-l3") != "0";
+                padSens = int.TryParse(GetPref("klawiatura-pad-czulosc"), out var ps) && ps >= 1 && ps <= 4 ? ps : 2;
+            };
+            padPrefs();
             padTimer.Tick += (s, e) =>
             {
                 PadState st = default; bool ok = false;
@@ -1260,6 +1275,21 @@ namespace Przegladarka
                 // galka jak krzyzak
                 if (st.LY > 16000) bt |= 0x1; if (st.LY < -16000) bt |= 0x2; if (st.LX < -16000) bt |= 0x4; if (st.LX > 16000) bt |= 0x8;
                 if (st.LT > 120) bt |= 0x0800;   // LT jako przycisk (nieuzywany bit)
+                if (padMouse)
+                {   // prawa galka - kursor; martwa strefa, ruch rosnie z wychyleniem
+                    double rx = st.RX, ry = st.RY, mag = Math.Sqrt(rx * rx + ry * ry); const double dz = 7000;
+                    if (mag > dz)
+                    {
+                        double n = Math.Min(1, (mag - dz) / (32767 - dz));
+                        double speed = new[] { 0, 5.0, 10.0, 17.0, 26.0 }[padSens] * n * n;
+                        if (padRt && st.RT > 30) speed *= 1 + 2.5 * st.RT / 255.0;   // RT - szybciej
+                        if (padL3 && (st.Buttons & 0x0040) != 0) speed *= 0.25;     // L3 przytrzymane - wolniej, precyzyjnie
+                        padFx += rx / mag * speed; padFy -= ry / mag * speed;
+                        int mx = (int)padFx, my = (int)padFy; padFx -= mx; padFy -= my;
+                        if ((mx != 0 || my != 0) && GetCursorPos(out var cp0)) SetCursorPos(cp0.X + mx, cp0.Y + my);
+                        padUsed = true;
+                    }
+                }
                 ushort fresh = (ushort)(bt & ~padPrev); padPrev = bt;
                 if ((fresh & 0x0080) != 0) { SendCombo(0x11, 0x12, 0x09); padSwitch = DateTime.Now.AddSeconds(20); return; }   // R3: przelaczanie okien (Ctrl+Alt+Tab)
                 if (DateTime.Now < padSwitch)
@@ -1270,7 +1300,13 @@ namespace Przegladarka
                     else if (fresh != 0) padSwitch = DateTime.Now.AddSeconds(20);
                     return;
                 }
-                if (_kbd == null || !_kbd.IsVisible) { if ((fresh & 0x0020) != 0) ShowScreenKeyboard(); return; }   // schowana w zasobniku: Back ja pokazuje, reszta pada nic nie pisze
+                if (_kbd == null || !_kbd.IsVisible)
+                {   // schowana w zasobniku: Back ja pokazuje; z kursorem na prawej galce A - lewy klik, X - prawy; reszta pada nic nie pisze
+                    if ((fresh & 0x0020) != 0) ShowScreenKeyboard();
+                    else if (padMouse && (fresh & 0x1000) != 0) MouseClick(false);
+                    else if (padMouse && (fresh & 0x4000) != 0) MouseClick(true);
+                    return;
+                }   // schowana w zasobniku: Back ja pokazuje, reszta pada nic nie pisze
                 // kierunki z powtarzaniem przy przytrzymaniu
                 int dir = (bt & 0x1) != 0 ? 1 : (bt & 0x2) != 0 ? 2 : (bt & 0x4) != 0 ? 3 : (bt & 0x8) != 0 ? 4 : 0;
                 if (dir != 0 && (dir != padDir || DateTime.Now >= padNext))
@@ -1297,6 +1333,29 @@ namespace Przegladarka
                 if (on) { padShow(); padTimer.Start(); } else padTimer.Stop();
             };
             padB.Click += (s, e) => { SetPref("klawiatura-pad", GetPref("klawiatura-pad") == "1" ? "0" : "1"); padApply(); };
+            // prawy klik na 🎮: ustawienia pada
+            padB.MouseRightButtonUp += (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = padB };
+                Func<string, string, string, MenuItem> chk = (head, tip, pref) =>
+                {
+                    var mi = new MenuItem { Header = L.T(head), ToolTip = L.T(tip), IsCheckable = true, IsChecked = GetPref(pref) != "0" };
+                    mi.Click += (a, b) => { SetPref(pref, mi.IsChecked ? "1" : "0"); padPrefs(); };
+                    return mi;
+                };
+                cm.Items.Add(chk("Kursor myszy prawą gałką", "Prawa gałka przesuwa kursor; przy schowanej klawiaturze A – lewy klik, X – prawy klik", "klawiatura-pad-mysz"));
+                var sens = new MenuItem { Header = L.T("Czułość kursora"), ToolTip = L.T("Jak szybko kursor jedzie przy pełnym wychyleniu gałki") };
+                foreach (var (lvl, name) in new[] { (1, "Niska"), (2, "Średnia"), (3, "Wysoka"), (4, "Bardzo wysoka") })
+                {
+                    var si = new MenuItem { Header = L.T(name), IsCheckable = true, IsChecked = padSens == lvl }; var l0 = lvl;
+                    si.Click += (a, b) => { SetPref("klawiatura-pad-czulosc", l0.ToString()); padPrefs(); };
+                    sens.Items.Add(si);
+                }
+                cm.Items.Add(sens);
+                cm.Items.Add(chk("RT – przyspieszenie kursora", "Wciśnięty RT przyspiesza kursor (im mocniej, tym szybciej)", "klawiatura-pad-rt"));
+                cm.Items.Add(chk("L3 – precyzyjny (wolny) kursor", "Przytrzymane L3 (wciśnięta lewa gałka) spowalnia kursor do dokładnego celowania", "klawiatura-pad-l3"));
+                cm.IsOpen = true; e.Handled = true;
+            };
             root.Loaded += (s, e) => padApply();
             var trace = new List<Point>(); bool down = false, swiping = false;
             root.PreviewMouseLeftButtonDown += (s, e) =>

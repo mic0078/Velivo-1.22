@@ -1,4 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Velivo" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- akcent Velivo (fiolet z ikony) - przyciski okien, przełączniki, kursor -->
+    <style name="Velivo" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#6D3FDB</item>
+        <item name="android:colorPrimary">#6D3FDB</item>
+        <item name="android:colorControlActivated">#6D3FDB</item>
+    </style>
+    <!-- motyw wybierany w Velivo (jak w telefonie / jasny / ciemny) -->
+    <style name="Velivo.Light" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#6D3FDB</item>
+        <item name="android:colorPrimary">#6D3FDB</item>
+        <item name="android:colorControlActivated">#6D3FDB</item>
+    </style>
+    <style name="Velivo.Dark" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#B3A6FF</item>
+        <item name="android:colorPrimary">#B3A6FF</item>
+        <item name="android:colorControlActivated">#B3A6FF</item>
+    </style>
 </resources>

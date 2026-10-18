@@ -87,7 +87,7 @@ class MainActivity : Activity() {
     private val youtubeJs by lazy { assets.open("youtube.js").bufferedReader().use { it.readText() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(if (dark) android.R.style.Theme_Material_NoActionBar else android.R.style.Theme_Material_Light_NoActionBar)
+        setTheme(if (dark) R.style.Velivo_Dark else R.style.Velivo_Light)
         super.onCreate(savedInstanceState)
         window.statusBarColor = BAR
         window.navigationBarColor = BAR
@@ -101,13 +101,13 @@ class MainActivity : Activity() {
             setSelectAllOnFocus(true)
             textSize = 15f
             setTextColor(TEXT)
-            setHintTextColor(c("#6B7280", "#9CA3AF"))
+            setHintTextColor(c("#7A6FA8", "#A79FD0"))
             setPadding(dp(14), dp(8), dp(14), dp(8))
             background = round(FIELD)
             setOnEditorActionListener { _, _, _ -> go(text.toString()); true }
         }
         bar.addView(address, LinearLayout.LayoutParams(0, -2, 1f))
-        tabsBtn = button("1", R.string.tabs, BLUE, BLUE_BG) { showTabs() }
+        tabsBtn = button("1", R.string.tabs, BLUE, BLUE_BG) { showTabs() }.velivo()
         bar.addView(button("🕶", R.string.new_private_tab, PURPLE, PRIV_BG) { newTab(true, home) })
         bar.addView(tabsBtn)
         // logo Velivo zamiast ⋮ - otwiera menu Velivo
@@ -120,7 +120,10 @@ class MainActivity : Activity() {
             isClickable = true
             setOnClickListener { showMenu(it) }
         }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { setMargins(dp(3), 0, dp(3), 0) })
-        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
+        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progressTintList = android.content.res.ColorStateList.valueOf(BRAND2)
+        }
         frame = FrameLayout(this)
         val nav = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)) }
         fun navBtn(b: Button) = nav.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f))
@@ -128,7 +131,7 @@ class MainActivity : Activity() {
         navBtn(button("▶", R.string.forward, BLUE, BLUE_BG) { web()?.let { if (it.canGoForward()) it.goForward() } })
         navBtn(button("⟳", R.string.reload, GREEN, GREEN_BG) { web()?.reload() })
         navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) { web()?.loadUrl(home) })
-        navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, QuickAccess.URL) })
+        navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, QuickAccess.URL) }.velivo())
         root.addView(bar)
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -167,12 +170,15 @@ class MainActivity : Activity() {
         }
     }
     private fun c(light: String, night: String) = Color.parseColor(if (dark) night else light)
-    private val BAR by lazy { c("#E5E7EB", "#1F2937") }
-    private val TEXT by lazy { c("#1F2937", "#E5E7EB") }
-    private val FIELD by lazy { c("#FFFFFF", "#111827") }
-    private val GRAY_BG by lazy { c("#F3F4F6", "#374151") }
-    private val BLUE by lazy { c("#1D4ED8", "#93C5FD") }
-    private val BLUE_BG by lazy { c("#DBEAFE", "#1E3A8A") }
+    // Kolory Velivo z ikony: fiolet -> turkus. Tła paskow i przyciskow w odcieniach fioletu Velivo (nie szare).
+    private val BRAND1 = Color.parseColor("#6D3FDB")
+    private val BRAND2 = Color.parseColor("#2BA9D8")
+    private val BAR by lazy { c("#EEE9FB", "#1B1733") }
+    private val TEXT by lazy { c("#2A2150", "#ECE8FF") }
+    private val FIELD by lazy { c("#FFFFFF", "#120F24") }
+    private val GRAY_BG by lazy { c("#E2DBF7", "#2A2450") }
+    private val BLUE by lazy { c("#5B3FD0", "#B3A6FF") }
+    private val BLUE_BG by lazy { c("#E4DDFB", "#2E2768") }
     private val GREEN by lazy { c("#15803D", "#86EFAC") }
     private val GREEN_BG by lazy { c("#DCFCE7", "#14532D") }
     private val ORANGE by lazy { c("#C2410C", "#FDBA74") }
@@ -263,6 +269,11 @@ set(p0,p);})"""
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun round(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(8).toFloat() }
+
+    // gradient Velivo (jak ikona) - przyciski glowne
+    private fun brand(radius: Int = 8) = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(BRAND1, BRAND2)).apply { cornerRadius = dp(radius).toFloat() }
+
+    private fun Button.velivo(): Button { background = brand(); setTextColor(Color.WHITE); return this }
 
     private fun button(label: String, tip: Int, fg: Int, bg: Int, click: (View) -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
         text = label
@@ -512,7 +523,10 @@ set(p0,p);})"""
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         head.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher) }, LinearLayout.LayoutParams(dp(40), dp(40)))
         head.addView(TextView(this).apply {
-            text = "Velivo"; textSize = 22f; setTextColor(TEXT); setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
+            text = "Velivo"; textSize = 24f; setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
+            // napis w gradiencie Velivo (fiolet -> turkus), jak pod ikona
+            val w = paint.measureText("Velivo")
+            paint.shader = android.graphics.LinearGradient(dp(10).toFloat(), 0f, dp(10) + w, 0f, BRAND1, BRAND2, android.graphics.Shader.TileMode.CLAMP)
         }, LinearLayout.LayoutParams(0, -2, 1f))
         head.addView(TextView(this).apply {
             text = "🛡 " + getString(R.string.blocked, blockedCount)
@@ -522,14 +536,16 @@ set(p0,p);})"""
 
         fun section(title: Int, items: List<Triple<String, Int, Int>>, toggles: Map<Int, Boolean> = emptyMap()) {
             box.addView(TextView(this).apply {
-                text = getString(title); textSize = 13f; setTextColor(c("#6B7280", "#9CA3AF")); setPadding(dp(2), dp(14), 0, dp(6))
+                text = getString(title); textSize = 13f; setTextColor(c("#7A6FA8", "#A79FD0")); setPadding(dp(2), dp(14), 0, dp(6))
             })
             val grid = android.widget.GridLayout(this).apply { columnCount = 3 }
             for ((icon, label, id) in items) {
                 val on = toggles[id]
+                val primary = id == 1 || id == 14   // nowa karta, Szybki Dostep - gradient Velivo
                 val (fg, bg) = when {
+                    primary -> Color.WHITE to BRAND1
                     on == true -> GREEN to GREEN_BG
-                    on == false -> c("#6B7280", "#9CA3AF") to GRAY_BG
+                    on == false -> c("#7A6FA8", "#A79FD0") to GRAY_BG
                     id == 2 -> PURPLE to PRIV_BG
                     id == 10 -> c("#0F766E", "#5EEAD4") to BANK_BG
                     id == 6 -> c("#B91C1C", "#FCA5A5") to c("#FEE2E2", "#450A0A")
@@ -539,7 +555,7 @@ set(p0,p);})"""
                 val tile = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
-                    background = round(bg)
+                    background = if (primary) brand(10) else round(bg)
                     setPadding(dp(4), dp(10), dp(4), dp(10))
                     contentDescription = getString(label)
                     tooltipText = getString(label)
@@ -613,7 +629,7 @@ set(p0,p);})"""
             hint = getString(R.string.search_hint)
             setSingleLine()
             setTextColor(TEXT)
-            setHintTextColor(c("#6B7280", "#9CA3AF"))
+            setHintTextColor(c("#7A6FA8", "#A79FD0"))
             background = round(GRAY_BG)
             setPadding(dp(12), dp(8), dp(12), dp(8))
         }
@@ -648,7 +664,7 @@ set(p0,p);})"""
                     text = row.title; textSize = 15f; setTextColor(TEXT); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
                 })
                 texts.addView(TextView(this@MainActivity).apply {
-                    text = row.sub; textSize = 12f; setTextColor(c("#6B7280", "#9CA3AF")); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+                    text = row.sub; textSize = 12f; setTextColor(c("#7A6FA8", "#A79FD0")); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
                 })
                 v.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
                 v.addView(button("✕", R.string.delete, TEXT, GRAY_BG) {

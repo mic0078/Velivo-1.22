@@ -79,7 +79,14 @@ class Passwords(ctx: Context) {
         return changed
     }
 
-    fun forHost(host: String) = all().filter { it.host == host }
+    // Dopasowanie jak w Velivo na Windows (PasswordEntryMatchesHost): bez "www.", ta sama domena albo poddomena
+    // w dowolną stronę. Nigdy po podobnej nazwie - podróbka "facebook.xyz" nie dostanie hasła do Facebooka.
+    fun forHost(host: String): List<Entry> {
+        val target = norm(host)
+        return all().filter { val h = norm(it.host); h.isNotEmpty() && (h == target || target.endsWith(".$h") || h.endsWith(".$target")) }
+    }
+
+    private fun norm(h: String) = h.trim().lowercase().removePrefix("www.")
 
     fun isSaved(host: String, user: String, pass: String) = all().any { it.host == host && it.user == user && it.pass == pass }
 

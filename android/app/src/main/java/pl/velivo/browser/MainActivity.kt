@@ -616,9 +616,22 @@ set(p0,p);})"""
     private val passwords by lazy { Passwords(this) }
     private var lastAsked = ""
 
+    // Hasła tylko na https - albo na http w sieci domowej (router, NAS), gdzie hasło nie wychodzi poza dom.
     private fun secureHost(w: WebView): String? {
         val u = Uri.parse(w.url ?: return null)
-        return if (u.scheme == "https") u.host else null
+        val host = u.host?.lowercase() ?: return null
+        return when (u.scheme) {
+            "https" -> host
+            "http" -> host.takeIf { isHomeNetwork(it) }
+            else -> null
+        }
+    }
+
+    private fun isHomeNetwork(h: String): Boolean {
+        if (h == "localhost" || h.endsWith(".local") || h.endsWith(".lan") || h.endsWith(".home.arpa")) return true
+        val p = h.split('.').mapNotNull { it.toIntOrNull() }
+        if (p.size != 4 || h.count { it == '.' } != 3) return false
+        return p[0] == 10 || (p[0] == 192 && p[1] == 168) || (p[0] == 172 && p[1] in 16..31) || p[0] == 127
     }
 
     // Strona wysłała formularz z hasłem - wywoływane z JavaScriptu (wątek w tle).
@@ -658,7 +671,8 @@ set(p0,p);})"""
     }
 
     private fun fill(w: WebView, e: Passwords.Entry) {
-        if (secureHost(w) != e.host) return
+        val h = secureHost(w) ?: return
+        if (e !in passwords.forHost(h)) return   // strona zmieniła się w międzyczasie - hasło nie dla niej
         w.evaluateJavascript("$FILL_JS(${JSONObject.quote(e.user)},${JSONObject.quote(e.pass)})", null)
     }
 

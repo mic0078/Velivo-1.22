@@ -892,6 +892,7 @@ The full phone guide is a separate manual: `dokumentacja/instrukcja-telefon.en.m
 
 - **Ad blocking** – the same lists as on the computer (EasyList, EasyPrivacy, KAD), bundled with the app and refreshed every 4 days; no empty "ADVERT" box or error frame is left behind; on YouTube ads are removed from the player data.
 - **Passwords** – encrypted with a key in the Android Keystore (the key never leaves the phone). Velivo offers to save them after signing in and fills them in (https pages and the home network: router, NAS). Menu → **Fill in password** when the form appeared later. The password list (Menu → Passwords) opens after a fingerprint or PIN; **Copy password** marks it as sensitive in the clipboard.
+- **Scam protection** – warnings about fake bank and brand sites and about APK downloads from outside Google Play; HTTPS first. **Privacy panel** – tap the blocked-ads counter in the menu.
 - **Banking mode** – Menu → Banking mode: entry with fingerprint / PIN, a separate permanent profile, no history, no screenshots, locked after 10 minutes of inactivity.
 
 ### Connecting to the computer

@@ -1218,6 +1218,7 @@ Pełny opis telefonu: osobna instrukcja `dokumentacja/instrukcja-telefon.md`.
 
 - **Blokowanie reklam** – te same listy co na komputerze (EasyList, EasyPrivacy, KAD), dołączone do aplikacji i odświeżane co 4 dni; po reklamie nie zostaje puste pole „REKLAMA” ani błąd w ramce; na YouTube reklamy usuwane z danych odtwarzacza.
 - **Hasła** – zaszyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). Velivo pyta o zapis po zalogowaniu i wpisuje je samo (strony https oraz sieć domowa: router, NAS). Menu → **Wpisz hasło**, gdy formularz pojawił się później. Lista haseł (Menu → Hasła) otwiera się po odcisku palca lub PIN-ie; **Kopiuj hasło** oznacza je w schowku jako poufne.
+- **Ochrona przed oszustwami** – ostrzeżenie przed podróbkami stron banków i znanych firm oraz przed pobraniem aplikacji APK spoza Sklepu Play; najpierw https. **Panel prywatności** – stuknij licznik zablokowanych reklam w menu.
 - **Tryb bankowy** – Menu → Tryb bankowy: wejście odciskiem / PIN-em, osobny stały profil, bez historii, bez zrzutów ekranu, blokada po 10 minutach bezczynności.
 
 ### Połączenie z komputerem

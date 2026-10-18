@@ -129,7 +129,7 @@ class MainActivity : Activity() {
         frame = FrameLayout(this)
         val nav = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)) }
         fun navBtn(b: Button) = nav.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f))
-        navBtn(button("◀", R.string.back, BLUE, BLUE_BG) { web()?.let { if (it.canGoBack()) it.goBack() } })
+        navBtn(button("◀", R.string.back, BLUE, BLUE_BG) { stopSpeaking(); web()?.let { if (it.canGoBack()) it.goBack() } })
         navBtn(button("▶", R.string.forward, BLUE, BLUE_BG) { web()?.let { if (it.canGoForward()) it.goForward() } })
         navBtn(button("⟳", R.string.reload, GREEN, GREEN_BG) { web()?.reload() })
         navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) { web()?.loadUrl(home) })
@@ -635,7 +635,7 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
         // zapamietaj, gdzie skonczyles czytac (lokalnie, wg adresu strony)
         val key = "czytnik_poz_" + (web()?.url ?: title).hashCode()
         val scroll = root.getChildAt(1) as android.widget.ScrollView
-        dlg.setOnDismissListener { prefs.edit().putInt(key, scroll.scrollY).apply() }
+        dlg.setOnDismissListener { prefs.edit().putInt(key, scroll.scrollY).apply(); stopSpeaking() }
         dlg.setContentView(root)
         dlg.show()
         val pos = prefs.getInt(key, 0)
@@ -1288,7 +1288,7 @@ return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK && fullView != null) { exitFullscreen(); return true }
         val w = web()
-        if (keyCode == KeyEvent.KEYCODE_BACK && w != null && w.canGoBack()) { w.goBack(); return true }
+        if (keyCode == KeyEvent.KEYCODE_BACK && w != null && w.canGoBack()) { stopSpeaking(); w.goBack(); return true }
         return super.onKeyDown(keyCode, event)
     }
 

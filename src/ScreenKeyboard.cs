@@ -418,7 +418,8 @@ namespace Przegladarka
             yield return new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl | KeyUp } } };
         }
         static IEnumerable<KbdInput> TextIn(string t) { return t.SelectMany(c => c == '\n' ? KeyIn(0x0D, '\0') : KeyIn(0, c)); }
-        static void PhysAfterInsert(string word, string before) { _pWord = ""; _pFixFrom = _pFixTo = null; _pPrev = ' '; _pPrevWord = word; _pPrevWord2 = before; _pPrevSpace = true; _pLast = Environment.TickCount64; }
+        static void PhysAfterInsert(string word, string before) { _pWord = ""; _pFixFrom = _pFixTo = null; _pPrev = ' '; _pPrevWord = word; _pPrevWord2 = before; _pPrevSpace = true; _pAutoSpace = true; _pLast = Environment.TickCount64; }
+        static bool _pAutoSpace;   // spacja wstawiona przez Velivo (propozycja z paska) - przecinek / kropka zastapi ja jak na Androidzie
         static void PhysReset() { _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
@@ -464,8 +465,14 @@ namespace Przegladarka
                 if (_pCap && !upper) { _pCap = false; c = char.ToUpper(c); _pWord += c; _pPrev = c; Inject(KeyIn(0, c)); PhysPred(_pWord, false); return true; }   // poczatek zdania - wielka litera zamiast malej
                 _pCap = false; _pWord += upper ? char.ToUpper(c) : c; _pPrev = c; PhysPred(_pWord, false); return false;
             }
+            bool autoSp = _pAutoSpace; _pAutoSpace = false;
             char sep = vk == 0x20 ? ' ' : vk == 0x0D ? '\n' : vk == 0xBE && !sh ? '.' : vk == 0xBC && !sh ? ',' : vk == 0x31 && sh ? '!' : vk == 0xBF && sh ? '?' : vk == 0xBA ? (sh ? ':' : ';') : '\0';
-            if (sep == '\0' || ctrl || alt) { PhysReset(); PhysPred(null, false); return false; }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
+            if (sep == '\0' || ctrl || alt) { PhysReset(); PhysPred(null, false); return false; }
+            if (autoSp && _pWord.Length == 0 && ",.!?:;".IndexOf(sep) >= 0)
+            {   // "kot ," -> "kot, " (po slowie z paska)
+                Inject(KeyIn(0x08, '\0').Concat(TextIn(sep + " "))); _pPrev = ' '; _pCap = ".!?".IndexOf(sep) >= 0; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
+                PhysPred(null, false); return true;
+            }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
             bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;
             string word = _pWord; _pWord = ""; _pPrev = sep; _pCap = capAfter;
             string prevW = _pPrevWord, prevW2 = _pPrevWord2; bool prevSpace = _pPrevSpace; _pPrevWord = sep == ' ' ? word : null; _pPrevSpace = sep == ' ';
@@ -619,6 +626,13 @@ namespace Przegladarka
                     return;
                 }
                 bool autoOn = GetPref("klawiatura-korekta") != "0" && !_physPause;
+                if (vk == 0 && cur.Length == 0 && lastSent == ' ' && tPrevWord != null && autoOn && (",.!?:;".IndexOf(ch) >= 0 || ch == ' ') && !SecretField())
+                {   // jak na Androidzie: "kot ," -> "kot, " (znak przylega do slowa), dwie spacje -> ". "
+                    var pc = ch == ' ' ? '.' : ch;
+                    SendKey(0x08, '\0'); SendKey(0, pc); SendKey(0, ' ');
+                    capNext = ".!?".IndexOf(pc) >= 0; lastSent = ' '; tPrevWord = tPrevWord2 = null; tPrevSpace = false; fixFrom = fixTo = null;
+                    predShow(null, false); return;
+                }
                 if (vk == 0 && char.IsLetter(ch) && capNext && autoOn && !SecretField()) ch = char.ToUpper(ch);
                 if (vk != 0 || ch != ' ') capNext = false;
                 bool sep = vk == 0 ? !char.IsLetter(ch) : vk == 0x0D || vk == 0x09;
@@ -808,7 +822,7 @@ namespace Przegladarka
                     if (comma) back++;   // spacja przed slowem -> ", "
                     for (int k = 0; k < back; k++) SendKey(0x08, '\0');
                     foreach (var c2 in (comma ? ", " : "") + choice) SendKey(0, c2); SendKey(0, ' ');
-                    var lastW = choice.Split(' ').Last(); tPrevWord = lastW; tPrevSpace = true; PhysAfterInsert(lastW, before);   // kontekst dla nastepnego slowa
+                    var lastW = choice.Split(' ').Last(); tPrevWord = lastW; tPrevSpace = true; lastSent = ' '; capNext = false; PhysAfterInsert(lastW, before);   // kontekst dla nastepnego slowa
                     foreach (var pw in choice.Split(' ')) learn(pw); cur = "";   // caly zwrot - kazde slowo lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
                     predShow(null, false);
                 };

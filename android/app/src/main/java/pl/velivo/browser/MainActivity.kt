@@ -48,7 +48,7 @@ class MainActivity : Activity() {
     }
     @Volatile private var blockedCount = 0
 
-    private val home = "https://duckduckgo.com/"
+    private val home = "https://www.startpage.com/"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -189,7 +189,7 @@ class MainActivity : Activity() {
         val url = when {
             s.contains("://") -> s
             !s.contains(' ') && s.contains('.') -> "https://$s"
-            else -> home + "?q=" + Uri.encode(s)
+            else -> home + "do/search?q=" + Uri.encode(s)
         }
         web()?.loadUrl(url)
         web()?.requestFocus()

@@ -161,4 +161,16 @@ public class PisanieFlowTests
         Assert.True(SwipeTyping.IsTypo("zolw"));                  // literowka - nie do Mojego slownika
         Assert.False(SwipeTyping.IsTypo("klawiaturą"));           // z polskimi znakami - swiadomie wpisane slowo
     }
+
+    [Fact]
+    public void UczySieZwrotowUzytkownika()
+    {
+        SwipeTyping.Load(new[] { "daj", "znać", "jak", "dotrzesz" });
+        string p2 = null, p1 = null;
+        for (int r = 0; r < 3; r++) foreach (var w in new[] { "daj", "znać", "jak", "dotrzesz" }) { SwipeTyping.LearnPair(p1, w); SwipeTyping.LearnTriple(p2, p1, w); p2 = p1; p1 = w; }
+        var po1 = SwipeTyping.NextWords("daj");
+        Assert.Equal("znać jak dotrzesz", po1[0]);                 // caly zwrot pisany czesto
+        Assert.Contains("znać", po1);
+        Assert.Equal("jak dotrzesz", SwipeTyping.NextWords("znać", "daj")[0]);   // po dwoch slowach - dalsza czesc zwrotu
+    }
 }

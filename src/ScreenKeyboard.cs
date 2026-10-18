@@ -551,12 +551,12 @@ namespace Przegladarka
             List<Point> lastTrace = null; double lastKeyW = 52; string cur = "", lastSwipe = null; var sugs = new List<Button>();   // biezace slowo z klawiszy; ostatnie slowo z przeciagniecia (do podmiany z podpowiedzi)
             var ask = new TextBlock { Text = L.T("Poprawić na:"), FontSize = 13, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0), Visibility = Visibility.Collapsed };
             Action<string> askAdd = aw0 => { }; Action hideAdd = () => { };   // pytanie "Dodać do słownika?" (ustawiane nizej)
-            string prevWord = null, prevBeforeSwipe = null;   // poprzednie slowo - do nauki kolejnosci slow
+            string prevWord = null, prevWord2 = null, prevBeforeSwipe = null;   // poprzednie slowo - do nauki kolejnosci slow
             Action<string> learn = wd =>
             {
                 if (wd.Length < 2 || !SwipeTyping.Loaded || SecretField()) return;   // pole hasla - bez nauki
                 var lw = wd.ToLowerInvariant();
-                SwipeTyping.LearnPair(prevWord, lw); prevWord = lw;   // kolejnosc slow
+                SwipeTyping.LearnPair(prevWord, lw); SwipeTyping.LearnTriple(prevWord2, prevWord, lw); prevWord2 = prevWord; prevWord = lw;   // kolejnosc slow i zwroty (2 poprzednie)
                 lock (_swLearned)
                 {
                     _swLearned[lw] = (_swLearned.TryGetValue(lw, out var n) ? n : 0) + 1;
@@ -771,7 +771,7 @@ namespace Przegladarka
             string predWord = null; bool predDone = false, predNext = false;
             for (int i = 0; i < 3; i++)
             {
-                var pb = key("", 200); pb.Height = 32; pb.FontSize = 15; pb.Visibility = Visibility.Hidden;
+                var pb = key("", double.NaN); pb.MinWidth = 150; pb.Padding = new Thickness(14, 0, 14, 0); pb.Height = 32; pb.FontSize = 15; pb.Visibility = Visibility.Hidden;   // dluzszy zwrot - szerszy przycisk
                 pb.ToolTip = L.T("Propozycja słowa – kliknij, aby wstawić");
                 pb.Click += (s, e) =>
                 {
@@ -779,7 +779,7 @@ namespace Przegladarka
                     int back = predNext ? 0 : predWord.Length + (predDone ? 1 : 0);   // nastepne slowo - tylko dopisujemy
                     for (int k = 0; k < back; k++) SendKey(0x08, '\0');
                     foreach (var c2 in choice) SendKey(0, c2); SendKey(0, ' ');
-                    learn(choice); cur = ""; lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
+                    foreach (var pw in choice.Split(' ')) learn(pw); cur = "";   // caly zwrot - kazde slowo lastSwipe = null; fixFrom = fixTo = null; lastSent = ' ';
                     predShow(null, false);
                 };
                 preds.Add(pb); predRow.Children.Add(pb);
@@ -788,7 +788,7 @@ namespace Przegladarka
             {
                 var list = word == null || word.Length == 0 || _physSecret || GetPref("klawiatura-korekta") == "0" ? new List<string>() : SwipeTyping.Predict(word, done);
                 predNext = false;
-                if (done && list.Count == 0 && word != null && !_physSecret && GetPref("klawiatura-korekta") != "0") { list = SwipeTyping.NextWords(word); predNext = list.Count > 0; }   // po spacji: co zwykle piszesz dalej
+                if (done && list.Count == 0 && word != null && !_physSecret && GetPref("klawiatura-korekta") != "0") { list = SwipeTyping.NextWords(word, prevWord2); predNext = list.Count > 0; }   // po spacji: co zwykle piszesz dalej
                 predWord = list.Count > 0 ? word : null; predDone = done;
                 for (int i = 0; i < preds.Count; i++) { bool on = i < list.Count; preds[i].Visibility = on ? Visibility.Visible : Visibility.Hidden; if (on) { preds[i].Content = list[i]; preds[i].DataContext = list[i]; } }
             };
@@ -1198,7 +1198,7 @@ namespace Przegladarka
                 ask.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible;
             };
             _physAsk = word => { if (GetPref("klawiatura-korekta") == "0" || _physSecret) return; List<string> sg; lock (noFix) sg = SwipeTyping.Suggest(word, noFix); if (sg.Count > 0) askFix(word, sg); };
-            _physPred = (wd, dn) => { predShow(wd, dn); if (dn && wd != null) learn(wd); };   // zwykla klawiatura: skonczone slowo tez uczy (czesto pisane - wyzej w propozycjach)
+            _physPred = (wd, dn) => { if (dn && wd != null) learn(wd); predShow(wd, dn); };   // najpierw nauka (poprzednie slowa), potem propozycje   // zwykla klawiatura: skonczone slowo tez uczy (czesto pisane - wyzej w propozycjach)
             SwipeTyping.UseCount = wd => { lock (_swLearned) return _swLearned.TryGetValue(wd, out var n) ? n : 0; };
             physApply();
             StartKeyEcho();

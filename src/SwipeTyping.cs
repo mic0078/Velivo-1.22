@@ -306,12 +306,42 @@ namespace Przegladarka
             lock (_pairs) { _pairs[k] = (_pairs.TryGetValue(k, out var n) ? n : 0) + 1; if (_pairs.Count > 20000) _pairs.Remove(_pairs.OrderBy(x => x.Value).First().Key); }
         }
 
-        // nastepne slowo: to, co uzytkownik najczesciej pisze po danym slowie (wyuczone pary - takze cale zwroty z czasem)
-        internal static List<string> NextWords(string prev, int count = 3)
+        // trojki slow (zwroty): "daj znać" -> "jak"; ten sam zapis co pary (klucz z dwiema spacjami)
+        internal static void LearnTriple(string prev2, string prev, string word)
         {
-            if (string.IsNullOrEmpty(prev)) return new List<string>();
-            var k = prev.ToLowerInvariant() + " ";
-            lock (_pairs) return _pairs.Where(kv => kv.Key.StartsWith(k, StringComparison.Ordinal) && kv.Value >= 2).OrderByDescending(kv => kv.Value).Take(count).Select(kv => kv.Key.Substring(k.Length)).ToList();
+            if (string.IsNullOrEmpty(prev2) || string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(word)) return;
+            LearnPair(prev2.ToLowerInvariant() + " " + prev.ToLowerInvariant(), word);
+        }
+
+        static List<KeyValuePair<string, int>> Following(string ctx)
+        {
+            var k = ctx + " ";
+            lock (_pairs) return _pairs.Where(kv => kv.Key.StartsWith(k, StringComparison.Ordinal) && kv.Key.IndexOf(' ', k.Length) < 0 && kv.Value >= 2).OrderByDescending(kv => kv.Value).ToList();
+        }
+
+        // nastepne slowo: najpierw po dwoch poprzednich (zwrot), potem po jednym; plus caly zwrot, gdy pisany czesto (>= 3 razy)
+        internal static List<string> NextWords(string prev, string prev2 = null, int count = 3)
+        {
+            var res = new List<string>();
+            if (string.IsNullOrEmpty(prev)) return res;
+            string p = prev.ToLowerInvariant(), p2 = prev2?.ToLowerInvariant();
+            var cands = new List<KeyValuePair<string, int>>();
+            if (!string.IsNullOrEmpty(p2)) cands.AddRange(Following(p2 + " " + p).Select(kv => new KeyValuePair<string, int>(kv.Key, kv.Value + 1000)));   // zwrot ma pierwszenstwo
+            cands.AddRange(Following(p));
+            foreach (var kv in cands) { var w = kv.Key.Substring(kv.Key.LastIndexOf(' ') + 1); if (!res.Contains(w)) res.Add(w); }
+            // caly zwrot: od najpewniejszego slowa dalej, poki kolejne slowo jest czeste (najwyzej 5 slow)
+            if (res.Count > 0)
+            {
+                var phrase = new List<string> { res[0] }; string a = p, b = res[0];
+                for (int i = 0; i < 4; i++)
+                {
+                    var nx = Following(a + " " + b).FirstOrDefault();
+                    if (nx.Key == null || nx.Value < 3) break;
+                    var w = nx.Key.Substring(nx.Key.LastIndexOf(' ') + 1); phrase.Add(w); a = b; b = w;
+                }
+                if (phrase.Count >= 2) res.Insert(0, string.Join(" ", phrase));
+            }
+            return res.Take(count).ToList();
         }
 
         static IEnumerable<string> ShapeLines()

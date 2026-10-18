@@ -121,6 +121,8 @@ namespace Przegladarka
                 _foldAll = all; _sortedFold = sorted.Select(x => x.F).ToArray(); _sortedEntry = sorted.Select(x => x.E).ToArray();
                 _main = main; _fold = fold;
             }
+            if (w == "ze") return null;
+            if (_polite.Contains(w)) return typed[0] == char.ToUpperInvariant(typed[0]) ? null : Polite(w);   // ty -> Ty   // ze / że - rozstrzyga nastepne slowo (ZeAsZe): ze mną, że to
             // stale zwroty pisane blednie razem albo bez polskich znakow: napewno -> na pewno, wogole -> w ogóle
             if (_phraseFix.TryGetValue(Fold(w), out var ph) && ph != w)
                 return char.IsUpper(typed[0]) ? char.ToUpperInvariant(ph[0]) + ph.Substring(1) : ph;
@@ -154,7 +156,7 @@ namespace Przegladarka
                 foreach (var c in abc) cand(fw + c);
             }
             if (best == null || best.Word == w) return null;
-            var r = best.Word;
+            var r = Polite(best.Word);
             if (typed.All(char.IsUpper) && typed.Length > 1) return r.ToUpperInvariant();
             return char.IsUpper(typed[0]) ? char.ToUpperInvariant(r[0]) + r.Substring(1) : r;
         }
@@ -245,6 +247,9 @@ namespace Przegladarka
             ["napoczatku"] = "na początku", ["wszczegolnosci"] = "w szczególności", ["pozatym"] = "poza tym", ["wrazie"] = "w razie",
             ["nazewnatrz"] = "na zewnątrz", ["dowidzenia"] = "do widzenia", ["naszczescie"] = "na szczęście", ["przedewszystkim"] = "przede wszystkim",
             ["ztad"] = "stąd", ["zkad"] = "skąd" };
+        // zwracajac sie do kogos - wielka litera (grzecznosc w listach i wiadomosciach): ty -> Ty, cie -> Cię, twoja -> Twoja
+        static readonly HashSet<string> _polite = new HashSet<string> { "ty", "ci", "cię", "ciebie", "tobie", "tobą", "twój", "twoja", "twoją", "twoje", "twojego", "twojej", "twojemu", "twoim", "twoich", "twoimi" };
+        static string Polite(string r) { return r != null && _polite.Contains(r) ? char.ToUpperInvariant(r[0]) + r.Substring(1) : r; }
         // dwa slowa, ktore piszemy razem: na prawdę -> naprawdę (klucz bez polskich znakow)
         static readonly Dictionary<string, string> _pairFix = new Dictionary<string, string> {
             ["na prawde"] = "naprawdę", ["na przeciwko"] = "naprzeciwko", ["na przeciw"] = "naprzeciw", ["z posrod"] = "spośród", ["z pod"] = "spod",
@@ -271,6 +276,21 @@ namespace Przegladarka
             "który", "która", "które", "którego", "której", "któremu", "którym", "którą", "których", "którzy", "którymi" };
         static readonly HashSet<string> _noCommaAfter = new HashSet<string> { "mimo", "pomimo", "chyba", "zwłaszcza", "tylko", "dlatego", "tak", "podczas", "zanim", "nim", "przy", "po", "w", "z", "na", "do", "o", "od", "za", "przez", "dla", "u", "tam", "wtedy", "zawsze", "nawet", "właśnie", "jak", "jakby", "kiedy", "gdy", "gdzie", "dlaczego", "więc", "zatem", "natomiast",
             "i", "a", "oraz", "lub", "albo", "czy", "ani", "ni", "bądź", "że", "bo", "ale", "aby", "żeby", "lecz", "to", "co", "jak", "niż" };
+        // "ze" zamiast "że" (bez AltGr): rozpoznane po nastepnym slowie. Przyimek zostaje: ze mną, ze szkoły, ze względu, ze wszystkimi;
+        // "że" przed zwyklym slowem albo czasownikiem: ze to -> że to, ze zrobił -> że zrobił. Zwraca zamiennik "ze" (z przecinkiem) albo null
+        internal static string ZeAsZe(string ze, string next, string before)
+        {
+            if (!string.Equals(ze, "ze", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(next) || !next.All(char.IsLetter)) return null;
+            var n = next.ToLowerInvariant(); const string v = "aąeęioóuy";
+            bool prep = n.StartsWith("mn", StringComparison.Ordinal) || n == "sobą" || n == "sobie"
+                || n.StartsWith("wszystk", StringComparison.Ordinal) && n != "wszystko" && n != "wszystkie"
+                || n.Length > 1 && "szśźżwfł".IndexOf(n[0]) >= 0 && v.IndexOf(n[1]) < 0 && !n.StartsWith("wszys", StringComparison.Ordinal)
+                    && !new[] { "ł", "łem", "łam", "łeś", "łaś", "ć" }.Any(x => n.EndsWith(x, StringComparison.Ordinal));   // ze zrobił -> że zrobił
+            if (prep) return null;
+            var r = char.IsUpper(ze[0]) ? "Że" : "że";
+            return NeedsComma("że", before) ? ", " + r : r;
+        }
+
         internal static bool NeedsComma(string word, string prev)
         {
             if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(prev) || !prev.All(char.IsLetter)) return false;

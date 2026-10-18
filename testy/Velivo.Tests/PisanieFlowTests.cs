@@ -144,6 +144,8 @@ public class PisanieFlowTests
         Assert.Equal("w ogóle", SwipeTyping.Correct("wogole"));
         Assert.Equal("naprawdę", SwipeTyping.JoinPair("na", "prawdę"));
         Assert.Null(SwipeTyping.JoinPair("na", "pewno"));
+        Assert.Equal("Ci", SwipeTyping.Correct("ci"));                 // zwracajac sie do kogos - wielka litera
+        Assert.Null(SwipeTyping.Correct("ze"));                        // ze / że rozstrzyga nastepne slowo
         Assert.True(SwipeTyping.IsTypo("napewno"));                  // bledna pisownia nie trafia do Mojego slownika
         SwipeTyping.AddUserWord("napewno");                          // dawniej wyuczona - i tak poprawiana
         Assert.Equal("na pewno", SwipeTyping.Correct("napewno"));
@@ -193,6 +195,10 @@ public class PisanieFlowTests
         Assert.True(SwipeTyping.NeedsComma("gdzie", "wiem"));     // nie wiem, gdzie
         Assert.False(SwipeTyping.NeedsComma("a", "od"));          // od a do z
         Assert.False(SwipeTyping.NeedsComma("gdzie", "tam"));     // tam gdzie
+        Assert.Equal(", że", SwipeTyping.ZeAsZe("ze", "to", "wiem"));   // wiem ze to -> wiem, że to
+        Assert.Null(SwipeTyping.ZeAsZe("ze", "mną", "idź"));           // ze mną - przyimek
+        Assert.Null(SwipeTyping.ZeAsZe("ze", "szkoły", "wracam"));
+        Assert.Equal("Że", SwipeTyping.ZeAsZe("Ze", "się", null));
         SwipeTyping.Load(new[] { "klawiatura", "żółw" });
         Assert.True(SwipeTyping.IsTypo("zolw"));                  // literowka - nie do Mojego slownika
         Assert.False(SwipeTyping.IsTypo("klawiaturą"));           // z polskimi znakami - swiadomie wpisane slowo

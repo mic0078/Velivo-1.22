@@ -405,7 +405,7 @@ namespace Przegladarka
             catch (Exception) { }
         }
         static long _tapLast;   // ostatnie klikniecie klawisza ekranowego
-        static string _pWord = "", _pFixFrom, _pFixTo, _pPrevWord; static bool _pPrevSpace; static long _pLast; static char _pPrev; static bool _pCap;
+        static string _pWord = "", _pFixFrom, _pFixTo, _pPrevWord, _pPrevWord2; static bool _pPrevSpace; static long _pLast; static char _pPrev; static bool _pCap;
         static void Inject(IEnumerable<KbdInput> ins) { var a = ins.ToArray(); if (a.Length > 0) SendInput((uint)a.Length, a, Marshal.SizeOf(typeof(KbdInput))); }
         static IEnumerable<KbdInput> KeyIn(ushort vk, char ch)
         {
@@ -414,7 +414,7 @@ namespace Przegladarka
             yield return new KbdInput { Type = 1, U = new InputUnion { Kb = new KeybdData { Vk = vk, Scan = sc, Flags = fl | KeyUp } } };
         }
         static IEnumerable<KbdInput> TextIn(string t) { return t.SelectMany(c => c == '\n' ? KeyIn(0x0D, '\0') : KeyIn(0, c)); }
-        static void PhysReset() { _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = null; _pPrevSpace = false; }
+        static void PhysReset() { _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
         {
@@ -463,15 +463,18 @@ namespace Przegladarka
             if (sep == '\0' || ctrl || alt) { PhysReset(); PhysPred(null, false); return false; }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
             bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;
             string word = _pWord; _pWord = ""; _pPrev = sep; _pCap = capAfter;
-            string prevW = _pPrevWord; bool prevSpace = _pPrevSpace; _pPrevWord = sep == ' ' ? word : null; _pPrevSpace = sep == ' ';
-            if (word.Length < 2 && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { PhysPred(null, false); return false; }
+            string prevW = _pPrevWord, prevW2 = _pPrevWord2; bool prevSpace = _pPrevSpace; _pPrevWord = sep == ' ' ? word : null; _pPrevSpace = sep == ' ';
+            var ze = prevSpace && word.Length > 0 ? SwipeTyping.ZeAsZe(prevW, word, prevW2) : null;   // ze to -> że to (ze mną zostaje)
+            if (ze != null) prevW = "że";
+            _pPrevWord2 = sep == ' ' ? prevW : null;
+            if (word.Length < 2 && ze == null && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { PhysPred(null, false); return false; }
             var fix = word.Length >= 2 ? corr(word) : null;
             var fin = fix ?? word; if (sep == ' ') _pPrevWord = fin;
             bool comma = sep == ' ' && prevSpace && SwipeTyping.NeedsComma(fin, prevW);   // wiem że -> wiem, że
             PhysPred(sep == ' ' ? fin : null, true);   // po spacji - inne formy skonczonego slowa
-            if (fix == null && !comma) { var a = _physAsk; if (a != null && sep == ' ') Application.Current?.Dispatcher.BeginInvoke(new Action(() => a(word))); return false; }
-            Inject(Enumerable.Range(0, word.Length + (comma ? 1 : 0)).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn((comma ? ", " : "") + fin + sep)));   // ten znak zamiast przepuszczonego
-            if (fix != null)
+            if (fix == null && !comma && ze == null) { var a = _physAsk; if (a != null && sep == ' ') Application.Current?.Dispatcher.BeginInvoke(new Action(() => a(word))); return false; }
+            Inject(Enumerable.Range(0, word.Length + (comma ? 1 : 0) + (ze == null ? 0 : ze[0] == ',' ? 4 : 3)).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn((ze != null ? ze + " " : "") + (comma ? ", " : "") + fin + sep)));   // ten znak zamiast przepuszczonego
+            if (fix != null && ze == null)
             {
                 _pFixFrom = word; _pFixTo = fix;
                 var n = _physNotify; if (n != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => n(word, fix)));
@@ -594,7 +597,7 @@ namespace Przegladarka
                 if (added0) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
                 lock (_swLearned) { _swOwn.Add(lw0); SwipeTyping.AddUserWord(lw0); _swLearned[lw0] = (_swLearned.TryGetValue(lw0, out var c0) ? c0 : 0) + 1; SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
             };   // cofniete poprawki - tych slow nie poprawiamy
-            char lastSent = '\0'; bool capNext = false; string tPrevWord = null; bool tPrevSpace = false;   // poprzednie slowo - do przecinka   // wielka litera po ". " / "! " / "? "
+            char lastSent = '\0'; bool capNext = false; string tPrevWord = null, tPrevWord2 = null; bool tPrevSpace = false;   // poprzednie slowo - do przecinka   // wielka litera po ". " / "! " / "? "
             Action<string, List<string>> askFix = null;
             Action<string, bool> predShow = (wd, dn) => { };   // pasek propozycji (ustawiany nizej)   // watpliwosc: "Poprawić na:" z propozycjami (klik podmienia slowo)
             Action<ushort, char> tap = null;
@@ -623,8 +626,11 @@ namespace Przegladarka
                 if (sep)
                 {   // przecinek przed spojnikiem / ktory (wiem że -> wiem, że)
                     var fin = fixedNow ?? origNow;
+                    var ze = autoOn && tPrevSpace && fin.Length > 0 && fin.All(char.IsLetter) && !SecretField() ? SwipeTyping.ZeAsZe(tPrevWord, fin, tPrevWord2) : null;   // ze to -> że to
+                    if (ze != null) { for (int k = 0; k < fin.Length + (ze[0] == ',' ? 4 : 3); k++) SendKey(0x08, '\0'); foreach (var c2 in ze + " " + fin) SendKey(0, c2); tPrevWord = "że"; }
                     if (vk == 0 && ch == ' ' && autoOn && tPrevSpace && fin.Length > 0 && SwipeTyping.NeedsComma(fin, tPrevWord) && !SecretField())
                     { for (int k = 0; k <= fin.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in ", " + fin) SendKey(0, c2); }
+                    tPrevWord2 = vk == 0 && ch == ' ' ? tPrevWord : null;
                     tPrevWord = vk == 0 && ch == ' ' && fin.Length > 0 ? fin : null; tPrevSpace = vk == 0 && ch == ' ' && fin.Length > 0;
                 }
                 SendKey(vk, ch); lastSwipe = null; foreach (var x in sugs) x.Visibility = Visibility.Collapsed; title.Visibility = Visibility.Visible; ask.Visibility = Visibility.Collapsed;

@@ -431,10 +431,11 @@ namespace Przegladarka
             if (".!?".IndexOf(sep) >= 0) { var t = _sent.Text(false); if (learnOk && t.Length > 0) SwipeTyping.LearnSentence(t + sep); _sent.Clear(); }
             else if (sep != ' ' && sep != ',') _sent.Clear();   // nowa linia, srednik, dwukropek - zdanie od nowa
         }
+        static bool _pZeAuto, _pZeComma;   // "że" wstawione od razu (myślę ze -> że); "mną", "sobą"... dalej - wraca "ze"
         static string _pRetype;   // slowo skasowane ⌫ zaraz po wpisaniu - wpisane od nowa uczy poprawki (kmoputer -> komputer)
         static Action<string, string> _physFixLearned;
         static Action<string> _physAddWord;   // Ctrl+Spacja: slowo do Mojego slownika
-        static void PhysReset() { _sent.Clear(); _pRetype = null; _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; }
+        static void PhysReset() { _sent.Clear(); _pRetype = null; _pWord = ""; _pFixFrom = _pFixTo = null; _pCap = false; _pPrev = '\0'; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false; _pZeAuto = false; }
         static void PhysPred(string word, bool done) { var p = _physPred; if (p != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => p(word, done))); }   // pasek propozycji (watek okna)
         static bool PhysKey(int vk)
         {
@@ -527,20 +528,25 @@ namespace Przegladarka
             string word = _pWord; _pWord = ""; var retyped = _pRetype; _pRetype = null; _pPrev = sep; _pCap = capAfter;
             string prevW = _pPrevWord, prevW2 = _pPrevWord2; bool prevSpace = _pPrevSpace; _pPrevWord = sep == ' ' ? word : null; _pPrevSpace = sep == ' ';
             var ze = prevSpace && word.Length > 0 ? SwipeTyping.ZeAsZe(prevW, word, prevW2) : null;   // ze to -> że to (ze mną zostaje)
+            bool zeBack = _pZeAuto && prevSpace && word.Length > 0 && word.All(char.IsLetter) && SwipeTyping.ZeAsZe("ze", word, null) == null, zeBackComma = _pZeComma; _pZeAuto = false;   // mówi że mną -> mówi ze mną
+            if (zeBack) prevW = "ze";
             if (ze != null) prevW = "że";
             _pPrevWord2 = sep == ' ' ? prevW : null;
             if (_physStale) { SentAdd(word, sep, false, null, false); PhysPred(null, false); return false; }   // pierwsza chwila po przerwie: slowo zapamietane (przecinek przed nastepnym), bez poprawek i nauki
-            if (word.Length < 2 && ze == null && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { SentAdd(word, sep, false, null, true); PhysPred(null, false); return false; }
+            if (word.Length < 2 && ze == null && !zeBack && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { SentAdd(word, sep, false, null, true); PhysPred(null, false); return false; }
             var fix = word.Length >= 2 ? corr(word) : null;
-            if (fix == null && sep == ' ' && prevSpace) fix = SwipeTyping.ZeNow(word, prevW);   // myślę ze -> myślę, że
+            bool zeNow = false;
+            if (fix == null && sep == ' ' && prevSpace) { fix = SwipeTyping.ZeNow(word, prevW); zeNow = fix != null; }   // myślę ze -> myślę, że
             if (retyped != null && SwipeTyping.LearnFix(retyped, fix ?? word)) { var lf = _physFixLearned; if (lf != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => lf(retyped, fix ?? word))); }
             var fin = fix ?? word; if (sep == ' ') _pPrevWord = fin;
             bool comma = sep == ' ' && prevSpace && SwipeTyping.NeedsComma(fin, prevW);   // wiem że -> wiem, że
-            SentAdd(fin, sep, comma, ze, true);
+            SentAdd(fin, sep, comma, zeBack ? "ze" : ze, true);
+            _pZeAuto = zeNow; _pZeComma = comma;
             PhysPred(sep == ' ' ? fin : null, true);   // po spacji - inne formy skonczonego slowa
-            if (fix == null && !comma && ze == null) { var a = _physAsk; if (a != null && sep == ' ') Application.Current?.Dispatcher.BeginInvoke(new Action(() => a(word))); return false; }
-            Inject(Enumerable.Range(0, word.Length + (comma ? 1 : 0) + (ze == null ? 0 : ze[0] == ',' ? 4 : 3)).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn((ze != null ? ze + " " : "") + (comma ? ", " : "") + fin + sep)));   // ten znak zamiast przepuszczonego
-            if (fix != null && ze == null)
+            if (fix == null && !comma && ze == null && !zeBack) { var a = _physAsk; if (a != null && sep == ' ') Application.Current?.Dispatcher.BeginInvoke(new Action(() => a(word))); return false; }
+            Inject(Enumerable.Range(0, word.Length + (comma ? 1 : 0) + (ze == null ? 0 : ze[0] == ',' ? 4 : 3) + (zeBack ? (zeBackComma ? 5 : 3) : 0)).SelectMany(_ => KeyIn(0x08, '\0'))
+                .Concat(TextIn((zeBack ? (zeBackComma ? " ze " : "ze ") : "") + (ze != null ? ze + " " : "") + (comma ? ", " : "") + fin + sep)));   // ten znak zamiast przepuszczonego
+            if (fix != null && ze == null && !zeBack)
             {
                 _pFixFrom = word; _pFixTo = fix;
                 var n = _physNotify; if (n != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => n(word, fix)));
@@ -672,7 +678,7 @@ namespace Przegladarka
                 if (!SwipeTyping.IsKnown(lw1)) askAdd(kw.Trim());
             };
             Action<string, string> fixLearned = null;   // ustawiane nizej (pasek komunikatu)
-            char lastSent = '\0'; bool capNext = false; string tPrevWord = null, tPrevWord2 = null, tRetype = null; bool tPrevSpace = false;   // poprzednie slowo - do przecinka   // wielka litera po ". " / "! " / "? "
+            char lastSent = '\0'; bool capNext = false; string tPrevWord = null, tPrevWord2 = null, tRetype = null; bool tPrevSpace = false, tZeAuto = false, tZeComma = false;   // poprzednie slowo - do przecinka   // wielka litera po ". " / "! " / "? "
             Action<string, List<string>> askFix = null;
             Action<string, bool> predShow = (wd, dn) => { };   // pasek propozycji (ustawiany nizej)   // watpliwosc: "Poprawić na:" z propozycjami (klik podmienia slowo)
             Action<ushort, char> tap = null;
@@ -706,11 +712,11 @@ namespace Przegladarka
                 if (vk == 0 && char.IsLetter(ch) && capNext && autoOn && !SecretField()) ch = char.ToUpper(ch);
                 if (vk != 0 || ch != ' ') capNext = false;
                 bool sep = vk == 0 ? !char.IsLetter(ch) : vk == 0x0D || vk == 0x09;
-                string fixedNow = null, origNow = cur;
+                string fixedNow = null, origNow = cur; bool zeNowT = false;
                 if (sep && cur.Length >= 2 && autoOn && !SecretField())
                 {
                     string fix; lock (noFix) fix = SwipeTyping.Complete(cur, noFix);
-                    if (fix == null && vk == 0 && ch == ' ' && tPrevSpace) fix = SwipeTyping.ZeNow(cur, tPrevWord);   // myślę ze -> myślę, że
+                    if (fix == null && vk == 0 && ch == ' ' && tPrevSpace) { fix = SwipeTyping.ZeNow(cur, tPrevWord); zeNowT = fix != null; }   // myślę ze -> myślę, że
                     if (fix != null) { for (int k = 0; k < cur.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in fix) SendKey(0, c2); cur = fix; fixedNow = fix; }
                 }
                 fixFrom = fixTo = null;
@@ -718,11 +724,18 @@ namespace Przegladarka
                 {   // przecinek przed spojnikiem / ktory (wiem że -> wiem, że)
                     var fin = fixedNow ?? origNow;
                     var retyped = tRetype; tRetype = null;
+                    if (tZeAuto && tPrevSpace && fin.Length > 0 && fin.All(char.IsLetter) && SwipeTyping.ZeAsZe("ze", fin, null) == null)
+                    {   // mówi że mną -> mówi ze mną
+                        for (int k = 0; k < fin.Length + (tZeComma ? 5 : 3); k++) SendKey(0x08, '\0'); foreach (var c2 in (tZeComma ? " ze " : "ze ") + fin) SendKey(0, c2);
+                        tPrevWord = "ze"; _sent.Replace("ze", false);
+                    }
+                    tZeAuto = false;
                     if (retyped != null && fin.Length > 0 && !SecretField() && SwipeTyping.LearnFix(retyped, fin)) fixLearned(retyped, fin);
                     var ze = autoOn && tPrevSpace && fin.Length > 0 && fin.All(char.IsLetter) && !SecretField() ? SwipeTyping.ZeAsZe(tPrevWord, fin, tPrevWord2) : null;   // ze to -> że to
                     if (ze != null) { for (int k = 0; k < fin.Length + (ze[0] == ',' ? 4 : 3); k++) SendKey(0x08, '\0'); foreach (var c2 in ze + " " + fin) SendKey(0, c2); tPrevWord = "że"; }
                     bool tComma = vk == 0 && ch == ' ' && autoOn && tPrevSpace && fin.Length > 0 && SwipeTyping.NeedsComma(fin, tPrevWord) && !SecretField();
                     if (tComma) { for (int k = 0; k <= fin.Length; k++) SendKey(0x08, '\0'); foreach (var c2 in ", " + fin) SendKey(0, c2); }
+                    tZeAuto = zeNowT; tZeComma = tComma;
                     if (!SecretField()) SentAdd(fin, vk == 0 ? ch : '\n', tComma, ze, true); else _sent.Clear();
                     tPrevWord2 = vk == 0 && ch == ' ' ? tPrevWord : null;
                     tPrevWord = vk == 0 && ch == ' ' && fin.Length > 0 ? fin : null; tPrevSpace = vk == 0 && ch == ' ' && fin.Length > 0;

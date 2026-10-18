@@ -13,6 +13,7 @@ import android.os.Environment
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
@@ -77,6 +78,12 @@ class MainActivity : Activity() {
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(nav)
         setContentView(root)
+        // Android 15+ rysuje pod paskami systemu - zostaw na nie miejsce (i na klawiaturę).
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
 
         newTab(false, intent?.dataString ?: home)
     }

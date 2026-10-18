@@ -574,7 +574,7 @@ When you hover over a video, three buttons appear in its top right corner: **⬇
 - **What it does:** the downloaded Piper program is checked with a SHA-256 checksum stored in Velivo; a mismatching file is rejected.
 
 ### 10.4 Where the voices are
-- `%LOCALAPPDATA%\Przegladarka\Piper` – you can delete this folder to free space; the voice downloads again the next time it is used.
+- `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper` – you can delete this folder to free space; the voice downloads again the next time it is used.
 
 # 11. Privacy
 
@@ -1368,7 +1368,7 @@ You open Settings with the ⚙ button. Below is every option in the window's ord
 - 2.10. The `bledy.log` file in the data folder is useful when reporting problems.
 
 ### 27.10 Where the data is
-- **What it does:** all data of the default profile is in `%LOCALAPPDATA%\Przegladarka` (other profiles: `…\Przegladarka\Profiles\name`). The most important files: `ustawienia.txt`, `zakladki.txt`, `historia.txt`, `sesja.txt`, `hasla.vault` (encrypted), `autouzupelnianie.vault` (encrypted), `bank.json` (encrypted fields), `bledy.log`.
+- **What it does:** all data of the default profile is in `%LOCALAPPDATA%\Programs\Velivo\Dane` (other profiles: `…\Dane\Profiles\name`). The most important files: `ustawienia.txt`, `zakladki.txt`, `historia.txt`, `sesja.txt`, `hasla.vault` (encrypted), `autouzupelnianie.vault` (encrypted), `bank.json` (encrypted fields), `bledy.log`.
 
 ### 27.11 Troubleshooting
 | Problem | What to do |

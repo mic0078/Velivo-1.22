@@ -11,7 +11,7 @@ using Microsoft.Web.WebView2.Core;
 
 namespace Przegladarka
 {
-    // Ustawienia zapisywane w %LOCALAPPDATA%\Przegladarka\ustawienia.txt (klucz=wartosc).
+    // Ustawienia zapisywane w %LOCALAPPDATA%\Programs\Velivo\Dane\ustawienia.txt (klucz=wartosc).
     public sealed class AppSettings
     {
         public string Search = "startpage";
@@ -255,7 +255,7 @@ namespace Przegladarka
 
             if (!lanSyncOverride.HasValue)
             {
-                var profileRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Przegladarka");
+                var profileRoot = VelivoData.Root;
                 try
                 {
                     if (!string.Equals(Path.GetFullPath(dir), Path.GetFullPath(profileRoot), StringComparison.OrdinalIgnoreCase))

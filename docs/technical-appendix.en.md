@@ -2,7 +2,7 @@
 
 This document describes every Velivo 1.22 feature point by point: what it is for, where to find it, how to use it step by step, how it works technically and what its limits are. It is based on the source code (`src/`). Where a feature works only partly or something is missing, it says so plainly.
 
-Conventions: **Where** – the place in the interface. **Steps** – the order of actions. **Technically** – mechanism, files, parameters. **Notes** – limits and dependencies. Data file names refer to the profile data folder: `%LOCALAPPDATA%\Przegladarka` (default profile) or `%LOCALAPPDATA%\Przegladarka\Profiles\<name>`.
+Conventions: **Where** – the place in the interface. **Steps** – the order of actions. **Technically** – mechanism, files, parameters. **Notes** – limits and dependencies. Data file names refer to the profile data folder: `%LOCALAPPDATA%\Programs\Velivo\Dane` (default profile) or `%LOCALAPPDATA%\Programs\Velivo\Dane\Profiles\<name>`.
 
 # 1. Architecture and data files
 
@@ -497,7 +497,7 @@ The article without ads and menus. Look: ☀ Light, 🌙 Dark, 🌅 Night with a
 - Voice: Settings → Reading: "Automatic (page language: Polish/English)", Windows voices, natural online voices.
 
 ## 13.3 Natural offline voices (Piper)
-Settings → Reading → the "Piper" voice. On first use Velivo downloads the Piper program (version 2023.11.14-2, SHA-256 checked) and the chosen voice (about 60 MB) to `%LOCALAPPDATA%\Przegladarka\Piper`; after that it works offline. The Piper process runs in the background; the page splits the text into sentences and highlights them.
+Settings → Reading → the "Piper" voice. On first use Velivo downloads the Piper program (version 2023.11.14-2, SHA-256 checked) and the chosen voice (about 60 MB) to `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper`; after that it works offline. The Piper process runs in the background; the page splits the text into sentences and highlights them.
 
 ## 13.4 "Where did I read that?" (Ctrl+Shift+F)
 Settings → "Remember the content of pages you read". Velivo stores page text **only on this computer** (`pamiec-stron.jsonl`) and finds an article by words remembered from its content, not just the title. Skipped: private tabs, banks, payments, e-mail, pages with a password field.

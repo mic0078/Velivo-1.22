@@ -834,9 +834,9 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 | What | Where |
 | --- | --- |
 | Program | `%LOCALAPPDATA%\Programs\Velivo` |
-| Settings, bookmarks, passwords, history, page memory | `%LOCALAPPDATA%\Przegladarka` (other profile: `Profiles\<name>`) |
-| Offline voices | `%LOCALAPPDATA%\Przegladarka\Piper` |
-| yt-dlp and FFmpeg | `%LOCALAPPDATA%\Przegladarka\narzedzia` |
+| Settings, bookmarks, passwords, history, page memory | `%LOCALAPPDATA%\Programs\Velivo\Dane` (other profile: `Profiles\<name>`) |
+| Offline voices | `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper` |
+| yt-dlp and FFmpeg | `%LOCALAPPDATA%\Programs\Velivo\Dane\narzedzia` |
 | Error log | `bledy.log` in the profile data folder |
 
 All data stays on your computer. Velivo has no server and no account, and sends nothing about you.

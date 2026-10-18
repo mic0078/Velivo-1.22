@@ -18,8 +18,7 @@ namespace Przegladarka
     {
         string HomeUrl { get { return _settings.Home; } }
         // PRZEGLADARKA_DANE pozwala uruchomic program na osobnym folderze danych (np. do testow)
-        static readonly string DataDir = Environment.GetEnvironmentVariable("PRZEGLADARKA_DANE") ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Przegladarka");
+        static readonly string DataDir = Environment.GetEnvironmentVariable("PRZEGLADARKA_DANE") ?? VelivoData.Root;
         static readonly string HistoryFile = Path.Combine(DataDir, "historia.txt");
         static readonly string AppVersionLabel =
             System.Reflection.Assembly.GetExecutingAssembly().GetName().Version != null

@@ -2,7 +2,7 @@
 
 Dokument opisuje każdą funkcję Velivo 1.22 punkt po punkcie: do czego służy, gdzie ją znaleźć, jak jej użyć krok po kroku, jak działa technicznie i jakie ma ograniczenia. Treść powstała na podstawie kodu źródłowego (`src/`, stan `main` 9778aac, program z instalatora 1f08f31). Tam, gdzie funkcja działa tylko częściowo albo czegoś nie ma, jest to napisane wprost.
 
-Konwencje: **Gdzie** – miejsce w interfejsie. **Kroki** – kolejność czynności. **Technicznie** – mechanizm, pliki, parametry. **Uwagi** – ograniczenia i zależności. Nazwy plików danych odnoszą się do folderu danych profilu: `%LOCALAPPDATA%\Przegladarka` (profil domyślny) albo `%LOCALAPPDATA%\Przegladarka\Profiles\<nazwa>`.
+Konwencje: **Gdzie** – miejsce w interfejsie. **Kroki** – kolejność czynności. **Technicznie** – mechanizm, pliki, parametry. **Uwagi** – ograniczenia i zależności. Nazwy plików danych odnoszą się do folderu danych profilu: `%LOCALAPPDATA%\Programs\Velivo\Dane` (profil domyślny) albo `%LOCALAPPDATA%\Programs\Velivo\Dane\Profiles\<nazwa>`.
 
 # 1. Architektura i pliki danych
 
@@ -495,7 +495,7 @@ Artykuł bez reklam i menu. Wygląd: ☀ Jasny, 🌙 Ciemny, 🌅 Nocny z suwaki
 - Głos: Ustawienia → Czytanie: „Automatycznie (język strony: polski/angielski)”, głosy Windows, naturalne głosy online.
 
 ## 13.3 Naturalne głosy offline (Piper)
-Ustawienia → Czytanie → głos „Piper”. Przy pierwszym użyciu Velivo pobiera program Piper (wersja 2023.11.14-2, suma SHA-256 sprawdzana) i wybrany głos (ok. 60 MB) do `%LOCALAPPDATA%\Przegladarka\Piper`; potem działa bez internetu. Proces Piper działa w tle, strona dzieli tekst na zdania i podświetla je.
+Ustawienia → Czytanie → głos „Piper”. Przy pierwszym użyciu Velivo pobiera program Piper (wersja 2023.11.14-2, suma SHA-256 sprawdzana) i wybrany głos (ok. 60 MB) do `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper`; potem działa bez internetu. Proces Piper działa w tle, strona dzieli tekst na zdania i podświetla je.
 
 ## 13.4 „Gdzie ja to czytałem?” (Ctrl+Shift+F)
 Ustawienia → „Zapamiętuj treść przeczytanych stron”. Velivo zapisuje tekst stron **tylko na tym komputerze** (`pamiec-stron.jsonl`) i znajduje artykuł po słowach zapamiętanych z treści, nie tylko z tytułu. Pomijane: karty prywatne, banki, płatności, poczta, strony z polem hasła.

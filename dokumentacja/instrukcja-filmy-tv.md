@@ -227,6 +227,6 @@ Hasła są zaszyfrowane dla Twojego konta Windows – przywracaj na tym samym ko
 | Ostrzeżenie o połączeniach | kliknij 🔌 i ustaw limit swojego dostawcy |
 | Okno wyboru pliku za duże | Velivo samo je dopasuje; ręcznie: Alt+Spacja → Przywróć |
 
-**Pliki do zgłaszania problemów** (folder danych `%LOCALAPPDATA%\Przegladarka`):
+**Pliki do zgłaszania problemów** (folder danych `%LOCALAPPDATA%\Programs\Velivo\Dane`):
 - `vlc.log` – ostatni film lub kanał (przed wysłaniem zamień token na XXX),
 - `bledy.log` – błędy programu (pojawia się tylko, gdy coś pójdzie nie tak).

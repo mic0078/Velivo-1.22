@@ -87,7 +87,7 @@ Name: "videoplayer\iptv"; Description: "{cm:Iptv}"; Flags: unchecked
 
 [InstallDelete]
 ; pozostalosci po poprzednich nazwach programu ("Przegladarka", "Tarcza") - tylko pliki programu i skroty,
-; folder z danymi uzytkownika (%LOCALAPPDATA%\Przegladarka) zostaje nietkniety
+; folder z danymi uzytkownika (%LOCALAPPDATA%\Programs\Velivo\Dane, dawniej %LOCALAPPDATA%\Przegladarka) zostaje nietkniety
 Type: filesandordirs; Name: "{localappdata}\Programs\Przegladarka"
 Type: filesandordirs; Name: "{localappdata}\Programs\Tarcza"
 Type: files; Name: "{autodesktop}\Przeglądarka.lnk"
@@ -240,6 +240,17 @@ begin
   Result := WizardIsTaskSelected('videoplayer') and not FileExists(ExpandConstant('{app}\vlc\libvlc.dll'));
 end;
 
+// dane uzytkownika: %LOCALAPPDATA%\Programs\Velivo\Dane; dawniej %LOCALAPPDATA%\Przegladarka (Velivo przenosi go przy starcie)
+function UserDataDir: String;
+begin
+  Result := ExpandConstant('{localappdata}\Programs\Velivo\Dane');
+end;
+
+function LegacyDataDir: String;
+begin
+  Result := ExpandConstant('{localappdata}\Przegladarka');
+end;
+
 procedure InstallVlc;
 var Code: Integer; Tmp: String;
 begin
@@ -252,17 +263,14 @@ begin
     DelTree(ExpandConstant('{app}\vlc'), True, True, True);
     if not RenameFile(Tmp + '\build\x64', ExpandConstant('{app}\vlc')) then MsgBox(CustomMessage('VideoPlayerUnpack'), mbError, MB_OK);
     // odinstalowanie zlecone wczesniej w Velivo - ponowna instalacja je odwoluje
-    DeleteFile(ExpandConstant('{localappdata}\Przegladarka\odtwarzacz-usun.flag'));
+    DeleteFile(UserDataDir + '\odtwarzacz-usun.flag');
+    DeleteFile(LegacyDataDir + '\odtwarzacz-usun.flag');
   end
   else
     MsgBox(CustomMessage('VideoPlayerUnpack'), mbError, MB_OK);
   DelTree(Tmp, True, True, True);
 end;
 
-function UserDataDir: String;
-begin
-  Result := ExpandConstant('{localappdata}\Przegladarka');
-end;
 
 function QuickAccessDataDir: String;
 begin
@@ -271,7 +279,7 @@ end;
 
 function HasOldData: Boolean;
 begin
-  Result := DirExists(UserDataDir) or DirExists(QuickAccessDataDir);
+  Result := DirExists(UserDataDir) or DirExists(LegacyDataDir) or DirExists(QuickAccessDataDir);
 end;
 
 procedure InitializeWizard;
@@ -329,6 +337,7 @@ begin
   begin
     Stamp := GetDateTimeString('yyyymmdd-hhnnss', '-', '-');
     BackupDir(UserDataDir, Stamp);
+    BackupDir(LegacyDataDir, Stamp);
     BackupDir(QuickAccessDataDir, Stamp);
   end;
 end;

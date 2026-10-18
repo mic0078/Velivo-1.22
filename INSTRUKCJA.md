@@ -1160,9 +1160,9 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
 | Co | Gdzie |
 | --- | --- |
 | Program | `%LOCALAPPDATA%\Programs\Velivo` |
-| Ustawienia, zakładki, hasła, historia, pamięć stron | `%LOCALAPPDATA%\Przegladarka` (inny profil: `Profiles\<nazwa>`) |
-| Głosy offline | `%LOCALAPPDATA%\Przegladarka\Piper` |
-| yt-dlp i FFmpeg | `%LOCALAPPDATA%\Przegladarka\narzedzia` |
+| Ustawienia, zakładki, hasła, historia, pamięć stron | `%LOCALAPPDATA%\Programs\Velivo\Dane` (inny profil: `Profiles\<nazwa>`) |
+| Głosy offline | `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper` |
+| yt-dlp i FFmpeg | `%LOCALAPPDATA%\Programs\Velivo\Dane\narzedzia` |
 | Dziennik błędów | `bledy.log` w folderze danych profilu |
 
 Wszystkie dane są tylko na Twoim komputerze. Velivo nie ma serwera ani konta i niczego o Tobie nie wysyła.

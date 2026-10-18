@@ -65,7 +65,7 @@ namespace Przegladarka
 
         static string ProfileRoot
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Przegladarka"); }
+            get { return VelivoData.Root; }
         }
 
         static string ActiveProfileFile { get { return Path.Combine(ProfileRoot, "active-profile.txt"); } }

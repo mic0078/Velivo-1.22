@@ -227,6 +227,6 @@ Passwords are encrypted for your Windows account – restore on the same account
 | Connection warning | click 🔌 and set your provider's limit |
 | The file dialog is too big | Velivo adjusts it by itself; manually: Alt+Space → Restore |
 
-**Files for reporting problems** (data folder `%LOCALAPPDATA%\Przegladarka`):
+**Files for reporting problems** (data folder `%LOCALAPPDATA%\Programs\Velivo\Dane`):
 - `vlc.log` – the last video or channel (before sending, replace the token with XXX),
 - `bledy.log` – program errors (appears only when something goes wrong).

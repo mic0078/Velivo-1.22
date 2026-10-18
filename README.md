@@ -112,7 +112,7 @@ Velivo instaluje się jednym plikiem `Velivo-Setup-1.22.exe`, bez uprawnień adm
     - **Czysta instalacja** – start od zera; stare dane trafiają do kopii zapasowej z dopiskiem `.kopia-<data>`.
 4. Opcjonalnie zaznacz skrót na pulpicie i zakończ instalację.
 
-Antywirus może jednorazowo zapytać o nowe pliki. Najwygodniej dodać do zaufanych folder programu oraz `%LOCALAPPDATA%\Przegladarka\Piper` (głosy offline).
+Antywirus może jednorazowo zapytać o nowe pliki. Najwygodniej dodać do zaufanych folder programu oraz `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper` (głosy offline).
 
 ## Jak używać
 
@@ -184,8 +184,8 @@ Stan połączenia pokazuje Ustawienia → „Panel diagnostyczny LAN…”. Has�
 **Gdzie leżą dane**
 
 - Program: `%LOCALAPPDATA%\Programs\Velivo`
-- Ustawienia, zakładki, hasła, historia: `%LOCALAPPDATA%\Przegladarka` (profil inny niż domyślny: podfolder `Profiles\<nazwa>`)
-- Głosy offline: `%LOCALAPPDATA%\Przegladarka\Piper`
+- Ustawienia, zakładki, hasła, historia: `%LOCALAPPDATA%\Programs\Velivo\Dane` (profil inny niż domyślny: podfolder `Profiles\<nazwa>`)
+- Głosy offline: `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper`
 - Dziennik błędów: plik `bledy.log` w folderze danych profilu – przydaje się przy zgłaszaniu problemów.
 
 ## Dla programistów

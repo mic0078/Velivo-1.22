@@ -14,7 +14,7 @@ namespace Przegladarka
 
         static string DefaultRoot
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Przegladarka"); }
+            get { return VelivoData.Root; }
         }
 
         static string ActiveProfileFile { get { return Path.Combine(DefaultRoot, "active-profile.txt"); } }
@@ -43,6 +43,7 @@ namespace Przegladarka
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            VelivoData.Migrate();   // %LOCALAPPDATA%\Przegladarka -> %LOCALAPPDATA%\Programs\Velivo\Dane, zanim cokolwiek siegnie po dane
             // okna o tym samym rozmiarze otwierane w tym samym miejscu - kaskadowo jak w Windows (najnowsze na wierzchu, przesuniete w dol)
             EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s, a) =>
             {

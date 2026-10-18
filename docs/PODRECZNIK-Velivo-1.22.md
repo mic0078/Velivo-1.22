@@ -574,7 +574,7 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Co robi:** pobrany program Piper jest sprawdzany sumą kontrolną SHA-256 zapisaną w Velivo; niezgodny plik jest odrzucany.
 
 ### 10.4 Gdzie leżą głosy
-- `%LOCALAPPDATA%\Przegladarka\Piper` – można usunąć ten folder, by zwolnić miejsce; głos pobierze się ponownie przy kolejnym użyciu.
+- `%LOCALAPPDATA%\Programs\Velivo\Dane\Piper` – można usunąć ten folder, by zwolnić miejsce; głos pobierze się ponownie przy kolejnym użyciu.
 
 # 11. Prywatność
 
@@ -1366,7 +1366,7 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 - 2.10. Plik `bledy.log` w folderze danych przydaje się przy zgłaszaniu problemów.
 
 ### 27.10 Gdzie leżą dane
-- **Co robi:** wszystkie dane profilu domyślnego są w `%LOCALAPPDATA%\Przegladarka` (inne profile: `…\Przegladarka\Profiles\nazwa`). Najważniejsze pliki: `ustawienia.txt`, `zakladki.txt`, `historia.txt`, `sesja.txt`, `hasla.vault` (zaszyfrowane), `autouzupelnianie.vault` (zaszyfrowane), `bank.json` (zaszyfrowane pola), `bledy.log`.
+- **Co robi:** wszystkie dane profilu domyślnego są w `%LOCALAPPDATA%\Programs\Velivo\Dane` (inne profile: `…\Dane\Profiles\nazwa`). Najważniejsze pliki: `ustawienia.txt`, `zakladki.txt`, `historia.txt`, `sesja.txt`, `hasla.vault` (zaszyfrowane), `autouzupelnianie.vault` (zaszyfrowane), `bank.json` (zaszyfrowane pola), `bledy.log`.
 
 ### 27.11 Rozwiązywanie problemów
 | Problem | Co zrobić |

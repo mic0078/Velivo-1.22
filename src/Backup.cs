@@ -14,7 +14,7 @@ namespace Przegladarka
     // i kopia bezpieczenstwa samych danych uzytkownika (bez smieci, ktore Velivo pobierze samo)
     public partial class MainWindow
     {
-        static string DataRoot { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Przegladarka"); } }
+        static string DataRoot { get { return VelivoData.Root; } }
         static string RestoreMarker { get { return Path.Combine(DataRoot, "przywroc-kopie.txt"); } }
         static string DefaultBackupDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Velivo - kopie"); } }
         const string BackupPrefix = "Velivo-kopia-";

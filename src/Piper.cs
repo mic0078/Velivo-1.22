@@ -16,7 +16,7 @@ using Microsoft.Web.WebView2.Core;
 namespace Przegladarka
 {
     // Naturalne glosy offline - Piper (https://github.com/rhasspy/piper, licencja MIT).
-    // Program i glos pobieraja sie raz, przy pierwszym uzyciu, do %LOCALAPPDATA%\Przegladarka\Piper.
+    // Program i glos pobieraja sie raz, przy pierwszym uzyciu, do %LOCALAPPDATA%\Programs\Velivo\Dane\Piper.
     // Strona (ReaderScript) dzieli tekst na zdania i podswietla je; tutaj powstaje i gra dzwiek.
     public partial class MainWindow
     {
@@ -39,7 +39,7 @@ namespace Przegladarka
         const string PiperZipUrl = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip";
         const string PiperVoicesBase = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/";
 
-        static string PiperRoot { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Przegladarka", "Piper"); } }
+        static string PiperRoot { get { return Path.Combine(VelivoData.Root, "Piper"); } }
         static string PiperExe { get { return Path.Combine(PiperRoot, "piper", "piper.exe"); } }
 
         static PiperVoice SelectedPiperVoice(string tag)

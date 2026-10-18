@@ -475,6 +475,9 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
                     var it = new MenuItem { Header = "💻 " + (string.IsNullOrWhiteSpace(p.Device) ? p.Id.Substring(0, 8) : p.Device) };
                     it.Click += async (a, b) => await SendTabToPeer(tab, p);
                     root.Items.Add(it);
+                    var file = new MenuItem { Header = (L.En ? "📎 Send a file to " : "📎 Wyślij plik do: ") + (string.IsNullOrWhiteSpace(p.Device) ? p.Id.Substring(0, 8) : p.Device) };
+                    file.Click += async (a, b) => await SendFileToPeer(p);
+                    root.Items.Add(file);
                 }
                 foreach (var o in stare) root.Items.Remove(o);
             };

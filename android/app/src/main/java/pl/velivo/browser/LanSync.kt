@@ -44,6 +44,9 @@ class LanSync(
     private val onPaired: (device: String) -> Unit,
     private val onState: (device: String, bookmarks: String?, passwords: String?) -> Unit,
     private val onQuickAccess: (device: String, zip: ByteArray) -> Unit = { _, _ -> },
+    // plik z komputera: pytanie (odpowiedź przez accept(true/false)), potem zapis
+    private val askFile: (device: String, name: String, size: Int, accept: (Boolean) -> Unit) -> Unit = { _, _, _, a -> a(false) },
+    private val saveFile: (name: String, data: ByteArray, device: String) -> Unit = { _, _, _ -> },
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -323,6 +326,7 @@ class LanSync(
                             if (hl <= 0 || hl > 4096) return@use
                             val header = JSONObject(String(ByteArray(hl).also { b -> inp.readFully(b) }, Charsets.UTF_8))
                             if (header.optString("Type") == "quick-access") { quickAccess(header, inp, it.getOutputStream()); return@use }
+                            if (header.optString("Type") == "file") { receiveFile(header, inp, it); return@use }
                             val len = header.optInt("Length")
                             if (header.optString("Type") != "lan-state" || len <= 0 || len > TCP_LIMIT) return@use
                             val data = ByteArray(len).also { b -> inp.readFully(b) }
@@ -364,6 +368,76 @@ class LanSync(
         qaStep = "odebrano i potwierdzono (" + (zip.size / 1024) + " KB) " + java.text.DateFormat.getTimeInstance().format(java.util.Date())
     }
 
+    // --- Pliki (LanFiles.cs na Windows): nagłówek podpisany HMAC, pytanie, 1 bajt zgody, plik AES-GCM, potwierdzenie ---
+    private fun fileAd(h: JSONObject) = listOf(h.optString("Type"), h.optString("Id"), h.optString("Device"), h.optString("Profile"),
+        h.optLong("Timestamp").toString(), h.optString("Hash"), h.optInt("Length").toString(), h.optString("Name")).joinToString("\n").toByteArray(Charsets.UTF_8)
+
+    private fun receiveFile(h: JSONObject, inp: DataInputStream, sock: java.net.Socket) {
+        val k = encKey ?: return
+        val a = authKey ?: return
+        val len = h.optInt("Length")
+        if (len <= 16 || len > FILE_LIMIT + 16 || h.optString("Id").length != 32 || h.optString("Id") == id) return
+        if (Math.abs(h.optLong("Timestamp") - System.currentTimeMillis()) > 300000) return
+        val ad = fileAd(h)
+        if (!MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(a, ad))) return
+        val name = h.optString("Name").replace('\\', '/').substringAfterLast('/').filter { !it.isISOControl() && it !in "<>:\"|?*" }
+            .trim().trimStart('.').ifEmpty { "plik" }.takeLast(120)
+        val dev = h.optString("Device").filter { !it.isISOControl() }.take(64)
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var ok = false
+        ui(Runnable { askFile(dev, name, len - 16) { yes -> ok = yes; latch.countDown() } })
+        if (!latch.await(3, java.util.concurrent.TimeUnit.MINUTES)) ok = false
+        val out = sock.getOutputStream()
+        out.write(if (ok) 1 else 0); out.flush()
+        if (!ok) return
+        sock.soTimeout = 60000
+        val data = ByteArray(len).also { inp.readFully(it) }
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, unb64(h.optString("Nonce"))))
+        c.updateAAD(ad)
+        val plain = c.doFinal(data)
+        val hash = MessageDigest.getInstance("SHA-256").digest(plain).joinToString("") { "%02X".format(it) }
+        if (!hash.equals(h.optString("Hash"), ignoreCase = true)) return
+        saveFile(name, plain, dev)
+        out.write(hmac(a, "file-ack\n" + h.optString("Hash")).also { }); out.flush()
+    }
+
+    // Wysłanie pliku do komputera, z którym telefon się synchronizuje. Wynik: "ok", "odrzucono" albo opis błędu.
+    fun sendFile(name: String, plain: ByteArray): String {
+        val k = encKey ?: return "brak parowania"
+        val a = authKey ?: return "brak parowania"
+        val target = pcAddress ?: return "brak komputera w sieci"
+        if (plain.size > FILE_LIMIT) return "plik większy niż 100 MB"
+        val hash = MessageDigest.getInstance("SHA-256").digest(plain).joinToString("") { "%02X".format(it) }
+        val nonce = ByteArray(12).also { random.nextBytes(it) }
+        val h = JSONObject().put("Type", "file").put("Id", id).put("Device", deviceName()).put("Profile", profile())
+            .put("Timestamp", System.currentTimeMillis()).put("Hash", hash).put("Length", plain.size + 16).put("Name", name)
+            .put("Nonce", b64(nonce))
+        val ad = fileAd(h)
+        h.put("Mac", b64(hmac(a, ad)))
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, nonce))
+        c.updateAAD(ad)
+        val data = c.doFinal(plain)
+        return runCatching {
+            java.net.Socket().use { s ->
+                s.connect(InetSocketAddress(target, PORT), 5000)
+                s.soTimeout = 180000
+                val out = s.getOutputStream()
+                val hb = h.toString().toByteArray(Charsets.UTF_8)
+                out.write(byteArrayOf(hb.size.toByte(), (hb.size shr 8).toByte(), (hb.size shr 16).toByte(), (hb.size shr 24).toByte()))
+                out.write(hb); out.flush()
+                val inp = DataInputStream(s.getInputStream())
+                if (inp.read() != 1) return@use "odrzucono"
+                out.write(data); out.flush()
+                val ack = ByteArray(32).also { inp.readFully(it) }
+                if (MessageDigest.isEqual(ack, hmac(a, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"
+            }
+        }.getOrElse { it.message ?: it.javaClass.simpleName }
+    }
+
+    val computer get() = pcAddress
+
     private fun hmac(key: ByteArray, data: ByteArray) =
         Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)
 
@@ -372,6 +446,7 @@ class LanSync(
         val MODEL = (Build.MANUFACTURER + " " + Build.MODEL).trim()
         const val TCP_LIMIT = 8 * 1024 * 1024
         const val QA_LIMIT = 24 * 1024 * 1024
+        const val FILE_LIMIT = 100 * 1024 * 1024
 
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))

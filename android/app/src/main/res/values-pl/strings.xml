@@ -80,4 +80,13 @@
     <string name="qa_received">Szybki Dostęp z %1$s zaktualizowany</string>
     <string name="lan_tcp_error">Telefon nie może odbierać większych danych: %1$s</string>
     <string name="lan_sent_to_pc">Wysłano do komputera do zatwierdzenia: zakładki %1$d, hasła %2$d</string>
+    <string name="file_title">Plik z komputera</string>
+    <string name="file_ask">%1$s wysyła plik:\n\n%2$s (%3$s)\n\nZapisać w Pobranych?</string>
+    <string name="file_accept">Przyjmij</string>
+    <string name="file_saved">Zapisano w Pobranych: %1$s (od %2$s)</string>
+    <string name="file_failed">Nie udało się zapisać %1$s (od %2$s)</string>
+    <string name="file_waiting">Wysyłam %1$s – komputer zapyta o zgodę…</string>
+    <string name="file_sent">Wysłano: %1$s</string>
+    <string name="file_declined">Komputer nie przyjął pliku</string>
+    <string name="file_send_failed">Nie udało się wysłać pliku: %1$s</string>
 </resources>

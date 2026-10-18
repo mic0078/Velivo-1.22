@@ -28,6 +28,7 @@ namespace Velivo
             public string Nonce { get; set; }
             public string Tag { get; set; }
             public int Length { get; set; }
+            public string Name { get; set; }   // plik przesylany miedzy urzadzeniami (LanFiles.cs)
         }
 
         const int QuickAccessLanPort = LanPort;
@@ -296,6 +297,11 @@ namespace Velivo
                     var headerBytes = new byte[headerLength];
                     if (!await ReadExactAsync(stream, headerBytes, headerBytes.Length, token)) return;
                     header = JsonSerializer.Deserialize<QuickAccessLanHeader>(headerBytes);
+                    if (header != null && header.Type == "file")
+                    {
+                        await ReceiveLanFileAsync(stream, header, client.Client.RemoteEndPoint as IPEndPoint, token);
+                        return;
+                    }
                     if (header != null && header.Type == "lan-state")
                     {
                         await ReceiveLanStateTcpAsync(stream, header, client.Client.RemoteEndPoint as IPEndPoint, token);

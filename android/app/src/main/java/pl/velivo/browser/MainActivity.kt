@@ -144,7 +144,8 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
         }
         dropPrivateProfile() // resztki po poprzedniej sesji
-        val link = intent?.dataString
+        if (intent?.action == Intent.ACTION_SEND) sendSharedFile(intent)
+        val link = intent?.dataString?.takeIf { intent?.action != Intent.ACTION_SEND }
         if (!restoreTabs() && link == null) newTab(false, home)
         if (link != null) newTab(false, link)
     }
@@ -206,6 +207,7 @@ set(p0,p);})"""
         startLan()
             return
         }
+        if (intent.action == Intent.ACTION_SEND) { sendSharedFile(intent); return }
         intent.dataString?.let { newTab(false, it) }
     }
 
@@ -738,6 +740,16 @@ set(p0,p);})"""
             },
             onPaired = { dev -> lan.pairingUntil = 0; prefs.edit().putString("lan-komputer", dev).apply(); toast(getString(R.string.lan_paired, dev)) },
             onState = { dev, bookmarks, pwds -> applyLanState(dev, bookmarks, pwds) },
+            askFile = { dev, name, size, accept ->
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.file_title)
+                    .setMessage(getString(R.string.file_ask, dev, name, android.text.format.Formatter.formatShortFileSize(this, size.toLong())))
+                    .setPositiveButton(R.string.file_accept) { _, _ -> accept(true) }
+                    .setNegativeButton(android.R.string.cancel) { _, _ -> accept(false) }
+                    .setOnCancelListener { accept(false) }
+                    .show()
+            },
+            saveFile = { name, data, dev -> saveToDownloads(name, data, dev) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
                     runOnUiThread {
@@ -761,6 +773,49 @@ set(p0,p);})"""
     private fun stopLan() {
         lan.stop()
         multicastLock?.release()
+    }
+
+    // Plik z komputera do Pobranych (MediaStore - bez dodatkowych uprawnień).
+    private fun saveToDownloads(name: String, data: ByteArray, dev: String) {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+        val ok = runCatching {
+            val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)!!
+            contentResolver.openOutputStream(uri)!!.use { it.write(data) }
+        }.isSuccess
+        runOnUiThread { toast(getString(if (ok) R.string.file_saved else R.string.file_failed, name, dev)) }
+    }
+
+    // Udostępnij → Velivo: plik z galerii / menedżera plików idzie do komputera (komputer pyta o zgodę).
+    private fun sendSharedFile(intent: Intent) {
+        @Suppress("DEPRECATION")
+        val uri = (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)) ?: return
+        if (!lan.paired) { toast(getString(R.string.lan_not_paired)); return }
+        prefs.edit().putBoolean("lan", true).apply()
+        startLan()
+        val name = runCatching {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }.getOrNull() ?: uri.lastPathSegment ?: "plik"
+        toast(getString(R.string.file_waiting, name))
+        Thread {
+            // komputer musi się najpierw odezwać w sieci (adres) - czekamy do 30 s
+            var waited = 0
+            while (lan.computer == null && waited < 30) { Thread.sleep(1000); waited++ }
+            val result = runCatching {
+                val size = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                if (size > LanSync.FILE_LIMIT) "plik większy niż 100 MB"
+                else lan.sendFile(name, contentResolver.openInputStream(uri)!!.use { it.readBytes() })
+            }.getOrElse { it.message ?: "błąd" }
+            runOnUiThread {
+                toast(when (result) {
+                    "ok" -> getString(R.string.file_sent, name)
+                    "odrzucono" -> getString(R.string.file_declined)
+                    else -> getString(R.string.file_send_failed, result)
+                })
+            }
+        }.start()
     }
 
     // Zakładki (Windows: "adres<TAB>tytuł") i hasła z komputera dopisywane do telefonu; nic nie jest usuwane.

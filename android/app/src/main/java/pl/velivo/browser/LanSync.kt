@@ -59,6 +59,9 @@ class LanSync(
     private var udp: DatagramSocket? = null
     private var tcp: ServerSocket? = null
     private val pending = HashMap<String, Pair<KeyPair, ByteArray>>()   // pairId -> (moje klucze ECDH, klucz transportu)
+    // Windows wysyła prośbę na kilka adresów rozgłoszeniowych - ta sama prośba dochodzi kilka razy.
+    // Każda kopia dawałaby nowe okno z innym kodem i innym kluczem (potem "bad decrypt") - pytamy tylko raz.
+    private val seenOffers = HashSet<String>()
     private val random = SecureRandom()
 
     val paired get() = lanKey() != null
@@ -176,7 +179,8 @@ class LanSync(
         if (System.currentTimeMillis() > pairingUntil) return
         val pairId = p.optString("pairId")
         val pub = p.optString("pub")
-        if (pairId.length != 32 || pub.isEmpty() || pub.length > 2048 || pending.containsKey(pairId)) return
+        if (pairId.length != 32 || pub.isEmpty() || pub.length > 2048) return
+        if (!synchronized(seenOffers) { seenOffers.add(pairId) }) return
         val kpg = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }
         val mine = kpg.generateKeyPair()
         val remote = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(unb64(pub)))
@@ -194,7 +198,7 @@ class LanSync(
             confirmPair(dev, code) {
                 Thread {
                     pairStep = "kod potwierdzony, czekam na klucz z komputera"
-                    synchronized(pending) { pending[pairId] = mine to transport }
+                    synchronized(pending) { if (pending.containsKey(pairId)) return@Thread; pending[pairId] = mine to transport }
                     saveProfile(winProfile)
                     send(packet("pair-response").put("pairId", pairId).put("pub", b64(mine.public.encoded)))
                 }.start()

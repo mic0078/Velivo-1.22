@@ -101,4 +101,13 @@
     <string name="desktop_mode">Desktop site</string>
     <string name="desktop_on">Desktop site on – the page looks like on a computer</string>
     <string name="desktop_off">Mobile site</string>
+    <string name="reader">Reader view</string>
+    <string name="read_aloud">Read aloud</string>
+    <string name="stop_reading">Stop reading</string>
+    <string name="reader_empty">No readable text on this page</string>
+    <string name="reading_started">Reading aloud…</string>
+    <string name="tts_missing">Speech engine unavailable – install Google Speech Services</string>
+    <string name="text_smaller">Smaller text</string>
+    <string name="text_larger">Larger text</string>
+    <string name="reader_resumed">Carrying on where you left off</string>
 </resources>

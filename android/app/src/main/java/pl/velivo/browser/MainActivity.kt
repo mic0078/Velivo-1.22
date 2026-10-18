@@ -548,10 +548,84 @@ set(p0,p);})"""
     }
 
     // Menu Velivo: wysuwane od dołu, logo i licznik reklam na górze, kolorowe kafelki jak przyciski Velivo na Windows.
+    // --- Czytnik i czytanie na glos: tekst artykulu wyciagniety ze strony, bez reklam i menu ---
+    private var tts: android.speech.tts.TextToSpeech? = null
+
+    private fun readArticle(done: (String, String) -> Unit) {
+        val js = """(function(){var best=document.body,max=0;
+document.querySelectorAll('article,main,[role=main],section,div').forEach(function(e){var n=0;
+e.querySelectorAll(':scope > p').forEach(function(p){n+=p.innerText.length});if(n>max){max=n;best=e}});
+var root=document.querySelector('article')||best,out=[];
+root.querySelectorAll('h1,h2,h3,p,li,blockquote').forEach(function(e){var t=e.innerText.trim();
+if(t.length>1&&!e.closest('nav,footer,aside,form'))out.push(t)});
+if(!out.length)out=[document.body.innerText];
+return JSON.stringify({t:document.title,b:out.join('\n\n')})})()"""
+        val w = web() ?: return
+        w.evaluateJavascript(js) { r ->
+            try {
+                val o = org.json.JSONObject(org.json.JSONTokener(r).nextValue() as String)
+                val body = o.optString("b").trim()
+                if (body.isEmpty()) toast(getString(R.string.reader_empty)) else done(o.optString("t"), body)
+            } catch (_: Exception) { toast(getString(R.string.reader_empty)) }
+        }
+    }
+
+    private fun speak(text: String) {
+        val go = {
+            val t = tts!!
+            t.language = resources.configuration.locales[0]
+            // TTS przyjmuje ograniczona dlugosc - dzielimy po akapitach
+            text.split("\n").map { it.trim() }.filter { it.isNotEmpty() }.flatMap { it.chunked(3500) }
+                .forEachIndexed { i, part -> t.speak(part, if (i == 0) android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD, null, "v$i") }
+            toast(getString(R.string.reading_started))
+        }
+        if (tts != null) go() else tts = android.speech.tts.TextToSpeech(this) { st ->
+            if (st == android.speech.tts.TextToSpeech.SUCCESS) go() else toast(getString(R.string.tts_missing))
+        }
+    }
+
+    private fun stopSpeaking() { tts?.stop() }
+
+    private fun showReader(title: String, body: String) {
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+        val bg = c("#FBF8F1", "#15121F"); val fg = c("#2A2150", "#E6E1F5")
+        var size = prefs.getFloat("czytnik_rozmiar", 19f)
+        val text = TextView(this).apply {
+            this.text = body; textSize = size; setTextColor(fg); typeface = android.graphics.Typeface.SERIF
+            setLineSpacing(0f, 1.45f); setTextIsSelectable(true); setPadding(dp(20), dp(8), dp(20), dp(40))
+        }
+        val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); setBackgroundColor(BAR) }
+        bar.addView(TextView(this).apply { this.text = "📖 " + getString(R.string.reader); textSize = 16f; setTextColor(TEXT); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        fun resize(d: Float) { size = (size + d).coerceIn(14f, 30f); text.textSize = size; prefs.edit().putFloat("czytnik_rozmiar", size).apply() }
+        bar.addView(button("A−", R.string.text_smaller, BLUE, BLUE_BG) { resize(-1f) })
+        bar.addView(button("A+", R.string.text_larger, BLUE, BLUE_BG) { resize(1f) })
+        bar.addView(button("🔊", R.string.read_aloud, BLUE, BLUE_BG) { if (tts?.isSpeaking == true) stopSpeaking() else speak(title + ".\n" + body) })
+        bar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { dlg.dismiss() })
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
+        col.addView(TextView(this).apply {
+            this.text = title; textSize = 24f; setTextColor(fg); typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD)
+            setPadding(dp(20), dp(20), dp(20), dp(12))
+        })
+        col.addView(text)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
+        root.addView(bar)
+        root.addView(android.widget.ScrollView(this).apply { addView(col) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        // zapamietaj, gdzie skonczyles czytac (lokalnie, wg adresu strony)
+        val key = "czytnik_poz_" + (web()?.url ?: title).hashCode()
+        val scroll = root.getChildAt(1) as android.widget.ScrollView
+        dlg.setOnDismissListener { prefs.edit().putInt(key, scroll.scrollY).apply() }
+        dlg.setContentView(root)
+        dlg.show()
+        val pos = prefs.getInt(key, 0)
+        if (pos > 0) scroll.post { scroll.scrollTo(0, pos); toast(getString(R.string.reader_resumed)) }
+    }
+
     private fun menuAction(id: Int) {
         when (id) {
             16 -> openFind()
             17 -> toggleDesktop()
+            18 -> readArticle { t, b -> showReader(t, b) }
+            19 -> if (tts?.isSpeaking == true) stopSpeaking() else readArticle { t, b -> speak(t + ".\n" + b) }
             1 -> newTab(false, QuickAccess.URL)
             2 -> newTab(true, home)
             3 -> web()?.let { w -> w.url?.let { u -> addTo("zakladki", w.title ?: u, u, 500); toast(getString(R.string.added)) } }
@@ -643,7 +717,8 @@ set(p0,p);})"""
         }
         section(R.string.menu_tabs, listOf(
             Triple("＋", R.string.new_tab, 1), Triple("🕶", R.string.new_private_tab, 2), Triple("⭐", R.string.quick_access, 14),
-            Triple("🏦", R.string.bank_mode, 10), Triple("🔎", R.string.find_in_page, 16), Triple("🖥", R.string.desktop_mode, 17)),
+            Triple("🏦", R.string.bank_mode, 10), Triple("🔎", R.string.find_in_page, 16), Triple("🖥", R.string.desktop_mode, 17),
+            Triple("📖", R.string.reader, 18), Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19)),
             mapOf(17 to (tabs.getOrNull(cur)?.desktop == true)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("➕", R.string.add_bookmark, 3), Triple("🕘", R.string.history, 5),
@@ -1226,6 +1301,7 @@ set(p0,p);})"""
     }
 
     override fun onDestroy() {
+        tts?.shutdown()
         tabs.forEach { it.web.destroy() }
         if (isFinishing) dropPrivateProfile()
         super.onDestroy()

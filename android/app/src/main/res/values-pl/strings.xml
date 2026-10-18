@@ -101,4 +101,13 @@
     <string name="desktop_mode">Tryb pulpitu</string>
     <string name="desktop_on">Tryb pulpitu włączony – strona jak na komputerze</string>
     <string name="desktop_off">Wersja na telefon</string>
+    <string name="reader">Czytnik</string>
+    <string name="read_aloud">Czytaj na głos</string>
+    <string name="stop_reading">Zatrzymaj czytanie</string>
+    <string name="reader_empty">Brak tekstu do przeczytania na tej stronie</string>
+    <string name="reading_started">Czytam na głos…</string>
+    <string name="tts_missing">Brak syntezatora mowy – zainstaluj Usługi mowy Google</string>
+    <string name="text_smaller">Mniejszy tekst</string>
+    <string name="text_larger">Większy tekst</string>
+    <string name="reader_resumed">Wracam do miejsca, w którym skończyłeś</string>
 </resources>

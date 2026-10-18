@@ -21,4 +21,5 @@
     <string name="download_started">Pobieranie…</string>
     <string name="adblock">Blokuj reklamy</string>
     <string name="home">Strona startowa</string>
+    <string name="private_limited">Karta prywatna: ta wersja Androida dzieli ciasteczka z kartami zwykłymi</string>
 </resources>

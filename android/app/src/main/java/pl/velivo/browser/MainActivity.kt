@@ -31,6 +31,9 @@ import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.Toast
+import androidx.webkit.ProfileStore
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import java.io.ByteArrayInputStream
 
 class MainActivity : Activity() {
@@ -43,10 +46,7 @@ class MainActivity : Activity() {
     private lateinit var progress: ProgressBar
     private lateinit var tabsBtn: Button
     private val prefs by lazy { getSharedPreferences("velivo", Context.MODE_PRIVATE) }
-    private val blockedHosts by lazy {
-        assets.open("blokowane.txt").bufferedReader().readLines()
-            .map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.toHashSet()
-    }
+    @Volatile private var blocker = AdBlocker(emptySet(), emptySet())
     @Volatile private var blockedCount = 0
 
     private val home = "https://www.startpage.com/"
@@ -71,6 +71,7 @@ class MainActivity : Activity() {
         }
         bar.addView(address, LinearLayout.LayoutParams(0, -2, 1f))
         tabsBtn = button("1", R.string.tabs, BLUE, BLUE_BG) { showTabs() }
+        bar.addView(button("🕶", R.string.new_private_tab, PURPLE, PRIV_BG) { newTab(true, home) })
         bar.addView(tabsBtn)
         bar.addView(button("⋮", R.string.menu, TEXT, GRAY_BG) { showMenu(it) })
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
@@ -94,7 +95,11 @@ class MainActivity : Activity() {
             insets
         }
 
-        newTab(false, intent?.dataString ?: home)
+        startFilters()
+        dropPrivateProfile() // resztki po poprzedniej sesji
+        val link = intent?.dataString
+        if (!restoreTabs() && link == null) newTab(false, home)
+        if (link != null) newTab(false, link)
     }
 
     // Kolory jak w Velivo na Windows.
@@ -109,6 +114,8 @@ class MainActivity : Activity() {
         val ORANGE = Color.parseColor("#C2410C")
         val ORANGE_BG = Color.parseColor("#FFEDD5")
         val PRIV_BG = Color.parseColor("#EDE9FE")
+        val PURPLE = Color.parseColor("#5B21B6")
+        const val PRIVATE_PROFILE = "prywatna"
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -139,9 +146,14 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun newTab(priv: Boolean, url: String) {
         val w = WebView(this)
+        // Karta prywatna: osobny profil (ciasteczka, pamięć stron), kasowany po zamknięciu ostatniej prywatnej karty.
+        if (priv) {
+            if (privateSupported) WebViewCompat.setProfile(w, PRIVATE_PROFILE)
+            else toast(getString(R.string.private_limited))
+        }
         w.settings.apply {
             javaScriptEnabled = true
-            domStorageEnabled = !priv
+            domStorageEnabled = !priv || privateSupported
             builtInZoomControls = true
             displayZoomControls = false
             setSupportMultipleWindows(false)
@@ -190,15 +202,13 @@ class MainActivity : Activity() {
         w.loadUrl(url)
     }
 
-    private fun isBlocked(u: Uri): Boolean {
-        var host = u.host ?: return false
-        while (true) {
-            if (host in blockedHosts) return true
-            val dot = host.indexOf('.')
-            if (dot < 0 || host.indexOf('.', dot + 1) < 0) return false
-            host = host.substring(dot + 1)
-        }
-    }
+    private fun isBlocked(u: Uri) = (u.scheme == "http" || u.scheme == "https") && blocker.matches(u.host)
+
+    // Najpierw to, co już jest na telefonie, potem w tle świeże listy (co 4 dni).
+    private fun startFilters() = Thread {
+        blocker = AdBlocker.build(this)
+        if (AdBlocker.stale(this) && AdBlocker.download(this) > 0) blocker = AdBlocker.build(this)
+    }.start()
 
     private fun show(i: Int) {
         cur = i
@@ -213,6 +223,7 @@ class MainActivity : Activity() {
     private fun closeTab(i: Int) {
         val t = tabs.removeAt(i)
         t.web.destroy()
+        if (t.priv && tabs.none { it.priv }) dropPrivateProfile()
         if (tabs.isEmpty()) { cur = -1; newTab(false, home) } else show(minOf(i, tabs.size - 1))
     }
 
@@ -294,8 +305,35 @@ class MainActivity : Activity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    private val privateSupported by lazy { WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) }
+
+    private fun dropPrivateProfile() {
+        if (privateSupported) runCatching { ProfileStore.getInstance().deleteProfile(PRIVATE_PROFILE) }
+    }
+
+    // Otwarte karty (bez prywatnych) wracają po ponownym uruchomieniu.
+    private fun saveTabs() {
+        val open = tabs.filter { !it.priv }.mapNotNull { it.web.url }
+        val sel = tabs.getOrNull(cur)?.takeIf { !it.priv }?.let { t -> tabs.filter { !it.priv }.indexOf(t) } ?: 0
+        prefs.edit().putString("karty", open.joinToString("\n")).putInt("karta", sel).apply()
+    }
+
+    private fun restoreTabs(): Boolean {
+        val urls = prefs.getString("karty", "")!!.lines().filter { it.startsWith("http") }
+        if (urls.isEmpty()) return false
+        urls.forEach { newTab(false, it) }
+        show(prefs.getInt("karta", 0).coerceIn(0, tabs.size - 1))
+        return true
+    }
+
+    override fun onPause() {
+        saveTabs()
+        super.onPause()
+    }
+
     override fun onDestroy() {
         tabs.forEach { it.web.destroy() }
+        if (isFinishing) dropPrivateProfile()
         super.onDestroy()
     }
 }

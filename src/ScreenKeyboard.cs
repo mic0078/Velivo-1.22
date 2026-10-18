@@ -867,42 +867,57 @@ namespace Przegladarka
             head.Children.Add(pinB); head.Children.Add(alphaPlus); head.Children.Add(alphaText); head.Children.Add(alphaMinus);
             // wlasny slownik (jak na Androidzie): podglad i usuwanie wyuczonych slow
             var dictB = key(ico("\uE82D", null), 34); dictB.Height = 28; dictB.FontSize = 13; dictB.Background = Brushes.Transparent; DockPanel.SetDock(dictB, Dock.Right);
-            dictB.ToolTip = L.T("Mój słownik – słowa, których Velivo nauczyło się od Ciebie (klik w słowo usuwa je)");
+            dictB.ToolTip = L.T("Mój słownik – słowa, których Velivo nauczyło się od Ciebie; dodawanie wielu słów naraz i usuwanie");
+            // okno Mojego slownika: jedno slowo w linii - dopisywanie hurtem (wklej liste), usuwanie (skasuj linie), wczytanie z pliku .txt.
+            // Zapis zostaje zaszyfrowany jak dotad (nie jawny plik na dysku)
+            Window dictWin = null;
             dictB.Click += (s, e) =>
             {
-                var cm = new ContextMenu { PlacementTarget = dictB, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
-                List<string> own; lock (_swLearned) own = _swOwn.OrderBy(x => x).ToList();
-                // ➕ wlasne slowo: autokorekta go nie zmienia, pasek propozycji i przeciaganie je podsuwaja
-                var addW = new MenuItem { Header = L.T("➕ Dodaj słowo…") };
-                addW.Click += (q, w2) =>
+                if (dictWin != null) { dictWin.Activate(); return; }
+                List<string> own; lock (_swLearned) own = _swOwn.OrderBy(x => x, StringComparer.CurrentCulture).ToList();
+                var box = new TextBox { FontSize = 15, AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(6), Text = string.Join("\r\n", own) };
+                var info = new TextBlock { Margin = new Thickness(8, 6, 8, 6), TextWrapping = TextWrapping.Wrap, Text = L.T("Jedno słowo w linii. Wklej listę, aby dodać wiele słów naraz; skasuj linię, aby usunąć słowo.") };
+                Func<string, Button> btn = t => new Button { Content = L.T(t), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(6, 0, 0, 0) };
+                var loadB = btn("📂 Wczytaj z pliku…"); loadB.ToolTip = L.T("Dopisz słowa z pliku tekstowego (.txt)");
+                var sortB = btn("A→Z Sortuj"); sortB.ToolTip = L.T("Sortuj alfabetycznie i usuń powtórzenia");
+                var saveB = btn("💾 Zapisz"); saveB.ToolTip = L.T("Zapisz Mój słownik (Ctrl+S)"); saveB.IsDefault = false;
+                var count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+                Func<List<string>> words = () => box.Text.Split(new[] { '\r', '\n', ' ', '\t', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim().ToLowerInvariant()).Where(x => x.Length >= 2 && x.All(char.IsLetter)).Distinct().OrderBy(x => x, StringComparer.CurrentCulture).ToList();
+                Action upd = () => count.Text = L.T("Słów: ") + words().Count;
+                box.TextChanged += (a, b) => upd(); upd();
+                sortB.Click += (a, b) => box.Text = string.Join("\r\n", words());
+                loadB.Click += (a, b) =>
                 {
-                    var box = new TextBox { FontSize = 18, Padding = new Thickness(8, 6, 8, 6), MinWidth = 320, BorderThickness = new Thickness(0) };
-                    var aw = new Window { Title = L.T("Dodaj słowo do Mojego słownika (Enter)"), Content = box, SizeToContent = SizeToContent.WidthAndHeight, WindowStyle = WindowStyle.ToolWindow, ResizeMode = ResizeMode.NoResize, Topmost = true, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.CenterScreen };
-                    box.KeyDown += (a, b) =>
-                    {
-                        if (b.Key == Key.Escape) aw.Close();
-                        if (b.Key != Key.Enter) return;
-                        var nw = box.Text.Trim().ToLowerInvariant();
-                        keepWord(nw);
-                        aw.Close();
-                    };
-                    aw.Loaded += (a, b) => { _physPause = true; aw.Activate(); box.Focus(); };
-                    aw.Closed += (a, b) => _physPause = false;
-                    aw.Show();
+                    var dlg = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Pliki tekstowe") + " (*.txt)|*.txt|*.*|*.*" };
+                    if (dlg.ShowDialog(dictWin) != true) return;
+                    try { box.Text = box.Text.TrimEnd() + "\r\n" + File.ReadAllText(dlg.FileName); box.Text = string.Join("\r\n", words()); } catch { }
                 };
-                cm.Items.Add(addW);
-                cm.Items.Add(new MenuItem { Header = own.Count == 0 ? L.T("Mój słownik jest pusty – słowa wpisane literami dopiszą się same") : L.T("Mój słownik (klik usuwa): ") + own.Count, IsEnabled = false });
-                foreach (var w0 in own.Take(200))
+                Action save = () =>
                 {
-                    var wd = w0; var mi = new MenuItem { Header = wd };
-                    mi.Click += (q, w2) =>
+                    var nw = new HashSet<string>(words());
+                    lock (_swLearned)
                     {
-                        lock (_swLearned) { _swOwn.Remove(wd); _swLearned.Remove(wd); SwipeTyping.RemoveUserWord(wd); SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
-                        bool rem; lock (noFix) rem = noFix.Remove(wd); if (rem) SetPref("klawiatura-bez-korekty", string.Join("|", noFix));
-                    };
-                    cm.Items.Add(mi);
-                }
-                cm.IsOpen = true;
+                        foreach (var r in _swOwn.Where(x => !nw.Contains(x)).ToList()) { _swOwn.Remove(r); _swLearned.Remove(r); SwipeTyping.RemoveUserWord(r); }
+                        foreach (var n in nw) if (_swOwn.Add(n)) { SwipeTyping.AddUserWord(n); if (!_swLearned.ContainsKey(n)) _swLearned[n] = 1; }
+                        SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
+                    }
+                    lock (noFix) { noFix.RemoveWhere(x => !nw.Contains(x)); foreach (var n in nw) noFix.Add(n); SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500)))); }
+                    box.Text = string.Join("\r\n", nw.OrderBy(x => x, StringComparer.CurrentCulture));
+                };
+                saveB.Click += (a, b) => save();
+                var bar = new DockPanel { Margin = new Thickness(8, 4, 8, 8), LastChildFill = false };
+                bar.Children.Add(count);
+                foreach (var bb in new[] { saveB, sortB, loadB }) { DockPanel.SetDock(bb, Dock.Right); bar.Children.Add(bb); }
+                var root = new DockPanel();
+                DockPanel.SetDock(info, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
+                root.Children.Add(info); root.Children.Add(bar); root.Children.Add(box);
+                dictWin = new Window { Title = L.T("📖 Mój słownik"), Content = root, Width = 420, Height = 520, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+                dictWin.PreviewKeyDown += (a, b) => { if (b.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { save(); b.Handled = true; } };
+                dictWin.Loaded += (a, b) => { _physPause = true; box.Focus(); box.CaretIndex = box.Text.Length; };
+                dictWin.Closing += (a, b) => save();
+                dictWin.Closed += (a, b) => { _physPause = false; dictWin = null; };
+                dictWin.Show();
             };
             head.Children.Add(dictB);
             // 🎮 sterowanie padem

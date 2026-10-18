@@ -28,7 +28,8 @@ namespace Przegladarka
             public double H { get; set; }
             public string Color { get; set; }
             public bool Top { get; set; }
-            public bool Free { get; set; }   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
+            public bool Free { get; set; }
+            public bool Open { get; set; }   // przypieta i rozwinieta przez uzytkownika - po starcie wraca rozwinieta   // odpieta - dowolnie na pulpicie; domyslnie przypieta nad paskiem zadan
         }
 
         // rodzaj -> ikona, tytul, poczatkowa tresc
@@ -203,6 +204,7 @@ namespace Przegladarka
             {
                 if (n.Free) return;
                 if (!_noteOpen.Remove(n)) _noteOpen.Add(n);
+                n.Open = _noteOpen.Contains(n); SaveNotes();
                 open.Content = _noteOpen.Contains(n) ? "▼" : "▲";
                 LayoutDockedNotes();
                 if (_noteOpen.Contains(n)) { w.Activate(); box.Focus(); box.CaretIndex = box.Text.Length; }
@@ -263,7 +265,8 @@ namespace Przegladarka
             w.Show();
             if (n.Top) { w.Topmost = false; w.Topmost = true; }   // od razu nad innymi oknami (bez klikania ikonki)
             LayoutDockedNotes();
-            if (fresh && !n.Free) { _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
+            if (!fresh && !n.Free && n.Open) { _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // zostawiona rozwinieta
+            if (fresh && !n.Free) { n.Open = true; _noteOpen.Add(n); open.Content = "▼"; LayoutDockedNotes(); }   // nowa - od razu rozwinieta do pisania
             if (fresh || n.Free && (string.IsNullOrEmpty(n.Text) || n.Text == k[3])) { box.Focus(); box.CaretIndex = k[3].IndexOf('\n') is int nl && nl > 0 ? nl : box.Text.Length; }
         }
 

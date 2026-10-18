@@ -167,7 +167,7 @@ namespace Przegladarka
                 Content = text, ToolTip = tip, Width = 26, Height = 24, Padding = new Thickness(0), Margin = new Thickness(1, 0, 0, 0),
                 Background = Brushes.Transparent, BorderThickness = new Thickness(0), Cursor = Cursors.Hand, FontSize = 13,
             };
-            var title = new TextBlock { Text = k[1] + "  " + L.T(k[2]).ToUpper(), FontWeight = FontWeights.Bold, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)) };
+            var title = new TextBlock { Text = k[1], ToolTip = L.T(k[2]), FontWeight = FontWeights.Bold, FontSize = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)) };
             var pin = headBtn(n.Top ? "📌" : "📍", L.T("Zawsze na wierzchu (włącz / wyłącz)"));
             var paint = headBtn("🎨", L.T("Kolor karteczki"));
             var add = headBtn("➕", L.T("Nowa karteczka"));

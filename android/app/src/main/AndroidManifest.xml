@@ -6,7 +6,7 @@
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@style/Velivo">
         <activity
             android:name=".MainActivity"
             android:exported="true"

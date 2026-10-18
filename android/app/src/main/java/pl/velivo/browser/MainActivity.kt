@@ -6,6 +6,7 @@ import android.app.AlertDialog
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -18,6 +19,7 @@ import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -32,8 +34,10 @@ import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.webkit.ProfileStore
+import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import org.json.JSONObject
 import java.io.ByteArrayInputStream
 
 class MainActivity : Activity() {
@@ -65,8 +69,9 @@ class MainActivity : Activity() {
             setSelectAllOnFocus(true)
             textSize = 15f
             setTextColor(TEXT)
+            setHintTextColor(c("#6B7280", "#9CA3AF"))
             setPadding(dp(14), dp(8), dp(14), dp(8))
-            background = round(Color.WHITE)
+            background = round(FIELD)
             setOnEditorActionListener { _, _, _ -> go(text.toString()); true }
         }
         bar.addView(address, LinearLayout.LayoutParams(0, -2, 1f))
@@ -102,20 +107,42 @@ class MainActivity : Activity() {
         if (link != null) newTab(false, link)
     }
 
-    // Kolory jak w Velivo na Windows.
+    // Kolory jak w Velivo na Windows; ciemne, gdy telefon ma tryb ciemny.
+    private val dark by lazy { (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES }
+    private fun c(light: String, night: String) = Color.parseColor(if (dark) night else light)
+    private val BAR by lazy { c("#E5E7EB", "#1F2937") }
+    private val TEXT by lazy { c("#1F2937", "#E5E7EB") }
+    private val FIELD by lazy { c("#FFFFFF", "#111827") }
+    private val GRAY_BG by lazy { c("#F3F4F6", "#374151") }
+    private val BLUE by lazy { c("#1D4ED8", "#93C5FD") }
+    private val BLUE_BG by lazy { c("#DBEAFE", "#1E3A8A") }
+    private val GREEN by lazy { c("#15803D", "#86EFAC") }
+    private val GREEN_BG by lazy { c("#DCFCE7", "#14532D") }
+    private val ORANGE by lazy { c("#C2410C", "#FDBA74") }
+    private val ORANGE_BG by lazy { c("#FFEDD5", "#7C2D12") }
+    private val PRIV_BG by lazy { c("#EDE9FE", "#4C1D95") }
+    private val PURPLE by lazy { c("#5B21B6", "#DDD6FE") }
+
     private companion object {
-        val BAR = Color.parseColor("#E5E7EB")
-        val TEXT = Color.parseColor("#1F2937")
-        val GRAY_BG = Color.parseColor("#F3F4F6")
-        val BLUE = Color.parseColor("#1D4ED8")
-        val BLUE_BG = Color.parseColor("#DBEAFE")
-        val GREEN = Color.parseColor("#15803D")
-        val GREEN_BG = Color.parseColor("#DCFCE7")
-        val ORANGE = Color.parseColor("#C2410C")
-        val ORANGE_BG = Color.parseColor("#FFEDD5")
-        val PRIV_BG = Color.parseColor("#EDE9FE")
-        val PURPLE = Color.parseColor("#5B21B6")
         const val PRIVATE_PROFILE = "prywatna"
+
+        // Przy wysłaniu formularza: pierwsze wypełnione pole hasła i pole tekstowe przed nim.
+        const val CAPTURE_JS = """(function(){if(window.__vh||!window.VelivoHasla)return;window.__vh=1;
+function grab(){var ps=[].slice.call(document.querySelectorAll('input[type=password]')).filter(function(p){return p.value});
+if(!ps.length)return;var p=ps[0],ins=[].slice.call(document.querySelectorAll('input')),u='';
+for(var j=ins.indexOf(p)-1;j>=0;j--){var t=(ins[j].type||'text').toLowerCase();if((t=='text'||t=='email'||t=='tel')&&ins[j].value){u=ins[j].value;break;}}
+VelivoHasla.zapisz(u,p.value);}
+document.addEventListener('submit',grab,true);
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('button,input[type=submit],[role=button]');if(b)grab();},true);
+document.addEventListener('keydown',function(e){if(e.key=='Enter')grab();},true);})();"""
+
+        // Wpisuje login i hasło tak, jakby pisał użytkownik (zdarzenia input/change dla stron w React itp.).
+        const val FILL_JS = """(function(u,p){var ps=document.querySelectorAll('input[type=password]');if(!ps.length)return;
+function set(el,v){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,v);
+el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
+var p0=ps[0],ins=[].slice.call(document.querySelectorAll('input'));
+for(var j=ins.indexOf(p0)-1;j>=0;j--){var t=(ins[j].type||'text').toLowerCase();if(t=='text'||t=='email'||t=='tel'){if(u)set(ins[j],u);break;}}
+set(p0,p);})"""
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -161,7 +188,11 @@ class MainActivity : Activity() {
             setSupportMultipleWindows(false)
             if (priv) cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
         }
+        // Strony bez własnego ciemnego wyglądu przyciemniane automatycznie w trybie ciemnym.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING))
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(w.settings, true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(w, false)
+        if (!priv) w.addJavascriptInterface(PasswordBridge(w), "VelivoHasla")
         w.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
                 if (prefs.getBoolean("adblock", true) && isBlocked(req.url)) {
@@ -177,6 +208,7 @@ class MainActivity : Activity() {
                 return true
             }
             override fun onPageFinished(view: WebView, url: String) {
+                if (!priv) passwordsOnPage(view)
                 if (view == web()) address.setText(url)
                 if (!priv) addHistory(view.title ?: url, url)
             }
@@ -218,7 +250,7 @@ class MainActivity : Activity() {
         val t = tabs[i]
         frame.addView(t.web)
         address.setText(t.web.url ?: "")
-        address.background = round(if (t.priv) PRIV_BG else Color.WHITE)
+        address.background = round(if (t.priv) PRIV_BG else FIELD)
         tabsBtn.text = tabs.size.toString()
     }
 
@@ -262,6 +294,7 @@ class MainActivity : Activity() {
         m.menu.add(0, 4, 0, R.string.bookmarks)
         m.menu.add(0, 5, 0, R.string.history)
         m.menu.add(0, 6, 0, R.string.clear_history)
+        m.menu.add(0, 9, 0, R.string.passwords)
         m.menu.add(0, 7, 0, R.string.adblock).apply { isCheckable = true; isChecked = prefs.getBoolean("adblock", true) }
         m.menu.add(0, 8, 0, getString(R.string.blocked, blockedCount)).isEnabled = false
         m.setOnMenuItemClickListener {
@@ -272,6 +305,7 @@ class MainActivity : Activity() {
                 4 -> pick("zakladki", R.string.bookmarks)
                 5 -> pick("historia", R.string.history)
                 6 -> { prefs.edit().remove("historia").apply(); web()?.clearHistory() }
+                9 -> showPasswords()
                 7 -> prefs.edit().putBoolean("adblock", !prefs.getBoolean("adblock", true)).apply()
             }
             true
@@ -296,6 +330,71 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(l.map { it.substringBefore('\t') }.toTypedArray()) { _, i -> web()?.loadUrl(l[i].substringAfter('\t')) }
+            .show()
+    }
+
+    // --- Hasła ---------------------------------------------------------------
+    private val passwords by lazy { Passwords(this) }
+    private var lastAsked = ""
+
+    private fun secureHost(w: WebView): String? {
+        val u = Uri.parse(w.url ?: return null)
+        return if (u.scheme == "https") u.host else null
+    }
+
+    // Strona wysłała formularz z hasłem - wywoływane z JavaScriptu (wątek w tle).
+    private inner class PasswordBridge(private val w: WebView) {
+        @JavascriptInterface
+        fun zapisz(user: String, pass: String) = runOnUiThread { askSave(w, user, pass) }
+    }
+
+    private fun askSave(w: WebView, user: String, pass: String) {
+        val host = secureHost(w) ?: return
+        if (pass.isEmpty() || pass.length > 500 || user.length > 500) return
+        val key = "$host\t$user\t${pass.hashCode()}"
+        if (key == lastAsked || passwords.never(host) || passwords.isSaved(host, user, pass)) return
+        lastAsked = key
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.save_password_q, host))
+            .setMessage(user)
+            .setPositiveButton(R.string.save) { _, _ -> passwords.save(host, user, pass); toast(getString(R.string.added)) }
+            .setNeutralButton(R.string.never) { _, _ -> passwords.addNever(host) }
+            .setNegativeButton(R.string.not_now, null)
+            .show()
+    }
+
+    private fun passwordsOnPage(w: WebView) {
+        w.evaluateJavascript(CAPTURE_JS, null)
+        val host = secureHost(w) ?: return
+        val saved = passwords.forHost(host)
+        if (saved.isEmpty()) return
+        w.evaluateJavascript("document.querySelector('input[type=password]')!=null") { has ->
+            if (has != "true" || w != web()) return@evaluateJavascript
+            if (saved.size == 1) fill(w, saved[0])
+            else AlertDialog.Builder(this)
+                .setTitle(R.string.passwords)
+                .setItems(saved.map { it.user.ifEmpty { "—" } }.toTypedArray()) { _, i -> fill(w, saved[i]) }
+                .show()
+        }
+    }
+
+    private fun fill(w: WebView, e: Passwords.Entry) {
+        if (secureHost(w) != e.host) return
+        w.evaluateJavascript("$FILL_JS(${JSONObject.quote(e.user)},${JSONObject.quote(e.pass)})", null)
+    }
+
+    private fun showPasswords() {
+        val list = passwords.all().sortedBy { it.host }
+        if (list.isEmpty()) { toast(getString(R.string.empty)); return }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.passwords)
+            .setItems(list.map { it.host + "\n" + it.user.ifEmpty { "—" } }.toTypedArray()) { _, i ->
+                AlertDialog.Builder(this)
+                    .setMessage(getString(R.string.delete_q, list[i].host))
+                    .setPositiveButton(R.string.delete) { _, _ -> passwords.remove(list[i]) }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
             .show()
     }
 

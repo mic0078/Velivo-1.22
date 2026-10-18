@@ -22,4 +22,11 @@
     <string name="adblock">Blokuj reklamy</string>
     <string name="home">Strona startowa</string>
     <string name="private_limited">Karta prywatna: ta wersja Androida dzieli ciasteczka z kartami zwykłymi</string>
+    <string name="passwords">Hasła</string>
+    <string name="save_password_q">Zapisać hasło dla %1$s?</string>
+    <string name="save">Zapisz</string>
+    <string name="never">Nigdy</string>
+    <string name="not_now">Nie teraz</string>
+    <string name="delete">Usuń</string>
+    <string name="delete_q">Usunąć zapisane hasło dla %1$s?</string>
 </resources>

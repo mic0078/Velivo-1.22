@@ -22,4 +22,11 @@
     <string name="adblock">Block ads</string>
     <string name="home">Home page</string>
     <string name="private_limited">Private tab: this Android version shares cookies with normal tabs</string>
+    <string name="passwords">Passwords</string>
+    <string name="save_password_q">Save password for %1$s?</string>
+    <string name="save">Save</string>
+    <string name="never">Never</string>
+    <string name="not_now">Not now</string>
+    <string name="delete">Delete</string>
+    <string name="delete_q">Delete the saved password for %1$s?</string>
 </resources>

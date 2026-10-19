@@ -2000,31 +2000,34 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         scr.setRows(rows(), if (Tv.showsFor(epg, ch).isEmpty()) getString(R.string.tv_no_guide) else "")
     }
 
-    // audycja: trwa - oglądaj; później - ⏰ włącz o tej godzinie (albo usuń z planu)
+    // audycja: później - ⏰ włącz o tej godzinie (najpierw); trwa - oglądaj; była - z archiwum. Opis pod "ℹ"
+    // (AlertDialog nie pokazuje listy razem z tekstem - dlatego czas w tytule, a opis osobno)
     private fun showOpts(ch: Tv.Channel, s: Tv.Show, changed: () -> Unit = {}) {
         val now = System.currentTimeMillis()
         val plan = TvPlan.find(this, ch.key, s.start)
         val opts = mutableListOf<Pair<String, () -> Unit>>()
-        if (Tv.canCatchup(ch, s)) opts.add(getString(R.string.tv_catchup) to {   // ⏪ archiwum: audycja, która była (albo od początku tej, co trwa)
-            play(listOf(PlayerActivity.Item(ch.name + " – " + s.title, ch.url, null, info = fmtTime(s.start) + "–" + fmtTime(s.stop), desc = s.desc, ch = ch, arch = PlayerActivity.Arch(s.start, s.stop))), 0, live = false) })
-        if (s.stop > now) opts.add(getString(R.string.tv_plan_watch) to { playChannel(ch) })
         if (s.start > now) opts.add(if (plan == null) getString(R.string.tv_plan_at, fmtTime(s.start)) to { TvPlan.add(this, ch, s); toast(getString(R.string.tv_plan_set, s.title, fmtTime(s.start))); changed() }
             else getString(R.string.tv_plan_remove) to { TvPlan.remove(this, plan.id); changed() })
-        AlertDialog.Builder(this).setTitle(s.title).setMessage(fmtTime(s.start) + "–" + fmtTime(s.stop) + if (s.desc.isNotEmpty()) "\n\n" + s.desc else "")
+        if (Tv.canCatchup(ch, s)) opts.add(getString(R.string.tv_catchup) to {   // ⏪ archiwum: audycja, która była (albo od początku tej, co trwa)
+            play(listOf(PlayerActivity.Item(ch.name + " – " + s.title, ch.url, null, info = fmtTime(s.start) + "–" + fmtTime(s.stop), desc = s.desc, ch = ch, arch = PlayerActivity.Arch(s.start, s.stop))), 0, live = false) })
+        opts.add(getString(R.string.tv_plan_watch) to { playChannel(ch) })
+        if (s.desc.isNotEmpty()) opts.add("ℹ " + getString(R.string.tv_desc) to {
+            AlertDialog.Builder(this).setTitle(s.title).setMessage(s.desc).setPositiveButton(android.R.string.ok) { _, _ -> showOpts(ch, s, changed) }.show() })
+        val day = java.text.SimpleDateFormat("EEE d.MM", java.util.Locale.getDefault()).format(java.util.Date(s.start))
+        AlertDialog.Builder(this).setTitle(s.title + "\n" + ch.name + " · " + day + " " + fmtTime(s.start) + "–" + fmtTime(s.stop))
             .setItems(opts.map { it.first }.toTypedArray()) { _, i -> opts[i].second() }.show()
     }
 
-    // 📋 co i kiedy: audycje kanałów z bieżącego widoku (grupa, ulubione, lista) na najbliższą dobę, według godziny
+    // 📋 co i kiedy: kanały z wybranej grupy (ulubionych, listy) alfabetycznie, pod spodem co leci; stuknięcie - program kanału
     private fun showAllShows(chans: List<Tv.Channel>, epg: Map<String, Map<String, List<Tv.Show>>>) {
-        val now = System.currentTimeMillis(); val to = now + 24 * 3600_000L
-        val day = java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault())
-        val all = chans.flatMap { ch -> Tv.showsFor(epg[ch.source] ?: emptyMap(), ch).filter { it.stop > now && it.start < to }.map { ch to it } }.sortedBy { it.second.start }.take(4000)
-        fun rows() = all.map { (ch, s) -> MRow((if (TvPlan.find(this, ch.key, s.start) != null) "⏰ " else if (s.start <= now) "▶ " else "") + day.format(java.util.Date(s.start)) + "  " + s.title, ch.name + " · " + fmtTime(s.start) + "–" + fmtTime(s.stop), ch.logo.ifEmpty { null }, tag = ch to s) }
-        lateinit var scr: MediaScreen
-        scr = MediaScreen("📋 " + getString(R.string.tv_all_shows), "tv-all", listOf(getString(R.string.tv_sort_list)), sorter = { l, _ -> l },
-            onOpen = { r, _ -> @Suppress("UNCHECKED_CAST") val p = r.tag as Pair<Tv.Channel, Tv.Show>; showOpts(p.first, p.second) { scr.setRows(rows(), "") } })
+        fun rows() = chans.sortedBy { it.name.lowercase() }.map { ch ->
+            val (now, nxt) = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch)
+            MRow(ch.name, listOfNotNull(now?.let { getString(R.string.tv_now, it.title, fmtTime(it.stop)) }, nxt?.let { getString(R.string.tv_next, fmtTime(it.start), it.title) }).joinToString("\n"), ch.logo.ifEmpty { null }, tag = ch)
+        }
+        val scr = MediaScreen("📋 " + getString(R.string.tv_all_shows), "tv-all", listOf(getString(R.string.sort_az)), sorter = { l, _ -> l.sortedBy { it.title.lowercase() } },
+            onOpen = { r, _ -> val ch = r.tag as Tv.Channel; showGuide(ch, epg[ch.source] ?: emptyMap()) })
         scr.show()
-        scr.setRows(rows(), if (all.isEmpty()) getString(R.string.tv_no_guide) else "")
+        scr.setRows(rows(), "")
     }
 
     // 🗓 siatka programu (jak w Televizo): kanały w wierszach, czas w poziomie, ⏰ i ⏪ po stuknięciu audycji

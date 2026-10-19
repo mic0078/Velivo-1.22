@@ -333,7 +333,7 @@
     <string name="tv_plans">⏰ Scheduled</string>
     <string name="tv_plans_empty">Nothing scheduled</string>
     <string name="tv_plan_set">Scheduled: %1$s at %2$s</string>
-    <string name="tv_all_shows">📋 What\'s on when (list)</string>
+    <string name="tv_all_shows">📋 What\'s on – channels A–Z</string>
     <string name="tv_catchup">⏪ Watch from the archive</string>
     <string name="tv_grid">🗓 TV guide grid</string>
     <string name="tv_grid_more">Showing the first %1$d of %2$d channels – pick a group or favourites</string>
@@ -341,4 +341,5 @@
     <string name="tv_arch_none">⏪ The server does not provide this programme from the archive</string>
     <string name="tv_arch_live">Live (back from the archive)</string>
     <string name="tv_arch_restart">From the start of the programme (archive)</string>
+    <string name="tv_desc">Description</string>
 </resources>

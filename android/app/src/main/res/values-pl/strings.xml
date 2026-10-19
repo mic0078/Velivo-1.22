@@ -333,7 +333,7 @@
     <string name="tv_plans">⏰ Zaplanowane</string>
     <string name="tv_plans_empty">Nic nie zaplanowano</string>
     <string name="tv_plan_set">Zaplanowano: %1$s o %2$s</string>
-    <string name="tv_all_shows">📋 Co i kiedy (lista audycji)</string>
+    <string name="tv_all_shows">📋 Co i kiedy – kanały A–Z</string>
     <string name="tv_catchup">⏪ Oglądaj z archiwum</string>
     <string name="tv_grid">🗓 Siatka programu</string>
     <string name="tv_grid_more">Pierwsze %1$d z %2$d kanałów – wybierz grupę albo ulubione</string>
@@ -341,4 +341,5 @@
     <string name="tv_arch_none">⏪ Serwer nie udostępnia tej audycji z archiwum</string>
     <string name="tv_arch_live">Na żywo (wróć z archiwum)</string>
     <string name="tv_arch_restart">Od początku programu (archiwum)</string>
+    <string name="tv_desc">Opis</string>
 </resources>

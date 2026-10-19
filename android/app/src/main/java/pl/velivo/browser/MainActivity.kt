@@ -1425,7 +1425,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19),
             Triple("🎯", R.string.hide_element, 20), Triple("➕", R.string.add_bookmark, 3), Triple("✍", R.string.fill_password, 15)))
         section(R.string.menu_media, listOf(
-            Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("📁", R.string.my_films, 32),
+            Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("🎞", R.string.my_films, 32),
             Triple("🎵", R.string.yt_my_songs, 33), Triple("⭐", R.string.yt_add, 34), Triple("🌙", R.string.sleep_title, 35)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9),
@@ -2319,18 +2319,18 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun showPhoneVideos() {
         val perms = if (Build.VERSION.SDK_INT >= 33) arrayOf(android.Manifest.permission.READ_MEDIA_VIDEO, android.Manifest.permission.READ_MEDIA_AUDIO) else arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
         if (perms.any { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED } && afterVideoPerm == null) { afterVideoPerm = { showPhoneVideos() }; requestPermissions(perms, REQ_VIDEOS); return }
-        // widok: 0 wszystko (filmy, potem muzyka), 1 tylko filmy, 2 tylko muzyka - zapamiętany; w każdym alfabetycznie
+        // widok: 0 wszystko, 1 filmy, 2 moja muzyka, 3 dźwięki wbudowane (dzwonki, powiadomienia, alarmy) - zapamiętany; alfabetycznie
         var kind = prefs.getInt("telefon-rodzaj", 0)
         var all = listOf<MRow>()
-        fun audio(r: MRow) = r.title.startsWith("🎵")
-        fun name(r: MRow) = r.title.removePrefix("🎵 ").lowercase()
-        fun shown() = all.filter { kind == 0 || (kind == 2) == audio(it) }
-        val kinds = listOf(getString(R.string.phone_all), "🎬 " + getString(R.string.phone_only_video), "🎵 " + getString(R.string.phone_only_audio))
+        fun type(r: MRow) = if (r.title.startsWith("🎵")) 2 else if (r.title.startsWith("🔔")) 3 else 1
+        fun name(r: MRow) = r.title.removePrefix("🎵 ").removePrefix("🔔 ").lowercase()
+        fun shown() = all.filter { kind == 0 || type(it) == kind }
+        val kinds = listOf(getString(R.string.phone_all), "🎬 " + getString(R.string.phone_only_video), "🎵 " + getString(R.string.phone_only_audio), "🔔 " + getString(R.string.phone_builtin))
         lateinit var scr: MediaScreen
         scr = MediaScreen("📱 " + getString(R.string.phone_videos), "telefon", listOf(getString(R.string.sort_az), getString(R.string.sort_newest)),
-            sorter = { l, s -> if (s == 0) l.sortedWith(compareBy({ audio(it) }, { name(it) })) else l.sortedByDescending { (it.tag as Pair<*, *>).second as Long } },
-            onOpen = { r, shownRows -> play(shownRows.map { val u = (it.tag as Pair<*, *>).first.toString(); PlayerActivity.Item(it.title.removePrefix("🎵 "), u, "plik-" + u.hashCode()) }, shownRows.indexOf(r), false) })
-        fun info() = kinds[kind] + " · " + shown().count { !audio(it) } + " 🎬 · " + shown().count { audio(it) } + " 🎵"
+            sorter = { l, s -> if (s == 0) l.sortedWith(compareBy({ type(it) }, { name(it) })) else l.sortedByDescending { (it.tag as Pair<*, *>).second as Long } },
+            onOpen = { r, shownRows -> play(shownRows.map { val u = (it.tag as Pair<*, *>).first.toString(); PlayerActivity.Item(it.title.removePrefix("🎵 ").removePrefix("🔔 "), u, "plik-" + u.hashCode()) }, shownRows.indexOf(r), false) })
+        fun info() = kinds[kind] + " · " + all.count { type(it) == 1 } + " 🎬 · " + all.count { type(it) == 2 } + " 🎵 · " + all.count { type(it) == 3 } + " 🔔"
         scr.addButton("☰", R.string.tv_filter) {
             AlertDialog.Builder(this).setSingleChoiceItems(kinds.toTypedArray(), kind) { d, i -> kind = i; prefs.edit().putInt("telefon-rodzaj", i).apply(); d.dismiss(); scr.setRows(shown(), info()) }.show()
         }
@@ -2338,13 +2338,22 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         scr.setRows(emptyList(), getString(R.string.tv_loading))
         Thread {
             val rows = ArrayList<MRow>()
-            // filmy i muzyka (🎵) - kolumny wspólne dla obu
-            for ((col, icon) in listOf(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "", android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "🎵 ")) runCatching {
-                contentResolver.query(col, arrayOf(android.provider.MediaStore.MediaColumns._ID, android.provider.MediaStore.MediaColumns.DISPLAY_NAME, android.provider.MediaStore.MediaColumns.DURATION, android.provider.MediaStore.MediaColumns.DATE_ADDED, android.provider.MediaStore.MediaColumns.BUCKET_DISPLAY_NAME), null, null, null)?.use { c ->
+            // cała pamięć telefonu: filmy, muzyka i dźwięki wbudowane (także systemowe z pamięci wewnętrznej)
+            val ext = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI; val int = android.provider.MediaStore.Audio.Media.INTERNAL_CONTENT_URI
+            for (col in listOf(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, ext, int)) runCatching {
+                val isAudio = col != android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                val cols = arrayOf(android.provider.MediaStore.MediaColumns._ID, android.provider.MediaStore.MediaColumns.DISPLAY_NAME, android.provider.MediaStore.MediaColumns.DURATION,
+                    android.provider.MediaStore.MediaColumns.DATE_ADDED, android.provider.MediaStore.MediaColumns.BUCKET_DISPLAY_NAME) +
+                    (if (isAudio) arrayOf(android.provider.MediaStore.Audio.AudioColumns.IS_RINGTONE, android.provider.MediaStore.Audio.AudioColumns.IS_NOTIFICATION, android.provider.MediaStore.Audio.AudioColumns.IS_ALARM) else emptyArray())
+                contentResolver.query(col, cols, null, null, null)?.use { c ->
                     while (c.moveToNext()) {
                         val u = android.content.ContentUris.withAppendedId(col, c.getLong(0))
-                        val min = c.getLong(2) / 60000
-                        rows.add(MRow(icon + (c.getString(1) ?: "?"), listOfNotNull(c.getString(4), if (min > 0) (if (min >= 60) "${min / 60} h ${min % 60} min" else "$min min") else null).joinToString(" · "), null, tag = u to c.getLong(3)))
+                        // wbudowane: z pamięci systemowej albo oznaczone jako dzwonek / powiadomienie / alarm
+                        val builtin = isAudio && (col == int || c.getInt(5) != 0 || c.getInt(6) != 0 || c.getInt(7) != 0)
+                        val icon = if (!isAudio) "" else if (builtin) "🔔 " else "🎵 "
+                        val sec = c.getLong(2) / 1000; val min = sec / 60
+                        val len = if (min >= 60) "${min / 60} h ${min % 60} min" else if (min > 0) "$min min" else if (sec > 0) "$sec s" else null
+                        rows.add(MRow(icon + (c.getString(1) ?: "?"), listOfNotNull(c.getString(4), len).joinToString(" · "), null, tag = u to c.getLong(3)))
                     }
                 }
             }
@@ -2363,7 +2372,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun showMyFiles() {
         lateinit var scr: MediaScreen
         fun rows(): List<MRow> { val a = myFiles(); return (0 until a.length()).map { a.getJSONObject(it) }.map { MRow(it.optString("n"), java.text.DateFormat.getDateInstance().format(java.util.Date(it.optLong("t"))), null, tag = it) } }
-        scr = MediaScreen("📁 " + getString(R.string.my_films), "moje2", listOf(getString(R.string.sort_az), getString(R.string.sort_newest)),   // domyślnie alfabetycznie
+        scr = MediaScreen("🎞 " + getString(R.string.my_films), "moje2", listOf(getString(R.string.sort_az), getString(R.string.sort_newest)),   // domyślnie alfabetycznie
             sorter = { l, s -> if (s == 0) l.sortedBy { it.title.lowercase() } else l.sortedByDescending { (it.tag as org.json.JSONObject).optLong("t") } },
             onOpen = { r, shownRows -> val o = shownRows.map { it.tag as org.json.JSONObject }
                 play(o.map { PlayerActivity.Item(it.optString("n"), it.optString("u"), "moje-" + it.optString("u").hashCode()) }, shownRows.indexOf(r), false) },

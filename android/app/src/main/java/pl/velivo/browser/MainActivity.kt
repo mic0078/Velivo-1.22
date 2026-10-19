@@ -87,6 +87,8 @@ class MainActivity : Activity() {
     private val home = "https://www.startpage.com/"
     private val quickAccess by lazy { QuickAccess(this) }
     private val youtubeJs by lazy { assets.open("youtube.js").bufferedReader().use { it.readText() } }
+    // bez zachęt „pobierz aplikację” (Startpage i inne) - ten sam skrypt co w Velivo na Windows
+    private val noAppPromoJs by lazy { assets.open("velivo-bez-aplikacji.js").bufferedReader().use { it.readText() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(if (dark) R.style.Velivo_Dark else R.style.Velivo_Light)
@@ -539,6 +541,8 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
         // Reklamy na YouTube: skrypt uruchamiany przed stroną (tylko na domenach YouTube).
         if (prefs.getBoolean("adblock", true) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
             WebViewCompat.addDocumentStartJavaScript(w, youtubeJs, YOUTUBE_ORIGINS)
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
+            runCatching { WebViewCompat.addDocumentStartJavaScript(w, noAppPromoJs, setOf("*")) }
         val quiet = priv || bank
         if (!quiet) w.addJavascriptInterface(PasswordBridge(w), "VelivoHasla")
         if (!quiet) quickAccess.attach(w)

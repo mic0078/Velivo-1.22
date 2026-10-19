@@ -18,6 +18,19 @@ namespace Velivo
     {
         string HomeUrl { get { return _settings.Home; } }
         // VELIVO_DANE pozwala uruchomic program na osobnym folderze danych (np. do testow)
+        // ten sam skrypt co w Velivo na telefon (QuickAccessExtension\kod\velivo-bez-aplikacji.js)
+        static string _noAppPromo;
+        static string NoAppPromoScript
+        {
+            get
+            {
+                if (_noAppPromo != null) return _noAppPromo;
+                try { _noAppPromo = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Dodatki", "Szybki Dostęp", "kod", "velivo-bez-aplikacji.js")); }
+                catch (Exception) { _noAppPromo = ""; }
+                return _noAppPromo;
+            }
+        }
+
         static readonly string DataDir = Environment.GetEnvironmentVariable("VELIVO_DANE") ?? VelivoData.Root;
         static readonly string HistoryFile = Path.Combine(DataDir, "historia.txt");
         static readonly string AppVersionLabel =
@@ -473,6 +486,7 @@ namespace Velivo
             core.WebMessageReceived += (s, e) => { try { HandlePageMessage(tab, e.TryGetWebMessageAsString()); } catch (Exception) { } };
             await InstallPageScript(tab, core);   // przed ukryciem chrome.webview - skrypt zapamietuje kanal wiadomosci
             tab.HideScriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(HideWebViewBrandScript);
+            if (NoAppPromoScript.Length > 0) await core.AddScriptToExecuteOnDocumentCreatedAsync(NoAppPromoScript);   // bez zachet "pobierz aplikacje" (Startpage i inne)
             await EnsureBundledQuickAccessAsync();
             if (!_extensionsLoaded && LiveProfile != null)   // dopiero przy zwyklej karcie (karta bankowa / prywatna nie ma dodatkow)
             {

@@ -49,6 +49,7 @@ class PlayerActivity : Activity() {
         var queue: List<Item> = emptyList()
         var index = 0
         var live = false
+        var offAt = 0L   // ⏰ zaplanowana audycja z wyłączeniem: koniec odtwarzania o tej godzinie
         var wake = false   // ⏰ zaplanowana audycja - włącz ekran i pokaż na blokadzie
         var current: WeakReference<PlayerActivity>? = null
         fun pauseIfPlaying() { current?.get()?.player?.pause() }
@@ -150,6 +151,8 @@ class PlayerActivity : Activity() {
         load(index)
         ui.postDelayed(saver, 5000)
         ui.post(tick)
+        if (offAt > System.currentTimeMillis()) { sleepAt = offAt; ui.postDelayed(sleepRun, offAt - System.currentTimeMillis()) }
+        offAt = 0
     }
 
     private fun btn(label: String, tip: Int, big: Boolean = false, click: () -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {

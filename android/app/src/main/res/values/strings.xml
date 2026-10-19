@@ -342,4 +342,6 @@
     <string name="tv_arch_live">Live (back from the archive)</string>
     <string name="tv_arch_restart">From the start of the programme (archive)</string>
     <string name="tv_desc">Description</string>
+    <string name="tv_plan_keep">Turn on and keep playing</string>
+    <string name="tv_plan_off">Turn on and stop when it ends (%1$s)</string>
 </resources>

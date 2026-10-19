@@ -342,4 +342,6 @@
     <string name="tv_arch_live">Na żywo (wróć z archiwum)</string>
     <string name="tv_arch_restart">Od początku programu (archiwum)</string>
     <string name="tv_desc">Opis</string>
+    <string name="tv_plan_keep">Włącz i oglądaj dalej</string>
+    <string name="tv_plan_off">Włącz i wyłącz odtwarzanie po zakończeniu (%1$s)</string>
 </resources>

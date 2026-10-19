@@ -2006,7 +2006,11 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val now = System.currentTimeMillis()
         val plan = TvPlan.find(this, ch.key, s.start)
         val opts = mutableListOf<Pair<String, () -> Unit>>()
-        if (s.start > now) opts.add(if (plan == null) getString(R.string.tv_plan_at, fmtTime(s.start)) to { TvPlan.add(this, ch, s); toast(getString(R.string.tv_plan_set, s.title, fmtTime(s.start))); changed() }
+        if (s.start > now) opts.add(if (plan == null) getString(R.string.tv_plan_at, fmtTime(s.start)) to {
+                // po włączeniu: oglądać dalej czy wyłączyć odtwarzanie z końcem audycji
+                AlertDialog.Builder(this).setTitle(getString(R.string.tv_plan_at, fmtTime(s.start))).setItems(arrayOf(getString(R.string.tv_plan_keep), getString(R.string.tv_plan_off, fmtTime(s.stop)))) { _, k ->
+                    TvPlan.add(this, ch, s, offAfter = k == 1); toast(getString(R.string.tv_plan_set, s.title, fmtTime(s.start))); changed()
+                }.show() }
             else getString(R.string.tv_plan_remove) to { TvPlan.remove(this, plan.id); changed() })
         if (Tv.canCatchup(ch, s)) opts.add(getString(R.string.tv_catchup) to {   // ⏪ archiwum: audycja, która była (albo od początku tej, co trwa)
             play(listOf(PlayerActivity.Item(ch.name + " – " + s.title, ch.url, null, info = fmtTime(s.start) + "–" + fmtTime(s.stop), desc = s.desc, ch = ch, arch = PlayerActivity.Arch(s.start, s.stop))), 0, live = false) })
@@ -2083,18 +2087,18 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val l = TvPlan.list(this)
         if (l.isEmpty()) { toast(getString(R.string.tv_plans_empty)); return }
         val day = java.text.SimpleDateFormat("EEE d.MM HH:mm", java.util.Locale.getDefault())
-        AlertDialog.Builder(this).setTitle(R.string.tv_plans).setItems(l.map { "⏰ " + day.format(java.util.Date(it.at)) + "  " + it.show + "\n" + it.channel }.toTypedArray()) { _, i ->
+        AlertDialog.Builder(this).setTitle(R.string.tv_plans).setItems(l.map { "⏰ " + day.format(java.util.Date(it.at)) + "  " + it.show + "\n" + it.channel + if (it.offAt > 0) " · ⏹ " + fmtTime(it.offAt) else "" }.toTypedArray()) { _, i ->
             AlertDialog.Builder(this).setTitle(l[i].show).setItems(arrayOf(getString(R.string.tv_plan_remove))) { _, _ -> TvPlan.remove(this, l[i].id) }.show()
         }.show()
     }
 
     // kanał z listy (zapis w telefonie) - z kolejką całej listy, by działały ⏮ ⏭
-    private fun playChannel(ch: Tv.Channel, wake: Boolean = false) {
+    private fun playChannel(ch: Tv.Channel, wake: Boolean = false, offAt: Long = 0) {
         Thread {
             val src = Tv.sources(passwords).firstOrNull { it.id == ch.source } ?: return@Thread
             val all = runCatching { Tv.channels(this, passwords, src, false) }.getOrNull() ?: return@Thread
             val i = all.indexOfFirst { it.key == ch.key }.coerceAtLeast(0)
-            runOnUiThread { PlayerActivity.wake = wake; play(all.map { PlayerActivity.Item(it.name, it.url, it.key, ch = it) }, i, live = true) }
+            runOnUiThread { PlayerActivity.wake = wake; PlayerActivity.offAt = offAt; play(all.map { PlayerActivity.Item(it.name, it.url, it.key, ch = it) }, i, live = true) }
         }.start()
     }
 
@@ -2102,7 +2106,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun startPlanned(id: Int) {
         val p = TvPlan.get(this, id) ?: return
         TvPlan.remove(this, id)
-        playChannel(Tv.Channel(p.src, p.key.substringAfter('|'), "", "", "", ""), wake = true)
+        playChannel(Tv.Channel(p.src, p.key.substringAfter('|'), "", "", "", ""), wake = true, offAt = p.offAt)
     }
 
     private fun tvChannelMenu(ch: Tv.Channel, epg: Map<String, List<Tv.Show>>, changed: () -> Unit) {

@@ -84,6 +84,9 @@ object Slownik {
     var useCount: ((String) -> Int)? = null
     private fun score(e: Entry): Double { val n = runCatching { useCount?.invoke(e.word) ?: 0 }.getOrDefault(0); return e.rank / (1.0 + 3.0 * min(n, 50)) }
     private fun fold(w: String) = w.lowercase().map(::baseKey).joinToString("")
+    // sąsiednie klawisze (QWERTY) - typowa pomyłka palca
+    private val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+    private fun near(c: Char): List<Char> = rows.flatMap { r -> val i = r.indexOf(c); if (i < 0) emptyList() else listOfNotNull(r.getOrNull(i - 1), r.getOrNull(i + 1)) }
     private fun cap(typed: String, r: String) = if (typed[0].isUpperCase()) r[0].uppercaseChar() + r.substring(1) else r
 
     private fun index(): Boolean {
@@ -138,6 +141,18 @@ object Slownik {
         else if (best == null && w.length >= 4) {
             variants(fw) { v -> val e = f[v]; if (e != null && (anyRank || e.rank < 15000) && (best == null || score(e) < score(best!!))) best = e }
         }
+        if (best == null && w.length >= 4 && !anyRank) {
+            // dwie pomyłki palca: litera sąsiada na klawiaturze + jedna inna (eicej -> więcej) - tylko bardzo częste słowa
+            val abc = "abcdefghijklmnopqrstuvwxyz"
+            fun cand(v: String) { val e = f[v]; if (e != null && e.rank < 3000 && (best == null || score(e) < score(best!!))) best = e }
+            for (i in fw.indices) for (nb in near(fw[i])) {
+                val x = fw.substring(0, i) + nb + fw.substring(i + 1)
+                for (j in 0..x.length) {
+                    if (j < x.length) { cand(x.removeRange(j, j + 1)); if (j != i) for (c in abc) if (c != x[j]) cand(x.substring(0, j) + c + x.substring(j + 1)) }
+                    for (c in abc) cand(x.substring(0, j) + c + x.substring(j))
+                }
+            }
+        }
         val b = best ?: return null
         if (b.word == w) return null
         val r = polite(b.word)
@@ -159,8 +174,8 @@ object Slownik {
         val ownP = synchronized(ownFold) { ownFold.containsValue(p.lowercase()) }
         val pl = all[fold(p)] ?: return if (ownP) p else fix
         val pe = pl.minByOrNull(::score)!!; if (pe.rank >= 60000 && !ownP) return fix
-        // literówka częstego słowa wygrywa z dokończeniem rzadszego: zarz -> zaraz (nie zarzuty)
-        if (fix != null) all[fold(fix)]?.minByOrNull(::score)?.let { if (score(it) <= score(pe)) return fix }
+        // brakująca litera częstego słowa wygrywa z dokończeniem rzadszego: zarz -> zaraz (nie zarzuty); komp -> komputer zostaje
+        if (fix != null && fix.length == typed.length + 1) all[fold(fix)]?.minByOrNull(::score)?.let { if (score(it) <= score(pe)) return fix }
         if (w in m) {
             val we = all[fold(w)]?.firstOrNull { it.word == w }
             if (we == null || score(we) < 5000 || score(pe) * 4 > score(we)) return fix

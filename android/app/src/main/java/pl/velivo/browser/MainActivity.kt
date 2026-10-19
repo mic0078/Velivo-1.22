@@ -1929,7 +1929,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             onOpen = { r, shownRows ->
                 val future = if (at > System.currentTimeMillis() + 60_000) Tv.nowNext(epg[(r.tag as Tv.Channel).source] ?: emptyMap(), r.tag as Tv.Channel, at).first else null
                 if (future != null) { showOpts(r.tag as Tv.Channel, future); return@MediaScreen }   // 📅 audycja później - zaplanuj albo oglądaj
-                val items = shownRows.map { val ch = it.tag as Tv.Channel; PlayerActivity.Item(ch.name, ch.url, null, info = it.sub, desc = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.desc ?: "", endsAt = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.stop ?: 0L) }
+                val items = shownRows.map { val ch = it.tag as Tv.Channel; PlayerActivity.Item(ch.name, ch.url, ch.key, info = it.sub, desc = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.desc ?: "", endsAt = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.stop ?: 0L) }
                 prefs.edit().putStringSet("tv-ogladane", watched + (r.tag as Tv.Channel).key).apply()
                 play(items, shownRows.indexOf(r), live = true)
             },
@@ -2090,7 +2090,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             val src = Tv.sources(passwords).firstOrNull { it.id == ch.source } ?: return@Thread
             val all = runCatching { Tv.channels(this, passwords, src, false) }.getOrNull() ?: return@Thread
             val i = all.indexOfFirst { it.key == ch.key }.coerceAtLeast(0)
-            runOnUiThread { PlayerActivity.wake = wake; play(all.map { PlayerActivity.Item(it.name, it.url, null) }, i, live = true) }
+            runOnUiThread { PlayerActivity.wake = wake; play(all.map { PlayerActivity.Item(it.name, it.url, it.key) }, i, live = true) }
         }.start()
     }
 

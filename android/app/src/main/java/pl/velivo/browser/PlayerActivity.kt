@@ -97,6 +97,7 @@ class PlayerActivity : Activity() {
         val top = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(10), dp(8), dp(10)); setBackgroundColor(Color.argb(140, 27, 23, 51))
             addView(titleView, LinearLayout.LayoutParams(0, -2, 1f))
+            if (live) addView(btn("☆", R.string.tv_fav) { toggleFav() }.also { favBtn = it })   // ⭐ ulubiony kanał (jak na liście kanałów)
             addView(btn("🗨", R.string.player_tracks) { askTracks() })
             addView(btn("🌙", R.string.sleep_title) { askSleep() })
             addView(btn("⧉", R.string.player_pip) { enterPip() })
@@ -213,6 +214,7 @@ class PlayerActivity : Activity() {
         val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f
         resumeAt = if (!live && pos > 15f) (pos * 1000).toLong() else 0L   // skok po starcie - bez komunikatów po drodze
         ui.removeCallbacks(stuck); ui.postDelayed(stuck, 25000)   // serwer nic nie przysyła - zwykle limit połączeń (TV gra na innym urządzeniu)
+        showFav()
         if (live && sleepShowEnd) armShowEnd()
         if (live) prefs.edit().putInt("tv-ostatni", i).putString("tv-ostatni-nazwa", it.title).apply()
         showControls(true)
@@ -302,6 +304,14 @@ class PlayerActivity : Activity() {
             }
         })
         root.setOnTouchListener { _, e -> det.onTouchEvent(e) }
+    }
+
+    private var favBtn: Button? = null
+    private fun favs() = prefs.getStringSet("tv-ulubione", emptySet())!!
+    private fun showFav() { favBtn?.text = if (queue.getOrNull(index)?.key in favs()) "⭐" else "☆" }
+    private fun toggleFav() {
+        val k = queue.getOrNull(index)?.key ?: return
+        val f = favs(); prefs.edit().putStringSet("tv-ulubione", if (k in f) f - k else f + k).apply(); showFav()
     }
 
     private fun askSleep() {

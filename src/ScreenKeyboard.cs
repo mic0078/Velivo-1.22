@@ -86,6 +86,15 @@ namespace Velivo
                     if (name == null) return;
                     var words = new List<string>();
                     using (var st = asm.GetManifestResourceStream(name)) using (var rd = new StreamReader(st, System.Text.Encoding.UTF8)) { string l; while ((l = rd.ReadLine()) != null) words.Add(l); }
+                    // uzupelnienie: czeste slowa, ktorych brak w liscie z napisow filmowych (wlaczanie, przegladarka, zakladka...) - wstawione jak srednio czeste
+                    var extraName = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith("slowa-" + lang + "-dodatek.txt", StringComparison.Ordinal));
+                    if (extraName != null)
+                    {
+                        var have = new HashSet<string>(words);
+                        var extra = new List<string>();
+                        using (var st = asm.GetManifestResourceStream(extraName)) using (var rd = new StreamReader(st, System.Text.Encoding.UTF8)) { string l; while ((l = rd.ReadLine()) != null) if (l.Trim().Length > 0 && have.Add(l.Trim())) extra.Add(l.Trim()); }
+                        words.InsertRange(Math.Min(5000, words.Count), extra);
+                    }
                     try { File.Delete(Path.Combine(DataDir, "klawiatura-slowa.txt")); } catch (Exception) { }   // dawny jawny plik - nauka od nowa, juz zaszyfrowana
                     var own = new HashSet<string>(); var learned = SwipeTyping.LoadLearned(SwipeFile, own);
                     SwipeTyping.Load(words);

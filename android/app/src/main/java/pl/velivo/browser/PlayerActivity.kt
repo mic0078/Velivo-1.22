@@ -49,6 +49,9 @@ class PlayerActivity : Activity() {
         var current: WeakReference<PlayerActivity>? = null
         fun pauseIfPlaying() { current?.get()?.player?.pause() }
         private const val UA = "VLC/3.0.20 LibVLC/3.0.20"
+        // jedna biblioteka VLC na całą aplikację - kolejne otwarcie odtwarzacza bez ponownego ładowania (szybki start)
+        private var shared: LibVLC? = null
+        private fun lib(c: Context) = shared ?: LibVLC(c.applicationContext, arrayListOf("--http-reconnect", "--http-user-agent=$UA", "--audio-time-stretch", "--no-stats")).also { shared = it }
     }
 
     private lateinit var vlc: LibVLC
@@ -63,6 +66,7 @@ class PlayerActivity : Activity() {
     private lateinit var busy: ProgressBar
     private var fd: ParcelFileDescriptor? = null   // film z pamięci telefonu (content://)
     private var seeking = false
+    private var resumeAt = 0L   // miejsce w filmie do wznowienia, gdy obraz ruszy
     private val ui = Handler(Looper.getMainLooper())
     private val stuck = Runnable { if (!player.isPlaying) toast(getString(R.string.player_stuck)) }
     private val hide = Runnable { if (player.isPlaying) showControls(false) }
@@ -81,8 +85,7 @@ class PlayerActivity : Activity() {
         window.decorView.setBackgroundColor(Color.BLACK)
         window.insetsController?.let { it.hide(WindowInsets.Type.systemBars()); it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE }
 
-        // bufor jak w aplikacjach IPTV: 1,5 s dla TV, 3 s dla filmów; serwery IPTV wpuszczają znane odtwarzacze
-        vlc = LibVLC(this, arrayListOf("--http-reconnect", "--http-user-agent=$UA", "--network-caching=" + (if (live) 1500 else 3000), "--audio-time-stretch"))
+        vlc = lib(this)
         player = MediaPlayer(vlc)
         player.setEventListener { e -> onVlc(e) }
 
@@ -155,7 +158,7 @@ class PlayerActivity : Activity() {
     private fun onVlc(e: MediaPlayer.Event) {
         when (e.type) {
             MediaPlayer.Event.Buffering -> busy.visibility = if (e.buffering < 100f) View.VISIBLE else View.GONE
-            MediaPlayer.Event.Playing -> { busy.visibility = View.GONE; ui.removeCallbacks(stuck); playBtn.text = "⏸"; updatePip(); poke() }
+            MediaPlayer.Event.Playing -> { if (resumeAt > 0) { player.setTime(resumeAt); resumeAt = 0 }; busy.visibility = View.GONE; ui.removeCallbacks(stuck); playBtn.text = "⏸"; updatePip(); poke() }
             MediaPlayer.Event.Paused -> { playBtn.text = "▶"; updatePip(); showControls(true) }
             MediaPlayer.Event.EndReached -> if (!live) { savePos(true); next(1) } else load(index)   // kanał się urwał - wznów
             MediaPlayer.Event.EncounteredError -> { busy.visibility = View.GONE; toast(getString(R.string.player_error)) }   // bez adresu (może mieć token)
@@ -201,11 +204,12 @@ class PlayerActivity : Activity() {
             Media(vlc, Uri.parse(if (token != null) it.uri + (if ('?' in it.uri) "&" else "?") + "api_key=" + token else it.uri))
         }
         m.addOption(":http-user-agent=$UA")
+        m.addOption(":network-caching=" + if (live) 1000 else 1500)   // krótki bufor - obraz po chwili, jak w aplikacjach IPTV
         player.media = m
         m.release()
         player.play()
         val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f
-        if (!live && pos > 15f) { player.setTime((pos * 1000).toLong()); toast(getString(R.string.video_resumed, String.format("%d:%02d", pos.toInt() / 60, pos.toInt() % 60))) }
+        resumeAt = if (!live && pos > 15f) (pos * 1000).toLong() else 0L   // skok po starcie - bez komunikatów po drodze
         ui.removeCallbacks(stuck); ui.postDelayed(stuck, 25000)   // serwer nic nie przysyła - zwykle limit połączeń (TV gra na innym urządzeniu)
         if (live) prefs.edit().putInt("tv-ostatni", i).putString("tv-ostatni-nazwa", it.title).apply()
         showControls(true)
@@ -335,7 +339,7 @@ class PlayerActivity : Activity() {
         savePos(); reportJellyfin()
         ui.removeCallbacksAndMessages(null)
         PlaybackService.stop(this)
-        player.stop(); player.detachViews(); player.release(); vlc.release()
+        player.stop(); player.detachViews(); player.release()   // biblioteka VLC zostaje na następne otwarcie
         fd?.close()
         if (current?.get() == this) current = null
         super.onDestroy()

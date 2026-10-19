@@ -135,6 +135,11 @@ class MainActivity : Activity() {
         navBtn(button("▶", R.string.forward, BLUE, BLUE_BG) { web()?.let { if (it.canGoForward()) it.goForward() } })
         navBtn(button("⟳", R.string.reload, GREEN, GREEN_BG) { web()?.reload() })
         navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) { web()?.loadUrl(home) })
+        // ▶ YouTube: karta z YouTube, jeśli już jest otwarta; inaczej nowa (bez reklam - jak cały Velivo)
+        navBtn(button("▶", R.string.youtube, Color.WHITE, Color.parseColor("#E62117")) {
+            val i = tabs.indexOfFirst { !it.priv && !it.bank && (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") }
+            if (i >= 0) show(i) else newTab(false, "https://m.youtube.com/")
+        })
         navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, QuickAccess.URL) }.velivo())
         root.addView(bar)
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))

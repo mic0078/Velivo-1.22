@@ -187,4 +187,5 @@
     <string name="crash_msg">Sorry! Tap Copy and send the description to the Velivo developer – it helps fix it quickly.</string>
     <string name="crash_copy">Copy</string>
     <string name="crash_copied">Error description copied</string>
+    <string name="youtube">YouTube – no adverts</string>
 </resources>

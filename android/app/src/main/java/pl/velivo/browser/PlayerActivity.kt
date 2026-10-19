@@ -211,6 +211,7 @@ class PlayerActivity : Activity() {
         val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f
         resumeAt = if (!live && pos > 15f) (pos * 1000).toLong() else 0L   // skok po starcie - bez komunikatów po drodze
         ui.removeCallbacks(stuck); ui.postDelayed(stuck, 25000)   // serwer nic nie przysyła - zwykle limit połączeń (TV gra na innym urządzeniu)
+        if (live && sleepShowEnd) armShowEnd()
         if (live) prefs.edit().putInt("tv-ostatni", i).putString("tv-ostatni-nazwa", it.title).apply()
         showControls(true)
     }
@@ -309,14 +310,25 @@ class PlayerActivity : Activity() {
         val labels = mins.mapIndexed { k, it -> if (k == 0 && endMin > 0) getString(if (live) R.string.sleep_show_end else R.string.sleep_film_end, it) else if (it == 0) getString(R.string.sleep_none) else getString(R.string.sleep_min, it) }.toTypedArray()
         AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i ->
             ui.removeCallbacks(sleepRun)
-            if (mins[i] == 0) { sleepAt = 0; toast(getString(R.string.sleep_off)) }
-            else { sleepAt = System.currentTimeMillis() + mins[i] * 60_000L; ui.postDelayed(sleepRun, mins[i] * 60_000L); toast(getString(R.string.sleep_set, mins[i])) }
+            if (mins[i] == 0) { sleepAt = 0; sleepShowEnd = false; toast(getString(R.string.sleep_off)) }
+            else if (i == 0 && endMin > 0 && live) { sleepShowEnd = true; armShowEnd(); toast(labels[0]) }   // dokładnie z końcem audycji - także po zmianie kanału
+            else { sleepShowEnd = false; sleepAt = System.currentTimeMillis() + mins[i] * 60_000L; ui.postDelayed(sleepRun, mins[i] * 60_000L); toast(getString(R.string.sleep_set, mins[i])) }
         }.show()
+    }
+
+    private var sleepShowEnd = false   // 🌙 po zakończeniu bieżącej audycji
+
+    // wyłącznik na koniec audycji z programu TV oglądanego kanału (po zmianie kanału - jego audycji)
+    private fun armShowEnd() {
+        ui.removeCallbacks(sleepRun)
+        val end = queue.getOrNull(index)?.endsAt ?: 0L
+        if (end <= System.currentTimeMillis()) { sleepShowEnd = false; return }
+        sleepAt = end; ui.postDelayed(sleepRun, end - System.currentTimeMillis())
     }
 
     // koniec: odtwarzanie zatrzymane, Velivo schodzi na bok - telefon wraca do zwykłego czuwania (ekran gaśnie jak zawsze)
     private val sleepRun = Runnable {
-        sleepAt = 0; player.pause(); PlaybackService.stop(this)
+        sleepAt = 0; sleepShowEnd = false; player.pause(); PlaybackService.stop(this)
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         moveTaskToBack(true); finish()
     }

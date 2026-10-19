@@ -1991,7 +1991,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val day = java.text.SimpleDateFormat("EEE d.MM", java.util.Locale.getDefault())
         fun rows() = Tv.showsFor(epg, ch).filter { it.stop > now || Tv.canCatchup(ch, it) }.map { s ->
             val planned = TvPlan.find(this, ch.key, s.start) != null
-            MRow((if (planned) "⏰ " else if (s.stop <= now) "⏪ " else if (s.start <= now) "▶ " else "") + fmtTime(s.start) + "  " + s.title, day.format(java.util.Date(s.start)) + " · " + fmtTime(s.start) + "–" + fmtTime(s.stop) + if (s.desc.isNotEmpty()) "\n" + s.desc else "", null, tag = s)
+            MRow((if (planned) "⏰ " else if (s.stop <= now) "⏪ " else if (s.start <= now) "▶ " else "") + fmtTime(s.start) + "  " + s.title, day.format(java.util.Date(s.start)) + " · " + fmtTime(s.start) + "–" + fmtTime(s.stop) + if (s.desc.isNotEmpty()) "\n" + s.desc else "", ch.logo.ifEmpty { null }, tag = s)
         }
         lateinit var scr: MediaScreen
         scr = MediaScreen("📅 " + ch.name, "tv-guide", listOf(getString(R.string.tv_sort_list)), sorter = { l, _ -> l },

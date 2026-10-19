@@ -116,7 +116,7 @@ object Tv {
 
     // Program TV (XMLTV): tylko kanały z listy i tylko od 6 godzin wstecz do 2 dni naprzód - mało pamięci, szybko
     fun epg(ctx: Context, src: Source, chans: List<Channel>, refresh: Boolean): Map<String, List<Show>> {
-        val f = cacheFile(ctx, src.id, ".epg5.json")
+        val f = cacheFile(ctx, src.id, ".epg6.json")
         val fresh = f.exists() && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L   // program odświeżany co 12 godzin
         if (!refresh && fresh) { memEpg[src.id]?.let { return it }; readEpg(f)?.let { memEpg[src.id] = it; return it } }
         if (src.epg.isEmpty()) return emptyMap()
@@ -178,12 +178,14 @@ object Tv {
     }.getOrNull()
 
     // 20261019183000 +0200
+    // czas XMLTV: rrrrmmddggmm[ss] [+hhmm] - sekundy i strefa bywają pominięte (bez strefy - czas telefonu)
     fun xmltvTime(s: String?): Long = runCatching {
         val t = s!!.trim()
-        val dt = java.time.LocalDateTime.of(t.substring(0, 4).toInt(), t.substring(4, 6).toInt(), t.substring(6, 8).toInt(), t.substring(8, 10).toInt(), t.substring(10, 12).toInt(), t.substring(12, 14).toInt())
-        val off = t.substring(14).trim()
-        val zone = if (off.length >= 5) java.time.ZoneOffset.of(off.substring(0, 3) + ":" + off.substring(3, 5)) else java.time.ZoneOffset.UTC
-        dt.toInstant(zone).toEpochMilli()
+        val d = t.takeWhile { it.isDigit() }
+        val dt = java.time.LocalDateTime.of(d.substring(0, 4).toInt(), d.substring(4, 6).toInt(), d.substring(6, 8).toInt(), d.substring(8, 10).toInt(), d.substring(10, 12).toInt(), if (d.length >= 14) d.substring(12, 14).toInt() else 0)
+        val off = t.substring(d.length).trim().replace(":", "")
+        val zone: java.time.ZoneId = if (off.length >= 5 && (off[0] == '+' || off[0] == '-')) java.time.ZoneOffset.of(off.substring(0, 3) + ":" + off.substring(3, 5)) else java.time.ZoneId.systemDefault()
+        dt.atZone(zone).toInstant().toEpochMilli()
     }.getOrDefault(0L)
 
     // ---------- archiwum (catch-up) - jak w Velivo na Windows (Iptv.cs) ----------

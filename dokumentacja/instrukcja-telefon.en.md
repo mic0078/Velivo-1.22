@@ -8,6 +8,8 @@ Velivo for Android is a light, private browser in Velivo colours, linked to Veli
 - **🕶** – new private tab. **The button with a number** – the tab list with thumbnails (tap = switch, ✕ or a sideways swipe = close).
 - **Velivo logo** – the menu. Tiles are in four groups, three to a row: **Tabs**, **This page** (find, reader view, read aloud, remove element, add bookmark, fill in password), **Mine**, **Settings** (with a **🌐 Language** tile). The blocked-ads counter is at the top.
 - **Bottom bar** – ◀ back, ▶ forward, ⟳ reload, ⌂ start page, ＋ new tab (Quick Access).
+- **The red "▶ YouTube" bar at the very bottom** – YouTube without adverts; press and hold: sleep timer and wake-up (chapter 8).
+- **Press and hold on an advert** or an empty "ADVERT" box – Velivo asks whether to remove it.
 
 ## 1a. Zoom (for weaker eyesight)
 
@@ -15,7 +17,9 @@ Velivo for Android is a light, private browser in Velivo colours, linked to Veli
 - **On a page** two fingers change that page's text size (50–300%) – **every site remembers its own size** (the start page / Quick Access always stays at 100%), and Velivo remembers its own separately. Set it once.
 - In **reader view** two fingers change the text size (up to 48 pt), like A− / A+.
 
-## 2. Tabs
+## 2. Tabs and This page
+
+**Tabs:**
 
 | Tile | What it does |
 | --- | --- |
@@ -23,11 +27,19 @@ Velivo for Android is a light, private browser in Velivo colours, linked to Veli
 | 🕶 New private tab | A separate profile (cookies, sign-ins), no history; erased when the last private tab closes |
 | ⭐ Quick Access | Back to Quick Access in the current tab |
 | 🏦 Banking mode | Fingerprint / PIN entry, a separate permanent profile, no history or screenshots, locks after 10 minutes idle |
-| 🔎 Find in page | A bar with a "3/12" counter, ▲ ▼ – previous / next match, ✕ closes |
+| 📤 Send to computer | The current page opens on the paired computer (with the video position); private and banking tabs aren't sent |
 | 🖥 Desktop site | The desktop version of the page (for this tab); tap again for the mobile site |
+
+**This page:**
+
+| Tile | What it does |
+| --- | --- |
+| 🔎 Find in page | A bar with a "3/12" counter, ▲ ▼ – previous / next match, ✕ closes |
 | 📖 Reader view | Just the article text, without adverts or menus |
 | 🎯 Remove element | Removes an advert or box with a tap of your finger |
 | 🔊 Read aloud | Reads the article; while reading the tile turns into ⏹ Stop reading |
+| ➕ Add bookmark | Adds the current page to bookmarks |
+| ✍ Fill in password | Fills in a saved password when the form appeared later |
 
 ### Reader view
 
@@ -58,10 +70,8 @@ The rules are kept on the phone only (they do not sync with the computer).
 
 | Tile | What it does |
 | --- | --- |
-| Bookmarks, History | A list with search, sorting (newest / A–Z) and ✕ |
-| Add bookmark | Adds the current page |
-| Passwords | The password list after a fingerprint / PIN; **Copy password** marks it as sensitive in the clipboard |
-| Fill in password | Fills in a saved password when the form appeared later |
+| 🔖 Bookmarks, 🕘 History | A list with search, sorting (newest / A–Z) and ✕ |
+| 🔑 Passwords | The password list after a fingerprint / PIN; **Copy password** marks it as sensitive in the clipboard |
 | 🗒 Sticky notes, 📝 New note | Notes as on Windows – see below |
 | 📥 Downloads | Downloaded files |
 
@@ -81,12 +91,11 @@ Passwords are encrypted with a key in the Android Keystore (the key never leaves
 | Tile | What it does |
 | --- | --- |
 | Block ads | The same lists as on the computer (EasyList, EasyPrivacy, KAD) – bundled with the app, refreshed every 4 days. No empty box or error frame is left where an advert was (hiding rules as in uBlock Origin); no adverts on YouTube |
-| Play in background | Video / music keep playing after you leave the app (notification with "Stop") |
+| Play in background | Video / music keep playing after you leave the app and with the screen off (notification with "Stop" and "⏾ Stop in 30 min"); a video moves to a picture-in-picture window |
 | Theme | Like the phone / light / dark – in Velivo colours |
 | Sync with computer | Pairing, recovery file, phone name on the network |
+| 🌐 Language | Polish or English – for Velivo only (the system app-language picker) |
 | Clear history | Deletes the browsing history |
-
-Change the app language (Polish / English) in Android Settings → Apps → Velivo → Language.
 
 ## 5. Connecting to the computer
 
@@ -102,6 +111,8 @@ With several computers use the **recovery file** (computer: Save recovery file�
 | New bookmarks and passwords from the phone | To the computer – the computer asks whether to add them |
 | A file from the phone | **Share → Velivo**; the computer asks for consent |
 | A file from the computer | On the computer 📎 Send a file to: phone; saved to Downloads |
+| A tab from the phone | Menu → 📤 Send to computer |
+| A tab from the computer | On the computer: right-click a tab → 📺 Send to… → phone; the phone opens it straight away (YouTube from the same point) |
 
 ## 6. Privacy
 
@@ -133,3 +144,11 @@ Best set up once, together with the person who will use the phone:
 - **⏾ Music for sleep (sleep timer):** press and hold the red YouTube bar and choose **When this track ends** (YouTube won't start the next one) or 15, 30, 45, 60, 90 minutes – then the music stops by itself. With the screen off the notification has **⏾ Stop in 30 min** (each tap adds 30 minutes).
 - **⏰ Wake-up / scheduled playback:** press and hold the red YouTube bar → **⏰ Wake-up with a track…** → choose the track: **from the current tab** (e.g. an open YouTube video), **from bookmarks** or **from history** → the time → when: **every day, Mon–Fri, weekend, chosen days** or **once**. At that time Velivo opens even on the lock screen and plays the track with the volume rising gently; **Turn off** or **Snooze 10 min**. In the same place: **▶ Try the wake-up now** and **Turn off wake-up**. The alarm icon in the phone's status bar shows a wake-up is set.
 - The sleep timer also has **Custom time (minutes)…** – any number of minutes.
+
+## 9. When something goes wrong
+
+- If Velivo closes because of an error, next time it opens it shows **"Velivo closed because of an error"** with a **Copy** button – send that description to the Velivo developer (no addresses or page content – just how the error happened).
+- An advert Velivo doesn't hide: 🎯 Remove element → tap it → **📋** copies the element's code for a report.
+- A site misbehaves because of ad blocking: the privacy panel (the 🛡 counter in the menu) → **Turn off blocking here**.
+- Reading or music stops after the screen turns off (Xiaomi): Settings → Apps → Velivo → Battery saver → **No restrictions**.
+- The wake-up didn't ring: check the phone isn't muted and that Velivo has **Alarms & reminders** permission in Android Settings.

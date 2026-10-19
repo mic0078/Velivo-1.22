@@ -8,6 +8,8 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączo
 - **🕶** – nowa karta prywatna. **Przycisk z liczbą** – lista kart z miniaturami (stuknij = przełącz, ✕ lub przesunięcie w bok = zamknij).
 - **Logo Velivo** – menu. Kafelki są w czterech grupach, po 3 w rzędzie: **Karty**, **Ta strona** (szukaj, czytnik, czytanie na głos, usuń element, dodaj zakładkę, wpisz hasło), **Moje**, **Ustawienia** (z kafelkiem **🌐 Język**). Na górze licznik zablokowanych reklam.
 - **Dolny pasek** – ◀ wstecz, ▶ dalej, ⟳ odśwież, ⌂ strona startowa, ＋ nowa karta (Szybki Dostęp).
+- **Czerwony pasek „▶ YouTube” na samym dole** – YouTube bez reklam; przytrzymanie: wyłącznik czasowy i pobudka (rozdział 8).
+- **Przytrzymanie palca na reklamie** albo pustym polu „REKLAMA” – Velivo pyta, czy je usunąć.
 
 ## 1a. Powiększanie (dla słabszego wzroku)
 
@@ -15,7 +17,9 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączo
 - **Na stronie** dwa palce zmieniają wielkość tekstu tej strony (50–300%) – **każda strona pamięta swoją wielkość** (strona startowa / Szybki Dostęp zawsze ma 100%), a Velivo osobno swoją. Wystarczy ustawić raz.
 - W **czytniku** dwa palce zmieniają wielkość tekstu (do 48 pt), tak jak A− / A+.
 
-## 2. Karty
+## 2. Karty i Ta strona
+
+**Karty:**
 
 | Kafelek | Co robi |
 | --- | --- |
@@ -23,11 +27,19 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączo
 | 🕶 Nowa karta prywatna | Osobny profil (ciasteczka, logowania), bez historii; kasowany po zamknięciu ostatniej prywatnej karty |
 | ⭐ Szybki Dostęp | Wraca do Szybkiego Dostępu w bieżącej karcie |
 | 🏦 Tryb bankowy | Wejście odciskiem / PIN-em, osobny stały profil, bez historii i zrzutów ekranu, blokada po 10 min bezczynności |
-| 🔎 Szukaj na stronie | Pasek z licznikiem „3/12”, ▲ ▼ – poprzedni / następny wynik, ✕ zamyka |
+| 📤 Wyślij na komputer | Bieżąca strona otwiera się na sparowanym komputerze (z miejscem w filmie); karty prywatnej i bankowej nie wysyła |
 | 🖥 Tryb pulpitu | Strona w wersji na komputer (dla tej karty); ponownie – wersja na telefon |
+
+**Ta strona:**
+
+| Kafelek | Co robi |
+| --- | --- |
+| 🔎 Szukaj na stronie | Pasek z licznikiem „3/12”, ▲ ▼ – poprzedni / następny wynik, ✕ zamyka |
 | 📖 Czytnik | Sam tekst artykułu, bez reklam i menu |
 | 🎯 Usuń element | Usuwa reklamę lub ramkę stuknięciem palca |
 | 🔊 Czytaj na głos | Czyta artykuł; w trakcie kafelek zmienia się na ⏹ Zatrzymaj czytanie |
+| ➕ Dodaj zakładkę | Dodaje bieżącą stronę do zakładek |
+| ✍ Wpisz hasło | Wpisuje zapisane hasło, gdy formularz pojawił się później |
 
 ### Czytnik
 
@@ -58,10 +70,8 @@ Reguły są zapisane tylko w telefonie (nie synchronizują się z komputerem).
 
 | Kafelek | Co robi |
 | --- | --- |
-| Zakładki, Historia | Lista z wyszukiwaniem, sortowaniem (najnowsze / A–Z) i ✕ |
-| Dodaj zakładkę | Dodaje bieżącą stronę |
-| Hasła | Lista haseł po odcisku palca / PIN-ie; **Kopiuj hasło** oznacza je w schowku jako poufne |
-| Wpisz hasło | Wpisuje zapisane hasło, gdy formularz pojawił się później |
+| 🔖 Zakładki, 🕘 Historia | Lista z wyszukiwaniem, sortowaniem (najnowsze / A–Z) i ✕ |
+| 🔑 Hasła | Lista haseł po odcisku palca / PIN-ie; **Kopiuj hasło** oznacza je w schowku jako poufne |
 | 🗒 Karteczki, 📝 Nowa karteczka | Karteczki jak na Windows – opis niżej |
 | 📥 Pobrane | Pobrane pliki |
 
@@ -81,12 +91,11 @@ Hasła są szyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). 
 | Kafelek | Co robi |
 | --- | --- |
 | Blokuj reklamy | Te same listy co na komputerze (EasyList, EasyPrivacy, KAD) – dołączone do aplikacji, odświeżane co 4 dni. Po reklamie nie zostaje puste pole ani błąd w ramce (reguły ukrywania jak w uBlock Origin); na YouTube bez reklam |
-| Odtwarzanie w tle | Film / muzyka grają po wyjściu z aplikacji (powiadomienie z „Zatrzymaj”) |
+| Odtwarzanie w tle | Film / muzyka grają po wyjściu z aplikacji i przy zgaszonym ekranie (powiadomienie z „Zatrzymaj” i „⏾ Wyłącz za 30 min”); film przechodzi do okienka obraz w obrazie |
 | Motyw | Jak w telefonie / jasny / ciemny – w kolorach Velivo |
 | Synchronizacja z komputerem | Parowanie, plik odzyskiwania, nazwa telefonu w sieci |
+| 🌐 Język | Polski albo angielski – tylko dla Velivo (systemowy wybór języka aplikacji) |
 | Wyczyść historię | Usuwa historię przeglądania |
-
-Język aplikacji (polski / angielski) zmienisz w Ustawieniach Androida → Aplikacje → Velivo → Język.
 
 ## 5. Połączenie z komputerem
 
@@ -102,6 +111,8 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
 | Nowe zakładki i hasła z telefonu | Na komputer – komputer pyta, czy dodać |
 | Plik z telefonu | **Udostępnij → Velivo**; komputer pyta o zgodę |
 | Plik z komputera | Na komputerze 📎 Wyślij plik do: telefon; zapis w Pobranych |
+| Karta z telefonu | Menu → 📤 Wyślij na komputer |
+| Karta z komputera | Na komputerze: prawy przycisk na karcie → 📺 Wyślij do… → telefon; telefon otwiera ją od razu (YouTube od tego samego miejsca) |
 
 ## 6. Prywatność
 
@@ -133,3 +144,11 @@ Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
 - **⏾ Muzyka do snu (wyłącznik czasowy):** przytrzymaj czerwony pasek YouTube i wybierz **Po zakończeniu tego utworu** (YouTube nie włączy następnego) albo 15, 30, 45, 60, 90 minut – potem muzyka sama ucichnie. Przy zgaszonym ekranie w powiadomieniu jest **⏾ Wyłącz za 30 min** (każde stuknięcie dodaje 30 minut).
 - **⏰ Pobudka / planowane włączenie utworu:** przytrzymaj czerwony pasek YouTube → **⏰ Pobudka z utworem…** → wybierz utwór: **z bieżącej karty** (np. otwarty film na YouTube), **z zakładek** albo **z historii** → godzina → kiedy: **codziennie, pon–pt, weekend, wybrane dni** albo **jednorazowo**. O tej porze Velivo włączy się nawet na zablokowanym ekranie i odtworzy utwór z narastającą głośnością; **Wyłącz** albo **Drzemka 10 min**. W tym samym miejscu: **▶ Wypróbuj pobudkę teraz** i **Wyłącz pobudkę**. Ikona budzika na pasku telefonu pokazuje, że pobudka jest ustawiona.
 - Wyłącznik czasowy ma też **Własny czas (minuty)…** – dowolna liczba minut.
+
+## 9. Gdy coś pójdzie nie tak
+
+- Jeśli Velivo zamknie się przez błąd, przy następnym uruchomieniu pokaże okno **„Velivo zamknęło się przez błąd”** z przyciskiem **Kopiuj** – wklej ten opis twórcy Velivo (bez adresów i treści stron – sam przebieg błędu).
+- Reklama, której Velivo nie ukrywa: 🎯 Usuń element → stuknij ją → **📋** kopiuje kod elementu do zgłoszenia.
+- Strona źle działa przez blokowanie reklam: panel prywatności (licznik 🛡 w menu) → **Wyłącz blokowanie tu**.
+- Czytanie lub muzyka urywa się po zgaszeniu ekranu (Xiaomi): Ustawienia → Aplikacje → Velivo → Oszczędzanie baterii → **Brak ograniczeń**.
+- Pobudka nie zadzwoniła: sprawdź, czy telefon nie jest wyciszony, a w Ustawieniach Androida Velivo ma zgodę na **Alarmy i przypomnienia**.

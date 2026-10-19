@@ -221,4 +221,6 @@
     <string name="days_once">Jednorazowo</string>
     <string name="sleep_own">Własny czas (minuty)…</string>
     <string name="video_resumed">▶ Wznawiam od miejsca %1$s</string>
+    <string name="youtube_plain">YouTube</string>
+    <string name="wake_exact">Zezwól Velivo na „Alarmy i przypomnienia”, żeby pobudka była co do minuty</string>
 </resources>

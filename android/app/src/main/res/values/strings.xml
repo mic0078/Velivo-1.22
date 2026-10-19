@@ -221,4 +221,6 @@
     <string name="days_once">Once</string>
     <string name="sleep_own">Custom time (minutes)…</string>
     <string name="video_resumed">▶ Carrying on from %1$s</string>
+    <string name="youtube_plain">YouTube</string>
+    <string name="wake_exact">Allow Velivo “Alarms and reminders” so the wake-up is on the minute</string>
 </resources>

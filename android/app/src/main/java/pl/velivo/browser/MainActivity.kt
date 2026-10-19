@@ -146,9 +146,9 @@ class MainActivity : Activity() {
         root.addView(nav)
         // ▶ płaski pasek YouTube na samym dole: karta z YouTube, jeśli już otwarta; inaczej nowa (bez reklam, gra w tle, obraz w obrazie)
         ytBar = TextView(this).apply {
-            text = "▶  YouTube  ·  " + getString(R.string.youtube_flat)
+            text = if (BuildConfig.PELNA) "▶  YouTube  ·  " + getString(R.string.youtube_flat) else "▶  YouTube"
             gravity = Gravity.CENTER; textSize = 13f; setTextColor(Color.WHITE); setBackgroundColor(Color.parseColor("#E62117"))
-            contentDescription = getString(R.string.youtube); tooltipText = getString(R.string.youtube)
+            contentDescription = getString(ytLabel); tooltipText = getString(ytLabel)
             isClickable = true
             foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(60, 255, 255, 255)), null, null)
             // przytrzymanie: wyłącznik czasowy (muzyka do snu)
@@ -342,7 +342,7 @@ set(p0,p);})"""
     }
 
     private fun pipParams() = android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).apply {
-        if (Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(videoPlaying && prefs.getBoolean("tlo", true))
+        if (Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited())
     }.build()
 
     private fun updatePip() { runCatching { setPictureInPictureParams(pipParams()) } }
@@ -350,7 +350,7 @@ set(p0,p);})"""
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         // starsze Androidy (10-11): wejście w PiP ręcznie
-        if (Build.VERSION.SDK_INT < 31 && videoPlaying && prefs.getBoolean("tlo", true)) runCatching { enterPictureInPictureMode(pipParams()) }
+        if (Build.VERSION.SDK_INT < 31 && videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited()) runCatching { enterPictureInPictureMode(pipParams()) }
     }
 
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
@@ -418,6 +418,9 @@ set(p0,p);})"""
             val labels = arrayOf(getString(R.string.days_all), getString(R.string.days_work), getString(R.string.days_weekend), getString(R.string.days_pick), getString(R.string.days_once))
             fun save(days: Int) {
                 Budzik.set(this, url, title, h * 60 + min, days)
+                // Android 12+: budzik o dokładnej godzinie za zgodą (wersja ze sklepu) - bez zgody budzi z dokładnością kilku minut
+                if (Build.VERSION.SDK_INT >= 31 && getSystemService(android.app.AlarmManager::class.java)?.canScheduleExactAlarms() == false)
+                    runCatching { startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName"))); toast(getString(R.string.wake_exact)) }
                 toast(getString(R.string.wake_set, String.format("%d:%02d", h, min)) + " · " + daysName(days))
             }
             AlertDialog.Builder(this).setTitle(R.string.days_title).setItems(labels) { _, i ->
@@ -478,8 +481,13 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
 
     // --- Odtwarzanie w tle -----------------------------------------------------
     // Po wyjściu z Velivo: jeśli gra film lub muzyka, powiadomienie trzyma odtwarzanie przy życiu.
+    // wersja ze sklepu: YouTube nie gra w tle ani w okienku (regulamin Google Play i YouTube)
+    private val ytLabel get() = if (BuildConfig.PELNA) R.string.youtube else R.string.youtube_plain
+
+    private fun youtubeLimited(): Boolean = !BuildConfig.PELNA && (Uri.parse(web()?.url ?: "").host ?: "").endsWith("youtube.com")
+
     private fun backgroundPlayback() {
-        if (!prefs.getBoolean("tlo", true)) return
+        if (!prefs.getBoolean("tlo", true) || youtubeLimited()) return
         val w = web() ?: return
         if (tabs.getOrNull(cur)?.bank == true) return
         w.evaluateJavascript("[].some.call(document.querySelectorAll('video,audio'),function(m){return !m.paused&&!m.ended})") { playing ->
@@ -539,7 +547,8 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(w.settings, true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(w, false)
         // Reklamy na YouTube: skrypt uruchamiany przed stroną (tylko na domenach YouTube).
-        if (prefs.getBoolean("adblock", true) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
+        // tylko wersja pełna (APK) - w Sklepie Google Play omijanie reklam YouTube jest zabronione
+        if (BuildConfig.PELNA && prefs.getBoolean("adblock", true) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
             WebViewCompat.addDocumentStartJavaScript(w, youtubeJs, YOUTUBE_ORIGINS)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
             runCatching { WebViewCompat.addDocumentStartJavaScript(w, noAppPromoJs, setOf("*")) }
@@ -1386,10 +1395,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
         // na samym dole menu też płaski pasek YouTube (przytrzymanie: wyłącznik czasowy i pobudka)
         box.addView(TextView(this).apply {
-            text = "▶  YouTube  ·  " + getString(R.string.youtube_flat)
+            text = if (BuildConfig.PELNA) "▶  YouTube  ·  " + getString(R.string.youtube_flat) else "▶  YouTube"
             gravity = Gravity.CENTER; textSize = 14f; setTextColor(Color.WHITE)
             background = GradientDrawable().apply { setColor(Color.parseColor("#E62117")); cornerRadius = dp(10).toFloat() }
-            contentDescription = getString(R.string.youtube); tooltipText = getString(R.string.youtube)
+            contentDescription = getString(ytLabel); tooltipText = getString(ytLabel)
             setOnClickListener { dlg.dismiss(); ytBar.performClick() }
             setOnLongClickListener { dlg.dismiss(); askSleep(); true }
         }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(14); leftMargin = dp(4); rightMargin = dp(4) })

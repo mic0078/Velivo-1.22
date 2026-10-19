@@ -526,6 +526,7 @@ namespace Velivo
             item("\uE838", L.T("📁 Folder nagrań"), OpenRecDir);
             item("\uE838", L.T("📁 Zmień folder nagrań…"), () => ChooseRecDir(this));
             menu.Items.Add(RecMarginMenu());
+            menu.Items.Add(PhoneMediaMenu());
             _tvBtn.ContextMenu = menu;
             StartIptvScheduler();   // zaplanowane nagrania / przelaczenia dzialaja takze przy zamknietym oknie listy
             var resume = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };   // po uruchomieniu: ostatni program, ktory lecial przy zamykaniu

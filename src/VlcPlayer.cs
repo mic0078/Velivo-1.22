@@ -309,6 +309,7 @@ namespace Velivo
             item("\uE8F4", L.T("Dodaj folder z filmami do biblioteki…"), () => { var d = PickFolder(); if (d != null) AddPathsToLibrary(new[] { d }); });
             menu.Items.Add(new Separator());
             item("\uE74D", L.T("Odinstaluj odtwarzacz filmów…"), UninstallVlc);
+            menu.Items.Add(PhoneMediaMenu());
             _filmBtn.ContextMenu = menu;
             StartIptvScheduler();   // zaplanowane wlaczenie filmu dziala takze bez modulu TV
             AutoSyncJellyfin();   // informacje o filmach z Jellyfin - uzupelnienie lokalnej bazy w tle (gdy ustawione)

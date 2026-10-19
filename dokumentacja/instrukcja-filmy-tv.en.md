@@ -262,7 +262,7 @@ Menu (the V logo) → the **Films and TV** group: **📺 Television**, **🎬 Li
 - **▶ Play all in order**, **🔀 shuffle** or tap a song – Velivo plays your list in order (also in the background and with the screen off), without YouTube slipping in its own suggestions.
 - Press and hold a song – change category, add to / remove from a playlist, rename, delete.
 
-> **Already have Jellyfin with an API key on the PC?** On Windows: Sync menu → "🎬 Send Films and TV settings to: 📱…". The phone asks first, stores the address and key encrypted, and picks the user itself if the server has only one. Nothing to type.
+> **Already have Jellyfin with an API key on the PC?** On Windows: right-click 🎬 or 📺 → "📱 Send Films & TV to phone" → pick the phone. TV lists from files on disk go too (their content, encrypted; very large files are skipped – then add the list on the phone by address). The phone asks first, stores the address and key encrypted, and picks the user itself if the server has only one. Nothing to type.
 
 ### ▶ Player
 - Tap – controls: pause, seeking, **subtitles** and **audio track (narrator / language)** in the player settings.

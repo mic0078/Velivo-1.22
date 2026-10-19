@@ -107,3 +107,5 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Android TV: źródła (nazwa, M3U http/https lub plik content://, EPG) zaszyfrowane (Passwords.secret „tv-zrodla”), lista kanałów w filesDir/tv/<id>.bin zaszyfrowana; EPG XMLTV (gz) parsowany strumieniowo, tylko kanały z listy, okno −6 h…+48 h, cache 12 h. Ulubione i własne listy po kluczu źródło|nazwa (nie po adresie z tokenem).
 - Android Jellyfin: X-Emby-Token w nagłówku (obrazy i strumień też), Users → wybór użytkownika, Items (Movie, Series), Resume, Shows/Episodes.
 - Windows → telefon: pakiet „media-conf” (zaszyfrowany blob, tylko do wskazanego 📱, pytanie po obu stronach) – adres i klucz Jellyfin, źródła IPTV http(s) z EPG.
+
+- 📱 Wyślij Filmy i TV do telefonu: w menu 🎬 i 📺 (prawy klik); listy TV z pliku wysyłane jako treść (limit pakietu UDP ~60 KB, większe pomijane).

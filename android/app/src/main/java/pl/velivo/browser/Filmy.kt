@@ -66,10 +66,13 @@ object Tv {
 
     private fun cacheFile(ctx: Context, id: String, ext: String) = File(File(ctx.filesDir, "tv").apply { mkdirs() }, id + ext)
 
+    // lista z pliku na komputerze (przyszła przez LAN): treść tylko w zaszyfrowanym zapisie
+    fun importText(ctx: Context, pw: Passwords, src: Source, text: String) = cacheFile(ctx, src.id, ".bin").writeBytes(pw.sealBytes(text.toByteArray(Charsets.UTF_8)))
+
     // lista kanałów: z internetu (i zapis zaszyfrowany), a bez internetu - z zapisu
     fun channels(ctx: Context, pw: Passwords, src: Source, refresh: Boolean): List<Channel> {
         val f = cacheFile(ctx, src.id, ".bin")
-        if (!refresh && f.exists()) pw.openBytes(f.readBytes())?.let { return parseM3u(src.id, String(it, Charsets.UTF_8)).first }
+        if ((!refresh || src.url.startsWith("velivo-pc:")) && f.exists()) pw.openBytes(f.readBytes())?.let { return parseM3u(src.id, String(it, Charsets.UTF_8)).first }
         val text = if (src.url.startsWith("content://")) ctx.contentResolver.openInputStream(android.net.Uri.parse(src.url))!!.use { String(it.readBytes(), Charsets.UTF_8) }
             else open(src.url).use { String(it.readBytes(), Charsets.UTF_8) }
         f.writeBytes(pw.sealBytes(text.toByteArray(Charsets.UTF_8)))

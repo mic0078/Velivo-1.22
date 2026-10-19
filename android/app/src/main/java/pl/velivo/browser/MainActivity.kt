@@ -2178,8 +2178,11 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 jf?.let { Jelly.save(passwords, Jelly.Conf(it.optString("url"), it.optString("key"), "")) }
                 if (tv != null) {
                     val list = Tv.sources(passwords)
-                    for (i in 0 until tv.length()) { val o = tv.getJSONObject(i); val u = o.optString("url")
-                        if (list.none { it.url == u } && (u.startsWith("http://") || u.startsWith("https://")))
+                    for (i in 0 until tv.length()) { val o = tv.getJSONObject(i); val u = o.optString("url"); val m3u = o.optString("m3u")
+                        if (u.startsWith("velivo-pc:") && m3u.isNotEmpty()) {   // lista z pliku na komputerze - treść zapisana zaszyfrowana
+                            val src = list.firstOrNull { it.url == u } ?: Tv.Source(java.util.UUID.randomUUID().toString().replace("-", "").take(12), o.optString("name").ifEmpty { "TV" }, u, o.optString("epg")).also { list.add(it) }
+                            Tv.importText(this, passwords, src, m3u)
+                        } else if (list.none { it.url == u } && (u.startsWith("http://") || u.startsWith("https://")))
                             list.add(Tv.Source(java.util.UUID.randomUUID().toString().replace("-", "").take(12), o.optString("name").ifEmpty { "TV" }, u, o.optString("epg"))) }
                     Tv.saveSources(passwords, list)
                 }

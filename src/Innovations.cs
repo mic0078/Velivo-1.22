@@ -512,23 +512,65 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
 
         // Telefon (Velivo na Androida) dostaje adres i klucz Jellyfin oraz listy kanalow TV - zaszyfrowane kluczem z parowania,
         // tylko do wskazanego telefonu, po potwierdzeniu tutaj; telefon tez pyta, zanim zapisze (zaszyfrowane w telefonie).
+        // 📱 w menu 🎬 Filmy i 📺 TV: wysylka ustawien Filmow i TV do sparowanego telefonu (tylko na klikniecie)
+        MenuItem PhoneMediaMenu()
+        {
+            var root = new MenuItem { Header = L.En ? "📱 Send Films & TV to phone" : "📱 Wyślij Filmy i TV do telefonu",
+                ToolTip = L.En ? "Jellyfin and TV channel lists go encrypted to your paired phone; the phone asks before saving" : "Jellyfin i listy kanałów TV idą zaszyfrowane do sparowanego telefonu; telefon pyta przed zapisem" };
+            root.Items.Add(new MenuItem());
+            root.SubmenuOpened += (s, e) =>
+            {
+                if (e.OriginalSource != root) return;
+                var stare = root.Items.Cast<object>().ToList();
+                var phones = SendTargets().Where(p => (p.Device ?? "").StartsWith("📱", StringComparison.Ordinal)).ToList();
+                if (phones.Count == 0)
+                    root.Items.Add(new MenuItem { Header = L.En ? "No paired phone online – open Velivo on the phone" : "Brak sparowanego telefonu w sieci – włącz Velivo na telefonie", IsEnabled = false });
+                foreach (var p0 in phones) { var p = p0; var it = new MenuItem { Header = p.Device }; it.Click += (a, b) => SendMediaConfToPhone(p); root.Items.Add(it); }
+                foreach (var o in stare) root.Items.Remove(o);
+            };
+            return root;
+        }
+
         void SendMediaConfToPhone(LanPeerInfo peer)
         {
             if (_lanTx == null || _lanEncryptionKey == null) return;
             var jc = LoadJellyfinConf();
-            var tv = LoadIptv().Sources.Where(x => x.Url != null && (x.Url.StartsWith("http://") || x.Url.StartsWith("https://"))).ToList();
+            var tv = new List<Dictionary<string, string>>();
+            foreach (var x in LoadIptv().Sources.Where(x => !string.IsNullOrEmpty(x.Url)))
+            {
+                var d = new Dictionary<string, string> { ["name"] = x.Name ?? "TV", ["url"] = x.Url, ["epg"] = x.Epg ?? "" };
+                if (!x.Url.StartsWith("http://") && !x.Url.StartsWith("https://"))
+                {
+                    // lista z pliku na dysku - wysylamy jej tresc (telefon nie widzi dysku komputera)
+                    try { if (!File.Exists(x.Url)) continue; d["m3u"] = File.ReadAllText(x.Url); d["url"] = "velivo-pc:" + Path.GetFileName(x.Url); }
+                    catch (Exception) { continue; }
+                }
+                tv.Add(d);
+            }
             if (jc == null && tv.Count == 0) { ShowToast(L.En ? "No Jellyfin or TV lists set up on this computer." : "Na tym komputerze nie ma ustawionego Jellyfin ani list TV.", null); return; }
             var ask = (L.En ? "Send to " : "Wysłać do ") + peer.Device + ":\n\n" + (jc != null ? "• Jellyfin (" + jc.Url + ")\n" : "") +
                       (tv.Count > 0 ? (L.En ? "• TV channel lists: " : "• listy kanałów TV: ") + tv.Count + "\n" : "") +
                       (L.En ? "\nThe addresses may contain your private keys – they go encrypted, only to this phone, which asks before saving." : "\nAdresy mogą zawierać Twoje prywatne klucze – idą zaszyfrowane, tylko do tego telefonu, który zapyta przed zapisem.");
             if (MessageBox.Show(this, ask, "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            var payload = new Dictionary<string, object> { ["to"] = peer.Id };
-            if (jc != null) payload["jellyfin"] = new Dictionary<string, string> { ["url"] = jc.Url, ["key"] = jc.Key };
-            payload["tv"] = tv.Select(x => new Dictionary<string, string> { ["name"] = x.Name ?? "TV", ["url"] = x.Url, ["epg"] = x.Epg ?? "" }).ToList();
-            var pkt = new LanStatePacket { t = "media-conf", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
-            EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(payload));
-            LanSend(pkt);
-            ShowToast((L.En ? "🎬 Sent to " : "🎬 Wysłano do: ") + peer.Device, null);
+            LanStatePacket Build()
+            {
+                var payload = new Dictionary<string, object> { ["to"] = peer.Id };
+                if (jc != null) payload["jellyfin"] = new Dictionary<string, string> { ["url"] = jc.Url, ["key"] = jc.Key };
+                payload["tv"] = tv;
+                var pkt = new LanStatePacket { t = "media-conf", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
+                EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(payload));
+                return pkt;
+            }
+            var pk = Build();
+            var skipped = 0;
+            if (JsonSerializer.SerializeToUtf8Bytes(pk).Length > 60000)   // limit jednego pakietu UDP - za duze listy z pliku pomijamy
+            {
+                skipped = tv.RemoveAll(d => d.ContainsKey("m3u"));
+                pk = Build();
+            }
+            LanSend(pk);
+            ShowToast((L.En ? "🎬 Sent to " : "🎬 Wysłano do: ") + peer.Device +
+                      (skipped > 0 ? (L.En ? " (TV lists from files too big: " : " (listy TV z pliku za duże: ") + skipped + ")" : ""), null);
         }
 
         void EncryptLanBlob(LanStatePacket pkt, byte[] json)

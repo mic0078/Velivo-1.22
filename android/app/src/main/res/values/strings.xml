@@ -353,4 +353,5 @@
     <string name="phone_only_video">Videos only</string>
     <string name="phone_only_audio">My music</string>
     <string name="phone_builtin">Built-in sounds (ringtones, notifications, alarms)</string>
+    <string name="theme_contrast">Black and white (high contrast)</string>
 </resources>

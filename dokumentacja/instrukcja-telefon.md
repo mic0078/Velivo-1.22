@@ -5,7 +5,7 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo z wbudowan
 > **👓 Dobra dla osób słabowidzących – dlaczego:**
 > - **wszystko da się powiększyć dwoma palcami** – menu, przyciski, listy i tekst stron (do 220%), a każda strona pamięta swoją wielkość;
 > - **duże kafelki z ikonami i podpisami** po 3 w rzędzie (przy dużym powiększeniu po 2), duże przyciski odtwarzacza;
-> - **wyraźne kolory** – ciemny lub jasny motyw o mocnym kontraście;
+> - **wyraźne kolory** – ciemny, jasny albo **czarno-biały motyw o wysokim kontraście** (Motyw w Ustawieniach);
 > - **czytnik** (sam tekst, duże litery) i **czytanie na głos**, także przy zgaszonym ekranie;
 > - **gesty jasności i głośności** w odtwarzaczu, bez szukania małych suwaków;
 > - **karteczki z przypomnieniem** (lekarz, leki) i **ochrona przed fałszywymi stronami** – czerwone ostrzeżenie z jednym przyciskiem „Wróć (bezpiecznie)”;
@@ -116,7 +116,7 @@ Hasła są szyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). 
 | --- | --- |
 | Blokuj reklamy | Te same listy co na komputerze (EasyList, EasyPrivacy, KAD) – dołączone do aplikacji, odświeżane co 4 dni. Po reklamie nie zostaje puste pole ani błąd w ramce (reguły ukrywania jak w uBlock Origin); na YouTube bez reklam |
 | Odtwarzanie w tle | Film / muzyka grają po wyjściu z aplikacji i przy zgaszonym ekranie (powiadomienie z „Zatrzymaj” i „🌙 Wyłącz za 30 min”); film przechodzi do okienka obraz w obrazie |
-| Motyw | Jak w telefonie / jasny / ciemny – w kolorach Velivo |
+| Motyw | Jak w telefonie / jasny / ciemny – w kolorach Velivo, albo **czarno-biały (wysoki kontrast)** – czarne tło, białe napisy i ramki, kolorowe ikony; dla słabowidzących |
 | Synchronizacja z komputerem | Parowanie, plik odzyskiwania, nazwa telefonu w sieci |
 | 🌐 Język | Polski albo angielski – tylko dla Velivo (systemowy wybór języka aplikacji) |
 | Wyczyść historię | Usuwa historię przeglądania |

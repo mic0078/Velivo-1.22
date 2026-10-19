@@ -91,7 +91,7 @@ class MainActivity : Activity() {
     private val noAppPromoJs by lazy { assets.open("velivo-bez-aplikacji.js").bufferedReader().use { it.readText() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(if (dark) R.style.Velivo_Dark else R.style.Velivo_Light)
+        setTheme(if (contrast) R.style.Velivo_Contrast else if (dark) R.style.Velivo_Dark else R.style.Velivo_Light)
         super.onCreate(savedInstanceState)
         catchCrashes()
         Thread { runCatching { if (Tv.sources(passwords).isNotEmpty() || Jelly.conf(passwords) != null) Odswiezanie.plan(this) } }.start()   // nocne odświeżanie TV i biblioteki
@@ -198,18 +198,24 @@ class MainActivity : Activity() {
         if (link != null) newTab(false, link)
     }
 
-    // Kolory jak w Velivo na Windows; motyw: 0 = jak telefon, 1 = jasny, 2 = ciemny.
+    // Kolory jak w Velivo na Windows; motyw: 0 = jak telefon, 1 = jasny, 2 = ciemny, 3 = czarno-biały (wysoki kontrast).
+    private val contrast by lazy { prefs.getInt("motyw", 0) == 3 }
     private val dark by lazy {
         when (prefs.getInt("motyw", 0)) {
             1 -> false
-            2 -> true
+            2, 3 -> true
             else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         }
     }
-    private fun c(light: String, night: String) = Color.parseColor(if (dark) night else light)
+    // czarno-biały: ciemne kolory -> czerń, jasne -> biel (tła czarne, napisy i ramki białe, ikony kolorowe dla czytelności)
+    private fun c(light: String, night: String): Int {
+        val v = Color.parseColor(if (dark) night else light)
+        if (!contrast) return v
+        return if (Color.red(v) * 0.299 + Color.green(v) * 0.587 + Color.blue(v) * 0.114 < 128) Color.BLACK else Color.WHITE
+    }
     // Kolory Velivo z ikony: fiolet -> turkus. Tła paskow i przyciskow w odcieniach fioletu Velivo (nie szare).
-    private val BRAND1 = Color.parseColor("#6D3FDB")
-    private val BRAND2 = Color.parseColor("#2BA9D8")
+    private val BRAND1 by lazy { if (contrast) Color.BLACK else Color.parseColor("#6D3FDB") }
+    private val BRAND2 by lazy { if (contrast) Color.WHITE else Color.parseColor("#2BA9D8") }
     private val BAR by lazy { c("#EEE9FB", "#1B1733") }
     private val TEXT by lazy { c("#2A2150", "#ECE8FF") }
     private val FIELD by lazy { c("#FFFFFF", "#120F24") }
@@ -528,10 +534,11 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    private fun round(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(8).toFloat() }
+    private fun round(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(8).toFloat(); if (contrast && color != Color.TRANSPARENT) setStroke(dp(2), Color.WHITE) }   // czarno-biały: biała ramka
 
     // gradient Velivo (jak ikona) - przyciski glowne
-    private fun brand(radius: Int = 8) = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(BRAND1, BRAND2)).apply { cornerRadius = dp(radius).toFloat() }
+    private fun brand(radius: Int = 8) = if (contrast) GradientDrawable().apply { setColor(Color.BLACK); setStroke(dp(2), Color.WHITE); cornerRadius = dp(radius).toFloat() }
+        else GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(BRAND1, BRAND2)).apply { cornerRadius = dp(radius).toFloat() }
 
     private fun Button.velivo(): Button { background = brand(); setTextColor(Color.WHITE); return this }
 
@@ -1361,7 +1368,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             text = "Velivo"; textSize = 24f; setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
             // napis w gradiencie Velivo (fiolet -> turkus), jak pod ikona
             val w = paint.measureText("Velivo")
-            paint.shader = android.graphics.LinearGradient(dp(10).toFloat(), 0f, dp(10) + w, 0f, BRAND1, BRAND2, android.graphics.Shader.TileMode.CLAMP)
+            if (contrast) setTextColor(Color.WHITE)
+            else paint.shader = android.graphics.LinearGradient(dp(10).toFloat(), 0f, dp(10) + w, 0f, BRAND1, BRAND2, android.graphics.Shader.TileMode.CLAMP)
         }, LinearLayout.LayoutParams(0, -2, 1f))
         head.addView(TextView(this).apply {
             text = "🛡 " + getString(R.string.blocked, blockedCount)
@@ -2870,7 +2878,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // --- Motyw ----------------------------------------------------------------
     private fun chooseTheme() {
-        val names = arrayOf(getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark))
+        val names = arrayOf(getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark), getString(R.string.theme_contrast))
         AlertDialog.Builder(this)
             .setTitle(R.string.theme)
             .setSingleChoiceItems(names, prefs.getInt("motyw", 0)) { d, i ->

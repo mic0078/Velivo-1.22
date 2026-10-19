@@ -353,4 +353,5 @@
     <string name="phone_only_video">Tylko filmy</string>
     <string name="phone_only_audio">Moja muzyka</string>
     <string name="phone_builtin">Dźwięki wbudowane (dzwonki, powiadomienia, alarmy)</string>
+    <string name="theme_contrast">Czarno-biały (wysoki kontrast)</string>
 </resources>

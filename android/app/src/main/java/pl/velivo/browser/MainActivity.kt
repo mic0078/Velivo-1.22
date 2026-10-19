@@ -388,20 +388,19 @@ set(p0,p);})"""
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
         super.onPictureInPictureModeChanged(pip, cfg)
         pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
-        // z pełnego ekranu: pełny ekran filmu zostaje (jego obraz gra dalej), tylko bez blokady obrotu - wypełnia okienko
-        if (fullView != null) { requestedOrientation = if (pip) ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED else ActivityInfo.SCREEN_ORIENTATION_SENSOR; fullView?.requestLayout(); return }
-        // ze zwykłej strony: w okienku tylko film, na całą powierzchnię
+        // w okienku tylko film, na całą powierzchnię
         web()?.evaluateJavascript(if (pip) "(function(){var s=document.getElementById('velivo-pip')||document.createElement('style');s.id='velivo-pip';" +
             "s.textContent='video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
             "document.documentElement.appendChild(s);var v=document.querySelector('video');if(v&&v.paused)v.play();})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
     }
 
     // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu
-    // Okienko: część telefonów (np. Motorola) zatrzymuje Velivo (onStop), choć okienko dalej gra - nie da się odróżnić
-    // od zamknięcia okienka. Dlatego bez pauzy: gra dalej jak w tle, z powiadomieniem „Zatrzymaj”.
     override fun onStop() {
         super.onStop()
-        if (isInPictureInPictureMode && prefs.getBoolean("tlo", true)) PlaybackService.start(this, web()?.title ?: "")
+        if (isInPictureInPictureMode) {
+            tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            PlaybackService.stop(this)
+        }
     }
 
     // --- 🌙 Wyłącznik czasowy: muzyka / film / czytanie cichnie po wybranym czasie (do snu) ---

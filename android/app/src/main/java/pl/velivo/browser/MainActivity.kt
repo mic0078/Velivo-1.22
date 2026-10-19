@@ -137,7 +137,9 @@ class MainActivity : Activity() {
         navBtn(button("◀", R.string.back, BLUE, BLUE_BG) { stopSpeaking(); web()?.let { if (it.canGoBack()) it.goBack() } })
         navBtn(button("▶", R.string.forward, BLUE, BLUE_BG) { web()?.let { if (it.canGoForward()) it.goForward() } })
         navBtn(button("⟳", R.string.reload, GREEN, GREEN_BG) { web()?.reload() })
-        navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) { web()?.loadUrl(home) })
+        navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) {
+            // gdy w karcie gra muzyka, strona startowa otwiera się w nowej karcie, a muzyka gra dalej
+            if (videoPlaying && tabs.getOrNull(cur)?.bank != true && prefs.getBoolean("tlo", true)) newTab(false, home) else web()?.loadUrl(home) })
         navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, QuickAccess.URL) }.velivo())
         root.addView(bar)
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))

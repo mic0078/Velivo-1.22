@@ -1950,7 +1950,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                     1 -> {
                         prefs.edit().putBoolean("lan", true).apply()
                         startLan()
-                        lan.pairingUntil = System.currentTimeMillis() + 3 * 60 * 1000
+                        lan.startPairing()   // telefon wysyła zaproszenie do komputerów w sieci
                         showPairingWait()
                     }
                     2 -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), REQ_VLPAIR)

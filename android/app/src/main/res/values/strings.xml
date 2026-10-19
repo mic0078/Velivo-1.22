@@ -43,8 +43,8 @@
     <string name="lan_sync">Sync with computer</string>
     <string name="lan_turn_on">Turn on</string>
     <string name="lan_turn_off">Turn off</string>
-    <string name="lan_pair">Pair with Velivo on Windows</string>
-    <string name="lan_pair_help">For 3 minutes this phone (“%1$s”) waits for pairing. Keep this window open and the screen on. If another computer with Velivo is on the network, it will ask about pairing too – click “No” there. On the computer open Velivo → Settings → real-time sync (LAN) → “Pair a device on the network…”. Both devices must be on the same Wi-Fi network. Note: pairing changes the sync key on the computer – other computers must be paired again. With several computers, use “Save recovery file…” on the computer instead and load it on the phone.</string>
+    <string name="lan_pair">Connect to the computer (invite)</string>
+    <string name="lan_pair_help">For 3 minutes the phone (“%1$s”) sends an invitation to computers with Velivo on the same Wi-Fi network. The computer asks “The phone … is asking to connect” – click “Yes”, then compare the 6-digit code on both screens and confirm. Real-time sync (LAN) must be on in the computer\'s Settings. Keep this window open and the screen on. If another computer asks, click “No” there. Connecting a phone doesn\'t change the sync between your computers.</string>
     <string name="lan_pair_confirm">Confirm pairing</string>
     <string name="lan_pair_code">%1$s wants to pair with this phone.\n\nCode: %2$s\n\nAccept only if the computer shows the same code.</string>
     <string name="lan_codes_match">Codes match</string>

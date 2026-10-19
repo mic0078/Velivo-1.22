@@ -183,7 +183,19 @@ class LanSync(
         }
     }
 
-    // --- Parowanie: zaczyna Windows (Ustawienia → Synchronizacja LAN → Sparuj), telefon odpowiada --------
+    // --- Zaproszenie: parowanie zawsze zaczyna telefon - co 4 s przez 3 minuty "pair-invite" (bez danych, sama nazwa);
+    // komputer pyta „Telefon … prosi o połączenie”, po zgodzie wysyła ofertę, a dalej - ten sam 6-cyfrowy kod na obu ekranach.
+    fun startPairing() {
+        pairingUntil = System.currentTimeMillis() + 3 * 60 * 1000
+        Thread {
+            while (running && System.currentTimeMillis() < pairingUntil) {
+                runCatching { send(packet("pair-invite").put("hash", "")) }
+                Thread.sleep(4000)
+            }
+        }.start()
+    }
+
+    // --- Parowanie: telefon zaprasza, Windows wysyła ofertę (Ustawienia → Synchronizacja LAN → Sparuj), telefon odpowiada --------
     private fun pairOffer(p: JSONObject) {
         if (System.currentTimeMillis() > pairingUntil) return
         val pairId = p.optString("pairId")

@@ -9,6 +9,7 @@
 #   -Wszystko  - zbuduj obie wersje mimo braku zmian
 param([switch]$TylkoAndroid, [switch]$Wszystko)
 $ErrorActionPreference = 'Stop'
+trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
 Set-Location $PSScriptRoot
 
 git checkout rozwoj
@@ -51,7 +52,9 @@ $cands += Get-ChildItem 'HKLM:\SOFTWARE\JavaSoft\JDK', 'HKLM:\SOFTWARE\Eclipse A
 $cands += (Get-Command java.exe -All -ErrorAction SilentlyContinue | ForEach-Object { Split-Path (Split-Path $_.Source) })
 $java = $null; $jv = ''
 foreach ($c in ($cands | Where-Object { $_ -and (Test-Path (Join-Path $_ 'bin\java.exe')) } | Select-Object -Unique)) {
-    $v = (& (Join-Path $c 'bin\java.exe') -version 2>&1 | Select-Object -First 1) -replace '.*"(.*)".*', '$1'
+    $ErrorActionPreference = 'Continue'   # java -version pisze na stderr - przy 'Stop' PowerShell 5 przerywa skrypt
+    $v = (& (Join-Path $c 'bin\java.exe') -version 2>&1 | Select-Object -First 1 | ForEach-Object { "$_" }) -replace '.*"(.*)".*', '$1'
+    $ErrorActionPreference = 'Stop'
     $m = [int](($v -split '[.+-]')[0])
     if ($m -ge 17 -and $m -le 24) { $java = $c; $jv = $v; break }
     Write-Host "Pomijam Jave $v ($c) - Gradle potrzebuje 17-24." -ForegroundColor DarkGray

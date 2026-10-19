@@ -931,8 +931,17 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
     }
 
     // Opakowanie okna: dwa palce rozsuwane / zsuwane = większe / mniejsze; jeden palec działa jak zwykle.
-    private inner class PinchFrame(private val content: View) : FrameLayout(this@MainActivity) {
+    // onClose: przeciągnięcie palcem w dół (gdy lista / strona jest na samej górze) zamyka okno i pokazuje stronę pod spodem
+    private inner class PinchFrame(private val content: View, private val onClose: (() -> Unit)? = null) : FrameLayout(this@MainActivity) {
         private var pinching = false
+        private var downX = 0f; private var downY = 0f; private var dragging = false; private var canDrag = false
+        private val slop = android.view.ViewConfiguration.get(this@MainActivity).scaledTouchSlop
+        // czy pod palcem jest coś, co jeszcze przewija się w górę (wtedy przeciąganie przewija, nie zamyka)
+        private fun scrollsUp(v: View, x: Float, y: Float): Boolean {
+            val r = android.graphics.Rect(); if (!v.isShown || !v.getGlobalVisibleRect(r) || !r.contains(x.toInt(), y.toInt())) return false
+            if (v.canScrollVertically(-1)) return true
+            return v is android.view.ViewGroup && (0 until v.childCount).any { scrollsUp(v.getChildAt(it), x, y) }
+        }
         private val det = android.view.ScaleGestureDetector(context, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
                 runCatching {
@@ -949,6 +958,23 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
         init { det.isQuickScaleEnabled = false; addView(content); applyScale(content) }
         override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
             det.onTouchEvent(ev)
+            if (onClose != null && ev.pointerCount == 1 && !pinching) when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downX = ev.rawX; downY = ev.rawY; dragging = false; canDrag = !scrollsUp(content, ev.rawX, ev.rawY) }
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = ev.rawY - downY; val dx = ev.rawX - downX
+                    if (!dragging && canDrag && dy > slop * 2 && dy > Math.abs(dx) * 2) {
+                        dragging = true
+                        val c = MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL }; runCatching { super.dispatchTouchEvent(c) }; c.recycle()
+                    }
+                    if (dragging) { content.translationY = dy.coerceAtLeast(0f); content.alpha = (1f - dy / (height * 1.5f)).coerceIn(0.3f, 1f); return true }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (dragging) {
+                    dragging = false
+                    if (ev.rawY - downY > height * 0.22f) content.animate().translationY(height.toFloat()).alpha(0f).setDuration(150).withEndAction { onClose.invoke() }.start()
+                    else content.animate().translationY(0f).alpha(1f).setDuration(150).start()
+                    return true
+                }
+            }
             if (ev.pointerCount > 1 && !pinching) {
                 pinching = true
                 val c = MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL }   // przewijanie / stuknięcie pod palcami - anuluj
@@ -1452,7 +1478,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             setOnClickListener { dlg.dismiss(); ytBar.performClick() }
             setOnLongClickListener { dlg.dismiss(); askSleep(); true }
         }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(14); leftMargin = dp(4); rightMargin = dp(4) })
-        dlg.setContentView(PinchFrame(ScrollView(this).apply { addView(box) }))
+        dlg.setContentView(PinchFrame(ScrollView(this).apply { addView(box) }) { dlg.dismiss() })
         dlg.window?.apply {
             setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
             setLayout(-1, -2)
@@ -1886,7 +1912,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             val root = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(c("#F7F4FF", "#15121F")) }
             root.addView(bar); root.addView(top); root.addView(status)
             root.addView(listView, LinearLayout.LayoutParams(-1, 0, 1f))
-            dlg.setContentView(PinchFrame(root))
+            dlg.setContentView(PinchFrame(root) { dlg.dismiss() })
         }
 
         fun addButton(label: String, tip: Int, act: () -> Unit) { bar.addView(button(label, tip, BLUE, BLUE_BG) { act() }) }
@@ -2094,7 +2120,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val body = LinearLayout(this).apply { addView(names); addView(hs) }
         root.addView(ScrollView(this).apply { addView(body) }, LinearLayout.LayoutParams(-1, 0, 1f))
         if (chans.size > list.size) root.addView(TextView(this).apply { text = getString(R.string.tv_grid_more, list.size, chans.size); setTextColor(TEXT); textSize = 12f; setPadding(dp(12), dp(6), dp(12), dp(6)) })
-        dlg.setContentView(root); dlg.show()
+        dlg.setContentView(PinchFrame(root) { dlg.dismiss() }); dlg.show()
         hs.post { hs.scrollTo((x(now) - dp(60)).coerceAtLeast(0), 0) }
     }
 
@@ -2496,7 +2522,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         root.addView(bar)
         root.addView(ScrollView(this).apply { addView(col) }, LinearLayout.LayoutParams(-1, 0, 1f))
         fill()
-        dlg.setContentView(PinchFrame(root))
+        dlg.setContentView(PinchFrame(root) { dlg.dismiss() })
         dlg.show()
         openId?.let { id -> Karteczki.load(this).firstOrNull { it.id == id }?.let { editNote(it) { fill() } } }
     }

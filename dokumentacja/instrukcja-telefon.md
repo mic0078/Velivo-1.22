@@ -20,6 +20,7 @@ Instrukcja opisuje wersję pełną (plik `Velivo-pelna.apk`). Wersje ze Sklepu P
 - **Pasek adresu** – wpisz adres albo szukane słowa (wyszukiwanie przez Startpage).
 - **🕶** – nowa karta prywatna. **Przycisk z liczbą** – lista kart z miniaturami (stuknij = przełącz, ✕ lub przesunięcie w bok = zamknij).
 - **Logo Velivo** – menu. Kafelki są w pięciu grupach, po 3 w rzędzie: **Karty**, **Ta strona**, **Filmy i TV**, **Moje**, **Ustawienia**. Na górze zielony licznik „🛡 Zablokowane reklamy” – stuknięcie otwiera panel prywatności (rozdział 6).
+- **Przeciągnięcie palcem w dół** zamyka menu i okna list (TV, biblioteka, karteczki, siatka programu) i pokazuje stronę pod spodem – gdy lista jest przewinięta na samą górę. Wstecz też zamyka.
 - **Dolny pasek** – ◀ wstecz, ▶ dalej, ⟳ odśwież, ⌂ strona startowa, ＋ nowa karta (Szybki Dostęp).
 - **Czerwony pasek „▶ YouTube” na samym dole** – YouTube bez reklam; przytrzymanie: wyłącznik czasowy i pobudka (rozdział 8).
 - **Przytrzymanie palca na reklamie** albo pustym polu „REKLAMA” – Velivo pyta, czy je usunąć.

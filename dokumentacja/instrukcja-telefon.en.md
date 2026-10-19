@@ -20,6 +20,7 @@ This manual describes the full version (`Velivo-pelna.apk`). The Google Play ver
 - **Address bar** – type an address or search words (searches go through Startpage).
 - **🕶** – new private tab. **The button with a number** – the tab list with thumbnails (tap = switch, ✕ or a sideways swipe = close).
 - **Velivo logo** – the menu. Tiles are in five groups, three to a row: **Tabs**, **This page**, **Films and TV**, **Mine**, **Settings**. At the top, the green "🛡 Blocked ads" counter – tap it for the privacy panel (chapter 6).
+- **Swipe down** closes the menu and list windows (TV, library, notes, guide grid) and shows the page underneath – when the list is scrolled to the very top. Back closes them too.
 - **Bottom bar** – ◀ back, ▶ forward, ⟳ reload, ⌂ start page, ＋ new tab (Quick Access).
 - **The red "▶ YouTube" bar at the very bottom** – YouTube without adverts; press and hold: sleep timer and wake-up (chapter 8).
 - **Press and hold on an advert** or an empty "ADVERT" box – Velivo asks whether to remove it.

@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// numer wersji rośnie sam z każdą zmianą (liczba zmian w git) - nowy plik instaluje się na starym jako aktualizacja,
+// z zachowaniem danych (ten sam klucz podpisu); tak samo w Google Play
+val zmiany = runCatching { providers.exec { commandLine("git", "rev-list", "--count", "HEAD") }.standardOutput.asText.get().trim().toInt() }.getOrDefault(2)
+
 android {
     namespace = "pl.velivo.browser"
     compileSdk = 35
@@ -10,8 +14,8 @@ android {
         applicationId = "pl.velivo.browser"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.22"
+        versionCode = zmiany
+        versionName = "1.22.$zmiany"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }   // tylko telefony ARM - mniejszy plik (VLC ma kod natywny)
     }
     // Trzy wersje z jednego kodu:

@@ -281,6 +281,21 @@ object Jelly {
     fun image(c: Conf, id: String) = c.url + "/Items/$id/Images/Primary?maxHeight=360&quality=80"
     fun stream(c: Conf, id: String) = c.url + "/Videos/$id/stream?static=true"
 
+    // film, którego telefon nie odtworzy: serwer sam podaje adres przerobionego strumienia (HLS, H.264 + AAC stereo)
+    fun transcodeUrl(base: String, token: String, id: String): String? {
+        val h = URL("$base/Items/$id/PlaybackInfo?IsPlayback=true&AutoOpenLiveStream=true&MaxStreamingBitrate=12000000").openConnection() as HttpURLConnection
+        h.requestMethod = "POST"; h.doOutput = true; h.connectTimeout = 10000; h.readTimeout = 30000
+        h.setRequestProperty("Content-Type", "application/json"); h.setRequestProperty("X-Emby-Token", token)
+        val tp = JSONObject().put("Container", "ts").put("Type", "Video").put("VideoCodec", "h264").put("AudioCodec", "aac,mp3")
+            .put("Protocol", "hls").put("Context", "Streaming").put("MaxAudioChannels", "2").put("BreakOnNonKeyFrames", true)
+        val profile = JSONObject().put("MaxStreamingBitrate", 12000000).put("DirectPlayProfiles", JSONArray()).put("TranscodingProfiles", JSONArray().put(tp))
+            .put("CodecProfiles", JSONArray()).put("SubtitleProfiles", JSONArray().put(JSONObject().put("Format", "vtt").put("Method", "Hls")))
+        h.outputStream.use { it.write(JSONObject().put("DeviceProfile", profile).put("EnableDirectPlay", false).put("EnableDirectStream", false).put("EnableTranscoding", true).toString().toByteArray()) }
+        val j = JSONObject(h.inputStream.bufferedReader().use { it.readText() })
+        val u = j.optJSONArray("MediaSources")?.optJSONObject(0)?.optString("TranscodingUrl").orEmpty()
+        return if (u.isEmpty()) null else base + u
+    }
+
     // miejsce w filmie wraca do Jellyfin (Oglądane dalej także na komputerze i telewizorze)
     fun reportStopped(c: Conf, id: String, posMs: Long) =
         post(c, "/Sessions/Playing/Stopped", JSONObject().put("ItemId", id).put("PositionTicks", posMs * 10_000))

@@ -88,7 +88,7 @@ class PlayerActivity : Activity() {
             override fun onPlayerError(error: PlaybackException) {
                 // kanał bez rozszerzenia w adresie: drugi raz jako HLS albo jako zwykły strumień (MPEG-TS)
                 val cur = queue.getOrNull(index)
-                if (cur?.jellyId != null) { if (retryAs == 0) { retryAs = 3; toast(getString(R.string.player_transcode)); load(index, keepRetry = true); return } }   // Jellyfin: serwer przerobi film (stare AVI, nietypowe kodeki)
+                if (cur?.jellyId != null) { if (retryAs == 0) { startTranscode(); return } }   // Jellyfin: serwer przerobi film (stare AVI, nietypowe kodeki)
                 else if (retryAs < 2) { retryAs++; load(index, keepRetry = true); return }
                 // powód bez adresu (może mieć token): kod HTTP serwera albo rodzaj błędu odtwarzacza
                 var c: Throwable? = error; var why = error.errorCodeName.removePrefix("ERROR_CODE_")
@@ -100,7 +100,7 @@ class PlayerActivity : Activity() {
                 // Jellyfin: obraz albo dźwięk w formacie, którego telefon nie odtworzy (stare AVI) - od razu przerobienie na serwerze
                 fun missing(t: Int) = tracks.groups.any { g -> g.type == t } && tracks.groups.none { g -> g.type == t && g.isSupported }
                 if ((missing(C.TRACK_TYPE_VIDEO) || missing(C.TRACK_TYPE_AUDIO)) && retryAs == 0 && queue.getOrNull(index)?.jellyId != null) {
-                    retryAs = 3; toast(getString(R.string.player_transcode)); ui.post { load(index, keepRetry = true) }
+                    startTranscode()
                 }
             }
             override fun onPlaybackStateChanged(state: Int) {
@@ -149,19 +149,30 @@ class PlayerActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(dp(52), dp(48)).apply { setMargins(dp(4), 0, dp(4), 0) }
     }
 
+    private var transcoded: String? = null
     private var retryAs = 0   // 0 jak w adresie, 1 HLS, 2 zwykły strumień, 3 Jellyfin przerabia na H.264/AAC
+
+    // Jellyfin: serwer przerabia film (stare AVI, nietypowe kodeki) - jak VLC na Windows, bez dokładania kodeków do telefonu
+    private fun startTranscode() {
+        val it = queue.getOrNull(index) ?: return
+        val id = it.jellyId ?: return
+        retryAs = 3; toast(getString(R.string.player_transcode))
+        val i = index; val base = it.uri.substringBefore("/Videos/"); val token = it.headers["X-Emby-Token"] ?: ""
+        Thread {
+            val u = runCatching { Jelly.transcodeUrl(base, token, id) }.getOrNull()
+            ui.post { if (index != i) return@post; if (u == null) toast(getString(R.string.player_error) + " (Jellyfin)") else { transcoded = u; load(i, keepRetry = true) } }
+        }.start()
+    }
 
     private fun load(i: Int, keepRetry: Boolean = false) {
         val it = queue.getOrNull(i) ?: return finish()
-        if (!keepRetry) retryAs = 0
+        if (!keepRetry) { retryAs = 0; transcoded = null }
         index = i
         titleView.text = it.title + if (it.info.isNotEmpty()) "\n" + it.info.substringBefore('\n') else ""
         descView.text = listOf(it.info, it.desc).filter { d -> d.isNotEmpty() }.joinToString("\n")
         descView.visibility = if (descView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         httpFactory?.setDefaultRequestProperties(it.headers)   // np. klucz Jellyfin w nagłówku, nie w adresie
-        val uri = if (retryAs == 3 && it.jellyId != null)   // przekodowanie na serwerze Jellyfin (jak VLC na Windows - serwer ma FFmpeg); klucz dalej w nagłówku
-            it.uri.substringBefore("/Videos/") + "/Videos/${it.jellyId}/master.m3u8?MediaSourceId=${it.jellyId}&VideoCodec=h264&AudioCodec=aac,mp3&TranscodingMaxAudioChannels=2&SegmentContainer=ts&DeviceId=velivo-android&PlaySessionId=" + java.util.UUID.randomUUID().toString().replace("-", "")
-            else it.uri
+        val uri = if (retryAs == 3 && transcoded != null) transcoded!! else it.uri   // przerobiony strumień od serwera Jellyfin
         val mi = MediaItem.Builder().setUri(uri)
         when (retryAs) { 1, 3 -> mi.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8); 2 -> mi.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T) }
         player.setMediaItem(mi.build())

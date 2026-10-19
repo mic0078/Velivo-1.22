@@ -393,10 +393,13 @@ set(p0,p);})"""
         android.util.Log.i("Velivo-PiP", "okienko: $pip, pełny ekran: ${fullView != null}")
         super.onPictureInPictureModeChanged(pip, cfg)
         pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
-        // w okienku tylko film, na całą powierzchnię
-        web()?.evaluateJavascript(if (pip) "(function(){var s=document.getElementById('velivo-pip')||document.createElement('style');s.id='velivo-pip';" +
-            "s.textContent='video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
-            "document.documentElement.appendChild(s);var v=document.querySelector('video');if(v&&v.paused)v.play();})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
+        // bez przestawiania strony (YouTube pauzował po zmianie układu); film wznawiany, jeśli strona go wstrzymała
+        if (pip) listOf(500L, 1500L).forEach { d ->
+            window.decorView.postDelayed({
+                if (isInPictureInPictureMode) web()?.evaluateJavascript("(function(){var v=document.querySelector('video');" +
+                    "if(v&&v.paused&&!v.ended){console.log('Velivo-PiP wznawiam');v.play();}})()", null)
+            }, d)
+        }
     }
 
     // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu

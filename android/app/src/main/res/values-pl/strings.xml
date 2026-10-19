@@ -361,4 +361,22 @@
     <string name="widget_notes">🗒 Karteczki</string>
     <string name="widget_desc">Szukaj, YouTube i Twoje karteczki z terminami</string>
     <string name="widget_no_notes">Brak karteczek – stuknij 🗒, aby dodać</string>
+    <string name="kb_name">Klawiatura Velivo</string>
+    <string name="kb_word">słowo</string>
+    <string name="kb_add">Dodaj „%1$s”</string>
+    <string name="kb_added">Dodano do Mojego słownika: %1$s</string>
+    <string name="kb_fix">Autokorekta wł. / wył.</string>
+    <string name="kb_click">Dźwięk klawiszy wł. / wył.</string>
+    <string name="kb_words">Mój słownik</string>
+    <string name="kb_mic">Dyktowanie (pisanie głosem)</string>
+    <string name="kb_read">Czytaj na głos to, co piszesz</string>
+    <string name="kb_lang">Język klawiatury PL / EN</string>
+    <string name="kb_hide">Schowaj klawiaturę</string>
+    <string name="kb_mic_none">Ten telefon nie ma rozpoznawania mowy</string>
+    <string name="kb_mic_ok">Mikrofon dozwolony - stuknij jeszcze raz 🎤 na klawiaturze</string>
+    <string name="kb_menu">Klawiatura Velivo</string>
+    <string name="kb_help">Klawiatura Velivo działa we wszystkich aplikacjach. 1) Włącz ją w ustawieniach Androida. 2) Wybierz ją jako klawiaturę. Przytrzymaj spację, by przełączyć klawiaturę. Przeciągnij palcem po literach, by pisać słowa (flow), przytrzymaj literę dla polskich znaków.</string>
+    <string name="kb_enable">Włącz</string>
+    <string name="kb_choose">Wybierz</string>
+    <string name="kb_words_help">Jedno słowo w linii. Skasuj linię, by usunąć słowo, wklej listę, by dodać wiele.</string>
 </resources>

@@ -229,6 +229,19 @@ Velivo plays everything with the VLC library – the same as Velivo for Windows:
 
 Menu → **⭐ Add this song** on an open YouTube video (category, playlists) → **🎵 My songs**: A–Z / categories / newest, ☰ category or playlist, plays in order. Stored only on the phone.
 
+## 8b. Velivo keyboard
+
+The same keyboard as on the computer, in Velivo colours (dark, light or black-and-white theme – as in Velivo). Works in every app.
+
+* **Turn on:** Velivo menu → ⌨ Velivo keyboard → *Turn on* (Android settings), then *Choose*. Hold the space bar to switch keyboards.
+* **Swipe typing (flow):** slide your finger across the letters. Wrong word: ⌫ removes it, or pick another from the suggestion bar.
+* **Polish letters:** hold a letter (a → ą) or turn on the **ą** key.
+* **Autocorrect ✓**; ⌫ right after a correction restores what you typed.
+* **Suggestion bar:** completions, next word, ➕ adds a new word to My dictionary.
+* **📖 My dictionary:** one word per line – add or delete.
+* **🎤 Dictation:** the first time Velivo asks for microphone access. **🔊** reads aloud what you type. **PL / EN** – dictionary language.
+* Nothing is learned in password fields. Learned words are encrypted on the phone.
+
 ## 9. When something goes wrong
 
 - If Velivo closes because of an error, next time it opens it shows **"Velivo closed because of an error"** with a **Copy** button – send that description to the Velivo developer (no addresses or page content – just how the error happened).

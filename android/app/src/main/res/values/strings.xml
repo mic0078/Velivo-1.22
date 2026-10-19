@@ -361,4 +361,22 @@
     <string name="widget_notes">🗒 Notes</string>
     <string name="widget_desc">Search, YouTube and your sticky notes with their dates</string>
     <string name="widget_no_notes">No sticky notes – tap 🗒 to add one</string>
+    <string name="kb_name">Velivo keyboard</string>
+    <string name="kb_word">word</string>
+    <string name="kb_add">Add „%1$s”</string>
+    <string name="kb_added">Added to My dictionary: %1$s</string>
+    <string name="kb_fix">Autocorrect on / off</string>
+    <string name="kb_click">Key click on / off</string>
+    <string name="kb_words">My dictionary</string>
+    <string name="kb_mic">Dictation (speak to type)</string>
+    <string name="kb_read">Read aloud what you type</string>
+    <string name="kb_lang">Keyboard language PL / EN</string>
+    <string name="kb_hide">Hide keyboard</string>
+    <string name="kb_mic_none">No speech recognition on this phone</string>
+    <string name="kb_mic_ok">Microphone allowed - tap 🎤 on the keyboard again</string>
+    <string name="kb_menu">Velivo keyboard</string>
+    <string name="kb_help">The Velivo keyboard works in every app. 1) Turn it on in Android settings. 2) Choose it as the keyboard. Hold the space bar to switch keyboards. Swipe across letters to type words (flow), hold a letter for Polish characters.</string>
+    <string name="kb_enable">Turn on</string>
+    <string name="kb_choose">Choose</string>
+    <string name="kb_words_help">One word per line. Delete a line to remove a word, paste a list to add many.</string>
 </resources>

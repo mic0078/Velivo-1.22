@@ -117,7 +117,7 @@ Hasła są szyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). 
 | --- | --- |
 | Blokuj reklamy | Te same listy co na komputerze (EasyList, EasyPrivacy, KAD) – dołączone do aplikacji, odświeżane co 4 dni. Po reklamie nie zostaje puste pole ani błąd w ramce (reguły ukrywania jak w uBlock Origin); na YouTube bez reklam |
 | Odtwarzanie w tle | Film / muzyka grają po wyjściu z aplikacji i przy zgaszonym ekranie (powiadomienie z „Zatrzymaj” i „🌙 Wyłącz za 30 min”); film przechodzi do okienka obraz w obrazie |
-| Motyw | Jak w telefonie / jasny / ciemny – w kolorach Velivo, albo **czarno-biały (wysoki kontrast)** – czarne tło, białe napisy i ramki, kolorowe ikony; dla słabowidzących |
+| Motyw | **Ciemny Velivo (domyślny)** / jasny / jak w telefonie – w kolorach Velivo, albo **czarno-biały (wysoki kontrast)** – czarne tło, białe napisy i ramki, kolorowe ikony; dla słabowidzących |
 | Synchronizacja z komputerem | Parowanie, plik odzyskiwania, nazwa telefonu w sieci |
 | 🌐 Język | Polski albo angielski – tylko dla Velivo (systemowy wybór języka aplikacji) |
 | Wyczyść historię | Usuwa historię przeglądania |

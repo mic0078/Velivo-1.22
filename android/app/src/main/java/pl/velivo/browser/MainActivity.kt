@@ -198,10 +198,10 @@ class MainActivity : Activity() {
         if (link != null) newTab(false, link)
     }
 
-    // Kolory jak w Velivo na Windows; motyw: 0 = jak telefon, 1 = jasny, 2 = ciemny, 3 = czarno-biały (wysoki kontrast).
-    private val contrast by lazy { prefs.getInt("motyw", 0) == 3 }
+    // Kolory jak w Velivo na Windows; motyw: 0 = jak telefon, 1 = jasny, 2 = ciemny (domyślny), 3 = czarno-biały (wysoki kontrast).
+    private val contrast by lazy { prefs.getInt("motyw", 2) == 3 }
     private val dark by lazy {
-        when (prefs.getInt("motyw", 0)) {
+        when (prefs.getInt("motyw", 2)) {   // domyślnie ciemny Velivo
             1 -> false
             2, 3 -> true
             else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -542,8 +542,12 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
 
     private fun Button.velivo(): Button { background = brand(); setTextColor(Color.WHITE); return this }
 
+    // przycisk na całą szerokość okna: wysokość według napisu (dwie linie zamiast uciętego tekstu)
+    private fun wide(b: Button) = b.apply { layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(4) }; setPadding(dp(12), dp(10), dp(12), dp(10)) }
+
     private fun button(label: String, tip: Int, fg: Int, bg: Int, click: (View) -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
         text = label
+        isAllCaps = false   // normalne litery - czytelniej, bez ucinania długich napisów
         textSize = 18f
         setTextColor(fg)
         background = round(bg)
@@ -2204,13 +2208,13 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val epg = EditText(this).apply { setSingleLine(); hint = getString(R.string.tv_source_epg); setText(s?.epg ?: ""); inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0) }
         box.addView(name); box.addView(url)
-        box.addView(button("📁 " + getString(R.string.tv_source_file), R.string.tv_source_file, BLUE, BLUE_BG) {
+        box.addView(wide(button("📁 " + getString(R.string.tv_source_file), R.string.tv_source_file, BLUE, BLUE_BG) {
             pickDocuments(arrayOf("*/*"), false) { uris -> uris.firstOrNull()?.let { u ->
                 runCatching { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) }   // plik dostępny też po restarcie
                 url.setText(u.toString()) } }
-        })
+        }))
         box.addView(epg)
-        if (s == null) box.addView(button("📲 " + getString(R.string.media_share_ask), R.string.media_share_ask, BLUE, BLUE_BG) { askComputerMedia() })
+        if (s == null) box.addView(wide(button(getString(R.string.media_share_ask), R.string.media_share_ask, BLUE, BLUE_BG) { askComputerMedia() }))
         box.addView(TextView(this).apply { text = getString(R.string.tv_source_help); textSize = 12f; setTextColor(TEXT); setPadding(0, dp(8), 0, 0) })
         AlertDialog.Builder(this).setTitle(if (s == null) R.string.tv_source_add else R.string.tv_source_edit).setView(ScrollView(this).apply { addView(box) })
             .setPositiveButton(android.R.string.ok) { _, _ ->
@@ -2918,9 +2922,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val names = arrayOf(getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark), getString(R.string.theme_contrast))
         AlertDialog.Builder(this)
             .setTitle(R.string.theme)
-            .setSingleChoiceItems(names, prefs.getInt("motyw", 0)) { d, i ->
+            .setSingleChoiceItems(names, prefs.getInt("motyw", 2)) { d, i ->
                 d.dismiss()
-                if (i != prefs.getInt("motyw", 0)) { prefs.edit().putInt("motyw", i).apply(); saveTabs(); recreate() }
+                if (i != prefs.getInt("motyw", 2)) { prefs.edit().putInt("motyw", i).apply(); saveTabs(); recreate() }
             }
             .show()
     }

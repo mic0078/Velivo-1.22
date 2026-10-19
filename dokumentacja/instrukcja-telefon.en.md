@@ -117,7 +117,7 @@ Passwords are encrypted with a key in the Android Keystore (the key never leaves
 | --- | --- |
 | Block ads | The same lists as on the computer (EasyList, EasyPrivacy, KAD) – bundled with the app, refreshed every 4 days. No empty box or error frame is left where an advert was (hiding rules as in uBlock Origin); no adverts on YouTube |
 | Play in background | Video / music keep playing after you leave the app and with the screen off (notification with "Stop" and "🌙 Stop in 30 min"); a video moves to a picture-in-picture window |
-| Theme | Like the phone / light / dark – in Velivo colours, or **black and white (high contrast)** – black background, white text and frames, coloured icons; for weak eyesight |
+| Theme | **Dark Velivo (default)** / light / like the phone – in Velivo colours, or **black and white (high contrast)** – black background, white text and frames, coloured icons; for weak eyesight |
 | Sync with computer | Pairing, recovery file, phone name on the network |
 | 🌐 Language | Polish or English – for Velivo only (the system app-language picker) |
 | Clear history | Deletes the browsing history |

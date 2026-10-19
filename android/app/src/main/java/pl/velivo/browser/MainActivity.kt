@@ -398,9 +398,13 @@ set(p0,p);})"""
         }, d)
     }
 
-    // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu
+    // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu; ale zgaszony / zablokowany ekran z okienkiem
+    // to nie zamknięcie - muzyka gra dalej (jak przy graniu w tle)
     override fun onStop() {
         super.onStop()
+        val screenOff = getSystemService(android.os.PowerManager::class.java)?.isInteractive == false ||
+            getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+        if (isInPictureInPictureMode && screenOff && prefs.getBoolean("tlo", true)) { PlaybackService.start(this, web()?.title ?: ""); return }
         if (isInPictureInPictureMode) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             PlaybackService.stop(this)

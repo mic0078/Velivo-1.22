@@ -393,6 +393,7 @@ set(p0,p);})"""
         android.util.Log.i("Velivo-PiP", "okienko: $pip, pełny ekran: ${fullView != null}")
         super.onPictureInPictureModeChanged(pip, cfg)
         pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
+        web()?.requestLayout()
         // bez przestawiania strony; pauzę, którą YouTube robi tuż po wejściu w okienko, cofamy (tylko przez 3 s)
         if (pip) web()?.evaluateJavascript("(function(){window.__vpipT=Date.now();if(window.__vpipL)return;window.__vpipL=1;" +
             "document.addEventListener('pause',function(e){var v=e.target;if(!v||v.tagName!=='VIDEO'||v.ended||Date.now()-window.__vpipT>3000)return;" +
@@ -589,6 +590,19 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
         // obraz i dźwięk filmu. Dopóki w tej karcie gra film, a granie w tle jest włączone - strona dalej "widoczna".
         val w = object : WebView(this) {
             private var kept = false
+            private var normalW = 0; private var normalH = 0
+            // w okienku strona zachowuje dotychczasowy rozmiar i jest tylko pomniejszona - YouTube pauzował po zmianie rozmiaru
+            override fun onMeasure(ws: Int, hs: Int) {
+                if (isInPictureInPictureMode && normalW > 0 && normalH > 0) {
+                    setMeasuredDimension(normalW, normalH)
+                    val sc = minOf(MeasureSpec.getSize(ws).toFloat() / normalW, MeasureSpec.getSize(hs).toFloat() / normalH)
+                    pivotX = 0f; pivotY = 0f; scaleX = sc; scaleY = sc
+                    return
+                }
+                scaleX = 1f; scaleY = 1f
+                super.onMeasure(ws, hs)
+                if (!isInPictureInPictureMode) { normalW = measuredWidth; normalH = measuredHeight }
+            }
             override fun onWindowVisibilityChanged(visibility: Int) {
                 val keep = visibility != View.VISIBLE && videoPlaying && this === web() && tabs.getOrNull(cur)?.bank != true &&
                     prefs.getBoolean("tlo", true) && !youtubeLimited()

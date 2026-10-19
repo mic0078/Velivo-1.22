@@ -683,7 +683,8 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
             override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url); view.evaluateJavascript(pipJs, null) }
             // YouTube przechodzi do kolejnego filmu bez wczytywania strony - też wznów od zapamiętanego miejsca
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
-                if (!isReload && Uri.parse(url).getQueryParameter("v") != null) resumeVideo(view, url)
+                // adresy bez części "?…" (about:blank, data:, mailto:) - getQueryParameter wywracał Velivo
+                if (!isReload && Uri.parse(url).let { it.isHierarchical && it.getQueryParameter("v") != null }) resumeVideo(view, url)
             }
             // ramka z reklamą, która się nie wczytała - zapamiętaj adres, żeby ją zwinąć zamiast strony błędu
             override fun onReceivedSslError(view: WebView, handler: android.webkit.SslErrorHandler, err: android.net.http.SslError) {

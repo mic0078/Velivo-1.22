@@ -293,7 +293,7 @@ set(p0,p);})"""
             it.hide(WindowInsets.Type.systemBars())
             it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        if (!isInPictureInPictureMode) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR   // zmiana obrotu w okienku - Android zamyka okienko
     }
 
     // widżet na pulpicie: 🔎 - pasek adresu z klawiaturą, ▶ - YouTube (jak czerwony pasek)
@@ -308,7 +308,7 @@ set(p0,p);})"""
         (window.decorView as FrameLayout).removeView(v)
         fullView = null
         window.insetsController?.show(WindowInsets.Type.systemBars())
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        if (!isInPictureInPictureMode) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         fullCallback?.onCustomViewHidden()
         fullCallback = null
     }

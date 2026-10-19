@@ -100,8 +100,10 @@ Passwords are encrypted with a key in the Android Keystore (the key never leaves
 ## 5. Connecting to the computer
 
 1. Phone and computer on the same Wi-Fi, Velivo open on both.
-2. Phone: menu → **Sync with computer → Pair with Velivo on Windows**.
-3. Computer: Settings → Sync (LAN) → **Pair a device on the network…**. Compare the 6-digit code on both screens and confirm.
+2. **The phone always invites:** menu → **Sync with computer → Connect to the computer (invite)**. For 3 minutes the phone sends an invitation.
+3. The computer asks: "The phone … is asking to connect to Velivo on this computer. Connect?" → **Yes**. Compare the 6-digit code on both screens and confirm on both.
+
+**Privacy:** the computer never looks for phones by itself – it only answers an invitation, and the phone sends one only for 3 minutes after you tap. Real-time sync (LAN) must be on on the computer. **Connecting a phone doesn't change the sync between your computers** – the computer keeps its key and the phone joins it.
 
 With several computers use the **recovery file** (computer: Save recovery file…, phone: Load pairing recovery file).
 

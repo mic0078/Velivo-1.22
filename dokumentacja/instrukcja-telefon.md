@@ -100,8 +100,10 @@ Hasła są szyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). 
 ## 5. Połączenie z komputerem
 
 1. Telefon i komputer w tej samej sieci Wi-Fi, Velivo otwarte na obu.
-2. Telefon: menu → **Synchronizacja z komputerem → Sparuj z Velivo na Windows**.
-3. Komputer: Ustawienia → Synchronizacja (LAN) → **Sparuj urządzenie w sieci…**. Porównaj 6-cyfrowy kod na obu ekranach i potwierdź.
+2. **Zaprasza zawsze telefon:** menu → **Synchronizacja z komputerem → Połącz z komputerem (zaproszenie)**. Przez 3 minuty telefon wysyła zaproszenie.
+3. Komputer pyta: „Telefon … prosi o połączenie z Velivo na tym komputerze. Połączyć?” → **Tak**. Porównaj 6-cyfrowy kod na obu ekranach i potwierdź na obu.
+
+**Prywatność:** komputer nigdy sam nie szuka telefonów – odpowiada tylko na zaproszenie, a telefon wysyła je tylko przez 3 minuty po stuknięciu. Na komputerze musi być włączona Synchronizacja LAN. **Połączenie z telefonem nie zmienia synchronizacji między Twoimi komputerami** – komputer zachowuje swój klucz, a telefon do niego dołącza.
 
 Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzyskiwania…, telefon: Wczytaj plik odzyskiwania).
 

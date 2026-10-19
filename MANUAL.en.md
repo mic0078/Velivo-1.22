@@ -901,8 +901,8 @@ The full phone guide is a separate manual: `dokumentacja/instrukcja-telefon.en.m
 ### Connecting to the computer
 
 1. Phone and computer on the same Wi-Fi, Velivo open on both.
-2. Phone: Menu → **Sync with computer → Pair with Velivo on Windows** (waits 3 minutes; the window shows what arrives from the network).
-3. Computer: Settings → Sync (LAN) → **Pair a device on the network…**. Compare the 6-digit code on both screens and confirm.
+2. The phone invites: Menu → **Sync with computer → Connect to the computer (invite)** (for 3 minutes; the window shows what arrives from the network).
+3. The computer asks "The phone … is asking to connect. Connect?" → **Yes**. Compare the 6-digit code on both screens and confirm. The computer never looks for phones by itself; its sync key with your other computers stays unchanged.
 
 With several computers use the recovery file instead of pairing: on the computer **Save recovery file…**, on the phone **Load pairing recovery file** – the key does not change and other computers stay paired. In the same menu you set the **phone name on the network** (e.g. "Michael's phone").
 

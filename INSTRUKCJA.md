@@ -1227,8 +1227,8 @@ Pełny opis telefonu: osobna instrukcja `dokumentacja/instrukcja-telefon.md`.
 ### Połączenie z komputerem
 
 1. Telefon i komputer w tej samej sieci Wi-Fi, Velivo otwarte na obu.
-2. Telefon: Menu → **Synchronizacja z komputerem → Sparuj z Velivo na Windows** (czeka 3 minuty, okno pokazuje, co dochodzi z sieci).
-3. Komputer: Ustawienia → Synchronizacja (LAN) → **Sparuj urządzenie w sieci…**. Porównaj 6-cyfrowy kod na obu ekranach i potwierdź.
+2. Telefon zaprasza: Menu → **Synchronizacja z komputerem → Połącz z komputerem (zaproszenie)** (przez 3 minuty; okno pokazuje, co dochodzi z sieci).
+3. Komputer pyta „Telefon … prosi o połączenie. Połączyć?” → **Tak**. Porównaj 6-cyfrowy kod na obu ekranach i potwierdź. Komputer sam nie szuka telefonów; jego klucz synchronizacji z innymi komputerami zostaje bez zmian.
 
 Przy kilku komputerach zamiast parowania użyj pliku odzyskiwania: na komputerze **Zapisz plik odzyskiwania…**, w telefonie **Wczytaj plik odzyskiwania** – klucz się nie zmienia, inne komputery zostają sparowane. W tym samym menu ustawisz **nazwę telefonu w sieci** (np. „Telefon Michała”).
 

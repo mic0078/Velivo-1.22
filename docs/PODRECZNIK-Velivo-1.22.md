@@ -1506,7 +1506,7 @@ Velivo na Androida (10 lub nowszy) to lekka, prywatna przeglądarka w kolorach V
 - **Przypomnienie:** powiadomienie **dzień wcześniej** i **w dniu terminu** (codziennie o 9:00, także po restarcie telefonu); stuknięcie otwiera karteczkę.
 
 ### 31.11 Synchronizacja z komputerem
-- **Co robi:** parowanie kodem 6 cyfr; zakładki, hasła i Szybki Dostęp z komputera; nowe pozycje z telefonu komputer potwierdza; pliki w obie strony (Udostępnij → Velivo, 📎 Wyślij plik do…); 📤 karta na komputer i 📺 z komputera na telefon (z miejscem w filmie).
+- **Co robi:** zaprasza zawsze telefon („Połącz z komputerem (zaproszenie)”), komputer pyta „Połączyć?” – sam nie szuka telefonów i zachowuje swój klucz (synchronizacja między komputerami bez zmian); parowanie kodem 6 cyfr; zakładki, hasła i Szybki Dostęp z komputera; nowe pozycje z telefonu komputer potwierdza; pliki w obie strony (Udostępnij → Velivo, 📎 Wyślij plik do…); 📤 karta na komputer i 📺 z komputera na telefon (z miejscem w filmie).
 
 ### 31.12 Wygląd i język
 - **Co robi:** motyw jak w telefonie / jasny / ciemny w kolorach Velivo, także okna dialogowe; 🌐 Język – polski lub angielski tylko dla Velivo.

@@ -1508,7 +1508,7 @@ Velivo for Android (10 or newer) is a light, private browser in Velivo colours, 
 - **Reminder:** a notification **the day before** and **on the day** (daily at 9:00, also after the phone restarts); tapping it opens the note.
 
 ### 31.11 Sync with the computer
-- **What it does:** pairing with a 6-digit code; bookmarks, passwords and Quick Access from the computer; the computer confirms new items from the phone; files both ways (Share → Velivo, 📎 Send a file to…); 📤 a tab to the computer and 📺 from the computer to the phone (with the video position).
+- **What it does:** the phone always invites ("Connect to the computer (invite)"), the computer asks "Connect?" – it never looks for phones by itself and keeps its key (sync between computers unchanged); pairing with a 6-digit code; bookmarks, passwords and Quick Access from the computer; the computer confirms new items from the phone; files both ways (Share → Velivo, 📎 Send a file to…); 📤 a tab to the computer and 📺 from the computer to the phone (with the video position).
 
 ### 31.12 Look and language
 - **What it does:** theme like the phone / light / dark in Velivo colours, dialogs included; 🌐 Language – Polish or English for Velivo only.

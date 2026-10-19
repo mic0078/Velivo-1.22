@@ -11,6 +11,8 @@ param([switch]$TylkoAndroid, [switch]$Wszystko)
 $ErrorActionPreference = 'Stop'
 trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
 Set-Location $PSScriptRoot
+New-Item -ItemType Directory -Force build | Out-Null
+Start-Transcript -Path (Join-Path $PSScriptRoot 'build\budowa.log') -Force | Out-Null   # gdyby okno sie zamknelo - przebieg zostaje w build\budowa.log
 
 git checkout rozwoj
 git pull origin rozwoj
@@ -93,7 +95,7 @@ try {
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.store.password} = $ksPass
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.alias} = $alias
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.password} = $keyPass
-    & .\gradlew.bat --no-daemon assemblePelnaRelease bundleSklepRelease bundleSklepytRelease
+    & .\gradlew.bat --no-daemon --console=plain assemblePelnaRelease bundleSklepRelease bundleSklepytRelease
     if ($LASTEXITCODE -ne 0) { Write-Host "Budowa Androida nie powiodla sie (zle haslo? brak SDK?)." -ForegroundColor Red; exit 1 }
 } finally {
     Pop-Location; $ksPass = $null; $keyPass = $null

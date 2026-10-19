@@ -133,9 +133,10 @@ class LanSync(
         send(p)
     }
 
+    // "kind": "phone" - Windows rozpoznaje telefon (📱) i nie przyjmuje od niego pakietów, które wysyłają tylko komputery
     private fun packet(t: String) = JSONObject()
         .put("t", t).put("id", id).put("device", deviceName()).put("profile", profile())
-        .put("ts", System.currentTimeMillis())
+        .put("ts", System.currentTimeMillis()).put("kind", "phone")
 
     // Dane powiązane z pakietem (jak LanAssociatedData): t, id, device, profile, ts, hash - po jednym w linii.
     private fun ad(p: JSONObject) = listOf(

@@ -123,7 +123,7 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
   - **podróbki stron** banków i znanych firm (np. `mbank-logowanie.com`, `rnbank.pl`, `paypa1.com`, `olx.pl.dostawa-pay.xyz`, adresy ze znakami udającymi litery) – czerwone ostrzeżenie, **Wróć (bezpiecznie)** albo **Znam tę stronę – wejdź**; wykrywane są też podróbki stron, do których masz zapisane hasła;
   - **pobieranie aplikacji (APK) spoza Sklepu Play** – ostrzeżenie, domyślnie **Nie pobieraj**;
   - **najpierw https** – strona otwiera się szyfrowana; gdy się nie da, Velivo pyta, czy otworzyć bez szyfrowania (sieć domowa – router, NAS – bez pytania). Błędny certyfikat jest zawsze blokowany.
-- Telefon nigdy nie wysyła całego profilu – tylko nowe pozycje, które komputer potwierdza.
+- Telefon nigdy nie wysyła całego profilu – tylko nowe pozycje, które komputer potwierdza. Komputer rozpoznaje telefon (na liście urządzeń jako 📱) i odrzuca od niego pakiety, które wysyłają tylko komputery – telefon nie zmieni ustawień komputera.
 - Połączenie jest szyfrowane (AES-GCM) kluczem z parowania; inne telefony w sieci nic nie odczytają.
 - Pozycja w czytniku, ukryte elementy i ustawienia zostają w telefonie.
 

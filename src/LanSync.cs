@@ -46,6 +46,7 @@ namespace Velivo
             public string pairId { get; set; }
             public string pub { get; set; }
             public string proof { get; set; }
+            public string kind { get; set; }   // "phone" - Velivo na Androida (puste - komputer)
         }
 
         sealed class LanSyncPayload
@@ -546,6 +547,8 @@ namespace Velivo
                 return;
             }
 
+            // telefon nigdy nie wysyla stanu (ustawien) - takie pakiety od telefonu odrzucamy; telefon dodaje tylko przez "phone-add" (z pytaniem)
+            if (pkt.kind == "phone" && (pkt.t == "state" || pkt.t == "state-plain" || pkt.t == "announce")) return;
             if (pkt.t != null && pkt.t.StartsWith("pair-", StringComparison.Ordinal))
             {
                 await Dispatcher.InvokeAsync(() => HandleLanPairPacket(pkt, remote.Address.ToString()));
@@ -700,7 +703,7 @@ namespace Velivo
                 profileChanged = true;
             _lanDeviceProfile[device] = normalizedProfile;
 
-            p.Device = device;
+            p.Device = pkt.kind == "phone" && !device.StartsWith("📱", StringComparison.Ordinal) ? "📱 " + device : device;   // telefon widoczny jako 📱 (lista urzadzen, "Wyslij do")
             p.Address = ep != null ? ep.Address + ":" + ep.Port : "?";
             p.Profile = normalizedProfile;
             p.LastType = pkt.t ?? "?";

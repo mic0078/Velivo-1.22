@@ -609,7 +609,7 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
                 if (!isInPictureInPictureMode) { normalW = measuredWidth; normalH = measuredHeight }
             }
             override fun onWindowVisibilityChanged(visibility: Int) {
-                val keep = visibility != View.VISIBLE && videoPlaying && this === web() && tabs.getOrNull(cur)?.bank != true &&
+                val keep = visibility != View.VISIBLE && ((videoPlaying && this === web() && tabs.getOrNull(cur)?.bank != true) || this === bgTab?.web) &&
                     prefs.getBoolean("tlo", true) && !youtubeLimited()
                 android.util.Log.i("Velivo-PiP", "okno strony: $visibility (0 widoczne, 4/8 ukryte), trzymam widoczne: $keep")
                 if (keep) { kept = true; super.onWindowVisibilityChanged(View.VISIBLE); return }
@@ -906,14 +906,19 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
         tabs.forEach { t -> t.web.url?.let { hideAds(t.web, it); collapseFrames(t.web) } }
     }
 
+    private var bgTab: Tab? = null
+
     private fun show(i: Int) {
         if (::findBar.isInitialized && findBar.visibility == View.VISIBLE) closeFind()   // szukanie dotyczy jednej karty
         if (::pickBar.isInitialized && pickBar.visibility == View.VISIBLE) stopPick()
         tabs.getOrNull(cur)?.let { snap(it) }
-        cur = i
-        frame.removeAllViews()
         val t = tabs[i]
-        frame.addView(t.web)
+        // grająca karta (np. muzyka z YouTube) zostaje pod nową kartą i gra dalej; karta bankowa nigdy
+        tabs.getOrNull(cur)?.let { if (it !== t && videoPlaying && !it.bank && prefs.getBoolean("tlo", true)) bgTab = it }
+        if (bgTab === t) bgTab = null
+        cur = i
+        (0 until frame.childCount).map { frame.getChildAt(it) }.forEach { if (it !== t.web && it !== bgTab?.web) frame.removeView(it) }
+        if (t.web.parent == null) frame.addView(t.web) else t.web.bringToFront()
         address.setText(t.web.url?.takeIf { !QuickAccess.isQuickAccess(it) } ?: "")
         address.background = round(if (t.bank) BANK_BG else if (t.priv) PRIV_BG else FIELD)
         tabsBtn.text = tabs.size.toString()
@@ -935,6 +940,8 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
 
     private fun closeTab(i: Int) {
         val t = tabs.removeAt(i)
+        if (bgTab === t) bgTab = null
+        frame.removeView(t.web)
         t.web.destroy()
         if (t.priv && tabs.none { it.priv }) dropPrivateProfile()
         if (t.bank && tabs.none { it.bank }) bankUnlocked = false

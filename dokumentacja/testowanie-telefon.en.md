@@ -1,0 +1,24 @@
+# Velivo for phone — tester guide
+
+Thanks for helping test! This is a test build, so bugs may happen.
+
+## 1. Installing
+1. Open the received **Velivo-pelna.apk** (e.g. in WhatsApp or Downloads).
+2. Allow installs from that source: **Settings → Allow from this source**, go back and tap **Install**.
+3. If Play Protect warns ("unknown" or "harmful app"), it is because the app is not from Google Play. Choose **More details → Install anyway**.
+4. If you get "App not installed" / package conflict, uninstall the older Velivo and retry.
+
+## 2. What to test
+- **Pages**: opening, tabs, pinch zoom (the menu zooms too).
+- **YouTube**: playback, picture-in-picture after going Home, playing with the screen off, sleep timer 🌙.
+- **🎵 My songs**: menu → ⭐ Add this song, then 🎵 My songs — sorting (A–Z, categories, newest), own playlists, queue playback.
+- **📺 TV**: add an M3U list (address or file), switch channels, programme guide (EPG).
+- **🎬 Library (Jellyfin)**: on the home network the server is found automatically — pick a user and type the password. No API keys needed.
+- **Reader mode** and read-aloud, **sticky notes** with reminders, **alarm**.
+
+## 3. Reporting bugs
+- After a crash, the app shows a report on next start — tap **Copy** and send it to me.
+- Briefly describe what you did, what happened, phone model and Android version. A screenshot helps a lot.
+
+## 4. Privacy
+Passwords and TV list addresses are encrypted on the phone. The app sends nothing to the author and never connects to someone's computer without your pairing.

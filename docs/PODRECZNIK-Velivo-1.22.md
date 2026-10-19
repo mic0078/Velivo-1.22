@@ -1530,7 +1530,7 @@ Velivo na Androida (10 lub nowszy) to lekka, prywatna przeglądarka w kolorach V
 
 ### 31.16 Filmy i TV na telefonie
 - **Gdzie:** menu → Filmy i TV: 📺 Telewizja, 🎬 Biblioteka (Jellyfin), 📁 Moje filmy.
-- **Co robi:** własne listy kanałów M3U z programem TV (EPG), ⭐ ulubione i własne listy, zmiana kanału przesunięciem palca; Jellyfin – oglądane dalej, filmy, seriale z plakatami; wybrane pliki z telefonu. Odtwarzacz: pamięta miejsce (Jellyfin też na serwerze), obraz w obrazie, granie w tle, wyłącznik 🌙, napisy i lektor, gesty jasności i głośności. Adresy z tokenem i klucz Jellyfin – zaszyfrowane; ustawienia można przesłać z komputera (🎬 Wyślij ustawienia Filmów i TV).
+- **Co robi:** własne listy kanałów M3U z programem TV (EPG), ⭐ ulubione i własne listy, zmiana kanału przesunięciem palca; Jellyfin – oglądane dalej, filmy, seriale z plakatami; wybrane pliki z telefonu. Odtwarzacz: pamięta miejsce (Jellyfin też na serwerze), obraz w obrazie, granie w tle, wyłącznik 🌙, napisy i lektor, gesty jasności i głośności. 🎵 Moje utwory – własna lista z YouTube w telefonie (kategorie, playlisty, sortowanie, odtwarzanie po kolei). Jellyfin bez kluczy: serwer znajduje się sam, logowanie nazwą i hasłem. Adresy z tokenem i token Jellyfin – zaszyfrowane; ustawienia można przesłać z komputera (🎬 Wyślij ustawienia Filmów i TV).
 
 # Funkcje NIE DOSTĘPNE W 1.22
 
@@ -1950,4 +1950,4 @@ Opisanych funkcji: **290**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **31.13** Powiększanie dwoma palcami
 - **31.14** Velivo dla osób ze słabszym wzrokiem
 - **31.15** YouTube bez reklam, obraz w obrazie, muzyka do snu, pobudka
-- **31.16** Filmy i TV na telefonie
+- **31.16** Filmy i TV na telefonie (z 🎵 Moimi utworami)

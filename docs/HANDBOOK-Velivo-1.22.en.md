@@ -1532,7 +1532,7 @@ Velivo for Android (10 or newer) is a light, private browser in Velivo colours, 
 
 ### 31.16 Films and TV on the phone
 - **Where:** menu → Films and TV: 📺 Television, 🎬 Library (Jellyfin), 📁 My films.
-- **What it does:** your own M3U channel lists with a TV guide (EPG), ⭐ favourites and your own lists, swipe to change channel; Jellyfin – continue watching, films, series with posters; chosen files from the phone. Player: remembers your place (Jellyfin on the server too), picture-in-picture, background play, 🌙 sleep timer, subtitles and narrator, brightness and volume gestures. Addresses with tokens and the Jellyfin key are encrypted; settings can be sent from the computer (🎬 Send Films & TV settings).
+- **What it does:** your own M3U channel lists with a TV guide (EPG), ⭐ favourites and your own lists, swipe to change channel; Jellyfin – continue watching, films, series with posters; chosen files from the phone. Player: remembers your place (Jellyfin on the server too), picture-in-picture, background play, 🌙 sleep timer, subtitles and narrator, brightness and volume gestures. 🎵 My songs – your own YouTube list on the phone (categories, playlists, sorting, played in order). Jellyfin without keys: the server is found automatically, sign in with name and password. Addresses with tokens and the Jellyfin token are encrypted; settings can be sent from the computer (🎬 Send Films & TV settings).
 
 # Features NOT AVAILABLE IN 1.22
 
@@ -1995,4 +1995,4 @@ Features described: **339**. The number next to each feature points to its descr
 - **31.13** Two-finger zoom
 - **31.14** Velivo for people with weaker eyesight
 - **31.15** YouTube without adverts, picture-in-picture, music for sleep, wake-up
-- **31.16** Films and TV on the phone
+- **31.16** Films and TV on the phone (with 🎵 My songs)

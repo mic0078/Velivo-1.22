@@ -272,4 +272,42 @@
     <string name="media_conf_title">Films and TV from the computer</string>
     <string name="media_conf_ask">The computer “%1$s” is sending settings: %2$s, TV channel lists: %3$d. Save them on the phone (encrypted)?</string>
     <string name="media_conf_saved">Films and TV settings saved</string>
+    <string name="jf_searching">Looking for a Jellyfin server on your home network…</string>
+    <string name="jf_manual">Enter the server address…</string>
+    <string name="jf_none_found">No server found – enter its address</string>
+    <string name="jf_password">Password (empty if none)</string>
+    <string name="jf_login">Sign in</string>
+    <string name="jf_bad_login">Wrong name or password – please try again</string>
+    <string name="jf_logged">Signed in: %1$s</string>
+    <string name="jf_other_user">Another user…</string>
+    <string name="yt_my_songs">My songs</string>
+    <string name="yt_add">Add this song</string>
+    <string name="yt_open_first">First play a song on YouTube (the video page)</string>
+    <string name="yt_already">Already saved: %1$s</string>
+    <string name="yt_added">⭐ Added: %1$s</string>
+    <string name="yt_category">Category</string>
+    <string name="yt_new_category">New category</string>
+    <string name="yt_to_playlist">Add to playlist</string>
+    <string name="yt_new_playlist">New playlist</string>
+    <string name="yt_no_playlist">No playlist</string>
+    <string name="yt_count">%1$d songs</string>
+    <string name="yt_sort_cat">By category</string>
+    <string name="yt_play_all">Play all in order</string>
+    <string name="yt_shuffle">Shuffle</string>
+    <string name="yt_empty">Empty – play a song on YouTube and tap ⭐ Add this song</string>
+    <string name="yt_change_category">🎼 Change category</string>
+    <string name="yt_rename">✏ Rename</string>
+    <string name="yt_queue">🎵 Playing in order: %1$d songs</string>
+    <string-array name="yt_categories">
+        <item>Pop</item>
+        <item>Rock</item>
+        <item>Dance</item>
+        <item>Folk</item>
+        <item>Classical</item>
+        <item>Jazz</item>
+        <item>For sleep</item>
+        <item>Relaxing</item>
+        <item>For children</item>
+        <item>Other</item>
+    </string-array>
 </resources>

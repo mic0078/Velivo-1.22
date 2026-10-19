@@ -153,7 +153,7 @@ Best set up once, together with the person who will use the phone:
 
 ## 8a. Films and TV
 
-Menu → **Films and TV**: 📺 Television (your own M3U lists with a TV guide, ⭐ favourites, 📋 your own lists, swipe = change channel), 🎬 Library (Jellyfin: continue watching, films, series), 📁 My films (chosen files from the phone). The player remembers your place and has picture-in-picture, background play, the 🌙 sleep timer, subtitles and narrator. Settings can be sent from the computer. Details: `dokumentacja/instrukcja-filmy-tv.en.md`, chapter 14.
+Menu → **Films and TV**: 🎵 My songs (your own YouTube list with categories and playlists, played in order), ⭐ Add this song, 🌙 sleep timer / wake-up, 📺 Television (your own M3U lists with a TV guide, ⭐ favourites, 📋 your own lists, swipe = change channel), 🎬 Library (Jellyfin – the server is found automatically, sign in with your name and password, no keys: continue watching, films, series), 📁 My films (chosen files from the phone). The player remembers your place and has picture-in-picture, background play, the 🌙 sleep timer, subtitles and narrator. Settings can be sent from the computer. Details: `dokumentacja/instrukcja-filmy-tv.en.md`, chapter 14.
 
 ## 9. When something goes wrong
 

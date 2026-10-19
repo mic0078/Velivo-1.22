@@ -248,13 +248,19 @@ Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** 
 - **Prywatność:** adres listy (zwykle z tokenem) i lista kanałów są zapisane w telefonie **zaszyfrowane** (Android Keystore); token nigdy nie pojawia się w komunikatach ani w logach.
 
 ### 🎬 Biblioteka (Jellyfin)
-- ⚙ → adres serwera (np. `http://192.168.1.10:8096`) i **klucz API** (Jellyfin → Panel → Klucze API → +), potem **Kto ogląda?** Adres i klucz – zaszyfrowane w telefonie; klucz idzie w nagłówku, nigdy w adresie.
+- **Bez kluczy API:** Velivo **samo znajduje serwer Jellyfin w sieci domowej**. Stuknij go, wybierz siebie z listy użytkowników i wpisz hasło – jak w aplikacji Jellyfin. (Nie widać serwera – **Wpisz adres serwera…**, np. `192.168.1.10`.) Telefon dostaje własny token – zaszyfrowany, widoczny w Jellyfin → Urządzenia (można go tam odwołać); idzie w nagłówku, nigdy w adresie.
 - **☰:** Oglądane dalej / Filmy / Seriale. Plakaty, rok, czas, opis; sortowanie A–Z, najnowsze, rok (zapamiętane).
 - Serial → lista odcinków → odcinek; następny odcinek włącza się sam.
 - **Miejsce w filmie** zapamiętane w telefonie i odesłane do Jellyfin – „Oglądane dalej” zgadza się też na komputerze i telewizorze.
 
 ### 📁 Moje filmy
 - **＋** – wybierz filmy lub muzykę z telefonu (wiele naraz). Velivo ma dostęp **tylko do wybranych plików** (bez dostępu do całej pamięci). Przytrzymaj – usuń z listy (plik zostaje).
+
+### 🎵 Moje utwory (YouTube)
+- **Twoja lista utworów z YouTube – zapisana tylko w telefonie**, bez konta Google. Menu → Filmy i TV → **⭐ Dodaj ten utwór** (gdy gra utwór na YouTube) – wybierz **kategorię** (Pop, Rock, Disco polo, Biesiadne, Klasyczna, Jazz, Do snu, Relaks, Dla dzieci, Inne albo własna) i opcjonalnie **playlistę** (np. „Do snu mamy”). To samo przytrzymując czerwony pasek YouTube.
+- Menu → **🎵 Moje utwory**: miniatury, sortowanie **A–Z / kategoriami / ostatnio dodane** (zapamiętane), ☰ – wszystkie, jedna kategoria albo jedna playlista, szukanie.
+- **▶ Odtwórz wszystkie po kolei**, **🔀 losowo** albo stuknij utwór – Velivo gra po kolei z Twojej listy (także w tle i przy zgaszonym ekranie), YouTube nie wtrąca swoich propozycji.
+- Przytrzymaj utwór – zmień kategorię, dodaj do playlisty / usuń z playlisty, zmień nazwę, usuń.
 
 ### ▶ Odtwarzacz
 - Stuknięcie – przyciski: pauza, przewijanie, **napisy** i **ścieżka dźwięku (lektor / język)** w ustawieniach odtwarzacza.

@@ -272,4 +272,42 @@
     <string name="media_conf_title">Filmy i TV z komputera</string>
     <string name="media_conf_ask">Komputer „%1$s” przysyła ustawienia: %2$s, listy kanałów TV: %3$d. Zapisać je w telefonie (zaszyfrowane)?</string>
     <string name="media_conf_saved">Zapisano ustawienia Filmów i TV</string>
+    <string name="jf_searching">Szukam serwera Jellyfin w sieci domowej…</string>
+    <string name="jf_manual">Wpisz adres serwera…</string>
+    <string name="jf_none_found">Nie znaleziono serwera – wpisz adres</string>
+    <string name="jf_password">Hasło (puste, jeśli nie ma)</string>
+    <string name="jf_login">Zaloguj</string>
+    <string name="jf_bad_login">Zła nazwa albo hasło – spróbuj jeszcze raz</string>
+    <string name="jf_logged">Zalogowano: %1$s</string>
+    <string name="jf_other_user">Inny użytkownik…</string>
+    <string name="yt_my_songs">Moje utwory</string>
+    <string name="yt_add">Dodaj ten utwór</string>
+    <string name="yt_open_first">Najpierw włącz utwór na YouTube (strona filmu)</string>
+    <string name="yt_already">Już masz: %1$s</string>
+    <string name="yt_added">⭐ Dodano: %1$s</string>
+    <string name="yt_category">Kategoria</string>
+    <string name="yt_new_category">Nowa kategoria</string>
+    <string name="yt_to_playlist">Dodaj do playlisty</string>
+    <string name="yt_new_playlist">Nowa playlista</string>
+    <string name="yt_no_playlist">Bez playlisty</string>
+    <string name="yt_count">%1$d utworów</string>
+    <string name="yt_sort_cat">Kategoriami</string>
+    <string name="yt_play_all">Odtwórz wszystkie po kolei</string>
+    <string name="yt_shuffle">Odtwórz losowo</string>
+    <string name="yt_empty">Pusto – włącz utwór na YouTube i stuknij ⭐ Dodaj ten utwór</string>
+    <string name="yt_change_category">🎼 Zmień kategorię</string>
+    <string name="yt_rename">✏ Zmień nazwę</string>
+    <string name="yt_queue">🎵 Gram po kolei: %1$d utworów</string>
+    <string-array name="yt_categories">
+        <item>Pop</item>
+        <item>Rock</item>
+        <item>Disco polo</item>
+        <item>Biesiadne</item>
+        <item>Klasyczna</item>
+        <item>Jazz</item>
+        <item>Do snu</item>
+        <item>Relaks</item>
+        <item>Dla dzieci</item>
+        <item>Inne</item>
+    </string-array>
 </resources>

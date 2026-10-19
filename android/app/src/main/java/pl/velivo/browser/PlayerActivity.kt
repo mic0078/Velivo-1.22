@@ -163,7 +163,7 @@ class PlayerActivity : Activity() {
     }
 
     private fun gestures() {
-        val audio = getSystemService(AudioManager::class.java)
+        val audio = getSystemService(AudioManager::class.java)!!
         var mode = 0   // 1 jasność, 2 głośność, 3 przewijanie
         var startPos = 0L
         val det = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -223,13 +223,16 @@ class PlayerActivity : Activity() {
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
         super.onPictureInPictureModeChanged(pip, cfg)
         view.useController = !pip
+        if (pip && !player.isPlaying) player.play()   // w okienku film gra dalej
     }
 
     override fun onStop() {
         super.onStop()
         savePos()
+        // okienko zamknięte (✕ albo przesunięte poza ekran) - koniec odtwarzania
+        if (isInPictureInPictureMode) { player.pause(); finish(); return }
         // poza okienkiem: gra dalej w tle (powiadomienie z Zatrzymaj), gdy włączone „Odtwarzanie w tle”
-        if (!isInPictureInPictureMode) {
+        run {
             if (player.isPlaying && prefs.getBoolean("tlo", true))
                 runCatching { startForegroundService(Intent(this, PlaybackService::class.java).putExtra(PlaybackService.EXTRA_TITLE, queue.getOrNull(index)?.title ?: "")) }
             else player.pause()

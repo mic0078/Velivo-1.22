@@ -188,6 +188,48 @@ object Jelly {
         return (0 until a.length()).map { a.getJSONObject(it).let { o -> o.getString("Id") to o.getString("Name") } }
     }
 
+    // --- Bez kluczy API: Velivo samo znajduje serwer w sieci domowej i logujesz się jak w aplikacji Jellyfin ---
+    // Jellyfin odpowiada na rozgłoszenie "who is JellyfinServer?" (UDP 7359) swoim adresem i nazwą.
+    fun discover(timeoutMs: Int = 2500): List<Pair<String, String>> {
+        val out = LinkedHashMap<String, String>()
+        runCatching {
+            java.net.DatagramSocket().use { s ->
+                s.broadcast = true; s.soTimeout = timeoutMs
+                val msg = "who is JellyfinServer?".toByteArray()
+                s.send(java.net.DatagramPacket(msg, msg.size, java.net.InetAddress.getByName("255.255.255.255"), 7359))
+                val buf = ByteArray(4096)
+                val end = System.currentTimeMillis() + timeoutMs
+                while (System.currentTimeMillis() < end) {
+                    val p = java.net.DatagramPacket(buf, buf.size)
+                    runCatching { s.receive(p) }.getOrNull() ?: break
+                    runCatching { val j = JSONObject(String(p.data, 0, p.length)); out[j.getString("Address").trimEnd('/')] = j.optString("Name", "Jellyfin") }
+                }
+            }
+        }
+        return out.map { it.key to it.value }
+    }
+
+    private fun authHeader(device: String) = "MediaBrowser Client=\"Velivo\", Device=\"$device\", DeviceId=\"velivo-$device\", Version=\"1.22\""
+
+    // użytkownicy widoczni na ekranie logowania serwera (bez hasła i bez klucza)
+    fun publicUsers(url: String): List<Pair<String, String>> {
+        val h = URL(url.trimEnd('/') + "/Users/Public").openConnection() as HttpURLConnection
+        h.connectTimeout = 8000; h.readTimeout = 10000
+        val a = JSONArray(h.inputStream.bufferedReader().use { it.readText() })
+        return (0 until a.length()).map { a.getJSONObject(it).let { o -> o.getString("Id") to o.getString("Name") } }
+    }
+
+    // logowanie nazwą i hasłem: serwer zwraca token tylko dla tego telefonu (widać go w Jellyfin → Urządzenia, można odwołać)
+    fun login(url: String, user: String, pass: String, device: String): Conf {
+        val h = URL(url.trimEnd('/') + "/Users/AuthenticateByName").openConnection() as HttpURLConnection
+        h.requestMethod = "POST"; h.doOutput = true; h.connectTimeout = 10000; h.readTimeout = 15000
+        h.setRequestProperty("Content-Type", "application/json")
+        h.setRequestProperty("X-Emby-Authorization", authHeader(device))
+        h.outputStream.use { it.write(JSONObject().put("Username", user).put("Pw", pass).toString().toByteArray()) }
+        val j = JSONObject(h.inputStream.bufferedReader().use { it.readText() })
+        return Conf(url.trimEnd('/'), j.getString("AccessToken"), j.getJSONObject("User").getString("Id"))
+    }
+
     private fun items(json: String): List<Item> {
         val a = JSONObject(json).optJSONArray("Items") ?: JSONArray(json)
         return (0 until a.length()).map { a.getJSONObject(it) }.map {

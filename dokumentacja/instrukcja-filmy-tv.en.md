@@ -248,13 +248,19 @@ Menu (the V logo) → the **Films and TV** group: **📺 Television**, **🎬 Li
 - **Privacy:** the list address (usually with a token) and the channel list are stored on the phone **encrypted** (Android Keystore); the token never appears in messages or logs.
 
 ### 🎬 Library (Jellyfin)
-- ⚙ → the server address (e.g. `http://192.168.1.10:8096`) and an **API key** (Jellyfin → Dashboard → API Keys → +), then **Who's watching?** The address and key are encrypted on the phone; the key goes in a header, never in the address.
+- **No API keys:** Velivo **finds the Jellyfin server on your home network by itself**. Tap it, pick yourself from the user list and enter your password – as in the Jellyfin app. (Server not shown – **Enter the server address…**, e.g. `192.168.1.10`.) The phone gets its own token – encrypted, visible in Jellyfin → Devices (you can revoke it there); it goes in a header, never in the address.
 - **☰:** Continue watching / Films / Series. Posters, year, length, description; sort A–Z, newest, year (remembered).
 - A series → its episodes → an episode; the next episode starts by itself.
 - **Your place in a video** is remembered on the phone and sent back to Jellyfin – "Continue watching" matches on the computer and TV too.
 
 ### 📁 My films
 - **＋** – choose films or music from the phone (several at once). Velivo only gets access to **the files you choose** (no access to the whole storage). Press and hold – remove from the list (the file stays).
+
+### 🎵 My songs (YouTube)
+- **Your own list of YouTube songs – stored on the phone only**, no Google account needed. Menu → Films and TV → **⭐ Add this song** (while a song plays on YouTube) – choose a **category** (Pop, Rock, Dance, Folk, Classical, Jazz, For sleep, Relaxing, For children, Other or your own) and optionally a **playlist** (e.g. "Mum's bedtime"). The same by pressing and holding the red YouTube bar.
+- Menu → **🎵 My songs**: thumbnails, sorting **A–Z / by category / recently added** (remembered), ☰ – all, one category or one playlist, search.
+- **▶ Play all in order**, **🔀 shuffle** or tap a song – Velivo plays your list in order (also in the background and with the screen off), without YouTube slipping in its own suggestions.
+- Press and hold a song – change category, add to / remove from a playlist, rename, delete.
 
 ### ▶ Player
 - Tap – controls: pause, seeking, **subtitles** and **audio track (narrator / language)** in the player settings.

@@ -153,7 +153,7 @@ Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
 
 ## 8a. Filmy i TV
 
-Menu → **Filmy i TV**: 📺 Telewizja (własne listy M3U z programem TV, ⭐ ulubione, 📋 własne listy, przesunięcie palcem = zmiana kanału), 🎬 Biblioteka (Jellyfin: oglądane dalej, filmy, seriale), 📁 Moje filmy (wybrane pliki z telefonu). Odtwarzacz pamięta miejsce, ma obraz w obrazie, granie w tle, wyłącznik 🌙, napisy i lektora. Ustawienia można wysłać z komputera. Szczegóły: `dokumentacja/instrukcja-filmy-tv.md`, rozdział 14.
+Menu → **Filmy i TV**: 🎵 Moje utwory (własna lista z YouTube z kategoriami i playlistami, odtwarzanie po kolei), ⭐ Dodaj ten utwór, 🌙 wyłącznik / pobudka, 📺 Telewizja (własne listy M3U z programem TV, ⭐ ulubione, 📋 własne listy, przesunięcie palcem = zmiana kanału), 🎬 Biblioteka (Jellyfin – serwer znajduje się sam, logowanie nazwą i hasłem, bez kluczy: oglądane dalej, filmy, seriale), 📁 Moje filmy (wybrane pliki z telefonu). Odtwarzacz pamięta miejsce, ma obraz w obrazie, granie w tle, wyłącznik 🌙, napisy i lektora. Ustawienia można wysłać z komputera. Szczegóły: `dokumentacja/instrukcja-filmy-tv.md`, rozdział 14.
 
 ## 9. Gdy coś pójdzie nie tak
 

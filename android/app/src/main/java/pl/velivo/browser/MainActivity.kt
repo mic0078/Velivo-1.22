@@ -371,7 +371,16 @@ set(p0,p);})"""
         // w okienku tylko film, na całą powierzchnię
         web()?.evaluateJavascript(if (pip) "(function(){var s=document.getElementById('velivo-pip')||document.createElement('style');s.id='velivo-pip';" +
             "s.textContent='video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
-            "document.documentElement.appendChild(s);})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
+            "document.documentElement.appendChild(s);var v=document.querySelector('video');if(v&&v.paused)v.play();})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
+    }
+
+    // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu
+    override fun onStop() {
+        super.onStop()
+        if (isInPictureInPictureMode) {
+            tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            stopService(Intent(this, PlaybackService::class.java))
+        }
     }
 
     // --- 🌙 Wyłącznik czasowy: muzyka / film / czytanie cichnie po wybranym czasie (do snu) ---
@@ -393,13 +402,14 @@ set(p0,p);})"""
     }
 
     private fun askSleep() {
-        val mins = intArrayOf(-1, 15, 30, 45, 60, 90, -3, 0, -2)
+        val mins = intArrayOf(-5, -4, -1, 15, 30, 45, 60, 90, -3, 0, -2)
         val wake = Budzik.time(this)
         val labels = mins.map { when (it) {
+            -5 -> "🎵 " + getString(R.string.yt_my_songs); -4 -> "⭐ " + getString(R.string.yt_add)
             -1 -> getString(R.string.sleep_track); 0 -> getString(R.string.sleep_none); -3 -> getString(R.string.sleep_own)
             -2 -> if (wake >= 0) getString(R.string.wake_menu_on, String.format("%d:%02d", wake / 60, wake % 60)) else getString(R.string.wake_menu)
             else -> getString(R.string.sleep_min, it) } }.toTypedArray()
-        AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i -> when (mins[i]) { -1 -> sleepAfterTrack(); -2 -> askWake(); -3 -> askSleepMinutes(); else -> setSleep(mins[i]) } }.show()
+        AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i -> when (mins[i]) { -5 -> showYtSongs(); -4 -> ytAddCurrent(); -1 -> sleepAfterTrack(); -2 -> askWake(); -3 -> askSleepMinutes(); else -> setSleep(mins[i]) } }.show()
     }
 
     // ⏰ Pobudka: utwór z bieżącej karty (np. YouTube) + godzina; codziennie
@@ -1289,6 +1299,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             30 -> showTv()
             31 -> showLibrary()
             32 -> showMyFiles()
+            33 -> showYtSongs()
+            34 -> ytAddCurrent()
+            35 -> askSleep()
             23 -> showNotes()
             24 -> newNote()
             25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
@@ -1403,7 +1416,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19),
             Triple("🎯", R.string.hide_element, 20), Triple("➕", R.string.add_bookmark, 3), Triple("✍", R.string.fill_password, 15)))
         section(R.string.menu_media, listOf(
-            Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("📁", R.string.my_films, 32)))
+            Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("📁", R.string.my_films, 32),
+            Triple("🎵", R.string.yt_my_songs, 33), Triple("⭐", R.string.yt_add, 34), Triple("🌙", R.string.sleep_title, 35)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9),
             Triple("🗒", R.string.notes, 23), Triple("📝", R.string.note_new, 24), Triple("📥", R.string.downloads, 25)))
@@ -1646,6 +1660,132 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // --- Synchronizacja z Velivo na Windows (sieć domowa) -------------------------
+    // ===================== 🎵 Moje utwory: własna lista z YouTube - tylko w telefonie (bez konta Google) =====================
+    // Każdy utwór: id filmu, tytuł, kategoria (Pop, Rock… albo własna), własne playlisty. Sortowanie i filtr zapamiętane.
+    private fun ytSongs(): MutableList<org.json.JSONObject> = runCatching {
+        val a = org.json.JSONArray(prefs.getString("yt-utwory", "[]")); (0 until a.length()).map { a.getJSONObject(it) }.toMutableList()
+    }.getOrDefault(mutableListOf())
+    private fun ytSave(l: List<org.json.JSONObject>) = prefs.edit().putString("yt-utwory", org.json.JSONArray(l).toString()).apply()
+    private fun ytLists(s: org.json.JSONObject): List<String> = s.optJSONArray("l")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()
+    private fun ytCategories(): List<String> = (resources.getStringArray(R.array.yt_categories).toList() + ytSongs().map { it.optString("c") }).filter { it.isNotEmpty() }.distinct()
+    private fun ytPlaylists(): List<String> = ytSongs().flatMap { ytLists(it) }.distinct().sorted()
+
+    private fun currentYtId(): String? {
+        val u = Uri.parse(web()?.url ?: return null)
+        val h = u.host ?: return null
+        return if (h.endsWith("youtube.com")) u.getQueryParameter("v") else if (h == "youtu.be") u.lastPathSegment else null
+    }
+
+    // ⭐ dodaj utwór, który teraz gra (strona filmu YouTube): kategoria, potem opcjonalnie playlista
+    private fun ytAddCurrent() {
+        val id = currentYtId() ?: return toast(getString(R.string.yt_open_first))
+        val title = (web()?.title ?: id).removeSuffix(" - YouTube").trim()
+        if (ytSongs().any { it.optString("id") == id }) return toast(getString(R.string.yt_already, title))
+        chooseText(getString(R.string.yt_category), ytCategories(), getString(R.string.yt_new_category)) { cat ->
+            val s = org.json.JSONObject().put("id", id).put("t", title).put("c", cat).put("a", System.currentTimeMillis()).put("l", org.json.JSONArray())
+            ytSave(ytSongs() + s)
+            toast(getString(R.string.yt_added, title))
+            val pls = ytPlaylists()
+            if (pls.isNotEmpty()) chooseText(getString(R.string.yt_to_playlist), listOf(getString(R.string.yt_no_playlist)) + pls, getString(R.string.yt_new_playlist)) { pl ->
+                if (pl != getString(R.string.yt_no_playlist)) ytSave(ytSongs().map { if (it.optString("id") == id) it.put("l", org.json.JSONArray(ytLists(it) + pl)) else it })
+            }
+        }
+    }
+
+    // wybór z listy albo nowa nazwa
+    private fun chooseText(title: String, options: List<String>, newLabel: String, done: (String) -> Unit) {
+        val labels = (options + "＋ $newLabel").toTypedArray()
+        AlertDialog.Builder(this).setTitle(title).setItems(labels) { _, i ->
+            if (i < options.size) done(options[i])
+            else {
+                val e = EditText(this).apply { setSingleLine(); hint = newLabel }
+                AlertDialog.Builder(this).setTitle(newLabel).setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(e, LinearLayout.LayoutParams(-1, -2)) })
+                    .setPositiveButton(android.R.string.ok) { _, _ -> e.text.toString().trim().take(40).takeIf { it.isNotEmpty() }?.let(done) }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+            }
+        }.show()
+    }
+
+    private fun showYtSongs() {
+        var filter = prefs.getString("yt-filtr", "") ?: ""   // "" wszystkie, "C:kategoria", "P:playlista"
+        lateinit var scr: MediaScreen
+        fun rows() = ytSongs().filter { s ->
+            when { filter.startsWith("C:") -> s.optString("c") == filter.substring(2); filter.startsWith("P:") -> filter.substring(2) in ytLists(s); else -> true }
+        }.map { s -> MRow(s.optString("t"), listOf(s.optString("c")).plus(ytLists(s).map { "📋 $it" }).filter { it.isNotEmpty() }.joinToString(" · "),
+            "https://i.ytimg.com/vi/" + s.optString("id") + "/mqdefault.jpg", tag = s) }
+        fun info() = when { filter.startsWith("C:") -> "🎼 " + filter.substring(2); filter.startsWith("P:") -> "📋 " + filter.substring(2); else -> getString(R.string.tv_all) } + " · " + getString(R.string.yt_count, rows().size)
+        scr = MediaScreen("🎵 " + getString(R.string.yt_my_songs), "yt", listOf(getString(R.string.sort_az), getString(R.string.yt_sort_cat), getString(R.string.sort_newest)),
+            sorter = { l, s -> when (s) { 0 -> l.sortedBy { it.title.lowercase() }
+                1 -> l.sortedWith(compareBy({ (it.tag as org.json.JSONObject).optString("c").lowercase() }, { it.title.lowercase() }))
+                else -> l.sortedByDescending { (it.tag as org.json.JSONObject).optLong("a") } } },
+            onOpen = { r, shown -> dlgClose(); ytPlayQueue(shown.map { (it.tag as org.json.JSONObject).optString("id") }, shown.indexOf(r)) },
+            onLong = { r -> ytSongMenu(r.tag as org.json.JSONObject) { scr.setRows(rows(), info()) } })
+        ytScreen = scr
+        scr.addButton("▶", R.string.yt_play_all) { if (scr.shown.isNotEmpty()) { dlgClose(); ytPlayQueue(scr.shown.map { (it.tag as org.json.JSONObject).optString("id") }, 0) } }
+        scr.addButton("🔀", R.string.yt_shuffle) { if (scr.shown.isNotEmpty()) { dlgClose(); ytPlayQueue(scr.shown.map { (it.tag as org.json.JSONObject).optString("id") }.shuffled(), 0) } }
+        scr.addButton("☰", R.string.tv_filter) {
+            val opts = listOf("" to getString(R.string.tv_all)) + ytCategories().filter { c -> ytSongs().any { it.optString("c") == c } }.map { "C:$it" to "🎼 $it" } + ytPlaylists().map { "P:$it" to "📋 $it" }
+            AlertDialog.Builder(this).setTitle(R.string.tv_filter).setItems(opts.map { it.second }.toTypedArray()) { _, i ->
+                filter = opts[i].first; prefs.edit().putString("yt-filtr", filter).apply(); scr.setRows(rows(), info())
+            }.show()
+        }
+        scr.show()
+        scr.setRows(rows(), if (ytSongs().isEmpty()) getString(R.string.yt_empty) else info())
+    }
+
+    private var ytScreen: MediaScreen? = null
+    private fun dlgClose() { runCatching { ytScreen?.dlg?.dismiss() } }
+
+    private fun ytSongMenu(s: org.json.JSONObject, changed: () -> Unit) {
+        val id = s.optString("id")
+        fun upd(f: (org.json.JSONObject) -> Unit) { ytSave(ytSongs().map { if (it.optString("id") == id) it.also(f) else it }); changed() }
+        val opts = mutableListOf<Pair<String, () -> Unit>>()
+        opts.add(getString(R.string.yt_change_category) to { chooseText(getString(R.string.yt_category), ytCategories(), getString(R.string.yt_new_category)) { c -> upd { it.put("c", c) } } })
+        opts.add(getString(R.string.yt_to_playlist) to { chooseText(getString(R.string.yt_to_playlist), ytPlaylists(), getString(R.string.yt_new_playlist)) { p -> upd { it.put("l", org.json.JSONArray((ytLists(it) + p).distinct())) } } })
+        for (p in ytLists(s)) opts.add(getString(R.string.tv_list_remove, p) to { upd { it.put("l", org.json.JSONArray(ytLists(it) - p)) } })
+        opts.add(getString(R.string.yt_rename) to {
+            val e = EditText(this).apply { setSingleLine(); setText(s.optString("t")) }
+            AlertDialog.Builder(this).setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(e, LinearLayout.LayoutParams(-1, -2)) })
+                .setPositiveButton(android.R.string.ok) { _, _ -> e.text.toString().trim().takeIf { it.isNotEmpty() }?.let { t -> upd { it.put("t", t) } } }.setNegativeButton(android.R.string.cancel, null).show()
+        })
+        opts.add(getString(R.string.delete) to { ytSave(ytSongs().filter { it.optString("id") != id }); changed() })
+        AlertDialog.Builder(this).setTitle(s.optString("t")).setItems(opts.map { it.first }.toTypedArray()) { _, i -> opts[i].second() }.show()
+    }
+
+    // --- kolejka: utwory po kolei w karcie YouTube (także w tle i przy zgaszonym ekranie); YouTube nie wtrąca swoich propozycji ---
+    private var ytQueue = listOf<String>(); private var ytIndex = 0; private var ytLoadedAt = 0L
+    private val ytTick = object : Runnable {
+        override fun run() {
+            if (ytQueue.isEmpty()) return
+            val t = tabs.firstOrNull { (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") }
+            if (t == null) { ytQueue = emptyList(); return }
+            t.web.evaluateJavascript("(function(){var v=document.querySelector('video');return JSON.stringify({id:new URLSearchParams(location.search).get('v')||'',e:!!(v&&v.ended)})})()") { r ->
+                val j = runCatching { org.json.JSONObject(org.json.JSONTokener(r).nextValue() as String) }.getOrNull() ?: return@evaluateJavascript
+                val want = ytQueue.getOrNull(ytIndex)
+                val settled = System.currentTimeMillis() - ytLoadedAt > 6000
+                if (j.optBoolean("e") || (settled && want != null && j.optString("id").isNotEmpty() && j.optString("id") != want)) ytNext(t.web)
+            }
+            pipCheck.postDelayed(this, 2000)
+        }
+    }
+
+    private fun ytPlayQueue(ids: List<String>, at: Int) {
+        if (ids.isEmpty()) return
+        ytQueue = ids; ytIndex = at.coerceIn(0, ids.size - 1)
+        val i = tabs.indexOfFirst { !it.priv && !it.bank && (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") }
+        if (i >= 0) show(i) else newTab(false, "about:blank")
+        ytLoad(web() ?: return)
+        pipCheck.removeCallbacks(ytTick); pipCheck.postDelayed(ytTick, 4000)
+        toast(getString(R.string.yt_queue, ids.size))
+    }
+
+    private fun ytLoad(w: WebView) { ytLoadedAt = System.currentTimeMillis(); w.settings.mediaPlaybackRequiresUserGesture = false; w.loadUrl("https://m.youtube.com/watch?v=" + ytQueue[ytIndex]) }
+
+    private fun ytNext(w: WebView) {
+        if (ytIndex + 1 >= ytQueue.size) { ytQueue = emptyList(); return }   // koniec kolejki
+        ytIndex++; ytLoad(w)
+    }
+
     // ===================== 🎬 Filmy i TV: telewizja (IPTV + program), Jellyfin, filmy z telefonu =====================
     private class MRow(val title: String, val sub: String, val image: String?, val headers: Map<String, String> = emptyMap(), var star: Boolean? = null, val tag: Any? = null)
 
@@ -1859,7 +1999,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0) }
         box.addView(name); box.addView(url)
         box.addView(button("📁 " + getString(R.string.tv_source_file), R.string.tv_source_file, BLUE, BLUE_BG) {
-            pickDocuments(arrayOf("*/*"), false) { uris -> uris.firstOrNull()?.let { url.setText(it.toString()) } }
+            pickDocuments(arrayOf("*/*"), false) { uris -> uris.firstOrNull()?.let { u ->
+                runCatching { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) }   // plik dostępny też po restarcie
+                url.setText(u.toString()) } }
         })
         box.addView(epg)
         box.addView(TextView(this).apply { text = getString(R.string.tv_source_help); textSize = 12f; setTextColor(TEXT); setPadding(0, dp(8), 0, 0) })
@@ -1928,29 +2070,68 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }.start()
     }
 
-    // adres serwera i klucz API (Jellyfin → Panel → Klucze API), potem wybór użytkownika
+    // Jellyfin bez kluczy API: Velivo samo szuka serwera w sieci domowej, wybierasz siebie z listy i wpisujesz hasło
+    // (jak w aplikacji Jellyfin). Token dostaje tylko ten telefon - zaszyfrowany; widać go w Jellyfin → Urządzenia.
     private fun setupJellyfin(done: () -> Unit) {
-        val old = Jelly.conf(passwords)
-        val url = EditText(this).apply { setSingleLine(); hint = "http://192.168.1.10:8096"; setText(old?.url ?: ""); inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
-        val key = EditText(this).apply { setSingleLine(); hint = getString(R.string.jf_key); setText(old?.key ?: ""); inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_PASSWORD }
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0); addView(url); addView(key)
-            addView(TextView(this@MainActivity).apply { text = getString(R.string.jf_help); textSize = 12f; setTextColor(TEXT); setPadding(0, dp(8), 0, 0) }) }
-        val b = AlertDialog.Builder(this).setTitle(R.string.jf_settings).setView(box)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                val u = url.text.toString().trim().trimEnd('/'); val k = key.text.toString().trim()
-                if (!(u.startsWith("http://") || u.startsWith("https://")) || k.isEmpty()) { toast(getString(R.string.jf_error)); return@setPositiveButton }
-                Thread {
-                    val users = runCatching { Jelly.users(Jelly.Conf(u, k, "")) }.getOrNull()
-                    runOnUiThread {
-                        if (users.isNullOrEmpty()) { toast(getString(R.string.jf_error)); return@runOnUiThread }
-                        AlertDialog.Builder(this).setTitle(R.string.jf_user).setItems(users.map { it.second }.toTypedArray()) { _, i ->
-                            Jelly.save(passwords, Jelly.Conf(u, k, users[i].first)); done()
-                        }.show()
+        toast(getString(R.string.jf_searching))
+        Thread {
+            val found = Jelly.discover()
+            runOnUiThread {
+                val labels = found.map { "🎬 " + it.second + "\n" + it.first } + getString(R.string.jf_manual) +
+                    (if (Jelly.conf(passwords) != null) listOf(getString(R.string.jf_forget)) else emptyList())
+                AlertDialog.Builder(this).setTitle(if (found.isEmpty()) getString(R.string.jf_none_found) else getString(R.string.jf_settings))
+                    .setItems(labels.toTypedArray()) { _, i ->
+                        when {
+                            i < found.size -> jellyfinUser(found[i].first, done)
+                            i == found.size -> {
+                                val url = EditText(this).apply { setSingleLine(); hint = "http://192.168.1.10:8096"; inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
+                                AlertDialog.Builder(this).setTitle(R.string.jf_manual).setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(url, LinearLayout.LayoutParams(-1, -2)) })
+                                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                                        var u = url.text.toString().trim().trimEnd('/')
+                                        if (u.isNotEmpty() && !u.startsWith("http")) u = "http://$u"
+                                        if (!u.contains(Regex(":\\d+$")) && u.count { it == ':' } == 1) u += ":8096"
+                                        jellyfinUser(u, done)
+                                    }.setNegativeButton(android.R.string.cancel, null).show()
+                            }
+                            else -> { Jelly.save(passwords, null); toast(getString(R.string.jf_forgotten)) }
+                        }
+                    }.setNegativeButton(android.R.string.cancel, null).show()
+            }
+        }.start()
+    }
+
+    private fun jellyfinUser(url: String, done: () -> Unit) {
+        Thread {
+            val users = runCatching { Jelly.publicUsers(url) }.getOrNull()
+            runOnUiThread {
+                if (users == null) { toast(getString(R.string.jf_error)); return@runOnUiThread }
+                fun ask(name: String) {
+                    val pass = EditText(this).apply { setSingleLine(); hint = getString(R.string.jf_password); inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_PASSWORD }
+                    AlertDialog.Builder(this).setTitle(name).setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(pass, LinearLayout.LayoutParams(-1, -2)) })
+                        .setPositiveButton(R.string.jf_login) { _, _ ->
+                            val pw = pass.text.toString()
+                            Thread {
+                                val c = runCatching { Jelly.login(url, name, pw, LanSync.MODEL) }.getOrNull()
+                                runOnUiThread {
+                                    if (c == null) toast(getString(R.string.jf_bad_login))
+                                    else { Jelly.save(passwords, c); toast(getString(R.string.jf_logged, name)); done() }
+                                }
+                            }.start()
+                        }.setNegativeButton(android.R.string.cancel, null).show()
+                }
+                // użytkownicy ukryci na ekranie logowania - wpisz nazwę
+                val labels = users.map { "👤 " + it.second } + getString(R.string.jf_other_user)
+                AlertDialog.Builder(this).setTitle(R.string.jf_user).setItems(labels.toTypedArray()) { _, i ->
+                    if (i < users.size) ask(users[i].second)
+                    else {
+                        val n = EditText(this).apply { setSingleLine(); hint = getString(R.string.jf_user) }
+                        AlertDialog.Builder(this).setTitle(R.string.jf_other_user).setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(n, LinearLayout.LayoutParams(-1, -2)) })
+                            .setPositiveButton(android.R.string.ok) { _, _ -> n.text.toString().trim().takeIf { it.isNotEmpty() }?.let { ask(it) } }
+                            .setNegativeButton(android.R.string.cancel, null).show()
                     }
-                }.start()
-            }.setNegativeButton(android.R.string.cancel, null)
-        if (old != null) b.setNeutralButton(R.string.jf_forget) { _, _ -> Jelly.save(passwords, null); toast(getString(R.string.jf_forgotten)) }
-        b.show()
+                }.show()
+            }
+        }.start()
     }
 
     // ---------- 📁 Moje filmy (z telefonu, wybrane przez Ciebie - bez dostępu do całej pamięci) ----------

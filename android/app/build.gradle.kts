@@ -13,20 +13,29 @@ android {
         versionCode = 2
         versionName = "1.22"
     }
-    // Dwie wersje z jednego kodu:
-    //  pelna - APK dla rodziny (YouTube bez reklam i w tle, dokładny budzik) - jak dotąd, ten sam identyfikator;
-    //  sklep - Google Play: bez omijania reklam YouTube i grania YouTube w tle (regulamin Google Play), budzik za zgodą użytkownika.
+    // Trzy wersje z jednego kodu:
+    //  pelna  - APK dla rodziny (YouTube bez reklam i w tle, dokładny budzik) - jak dotąd, ten sam identyfikator;
+    //  sklep  - Google Play, ostrożna: bez skryptu YouTube i bez YouTube w tle; budzik za zgodą użytkownika;
+    //  sklepyt - Google Play jak Brave: blokada reklam także na YouTube i granie w tle, ale bez reklamowania tego (napisy jak w "sklep").
     flavorDimensions += "wersja"
     productFlavors {
         create("pelna") {
             dimension = "wersja"
             applicationId = "pl.velivo.browser"
             buildConfigField("boolean", "PELNA", "true")
+            buildConfigField("boolean", "YOUTUBE", "true")
         }
         create("sklep") {
             dimension = "wersja"
             applicationId = "pl.velivo"
             buildConfigField("boolean", "PELNA", "false")
+            buildConfigField("boolean", "YOUTUBE", "false")
+        }
+        create("sklepyt") {
+            dimension = "wersja"
+            applicationId = "pl.velivo"   // ten sam co "sklep" - do sklepu wysyłasz jedną z nich
+            buildConfigField("boolean", "PELNA", "false")
+            buildConfigField("boolean", "YOUTUBE", "true")
         }
     }
     buildFeatures { buildConfig = true }

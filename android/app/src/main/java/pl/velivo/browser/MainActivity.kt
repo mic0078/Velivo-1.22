@@ -481,10 +481,10 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
 
     // --- Odtwarzanie w tle -----------------------------------------------------
     // Po wyjściu z Velivo: jeśli gra film lub muzyka, powiadomienie trzyma odtwarzanie przy życiu.
-    // wersja ze sklepu: YouTube nie gra w tle ani w okienku (regulamin Google Play i YouTube)
+    // ostrożna wersja ze sklepu ("sklep"): YouTube nie gra w tle ani w okienku
     private val ytLabel get() = if (BuildConfig.PELNA) R.string.youtube else R.string.youtube_plain
 
-    private fun youtubeLimited(): Boolean = !BuildConfig.PELNA && (Uri.parse(web()?.url ?: "").host ?: "").endsWith("youtube.com")
+    private fun youtubeLimited(): Boolean = !BuildConfig.YOUTUBE && (Uri.parse(web()?.url ?: "").host ?: "").endsWith("youtube.com")
 
     private fun backgroundPlayback() {
         if (!prefs.getBoolean("tlo", true) || youtubeLimited()) return
@@ -547,8 +547,8 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(w.settings, true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(w, false)
         // Reklamy na YouTube: skrypt uruchamiany przed stroną (tylko na domenach YouTube).
-        // tylko wersja pełna (APK) - w Sklepie Google Play omijanie reklam YouTube jest zabronione
-        if (BuildConfig.PELNA && prefs.getBoolean("adblock", true) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
+        // wersje "pelna" i "sklepyt" - w ostrożnej wersji sklepowej bez skryptu YouTube
+        if (BuildConfig.YOUTUBE && prefs.getBoolean("adblock", true) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
             WebViewCompat.addDocumentStartJavaScript(w, youtubeJs, YOUTUBE_ORIGINS)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
             runCatching { WebViewCompat.addDocumentStartJavaScript(w, noAppPromoJs, setOf("*")) }

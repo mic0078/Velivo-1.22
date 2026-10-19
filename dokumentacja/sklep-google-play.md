@@ -1,22 +1,25 @@
 # Velivo w Sklepie Google Play – lista kroków
 
-## Dwie wersje (jeden kod)
+## Trzy wersje (jeden kod)
 
-| | **pelna** (APK) | **sklep** (Google Play) |
-| --- | --- | --- |
-| Identyfikator | `pl.velivo.browser` (jak dotąd) | `pl.velivo` |
-| Skrypt usuwający reklamy z odtwarzacza YouTube | tak | nie |
-| YouTube w tle i w okienku (PiP) | tak | nie (inne filmy i muzyka – tak) |
-| Blokada reklam na stronach, ochrona, czytnik, karteczki, synchronizacja | tak | tak |
-| Pobudka | dokładna bez pytania | dokładna po zgodzie „Alarmy i przypomnienia” |
+| | **pelna** (APK, rodzina) | **sklep** (Google Play, ostrożna) | **sklepyt** (Google Play, jak Brave) |
+| --- | --- | --- | --- |
+| Identyfikator | `pl.velivo.browser` | `pl.velivo` | `pl.velivo` |
+| Skrypt usuwający reklamy z odtwarzacza YouTube | tak | nie | tak |
+| YouTube w tle i w okienku (PiP) | tak | nie (inne filmy i muzyka – tak) | tak |
+| Napis na pasku | „▶ YouTube · bez reklam” | „▶ YouTube” | „▶ YouTube” |
+| Pobudka | dokładna bez pytania | po zgodzie „Alarmy i przypomnienia” | po zgodzie |
+| Blokada reklam, ochrona, czytnik, karteczki, synchronizacja | tak | tak | tak |
 
-W Android Studio: **Build → Select Build Variant** → `pelnaRelease` (APK dla rodziny) albo `sklepRelease` (sklep).
+Do sklepu wysyłasz **jedną**: `sklep` (najmniejsze ryzyko odrzucenia) albo `sklepyt` (jak Brave – ryzyko większe, ale bez reklamowania YouTube w opisie i na zrzutach zwykle przechodzi). Obie mają ten sam identyfikator, więc można zacząć od jednej i później podmienić na drugą.
+
+W Android Studio: **Build → Select Build Variant** → `pelnaRelease`, `sklepRelease` albo `sklepytRelease`.
 
 ## Budowa dla sklepu
 
-1. Build Variant: **sklepRelease**.
-2. **Build → Generate Signed App Bundle / APK… → Android App Bundle** → ten sam klucz (alias `velivo`) → **sklepRelease**.
-3. Plik: `android/app/sklep/release/Velivo-sklep-release.aab`.
+1. Build Variant: **sklepRelease** albo **sklepytRelease**.
+2. **Build → Generate Signed App Bundle / APK… → Android App Bundle** → ten sam klucz (alias `velivo`) → wybrany wariant.
+3. Plik: `android/app/sklep/release/Velivo-sklep-release.aab` (albo `sklepyt/release/Velivo-sklepyt-release.aab`).
 
 ## Play Console
 

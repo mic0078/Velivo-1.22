@@ -1912,7 +1912,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             return chans.filter { ch -> keys?.contains(ch.key) ?: (!filter.startsWith("G:") || ch.group == filter.substring(2)) }.map { ch ->
                 val (now, nxt) = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch)
                 val sub = listOfNotNull(now?.let { getString(R.string.tv_now, it.title, fmtTime(it.stop)) }, nxt?.let { getString(R.string.tv_next, fmtTime(it.start), it.title) })
-                    .joinToString("\n").ifEmpty { ch.group }
+                    .joinToString("\n").ifEmpty { if (filter.startsWith("G:")) "" else ch.group }   // grupa tylko przy wszystkich kanałach - przy wybranej grupie to powtórka nagłówka
                 MRow(ch.name, sub, ch.logo.ifEmpty { null }, star = ch.key in fav, tag = ch)
             }
         }

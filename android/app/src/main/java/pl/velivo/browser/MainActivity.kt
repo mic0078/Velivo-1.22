@@ -185,7 +185,6 @@ class MainActivity : Activity() {
         if (!prefs.getBoolean("filmy-v2", false)) { getSharedPreferences("filmy", Context.MODE_PRIVATE).edit().clear().apply(); prefs.edit().putBoolean("filmy-v2", true).apply() }
         Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
-        keyboardIntent(intent)
         if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
         if (intent?.action == Widzet.ACTION_SEARCH || intent?.action == Widzet.ACTION_YT) { val a = intent.action; window.decorView.post { widgetAction(a) } }
         if (intent?.action == TvPlan.ACTION) window.decorView.post { startPlanned(intent.getIntExtra("id", -1)) }
@@ -266,7 +265,6 @@ set(p0,p);})"""
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
-        if (keyboardIntent(intent)) return
         if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
         if (intent.action == Widzet.ACTION_SEARCH || intent.action == Widzet.ACTION_YT) { widgetAction(intent.action); return }
         if (intent.action == TvPlan.ACTION) { startPlanned(intent.getIntExtra("id", -1)); return }
@@ -1416,7 +1414,6 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             37 -> AlertDialog.Builder(this).setTitle(R.string.default_player).setMessage(R.string.default_player_help)
                 .setPositiveButton(R.string.phone_videos) { _, _ -> showPhoneVideos() }.setNegativeButton(android.R.string.ok, null).show()
             38 -> showPhoneVideos()
-            39 -> showKeyboardSetup()
             23 -> showNotes()
             24 -> newNote()
             25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
@@ -1540,7 +1537,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         section(R.string.menu_settings, listOf(
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
             Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6),
-            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38), Triple("⌨", R.string.kb_menu, 39)),
+            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38)),
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
         // na samym dole menu też płaski pasek YouTube (przytrzymanie: wyłącznik czasowy i pobudka)
         box.addView(TextView(this).apply {
@@ -2483,38 +2480,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_MIC && grantResults.any { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) { toast(getString(R.string.kb_mic_ok)); moveTaskToBack(true) }
         if (requestCode == REQ_VIDEOS && grantResults.any { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) afterVideoPerm?.invoke()   // choć filmy albo choć muzyka
         afterVideoPerm = null
-    }
-
-    // ⌨ klawiatura Velivo: zgoda na mikrofon (dyktowanie) i Mój słownik - z klawiatury otwierane tutaj
-    private val REQ_MIC = 77
-    private fun keyboardIntent(i: Intent?): Boolean {
-        when (i?.action) {
-            KlawiaturaVelivo.ACTION_MIC -> requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC)
-            KlawiaturaVelivo.ACTION_WORDS -> window.decorView.post { showKeyboardWords() }
-            else -> return false
-        }
-        return true
-    }
-
-    private fun showKeyboardWords() {
-        KlawiaturaVelivo.load(this) {
-            val box = EditText(this).apply { setText(KlawiaturaVelivo.ownWords().joinToString("\n")); minLines = 8; gravity = Gravity.TOP
-                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS }
-            AlertDialog.Builder(this).setTitle("📖 " + getString(R.string.kb_words)).setMessage(R.string.kb_words_help)
-                .setView(PinchFrame(ScrollView(this).apply { addView(box) }))
-                .setPositiveButton(android.R.string.ok) { _, _ -> KlawiaturaVelivo.setOwnWords(this, box.text.split('\n')) }
-                .setNegativeButton(android.R.string.cancel, null).show()
-        }
-    }
-
-    private fun showKeyboardSetup() {
-        AlertDialog.Builder(this).setTitle("⌨ " + getString(R.string.kb_menu)).setMessage(R.string.kb_help)
-            .setPositiveButton(R.string.kb_enable) { _, _ -> runCatching { startActivity(Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS)) } }
-            .setNeutralButton(R.string.kb_words) { _, _ -> showKeyboardWords() }
-            .setNegativeButton(R.string.kb_choose) { _, _ -> (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker() }.show()
     }
 
     private fun showMyFiles() {

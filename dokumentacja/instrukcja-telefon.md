@@ -231,15 +231,15 @@ Menu → **⭐ Dodaj ten utwór** na otwartym filmie YouTube (kategoria, playlis
 
 ## 8b. Klawiatura Velivo
 
-Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub czarno-biały – jak w Velivo). Działa we wszystkich aplikacjach.
+Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub czarno-biały – wybór w aplikacji klawiatury). Działa we wszystkich aplikacjach.
 
-* **Włączenie:** menu Velivo → ⌨ Klawiatura Velivo → *Włącz* (ustawienia Androida), potem *Wybierz*. Przytrzymanie spacji przełącza klawiaturę.
+* **Osobna aplikacja** „Klawiatura Velivo” (plik `Velivo-klawiatura.apk`). **Włączenie:** otwórz aplikację Klawiatura Velivo → *Włącz* (ustawienia Androida), potem *Wybierz*. Przytrzymanie spacji przełącza klawiaturę.
 * **Pisanie przeciągnięciem (flow):** przeciągnij palcem po literach słowa. Zły wynik: ⌫ usuwa całe słowo albo wybierz inne z paska propozycji.
 * **Polskie litery:** przytrzymaj literę (a → ą) albo włącz klawisz **ą**.
 * **Autokorekta ✓** (np. zolw → żółw, napewno → na pewno, ze → że), przecinek przed „że”, „który”; ⌫ zaraz po poprawce przywraca wpisane słowo.
 * **Pasek propozycji:** dokończenia, następne słowo, ➕ dodaje nowe słowo do Mojego słownika.
 * **📖 Mój słownik:** jedno słowo w linii – dopisz lub skasuj.
-* **🎤 Dyktowanie:** za pierwszym razem Velivo zapyta o zgodę na mikrofon. **🔊** czyta na głos to, co piszesz. **PL / EN** – język słownika.
+* **🎤 Dyktowanie:** za pierwszym razem aplikacja klawiatury zapyta o zgodę na mikrofon. **🔊** czyta na głos to, co piszesz. **PL / EN** – język słownika.
 * W polach haseł klawiatura niczego nie zapamiętuje. Nauka słów jest zaszyfrowana w telefonie.
 
 ## 9. Gdy coś pójdzie nie tak

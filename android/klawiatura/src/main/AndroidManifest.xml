@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 🎤 dyktowanie - tylko po stuknięciu mikrofonu -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- dyktowanie: usługa rozpoznawania mowy w telefonie -->
+    <queries><intent><action android:name="android.speech.RecognitionService" /></intent></queries>
+    <application android:label="@string/kb_name" android:icon="@mipmap/ic_launcher" android:allowBackup="false" android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity android:name=".Ustawienia" android:exported="true" android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- ⌨ klawiatura (włączana w ustawieniach Androida, działa we wszystkich aplikacjach) -->
+        <service android:name=".KlawiaturaVelivo" android:label="@string/kb_name" android:exported="true"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter><action android:name="android.view.InputMethod" /></intent-filter>
+            <meta-data android:name="android.view.im" android:resource="@xml/klawiatura_velivo" />
+        </service>
+    </application>
+</manifest>

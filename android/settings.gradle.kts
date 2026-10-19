@@ -5,4 +5,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "Velivo"
-include(":app")
+include(":app", ":klawiatura")

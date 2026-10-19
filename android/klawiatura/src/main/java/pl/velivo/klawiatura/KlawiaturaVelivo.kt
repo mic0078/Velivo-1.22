@@ -1,4 +1,4 @@
-package pl.velivo.browser
+package pl.velivo.klawiatura
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -47,7 +47,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private val own = HashSet<String>()
 
         fun lang(ctx: Context): String = prefs(ctx).getString("klaw-jezyk", null) ?: if (Locale.getDefault().language == "pl") "pl" else "en"
-        fun prefs(ctx: Context) = ctx.getSharedPreferences("velivo", Context.MODE_PRIVATE)
+        fun prefs(ctx: Context) = ctx.getSharedPreferences("klawiatura", Context.MODE_PRIVATE)
         private fun file(ctx: Context) = File(ctx.filesDir, "klawiatura.bin")
 
         // słownik wbudowany + Moje słowa i nauka (zaszyfrowane kluczem z Android Keystore) - w tle
@@ -66,7 +66,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     synchronized(learned) {
                         learned.clear(); own.clear(); Slownik.clearLearned()
                         val f = file(ctx)
-                        if (f.exists()) Passwords(ctx).openBytes(f.readBytes())?.let { Slownik.loadText(String(it, Charsets.UTF_8), learned, own) }
+                        if (f.exists()) Szyfr.open(f.readBytes())?.let { Slownik.loadText(String(it, Charsets.UTF_8), learned, own) }
                         own.forEach { Slownik.addUserWord(it) }
                     }
                     Slownik.useCount = { w -> synchronized(learned) { learned[w] ?: 0 } }
@@ -77,7 +77,7 @@ class KlawiaturaVelivo : InputMethodService() {
 
         fun save(ctx: Context) {
             val text = synchronized(learned) { Slownik.saveText(learned, own) }
-            runCatching { file(ctx).writeBytes(Passwords(ctx).sealBytes(text.toByteArray(Charsets.UTF_8))) }
+            runCatching { file(ctx).writeBytes(Szyfr.seal(text.toByteArray(Charsets.UTF_8))) }
         }
 
         fun ownWords(): List<String> = synchronized(learned) { own.sorted() }
@@ -321,8 +321,8 @@ class KlawiaturaVelivo : InputMethodService() {
     private fun toggleMic() {
         if (listening) { stopListening(); return }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            // zgodę na mikrofon daje się w Velivo (klawiatura nie może sama zapytać)
-            startActivity(Intent(this, MainActivity::class.java).setAction(ACTION_MIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
+            // zgodę na mikrofon daje się w ustawieniach klawiatury (klawiatura nie może sama zapytać)
+            startActivity(Intent(this, Ustawienia::class.java).setAction(ACTION_MIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
         }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { Toast.makeText(this, R.string.kb_mic_none, Toast.LENGTH_LONG).show(); return }
         val r = rec ?: SpeechRecognizer.createSpeechRecognizer(this).also { rec = it }
@@ -378,7 +378,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private var waveX = 0f; private var waveY = 0f; private var waveAt = 0L
         private var longDone = false
 
-        // motywy Velivo: ciemny (logo), jasny, czarno-biały
+        // motywy jak w Velivo: ciemny (logo), jasny, czarno-biały (wybór w ustawieniach klawiatury)
         private var bg1 = 0; private var bg2 = 0; private var bg3 = 0; private var keyBg = 0; private var keyFn = 0; private var text = 0; private var dim = 0; private var border = 0
         private val violet = Color.rgb(0x8B, 0x5C, 0xF6); private val cyan = Color.rgb(0x06, 0xB6, 0xD4); private val mid = Color.rgb(0x4F, 0x6B, 0xED)
         private var contrast = false
@@ -589,7 +589,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 "fix" -> pr.edit().putBoolean("klaw-korekta", !pref("klaw-korekta")).apply()
                 "klik" -> pr.edit().putBoolean("klaw-klik", !pref("klaw-klik")).apply()
                 "read" -> pr.edit().putBoolean("klaw-czytaj", !pref("klaw-czytaj", false)).apply()
-                "words" -> startActivity(Intent(context, MainActivity::class.java).setAction(ACTION_WORDS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "words" -> startActivity(Intent(context, Ustawienia::class.java).setAction(ACTION_WORDS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 "mic" -> toggleMic()
                 "lang" -> { pr.edit().putString("klaw-jezyk", if (lang(context) == "pl") "en" else "pl").apply(); load(context) { refresh() } }
                 "hide" -> requestHideSelf(0)

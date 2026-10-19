@@ -231,15 +231,15 @@ Menu → **⭐ Add this song** on an open YouTube video (category, playlists) �
 
 ## 8b. Velivo keyboard
 
-The same keyboard as on the computer, in Velivo colours (dark, light or black-and-white theme – as in Velivo). Works in every app.
+The same keyboard as on the computer, in Velivo colours (dark, light or black-and-white theme – chosen in the keyboard app). Works in every app.
 
-* **Turn on:** Velivo menu → ⌨ Velivo keyboard → *Turn on* (Android settings), then *Choose*. Hold the space bar to switch keyboards.
+* **Separate app** “Velivo keyboard” (file `Velivo-klawiatura.apk`). **Turn on:** open the Velivo keyboard app → *Turn on* (Android settings), then *Choose*. Hold the space bar to switch keyboards.
 * **Swipe typing (flow):** slide your finger across the letters. Wrong word: ⌫ removes it, or pick another from the suggestion bar.
 * **Polish letters:** hold a letter (a → ą) or turn on the **ą** key.
 * **Autocorrect ✓**; ⌫ right after a correction restores what you typed.
 * **Suggestion bar:** completions, next word, ➕ adds a new word to My dictionary.
 * **📖 My dictionary:** one word per line – add or delete.
-* **🎤 Dictation:** the first time Velivo asks for microphone access. **🔊** reads aloud what you type. **PL / EN** – dictionary language.
+* **🎤 Dictation:** the first time the keyboard app asks for microphone access. **🔊** reads aloud what you type. **PL / EN** – dictionary language.
 * Nothing is learned in password fields. Learned words are encrypted on the phone.
 
 ## 9. When something goes wrong

@@ -1,0 +1,80 @@
+package pl.velivo.klawiatura
+
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.os.Bundle
+import android.provider.Settings
+import android.text.InputType
+import android.view.Gravity
+import android.view.inputmethod.InputMethodManager
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
+
+// Ustawienia klawiatury Velivo: włączenie, wybór, mikrofon do dyktowania, motyw, Mój słownik.
+class Ustawienia : Activity() {
+    private val REQ_MIC = 1
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val dp = resources.displayMetrics.density
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding((20 * dp).toInt(), (28 * dp).toInt(), (20 * dp).toInt(), (20 * dp).toInt())
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(0x1E, 0x18, 0x38), Color.rgb(0x19, 0x1B, 0x33), Color.rgb(0x13, 0x2A, 0x35)))
+        }
+        box.addView(TextView(this).apply { text = getString(R.string.kb_name); textSize = 26f; setTextColor(Color.WHITE); setPadding(0, 0, 0, (8 * dp).toInt()) })
+        box.addView(TextView(this).apply { text = getString(R.string.kb_help); textSize = 15f; setTextColor(Color.argb(0xD0, 255, 255, 255)); setPadding(0, 0, 0, (16 * dp).toInt()) })
+        fun button(label: Int, tip: Int, act: () -> Unit) = box.addView(Button(this).apply {
+            text = getString(label); isAllCaps = false; textSize = 17f; setTextColor(Color.WHITE)
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.rgb(0x7C, 0x3A, 0xED), Color.rgb(0x06, 0xB6, 0xD4))).apply { cornerRadius = 12 * dp }
+            contentDescription = getString(tip); tooltipText = getString(tip)
+            setOnClickListener { act() }
+        }, LinearLayout.LayoutParams(-1, (52 * dp).toInt()).apply { bottomMargin = (10 * dp).toInt() })
+        button(R.string.kb_enable, R.string.kb_enable_tip) { runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) } }
+        button(R.string.kb_choose, R.string.kb_choose_tip) { (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker() }
+        button(R.string.kb_mic_allow, R.string.kb_mic) { requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC) }
+        button(R.string.kb_theme, R.string.kb_theme_tip) { chooseTheme() }
+        button(R.string.kb_words, R.string.kb_words) { showWords() }
+        setContentView(ScrollView(this).apply { isFillViewport = true; addView(box) })
+        when (intent?.action) {
+            KlawiaturaVelivo.ACTION_MIC -> requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC)
+            KlawiaturaVelivo.ACTION_WORDS -> showWords()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == KlawiaturaVelivo.ACTION_MIC) requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC)
+        if (intent.action == KlawiaturaVelivo.ACTION_WORDS) showWords()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_MIC && grantResults.any { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) Toast.makeText(this, R.string.kb_mic_ok, Toast.LENGTH_LONG).show()
+    }
+
+    // motyw jak w Velivo: ciemny (domyślnie), jasny, czarno-biały, jak w telefonie
+    private fun chooseTheme() {
+        val pr = KlawiaturaVelivo.prefs(this)
+        val names = arrayOf(getString(R.string.kb_theme_system), getString(R.string.kb_theme_light), getString(R.string.kb_theme_dark), getString(R.string.kb_theme_contrast))
+        AlertDialog.Builder(this).setTitle(R.string.kb_theme).setSingleChoiceItems(names, pr.getInt("motyw", 2)) { d, i -> pr.edit().putInt("motyw", i).apply(); d.dismiss() }.show()
+    }
+
+    // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)
+    private fun showWords() {
+        KlawiaturaVelivo.load(this) {
+            val box = EditText(this).apply { setText(KlawiaturaVelivo.ownWords().joinToString("\n")); minLines = 8; gravity = Gravity.TOP
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS }
+            AlertDialog.Builder(this).setTitle("📖 " + getString(R.string.kb_words)).setMessage(R.string.kb_words_help)
+                .setView(ScrollView(this).apply { addView(box) })
+                .setPositiveButton(android.R.string.ok) { _, _ -> KlawiaturaVelivo.setOwnWords(this, box.text.split('\n')) }
+                .setNegativeButton(android.R.string.cancel, null).show()
+        }
+    }
+}

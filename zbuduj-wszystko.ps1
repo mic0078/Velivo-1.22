@@ -96,7 +96,7 @@ try {
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.store.password} = $ksPass
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.alias} = $alias
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.password} = $keyPass
-    & .\gradlew.bat --console=plain @(if ($Sklep) { 'assemblePelnaRelease', 'bundleSklepRelease', 'bundleSklepytRelease' } else { 'assemblePelnaRelease' })
+    & .\gradlew.bat --console=plain @(if ($Sklep) { 'assemblePelnaRelease', 'bundleSklepRelease', 'bundleSklepytRelease', ':klawiatura:assembleRelease' } else { 'assemblePelnaRelease', ':klawiatura:assembleRelease' })
     if ($LASTEXITCODE -ne 0) { Write-Host "Budowa Androida nie powiodla sie (zle haslo? brak SDK?)." -ForegroundColor Red; exit 1 }
 } finally {
     Pop-Location; $ksPass = $null; $keyPass = $null
@@ -108,6 +108,7 @@ Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $o = Join-Path $PSScriptRoot 'android\app\build\outputs'
 Copy-Item "$o\apk\pelna\release\*.apk" (Join-Path $out 'Velivo-pelna.apk')
+Copy-Item (Join-Path $PSScriptRoot 'android\klawiatura\build\outputs\apk\release\*.apk') (Join-Path $out 'Velivo-klawiatura.apk')
 if ($Sklep) {
     Copy-Item "$o\bundle\sklepRelease\*.aab" (Join-Path $out 'Velivo-sklep.aab')
     Copy-Item "$o\bundle\sklepytRelease\*.aab" (Join-Path $out 'Velivo-sklepyt.aab')
@@ -116,6 +117,7 @@ Set-Content (Join-Path $cfgDir 'ostatnio-android.txt') $head
 Write-Host "Gotowe:" -ForegroundColor Green
 if ($needWin) { Write-Host "  build\instalator\Velivo-Setup-1.22.exe - Windows" }
 Write-Host "  build\android\Velivo-pelna.apk      - telefon (Ty i mama, WhatsApp)"
+Write-Host "  build\android\Velivo-klawiatura.apk - klawiatura Velivo (osobna aplikacja)"
 if ($Sklep) { Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"
 Write-Host "  build\android\Velivo-sklepyt.aab    - Google Play (jak Brave)" }
 Start-Process $out

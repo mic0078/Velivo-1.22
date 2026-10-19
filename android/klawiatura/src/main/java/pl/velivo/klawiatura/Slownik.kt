@@ -1,4 +1,4 @@
-package pl.velivo.browser
+package pl.velivo.klawiatura
 
 import kotlin.math.ln
 import kotlin.math.max

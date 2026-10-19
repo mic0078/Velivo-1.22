@@ -405,10 +405,10 @@ set(p0,p);})"""
         // film dopasowany do okienka: skala i przesunięcie liczone z miejsca filmu na stronie i rozmiaru okienka
         // (nie z pomiaru widoku - na Xiaomi film zostawał przyklejony do lewej)
         if (pip) listOf(300L, 1200L).forEach { d -> window.decorView.postDelayed({ val w = web() ?: return@postDelayed
-            w.evaluateJavascript("(function(){var v=document.querySelector('video');if(!v)return '';var r=v.getBoundingClientRect();return r.left+','+r.top+','+r.width+','+r.height})()") { t ->
+            w.evaluateJavascript("(function(){var v=document.querySelector('video');if(!v)return '';var r=v.getBoundingClientRect();return r.left+','+r.top+','+r.width+','+r.height+','+window.innerWidth})()") { t ->
                 val r = t?.trim('"')?.split(',')?.mapNotNull { it.toFloatOrNull() }
-                if (!isInPictureInPictureMode || r == null || r.size != 4 || r[2] <= 0f || r[3] <= 0f) return@evaluateJavascript
-                val den = resources.displayMetrics.density
+                if (!isInPictureInPictureMode || r == null || r.size != 5 || r[2] <= 0f || r[3] <= 0f || r[4] <= 0f) return@evaluateJavascript
+                val den = w.width / r[4]   // piksele widoku na piksel strony (strona może mieć inne powiększenie niż gęstość ekranu)
                 val pw = window.decorView.width.toFloat(); val ph = window.decorView.height.toFloat()
                 val sc = minOf(pw / (r[2] * den), ph / (r[3] * den))
                 pipFitted = true; w.pivotX = 0f; w.pivotY = 0f; w.scaleX = sc; w.scaleY = sc

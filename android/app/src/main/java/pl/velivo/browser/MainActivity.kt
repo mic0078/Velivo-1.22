@@ -577,10 +577,14 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
         // Gra w tle i w okienku: gdy Android zatrzymuje Velivo (zgaszony ekran, okienko), WebView chowa stronę i wyłącza
         // obraz i dźwięk filmu. Dopóki w tej karcie gra film, a granie w tle jest włączone - strona dalej "widoczna".
         val w = object : WebView(this) {
+            private var kept = false
             override fun onWindowVisibilityChanged(visibility: Int) {
                 val keep = visibility != View.VISIBLE && videoPlaying && this === web() && tabs.getOrNull(cur)?.bank != true &&
                     prefs.getBoolean("tlo", true) && !youtubeLimited()
-                super.onWindowVisibilityChanged(if (keep) View.VISIBLE else visibility)
+                if (keep) { kept = true; super.onWindowVisibilityChanged(View.VISIBLE); return }
+                // powrót po "udawanej" widoczności: obraz strony trzeba odbudować (inaczej biały ekran) - na moment ukryj i pokaż
+                if (visibility == View.VISIBLE && kept) { kept = false; super.onWindowVisibilityChanged(View.INVISIBLE); super.onWindowVisibilityChanged(View.VISIBLE); return }
+                super.onWindowVisibilityChanged(visibility)
             }
         }
         if (bank) WebViewCompat.setProfile(w, BANK_PROFILE)

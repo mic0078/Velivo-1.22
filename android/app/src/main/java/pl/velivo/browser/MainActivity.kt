@@ -1339,6 +1339,15 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
             Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6)),
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
+        // na samym dole menu też płaski pasek YouTube (przytrzymanie: wyłącznik czasowy i pobudka)
+        box.addView(TextView(this).apply {
+            text = "▶  YouTube  ·  " + getString(R.string.youtube_flat)
+            gravity = Gravity.CENTER; textSize = 14f; setTextColor(Color.WHITE)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#E62117")); cornerRadius = dp(10).toFloat() }
+            contentDescription = getString(R.string.youtube); tooltipText = getString(R.string.youtube)
+            setOnClickListener { dlg.dismiss(); ytBar.performClick() }
+            setOnLongClickListener { dlg.dismiss(); askSleep(); true }
+        }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(14); leftMargin = dp(4); rightMargin = dp(4) })
         dlg.setContentView(PinchFrame(ScrollView(this).apply { addView(box) }))
         dlg.window?.apply {
             setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))

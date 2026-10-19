@@ -205,7 +205,7 @@ class PlayerActivity : Activity() {
         }.show()
     }
 
-    private val sleepRun = Runnable { sleepAt = 0; player.pause(); stopService(Intent(this, PlaybackService::class.java)) }
+    private val sleepRun = Runnable { sleepAt = 0; player.pause(); PlaybackService.stop(this) }
 
     // --- obraz w obrazie i granie w tle ---
     private fun pipParams() = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).apply {
@@ -234,20 +234,20 @@ class PlayerActivity : Activity() {
         // poza okienkiem: gra dalej w tle (powiadomienie z Zatrzymaj), gdy włączone „Odtwarzanie w tle”
         run {
             if (player.isPlaying && prefs.getBoolean("tlo", true))
-                runCatching { startForegroundService(Intent(this, PlaybackService::class.java).putExtra(PlaybackService.EXTRA_TITLE, queue.getOrNull(index)?.title ?: "")) }
+                PlaybackService.start(this, queue.getOrNull(index)?.title ?: "")
             else player.pause()
         }
     }
 
     override fun onStart() {
         super.onStart()
-        stopService(Intent(this, PlaybackService::class.java))
+        PlaybackService.stop(this)
     }
 
     override fun onDestroy() {
         savePos(); reportJellyfin()
         ui.removeCallbacksAndMessages(null)
-        stopService(Intent(this, PlaybackService::class.java))
+        PlaybackService.stop(this)
         player.release()
         if (current?.get() == this) current = null
         super.onDestroy()

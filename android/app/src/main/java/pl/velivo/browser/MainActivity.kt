@@ -258,7 +258,7 @@ set(p0,p);})"""
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             tts?.stop()
             PlayerActivity.pauseIfPlaying()
-            stopService(Intent(this, PlaybackService::class.java))
+            PlaybackService.stop(this)
         startLan()
             return
         }
@@ -379,7 +379,7 @@ set(p0,p);})"""
         super.onStop()
         if (isInPictureInPictureMode) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
-            stopService(Intent(this, PlaybackService::class.java))
+            PlaybackService.stop(this)
         }
     }
 
@@ -390,7 +390,7 @@ set(p0,p);})"""
         tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
         tts?.stop()
         PlayerActivity.pauseIfPlaying()
-        stopService(Intent(this, PlaybackService::class.java))
+        PlaybackService.stop(this)
     }
 
     private fun setSleep(min: Int) {
@@ -516,7 +516,7 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
         w.evaluateJavascript("[].some.call(document.querySelectorAll('video,audio'),function(m){return !m.paused&&!m.ended})") { playing ->
             if (playing != "true") return@evaluateJavascript
             runCatching {
-                startForegroundService(Intent(this, PlaybackService::class.java).putExtra(PlaybackService.EXTRA_TITLE, w.title))
+                PlaybackService.start(this, w.title ?: "")
             }
         }
     }
@@ -1220,11 +1220,11 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             // ostatni fragment przeczytany -> zdejmij powiadomienie, ktore trzymalo czytanie przy zgaszonym ekranie
             t.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                 override fun onStart(id: String?) {}
-                override fun onDone(id: String?) { if (id == "v${parts.size - 1}") stopService(Intent(this@MainActivity, PlaybackService::class.java)) }
+                override fun onDone(id: String?) { if (id == "v${parts.size - 1}") PlaybackService.stop(this@MainActivity) }
                 @Deprecated("") override fun onError(id: String?) {}
             })
             parts.forEachIndexed { i, part -> t.speak(part, if (i == 0) android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD, null, "v$i") }
-            runCatching { startForegroundService(Intent(this, PlaybackService::class.java).putExtra(PlaybackService.EXTRA_TITLE, "🔊 " + (web()?.title ?: ""))) }
+            PlaybackService.start(this, "🔊 " + (web()?.title ?: ""))
             toast(getString(R.string.reading_started))
         }
         if (tts != null) go() else tts = android.speech.tts.TextToSpeech(this) { st ->
@@ -1245,7 +1245,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    private fun stopSpeaking() { tts?.stop(); stopService(Intent(this, PlaybackService::class.java)) }
+    private fun stopSpeaking() { tts?.stop(); PlaybackService.stop(this) }
 
     private fun showReader(title: String, body: String) {
         val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
@@ -2705,7 +2705,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     override fun onResume() {
         super.onResume()
-        stopService(Intent(this, PlaybackService::class.java))
+        PlaybackService.stop(this)
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)
         pipCheck.removeCallbacks(pipTick); pipCheck.post(pipTick)

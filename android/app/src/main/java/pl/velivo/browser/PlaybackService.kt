@@ -30,15 +30,32 @@ class PlaybackService : Service() {
             .addAction(Notification.Action.Builder(null, getString(R.string.sleep_30), PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java).setAction(ACTION_SLEEP), PendingIntent.FLAG_IMMUTABLE)).build())
             .setOngoing(true)
             .build()
-        if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-        else startForeground(1, n)
+        // startForeground zawsze, także przy zatrzymaniu - inaczej Android zamyka aplikację (ForegroundServiceDidNotStartInTime)
+        runCatching { if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) else startForeground(1, n) }
+        if (intent?.action == ACTION_END) { running = false; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
         return START_NOT_STICKY
     }
+
+    override fun onDestroy() { running = false; super.onDestroy() }
 
     companion object {
         const val CHANNEL = "odtwarzanie"
         const val ACTION_STOP = "pl.velivo.browser.STOP"
         const val ACTION_SLEEP = "pl.velivo.browser.SEN"
         const val EXTRA_TITLE = "tytul"
+        private const val ACTION_END = "pl.velivo.browser.KONIEC"
+        @Volatile private var running = false
+
+        fun start(ctx: android.content.Context, title: String) {
+            runCatching { ctx.startForegroundService(Intent(ctx, PlaybackService::class.java).putExtra(EXTRA_TITLE, title)); running = true }
+        }
+
+        // zatrzymanie przez usługę (nie stopService): gdy start dopiero trwa, usługa i tak zdąży wywołać startForeground
+        fun stop(ctx: android.content.Context) {
+            if (!running) return
+            running = false
+            runCatching { ctx.startForegroundService(Intent(ctx, PlaybackService::class.java).setAction(ACTION_END)) }
+                .onFailure { ctx.stopService(Intent(ctx, PlaybackService::class.java)) }
+        }
     }
 }

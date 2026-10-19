@@ -25,6 +25,8 @@ This manual describes the full version (`Velivo-pelna.apk`). The Google Play ver
 - **The red "▶ YouTube" bar at the very bottom** – YouTube without adverts; press and hold: sleep timer and wake-up (chapter 8).
 - **Press and hold on an advert** or an empty "ADVERT" box – Velivo asks whether to remove it.
 
+- **Home-screen widget:** press and hold an empty spot on the home screen → **Widgets** → **Velivo**. It has **🔎 Search** (opens Velivo with the keyboard), **▶ YouTube** and **🗒 Notes** with the nearest dates ("today", "tomorrow", a date). It shows only your notes on the phone and refreshes after every change. It can be resized.
+
 ## 1a. Zoom (for weaker eyesight)
 
 - **Spread two fingers** in the menu or the lists of tabs, bookmarks, history, passwords and notes – everything gets bigger; pinch – smaller (80–220%). The top bar and the bottom buttons grow too, and at large sizes the menu shows tiles two to a row.

@@ -184,6 +184,7 @@ class MainActivity : Activity() {
         Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
         if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
+        if (intent?.action == Widzet.ACTION_SEARCH || intent?.action == Widzet.ACTION_YT) { val a = intent.action; window.decorView.post { widgetAction(a) } }
         if (intent?.action == TvPlan.ACTION) window.decorView.post { startPlanned(intent.getIntExtra("id", -1)) }
         Thread { runCatching { vaultDomains = passwords.all().map { Ochrona.regDomain(it.host) }.filter { it.contains('.') }.toHashSet() } }.start()
         // Powiadomienie odtwarzania w tle wymaga zgody (Android 13+).
@@ -263,6 +264,7 @@ set(p0,p);})"""
         super.onNewIntent(intent)
         if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
         if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
+        if (intent.action == Widzet.ACTION_SEARCH || intent.action == Widzet.ACTION_YT) { widgetAction(intent.action); return }
         if (intent.action == TvPlan.ACTION) { startPlanned(intent.getIntExtra("id", -1)); return }
         if (intent.action == PlaybackService.ACTION_SLEEP) { setSleep(((sleepAt - System.currentTimeMillis()).coerceAtLeast(0) / 60000).toInt() + 30); moveTaskToBack(true); return }
         if (intent.action == PlaybackService.ACTION_STOP) {
@@ -292,6 +294,13 @@ set(p0,p);})"""
             it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+    }
+
+    // widżet na pulpicie: 🔎 - pasek adresu z klawiaturą, ▶ - YouTube (jak czerwony pasek)
+    private fun widgetAction(a: String?) {
+        if (a == Widzet.ACTION_YT) { ytBar.performClick(); return }
+        address.requestFocus(); address.selectAll()
+        address.postDelayed({ getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.showSoftInput(address, 0) }, 200)
     }
 
     private fun exitFullscreen() {
@@ -383,6 +392,10 @@ set(p0,p);})"""
         web()?.evaluateJavascript(if (pip) "(function(){var s=document.getElementById('velivo-pip')||document.createElement('style');s.id='velivo-pip';" +
             "s.textContent='video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
             "document.documentElement.appendChild(s);var v=document.querySelector('video');if(v&&v.paused)v.play();})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
+        // z pełnego ekranu: YouTube zamyka pełny ekran przy zmianie rozmiaru i przy tym pauzuje - wznów jeszcze kilka razy
+        if (pip) for (d in longArrayOf(400, 1200, 2500)) pipCheck.postDelayed({
+            if (isInPictureInPictureMode) web()?.evaluateJavascript("(function(){var v=document.querySelector('video');if(v&&v.paused&&!v.ended){var p=v.play();if(p&&p.catch)p.catch(function(){})}})()", null)
+        }, d)
     }
 
     // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu

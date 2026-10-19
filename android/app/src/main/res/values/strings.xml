@@ -357,4 +357,8 @@
     <string name="media_share_ask">📲 Ask the computer for Films and TV</string>
     <string name="media_share_wait">The computer (Velivo for Windows on your home network, with LAN sync on) will ask its owner. Compare the code shown there with the one on this phone. Passwords, bookmarks and Quick Access are never sent this way.</string>
     <string name="media_share_code">Code: %1$s – it must be the same as on the computer</string>
+    <string name="widget_search">🔎 Search or type an address</string>
+    <string name="widget_notes">🗒 Notes</string>
+    <string name="widget_desc">Search, YouTube and your sticky notes with their dates</string>
+    <string name="widget_no_notes">No sticky notes – tap 🗒 to add one</string>
 </resources>

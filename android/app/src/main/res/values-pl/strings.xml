@@ -357,4 +357,8 @@
     <string name="media_share_ask">📲 Poproś komputer o Filmy i TV</string>
     <string name="media_share_wait">Komputer (Velivo na Windows w sieci domowej, z włączoną synchronizacją LAN) zapyta właściciela. Porównaj kod pokazany tam z kodem na tym telefonie. Tą drogą nigdy nie idą hasła, zakładki ani Szybki Dostęp.</string>
     <string name="media_share_code">Kod: %1$s – musi być taki sam jak na komputerze</string>
+    <string name="widget_search">🔎 Szukaj albo wpisz adres</string>
+    <string name="widget_notes">🗒 Karteczki</string>
+    <string name="widget_desc">Szukaj, YouTube i Twoje karteczki z terminami</string>
+    <string name="widget_no_notes">Brak karteczek – stuknij 🗒, aby dodać</string>
 </resources>

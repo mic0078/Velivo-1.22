@@ -73,6 +73,11 @@
                 <data android:scheme="file" android:mimeType="audio/*" />
             </intent-filter>
         </activity>
+        <!-- widżet na pulpit: szukaj, YouTube, karteczki -->
+        <receiver android:name=".Widzet" android:exported="true" android:label="Velivo">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widzet_velivo" />
+        </receiver>
         <service
             android:name=".Odswiezanie"
             android:exported="false"

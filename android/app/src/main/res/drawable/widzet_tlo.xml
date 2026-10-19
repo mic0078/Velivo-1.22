@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tło widżetu: ciemny fiolet Velivo, zaokrąglone -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#E61B1733" />
+    <stroke android:width="1dp" android:color="#4A3F8A" />
+    <corners android:radius="22dp" />
+</shape>

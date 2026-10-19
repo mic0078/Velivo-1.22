@@ -25,6 +25,8 @@ Instrukcja opisuje wersję pełną (plik `Velivo-pelna.apk`). Wersje ze Sklepu P
 - **Czerwony pasek „▶ YouTube” na samym dole** – YouTube bez reklam; przytrzymanie: wyłącznik czasowy i pobudka (rozdział 8).
 - **Przytrzymanie palca na reklamie** albo pustym polu „REKLAMA” – Velivo pyta, czy je usunąć.
 
+- **Widżet na pulpit:** przytrzymaj palec na pustym miejscu pulpitu → **Widżety** → **Velivo**. Ma pole **🔎 Szukaj** (otwiera Velivo z klawiaturą), **▶ YouTube** i **🗒 Karteczki** z najbliższymi terminami („dziś”, „jutro”, data). Pokazuje tylko Twoje karteczki z telefonu; odświeża się po każdej zmianie karteczki. Rozmiar można zmieniać.
+
 ## 1a. Powiększanie (dla słabszego wzroku)
 
 - **Dwa palce rozsuwane** w menu, na liście kart, zakładek, historii, haseł i karteczek – wszystko większe; zsuwane – mniejsze (80–220%). Razem z tym rośnie górny pasek i dolne przyciski, a przy dużym powiększeniu menu ma kafelki po 2 w rzędzie.

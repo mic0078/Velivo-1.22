@@ -1,12 +1,25 @@
 # Velivo na telefon – instrukcja
 
-Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączona z Velivo na Windows. Wymaga Androida 10 lub nowszego. Komputer jest „główny”: to, co przychodzi z telefonu, komputer zawsze potwierdza.
+Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo z wbudowaną telewizją, biblioteką filmów, odtwarzaczem filmów i muzyki (VLC) oraz połączeniem z Velivo na Windows. Wymaga Androida 10 lub nowszego. Nie ma kont, reklam ani śledzenia – wszystko zostaje w telefonie. Komputer jest „główny”: to, co przychodzi z telefonu, komputer zawsze potwierdza.
+
+> **👓 Dobra dla osób słabowidzących – dlaczego:**
+> - **wszystko da się powiększyć dwoma palcami** – menu, przyciski, listy i tekst stron (do 220%), a każda strona pamięta swoją wielkość;
+> - **duże kafelki z ikonami i podpisami** po 3 w rzędzie (przy dużym powiększeniu po 2), duże przyciski odtwarzacza;
+> - **wyraźne kolory** – ciemny lub jasny motyw o mocnym kontraście;
+> - **czytnik** (sam tekst, duże litery) i **czytanie na głos**, także przy zgaszonym ekranie;
+> - **gesty jasności i głośności** w odtwarzaczu, bez szukania małych suwaków;
+> - **karteczki z przypomnieniem** (lekarz, leki) i **ochrona przed fałszywymi stronami** – czerwone ostrzeżenie z jednym przyciskiem „Wróć (bezpiecznie)”;
+> - **bez reklam i wyskakujących okien**, które zasłaniają treść.
+>
+> Ustawienie krok po kroku: rozdział 7.
+
+Instrukcja opisuje wersję pełną (plik `Velivo-pelna.apk`). Wersje ze Sklepu Play różnią się tylko YouTube – rozdział 10.
 
 ## 1. Ekran i menu
 
 - **Pasek adresu** – wpisz adres albo szukane słowa (wyszukiwanie przez Startpage).
 - **🕶** – nowa karta prywatna. **Przycisk z liczbą** – lista kart z miniaturami (stuknij = przełącz, ✕ lub przesunięcie w bok = zamknij).
-- **Logo Velivo** – menu. Kafelki są w czterech grupach, po 3 w rzędzie: **Karty**, **Ta strona** (szukaj, czytnik, czytanie na głos, usuń element, dodaj zakładkę, wpisz hasło), **Moje**, **Ustawienia** (z kafelkiem **🌐 Język**). Na górze licznik zablokowanych reklam.
+- **Logo Velivo** – menu. Kafelki są w pięciu grupach, po 3 w rzędzie: **Karty**, **Ta strona**, **Filmy i TV**, **Moje**, **Ustawienia**. Na górze zielony licznik „🛡 Zablokowane reklamy” – stuknięcie otwiera panel prywatności (rozdział 6).
 - **Dolny pasek** – ◀ wstecz, ▶ dalej, ⟳ odśwież, ⌂ strona startowa, ＋ nowa karta (Szybki Dostęp).
 - **Czerwony pasek „▶ YouTube” na samym dole** – YouTube bez reklam; przytrzymanie: wyłącznik czasowy i pobudka (rozdział 8).
 - **Przytrzymanie palca na reklamie** albo pustym polu „REKLAMA” – Velivo pyta, czy je usunąć.
@@ -66,6 +79,17 @@ Szybciej: **przytrzymaj palec** na reklamie albo pustym polu „REKLAMA” – V
 
 Reguły są zapisane tylko w telefonie (nie synchronizują się z komputerem).
 
+**Filmy i TV** (szczegóły w rozdziale 8a):
+
+| Kafelek | Co robi |
+| --- | --- |
+| 📺 Telewizja | Kanały z Twojej listy IPTV (M3U) z programem TV, siatką programu, archiwum ⏪ i planowaniem ⏰ |
+| 🎬 Biblioteka | Filmy i seriale z Twojego serwera Jellyfin w sieci domowej – „oglądane dalej”, filmy, seriale z odcinkami |
+| 🎞 Moje filmy | Twoja lista wybranych plików (z telefonu, karty pamięci, dysku w chmurze) – ＋ dodaje, przytrzymanie usuwa z listy |
+| 🎵 Moje utwory | Twoja lista utworów z YouTube: kategorie, własne playlisty, odtwarzanie po kolei |
+| ⭐ Dodaj ten utwór | Dodaje film/utwór otwarty na YouTube do Moich utworów |
+| 🌙 Wyłącz odtwarzanie za… | Wyłącznik czasowy: po tym utworze, po 15–90 minutach albo własny czas; ⏰ pobudka z utworem |
+
 ## 3. Moje
 
 | Kafelek | Co robi |
@@ -96,6 +120,9 @@ Hasła są szyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). 
 | Synchronizacja z komputerem | Parowanie, plik odzyskiwania, nazwa telefonu w sieci |
 | 🌐 Język | Polski albo angielski – tylko dla Velivo (systemowy wybór języka aplikacji) |
 | Wyczyść historię | Usuwa historię przeglądania |
+| 🧭 Domyślna przeglądarka | Systemowe pytanie Androida: ustawić Velivo jako domyślną przeglądarkę (linki z innych aplikacji otworzą się w Velivo). Tylko gdy chcesz |
+| ▶ Domyślny odtwarzacz | Jak sprawić, by filmy i muzyka z Galerii, Plików czy WhatsAppa otwierały się w Velivo: Otwórz za pomocą → Velivo → **Zawsze**. Android nie pozwala aplikacji ustawić się samej |
+| 📱 Filmy i muzyka z telefonu | Wszystkie filmy, muzyka i dźwięki z całego telefonu (także systemowe) – ☰: wszystko / 🎬 filmy / 🎵 moja muzyka / 🔔 dźwięki wbudowane (dzwonki, powiadomienia, alarmy); A–Z albo od najnowszych; licznik u góry. Przy pierwszym otwarciu Android zapyta o dostęp do filmów i muzyki |
 
 ## 5. Połączenie z komputerem
 
@@ -128,6 +155,10 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
 - Połączenie jest szyfrowane (AES-GCM) kluczem z parowania; inne telefony w sieci nic nie odczytają.
 - Pozycja w czytniku, ukryte elementy i ustawienia zostają w telefonie.
 
+- **Filmy i TV:** adresy list kanałów (często z tokenem) i dane logowania Jellyfin są zaszyfrowane w telefonie (Android Keystore) i nie trafiają do logów ani komunikatów o błędach. Lista kanałów i program są zapisane zaszyfrowane. Zaplanowane audycje pamiętają tylko nazwę kanału.
+- **Filmy i muzyka z telefonu:** Velivo czyta je tylko na Twoje żądanie (po zgodzie Androida) i niczego nie wysyła.
+- **Brak kont i telemetrii:** Velivo nie wysyła statystyk ani danych do autora. Raport błędu powstaje tylko w telefonie i trafia gdzieś dopiero, gdy sam go skopiujesz.
+
 ## 7. Velivo dla osób ze słabszym wzrokiem – ustawienie krok po kroku
 
 Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
@@ -153,7 +184,45 @@ Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
 
 ## 8a. Filmy i TV
 
-Menu → **Filmy i TV**: 🎵 Moje utwory (własna lista z YouTube z kategoriami i playlistami, odtwarzanie po kolei), ⭐ Dodaj ten utwór, 🌙 wyłącznik / pobudka, 📺 Telewizja (własne listy M3U z programem TV, ⭐ ulubione, 📋 własne listy, przesunięcie palcem = zmiana kanału), 🎬 Biblioteka (Jellyfin – serwer znajduje się sam, logowanie nazwą i hasłem, bez kluczy: oglądane dalej, filmy, seriale), 📁 Moje filmy (wybrane pliki z telefonu). Odtwarzacz pamięta miejsce, ma obraz w obrazie, granie w tle, wyłącznik 🌙, napisy i lektora. Ustawienia można wysłać z komputera. Szczegóły: `dokumentacja/instrukcja-filmy-tv.md`, rozdział 14.
+### Odtwarzacz (VLC)
+
+Velivo odtwarza wszystko biblioteką VLC – tą samą co Velivo na Windows: kanały TV (MPEG-TS, HLS), stare AVI, MKV, MP4, dźwięk AC3, napisy. Nic nie trzeba doinstalowywać.
+
+- **Górny pasek:** tytuł i to, co leci; **🗨** lektor / język i napisy; **🌙** wyłącznik; **⧉** okienko (obraz w obrazie); **✕** zamknij. W TV także **☆/⭐** ulubiony kanał, **⏪** od początku audycji (archiwum) albo **⏩** na żywo.
+- **Środek:** ⏮ poprzedni, ⏪ −10 s, ⏯, ⏩ +10 s, ⏭ następny (w TV – poprzedni / następny kanał z listy).
+- **Dół:** opis audycji (teraz, potem, opis), w filmach pasek postępu i czas.
+- **Gesty (w pionie i poziomie):** lewa połowa w górę/dół – **jasność**, prawa – **głośność** (wskaźnik ☀ / 🔊 %), w bok – przewijanie filmu, dwuklik – ±10 s, stuknięcie – pokaż / ukryj przyciski.
+- **Pamięć miejsca:** film wznawia się tam, gdzie przerwałeś (Jellyfin – także na serwerze).
+- **Okienko i tło:** wyjście do ekranu głównego – obraz w obrazie; przy zgaszonym ekranie gra dalej (powiadomienie z Zatrzymaj). Zamknięcie okienka zatrzymuje odtwarzanie.
+- **🌙 Wyłącznik:** na górze **„📺 Po zakończeniu tego programu”** (TV – dokładnie z końcem audycji, także po zmianie kanału) albo **„🎬 Po zakończeniu filmu”**, dalej 15–90 minut. Potem odtwarzanie się zatrzymuje, a telefon wraca do zwykłego czuwania.
+- **Muzyka:** przy plikach dźwiękowych kosmiczna wizualizacja VLC (jeśli telefon ją obsługuje).
+
+### 📺 Telewizja
+
+1. **Lista kanałów:** ⚙ → dodaj listę: adres M3U (link od dostawcy) albo plik z telefonu, opcjonalnie adres programu TV (EPG). Można też wysłać listy z Velivo na Windows: prawy klik na 🎬 albo 📺 → **📱 Wyślij Filmy i TV do telefonu** (także duże listy z pliku). ⚙ → lista → **Edytuj / Usuń**.
+2. **Lista kanałów na ekranie:** domyślnie A–Z (albo ulubione najpierw / kolejność z listy), szukaj, **☰** grupa / ⭐ ulubione / 📋 własne listy. Pod kanałem: „Teraz … (do …) / Potem …”. **☆** – ulubiony. Przytrzymanie kanału – 📅 program kanału, dodanie do własnej listy.
+3. **📅 Program TV:** co leci teraz / dziś o 20:00 / jutro / o wybranej porze; **⏰ Zaplanowane**; **📋 Co i kiedy** (kanały wybranej grupy A–Z → program kanału); **🗓 Siatka programu** (kanały A–Z × godziny, czerwona linia „teraz”, przewijanie w bok – do przodu i w archiwum).
+4. **Audycja** (stuknięcie w programie, siatce, „co i kiedy”):
+   - **⏰ Włącz o 21:00** → „Włącz i oglądaj dalej” albo „Włącz i wyłącz odtwarzanie po zakończeniu”. O tej porze Velivo samo włącza kanał – także przy zablokowanym ekranie (budzik systemowy).
+   - **⏪ Oglądaj z archiwum** – audycje, które były (tyle dni wstecz, ile ma kanał, np. 3; najwyżej 7) albo od początku trwającej. Velivo samo szuka formatu archiwum, którego używa Twój dostawca (Flussonic, Xtream, shift, własny wzór z listy) i go zapamiętuje. Po audycji z archiwum włącza następną, a gdy dojdzie do „teraz” – na żywo.
+   - **▶ Oglądaj teraz**, **ℹ Opis**.
+5. **Szybko:** lista i program są zapisane w telefonie (zaszyfrowane) – Telewizja otwiera się od razu, program dociąga się w tle (co 12 godzin), **⟳** wymusza odświeżenie. W nocy (ładowanie + Wi-Fi + telefon nieużywany) Velivo samo odświeża listy, program i bibliotekę.
+6. **Gdy kanał nie gra:** po 25 s komunikat – wiele list pozwala na jedno połączenie naraz; zatrzymaj TV na innym urządzeniu (np. komputerze).
+
+### 🎬 Biblioteka (Jellyfin)
+
+- **Bez kluczy API:** Velivo samo znajduje serwer Jellyfin w sieci domowej → wybierz użytkownika → hasło. Serwer daje telefonowi własny token (widoczny w Jellyfin → Urządzenia, można go odwołać). Albo ustawienia przychodzą z komputera.
+- **Widoki:** oglądane dalej, filmy, seriale (☰); sortowanie A–Z / najnowsze / rok. Serial → odcinki.
+- Biblioteka otwiera się od razu z zapisu w telefonie i odświeża z serwera – filmy usunięte z serwera znikają, nowe się pojawiają.
+
+### 🎞 Moje filmy i 📱 filmy i muzyka z telefonu
+
+- **🎞 Moje filmy** – Twoja wybrana lista plików (＋ dodaj, przytrzymanie – usuń z listy; plik zostaje w telefonie).
+- **📱 Filmy i muzyka z telefonu** (Ustawienia) – wszystko, co jest w telefonie, rozdzielone na filmy, moją muzykę i dźwięki wbudowane; stuknięcie odtwarza, ⏮ ⏭ przechodzą po liście.
+
+### 🎵 Moje utwory (YouTube)
+
+Menu → **⭐ Dodaj ten utwór** na otwartym filmie YouTube (kategoria, playlisty) → **🎵 Moje utwory**: A–Z / kategorie / najnowsze, ☰ kategoria lub playlista, odtwarzanie po kolei. Zapis tylko w telefonie.
 
 ## 9. Gdy coś pójdzie nie tak
 
@@ -162,3 +231,17 @@ Menu → **Filmy i TV**: 🎵 Moje utwory (własna lista z YouTube z kategoriami
 - Strona źle działa przez blokowanie reklam: panel prywatności (licznik 🛡 w menu) → **Wyłącz blokowanie tu**.
 - Czytanie lub muzyka urywa się po zgaszeniu ekranu (Xiaomi): Ustawienia → Aplikacje → Velivo → Oszczędzanie baterii → **Brak ograniczeń**.
 - Pobudka nie zadzwoniła: sprawdź, czy telefon nie jest wyciszony, a w Ustawieniach Androida Velivo ma zgodę na **Alarmy i przypomnienia**.
+
+## 10. Instalacja, aktualizacje i wersje aplikacji
+
+- **Instalacja z pliku** `Velivo-pelna.apk` (np. z WhatsAppa): telefon zapyta o zgodę na instalację z tego źródła. Google Play Protect pokazuje ostrzeżenie przy **każdej** aplikacji spoza Sklepu Play – wybierz **Więcej szczegółów → Zainstaluj mimo to**. To nie znaczy, że Velivo jest groźne; ostrzeżenia nie ma przy instalacji ze Sklepu Play.
+- **Aktualizacje:** nowy plik `Velivo-pelna.apk` otwórz i dotknij **Aktualizuj** – instaluje się na starej wersji, wszystko zostaje (ustawienia, listy kanałów, ulubione, hasła, karteczki). **Nie odinstalowuj** starej wersji – stracisz dane.
+- **Trzy wersje z jednego kodu:**
+
+| Wersja | Plik | Dla kogo | YouTube |
+| --- | --- | --- | --- |
+| Pełna | `Velivo-pelna.apk` | Ty, rodzina, znajomi (instalacja z pliku) | Bez reklam, w tle, pasek „YouTube · bez reklam”, Moje utwory |
+| Sklep | `Velivo-sklep.aab` | Google Play – ostrożna | Bez blokady reklam na YouTube i bez grania YouTube w tle |
+| Sklep YT | `Velivo-sklepyt.aab` | Google Play – jak Brave | Blokada reklam i granie w tle także na YouTube, bez reklamowania tego |
+
+Reszta (przeglądarka, prywatność, telewizja, filmy, Jellyfin, karteczki, synchronizacja) jest taka sama. Wersja pełna i wersje ze sklepu to dla telefonu różne aplikacje – aktualizują się osobno (plik / Sklep Play).

@@ -95,7 +95,7 @@ try {
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.store.password} = $ksPass
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.alias} = $alias
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.password} = $keyPass
-    & .\gradlew.bat --no-daemon --console=plain @(if ($Sklep) { 'assemblePelnaRelease', 'bundleSklepRelease', 'bundleSklepytRelease' } else { 'assemblePelnaRelease' })
+    & .\gradlew.bat --console=plain @(if ($Sklep) { 'assemblePelnaRelease', 'bundleSklepRelease', 'bundleSklepytRelease' } else { 'assemblePelnaRelease' })
     if ($LASTEXITCODE -ne 0) { Write-Host "Budowa Androida nie powiodla sie (zle haslo? brak SDK?)." -ForegroundColor Red; exit 1 }
 } finally {
     Pop-Location; $ksPass = $null; $keyPass = $null

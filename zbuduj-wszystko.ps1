@@ -39,10 +39,17 @@ if ($needWin) {
 if (-not $needAnd) { Write-Host "Android bez zmian - pomijam." -ForegroundColor DarkGray; exit 0 }
 
 Write-Host "Android: 3 wersje..." -ForegroundColor Cyan
-# Java z Android Studio - ta sama, ktorej uzywa Android Studio (inna Java w JAVA_HOME, np. 25, jest dla Gradle za nowa)
-$jbr = @("$env:ProgramFiles\Android\Android Studio\jbr", "$env:LOCALAPPDATA\Programs\Android Studio\jbr", "${env:ProgramFiles(x86)}\Android\Android Studio\jbr") | Where-Object { Test-Path $_ } | Select-Object -First 1
+# Java z Android Studio (folder jbr) - ta sama, ktorej uzywa Android Studio. Java z JAVA_HOME bywa za nowa (np. 25) dla Gradle.
+$roots = @("$env:ProgramFiles\Android", "$env:LOCALAPPDATA\Programs", "${env:ProgramFiles(x86)}\Android", "$env:LOCALAPPDATA\JetBrains\Toolbox\apps", "$env:ProgramFiles")
+$jbr = $roots | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { Get-ChildItem $_ -Directory -Filter 'Android Studio*' -ErrorAction SilentlyContinue } |
+    ForEach-Object { Get-ChildItem $_.FullName -Directory -Recurse -Depth 3 -Filter 'jbr' -ErrorAction SilentlyContinue } |
+    Where-Object { Test-Path (Join-Path $_.FullName 'bin\java.exe') } | Select-Object -ExpandProperty FullName -First 1
 if ($jbr) { $env:JAVA_HOME = $jbr }
 elseif (-not $env:JAVA_HOME -or -not (Test-Path $env:JAVA_HOME)) { Write-Host "Nie znaleziono Javy z Android Studio (folder jbr). Zainstaluj Android Studio." -ForegroundColor Red; exit 1 }
+$jv = (& "$env:JAVA_HOME\bin\java.exe" -version 2>&1 | Select-Object -First 1) -replace '.*"(.*)".*', '$1'
+Write-Host "Java do budowy: $env:JAVA_HOME ($jv)" -ForegroundColor DarkGray
+if ([int]($jv.Split('.')[0]) -ge 25) { Write-Host "Ta Java ($jv) jest za nowa dla Gradle. W Android Studio: File > Settings > Build Tools > Gradle > Gradle JDK - tam jest sciezka do wlasciwej Javy; podaj ja: `$env:VELIVO_JAVA='sciezka'" -ForegroundColor Red; if (-not $env:VELIVO_JAVA) { exit 1 } }
+if ($env:VELIVO_JAVA) { $env:JAVA_HOME = $env:VELIVO_JAVA }
 # SDK Androida: local.properties tworzy Android Studio przy pierwszym otwarciu projektu
 $lp = Join-Path $PSScriptRoot 'android\local.properties'
 if (-not (Test-Path $lp)) {

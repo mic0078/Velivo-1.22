@@ -1931,15 +1931,18 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             onLong = { r -> tvChannelMenu(r.tag as Tv.Channel, epg[(r.tag as Tv.Channel).source] ?: emptyMap()) { scr.setRows(rows(), info()) } },
             onStar = { r -> val k = (r.tag as Tv.Channel).key; val f = tvFavs(); prefs.edit().putStringSet("tv-ulubione", if (k in f) f - k else f + k).apply(); r.star = r.star != true })
         fun reload(refresh: Boolean) {
-            scr.setRows(emptyList(), getString(R.string.tv_loading))
+            if (refresh || chans.isEmpty()) scr.setRows(emptyList(), getString(R.string.tv_loading))
             Thread {
-                val all = ArrayList<Tv.Channel>(); val ep = HashMap<String, Map<String, List<Tv.Show>>>(); var err = ""
-                for (s in Tv.sources(passwords)) {
-                    val c = runCatching { Tv.channels(this, passwords, s, refresh) }.getOrElse { e -> err += "\n" + s.name + ": " + tvErr(e); emptyList() }
-                    all.addAll(c)
-                    ep[s.id] = runCatching { Tv.epg(this, s, c, refresh) }.getOrDefault(emptyMap())
-                }
-                runOnUiThread { chans = all; epg = ep; scr.setRows(rows(), info() + if (err.isNotEmpty()) " · " + getString(R.string.tv_error) + err else "") }
+                // najpierw kanały (z pamięci albo zapisu - bez sieci), od razu na ekran; program TV dociąga się potem w tle
+                val all = ArrayList<Tv.Channel>(); var err = ""
+                val srcs = Tv.sources(passwords)
+                val per = srcs.map { s -> s to runCatching { Tv.channels(this, passwords, s, refresh) }.getOrElse { e -> err += "\n" + s.name + ": " + tvErr(e); emptyList() } }
+                per.forEach { all.addAll(it.second) }
+                val errText = if (err.isNotEmpty()) " · " + getString(R.string.tv_error) + err else ""
+                runOnUiThread { chans = all; scr.setRows(rows(), info() + errText) }
+                val ep = HashMap<String, Map<String, List<Tv.Show>>>()
+                per.forEach { (s, c) -> ep[s.id] = runCatching { Tv.epg(this, s, c, refresh) }.getOrDefault(emptyMap()) }
+                runOnUiThread { epg = ep; scr.setRows(rows(), info() + errText) }
             }.start()
         }
         scr.addButton("📅", R.string.tv_guide) {   // pełny program: co leci na wszystkich kanałach o wybranej porze

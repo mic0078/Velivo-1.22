@@ -83,28 +83,34 @@ object Tv {
         return out to epg
     }
 
+    private val memChans = java.util.concurrent.ConcurrentHashMap<String, List<Channel>>()
+    private val memEpg = java.util.concurrent.ConcurrentHashMap<String, Map<String, List<Show>>>()
+
     private fun cacheFile(ctx: Context, id: String, ext: String) = File(File(ctx.filesDir, "tv").apply { mkdirs() }, id + ext)
 
     // lista z pliku na komputerze (przyszła przez LAN): treść tylko w zaszyfrowanym zapisie
-    fun importText(ctx: Context, pw: Passwords, src: Source, text: String) = cacheFile(ctx, src.id, ".bin").writeBytes(pw.sealBytes(text.toByteArray(Charsets.UTF_8)))
+    fun importText(ctx: Context, pw: Passwords, src: Source, text: String) { memChans.remove(src.id + src.url); cacheFile(ctx, src.id, ".bin").writeBytes(pw.sealBytes(text.toByteArray(Charsets.UTF_8))) }
 
     // lista kanałów: z internetu (i zapis zaszyfrowany), a bez internetu - z zapisu
     fun channels(ctx: Context, pw: Passwords, src: Source, refresh: Boolean): List<Channel> {
+        if (!refresh) memChans[src.id + src.url]?.let { return it }   // ponowne otwarcie Telewizji - od razu, bez czytania pliku
         val f = cacheFile(ctx, src.id, ".bin")
-        if ((!refresh || src.url.startsWith("velivo-pc:")) && f.exists()) pw.openBytes(f.readBytes())?.let { return parseM3u(src.id, String(it, Charsets.UTF_8)).first }
+        if ((!refresh || src.url.startsWith("velivo-pc:")) && f.exists()) pw.openBytes(f.readBytes())?.let { return parseM3u(src.id, String(it, Charsets.UTF_8)).first.also { l -> memChans[src.id + src.url] = l } }
         if (src.url.startsWith("velivo-pc:")) throw java.io.IOException("lista z komputera - wyślij ją ponownie z Velivo na Windows")
         val text = readText(ctx, src.url)
         if (!text.contains("#EXTINF")) throw java.io.IOException("to nie jest lista M3U")
         f.writeBytes(pw.sealBytes(text.toByteArray(Charsets.UTF_8)))
         val (list, epg) = parseM3u(src.id, text)
         if (src.epg.isEmpty() && epg.isNotEmpty()) { src.epg = epg; saveSources(pw, sources(pw).map { if (it.id == src.id) src else it }) }
+        memChans[src.id + src.url] = list
         return list
     }
 
     // Program TV (XMLTV): tylko kanały z listy i tylko od 6 godzin wstecz do 2 dni naprzód - mało pamięci, szybko
     fun epg(ctx: Context, src: Source, chans: List<Channel>, refresh: Boolean): Map<String, List<Show>> {
         val f = cacheFile(ctx, src.id, ".epg3.json")
-        if (!refresh && f.exists() && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L) readEpg(f)?.let { return it }
+        val fresh = f.exists() && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L   // program odświeżany co 12 godzin
+        if (!refresh && fresh) { memEpg[src.id]?.let { return it }; readEpg(f)?.let { memEpg[src.id] = it; return it } }
         if (src.epg.isEmpty()) return emptyMap()
         val wanted = HashSet<String>()
         chans.forEach { keys(it).forEach { k -> wanted.add(k) } }
@@ -153,6 +159,7 @@ object Tv {
         val j = JSONObject()
         out.forEach { (k, l) -> j.put(k, JSONArray().apply { l.forEach { put(JSONArray().put(it.start).put(it.stop).put(it.title).put(it.desc)) } }) }
         f.writeText(j.toString())
+        memEpg[src.id] = out
         return out
     }
 

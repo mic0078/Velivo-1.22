@@ -607,6 +607,8 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
                     return
                 }
                 scaleX = 1f; scaleY = 1f; translationY = 0f
+                // karta grająca pod spodem nie zmienia rozmiaru (np. przy klawiaturze) - YouTube pauzował po zmianie rozmiaru
+                if (this === bgTab?.web && normalW > 0 && normalH > 0) { setMeasuredDimension(normalW, normalH); return }
                 super.onMeasure(ws, hs)
                 if (!isInPictureInPictureMode) { normalW = measuredWidth; normalH = measuredHeight }
             }

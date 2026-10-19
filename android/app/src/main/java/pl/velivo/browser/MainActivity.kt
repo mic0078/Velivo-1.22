@@ -688,6 +688,8 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
     // po zablokowanej reklamie nie zostaje dziura ani strona błędu w ramce.
     private fun hideAds(view: WebView, url: String) {
         if (!prefs.getBoolean("adblock", true) || QuickAccess.isQuickAccess(url) || siteAllowed(Uri.parse(url).host)) return
+        // YouTube: reklamy usuwa youtube.js; duży arkusz i ciągłe przeglądanie strony (YouTube zmienia ją bez przerwy) tylko by go spowalniały
+        if ((Uri.parse(url).host ?: "").endsWith("youtube.com")) return
         val css = org.json.JSONObject.quote(blocker.hidingCss(Uri.parse(url).host))
         view.evaluateJavascript("""(function(){var d=document;if(!d.documentElement)return;
 var s=d.getElementById('velivo-reklamy');if(!s){s=d.createElement('style');s.id='velivo-reklamy';(d.head||d.documentElement).appendChild(s);}
@@ -795,9 +797,9 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
 
     // Najpierw to, co już jest na telefonie, potem w tle świeże listy (co 4 dni).
     private fun startFilters() = Thread {
-        blocker = AdBlocker.build(this)
+        blocker = AdBlocker.build(this).also { it.warm() }   // arkusz ukrywania składany w tle, nie przy pierwszej stronie
         reapplyFilters()
-        if (AdBlocker.stale(this) && AdBlocker.download(this) > 0) { blocker = AdBlocker.build(this); reapplyFilters() }
+        if (AdBlocker.stale(this) && AdBlocker.download(this) > 0) { blocker = AdBlocker.build(this).also { it.warm() }; reapplyFilters() }
     }.start()
 
     // Karty przywrócone przy starcie wczytują się, zanim listy są gotowe - po wczytaniu list posprzątaj je jeszcze raz.

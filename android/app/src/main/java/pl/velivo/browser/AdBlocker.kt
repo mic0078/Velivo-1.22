@@ -13,6 +13,7 @@ class AdBlocker(
 ) {
     // Ogólne reguły są wspólne dla wszystkich stron - CSS składany raz.
     private val genericCss by lazy { toCss(generic) }
+    fun warm() { genericCss.length }
 
     // Arkusz ukrywania dla strony: ogólne + reguły tej domeny i domen nadrzędnych.
     fun hidingCss(host: String?): String {

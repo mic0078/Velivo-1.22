@@ -141,6 +141,8 @@ Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
 
 ## 8. YouTube bez reklam, obraz w obrazie i muzyka do snu
 
+> **Pierwsze uruchomienie:** zaraz po instalacji (i raz na kilka dni, gdy Velivo odświeża listy reklam) pierwsza strona – np. YouTube – może wczytywać się kilka sekund dłużej, bo Velivo w tle przygotowuje blokadę reklam. Potem działa szybko.
+
 - **Czerwony pasek „▶ YouTube” na samym dole** – otwiera YouTube (albo wraca do otwartej karty YouTube). Reklamy są usuwane.
 - **Gra w tle i przy zgaszonym ekranie:** włącz film lub muzykę, wyjdź z Velivo albo zgaś ekran – gra dalej; w powiadomieniu **Zatrzymaj**.
 - **Telefon pamięta, gdzie przerwałeś film** (także bez logowania do YouTube): po powrocie do filmu Velivo wznawia od tego miejsca – „▶ Wznawiam od miejsca 12:34”. Obejrzany do końca – następnym razem od początku. Zapis tylko w telefonie (ostatnie 300 filmów), nie w karcie prywatnej ani bankowej.

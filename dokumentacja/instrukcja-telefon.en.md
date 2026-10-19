@@ -141,6 +141,8 @@ Best set up once, together with the person who will use the phone:
 
 ## 8. YouTube without adverts, picture-in-picture and music for sleep
 
+> **First launch:** straight after installing (and once every few days, when Velivo refreshes its advert lists) the first page – e.g. YouTube – may take a few seconds longer to load, because Velivo is preparing ad blocking in the background. After that it is quick.
+
 - **The red "▶ YouTube" bar at the very bottom** – opens YouTube (or returns to the open YouTube tab). Adverts are removed.
 - **Plays in the background and with the screen off:** start a video or music, leave Velivo or turn the screen off – it keeps playing; **Stop** is in the notification.
 - **The phone remembers where you stopped a video** (even without signing in to YouTube): when you come back to it, Velivo carries on from that point – "▶ Carrying on from 12:34". Watched to the end – next time from the start. Stored on the phone only (the last 300 videos), not in private or banking tabs.

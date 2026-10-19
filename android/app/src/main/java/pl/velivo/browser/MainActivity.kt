@@ -394,6 +394,12 @@ set(p0,p);})"""
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
         android.util.Log.i("Velivo-PiP", "okienko: $pip, pełny ekran: ${fullView != null}")
         super.onPictureInPictureModeChanged(pip, cfg)
+        // okienko zamknięte (przeciągnięte na ✕): wychodzi z okienka, gdy Velivo jest zatrzymane - wtedy cisza
+        // (rozwinięcie okienka dzieje się przy uruchomionym Velivo - tam gra dalej)
+        if (!pip && stopped) {
+            tabs.forEach { it.web.evaluateJavascript("window.__vbg=0;document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            bgTab = null; PlaybackService.stop(this)
+        }
         pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
         web()?.requestLayout()
         // bez przestawiania strony; pauzę, którą YouTube robi tuż po wejściu w okienko, cofamy (tylko przez 3 s)
@@ -408,12 +414,14 @@ set(p0,p);})"""
                 android.util.Log.i("Velivo-PiP", "po ${d} ms: $it (okienko: $isInPictureInPictureMode)") } }, d) } }
     }
 
-    // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu
-    // Android zatrzymuje Velivo także przy otwartym okienku (onStop) - nie da się odróżnić od zamknięcia okienka,
-    // więc bez pauzy: film gra dalej jak w tle, z powiadomieniem „Zatrzymaj”.
+    // Android zatrzymuje Velivo także przy otwartym okienku (onStop) - tu bez pauzy: film gra dalej jak w tle,
+    // z powiadomieniem „Zatrzymaj”; zamknięcie okienka (✕) rozpoznaje onPictureInPictureModeChanged.
+    private var stopped = false
+    override fun onStart() { super.onStart(); stopped = false }
     override fun onStop() {
         android.util.Log.i("Velivo-PiP", "zatrzymane (w okienku: $isInPictureInPictureMode)")
         super.onStop()
+        stopped = true
         if (isInPictureInPictureMode && prefs.getBoolean("tlo", true)) PlaybackService.start(this, web()?.title ?: "")
     }
 

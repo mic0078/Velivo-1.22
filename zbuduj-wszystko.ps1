@@ -39,12 +39,10 @@ if ($needWin) {
 if (-not $needAnd) { Write-Host "Android bez zmian - pomijam." -ForegroundColor DarkGray; exit 0 }
 
 Write-Host "Android: 3 wersje..." -ForegroundColor Cyan
-# Java z Android Studio (bez osobnej instalacji)
-if (-not $env:JAVA_HOME -or -not (Test-Path $env:JAVA_HOME)) {
-    $jbr = @("$env:ProgramFiles\Android\Android Studio\jbr", "$env:LOCALAPPDATA\Programs\Android Studio\jbr", "${env:ProgramFiles(x86)}\Android\Android Studio\jbr") | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $jbr) { Write-Host "Nie znaleziono Javy z Android Studio (folder jbr). Zainstaluj Android Studio." -ForegroundColor Red; exit 1 }
-    $env:JAVA_HOME = $jbr
-}
+# Java z Android Studio - ta sama, ktorej uzywa Android Studio (inna Java w JAVA_HOME, np. 25, jest dla Gradle za nowa)
+$jbr = @("$env:ProgramFiles\Android\Android Studio\jbr", "$env:LOCALAPPDATA\Programs\Android Studio\jbr", "${env:ProgramFiles(x86)}\Android\Android Studio\jbr") | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($jbr) { $env:JAVA_HOME = $jbr }
+elseif (-not $env:JAVA_HOME -or -not (Test-Path $env:JAVA_HOME)) { Write-Host "Nie znaleziono Javy z Android Studio (folder jbr). Zainstaluj Android Studio." -ForegroundColor Red; exit 1 }
 # SDK Androida: local.properties tworzy Android Studio przy pierwszym otwarciu projektu
 $lp = Join-Path $PSScriptRoot 'android\local.properties'
 if (-not (Test-Path $lp)) {

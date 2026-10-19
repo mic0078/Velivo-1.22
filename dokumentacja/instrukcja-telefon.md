@@ -124,3 +124,10 @@ Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
 4. **Bezpieczeństwo:** ostrzeżenia przed fałszywymi stronami banków i przed instalacją aplikacji spoza Sklepu Play działają same – warto powiedzieć: „jak Velivo pokaże **⚠ Uwaga**, stuknij **Wróć (bezpiecznie)**”.
 5. **Przypomnienia:** 🗒 Karteczki z datą (np. lekarz 24.10) – powiadomienie dzień wcześniej i w dniu terminu; 🔁 dla leków co tydzień lub co miesiąc.
 6. **Reklamy:** blokowane od razu; pozostałe pole „REKLAMA” – przytrzymaj na nim palec i stuknij **Usuń**.
+
+## 8. YouTube bez reklam, obraz w obrazie i muzyka do snu
+
+- **Czerwony pasek „▶ YouTube” na samym dole** – otwiera YouTube (albo wraca do otwartej karty YouTube). Reklamy są usuwane.
+- **Gra w tle i przy zgaszonym ekranie:** włącz film lub muzykę, wyjdź z Velivo albo zgaś ekran – gra dalej; w powiadomieniu **Zatrzymaj**.
+- **Obraz w obrazie (PiP):** gdy film gra i wyjdziesz do ekranu głównego, film przechodzi do małego okienka nad innymi aplikacjami (okienko można przesuwać; stuknięcie – wróć do Velivo).
+- **⏾ Muzyka do snu (wyłącznik czasowy):** przytrzymaj czerwony pasek YouTube i wybierz 15, 30, 45, 60 albo 90 minut – potem muzyka sama ucichnie. Przy zgaszonym ekranie w powiadomieniu jest **⏾ Wyłącz za 30 min** (każde stuknięcie dodaje 30 minut).

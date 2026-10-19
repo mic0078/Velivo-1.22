@@ -1523,6 +1523,11 @@ Velivo for Android (10 or newer) is a light, private browser in Velivo colours, 
 - **How to set up (once):** spread two fingers in the menu to a comfortable size (up to 220% – all of Velivo and the page text grow); pick a light or dark theme; show 📖 Reader view and 🔊 Read aloud; agree on "⚠ Warning → Go back (safe)"; notes with a date remind about the doctor and medicines the day before.
 - **What it does:** everything larger and remembered, long texts to listen to, protection against fake bank sites and suspicious apps with no setup at all.
 
+### 31.15 YouTube without adverts, picture-in-picture, music for sleep
+- **Where:** the red "▶ YouTube" bar at the very bottom of the screen.
+- **What it does:** YouTube without adverts; plays in the background and with the screen off; leaving Velivo during a video – picture-in-picture (a small window above other apps).
+- **⏾ Sleep timer:** press and hold the bar and choose 15–90 minutes; "⏾ Stop in 30 min" in the notification (each tap +30 min) – music for sleep stops by itself.
+
 # Features NOT AVAILABLE IN 1.22
 
 These things were discussed, but **version 1.22 doesn't have them**:
@@ -1983,3 +1988,4 @@ Features described: **339**. The number next to each feature points to its descr
 - **31.12** Look and language
 - **31.13** Two-finger zoom
 - **31.14** Velivo for people with weaker eyesight
+- **31.15** YouTube without adverts, picture-in-picture, music for sleep

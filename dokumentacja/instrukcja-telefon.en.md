@@ -124,3 +124,10 @@ Best set up once, together with the person who will use the phone:
 4. **Safety:** warnings about fake bank sites and about installing apps from outside Google Play work on their own – it is worth saying: "if Velivo shows **⚠ Warning**, tap **Go back (safe)**".
 5. **Reminders:** 🗒 Sticky notes with a date (e.g. doctor 24.10) – a notification the day before and on the day; 🔁 for medicines every week or month.
 6. **Adverts:** blocked straight away; for a leftover "ADVERT" box press and hold on it and tap **Remove**.
+
+## 8. YouTube without adverts, picture-in-picture and music for sleep
+
+- **The red "▶ YouTube" bar at the very bottom** – opens YouTube (or returns to the open YouTube tab). Adverts are removed.
+- **Plays in the background and with the screen off:** start a video or music, leave Velivo or turn the screen off – it keeps playing; **Stop** is in the notification.
+- **Picture-in-picture (PiP):** when a video is playing and you go to the home screen, it moves to a small window above other apps (you can move it; tap to return to Velivo).
+- **⏾ Music for sleep (sleep timer):** press and hold the red YouTube bar and choose 15, 30, 45, 60 or 90 minutes – then the music stops by itself. With the screen off the notification has **⏾ Stop in 30 min** (each tap adds 30 minutes).

@@ -1210,6 +1210,7 @@ Velivo na telefon to lekka, prywatna przeglądarka na silniku Android WebView (t
 | 🖥 Tryb pulpitu | Wersja strony na komputer dla bieżącej karty |
 | 📖 Czytnik | Sam tekst artykułu; A− / A+, pamięta miejsce, w którym skończyłeś czytać |
 | 🔊 Czytaj na głos | Także przy zgaszonym ekranie (powiadomienie z „Zatrzymaj”); Wstecz zatrzymuje; brak syntezatora – propozycja pobrania Usług mowy Google |
+| ▶ YouTube | Czerwony pasek na dole: bez reklam, gra w tle i przy zgaszonym ekranie, obraz w obrazie; przytrzymanie – ⏾ wyłącznik czasowy (muzyka do snu) |
 | 🔍 Powiększanie | Dwa palce w menu i listach – większe napisy i przyciski Velivo (80–220%); na stronie – tekst tej strony (50–300%), każda strona pamięta swoją wielkość |
 | 🗒 Karteczki | Jak na Windows: termin w treści lub 📅, 🔁 powtarzanie, kolory; powiadomienie dzień wcześniej i w dniu terminu |
 | 🎯 Usuń element | Stuknij reklamę palcem, ⬆ większy obszar, 🗑 usuń (zapamiętane dla strony), ↺ przywróć |

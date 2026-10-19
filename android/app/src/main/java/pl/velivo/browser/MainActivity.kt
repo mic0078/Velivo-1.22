@@ -135,11 +135,6 @@ class MainActivity : Activity() {
         navBtn(button("▶", R.string.forward, BLUE, BLUE_BG) { web()?.let { if (it.canGoForward()) it.goForward() } })
         navBtn(button("⟳", R.string.reload, GREEN, GREEN_BG) { web()?.reload() })
         navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) { web()?.loadUrl(home) })
-        // ▶ YouTube: karta z YouTube, jeśli już jest otwarta; inaczej nowa (bez reklam - jak cały Velivo)
-        navBtn(button("▶", R.string.youtube, Color.WHITE, Color.parseColor("#E62117")) {
-            val i = tabs.indexOfFirst { !it.priv && !it.bank && (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") }
-            if (i >= 0) show(i) else newTab(false, "https://m.youtube.com/")
-        })
         navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, QuickAccess.URL) }.velivo())
         root.addView(bar)
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))
@@ -147,8 +142,24 @@ class MainActivity : Activity() {
         root.addView(buildFindBar())
         root.addView(buildPickBar())
         root.addView(nav)
+        // ▶ płaski pasek YouTube na samym dole: karta z YouTube, jeśli już otwarta; inaczej nowa (bez reklam, gra w tle, obraz w obrazie)
+        ytBar = TextView(this).apply {
+            text = "▶  YouTube  ·  " + getString(R.string.youtube_flat)
+            gravity = Gravity.CENTER; textSize = 13f; setTextColor(Color.WHITE); setBackgroundColor(Color.parseColor("#E62117"))
+            contentDescription = getString(R.string.youtube); tooltipText = getString(R.string.youtube)
+            isClickable = true
+            foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(60, 255, 255, 255)), null, null)
+            // przytrzymanie: wyłącznik czasowy (muzyka do snu)
+            setOnLongClickListener { askSleep(); true }
+            setOnClickListener {
+                val i = tabs.indexOfFirst { !it.priv && !it.bank && (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") }
+                if (i >= 0) show(i) else newTab(false, "https://m.youtube.com/")
+            }
+        }
+        root.addView(ytBar, LinearLayout.LayoutParams(-1, dp(30)))
         uiScale = prefs.getFloat("skala", 1f)
-        chrome = listOf(bar, nav)
+        chrome = listOf(bar, nav, ytBar)
+        pipBars = listOf(bar, progress, nav, ytBar, findBar, pickBar)
         chrome.forEach { applyScale(it) }
         setContentView(root)
         if (Build.VERSION.SDK_INT >= 30) {
@@ -235,6 +246,7 @@ set(p0,p);})"""
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
+        if (intent.action == PlaybackService.ACTION_SLEEP) { setSleep(((sleepAt - System.currentTimeMillis()).coerceAtLeast(0) / 60000).toInt() + 30); moveTaskToBack(true); return }
         if (intent.action == PlaybackService.ACTION_STOP) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             tts?.stop()
@@ -271,6 +283,68 @@ set(p0,p);})"""
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         fullCallback?.onCustomViewHidden()
         fullCallback = null
+    }
+
+    // --- Obraz w obrazie (PiP): film gra w okienku po wyjściu z Velivo ---------------
+    private lateinit var ytBar: TextView
+    private var pipBars = listOf<View>()
+    private val pipCheck = Handler(Looper.getMainLooper())
+    @Volatile private var videoPlaying = false
+
+    // co 2 s (tylko gdy Velivo na ekranie): czy w bieżącej karcie gra film - Android 12+ wchodzi wtedy w PiP sam
+    private val pipTick = object : Runnable {
+        override fun run() {
+            val t = tabs.getOrNull(cur)
+            if (t != null && !t.bank) t.web.evaluateJavascript("[].some.call(document.querySelectorAll('video'),function(m){return !m.paused&&!m.ended&&m.readyState>2})") { r ->
+                val playing = r == "true"
+                if (playing != videoPlaying) { videoPlaying = playing; updatePip() }
+            }
+            pipCheck.postDelayed(this, 2000)
+        }
+    }
+
+    private fun pipParams() = android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).apply {
+        if (Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(videoPlaying && prefs.getBoolean("tlo", true))
+    }.build()
+
+    private fun updatePip() { runCatching { setPictureInPictureParams(pipParams()) } }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // starsze Androidy (10-11): wejście w PiP ręcznie
+        if (Build.VERSION.SDK_INT < 31 && videoPlaying && prefs.getBoolean("tlo", true)) runCatching { enterPictureInPictureMode(pipParams()) }
+    }
+
+    override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
+        super.onPictureInPictureModeChanged(pip, cfg)
+        pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
+        // w okienku tylko film, na całą powierzchnię
+        web()?.evaluateJavascript(if (pip) "(function(){var s=document.getElementById('velivo-pip')||document.createElement('style');s.id='velivo-pip';" +
+            "s.textContent='video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
+            "document.documentElement.appendChild(s);})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
+    }
+
+    // --- ⏾ Wyłącznik czasowy: muzyka / film / czytanie cichnie po wybranym czasie (do snu) ---
+    private var sleepAt = 0L
+    private val sleepRun = Runnable {
+        sleepAt = 0
+        tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+        tts?.stop()
+        stopService(Intent(this, PlaybackService::class.java))
+    }
+
+    private fun setSleep(min: Int) {
+        pipCheck.removeCallbacks(sleepRun)
+        if (min <= 0) { sleepAt = 0; toast(getString(R.string.sleep_off)); return }
+        sleepAt = System.currentTimeMillis() + min * 60_000L
+        pipCheck.postDelayed(sleepRun, min * 60_000L)
+        toast(getString(R.string.sleep_set, min))
+    }
+
+    private fun askSleep() {
+        val mins = intArrayOf(15, 30, 45, 60, 90, 0)
+        val labels = mins.map { if (it == 0) getString(R.string.sleep_none) else getString(R.string.sleep_min, it) }.toTypedArray()
+        AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i -> setSleep(mins[i]) }.show()
     }
 
     // --- Odtwarzanie w tle -----------------------------------------------------
@@ -1879,6 +1953,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         stopService(Intent(this, PlaybackService::class.java))
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)
+        pipCheck.removeCallbacks(pipTick); pipCheck.post(pipTick)
     }
 
     // Gdy Velivo się zamknie przez błąd: opis zapisany lokalnie (bez adresów i treści stron - sam przebieg błędu),
@@ -1940,6 +2015,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     override fun onPause() {
+        pipCheck.removeCallbacks(pipTick)
         stopLan()
         idle.removeCallbacks(idleCheck)
         backgroundPlayback()

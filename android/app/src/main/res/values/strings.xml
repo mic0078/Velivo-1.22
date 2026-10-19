@@ -189,4 +189,11 @@
     <string name="crash_copied">Error description copied</string>
     <string name="youtube">YouTube – no adverts</string>
     <string name="page_zoom">This site: %1$d%%</string>
+    <string name="youtube_flat">no adverts · hold: sleep timer ⏾</string>
+    <string name="sleep_30">⏾ Stop in 30 min</string>
+    <string name="sleep_title">⏾ Stop playback in…</string>
+    <string name="sleep_min">%1$d minutes</string>
+    <string name="sleep_none">Don\'t stop</string>
+    <string name="sleep_set">⏾ Playback will stop in %1$d min</string>
+    <string name="sleep_off">Sleep timer off</string>
 </resources>

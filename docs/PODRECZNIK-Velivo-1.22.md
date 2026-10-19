@@ -1521,6 +1521,11 @@ Velivo na Androida (10 lub nowszy) to lekka, prywatna przeglądarka w kolorach V
 - **Jak ustawić (raz):** rozsuń dwa palce w menu do wygodnej wielkości (do 220% – rośnie całe Velivo i tekst stron); wybierz motyw jasny lub ciemny; pokaż 📖 Czytnik i 🔊 Czytaj na głos; umów się: „⚠ Uwaga → Wróć (bezpiecznie)”; karteczki z datą przypomną o lekarzu i lekach dzień wcześniej.
 - **Co robi:** wszystko większe i zapamiętane, długie teksty do posłuchania, ochrona przed fałszywymi stronami banków i podejrzanymi aplikacjami bez żadnej konfiguracji.
 
+### 31.15 YouTube bez reklam, obraz w obrazie, muzyka do snu
+- **Gdzie:** czerwony pasek „▶ YouTube” na samym dole ekranu.
+- **Co robi:** YouTube bez reklam; gra w tle i przy zgaszonym ekranie; po wyjściu z Velivo w trakcie filmu – obraz w obrazie (małe okienko nad innymi aplikacjami).
+- **⏾ Wyłącznik czasowy:** przytrzymaj pasek i wybierz 15–90 minut; w powiadomieniu „⏾ Wyłącz za 30 min” (każde stuknięcie +30 min) – muzyka do snu sama ucichnie.
+
 # Funkcje NIE DOSTĘPNE W 1.22
 
 Poniższe rzeczy były omawiane, ale **w wersji 1.22 ich nie ma**:
@@ -1938,3 +1943,4 @@ Opisanych funkcji: **290**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **31.12** Wygląd i język
 - **31.13** Powiększanie dwoma palcami
 - **31.14** Velivo dla osób ze słabszym wzrokiem
+- **31.15** YouTube bez reklam, obraz w obrazie, muzyka do snu

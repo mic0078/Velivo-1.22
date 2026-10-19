@@ -210,6 +210,8 @@ Velivo plays everything with the VLC library – the same as Velivo for Windows:
 5. **Fast:** the list and guide are stored on the phone (encrypted) – TV opens at once, the guide refreshes in the background (every 12 hours), **⟳** forces a refresh. At night (charging + Wi-Fi + phone idle) Velivo refreshes lists, guide and library by itself.
 6. **When a channel does not play:** after 25 s a message – many lists allow one connection at a time; stop TV on the other device (e.g. the computer).
 
+- **📲 Films and TV without pairing (e.g. your mum's phone):** TV → ⚙ → **📲 Ask the computer for Films and TV** (or the button when adding a list). The computer (Velivo for Windows on the same network, LAN sync on) asks with a 6-digit code – the owner clicks **Yes**, the phone shows the same code and asks before saving. **Only** TV channel lists and the Jellyfin server address arrive (no key – sign in with your own Jellyfin user, e.g. "Mum"). **Passwords, bookmarks and Quick Access never go this way** – only after pairing. The exchange is encrypted with a one-time key. Note: the channel list gives access to your TV provider (often one stream at a time).
+
 ### 🎬 Library (Jellyfin)
 
 - **No API keys:** Velivo finds the Jellyfin server on your home network → pick a user → password. The server gives the phone its own token (visible in Jellyfin → Devices, can be revoked). Or the settings come from the computer.

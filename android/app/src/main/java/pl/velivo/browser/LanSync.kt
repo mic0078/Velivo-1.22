@@ -51,6 +51,8 @@ class LanSync(
     private val onTab: (device: String, url: String, title: String, time: Double) -> Unit = { _, _, _, _ -> },
     // ustawienia Filmów i TV z komputera (Jellyfin, listy kanałów) - telefon zawsze pyta
     private val onMedia: (device: String, jellyfin: JSONObject?, tv: JSONArray?) -> Unit = { _, _, _ -> },
+    // Filmy i TV udostępnione bez parowania - z kodem do porównania z komputerem
+    private val onMediaShared: (device: String, code: String, jellyfin: JSONObject?, tv: JSONArray?) -> Unit = { _, _, _, _ -> },
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -184,6 +186,7 @@ class LanSync(
             "state" -> state(p, sender)
             "tab" -> tab(p)
             "media-conf" -> mediaConf(p)
+            "media-give" -> mediaGive(p)
         }
     }
 
@@ -320,6 +323,46 @@ class LanSync(
         if (j.optString("to") != id) return
         val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
         ui(Runnable { onMedia(dev, j.optJSONObject("jellyfin"), j.optJSONArray("tv")) })
+    }
+
+    // --- Filmy i TV bez parowania (np. telefon mamy): prośba z jednorazowym kluczem ECDH, komputer pyta właściciela
+    // i pokazuje kod; odpowiedź (listy TV, adres Jellyfin - bez haseł i zakładek) przychodzi w kawałkach, szyfrowana tym kluczem.
+    private var mediaAsk: Triple<String, java.security.KeyPair, Long>? = null   // pairId, moje klucze, do kiedy
+    private val mediaParts = HashMap<Int, String>()
+
+    fun askMedia() {
+        val kp = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
+        val pairId = UUID.randomUUID().toString().replace("-", "")
+        mediaAsk = Triple(pairId, kp, System.currentTimeMillis() + 3 * 60 * 1000)
+        synchronized(mediaParts) { mediaParts.clear() }
+        Thread {
+            while (running && mediaAsk?.first == pairId && System.currentTimeMillis() < (mediaAsk?.third ?: 0)) {
+                runCatching { send(packet("media-ask").put("hash", "").put("pairId", pairId).put("pub", b64(kp.public.encoded))) }
+                Thread.sleep(4000)
+            }
+        }.start()
+    }
+
+    private fun mediaGive(p: JSONObject) {
+        val ask = mediaAsk ?: return
+        if (p.optString("pairId") != ask.first || p.optString("hash") != id || System.currentTimeMillis() > ask.third) return
+        val parts = p.optInt("parts"); val part = p.optInt("part")
+        if (parts !in 1..200 || part !in 0 until parts) return
+        val all = synchronized(mediaParts) { mediaParts[part] = p.optString("data"); if (mediaParts.size == parts) (0 until parts).joinToString("") { mediaParts[it] ?: "" } else null } ?: return
+        mediaAsk = null
+        val remote = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(unb64(p.optString("pub"))))
+        val ka = KeyAgreement.getInstance("ECDH").apply { init(ask.second.private); doPhase(remote, true) }
+        val agreement = MessageDigest.getInstance("SHA-256").digest(ka.generateSecret())   // jak .NET DeriveKeyMaterial
+        val key = hmac(agreement, "Velivo LAN pairing v1\n${ask.first}".toByteArray())
+        val digest = hmac(key, "Velivo LAN pairing code v1\n${ask.first}".toByteArray())
+        val n = ((digest[0].toLong() and 0xff) or ((digest[1].toLong() and 0xff) shl 8) or ((digest[2].toLong() and 0xff) shl 16) or ((digest[3].toLong() and 0xff) shl 24)) % 1000000
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, unb64(p.optString("nonce"))))
+        c.updateAAD(ask.first.toByteArray(Charsets.UTF_8))
+        val plain = runCatching { c.doFinal(unb64(all) + unb64(p.optString("tag"))) }.getOrNull() ?: return
+        val j = runCatching { JSONObject(String(gunzip(plain), Charsets.UTF_8)) }.getOrNull() ?: return
+        val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
+        ui(Runnable { onMediaShared(dev, n.toString().padStart(6, '0'), j.optJSONObject("jellyfin"), j.optJSONArray("tv")) })
     }
 
     // Telefon → komputer: karta (ten sam format co "📺 Wyślij do…" na Windows).

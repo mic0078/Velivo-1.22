@@ -354,4 +354,7 @@
     <string name="phone_only_audio">My music</string>
     <string name="phone_builtin">Built-in sounds (ringtones, notifications, alarms)</string>
     <string name="theme_contrast">Black and white (high contrast)</string>
+    <string name="media_share_ask">📲 Ask the computer for Films and TV</string>
+    <string name="media_share_wait">The computer (Velivo for Windows on your home network, with LAN sync on) will ask its owner. Compare the code shown there with the one on this phone. Passwords, bookmarks and Quick Access are never sent this way.</string>
+    <string name="media_share_code">Code: %1$s – it must be the same as on the computer</string>
 </resources>

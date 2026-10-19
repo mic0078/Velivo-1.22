@@ -354,4 +354,7 @@
     <string name="phone_only_audio">Moja muzyka</string>
     <string name="phone_builtin">Dźwięki wbudowane (dzwonki, powiadomienia, alarmy)</string>
     <string name="theme_contrast">Czarno-biały (wysoki kontrast)</string>
+    <string name="media_share_ask">📲 Poproś komputer o Filmy i TV</string>
+    <string name="media_share_wait">Komputer (Velivo na Windows w sieci domowej, z włączoną synchronizacją LAN) zapyta właściciela. Porównaj kod pokazany tam z kodem na tym telefonie. Tą drogą nigdy nie idą hasła, zakładki ani Szybki Dostęp.</string>
+    <string name="media_share_code">Kod: %1$s – musi być taki sam jak na komputerze</string>
 </resources>

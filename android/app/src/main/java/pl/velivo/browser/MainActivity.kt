@@ -2169,14 +2169,21 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     private fun tvSources(changed: () -> Unit) {
         val src = Tv.sources(passwords)
-        val labels = (src.map { "📺 " + it.name } + getString(R.string.tv_source_add)).toTypedArray()
+        val labels = (src.map { "📺 " + it.name } + getString(R.string.tv_source_add) + getString(R.string.media_share_ask)).toTypedArray()
         AlertDialog.Builder(this).setTitle(R.string.tv_sources).setItems(labels) { _, i ->
-            if (i == src.size) editTvSource(null, changed)
+            if (i == src.size + 1) askComputerMedia()
+            else if (i == src.size) editTvSource(null, changed)
             else AlertDialog.Builder(this).setTitle(src[i].name).setItems(arrayOf(getString(R.string.tv_source_edit), getString(R.string.tv_source_delete))) { _, k ->
                 if (k == 0) editTvSource(src[i], changed)
                 else { Tv.saveSources(passwords, src.filterIndexed { j, _ -> j != i }); java.io.File(filesDir, "tv").listFiles()?.filter { it.name.startsWith(src[i].id) }?.forEach { it.delete() }; changed() }
             }.show()
         }.show()
+    }
+
+    // 📲 Filmy i TV z komputera bez parowania: komputer pyta właściciela i pokazuje kod; telefon potem pyta o zapis
+    private fun askComputerMedia() {
+        lan.askMedia()
+        AlertDialog.Builder(this).setTitle(R.string.media_share_ask).setMessage(R.string.media_share_wait).setPositiveButton(android.R.string.ok, null).show()
     }
 
     // dodanie / zmiana listy: nazwa, adres M3U (albo plik z telefonu), adres programu TV (EPG, opcjonalnie)
@@ -2203,6 +2210,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 url.setText(u.toString()) } }
         })
         box.addView(epg)
+        if (s == null) box.addView(button("📲 " + getString(R.string.media_share_ask), R.string.media_share_ask, BLUE, BLUE_BG) { askComputerMedia() })
         box.addView(TextView(this).apply { text = getString(R.string.tv_source_help); textSize = 12f; setTextColor(TEXT); setPadding(0, dp(8), 0, 0) })
         AlertDialog.Builder(this).setTitle(if (s == null) R.string.tv_source_add else R.string.tv_source_edit).setView(ScrollView(this).apply { addView(box) })
             .setPositiveButton(android.R.string.ok) { _, _ ->
@@ -2436,12 +2444,14 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // ustawienia z Velivo na komputerze (Jellyfin, listy TV) - zawsze z pytaniem
-    private fun receiveMediaConf(dev: String, jf: org.json.JSONObject?, tv: org.json.JSONArray?) {
+    // code: Filmy i TV bez parowania - ten sam kod musi być na komputerze; Jellyfin bez klucza - logowanie swoim użytkownikiem
+    private fun receiveMediaConf(dev: String, jf: org.json.JSONObject?, tv: org.json.JSONArray?, code: String? = null) {
         val n = tv?.length() ?: 0
-        val text = getString(R.string.media_conf_ask, dev, if (jf != null) "Jellyfin" else "—", n)
+        val text = getString(R.string.media_conf_ask, dev, if (jf != null) "Jellyfin" else "—", n) + if (code != null) "\n\n" + getString(R.string.media_share_code, code) else ""
         AlertDialog.Builder(this).setTitle(R.string.media_conf_title).setMessage(text)
             .setPositiveButton(R.string.file_accept) { _, _ ->
-                jf?.let { Jelly.save(passwords, Jelly.Conf(it.optString("url"), it.optString("key"), "")) }
+                val jfKey = jf?.optString("key").orEmpty()
+                if (jf != null && jfKey.isNotEmpty()) Jelly.save(passwords, Jelly.Conf(jf.optString("url"), jfKey, ""))
                 if (tv != null) {
                     val list = Tv.sources(passwords)
                     for (i in 0 until tv.length()) { val o = tv.getJSONObject(i); val u = o.optString("url"); val m3u = o.optString("m3u")
@@ -2453,7 +2463,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                     Tv.saveSources(passwords, list)
                 }
                 toast(getString(R.string.media_conf_saved))
-                if (jf != null) setupJellyfinUser()
+                if (jf != null) { if (jfKey.isNotEmpty()) setupJellyfinUser() else jellyfinUser(jf.optString("url").trimEnd('/')) {} }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
@@ -2677,6 +2687,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             },
             onTab = { dev, url, title, time -> receiveTab(dev, url, title, time) },
             onMedia = { dev, jf, tv -> receiveMediaConf(dev, jf, tv) },
+            onMediaShared = { dev, code, jf, tv -> receiveMediaConf(dev, jf, tv, code) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
                     runOnUiThread {

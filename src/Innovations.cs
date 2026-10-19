@@ -531,22 +531,85 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
             return root;
         }
 
-        async void SendMediaConfToPhone(LanPeerInfo peer)
+        // listy kanalow TV do wyslania na telefon; lista z pliku na dysku - jej tresc (telefon nie widzi dysku komputera)
+        List<Dictionary<string, string>> MediaTvLists()
         {
-            if (_lanTx == null || _lanEncryptionKey == null) return;
-            var jc = LoadJellyfinConf();
             var tv = new List<Dictionary<string, string>>();
             foreach (var x in LoadIptv().Sources.Where(x => !string.IsNullOrEmpty(x.Url)))
             {
                 var d = new Dictionary<string, string> { ["name"] = x.Name ?? "TV", ["url"] = x.Url, ["epg"] = x.Epg ?? "" };
                 if (!x.Url.StartsWith("http://") && !x.Url.StartsWith("https://"))
                 {
-                    // lista z pliku na dysku - wysylamy jej tresc (telefon nie widzi dysku komputera)
                     try { if (!File.Exists(x.Url)) continue; d["m3u"] = File.ReadAllText(x.Url); d["url"] = "velivo-pc:" + Path.GetFileName(x.Url); }
                     catch (Exception) { continue; }
                 }
                 tv.Add(d);
             }
+            return tv;
+        }
+
+        // 🎬 Filmy i TV bez parowania (np. telefon mamy): telefon prosi ("media-ask" z kluczem ECDH), komputer pyta wlasciciela
+        // i pokazuje kod do porownania; po zgodzie wysyla TYLKO listy TV i adres serwera Jellyfin (bez klucza - mama loguje sie
+        // swoim uzytkownikiem). Szyfrowanie jednorazowym kluczem tej wymiany; hasla, zakladki i Szybki Dostep nigdy tedy nie ida.
+        readonly Dictionary<string, DateTime> _mediaAsked = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        bool _mediaAskOpen;   // jedno pytanie naraz - obce prosby nie zasypia ekranu oknami
+
+        void HandleMediaAsk(LanStatePacket pkt, string sourceAddress)
+        {
+            if (_settings == null || !_settings.LanSync || _lanTx == null || pkt.kind != "phone" ||
+                !Guid.TryParseExact(pkt.pairId, "N", out _) || string.IsNullOrWhiteSpace(pkt.pub) || pkt.pub.Length > 2048) return;
+            if (_mediaAsked.TryGetValue(pkt.pairId, out _) || (_mediaAsked.TryGetValue(pkt.id, out var t0) && DateTime.UtcNow - t0 < TimeSpan.FromSeconds(30))) return;   // ta sama prosba przychodzi co kilka sekund
+            if (_mediaAskOpen) return;
+            _mediaAsked[pkt.pairId] = _mediaAsked[pkt.id] = DateTime.UtcNow;
+            var jc = LoadJellyfinConf();
+            var tv = MediaTvLists();
+            if (jc == null && tv.Count == 0) return;
+            byte[] key;
+            using (var local = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256))
+            using (var remote = ECDiffieHellman.Create())
+            {
+                var pubBytes = Convert.FromBase64String(pkt.pub);
+                remote.ImportSubjectPublicKeyInfo(pubBytes, out int read);
+                if (read != pubBytes.Length) return;
+                var agreement = local.DeriveKeyMaterial(remote.PublicKey);
+                try { key = DerivePairTransportKey(agreement, pkt.pairId); } finally { CryptographicOperations.ZeroMemory(agreement); }
+                var device = PairDeviceLabel(pkt.device);
+                var code = PairConfirmationCode(key, pkt.pairId);
+                var text = (L.En ? "Phone \"" : "Telefon „") + device + (L.En ? "\" (" : "” (") + sourceAddress + (L.En ? ") asks for Films and TV.\n\n" : ") prosi o Filmy i TV.\n\n") +
+                           (tv.Count > 0 ? (L.En ? "• TV channel lists: " : "• listy kanałów TV: ") + tv.Count + "\n" : "") +
+                           (jc != null ? (L.En ? "• Jellyfin server address (without your key – the person signs in with their own Jellyfin user)\n" : "• adres serwera Jellyfin (bez Twojego klucza – osoba loguje się swoim użytkownikiem Jellyfin)\n") : "") +
+                           (L.En ? "\nNo passwords, bookmarks or Quick Access. The channel list gives access to your TV provider.\n\nThe phone must show the same code: " : "\nBez haseł, zakładek i Szybkiego Dostępu. Lista kanałów daje dostęp do Twojego dostawcy TV.\n\nTelefon musi pokazać ten sam kod: ") + code +
+                           (L.En ? "\n\nShare?" : "\n\nUdostępnić?");
+                MessageBoxResult answer;
+                _mediaAskOpen = true;
+                try { answer = MessageBox.Show(PairDialogOwner(), text, L.En ? "Films and TV for a phone" : "Filmy i TV dla telefonu", MessageBoxButton.YesNo, MessageBoxImage.Question); }
+                finally { _mediaAskOpen = false; }
+                if (answer != MessageBoxResult.Yes)
+                { CryptographicOperations.ZeroMemory(key); LanLog((L.En ? "Declined Films and TV for " : "Odmówiono Filmów i TV dla ") + device + "."); return; }
+                var payload = new Dictionary<string, object> { ["tv"] = tv };
+                if (jc != null) payload["jellyfin"] = new Dictionary<string, string> { ["url"] = jc.Url };
+                var plain = CompressLanPayload(JsonSerializer.SerializeToUtf8Bytes(payload));
+                if (plain.Length > 4_000_000) { CryptographicOperations.ZeroMemory(key); ShowToast(L.En ? "TV lists too large to share." : "Listy TV są za duże do udostępnienia.", null); return; }
+                var nonce = RandomNumberGenerator.GetBytes(12); var cipher = new byte[plain.Length]; var tag = new byte[16];
+                using (var gcm = new AesGcm(key, 16)) gcm.Encrypt(nonce, plain, cipher, tag, Encoding.UTF8.GetBytes(pkt.pairId));
+                CryptographicOperations.ZeroMemory(key);
+                // w kawalkach - jeden pakiet UDP miesci ok. 60 KB; telefon sklada je po numerach
+                var b64 = Convert.ToBase64String(cipher); const int chunk = 40000;
+                int parts = (b64.Length + chunk - 1) / chunk;
+                var myPub = Convert.ToBase64String(local.ExportSubjectPublicKeyInfo());
+                for (int i = 0; i < parts; i++)
+                    LanSend(new LanStatePacket { t = "media-give", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        pairId = pkt.pairId, pub = myPub, nonce = Convert.ToBase64String(nonce), tag = Convert.ToBase64String(tag), data = b64.Substring(i * chunk, Math.Min(chunk, b64.Length - i * chunk)), part = i, parts = parts, hash = pkt.id });
+                LanLog((L.En ? "Films and TV shared with " : "Udostępniono Filmy i TV dla ") + device + ".");
+                ShowToast((L.En ? "🎬 Sent to " : "🎬 Wysłano do: ") + device, null);
+            }
+        }
+
+        async void SendMediaConfToPhone(LanPeerInfo peer)
+        {
+            if (_lanTx == null || _lanEncryptionKey == null) return;
+            var jc = LoadJellyfinConf();
+            var tv = MediaTvLists();
             if (jc == null && tv.Count == 0) { ShowToast(L.En ? "No Jellyfin or TV lists set up on this computer." : "Na tym komputerze nie ma ustawionego Jellyfin ani list TV.", null); return; }
             var ask = (L.En ? "Send to " : "Wysłać do ") + peer.Device + ":\n\n" + (jc != null ? "• Jellyfin (" + jc.Url + ")\n" : "") +
                       (tv.Count > 0 ? (L.En ? "• TV channel lists: " : "• listy kanałów TV: ") + tv.Count + "\n" : "") +

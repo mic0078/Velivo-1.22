@@ -264,6 +264,8 @@ Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** 
 
 > **Masz już Jellyfin z kluczem API na komputerze?** Na Windows: prawy klik na 🎬 albo 📺 → „📱 Wyślij Filmy i TV do telefonu” → wybierz telefon. Listy TV z pliku na dysku też idą (ich treść, zaszyfrowana; duże listy idą osobno jak plik – telefon zapyta o zgodę i sam doda je do 📺 Telewizji). Telefon zapyta o zgodę, zapisze adres i klucz zaszyfrowane, a gdy na serwerze jest jeden użytkownik — wybierze go sam. Nic nie wpisujesz.
 
+- **📲 Filmy i TV bez parowania (np. telefon mamy):** Na telefonie: Telewizja → ⚙ → **📲 Poproś komputer o Filmy i TV** (albo przycisk przy dodawaniu listy). Na komputerze (Velivo na Windows, w tej samej sieci, z włączoną synchronizacją LAN) wyskakuje pytanie z 6-cyfrowym kodem – właściciel klika **Tak**, telefon pokazuje ten sam kod i pyta o zapis. Przychodzą **tylko** listy kanałów TV i adres serwera Jellyfin (bez klucza – logowanie własnym użytkownikiem Jellyfin, np. „Mama”). **Hasła, zakładki i Szybki Dostęp nigdy nie idą tą drogą** – tylko po parowaniu. Wymiana jest szyfrowana jednorazowym kluczem. Uwaga: lista kanałów daje dostęp do Twojego dostawcy TV (często jedno oglądanie naraz).
+
 ### ▶ Odtwarzacz
 - Stuknięcie – przyciski: pauza, przewijanie, **napisy** i **ścieżka dźwięku (lektor / język)** w ustawieniach odtwarzacza.
 - **Gesty (filmy):** lewa połowa w górę / w dół – **jasność**, prawa – **głośność**, w bok – przewijanie (cała szerokość = 3 minuty).

@@ -264,6 +264,8 @@ Menu (the V logo) → the **Films and TV** group: **📺 Television**, **🎬 Li
 
 > **Already have Jellyfin with an API key on the PC?** On Windows: right-click 🎬 or 📺 → "📱 Send Films & TV to phone" → pick the phone. TV lists from files on disk go too (their content, encrypted; large lists go separately as a file – the phone asks and adds them to 📺 TV itself). The phone asks first, stores the address and key encrypted, and picks the user itself if the server has only one. Nothing to type.
 
+- **📲 Films and TV without pairing (e.g. your mum's phone):** On the phone: TV → ⚙ → **📲 Ask the computer for Films and TV** (or the button when adding a list). The computer (Velivo for Windows on the same network, LAN sync on) asks with a 6-digit code – the owner clicks **Yes**, the phone shows the same code and asks before saving. **Only** TV channel lists and the Jellyfin server address arrive (no key – sign in with your own Jellyfin user, e.g. "Mum"). **Passwords, bookmarks and Quick Access never go this way** – only after pairing. The exchange is encrypted with a one-time key. Note: the channel list gives access to your TV provider (often one stream at a time).
+
 ### ▶ Player
 - Tap – controls: pause, seeking, **subtitles** and **audio track (narrator / language)** in the player settings.
 - **Gestures (films):** left half up / down – **brightness**, right half – **volume**, sideways – seek (full width = 3 minutes).

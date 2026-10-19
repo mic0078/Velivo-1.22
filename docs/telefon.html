@@ -212,6 +212,9 @@ li.sub { margin-left:24px; list-style:circle; }
 <li><b>Szybko:</b> lista i program są zapisane w telefonie (zaszyfrowane) – Telewizja otwiera się od razu, program dociąga się w tle (co 12 godzin), <b>⟳</b> wymusza odświeżenie. W nocy (ładowanie + Wi-Fi + telefon nieużywany) Velivo samo odświeża listy, program i bibliotekę.</li>
 <li><b>Gdy kanał nie gra:</b> po 25 s komunikat – wiele list pozwala na jedno połączenie naraz; zatrzymaj TV na innym urządzeniu (np. komputerze).</li>
 </ol>
+<ul>
+<li><b>📲 Filmy i TV bez parowania (np. telefon mamy):</b> Telewizja → ⚙ → <b>📲 Poproś komputer o Filmy i TV</b> (albo przycisk przy dodawaniu listy). Na komputerze (Velivo na Windows, w tej samej sieci, z włączoną synchronizacją LAN) wyskakuje pytanie z 6-cyfrowym kodem – właściciel klika <b>Tak</b>, telefon pokazuje ten sam kod i pyta o zapis. Przychodzą <b>tylko</b> listy kanałów TV i adres serwera Jellyfin (bez klucza – logowanie własnym użytkownikiem Jellyfin, np. „Mama”). <b>Hasła, zakładki i Szybki Dostęp nigdy nie idą tą drogą</b> – tylko po parowaniu. Wymiana jest szyfrowana jednorazowym kluczem. Uwaga: lista kanałów daje dostęp do Twojego dostawcy TV (często jedno oglądanie naraz).</li>
+</ul>
 <h3 id="s10">🎬 Biblioteka (Jellyfin)</h3>
 <ul>
 <li><b>Bez kluczy API:</b> Velivo samo znajduje serwer Jellyfin w sieci domowej → wybierz użytkownika → hasło. Serwer daje telefonowi własny token (widoczny w Jellyfin → Urządzenia, można go odwołać). Albo ustawienia przychodzą z komputera.</li>
@@ -432,6 +435,9 @@ li.sub { margin-left:24px; list-style:circle; }
 <li><b>Fast:</b> the list and guide are stored on the phone (encrypted) – TV opens at once, the guide refreshes in the background (every 12 hours), <b>⟳</b> forces a refresh. At night (charging + Wi-Fi + phone idle) Velivo refreshes lists, guide and library by itself.</li>
 <li><b>When a channel does not play:</b> after 25 s a message – many lists allow one connection at a time; stop TV on the other device (e.g. the computer).</li>
 </ol>
+<ul>
+<li><b>📲 Films and TV without pairing (e.g. your mum's phone):</b> TV → ⚙ → <b>📲 Ask the computer for Films and TV</b> (or the button when adding a list). The computer (Velivo for Windows on the same network, LAN sync on) asks with a 6-digit code – the owner clicks <b>Yes</b>, the phone shows the same code and asks before saving. <b>Only</b> TV channel lists and the Jellyfin server address arrive (no key – sign in with your own Jellyfin user, e.g. "Mum"). <b>Passwords, bookmarks and Quick Access never go this way</b> – only after pairing. The exchange is encrypted with a one-time key. Note: the channel list gives access to your TV provider (often one stream at a time).</li>
+</ul>
 <h3 id="s10">🎬 Library (Jellyfin)</h3>
 <ul>
 <li><b>No API keys:</b> Velivo finds the Jellyfin server on your home network → pick a user → password. The server gives the phone its own token (visible in Jellyfin → Devices, can be revoked). Or the settings come from the computer.</li>

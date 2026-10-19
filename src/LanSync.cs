@@ -47,6 +47,8 @@ namespace Velivo
             public string pub { get; set; }
             public string proof { get; set; }
             public string kind { get; set; }   // "phone" - Velivo na Androida (puste - komputer)
+            public int part { get; set; }      // media-give: numer kawalka
+            public int parts { get; set; }     // media-give: liczba kawalkow
         }
 
         sealed class LanSyncPayload
@@ -549,6 +551,11 @@ namespace Velivo
 
             // telefon nigdy nie wysyla stanu (ustawien) - takie pakiety od telefonu odrzucamy; telefon dodaje tylko przez "phone-add" (z pytaniem)
             if (pkt.kind == "phone" && (pkt.t == "state" || pkt.t == "state-plain" || pkt.t == "announce")) return;
+            if (pkt.t == "media-ask")   // Filmy i TV bez parowania - zawsze z pytaniem do wlasciciela komputera
+            {
+                await Dispatcher.InvokeAsync(() => { try { HandleMediaAsk(pkt, remote.Address.ToString()); } catch (Exception ex) { App.LogError(ex); } });
+                return;
+            }
             if (pkt.t != null && pkt.t.StartsWith("pair-", StringComparison.Ordinal))
             {
                 await Dispatcher.InvokeAsync(() => HandleLanPairPacket(pkt, remote.Address.ToString()));

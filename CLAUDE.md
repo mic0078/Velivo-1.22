@@ -36,10 +36,12 @@ Na końcu odpowiedzi podawaj polecenia i napisz, co trzeba zbudować (Windows, A
 cd "C:\Users\andro\Desktop\Velivo 1.22 z github"
 git checkout rozwoj
 git pull origin rozwoj
-.\zbuduj-wszystko.ps1 -TylkoAndroid -Sklep
+.\zbuduj-wszystko.ps1 -TylkoAndroid
 ```
 
-* Android, 3 wersje (APK dla znajomych + 2× AAB do Google Play): `.\zbuduj-wszystko.ps1 -TylkoAndroid -Sklep`.
+* Android dla znajomych (sam APK) – domyślnie: `.\zbuduj-wszystko.ps1 -TylkoAndroid`.
+* Android, 3 wersje (APK + 2× AAB do Google Play) – tylko przed publikacją w sklepie: `.\zbuduj-wszystko.ps1 -TylkoAndroid -Sklep`.
+* Budować w zwykłym PowerShell, nie jako administrator.
 * Tylko Windows: `.\zbuduj-wszystko.ps1`. Szybkie próby Androida: ▶ w Android Studio (wariant pelnaDebug).
 
 ## Interfejs i dokumentacja

@@ -91,7 +91,7 @@ Passwords are encrypted with a key in the Android Keystore (the key never leaves
 | Tile | What it does |
 | --- | --- |
 | Block ads | The same lists as on the computer (EasyList, EasyPrivacy, KAD) – bundled with the app, refreshed every 4 days. No empty box or error frame is left where an advert was (hiding rules as in uBlock Origin); no adverts on YouTube |
-| Play in background | Video / music keep playing after you leave the app and with the screen off (notification with "Stop" and "⏾ Stop in 30 min"); a video moves to a picture-in-picture window |
+| Play in background | Video / music keep playing after you leave the app and with the screen off (notification with "Stop" and "🌙 Stop in 30 min"); a video moves to a picture-in-picture window |
 | Theme | Like the phone / light / dark – in Velivo colours |
 | Sync with computer | Pairing, recovery file, phone name on the network |
 | 🌐 Language | Polish or English – for Velivo only (the system app-language picker) |
@@ -141,7 +141,7 @@ Best set up once, together with the person who will use the phone:
 - **The red "▶ YouTube" bar at the very bottom** – opens YouTube (or returns to the open YouTube tab). Adverts are removed.
 - **Plays in the background and with the screen off:** start a video or music, leave Velivo or turn the screen off – it keeps playing; **Stop** is in the notification.
 - **Picture-in-picture (PiP):** when a video is playing and you go to the home screen, it moves to a small window above other apps (you can move it; tap to return to Velivo).
-- **⏾ Music for sleep (sleep timer):** press and hold the red YouTube bar and choose **When this track ends** (YouTube won't start the next one) or 15, 30, 45, 60, 90 minutes – then the music stops by itself. With the screen off the notification has **⏾ Stop in 30 min** (each tap adds 30 minutes).
+- **🌙 Music for sleep (sleep timer):** press and hold the red YouTube bar and choose **When this track ends** (YouTube won't start the next one) or 15, 30, 45, 60, 90 minutes – then the music stops by itself. With the screen off the notification has **🌙 Stop in 30 min** (each tap adds 30 minutes).
 - **⏰ Wake-up / scheduled playback:** press and hold the red YouTube bar → **⏰ Wake-up with a track…** → choose the track: **from the current tab** (e.g. an open YouTube video), **from bookmarks** or **from history** → the time → when: **every day, Mon–Fri, weekend, chosen days** or **once**. At that time Velivo opens even on the lock screen and plays the track with the volume rising gently; **Turn off** or **Snooze 10 min**. In the same place: **▶ Try the wake-up now** and **Turn off wake-up**. The alarm icon in the phone's status bar shows a wake-up is set.
 - The sleep timer also has **Custom time (minutes)…** – any number of minutes.
 

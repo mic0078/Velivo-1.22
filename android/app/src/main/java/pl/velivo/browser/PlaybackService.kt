@@ -26,7 +26,7 @@ class PlaybackService : Service() {
             .setContentText(getString(R.string.background_play))
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(null, getString(R.string.stop), stop).build())
-            // ⏾ do snu: wyłącz za 30 minut (każde stuknięcie dodaje 30)
+            // 🌙 do snu: wyłącz za 30 minut (każde stuknięcie dodaje 30)
             .addAction(Notification.Action.Builder(null, getString(R.string.sleep_30), PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java).setAction(ACTION_SLEEP), PendingIntent.FLAG_IMMUTABLE)).build())
             .setOngoing(true)
             .build()

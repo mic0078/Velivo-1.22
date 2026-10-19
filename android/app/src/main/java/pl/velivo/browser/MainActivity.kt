@@ -326,7 +326,7 @@ set(p0,p);})"""
             "document.documentElement.appendChild(s);})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
     }
 
-    // --- ⏾ Wyłącznik czasowy: muzyka / film / czytanie cichnie po wybranym czasie (do snu) ---
+    // --- 🌙 Wyłącznik czasowy: muzyka / film / czytanie cichnie po wybranym czasie (do snu) ---
     private var sleepAt = 0L
     private val sleepRun = Runnable {
         sleepAt = 0
@@ -428,7 +428,7 @@ set(p0,p);})"""
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    // ⏾ po zakończeniu utworu, który teraz gra: koniec utworu albo przejście YouTube do następnego = pauza
+    // 🌙 po zakończeniu utworu, który teraz gra: koniec utworu albo przejście YouTube do następnego = pauza
     private fun sleepAfterTrack() {
         val t = tabs.firstOrNull { (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") } ?: tabs.getOrNull(cur) ?: return
         t.web.evaluateJavascript("""(function(){var v=[].slice.call(document.querySelectorAll('video,audio')).filter(function(m){return !m.paused})[0]||document.querySelector('video');

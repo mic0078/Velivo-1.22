@@ -1527,7 +1527,7 @@ Velivo for Android (10 or newer) is a light, private browser in Velivo colours, 
 - **Where:** the red "▶ YouTube" bar at the very bottom of the screen.
 - **What it does:** YouTube without adverts; plays in the background and with the screen off; leaving Velivo during a video – picture-in-picture (a small window above other apps).
 - **⏰ Wake-up (scheduled playback):** press and hold the bar → "Wake-up with a track…" → a track from the current tab, bookmarks or history → the time → every day, Mon–Fri, weekend, chosen days or once; wakes you even on the lock screen with rising volume; Turn off / Snooze 10 min.
-- **⏾ Sleep timer:** press and hold the bar and choose "When this track ends" or 15–90 minutes; "⏾ Stop in 30 min" in the notification (each tap +30 min) – music for sleep stops by itself.
+- **🌙 Sleep timer:** press and hold the bar and choose "When this track ends" or 15–90 minutes; "🌙 Stop in 30 min" in the notification (each tap +30 min) – music for sleep stops by itself.
 
 # Features NOT AVAILABLE IN 1.22
 

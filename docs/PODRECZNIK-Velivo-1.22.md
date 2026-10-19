@@ -1525,7 +1525,7 @@ Velivo na Androida (10 lub nowszy) to lekka, prywatna przeglądarka w kolorach V
 - **Gdzie:** czerwony pasek „▶ YouTube” na samym dole ekranu.
 - **Co robi:** YouTube bez reklam; gra w tle i przy zgaszonym ekranie; po wyjściu z Velivo w trakcie filmu – obraz w obrazie (małe okienko nad innymi aplikacjami).
 - **⏰ Pobudka (planowane włączenie):** przytrzymaj pasek → „Pobudka z utworem…” → utwór z bieżącej karty, zakładek lub historii → godzina → codziennie, pon–pt, weekend, wybrane dni albo jednorazowo; budzi także na zablokowanym ekranie, głośność narasta; Wyłącz / Drzemka 10 min.
-- **⏾ Wyłącznik czasowy:** przytrzymaj pasek i wybierz „Po zakończeniu tego utworu” albo 15–90 minut; w powiadomieniu „⏾ Wyłącz za 30 min” (każde stuknięcie +30 min) – muzyka do snu sama ucichnie.
+- **🌙 Wyłącznik czasowy:** przytrzymaj pasek i wybierz „Po zakończeniu tego utworu” albo 15–90 minut; w powiadomieniu „🌙 Wyłącz za 30 min” (każde stuknięcie +30 min) – muzyka do snu sama ucichnie.
 
 # Funkcje NIE DOSTĘPNE W 1.22
 

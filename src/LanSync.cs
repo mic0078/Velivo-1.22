@@ -715,6 +715,7 @@ namespace Velivo
 
         void TryPromptProfileSwitch(LanStatePacket pkt, bool isNewPeer, bool profileChanged)
         {
+            if (pkt.kind == "phone") return;   // telefon nigdy nie zmienia profilu komputera (i nie wywoluje pytan z dzwiekiem)
             var target = NormalizeProfileName(pkt.profile ?? "domyslny");
             if (string.Equals(target, SelectedProfileName, StringComparison.OrdinalIgnoreCase)) return;
 

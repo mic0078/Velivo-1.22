@@ -26,7 +26,7 @@ class Widzet : AppWidgetProvider() {
             setOnClickPendingIntent(R.id.w_yt, open(ctx, 2, ACTION_YT))
             setOnClickPendingIntent(R.id.w_notatki, open(ctx, 3, Karteczki.ACTION_NOTES))
             setOnClickPendingIntent(R.id.w_lista, open(ctx, 3, Karteczki.ACTION_NOTES))
-            setTextViewText(R.id.w_lista, notes(ctx))
+            setTextViewText(R.id.w_lista, runCatching { notes(ctx) }.getOrElse { ctx.getString(R.string.widget_no_notes) })   // błąd karteczki nie może zepsuć widżetu
         }
 
         // najbliższe terminy na górze (dziś, jutro, data), potem pozostałe karteczki - najwyżej 4 linie

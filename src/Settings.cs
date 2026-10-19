@@ -901,7 +901,7 @@ namespace Velivo
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 4, 0, 4)
             });
-            var pairLan = SmallButton(L.T("Sparuj urządzenie w sieci…"), BeginLanPairing);
+            var pairLan = SmallButton(L.T("Sparuj urządzenie w sieci…"), () => BeginLanPairing());
             pairLan.IsEnabled = s.LanSync && _lanTx != null;
             pairLan.HorizontalAlignment = HorizontalAlignment.Left;
             root.Children.Add(pairLan);

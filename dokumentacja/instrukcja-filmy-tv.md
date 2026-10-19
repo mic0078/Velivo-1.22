@@ -262,7 +262,7 @@ Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** 
 - **▶ Odtwórz wszystkie po kolei**, **🔀 losowo** albo stuknij utwór – Velivo gra po kolei z Twojej listy (także w tle i przy zgaszonym ekranie), YouTube nie wtrąca swoich propozycji.
 - Przytrzymaj utwór – zmień kategorię, dodaj do playlisty / usuń z playlisty, zmień nazwę, usuń.
 
-> **Masz już Jellyfin z kluczem API na komputerze?** Na Windows: prawy klik na 🎬 albo 📺 → „📱 Wyślij Filmy i TV do telefonu” → wybierz telefon. Listy TV z pliku na dysku też idą (ich treść, zaszyfrowana; bardzo duże pliki są pomijane – wtedy dodaj listę na telefonie z adresu). Telefon zapyta o zgodę, zapisze adres i klucz zaszyfrowane, a gdy na serwerze jest jeden użytkownik — wybierze go sam. Nic nie wpisujesz.
+> **Masz już Jellyfin z kluczem API na komputerze?** Na Windows: prawy klik na 🎬 albo 📺 → „📱 Wyślij Filmy i TV do telefonu” → wybierz telefon. Listy TV z pliku na dysku też idą (ich treść, zaszyfrowana; duże listy idą osobno jak plik – telefon zapyta o zgodę i sam doda je do 📺 Telewizji). Telefon zapyta o zgodę, zapisze adres i klucz zaszyfrowane, a gdy na serwerze jest jeden użytkownik — wybierze go sam. Nic nie wpisujesz.
 
 ### ▶ Odtwarzacz
 - Stuknięcie – przyciski: pauza, przewijanie, **napisy** i **ścieżka dźwięku (lektor / język)** w ustawieniach odtwarzacza.

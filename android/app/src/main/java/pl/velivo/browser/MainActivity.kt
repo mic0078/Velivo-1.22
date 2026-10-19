@@ -2401,7 +2401,14 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                     .setOnCancelListener { accept(false) }
                     .show()
             },
-            saveFile = { name, data, dev -> saveToDownloads(name, data, dev) },
+            saveFile = { name, data, dev ->
+                if (name.startsWith("Velivo-TV-") && name.endsWith(".m3u")) {   // duża lista TV z 📱 Wyślij Filmy i TV na Windows - prosto do Telewizji
+                    val u = "velivo-pc:" + name; val list = Tv.sources(passwords)
+                    val src = list.firstOrNull { it.url == u } ?: Tv.Source(java.util.UUID.randomUUID().toString().replace("-", "").take(12), name.removePrefix("Velivo-TV-").removeSuffix(".m3u"), u, "").also { list.add(it) }
+                    Tv.importText(this, passwords, src, String(data, Charsets.UTF_8)); Tv.saveSources(passwords, list)
+                    runOnUiThread { toast(getString(R.string.media_conf_saved)) }
+                } else saveToDownloads(name, data, dev)
+            },
             onTab = { dev, url, title, time -> receiveTab(dev, url, title, time) },
             onMedia = { dev, jf, tv -> receiveMediaConf(dev, jf, tv) },
             onQuickAccess = { dev, zip ->

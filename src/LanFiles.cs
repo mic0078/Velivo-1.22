@@ -120,18 +120,23 @@ namespace Velivo
             if (dlg.ShowDialog(this) != true) return;
             var info = new FileInfo(dlg.FileName);
             if (info.Length > LanFileLimitBytes) { ShowToast(L.En ? "The file is larger than 100 MB." : "Plik jest większy niż 100 MB.", null); return; }
+            await SendBytesToPeer(peer, SafeFileName(info.Name), () => File.ReadAllBytes(info.FullName));
+        }
+
+        // wyslanie danych jako pliku przez TCP (telefon/komputer pyta o zgode) - takze duze listy TV z 📱 Wyslij Filmy i TV
+        async Task SendBytesToPeer(LanPeerInfo peer, string name, Func<byte[]> read)
+        {
             int sep = (peer.Address ?? "").LastIndexOf(':');
             if (sep <= 0 || !IPAddress.TryParse(peer.Address.Substring(0, sep), out var address) || _lanEncryptionKey == null) return;
             var enc = (byte[])_lanEncryptionKey.Clone();
             var auth = (byte[])_lanAuthenticationKey.Clone();
-            var name = SafeFileName(info.Name);
             ShowToast((L.En ? "📎 Waiting for " : "📎 Czekam, aż ") + peer.Device + (L.En ? " to accept…" : " przyjmie plik…"), null);
             string result;
             try
             {
                 result = await Task.Run(async () =>
                 {
-                    var plain = File.ReadAllBytes(info.FullName);
+                    var plain = read();
                     var header = new QuickAccessLanHeader
                     {
                         Type = "file", Id = _lanId, Device = _lanDeviceName, Profile = SelectedProfileName,

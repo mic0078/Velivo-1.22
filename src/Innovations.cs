@@ -531,7 +531,7 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
             return root;
         }
 
-        void SendMediaConfToPhone(LanPeerInfo peer)
+        async void SendMediaConfToPhone(LanPeerInfo peer)
         {
             if (_lanTx == null || _lanEncryptionKey == null) return;
             var jc = LoadJellyfinConf();
@@ -562,15 +562,20 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
                 return pkt;
             }
             var pk = Build();
-            var skipped = 0;
-            if (JsonSerializer.SerializeToUtf8Bytes(pk).Length > 60000)   // limit jednego pakietu UDP - za duze listy z pliku pomijamy
+            var big = new List<Dictionary<string, string>>();
+            if (JsonSerializer.SerializeToUtf8Bytes(pk).Length > 60000)   // limit pakietu UDP - listy z pliku pojda osobno przez TCP
             {
-                skipped = tv.RemoveAll(d => d.ContainsKey("m3u"));
+                big = tv.Where(d => d.ContainsKey("m3u")).ToList();
+                tv.RemoveAll(d => d.ContainsKey("m3u"));
                 pk = Build();
             }
             LanSend(pk);
-            ShowToast((L.En ? "🎬 Sent to " : "🎬 Wysłano do: ") + peer.Device +
-                      (skipped > 0 ? (L.En ? " (TV lists from files too big: " : " (listy TV z pliku za duże: ") + skipped + ")" : ""), null);
+            ShowToast((L.En ? "🎬 Sent to " : "🎬 Wysłano do: ") + peer.Device, null);
+            foreach (var d in big)   // telefon rozpoznaje nazwe Velivo-TV-*.m3u i dodaje liste do Telewizji
+            {
+                var text = d["m3u"];
+                await SendBytesToPeer(peer, "Velivo-TV-" + SafeFileName(d["name"]) + ".m3u", () => Encoding.UTF8.GetBytes(text));
+            }
         }
 
         void EncryptLanBlob(LanStatePacket pkt, byte[] json)

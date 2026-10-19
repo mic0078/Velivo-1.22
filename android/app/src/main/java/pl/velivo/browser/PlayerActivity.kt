@@ -314,7 +314,12 @@ class PlayerActivity : Activity() {
         }.show()
     }
 
-    private val sleepRun = Runnable { sleepAt = 0; player.pause(); PlaybackService.stop(this); finish() }   // koniec: odtwarzacz zamknięty, ekran sam się wygasi
+    // koniec: odtwarzanie zatrzymane, Velivo schodzi na bok - telefon wraca do zwykłego czuwania (ekran gaśnie jak zawsze)
+    private val sleepRun = Runnable {
+        sleepAt = 0; player.pause(); PlaybackService.stop(this)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        moveTaskToBack(true); finish()
+    }
 
     // --- obraz w obrazie i granie w tle ---
     private fun pipParams() = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).apply {

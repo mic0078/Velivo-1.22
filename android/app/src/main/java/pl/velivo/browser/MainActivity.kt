@@ -324,7 +324,6 @@ set(p0,p);})"""
             else toast(getString(R.string.private_limited))
         }
         w.settings.apply {
-            textZoom = (uiScale * 100).toInt().coerceAtLeast(100)   // tekst stron też większy, gdy Velivo powiększone (nie mniejszy niż 100%)
             javaScriptEnabled = true
             domStorageEnabled = !priv || privateSupported
             builtInZoomControls = true
@@ -356,6 +355,7 @@ set(p0,p);})"""
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 val u = Uri.parse(url)
                 val host = u.host?.lowercase() ?: return
+                view.settings.textZoom = zoomKey(url)?.let { prefs.getInt(it, 100) } ?: 100   // wielkość zapamiętana dla tej strony
                 if (host == QuickAccess.HOST) return
                 pageHost[view] = host
                 pageBlocked[view] = java.util.concurrent.ConcurrentHashMap()
@@ -403,7 +403,25 @@ set(p0,p);})"""
         // Przytrzymanie palca na reklamie / pustym polu (bez tekstu i linku) - Velivo samo proponuje usunięcie.
         // Na tekście i linkach zostaje zwykłe zaznaczanie.
         var touchX = 0f; var touchY = 0f
-        w.setOnTouchListener { _, e -> if (e.action == android.view.MotionEvent.ACTION_DOWN) { touchX = e.x; touchY = e.y }; false }
+        // dwa palce na stronie = większy / mniejszy tekst tej strony (50-300%), zapamiętany osobno dla każdej strony
+        val zoomDet = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                w.settings.textZoom = (w.settings.textZoom * d.scaleFactor).toInt().coerceIn(50, 300); return true
+            }
+            override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
+                val z = (Math.round(w.settings.textZoom / 10f) * 10).coerceIn(50, 300)
+                w.settings.textZoom = z
+                zoomKey(w.url)?.let { k -> if (z == 100) prefs.edit().remove(k).apply() else prefs.edit().putInt(k, z).apply() }
+                toast(getString(R.string.page_zoom, z))
+            }
+        })
+        zoomDet.isQuickScaleEnabled = false   // podwójne stuknięcie i przeciągnięcie to zwykłe przewijanie, nie powiększanie
+        w.setOnTouchListener { _, e ->
+            if (e.action == android.view.MotionEvent.ACTION_DOWN) { touchX = e.x; touchY = e.y }
+            zoomDet.onTouchEvent(e)
+            // w trybie pulpitu zostaje zwykłe powiększanie całej strony
+            e.pointerCount > 1 && tabs.firstOrNull { it.web == w }?.desktop != true
+        }
         w.setOnLongClickListener {
             val type = w.hitTestResult.type
             if (type == WebView.HitTestResult.EDIT_TEXT_TYPE || type == WebView.HitTestResult.SRC_ANCHOR_TYPE || type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) return@setOnLongClickListener false
@@ -512,6 +530,9 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
 
     // strony, na których użytkownik wyłączył blokowanie reklam
     private fun siteAllowed(host: String?) = host != null && Ochrona.regDomain(host) in (prefs.getStringSet("adblock-wyjatki", emptySet()) ?: emptySet())
+
+    // klucz wielkości strony: domena (www. bez znaczenia); Szybki Dostęp ma własny
+    private fun zoomKey(url: String?): String? = Uri.parse(url ?: "").host?.lowercase()?.removePrefix("www.")?.let { "zoom-$it" }
 
     private fun warnLookalike(view: WebView, url: String, host: String, fake: String) {
         val msg = if (fake == "xn") getString(R.string.fake_xn, host) else getString(R.string.fake_brand, host, fake)
@@ -663,11 +684,10 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
             }
             override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
                 prefs.edit().putFloat("skala", uiScale).apply()
-                tabs.forEach { it.web.settings.textZoom = (uiScale * 100).toInt().coerceAtLeast(100) }
                 toast(getString(R.string.ui_scale, Math.round(uiScale * 100)))
             }
         })
-        init { addView(content); applyScale(content) }
+        init { det.isQuickScaleEnabled = false; addView(content); applyScale(content) }
         override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
             det.onTouchEvent(ev)
             if (ev.pointerCount > 1 && !pinching) {
@@ -1012,6 +1032,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val det = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(d: android.view.ScaleGestureDetector): Boolean { resize(size * d.scaleFactor - size); return true }
         })
+        det.isQuickScaleEnabled = false
         val frame = object : FrameLayout(this) {
             override fun dispatchTouchEvent(ev: MotionEvent): Boolean { det.onTouchEvent(ev); return if (ev.pointerCount > 1) true else super.dispatchTouchEvent(ev) }
         }

@@ -188,4 +188,5 @@
     <string name="crash_copy">Kopiuj</string>
     <string name="crash_copied">Skopiowano opis błędu</string>
     <string name="youtube">YouTube – bez reklam</string>
+    <string name="page_zoom">Ta strona: %1$d%%</string>
 </resources>

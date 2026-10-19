@@ -188,4 +188,5 @@
     <string name="crash_copy">Copy</string>
     <string name="crash_copied">Error description copied</string>
     <string name="youtube">YouTube – no adverts</string>
+    <string name="page_zoom">This site: %1$d%%</string>
 </resources>

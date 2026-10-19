@@ -44,15 +44,17 @@ def md(text):
 CSS = '''
 :root { --bg:#F7F4FF; --card:#FFFFFF; --text:#2A2150; --soft:#4F4380; --acc:#6D3FDB; --line:#E2DBFA; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#15121F; --card:#1B1733; --text:#ECE8FF; --soft:#B9B0E0; --acc:#B3A6FF; --line:#2E2768; } }
-body { margin:0; background:var(--bg); color:var(--text); font:17px/1.6 system-ui, "Segoe UI", Roboto, sans-serif; }
-main { max-width:900px; margin:0 auto; padding:16px; }
+body { margin:0; background:var(--bg); color:var(--text); font:17px/1.6 system-ui, "Segoe UI", Roboto, sans-serif; overflow-wrap:anywhere; }
+html, body { overflow-x:hidden; }
+main { max-width:900px; margin:0 auto; padding:16px; box-sizing:border-box; width:100%; }
+.pdf { margin:8px 0 16px; } .pdf a { color:var(--acc); margin-right:16px; }
 header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 header h1 { font-size:26px; margin:8px 0; }
 .lang button { font:inherit; padding:8px 16px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; }
 .lang button.on { background:var(--acc); color:#fff; }
 h2 { margin-top:36px; padding-bottom:4px; border-bottom:2px solid var(--line); }
 h3 { color:var(--acc); }
-table { border-collapse:collapse; width:100%; margin:12px 0; display:block; overflow-x:auto; }
+table { border-collapse:collapse; width:100%; max-width:100%; margin:12px 0; display:block; overflow-x:auto; }
 th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
 th { background:var(--line); }
 td { background:var(--card); }
@@ -70,6 +72,7 @@ def page(body_pl, body_en, title):
 <header><img src="data:image/svg+xml,%%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%%3E%%3Crect width='48' height='48' rx='12' fill='%%236D3FDB'/%%3E%%3Ctext x='24' y='34' font-size='28' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%%3EV%%3C/text%%3E%%3C/svg%%3E" width="48" height="48" alt="">
 <h1>Velivo – telefon / phone</h1>
 <div class="lang"><button id="bpl" class="on" onclick="lang('pl')">Polski</button> <button id="ben" onclick="lang('en')">English</button></div></header>
+<p class="pdf">📄 <a href="Velivo-Telefon-Instrukcja.pdf">Instrukcja PDF (polski)</a> <a href="Velivo-Phone-Manual-EN.pdf">PDF manual (English)</a></p>
 <section id="pl">%s</section><section id="en" lang="en" hidden>%s</section>
 <script>function lang(l){document.getElementById('pl').hidden=l!='pl';document.getElementById('en').hidden=l!='en';
 document.getElementById('bpl').className=l=='pl'?'on':'';document.getElementById('ben').className=l=='en'?'on':'';

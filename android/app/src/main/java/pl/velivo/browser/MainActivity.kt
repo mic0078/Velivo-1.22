@@ -1266,6 +1266,7 @@ window.__vStop=function(){mark(null);ov.remove();window.__vPick=null;};})()""", 
             val rules = (prefs.getStringSet(key, emptySet()) ?: emptySet()) + sel
             prefs.edit().putStringSet(key, rules).apply()
             toast(getString(R.string.hidden_saved))
+            stopPick()   // po usunięciu zaznaczanie się kończy - strona od razu przewija się i reaguje normalnie
         }
     }
 

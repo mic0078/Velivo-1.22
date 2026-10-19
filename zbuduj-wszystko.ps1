@@ -11,7 +11,6 @@ param([switch]$TylkoAndroid, [switch]$Wszystko)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
-git checkout -- Instalator 2>$null
 git checkout rozwoj
 git pull origin rozwoj
 $head = (git rev-parse HEAD).Trim()
@@ -97,7 +96,7 @@ Copy-Item "$o\bundle\sklepRelease\*.aab" (Join-Path $out 'Velivo-sklep.aab')
 Copy-Item "$o\bundle\sklepytRelease\*.aab" (Join-Path $out 'Velivo-sklepyt.aab')
 Set-Content (Join-Path $cfgDir 'ostatnio-android.txt') $head
 Write-Host "Gotowe:" -ForegroundColor Green
-if ($needWin) { Write-Host "  Instalator\Velivo-Setup-1.22.exe   - Windows" }
+if ($needWin) { Write-Host "  build\instalator\Velivo-Setup-1.22.exe - Windows" }
 Write-Host "  build\android\Velivo-pelna.apk      - telefon (Ty i mama, WhatsApp)"
 Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"
 Write-Host "  build\android\Velivo-sklepyt.aab    - Google Play (jak Brave)"

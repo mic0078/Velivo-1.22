@@ -103,14 +103,14 @@ object Tv {
 
     // Program TV (XMLTV): tylko kanały z listy i tylko od 6 godzin wstecz do 2 dni naprzód - mało pamięci, szybko
     fun epg(ctx: Context, src: Source, chans: List<Channel>, refresh: Boolean): Map<String, List<Show>> {
-        val f = cacheFile(ctx, src.id, ".epg.json")
+        val f = cacheFile(ctx, src.id, ".epg2.json")
         if (!refresh && f.exists() && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L) readEpg(f)?.let { return it }
         if (src.epg.isEmpty()) return emptyMap()
         val wanted = HashSet<String>()
-        chans.forEach { if (it.tvgId.isNotEmpty()) wanted.add(it.tvgId.lowercase()); wanted.add(it.name.lowercase()) }
+        chans.forEach { keys(it).forEach { k -> wanted.add(k) } }
         val from = System.currentTimeMillis() - 6 * 3600_000L
         val to = System.currentTimeMillis() + 48 * 3600_000L
-        val names = HashMap<String, String>()   // id kanału w programie -> nazwa
+        val names = HashMap<String, MutableList<String>>()   // id kanału w programie -> nazwy
         val out = HashMap<String, MutableList<Show>>()
         open(src.epg).use { input ->
             val p = Xml.newPullParser()
@@ -131,15 +131,17 @@ object Tv {
                         else -> field = ""
                     }
                     XmlPullParser.TEXT -> when (field) {
-                        "dn" -> curId?.let { if (!names.containsKey(it)) names[it] = p.text.trim() }
+                        "dn" -> curId?.let { names.getOrPut(it) { ArrayList() }.add(p.text.trim()) }
                         "t" -> title += p.text
                         "d" -> desc += p.text
                     }
                     XmlPullParser.END_TAG -> {
                         if (p.name == "programme") {
                             val id = curId ?: ""
-                            val key = if (id.lowercase() in wanted) id.lowercase() else names[id]?.lowercase()?.takeIf { it in wanted }
-                            if (key != null && stop > from && start < to) out.getOrPut(key) { ArrayList() }.add(Show(start, stop, title.trim(), desc.trim().take(400)))
+                            if (stop > from && start < to) {
+                                val cands = (listOf(id) + (names[id] ?: emptyList())).flatMap { listOf(it.lowercase(), epgKey(it)) }.filter { it.isNotEmpty() && it in wanted }.distinct()
+                                if (cands.isNotEmpty()) { val sh = Show(start, stop, title.trim(), desc.trim().take(400)); cands.forEach { k -> out.getOrPut(k) { ArrayList() }.add(sh) } }
+                            }
                         }
                         field = ""
                     }
@@ -168,7 +170,12 @@ object Tv {
         dt.toInstant(zone).toEpochMilli()
     }.getOrDefault(0L)
 
-    fun showsFor(epg: Map<String, List<Show>>, ch: Channel): List<Show> = epg[ch.tvgId.lowercase()] ?: epg[ch.name.lowercase()] ?: emptyList()
+    fun showsFor(epg: Map<String, List<Show>>, ch: Channel): List<Show> = keys(ch).firstNotNullOfOrNull { epg[it] } ?: emptyList()
+
+    // jak EpgKey na Windows: bez dopisków jakości (HD/FHD/SD…), nawiasów, prefiksu "|PL|" i znaków innych niż litery/cyfry
+    private val qualityTag = Regex("""\b(uhd|fhd|hd|sd|4k|hevc|h265|raw)\b|\(.*?\)|\[.*?\]|^\|?[a-z]{2}\|\s*|[^a-z0-9]""")
+    fun epgKey(name: String): String { val k = qualityTag.replace(name.lowercase().replace(".pl", ""), ""); return if (k.isEmpty()) "" else "@$k" }
+    private fun keys(ch: Channel) = listOf(ch.tvgId.lowercase(), ch.name.lowercase(), epgKey(ch.tvgId), epgKey(ch.name)).filter { it.isNotEmpty() }.distinct()
 
     fun nowNext(epg: Map<String, List<Show>>, ch: Channel): Pair<Show?, Show?> {
         val l = showsFor(epg, ch); val t = System.currentTimeMillis()

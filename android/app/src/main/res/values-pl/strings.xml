@@ -334,4 +334,7 @@
     <string name="tv_plans_empty">Nic nie zaplanowano</string>
     <string name="tv_plan_set">Zaplanowano: %1$s o %2$s</string>
     <string name="tv_all_shows">📋 Co i kiedy (lista audycji)</string>
+    <string name="tv_catchup">⏪ Oglądaj z archiwum</string>
+    <string name="tv_grid">🗓 Siatka programu</string>
+    <string name="tv_grid_more">Pierwsze %1$d z %2$d kanałów – wybierz grupę albo ulubione</string>
 </resources>

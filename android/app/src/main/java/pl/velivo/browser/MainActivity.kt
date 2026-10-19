@@ -1952,7 +1952,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }
         scr.addButton("📅", R.string.tv_guide) {   // pełny program: co leci na wszystkich kanałach o wybranej porze
             fun dayAt(days: Int, h: Int, m: Int) = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, days); set(java.util.Calendar.HOUR_OF_DAY, h); set(java.util.Calendar.MINUTE, m); set(java.util.Calendar.SECOND, 0) }.timeInMillis
-            val opts = listOf(getString(R.string.tv_at_now), getString(R.string.tv_at_evening), getString(R.string.tv_at_tomorrow), getString(R.string.tv_at_pick), getString(R.string.tv_plans), getString(R.string.tv_all_shows))
+            val opts = listOf(getString(R.string.tv_at_now), getString(R.string.tv_at_evening), getString(R.string.tv_at_tomorrow), getString(R.string.tv_at_pick), getString(R.string.tv_plans), getString(R.string.tv_all_shows), getString(R.string.tv_grid))
             AlertDialog.Builder(this).setTitle(R.string.tv_guide).setItems(opts.toTypedArray()) { _, i ->
                 when (i) {
                     0 -> { at = 0; scr.setRows(rows(), info()) }
@@ -1960,6 +1960,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                     2 -> { at = dayAt(1, 20, 0); scr.setRows(rows(), info()) }
                     4 -> showPlans()
                     5 -> showAllShows(rows().map { it.tag as Tv.Channel }, epg)
+                    6 -> showGrid(rows().map { it.tag as Tv.Channel }, epg)
                     3 -> {
                         val days = arrayOf(getString(R.string.tv_today), getString(R.string.tv_tomorrow), getString(R.string.tv_day_after))
                         AlertDialog.Builder(this).setItems(days) { _, d ->
@@ -1988,9 +1989,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun showGuide(ch: Tv.Channel, epg: Map<String, List<Tv.Show>>) {
         val now = System.currentTimeMillis()
         val day = java.text.SimpleDateFormat("EEE d.MM", java.util.Locale.getDefault())
-        fun rows() = Tv.showsFor(epg, ch).filter { it.stop > now }.map { s ->
+        fun rows() = Tv.showsFor(epg, ch).filter { it.stop > now || Tv.canCatchup(ch, it) }.map { s ->
             val planned = TvPlan.find(this, ch.key, s.start) != null
-            MRow((if (planned) "⏰ " else if (s.start <= now) "▶ " else "") + fmtTime(s.start) + "  " + s.title, day.format(java.util.Date(s.start)) + " · " + fmtTime(s.start) + "–" + fmtTime(s.stop) + if (s.desc.isNotEmpty()) "\n" + s.desc else "", null, tag = s)
+            MRow((if (planned) "⏰ " else if (s.stop <= now) "⏪ " else if (s.start <= now) "▶ " else "") + fmtTime(s.start) + "  " + s.title, day.format(java.util.Date(s.start)) + " · " + fmtTime(s.start) + "–" + fmtTime(s.stop) + if (s.desc.isNotEmpty()) "\n" + s.desc else "", null, tag = s)
         }
         lateinit var scr: MediaScreen
         scr = MediaScreen("📅 " + ch.name, "tv-guide", listOf(getString(R.string.tv_sort_list)), sorter = { l, _ -> l },
@@ -2004,7 +2005,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val now = System.currentTimeMillis()
         val plan = TvPlan.find(this, ch.key, s.start)
         val opts = mutableListOf<Pair<String, () -> Unit>>()
-        opts.add(getString(R.string.tv_plan_watch) to { playChannel(ch) })
+        if (Tv.canCatchup(ch, s)) opts.add(getString(R.string.tv_catchup) to {   // ⏪ archiwum: audycja, która była (albo od początku tej, co trwa)
+            play(listOf(PlayerActivity.Item(ch.name + " – " + s.title, Tv.catchupUrl(ch, s), null, info = fmtTime(s.start) + "–" + fmtTime(s.stop), desc = s.desc)), 0, live = false) })
+        if (s.stop > now) opts.add(getString(R.string.tv_plan_watch) to { playChannel(ch) })
         if (s.start > now) opts.add(if (plan == null) getString(R.string.tv_plan_at, fmtTime(s.start)) to { TvPlan.add(this, ch, s); toast(getString(R.string.tv_plan_set, s.title, fmtTime(s.start))); changed() }
             else getString(R.string.tv_plan_remove) to { TvPlan.remove(this, plan.id); changed() })
         AlertDialog.Builder(this).setTitle(s.title).setMessage(fmtTime(s.start) + "–" + fmtTime(s.stop) + if (s.desc.isNotEmpty()) "\n\n" + s.desc else "")
@@ -2022,6 +2025,54 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             onOpen = { r, _ -> @Suppress("UNCHECKED_CAST") val p = r.tag as Pair<Tv.Channel, Tv.Show>; showOpts(p.first, p.second) { scr.setRows(rows(), "") } })
         scr.show()
         scr.setRows(rows(), if (all.isEmpty()) getString(R.string.tv_no_guide) else "")
+    }
+
+    // 🗓 siatka programu (jak w Televizo): kanały w wierszach, czas w poziomie, ⏰ i ⏪ po stuknięciu audycji
+    private fun showGrid(chans: List<Tv.Channel>, epg: Map<String, Map<String, List<Tv.Show>>>) {
+        val list = chans.take(300)   // tyle, ile da się wygodnie przewinąć - wybierz grupę albo ulubione
+        val now = System.currentTimeMillis()
+        val from = now - 2 * 3600_000L - now % 1800_000L; val to = now + 48 * 3600_000L
+        val pxMin = dp(4).toFloat()   // 4 dp na minutę: 30 min = 120 dp
+        val rowH = dp(56); val nameW = dp(120)
+        fun x(t: Long) = ((t - from) / 60_000f * pxMin).toInt()
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BAR) }
+        val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)) }
+        bar.addView(TextView(this).apply { text = "🗓 " + getString(R.string.tv_grid); textSize = 18f; setTextColor(TEXT); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        bar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { dlg.dismiss() })
+        root.addView(bar)
+        val names = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // nagłówek z godzinami
+        names.addView(TextView(this), LinearLayout.LayoutParams(nameW, dp(28)))
+        val head = FrameLayout(this)
+        var t = from; while (t < to) { head.addView(TextView(this).apply { text = java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault()).format(java.util.Date(t)); textSize = 12f; setTextColor(TEXT) },
+            FrameLayout.LayoutParams(-2, -2).apply { leftMargin = x(t) + dp(4) }); t += 1800_000L }
+        grid.addView(head, LinearLayout.LayoutParams(x(to), dp(28)))
+        for (ch in list) {
+            names.addView(TextView(this).apply { text = ch.name; textSize = 13f; setTextColor(TEXT); maxLines = 2; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), 0, dp(4), 0); setBackgroundColor(c("#EEE9FF", "#241F45"))
+                setOnClickListener { playChannel(ch); dlg.dismiss() } }, LinearLayout.LayoutParams(nameW, rowH).apply { bottomMargin = dp(2) })
+            val row = FrameLayout(this)
+            for (sh in Tv.showsFor(epg[ch.source] ?: emptyMap(), ch).filter { it.stop > from && it.start < to }) {
+                val l = x(maxOf(sh.start, from)); val w = (x(minOf(sh.stop, to)) - l - dp(2)).coerceAtLeast(dp(8))
+                val nowShow = sh.start <= now && sh.stop > now
+                row.addView(TextView(this).apply {
+                    text = (if (TvPlan.find(this@MainActivity, ch.key, sh.start) != null) "⏰ " else if (sh.stop <= now && Tv.canCatchup(ch, sh)) "⏪ " else "") + sh.title + "\n" + fmtTime(sh.start)
+                    textSize = 12f; maxLines = 2; setTextColor(TEXT); setPadding(dp(6), dp(4), dp(4), dp(4))
+                    background = round(if (nowShow) c("#D9CCFF", "#4A3F8A") else if (sh.stop <= now) c("#F2EFFA", "#1B1733") else c("#E6DFFF", "#2E2768"))
+                    setOnClickListener { showOpts(ch, sh) }
+                }, FrameLayout.LayoutParams(w, rowH).apply { leftMargin = l })
+            }
+            grid.addView(row, LinearLayout.LayoutParams(x(to), rowH).apply { bottomMargin = dp(2) })
+        }
+        // linia „teraz”
+        val content = FrameLayout(this).apply { addView(grid); addView(View(this@MainActivity).apply { setBackgroundColor(Color.parseColor("#FF5A5A")) }, FrameLayout.LayoutParams(dp(2), -1).apply { leftMargin = x(now) }) }
+        val hs = android.widget.HorizontalScrollView(this).apply { addView(content) }
+        val body = LinearLayout(this).apply { addView(names); addView(hs) }
+        root.addView(ScrollView(this).apply { addView(body) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        if (chans.size > list.size) root.addView(TextView(this).apply { text = getString(R.string.tv_grid_more, list.size, chans.size); setTextColor(TEXT); textSize = 12f; setPadding(dp(12), dp(6), dp(12), dp(6)) })
+        dlg.setContentView(root); dlg.show()
+        hs.post { hs.scrollTo((x(now) - dp(60)).coerceAtLeast(0), 0) }
     }
 
     private fun showPlans() {

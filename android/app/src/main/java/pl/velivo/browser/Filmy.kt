@@ -16,7 +16,9 @@ import java.util.zip.GZIPInputStream
 // lista kanałów zapisana zaszyfrowana, nigdy w logach ani w komunikatach o błędach.
 object Tv {
     class Source(var id: String, var name: String, var url: String, var epg: String)
-    class Channel(val source: String, val name: String, val logo: String, val group: String, val url: String, val tvgId: String) {
+    // catchup: archiwum (oglądanie audycji, które już były) - z listy M3U: catchup, catchup-source, catchup-days / tvg-rec
+    class Channel(val source: String, val name: String, val logo: String, val group: String, val url: String, val tvgId: String,
+                  val catchup: String = "", val catchupSrc: String = "", val catchupDays: Int = 0) {
         val key get() = "$source|$name"   // ulubione i własne listy po nazwie, nie po adresie (adres może mieć token)
     }
     class Show(val start: Long, val stop: Long, val title: String, val desc: String)
@@ -66,17 +68,21 @@ object Tv {
     fun parseM3u(source: String, text: String): Pair<List<Channel>, String> {
         val out = ArrayList<Channel>()
         var epg = ""
-        var name = ""; var logo = ""; var group = ""; var tvg = ""
+        var name = ""; var logo = ""; var group = ""; var tvg = ""; var cu = ""; var cuSrc = ""; var cuDays = 0
+        var dCu = ""; var dCuSrc = ""; var dCuDays = 0   // domyślne dla całej listy (z #EXTM3U)
         fun attr(l: String, k: String) = Regex("""$k="([^"]*)"""").find(l)?.groupValues?.get(1) ?: ""
         for (raw in text.lineSequence()) {
             val l = raw.trim()
             when {
-                l.startsWith("#EXTM3U") -> epg = attr(l, "url-tvg").ifEmpty { attr(l, "x-tvg-url") }.substringBefore(',')
-                l.startsWith("#EXTINF") -> { name = l.substringAfterLast(',').trim(); logo = attr(l, "tvg-logo"); group = attr(l, "group-title"); tvg = attr(l, "tvg-id") }
+                l.startsWith("#EXTM3U") -> { epg = attr(l, "url-tvg").ifEmpty { attr(l, "x-tvg-url") }.substringBefore(','); dCu = attr(l, "catchup"); dCuSrc = attr(l, "catchup-source"); dCuDays = attr(l, "catchup-days").toIntOrNull() ?: 0 }
+                l.startsWith("#EXTINF") -> { name = l.substringAfterLast(',').trim(); logo = attr(l, "tvg-logo"); group = attr(l, "group-title"); tvg = attr(l, "tvg-id")
+                    cu = attr(l, "catchup").ifEmpty { dCu }; cuSrc = attr(l, "catchup-source").ifEmpty { dCuSrc }
+                    cuDays = (attr(l, "catchup-days").ifEmpty { attr(l, "tvg-rec") }).toIntOrNull() ?: dCuDays
+                    if (cu.isEmpty() && cuDays > 0) cu = "default" }
                 l.startsWith("#EXTGRP:") -> group = l.substringAfter(':').trim()
                 l.isNotEmpty() && !l.startsWith("#") -> {
-                    if (name.isNotEmpty()) out.add(Channel(source, name, logo, group, l, tvg))
-                    name = ""; logo = ""; group = ""; tvg = ""
+                    if (name.isNotEmpty()) out.add(Channel(source, name, logo, group, l, tvg, cu, cuSrc, cuDays))
+                    name = ""; logo = ""; group = ""; tvg = ""; cu = ""; cuSrc = ""; cuDays = 0
                 }
             }
         }
@@ -108,13 +114,13 @@ object Tv {
 
     // Program TV (XMLTV): tylko kanały z listy i tylko od 6 godzin wstecz do 2 dni naprzód - mało pamięci, szybko
     fun epg(ctx: Context, src: Source, chans: List<Channel>, refresh: Boolean): Map<String, List<Show>> {
-        val f = cacheFile(ctx, src.id, ".epg3.json")
+        val f = cacheFile(ctx, src.id, ".epg4.json")
         val fresh = f.exists() && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L   // program odświeżany co 12 godzin
         if (!refresh && fresh) { memEpg[src.id]?.let { return it }; readEpg(f)?.let { memEpg[src.id] = it; return it } }
         if (src.epg.isEmpty()) return emptyMap()
         val wanted = HashSet<String>()
         chans.forEach { keys(it).forEach { k -> wanted.add(k) } }
-        val from = System.currentTimeMillis() - 6 * 3600_000L
+        val from = System.currentTimeMillis() - 24 * 3600_000L   // doba wstecz - archiwum (⏪)
         val to = System.currentTimeMillis() + 72 * 3600_000L   // program na 3 dni
         val names = HashMap<String, MutableList<String>>()   // id kanału w programie -> nazwy
         val out = HashMap<String, MutableList<Show>>()
@@ -176,6 +182,37 @@ object Tv {
         val zone = if (off.length >= 5) java.time.ZoneOffset.of(off.substring(0, 3) + ":" + off.substring(3, 5)) else java.time.ZoneOffset.UTC
         dt.toInstant(zone).toEpochMilli()
     }.getOrDefault(0L)
+
+    // archiwum audycji (jak Televizo / IPTV Smarters): adres według rodzaju z listy - własny wzór, "append", "shift" albo Xtream
+    fun canCatchup(ch: Channel, s: Show): Boolean {
+        if (ch.catchup.isEmpty() || ch.catchup == "disabled") return false
+        val days = if (ch.catchupDays > 0) ch.catchupDays else 7
+        return s.start < System.currentTimeMillis() && s.start > System.currentTimeMillis() - days * 86_400_000L
+    }
+
+    fun catchupUrl(ch: Channel, s: Show): String {
+        val now = System.currentTimeMillis() / 1000; val st = s.start / 1000; val en = s.stop / 1000; val dur = en - st
+        fun fill(t: String): String {
+            val c = java.util.Calendar.getInstance().apply { timeInMillis = s.start }
+            fun two(v: Int) = String.format("%02d", v)
+            return t.replace(Regex("""\$?\{(utc|start|timestamp)\}"""), st.toString()).replace(Regex("""\$?\{(utcend|end)\}"""), en.toString())
+                .replace(Regex("""\$?\{(lutc|now)\}"""), now.toString()).replace(Regex("""\$?\{duration:60\}"""), (dur / 60).toString())
+                .replace(Regex("""\$?\{duration\}"""), dur.toString()).replace(Regex("""\$?\{offset:1\}"""), (now - st).toString())
+                .replace("{Y}", c.get(java.util.Calendar.YEAR).toString()).replace("{m}", two(c.get(java.util.Calendar.MONTH) + 1)).replace("{d}", two(c.get(java.util.Calendar.DAY_OF_MONTH)))
+                .replace("{H}", two(c.get(java.util.Calendar.HOUR_OF_DAY))).replace("{M}", two(c.get(java.util.Calendar.MINUTE))).replace("{S}", two(c.get(java.util.Calendar.SECOND)))
+        }
+        val xc = Regex("""^(https?://[^/]+)/(?:live/)?([^/]+)/([^/]+)/(\d+)(?:\.(\w+))?$""").find(ch.url)
+        return when {
+            ch.catchupSrc.isNotEmpty() && ch.catchup == "append" -> ch.url + fill(ch.catchupSrc)
+            ch.catchupSrc.isNotEmpty() -> fill(ch.catchupSrc)
+            (ch.catchup == "xc" || ch.catchup == "default") && xc != null -> {   // Xtream Codes: /timeshift/użytkownik/hasło/minuty/rrrr-mm-dd:gg-mm/id.ts
+                val (host, u, p, id, ext) = xc.destructured
+                val t = java.text.SimpleDateFormat("yyyy-MM-dd:HH-mm", java.util.Locale.US).format(java.util.Date(s.start))
+                "$host/timeshift/$u/$p/${dur / 60}/$t/$id.${ext.ifEmpty { "ts" }}"
+            }
+            else -> ch.url + (if ('?' in ch.url) "&" else "?") + "utc=$st&lutc=$now"   // shift / timeshift / flussonic
+        }
+    }
 
     fun showsFor(epg: Map<String, List<Show>>, ch: Channel): List<Show> = keys(ch).firstNotNullOfOrNull { epg[it] } ?: emptyList()
 

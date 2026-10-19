@@ -275,8 +275,21 @@ object Jelly {
         }
     }
 
-    fun library(c: Conf) = items(get(c, "/Users/${c.user}/Items?IncludeItemTypes=Movie,Series&Recursive=true&SortBy=SortName&Fields=Overview,ProductionYear,DateCreated&EnableImageTypes=Primary"))
-    fun resume(c: Conf) = items(get(c, "/Users/${c.user}/Items/Resume?MediaTypes=Video&Limit=30&Fields=Overview"))
+    private const val LIB = "/Items?IncludeItemTypes=Movie,Series&Recursive=true&SortBy=SortName&Fields=Overview,ProductionYear,DateCreated&EnableImageTypes=Primary"
+    private const val RES = "/Items/Resume?MediaTypes=Video&Limit=30&Fields=Overview"
+    private fun cacheFile(ctx: Context) = File(File(ctx.filesDir, "tv").apply { mkdirs() }, "jellyfin.bin")
+
+    // biblioteka z serwera i zapis (zaszyfrowany) - przy następnym otwarciu od razu na ekranie, bez czekania
+    fun refresh(ctx: Context, pw: Passwords, c: Conf): Pair<List<Item>, List<Item>> {
+        val lib = get(c, "/Users/${c.user}$LIB"); val res = get(c, "/Users/${c.user}$RES")
+        cacheFile(ctx).writeBytes(pw.sealBytes(JSONObject().put("lib", lib).put("res", res).toString().toByteArray(Charsets.UTF_8)))
+        return items(lib) to items(res)
+    }
+
+    fun cached(ctx: Context, pw: Passwords): Pair<List<Item>, List<Item>>? = runCatching {
+        val j = JSONObject(String(pw.openBytes(cacheFile(ctx).readBytes())!!, Charsets.UTF_8))
+        items(j.getString("lib")) to items(j.getString("res"))
+    }.getOrNull()
     fun episodes(c: Conf, seriesId: String) = items(get(c, "/Shows/$seriesId/Episodes?UserId=${c.user}&Fields=Overview"))
     fun image(c: Conf, id: String) = c.url + "/Items/$id/Images/Primary?maxHeight=360&quality=80"
     fun stream(c: Conf, id: String) = c.url + "/Videos/$id/stream?static=true"

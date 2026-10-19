@@ -94,6 +94,7 @@ class MainActivity : Activity() {
         setTheme(if (dark) R.style.Velivo_Dark else R.style.Velivo_Light)
         super.onCreate(savedInstanceState)
         catchCrashes()
+        Thread { runCatching { if (Tv.sources(passwords).isNotEmpty() || Jelly.conf(passwords) != null) Odswiezanie.plan(this) } }.start()   // nocne odświeżanie TV i biblioteki
         window.statusBarColor = BAR
         window.navigationBarColor = BAR
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BAR) }
@@ -2071,10 +2072,12 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 else { val movies = shownRows.map { x -> x.tag as Jelly.Item }.filter { x -> x.type != "Series" }; play(movies.map { x -> item(x) }, movies.indexOf(it), false) }
             })
         fun load() {
-            scr.setRows(emptyList(), getString(R.string.tv_loading))
+            // najpierw zapis z telefonu (od razu), potem świeże dane z serwera w tle
+            val cache = Jelly.cached(this, passwords)
+            if (cache != null) { lib = cache.first; resume = cache.second; scr.setRows(rows(), titles[mode]) } else scr.setRows(emptyList(), getString(R.string.tv_loading))
             Thread {
-                val ok = runCatching { lib = Jelly.library(c); resume = Jelly.resume(c) }.isSuccess
-                runOnUiThread { scr.setRows(rows(), titles[mode] + if (!ok) " · " + getString(R.string.jf_error) else "") }
+                val ok = runCatching { Jelly.refresh(this, passwords, c).let { lib = it.first; resume = it.second } }.isSuccess
+                runOnUiThread { scr.setRows(rows(), titles[mode] + if (!ok && cache == null) " · " + getString(R.string.jf_error) else "") }
             }.start()
         }
         scr.addButton("☰", R.string.tv_filter) {

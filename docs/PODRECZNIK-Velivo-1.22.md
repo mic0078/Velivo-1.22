@@ -1514,7 +1514,7 @@ Velivo na Androida (10 lub nowszy) to lekka, prywatna przeglądarka w kolorach V
 ### 31.13 Powiększanie dwoma palcami
 - **Do czego:** dla słabszego wzroku – większe napisy i przyciski w całym Velivo.
 - **Jak używać:** rozsuń dwa palce w menu, na liście kart, zakładek, historii, haseł albo karteczek; zsuń, by zmniejszyć.
-- **Co robi:** 80–220%, rośnie też pasek u góry i przyciski na dole; przy dużym powiększeniu kafelki menu po 2 w rzędzie; tekst stron powiększa się tak samo (nie mniej niż 100%); ustawienie zapamiętane. W czytniku dwa palce zmieniają wielkość tekstu (do 48 pt).
+- **Co robi:** 80–220%, rośnie też pasek u góry i przyciski na dole; przy dużym powiększeniu kafelki menu po 2 w rzędzie; na stronie dwa palce zmieniają tekst tej strony (50–300%) – każda strona pamięta swoją wielkość, Velivo osobno swoją. W czytniku dwa palce zmieniają wielkość tekstu (do 48 pt).
 
 ### 31.14 Velivo dla osób ze słabszym wzrokiem
 - **Do czego:** wygodne przeglądanie dla seniorów i osób słabo widzących.

@@ -318,5 +318,11 @@
     <string name="tv_tomorrow">Jutro</string>
     <string name="tv_day_after">Pojutrze</string>
     <string name="player_stuck">Serwer nie przysyła obrazu. Jeśli telewizja gra na innym urządzeniu (np. na komputerze), zatrzymaj ją tam – wiele list pozwala tylko na jedno połączenie naraz.</string>
-    <string name="player_transcode">Ten plik wymaga przerobienia – serwer Jellyfin go przerabia, chwila…</string>
+    <string name="player_tracks">Lektor, język i napisy</string>
+    <string name="player_playpause">Odtwarzaj / pauza</string>
+    <string name="player_prev">Poprzedni</string>
+    <string name="player_next">Następny</string>
+    <string name="player_back">10 s wstecz</string>
+    <string name="player_fwd">10 s do przodu</string>
+    <string name="player_no_tracks">Brak ścieżek dźwięku i napisów do wyboru</string>
 </resources>

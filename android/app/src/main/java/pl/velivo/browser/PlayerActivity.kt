@@ -4,14 +4,16 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.PictureInPictureParams
 import android.content.Context
-import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelFileDescriptor
 import android.util.Rational
 import android.view.GestureDetector
 import android.view.Gravity
@@ -23,26 +25,19 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.annotation.OptIn
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.ui.PlayerView
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.Media
+import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.VLCVideoLayout
 import java.lang.ref.WeakReference
 
-// Odtwarzacz Velivo: telewizja (IPTV), Jellyfin i filmy z telefonu. Pamięta miejsce w filmie, obraz w obrazie,
-// granie w tle (powiadomienie), wyłącznik czasowy, gesty: jasność (lewa strona), głośność (prawa), przewijanie w bok;
-// w telewizji przesunięcie w górę / w dół = następny / poprzedni kanał.
-@OptIn(UnstableApi::class)
+// Odtwarzacz Velivo na bibliotece VLC (jak VLC na Windows): telewizja (IPTV), Jellyfin i filmy z telefonu - każdy format
+// (stare AVI, AC3, MPEG-TS, HLS). Pamięta miejsce w filmie, obraz w obrazie, granie w tle, wyłącznik czasowy,
+// gesty: jasność (lewa strona), głośność (prawa), przewijanie w bok; w telewizji w górę / w dół = następny / poprzedni kanał.
 class PlayerActivity : Activity() {
     class Item(val title: String, val uri: String, val key: String?, val headers: Map<String, String> = emptyMap(), val jellyId: String? = null, val info: String = "", val desc: String = "")
 
@@ -53,14 +48,24 @@ class PlayerActivity : Activity() {
         var live = false
         var current: WeakReference<PlayerActivity>? = null
         fun pauseIfPlaying() { current?.get()?.player?.pause() }
+        private const val UA = "VLC/3.0.20 LibVLC/3.0.20"
     }
 
-    private lateinit var player: ExoPlayer
-    private lateinit var view: PlayerView
+    private lateinit var vlc: LibVLC
+    private lateinit var player: MediaPlayer
+    private lateinit var video: VLCVideoLayout
     private lateinit var titleView: TextView
     private lateinit var descView: TextView   // TV: co leci (teraz, potem, opis) - nad paskiem postępu
+    private lateinit var controls: View
+    private lateinit var playBtn: Button
+    private lateinit var seek: SeekBar
+    private lateinit var timeView: TextView
+    private lateinit var busy: ProgressBar
+    private var fd: ParcelFileDescriptor? = null   // film z pamięci telefonu (content://)
+    private var seeking = false
     private val ui = Handler(Looper.getMainLooper())
-    private val stuck = Runnable { toast(getString(R.string.player_stuck)) }
+    private val stuck = Runnable { if (!player.isPlaying) toast(getString(R.string.player_stuck)) }
+    private val hide = Runnable { if (player.isPlaying) showControls(false) }
     private val prefs by lazy { getSharedPreferences("velivo", Context.MODE_PRIVATE) }
     private val posPrefs by lazy { getSharedPreferences("filmy", Context.MODE_PRIVATE) }
     private val pw by lazy { Passwords(this) }
@@ -76,118 +81,140 @@ class PlayerActivity : Activity() {
         window.decorView.setBackgroundColor(Color.BLACK)
         window.insetsController?.let { it.hide(WindowInsets.Type.systemBars()); it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE }
 
-        val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent("VLC/3.0.20 LibVLC/3.0.20")   // serwery IPTV często wpuszczają tylko znane odtwarzacze
-            .setConnectTimeoutMs(15000).setReadTimeoutMs(20000)
-        player = ExoPlayer.Builder(this, androidx.media3.exoplayer.DefaultRenderersFactory(this)
-                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON))   // FFmpeg gdy telefon nie ma dekodera dźwięku (AC3 w TV)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http)))
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
-            .setHandleAudioBecomingNoisy(true)   // słuchawki wyjęte - pauza
-            .build()
-        player.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                // kanał bez rozszerzenia w adresie: drugi raz jako HLS albo jako zwykły strumień (MPEG-TS)
-                val cur = queue.getOrNull(index)
-                if (cur?.jellyId != null) { if (retryAs == 0) { startTranscode(); return } }   // Jellyfin: serwer przerobi film (stare AVI, nietypowe kodeki)
-                else if (retryAs < 2) { retryAs++; load(index, keepRetry = true); return }
-                // powód bez adresu (może mieć token): kod HTTP serwera albo rodzaj błędu odtwarzacza
-                var c: Throwable? = error; var why = error.errorCodeName.removePrefix("ERROR_CODE_")
-                while (c != null) { c.message?.let { m -> Regex("Response code: (\\d+)").find(m)?.let { why = "HTTP " + it.groupValues[1] } }; c = c.cause }
-                toast(getString(R.string.player_error) + " (" + why + ")")
-            }
-            override fun onIsPlayingChanged(isPlaying: Boolean) { updatePip() }
-            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                // Jellyfin: obraz albo dźwięk w formacie, którego telefon nie odtworzy (stare AVI) - od razu przerobienie na serwerze
-                fun missing(t: Int) = tracks.groups.any { g -> g.type == t } && tracks.groups.none { g -> g.type == t && g.isSupported }
-                if ((missing(C.TRACK_TYPE_VIDEO) || missing(C.TRACK_TYPE_AUDIO)) && retryAs == 0 && queue.getOrNull(index)?.jellyId != null) {
-                    startTranscode()
-                }
-            }
-            override fun onPlaybackStateChanged(state: Int) {
-                ui.removeCallbacks(stuck)
-                if (state == Player.STATE_BUFFERING) ui.postDelayed(stuck, 25000)   // serwer nic nie przysyła - zwykle limit połączeń (TV gra na innym urządzeniu)
-                if (state == Player.STATE_ENDED && !live) { savePos(); next(1) }
-            }
-        })
-        httpFactory = http
+        // bufor jak w aplikacjach IPTV: 1,5 s dla TV, 3 s dla filmów; serwery IPTV wpuszczają znane odtwarzacze
+        vlc = LibVLC(this, arrayListOf("--http-reconnect", "--http-user-agent=$UA", "--network-caching=" + (if (live) 1500 else 3000), "--audio-time-stretch"))
+        player = MediaPlayer(vlc)
+        player.setEventListener { e -> onVlc(e) }
 
-        view = PlayerView(this).apply {
-            player = this@PlayerActivity.player
-            setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)   // kółko ładowania zamiast czarnego ekranu
-            setShowSubtitleButton(true)   // napisy i ścieżki dźwięku (lektor / język) w ustawieniach odtwarzacza
-            setBackgroundColor(Color.BLACK)
-            keepScreenOn = true
-        }
-        // górny pasek: tytuł, wyłącznik, okienko, zamknij - duże przyciski
+        video = VLCVideoLayout(this)
+        // górny pasek: tytuł, ścieżki (lektor / napisy), wyłącznik, okienko, zamknij
         titleView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 16f; maxLines = 2; setShadowLayer(4f, 0f, 0f, Color.BLACK) }
         val top = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(10), dp(8), dp(10)); setBackgroundColor(Color.argb(110, 0, 0, 0))
+            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(10), dp(8), dp(10)); setBackgroundColor(Color.argb(140, 27, 23, 51))
             addView(titleView, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(btn("🗨", R.string.player_tracks) { askTracks() })
             addView(btn("🌙", R.string.sleep_title) { askSleep() })
             addView(btn("⧉", R.string.player_pip) { enterPip() })
             addView(btn("✕", R.string.close_tab_short) { finish() })
         }
-        descView = TextView(this).apply { setTextColor(Color.parseColor("#ECE8FF")); textSize = 14f; maxLines = 6; setPadding(dp(14), dp(10), dp(14), dp(10)); setBackgroundColor(Color.argb(150, 27, 23, 51)) }
-        view.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { v -> top.visibility = v; descView.visibility = if (descView.text.isNullOrEmpty()) View.GONE else v })
+        // środek: poprzedni, -10 s, odtwarzaj/pauza, +10 s, następny (w TV: poprzedni / następny kanał)
+        playBtn = btn("⏸", R.string.player_playpause, big = true) { if (player.isPlaying) player.pause() else player.play(); poke() }
+        val mid = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            addView(btn("⏮", R.string.player_prev, big = true) { next(-1) })
+            if (!live) addView(btn("⏪", R.string.player_back) { jump(-10_000) })
+            addView(playBtn)
+            if (!live) addView(btn("⏩", R.string.player_fwd) { jump(10_000) })
+            addView(btn("⏭", R.string.player_next, big = true) { next(1) })
+        }
+        // dół: opis programu, pasek postępu (filmy), czas
+        descView = TextView(this).apply { setTextColor(Color.parseColor("#ECE8FF")); textSize = 14f; maxLines = 6; setPadding(dp(14), dp(10), dp(14), dp(10)) }
+        seek = SeekBar(this).apply {
+            max = 1000
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar, p: Int, user: Boolean) { if (user) timeView.text = fmt(player.length * p / 1000) + " · " + fmt(player.length) }
+                override fun onStartTrackingTouch(s: SeekBar) { seeking = true; ui.removeCallbacks(hide) }
+                override fun onStopTrackingTouch(s: SeekBar) { seeking = false; player.setTime(player.length * s.progress / 1000); poke() }
+            })
+        }
+        timeView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(dp(14), 0, dp(14), dp(12)) }
+        val bottom = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.argb(140, 27, 23, 51))
+            addView(descView); if (!live) { addView(seek); addView(timeView) }
+        }
+        busy = ProgressBar(this).apply { isIndeterminate = true; visibility = View.GONE }
+        val box = FrameLayout(this).apply {
+            addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+            addView(mid, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
+            addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        }
+        controls = box
         val root = FrameLayout(this)
-        root.addView(view, FrameLayout.LayoutParams(-1, -1))
-        root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-        root.addView(descView, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { bottomMargin = dp(96) })
+        root.addView(video, FrameLayout.LayoutParams(-1, -1))
+        root.addView(busy, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.CENTER))
+        root.addView(box, FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
-        gestures()
+        gestures(root)
+        player.attachViews(video, null, true, false)   // napisy włączone
         load(index)
         ui.postDelayed(saver, 5000)
+        ui.post(tick)
     }
 
-    private var httpFactory: DefaultHttpDataSource.Factory? = null
-
-    private fun btn(label: String, tip: Int, click: () -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
-        text = label; textSize = 20f; setTextColor(Color.parseColor("#ECE8FF")); contentDescription = getString(tip); tooltipText = getString(tip)
-        background = android.graphics.drawable.GradientDrawable().apply { setColor(Color.parseColor("#CC2E2768")); cornerRadius = dp(14).toFloat(); setStroke(dp(1), Color.parseColor("#4A3F8A")) }   // kolory Velivo
+    private fun btn(label: String, tip: Int, big: Boolean = false, click: () -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
+        text = label; textSize = if (big) 26f else 20f; setTextColor(Color.parseColor("#ECE8FF")); contentDescription = getString(tip); tooltipText = getString(tip)
+        background = GradientDrawable().apply { setColor(Color.parseColor("#CC2E2768")); cornerRadius = dp(16).toFloat(); setStroke(dp(1), Color.parseColor("#4A3F8A")) }   // kolory Velivo
         setPadding(0, 0, 0, 0); minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = 0
         setOnClickListener { click() }
-        layoutParams = LinearLayout.LayoutParams(dp(52), dp(48)).apply { setMargins(dp(4), 0, dp(4), 0) }
+        val s = if (big) dp(68) else dp(52)
+        layoutParams = LinearLayout.LayoutParams(s, if (big) dp(64) else dp(48)).apply { setMargins(dp(6), 0, dp(6), 0) }
     }
 
-    private var transcoded: String? = null
-    private var retryAs = 0   // 0 jak w adresie, 1 HLS, 2 zwykły strumień, 3 Jellyfin przerabia na H.264/AAC
+    private fun fmt(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return if (s >= 3600) String.format("%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) else String.format("%02d:%02d", s / 60, s % 60) }
 
-    // Jellyfin: serwer przerabia film (stare AVI, nietypowe kodeki) - jak VLC na Windows, bez dokładania kodeków do telefonu
-    private fun startTranscode() {
-        val it = queue.getOrNull(index) ?: return
-        val id = it.jellyId ?: return
-        retryAs = 3; toast(getString(R.string.player_transcode))
-        val i = index; val base = it.uri.substringBefore("/Videos/"); val token = it.headers["X-Emby-Token"] ?: ""
-        Thread {
-            val u = runCatching { Jelly.transcodeUrl(base, token, id) }.getOrNull()
-            ui.post { if (index != i) return@post; if (u == null) toast(getString(R.string.player_error) + " (Jellyfin)") else { transcoded = u; load(i, keepRetry = true) } }
-        }.start()
+    private fun onVlc(e: MediaPlayer.Event) {
+        when (e.type) {
+            MediaPlayer.Event.Buffering -> busy.visibility = if (e.buffering < 100f) View.VISIBLE else View.GONE
+            MediaPlayer.Event.Playing -> { busy.visibility = View.GONE; ui.removeCallbacks(stuck); playBtn.text = "⏸"; updatePip(); poke() }
+            MediaPlayer.Event.Paused -> { playBtn.text = "▶"; updatePip(); showControls(true) }
+            MediaPlayer.Event.EndReached -> if (!live) { savePos(true); next(1) } else load(index)   // kanał się urwał - wznów
+            MediaPlayer.Event.EncounteredError -> { busy.visibility = View.GONE; toast(getString(R.string.player_error)) }   // bez adresu (może mieć token)
+        }
     }
 
-    private fun load(i: Int, keepRetry: Boolean = false) {
+    // czas i pasek postępu co pół sekundy
+    private val tick = object : Runnable {
+        override fun run() {
+            if (!live && !seeking) {
+                val len = player.length; val t = player.time
+                if (len > 0) seek.progress = (t * 1000 / len).toInt()
+                timeView.text = fmt(t) + " · " + fmt(len)
+            }
+            ui.postDelayed(this, 500)
+        }
+    }
+
+    private fun showControls(on: Boolean) {
+        controls.visibility = if (on && !isInPictureInPictureMode) View.VISIBLE else View.GONE
+        if (on) poke()
+    }
+
+    private fun poke() { ui.removeCallbacks(hide); ui.postDelayed(hide, 4000) }
+
+    private fun jump(d: Long) { player.setTime((player.time + d).coerceAtLeast(0)); poke() }
+
+    private fun load(i: Int) {
         val it = queue.getOrNull(i) ?: return finish()
-        if (!keepRetry) { retryAs = 0; transcoded = null }
+        savePos()
         index = i
         titleView.text = it.title + if (it.info.isNotEmpty()) "\n" + it.info.substringBefore('\n') else ""
         descView.text = listOf(it.info, it.desc).filter { d -> d.isNotEmpty() }.joinToString("\n")
         descView.visibility = if (descView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
-        httpFactory?.setDefaultRequestProperties(it.headers)   // np. klucz Jellyfin w nagłówku, nie w adresie
-        val uri = if (retryAs == 3 && transcoded != null) transcoded!! else it.uri   // przerobiony strumień od serwera Jellyfin
-        val mi = MediaItem.Builder().setUri(uri)
-        when (retryAs) { 1, 3 -> mi.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8); 2 -> mi.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T) }
-        player.setMediaItem(mi.build())
-        player.prepare()
-        val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f
-        if (!live && pos > 15f) { player.seekTo((pos * 1000).toLong()); toast(getString(R.string.video_resumed, String.format("%d:%02d", pos.toInt() / 60, pos.toInt() % 60))) }
+        busy.visibility = View.VISIBLE
+        fd?.close(); fd = null
+        val m = if (it.uri.startsWith("content://")) {
+            fd = contentResolver.openFileDescriptor(Uri.parse(it.uri), "r")
+            Media(vlc, fd!!.fileDescriptor)
+        } else {
+            // Jellyfin: VLC nie wysyła własnych nagłówków - klucz w adresie (tylko w pamięci, nie w logach)
+            val token = it.headers["X-Emby-Token"]
+            Media(vlc, Uri.parse(if (token != null) it.uri + (if ('?' in it.uri) "&" else "?") + "api_key=" + token else it.uri))
+        }
+        m.addOption(":http-user-agent=$UA")
+        player.media = m
+        m.release()
         player.play()
+        val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f
+        if (!live && pos > 15f) { player.setTime((pos * 1000).toLong()); toast(getString(R.string.video_resumed, String.format("%d:%02d", pos.toInt() / 60, pos.toInt() % 60))) }
+        ui.removeCallbacks(stuck); ui.postDelayed(stuck, 25000)   // serwer nic nie przysyła - zwykle limit połączeń (TV gra na innym urządzeniu)
         if (live) prefs.edit().putInt("tv-ostatni", i).putString("tv-ostatni-nazwa", it.title).apply()
+        showControls(true)
     }
 
     private fun next(d: Int) {
         if (queue.isEmpty()) return
-        val n = (index + d + queue.size) % queue.size
         if (!live && index + d !in queue.indices) { finish(); return }   // film: koniec kolejki
-        load(n)
+        load((index + d + queue.size) % queue.size)
     }
 
     // miejsce w filmie (telefon; Jellyfin - także na serwerze), co 5 s i przy wyjściu
@@ -195,29 +222,42 @@ class PlayerActivity : Activity() {
         override fun run() { savePos(); ui.postDelayed(this, 5000) }
     }
 
-    private fun savePos() {
+    private fun savePos(ended: Boolean = false) {
         if (live) return
         val it = queue.getOrNull(index) ?: return
         val k = it.key ?: return
-        val t = player.currentPosition / 1000f; val d = player.duration / 1000f
-        if (d < 120 || player.duration == C.TIME_UNSET) return
+        val d = player.length / 1000f; val t = player.time / 1000f
+        if (ended) { posPrefs.edit().remove(k).apply(); return }
+        if (d < 120) return
         posPrefs.edit().apply { if (t > d - 20 || t < 15) remove(k) else putFloat(k, t) }.apply()
     }
 
     private fun reportJellyfin() {
         val it = queue.getOrNull(index) ?: return
         val id = it.jellyId ?: return
-        val pos = player.currentPosition
+        val pos = player.time
         val c = Jelly.conf(pw) ?: return
-        Thread { Jelly.reportStopped(c, id, pos) }.start()
+        Thread { runCatching { Jelly.reportStopped(c, id, pos) } }.start()
     }
 
-    private fun gestures() {
+    // lektor / język i napisy (jak w VLC)
+    private fun askTracks() {
+        val a = player.audioTracks ?: emptyArray(); val s = player.spuTracks ?: emptyArray()
+        val labels = a.map { "🔊 " + it.name + if (it.id == player.audioTrack) " ✓" else "" } + s.map { "🗨 " + it.name + if (it.id == player.spuTrack) " ✓" else "" }
+        if (labels.isEmpty()) { toast(getString(R.string.player_no_tracks)); return }
+        AlertDialog.Builder(this).setTitle(R.string.player_tracks).setItems(labels.toTypedArray()) { _, i ->
+            if (i < a.size) player.setAudioTrack(a[i].id) else player.setSpuTrack(s[i - a.size].id)
+        }.show()
+    }
+
+    private fun gestures(root: View) {
         val audio = getSystemService(AudioManager::class.java)!!
         var mode = 0   // 1 jasność, 2 głośność, 3 przewijanie
         var startPos = 0L
         val det = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent): Boolean { mode = 0; startPos = player.currentPosition; return false }
+            override fun onDown(e: MotionEvent): Boolean { mode = 0; startPos = player.time; return true }
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean { showControls(controls.visibility != View.VISIBLE); return true }
+            override fun onDoubleTap(e: MotionEvent): Boolean { if (!live) jump(if (e.x < root.width / 2f) -10_000 else 10_000); return true }
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
                 if (!live || e1 == null || Math.abs(vy) < Math.abs(vx)) return false
                 next(if (vy < 0) 1 else -1)   // w górę - następny kanał
@@ -226,23 +266,23 @@ class PlayerActivity : Activity() {
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
                 if (e1 == null) return false
                 val tx = e2.x - e1.x; val ty = e2.y - e1.y
-                if (mode == 0) mode = if (Math.abs(tx) > Math.abs(ty)) (if (live) -1 else 3) else if (live) -1 else if (e1.x < view.width / 2f) 1 else 2
+                if (mode == 0) mode = if (Math.abs(tx) > Math.abs(ty)) (if (live) -1 else 3) else if (live) -1 else if (e1.x < root.width / 2f) 1 else 2
                 when (mode) {
                     1 -> {
                         val lp = window.attributes
                         val cur = if (lp.screenBrightness < 0) 0.5f else lp.screenBrightness
-                        lp.screenBrightness = (cur + dy / view.height).coerceIn(0.02f, 1f); window.attributes = lp
+                        lp.screenBrightness = (cur + dy / root.height).coerceIn(0.02f, 1f); window.attributes = lp
                     }
                     2 -> {
                         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                        if (Math.abs(dy) > view.height / (max * 2f)) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (dy > 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                        if (Math.abs(dy) > root.height / (max * 2f)) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (dy > 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
                     }
-                    3 -> player.seekTo((startPos + (tx / view.width * 180_000).toLong()).coerceAtLeast(0))   // cała szerokość = 3 minuty
+                    3 -> player.setTime((startPos + (tx / root.width * 180_000).toLong()).coerceAtLeast(0))   // cała szerokość = 3 minuty
                 }
                 return mode > 0
             }
         })
-        view.setOnTouchListener { _, e -> det.onTouchEvent(e); false }   // stuknięcie dalej pokazuje przyciski odtwarzacza
+        root.setOnTouchListener { _, e -> det.onTouchEvent(e) }
     }
 
     private fun askSleep() {
@@ -272,7 +312,7 @@ class PlayerActivity : Activity() {
 
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
         super.onPictureInPictureModeChanged(pip, cfg)
-        view.useController = !pip
+        showControls(!pip)
         if (pip && !player.isPlaying) player.play()   // w okienku film gra dalej
     }
 
@@ -282,11 +322,8 @@ class PlayerActivity : Activity() {
         // okienko zamknięte (✕ albo przesunięte poza ekran) - koniec odtwarzania
         if (isInPictureInPictureMode) { player.pause(); finish(); return }
         // poza okienkiem: gra dalej w tle (powiadomienie z Zatrzymaj), gdy włączone „Odtwarzanie w tle”
-        run {
-            if (player.isPlaying && prefs.getBoolean("tlo", true))
-                PlaybackService.start(this, queue.getOrNull(index)?.title ?: "")
-            else player.pause()
-        }
+        if (player.isPlaying && prefs.getBoolean("tlo", true)) PlaybackService.start(this, queue.getOrNull(index)?.title ?: "")
+        else player.pause()
     }
 
     override fun onStart() {
@@ -298,7 +335,8 @@ class PlayerActivity : Activity() {
         savePos(); reportJellyfin()
         ui.removeCallbacksAndMessages(null)
         PlaybackService.stop(this)
-        player.release()
+        player.stop(); player.detachViews(); player.release(); vlc.release()
+        fd?.close()
         if (current?.get() == this) current = null
         super.onDestroy()
     }

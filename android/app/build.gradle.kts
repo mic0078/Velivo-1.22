@@ -12,6 +12,7 @@ android {
         targetSdk = 35
         versionCode = 2
         versionName = "1.22"
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }   // tylko telefony ARM - mniejszy plik (VLC ma kod natywny)
     }
     // Trzy wersje z jednego kodu:
     //  pelna  - APK dla rodziny (YouTube bez reklam i w tle, dokładny budzik) - jak dotąd, ten sam identyfikator;
@@ -43,7 +44,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
@@ -60,9 +61,6 @@ base { archivesName.set("Velivo") }
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
-    // odtwarzacz filmów i telewizji (IPTV): Media3 / ExoPlayer - lekki, sprzętowe dekodowanie, HLS i MPEG-TS
-    implementation("androidx.media3:media3-exoplayer:1.5.0")
-    implementation("androidx.media3:media3-exoplayer-hls:1.5.0")
-    implementation("androidx.media3:media3-ui:1.5.0")
-    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")   // dźwięk AC3/E-AC3/MP2 z kanałów TV - telefony często nie mają tych dekoderów
+    // odtwarzacz filmów i telewizji: biblioteka VLC (jak VLC na Windows) - każdy format: stare AVI, AC3/E-AC3, MPEG-TS, HLS
+    implementation("org.videolan.android:libvlc-all:3.6.5")
 }

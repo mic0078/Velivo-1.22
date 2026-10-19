@@ -86,7 +86,18 @@ def single(body, title, lang):
 pl = open(os.path.join(ROOT, 'dokumentacja/instrukcja-telefon.md'), encoding='utf-8').read()
 en = open(os.path.join(ROOT, 'dokumentacja/instrukcja-telefon.en.md'), encoding='utf-8').read()
 pl_b = md(pl.split('\n', 1)[1]); en_b = md(en.split('\n', 1)[1])
-open(os.path.join(ROOT, 'docs/telefon.html'), 'w', encoding='utf-8').write(page(pl_b, en_b, 'Velivo – instrukcja na telefon / phone manual'))
+# na górze strony: krótko czym jest Velivo, instalacja i aktualizacje (ten sam tekst co wiadomość dla znajomych)
+op = open(os.path.join(ROOT, 'dokumentacja/opis-dla-znajomych.md'), encoding='utf-8').read()
+op_pl = op.split('## Po polsku', 1)[1].split('## In English', 1)[0]; op_en = op.split('## In English', 1)[1]
+op_pl = op_pl.replace('Cześć! Przesyłam Ci **Velivo** – lekką, prywatną przeglądarkę na telefon (Android 10+), którą robię sam.', '**Velivo** to lekka, prywatna przeglądarka na telefon (Android 10+).').replace('Instrukcja w załączonym PDF.', 'Instrukcja – poniżej i w PDF.')
+op_en = op_en.replace('Hi! Here is **Velivo** – a light, private phone browser (Android 10+) that I make myself.', '**Velivo** is a light, private phone browser (Android 10+).').replace('The manual is in the attached PDF.', 'The manual is below and in the PDF.')
+def withAbout(body, title, about, policy):
+    nav, rest = body.split('</nav>', 1)
+    nav = nav.replace('<ol>', '<ol><li><a href="#o">' + title + '</a></li>', 1)
+    return nav + '</nav>\n<h2 id="o">' + title + '</h2>' + md(about) + rest + '<p><a href="polityka-prywatnosci.html">' + policy + '</a></p>'
+pl_page = withAbout(pl_b, 'O Velivo', op_pl, 'Polityka prywatności')
+en_page = withAbout(en_b, 'About Velivo', op_en, 'Privacy policy')
+open(os.path.join(ROOT, 'docs/telefon.html'), 'w', encoding='utf-8').write(page(pl_page, en_page, 'Velivo – instrukcja na telefon / phone manual'))
 # PDF: Chromium bez okna (Chrome/Edge/Chromium - pierwszy znaleziony), drukowanie strony do A4
 import shutil, subprocess, tempfile
 chrome = os.environ.get('CHROME') or next((c for c in ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', shutil.which('chromium') or '', shutil.which('google-chrome') or '',

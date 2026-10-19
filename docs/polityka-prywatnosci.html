@@ -20,11 +20,13 @@ small{color:var(--muted)}
 <li>Zakładki, historia, karty, karteczki, ustawienia, wielkość stron, miejsce w czytniku i w filmach, ukryte elementy stron.</li>
 <li>Hasła – zaszyfrowane kluczem w Android Keystore (Windows: DPAPI); klucz nie opuszcza urządzenia.</li>
 <li>Karta prywatna i tryb bankowy nie zapisują historii; karta prywatna jest kasowana po zamknięciu.</li>
+<li>Telewizja i filmy: adresy Twoich list kanałów, program TV, dane logowania do Twojego serwera Jellyfin i Twoja biblioteka – zaszyfrowane w urządzeniu. Zaplanowane audycje pamiętają tylko nazwę kanału.</li>
 </ul>
 <h2>Połączenia z internetem</h2>
 <ul>
 <li>Strony, które sam otwierasz (wyszukiwanie domyślnie przez Startpage).</li>
 <li>Pobieranie publicznych list blokowania reklam (EasyList, EasyPrivacy, Polskie Filtry) co kilka dni – bez żadnych danych o Tobie.</li>
+<li>Telewizja i filmy: tylko adresy, które sam podasz (Twój dostawca list TV, Twój serwer Jellyfin w sieci domowej). Velivo nie dostarcza kanałów ani filmów i nie wysyła nigdzie, co oglądasz. Odświeżanie list i programu w nocy – tylko z tych adresów, przy Wi-Fi.</li>
 </ul>
 <h2>Synchronizacja z komputerem</h2>
 <p>Tylko w Twojej sieci domowej (Wi-Fi), tylko po sparowaniu potwierdzonym 6-cyfrowym kodem na obu urządzeniach, szyfrowana (AES-GCM). Dane nie przechodzą przez żaden serwer. Synchronizacja jest domyślnie wyłączona.</p>
@@ -33,7 +35,8 @@ small{color:var(--muted)}
 <li>Internet i Wi-Fi – przeglądanie i synchronizacja w sieci domowej.</li>
 <li>Powiadomienia – odtwarzanie w tle, przypomnienia z karteczek, pobudka.</li>
 <li>Odcisk palca / PIN – otwarcie haseł i trybu bankowego.</li>
-<li>Alarmy – pobudka o ustalonej godzinie.</li>
+<li>Alarmy – pobudka i zaplanowane włączenie audycji o ustalonej godzinie.</li>
+<li>Filmy i muzyka w telefonie – tylko gdy sam otworzysz listę „Filmy i muzyka z telefonu”; nic nie jest wysyłane.</li>
 </ul>
 <h2>Kontakt</h2>
 <p>Pytania o prywatność: przez stronę projektu Velivo na GitHubie (mic0078/Velivo-1.22).</p>
@@ -47,11 +50,13 @@ small{color:var(--muted)}
 <li>Bookmarks, history, tabs, sticky notes, settings, page sizes, your place in reader view and videos, hidden page elements.</li>
 <li>Passwords – encrypted with a key in the Android Keystore (Windows: DPAPI); the key never leaves the device.</li>
 <li>Private tabs and banking mode keep no history; a private tab is erased when closed.</li>
+<li>TV and films: your channel list addresses, TV guide, sign-in data for your Jellyfin server and your library – encrypted on the device. Scheduled programmes remember only the channel name.</li>
 </ul>
 <h2>Internet connections</h2>
 <ul>
 <li>Pages you open yourself (search goes through Startpage by default).</li>
 <li>Downloading public ad-blocking lists (EasyList, EasyPrivacy, Polish Filters) every few days – with no data about you.</li>
+<li>TV and films: only addresses you enter yourself (your TV list provider, your Jellyfin server on the home network). Velivo provides no channels or films and sends nowhere what you watch. Night-time refresh of lists and guide – only from those addresses, on Wi-Fi.</li>
 </ul>
 <h2>Sync with the computer</h2>
 <p>Only on your home Wi-Fi network, only after pairing confirmed with a 6-digit code on both devices, encrypted (AES-GCM). Data never passes through any server. Sync is off by default.</p>
@@ -60,7 +65,8 @@ small{color:var(--muted)}
 <li>Internet and Wi-Fi – browsing and home-network sync.</li>
 <li>Notifications – background playback, note reminders, wake-up.</li>
 <li>Fingerprint / PIN – opening passwords and banking mode.</li>
-<li>Alarms – wake-up at the chosen time.</li>
+<li>Alarms – wake-up and scheduled programmes at the chosen time.</li>
+<li>Videos and music on the phone – only when you open "Videos and music on the phone"; nothing is sent.</li>
 </ul>
 <h2>Contact</h2>
 <p>Privacy questions: through the Velivo project page on GitHub (mic0078/Velivo-1.22).</p>

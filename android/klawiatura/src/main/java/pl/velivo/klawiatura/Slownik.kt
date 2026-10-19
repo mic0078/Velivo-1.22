@@ -159,6 +159,8 @@ object Slownik {
         val ownP = synchronized(ownFold) { ownFold.containsValue(p.lowercase()) }
         val pl = all[fold(p)] ?: return if (ownP) p else fix
         val pe = pl.minByOrNull(::score)!!; if (pe.rank >= 60000 && !ownP) return fix
+        // literówka częstego słowa wygrywa z dokończeniem rzadszego: zarz -> zaraz (nie zarzuty)
+        if (fix != null) all[fold(fix)]?.minByOrNull(::score)?.let { if (score(it) <= score(pe)) return fix }
         if (w in m) {
             val we = all[fold(w)]?.firstOrNull { it.word == w }
             if (we == null || score(we) < 5000 || score(pe) * 4 > score(we)) return fix

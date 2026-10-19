@@ -180,6 +180,8 @@ namespace Velivo
             bool ownP; lock (_ownFold) ownP = _ownFold.ContainsValue(p.ToLowerInvariant());
             if (!_foldAll.TryGetValue(Fold(p), out var pl)) return ownP ? p : fix;   // Moje slowo (imie, nazwisko) - tez wstawiamy
             var pe = pl.OrderBy(Score).First(); if (pe.Rank >= 60000 && !ownP) return fix;   // bardzo rzadkie slowo - nie zgadujemy
+            // literowka czestego slowa wygrywa z dokonczeniem rzadszego: zarz -> zaraz (nie zarzuty)
+            if (fix != null && _foldAll.TryGetValue(Fold(fix), out var fl) && Score(fl.OrderBy(Score).First()) <= Score(pe)) return fix;
             if (_main.Contains(w))
             {   // wpisane to tez slowo: zostaje, chyba ze rzadkie, a dokonczenie duzo czestsze (pra -> prawda; dom, nie, kot zostaja)
                 var we = _foldAll.TryGetValue(Fold(w), out var wl) ? wl.FirstOrDefault(e => e.Word == w) : null;

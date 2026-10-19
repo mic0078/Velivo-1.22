@@ -344,7 +344,8 @@ object Jelly {
         }
     }
 
-    private const val LIB = "/Items?IncludeItemTypes=Movie,Series&Recursive=true&SortBy=SortName&Fields=Overview,ProductionYear,DateCreated&EnableImageTypes=Primary"
+    // Video: filmy z bibliotek "mieszanych" / domowych i nierozpoznane przez Jellyfin (jak w Velivo na Windows) - bez tego było ich tylko kilka
+    private const val LIB = "/Items?IncludeItemTypes=Movie,Series,Video&Recursive=true&SortBy=SortName&Fields=Overview,ProductionYear,DateCreated&EnableImageTypes=Primary"
     private const val RES = "/Items/Resume?MediaTypes=Video&Limit=30&Fields=Overview"
     private fun cacheFile(ctx: Context) = File(File(ctx.filesDir, "tv").apply { mkdirs() }, "jellyfin.bin")
 

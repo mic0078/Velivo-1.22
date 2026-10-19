@@ -2326,7 +2326,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         fun row(it: Jelly.Item) = MRow(if (it.series.isNotEmpty()) it.series + " – " + it.name else it.name,
             listOf(if (it.year > 0) it.year.toString() else "", dur(it.ticks), if (it.posTicks > 0 && it.ticks > 0) "▶ " + (it.posTicks * 100 / it.ticks) + "%" else "").filter { s -> s.isNotEmpty() }.joinToString(" · ") +
                 if (it.overview.isNotEmpty()) "\n" + it.overview else "", Jelly.image(c, it.id), hdr, tag = it)
-        fun rows() = when (mode) { 0 -> resume; 1 -> lib.filter { it.type == "Movie" }; else -> lib.filter { it.type == "Series" } }.map { row(it) }
+        fun rows() = when (mode) { 0 -> resume; 1 -> lib.filter { it.type != "Series" }; else -> lib.filter { it.type == "Series" } }.map { row(it) }
         val titles = listOf(getString(R.string.jf_resume), getString(R.string.jf_movies), getString(R.string.jf_series))
         fun item(it: Jelly.Item) = PlayerActivity.Item(if (it.series.isNotEmpty()) it.series + " – " + it.name else it.name, Jelly.stream(c, it.id), "jf-" + it.id, hdr, it.id)
         scr = MediaScreen("🎬 " + getString(R.string.jf_library), "jf", listOf(getString(R.string.sort_az), getString(R.string.sort_newest), getString(R.string.jf_sort_year)),

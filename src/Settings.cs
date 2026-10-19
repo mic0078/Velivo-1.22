@@ -49,7 +49,7 @@ namespace Velivo
         public double ReadRate = 1.25;
         public double ReadVolume = 1.0;        // glosnosc czytania na glos (0-1)
         public bool NightLight = false;
-        public string Theme = "jasny";
+        public string Theme = "velivo-noc";   // nowa instalacja: ciemny motyw Velivo (zapisany wybor uzytkownika zostaje)
         public string Language = "auto";       // jezyk interfejsu: auto (jak Windows) / pl / en          // motyw przegladarki (Themes.cs)        // tryb nocny: cieplejsze kolory stron (jak Swiatlo nocne w Windows)         // predkosc czytania na glos
         public string ReadVoice = "";          // glos (pusty = pierwszy polski)
         public string CacheDir = "";           // wlasny folder na smieci (pusty = w profilu)
@@ -58,7 +58,7 @@ namespace Velivo
         public int CacheMb = 0;                // rozmiar pamieci podrecznej (0 = automatycznie)
         public bool BlockThirdPartyPopups = true;
         public string UiStyle = "modern";
-        public string WindowTheme = "light";   // okna (biblioteka, telewizja, notatki...): light / dark / auto (jak Windows)
+        public string WindowTheme = "dark";   // okna (biblioteka, telewizja, notatki, dodatki...): light / dark / auto (jak Windows); nowa instalacja - ciemne Velivo
         public int PageFade = 300;
         public int PageEntranceMs = 1000;       // szybkosc efektu wejscia w ms (0 = wg plynnego przejscia)
         public string PageEntrance = "cinema";  // efekt wejscia tresci: slide / blur / zoom / none               // plynne pojawianie sie stron w ms (0 = tylko naturalne przejscie silnika)

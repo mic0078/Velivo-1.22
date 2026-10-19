@@ -177,6 +177,7 @@ namespace Velivo
                 var exts = await prof.GetBrowserExtensionsAsync();
                 var items = exts.Where(x => !BuiltInExtensions.Contains(x.Id))
                     .Where(x => !IsQuickAccessExtensionId(x.Id))
+                    .Where(x => !IsUbol(x))   // wbudowany uBOL dodaje Velivo samo - nie synchronizujemy (inaczej drugi egzemplarz ze sklepu)
                     .Select(x =>
                     {
                         string storeId;
@@ -208,7 +209,8 @@ namespace Velivo
 
                 foreach (var kv in desired)
                 {
-                    if (string.Equals(kv.Key, QuickAccessExtensionId, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(kv.Key, QuickAccessExtensionId, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(kv.Key, UbolStoreId, StringComparison.OrdinalIgnoreCase))   // uBOL jest wbudowany
                         continue;
 
                     string installedId;

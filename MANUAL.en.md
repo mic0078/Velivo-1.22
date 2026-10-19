@@ -459,7 +459,7 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - **Style** (Settings → Look):
   - **Modern** (default): calm buttons without colored backgrounds, Windows 11 icons, one blue accent, and color only on hover or when something is on;
   - **Colorful**: colored buttons and emoji.
-- **11 themes:** Velivo (default, the colours of the icon: violet and turquoise), Velivo night, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
+- **11 themes:** Velivo night (default, deep violet), Velivo light (the colours of the icon: violet and turquoise), Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
 - **Page modes** (mode button – the icon shows the current mode: ☀ light, 🌙 dark, 🌅 night):
   - light;
   - **dark** – pages darkened while photos keep their true colors;
@@ -755,7 +755,7 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
   - **Gentle dim** – a short, subtle dim and back;
   - **None** – the page appears instantly.
 - **Entrance effect speed** – slider from 0 to 5 s in 0.1 s steps (0 = automatic). Example values: quick 0.15 s, gentle 0.3 s, slow 0.5 s, calm 1 s, very calm 2 s, dreamy 3 s, slowest 4 s.
-- **Browser theme** – colours of bars and tabs: Velivo (default), Velivo night, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
+- **Browser theme** – colours of bars and tabs: Velivo night (default), Velivo light, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
 - **Style** – **Modern** (calm, like Windows 11: Windows icons, one blue accent) or **Colourful** (coloured buttons and emoji).
 - **Interface language** – automatic (installer / Windows), Polish or English. Takes effect after a restart.
 - **Always compact toolbar** – smaller labels, some buttons move into the "…" menu even on a wide window.

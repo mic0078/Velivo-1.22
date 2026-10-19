@@ -92,9 +92,11 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); }
         }
 
+        const string UbolStoreId = "ddkjiahejlhfcafbddmgiahcphecmpfh";
+
         static bool IsUbol(CoreWebView2BrowserExtension e)
         {
-            return e != null && (e.Id == "ddkjiahejlhfcafbddmgiahcphecmpfh" || (e.Name ?? "").IndexOf("uBlock Origin Lite", StringComparison.OrdinalIgnoreCase) >= 0);
+            return e != null && (e.Id == UbolStoreId || (e.Name ?? "").IndexOf("uBlock Origin Lite", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         // Tarcza: zadania zablokowane przez uBOL silnik zglasza jako net::ERR_BLOCKED_BY_CLIENT (blokada Velivo daje 403, wiec bez dubli)
@@ -189,7 +191,15 @@ namespace Velivo
                 string have = null;
                 try { if (File.Exists(UbolVersionFile)) have = File.ReadAllText(UbolVersionFile).Trim(); } catch (Exception) { }
                 var exts = await prof.GetBrowserExtensionsAsync();
-                var installed = exts.FirstOrDefault(IsUbol);
+                // dwa uBOL naraz (wbudowany + drugi ze sklepu, np. z synchronizacji dodatkow) blokuja sie nawzajem - np. YouTube
+                // przestaje dzialac. Zostaje jeden: wbudowany (Velivo go aktualizuje), kopie ze sklepu usuwamy.
+                var all = exts.Where(IsUbol).ToList();
+                if (all.Count > 1)
+                {
+                    var keep = all.FirstOrDefault(x => x.Id != UbolStoreId) ?? all[0];
+                    foreach (var x in all.Where(x => x != keep)) { try { await x.RemoveAsync(); } catch (Exception ex) { App.LogError(ex); } }
+                }
+                var installed = (await prof.GetBrowserExtensionsAsync()).FirstOrDefault(IsUbol);
                 bool want = _settings == null || _settings.UbolLite;   // wbudowany, domyslnie wlaczony - uzytkownik moze wylaczyc
                 // nowsza wersja niz zainstalowana przez Velivo - podmiana dodatku
                 // (dodatek ze sklepu, bez pliku wersji Velivo, zostawiamy w spokoju)

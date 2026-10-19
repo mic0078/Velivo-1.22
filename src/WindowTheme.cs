@@ -28,7 +28,8 @@ namespace Velivo
         static string _winTheme = "light";
         internal static bool DarkWindows { get { return _winTheme == "dark" || _winTheme == "auto" && WindowsAppsDark(); } }
 
-        static readonly Brush DarkBg = Frozen("#1F2328"), DarkPanel = Frozen("#2D333B"), DarkBorder = Frozen("#444C56"), DarkFg = Frozen("#E6EDF3"), DarkHeader = Frozen("#22272E");
+        // ciemne okna w kolorach Velivo (jak motyw "Velivo nocny" okna glownego), nie szare
+        static readonly Brush DarkBg = Frozen("#1B1733"), DarkPanel = Frozen("#2E2768"), DarkBorder = Frozen("#4A3F8A"), DarkFg = Frozen("#ECE8FF"), DarkHeader = Frozen("#241F45");
         static Brush Frozen(string hex) { var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); b.Freeze(); return b; }
 
         // wywolywane przy otwarciu kazdego okna (App) i po zmianie ustawienia (otwarte okna)

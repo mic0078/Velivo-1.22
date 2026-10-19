@@ -344,4 +344,9 @@
     <string name="tv_desc">Description</string>
     <string name="tv_plan_keep">Turn on and keep playing</string>
     <string name="tv_plan_off">Turn on and stop when it ends (%1$s)</string>
+    <string name="default_browser">Default browser</string>
+    <string name="default_player">Default player</string>
+    <string name="phone_videos">Videos and music on the phone</string>
+    <string name="default_browser_done">Velivo is already your default browser</string>
+    <string name="default_player_help">To always open videos and music in Velivo: open a video or song in Gallery or Files → Open with → Velivo → Always. To go back, clear the defaults of that app in Android settings.</string>
 </resources>

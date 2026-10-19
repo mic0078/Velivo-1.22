@@ -344,4 +344,9 @@
     <string name="tv_desc">Opis</string>
     <string name="tv_plan_keep">Włącz i oglądaj dalej</string>
     <string name="tv_plan_off">Włącz i wyłącz odtwarzanie po zakończeniu (%1$s)</string>
+    <string name="default_browser">Domyślna przeglądarka</string>
+    <string name="default_player">Domyślny odtwarzacz</string>
+    <string name="phone_videos">Filmy i muzyka z telefonu</string>
+    <string name="default_browser_done">Velivo już jest domyślną przeglądarką</string>
+    <string name="default_player_help">Aby filmy i muzyka zawsze otwierały się w Velivo: otwórz film albo utwór w Galerii albo Plikach → Otwórz za pomocą → Velivo → Zawsze. Aby to cofnąć, wyczyść ustawienia domyślne tej aplikacji w ustawieniach Androida.</string>
 </resources>

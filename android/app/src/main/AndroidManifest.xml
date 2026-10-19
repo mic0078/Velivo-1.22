@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 📱 filmy i muzyka z telefonu (lista wszystkich) - tylko gdy użytkownik ją otworzy -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- ⏰ pobudka: budzik o dokładnej godzinie (Android 14+: za zgodą użytkownika; wersja pełna ma dodatkowo USE_EXACT_ALARM) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <application
@@ -47,12 +51,28 @@
         <!-- odtwarzacz filmów i telewizji: pełny ekran, obraz w obrazie -->
         <activity
             android:name=".PlayerActivity"
-            android:exported="false"
+            android:exported="true"
             android:theme="@style/Velivo.Player"
             android:supportsPictureInPicture="true"
             android:resizeableActivity="true"
             android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize">
+            <!-- "Otwórz za pomocą → Velivo": film z Galerii, Plików, WhatsAppa (Velivo jako domyślny odtwarzacz, gdy ktoś chce) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="video/*" />
+                <data android:scheme="file" android:mimeType="video/*" />
+                <data android:scheme="http" android:mimeType="video/*" />
+                <data android:scheme="https" android:mimeType="video/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="audio/*" />
+                <data android:scheme="file" android:mimeType="audio/*" />
+            </intent-filter>
+        </activity>
         <service
             android:name=".Odswiezanie"
             android:exported="false"

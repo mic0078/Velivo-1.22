@@ -229,6 +229,8 @@ class MainActivity : Activity() {
         const val BANK_PROFILE = "bank"
         const val REQ_VLPAIR = 7
         const val REQ_MEDIA = 8
+        const val REQ_ROLE = 9
+        const val REQ_VIDEOS = 10
         val YOUTUBE_ORIGINS = setOf("https://www.youtube.com", "https://m.youtube.com", "https://youtube.com", "https://music.youtube.com")
         const val BANK_IDLE_MS = 10 * 60 * 1000L
 
@@ -1305,6 +1307,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             33 -> showYtSongs()
             34 -> ytAddCurrent()
             35 -> askSleep()
+            36 -> askDefaultBrowser()
+            37 -> AlertDialog.Builder(this).setTitle(R.string.default_player).setMessage(R.string.default_player_help)
+                .setPositiveButton(R.string.phone_videos) { _, _ -> showPhoneVideos() }.setNegativeButton(android.R.string.ok, null).show()
+            38 -> showPhoneVideos()
             23 -> showNotes()
             24 -> newNote()
             25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
@@ -1426,7 +1432,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple("🗒", R.string.notes, 23), Triple("📝", R.string.note_new, 24), Triple("📥", R.string.downloads, 25)))
         section(R.string.menu_settings, listOf(
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
-            Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6)),
+            Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6),
+            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38)),
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
         // na samym dole menu też płaski pasek YouTube (przytrzymanie: wyłącznik czasowy i pobudka)
         box.addView(TextView(this).apply {
@@ -2297,6 +2304,50 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // ---------- 📁 Moje filmy (z telefonu, wybrane przez Ciebie - bez dostępu do całej pamięci) ----------
     private fun myFiles(): org.json.JSONArray = runCatching { org.json.JSONArray(prefs.getString("moje-filmy", "[]")) }.getOrDefault(org.json.JSONArray())
+
+    // 🧭 Velivo jako domyślna przeglądarka - systemowe pytanie Androida (tylko gdy ktoś chce)
+    private fun askDefaultBrowser() {
+        val rm = getSystemService(android.app.role.RoleManager::class.java)
+        if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_BROWSER)) {
+            if (rm.isRoleHeld(android.app.role.RoleManager.ROLE_BROWSER)) { toast(getString(R.string.default_browser_done)); return }
+            runCatching { startActivityForResult(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_BROWSER), REQ_ROLE); return }
+        }
+        runCatching { startActivity(Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) }
+    }
+
+    // 📱 wszystkie filmy i muzyka z telefonu (aparat, pobrane, WhatsApp…) - A–Z, najnowsze, długość
+    private fun showPhoneVideos() {
+        val perms = if (Build.VERSION.SDK_INT >= 33) arrayOf(android.Manifest.permission.READ_MEDIA_VIDEO, android.Manifest.permission.READ_MEDIA_AUDIO) else arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+        if (perms.any { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED } && afterVideoPerm == null) { afterVideoPerm = { showPhoneVideos() }; requestPermissions(perms, REQ_VIDEOS); return }
+        lateinit var scr: MediaScreen
+        scr = MediaScreen("📱 " + getString(R.string.phone_videos), "telefon", listOf(getString(R.string.sort_az), getString(R.string.sort_newest)),
+            sorter = { l, s -> if (s == 0) l.sortedBy { it.title.lowercase() } else l.sortedByDescending { (it.tag as Pair<*, *>).second as Long } },
+            onOpen = { r, shown -> play(shown.map { val u = (it.tag as Pair<*, *>).first.toString(); PlayerActivity.Item(it.title, u, "plik-" + u.hashCode()) }, shown.indexOf(r), false) })
+        scr.show()
+        scr.setRows(emptyList(), getString(R.string.tv_loading))
+        Thread {
+            val rows = ArrayList<MRow>()
+            // filmy i muzyka (🎵) - kolumny wspólne dla obu
+            for ((col, icon) in listOf(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "", android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "🎵 ")) runCatching {
+                contentResolver.query(col, arrayOf(android.provider.MediaStore.MediaColumns._ID, android.provider.MediaStore.MediaColumns.DISPLAY_NAME, android.provider.MediaStore.MediaColumns.DURATION, android.provider.MediaStore.MediaColumns.DATE_ADDED, android.provider.MediaStore.MediaColumns.BUCKET_DISPLAY_NAME), null, null, null)?.use { c ->
+                    while (c.moveToNext()) {
+                        val u = android.content.ContentUris.withAppendedId(col, c.getLong(0))
+                        val min = c.getLong(2) / 60000
+                        rows.add(MRow(icon + (c.getString(1) ?: "?"), listOfNotNull(c.getString(4), if (min > 0) (if (min >= 60) "${min / 60} h ${min % 60} min" else "$min min") else null).joinToString(" · "), null, tag = u to c.getLong(3)))
+                    }
+                }
+            }
+            runOnUiThread { scr.setRows(rows, if (rows.isEmpty()) getString(R.string.my_films_empty) else "") }
+        }.start()
+    }
+
+    private var afterVideoPerm: (() -> Unit)? = null
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_VIDEOS && grantResults.any { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) afterVideoPerm?.invoke()   // choć filmy albo choć muzyka
+        afterVideoPerm = null
+    }
 
     private fun showMyFiles() {
         lateinit var scr: MediaScreen

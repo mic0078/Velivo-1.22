@@ -86,6 +86,7 @@ class PlayerActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         current = WeakReference(this)
+        openedFrom(intent)
         if (wake) { wake = false; setShowWhenLocked(true); setTurnScreenOn(true) }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.setBackgroundColor(Color.BLACK)
@@ -153,6 +154,23 @@ class PlayerActivity : Activity() {
         ui.post(tick)
         if (offAt > System.currentTimeMillis()) { sleepAt = offAt; ui.postDelayed(sleepRun, offAt - System.currentTimeMillis()) }
         offAt = 0
+    }
+
+    private fun isAudio(u: String) = runCatching { contentResolver.getType(Uri.parse(u)) }.getOrNull()?.startsWith("audio/") == true ||
+        u.substringBefore('?').substringAfterLast('.').lowercase() in setOf("mp3", "flac", "m4a", "ogg", "opus", "wav", "aac", "wma")
+
+    // film otwarty z innej aplikacji ("Otwórz za pomocą → Velivo") - sam plik, miejsce w filmie pamiętane
+    private fun openedFrom(i: android.content.Intent?) {
+        val u = i?.data ?: return
+        if (i.action != android.content.Intent.ACTION_VIEW) return
+        val name = runCatching { contentResolver.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } }.getOrNull()
+            ?: u.lastPathSegment ?: getString(R.string.app_name)
+        queue = listOf(Item(name, u.toString(), "plik-" + u.toString().hashCode())); index = 0; live = false
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == android.content.Intent.ACTION_VIEW && intent.data != null) { openedFrom(intent); recreate() }
     }
 
     private fun btn(label: String, tip: Int, big: Boolean = false, click: () -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
@@ -227,6 +245,7 @@ class PlayerActivity : Activity() {
             Media(vlc, Uri.parse(if (token != null) it.uri + (if ('?' in it.uri) "&" else "?") + "api_key=" + token else it.uri))
         }
         m.addOption(":http-user-agent=$UA")
+        if (isAudio(it.uri)) m.addOption(":audio-visual=goom")   // muzyka: kosmiczna wizualizacja VLC (Goom) zamiast czarnego ekranu
         m.addOption(":network-caching=" + if (live) 1000 else 1500)   // krótki bufor - obraz po chwili, jak w aplikacjach IPTV
         player.media = m
         m.release()

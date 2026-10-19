@@ -406,9 +406,11 @@ set(p0,p);})"""
         // dwa palce na stronie = większy / mniejszy tekst tej strony (50-300%), zapamiętany osobno dla każdej strony
         val zoomDet = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                if (zoomKey(w.url) == null) return true
                 w.settings.textZoom = (w.settings.textZoom * d.scaleFactor).toInt().coerceIn(50, 300); return true
             }
             override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
+                if (zoomKey(w.url) == null) { w.settings.textZoom = 100; return }
                 val z = (Math.round(w.settings.textZoom / 10f) * 10).coerceIn(50, 300)
                 w.settings.textZoom = z
                 zoomKey(w.url)?.let { k -> if (z == 100) prefs.edit().remove(k).apply() else prefs.edit().putInt(k, z).apply() }
@@ -532,7 +534,8 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
     private fun siteAllowed(host: String?) = host != null && Ochrona.regDomain(host) in (prefs.getStringSet("adblock-wyjatki", emptySet()) ?: emptySet())
 
     // klucz wielkości strony: domena (www. bez znaczenia); Szybki Dostęp ma własny
-    private fun zoomKey(url: String?): String? = Uri.parse(url ?: "").host?.lowercase()?.removePrefix("www.")?.let { "zoom-$it" }
+    // Strona startowa (Szybki Dostęp) - zawsze 100%, bez zmiany wielkości (wyjątek)
+    private fun zoomKey(url: String?): String? = Uri.parse(url ?: "").host?.lowercase()?.takeIf { it != QuickAccess.HOST }?.removePrefix("www.")?.let { "zoom-$it" }
 
     private fun warnLookalike(view: WebView, url: String, host: String, fake: String) {
         val msg = if (fake == "xn") getString(R.string.fake_xn, host) else getString(R.string.fake_brand, host, fake)

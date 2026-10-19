@@ -12,7 +12,7 @@ Velivo na Androida to lekka, prywatna przeglądarka w kolorach Velivo, połączo
 ## 1a. Powiększanie (dla słabszego wzroku)
 
 - **Dwa palce rozsuwane** w menu, na liście kart, zakładek, historii, haseł i karteczek – wszystko większe; zsuwane – mniejsze (80–220%). Razem z tym rośnie górny pasek i dolne przyciski, a przy dużym powiększeniu menu ma kafelki po 2 w rzędzie.
-- **Na stronie** dwa palce zmieniają wielkość tekstu tej strony (50–300%) – **każda strona pamięta swoją wielkość** (także strona startowa / Szybki Dostęp), a Velivo osobno swoją. Wystarczy ustawić raz.
+- **Na stronie** dwa palce zmieniają wielkość tekstu tej strony (50–300%) – **każda strona pamięta swoją wielkość** (strona startowa / Szybki Dostęp zawsze ma 100%), a Velivo osobno swoją. Wystarczy ustawić raz.
 - W **czytniku** dwa palce zmieniają wielkość tekstu (do 48 pt), tak jak A− / A+.
 
 ## 2. Karty

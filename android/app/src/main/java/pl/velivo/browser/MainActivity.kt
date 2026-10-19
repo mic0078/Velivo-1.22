@@ -395,12 +395,11 @@ set(p0,p);})"""
     }
 
     // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu
+    // Android zatrzymuje Velivo także przy otwartym okienku (onStop) - nie da się odróżnić od zamknięcia okienka,
+    // więc bez pauzy: film gra dalej jak w tle, z powiadomieniem „Zatrzymaj”.
     override fun onStop() {
         super.onStop()
-        if (isInPictureInPictureMode) {
-            tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
-            PlaybackService.stop(this)
-        }
+        if (isInPictureInPictureMode && prefs.getBoolean("tlo", true)) PlaybackService.start(this, web()?.title ?: "")
     }
 
     // --- 🌙 Wyłącznik czasowy: muzyka / film / czytanie cichnie po wybranym czasie (do snu) ---
@@ -575,7 +574,15 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun newTab(priv: Boolean, url: String, bank: Boolean = false) {
-        val w = WebView(this)
+        // Gra w tle i w okienku: gdy Android zatrzymuje Velivo (zgaszony ekran, okienko), WebView chowa stronę i wyłącza
+        // obraz i dźwięk filmu. Dopóki w tej karcie gra film, a granie w tle jest włączone - strona dalej "widoczna".
+        val w = object : WebView(this) {
+            override fun onWindowVisibilityChanged(visibility: Int) {
+                val keep = visibility != View.VISIBLE && videoPlaying && this === web() && tabs.getOrNull(cur)?.bank != true &&
+                    prefs.getBoolean("tlo", true) && !youtubeLimited()
+                super.onWindowVisibilityChanged(if (keep) View.VISIBLE else visibility)
+            }
+        }
         if (bank) WebViewCompat.setProfile(w, BANK_PROFILE)
         // Karta prywatna: osobny profil (ciasteczka, pamięć stron), kasowany po zamknięciu ostatniej prywatnej karty.
         if (priv) {

@@ -103,7 +103,7 @@ class MainActivity : Activity() {
             hint = getString(R.string.address_hint)
             setSingleLine()
             imeOptions = EditorInfo.IME_ACTION_GO
-            inputType = EditorInfo.TYPE_TEXT_VARIATION_URI
+            inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_URI   // z klasą tekstu klawiatura podpowiada słowa
             setSelectAllOnFocus(true)
             textSize = 15f
             setTextColor(TEXT)

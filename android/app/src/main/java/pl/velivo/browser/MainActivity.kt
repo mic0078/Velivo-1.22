@@ -327,7 +327,7 @@ set(p0,p);})"""
                     "return v?JSON.stringify({t:v.currentTime,d:v.duration}):''})()") { r ->
                 val j = runCatching { org.json.JSONObject(org.json.JSONTokener(r).nextValue() as String) }.getOrNull()
                 val playing = j != null
-                if (playing != videoPlaying) { videoPlaying = playing; updatePip() }
+                if (playing != videoPlaying) { videoPlaying = playing; android.util.Log.i("Velivo-PiP", "film gra: $playing"); updatePip() }
                 if (j != null && !t.priv) saveVideoPos(t.web.url, j.optDouble("t"), j.optDouble("d"))
             }
             pipCheck.postDelayed(this, 2000)
@@ -377,15 +377,20 @@ set(p0,p);})"""
         if (Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited())
     }.build()
 
-    private fun updatePip() { runCatching { setPictureInPictureParams(pipParams()) } }
+    // dziennik filmu ze strony (pauza / gra / koniec) - w Logcat jako "Velivo-PiP film"
+    private val pipJs = "(function(){if(window.__vpip)return;window.__vpip=1;['play','pause','ended','emptied','stalled','waiting'].forEach(function(e){document.addEventListener(e,function(ev){if(ev.target&&ev.target.tagName==='VIDEO')console.log('Velivo-PiP film '+e)},true)});document.addEventListener('visibilitychange',function(){console.log('Velivo-PiP strona '+document.visibilityState)},true)})()"
+
+    private fun updatePip() { android.util.Log.i("Velivo-PiP", "okienko samo: ${videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited()}, pełny ekran: ${fullView != null}"); runCatching { setPictureInPictureParams(pipParams()) }.onFailure { android.util.Log.i("Velivo-PiP", "błąd parametrów: $it") } }
 
     override fun onUserLeaveHint() {
+        android.util.Log.i("Velivo-PiP", "wyjście z aplikacji (film gra: $videoPlaying)")
         super.onUserLeaveHint()
         // starsze Androidy (10-11): wejście w PiP ręcznie
         if (Build.VERSION.SDK_INT < 31 && videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited()) runCatching { enterPictureInPictureMode(pipParams()) }
     }
 
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
+        android.util.Log.i("Velivo-PiP", "okienko: $pip, pełny ekran: ${fullView != null}")
         super.onPictureInPictureModeChanged(pip, cfg)
         pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
         // w okienku tylko film, na całą powierzchnię
@@ -398,6 +403,7 @@ set(p0,p);})"""
     // Android zatrzymuje Velivo także przy otwartym okienku (onStop) - nie da się odróżnić od zamknięcia okienka,
     // więc bez pauzy: film gra dalej jak w tle, z powiadomieniem „Zatrzymaj”.
     override fun onStop() {
+        android.util.Log.i("Velivo-PiP", "zatrzymane (w okienku: $isInPictureInPictureMode)")
         super.onStop()
         if (isInPictureInPictureMode && prefs.getBoolean("tlo", true)) PlaybackService.start(this, web()?.title ?: "")
     }
@@ -581,6 +587,7 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
             override fun onWindowVisibilityChanged(visibility: Int) {
                 val keep = visibility != View.VISIBLE && videoPlaying && this === web() && tabs.getOrNull(cur)?.bank != true &&
                     prefs.getBoolean("tlo", true) && !youtubeLimited()
+                android.util.Log.i("Velivo-PiP", "okno strony: $visibility (0 widoczne, 4/8 ukryte), trzymam widoczne: $keep")
                 if (keep) { kept = true; super.onWindowVisibilityChanged(View.VISIBLE); return }
                 // powrót po "udawanej" widoczności: obraz strony trzeba odbudować (inaczej biały ekran) - na moment ukryj i pokaż
                 if (visibility == View.VISIBLE && kept) { kept = false; super.onWindowVisibilityChanged(View.INVISIBLE); super.onWindowVisibilityChanged(View.VISIBLE); return }
@@ -648,7 +655,7 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, req.url)) }
                 return true
             }
-            override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url) }
+            override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url); view.evaluateJavascript(pipJs, null) }
             // YouTube przechodzi do kolejnego filmu bez wczytywania strony - też wznów od zapamiętanego miejsca
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
                 if (!isReload && Uri.parse(url).getQueryParameter("v") != null) resumeVideo(view, url)
@@ -2997,6 +3004,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     override fun onResume() {
+        android.util.Log.i("Velivo-PiP", "wznowione")
         super.onResume()
         PlaybackService.stop(this)
         lockBankIfIdle()
@@ -3063,6 +3071,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     override fun onPause() {
+        android.util.Log.i("Velivo-PiP", "wstrzymane (w okienku: $isInPictureInPictureMode)")
         pipCheck.removeCallbacks(pipTick)
         stopLan()
         idle.removeCallbacks(idleCheck)

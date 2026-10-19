@@ -76,7 +76,8 @@ class PlayerActivity : Activity() {
 
         val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent("VLC/3.0.20 LibVLC/3.0.20")   // serwery IPTV często wpuszczają tylko znane odtwarzacze
             .setConnectTimeoutMs(15000).setReadTimeoutMs(20000)
-        player = ExoPlayer.Builder(this)
+        player = ExoPlayer.Builder(this, androidx.media3.exoplayer.DefaultRenderersFactory(this)
+                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON))   // FFmpeg gdy telefon nie ma dekodera dźwięku (AC3 w TV)
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http)))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             .setHandleAudioBecomingNoisy(true)   // słuchawki wyjęte - pauza

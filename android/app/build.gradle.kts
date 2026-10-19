@@ -61,7 +61,8 @@ base { archivesName.set("Velivo") }
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
     // odtwarzacz filmów i telewizji (IPTV): Media3 / ExoPlayer - lekki, sprzętowe dekodowanie, HLS i MPEG-TS
-    implementation("androidx.media3:media3-exoplayer:1.4.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
-    implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("androidx.media3:media3-exoplayer:1.5.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.5.0")
+    implementation("androidx.media3:media3-ui:1.5.0")
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")   // dźwięk AC3/E-AC3/MP2 z kanałów TV - telefony często nie mają tych dekoderów
 }

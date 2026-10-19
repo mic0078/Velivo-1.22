@@ -220,4 +220,5 @@
     <string name="days_pick">Wybrane dni…</string>
     <string name="days_once">Jednorazowo</string>
     <string name="sleep_own">Własny czas (minuty)…</string>
+    <string name="video_resumed">▶ Wznawiam od miejsca %1$s</string>
 </resources>

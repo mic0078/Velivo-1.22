@@ -220,4 +220,5 @@
     <string name="days_pick">Chosen days…</string>
     <string name="days_once">Once</string>
     <string name="sleep_own">Custom time (minutes)…</string>
+    <string name="video_resumed">▶ Carrying on from %1$s</string>
 </resources>

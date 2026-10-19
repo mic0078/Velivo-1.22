@@ -297,12 +297,46 @@ set(p0,p);})"""
     private val pipTick = object : Runnable {
         override fun run() {
             val t = tabs.getOrNull(cur)
-            if (t != null && !t.bank) t.web.evaluateJavascript("[].some.call(document.querySelectorAll('video'),function(m){return !m.paused&&!m.ended&&m.readyState>2})") { r ->
-                val playing = r == "true"
+            if (t != null && !t.bank) t.web.evaluateJavascript("(function(){var v=[].slice.call(document.querySelectorAll('video')).filter(function(m){return !m.paused&&!m.ended&&m.readyState>2})[0];" +
+                    "return v?JSON.stringify({t:v.currentTime,d:v.duration}):''})()") { r ->
+                val j = runCatching { org.json.JSONObject(org.json.JSONTokener(r).nextValue() as String) }.getOrNull()
+                val playing = j != null
                 if (playing != videoPlaying) { videoPlaying = playing; updatePip() }
+                if (j != null && !t.priv) saveVideoPos(t.web.url, j.optDouble("t"), j.optDouble("d"))
             }
             pipCheck.postDelayed(this, 2000)
         }
+    }
+
+    // --- Miejsce w filmie: telefon pamięta, gdzie przerwałeś (także bez logowania), i wznawia od tego miejsca ---
+    // klucz: film YouTube (v=…) albo adres strony; ostatnie 300 filmów, tylko w telefonie, bez kart prywatnych i bankowych
+    private fun videoKey(url: String?): String? {
+        val u = Uri.parse(url ?: return null)
+        val host = u.host ?: return null
+        val id = if (host.endsWith("youtube.com")) u.getQueryParameter("v") else if (host == "youtu.be") u.lastPathSegment else null
+        return "film-" + (id ?: (host + u.path)).hashCode()
+    }
+
+    private fun saveVideoPos(url: String?, t: Double, d: Double) {
+        val k = videoKey(url) ?: return
+        if (d.isNaN() || d < 120) return   // krótkie filmy i transmisje na żywo (bez długości) - bez zapamiętywania
+        val p = getSharedPreferences("filmy", Context.MODE_PRIVATE)
+        val e = p.edit()
+        if (t > d - 20 || t < 15) e.remove(k) else e.putFloat(k, t.toFloat())   // obejrzany do końca - następnym razem od początku
+        if (p.all.size > 300) p.all.keys.take(50).forEach { e.remove(it) }
+        e.apply()
+    }
+
+    private fun resumeVideo(view: WebView, url: String) {
+        if (tabs.firstOrNull { it.web == view }?.priv == true) return
+        val k = videoKey(url) ?: return
+        val pos = getSharedPreferences("filmy", Context.MODE_PRIVATE).getFloat(k, 0f)
+        if (pos < 15f) return
+        val js = "(function(t){var v=document.querySelector('video');if(!v)return false;if(Math.abs(v.currentTime-t)>10)v.currentTime=t;return true})($pos)"
+        view.postDelayed({ view.evaluateJavascript(js) { r ->
+            if (r == "true") toast(getString(R.string.video_resumed, String.format("%d:%02d", pos.toInt() / 60, pos.toInt() % 60)))
+            else view.postDelayed({ view.evaluateJavascript(js, null) }, 3000)   // odtwarzacz jeszcze się ładuje
+        } }, 2500)
     }
 
     private fun pipParams() = android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).apply {
@@ -543,6 +577,10 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
                 return true
             }
             override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url) }
+            // YouTube przechodzi do kolejnego filmu bez wczytywania strony - też wznów od zapamiętanego miejsca
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                if (!isReload && Uri.parse(url).getQueryParameter("v") != null) resumeVideo(view, url)
+            }
             // ramka z reklamą, która się nie wczytała - zapamiętaj adres, żeby ją zwinąć zamiast strony błędu
             override fun onReceivedSslError(view: WebView, handler: android.webkit.SslErrorHandler, err: android.net.http.SslError) {
                 handler.cancel()   // nigdy nie przepuszczamy błędnego certyfikatu
@@ -559,6 +597,7 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
                 if (url.startsWith("https://")) Uri.parse(url).host?.let { httpsTried.remove(it.lowercase()) }
                 hideAds(view, url)
                 for (ms in longArrayOf(0, 1500, 4000, 9000)) view.postDelayed({ collapseFrames(view) }, ms)
+                resumeVideo(view, url)
                 val qa = QuickAccess.isQuickAccess(url)
                 if (!quiet && !qa) passwordsOnPage(view)
                 if (view == web()) address.setText(if (qa) "" else url)

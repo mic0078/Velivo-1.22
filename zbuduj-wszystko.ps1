@@ -7,7 +7,7 @@
 #   Windows - zmiany w src\, testy\ albo zbuduj.ps1
 #   Android - zmiany w android\ i we wspolnym Szybkim Dostepie (src\QuickAccessExtension\kod)
 #   -Wszystko  - zbuduj obie wersje mimo braku zmian
-param([switch]$TylkoAndroid, [switch]$Wszystko)
+param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep)   # -Sklep - takze 2 wersje AAB do Google Play
 $ErrorActionPreference = 'Stop'
 trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
 Set-Location $PSScriptRoot
@@ -40,7 +40,7 @@ if ($needWin) {
 } else { Write-Host "Windows bez zmian - pomijam (instalator z poprzedniej budowy jest aktualny)." -ForegroundColor DarkGray }
 if (-not $needAnd) { Write-Host "Android bez zmian - pomijam." -ForegroundColor DarkGray; exit 0 }
 
-Write-Host "Android: 3 wersje..." -ForegroundColor Cyan
+Write-Host ($(if ($Sklep) { "Android: 3 wersje..." } else { "Android: wersja pelna (APK). Wersje do sklepu: -Sklep" })) -ForegroundColor Cyan
 # Java dla Gradle: wersja 17-24 (Gradle 8.x nie dziala na Javie 25+). Szukamy: VELIVO_JAVA, jbr Android Studio, JAVA_HOME, zainstalowane JDK.
 $roots = @("$env:ProgramFiles\Android", "$env:LOCALAPPDATA\Programs", "${env:ProgramFiles(x86)}\Android", "$env:LOCALAPPDATA\JetBrains\Toolbox\apps", "$env:ProgramFiles")
 $cands = @($env:VELIVO_JAVA)
@@ -95,7 +95,7 @@ try {
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.store.password} = $ksPass
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.alias} = $alias
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.password} = $keyPass
-    & .\gradlew.bat --no-daemon --console=plain assemblePelnaRelease bundleSklepRelease bundleSklepytRelease
+    & .\gradlew.bat --no-daemon --console=plain @(if ($Sklep) { 'assemblePelnaRelease', 'bundleSklepRelease', 'bundleSklepytRelease' } else { 'assemblePelnaRelease' })
     if ($LASTEXITCODE -ne 0) { Write-Host "Budowa Androida nie powiodla sie (zle haslo? brak SDK?)." -ForegroundColor Red; exit 1 }
 } finally {
     Pop-Location; $ksPass = $null; $keyPass = $null
@@ -107,12 +107,14 @@ Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $o = Join-Path $PSScriptRoot 'android\app\build\outputs'
 Copy-Item "$o\apk\pelna\release\*.apk" (Join-Path $out 'Velivo-pelna.apk')
-Copy-Item "$o\bundle\sklepRelease\*.aab" (Join-Path $out 'Velivo-sklep.aab')
-Copy-Item "$o\bundle\sklepytRelease\*.aab" (Join-Path $out 'Velivo-sklepyt.aab')
+if ($Sklep) {
+    Copy-Item "$o\bundle\sklepRelease\*.aab" (Join-Path $out 'Velivo-sklep.aab')
+    Copy-Item "$o\bundle\sklepytRelease\*.aab" (Join-Path $out 'Velivo-sklepyt.aab')
+}
 Set-Content (Join-Path $cfgDir 'ostatnio-android.txt') $head
 Write-Host "Gotowe:" -ForegroundColor Green
 if ($needWin) { Write-Host "  build\instalator\Velivo-Setup-1.22.exe - Windows" }
 Write-Host "  build\android\Velivo-pelna.apk      - telefon (Ty i mama, WhatsApp)"
-Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"
-Write-Host "  build\android\Velivo-sklepyt.aab    - Google Play (jak Brave)"
+if ($Sklep) { Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"
+Write-Host "  build\android\Velivo-sklepyt.aab    - Google Play (jak Brave)" }
 Start-Process $out

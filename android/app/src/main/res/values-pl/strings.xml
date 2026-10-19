@@ -317,4 +317,5 @@
     <string name="tv_today">Dziś</string>
     <string name="tv_tomorrow">Jutro</string>
     <string name="tv_day_after">Pojutrze</string>
+    <string name="player_stuck">Serwer nie przysyła obrazu. Jeśli telewizja gra na innym urządzeniu (np. na komputerze), zatrzymaj ją tam – wiele list pozwala tylko na jedno połączenie naraz.</string>
 </resources>

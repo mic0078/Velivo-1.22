@@ -317,4 +317,5 @@
     <string name="tv_today">Today</string>
     <string name="tv_tomorrow">Tomorrow</string>
     <string name="tv_day_after">Day after tomorrow</string>
+    <string name="player_stuck">The server sends no picture. If TV is playing on another device (e.g. the computer), stop it there – many lists allow only one connection at a time.</string>
 </resources>

@@ -44,7 +44,7 @@ import java.lang.ref.WeakReference
 // w telewizji przesunięcie w górę / w dół = następny / poprzedni kanał.
 @OptIn(UnstableApi::class)
 class PlayerActivity : Activity() {
-    class Item(val title: String, val uri: String, val key: String?, val headers: Map<String, String> = emptyMap(), val jellyId: String? = null, val info: String = "")
+    class Item(val title: String, val uri: String, val key: String?, val headers: Map<String, String> = emptyMap(), val jellyId: String? = null, val info: String = "", val desc: String = "")
 
     companion object {
         // kolejka ustawiana przed otwarciem (w pamięci - adresy z tokenem nie idą przez Intent ani do logów)
@@ -58,7 +58,9 @@ class PlayerActivity : Activity() {
     private lateinit var player: ExoPlayer
     private lateinit var view: PlayerView
     private lateinit var titleView: TextView
+    private lateinit var descView: TextView   // TV: co leci (teraz, potem, opis) - nad paskiem postępu
     private val ui = Handler(Looper.getMainLooper())
+    private val stuck = Runnable { toast(getString(R.string.player_stuck)) }
     private val prefs by lazy { getSharedPreferences("velivo", Context.MODE_PRIVATE) }
     private val posPrefs by lazy { getSharedPreferences("filmy", Context.MODE_PRIVATE) }
     private val pw by lazy { Passwords(this) }
@@ -86,10 +88,17 @@ class PlayerActivity : Activity() {
             override fun onPlayerError(error: PlaybackException) {
                 // kanał bez rozszerzenia w adresie: drugi raz jako HLS albo jako zwykły strumień (MPEG-TS)
                 if (retryAs < 2) { retryAs++; load(index, keepRetry = true); return }
-                toast(getString(R.string.player_error))   // bez adresu (może mieć token)
+                // powód bez adresu (może mieć token): kod HTTP serwera albo rodzaj błędu odtwarzacza
+                var c: Throwable? = error; var why = error.errorCodeName.removePrefix("ERROR_CODE_")
+                while (c != null) { c.message?.let { m -> Regex("Response code: (\\d+)").find(m)?.let { why = "HTTP " + it.groupValues[1] } }; c = c.cause }
+                toast(getString(R.string.player_error) + " (" + why + ")")
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) { updatePip() }
-            override fun onPlaybackStateChanged(state: Int) { if (state == Player.STATE_ENDED && !live) { savePos(); next(1) } }
+            override fun onPlaybackStateChanged(state: Int) {
+                ui.removeCallbacks(stuck)
+                if (state == Player.STATE_BUFFERING) ui.postDelayed(stuck, 25000)   // serwer nic nie przysyła - zwykle limit połączeń (TV gra na innym urządzeniu)
+                if (state == Player.STATE_ENDED && !live) { savePos(); next(1) }
+            }
         })
         httpFactory = http
 
@@ -109,10 +118,12 @@ class PlayerActivity : Activity() {
             addView(btn("⧉", R.string.player_pip) { enterPip() })
             addView(btn("✕", R.string.close_tab_short) { finish() })
         }
-        view.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { v -> top.visibility = v })
+        descView = TextView(this).apply { setTextColor(Color.parseColor("#ECE8FF")); textSize = 14f; maxLines = 6; setPadding(dp(14), dp(10), dp(14), dp(10)); setBackgroundColor(Color.argb(150, 27, 23, 51)) }
+        view.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { v -> top.visibility = v; descView.visibility = if (descView.text.isNullOrEmpty()) View.GONE else v })
         val root = FrameLayout(this)
         root.addView(view, FrameLayout.LayoutParams(-1, -1))
         root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        root.addView(descView, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { bottomMargin = dp(96) })
         setContentView(root)
         gestures()
         load(index)
@@ -135,7 +146,9 @@ class PlayerActivity : Activity() {
         val it = queue.getOrNull(i) ?: return finish()
         if (!keepRetry) retryAs = 0
         index = i
-        titleView.text = it.title + if (it.info.isNotEmpty()) "\n" + it.info else ""
+        titleView.text = it.title + if (it.info.isNotEmpty()) "\n" + it.info.substringBefore('\n') else ""
+        descView.text = listOf(it.info, it.desc).filter { d -> d.isNotEmpty() }.joinToString("\n")
+        descView.visibility = if (descView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         httpFactory?.setDefaultRequestProperties(it.headers)   // np. klucz Jellyfin w nagłówku, nie w adresie
         val mi = MediaItem.Builder().setUri(it.uri)
         when (retryAs) { 1 -> mi.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8); 2 -> mi.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T) }

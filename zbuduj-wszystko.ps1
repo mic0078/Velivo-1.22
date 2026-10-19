@@ -3,17 +3,40 @@
 #                                              .\zbuduj-wszystko.ps1 -TylkoAndroid
 # Android: wersja "pelna" (APK dla rodziny) oraz "sklep" i "sklepyt" (AAB do Google Play), podpisane Twoim kluczem.
 # Hasla do klucza wpisujesz przy kazdej budowie - nigdzie nie sa zapisywane; zapamietana jest tylko sciezka do pliku klucza.
-param([switch]$TylkoAndroid)
+# Buduje tylko to, co sie zmienilo od ostatniej udanej budowy (zmiana samej dokumentacji - nic):
+#   Windows - zmiany w src\, testy\ albo zbuduj.ps1
+#   Android - zmiany w android\ i we wspolnym Szybkim Dostepie (src\QuickAccessExtension\kod)
+#   -Wszystko  - zbuduj obie wersje mimo braku zmian
+param([switch]$TylkoAndroid, [switch]$Wszystko)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
-if (-not $TylkoAndroid) {
-    & (Join-Path $PSScriptRoot 'zbuduj.ps1')   # git pull, testy, Velivo na Windows, instalator
-    if ($LASTEXITCODE -ne 0) { Write-Host "Windows nie zbudowane - Android pomijam." -ForegroundColor Red; exit 1 }
-} else {
-    git checkout rozwoj
-    git pull origin rozwoj
+git checkout -- Instalator 2>$null
+git checkout rozwoj
+git pull origin rozwoj
+$head = (git rev-parse HEAD).Trim()
+$cfgDir = Join-Path $env:LOCALAPPDATA 'Velivo-budowa'
+New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
+function Changed($name, $patterns) {
+    if ($Wszystko) { return $true }
+    $f = Join-Path $cfgDir "ostatnio-$name.txt"
+    if (-not (Test-Path $f)) { return $true }
+    $last = (Get-Content $f -Raw).Trim()
+    $files = git diff --name-only $last $head 2>$null
+    if ($LASTEXITCODE -ne 0) { return $true }   # nieznana zmiana (np. po przepisaniu historii) - budujemy
+    return [bool]($files | Where-Object { $p = $_; $patterns | Where-Object { $p -like $_ } })
 }
+$needWin = (-not $TylkoAndroid) -and (Changed 'windows' @('src/*', 'testy/*', 'zbuduj.ps1'))
+$needAnd = Changed 'android' @('android/*', 'src/QuickAccessExtension/kod/*')
+if (-not $needWin -and -not $needAnd) { Write-Host "Brak zmian w programie od ostatniej budowy - nic do budowania (dokumentacja nie wymaga nowej wersji). Wymuszenie: .\zbuduj-wszystko.ps1 -Wszystko" -ForegroundColor Green; exit 0 }
+Write-Host ("Do zbudowania: " + (@(if ($needWin) { 'Windows' }; if ($needAnd) { 'Android' }) -join ' + ')) -ForegroundColor Cyan
+
+if ($needWin) {
+    & (Join-Path $PSScriptRoot 'zbuduj.ps1')   # testy, Velivo na Windows, instalator
+    if ($LASTEXITCODE -ne 0) { Write-Host "Windows nie zbudowane." -ForegroundColor Red; exit 1 }
+    Set-Content (Join-Path $cfgDir 'ostatnio-windows.txt') $head
+} else { Write-Host "Windows bez zmian - pomijam (instalator z poprzedniej budowy jest aktualny)." -ForegroundColor DarkGray }
+if (-not $needAnd) { Write-Host "Android bez zmian - pomijam." -ForegroundColor DarkGray; exit 0 }
 
 Write-Host "Android: 3 wersje..." -ForegroundColor Cyan
 # Java z Android Studio (bez osobnej instalacji)
@@ -31,8 +54,6 @@ if (-not (Test-Path $lp)) {
 }
 
 # Klucz podpisu: sciezka zapamietana poza repozytorium, hasla tylko w pamieci na czas budowy
-$cfgDir = Join-Path $env:LOCALAPPDATA 'Velivo-budowa'
-New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
 $cfg = Join-Path $cfgDir 'klucz.txt'
 $ks = if (Test-Path $cfg) { (Get-Content $cfg -Raw).Trim() } else { '' }
 if (-not $ks -or -not (Test-Path $ks)) {
@@ -68,8 +89,9 @@ $o = Join-Path $PSScriptRoot 'android\app\build\outputs'
 Copy-Item "$o\apk\pelna\release\*.apk" (Join-Path $out 'Velivo-pelna.apk')
 Copy-Item "$o\bundle\sklepRelease\*.aab" (Join-Path $out 'Velivo-sklep.aab')
 Copy-Item "$o\bundle\sklepytRelease\*.aab" (Join-Path $out 'Velivo-sklepyt.aab')
+Set-Content (Join-Path $cfgDir 'ostatnio-android.txt') $head
 Write-Host "Gotowe:" -ForegroundColor Green
-if (-not $TylkoAndroid) { Write-Host "  Instalator\Velivo-Setup-1.22.exe   - Windows" }
+if ($needWin) { Write-Host "  Instalator\Velivo-Setup-1.22.exe   - Windows" }
 Write-Host "  build\android\Velivo-pelna.apk      - telefon (Ty i mama, WhatsApp)"
 Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"
 Write-Host "  build\android\Velivo-sklepyt.aab    - Google Play (jak Brave)"

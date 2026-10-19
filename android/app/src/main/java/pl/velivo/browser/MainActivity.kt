@@ -342,9 +342,21 @@ set(p0,p);})"""
     }
 
     private fun askSleep() {
-        val mins = intArrayOf(15, 30, 45, 60, 90, 0)
-        val labels = mins.map { if (it == 0) getString(R.string.sleep_none) else getString(R.string.sleep_min, it) }.toTypedArray()
-        AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i -> setSleep(mins[i]) }.show()
+        val mins = intArrayOf(-1, 15, 30, 45, 60, 90, 0)
+        val labels = mins.map { when (it) { -1 -> getString(R.string.sleep_track); 0 -> getString(R.string.sleep_none); else -> getString(R.string.sleep_min, it) } }.toTypedArray()
+        AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i -> if (mins[i] == -1) sleepAfterTrack() else setSleep(mins[i]) }.show()
+    }
+
+    // ⏾ po zakończeniu utworu, który teraz gra: koniec utworu albo przejście YouTube do następnego = pauza
+    private fun sleepAfterTrack() {
+        val t = tabs.firstOrNull { (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") } ?: tabs.getOrNull(cur) ?: return
+        t.web.evaluateJavascript("""(function(){var v=[].slice.call(document.querySelectorAll('video,audio')).filter(function(m){return !m.paused})[0]||document.querySelector('video');
+if(!v)return false;var src=v.currentSrc,href=location.href;clearInterval(window.__vSen);
+function stop(){clearInterval(window.__vSen);document.querySelectorAll('video,audio').forEach(function(m){m.pause()});}
+v.addEventListener('ended',stop,{once:true});
+window.__vSen=setInterval(function(){var c=document.querySelector('video');if(location.href!=href||(c&&c.currentSrc!=src)||v.ended)stop();},500);return true;})()""") { r ->
+            toast(getString(if (r == "true") R.string.sleep_track_set else R.string.sleep_track_none))
+        }
     }
 
     // --- Odtwarzanie w tle -----------------------------------------------------

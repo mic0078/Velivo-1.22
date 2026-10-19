@@ -130,4 +130,4 @@ Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
 - **Czerwony pasek „▶ YouTube” na samym dole** – otwiera YouTube (albo wraca do otwartej karty YouTube). Reklamy są usuwane.
 - **Gra w tle i przy zgaszonym ekranie:** włącz film lub muzykę, wyjdź z Velivo albo zgaś ekran – gra dalej; w powiadomieniu **Zatrzymaj**.
 - **Obraz w obrazie (PiP):** gdy film gra i wyjdziesz do ekranu głównego, film przechodzi do małego okienka nad innymi aplikacjami (okienko można przesuwać; stuknięcie – wróć do Velivo).
-- **⏾ Muzyka do snu (wyłącznik czasowy):** przytrzymaj czerwony pasek YouTube i wybierz 15, 30, 45, 60 albo 90 minut – potem muzyka sama ucichnie. Przy zgaszonym ekranie w powiadomieniu jest **⏾ Wyłącz za 30 min** (każde stuknięcie dodaje 30 minut).
+- **⏾ Muzyka do snu (wyłącznik czasowy):** przytrzymaj czerwony pasek YouTube i wybierz **Po zakończeniu tego utworu** (YouTube nie włączy następnego) albo 15, 30, 45, 60, 90 minut – potem muzyka sama ucichnie. Przy zgaszonym ekranie w powiadomieniu jest **⏾ Wyłącz za 30 min** (każde stuknięcie dodaje 30 minut).

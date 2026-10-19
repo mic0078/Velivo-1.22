@@ -196,4 +196,7 @@
     <string name="sleep_none">Don\'t stop</string>
     <string name="sleep_set">⏾ Playback will stop in %1$d min</string>
     <string name="sleep_off">Sleep timer off</string>
+    <string name="sleep_track">When this track ends</string>
+    <string name="sleep_track_set">⏾ Playback will stop after this track</string>
+    <string name="sleep_track_none">Nothing is playing</string>
 </resources>

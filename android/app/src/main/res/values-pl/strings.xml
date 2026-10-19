@@ -196,4 +196,7 @@
     <string name="sleep_none">Nie wyłączaj</string>
     <string name="sleep_set">⏾ Odtwarzanie ucichnie za %1$d min</string>
     <string name="sleep_off">Wyłącznik czasowy wyłączony</string>
+    <string name="sleep_track">Po zakończeniu tego utworu</string>
+    <string name="sleep_track_set">⏾ Odtwarzanie ucichnie po tym utworze</string>
+    <string name="sleep_track_none">Nic teraz nie gra</string>
 </resources>

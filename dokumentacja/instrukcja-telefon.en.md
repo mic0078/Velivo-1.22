@@ -130,4 +130,4 @@ Best set up once, together with the person who will use the phone:
 - **The red "▶ YouTube" bar at the very bottom** – opens YouTube (or returns to the open YouTube tab). Adverts are removed.
 - **Plays in the background and with the screen off:** start a video or music, leave Velivo or turn the screen off – it keeps playing; **Stop** is in the notification.
 - **Picture-in-picture (PiP):** when a video is playing and you go to the home screen, it moves to a small window above other apps (you can move it; tap to return to Velivo).
-- **⏾ Music for sleep (sleep timer):** press and hold the red YouTube bar and choose 15, 30, 45, 60 or 90 minutes – then the music stops by itself. With the screen off the notification has **⏾ Stop in 30 min** (each tap adds 30 minutes).
+- **⏾ Music for sleep (sleep timer):** press and hold the red YouTube bar and choose **When this track ends** (YouTube won't start the next one) or 15, 30, 45, 60, 90 minutes – then the music stops by itself. With the screen off the notification has **⏾ Stop in 30 min** (each tap adds 30 minutes).

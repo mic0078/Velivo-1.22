@@ -1524,7 +1524,7 @@ Velivo na Androida (10 lub nowszy) to lekka, prywatna przeglądarka w kolorach V
 ### 31.15 YouTube bez reklam, obraz w obrazie, muzyka do snu
 - **Gdzie:** czerwony pasek „▶ YouTube” na samym dole ekranu.
 - **Co robi:** YouTube bez reklam; gra w tle i przy zgaszonym ekranie; po wyjściu z Velivo w trakcie filmu – obraz w obrazie (małe okienko nad innymi aplikacjami).
-- **⏾ Wyłącznik czasowy:** przytrzymaj pasek i wybierz 15–90 minut; w powiadomieniu „⏾ Wyłącz za 30 min” (każde stuknięcie +30 min) – muzyka do snu sama ucichnie.
+- **⏾ Wyłącznik czasowy:** przytrzymaj pasek i wybierz „Po zakończeniu tego utworu” albo 15–90 minut; w powiadomieniu „⏾ Wyłącz za 30 min” (każde stuknięcie +30 min) – muzyka do snu sama ucichnie.
 
 # Funkcje NIE DOSTĘPNE W 1.22
 

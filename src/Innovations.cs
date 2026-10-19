@@ -559,11 +559,12 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
             if (_settings == null || !_settings.LanSync || _lanTx == null || pkt.kind != "phone" ||
                 !Guid.TryParseExact(pkt.pairId, "N", out _) || string.IsNullOrWhiteSpace(pkt.pub) || pkt.pub.Length > 2048) return;
             if (_mediaAsked.TryGetValue(pkt.pairId, out _) || (_mediaAsked.TryGetValue(pkt.id, out var t0) && DateTime.UtcNow - t0 < TimeSpan.FromSeconds(30))) return;   // ta sama prosba przychodzi co kilka sekund
+            LanLog((L.En ? "Films and TV request from " : "Prośba o Filmy i TV od ") + PairDeviceLabel(pkt.device) + " (" + sourceAddress + ").");
             if (_mediaAskOpen) return;
             _mediaAsked[pkt.pairId] = _mediaAsked[pkt.id] = DateTime.UtcNow;
             var jc = LoadJellyfinConf();
             var tv = MediaTvLists();
-            if (jc == null && tv.Count == 0) return;
+            if (jc == null && tv.Count == 0) { LanLog(L.En ? "No Jellyfin or TV lists on this computer - nothing to share." : "Na tym komputerze nie ma Jellyfin ani list TV - nie ma czego udostępnić."); return; }
             byte[] key;
             using (var local = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256))
             using (var remote = ECDiffieHellman.Create())

@@ -2186,7 +2186,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // 📲 Filmy i TV z komputera bez parowania: komputer pyta właściciela i pokazuje kod; telefon potem pyta o zapis
     private fun askComputerMedia() {
+        val temp = !prefs.getBoolean("lan", false)
+        startLan(force = true)   // telefon bez synchronizacji (np. mamy) - sieć tylko na czas prośby
         lan.askMedia()
+        if (temp) idle.postDelayed({ if (!prefs.getBoolean("lan", false)) stopLan() }, 4 * 60 * 1000L)
         AlertDialog.Builder(this).setTitle(R.string.media_share_ask).setMessage(R.string.media_share_wait).setPositiveButton(android.R.string.ok, null).show()
     }
 
@@ -2704,8 +2707,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
     private var multicastLock: WifiManager.MulticastLock? = null
 
-    private fun startLan() {
-        if (!prefs.getBoolean("lan", false)) return
+    // force: na chwilę także bez włączonej synchronizacji (prośba o Filmy i TV z telefonu bez parowania)
+    private fun startLan(force: Boolean = false) {
+        if (!force && !prefs.getBoolean("lan", false)) return
         if (multicastLock == null) multicastLock = (applicationContext.getSystemService(WIFI_SERVICE) as WifiManager)
             .createMulticastLock("velivo-lan").apply { setReferenceCounted(false) }
         multicastLock?.acquire()

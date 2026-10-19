@@ -1,4 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Velivo" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- akcent Velivo (fiolet z ikony) - przyciski okien, przełączniki, kursor -->
+    <style name="Velivo" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#6D3FDB</item>
+        <item name="android:colorPrimary">#6D3FDB</item>
+        <item name="android:colorControlActivated">#6D3FDB</item>
+        <item name="android:alertDialogTheme">@style/Velivo.Dialog.Light</item>
+    </style>
+    <!-- motyw wybierany w Velivo (jak w telefonie / jasny / ciemny) -->
+    <style name="Velivo.Light" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#6D3FDB</item>
+        <item name="android:colorPrimary">#6D3FDB</item>
+        <item name="android:colorControlActivated">#6D3FDB</item>
+        <item name="android:alertDialogTheme">@style/Velivo.Dialog.Light</item>
+    </style>
+    <style name="Velivo.Dark" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#B3A6FF</item>
+        <item name="android:colorPrimary">#B3A6FF</item>
+        <item name="android:colorControlActivated">#B3A6FF</item>
+        <item name="android:alertDialogTheme">@style/Velivo.Dialog.Dark</item>
+    </style>
+    <!-- okna dialogowe: białe / granatowo-fioletowe z zaokrągleniem, nie szare -->
+    <style name="Velivo.Dialog.Light" parent="android:Theme.Material.Light.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/okno_jasne</item>
+        <item name="android:colorAccent">#6D3FDB</item>
+        <item name="android:textColorPrimary">#2A2150</item>
+        <item name="android:textColorSecondary">#4F4380</item>
+        <item name="android:colorBackground">#FFFFFF</item>
+    </style>
+    <style name="Velivo.Dialog.Dark" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/okno_ciemne</item>
+        <item name="android:colorAccent">#B3A6FF</item>
+        <item name="android:textColorPrimary">#ECE8FF</item>
+        <item name="android:textColorSecondary">#B9B0E0</item>
+        <item name="android:colorBackground">#1B1733</item>
+    </style>
 </resources>

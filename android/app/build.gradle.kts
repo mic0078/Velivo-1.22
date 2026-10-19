@@ -10,9 +10,35 @@ android {
         applicationId = "pl.velivo.browser"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "1.22"
     }
+    // Trzy wersje z jednego kodu:
+    //  pelna  - APK dla rodziny (YouTube bez reklam i w tle, dokładny budzik) - jak dotąd, ten sam identyfikator;
+    //  sklep  - Google Play, ostrożna: bez skryptu YouTube i bez YouTube w tle; budzik za zgodą użytkownika;
+    //  sklepyt - Google Play jak Brave: blokada reklam także na YouTube i granie w tle, ale bez reklamowania tego (napisy jak w "sklep").
+    flavorDimensions += "wersja"
+    productFlavors {
+        create("pelna") {
+            dimension = "wersja"
+            applicationId = "pl.velivo.browser"
+            buildConfigField("boolean", "PELNA", "true")
+            buildConfigField("boolean", "YOUTUBE", "true")
+        }
+        create("sklep") {
+            dimension = "wersja"
+            applicationId = "pl.velivo"
+            buildConfigField("boolean", "PELNA", "false")
+            buildConfigField("boolean", "YOUTUBE", "false")
+        }
+        create("sklepyt") {
+            dimension = "wersja"
+            applicationId = "pl.velivo"   // ten sam co "sklep" - do sklepu wysyłasz jedną z nich
+            buildConfigField("boolean", "PELNA", "false")
+            buildConfigField("boolean", "YOUTUBE", "true")
+        }
+    }
+    buildFeatures { buildConfig = true }
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -28,6 +54,9 @@ android {
     // Szybki Dostęp: ta sama strona co w Velivo na Windows - jedno źródło dla obu wersji
     sourceSets["main"].assets.srcDirs("src/main/assets", "../../src/QuickAccessExtension/kod")
 }
+
+// plik instalacyjny: Velivo-release.apk (zamiast app-release.apk)
+base { archivesName.set("Velivo") }
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")

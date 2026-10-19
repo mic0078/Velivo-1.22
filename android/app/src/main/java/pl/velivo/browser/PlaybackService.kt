@@ -26,6 +26,8 @@ class PlaybackService : Service() {
             .setContentText(getString(R.string.background_play))
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(null, getString(R.string.stop), stop).build())
+            // 🌙 do snu: wyłącz za 30 minut (każde stuknięcie dodaje 30)
+            .addAction(Notification.Action.Builder(null, getString(R.string.sleep_30), PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java).setAction(ACTION_SLEEP), PendingIntent.FLAG_IMMUTABLE)).build())
             .setOngoing(true)
             .build()
         if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
@@ -36,6 +38,7 @@ class PlaybackService : Service() {
     companion object {
         const val CHANNEL = "odtwarzanie"
         const val ACTION_STOP = "pl.velivo.browser.STOP"
+        const val ACTION_SLEEP = "pl.velivo.browser.SEN"
         const val EXTRA_TITLE = "tytul"
     }
 }

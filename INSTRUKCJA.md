@@ -757,6 +757,9 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - **„W skrócie”** – kilka najważniejszych zdań artykułu, liczone na Twoim komputerze. Tylko pełne, samodzielne zdania: bez śródtytułów, wyrwanych cytatów i zdań, które bez poprzedniego nie mają sensu. Gdy takich nie ma, ramki po prostu nie ma.
 - Czytnik znajduje artykuł także wtedy, gdy strona ukrywa go w nietypowym bloku (np. przy wpisach z X czy filmach) – zamiast „za mało treści” pokazuje treść bez menu i polecanych.
 - Przyciski „Czytaj podsumowanie” i „Czytaj całość”. Kliknięcie w tekst czyta od tego miejsca.
+- Kolory Velivo (papierowe tło, fiolet; ciemny – granatowy fiolet). **A− / A+** zmienia wielkość tekstu (zapamiętywana).
+- Czytnik **pamięta, gdzie skończyłeś czytać** artykuł, i przy następnym otwarciu wraca w to miejsce (zapis tylko na tym komputerze, bez adresów stron).
+- Tytuł czytany raz; ramki ze skrótem artykułu na stronie i powtórzenia są pomijane.
 
 ### 🧠 „Gdzie ja to czytałem?” (Ctrl+Shift+F)
 
@@ -798,7 +801,7 @@ Wykrywacz czyta teksty i zachowanie strony, więc nie wyłapie każdego sklepu i
 - **Styl** (Ustawienia → Wygląd):
   - **Nowoczesny** (domyślny): spokojne przyciski bez kolorowych teł, ikony Windows 11, jeden niebieski akcent, a kolor tylko przy najechaniu albo gdy coś jest włączone;
   - **Kolorowy**: kolorowe przyciski i emoji.
-- **10 motywów:** Jasny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
+- **11 motywów:** Velivo (domyślny, kolory z ikony: fiolet i turkus), Velivo nocny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
 - **Tryby stron** (przycisk trybu – ikona pokazuje obecny tryb: ☀ jasny, 🌙 ciemny, 🌅 nocny):
   - jasny;
   - **ciemny** – strony przyciemnione, a zdjęcia zostają w prawdziwych kolorach;
@@ -1077,7 +1080,7 @@ Ustawienia otwierasz przyciskiem **⚙** na pasku. Poniżej **każda opcja po ko
   - **Delikatne przyciemnienie** – krótkie, subtelne przyciemnienie i powrót;
   - **Brak** – strona pojawia się od razu.
 - **Szybkość efektu wejścia** – suwak od 0 do 5 s co 0,1 s (0 = automatycznie). Przykładowe wartości: szybkie 0,15 s, delikatne 0,3 s, wolne 0,5 s, spokojne 1 s, bardzo spokojne 2 s, senne 3 s, najwolniejsze 4 s.
-- **Motyw przeglądarki** – kolory pasków i kart: Jasny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
+- **Motyw przeglądarki** – kolory pasków i kart: Velivo (domyślny), Velivo nocny, Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń (OLED), Papier, Mgła.
 - **Styl wyglądu** – **Nowoczesny** (spokojny, jak Windows 11: ikony Windows, jeden niebieski akcent) albo **Kolorowy** (kolorowe przyciski i emoji).
 - **Język interfejsu** – automatycznie (z instalatora / Windows), polski albo angielski. Zmiana działa po ponownym uruchomieniu.
 - **Zawsze kompaktowy pasek narzędzi** – mniejsze etykiety, część przycisków w menu „…”, nawet na szerokim oknie.
@@ -1193,23 +1196,40 @@ Velivo na telefon to lekka, prywatna przeglądarka na silniku Android WebView (t
 | 🕶 Karta prywatna | Osobny profil (ciasteczka, logowania) kasowany po zamknięciu ostatniej prywatnej karty; bez historii |
 | ＋ Nowa karta | Otwiera Szybki Dostęp – ten sam co na komputerze (kafelki, grupy, ikony) |
 | ⌂ Strona startowa | Startpage; wyszukiwanie z paska adresu też przez Startpage |
-| Zakładki, historia | Menu ⋮ – lista z wyszukiwaniem, sortowaniem (najnowsze / A–Z) i ✕ |
+| Zakładki, historia | Menu (logo Velivo) – lista z wyszukiwaniem, sortowaniem (najnowsze / A–Z) i ✕ |
 | Pobieranie | Do folderu Pobrane, z powiadomieniem |
 | Pełny ekran filmów | Telefon obraca się z filmem; Wstecz wychodzi |
-| Odtwarzanie w tle | Film / muzyka grają po wyjściu z aplikacji (powiadomienie z „Zatrzymaj”); ⋮ → Odtwarzanie w tle |
-| Motyw | ⋮ → Motyw: jak w telefonie / jasny / ciemny |
+| Odtwarzanie w tle | Film / muzyka grają po wyjściu z aplikacji (powiadomienie z „Zatrzymaj”); Menu → Odtwarzanie w tle |
+| Motyw | Menu → Motyw: jak w telefonie / jasny / ciemny |
+
+### Czytanie i strony
+
+| Funkcja | Jak |
+| --- | --- |
+| 🔎 Szukaj na stronie | Pasek z licznikiem, ▲ ▼ poprzedni / następny wynik |
+| 🖥 Tryb pulpitu | Wersja strony na komputer dla bieżącej karty |
+| 📖 Czytnik | Sam tekst artykułu; A− / A+, pamięta miejsce, w którym skończyłeś czytać |
+| 🔊 Czytaj na głos | Także przy zgaszonym ekranie (powiadomienie z „Zatrzymaj”); Wstecz zatrzymuje; brak syntezatora – propozycja pobrania Usług mowy Google |
+| ▶ YouTube | Czerwony pasek na dole: bez reklam, pamięta miejsce w filmie, gra w tle i przy zgaszonym ekranie, obraz w obrazie; przytrzymanie – ⏰ pobudka wybranym utworem (dni tygodnia / jednorazowo) i 🌙 wyłącznik czasowy lub „po tym utworze” (muzyka do snu) |
+| 🔍 Powiększanie | Dwa palce w menu i listach – większe napisy i przyciski Velivo (80–220%); na stronie – tekst tej strony (50–300%), każda strona pamięta swoją wielkość |
+| 🗒 Karteczki | Jak na Windows: termin w treści lub 📅, 🔁 powtarzanie, kolory; powiadomienie dzień wcześniej i w dniu terminu |
+| 🎯 Usuń element | Stuknij reklamę palcem, ⬆ większy obszar, 🗑 usuń (zapamiętane dla strony), ↺ przywróć |
+
+Pełny opis telefonu: osobna instrukcja `dokumentacja/instrukcja-telefon.md`.
 
 ### Prywatność i bezpieczeństwo
 
-- **Blokowanie reklam** – te same listy co na komputerze (EasyList, EasyPrivacy, KAD), odświeżane co 4 dni; na YouTube reklamy usuwane z danych odtwarzacza.
-- **Hasła** – zaszyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). Velivo pyta o zapis po zalogowaniu i wpisuje je samo (strony https oraz sieć domowa: router, NAS). ⋮ → **Wpisz hasło**, gdy formularz pojawił się później. Lista haseł (⋮ → Hasła) otwiera się po odcisku palca lub PIN-ie; **Kopiuj hasło** oznacza je w schowku jako poufne.
-- **Tryb bankowy** – ⋮ → Tryb bankowy: wejście odciskiem / PIN-em, osobny stały profil, bez historii, bez zrzutów ekranu, blokada po 10 minutach bezczynności.
+- **Blokowanie reklam** – te same listy co na komputerze (EasyList, EasyPrivacy, KAD), dołączone do aplikacji i odświeżane co 4 dni; po reklamie nie zostaje puste pole „REKLAMA” ani błąd w ramce; na YouTube reklamy usuwane z danych odtwarzacza.
+- **Hasła** – zaszyfrowane kluczem w Android Keystore (klucz nie opuszcza telefonu). Velivo pyta o zapis po zalogowaniu i wpisuje je samo (strony https oraz sieć domowa: router, NAS). Menu → **Wpisz hasło**, gdy formularz pojawił się później. Lista haseł (Menu → Hasła) otwiera się po odcisku palca lub PIN-ie; **Kopiuj hasło** oznacza je w schowku jako poufne.
+- **Bez zachęt „Pobierz aplikację”** – ramki namawiające do aplikacji lub rozszerzenia (np. Startpage) są ukrywane na telefonie i na Windows.
+- **Ochrona przed oszustwami** – ostrzeżenie przed podróbkami stron banków i znanych firm oraz przed pobraniem aplikacji APK spoza Sklepu Play; najpierw https. **Panel prywatności** – stuknij licznik zablokowanych reklam w menu.
+- **Tryb bankowy** – Menu → Tryb bankowy: wejście odciskiem / PIN-em, osobny stały profil, bez historii, bez zrzutów ekranu, blokada po 10 minutach bezczynności.
 
 ### Połączenie z komputerem
 
 1. Telefon i komputer w tej samej sieci Wi-Fi, Velivo otwarte na obu.
-2. Telefon: ⋮ → **Synchronizacja z komputerem → Sparuj z Velivo na Windows** (czeka 3 minuty, okno pokazuje, co dochodzi z sieci).
-3. Komputer: Ustawienia → Synchronizacja (LAN) → **Sparuj urządzenie w sieci…**. Porównaj 6-cyfrowy kod na obu ekranach i potwierdź.
+2. Telefon zaprasza: Menu → **Synchronizacja z komputerem → Połącz z komputerem (zaproszenie)** (przez 3 minuty; okno pokazuje, co dochodzi z sieci).
+3. Komputer pyta „Telefon … prosi o połączenie. Połączyć?” → **Tak**. Porównaj 6-cyfrowy kod na obu ekranach i potwierdź. Komputer sam nie szuka telefonów; jego klucz synchronizacji z innymi komputerami zostaje bez zmian.
 
 Przy kilku komputerach zamiast parowania użyj pliku odzyskiwania: na komputerze **Zapisz plik odzyskiwania…**, w telefonie **Wczytaj plik odzyskiwania** – klucz się nie zmienia, inne komputery zostają sparowane. W tym samym menu ustawisz **nazwę telefonu w sieci** (np. „Telefon Michała”).
 
@@ -1219,5 +1239,7 @@ Przy kilku komputerach zamiast parowania użyj pliku odzyskiwania: na komputerze
 | Nowe zakładki i hasła z telefonu | Na komputer – komputer pyta, czy dodać |
 | Plik z telefonu | **Udostępnij → Velivo** w galerii / menedżerze plików; komputer pyta o zgodę |
 | Plik z komputera | Na komputerze 📎 Wyślij plik do: telefon; telefon pyta, zapis w Pobranych |
+
+**Dla osób ze słabszym wzrokiem:** dwa palce w menu powiększają całe Velivo i tekst stron (do 220%), czytnik i czytanie na głos ułatwiają długie teksty – ustawienie krok po kroku w instrukcji telefonu, rozdział 7.
 
 Synchronizacja działa, gdy Velivo jest otwarte na telefonie. Na Xiaomi warto wyłączyć oszczędzanie baterii dla Velivo (Ustawienia → Aplikacje → Velivo → Oszczędzanie baterii → Brak ograniczeń).

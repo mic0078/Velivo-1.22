@@ -508,7 +508,8 @@ When you hover over a video, three buttons appear in its top right corner: **⬇
 - **What it does:** opens just the article text in a separate, comfortable window. The window size is remembered.
 
 ### 9.2 Reader look
-- **How to use:** the "Reader look" list: ☀ Light, 🌙 Dark, 🌅 Night; in night mode the "Night mode strength" slider.
+- **How to use:** the "Reader look" list: ☀ Light, 🌙 Dark, 🌅 Night; in night mode the "Night mode strength" slider. **A− / A+** – text size (remembered).
+- **What it does:** Velivo colours (paper background, violet); the reader remembers where you left off in an article and takes you back there (stored on the computer only, without page addresses); the title is read once and summary boxes on the page are skipped.
 
 ### 9.3 Local summary
 - **What for:** quickly getting the gist of a long article.
@@ -1466,6 +1467,69 @@ You open Settings with the ⚙ button. Below is every option in the window's ord
 - **How to use:** choose: one-off, weekly, every 2 weeks, monthly, yearly or "Custom interval…" (every N days, weeks, months or years).
 - **What it does:** counts the next dates from the date in the note – e.g. "17.10.2026 insulin" weekly reminds you on 24.10, 31.10 and so on. With repeating on, the 🔁 icon is bright and its tooltip shows the interval.
 
+# 31. Velivo for phones (Android)
+
+Velivo for Android (10 or newer) is a light, private browser in Velivo colours, linked to Velivo for Windows. The computer is the main device – it always confirms anything coming from the phone. Full guide: `dokumentacja/instrukcja-telefon.en.md`.
+
+### 31.1 Menu
+- **Where:** the Velivo logo next to the address bar.
+- **What it does:** tiles three to a row in the groups Tabs, This page, Mine and Settings; the blocked-ads counter at the top (tap – privacy panel).
+
+### 31.2 Tabs, private tab, banking mode
+- **What it does:** tabs with thumbnails; 🕶 private tab (a separate profile erased on close); 🏦 banking mode (fingerprint / PIN, no history or screenshots, locks after 10 minutes).
+
+### 31.3 Find in page and desktop site
+- **What it does:** 🔎 a bar with a counter and ▲ ▼; 🖥 the desktop version of the page for the current tab.
+
+### 31.4 Reader view and read aloud
+- **What it does:** 📖 just the article text, A− / A+, remembers where you left off; 🔊 reading carries on with the screen off (notification with "Stop"), going back stops it; the title is read once, summary boxes are skipped.
+- **Limits:** no speech engine – Velivo offers to download Google Speech Services.
+
+### 31.5 Removing adverts with your finger
+- **How to use:** press and hold on an advert or an empty "ADVERT" box (or menu → 🎯 Remove element and tap) – Velivo selects the whole box and asks "Remove?"; ⬆ larger area, ↺ restore, 📋 copy the element's code to report it.
+- **What it does:** the removed element stays hidden on that site for good (stored on the phone only).
+
+### 31.6 Ad blocking
+- **What it does:** EasyList, EasyPrivacy and the Polish filters bundled with the app (working from the first launch), refreshed every 4 days; hiding rules as in uBlock Origin – no empty box or error frame left where an advert was; no adverts on YouTube.
+
+### 31.7 Privacy panel
+- **Where:** menu → the green "🛡 Blocked ads" counter.
+- **What it does:** shows whether the connection is encrypted, how many items were blocked on the page and their domains; **Turn off blocking here** for a site that misbehaves.
+
+### 31.8 Scam protection
+- **What it does:** offline, as on Windows – warns about fake bank and brand sites (a brand on someone else's domain, typos, characters disguised as letters, fakes of sites with saved passwords) and about APK downloads from outside Google Play; HTTPS first (home network without asking); a bad certificate is always blocked.
+
+### 31.9 Passwords
+- **What it does:** encrypted with a key in the Android Keystore; filled in only on https and on the home network; the list opens after a fingerprint / PIN.
+
+### 31.10 Sticky notes
+- **Where:** menu → Mine → 🗒 Sticky notes / 📝 New note.
+- **What it does:** the same kinds as on Windows (note, to do, shopping, ring, important, idea, for today), 6 colours; 📅 inserts a date from the calendar; 🔁 repeat (every week, 2 weeks, month, year, custom interval); the list is sorted by the nearest date.
+- **Reminder:** a notification **the day before** and **on the day** (daily at 9:00, also after the phone restarts); tapping it opens the note.
+
+### 31.11 Sync with the computer
+- **What it does:** the phone always invites ("Connect to the computer (invite)"), the computer asks "Connect?" – it never looks for phones by itself and keeps its key (sync between computers unchanged); pairing with a 6-digit code; bookmarks, passwords and Quick Access from the computer; the computer confirms new items from the phone; files both ways (Share → Velivo, 📎 Send a file to…); 📤 a tab to the computer and 📺 from the computer to the phone (with the video position).
+
+### 31.12 Look and language
+- **What it does:** theme like the phone / light / dark in Velivo colours, dialogs included; 🌐 Language – Polish or English for Velivo only.
+
+### 31.13 Two-finger zoom
+- **What for:** for weaker eyesight – larger text and buttons throughout Velivo.
+- **How to use:** spread two fingers in the menu or the lists of tabs, bookmarks, history, passwords or notes; pinch to make it smaller.
+- **What it does:** 80–220%; the top bar and the bottom buttons grow too; at large sizes the menu tiles are two to a row; on a page two fingers change that page's text (50–300%) – every site remembers its own size, and Velivo its own. In reader view two fingers change the text size (up to 48 pt).
+
+### 31.14 Velivo for people with weaker eyesight
+- **What for:** comfortable browsing for older people and the partially sighted.
+- **How to set up (once):** spread two fingers in the menu to a comfortable size (up to 220% – all of Velivo and the page text grow); pick a light or dark theme; show 📖 Reader view and 🔊 Read aloud; agree on "⚠ Warning → Go back (safe)"; notes with a date remind about the doctor and medicines the day before.
+- **What it does:** everything larger and remembered, long texts to listen to, protection against fake bank sites and suspicious apps with no setup at all.
+
+### 31.15 YouTube without adverts, picture-in-picture, music for sleep
+- **Where:** the red "▶ YouTube" bar at the very bottom of the screen.
+- **What it does:** YouTube without adverts; plays in the background and with the screen off; leaving Velivo during a video – picture-in-picture (a small window above other apps).
+- **⏰ Wake-up (scheduled playback):** press and hold the bar → "Wake-up with a track…" → a track from the current tab, bookmarks or history → the time → every day, Mon–Fri, weekend, chosen days or once; wakes you even on the lock screen with rising volume; Turn off / Snooze 10 min.
+- **Video position:** the phone remembers where you stopped a video (even without signing in) and carries on from there; stored on the phone only.
+- **🌙 Sleep timer:** press and hold the bar and choose "When this track ends" or 15–90 minutes; "🌙 Stop in 30 min" in the notification (each tap +30 min) – music for sleep stops by itself.
+
 # Features NOT AVAILABLE IN 1.22
 
 These things were discussed, but **version 1.22 doesn't have them**:
@@ -1909,3 +1973,21 @@ Features described: **339**. The number next to each feature points to its descr
 - **30.2** Notes above the taskbar
 - **30.3** Due-date reminder
 - **30.4** Repeating the date
+
+## 31. Velivo for phones (Android)
+
+- **31.1** Menu
+- **31.2** Tabs, private tab, banking mode
+- **31.3** Find in page and desktop site
+- **31.4** Reader view and read aloud
+- **31.5** Removing adverts with your finger
+- **31.6** Ad blocking
+- **31.7** Privacy panel
+- **31.8** Scam protection
+- **31.9** Passwords
+- **31.10** Sticky notes
+- **31.11** Sync with the computer
+- **31.12** Look and language
+- **31.13** Two-finger zoom
+- **31.14** Velivo for people with weaker eyesight
+- **31.15** YouTube without adverts, picture-in-picture, music for sleep, wake-up

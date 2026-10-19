@@ -45,6 +45,7 @@ import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.BaseAdapter
@@ -54,7 +55,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
-import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
@@ -71,6 +71,7 @@ class MainActivity : Activity() {
     private class Tab(val web: WebView, val priv: Boolean, val bank: Boolean = false) {
         val quiet get() = priv || bank   // bez historii, haseł i zapisu sesji
         var thumb: Bitmap? = null
+        var desktop = false   // tryb pulpitu: strona jak na komputerze
     }
 
     private val tabs = mutableListOf<Tab>()
@@ -86,10 +87,13 @@ class MainActivity : Activity() {
     private val home = "https://www.startpage.com/"
     private val quickAccess by lazy { QuickAccess(this) }
     private val youtubeJs by lazy { assets.open("youtube.js").bufferedReader().use { it.readText() } }
+    // bez zachęt „pobierz aplikację” (Startpage i inne) - ten sam skrypt co w Velivo na Windows
+    private val noAppPromoJs by lazy { assets.open("velivo-bez-aplikacji.js").bufferedReader().use { it.readText() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(if (dark) android.R.style.Theme_Material_NoActionBar else android.R.style.Theme_Material_Light_NoActionBar)
+        setTheme(if (dark) R.style.Velivo_Dark else R.style.Velivo_Light)
         super.onCreate(savedInstanceState)
+        catchCrashes()
         window.statusBarColor = BAR
         window.navigationBarColor = BAR
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BAR) }
@@ -102,29 +106,63 @@ class MainActivity : Activity() {
             setSelectAllOnFocus(true)
             textSize = 15f
             setTextColor(TEXT)
-            setHintTextColor(c("#6B7280", "#9CA3AF"))
+            setHintTextColor(c("#4F4380", "#A79FD0"))
             setPadding(dp(14), dp(8), dp(14), dp(8))
             background = round(FIELD)
             setOnEditorActionListener { _, _, _ -> go(text.toString()); true }
         }
         bar.addView(address, LinearLayout.LayoutParams(0, -2, 1f))
-        tabsBtn = button("1", R.string.tabs, BLUE, BLUE_BG) { showTabs() }
+        tabsBtn = button("1", R.string.tabs, BLUE, BLUE_BG) { showTabs() }.velivo()
         bar.addView(button("🕶", R.string.new_private_tab, PURPLE, PRIV_BG) { newTab(true, home) })
         bar.addView(tabsBtn)
-        bar.addView(button("⋮", R.string.menu, TEXT, GRAY_BG) { showMenu(it) })
-        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
+        // logo Velivo zamiast ⋮ - otwiera menu Velivo
+        bar.addView(ImageView(this).apply {
+            // logo na całą wysokość przycisku (samo jest zaokrąglonym kafelkiem - bez dodatkowej ramki)
+            setImageResource(R.mipmap.ic_launcher)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            adjustViewBounds = true
+            contentDescription = getString(R.string.menu)
+            tooltipText = getString(R.string.menu)
+            isClickable = true
+            setOnClickListener { showMenu(it) }
+        }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { setMargins(dp(3), 0, dp(3), 0) })
+        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progressTintList = android.content.res.ColorStateList.valueOf(BRAND2)
+        }
         frame = FrameLayout(this)
         val nav = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(dp(4), dp(4), dp(4), dp(4)) }
         fun navBtn(b: Button) = nav.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f))
-        navBtn(button("◀", R.string.back, BLUE, BLUE_BG) { web()?.let { if (it.canGoBack()) it.goBack() } })
+        navBtn(button("◀", R.string.back, BLUE, BLUE_BG) { stopSpeaking(); web()?.let { if (it.canGoBack()) it.goBack() } })
         navBtn(button("▶", R.string.forward, BLUE, BLUE_BG) { web()?.let { if (it.canGoForward()) it.goForward() } })
         navBtn(button("⟳", R.string.reload, GREEN, GREEN_BG) { web()?.reload() })
         navBtn(button("⌂", R.string.home, ORANGE, ORANGE_BG) { web()?.loadUrl(home) })
-        navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, QuickAccess.URL) })
+        navBtn(button("＋", R.string.new_tab, BLUE, BLUE_BG) { newTab(false, QuickAccess.URL) }.velivo())
         root.addView(bar)
         root.addView(progress, LinearLayout.LayoutParams(-1, 6))
         root.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(buildFindBar())
+        root.addView(buildPickBar())
         root.addView(nav)
+        // ▶ płaski pasek YouTube na samym dole: karta z YouTube, jeśli już otwarta; inaczej nowa (bez reklam, gra w tle, obraz w obrazie)
+        ytBar = TextView(this).apply {
+            text = if (BuildConfig.PELNA) "▶  YouTube  ·  " + getString(R.string.youtube_flat) else "▶  YouTube"
+            gravity = Gravity.CENTER; textSize = 13f; setTextColor(Color.WHITE); setBackgroundColor(Color.parseColor("#E62117"))
+            contentDescription = getString(ytLabel); tooltipText = getString(ytLabel)
+            isClickable = true
+            foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(60, 255, 255, 255)), null, null)
+            // przytrzymanie: wyłącznik czasowy (muzyka do snu)
+            setOnLongClickListener { askSleep(); true }
+            setOnClickListener {
+                val i = tabs.indexOfFirst { !it.priv && !it.bank && (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") }
+                if (i >= 0) show(i) else newTab(false, "https://m.youtube.com/")
+            }
+        }
+        root.addView(ytBar, LinearLayout.LayoutParams(-1, dp(30)))
+        uiScale = prefs.getFloat("skala", 1f)
+        chrome = listOf(bar, nav, ytBar)
+        pipBars = listOf(bar, progress, nav, ytBar, findBar, pickBar)
+        chrome.forEach { applyScale(it) }
         setContentView(root)
         if (Build.VERSION.SDK_INT >= 30) {
             val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
@@ -138,6 +176,12 @@ class MainActivity : Activity() {
         }
 
         startFilters()
+        window.decorView.post { showLastCrash() }
+        Karteczki.schedule(this)
+        Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
+        if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
+        if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
+        Thread { runCatching { vaultDomains = passwords.all().map { Ochrona.regDomain(it.host) }.filter { it.contains('.') }.toHashSet() } }.start()
         // Powiadomienie odtwarzania w tle wymaga zgody (Android 13+).
         if (Build.VERSION.SDK_INT >= 33 && prefs.getBoolean("tlo", true) && !prefs.getBoolean("zapytano-powiadomienia", false)) {
             prefs.edit().putBoolean("zapytano-powiadomienia", true).apply()
@@ -159,17 +203,20 @@ class MainActivity : Activity() {
         }
     }
     private fun c(light: String, night: String) = Color.parseColor(if (dark) night else light)
-    private val BAR by lazy { c("#E5E7EB", "#1F2937") }
-    private val TEXT by lazy { c("#1F2937", "#E5E7EB") }
-    private val FIELD by lazy { c("#FFFFFF", "#111827") }
-    private val GRAY_BG by lazy { c("#F3F4F6", "#374151") }
-    private val BLUE by lazy { c("#1D4ED8", "#93C5FD") }
-    private val BLUE_BG by lazy { c("#DBEAFE", "#1E3A8A") }
+    // Kolory Velivo z ikony: fiolet -> turkus. Tła paskow i przyciskow w odcieniach fioletu Velivo (nie szare).
+    private val BRAND1 = Color.parseColor("#6D3FDB")
+    private val BRAND2 = Color.parseColor("#2BA9D8")
+    private val BAR by lazy { c("#EEE9FB", "#1B1733") }
+    private val TEXT by lazy { c("#2A2150", "#ECE8FF") }
+    private val FIELD by lazy { c("#FFFFFF", "#120F24") }
+    private val GRAY_BG by lazy { c("#E2DBF7", "#2A2450") }
+    private val BLUE by lazy { c("#4A2FB8", "#B3A6FF") }
+    private val BLUE_BG by lazy { c("#E4DDFB", "#2E2768") }
     private val GREEN by lazy { c("#15803D", "#86EFAC") }
     private val GREEN_BG by lazy { c("#DCFCE7", "#14532D") }
     private val ORANGE by lazy { c("#C2410C", "#FDBA74") }
     private val ORANGE_BG by lazy { c("#FFEDD5", "#7C2D12") }
-    private val PRIV_BG by lazy { c("#EDE9FE", "#4C1D95") }
+    private val PRIV_BG by lazy { c("#E6DEFD", "#4C1D95") }
     private val PURPLE by lazy { c("#5B21B6", "#DDD6FE") }
     private val BANK_BG by lazy { c("#CCFBF1", "#134E4A") }
 
@@ -201,8 +248,12 @@ set(p0,p);})"""
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
+        if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
+        if (intent.action == PlaybackService.ACTION_SLEEP) { setSleep(((sleepAt - System.currentTimeMillis()).coerceAtLeast(0) / 60000).toInt() + 30); moveTaskToBack(true); return }
         if (intent.action == PlaybackService.ACTION_STOP) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            tts?.stop()
             stopService(Intent(this, PlaybackService::class.java))
         startLan()
             return
@@ -238,10 +289,205 @@ set(p0,p);})"""
         fullCallback = null
     }
 
+    // --- Obraz w obrazie (PiP): film gra w okienku po wyjściu z Velivo ---------------
+    private lateinit var ytBar: TextView
+    private var pipBars = listOf<View>()
+    private val pipCheck = Handler(Looper.getMainLooper())
+    @Volatile private var videoPlaying = false
+
+    // co 2 s (tylko gdy Velivo na ekranie): czy w bieżącej karcie gra film - Android 12+ wchodzi wtedy w PiP sam
+    private val pipTick = object : Runnable {
+        override fun run() {
+            val t = tabs.getOrNull(cur)
+            if (t != null && !t.bank) t.web.evaluateJavascript("(function(){var v=[].slice.call(document.querySelectorAll('video')).filter(function(m){return !m.paused&&!m.ended&&m.readyState>2})[0];" +
+                    "return v?JSON.stringify({t:v.currentTime,d:v.duration}):''})()") { r ->
+                val j = runCatching { org.json.JSONObject(org.json.JSONTokener(r).nextValue() as String) }.getOrNull()
+                val playing = j != null
+                if (playing != videoPlaying) { videoPlaying = playing; updatePip() }
+                if (j != null && !t.priv) saveVideoPos(t.web.url, j.optDouble("t"), j.optDouble("d"))
+            }
+            pipCheck.postDelayed(this, 2000)
+        }
+    }
+
+    // --- Miejsce w filmie: telefon pamięta, gdzie przerwałeś (także bez logowania), i wznawia od tego miejsca ---
+    // klucz: film YouTube (v=…) albo adres strony; ostatnie 300 filmów, tylko w telefonie, bez kart prywatnych i bankowych
+    private fun videoKey(url: String?): String? {
+        val u = Uri.parse(url ?: return null)
+        val host = u.host ?: return null
+        val id = if (host.endsWith("youtube.com")) u.getQueryParameter("v") else if (host == "youtu.be") u.lastPathSegment else null
+        return "film-" + (id ?: (host + u.path)).hashCode()
+    }
+
+    private fun saveVideoPos(url: String?, t: Double, d: Double) {
+        val k = videoKey(url) ?: return
+        if (d.isNaN() || d < 120) return   // krótkie filmy i transmisje na żywo (bez długości) - bez zapamiętywania
+        val p = getSharedPreferences("filmy", Context.MODE_PRIVATE)
+        val e = p.edit()
+        if (t > d - 20 || t < 15) e.remove(k) else e.putFloat(k, t.toFloat())   // obejrzany do końca - następnym razem od początku
+        if (p.all.size > 300) p.all.keys.take(50).forEach { e.remove(it) }
+        e.apply()
+    }
+
+    private fun resumeVideo(view: WebView, url: String) {
+        if (tabs.firstOrNull { it.web == view }?.priv == true) return
+        val k = videoKey(url) ?: return
+        val pos = getSharedPreferences("filmy", Context.MODE_PRIVATE).getFloat(k, 0f)
+        if (pos < 15f) return
+        val js = "(function(t){var v=document.querySelector('video');if(!v)return false;if(Math.abs(v.currentTime-t)>10)v.currentTime=t;return true})($pos)"
+        view.postDelayed({ view.evaluateJavascript(js) { r ->
+            if (r == "true") toast(getString(R.string.video_resumed, String.format("%d:%02d", pos.toInt() / 60, pos.toInt() % 60)))
+            else view.postDelayed({ view.evaluateJavascript(js, null) }, 3000)   // odtwarzacz jeszcze się ładuje
+        } }, 2500)
+    }
+
+    private fun pipParams() = android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).apply {
+        if (Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited())
+    }.build()
+
+    private fun updatePip() { runCatching { setPictureInPictureParams(pipParams()) } }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // starsze Androidy (10-11): wejście w PiP ręcznie
+        if (Build.VERSION.SDK_INT < 31 && videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited()) runCatching { enterPictureInPictureMode(pipParams()) }
+    }
+
+    override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
+        super.onPictureInPictureModeChanged(pip, cfg)
+        pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
+        // w okienku tylko film, na całą powierzchnię
+        web()?.evaluateJavascript(if (pip) "(function(){var s=document.getElementById('velivo-pip')||document.createElement('style');s.id='velivo-pip';" +
+            "s.textContent='video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
+            "document.documentElement.appendChild(s);})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
+    }
+
+    // --- 🌙 Wyłącznik czasowy: muzyka / film / czytanie cichnie po wybranym czasie (do snu) ---
+    private var sleepAt = 0L
+    private val sleepRun = Runnable {
+        sleepAt = 0
+        tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+        tts?.stop()
+        stopService(Intent(this, PlaybackService::class.java))
+    }
+
+    private fun setSleep(min: Int) {
+        pipCheck.removeCallbacks(sleepRun)
+        if (min <= 0) { sleepAt = 0; toast(getString(R.string.sleep_off)); return }
+        sleepAt = System.currentTimeMillis() + min * 60_000L
+        pipCheck.postDelayed(sleepRun, min * 60_000L)
+        toast(getString(R.string.sleep_set, min))
+    }
+
+    private fun askSleep() {
+        val mins = intArrayOf(-1, 15, 30, 45, 60, 90, -3, 0, -2)
+        val wake = Budzik.time(this)
+        val labels = mins.map { when (it) {
+            -1 -> getString(R.string.sleep_track); 0 -> getString(R.string.sleep_none); -3 -> getString(R.string.sleep_own)
+            -2 -> if (wake >= 0) getString(R.string.wake_menu_on, String.format("%d:%02d", wake / 60, wake % 60)) else getString(R.string.wake_menu)
+            else -> getString(R.string.sleep_min, it) } }.toTypedArray()
+        AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i -> when (mins[i]) { -1 -> sleepAfterTrack(); -2 -> askWake(); -3 -> askSleepMinutes(); else -> setSleep(mins[i]) } }.show()
+    }
+
+    // ⏰ Pobudka: utwór z bieżącej karty (np. YouTube) + godzina; codziennie
+    private fun askWake() {
+        val w = web()
+        val url = w?.url?.takeIf { it.startsWith("http") && !QuickAccess.isQuickAccess(it) }
+        val items = mutableListOf<Pair<String, () -> Unit>>()
+        // dowolny utwór: z bieżącej karty, z zakładek albo z historii; potem godzina i dni
+        if (url != null) items.add(getString(R.string.wake_this, w?.title ?: url) to { wakeWhen(url, w?.title ?: url) })
+        for ((key, label) in listOf("zakladki" to R.string.wake_from_bookmarks, "historia" to R.string.wake_from_history))
+            if (list(key).isNotEmpty()) items.add(getString(label) to {
+                val rows = list(key).map { val u = it.substringAfter('\t'); Row(it.substringBefore('\t').ifBlank { u }, u, u) }
+                showList(label, rows, "pobudka-$key", onOpen = { row, d -> d.dismiss(); wakeWhen(row.key as String, row.title) }, onDelete = { row -> removeFrom(key, row.key as String) })
+            })
+        if (Budzik.time(this) >= 0) {
+            items.add(getString(R.string.wake_test) to { wakeUp(test = true) })
+            items.add(getString(R.string.wake_off) to { Budzik.off(this); toast(getString(R.string.wake_off_done)) })
+        }
+        if (items.isEmpty()) { toast(getString(R.string.wake_need_track)); return }
+        val cur = Budzik.time(this)
+        AlertDialog.Builder(this).setTitle(if (cur >= 0) getString(R.string.wake_title_on, String.format("%d:%02d", cur / 60, cur % 60) + " (" + daysName(Budzik.days(this)) + ")", Budzik.title(this)) else getString(R.string.wake_menu))
+            .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.show()
+    }
+
+    private fun wakeWhen(url: String, title: String) {
+        val m = Budzik.time(this).takeIf { it >= 0 } ?: (7 * 60)
+        android.app.TimePickerDialog(this, { _, h, min ->
+            val opts = intArrayOf(127, 31, 96, -1, 0)   // codziennie, pon-pt, weekend, wybrane, jednorazowo
+            val labels = arrayOf(getString(R.string.days_all), getString(R.string.days_work), getString(R.string.days_weekend), getString(R.string.days_pick), getString(R.string.days_once))
+            fun save(days: Int) {
+                Budzik.set(this, url, title, h * 60 + min, days)
+                // Android 12+: budzik o dokładnej godzinie za zgodą (wersja ze sklepu) - bez zgody budzi z dokładnością kilku minut
+                if (Build.VERSION.SDK_INT >= 31 && getSystemService(android.app.AlarmManager::class.java)?.canScheduleExactAlarms() == false)
+                    runCatching { startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName"))); toast(getString(R.string.wake_exact)) }
+                toast(getString(R.string.wake_set, String.format("%d:%02d", h, min)) + " · " + daysName(days))
+            }
+            AlertDialog.Builder(this).setTitle(R.string.days_title).setItems(labels) { _, i ->
+                if (opts[i] >= 0) { save(opts[i]); return@setItems }
+                val names = java.time.DayOfWeek.values().map { it.getDisplayName(java.time.format.TextStyle.FULL, resources.configuration.locales[0]) }.toTypedArray()
+                val checked = BooleanArray(7) { Budzik.days(this) and (1 shl it) != 0 }
+                AlertDialog.Builder(this).setTitle(R.string.days_pick).setMultiChoiceItems(names, checked) { _, k, on -> checked[k] = on }
+                    .setPositiveButton(android.R.string.ok) { _, _ -> save((0 until 7).filter { checked[it] }.sumOf { 1 shl it }.takeIf { it != 0 } ?: 127) }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+            }.show()
+        }, m / 60, m % 60, true).show()
+    }
+
+    private fun daysName(d: Int): String = when (d) {
+        127 -> getString(R.string.days_all); 31 -> getString(R.string.days_work); 96 -> getString(R.string.days_weekend); 0 -> getString(R.string.days_once)
+        else -> java.time.DayOfWeek.values().filter { d and (1 shl (it.value - 1)) != 0 }.joinToString(", ") { it.getDisplayName(java.time.format.TextStyle.SHORT, resources.configuration.locales[0]) }
+    }
+
+    // rano: Velivo na zablokowanym ekranie, utwór w nowej karcie, głośność narasta przez minutę
+    private fun wakeUp(test: Boolean = false) {
+        val url = Budzik.url(this) ?: return
+        setShowWhenLocked(true); setTurnScreenOn(true)
+        if (!test) { if (Budzik.days(this) == 0) Budzik.off(this) else Budzik.schedule(this) }   // jednorazowo - koniec; inaczej następny wybrany dzień
+        newTab(false, url)
+        val w = web() ?: return
+        w.settings.mediaPlaybackRequiresUserGesture = false
+        val start = Runnable {
+            w.evaluateJavascript("(function(){var v=document.querySelector('video,audio');if(!v)return;v.muted=false;v.volume=0.15;var p=v.play();if(p&&p.catch)p.catch(function(){});" +
+                "var t=setInterval(function(){v.volume=Math.min(1,v.volume+0.05);if(v.volume>=1)clearInterval(t);},3000);})()", null)
+        }
+        w.postDelayed(start, 4000); w.postDelayed(start, 9000)   // strona mogła jeszcze nie mieć odtwarzacza
+        AlertDialog.Builder(this).setTitle(R.string.wake_now).setMessage(Budzik.title(this)).setCancelable(false)
+            .setPositiveButton(R.string.wake_stop) { _, _ -> setShowWhenLocked(false); setTurnScreenOn(false); w.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            .setNegativeButton(R.string.wake_snooze) { _, _ ->
+                w.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null)
+                Budzik.schedule(this, 10); setShowWhenLocked(false); setTurnScreenOn(false)
+            }.show()
+    }
+
+    private fun askSleepMinutes() {
+        val num = EditText(this).apply { setText("120"); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSelectAllOnFocus(true) }
+        AlertDialog.Builder(this).setTitle(R.string.sleep_own).setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(num, LinearLayout.LayoutParams(-1, -2)) })
+            .setPositiveButton(android.R.string.ok) { _, _ -> num.text.toString().toIntOrNull()?.takeIf { it in 1..1440 }?.let { setSleep(it) } }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    // 🌙 po zakończeniu utworu, który teraz gra: koniec utworu albo przejście YouTube do następnego = pauza
+    private fun sleepAfterTrack() {
+        val t = tabs.firstOrNull { (Uri.parse(it.web.url ?: "").host ?: "").endsWith("youtube.com") } ?: tabs.getOrNull(cur) ?: return
+        t.web.evaluateJavascript("""(function(){var v=[].slice.call(document.querySelectorAll('video,audio')).filter(function(m){return !m.paused})[0]||document.querySelector('video');
+if(!v)return false;var src=v.currentSrc,href=location.href;clearInterval(window.__vSen);
+function stop(){clearInterval(window.__vSen);document.querySelectorAll('video,audio').forEach(function(m){m.pause()});}
+v.addEventListener('ended',stop,{once:true});
+window.__vSen=setInterval(function(){var c=document.querySelector('video');if(location.href!=href||(c&&c.currentSrc!=src)||v.ended)stop();},500);return true;})()""") { r ->
+            toast(getString(if (r == "true") R.string.sleep_track_set else R.string.sleep_track_none))
+        }
+    }
+
     // --- Odtwarzanie w tle -----------------------------------------------------
     // Po wyjściu z Velivo: jeśli gra film lub muzyka, powiadomienie trzyma odtwarzanie przy życiu.
+    // ostrożna wersja ze sklepu ("sklep"): YouTube nie gra w tle ani w okienku
+    private val ytLabel get() = if (BuildConfig.PELNA) R.string.youtube else R.string.youtube_plain
+
+    private fun youtubeLimited(): Boolean = !BuildConfig.YOUTUBE && (Uri.parse(web()?.url ?: "").host ?: "").endsWith("youtube.com")
+
     private fun backgroundPlayback() {
-        if (!prefs.getBoolean("tlo", true)) return
+        if (!prefs.getBoolean("tlo", true) || youtubeLimited()) return
         val w = web() ?: return
         if (tabs.getOrNull(cur)?.bank == true) return
         w.evaluateJavascript("[].some.call(document.querySelectorAll('video,audio'),function(m){return !m.paused&&!m.ended})") { playing ->
@@ -255,6 +501,11 @@ set(p0,p);})"""
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun round(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(8).toFloat() }
+
+    // gradient Velivo (jak ikona) - przyciski glowne
+    private fun brand(radius: Int = 8) = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(BRAND1, BRAND2)).apply { cornerRadius = dp(radius).toFloat() }
+
+    private fun Button.velivo(): Button { background = brand(); setTextColor(Color.WHITE); return this }
 
     private fun button(label: String, tip: Int, fg: Int, bg: Int, click: (View) -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
         text = label
@@ -296,19 +547,41 @@ set(p0,p);})"""
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(w.settings, true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(w, false)
         // Reklamy na YouTube: skrypt uruchamiany przed stroną (tylko na domenach YouTube).
-        if (prefs.getBoolean("adblock", true) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
+        // wersje "pelna" i "sklepyt" - w ostrożnej wersji sklepowej bez skryptu YouTube
+        if (BuildConfig.YOUTUBE && prefs.getBoolean("adblock", true) && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
             WebViewCompat.addDocumentStartJavaScript(w, youtubeJs, YOUTUBE_ORIGINS)
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
+            runCatching { WebViewCompat.addDocumentStartJavaScript(w, noAppPromoJs, setOf("*")) }
         val quiet = priv || bank
         if (!quiet) w.addJavascriptInterface(PasswordBridge(w), "VelivoHasla")
         if (!quiet) quickAccess.attach(w)
         w.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
                 if (req.url.host == QuickAccess.HOST) return if (quiet) null else quickAccess.serve(req.url)
-                if (prefs.getBoolean("adblock", true) && isBlocked(req.url)) {
+                if (prefs.getBoolean("adblock", true) && !siteAllowed(pageHost[view]) && isBlocked(req.url)) {
                     blockedCount++
+                    req.url.host?.let { h -> pageBlocked[view]?.merge(Ochrona.regDomain(h), 1, Int::plus) }
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
                 }
                 return null
+            }
+            // każda nowa strona w karcie: licznik prywatności od zera, ochrona przed podróbkami, najpierw https
+            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                val u = Uri.parse(url)
+                val host = u.host?.lowercase() ?: return
+                view.settings.textZoom = zoomKey(url)?.let { prefs.getInt(it, 100) } ?: 100   // wielkość zapamiętana dla tej strony
+                if (host == QuickAccess.HOST) return
+                pageHost[view] = host
+                pageBlocked[view] = java.util.concurrent.ConcurrentHashMap()
+                // strona sama wraca z https na http - zostaw ją (inaczej pętla)
+                if (u.scheme == "http" && host in httpsTried) { httpsTried.remove(host); httpAllowed.add(host) }
+                if (u.scheme == "http" && !isHomeNetwork(host) && host !in httpAllowed) {
+                    view.stopLoading(); httpsTried.add(host)
+                    view.loadUrl(url.replaceFirst("http://", "https://")); return
+                }
+                if (u.scheme != "http" && u.scheme != "https") return
+                val fake = if (host in protectionAllowed) null else Ochrona.checkLookalike(host, vaultDomains)
+                if (fake != null) { view.stopLoading(); warnLookalike(view, url, host, fake) }
             }
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val s = req.url.scheme ?: return false
@@ -316,15 +589,74 @@ set(p0,p);})"""
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, req.url)) }
                 return true
             }
+            override fun onPageCommitVisible(view: WebView, url: String) { hideAds(view, url) }
+            // YouTube przechodzi do kolejnego filmu bez wczytywania strony - też wznów od zapamiętanego miejsca
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                if (!isReload && Uri.parse(url).getQueryParameter("v") != null) resumeVideo(view, url)
+            }
+            // ramka z reklamą, która się nie wczytała - zapamiętaj adres, żeby ją zwinąć zamiast strony błędu
+            override fun onReceivedSslError(view: WebView, handler: android.webkit.SslErrorHandler, err: android.net.http.SslError) {
+                handler.cancel()   // nigdy nie przepuszczamy błędnego certyfikatu
+                val h = Uri.parse(err.url ?: "").host?.lowercase()
+                if (h != null && err.url == view.url && httpsTried.remove(h)) askHttp(view, err.url.replaceFirst("https://", "http://"), h)
+            }
+            override fun onReceivedError(view: WebView, req: WebResourceRequest, err: android.webkit.WebResourceError) {
+                // strona nie działa po https - zapytaj, czy otworzyć bez szyfrowania
+                val h = req.url.host?.lowercase()
+                if (req.isForMainFrame && req.url.scheme == "https" && h != null && httpsTried.remove(h)) { askHttp(view, req.url.toString().replaceFirst("https://", "http://"), h); return }
+                if (!req.isForMainFrame) { failedFrames.add(req.url.host ?: ""); collapseFrames(view) }
+            }
             override fun onPageFinished(view: WebView, url: String) {
+                if (url.startsWith("https://")) Uri.parse(url).host?.let { httpsTried.remove(it.lowercase()) }
+                hideAds(view, url)
+                for (ms in longArrayOf(0, 1500, 4000, 9000)) view.postDelayed({ collapseFrames(view) }, ms)
+                resumeVideo(view, url)
                 val qa = QuickAccess.isQuickAccess(url)
                 if (!quiet && !qa) passwordsOnPage(view)
                 if (view == web()) address.setText(if (qa) "" else url)
                 if (!quiet && !qa) addHistory(view.title ?: url, url)
                 if (bank) bankUsed = System.currentTimeMillis()
+                applyHidden(view, url)
             }
         }
+        // Przytrzymanie palca na reklamie / pustym polu (bez tekstu i linku) - Velivo samo proponuje usunięcie.
+        // Na tekście i linkach zostaje zwykłe zaznaczanie.
+        var touchX = 0f; var touchY = 0f
+        // dwa palce na stronie = większy / mniejszy tekst tej strony (50-300%), zapamiętany osobno dla każdej strony
+        val zoomDet = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                if (zoomKey(w.url) == null) return true
+                w.settings.textZoom = (w.settings.textZoom * d.scaleFactor).toInt().coerceIn(50, 300); return true
+            }
+            override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
+                if (zoomKey(w.url) == null) { w.settings.textZoom = 100; return }
+                val z = (Math.round(w.settings.textZoom / 10f) * 10).coerceIn(50, 300)
+                w.settings.textZoom = z
+                zoomKey(w.url)?.let { k -> if (z == 100) prefs.edit().remove(k).apply() else prefs.edit().putInt(k, z).apply() }
+                toast(getString(R.string.page_zoom, z))
+            }
+        })
+        zoomDet.isQuickScaleEnabled = false   // podwójne stuknięcie i przeciągnięcie to zwykłe przewijanie, nie powiększanie
+        w.setOnTouchListener { _, e ->
+            if (e.action == android.view.MotionEvent.ACTION_DOWN) { touchX = e.x; touchY = e.y }
+            zoomDet.onTouchEvent(e)
+            // w trybie pulpitu zostaje zwykłe powiększanie całej strony
+            e.pointerCount > 1 && tabs.firstOrNull { it.web == w }?.desktop != true
+        }
+        w.setOnLongClickListener {
+            val type = w.hitTestResult.type
+            if (type == WebView.HitTestResult.EDIT_TEXT_TYPE || type == WebView.HitTestResult.SRC_ANCHOR_TYPE || type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) return@setOnLongClickListener false
+            if (w == web() && prefs.getBoolean("adblock", true)) longPressHide(w, touchX, touchY)
+            false
+        }
         w.webChromeClient = object : WebChromeClient() {
+            // 🎯 stuknięty element - zaproponuj usunięcie (sygnał tylko z naszego skryptu, z losowym znacznikiem)
+            override fun onJsPrompt(view: WebView, url: String?, message: String?, def: String?, result: android.webkit.JsPromptResult): Boolean {
+                if (message != pickToken) return false
+                result.confirm("")
+                if (view == web()) askHide()
+                return true
+            }
             override fun onShowCustomView(v: View, cb: CustomViewCallback) = enterFullscreen(v, cb)
             override fun onHideCustomView() = exitFullscreen()
             override fun onProgressChanged(view: WebView, p: Int) {
@@ -335,29 +667,158 @@ set(p0,p);})"""
         }
         w.setDownloadListener { dUrl, ua, disp, mime, _ ->
             val name = URLUtil.guessFileName(dUrl, disp, mime)
-            val req = DownloadManager.Request(Uri.parse(dUrl))
-                .setMimeType(mime)
-                .addRequestHeader("User-Agent", ua)
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
-            if (!quiet) CookieManager.getInstance().getCookie(dUrl)?.let { req.addRequestHeader("Cookie", it) }
-            (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
-            toast(getString(R.string.download_started))
+            // aplikacja spoza Sklepu Play - najczęstszy sposób oszustów na przejęcie telefonu
+            if (name.endsWith(".apk", true)) {
+                AlertDialog.Builder(this).setTitle(R.string.apk_title).setMessage(getString(R.string.apk_warn, Uri.parse(dUrl).host ?: ""))
+                    .setPositiveButton(R.string.apk_cancel, null)
+                    .setNegativeButton(R.string.apk_anyway) { _, _ -> startDownload(dUrl, ua, name, mime, quiet) }
+                    .show()
+                return@setDownloadListener
+            }
+            startDownload(dUrl, ua, name, mime, quiet)
         }
         tabs.add(Tab(w, priv, bank))
         show(tabs.size - 1)
         w.loadUrl(url)
     }
 
+    private fun startDownload(dUrl: String, ua: String, name: String, mime: String, quiet: Boolean) {
+        val req = DownloadManager.Request(Uri.parse(dUrl))
+            .setMimeType(mime)
+            .addRequestHeader("User-Agent", ua)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+        if (!quiet) CookieManager.getInstance().getCookie(dUrl)?.let { req.addRequestHeader("Cookie", it) }
+        (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
+        toast(getString(R.string.download_started))
+    }
+
+    // Ukrywanie reklam (reguły "##" z list) i zwijanie pustych ramek z napisem "REKLAMA" -
+    // po zablokowanej reklamie nie zostaje dziura ani strona błędu w ramce.
+    private fun hideAds(view: WebView, url: String) {
+        if (!prefs.getBoolean("adblock", true) || QuickAccess.isQuickAccess(url) || siteAllowed(Uri.parse(url).host)) return
+        // YouTube: reklamy usuwa youtube.js; duży arkusz i ciągłe przeglądanie strony (YouTube zmienia ją bez przerwy) tylko by go spowalniały
+        if ((Uri.parse(url).host ?: "").endsWith("youtube.com")) return
+        val css = org.json.JSONObject.quote(blocker.hidingCss(Uri.parse(url).host))
+        view.evaluateJavascript("""(function(){var d=document;if(!d.documentElement)return;
+var s=d.getElementById('velivo-reklamy');if(!s){s=d.createElement('style');s.id='velivo-reklamy';(d.head||d.documentElement).appendChild(s);}
+s.textContent=$css;
+if(window.__vZwin)return;
+var R=/(^|[\s_-])(ad|ads|advert|adslot|adbox|adunit|adplaceholder|adcontainer|reklama|reklamy|baner|banner)([\s_-]|$)|AdSlot|AdPlaceholder|CenterAd|adPlaceholder|ad-slot|ad_slot|placeholderAd|-ad-|_ad_/i;
+var L=/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane|materiał sponsorowany)$/i;
+function lab(e){var t=(e.textContent||'').trim();if(t)return t.length<40&&L.test((e.innerText||t).trim());
+for(var a=0;a<e.attributes.length;a++)if(e.attributes[a].name.indexOf('data-')==0&&L.test(e.attributes[a].value.trim()))return true;
+var c=(getComputedStyle(e,'::before').content+' '+getComputedStyle(e,'::after').content).replace(/["']/g,'').trim();return /reklama|advert|ogłoszenie|sponsor/i.test(c);}
+// pusta ramka: tylko napis REKLAMA, ramki (iframe), skrypty i puste elementy (innerText pomija <script>)
+function empty(e){var t=(e.innerText||'').trim();if(t&&!L.test(t))return false;if(e.querySelector('h1,h2,h3,article'))return false;
+var m=e.querySelectorAll('img,video,picture');for(var i=0;i<m.length;i++)if(m[i].offsetWidth>40&&m[i].offsetHeight>40)return false;return true;}
+window.__vUp=function(e){var b=e;while(b.parentElement&&b.parentElement!=d.body&&b.parentElement.offsetHeight<900&&empty(b.parentElement))b=b.parentElement;
+b.style.setProperty('display','none','important');};
+function zwin(){var all=d.querySelectorAll('div,span,p,section,aside,ins');for(var i=0;i<all.length;i++){var e=all[i];
+if(e.children.length<=3&&lab(e)){__vUp(e);continue;}
+// miejsce na reklamę po nazwie klasy/id (AdSlot, AdPlaceholder, ad-container, reklama...) - tylko gdy puste
+var n=(typeof e.className=='string'?e.className:'')+' '+e.id;
+if(R.test(n)&&empty(e))__vUp(e);}
+// ramki reklam (to samo, co znajduje ręczne usuwanie): pusta / zablokowana ramka albo oznaczona jako reklama w niej lub w 3 poziomach wyżej
+var fr=d.querySelectorAll('iframe,ins');for(var j=0;j<fr.length;j++){var f=fr[j];if(f.style.display=='none')continue;
+var src=f.getAttribute('src')||'',blank=!src||src.indexOf('about:')==0,ad=f.tagName=='INS'||/google_ads|doubleclick|adserver|\/ads?\//i.test(src+' '+f.id+' '+f.name);
+for(var k=0,a=f;!ad&&a&&k<4;k++,a=a.parentElement){var an=(typeof a.className=='string'?a.className:'')+' '+a.id;if(R.test(an)||(blank&&L.test((a.innerText||'').trim())))ad=true;}
+if(ad&&!/youtube|vimeo|player|video|embed|recaptcha|captcha/i.test(src+' '+f.id+' '+f.className))__vUp(f);}}
+var t=0;window.__vZwin=new MutationObserver(function(){clearTimeout(t);t=setTimeout(zwin,400)});
+window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();})()""", null)
+    }
+
+    private val failedFrames = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    // Ramki z zablokowanych lub niedziałających adresów reklam - zwiń je razem z pustym otoczeniem.
+    private fun collapseFrames(view: WebView) = runOnUiThread {
+        if (!prefs.getBoolean("adblock", true) || siteAllowed(Uri.parse(view.url ?: "").host)) return@runOnUiThread
+        view.evaluateJavascript("JSON.stringify([].map.call(document.querySelectorAll('iframe'),function(f){return f.src||''}))") { r ->
+            val srcs = runCatching { org.json.JSONArray(org.json.JSONTokener(r).nextValue() as String) }.getOrNull() ?: return@evaluateJavascript
+            val bad = (0 until srcs.length()).filter { i ->
+                val u = srcs.optString(i)
+                u.isNotEmpty() && Uri.parse(u).let { it.host in failedFrames || isBlocked(it) }
+            }
+            if (bad.isNotEmpty()) view.evaluateJavascript("(function(){var f=document.querySelectorAll('iframe');${bad.joinToString(",", "[", "]")}.forEach(function(i){var e=f[i];if(e)(window.__vUp?__vUp(e):e.style.setProperty('display','none','important'))})})()", null)
+        }
+    }
+
+    // --- Prywatność i ochrona przed oszustwami (jak Ochrona.cs na Windows) ---
+    private val pageHost: MutableMap<WebView, String> = java.util.Collections.synchronizedMap(java.util.WeakHashMap())
+    private val pageBlocked: MutableMap<WebView, java.util.concurrent.ConcurrentHashMap<String, Int>> = java.util.Collections.synchronizedMap(java.util.WeakHashMap())
+    private val httpAllowed = java.util.Collections.synchronizedSet(HashSet<String>())   // na tę sesję: zgoda na stronę bez szyfrowania
+    private val httpsTried = java.util.Collections.synchronizedSet(HashSet<String>())
+    @Volatile private var vaultDomains: Set<String> = emptySet()   // domeny z zapisanymi hasłami - ich podróbki też wykrywamy
+    private val protectionAllowed get() = prefs.getStringSet("ochrona-dozwolone", emptySet()) ?: emptySet()
+
+    // strony, na których użytkownik wyłączył blokowanie reklam
+    private fun siteAllowed(host: String?) = host != null && Ochrona.regDomain(host) in (prefs.getStringSet("adblock-wyjatki", emptySet()) ?: emptySet())
+
+    // klucz wielkości strony: domena (www. bez znaczenia); Szybki Dostęp ma własny
+    // Strona startowa (Szybki Dostęp) - zawsze 100%, bez zmiany wielkości (wyjątek)
+    private fun zoomKey(url: String?): String? = Uri.parse(url ?: "").host?.lowercase()?.takeIf { it != QuickAccess.HOST }?.removePrefix("www.")?.let { "zoom-$it" }
+
+    private fun warnLookalike(view: WebView, url: String, host: String, fake: String) {
+        val msg = if (fake == "xn") getString(R.string.fake_xn, host) else getString(R.string.fake_brand, host, fake)
+        AlertDialog.Builder(this).setTitle(R.string.fake_title).setMessage(msg).setCancelable(false)
+            .setPositiveButton(R.string.fake_back) { _, _ -> if (view.canGoBack()) view.goBack() else view.loadUrl(home) }
+            .setNegativeButton(R.string.fake_trust) { _, _ ->
+                prefs.edit().putStringSet("ochrona-dozwolone", protectionAllowed + host).apply()
+                view.loadUrl(url)
+            }
+            .show()
+    }
+
+    private fun askHttp(view: WebView, url: String, host: String) {
+        AlertDialog.Builder(this).setTitle(R.string.http_title).setMessage(getString(R.string.http_warn, host))
+            .setPositiveButton(R.string.fake_back) { _, _ -> if (view.canGoBack()) view.goBack() else view.loadUrl(home) }
+            .setNegativeButton(R.string.http_open) { _, _ -> httpAllowed.add(host); view.loadUrl(url) }
+            .show()
+    }
+
+    private fun showPrivacy() {
+        val w = web() ?: return
+        val u = Uri.parse(w.url ?: "")
+        val host = u.host ?: return
+        val blocked = pageBlocked[w]?.entries?.sortedByDescending { it.value } ?: emptyList()
+        val secure = u.scheme == "https"
+        val off = siteAllowed(host)
+        val text = StringBuilder()
+            .append(if (secure) getString(R.string.priv_secure) else getString(R.string.priv_insecure)).append("\n\n")
+            .append(getString(R.string.priv_blocked_page, blocked.sumOf { it.value }, blocked.size)).append("\n")
+        blocked.take(12).forEach { text.append("  • ").append(it.key).append(" (").append(it.value).append(")\n") }
+        text.append("\n").append(getString(R.string.blocked, blockedCount))
+        if (off) text.append("\n\n").append(getString(R.string.priv_site_off))
+        AlertDialog.Builder(this).setTitle("🛡 " + host.removePrefix("www."))
+            .setMessage(text.toString())
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(if (off) R.string.priv_enable else R.string.priv_disable) { _, _ ->
+                val set = (prefs.getStringSet("adblock-wyjatki", emptySet()) ?: emptySet()).toMutableSet()
+                val d = Ochrona.regDomain(host)
+                if (off) set.remove(d) else set.add(d)
+                prefs.edit().putStringSet("adblock-wyjatki", set).apply()
+                w.reload()
+            }
+            .show()
+    }
+
     private fun isBlocked(u: Uri) = (u.scheme == "http" || u.scheme == "https") && blocker.matches(u.host)
 
     // Najpierw to, co już jest na telefonie, potem w tle świeże listy (co 4 dni).
     private fun startFilters() = Thread {
-        blocker = AdBlocker.build(this)
-        if (AdBlocker.stale(this) && AdBlocker.download(this) > 0) blocker = AdBlocker.build(this)
+        blocker = AdBlocker.build(this).also { it.warm() }   // arkusz ukrywania składany w tle, nie przy pierwszej stronie
+        reapplyFilters()
+        if (AdBlocker.stale(this) && AdBlocker.download(this) > 0) { blocker = AdBlocker.build(this).also { it.warm() }; reapplyFilters() }
     }.start()
 
+    // Karty przywrócone przy starcie wczytują się, zanim listy są gotowe - po wczytaniu list posprzątaj je jeszcze raz.
+    private fun reapplyFilters() = runOnUiThread {
+        tabs.forEach { t -> t.web.url?.let { hideAds(t.web, it); collapseFrames(t.web) } }
+    }
+
     private fun show(i: Int) {
+        if (::findBar.isInitialized && findBar.visibility == View.VISIBLE) closeFind()   // szukanie dotyczy jednej karty
+        if (::pickBar.isInitialized && pickBar.visibility == View.VISIBLE) stopPick()
         tabs.getOrNull(cur)?.let { snap(it) }
         cur = i
         frame.removeAllViews()
@@ -404,12 +865,75 @@ set(p0,p);})"""
     }
 
     // Lista kart: miniatura, tytuł i adres; stuknięcie przełącza, ✕ lub przesunięcie w bok zamyka.
+    // --- Powiększanie dwoma palcami (dla słabszego wzroku): menu, listy, karteczki, pasek i dolne przyciski ---
+    // Jedna skala dla całego Velivo (80-220%), zapamiętana; strony powiększa się jak zwykle w samej stronie.
+    private var uiScale = 1f
+    private var chrome = listOf<View>()
+    private val scaleBase = java.util.WeakHashMap<View, FloatArray>()   // oryginalne: tekst, szerokość, wysokość, min. wysokość
+
+    // błąd jednego elementu nie może zamknąć Velivo - zostaje w dzienniku (Logcat: Velivo)
+    private fun applyScale(v: View) {
+        runCatching { scaleOne(v) }.onFailure { android.util.Log.e("Velivo", "powiekszanie", it) }
+    }
+
+    private fun scaleOne(v: View) {
+        val s = uiScale
+        val lp = v.layoutParams
+        val o = scaleBase.getOrPut(v) {
+            floatArrayOf(if (v is TextView) v.textSize else 0f, (lp?.width ?: -1).toFloat(), (lp?.height ?: -1).toFloat(), v.minimumHeight.toFloat())
+        }
+        if (v is TextView && o[0] > 0f) {
+            if (v.autoSizeTextType != TextView.AUTO_SIZE_TEXT_TYPE_NONE)
+                v.setAutoSizeTextTypeUniformWithConfiguration((9 * s).toInt().coerceAtLeast(6), (12 * s).toInt().coerceAtLeast(7), 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+            else v.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, o[0] * s)
+        }
+        if (lp != null) {
+            if (o[1] > 0f) lp.width = (o[1] * s).toInt()
+            if (o[2] > 0f) lp.height = (o[2] * s).toInt()
+            v.layoutParams = lp
+        }
+        if (v is ViewGroup) for (i in 0 until v.childCount) applyScale(v.getChildAt(i))
+    }
+
+    // Opakowanie okna: dwa palce rozsuwane / zsuwane = większe / mniejsze; jeden palec działa jak zwykle.
+    private inner class PinchFrame(private val content: View) : FrameLayout(this@MainActivity) {
+        private var pinching = false
+        private val det = android.view.ScaleGestureDetector(context, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                runCatching {
+                    uiScale = (uiScale * d.scaleFactor).coerceIn(0.8f, 2.2f)
+                    applyScale(content); chrome.forEach { applyScale(it) }
+                }.onFailure { android.util.Log.e("Velivo", "powiekszanie", it) }
+                return true
+            }
+            override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
+                prefs.edit().putFloat("skala", uiScale).apply()
+                toast(getString(R.string.ui_scale, Math.round(uiScale * 100)))
+            }
+        })
+        init { det.isQuickScaleEnabled = false; addView(content); applyScale(content) }
+        override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+            det.onTouchEvent(ev)
+            if (ev.pointerCount > 1 && !pinching) {
+                pinching = true
+                val c = MotionEvent.obtain(ev).apply { action = MotionEvent.ACTION_CANCEL }   // przewijanie / stuknięcie pod palcami - anuluj
+                runCatching { super.dispatchTouchEvent(c) }
+                c.recycle()
+            }
+            if (pinching) {
+                if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) pinching = false
+                return true
+            }
+            return super.dispatchTouchEvent(ev)
+        }
+    }
+
     private fun showTabs() {
         tabs.getOrNull(cur)?.let { snap(it) }
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)) }
         val dlg = AlertDialog.Builder(this)
             .setTitle(R.string.tabs)
-            .setView(ScrollView(this).apply { addView(list) })
+            .setView(PinchFrame(ScrollView(this).apply { addView(list) }))
             .setPositiveButton(R.string.new_tab) { _, _ -> newTab(false, QuickAccess.URL) }
             .setNeutralButton(R.string.new_private_tab) { _, _ -> newTab(true, home) }
             .setNegativeButton(R.string.bank_mode) { _, _ -> openBank() }
@@ -420,6 +944,7 @@ set(p0,p);})"""
                 closeTab(tabs.indexOf(t))
                 fill()
             }) }
+            applyScale(list)
         }
         fill()
         dlg.show()
@@ -464,47 +989,427 @@ set(p0,p);})"""
         return row
     }
 
-    private fun showMenu(anchor: View) {
-        val m = PopupMenu(this, anchor)
-        m.menu.add(0, 1, 0, R.string.new_tab)
-        m.menu.add(0, 2, 0, R.string.new_private_tab)
-        m.menu.add(0, 14, 0, R.string.quick_access)
-        m.menu.add(0, 3, 0, R.string.add_bookmark)
-        m.menu.add(0, 4, 0, R.string.bookmarks)
-        m.menu.add(0, 5, 0, R.string.history)
-        m.menu.add(0, 6, 0, R.string.clear_history)
-        m.menu.add(0, 15, 0, R.string.fill_password)
-        m.menu.add(0, 9, 0, R.string.passwords)
-        m.menu.add(0, 10, 0, R.string.bank_mode)
-        m.menu.add(0, 11, 0, R.string.theme)
-        m.menu.add(0, 13, 0, R.string.lan_sync)
-        m.menu.add(0, 12, 0, R.string.background_play).apply { isCheckable = true; isChecked = prefs.getBoolean("tlo", true) }
-        m.menu.add(0, 7, 0, R.string.adblock).apply { isCheckable = true; isChecked = prefs.getBoolean("adblock", true) }
-        m.menu.add(0, 8, 0, getString(R.string.blocked, blockedCount)).isEnabled = false
-        m.setOnMenuItemClickListener {
-            when (it.itemId) {
-                1 -> newTab(false, QuickAccess.URL)
-                2 -> newTab(true, home)
-                3 -> web()?.let { w -> w.url?.let { u -> addTo("zakladki", w.title ?: u, u, 500); toast(getString(R.string.added)) } }
-                4 -> pick("zakladki", R.string.bookmarks)
-                5 -> pick("historia", R.string.history)
-                6 -> { prefs.edit().remove("historia").apply(); web()?.clearHistory() }
-                9 -> unlock { showPasswords() }
-                10 -> openBank()
-                11 -> chooseTheme()
-                13 -> unlock { showLanSync() }
-                14 -> web()?.loadUrl(QuickAccess.URL)
-                15 -> fillFromMenu()
-                12 -> {
-                    val on = !prefs.getBoolean("tlo", true)
-                    prefs.edit().putBoolean("tlo", on).apply()
-                    if (on && Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
-                }
-                7 -> prefs.edit().putBoolean("adblock", !prefs.getBoolean("adblock", true)).apply()
-            }
-            true
+    // --- Szukaj na stronie: pasek nad dolnymi przyciskami, licznik trafień, poprzedni / następny ---
+    private lateinit var findBar: LinearLayout
+    private lateinit var findText: EditText
+    private lateinit var findCount: TextView
+
+    private fun buildFindBar(): View {
+        findBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)); visibility = View.GONE }
+        findText = EditText(this).apply {
+            hint = getString(R.string.find_in_page); setSingleLine(); textSize = 15f
+            setTextColor(TEXT); setHintTextColor(c("#4F4380", "#A79FD0")); background = round(FIELD); setPadding(dp(12), dp(6), dp(12), dp(6))
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setOnEditorActionListener { _, _, _ -> web()?.findNext(true); true }
+            addTextChangedListener(object : TextWatcher {
+                override fun afterTextChanged(e: Editable?) { web()?.findAllAsync(e?.toString() ?: "") }
+                override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+                override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            })
         }
-        m.show()
+        findCount = TextView(this).apply { setTextColor(TEXT); setPadding(dp(8), 0, dp(4), 0); textSize = 13f }
+        findBar.addView(findText, LinearLayout.LayoutParams(0, -2, 1f))
+        findBar.addView(findCount)
+        findBar.addView(button("▲", R.string.find_prev, BLUE, BLUE_BG) { web()?.findNext(false) })
+        findBar.addView(button("▼", R.string.find_next, BLUE, BLUE_BG) { web()?.findNext(true) })
+        findBar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { closeFind() })
+        return findBar
+    }
+
+    private fun openFind() {
+        val w = web() ?: return
+        w.setFindListener { active, total, _ -> findCount.text = if (total == 0) "0" else "${active + 1} / $total" }
+        findBar.visibility = View.VISIBLE
+        findText.requestFocus()
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(findText, 0)
+        if (findText.text.isNotEmpty()) w.findAllAsync(findText.text.toString())
+    }
+
+    // --- Usun element palcem (jak w Velivo na Windows): regula CSS zapamietana dla domeny ---
+    private lateinit var pickBar: LinearLayout
+
+    private fun buildPickBar(): View {
+        pickBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)); visibility = View.GONE }
+        pickBar.addView(TextView(this).apply { text = getString(R.string.hide_hint); setTextColor(TEXT); textSize = 13f; setPadding(dp(6), 0, dp(4), 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        pickBar.addView(button("⬆", R.string.hide_bigger, BLUE, BLUE_BG) { web()?.evaluateJavascript("window.__vBig&&__vBig()", null) })
+        pickBar.addView(button("🗑", R.string.hide_element, GREEN, GREEN_BG) { hidePicked() })
+        pickBar.addView(button("📋", R.string.hide_copy, BLUE, BLUE_BG) { copyPicked() })
+        pickBar.addView(button("↺", R.string.hide_restore, ORANGE, ORANGE_BG) { restoreHidden() })
+        pickBar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { stopPick() })
+        return pickBar
+    }
+
+    private fun hostKey(url: String?) = "ukryte_" + (Uri.parse(url ?: "").host ?: "").removePrefix("www.")
+
+    private fun longPressHide(w: WebView, x: Float, y: Float) {
+        val js = "(function(x,y){var r=window.devicePixelRatio||1,l=document.elementsFromPoint(x/r,y/r);for(var i=0;i<l.length;i++){var e=l[i];" +
+            "if(e==document.body||e==document.documentElement)break;if(e.tagName=='IFRAME'||e.tagName=='INS')return true;" +
+            "var n=(typeof e.className=='string'?e.className:'')+' '+e.id;if(/AdSlot|AdPlaceholder|CenterAd|ad-slot|ad_slot|google_ads|reklama/i.test(n))return true;}" +
+            "var e=l[0];if(!e||e==document.body)return false;var t=(e.innerText||'').trim();" +
+            "return !t||/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane)$/i.test(t)})($x,$y)"
+        w.evaluateJavascript(js) { r ->
+            if (r != "true") return@evaluateJavascript
+            startPick()
+            w.evaluateJavascript("window.__vAt&&__vAt($x,$y)", null)
+        }
+    }
+
+    private fun startPick() {
+        val w = web() ?: return
+        pickBar.visibility = View.VISIBLE
+        w.evaluateJavascript("""(function(){if(window.__vPick)return;var cur=null;
+function mark(e){if(cur)cur.style.outline=cur.__vo||'';cur=e;if(e){e.__vo=e.style.outline;e.style.outline='3px solid #6D3FDB';}}
+var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(109,63,219,.06);touch-action:pan-y';
+// najlepszy kandydat: od stukniętego elementu w górę, dopóki otoczenie jest puste (sama reklama / napis REKLAMA)
+function txt(e){return (e.innerText||'').trim();}
+function best(e){var L=/^(reklama|reklamy|ogłoszenie|advertisement|advert|ads?|sponsored|sponsorowane)$/i;
+while(e.parentElement&&e.parentElement!=document.body&&e.parentElement.offsetHeight<window.innerHeight*0.9){var t=txt(e.parentElement);if(t&&!L.test(t)&&t!=txt(e))break;e=e.parentElement;}return e;}
+// reklama bywa schowana pod przezroczystą warstwą strony - przeglądamy wszystkie warstwy pod palcem
+var AD=/(^|[\s_-])(ad|ads|advert|adslot|adbox|adunit|reklama|baner|banner)([\s_-]|$)|AdSlot|AdPlaceholder|CenterAd|placeholder|ad-slot|ad_slot|-ad-|_ad_|google_ads/i;
+function at(x,y){ov.style.pointerEvents='none';var l=document.elementsFromPoint(x,y).filter(function(e){return e!=ov&&e!=document.body&&e!=document.documentElement;});ov.style.pointerEvents='auto';
+for(var i=0;i<l.length;i++){var e=l[i],n=(typeof e.className=='string'?e.className:'')+' '+e.id;if(e.tagName=='IFRAME'||e.tagName=='INS'||AD.test(n))return e;}return l[0];}
+function choose(t){if(t){mark(best(t));setTimeout(function(){prompt('$pickToken','')},50);}}
+window.__vPick=function(ev){ev.preventDefault();ev.stopPropagation();choose(at(ev.clientX,ev.clientY));};
+ov.addEventListener('click',__vPick,true);document.documentElement.appendChild(ov);
+window.__vAt=function(x,y){var r=window.devicePixelRatio||1;choose(at(x/r,y/r));};
+window.__vBig=function(){if(cur&&cur.parentElement&&cur.parentElement!=document.body)mark(cur.parentElement);};
+function sel(e){var p=[];while(e&&e.nodeType==1&&e!=document.body){var s=e.tagName.toLowerCase();
+if(e.id&&!/\d{3}/.test(e.id)){p.unshift(s+'#'+CSS.escape(e.id));break;}
+var c=[].filter.call(e.classList,function(x){return !/\d{3}|^(active|show|open|hover)$/.test(x)}).slice(0,2);
+if(c.length)s+='.'+c.map(CSS.escape).join('.');
+var n=1,x=e;while((x=x.previousElementSibling))if(x.tagName==e.tagName)n++;s+=':nth-of-type('+n+')';
+p.unshift(s);e=e.parentElement;}return p.join(' > ');}
+window.__vInfo=function(){if(!cur)return '';var p=[],e=cur;while(e&&e!=document.body){p.unshift(e.tagName.toLowerCase()+(e.id?'#'+e.id:'')+(typeof e.className=='string'&&e.className?'.'+e.className.trim().split(/\s+/).join('.'):''));e=e.parentElement;}
+var h=cur.outerHTML.replace(/<script[\s\S]*?<\/script>/gi,'<script/>');return location.host+'\n'+p.join(' > ')+'\n\n'+h.slice(0,3000);};
+window.__vTake=function(){if(!cur)return '';var s=sel(cur);cur.style.setProperty('display','none','important');cur=null;return s;};
+window.__vStop=function(){mark(null);ov.remove();window.__vPick=null;};})()""", null)
+    }
+
+    // Diagnostyka: kod zaznaczonego pola do schowka - do zgłoszenia reklamy, której Velivo nie ukrywa
+    private fun copyPicked() {
+        web()?.evaluateJavascript("window.__vInfo?__vInfo():''") { r ->
+            val t = runCatching { org.json.JSONTokener(r).nextValue() as String }.getOrDefault("")
+            if (t.isEmpty()) { toast(getString(R.string.hide_hint)); return@evaluateJavascript }
+            (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Velivo", t))
+            toast(getString(R.string.hide_copied))
+        }
+    }
+
+    private val pickToken = "velivo-pick-" + java.util.UUID.randomUUID()
+
+    private fun askHide() {
+        AlertDialog.Builder(this).setTitle(R.string.hide_element).setMessage(R.string.hide_ask)
+            .setPositiveButton(R.string.hide_yes) { _, _ -> hidePicked() }
+            .setNeutralButton(R.string.hide_bigger) { _, _ -> web()?.evaluateJavascript("window.__vBig&&__vBig()") { askHide() } }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun stopPick() {
+        pickBar.visibility = View.GONE
+        web()?.evaluateJavascript("window.__vStop&&__vStop()", null)
+    }
+
+    private fun hidePicked() {
+        val w = web() ?: return
+        w.evaluateJavascript("window.__vTake?__vTake():''") { r ->
+            val sel = runCatching { org.json.JSONTokener(r).nextValue() as String }.getOrDefault("")
+            if (sel.isEmpty()) { toast(getString(R.string.hide_hint)); return@evaluateJavascript }
+            val key = hostKey(w.url)
+            val rules = (prefs.getStringSet(key, emptySet()) ?: emptySet()) + sel
+            prefs.edit().putStringSet(key, rules).apply()
+            toast(getString(R.string.hidden_saved))
+        }
+    }
+
+    private fun restoreHidden() {
+        val w = web() ?: return
+        prefs.edit().remove(hostKey(w.url)).apply()
+        stopPick(); w.reload(); toast(getString(R.string.hide_restored))
+    }
+
+    private fun applyHidden(view: WebView, url: String) {
+        val rules = prefs.getStringSet(hostKey(url), null) ?: return
+        val css = org.json.JSONObject.quote(rules.joinToString(",") + "{display:none!important}")
+        view.evaluateJavascript("(function(){var s=document.getElementById('velivo-ukryte')||document.createElement('style');s.id='velivo-ukryte';s.textContent=$css;(document.head||document.documentElement).appendChild(s);})()", null)
+    }
+
+    private fun closeFind() {
+        web()?.clearMatches()
+        findBar.visibility = View.GONE
+        findCount.text = ""
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(findText.windowToken, 0)
+    }
+
+    // --- Tryb pulpitu: strona jak na komputerze (bez "Android" i "Mobile" w identyfikatorze przeglądarki) ---
+    private fun toggleDesktop() {
+        val t = tabs.getOrNull(cur) ?: return
+        t.desktop = !t.desktop
+        val st = t.web.settings
+        st.userAgentString = if (t.desktop) desktopAgent(WebSettings.getDefaultUserAgent(this)) else null
+        st.useWideViewPort = t.desktop
+        st.loadWithOverviewMode = t.desktop
+        t.web.reload()
+        toast(getString(if (t.desktop) R.string.desktop_on else R.string.desktop_off))
+    }
+
+    private fun desktopAgent(mobile: String): String {
+        val chrome = Regex("Chrome/[\\d.]+").find(mobile)?.value ?: "Chrome/130.0.0.0"
+        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) $chrome Safari/537.36"
+    }
+
+    // Menu Velivo: wysuwane od dołu, logo i licznik reklam na górze, kolorowe kafelki jak przyciski Velivo na Windows.
+    // --- Czytnik i czytanie na glos: tekst artykulu wyciagniety ze strony, bez reklam i menu ---
+    private var tts: android.speech.tts.TextToSpeech? = null
+
+    private fun readArticle(done: (String, String) -> Unit) {
+        // tytuł raz (z <h1>), bez powtórzeń i bez ramek ze skrótem / podsumowaniem artykułu (to ten sam tekst drugi raz)
+        val js = """(function(){var best=document.body,max=0;
+document.querySelectorAll('article,main,[role=main],section,div').forEach(function(e){var n=0;
+e.querySelectorAll(':scope > p').forEach(function(p){n+=p.innerText.length});if(n>max){max=n;best=e}});
+var root=document.querySelector('article')||best,out=[],keys=[];
+var h=document.querySelector('h1'),title=((h&&h.innerText)||document.title).replace(/\s+/g,' ').trim();
+function key(t){return t.toLowerCase().replace(/[^0-9a-ząćęłńóśźżäöüéèàç]+/g,' ').trim();}
+function dup(t){var k=key(t);if(!k)return true;for(var i=0;i<keys.length;i++){var o=keys[i];if(o==k||(k.length<200&&o.indexOf(k)>=0)||(o.length<200&&k.indexOf(o)>=0&&o.length>k.length*0.6))return true;}keys.push(k);return false;}
+dup(title);
+var SKIP='nav,footer,aside,form,[class*=summary i],[class*=podsumow i],[class*=skrot i],[class*=tldr i],[class*=highlight i],[class*=key-point i],[class*=keypoint i],[class*=lead-points i]';
+root.querySelectorAll('h1,h2,h3,p,li,blockquote').forEach(function(e){var t=e.innerText.replace(/\s+/g,' ').trim();
+if(t.length>1&&!e.closest(SKIP)&&!dup(t))out.push(t)});
+if(!out.length)out=[document.body.innerText];
+return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
+        val w = web() ?: return
+        w.evaluateJavascript(js) { r ->
+            try {
+                val o = org.json.JSONObject(org.json.JSONTokener(r).nextValue() as String)
+                val body = o.optString("b").trim()
+                if (body.isEmpty()) toast(getString(R.string.reader_empty)) else done(o.optString("t"), body)
+            } catch (_: Exception) { toast(getString(R.string.reader_empty)) }
+        }
+    }
+
+    private fun speak(text: String) {
+        val go = speakGo@{
+            val t = tts!!
+            val lang = t.setLanguage(resources.configuration.locales[0])
+            if (lang == android.speech.tts.TextToSpeech.LANG_MISSING_DATA || lang == android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED) { offerTts(); return@speakGo }
+            // TTS przyjmuje ograniczona dlugosc - dzielimy po akapitach
+            val parts = text.split("\n").map { it.trim() }.filter { it.isNotEmpty() }.flatMap { it.chunked(3500) }
+            // ostatni fragment przeczytany -> zdejmij powiadomienie, ktore trzymalo czytanie przy zgaszonym ekranie
+            t.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(id: String?) {}
+                override fun onDone(id: String?) { if (id == "v${parts.size - 1}") stopService(Intent(this@MainActivity, PlaybackService::class.java)) }
+                @Deprecated("") override fun onError(id: String?) {}
+            })
+            parts.forEachIndexed { i, part -> t.speak(part, if (i == 0) android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD, null, "v$i") }
+            runCatching { startForegroundService(Intent(this, PlaybackService::class.java).putExtra(PlaybackService.EXTRA_TITLE, "🔊 " + (web()?.title ?: ""))) }
+            toast(getString(R.string.reading_started))
+        }
+        if (tts != null) go() else tts = android.speech.tts.TextToSpeech(this) { st ->
+            if (st == android.speech.tts.TextToSpeech.SUCCESS) go() else { tts = null; offerTts() }
+        }
+    }
+
+    // brak syntezatora albo glosu w jezyku telefonu - zaproponuj pobranie
+    private fun offerTts() {
+        AlertDialog.Builder(this).setTitle(R.string.read_aloud).setMessage(R.string.tts_missing)
+            .setPositiveButton(R.string.download) { _, _ ->
+                runCatching { startActivity(Intent(android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)) }.onFailure {
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.tts"))) }.onFailure {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.tts")))
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun stopSpeaking() { tts?.stop(); stopService(Intent(this, PlaybackService::class.java)) }
+
+    private fun showReader(title: String, body: String) {
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+        val bg = c("#FBF8F1", "#15121F"); val fg = c("#2A2150", "#E6E1F5")
+        var size = prefs.getFloat("czytnik_rozmiar", 19f)
+        val text = TextView(this).apply {
+            this.text = body; textSize = size; setTextColor(fg); typeface = android.graphics.Typeface.SERIF
+            setLineSpacing(0f, 1.45f); setTextIsSelectable(true); setPadding(dp(20), dp(8), dp(20), dp(40))
+        }
+        val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); setBackgroundColor(BAR) }
+        bar.addView(TextView(this).apply { this.text = "📖 " + getString(R.string.reader); textSize = 16f; setTextColor(TEXT); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        fun resize(d: Float) { size = (size + d).coerceIn(14f, 48f); text.textSize = size; prefs.edit().putFloat("czytnik_rozmiar", size).apply() }
+        bar.addView(button("A−", R.string.text_smaller, BLUE, BLUE_BG) { resize(-1f) })
+        bar.addView(button("A+", R.string.text_larger, BLUE, BLUE_BG) { resize(1f) })
+        bar.addView(button("🔊", R.string.read_aloud, BLUE, BLUE_BG) { if (tts?.isSpeaking == true) stopSpeaking() else speak(title + ".\n" + body) })
+        bar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { dlg.dismiss() })
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
+        col.addView(TextView(this).apply {
+            this.text = title; textSize = 24f; setTextColor(fg); typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD)
+            setPadding(dp(20), dp(20), dp(20), dp(12))
+        })
+        col.addView(text)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
+        root.addView(bar)
+        root.addView(android.widget.ScrollView(this).apply { addView(col) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        // zapamietaj, gdzie skonczyles czytac (lokalnie, wg adresu strony)
+        val key = "czytnik_poz_" + (web()?.url ?: title).hashCode()
+        val scroll = root.getChildAt(1) as android.widget.ScrollView
+        dlg.setOnDismissListener { prefs.edit().putInt(key, scroll.scrollY).apply(); stopSpeaking() }
+        // dwa palce w czytniku = większy / mniejszy tekst (jak A− / A+)
+        val det = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean { resize(size * d.scaleFactor - size); return true }
+        })
+        det.isQuickScaleEnabled = false
+        val frame = object : FrameLayout(this) {
+            override fun dispatchTouchEvent(ev: MotionEvent): Boolean { det.onTouchEvent(ev); return if (ev.pointerCount > 1) true else super.dispatchTouchEvent(ev) }
+        }
+        frame.addView(root)
+        dlg.setContentView(frame)
+        dlg.show()
+        val pos = prefs.getInt(key, 0)
+        if (pos > 0) scroll.post { scroll.scrollTo(0, pos); toast(getString(R.string.reader_resumed)) }
+    }
+
+    private fun menuAction(id: Int) {
+        when (id) {
+            16 -> openFind()
+            17 -> toggleDesktop()
+            20 -> startPick()
+            21 -> sendTabToComputer()
+            23 -> showNotes()
+            24 -> newNote()
+            25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
+            22 -> runCatching {
+                // język tylko dla Velivo (Android 13+), starsze - ustawienia aplikacji
+                startActivity(Intent(if (Build.VERSION.SDK_INT >= 33) android.provider.Settings.ACTION_APP_LOCALE_SETTINGS else android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            }
+            18 -> readArticle { t, b -> showReader(t, b) }
+            19 -> if (tts?.isSpeaking == true) stopSpeaking() else readArticle { t, b -> speak(t + ".\n" + b) }
+            1 -> newTab(false, QuickAccess.URL)
+            2 -> newTab(true, home)
+            3 -> web()?.let { w -> w.url?.let { u -> addTo("zakladki", w.title ?: u, u, 500); toast(getString(R.string.added)) } }
+            4 -> pick("zakladki", R.string.bookmarks)
+            5 -> pick("historia", R.string.history)
+            6 -> { prefs.edit().remove("historia").apply(); web()?.clearHistory(); toast(getString(R.string.history_cleared)) }
+            9 -> unlock { showPasswords() }
+            10 -> openBank()
+            11 -> chooseTheme()
+            13 -> unlock { showLanSync() }
+            14 -> web()?.loadUrl(QuickAccess.URL)
+            15 -> fillFromMenu()
+            12 -> {
+                val on = !prefs.getBoolean("tlo", true)
+                prefs.edit().putBoolean("tlo", on).apply()
+                if (on && Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+            }
+            7 -> prefs.edit().putBoolean("adblock", !prefs.getBoolean("adblock", true)).apply()
+        }
+    }
+
+    private fun showMenu(@Suppress("UNUSED_PARAMETER") anchor: View) {
+        val dlg = android.app.Dialog(this)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(18))
+            background = GradientDrawable().apply {
+                // jasny: biale tlo, zeby kafelki odcinaly sie wyraznie
+                setColor(c("#FFFFFF", "#1B1733"))
+                cornerRadii = floatArrayOf(dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), 0f, 0f, 0f, 0f)
+            }
+        }
+        // uchwyt do przeciągnięcia (jak w menu Androida)
+        box.addView(View(this).apply { background = round(GRAY_BG) }, LinearLayout.LayoutParams(dp(40), dp(5)).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(12) })
+        // nagłówek: logo Velivo, nazwa, licznik zablokowanych reklam
+        val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        head.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher) }, LinearLayout.LayoutParams(dp(40), dp(40)))
+        head.addView(TextView(this).apply {
+            text = "Velivo"; textSize = 24f; setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
+            // napis w gradiencie Velivo (fiolet -> turkus), jak pod ikona
+            val w = paint.measureText("Velivo")
+            paint.shader = android.graphics.LinearGradient(dp(10).toFloat(), 0f, dp(10) + w, 0f, BRAND1, BRAND2, android.graphics.Shader.TileMode.CLAMP)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        head.addView(TextView(this).apply {
+            text = "🛡 " + getString(R.string.blocked, blockedCount)
+            textSize = 13f; setTextColor(GREEN); background = round(GREEN_BG); setPadding(dp(10), dp(5), dp(10), dp(5))
+            // stuknięcie: panel prywatności tej strony
+            contentDescription = getString(R.string.privacy_panel); tooltipText = getString(R.string.privacy_panel)
+            setOnClickListener { dlg.dismiss(); showPrivacy() }
+        })
+        box.addView(head)
+
+        fun section(title: Int, items: List<Triple<String, Int, Int>>, toggles: Map<Int, Boolean> = emptyMap()) {
+            box.addView(TextView(this).apply {
+                text = getString(title); textSize = 13f; setTextColor(c("#4F4380", "#A79FD0")); setPadding(dp(2), dp(14), 0, dp(6))
+            })
+            // duże powiększenie - kafelki po 2 w rzędzie (liczba kolumn ustalana przy otwarciu menu)
+            val grid = android.widget.GridLayout(this).apply { columnCount = if (uiScale >= 1.35f) 2 else 3 }
+            for ((icon, label, id) in items) {
+                val on = toggles[id]
+                val primary = id == 1 || id == 14   // nowa karta, Szybki Dostep - gradient Velivo
+                val (fg, bg) = when {
+                    primary -> Color.WHITE to BRAND1
+                    on == true -> GREEN to GREEN_BG
+                    on == false -> c("#4F4380", "#A79FD0") to GRAY_BG
+                    id == 2 -> PURPLE to PRIV_BG
+                    id == 10 -> c("#0F766E", "#5EEAD4") to BANK_BG
+                    id == 6 -> c("#B91C1C", "#FCA5A5") to c("#FEE2E2", "#450A0A")
+                    id in setOf(11, 13) -> ORANGE to ORANGE_BG
+                    else -> BLUE to BLUE_BG
+                }
+                val tile = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    background = if (primary) brand(10) else round(bg)
+                    setPadding(dp(4), dp(10), dp(4), dp(10))
+                    contentDescription = getString(label)
+                    tooltipText = getString(label)
+                    isClickable = true
+                    foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(60, 128, 128, 128)), null, round(Color.WHITE))
+                    setOnClickListener { dlg.dismiss(); menuAction(id) }
+                }
+                // jednakowe kafelki: ikona w stałym polu, napis zawsze w 2 liniach (dłuższy - mniejsza czcionka)
+                tile.addView(TextView(this).apply { text = icon; textSize = 24f; gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-1, dp(34)))
+                tile.addView(TextView(this).apply {
+                    text = getString(label) + (if (on != null) " · " + getString(if (on) R.string.on else R.string.off) else "")
+                    setTextColor(fg); gravity = Gravity.CENTER; setLines(2); ellipsize = TextUtils.TruncateAt.END
+                    setAutoSizeTextTypeUniformWithConfiguration(9, 12, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+                }, LinearLayout.LayoutParams(-1, dp(36)).apply { topMargin = dp(4) })
+                grid.addView(tile, android.widget.GridLayout.LayoutParams(
+                    android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED), android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
+                ).apply { width = 0; height = dp(96); setMargins(dp(4), dp(4), dp(4), dp(4)) })
+            }
+            box.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        }
+        // po 3 w rzędzie, pełne rzędy: karty, ta strona, moje, ustawienia
+        section(R.string.menu_tabs, listOf(
+            Triple("＋", R.string.new_tab, 1), Triple("🕶", R.string.new_private_tab, 2), Triple("⭐", R.string.quick_access, 14),
+            Triple("🏦", R.string.bank_mode, 10), Triple("📤", R.string.send_tab, 21), Triple("🖥", R.string.desktop_mode, 17)),
+            mapOf(17 to (tabs.getOrNull(cur)?.desktop == true)))
+        section(R.string.menu_page, listOf(
+            Triple("🔎", R.string.find_in_page, 16), Triple("📖", R.string.reader, 18),
+            Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19),
+            Triple("🎯", R.string.hide_element, 20), Triple("➕", R.string.add_bookmark, 3), Triple("✍", R.string.fill_password, 15)))
+        section(R.string.menu_mine, listOf(
+            Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9),
+            Triple("🗒", R.string.notes, 23), Triple("📝", R.string.note_new, 24), Triple("📥", R.string.downloads, 25)))
+        section(R.string.menu_settings, listOf(
+            Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
+            Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6)),
+            mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
+        // na samym dole menu też płaski pasek YouTube (przytrzymanie: wyłącznik czasowy i pobudka)
+        box.addView(TextView(this).apply {
+            text = if (BuildConfig.PELNA) "▶  YouTube  ·  " + getString(R.string.youtube_flat) else "▶  YouTube"
+            gravity = Gravity.CENTER; textSize = 14f; setTextColor(Color.WHITE)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#E62117")); cornerRadius = dp(10).toFloat() }
+            contentDescription = getString(ytLabel); tooltipText = getString(ytLabel)
+            setOnClickListener { dlg.dismiss(); ytBar.performClick() }
+            setOnLongClickListener { dlg.dismiss(); askSleep(); true }
+        }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(14); leftMargin = dp(4); rightMargin = dp(4) })
+        dlg.setContentView(PinchFrame(ScrollView(this).apply { addView(box) }))
+        dlg.window?.apply {
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+            setLayout(-1, -2)
+            setGravity(Gravity.BOTTOM)
+            attributes = attributes.apply { windowAnimations = android.R.style.Animation_InputMethod }
+        }
+        dlg.show()
     }
 
     // Zapis listy: każda pozycja to "tytuł\turl", najnowsze na górze.
@@ -542,7 +1447,7 @@ set(p0,p);})"""
             hint = getString(R.string.search_hint)
             setSingleLine()
             setTextColor(TEXT)
-            setHintTextColor(c("#6B7280", "#9CA3AF"))
+            setHintTextColor(c("#4F4380", "#A79FD0"))
             background = round(GRAY_BG)
             setPadding(dp(12), dp(8), dp(12), dp(8))
         }
@@ -577,12 +1482,13 @@ set(p0,p);})"""
                     text = row.title; textSize = 15f; setTextColor(TEXT); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
                 })
                 texts.addView(TextView(this@MainActivity).apply {
-                    text = row.sub; textSize = 12f; setTextColor(c("#6B7280", "#9CA3AF")); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+                    text = row.sub; textSize = 12f; setTextColor(c("#4F4380", "#A79FD0")); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
                 })
                 v.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
                 v.addView(button("✕", R.string.delete, TEXT, GRAY_BG) {
                     onDelete(row); source.remove(row); refreshList(); if (source.isEmpty()) dlg.dismiss()
                 }.apply { isFocusable = false })   // inaczej ListView nie przyjmuje stuknięć w wiersz
+                applyScale(v)
                 return v
             }
             fun refreshList() {
@@ -608,7 +1514,7 @@ set(p0,p);})"""
         box.addView(top)
         box.addView(listView, LinearLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.6).toInt()))
         listView.setPadding(dp(12), 0, dp(12), 0)
-        val b = AlertDialog.Builder(this).setTitle(getString(title) + " (" + all.size + ")").setView(box)
+        val b = AlertDialog.Builder(this).setTitle(getString(title) + " (" + all.size + ")").setView(PinchFrame(box))
             .setNegativeButton(R.string.close_tab_short, null)
         extra?.let { (label, act) -> b.setNeutralButton(label) { _, _ -> act() } }
         dlg = b.create()
@@ -722,6 +1628,179 @@ set(p0,p);})"""
     }
 
     // --- Synchronizacja z Velivo na Windows (sieć domowa) -------------------------
+    // --- Karta między telefonem a komputerem (z miejscem w filmie, jak 📺 Wyślij do… na Windows) ---
+    // --- 🗒 Karteczki (jak na Windows): termin w treści, powtarzanie, przypomnienie dzień wcześniej i w dniu terminu ---
+    private fun repeatName(r: String?): String = when {
+        r.isNullOrEmpty() -> getString(R.string.rep_once)
+        r == "7d" -> getString(R.string.rep_week); r == "14d" -> getString(R.string.rep_2weeks)
+        r == "1m" -> getString(R.string.rep_month); r == "1y" -> getString(R.string.rep_year)
+        r.endsWith("d") -> getString(R.string.rep_days, r.dropLast(1)); r.endsWith("m") -> getString(R.string.rep_months, r.dropLast(1))
+        else -> getString(R.string.rep_years, r.dropLast(1))
+    }
+
+    private fun noteInfo(n: Karteczki.Note): String {
+        val today = java.time.LocalDate.now()
+        val d = Karteczki.due(n.text, today, n.repeat)
+        val parts = mutableListOf<String>()
+        if (d == 2) parts.add("⏰ " + getString(R.string.note_due_today)) else if (d == 1) parts.add("⏰ " + getString(R.string.note_due_tomorrow))
+        else Karteczki.next(n.text, today, n.repeat)?.let { parts.add("📅 " + it.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))) }
+        if (!n.repeat.isNullOrEmpty()) parts.add("🔁 " + repeatName(n.repeat))
+        return parts.joinToString(" · ")
+    }
+
+    private fun newNote() = newNoteThen {}
+
+    private fun showNotes(openId: String? = null) {
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(c("#F7F4FF", "#15121F")) }
+        val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); setBackgroundColor(BAR) }
+        bar.addView(TextView(this).apply { text = "🗒 " + getString(R.string.notes); textSize = 18f; setTextColor(TEXT); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(10), dp(10), dp(24)) }
+        fun fill() {
+            col.removeAllViews()
+            val today = java.time.LocalDate.now()
+            // najbliższy termin na górze, karteczki bez terminu na końcu
+            val list = Karteczki.load(this).sortedBy { Karteczki.next(it.text, today, it.repeat)?.toEpochDay() ?: Long.MAX_VALUE }
+            if (list.isEmpty()) col.addView(TextView(this).apply { text = getString(R.string.notes_empty); setTextColor(TEXT); textSize = 15f; setPadding(dp(8), dp(24), dp(8), 0); gravity = Gravity.CENTER })
+            for (n in list) {
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(12))
+                    background = GradientDrawable().apply { setColor(Color.parseColor("#" + n.color)); cornerRadius = dp(14).toFloat() }
+                    isClickable = true
+                    foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(50, 0, 0, 0)), null, null)
+                }
+                card.addView(TextView(this).apply { text = Karteczki.icon(n.kind) + "  " + getString(Karteczki.title(n.kind)); textSize = 13f; setTextColor(Color.parseColor("#333333")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
+                card.addView(TextView(this).apply { text = n.text.trim().ifEmpty { "…" }; textSize = 16f; setTextColor(Color.parseColor("#222222")); maxLines = 5; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(4), 0, 0) })
+                val info = noteInfo(n)
+                if (info.isNotEmpty()) card.addView(TextView(this).apply { text = info; textSize = 12f; setTextColor(Color.parseColor(if (info.startsWith("⏰")) "#B91C1C" else "#555555")); setPadding(0, dp(6), 0, 0) })
+                card.setOnClickListener { editNote(n) { fill() } }
+                col.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+            }
+            applyScale(col)
+        }
+        bar.addView(button("＋", R.string.note_new, Color.WHITE, BRAND1) { newNoteThen { fill() } }.velivo())
+        bar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { dlg.dismiss() })
+        root.addView(bar)
+        root.addView(ScrollView(this).apply { addView(col) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        fill()
+        dlg.setContentView(PinchFrame(root))
+        dlg.show()
+        openId?.let { id -> Karteczki.load(this).firstOrNull { it.id == id }?.let { editNote(it) { fill() } } }
+    }
+
+    private fun newNoteThen(done: () -> Unit) {
+        val labels = Karteczki.kinds.map { it.second + "  " + getString(it.third) }.toTypedArray()
+        AlertDialog.Builder(this).setTitle(R.string.note_new).setItems(labels) { _, i ->
+            val k = Karteczki.kinds[i].first
+            val list = Karteczki.load(this)
+            val n = Karteczki.Note(java.util.UUID.randomUUID().toString().replace("-", ""), k, Karteczki.startText(k), Karteczki.colors[0], "")
+            list.add(n); Karteczki.save(this, list)
+            editNote(n, done)
+        }.show()
+    }
+
+    private fun editNote(n: Karteczki.Note, done: () -> Unit) {
+        val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_Light_NoActionBar)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.parseColor("#" + n.color)) }
+        val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(6), dp(6), dp(6), dp(6)); setBackgroundColor(Color.argb(28, 0, 0, 0)) }
+        val dark = Color.parseColor("#333333"); val clear = Color.TRANSPARENT
+        head.addView(TextView(this).apply { text = Karteczki.icon(n.kind) + " " + getString(Karteczki.title(n.kind)); textSize = 16f; setTextColor(dark); setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val box = EditText(this).apply {
+            setText(n.text); textSize = 17f; setTextColor(Color.parseColor("#222222")); gravity = Gravity.TOP
+            background = null; setPadding(dp(16), dp(12), dp(16), dp(12))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+        val info = TextView(this).apply { textSize = 13f; setTextColor(Color.parseColor("#555555")); setPadding(dp(16), dp(6), dp(16), dp(12)) }
+        fun upd() { n.text = box.text.toString(); info.text = noteInfo(n).ifEmpty { getString(R.string.note_hint) } }
+        box.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(e: Editable?) = upd()
+            override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+        })
+        fun store() {
+            n.text = box.text.toString()
+            val list = Karteczki.load(this)
+            val i = list.indexOfFirst { it.id == n.id }
+            if (i >= 0) list[i] = n else list.add(n)
+            Karteczki.save(this, list)
+        }
+        // 📅 ustal termin: data z kalendarza wstawiana w miejscu kursora (jak na Windows)
+        head.addView(button("📅", R.string.note_date, dark, clear) {
+            val t = java.time.LocalDate.now()
+            android.app.DatePickerDialog(this, { _, y, m, d ->
+                val v = String.format("%02d.%02d.%04d", d, m + 1, y)
+                val at = box.selectionStart.coerceAtLeast(0)
+                box.text.insert(at, if (at > 0 && !box.text[at - 1].isWhitespace()) " $v" else v)
+            }, t.year, t.monthValue - 1, t.dayOfMonth).show()
+        })
+        head.addView(button("🔁", R.string.note_repeat, dark, clear) {
+            val opts = listOf("", "7d", "14d", "1m", "1y")
+            val labels = (opts.map { repeatName(it) } + getString(R.string.rep_own)).toTypedArray()
+            AlertDialog.Builder(this).setTitle(R.string.note_repeat).setSingleChoiceItems(labels, opts.indexOf(n.repeat)) { d, i ->
+                d.dismiss()
+                if (i < opts.size) { n.repeat = opts[i]; upd(); return@setSingleChoiceItems }
+                // własny odstęp: co N dni / tygodni / miesięcy / lat
+                val num = EditText(this).apply { setText("10"); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSelectAllOnFocus(true) }
+                val units = arrayOf(getString(R.string.unit_days), getString(R.string.unit_weeks), getString(R.string.unit_months), getString(R.string.unit_years))
+                var u = 0
+                val lay = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0); addView(num) }
+                AlertDialog.Builder(this).setTitle(R.string.rep_own).setView(lay)
+                    .setSingleChoiceItems(units, 0) { _, k -> u = k }
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        val v = num.text.toString().toIntOrNull()?.takeIf { it in 1..999 } ?: return@setPositiveButton
+                        n.repeat = when (u) { 1 -> "${v * 7}d"; 2 -> "${v}m"; 3 -> "${v}y"; else -> "${v}d" }
+                        upd()
+                    }.setNegativeButton(android.R.string.cancel, null).show()
+            }.show()
+        })
+        head.addView(button("🎨", R.string.note_color, dark, clear) {
+            val i = (Karteczki.colors.indexOf(n.color) + 1) % Karteczki.colors.size
+            n.color = Karteczki.colors[i]; root.setBackgroundColor(Color.parseColor("#" + n.color))
+        })
+        head.addView(button("🗑", R.string.note_delete, dark, clear) {
+            AlertDialog.Builder(this).setMessage(R.string.note_delete_ask)
+                .setPositiveButton(R.string.note_delete) { _, _ ->
+                    Karteczki.save(this, Karteczki.load(this).filter { it.id != n.id })
+                    dlg.setOnDismissListener { done() }; dlg.dismiss()
+                }.setNegativeButton(android.R.string.cancel, null).show()
+        })
+        head.addView(button("✓", R.string.note_done, dark, clear) { dlg.dismiss() })
+        dlg.setOnDismissListener { store(); done() }
+        root.addView(head)
+        root.addView(ScrollView(this).apply { isFillViewport = true; addView(box) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(info)
+        upd()
+        dlg.setContentView(PinchFrame(root))
+        dlg.show()
+        box.requestFocus()
+        box.setSelection(Karteczki.startText(n.kind).indexOf('\n').takeIf { it > 0 && n.text == Karteczki.startText(n.kind) } ?: box.text.length)
+    }
+
+    private fun sendTabToComputer() {
+        val w = web() ?: return
+        val url = w.url ?: return
+        if (tabs.getOrNull(cur)?.let { it.priv || it.bank } == true) { toast(getString(R.string.send_tab_private)); return }
+        if (!(url.startsWith("http://") || url.startsWith("https://"))) { toast(getString(R.string.send_tab_bad)); return }
+        if (!prefs.getBoolean("lan", false) || !lan.paired) { toast(getString(R.string.lan_not_paired)); return }
+        w.evaluateJavascript("(function(){var v=[].slice.call(document.querySelectorAll('video')).filter(function(x){return x.currentTime>0}).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight})[0];return v?v.currentTime:0})()") { r ->
+            val time = r.toDoubleOrNull() ?: 0.0
+            if (lan.sendTab(url, w.title ?: url, time)) toast(getString(R.string.send_tab_done, prefs.getString("lan-komputer", "") ?: ""))
+            else toast(getString(R.string.send_tab_wait))
+        }
+    }
+
+    private fun receiveTab(dev: String, url: String, title: String, time: Double) {
+        var u = url
+        // YouTube: czas w adresie działa najpewniej
+        if (time > 5 && (u.contains("youtube.com/watch") || u.contains("youtu.be/"))) {
+            u = u.replace(Regex("([?&])t=[^&]*&?"), "$1").trimEnd('&', '?')
+            u += (if (u.contains("?")) "&" else "?") + "t=" + time.toInt() + "s"
+        }
+        newTab(false, u)
+        if (time > 5) web()?.let { w -> w.postDelayed({ w.evaluateJavascript("(function(t){var v=[].slice.call(document.querySelectorAll('video')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight})[0];if(v&&Math.abs(v.currentTime-t)>5)v.currentTime=t})($time)", null) }, 4000) }
+        toast(getString(R.string.tab_received, dev, title.ifBlank { u }))
+    }
+
     private val lan: LanSync by lazy {
         LanSync(
             lanKey = { passwords.lanKey },
@@ -750,6 +1829,7 @@ set(p0,p);})"""
                     .show()
             },
             saveFile = { name, data, dev -> saveToDownloads(name, data, dev) },
+            onTab = { dev, url, title, time -> receiveTab(dev, url, title, time) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
                     runOnUiThread {
@@ -885,7 +1965,7 @@ set(p0,p);})"""
                     1 -> {
                         prefs.edit().putBoolean("lan", true).apply()
                         startLan()
-                        lan.pairingUntil = System.currentTimeMillis() + 3 * 60 * 1000
+                        lan.startPairing()   // telefon wysyła zaproszenie do komputerów w sieci
                         showPairingWait()
                     }
                     2 -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), REQ_VLPAIR)
@@ -1029,6 +2109,34 @@ set(p0,p);})"""
         stopService(Intent(this, PlaybackService::class.java))
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)
+        pipCheck.removeCallbacks(pipTick); pipCheck.post(pipTick)
+    }
+
+    // Gdy Velivo się zamknie przez błąd: opis zapisany lokalnie (bez adresów i treści stron - sam przebieg błędu),
+    // przy następnym uruchomieniu okno z przyciskiem Kopiuj - do zgłoszenia.
+    private fun catchCrashes() {
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching {
+                java.io.File(filesDir, "blad.txt").writeText("Velivo ${packageManager.getPackageInfo(packageName, 0).versionName}, Android ${Build.VERSION.RELEASE}, ${Build.MODEL}\n" + android.util.Log.getStackTraceString(e).lines().take(40).joinToString("\n"))
+            }
+            prev?.uncaughtException(t, e)
+        }
+    }
+
+    private fun showLastCrash() {
+        val f = java.io.File(filesDir, "blad.txt")
+        if (!f.exists()) return
+        val text = runCatching { f.readText() }.getOrDefault("")
+        f.delete()
+        if (text.isBlank()) return
+        AlertDialog.Builder(this).setTitle(R.string.crash_title)
+            .setMessage(getString(R.string.crash_msg) + "\n\n" + text.lines().take(8).joinToString("\n"))
+            .setPositiveButton(R.string.crash_copy) { _, _ ->
+                (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Velivo", text))
+                toast(getString(R.string.crash_copied))
+            }
+            .setNegativeButton(R.string.close_tab_short, null).show()
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
@@ -1036,7 +2144,7 @@ set(p0,p);})"""
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK && fullView != null) { exitFullscreen(); return true }
         val w = web()
-        if (keyCode == KeyEvent.KEYCODE_BACK && w != null && w.canGoBack()) { w.goBack(); return true }
+        if (keyCode == KeyEvent.KEYCODE_BACK && w != null && w.canGoBack()) { stopSpeaking(); w.goBack(); return true }
         return super.onKeyDown(keyCode, event)
     }
 
@@ -1063,6 +2171,7 @@ set(p0,p);})"""
     }
 
     override fun onPause() {
+        pipCheck.removeCallbacks(pipTick)
         stopLan()
         idle.removeCallbacks(idleCheck)
         backgroundPlayback()
@@ -1071,6 +2180,7 @@ set(p0,p);})"""
     }
 
     override fun onDestroy() {
+        tts?.shutdown()
         tabs.forEach { it.web.destroy() }
         if (isFinishing) dropPrivateProfile()
         super.onDestroy()

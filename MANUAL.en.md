@@ -415,6 +415,9 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - **"In short"** – a few key sentences of the article, computed on your computer. Only complete, self-contained sentences: no subheadings, torn-out quotes or sentences that make no sense without the previous one. If there are none, the box is simply not shown.
 - Reader finds the article even when the page hides it in an unusual block (e.g. next to X posts or videos) – instead of "not enough content" it shows the text without menus and recommendations.
 - "Read summary" and "Read all" buttons. Clicking the text reads from that point.
+- Velivo colours (paper background, violet; dark – deep navy violet). **A− / A+** changes the text size (remembered).
+- Reader **remembers where you left off** in an article and takes you back there next time (stored on this computer only, without page addresses).
+- The title is read once; summary boxes on the page and repeats are skipped.
 
 ### 🧠 "Where did I read that?" (Ctrl+Shift+F)
 
@@ -456,7 +459,7 @@ The detector reads the page's texts and behavior, so it won't catch every shop a
 - **Style** (Settings → Look):
   - **Modern** (default): calm buttons without colored backgrounds, Windows 11 icons, one blue accent, and color only on hover or when something is on;
   - **Colorful**: colored buttons and emoji.
-- **10 themes:** Light, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
+- **11 themes:** Velivo (default, the colours of the icon: violet and turquoise), Velivo night, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
 - **Page modes** (mode button – the icon shows the current mode: ☀ light, 🌙 dark, 🌅 night):
   - light;
   - **dark** – pages darkened while photos keep their true colors;
@@ -752,7 +755,7 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
   - **Gentle dim** – a short, subtle dim and back;
   - **None** – the page appears instantly.
 - **Entrance effect speed** – slider from 0 to 5 s in 0.1 s steps (0 = automatic). Example values: quick 0.15 s, gentle 0.3 s, slow 0.5 s, calm 1 s, very calm 2 s, dreamy 3 s, slowest 4 s.
-- **Browser theme** – colours of bars and tabs: Light, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
+- **Browser theme** – colours of bars and tabs: Velivo (default), Velivo night, Graphite, Navy, Night violet, Forest, Ocean, Sunset, Black (OLED), Paper, Mist.
 - **Style** – **Modern** (calm, like Windows 11: Windows icons, one blue accent) or **Colourful** (coloured buttons and emoji).
 - **Interface language** – automatic (installer / Windows), Polish or English. Takes effect after a restart.
 - **Always compact toolbar** – smaller labels, some buttons move into the "…" menu even on a wide window.
@@ -836,7 +839,7 @@ Open the settings with the **⚙** button on the toolbar. Below is **every optio
 | A cookie banner is still shown | That banner has no "Reject" button. Velivo never clicks "Accept" |
 | Computers don't see each other | Same profile on both, the firewall allows Velivo, automatic Windows time on both (a difference over 5 minutes blocks the exchange) |
 | YouTube download fails | Wait a moment and try again. yt-dlp updates itself, and YouTube sometimes changes things |
-| No icons in Quick Access | Open a new tab and wait a few minutes; "⋮" menu → Fill in missing icons |
+| No icons in Quick Access | Open a new tab and wait a few minutes; "⋮" Menu → Fill in missing icons |
 | An offline voice doesn't read | Delete the `Piper` folder (below). It downloads again |
 | Antivirus blocks the installer | The file has no paid code signature – add an exception |
 | "An unexpected error occurred" | Velivo keeps running. Details are in `bledy.log` – attach it when reporting |
@@ -867,23 +870,40 @@ Velivo for phones is a light, private browser on the Android WebView engine (the
 | 🕶 Private tab | A separate profile (cookies, sign-ins) erased when the last private tab closes; no history |
 | ＋ New tab | Opens Quick Access – the same as on the computer (tiles, groups, icons) |
 | ⌂ Start page | Startpage; searches from the address bar also go to Startpage |
-| Bookmarks, history | Menu ⋮ – a list with search, sorting (newest / A–Z) and ✕ |
+| Bookmarks, history | Menu (Velivo logo) – a list with search, sorting (newest / A–Z) and ✕ |
 | Downloads | To the Downloads folder, with a notification |
 | Full-screen videos | The phone rotates with the video; Back leaves |
-| Background playback | Video / music keep playing after leaving the app (notification with "Stop"); ⋮ → Play in background |
-| Theme | ⋮ → Theme: like the phone / light / dark |
+| Background playback | Video / music keep playing after leaving the app (notification with "Stop"); Menu → Play in background |
+| Theme | Menu → Theme: like the phone / light / dark |
+
+### Reading and pages
+
+| Feature | How |
+| --- | --- |
+| 🔎 Find in page | A bar with a counter, ▲ ▼ previous / next match |
+| 🖥 Desktop site | The desktop version of the page for the current tab |
+| 📖 Reader view | Just the article text; A− / A+, remembers where you left off |
+| 🔊 Read aloud | Also with the screen off (notification with "Stop"); Back stops it; no speech engine – offers to download Google Speech Services |
+| ▶ YouTube | The red bar at the bottom: no adverts, remembers your place in a video, plays in the background and with the screen off, picture-in-picture; press and hold – ⏰ wake-up with a chosen track (days of the week / once) and 🌙 sleep timer or "when this track ends" (music for sleep) |
+| 🔍 Zoom | Two fingers in the menu and lists – larger Velivo text and buttons (80–220%); on a page – that page's text (50–300%), every site remembers its own size |
+| 🗒 Sticky notes | As on Windows: a date in the text or 📅, 🔁 repeat, colours; a notification the day before and on the day |
+| 🎯 Remove element | Tap an advert, ⬆ larger area, 🗑 remove (remembered for the site), ↺ restore |
+
+The full phone guide is a separate manual: `dokumentacja/instrukcja-telefon.en.md`.
 
 ### Privacy and security
 
-- **Ad blocking** – the same lists as on the computer (EasyList, EasyPrivacy, KAD), refreshed every 4 days; on YouTube ads are removed from the player data.
-- **Passwords** – encrypted with a key in the Android Keystore (the key never leaves the phone). Velivo offers to save them after signing in and fills them in (https pages and the home network: router, NAS). ⋮ → **Fill in password** when the form appeared later. The password list (⋮ → Passwords) opens after a fingerprint or PIN; **Copy password** marks it as sensitive in the clipboard.
-- **Banking mode** – ⋮ → Banking mode: entry with fingerprint / PIN, a separate permanent profile, no history, no screenshots, locked after 10 minutes of inactivity.
+- **Ad blocking** – the same lists as on the computer (EasyList, EasyPrivacy, KAD), bundled with the app and refreshed every 4 days; no empty "ADVERT" box or error frame is left behind; on YouTube ads are removed from the player data.
+- **Passwords** – encrypted with a key in the Android Keystore (the key never leaves the phone). Velivo offers to save them after signing in and fills them in (https pages and the home network: router, NAS). Menu → **Fill in password** when the form appeared later. The password list (Menu → Passwords) opens after a fingerprint or PIN; **Copy password** marks it as sensitive in the clipboard.
+- **No "Get the app" nags** – boxes pushing an app or extension (e.g. Startpage) are hidden on the phone and on Windows.
+- **Scam protection** – warnings about fake bank and brand sites and about APK downloads from outside Google Play; HTTPS first. **Privacy panel** – tap the blocked-ads counter in the menu.
+- **Banking mode** – Menu → Banking mode: entry with fingerprint / PIN, a separate permanent profile, no history, no screenshots, locked after 10 minutes of inactivity.
 
 ### Connecting to the computer
 
 1. Phone and computer on the same Wi-Fi, Velivo open on both.
-2. Phone: ⋮ → **Sync with computer → Pair with Velivo on Windows** (waits 3 minutes; the window shows what arrives from the network).
-3. Computer: Settings → Sync (LAN) → **Pair a device on the network…**. Compare the 6-digit code on both screens and confirm.
+2. The phone invites: Menu → **Sync with computer → Connect to the computer (invite)** (for 3 minutes; the window shows what arrives from the network).
+3. The computer asks "The phone … is asking to connect. Connect?" → **Yes**. Compare the 6-digit code on both screens and confirm. The computer never looks for phones by itself; its sync key with your other computers stays unchanged.
 
 With several computers use the recovery file instead of pairing: on the computer **Save recovery file…**, on the phone **Load pairing recovery file** – the key does not change and other computers stay paired. In the same menu you set the **phone name on the network** (e.g. "Michael's phone").
 
@@ -893,5 +913,7 @@ With several computers use the recovery file instead of pairing: on the computer
 | New bookmarks and passwords from the phone | To the computer – the computer asks whether to add them |
 | A file from the phone | **Share → Velivo** in the gallery / file manager; the computer asks for consent |
 | A file from the computer | On the computer 📎 Send a file to: phone; the phone asks, saved to Downloads |
+
+**For weaker eyesight:** two fingers in the menu enlarge all of Velivo and the page text (up to 220%); reader view and read aloud make long texts easier – step-by-step setup in the phone guide, chapter 7.
 
 Sync works while Velivo is open on the phone. On Xiaomi phones turn off battery saving for Velivo (Settings → Apps → Velivo → Battery saver → No restrictions).

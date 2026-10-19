@@ -123,7 +123,7 @@ class QuickAccess(private val ctx: Context) {
         }
         if (name.isEmpty() || name.contains("..") || name.contains('/')) return notFound()
         val bytes: ByteArray = when (name) {
-            "jezyk-wybor.js" -> "var VELIVO_LANG = '${if (Locale.getDefault().language == "pl") "pl" else "en"}';".toByteArray()
+            "jezyk-wybor.js" -> "var VELIVO_LANG = '${if (ctx.resources.configuration.locales.get(0).language == "pl") "pl" else "en"}';".toByteArray()   // jezyk aplikacji (także wybrany tylko dla Velivo)
             else -> runCatching { ctx.assets.open(name).use { it.readBytes() } }.getOrNull() ?: return notFound()
         }
         val out = when (name) {

@@ -23,6 +23,7 @@ namespace Velivo
             public string PeerDevice;
             public DateTime CreatedUtc;
             public bool Initiator;
+            public bool Phone;   // na zaproszenie z telefonu: komputer zostawia swoj klucz (siec komputerow bez zmian)
         }
 
         sealed class PairRecoveryPackage
@@ -46,7 +47,7 @@ namespace Velivo
         readonly Dictionary<string, PendingLanPair> _lanPendingPairs = new Dictionary<string, PendingLanPair>(StringComparer.OrdinalIgnoreCase);
         CheckBox _lanSyncSettingCheck;
 
-        void BeginLanPairing()
+        void BeginLanPairing(bool phone = false)
         {
             if (_settings == null || !_settings.LanSync || _lanTx == null)
             {
@@ -62,7 +63,7 @@ namespace Velivo
 
             var pairId = Guid.NewGuid().ToString("N");
             var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
-            _lanPendingPairs[pairId] = new PendingLanPair { Ecdh = ecdh, CreatedUtc = DateTime.UtcNow, Initiator = true };
+            _lanPendingPairs[pairId] = new PendingLanPair { Ecdh = ecdh, CreatedUtc = DateTime.UtcNow, Initiator = true, Phone = phone };
             LanSend(new LanStatePacket
             {
                 t = "pair-offer",
@@ -83,6 +84,7 @@ namespace Velivo
             {
                 switch (pkt.t)
                 {
+                    case "pair-invite": HandleLanPairInvite(pkt, sourceAddress); break;
                     case "pair-offer": HandleLanPairOffer(pkt, sourceAddress); break;
                     case "pair-response": HandleLanPairResponse(pkt, sourceAddress); break;
                     case "pair-key": HandleLanPairKey(pkt); break;
@@ -94,6 +96,41 @@ namespace Velivo
                 App.LogError(ex);
                 LanLog(L.T("Nie udało się obsłużyć parowania: ") + ex.Message);
             }
+        }
+
+        // Zaproszenie z telefonu (Velivo na Androida): parowanie zaczyna telefon; komputer pyta raz na 3 minuty o kazdy telefon,
+        // po zgodzie wysyla oferte - dalej ten sam kod na obu ekranach. Klucz komputera zostaje, wiec synchronizacja
+        // miedzy komputerami dziala dalej (telefon dolacza do niej, nie zastepuje jej).
+        readonly Dictionary<string, DateTime> _lanInvitesAsked = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        void HandleLanPairInvite(LanStatePacket pkt, string sourceAddress)
+        {
+            if (_settings == null || !_settings.LanSync || _lanTx == null) return;
+            ExpireLanPairings();
+            if (_lanPendingPairs.Count > 0) return;
+            if (_lanInvitesAsked.TryGetValue(pkt.id, out var asked) && DateTime.UtcNow - asked < TimeSpan.FromMinutes(3)) return;
+            _lanInvitesAsked[pkt.id] = DateTime.UtcNow;
+            var device = PairDeviceLabel(pkt.device);
+            var text = L.T("Telefon „") + device + "” (" + sourceAddress + L.T(") prosi o połączenie z Velivo na tym komputerze (profil „") + SelectedProfileName + "”).\n\n" +
+                       L.T("Połączyć? Na obu ekranach pojawi się ten sam 6-cyfrowy kod do porównania.");
+            if (MessageBox.Show(PairDialogOwner(), text, L.T("Zaproszenie z telefonu"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                LanLog(L.T("Odrzucono zaproszenie z telefonu ") + device + ".");
+                return;
+            }
+            BeginLanPairing(true);
+        }
+
+        byte[] CurrentLanKeyBytes()
+        {
+            try
+            {
+                var k = _settings?.LanSyncKey;
+                if (!AppSettings.IsLanSyncKeyStrong(k)) return null;
+                var b = Convert.FromBase64String(k);
+                return b.Length == 32 ? b : null;
+            }
+            catch (FormatException) { return null; }
         }
 
         void HandleLanPairOffer(LanStatePacket pkt, string sourceAddress)
@@ -198,7 +235,7 @@ namespace Velivo
             pending.PeerId = pkt.id;
             pending.PeerDevice = device;
             pending.TransportKey = transportKey;
-            pending.LanKey = RandomNumberGenerator.GetBytes(32);
+            pending.LanKey = pending.Phone ? CurrentLanKeyBytes() ?? RandomNumberGenerator.GetBytes(32) : RandomNumberGenerator.GetBytes(32);
             var keyPacket = new LanStatePacket
             {
                 t = "pair-key",
@@ -255,7 +292,7 @@ namespace Velivo
             if (!valid) return;
 
             PersistPairedLanKey(Convert.ToBase64String(pending.LanKey));
-            AskFirstSyncChoice(pkt.device);
+            if (!pending.Phone) AskFirstSyncChoice(pkt.device);   // telefon nie wysyla ustawien - pytanie tylko przy komputerach
             LanLog(L.T("Parowanie z ") + pending.PeerDevice + L.T(" zakończone. Klucz zapisano lokalnie."));
             StartLanSync();
         }

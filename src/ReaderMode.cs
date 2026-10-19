@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -20,14 +21,16 @@ namespace Velivo
         const string ArticleCoreScript = @"const velivoArticle = () => {
   // gdy scisle odrzucanie zostawi za malo tekstu (artykul w bloku nazwanym np. ""share"" / ""video""), drugi przebieg
   // odrzuca tylko to, co na pewno nie jest trescia: menu, stopke, panel boczny, formularze, komentarze
+  // ramki ze skrotem / podsumowaniem artykulu - ten sam tekst drugi raz
+  const SUMMARY = '[class*=summary i], [class*=podsumow i], [class*=skrot i], [class*=tldr i], [class*=highlight i], [class*=key-point i], [class*=keypoint i]';
   const STRICT = 'nav, footer, aside, header nav, form, button, script, style, noscript, figure figcaption, figcaption, [aria-hidden=true], [hidden], ' +
     '.ad, .ads, .advert, .share, .social, .related, .comments, [class*=related i], [class*=recommend i], [class*=polecam i], [class*=promo i], ' +
     '[class*=newsletter i], [class*=cookie i], [class*=consent i], [class*=comment i], [id*=comment i], [class*=sponsor i], [class*=advert i], ' +
     '[class*=reklam i], [class*=breadcrumb i], [class*=share i], [class*=social i], [class*=paywall i], [class*=subscribe i], [class*=author-box i], ' +
     '[class*=tags i], [class*=see-also i], [class*=read-more i], [class*=readmore i], [id*=taboola i], [class*=taboola i], [class*=outbrain i], ' +
-    '[class*=caption i], [class*=credit i], [class*=gallery i], [class*=video i], [class*=player i], [role=navigation], [role=complementary]';
+    '[class*=caption i], [class*=credit i], [class*=gallery i], [class*=video i], [class*=player i], [role=navigation], [role=complementary], ' + SUMMARY;
   const RELAXED = 'nav, footer, aside, form, script, style, noscript, figcaption, [aria-hidden=true], [hidden], [class*=comment i], [id*=comment i], ' +
-    '[role=navigation], [role=complementary], [id*=taboola i], [class*=taboola i], [class*=outbrain i]';
+    '[role=navigation], [role=complementary], [id*=taboola i], [class*=taboola i], [class*=outbrain i], ' + SUMMARY;
   const JUNK_TXT = /^(czytaj (też|także|również|więcej|dalej)|zobacz (też|także|również|wideo|więcej)|polecamy|polecane|reklama|artykuł sponsorowany|materiał (sponsorowany|partnera)|advertisement|sponsored|tagi:|tags:|źródło:|fot\.|foto:|zdjęcie:|autor zdjęcia|udostępnij|share|subskrybuj|zapisz się|newsletter|komentarze|dodaj komentarz|dołącz do|pobierz aplikację|obserwuj nas|kup teraz|więcej na ten temat|read more|related|see also|follow us)/i;
   const visible = el => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
   const linkLen = el => { let n = 0; for (const a of el.querySelectorAll('a')) n += (a.innerText || '').length; return n; };
@@ -59,18 +62,26 @@ namespace Velivo
     if (t.length < 60 && t === t.toUpperCase() && /[A-ZĄĆĘŁŃÓŚŹŻ]{4}/.test(t)) return true;   // krzyczace etykiety (ZOBACZ, REKLAMA)
     return false;
   };
-  const blocks = [], seen = new Set();
+  // powtorzenia: ten sam tekst inaczej zapisany (wielkosc liter, znaki) albo krotki blok zawarty w juz przeczytanym (tytul w zajawce)
+  const blocks = [], keys = [];
+  const key = t => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const dup = t => { const k = key(t); if (!k) return true; for (const o of keys) if (o === k || (k.length < 200 && o.includes(k)) || (o.length < 200 && k.includes(o) && o.length > k.length * 0.6)) return true; keys.push(k); return false; };
   for (const el of root.querySelectorAll('h1, h2, h3, h4, p, li, blockquote, pre, dd')) {
     if (el.querySelector('p, li, h1, h2, h3, h4, blockquote')) continue;   // tylko najglebsze bloki
     if (junk(el) || !visible(el)) continue;
     const t = el.innerText.replace(/\s+/g, ' ').trim();
-    if (t.length < 2 || seen.has(t)) continue;
-    seen.add(t); blocks.push({ el, text: t });
+    if (t.length < 2 || dup(t)) continue;
+    blocks.push({ el, text: t });
   }
   let fallback = false;   // nie znaleziono akapitow - caly tekst bloku (awaryjnie, przegrywa z prawdziwa trescia)
   if (blocks.length === 0) { const t = (root.innerText || '').replace(/\s+/g, ' ').trim(); if (t) { blocks.push({ el: root, text: t }); fallback = true; } }
   const h1 = document.querySelector('h1');   // tytul na poczatek, jesli jest poza trescia
-  if (h1 && !root.contains(h1) && visible(h1)) blocks.unshift({ el: h1, text: h1.innerText.replace(/\s+/g, ' ').trim() });
+  if (h1 && !root.contains(h1) && visible(h1)) {
+    const ht = h1.innerText.replace(/\s+/g, ' ').trim(), hk = key(ht);
+    // tytul, ktory i tak jest w tresci (np. powtorzony w zajawce), nie idzie drugi raz
+    for (let i = 0; i < blocks.length; i++) { const k = key(blocks[i].text); if (k === hk || (k.length < 200 && hk.includes(k))) { blocks.splice(i, 1); i--; } }
+    blocks.unshift({ el: h1, text: ht });
+  }
   return { root, blocks, fallback };
   };
   const words = r => r.fallback ? 0 : r.blocks.reduce((n, b) => n + (b.text.length > 40 ? b.text.length : 0), 0);
@@ -205,6 +216,13 @@ namespace Velivo
                     lookTimer.Tick += (s5, e5) => { lookTimer.Stop(); try { _settings.Save(DataDir); } catch (Exception) { } };
                     modeBox.SelectionChanged += (s5, e5) => { _settings.ReaderTheme = (string)((ComboBoxItem)modeBox.SelectedItem).Tag; applyLook(); lookTimer.Stop(); lookTimer.Start(); };
                     night.ValueChanged += (s5, e5) => { nightValue.Text = (int)night.Value + "%"; _settings.ReaderNight = (int)night.Value; applyLook(); lookTimer.Stop(); lookTimer.Start(); };
+                    // wielkosc tekstu (jak w czytniku na telefonie) - zapamietywana
+                    Action applyFont = () => { if (view.CoreWebView2 != null) _ = view.CoreWebView2.ExecuteScriptAsync("document.documentElement.style.setProperty('--vf','" + _settings.ReaderFont + "px')"); };
+                    Action<int> resize = d => { _settings.ReaderFont = Math.Max(14, Math.Min(34, _settings.ReaderFont + d)); applyFont(); lookTimer.Stop(); lookTimer.Start(); };
+                    var smaller = SmallButton("A−", () => resize(-1)); smaller.ToolTip = L.T("Mniejszy tekst");
+                    var larger = SmallButton("A+", () => resize(1)); larger.ToolTip = L.T("Większy tekst");
+                    bar.Children.Add(smaller);
+                    bar.Children.Add(larger);
                     bar.Children.Add(modeBox);
                     bar.Children.Add(nightLabel);
                     bar.Children.Add(night);
@@ -217,8 +235,12 @@ namespace Velivo
                     bar.Children.Add(stopBtn);
                     win.Content = Docked(bar, view);
 
+                    // miejsce, w ktorym skonczyles czytac (jak na telefonie): ulamek przewiniecia, klucz = skrot adresu (bez adresow w pliku)
+                    double readPos = 0;
+                    var posKey = ReaderPosKey(url ?? title ?? "");
                     win.Closed += (a, b) =>
                     {
+                        SaveReaderPos(posKey, readPos);
                         try { if (view.CoreWebView2 != null) _ = view.CoreWebView2.ExecuteScriptAsync("window.__velivoRead && window.__velivoRead.stop()"); } catch (Exception) { }
                         view.Dispose();
                     };
@@ -236,6 +258,12 @@ namespace Velivo
                                 if (!e2.IsSuccess) return;
                                 await view.CoreWebView2.ExecuteScriptAsync(ReaderScript);
                                 applyLook();
+                                applyFont();
+                                view.CoreWebView2.WebMessageReceived += (s6, e6) => { double v; if (double.TryParse(e6.TryGetWebMessageAsString(), NumberStyles.Float, CultureInfo.InvariantCulture, out v)) readPos = Math.Max(0, Math.Min(1, v)); };
+                                var startPos = LoadReaderPos(posKey);
+                                await view.CoreWebView2.ExecuteScriptAsync("(function(p){var t=0;addEventListener('scroll',function(){clearTimeout(t);t=setTimeout(function(){var h=document.documentElement.scrollHeight-innerHeight;window.chrome.webview.postMessage(String(h>0?scrollY/h:0));},300);});" +
+                                    "if(p>0.02){scrollTo(0,p*(document.documentElement.scrollHeight-innerHeight));}})(" + Num(startPos) + ")");
+                                if (startPos > 0.02) { readPos = startPos; ShowToast(L.T("📖 Wracam do miejsca, w którym skończyłeś czytać"), null); }
                                 await view.CoreWebView2.ExecuteScriptAsync("try{ window.__velivoRead.volume(" + Num(_settings.ReadVolume) + "); }catch(e){}");
                                 await PreparePiperReading(view.CoreWebView2);
                                 // klikniecie w tekst = czytaj od tego miejsca (przeciaganie/zaznaczanie i linki dzialaja jak zwykle)
@@ -272,6 +300,43 @@ namespace Velivo
             }
         }
 
+        static string ReaderPosKey(string url)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+                return Convert.ToBase64String(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(url))).Substring(0, 16);
+        }
+
+        // czytnik-miejsca.txt: "skrot;ulamek" - ostatnie 300 artykulow
+        string ReaderPosFile => System.IO.Path.Combine(DataDir, "czytnik-miejsca.txt");
+
+        double LoadReaderPos(string key)
+        {
+            try
+            {
+                if (!System.IO.File.Exists(ReaderPosFile)) return 0;
+                foreach (var l in System.IO.File.ReadAllLines(ReaderPosFile))
+                {
+                    var p = l.Split(';');
+                    double v;
+                    if (p.Length == 2 && p[0] == key && double.TryParse(p[1], NumberStyles.Float, CultureInfo.InvariantCulture, out v)) return v;
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            return 0;
+        }
+
+        void SaveReaderPos(string key, double pos)
+        {
+            try
+            {
+                var lines = System.IO.File.Exists(ReaderPosFile) ? System.IO.File.ReadAllLines(ReaderPosFile).Where(l => !l.StartsWith(key + ";")).ToList() : new List<string>();
+                if (pos > 0.02 && pos < 0.98) lines.Add(key + ";" + pos.ToString("0.0000", CultureInfo.InvariantCulture));   // przeczytane do konca - od poczatku nastepnym razem
+                if (lines.Count > 300) lines = lines.Skip(lines.Count - 300).ToList();
+                System.IO.File.WriteAllLines(ReaderPosFile, lines);
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         async System.Threading.Tasks.Task ReadSummaryInReader(WebView2 view)
         {
             if (view == null || view.CoreWebView2 == null) return;
@@ -285,9 +350,9 @@ namespace Velivo
             var body = T(text).Replace("\n\n", "</p><p>").Replace("\n", "<br/>");
             var sum = T(summary).Replace("\n", "<br/>");
             return "<!doctype html><html lang='pl'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'/>" +
-                   "<title>Tryb czytania</title><style>body{font-family:Georgia,serif;line-height:1.72;max-width:900px;margin:0 auto;padding:24px;background:#f8fafc;color:#111827}h1{font-size:34px;margin:0 0 8px}small{color:#6b7280}#velivo-summary{background:#ecfeff;border:1px solid #bae6fd;border-left:5px solid #0891b2;padding:14px;border-radius:10px;margin:14px 0 20px;font-size:18px}article{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}p{margin:0 0 14px;font-size:21px}" +
+                   "<title>Tryb czytania</title><style>body{font-family:Georgia,serif;line-height:1.72;max-width:900px;margin:0 auto;padding:24px;background:#FBF8F1;color:#2A2150}h1{font-size:34px;margin:0 0 8px}small{color:#7A6FA8}#velivo-summary{background:#F1EDFC;border:1px solid #D3C8F7;border-left:5px solid #6D3FDB;padding:14px;border-radius:10px;margin:14px 0 20px;font-size:18px}article{background:#fff;border:1px solid #E4DDFB;border-radius:12px;padding:18px}p{margin:0 0 14px;font-size:var(--vf,21px)}a{color:#5B3FD0}" +
                    "body,article,#velivo-summary{transition:background-color .25s,color .25s,border-color .25s}" +
-                   "body.dark{background:#111827;color:#e5e7eb}body.dark small{color:#9ca3af}body.dark article{background:#1f2937;border-color:#374151}body.dark #velivo-summary{background:#0f2a33;border-color:#155e75;color:#e5e7eb}body.dark a{color:#93c5fd}" +
+                   "body.dark{background:#15121F;color:#E6E1F5}body.dark small{color:#A79FD0}body.dark article{background:#1B1733;border-color:#2E2768}body.dark #velivo-summary{background:#231C45;border-color:#4B3D8F;border-left-color:#B3A6FF;color:#E6E1F5}body.dark a{color:#B3A6FF}" +
                    "#velivo-night{position:fixed;inset:0;pointer-events:none;background:#ff8a00;mix-blend-mode:multiply;opacity:0;transition:opacity .25s;z-index:2147483647}</style>" +
                    "<script>window.__velivoLook=function(m,s){var b=document.body;if(!b)return;b.classList.toggle('dark',m==='dark');var n=document.getElementById('velivo-night');if(!n){n=document.createElement('div');n.id='velivo-night';document.documentElement.appendChild(n);}n.style.opacity=m==='night'?(Math.max(5,Math.min(100,s))/100*0.45).toFixed(3):'0';};</script></head><body>" +
                    "<h1>" + T(title) + "</h1><small>" + T(url) + "</small>" +

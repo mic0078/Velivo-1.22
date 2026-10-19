@@ -550,7 +550,7 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
             if (p.time > 5) tab.PendingVideoTime = p.time;
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Maximized;
             Activate();
-            ShowToast((L.En ? "📺 Tab from " : "📺 Karta z komputera ") + (pkt.device ?? "?") + ": " + (string.IsNullOrWhiteSpace(p.title) ? url : p.title), null);
+            ShowToast((L.En ? "📺 Tab from " : "📺 Karta z: ") + (pkt.device ?? "?") + ": " + (string.IsNullOrWhiteSpace(p.title) ? url : p.title), null);
         }
 
         async Task ApplyPendingVideoTime(BrowserTab tab, CoreWebView2 core)

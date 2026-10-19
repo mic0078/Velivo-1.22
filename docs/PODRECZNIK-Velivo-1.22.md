@@ -508,7 +508,8 @@ Po najechaniu myszką na film w jego prawym górnym rogu pojawiają się trzy pr
 - **Co robi:** otwiera sam tekst artykułu w osobnym, wygodnym oknie. Rozmiar okna jest zapamiętywany.
 
 ### 9.2 Wygląd czytnika
-- **Jak używać:** lista „Wygląd czytnika”: ☀ Jasny, 🌙 Ciemny, 🌅 Nocny; w trybie nocnym suwak „Natężenie trybu nocnego”.
+- **Jak używać:** lista „Wygląd czytnika”: ☀ Jasny, 🌙 Ciemny, 🌅 Nocny; w trybie nocnym suwak „Natężenie trybu nocnego”. **A− / A+** – wielkość tekstu (zapamiętywana).
+- **Co robi:** kolory Velivo (papierowe tło, fiolet); czytnik pamięta, gdzie skończyłeś czytać artykuł, i wraca w to miejsce (zapis tylko na komputerze, bez adresów stron); tytuł czytany raz, ramki ze skrótem na stronie pomijane.
 
 ### 9.3 Lokalne streszczenie
 - **Do czego:** szybkie poznanie sedna długiego artykułu.
@@ -1464,6 +1465,69 @@ Ustawienia otwierasz przyciskiem ⚙. Poniżej każda opcja w kolejności okna.
 - **Jak używać:** wybierz: jednorazowo, co tydzień, co 2 tygodnie, co miesiąc, co rok albo „Własny odstęp…” (co N dni, tygodni, miesięcy lub lat).
 - **Co robi:** od daty z treści liczy kolejne terminy – np. „17.10.2026 insulina” co tydzień przypomni 24.10, 31.10 i dalej. Przy włączonym powtarzaniu ikona 🔁 jest wyraźna, a podpowiedź pokazuje odstęp.
 
+# 31. Velivo na telefon (Android)
+
+Velivo na Androida (10 lub nowszy) to lekka, prywatna przeglądarka w kolorach Velivo, połączona z Velivo na Windows. Komputer jest główny – to, co przychodzi z telefonu, zawsze potwierdza. Pełny opis: `dokumentacja/instrukcja-telefon.md`.
+
+### 31.1 Menu
+- **Gdzie:** logo Velivo obok paska adresu.
+- **Co robi:** kafelki po 3 w rzędzie w grupach Karty, Ta strona, Moje, Ustawienia; u góry licznik zablokowanych reklam (stuknięcie – panel prywatności).
+
+### 31.2 Karty, karta prywatna, tryb bankowy
+- **Co robi:** karty z miniaturami; 🕶 karta prywatna (osobny profil kasowany po zamknięciu); 🏦 tryb bankowy (odcisk palca / PIN, bez historii i zrzutów ekranu, blokada po 10 min).
+
+### 31.3 Szukaj na stronie i tryb pulpitu
+- **Co robi:** 🔎 pasek z licznikiem i ▲ ▼; 🖥 strona w wersji na komputer dla bieżącej karty.
+
+### 31.4 Czytnik i czytanie na głos
+- **Co robi:** 📖 sam tekst artykułu, A− / A+, pamięta miejsce, w którym skończyłeś; 🔊 czytanie także przy zgaszonym ekranie (powiadomienie z „Zatrzymaj”), cofnięcie zatrzymuje; tytuł raz, bez ramek ze skrótem.
+- **Ograniczenia:** brak syntezatora mowy – Velivo proponuje pobranie Usług mowy Google.
+
+### 31.5 Usuwanie reklam palcem
+- **Jak używać:** przytrzymaj palec na reklamie albo pustym polu „REKLAMA” (albo menu → 🎯 Usuń element i stuknij) – Velivo zaznacza całe pole i pyta „Usunąć?”; ⬆ większy obszar, ↺ przywróć, 📋 kod elementu do zgłoszenia.
+- **Co robi:** usunięty element zostaje ukryty na tej stronie na stałe (zapis tylko w telefonie).
+
+### 31.6 Blokowanie reklam
+- **Co robi:** listy EasyList, EasyPrivacy i polskie filtry dołączone do aplikacji (działają od pierwszego uruchomienia), odświeżane co 4 dni; reguły ukrywania jak w uBlock Origin – po reklamie nie zostaje puste pole ani błąd w ramce; YouTube bez reklam.
+
+### 31.7 Panel prywatności
+- **Gdzie:** menu → zielony licznik „🛡 Zablokowane reklamy”.
+- **Co robi:** pokazuje szyfrowanie połączenia, liczbę zablokowanych elementów na stronie i ich domeny; **Wyłącz blokowanie tu** dla strony, która źle działa.
+
+### 31.8 Ochrona przed oszustwami
+- **Co robi:** offline, jak na Windows – ostrzega przed podróbkami stron banków i firm (marka na obcej domenie, literówki, znaki udające litery, podróbki stron z zapisanymi hasłami), przed pobraniem aplikacji APK spoza Sklepu Play; najpierw https (sieć domowa bez pytania); błędny certyfikat zawsze zablokowany.
+
+### 31.9 Hasła
+- **Co robi:** zaszyfrowane kluczem w Android Keystore; wpisywane tylko na https i w sieci domowej; lista po odcisku palca / PIN-ie.
+
+### 31.10 Karteczki
+- **Gdzie:** menu → Moje → 🗒 Karteczki / 📝 Nowa karteczka.
+- **Co robi:** te same rodzaje co na Windows (zwykła, do zrobienia, zakupy, zadzwoń, ważne, pomysł, na dziś), 6 kolorów; 📅 wstawia datę z kalendarza; 🔁 powtarzanie (co tydzień, 2 tygodnie, miesiąc, rok, własny odstęp); lista ułożona od najbliższego terminu.
+- **Przypomnienie:** powiadomienie **dzień wcześniej** i **w dniu terminu** (codziennie o 9:00, także po restarcie telefonu); stuknięcie otwiera karteczkę.
+
+### 31.11 Synchronizacja z komputerem
+- **Co robi:** zaprasza zawsze telefon („Połącz z komputerem (zaproszenie)”), komputer pyta „Połączyć?” – sam nie szuka telefonów i zachowuje swój klucz (synchronizacja między komputerami bez zmian); parowanie kodem 6 cyfr; zakładki, hasła i Szybki Dostęp z komputera; nowe pozycje z telefonu komputer potwierdza; pliki w obie strony (Udostępnij → Velivo, 📎 Wyślij plik do…); 📤 karta na komputer i 📺 z komputera na telefon (z miejscem w filmie).
+
+### 31.12 Wygląd i język
+- **Co robi:** motyw jak w telefonie / jasny / ciemny w kolorach Velivo, także okna dialogowe; 🌐 Język – polski lub angielski tylko dla Velivo.
+
+### 31.13 Powiększanie dwoma palcami
+- **Do czego:** dla słabszego wzroku – większe napisy i przyciski w całym Velivo.
+- **Jak używać:** rozsuń dwa palce w menu, na liście kart, zakładek, historii, haseł albo karteczek; zsuń, by zmniejszyć.
+- **Co robi:** 80–220%, rośnie też pasek u góry i przyciski na dole; przy dużym powiększeniu kafelki menu po 2 w rzędzie; na stronie dwa palce zmieniają tekst tej strony (50–300%) – każda strona pamięta swoją wielkość, Velivo osobno swoją. W czytniku dwa palce zmieniają wielkość tekstu (do 48 pt).
+
+### 31.14 Velivo dla osób ze słabszym wzrokiem
+- **Do czego:** wygodne przeglądanie dla seniorów i osób słabo widzących.
+- **Jak ustawić (raz):** rozsuń dwa palce w menu do wygodnej wielkości (do 220% – rośnie całe Velivo i tekst stron); wybierz motyw jasny lub ciemny; pokaż 📖 Czytnik i 🔊 Czytaj na głos; umów się: „⚠ Uwaga → Wróć (bezpiecznie)”; karteczki z datą przypomną o lekarzu i lekach dzień wcześniej.
+- **Co robi:** wszystko większe i zapamiętane, długie teksty do posłuchania, ochrona przed fałszywymi stronami banków i podejrzanymi aplikacjami bez żadnej konfiguracji.
+
+### 31.15 YouTube bez reklam, obraz w obrazie, muzyka do snu
+- **Gdzie:** czerwony pasek „▶ YouTube” na samym dole ekranu.
+- **Co robi:** YouTube bez reklam; gra w tle i przy zgaszonym ekranie; po wyjściu z Velivo w trakcie filmu – obraz w obrazie (małe okienko nad innymi aplikacjami).
+- **⏰ Pobudka (planowane włączenie):** przytrzymaj pasek → „Pobudka z utworem…” → utwór z bieżącej karty, zakładek lub historii → godzina → codziennie, pon–pt, weekend, wybrane dni albo jednorazowo; budzi także na zablokowanym ekranie, głośność narasta; Wyłącz / Drzemka 10 min.
+- **Miejsce w filmie:** telefon pamięta, gdzie przerwałeś film (także bez logowania), i wznawia od tego miejsca; zapis tylko w telefonie.
+- **🌙 Wyłącznik czasowy:** przytrzymaj pasek i wybierz „Po zakończeniu tego utworu” albo 15–90 minut; w powiadomieniu „🌙 Wyłącz za 30 min” (każde stuknięcie +30 min) – muzyka do snu sama ucichnie.
+
 # Funkcje NIE DOSTĘPNE W 1.22
 
 Poniższe rzeczy były omawiane, ale **w wersji 1.22 ich nie ma**:
@@ -1864,3 +1928,21 @@ Opisanych funkcji: **290**. Numer przy funkcji wskazuje jej opis w podręczniku.
 - **30.2** Karteczki nad paskiem zadań
 - **30.3** Przypomnienie o terminie
 - **30.4** Powtarzanie terminu
+
+## 31. Velivo na telefon (Android)
+
+- **31.1** Menu
+- **31.2** Karty, karta prywatna, tryb bankowy
+- **31.3** Szukaj na stronie i tryb pulpitu
+- **31.4** Czytnik i czytanie na głos
+- **31.5** Usuwanie reklam palcem
+- **31.6** Blokowanie reklam
+- **31.7** Panel prywatności
+- **31.8** Ochrona przed oszustwami
+- **31.9** Hasła
+- **31.10** Karteczki
+- **31.11** Synchronizacja z komputerem
+- **31.12** Wygląd i język
+- **31.13** Powiększanie dwoma palcami
+- **31.14** Velivo dla osób ze słabszym wzrokiem
+- **31.15** YouTube bez reklam, obraz w obrazie, muzyka do snu, pobudka

@@ -1924,8 +1924,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             filter == "*" -> "⭐ " + getString(R.string.tv_fav); filter.startsWith("L:") -> "📋 " + filter.substring(2)
             filter.startsWith("G:") -> filter.substring(2); else -> getString(R.string.tv_all) }
         val watched = prefs.getStringSet("tv-ogladane", emptySet())!!
-        scr = MediaScreen("📺 " + getString(R.string.tv), "tv", listOf(getString(R.string.sort_fav_first), getString(R.string.sort_az), getString(R.string.tv_sort_list)),
-            sorter = { l, s -> when (s) { 0 -> l.sortedWith(compareBy({ it.star != true }, { it.title.lowercase() })); 1 -> l.sortedBy { it.title.lowercase() }; else -> l } },
+        scr = MediaScreen("📺 " + getString(R.string.tv), "tv2", listOf(getString(R.string.sort_az), getString(R.string.sort_fav_first), getString(R.string.tv_sort_list)),   // domyślnie alfabetycznie
+            sorter = { l, s -> when (s) { 0 -> l.sortedBy { it.title.lowercase() }; 1 -> l.sortedWith(compareBy({ it.star != true }, { it.title.lowercase() })); else -> l } },
             onOpen = { r, shownRows ->
                 val future = if (at > System.currentTimeMillis() + 60_000) Tv.nowNext(epg[(r.tag as Tv.Channel).source] ?: emptyMap(), r.tag as Tv.Channel, at).first else null
                 if (future != null) { showOpts(r.tag as Tv.Channel, future); return@MediaScreen }   // 📅 audycja później - zaplanuj albo oglądaj
@@ -2036,7 +2036,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // 🗓 siatka programu (jak w Televizo): kanały w wierszach, czas w poziomie, ⏰ i ⏪ po stuknięciu audycji
     private fun showGrid(chans: List<Tv.Channel>, epg: Map<String, Map<String, List<Tv.Show>>>) {
-        val list = chans.take(150)   // tyle, ile da się płynnie przewinąć - wybierz grupę albo ulubione
+        val list = chans.sortedBy { it.name.lowercase() }.take(150)   // alfabetycznie, jak wszystkie listy   // tyle, ile da się płynnie przewinąć - wybierz grupę albo ulubione
         val now = System.currentTimeMillis()
         val back = list.maxOfOrNull { if (it.catchup.isNotEmpty()) it.catchupDays.coerceAtLeast(1) else 0 }?.coerceIn(0, 7) ?: 0   // archiwum: tyle dni wstecz
         val from = now - (if (back > 0) back * 24L else 2L) * 3600_000L - now % 1800_000L; val to = now + 48 * 3600_000L
@@ -2301,8 +2301,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun showMyFiles() {
         lateinit var scr: MediaScreen
         fun rows(): List<MRow> { val a = myFiles(); return (0 until a.length()).map { a.getJSONObject(it) }.map { MRow(it.optString("n"), java.text.DateFormat.getDateInstance().format(java.util.Date(it.optLong("t"))), null, tag = it) } }
-        scr = MediaScreen("📁 " + getString(R.string.my_films), "moje", listOf(getString(R.string.sort_newest), getString(R.string.sort_az)),
-            sorter = { l, s -> if (s == 1) l.sortedBy { it.title.lowercase() } else l.sortedByDescending { (it.tag as org.json.JSONObject).optLong("t") } },
+        scr = MediaScreen("📁 " + getString(R.string.my_films), "moje2", listOf(getString(R.string.sort_az), getString(R.string.sort_newest)),   // domyślnie alfabetycznie
+            sorter = { l, s -> if (s == 0) l.sortedBy { it.title.lowercase() } else l.sortedByDescending { (it.tag as org.json.JSONObject).optLong("t") } },
             onOpen = { r, shownRows -> val o = shownRows.map { it.tag as org.json.JSONObject }
                 play(o.map { PlayerActivity.Item(it.optString("n"), it.optString("u"), "moje-" + it.optString("u").hashCode()) }, shownRows.indexOf(r), false) },
             onLong = { r -> AlertDialog.Builder(this).setMessage(getString(R.string.my_films_remove, r.title)).setPositiveButton(R.string.delete) { _, _ ->

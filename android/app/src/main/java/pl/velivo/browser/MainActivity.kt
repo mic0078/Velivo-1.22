@@ -270,7 +270,7 @@ set(p0,p);})"""
         if (intent.action == TvPlan.ACTION) { startPlanned(intent.getIntExtra("id", -1)); return }
         if (intent.action == PlaybackService.ACTION_SLEEP) { setSleep(((sleepAt - System.currentTimeMillis()).coerceAtLeast(0) / 60000).toInt() + 30); moveTaskToBack(true); return }
         if (intent.action == PlaybackService.ACTION_STOP) {
-            tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            tabs.forEach { it.web.evaluateJavascript("window.__vbg=0;document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             tts?.stop()
             PlayerActivity.pauseIfPlaying()
             PlaybackService.stop(this)
@@ -425,7 +425,7 @@ set(p0,p);})"""
     private var sleepAt = 0L
     private val sleepRun = Runnable {
         sleepAt = 0
-        tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+        tabs.forEach { it.web.evaluateJavascript("window.__vbg=0;document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
         tts?.stop()
         PlayerActivity.pauseIfPlaying()
         PlaybackService.stop(this)
@@ -514,9 +514,9 @@ set(p0,p);})"""
         }
         w.postDelayed(start, 4000); w.postDelayed(start, 9000)   // strona mogła jeszcze nie mieć odtwarzacza
         AlertDialog.Builder(this).setTitle(R.string.wake_now).setMessage(Budzik.title(this)).setCancelable(false)
-            .setPositiveButton(R.string.wake_stop) { _, _ -> setShowWhenLocked(false); setTurnScreenOn(false); w.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            .setPositiveButton(R.string.wake_stop) { _, _ -> setShowWhenLocked(false); setTurnScreenOn(false); w.evaluateJavascript("window.__vbg=0;document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             .setNegativeButton(R.string.wake_snooze) { _, _ ->
-                w.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null)
+                w.evaluateJavascript("window.__vbg=0;document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null)
                 Budzik.schedule(this, 10); setShowWhenLocked(false); setTurnScreenOn(false)
             }.show()
     }
@@ -920,6 +920,10 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
         // grająca karta (np. muzyka z YouTube) zostaje pod nową kartą i gra dalej; karta bankowa nigdy
         tabs.getOrNull(cur)?.let { if (it !== t && videoPlaying && !it.bank && prefs.getBoolean("tlo", true)) bgTab = it }
         if (bgTab === t) bgTab = null
+        // karta pod spodem: każdą pauzę (YouTube "nie widzi okna") cofamy; na wierzchu znów normalnie
+        t.web.evaluateJavascript("window.__vbg=0", null)
+        bgTab?.web?.evaluateJavascript("(function(){window.__vbg=1;if(window.__vbgL)return;window.__vbgL=1;" +
+            "document.addEventListener('pause',function(e){var v=e.target;if(window.__vbg&&v&&v.tagName==='VIDEO'&&!v.ended)setTimeout(function(){if(window.__vbg)v.play().catch(function(){})},300)},true)})()", null)
         cur = i
         (0 until frame.childCount).map { frame.getChildAt(it) }.forEach { if (it !== t.web && it !== bgTab?.web) frame.removeView(it) }
         if (t.web.parent == null) frame.addView(t.web) else t.web.bringToFront()

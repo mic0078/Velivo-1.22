@@ -12,7 +12,8 @@ $ErrorActionPreference = 'Stop'
 trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
 Set-Location $PSScriptRoot
 New-Item -ItemType Directory -Force build | Out-Null
-Start-Transcript -Path (Join-Path $PSScriptRoot 'build\budowa.log') -Force | Out-Null   # gdyby okno sie zamknelo - przebieg zostaje w build\budowa.log
+try { Stop-Transcript | Out-Null } catch { }   # poprzednia budowa w tym samym oknie mogla zostawic zapis otwarty
+try { Start-Transcript -Path (Join-Path $PSScriptRoot 'build\budowa.log') -Force | Out-Null } catch { }   # gdyby okno sie zamknelo - przebieg zostaje w build\budowa.log
 
 git checkout rozwoj
 git pull origin rozwoj
@@ -118,3 +119,4 @@ Write-Host "  build\android\Velivo-pelna.apk      - telefon (Ty i mama, WhatsApp
 if ($Sklep) { Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"
 Write-Host "  build\android\Velivo-sklepyt.aab    - Google Play (jak Brave)" }
 Start-Process $out
+try { Stop-Transcript | Out-Null } catch { }

@@ -2029,9 +2029,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // 🗓 siatka programu (jak w Televizo): kanały w wierszach, czas w poziomie, ⏰ i ⏪ po stuknięciu audycji
     private fun showGrid(chans: List<Tv.Channel>, epg: Map<String, Map<String, List<Tv.Show>>>) {
-        val list = chans.take(300)   // tyle, ile da się wygodnie przewinąć - wybierz grupę albo ulubione
+        val list = chans.take(150)   // tyle, ile da się płynnie przewinąć - wybierz grupę albo ulubione
         val now = System.currentTimeMillis()
-        val from = now - 2 * 3600_000L - now % 1800_000L; val to = now + 48 * 3600_000L
+        val back = list.maxOfOrNull { if (it.catchup.isNotEmpty()) it.catchupDays.coerceAtLeast(1) else 0 }?.coerceIn(0, 7) ?: 0   // archiwum: tyle dni wstecz
+        val from = now - (if (back > 0) back * 24L else 2L) * 3600_000L - now % 1800_000L; val to = now + 48 * 3600_000L
         val pxMin = dp(4).toFloat()   // 4 dp na minutę: 30 min = 120 dp
         val rowH = dp(56); val nameW = dp(120)
         fun x(t: Long) = ((t - from) / 60_000f * pxMin).toInt()

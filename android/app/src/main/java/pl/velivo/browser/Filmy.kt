@@ -114,13 +114,14 @@ object Tv {
 
     // Program TV (XMLTV): tylko kanały z listy i tylko od 6 godzin wstecz do 2 dni naprzód - mało pamięci, szybko
     fun epg(ctx: Context, src: Source, chans: List<Channel>, refresh: Boolean): Map<String, List<Show>> {
-        val f = cacheFile(ctx, src.id, ".epg4.json")
+        val f = cacheFile(ctx, src.id, ".epg5.json")
         val fresh = f.exists() && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L   // program odświeżany co 12 godzin
         if (!refresh && fresh) { memEpg[src.id]?.let { return it }; readEpg(f)?.let { memEpg[src.id] = it; return it } }
         if (src.epg.isEmpty()) return emptyMap()
         val wanted = HashSet<String>()
         chans.forEach { keys(it).forEach { k -> wanted.add(k) } }
-        val from = System.currentTimeMillis() - 24 * 3600_000L   // doba wstecz - archiwum (⏪)
+        val back = chans.maxOfOrNull { if (it.catchup.isNotEmpty()) it.catchupDays.coerceAtLeast(1) else 0 }?.coerceIn(0, 7) ?: 0
+        val from = System.currentTimeMillis() - (if (back > 0) back * 24 else 6) * 3600_000L   // wstecz tyle dni, ile archiwum kanałów (⏪), najwyżej 7
         val to = System.currentTimeMillis() + 72 * 3600_000L   // program na 3 dni
         val names = HashMap<String, MutableList<String>>()   // id kanału w programie -> nazwy
         val out = HashMap<String, MutableList<Show>>()

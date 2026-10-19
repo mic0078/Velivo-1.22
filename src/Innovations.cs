@@ -478,6 +478,12 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
                     var file = new MenuItem { Header = (L.En ? "📎 Send a file to " : "📎 Wyślij plik do: ") + (string.IsNullOrWhiteSpace(p.Device) ? p.Id.Substring(0, 8) : p.Device) };
                     file.Click += async (a, b) => await SendFileToPeer(p);
                     root.Items.Add(file);
+                    if ((p.Device ?? "").StartsWith("📱", StringComparison.Ordinal))   // tylko telefon: Filmy i TV (Jellyfin, listy kanalow)
+                    {
+                        var media = new MenuItem { Header = (L.En ? "🎬 Send Films & TV settings to " : "🎬 Wyślij ustawienia Filmów i TV do: ") + p.Device };
+                        media.Click += (a, b) => SendMediaConfToPhone(p);
+                        root.Items.Add(media);
+                    }
                 }
                 foreach (var o in stare) root.Items.Remove(o);
             };
@@ -502,6 +508,27 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
             EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(payload));
             LanSend(pkt);
             ShowToast((L.En ? "📺 Sent to " : "📺 Wysłano do: ") + peer.Device + (time > 5 ? (L.En ? " (video from " : " (film od ") + TimeSpan.FromSeconds(time).ToString(time >= 3600 ? @"h\:mm\:ss" : @"m\:ss") + ")" : ""), null);
+        }
+
+        // Telefon (Velivo na Androida) dostaje adres i klucz Jellyfin oraz listy kanalow TV - zaszyfrowane kluczem z parowania,
+        // tylko do wskazanego telefonu, po potwierdzeniu tutaj; telefon tez pyta, zanim zapisze (zaszyfrowane w telefonie).
+        void SendMediaConfToPhone(LanPeerInfo peer)
+        {
+            if (_lanTx == null || _lanEncryptionKey == null) return;
+            var jc = LoadJellyfinConf();
+            var tv = LoadIptv().Sources.Where(x => x.Url != null && (x.Url.StartsWith("http://") || x.Url.StartsWith("https://"))).ToList();
+            if (jc == null && tv.Count == 0) { ShowToast(L.En ? "No Jellyfin or TV lists set up on this computer." : "Na tym komputerze nie ma ustawionego Jellyfin ani list TV.", null); return; }
+            var ask = (L.En ? "Send to " : "Wysłać do ") + peer.Device + ":\n\n" + (jc != null ? "• Jellyfin (" + jc.Url + ")\n" : "") +
+                      (tv.Count > 0 ? (L.En ? "• TV channel lists: " : "• listy kanałów TV: ") + tv.Count + "\n" : "") +
+                      (L.En ? "\nThe addresses may contain your private keys – they go encrypted, only to this phone, which asks before saving." : "\nAdresy mogą zawierać Twoje prywatne klucze – idą zaszyfrowane, tylko do tego telefonu, który zapyta przed zapisem.");
+            if (MessageBox.Show(this, ask, "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            var payload = new Dictionary<string, object> { ["to"] = peer.Id };
+            if (jc != null) payload["jellyfin"] = new Dictionary<string, string> { ["url"] = jc.Url, ["key"] = jc.Key };
+            payload["tv"] = tv.Select(x => new Dictionary<string, string> { ["name"] = x.Name ?? "TV", ["url"] = x.Url, ["epg"] = x.Epg ?? "" }).ToList();
+            var pkt = new LanStatePacket { t = "media-conf", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
+            EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(payload));
+            LanSend(pkt);
+            ShowToast((L.En ? "🎬 Sent to " : "🎬 Wysłano do: ") + peer.Device, null);
         }
 
         void EncryptLanBlob(LanStatePacket pkt, byte[] json)

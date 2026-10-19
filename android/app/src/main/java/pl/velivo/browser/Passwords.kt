@@ -60,6 +60,22 @@ class Passwords(ctx: Context) {
         encrypt("dane", arr.toString())
     }
 
+    // Inne tajne ustawienia (adres i klucz Jellyfin, adresy list TV z tokenem) - zaszyfrowane tak samo jak hasła.
+    fun secret(name: String): String? = decrypt("s-$name")
+    fun setSecret(name: String, v: String?) { if (v == null) prefs.edit().remove("s-$name").apply() else encrypt("s-$name", v) }
+
+    // Duże dane (lista kanałów z tokenami) - zaszyfrowany plik.
+    fun sealBytes(data: ByteArray): ByteArray {
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.ENCRYPT_MODE, key())
+        return c.iv + c.doFinal(data)
+    }
+    fun openBytes(raw: ByteArray): ByteArray? = runCatching {
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, raw, 0, 12))
+        c.doFinal(raw, 12, raw.size - 12)
+    }.getOrNull()
+
     // Klucz synchronizacji z Velivo na Windows - zaszyfrowany tak samo jak hasła.
     var lanKey: String?
         get() = decrypt("lan")

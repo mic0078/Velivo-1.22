@@ -178,6 +178,8 @@ class MainActivity : Activity() {
         startFilters()
         window.decorView.post { showLastCrash() }
         Karteczki.schedule(this)
+        // stare zapisy miejsca w filmie (także z podglądów na stronie głównej YouTube) - jednorazowo od nowa
+        if (!prefs.getBoolean("filmy-v2", false)) { getSharedPreferences("filmy", Context.MODE_PRIVATE).edit().clear().apply(); prefs.edit().putBoolean("filmy-v2", true).apply() }
         Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
         if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
@@ -224,6 +226,7 @@ class MainActivity : Activity() {
         const val PRIVATE_PROFILE = "prywatna"
         const val BANK_PROFILE = "bank"
         const val REQ_VLPAIR = 7
+        const val REQ_MEDIA = 8
         val YOUTUBE_ORIGINS = setOf("https://www.youtube.com", "https://m.youtube.com", "https://youtube.com", "https://music.youtube.com")
         const val BANK_IDLE_MS = 10 * 60 * 1000L
 
@@ -254,6 +257,7 @@ set(p0,p);})"""
         if (intent.action == PlaybackService.ACTION_STOP) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             tts?.stop()
+            PlayerActivity.pauseIfPlaying()
             stopService(Intent(this, PlaybackService::class.java))
         startLan()
             return
@@ -315,13 +319,17 @@ set(p0,p);})"""
     private fun videoKey(url: String?): String? {
         val u = Uri.parse(url ?: return null)
         val host = u.host ?: return null
-        val id = if (host.endsWith("youtube.com")) u.getQueryParameter("v") else if (host == "youtu.be") u.lastPathSegment else null
-        return "film-" + (id ?: (host + u.path)).hashCode()
+        // YouTube: tylko strona filmu (v=…) - strona główna z podglądami, szorty i transmisje nie są zapamiętywane
+        if (host.endsWith("youtube.com")) return u.getQueryParameter("v")?.let { "film-yt-$it" }
+        if (host == "youtu.be") return u.lastPathSegment?.let { "film-yt-$it" }
+        val path = u.path ?: ""
+        if (path.length < 2) return null   // strona główna serwisu - to nie jest konkretny film
+        return "film-" + (host + path).hashCode()
     }
 
     private fun saveVideoPos(url: String?, t: Double, d: Double) {
         val k = videoKey(url) ?: return
-        if (d.isNaN() || d < 120) return   // krótkie filmy i transmisje na żywo (bez długości) - bez zapamiętywania
+        if (d.isNaN() || d.isInfinite() || d < 120 || d > 6 * 3600) return   // krótkie filmy i transmisje na żywo - bez zapamiętywania
         val p = getSharedPreferences("filmy", Context.MODE_PRIVATE)
         val e = p.edit()
         if (t > d - 20 || t < 15) e.remove(k) else e.putFloat(k, t.toFloat())   // obejrzany do końca - następnym razem od początku
@@ -329,9 +337,13 @@ set(p0,p);})"""
         e.apply()
     }
 
+    private val resumedKey = java.util.WeakHashMap<WebView, String>()   // raz na film, nie przy każdym kliknięciu na stronie
+
     private fun resumeVideo(view: WebView, url: String) {
         if (tabs.firstOrNull { it.web == view }?.priv == true) return
         val k = videoKey(url) ?: return
+        if (resumedKey[view] == k) return
+        resumedKey[view] = k
         val pos = getSharedPreferences("filmy", Context.MODE_PRIVATE).getFloat(k, 0f)
         if (pos < 15f) return
         val js = "(function(t){var v=document.querySelector('video');if(!v)return false;if(Math.abs(v.currentTime-t)>10)v.currentTime=t;return true})($pos)"
@@ -368,6 +380,7 @@ set(p0,p);})"""
         sleepAt = 0
         tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
         tts?.stop()
+        PlayerActivity.pauseIfPlaying()
         stopService(Intent(this, PlaybackService::class.java))
     }
 
@@ -1273,6 +1286,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             17 -> toggleDesktop()
             20 -> startPick()
             21 -> sendTabToComputer()
+            30 -> showTv()
+            31 -> showLibrary()
+            32 -> showMyFiles()
             23 -> showNotes()
             24 -> newNote()
             25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
@@ -1386,6 +1402,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple("🔎", R.string.find_in_page, 16), Triple("📖", R.string.reader, 18),
             Triple(if (tts?.isSpeaking == true) "⏹" else "🔊", if (tts?.isSpeaking == true) R.string.stop_reading else R.string.read_aloud, 19),
             Triple("🎯", R.string.hide_element, 20), Triple("➕", R.string.add_bookmark, 3), Triple("✍", R.string.fill_password, 15)))
+        section(R.string.menu_media, listOf(
+            Triple("📺", R.string.tv, 30), Triple("🎬", R.string.jf_library, 31), Triple("📁", R.string.my_films, 32)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9),
             Triple("🗒", R.string.notes, 23), Triple("📝", R.string.note_new, 24), Triple("📥", R.string.downloads, 25)))
@@ -1628,6 +1646,375 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // --- Synchronizacja z Velivo na Windows (sieć domowa) -------------------------
+    // ===================== 🎬 Filmy i TV: telewizja (IPTV + program), Jellyfin, filmy z telefonu =====================
+    private class MRow(val title: String, val sub: String, val image: String?, val headers: Map<String, String> = emptyMap(), var star: Boolean? = null, val tag: Any? = null)
+
+    // małe obrazki (logo kanałów, plakaty): w tle, w pamięci podręcznej
+    private val imgCache = android.util.LruCache<String, Bitmap>(120)
+    private val imgPool by lazy { java.util.concurrent.Executors.newFixedThreadPool(3) }
+    private fun loadImage(iv: ImageView, url: String?, headers: Map<String, String>) {
+        iv.tag = url; iv.setImageDrawable(null)
+        if (url.isNullOrEmpty()) return
+        imgCache.get(url)?.let { iv.setImageBitmap(it); return }
+        imgPool.execute {
+            val bmp = runCatching {
+                val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 8000; c.readTimeout = 10000
+                headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
+                c.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
+            }.getOrNull() ?: return@execute
+            val small = if (bmp.height > 240) Bitmap.createScaledBitmap(bmp, bmp.width * 240 / bmp.height, 240, true) else bmp
+            imgCache.put(url, small)
+            runOnUiThread { if (iv.tag == url) iv.setImageBitmap(small) }
+        }
+    }
+
+    // wspólny ekran listy: szukanie, sortowanie (zapamiętane), przyciski u góry, ⭐, przytrzymanie = więcej
+    private inner class MediaScreen(title: String, val sortKey: String, val sorts: List<String>,
+                                    val sorter: (List<MRow>, Int) -> List<MRow>,
+                                    val onOpen: (MRow, List<MRow>) -> Unit,
+                                    val onLong: ((MRow) -> Unit)? = null,
+                                    val onStar: ((MRow) -> Unit)? = null) {
+        val dlg = android.app.Dialog(this@MainActivity, android.R.style.Theme_DeviceDefault_NoActionBar)
+        val bar = LinearLayout(this@MainActivity).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); setBackgroundColor(BAR) }
+        val status = TextView(this@MainActivity).apply { setTextColor(TEXT); textSize = 13f; setPadding(dp(14), dp(4), dp(14), dp(4)) }
+        var all = listOf<MRow>(); var shown = listOf<MRow>()
+        var sort = prefs.getInt("sort-$sortKey", 0)
+        val search = EditText(this@MainActivity).apply {
+            hint = getString(R.string.search_hint); setSingleLine(); setTextColor(TEXT); setHintTextColor(c("#4F4380", "#A79FD0"))
+            background = round(GRAY_BG); setPadding(dp(12), dp(8), dp(12), dp(8))
+        }
+        val sortBtn = button("", R.string.sort, BLUE, BLUE_BG) {}
+        val adapter = object : BaseAdapter() {
+            override fun getCount() = shown.size
+            override fun getItem(i: Int) = shown[i]
+            override fun getItemId(i: Int) = i.toLong()
+            override fun getView(i: Int, convert: View?, parent: ViewGroup?): View {
+                val r = shown[i]
+                val v = LinearLayout(this@MainActivity).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(6), dp(6), dp(6)) }
+                val iv = ImageView(this@MainActivity).apply { scaleType = ImageView.ScaleType.FIT_CENTER; background = round(GRAY_BG) }
+                v.addView(iv, LinearLayout.LayoutParams(dp(64), dp(48)))
+                loadImage(iv, r.image, r.headers)
+                val t = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(6), 0) }
+                t.addView(TextView(this@MainActivity).apply { text = r.title; textSize = 16f; setTextColor(TEXT); maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
+                if (r.sub.isNotEmpty()) t.addView(TextView(this@MainActivity).apply { text = r.sub; textSize = 13f; setTextColor(c("#4F4380", "#A79FD0")); maxLines = 3; ellipsize = TextUtils.TruncateAt.END })
+                v.addView(t, LinearLayout.LayoutParams(0, -2, 1f))
+                r.star?.let { s ->
+                    v.addView(button(if (s) "⭐" else "☆", R.string.tv_fav, ORANGE, Color.TRANSPARENT) { onStar?.invoke(r); refresh() }.apply { isFocusable = false })
+                }
+                applyScale(v)
+                return v
+            }
+        }
+        val listView = ListView(this@MainActivity).apply { divider = null; adapter = this@MediaScreen.adapter }
+
+        init {
+            bar.addView(TextView(this@MainActivity).apply { text = title; textSize = 18f; setTextColor(TEXT); setPadding(dp(8), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+            val top = LinearLayout(this@MainActivity).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(6), dp(10), dp(2)) }
+            top.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+            if (sorts.size > 1) top.addView(sortBtn)
+            sortBtn.setOnClickListener {
+                AlertDialog.Builder(this@MainActivity).setTitle(R.string.sort).setSingleChoiceItems(sorts.toTypedArray(), sort) { d, i ->
+                    sort = i; prefs.edit().putInt("sort-$sortKey", i).apply(); d.dismiss(); refresh()
+                }.show()
+            }
+            search.addTextChangedListener(object : TextWatcher {
+                override fun afterTextChanged(e: Editable?) = refresh()
+                override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+                override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+            })
+            listView.setOnItemClickListener { _, _, i, _ -> onOpen(shown[i], shown) }
+            listView.setOnItemLongClickListener { _, _, i, _ -> onLong?.invoke(shown[i]); onLong != null }
+            val root = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(c("#F7F4FF", "#15121F")) }
+            root.addView(bar); root.addView(top); root.addView(status)
+            root.addView(listView, LinearLayout.LayoutParams(-1, 0, 1f))
+            dlg.setContentView(PinchFrame(root))
+        }
+
+        fun addButton(label: String, tip: Int, act: () -> Unit) { bar.addView(button(label, tip, BLUE, BLUE_BG) { act() }) }
+        fun show() { bar.addView(button("✕", R.string.close_tab_short, TEXT, GRAY_BG) { dlg.dismiss() }); dlg.show() }
+        fun setRows(rows: List<MRow>, info: String = "") { all = rows; status.text = info; status.visibility = if (info.isEmpty()) View.GONE else View.VISIBLE; refresh() }
+        fun refresh() {
+            val q = search.text.toString().trim().lowercase()
+            val f = if (q.isEmpty()) all else all.filter { it.title.lowercase().contains(q) || it.sub.lowercase().contains(q) }
+            shown = sorter(f, sort)
+            sortBtn.text = sorts.getOrNull(sort) ?: ""
+            adapter.notifyDataSetChanged()
+        }
+    }
+
+    private fun play(items: List<PlayerActivity.Item>, at: Int, live: Boolean) {
+        if (items.isEmpty()) return
+        PlayerActivity.queue = items; PlayerActivity.index = at.coerceIn(0, items.size - 1); PlayerActivity.live = live
+        startActivity(Intent(this, PlayerActivity::class.java))
+    }
+
+    private fun fmtTime(ms: Long) = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ms))
+
+    // ---------- 📺 Telewizja ----------
+    private fun tvFavs() = prefs.getStringSet("tv-ulubione", emptySet())!!
+    private fun tvLists(): org.json.JSONObject = runCatching { org.json.JSONObject(prefs.getString("tv-listy", "{}")!!) }.getOrDefault(org.json.JSONObject())
+    private fun tvListKeys(name: String): Set<String> = tvLists().optJSONArray(name)?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() } ?: emptySet()
+    private fun tvSetList(name: String, keys: Collection<String>) {
+        val j = tvLists(); if (keys.isEmpty()) j.remove(name) else j.put(name, org.json.JSONArray(keys.toList())); prefs.edit().putString("tv-listy", j.toString()).apply()
+    }
+
+    private fun showTv() {
+        val sources = Tv.sources(passwords)
+        if (sources.isEmpty()) { editTvSource(null) { showTv() }; return }
+        var chans = listOf<Tv.Channel>()
+        var epg = mapOf<String, Map<String, List<Tv.Show>>>()
+        var filter = prefs.getString("tv-filtr", "") ?: ""   // "" wszystkie, "*" ulubione, "L:nazwa" własna lista, "G:grupa" grupa
+        lateinit var scr: MediaScreen
+        fun rows(): List<MRow> {
+            val fav = tvFavs()
+            val keys = when { filter == "*" -> fav; filter.startsWith("L:") -> tvListKeys(filter.substring(2)); else -> null }
+            return chans.filter { ch -> keys?.contains(ch.key) ?: (!filter.startsWith("G:") || ch.group == filter.substring(2)) }.map { ch ->
+                val (now, nxt) = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch)
+                val sub = listOfNotNull(now?.let { getString(R.string.tv_now, it.title, fmtTime(it.stop)) }, nxt?.let { getString(R.string.tv_next, fmtTime(it.start), it.title) })
+                    .joinToString("\n").ifEmpty { ch.group }
+                MRow(ch.name, sub, ch.logo.ifEmpty { null }, star = ch.key in fav, tag = ch)
+            }
+        }
+        fun info() = getString(R.string.tv_count, chans.size) + " · " + when {
+            filter == "*" -> "⭐ " + getString(R.string.tv_fav); filter.startsWith("L:") -> "📋 " + filter.substring(2)
+            filter.startsWith("G:") -> filter.substring(2); else -> getString(R.string.tv_all) }
+        val watched = prefs.getStringSet("tv-ogladane", emptySet())!!
+        scr = MediaScreen("📺 " + getString(R.string.tv), "tv", listOf(getString(R.string.sort_fav_first), getString(R.string.sort_az), getString(R.string.tv_sort_list)),
+            sorter = { l, s -> when (s) { 0 -> l.sortedWith(compareBy({ it.star != true }, { it.title.lowercase() })); 1 -> l.sortedBy { it.title.lowercase() }; else -> l } },
+            onOpen = { r, shownRows ->
+                val items = shownRows.map { val ch = it.tag as Tv.Channel; PlayerActivity.Item(ch.name, ch.url, null, info = it.sub.substringBefore('\n')) }
+                prefs.edit().putStringSet("tv-ogladane", watched + (r.tag as Tv.Channel).key).apply()
+                play(items, shownRows.indexOf(r), live = true)
+            },
+            onLong = { r -> tvChannelMenu(r.tag as Tv.Channel, epg[(r.tag as Tv.Channel).source] ?: emptyMap()) { scr.setRows(rows(), info()) } },
+            onStar = { r -> val k = (r.tag as Tv.Channel).key; val f = tvFavs(); prefs.edit().putStringSet("tv-ulubione", if (k in f) f - k else f + k).apply(); r.star = r.star != true })
+        fun reload(refresh: Boolean) {
+            scr.setRows(emptyList(), getString(R.string.tv_loading))
+            Thread {
+                val all = ArrayList<Tv.Channel>(); val ep = HashMap<String, Map<String, List<Tv.Show>>>(); var err = false
+                for (s in Tv.sources(passwords)) {
+                    val c = runCatching { Tv.channels(this, passwords, s, refresh) }.getOrElse { err = true; emptyList() }
+                    all.addAll(c)
+                    ep[s.id] = runCatching { Tv.epg(this, s, c, refresh) }.getOrDefault(emptyMap())
+                }
+                runOnUiThread { chans = all; epg = ep; scr.setRows(rows(), info() + if (err) " · " + getString(R.string.tv_error) else "") }
+            }.start()
+        }
+        scr.addButton("☰", R.string.tv_filter) {
+            val groups = chans.map { it.group }.filter { it.isNotEmpty() }.distinct().sorted()
+            val lists = tvLists().keys().asSequence().toList().sorted()
+            val opts = listOf("" to getString(R.string.tv_all), "*" to "⭐ " + getString(R.string.tv_fav)) + lists.map { "L:$it" to "📋 $it" } + groups.map { "G:$it" to it }
+            AlertDialog.Builder(this).setTitle(R.string.tv_filter).setItems(opts.map { it.second }.toTypedArray()) { _, i ->
+                filter = opts[i].first; prefs.edit().putString("tv-filtr", filter).apply(); scr.setRows(rows(), info())
+            }.show()
+        }
+        scr.addButton("⟳", R.string.reload) { reload(true) }
+        scr.addButton("⚙", R.string.tv_sources) { tvSources { reload(true) } }
+        scr.show()
+        reload(false)
+    }
+
+    // przytrzymanie kanału: program TV, własne listy
+    private fun tvChannelMenu(ch: Tv.Channel, epg: Map<String, List<Tv.Show>>, changed: () -> Unit) {
+        val lists = tvLists().keys().asSequence().toList().sorted()
+        val opts = mutableListOf<Pair<String, () -> Unit>>()
+        opts.add(getString(R.string.tv_guide) to {
+            val now = System.currentTimeMillis()
+            val shows = Tv.showsFor(epg, ch).filter { it.stop > now }.take(30)
+            val text = if (shows.isEmpty()) getString(R.string.tv_no_guide) else shows.joinToString("\n\n") {
+                java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it.start)) + "  " + it.title + if (it.desc.isNotEmpty()) "\n" + it.desc.take(160) else "" }
+            AlertDialog.Builder(this).setTitle("📺 " + ch.name).setMessage(text).setPositiveButton(android.R.string.ok, null).show()
+        })
+        for (l in lists) {
+            val inL = ch.key in tvListKeys(l)
+            opts.add(getString(if (inL) R.string.tv_list_remove else R.string.tv_list_add, l) to { tvSetList(l, if (inL) tvListKeys(l) - ch.key else tvListKeys(l) + ch.key); changed() })
+        }
+        opts.add(getString(R.string.tv_list_new) to {
+            val e = EditText(this).apply { setSingleLine(); hint = getString(R.string.tv_list_name) }
+            AlertDialog.Builder(this).setTitle(R.string.tv_list_new).setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(e, LinearLayout.LayoutParams(-1, -2)) })
+                .setPositiveButton(android.R.string.ok) { _, _ -> e.text.toString().trim().take(40).takeIf { it.isNotEmpty() }?.let { tvSetList(it, tvListKeys(it) + ch.key); changed() } }
+                .setNegativeButton(android.R.string.cancel, null).show()
+        })
+        AlertDialog.Builder(this).setTitle(ch.name).setItems(opts.map { it.first }.toTypedArray()) { _, i -> opts[i].second() }.show()
+    }
+
+    private fun tvSources(changed: () -> Unit) {
+        val src = Tv.sources(passwords)
+        val labels = (src.map { "📺 " + it.name } + getString(R.string.tv_source_add)).toTypedArray()
+        AlertDialog.Builder(this).setTitle(R.string.tv_sources).setItems(labels) { _, i ->
+            if (i == src.size) editTvSource(null, changed)
+            else AlertDialog.Builder(this).setTitle(src[i].name).setItems(arrayOf(getString(R.string.tv_source_edit), getString(R.string.tv_source_delete))) { _, k ->
+                if (k == 0) editTvSource(src[i], changed)
+                else { Tv.saveSources(passwords, src.filterIndexed { j, _ -> j != i }); java.io.File(filesDir, "tv").listFiles()?.filter { it.name.startsWith(src[i].id) }?.forEach { it.delete() }; changed() }
+            }.show()
+        }.show()
+    }
+
+    // dodanie / zmiana listy: nazwa, adres M3U (albo plik z telefonu), adres programu TV (EPG, opcjonalnie)
+    private fun editTvSource(s: Tv.Source?, changed: () -> Unit) {
+        val name = EditText(this).apply { setSingleLine(); hint = getString(R.string.tv_source_name); setText(s?.name ?: "") }
+        val url = EditText(this).apply { setSingleLine(); hint = getString(R.string.tv_source_url); setText(s?.url ?: ""); inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
+        val epg = EditText(this).apply { setSingleLine(); hint = getString(R.string.tv_source_epg); setText(s?.epg ?: ""); inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0) }
+        box.addView(name); box.addView(url)
+        box.addView(button("📁 " + getString(R.string.tv_source_file), R.string.tv_source_file, BLUE, BLUE_BG) {
+            pickDocuments(arrayOf("*/*"), false) { uris -> uris.firstOrNull()?.let { url.setText(it.toString()) } }
+        })
+        box.addView(epg)
+        box.addView(TextView(this).apply { text = getString(R.string.tv_source_help); textSize = 12f; setTextColor(TEXT); setPadding(0, dp(8), 0, 0) })
+        AlertDialog.Builder(this).setTitle(if (s == null) R.string.tv_source_add else R.string.tv_source_edit).setView(ScrollView(this).apply { addView(box) })
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val u = url.text.toString().trim()
+                if (!(u.startsWith("http://") || u.startsWith("https://") || u.startsWith("content://"))) { toast(getString(R.string.tv_source_bad)); return@setPositiveButton }
+                val list = Tv.sources(passwords)
+                val n = Tv.Source(s?.id ?: java.util.UUID.randomUUID().toString().replace("-", "").take(12), name.text.toString().trim().ifEmpty { "TV" }, u, epg.text.toString().trim())
+                Tv.saveSources(passwords, if (s == null) list + n else list.map { if (it.id == n.id) n else it })
+                changed()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    // ---------- 🎬 Biblioteka (Jellyfin) ----------
+    private fun showLibrary() {
+        val c = Jelly.conf(passwords) ?: return setupJellyfin { showLibrary() }
+        val hdr = mapOf("X-Emby-Token" to c.key)
+        var mode = prefs.getInt("jf-widok", 0)   // 0 oglądane dalej, 1 filmy, 2 seriale
+        var lib = listOf<Jelly.Item>(); var resume = listOf<Jelly.Item>()
+        lateinit var scr: MediaScreen
+        fun dur(t: Long) = if (t > 0) (t / 600_000_000).let { m -> if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min" } else ""
+        fun row(it: Jelly.Item) = MRow(if (it.series.isNotEmpty()) it.series + " – " + it.name else it.name,
+            listOf(if (it.year > 0) it.year.toString() else "", dur(it.ticks), if (it.posTicks > 0 && it.ticks > 0) "▶ " + (it.posTicks * 100 / it.ticks) + "%" else "").filter { s -> s.isNotEmpty() }.joinToString(" · ") +
+                if (it.overview.isNotEmpty()) "\n" + it.overview else "", Jelly.image(c, it.id), hdr, tag = it)
+        fun rows() = when (mode) { 0 -> resume; 1 -> lib.filter { it.type == "Movie" }; else -> lib.filter { it.type == "Series" } }.map { row(it) }
+        val titles = listOf(getString(R.string.jf_resume), getString(R.string.jf_movies), getString(R.string.jf_series))
+        fun item(it: Jelly.Item) = PlayerActivity.Item(if (it.series.isNotEmpty()) it.series + " – " + it.name else it.name, Jelly.stream(c, it.id), "jf-" + it.id, hdr, it.id)
+        scr = MediaScreen("🎬 " + getString(R.string.jf_library), "jf", listOf(getString(R.string.sort_az), getString(R.string.sort_newest), getString(R.string.jf_sort_year)),
+            sorter = { l, s -> when (s) { 0 -> l.sortedBy { it.title.lowercase() }; 1 -> l.sortedByDescending { (it.tag as Jelly.Item).added }; else -> l.sortedByDescending { (it.tag as Jelly.Item).year } } },
+            onOpen = { r, shownRows ->
+                val it = r.tag as Jelly.Item
+                if (it.type == "Series") showEpisodes(c, it)
+                else { val movies = shownRows.map { x -> x.tag as Jelly.Item }.filter { x -> x.type != "Series" }; play(movies.map { x -> item(x) }, movies.indexOf(it), false) }
+            })
+        fun load() {
+            scr.setRows(emptyList(), getString(R.string.tv_loading))
+            Thread {
+                val ok = runCatching { lib = Jelly.library(c); resume = Jelly.resume(c) }.isSuccess
+                runOnUiThread { scr.setRows(rows(), titles[mode] + if (!ok) " · " + getString(R.string.jf_error) else "") }
+            }.start()
+        }
+        scr.addButton("☰", R.string.tv_filter) {
+            AlertDialog.Builder(this).setSingleChoiceItems(titles.toTypedArray(), mode) { d, i -> mode = i; prefs.edit().putInt("jf-widok", i).apply(); d.dismiss(); scr.setRows(rows(), titles[mode]) }.show()
+        }
+        scr.addButton("⟳", R.string.reload) { load() }
+        scr.addButton("⚙", R.string.jf_settings) { setupJellyfin { load() } }
+        scr.show()
+        load()
+    }
+
+    private fun showEpisodes(c: Jelly.Conf, series: Jelly.Item) {
+        val hdr = mapOf("X-Emby-Token" to c.key)
+        lateinit var scr: MediaScreen
+        scr = MediaScreen("📺 " + series.name, "jf-odc", listOf(getString(R.string.tv_sort_list), getString(R.string.sort_az)),
+            sorter = { l, s -> if (s == 1) l.sortedBy { it.title.lowercase() } else l },
+            onOpen = { r, shownRows ->
+                val eps = shownRows.map { it.tag as Jelly.Item }
+                play(eps.map { PlayerActivity.Item(series.name + " – " + it.name, Jelly.stream(c, it.id), "jf-" + it.id, hdr, it.id) }, shownRows.indexOf(r), false)
+            })
+        scr.show()
+        scr.setRows(emptyList(), getString(R.string.tv_loading))
+        Thread {
+            val eps = runCatching { Jelly.episodes(c, series.id) }.getOrDefault(emptyList())
+            runOnUiThread { scr.setRows(eps.map { MRow(it.name, (if (it.posTicks > 0 && it.ticks > 0) "▶ " + (it.posTicks * 100 / it.ticks) + "% · " else "") + it.overview, Jelly.image(c, it.id), hdr, tag = it) }) }
+        }.start()
+    }
+
+    // adres serwera i klucz API (Jellyfin → Panel → Klucze API), potem wybór użytkownika
+    private fun setupJellyfin(done: () -> Unit) {
+        val old = Jelly.conf(passwords)
+        val url = EditText(this).apply { setSingleLine(); hint = "http://192.168.1.10:8096"; setText(old?.url ?: ""); inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
+        val key = EditText(this).apply { setSingleLine(); hint = getString(R.string.jf_key); setText(old?.key ?: ""); inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_PASSWORD }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0); addView(url); addView(key)
+            addView(TextView(this@MainActivity).apply { text = getString(R.string.jf_help); textSize = 12f; setTextColor(TEXT); setPadding(0, dp(8), 0, 0) }) }
+        val b = AlertDialog.Builder(this).setTitle(R.string.jf_settings).setView(box)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val u = url.text.toString().trim().trimEnd('/'); val k = key.text.toString().trim()
+                if (!(u.startsWith("http://") || u.startsWith("https://")) || k.isEmpty()) { toast(getString(R.string.jf_error)); return@setPositiveButton }
+                Thread {
+                    val users = runCatching { Jelly.users(Jelly.Conf(u, k, "")) }.getOrNull()
+                    runOnUiThread {
+                        if (users.isNullOrEmpty()) { toast(getString(R.string.jf_error)); return@runOnUiThread }
+                        AlertDialog.Builder(this).setTitle(R.string.jf_user).setItems(users.map { it.second }.toTypedArray()) { _, i ->
+                            Jelly.save(passwords, Jelly.Conf(u, k, users[i].first)); done()
+                        }.show()
+                    }
+                }.start()
+            }.setNegativeButton(android.R.string.cancel, null)
+        if (old != null) b.setNeutralButton(R.string.jf_forget) { _, _ -> Jelly.save(passwords, null); toast(getString(R.string.jf_forgotten)) }
+        b.show()
+    }
+
+    // ---------- 📁 Moje filmy (z telefonu, wybrane przez Ciebie - bez dostępu do całej pamięci) ----------
+    private fun myFiles(): org.json.JSONArray = runCatching { org.json.JSONArray(prefs.getString("moje-filmy", "[]")) }.getOrDefault(org.json.JSONArray())
+
+    private fun showMyFiles() {
+        lateinit var scr: MediaScreen
+        fun rows(): List<MRow> { val a = myFiles(); return (0 until a.length()).map { a.getJSONObject(it) }.map { MRow(it.optString("n"), java.text.DateFormat.getDateInstance().format(java.util.Date(it.optLong("t"))), null, tag = it) } }
+        scr = MediaScreen("📁 " + getString(R.string.my_films), "moje", listOf(getString(R.string.sort_newest), getString(R.string.sort_az)),
+            sorter = { l, s -> if (s == 1) l.sortedBy { it.title.lowercase() } else l.sortedByDescending { (it.tag as org.json.JSONObject).optLong("t") } },
+            onOpen = { r, shownRows -> val o = shownRows.map { it.tag as org.json.JSONObject }
+                play(o.map { PlayerActivity.Item(it.optString("n"), it.optString("u"), "moje-" + it.optString("u").hashCode()) }, shownRows.indexOf(r), false) },
+            onLong = { r -> AlertDialog.Builder(this).setMessage(getString(R.string.my_films_remove, r.title)).setPositiveButton(R.string.delete) { _, _ ->
+                val a = myFiles(); val n = org.json.JSONArray(); for (i in 0 until a.length()) if (a.getJSONObject(i).optString("u") != (r.tag as org.json.JSONObject).optString("u")) n.put(a.getJSONObject(i))
+                prefs.edit().putString("moje-filmy", n.toString()).apply(); scr.setRows(rows()) }.setNegativeButton(android.R.string.cancel, null).show() })
+        scr.addButton("＋", R.string.my_films_add) {
+            pickDocuments(arrayOf("video/*", "audio/*"), true) { uris ->
+                val a = myFiles()
+                for (u in uris) {
+                    runCatching { contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    val name = runCatching { contentResolver.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else null } }.getOrNull() ?: u.lastPathSegment ?: "?"
+                    a.put(org.json.JSONObject().put("u", u.toString()).put("n", name).put("t", System.currentTimeMillis()))
+                }
+                prefs.edit().putString("moje-filmy", a.toString()).apply(); scr.setRows(rows())
+            }
+        }
+        scr.show()
+        scr.setRows(rows(), if (myFiles().length() == 0) getString(R.string.my_films_empty) else "")
+    }
+
+    private var pickCallback: ((List<Uri>) -> Unit)? = null
+    private fun pickDocuments(types: Array<String>, multi: Boolean, done: (List<Uri>) -> Unit) {
+        pickCallback = done
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+            .putExtra(Intent.EXTRA_MIME_TYPES, types).putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multi), REQ_MEDIA)
+    }
+
+    // ustawienia z Velivo na komputerze (Jellyfin, listy TV) - zawsze z pytaniem
+    private fun receiveMediaConf(dev: String, jf: org.json.JSONObject?, tv: org.json.JSONArray?) {
+        val n = tv?.length() ?: 0
+        val text = getString(R.string.media_conf_ask, dev, if (jf != null) "Jellyfin" else "—", n)
+        AlertDialog.Builder(this).setTitle(R.string.media_conf_title).setMessage(text)
+            .setPositiveButton(R.string.file_accept) { _, _ ->
+                jf?.let { Jelly.save(passwords, Jelly.Conf(it.optString("url"), it.optString("key"), "")) }
+                if (tv != null) {
+                    val list = Tv.sources(passwords)
+                    for (i in 0 until tv.length()) { val o = tv.getJSONObject(i); val u = o.optString("url")
+                        if (list.none { it.url == u } && (u.startsWith("http://") || u.startsWith("https://")))
+                            list.add(Tv.Source(java.util.UUID.randomUUID().toString().replace("-", "").take(12), o.optString("name").ifEmpty { "TV" }, u, o.optString("epg"))) }
+                    Tv.saveSources(passwords, list)
+                }
+                toast(getString(R.string.media_conf_saved))
+                if (jf != null) setupJellyfinUser()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun setupJellyfinUser() {
+        val c = Jelly.conf(passwords) ?: return
+        Thread {
+            val users = runCatching { Jelly.users(c) }.getOrNull() ?: return@Thread
+            runOnUiThread { AlertDialog.Builder(this).setTitle(R.string.jf_user).setItems(users.map { it.second }.toTypedArray()) { _, i -> Jelly.save(passwords, Jelly.Conf(c.url, c.key, users[i].first)) }.show() }
+        }.start()
+    }
+
     // --- Karta między telefonem a komputerem (z miejscem w filmie, jak 📺 Wyślij do… na Windows) ---
     // --- 🗒 Karteczki (jak na Windows): termin w treści, powtarzanie, przypomnienie dzień wcześniej i w dniu terminu ---
     private fun repeatName(r: String?): String = when {
@@ -1830,6 +2217,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             },
             saveFile = { name, data, dev -> saveToDownloads(name, data, dev) },
             onTab = { dev, url, title, time -> receiveTab(dev, url, title, time) },
+            onMedia = { dev, jf, tv -> receiveMediaConf(dev, jf, tv) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
                     runOnUiThread {
@@ -2019,6 +2407,12 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     @Deprecated("Activity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_MEDIA) {
+            val cb = pickCallback; pickCallback = null
+            if (resultCode != RESULT_OK || data == null) return
+            val uris = data.clipData?.let { cd -> (0 until cd.itemCount).map { cd.getItemAt(it).uri } } ?: listOfNotNull(data.data)
+            cb?.invoke(uris); return
+        }
         if (requestCode != REQ_VLPAIR || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         val text = runCatching {

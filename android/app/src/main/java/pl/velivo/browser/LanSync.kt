@@ -49,6 +49,8 @@ class LanSync(
     private val saveFile: (name: String, data: ByteArray, device: String) -> Unit = { _, _, _ -> },
     // karta wysłana z komputera (📺 Wyślij do… w Velivo na Windows)
     private val onTab: (device: String, url: String, title: String, time: Double) -> Unit = { _, _, _, _ -> },
+    // ustawienia Filmów i TV z komputera (Jellyfin, listy kanałów) - telefon zawsze pyta
+    private val onMedia: (device: String, jellyfin: JSONObject?, tv: JSONArray?) -> Unit = { _, _, _ -> },
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -181,6 +183,7 @@ class LanSync(
             "pair-key" -> pairKey(p, sender)
             "state" -> state(p, sender)
             "tab" -> tab(p)
+            "media-conf" -> mediaConf(p)
         }
     }
 
@@ -310,6 +313,13 @@ class LanSync(
         if (j.optString("to") != id || url.length > 4000 || !(url.startsWith("http://") || url.startsWith("https://"))) return
         val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
         ui(Runnable { onTab(dev, url, j.optString("title").take(300), j.optDouble("time", 0.0)) })
+    }
+
+    private fun mediaConf(p: JSONObject) {
+        val j = openBlob(p) ?: return
+        if (j.optString("to") != id) return
+        val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
+        ui(Runnable { onMedia(dev, j.optJSONObject("jellyfin"), j.optJSONArray("tv")) })
     }
 
     // Telefon → komputer: karta (ten sam format co "📺 Wyślij do…" na Windows).

@@ -151,6 +151,10 @@ Najlepiej ustawić raz, razem z osobą, która będzie korzystać z telefonu:
 - **⏰ Pobudka / planowane włączenie utworu:** przytrzymaj czerwony pasek YouTube → **⏰ Pobudka z utworem…** → wybierz utwór: **z bieżącej karty** (np. otwarty film na YouTube), **z zakładek** albo **z historii** → godzina → kiedy: **codziennie, pon–pt, weekend, wybrane dni** albo **jednorazowo**. O tej porze Velivo włączy się nawet na zablokowanym ekranie i odtworzy utwór z narastającą głośnością; **Wyłącz** albo **Drzemka 10 min**. W tym samym miejscu: **▶ Wypróbuj pobudkę teraz** i **Wyłącz pobudkę**. Ikona budzika na pasku telefonu pokazuje, że pobudka jest ustawiona.
 - Wyłącznik czasowy ma też **Własny czas (minuty)…** – dowolna liczba minut.
 
+## 8a. Filmy i TV
+
+Menu → **Filmy i TV**: 📺 Telewizja (własne listy M3U z programem TV, ⭐ ulubione, 📋 własne listy, przesunięcie palcem = zmiana kanału), 🎬 Biblioteka (Jellyfin: oglądane dalej, filmy, seriale), 📁 Moje filmy (wybrane pliki z telefonu). Odtwarzacz pamięta miejsce, ma obraz w obrazie, granie w tle, wyłącznik 🌙, napisy i lektora. Ustawienia można wysłać z komputera. Szczegóły: `dokumentacja/instrukcja-filmy-tv.md`, rozdział 14.
+
 ## 9. Gdy coś pójdzie nie tak
 
 - Jeśli Velivo zamknie się przez błąd, przy następnym uruchomieniu pokaże okno **„Velivo zamknęło się przez błąd”** z przyciskiem **Kopiuj** – wklej ten opis twórcy Velivo (bez adresów i treści stron – sam przebieg błędu).

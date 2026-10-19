@@ -151,6 +151,10 @@ Best set up once, together with the person who will use the phone:
 - **⏰ Wake-up / scheduled playback:** press and hold the red YouTube bar → **⏰ Wake-up with a track…** → choose the track: **from the current tab** (e.g. an open YouTube video), **from bookmarks** or **from history** → the time → when: **every day, Mon–Fri, weekend, chosen days** or **once**. At that time Velivo opens even on the lock screen and plays the track with the volume rising gently; **Turn off** or **Snooze 10 min**. In the same place: **▶ Try the wake-up now** and **Turn off wake-up**. The alarm icon in the phone's status bar shows a wake-up is set.
 - The sleep timer also has **Custom time (minutes)…** – any number of minutes.
 
+## 8a. Films and TV
+
+Menu → **Films and TV**: 📺 Television (your own M3U lists with a TV guide, ⭐ favourites, 📋 your own lists, swipe = change channel), 🎬 Library (Jellyfin: continue watching, films, series), 📁 My films (chosen files from the phone). The player remembers your place and has picture-in-picture, background play, the 🌙 sleep timer, subtitles and narrator. Settings can be sent from the computer. Details: `dokumentacja/instrukcja-filmy-tv.en.md`, chapter 14.
+
 ## 9. When something goes wrong
 
 - If Velivo closes because of an error, next time it opens it shows **"Velivo closed because of an error"** with a **Copy** button – send that description to the Velivo developer (no addresses or page content – just how the error happened).

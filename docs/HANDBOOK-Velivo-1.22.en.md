@@ -1530,6 +1530,10 @@ Velivo for Android (10 or newer) is a light, private browser in Velivo colours, 
 - **Video position:** the phone remembers where you stopped a video (even without signing in) and carries on from there; stored on the phone only.
 - **🌙 Sleep timer:** press and hold the bar and choose "When this track ends" or 15–90 minutes; "🌙 Stop in 30 min" in the notification (each tap +30 min) – music for sleep stops by itself.
 
+### 31.16 Films and TV on the phone
+- **Where:** menu → Films and TV: 📺 Television, 🎬 Library (Jellyfin), 📁 My films.
+- **What it does:** your own M3U channel lists with a TV guide (EPG), ⭐ favourites and your own lists, swipe to change channel; Jellyfin – continue watching, films, series with posters; chosen files from the phone. Player: remembers your place (Jellyfin on the server too), picture-in-picture, background play, 🌙 sleep timer, subtitles and narrator, brightness and volume gestures. Addresses with tokens and the Jellyfin key are encrypted; settings can be sent from the computer (🎬 Send Films & TV settings).
+
 # Features NOT AVAILABLE IN 1.22
 
 These things were discussed, but **version 1.22 doesn't have them**:
@@ -1991,3 +1995,4 @@ Features described: **339**. The number next to each feature points to its descr
 - **31.13** Two-finger zoom
 - **31.14** Velivo for people with weaker eyesight
 - **31.15** YouTube without adverts, picture-in-picture, music for sleep, wake-up
+- **31.16** Films and TV on the phone

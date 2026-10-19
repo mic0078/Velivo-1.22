@@ -43,6 +43,15 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <!-- odtwarzacz filmów i telewizji: pełny ekran, obraz w obrazie -->
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
         <service
             android:name=".PlaybackService"
             android:exported="false"

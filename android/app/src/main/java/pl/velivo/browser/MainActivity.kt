@@ -1932,13 +1932,13 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         fun reload(refresh: Boolean) {
             scr.setRows(emptyList(), getString(R.string.tv_loading))
             Thread {
-                val all = ArrayList<Tv.Channel>(); val ep = HashMap<String, Map<String, List<Tv.Show>>>(); var err = false
+                val all = ArrayList<Tv.Channel>(); val ep = HashMap<String, Map<String, List<Tv.Show>>>(); var err = ""
                 for (s in Tv.sources(passwords)) {
-                    val c = runCatching { Tv.channels(this, passwords, s, refresh) }.getOrElse { err = true; emptyList() }
+                    val c = runCatching { Tv.channels(this, passwords, s, refresh) }.getOrElse { e -> err += "\n" + s.name + ": " + tvErr(e); emptyList() }
                     all.addAll(c)
                     ep[s.id] = runCatching { Tv.epg(this, s, c, refresh) }.getOrDefault(emptyMap())
                 }
-                runOnUiThread { chans = all; epg = ep; scr.setRows(rows(), info() + if (err) " · " + getString(R.string.tv_error) else "") }
+                runOnUiThread { chans = all; epg = ep; scr.setRows(rows(), info() + if (err.isNotEmpty()) " · " + getString(R.string.tv_error) + err else "") }
             }.start()
         }
         scr.addButton("☰", R.string.tv_filter) {
@@ -1992,6 +1992,17 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // dodanie / zmiana listy: nazwa, adres M3U (albo plik z telefonu), adres programu TV (EPG, opcjonalnie)
+    // powód błędu listy TV bez adresu (adres może zawierać token)
+    private fun tvErr(e: Throwable): String = when (e) {
+        is java.net.UnknownHostException -> "nie znaleziono serwera"
+        is java.net.SocketTimeoutException -> "serwer nie odpowiada"
+        is java.net.ConnectException -> "brak połączenia z serwerem"
+        is javax.net.ssl.SSLException -> "błąd https"
+        is SecurityException -> "brak dostępu do pliku – dodaj go ponownie"
+        is java.io.FileNotFoundException -> "nie ma pliku"
+        else -> (e.message ?: e.javaClass.simpleName).take(80)
+    }
+
     private fun editTvSource(s: Tv.Source?, changed: () -> Unit) {
         val name = EditText(this).apply { setSingleLine(); hint = getString(R.string.tv_source_name); setText(s?.name ?: "") }
         val url = EditText(this).apply { setSingleLine(); hint = getString(R.string.tv_source_url); setText(s?.url ?: ""); inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
@@ -2007,7 +2018,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         box.addView(TextView(this).apply { text = getString(R.string.tv_source_help); textSize = 12f; setTextColor(TEXT); setPadding(0, dp(8), 0, 0) })
         AlertDialog.Builder(this).setTitle(if (s == null) R.string.tv_source_add else R.string.tv_source_edit).setView(ScrollView(this).apply { addView(box) })
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                val u = url.text.toString().trim()
+                var u = url.text.toString().trim().replace(" ", "%20")
+                if (!u.contains("://") && u.contains('.')) u = "http://$u"   // adres wpisany bez http://
                 if (!(u.startsWith("http://") || u.startsWith("https://") || u.startsWith("content://"))) { toast(getString(R.string.tv_source_bad)); return@setPositiveButton }
                 val list = Tv.sources(passwords)
                 val n = Tv.Source(s?.id ?: java.util.UUID.randomUUID().toString().replace("-", "").take(12), name.text.toString().trim().ifEmpty { "TV" }, u, epg.text.toString().trim())

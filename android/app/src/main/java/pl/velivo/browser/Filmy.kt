@@ -33,14 +33,33 @@ object Tv {
     }
 
     private fun open(url: String): InputStream {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 20000; c.readTimeout = 60000; c.instanceFollowRedirects = true
-        c.setRequestProperty("User-Agent", "Velivo")
-        val s = c.inputStream.buffered()
+        var u = url
+        var c: HttpURLConnection
+        var hops = 0
+        while (true) {   // przekierowania także http <-> https (HttpURLConnection sam ich nie robi)
+            c = URL(u).openConnection() as HttpURLConnection
+            c.connectTimeout = 20000; c.readTimeout = 60000; c.instanceFollowRedirects = false
+            c.setRequestProperty("User-Agent", "VLC/3.0.20 LibVLC/3.0.20")   // część serwerów IPTV odrzuca nieznane programy
+            val code = c.responseCode
+            if (code in 300..399 && hops++ < 6) { val loc = c.getHeaderField("Location") ?: break; c.disconnect(); u = URL(URL(u), loc).toString(); continue }
+            if (code >= 400) { c.disconnect(); throw java.io.IOException("HTTP $code") }   // bez adresu - może zawierać token
+            break
+        }
+        return unpack(c.inputStream)
+    }
+
+    private fun unpack(input: InputStream): InputStream {
+        val s = input.buffered()
         s.mark(2)
         val gz = s.read() == 0x1f && s.read() == 0x8b
         s.reset()
-        return if (gz || url.endsWith(".gz")) GZIPInputStream(s) else s
+        return if (gz) GZIPInputStream(s).buffered() else s
+    }
+
+    fun readText(ctx: Context, url: String): String {
+        val bytes = (if (url.startsWith("content://")) unpack(ctx.contentResolver.openInputStream(android.net.Uri.parse(url)) ?: throw java.io.IOException("brak pliku"))
+            else open(url)).use { it.readBytes() }
+        return String(bytes, Charsets.UTF_8).removePrefix("\uFEFF")
     }
 
     // M3U: #EXTINF:-1 tvg-id="…" tvg-logo="…" group-title="…",Nazwa  /  adres w następnej linii
@@ -73,8 +92,9 @@ object Tv {
     fun channels(ctx: Context, pw: Passwords, src: Source, refresh: Boolean): List<Channel> {
         val f = cacheFile(ctx, src.id, ".bin")
         if ((!refresh || src.url.startsWith("velivo-pc:")) && f.exists()) pw.openBytes(f.readBytes())?.let { return parseM3u(src.id, String(it, Charsets.UTF_8)).first }
-        val text = if (src.url.startsWith("content://")) ctx.contentResolver.openInputStream(android.net.Uri.parse(src.url))!!.use { String(it.readBytes(), Charsets.UTF_8) }
-            else open(src.url).use { String(it.readBytes(), Charsets.UTF_8) }
+        if (src.url.startsWith("velivo-pc:")) throw java.io.IOException("lista z komputera - wyślij ją ponownie z Velivo na Windows")
+        val text = readText(ctx, src.url)
+        if (!text.contains("#EXTINF")) throw java.io.IOException("to nie jest lista M3U")
         f.writeBytes(pw.sealBytes(text.toByteArray(Charsets.UTF_8)))
         val (list, epg) = parseM3u(src.id, text)
         if (src.epg.isEmpty() && epg.isNotEmpty()) { src.epg = epg; saveSources(pw, sources(pw).map { if (it.id == src.id) src else it }) }

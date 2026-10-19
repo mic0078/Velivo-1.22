@@ -106,7 +106,7 @@ class KlawiaturaVelivo : InputMethodService() {
     private var addAsk: String? = null    // „Dodać do słownika?”
     private var sentence = StringBuilder()
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
-    private var shift = false; private var caps = false; private var alt = false
+    private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
     private var listening = false
 
     override fun onCreate() {
@@ -143,6 +143,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val info = currentInputEditorInfo
         val wants = info != null && (info.inputType and InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_TEXT &&
             (info.inputType and InputType.TYPE_TEXT_FLAG_CAP_SENTENCES != 0 || info.inputType and InputType.TYPE_MASK_VARIATION == 0)
+        shiftAuto = true   // sama wielka litera na początku zdania - cyfry zostają cyframi
         shift = wants && (b.isEmpty() || b.trimEnd().let { it.isEmpty() || it.last() in ".!?" } && b.endsWith(" ") || b.endsWith("\n"))
     }
 
@@ -158,7 +159,7 @@ class KlawiaturaVelivo : InputMethodService() {
         if (alt) { val i = "acelnoszx".indexOf(ch.lowercaseChar()); if (i >= 0) ch = "ąćęłńóśżź"[i]; if (!caps) alt = false }
         val up = shift xor caps
         if (ch.isLetter()) ch = if (up) ch.uppercaseChar() else ch
-        else if (shift) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) ch = "!@#$%^&*()_+{}:\"<>?"[i] }
+        else if (shift && !shiftAuto) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) ch = "!@#$%^&*()_+{}:\"<>?"[i] }
         if (ch.isLetter()) { ic.commitText(ch.toString(), 1); cur += ch }
         else finishWord(ch.toString())
         if (shift && !caps) shift = false
@@ -414,7 +415,8 @@ class KlawiaturaVelivo : InputMethodService() {
             // nagłówek: ✓ autokorekta, 🔈 klik, 📖 Mój słownik, 🎤 dyktowanie, 🔊 czytanie, PL/EN, ⌄ schowaj
             val hs = listOf("✓" to "fix", "🔈" to "klik", "📖" to "words", (if (listening) "⏺" else "🎤") to "mic", "🔊" to "read", lang(context).uppercase() to "lang", "⌄" to "hide")
             var x = width - pad
-            for ((l, c) in hs.reversed()) { val k = K(l, c, 40 * dp); k.r.set(x - k.w, 4 * dp, x, headH - 2 * dp); head.add(k); x -= k.w + 2 * dp }
+            val bw = min(40 * dp, (width - 44 * dp) / hs.size - 2 * dp)   // przyciski mieszczą się obok logo na każdym telefonie
+            for ((l, c) in hs.reversed()) { val k = K(l, c, bw); k.r.set(x - k.w, 4 * dp, x, headH - 2 * dp); head.add(k); x -= k.w + 2 * dp }
             var y = headH + sugH
             // 4 rzędy jak na Windows; ostatni z ⇧ i ⌫
             val lay = listOf(
@@ -442,7 +444,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 var ch = c[0]
                 if (alt) { val i = "acelnoszx".indexOf(ch); if (i >= 0) ch = "ąćęłńóśżź"[i] }
                 if (ch.isLetter()) return (if (shift xor caps) ch.uppercaseChar() else ch).toString()
-                if (shift) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) return "!@#$%^&*()_+{}:\"<>?"[i].toString() }
+                if (shift && !shiftAuto) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) return "!@#$%^&*()_+{}:\"<>?"[i].toString() }
                 return ch.toString()
             }
             return k.label
@@ -450,19 +452,22 @@ class KlawiaturaVelivo : InputMethodService() {
 
         override fun onDraw(cv: Canvas) {
             val w = width.toFloat(); val h = height.toFloat()
+            p.alpha = 255   // farba z gradientem bierze przezroczystość z poprzedniego klawisza - bez tego całość była blada
             p.shader = LinearGradient(0f, 0f, w, h, intArrayOf(bg1, bg2, bg3), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
             cv.drawRect(0f, 0f, w, h, p); p.shader = null
             if (!contrast) { p.style = Paint.Style.STROKE; p.strokeWidth = dp; p.shader = LinearGradient(0f, 0f, w, 0f, Color.argb(0x90, 0x8B, 0x5C, 0xF6), Color.argb(0x90, 0x06, 0xB6, 0xD4), Shader.TileMode.CLAMP); cv.drawLine(0f, 0.5f, w, 0.5f, p); p.shader = null; p.style = Paint.Style.FILL }
             // logo: zaokrąglony kwadrat w gradiencie, białe V; „Velivo by Michael”
             val lg = RectF(8 * dp, 8 * dp, 8 * dp + 24 * dp, 8 * dp + 24 * dp)
-            p.shader = LinearGradient(lg.left, lg.top, lg.right, lg.bottom, intArrayOf(violet, mid, cyan), null, Shader.TileMode.CLAMP)
+            p.alpha = 255; p.shader = LinearGradient(lg.left, lg.top, lg.right, lg.bottom, intArrayOf(violet, mid, cyan), null, Shader.TileMode.CLAMP)
             cv.drawRoundRect(lg, 6 * dp, 6 * dp, p); p.shader = null
             tp.color = Color.WHITE; tp.textSize = 16 * dp; tp.typeface = Typeface.DEFAULT_BOLD
             cv.drawText("V", lg.centerX(), lg.centerY() + 6 * dp, tp)
             tp.textAlign = Paint.Align.LEFT; tp.textSize = 13 * dp; tp.color = text
-            cv.drawText("Velivo", lg.right + 8 * dp, lg.centerY() + 5 * dp, tp)
-            val vw = tp.measureText("Velivo"); tp.typeface = Typeface.DEFAULT; tp.color = dim
-            cv.drawText(" by Michael", lg.right + 8 * dp + vw, lg.centerY() + 5 * dp, tp)
+            val room = (head.minOfOrNull { it.r.left } ?: w) - 6 * dp
+            val vw = tp.measureText("Velivo")
+            if (lg.right + 8 * dp + vw < room) cv.drawText("Velivo", lg.right + 8 * dp, lg.centerY() + 5 * dp, tp)
+            tp.typeface = Typeface.DEFAULT; tp.color = dim
+            if (lg.right + 8 * dp + vw + tp.measureText(" by Michael") < room) cv.drawText(" by Michael", lg.right + 8 * dp + vw, lg.centerY() + 5 * dp, tp)
             tp.textAlign = Paint.Align.CENTER
             for (k in head) {
                 val on = when (k.code) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; else -> false }
@@ -486,7 +491,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 tp.textSize = (if (l.length > 2) 14 else 20) * dp; tp.color = if (on) Color.WHITE else text
                 cv.drawText(l, k.r.centerX(), k.r.centerY() + 7 * dp, tp)
                 // mała podpowiedź znaku z ⇧ / polskiej litery w rogu
-                val hint = if (k.code.length == 1) { val i = "acelnoszx".indexOf(k.code[0]); if (i >= 0 && !alt) "ąćęłńóśżź"[i].toString() else { val j = "1234567890-=[];',./".indexOf(k.code[0]); if (j >= 0 && !shift) "!@#$%^&*()_+{}:\"<>?"[j].toString() else "" } } else ""
+                val hint = if (k.code.length == 1) { val i = "acelnoszx".indexOf(k.code[0]); if (i >= 0 && !alt) "ąćęłńóśżź"[i].toString() else { val j = "1234567890-=[];',./".indexOf(k.code[0]); if (j >= 0 && !(shift && !shiftAuto)) "!@#$%^&*()_+{}:\"<>?"[j].toString() else "" } } else ""
                 if (hint.isNotEmpty()) { tp.textSize = 10 * dp; tp.color = dim; cv.drawText(hint, k.r.right - 7 * dp, k.r.top + 12 * dp, tp) }
             }
             // ślad przeciągania w gradiencie logo
@@ -511,7 +516,7 @@ class KlawiaturaVelivo : InputMethodService() {
 
         // klawisz ze szkła; włączony / wciśnięty - gradient logo (fiolet -> turkus)
         private fun key(cv: Canvas, r: RectF, on: Boolean, fn: Boolean) {
-            if (on) { p.shader = LinearGradient(r.left, 0f, r.right, 0f, Color.rgb(0x7C, 0x3A, 0xED), cyan, Shader.TileMode.CLAMP) }
+            if (on) { p.alpha = 255; p.shader = LinearGradient(r.left, 0f, r.right, 0f, Color.rgb(0x7C, 0x3A, 0xED), cyan, Shader.TileMode.CLAMP) }
             else if (!contrast && !fn) {
                 // kolory przechodzą po klawiszach jak w logo: lewy górny fiolet -> prawy dolny turkus (subtelnie)
                 val f = ((r.centerX() / max(1, width)) + (r.centerY() / max(1, height))) / 2
@@ -533,7 +538,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 k.code == "bs" -> { longDone = true; post(repeat) }
                 // przytrzymanie litery: polska litera (a -> ą), cyfry - znak z ⇧
                 k.code.length == 1 && "acelnoszx".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = alt; alt = true; type(k.code[0]); alt = was; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
-                k.code.length == 1 && "1234567890-=[];',./".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = shift; shift = true; type(k.code[0]); shift = was }
+                k.code.length == 1 && "1234567890-=[];',./".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = shift; val wa = shiftAuto; shift = true; shiftAuto = false; type(k.code[0]); shift = was; shiftAuto = wa }
                 k.code == "space" -> { longDone = true; (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker() }
             }
         }
@@ -605,8 +610,8 @@ class KlawiaturaVelivo : InputMethodService() {
 
         private fun keyAction(k: K) {
             when (k.code) {
-                "shift" -> { if (caps) { caps = false; shift = false } else shift = !shift; refresh() }
-                "caps" -> { caps = !caps; shift = caps; refresh() }
+                "shift" -> { if (caps) { caps = false; shift = false } else shift = !shift; shiftAuto = false; refresh() }
+                "caps" -> { caps = !caps; shift = caps; shiftAuto = false; refresh() }
                 "alt" -> { alt = !alt; refresh() }
                 "bs" -> backspace()
                 "bsw" -> deleteWord()

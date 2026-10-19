@@ -398,6 +398,10 @@ set(p0,p);})"""
             "document.addEventListener('pause',function(e){var v=e.target;if(!v||v.tagName!=='VIDEO'||v.ended||Date.now()-window.__vpipT>3000)return;" +
             "console.log('Velivo-PiP wznawiam');setTimeout(function(){v.play().catch(function(x){console.log('Velivo-PiP play blad '+x)})},150)},true)})()", null)
         else web()?.evaluateJavascript("window.__vpipT=0", null)
+        // diagnostyka: stan filmu po wejściu w okienko, zapisywany bez konsoli strony
+        if (pip) { web()?.evaluateJavascript(pipJs, null); listOf(500L, 1500L, 3000L, 6000L, 10000L).forEach { d ->
+            window.decorView.postDelayed({ web()?.evaluateJavascript("(function(){var v=document.querySelector('video');return v?('pauza='+v.paused+' czas='+v.currentTime.toFixed(1)+' gotowy='+v.readyState+' filmow='+document.querySelectorAll('video').length):'brak filmu'})()") {
+                android.util.Log.i("Velivo-PiP", "po ${d} ms: $it (okienko: $isInPictureInPictureMode)") } }, d) } }
     }
 
     // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu

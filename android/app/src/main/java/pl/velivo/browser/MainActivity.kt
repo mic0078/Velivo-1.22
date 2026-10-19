@@ -387,27 +387,16 @@ set(p0,p);})"""
 
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
         super.onPictureInPictureModeChanged(pip, cfg)
-        // pełny ekran filmu zostaje w okienku (jego zamknięcie YouTube kwituje pauzą i ponownym pełnym ekranem - pętla);
-        // bez blokady obrotu i z nowym rozmiarem, żeby film wypełnił okienko zamiast szarego pola
-        fullView?.let { v -> requestedOrientation = if (pip) ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED else ActivityInfo.SCREEN_ORIENTATION_SENSOR; v.requestLayout(); v.invalidate() }
         pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
         // w okienku tylko film, na całą powierzchnię
         web()?.evaluateJavascript(if (pip) "(function(){var s=document.getElementById('velivo-pip')||document.createElement('style');s.id='velivo-pip';" +
             "s.textContent='video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
             "document.documentElement.appendChild(s);var v=document.querySelector('video');if(v&&v.paused)v.play();})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
-        // z pełnego ekranu: YouTube zamyka pełny ekran przy zmianie rozmiaru i przy tym pauzuje - wznów jeszcze kilka razy
-        if (pip) for (d in longArrayOf(400, 1200, 2500)) pipCheck.postDelayed({
-            if (isInPictureInPictureMode) web()?.evaluateJavascript("(function(){var v=document.querySelector('video');if(v&&v.paused&&!v.ended){var p=v.play();if(p&&p.catch)p.catch(function(){})}})()", null)
-        }, d)
     }
 
-    // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu; ale zgaszony / zablokowany ekran z okienkiem
-    // to nie zamknięcie - muzyka gra dalej (jak przy graniu w tle)
+    // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu
     override fun onStop() {
         super.onStop()
-        val screenOff = getSystemService(android.os.PowerManager::class.java)?.isInteractive == false ||
-            getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
-        if (isInPictureInPictureMode && screenOff && prefs.getBoolean("tlo", true)) { PlaybackService.start(this, web()?.title ?: ""); return }
         if (isInPictureInPictureMode) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
             PlaybackService.stop(this)

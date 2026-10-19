@@ -310,4 +310,11 @@
         <item>Dla dzieci</item>
         <item>Inne</item>
     </string-array>
+    <string name="tv_at_now">Teraz</string>
+    <string name="tv_at_evening">Dziś wieczorem 20:00</string>
+    <string name="tv_at_tomorrow">Jutro 20:00</string>
+    <string name="tv_at_pick">Wybierz dzień i godzinę…</string>
+    <string name="tv_today">Dziś</string>
+    <string name="tv_tomorrow">Jutro</string>
+    <string name="tv_day_after">Pojutrze</string>
 </resources>

@@ -103,13 +103,13 @@ object Tv {
 
     // Program TV (XMLTV): tylko kanały z listy i tylko od 6 godzin wstecz do 2 dni naprzód - mało pamięci, szybko
     fun epg(ctx: Context, src: Source, chans: List<Channel>, refresh: Boolean): Map<String, List<Show>> {
-        val f = cacheFile(ctx, src.id, ".epg2.json")
+        val f = cacheFile(ctx, src.id, ".epg3.json")
         if (!refresh && f.exists() && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L) readEpg(f)?.let { return it }
         if (src.epg.isEmpty()) return emptyMap()
         val wanted = HashSet<String>()
         chans.forEach { keys(it).forEach { k -> wanted.add(k) } }
         val from = System.currentTimeMillis() - 6 * 3600_000L
-        val to = System.currentTimeMillis() + 48 * 3600_000L
+        val to = System.currentTimeMillis() + 72 * 3600_000L   // program na 3 dni
         val names = HashMap<String, MutableList<String>>()   // id kanału w programie -> nazwy
         val out = HashMap<String, MutableList<Show>>()
         open(src.epg).use { input ->
@@ -177,8 +177,8 @@ object Tv {
     fun epgKey(name: String): String { val k = qualityTag.replace(name.lowercase().replace(".pl", ""), ""); return if (k.isEmpty()) "" else "@$k" }
     private fun keys(ch: Channel) = listOf(ch.tvgId.lowercase(), ch.name.lowercase(), epgKey(ch.tvgId), epgKey(ch.name)).filter { it.isNotEmpty() }.distinct()
 
-    fun nowNext(epg: Map<String, List<Show>>, ch: Channel): Pair<Show?, Show?> {
-        val l = showsFor(epg, ch); val t = System.currentTimeMillis()
+    fun nowNext(epg: Map<String, List<Show>>, ch: Channel, t: Long = System.currentTimeMillis()): Pair<Show?, Show?> {
+        val l = showsFor(epg, ch)
         val i = l.indexOfFirst { it.start <= t && it.stop > t }
         return if (i < 0) null to l.firstOrNull { it.start > t } else l[i] to l.getOrNull(i + 1)
     }

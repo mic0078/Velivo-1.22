@@ -1905,18 +1905,19 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         var chans = listOf<Tv.Channel>()
         var epg = mapOf<String, Map<String, List<Tv.Show>>>()
         var filter = prefs.getString("tv-filtr", "") ?: ""   // "" wszystkie, "*" ulubione, "L:nazwa" własna lista, "G:grupa" grupa
+        var at = 0L   // 📅 program na wybraną godzinę; 0 = teraz
         lateinit var scr: MediaScreen
         fun rows(): List<MRow> {
             val fav = tvFavs()
             val keys = when { filter == "*" -> fav; filter.startsWith("L:") -> tvListKeys(filter.substring(2)); else -> null }
             return chans.filter { ch -> keys?.contains(ch.key) ?: (!filter.startsWith("G:") || ch.group == filter.substring(2)) }.map { ch ->
-                val (now, nxt) = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch)
+                val (now, nxt) = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch, if (at > 0) at else System.currentTimeMillis())
                 val sub = listOfNotNull(now?.let { getString(R.string.tv_now, it.title, fmtTime(it.stop)) }, nxt?.let { getString(R.string.tv_next, fmtTime(it.start), it.title) })
                     .joinToString("\n").ifEmpty { if (filter.startsWith("G:")) "" else ch.group }   // grupa tylko przy wszystkich kanałach - przy wybranej grupie to powtórka nagłówka
                 MRow(ch.name, sub, ch.logo.ifEmpty { null }, star = ch.key in fav, tag = ch)
             }
         }
-        fun info() = getString(R.string.tv_count, chans.size) + " · " + when {
+        fun info() = getString(R.string.tv_count, chans.size) + (if (at > 0) " · 📅 " + java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault()).format(java.util.Date(at)) else "") + " · " + when {
             filter == "*" -> "⭐ " + getString(R.string.tv_fav); filter.startsWith("L:") -> "📋 " + filter.substring(2)
             filter.startsWith("G:") -> filter.substring(2); else -> getString(R.string.tv_all) }
         val watched = prefs.getStringSet("tv-ogladane", emptySet())!!
@@ -1940,6 +1941,23 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 }
                 runOnUiThread { chans = all; epg = ep; scr.setRows(rows(), info() + if (err.isNotEmpty()) " · " + getString(R.string.tv_error) + err else "") }
             }.start()
+        }
+        scr.addButton("📅", R.string.tv_guide) {   // pełny program: co leci na wszystkich kanałach o wybranej porze
+            fun dayAt(days: Int, h: Int, m: Int) = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, days); set(java.util.Calendar.HOUR_OF_DAY, h); set(java.util.Calendar.MINUTE, m); set(java.util.Calendar.SECOND, 0) }.timeInMillis
+            val opts = listOf(getString(R.string.tv_at_now), getString(R.string.tv_at_evening), getString(R.string.tv_at_tomorrow), getString(R.string.tv_at_pick))
+            AlertDialog.Builder(this).setTitle(R.string.tv_guide).setItems(opts.toTypedArray()) { _, i ->
+                when (i) {
+                    0 -> { at = 0; scr.setRows(rows(), info()) }
+                    1 -> { at = dayAt(0, 20, 0); scr.setRows(rows(), info()) }
+                    2 -> { at = dayAt(1, 20, 0); scr.setRows(rows(), info()) }
+                    else -> {
+                        val days = arrayOf(getString(R.string.tv_today), getString(R.string.tv_tomorrow), getString(R.string.tv_day_after))
+                        AlertDialog.Builder(this).setItems(days) { _, d ->
+                            android.app.TimePickerDialog(this, { _, h, m -> at = dayAt(d, h, m); scr.setRows(rows(), info()) }, 20, 0, true).show()
+                        }.show()
+                    }
+                }
+            }.show()
         }
         scr.addButton("☰", R.string.tv_filter) {
             val groups = chans.map { it.group }.filter { it.isNotEmpty() }.distinct().sorted()

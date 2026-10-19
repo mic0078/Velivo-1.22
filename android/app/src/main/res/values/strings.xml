@@ -310,4 +310,11 @@
         <item>For children</item>
         <item>Other</item>
     </string-array>
+    <string name="tv_at_now">Now</string>
+    <string name="tv_at_evening">Tonight 20:00</string>
+    <string name="tv_at_tomorrow">Tomorrow 20:00</string>
+    <string name="tv_at_pick">Pick day and time…</string>
+    <string name="tv_today">Today</string>
+    <string name="tv_tomorrow">Tomorrow</string>
+    <string name="tv_day_after">Day after tomorrow</string>
 </resources>

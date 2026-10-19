@@ -327,4 +327,11 @@
     <string name="player_no_tracks">No audio or subtitle tracks to choose</string>
     <string name="sleep_show_end">📺 After this programme ends (%1$d min)</string>
     <string name="sleep_film_end">🎬 After this film ends (%1$d min)</string>
+    <string name="tv_plan_watch">▶ Watch now</string>
+    <string name="tv_plan_at">⏰ Turn on at %1$s</string>
+    <string name="tv_plan_remove">Remove from schedule</string>
+    <string name="tv_plans">⏰ Scheduled</string>
+    <string name="tv_plans_empty">Nothing scheduled</string>
+    <string name="tv_plan_set">Scheduled: %1$s at %2$s</string>
+    <string name="tv_all_shows">📋 What\'s on when (list)</string>
 </resources>

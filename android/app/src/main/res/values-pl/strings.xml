@@ -327,4 +327,11 @@
     <string name="player_no_tracks">Brak ścieżek dźwięku i napisów do wyboru</string>
     <string name="sleep_show_end">📺 Po zakończeniu tego programu (%1$d min)</string>
     <string name="sleep_film_end">🎬 Po zakończeniu filmu (%1$d min)</string>
+    <string name="tv_plan_watch">▶ Oglądaj teraz</string>
+    <string name="tv_plan_at">⏰ Włącz o %1$s</string>
+    <string name="tv_plan_remove">Usuń z planu</string>
+    <string name="tv_plans">⏰ Zaplanowane</string>
+    <string name="tv_plans_empty">Nic nie zaplanowano</string>
+    <string name="tv_plan_set">Zaplanowano: %1$s o %2$s</string>
+    <string name="tv_all_shows">📋 Co i kiedy (lista audycji)</string>
 </resources>

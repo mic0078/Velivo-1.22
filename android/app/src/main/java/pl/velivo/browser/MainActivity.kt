@@ -184,6 +184,7 @@ class MainActivity : Activity() {
         Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
         if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
+        if (intent?.action == TvPlan.ACTION) window.decorView.post { startPlanned(intent.getIntExtra("id", -1)) }
         Thread { runCatching { vaultDomains = passwords.all().map { Ochrona.regDomain(it.host) }.filter { it.contains('.') }.toHashSet() } }.start()
         // Powiadomienie odtwarzania w tle wymaga zgody (Android 13+).
         if (Build.VERSION.SDK_INT >= 33 && prefs.getBoolean("tlo", true) && !prefs.getBoolean("zapytano-powiadomienia", false)) {
@@ -254,6 +255,7 @@ set(p0,p);})"""
         super.onNewIntent(intent)
         if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
         if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
+        if (intent.action == TvPlan.ACTION) { startPlanned(intent.getIntExtra("id", -1)); return }
         if (intent.action == PlaybackService.ACTION_SLEEP) { setSleep(((sleepAt - System.currentTimeMillis()).coerceAtLeast(0) / 60000).toInt() + 30); moveTaskToBack(true); return }
         if (intent.action == PlaybackService.ACTION_STOP) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
@@ -1925,6 +1927,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         scr = MediaScreen("📺 " + getString(R.string.tv), "tv", listOf(getString(R.string.sort_fav_first), getString(R.string.sort_az), getString(R.string.tv_sort_list)),
             sorter = { l, s -> when (s) { 0 -> l.sortedWith(compareBy({ it.star != true }, { it.title.lowercase() })); 1 -> l.sortedBy { it.title.lowercase() }; else -> l } },
             onOpen = { r, shownRows ->
+                val future = if (at > System.currentTimeMillis() + 60_000) Tv.nowNext(epg[(r.tag as Tv.Channel).source] ?: emptyMap(), r.tag as Tv.Channel, at).first else null
+                if (future != null) { showOpts(r.tag as Tv.Channel, future); return@MediaScreen }   // 📅 audycja później - zaplanuj albo oglądaj
                 val items = shownRows.map { val ch = it.tag as Tv.Channel; PlayerActivity.Item(ch.name, ch.url, null, info = it.sub, desc = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.desc ?: "", endsAt = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.stop ?: 0L) }
                 prefs.edit().putStringSet("tv-ogladane", watched + (r.tag as Tv.Channel).key).apply()
                 play(items, shownRows.indexOf(r), live = true)
@@ -1948,13 +1952,15 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }
         scr.addButton("📅", R.string.tv_guide) {   // pełny program: co leci na wszystkich kanałach o wybranej porze
             fun dayAt(days: Int, h: Int, m: Int) = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, days); set(java.util.Calendar.HOUR_OF_DAY, h); set(java.util.Calendar.MINUTE, m); set(java.util.Calendar.SECOND, 0) }.timeInMillis
-            val opts = listOf(getString(R.string.tv_at_now), getString(R.string.tv_at_evening), getString(R.string.tv_at_tomorrow), getString(R.string.tv_at_pick))
+            val opts = listOf(getString(R.string.tv_at_now), getString(R.string.tv_at_evening), getString(R.string.tv_at_tomorrow), getString(R.string.tv_at_pick), getString(R.string.tv_plans), getString(R.string.tv_all_shows))
             AlertDialog.Builder(this).setTitle(R.string.tv_guide).setItems(opts.toTypedArray()) { _, i ->
                 when (i) {
                     0 -> { at = 0; scr.setRows(rows(), info()) }
                     1 -> { at = dayAt(0, 20, 0); scr.setRows(rows(), info()) }
                     2 -> { at = dayAt(1, 20, 0); scr.setRows(rows(), info()) }
-                    else -> {
+                    4 -> showPlans()
+                    5 -> showAllShows(rows().map { it.tag as Tv.Channel }, epg)
+                    3 -> {
                         val days = arrayOf(getString(R.string.tv_today), getString(R.string.tv_tomorrow), getString(R.string.tv_day_after))
                         AlertDialog.Builder(this).setItems(days) { _, d ->
                             android.app.TimePickerDialog(this, { _, h, m -> at = dayAt(d, h, m); scr.setRows(rows(), info()) }, 20, 0, true).show()
@@ -1978,16 +1984,76 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // przytrzymanie kanału: program TV, własne listy
+    // 📅 pełny program kanału: dni i godziny, ⏰ przy zaplanowanych; stuknięcie - oglądaj albo zaplanuj
+    private fun showGuide(ch: Tv.Channel, epg: Map<String, List<Tv.Show>>) {
+        val now = System.currentTimeMillis()
+        val day = java.text.SimpleDateFormat("EEE d.MM", java.util.Locale.getDefault())
+        fun rows() = Tv.showsFor(epg, ch).filter { it.stop > now }.map { s ->
+            val planned = TvPlan.find(this, ch.key, s.start) != null
+            MRow((if (planned) "⏰ " else if (s.start <= now) "▶ " else "") + fmtTime(s.start) + "  " + s.title, day.format(java.util.Date(s.start)) + " · " + fmtTime(s.start) + "–" + fmtTime(s.stop) + if (s.desc.isNotEmpty()) "\n" + s.desc else "", null, tag = s)
+        }
+        lateinit var scr: MediaScreen
+        scr = MediaScreen("📅 " + ch.name, "tv-guide", listOf(getString(R.string.tv_sort_list)), sorter = { l, _ -> l },
+            onOpen = { r, _ -> showOpts(ch, r.tag as Tv.Show) { scr.setRows(rows(), "") } })
+        scr.show()
+        scr.setRows(rows(), if (Tv.showsFor(epg, ch).isEmpty()) getString(R.string.tv_no_guide) else "")
+    }
+
+    // audycja: trwa - oglądaj; później - ⏰ włącz o tej godzinie (albo usuń z planu)
+    private fun showOpts(ch: Tv.Channel, s: Tv.Show, changed: () -> Unit = {}) {
+        val now = System.currentTimeMillis()
+        val plan = TvPlan.find(this, ch.key, s.start)
+        val opts = mutableListOf<Pair<String, () -> Unit>>()
+        opts.add(getString(R.string.tv_plan_watch) to { playChannel(ch) })
+        if (s.start > now) opts.add(if (plan == null) getString(R.string.tv_plan_at, fmtTime(s.start)) to { TvPlan.add(this, ch, s); toast(getString(R.string.tv_plan_set, s.title, fmtTime(s.start))); changed() }
+            else getString(R.string.tv_plan_remove) to { TvPlan.remove(this, plan.id); changed() })
+        AlertDialog.Builder(this).setTitle(s.title).setMessage(fmtTime(s.start) + "–" + fmtTime(s.stop) + if (s.desc.isNotEmpty()) "\n\n" + s.desc else "")
+            .setItems(opts.map { it.first }.toTypedArray()) { _, i -> opts[i].second() }.show()
+    }
+
+    // 📋 co i kiedy: audycje kanałów z bieżącego widoku (grupa, ulubione, lista) na najbliższą dobę, według godziny
+    private fun showAllShows(chans: List<Tv.Channel>, epg: Map<String, Map<String, List<Tv.Show>>>) {
+        val now = System.currentTimeMillis(); val to = now + 24 * 3600_000L
+        val day = java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault())
+        val all = chans.flatMap { ch -> Tv.showsFor(epg[ch.source] ?: emptyMap(), ch).filter { it.stop > now && it.start < to }.map { ch to it } }.sortedBy { it.second.start }.take(4000)
+        fun rows() = all.map { (ch, s) -> MRow((if (TvPlan.find(this, ch.key, s.start) != null) "⏰ " else if (s.start <= now) "▶ " else "") + day.format(java.util.Date(s.start)) + "  " + s.title, ch.name + " · " + fmtTime(s.start) + "–" + fmtTime(s.stop), ch.logo.ifEmpty { null }, tag = ch to s) }
+        lateinit var scr: MediaScreen
+        scr = MediaScreen("📋 " + getString(R.string.tv_all_shows), "tv-all", listOf(getString(R.string.tv_sort_list)), sorter = { l, _ -> l },
+            onOpen = { r, _ -> @Suppress("UNCHECKED_CAST") val p = r.tag as Pair<Tv.Channel, Tv.Show>; showOpts(p.first, p.second) { scr.setRows(rows(), "") } })
+        scr.show()
+        scr.setRows(rows(), if (all.isEmpty()) getString(R.string.tv_no_guide) else "")
+    }
+
+    private fun showPlans() {
+        val l = TvPlan.list(this)
+        if (l.isEmpty()) { toast(getString(R.string.tv_plans_empty)); return }
+        val day = java.text.SimpleDateFormat("EEE d.MM HH:mm", java.util.Locale.getDefault())
+        AlertDialog.Builder(this).setTitle(R.string.tv_plans).setItems(l.map { "⏰ " + day.format(java.util.Date(it.at)) + "  " + it.show + "\n" + it.channel }.toTypedArray()) { _, i ->
+            AlertDialog.Builder(this).setTitle(l[i].show).setItems(arrayOf(getString(R.string.tv_plan_remove))) { _, _ -> TvPlan.remove(this, l[i].id) }.show()
+        }.show()
+    }
+
+    // kanał z listy (zapis w telefonie) - z kolejką całej listy, by działały ⏮ ⏭
+    private fun playChannel(ch: Tv.Channel, wake: Boolean = false) {
+        Thread {
+            val src = Tv.sources(passwords).firstOrNull { it.id == ch.source } ?: return@Thread
+            val all = runCatching { Tv.channels(this, passwords, src, false) }.getOrNull() ?: return@Thread
+            val i = all.indexOfFirst { it.key == ch.key }.coerceAtLeast(0)
+            runOnUiThread { PlayerActivity.wake = wake; play(all.map { PlayerActivity.Item(it.name, it.url, null) }, i, live = true) }
+        }.start()
+    }
+
+    // ⏰ zaplanowana audycja: o czasie Velivo samo włącza kanał (także przy zablokowanym ekranie)
+    private fun startPlanned(id: Int) {
+        val p = TvPlan.get(this, id) ?: return
+        TvPlan.remove(this, id)
+        playChannel(Tv.Channel(p.src, p.key.substringAfter('|'), "", "", "", ""), wake = true)
+    }
+
     private fun tvChannelMenu(ch: Tv.Channel, epg: Map<String, List<Tv.Show>>, changed: () -> Unit) {
         val lists = tvLists().keys().asSequence().toList().sorted()
         val opts = mutableListOf<Pair<String, () -> Unit>>()
-        opts.add(getString(R.string.tv_guide) to {
-            val now = System.currentTimeMillis()
-            val shows = Tv.showsFor(epg, ch).filter { it.stop > now }.take(30)
-            val text = if (shows.isEmpty()) getString(R.string.tv_no_guide) else shows.joinToString("\n\n") {
-                java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it.start)) + "  " + it.title + if (it.desc.isNotEmpty()) "\n" + it.desc.take(160) else "" }
-            AlertDialog.Builder(this).setTitle("📺 " + ch.name).setMessage(text).setPositiveButton(android.R.string.ok, null).show()
-        })
+        opts.add(getString(R.string.tv_guide) to { showGuide(ch, epg) })
         for (l in lists) {
             val inL = ch.key in tvListKeys(l)
             opts.add(getString(if (inL) R.string.tv_list_remove else R.string.tv_list_add, l) to { tvSetList(l, if (inL) tvListKeys(l) - ch.key else tvListKeys(l) + ch.key); changed() })

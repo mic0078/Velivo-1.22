@@ -46,6 +46,7 @@ class PlayerActivity : Activity() {
         var queue: List<Item> = emptyList()
         var index = 0
         var live = false
+        var wake = false   // ⏰ zaplanowana audycja - włącz ekran i pokaż na blokadzie
         var current: WeakReference<PlayerActivity>? = null
         fun pauseIfPlaying() { current?.get()?.player?.pause() }
         private const val UA = "VLC/3.0.20 LibVLC/3.0.20"
@@ -81,6 +82,7 @@ class PlayerActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         current = WeakReference(this)
+        if (wake) { wake = false; setShowWhenLocked(true); setTurnScreenOn(true) }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.setBackgroundColor(Color.BLACK)
         window.insetsController?.let { it.hide(WindowInsets.Type.systemBars()); it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE }

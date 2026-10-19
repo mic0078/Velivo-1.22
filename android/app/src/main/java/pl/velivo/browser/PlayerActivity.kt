@@ -74,14 +74,19 @@ class PlayerActivity : Activity() {
         window.decorView.setBackgroundColor(Color.BLACK)
         window.insetsController?.let { it.hide(WindowInsets.Type.systemBars()); it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE }
 
-        val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent("Velivo")
+        val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent("VLC/3.0.20 LibVLC/3.0.20")   // serwery IPTV często wpuszczają tylko znane odtwarzacze
+            .setConnectTimeoutMs(15000).setReadTimeoutMs(20000)
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http)))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             .setHandleAudioBecomingNoisy(true)   // słuchawki wyjęte - pauza
             .build()
         player.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) { toast(getString(R.string.player_error)) }   // bez adresu (może mieć token)
+            override fun onPlayerError(error: PlaybackException) {
+                // kanał bez rozszerzenia w adresie: drugi raz jako HLS albo jako zwykły strumień (MPEG-TS)
+                if (retryAs < 2) { retryAs++; load(index, keepRetry = true); return }
+                toast(getString(R.string.player_error))   // bez adresu (może mieć token)
+            }
             override fun onIsPlayingChanged(isPlaying: Boolean) { updatePip() }
             override fun onPlaybackStateChanged(state: Int) { if (state == Player.STATE_ENDED && !live) { savePos(); next(1) } }
         })
@@ -89,6 +94,7 @@ class PlayerActivity : Activity() {
 
         view = PlayerView(this).apply {
             player = this@PlayerActivity.player
+            setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)   // kółko ładowania zamiast czarnego ekranu
             setShowSubtitleButton(true)   // napisy i ścieżki dźwięku (lektor / język) w ustawieniach odtwarzacza
             setBackgroundColor(Color.BLACK)
             keepScreenOn = true
@@ -115,17 +121,24 @@ class PlayerActivity : Activity() {
     private var httpFactory: DefaultHttpDataSource.Factory? = null
 
     private fun btn(label: String, tip: Int, click: () -> Unit) = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
-        text = label; textSize = 20f; setTextColor(Color.WHITE); contentDescription = getString(tip); tooltipText = getString(tip)
+        text = label; textSize = 20f; setTextColor(Color.parseColor("#ECE8FF")); contentDescription = getString(tip); tooltipText = getString(tip)
+        background = android.graphics.drawable.GradientDrawable().apply { setColor(Color.parseColor("#CC2E2768")); cornerRadius = dp(14).toFloat(); setStroke(dp(1), Color.parseColor("#4A3F8A")) }   // kolory Velivo
+        setPadding(0, 0, 0, 0); minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = 0
         setOnClickListener { click() }
-        layoutParams = LinearLayout.LayoutParams(dp(52), dp(48))
+        layoutParams = LinearLayout.LayoutParams(dp(52), dp(48)).apply { setMargins(dp(4), 0, dp(4), 0) }
     }
 
-    private fun load(i: Int) {
+    private var retryAs = 0   // 0 jak w adresie, 1 HLS, 2 zwykły strumień
+
+    private fun load(i: Int, keepRetry: Boolean = false) {
         val it = queue.getOrNull(i) ?: return finish()
+        if (!keepRetry) retryAs = 0
         index = i
         titleView.text = it.title + if (it.info.isNotEmpty()) "\n" + it.info else ""
         httpFactory?.setDefaultRequestProperties(it.headers)   // np. klucz Jellyfin w nagłówku, nie w adresie
-        player.setMediaItem(MediaItem.fromUri(it.uri))
+        val mi = MediaItem.Builder().setUri(it.uri)
+        when (retryAs) { 1 -> mi.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8); 2 -> mi.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T) }
+        player.setMediaItem(mi.build())
         player.prepare()
         val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f
         if (!live && pos > 15f) { player.seekTo((pos * 1000).toLong()); toast(getString(R.string.video_resumed, String.format("%d:%02d", pos.toInt() / 60, pos.toInt() % 60))) }

@@ -56,6 +56,7 @@ if (-not (Test-Path $lp)) {
 # Klucz podpisu: sciezka zapamietana poza repozytorium, hasla tylko w pamieci na czas budowy
 $cfg = Join-Path $cfgDir 'klucz.txt'
 $ks = if (Test-Path $cfg) { (Get-Content $cfg -Raw).Trim() } else { '' }
+if (-not $ks -or -not (Test-Path $ks)) { $def = Join-Path $env:USERPROFILE 'Documents\velivo-klucz.jks'; if (Test-Path $def) { $ks = $def; Set-Content $cfg $ks } }   # domyslnie: Dokumenty\velivo-klucz.jks
 if (-not $ks -or -not (Test-Path $ks)) {
     $ks = (Read-Host "Pelna sciezka do pliku klucza (.jks), np. C:\Users\andro\Velivo-klucz.jks").Trim('"', ' ')
     if (-not (Test-Path $ks)) { Write-Host "Nie ma takiego pliku: $ks" -ForegroundColor Red; exit 1 }

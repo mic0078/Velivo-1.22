@@ -199,4 +199,25 @@
     <string name="sleep_track">When this track ends</string>
     <string name="sleep_track_set">⏾ Playback will stop after this track</string>
     <string name="sleep_track_none">Nothing is playing</string>
+    <string name="wake_menu">⏰ Wake-up with a track…</string>
+    <string name="wake_menu_on">⏰ Wake-up: %1$s</string>
+    <string name="wake_this">⏰ Wake me with this track: %1$s</string>
+    <string name="wake_set">⏰ Wake-up every day at %1$s</string>
+    <string name="wake_test">▶ Try the wake-up now</string>
+    <string name="wake_off">Turn off wake-up</string>
+    <string name="wake_off_done">Wake-up turned off</string>
+    <string name="wake_need_track">First open the track (e.g. on YouTube) you want to wake up to</string>
+    <string name="wake_title_on">⏰ Wake-up at %1$s – %2$s</string>
+    <string name="wake_now">⏰ Good morning!</string>
+    <string name="wake_stop">Turn off</string>
+    <string name="wake_snooze">Snooze 10 min</string>
+    <string name="wake_from_bookmarks">⏰ Choose a track from bookmarks</string>
+    <string name="wake_from_history">⏰ Choose a track from history</string>
+    <string name="days_title">When to wake you?</string>
+    <string name="days_all">Every day</string>
+    <string name="days_work">Mon–Fri (weekdays)</string>
+    <string name="days_weekend">Weekend</string>
+    <string name="days_pick">Chosen days…</string>
+    <string name="days_once">Once</string>
+    <string name="sleep_own">Custom time (minutes)…</string>
 </resources>

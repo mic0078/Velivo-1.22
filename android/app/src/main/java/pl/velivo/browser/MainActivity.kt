@@ -178,6 +178,7 @@ class MainActivity : Activity() {
         Karteczki.schedule(this)
         Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
+        if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
         Thread { runCatching { vaultDomains = passwords.all().map { Ochrona.regDomain(it.host) }.filter { it.contains('.') }.toHashSet() } }.start()
         // Powiadomienie odtwarzania w tle wymaga zgody (Android 13+).
         if (Build.VERSION.SDK_INT >= 33 && prefs.getBoolean("tlo", true) && !prefs.getBoolean("zapytano-powiadomienia", false)) {
@@ -246,6 +247,7 @@ set(p0,p);})"""
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
+        if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
         if (intent.action == PlaybackService.ACTION_SLEEP) { setSleep(((sleepAt - System.currentTimeMillis()).coerceAtLeast(0) / 60000).toInt() + 30); moveTaskToBack(true); return }
         if (intent.action == PlaybackService.ACTION_STOP) {
             tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
@@ -342,9 +344,88 @@ set(p0,p);})"""
     }
 
     private fun askSleep() {
-        val mins = intArrayOf(-1, 15, 30, 45, 60, 90, 0)
-        val labels = mins.map { when (it) { -1 -> getString(R.string.sleep_track); 0 -> getString(R.string.sleep_none); else -> getString(R.string.sleep_min, it) } }.toTypedArray()
-        AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i -> if (mins[i] == -1) sleepAfterTrack() else setSleep(mins[i]) }.show()
+        val mins = intArrayOf(-1, 15, 30, 45, 60, 90, -3, 0, -2)
+        val wake = Budzik.time(this)
+        val labels = mins.map { when (it) {
+            -1 -> getString(R.string.sleep_track); 0 -> getString(R.string.sleep_none); -3 -> getString(R.string.sleep_own)
+            -2 -> if (wake >= 0) getString(R.string.wake_menu_on, String.format("%d:%02d", wake / 60, wake % 60)) else getString(R.string.wake_menu)
+            else -> getString(R.string.sleep_min, it) } }.toTypedArray()
+        AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i -> when (mins[i]) { -1 -> sleepAfterTrack(); -2 -> askWake(); -3 -> askSleepMinutes(); else -> setSleep(mins[i]) } }.show()
+    }
+
+    // ⏰ Pobudka: utwór z bieżącej karty (np. YouTube) + godzina; codziennie
+    private fun askWake() {
+        val w = web()
+        val url = w?.url?.takeIf { it.startsWith("http") && !QuickAccess.isQuickAccess(it) }
+        val items = mutableListOf<Pair<String, () -> Unit>>()
+        // dowolny utwór: z bieżącej karty, z zakładek albo z historii; potem godzina i dni
+        if (url != null) items.add(getString(R.string.wake_this, w?.title ?: url) to { wakeWhen(url, w?.title ?: url) })
+        for ((key, label) in listOf("zakladki" to R.string.wake_from_bookmarks, "historia" to R.string.wake_from_history))
+            if (list(key).isNotEmpty()) items.add(getString(label) to {
+                val rows = list(key).map { val u = it.substringAfter('\t'); Row(it.substringBefore('\t').ifBlank { u }, u, u) }
+                showList(label, rows, "pobudka-$key", onOpen = { row, d -> d.dismiss(); wakeWhen(row.key as String, row.title) }, onDelete = { row -> removeFrom(key, row.key as String) })
+            })
+        if (Budzik.time(this) >= 0) {
+            items.add(getString(R.string.wake_test) to { wakeUp(test = true) })
+            items.add(getString(R.string.wake_off) to { Budzik.off(this); toast(getString(R.string.wake_off_done)) })
+        }
+        if (items.isEmpty()) { toast(getString(R.string.wake_need_track)); return }
+        val cur = Budzik.time(this)
+        AlertDialog.Builder(this).setTitle(if (cur >= 0) getString(R.string.wake_title_on, String.format("%d:%02d", cur / 60, cur % 60) + " (" + daysName(Budzik.days(this)) + ")", Budzik.title(this)) else getString(R.string.wake_menu))
+            .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.show()
+    }
+
+    private fun wakeWhen(url: String, title: String) {
+        val m = Budzik.time(this).takeIf { it >= 0 } ?: (7 * 60)
+        android.app.TimePickerDialog(this, { _, h, min ->
+            val opts = intArrayOf(127, 31, 96, -1, 0)   // codziennie, pon-pt, weekend, wybrane, jednorazowo
+            val labels = arrayOf(getString(R.string.days_all), getString(R.string.days_work), getString(R.string.days_weekend), getString(R.string.days_pick), getString(R.string.days_once))
+            fun save(days: Int) {
+                Budzik.set(this, url, title, h * 60 + min, days)
+                toast(getString(R.string.wake_set, String.format("%d:%02d", h, min)) + " · " + daysName(days))
+            }
+            AlertDialog.Builder(this).setTitle(R.string.days_title).setItems(labels) { _, i ->
+                if (opts[i] >= 0) { save(opts[i]); return@setItems }
+                val names = java.time.DayOfWeek.values().map { it.getDisplayName(java.time.format.TextStyle.FULL, resources.configuration.locales[0]) }.toTypedArray()
+                val checked = BooleanArray(7) { Budzik.days(this) and (1 shl it) != 0 }
+                AlertDialog.Builder(this).setTitle(R.string.days_pick).setMultiChoiceItems(names, checked) { _, k, on -> checked[k] = on }
+                    .setPositiveButton(android.R.string.ok) { _, _ -> save((0 until 7).filter { checked[it] }.sumOf { 1 shl it }.takeIf { it != 0 } ?: 127) }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+            }.show()
+        }, m / 60, m % 60, true).show()
+    }
+
+    private fun daysName(d: Int): String = when (d) {
+        127 -> getString(R.string.days_all); 31 -> getString(R.string.days_work); 96 -> getString(R.string.days_weekend); 0 -> getString(R.string.days_once)
+        else -> java.time.DayOfWeek.values().filter { d and (1 shl (it.value - 1)) != 0 }.joinToString(", ") { it.getDisplayName(java.time.format.TextStyle.SHORT, resources.configuration.locales[0]) }
+    }
+
+    // rano: Velivo na zablokowanym ekranie, utwór w nowej karcie, głośność narasta przez minutę
+    private fun wakeUp(test: Boolean = false) {
+        val url = Budzik.url(this) ?: return
+        setShowWhenLocked(true); setTurnScreenOn(true)
+        if (!test) { if (Budzik.days(this) == 0) Budzik.off(this) else Budzik.schedule(this) }   // jednorazowo - koniec; inaczej następny wybrany dzień
+        newTab(false, url)
+        val w = web() ?: return
+        w.settings.mediaPlaybackRequiresUserGesture = false
+        val start = Runnable {
+            w.evaluateJavascript("(function(){var v=document.querySelector('video,audio');if(!v)return;v.muted=false;v.volume=0.15;var p=v.play();if(p&&p.catch)p.catch(function(){});" +
+                "var t=setInterval(function(){v.volume=Math.min(1,v.volume+0.05);if(v.volume>=1)clearInterval(t);},3000);})()", null)
+        }
+        w.postDelayed(start, 4000); w.postDelayed(start, 9000)   // strona mogła jeszcze nie mieć odtwarzacza
+        AlertDialog.Builder(this).setTitle(R.string.wake_now).setMessage(Budzik.title(this)).setCancelable(false)
+            .setPositiveButton(R.string.wake_stop) { _, _ -> setShowWhenLocked(false); setTurnScreenOn(false); w.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
+            .setNegativeButton(R.string.wake_snooze) { _, _ ->
+                w.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null)
+                Budzik.schedule(this, 10); setShowWhenLocked(false); setTurnScreenOn(false)
+            }.show()
+    }
+
+    private fun askSleepMinutes() {
+        val num = EditText(this).apply { setText("120"); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSelectAllOnFocus(true) }
+        AlertDialog.Builder(this).setTitle(R.string.sleep_own).setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(num, LinearLayout.LayoutParams(-1, -2)) })
+            .setPositiveButton(android.R.string.ok) { _, _ -> num.text.toString().toIntOrNull()?.takeIf { it in 1..1440 }?.let { setSleep(it) } }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     // ⏾ po zakończeniu utworu, który teraz gra: koniec utworu albo przejście YouTube do następnego = pauza

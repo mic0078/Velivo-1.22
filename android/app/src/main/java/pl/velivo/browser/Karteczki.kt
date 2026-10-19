@@ -116,6 +116,7 @@ object Karteczki {
         override fun onReceive(ctx: Context, intent: Intent) {
             runCatching { notifyDue(ctx) }
             schedule(ctx)   // następny dzień (także po restarcie telefonu)
+            if (intent.action == Intent.ACTION_BOOT_COMPLETED) runCatching { Budzik.schedule(ctx) }   // pobudka po włączeniu telefonu
         }
     }
 }

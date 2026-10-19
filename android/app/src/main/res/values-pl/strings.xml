@@ -199,4 +199,25 @@
     <string name="sleep_track">Po zakończeniu tego utworu</string>
     <string name="sleep_track_set">⏾ Odtwarzanie ucichnie po tym utworze</string>
     <string name="sleep_track_none">Nic teraz nie gra</string>
+    <string name="wake_menu">⏰ Pobudka z utworem…</string>
+    <string name="wake_menu_on">⏰ Pobudka: %1$s</string>
+    <string name="wake_this">⏰ Budź tym utworem: %1$s</string>
+    <string name="wake_set">⏰ Pobudka codziennie o %1$s</string>
+    <string name="wake_test">▶ Wypróbuj pobudkę teraz</string>
+    <string name="wake_off">Wyłącz pobudkę</string>
+    <string name="wake_off_done">Pobudka wyłączona</string>
+    <string name="wake_need_track">Najpierw otwórz utwór (np. na YouTube), którym ma budzić</string>
+    <string name="wake_title_on">⏰ Pobudka o %1$s – %2$s</string>
+    <string name="wake_now">⏰ Dzień dobry!</string>
+    <string name="wake_stop">Wyłącz</string>
+    <string name="wake_snooze">Drzemka 10 min</string>
+    <string name="wake_from_bookmarks">⏰ Wybierz utwór z zakładek</string>
+    <string name="wake_from_history">⏰ Wybierz utwór z historii</string>
+    <string name="days_title">Kiedy budzić?</string>
+    <string name="days_all">Codziennie</string>
+    <string name="days_work">Pon–pt (dni robocze)</string>
+    <string name="days_weekend">Weekend</string>
+    <string name="days_pick">Wybrane dni…</string>
+    <string name="days_once">Jednorazowo</string>
+    <string name="sleep_own">Własny czas (minuty)…</string>
 </resources>

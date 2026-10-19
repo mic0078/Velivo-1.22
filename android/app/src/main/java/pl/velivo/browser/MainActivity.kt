@@ -2041,7 +2041,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 var u = url.text.toString().trim().replace(" ", "%20")
                 if (!u.contains("://") && u.contains('.')) u = "http://$u"   // adres wpisany bez http://
-                if (!(u.startsWith("http://") || u.startsWith("https://") || u.startsWith("content://"))) { toast(getString(R.string.tv_source_bad)); return@setPositiveButton }
+                if (!(u.startsWith("http://") || u.startsWith("https://") || u.startsWith("content://") || u.startsWith("velivo-pc:"))) { toast(getString(R.string.tv_source_bad)); return@setPositiveButton }
                 val list = Tv.sources(passwords)
                 val n = Tv.Source(s?.id ?: java.util.UUID.randomUUID().toString().replace("-", "").take(12), name.text.toString().trim().ifEmpty { "TV" }, u, epg.text.toString().trim())
                 Tv.saveSources(passwords, if (s == null) list + n else list.map { if (it.id == n.id) n else it })

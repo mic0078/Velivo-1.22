@@ -35,4 +35,9 @@
         <item name="android:textColorSecondary">#B9B0E0</item>
         <item name="android:colorBackground">#1B1733</item>
     </style>
+    <!-- odtwarzacz: czarne tło, pełny ekran, okna (wyłącznik, ścieżki) w ciemnych kolorach Velivo -->
+    <style name="Velivo.Player" parent="Velivo.Dark">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

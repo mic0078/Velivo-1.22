@@ -294,6 +294,7 @@ set(p0,p);})"""
             it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        updatePip()   // w pełnym ekranie okienko nie wchodzi samo (patrz onUserLeaveHint)
     }
 
     // widżet na pulpicie: 🔎 - pasek adresu z klawiaturą, ▶ - YouTube (jak czerwony pasek)
@@ -311,6 +312,7 @@ set(p0,p);})"""
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         fullCallback?.onCustomViewHidden()
         fullCallback = null
+        updatePip()
     }
 
     // --- Obraz w obrazie (PiP): film gra w okienku po wyjściu z Velivo ---------------
@@ -374,15 +376,24 @@ set(p0,p);})"""
     }
 
     private fun pipParams() = android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).apply {
-        if (Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited())
+        // z pełnego ekranu nie automatycznie: najpierw zwykła strona (onUserLeaveHint), inaczej YouTube zwalnia obraz i staje
+        if (Build.VERSION.SDK_INT >= 31) setAutoEnterEnabled(videoPlaying && fullView == null && prefs.getBoolean("tlo", true) && !youtubeLimited())
     }.build()
 
     private fun updatePip() { runCatching { setPictureInPictureParams(pipParams()) } }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // starsze Androidy (10-11): wejście w PiP ręcznie
-        if (Build.VERSION.SDK_INT < 31 && videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited()) runCatching { enterPictureInPictureMode(pipParams()) }
+        // starsze Androidy (10-11) i wyjście z pełnego ekranu: wejście w PiP ręcznie - z pełnego ekranu najpierw zwykła strona,
+        // potem okienko i wznowienie filmu (YouTube pauzuje przy zamknięciu pełnego ekranu)
+        val fromFull = fullView != null
+        if ((Build.VERSION.SDK_INT < 31 || fromFull) && videoPlaying && prefs.getBoolean("tlo", true) && !youtubeLimited()) {
+            if (fromFull) exitFullscreen()
+            runCatching { enterPictureInPictureMode(pipParams()) }
+            if (fromFull) for (d in longArrayOf(300, 900, 2000)) pipCheck.postDelayed({
+                if (isInPictureInPictureMode) web()?.evaluateJavascript("(function(){var v=document.querySelector('video');if(v&&v.paused&&!v.ended){var p=v.play();if(p&&p.catch)p.catch(function(){})}})()", null)
+            }, d)
+        }
     }
 
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {

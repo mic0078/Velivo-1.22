@@ -254,34 +254,46 @@ class PlayerActivity : Activity() {
         }.show()
     }
 
-    private fun gestures(root: View) {
+    // gesty jak w aplikacjach wideo (w pionie i w poziomie): lewa połowa w górę / w dół - jasność, prawa - głośność;
+    // w bok - przewijanie filmu; dwuklik - 10 s; stuknięcie - przyciski. Kanały TV: przyciski ⏮ ⏭.
+    private fun gestures(root: FrameLayout) {
         val audio = getSystemService(AudioManager::class.java)!!
+        val label = TextView(this).apply {
+            setTextColor(Color.parseColor("#ECE8FF")); textSize = 22f; setPadding(dp(18), dp(10), dp(18), dp(10)); visibility = View.GONE
+            background = GradientDrawable().apply { setColor(Color.parseColor("#CC2E2768")); cornerRadius = dp(16).toFloat() }
+        }
+        root.addView(label, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply { topMargin = dp(90) })
+        val hideLabel = Runnable { label.visibility = View.GONE }
+        fun show(t: String) { label.text = t; label.visibility = View.VISIBLE; ui.removeCallbacks(hideLabel); ui.postDelayed(hideLabel, 800) }
         var mode = 0   // 1 jasność, 2 głośność, 3 przewijanie
         var startPos = 0L
+        var acc = 0f   // zebrany ruch palca dla głośności (krok = część wysokości ekranu)
         val det = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent): Boolean { mode = 0; startPos = player.time; return true }
+            override fun onDown(e: MotionEvent): Boolean { mode = 0; acc = 0f; startPos = player.time; return true }
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean { showControls(controls.visibility != View.VISIBLE); return true }
             override fun onDoubleTap(e: MotionEvent): Boolean { if (!live) jump(if (e.x < root.width / 2f) -10_000 else 10_000); return true }
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                if (!live || e1 == null || Math.abs(vy) < Math.abs(vx)) return false
-                next(if (vy < 0) 1 else -1)   // w górę - następny kanał
-                return true
-            }
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
                 if (e1 == null) return false
                 val tx = e2.x - e1.x; val ty = e2.y - e1.y
-                if (mode == 0) mode = if (Math.abs(tx) > Math.abs(ty)) (if (live) -1 else 3) else if (live) -1 else if (e1.x < root.width / 2f) 1 else 2
+                if (mode == 0) {
+                    if (Math.abs(tx) < dp(12) && Math.abs(ty) < dp(12)) return false
+                    mode = if (Math.abs(tx) > Math.abs(ty)) (if (live) -1 else 3) else if (e1.x < root.width / 2f) 1 else 2
+                }
                 when (mode) {
                     1 -> {
                         val lp = window.attributes
-                        val cur = if (lp.screenBrightness < 0) 0.5f else lp.screenBrightness
-                        lp.screenBrightness = (cur + dy / root.height).coerceIn(0.02f, 1f); window.attributes = lp
+                        val cur = if (lp.screenBrightness < 0) runCatching { android.provider.Settings.System.getInt(contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS) / 255f }.getOrDefault(0.5f) else lp.screenBrightness
+                        lp.screenBrightness = (cur + dy / (root.height * 0.7f)).coerceIn(0.02f, 1f); window.attributes = lp
+                        show("☀ " + (lp.screenBrightness * 100).toInt() + "%")
                     }
                     2 -> {
                         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                        if (Math.abs(dy) > root.height / (max * 2f)) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (dy > 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                        val step = root.height * 0.6f / max
+                        acc += dy
+                        while (Math.abs(acc) >= step) { audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (acc > 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, 0); acc -= Math.signum(acc) * step }
+                        show("🔊 " + audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100 / max + "%")
                     }
-                    3 -> player.setTime((startPos + (tx / root.width * 180_000).toLong()).coerceAtLeast(0))   // cała szerokość = 3 minuty
+                    3 -> { val t = (startPos + (tx / root.width * 180_000).toLong()).coerceAtLeast(0); player.setTime(t); show(fmt(t)) }   // cała szerokość = 3 minuty
                 }
                 return mode > 0
             }

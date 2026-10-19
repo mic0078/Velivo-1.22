@@ -401,11 +401,20 @@ set(p0,p);})"""
             "document.addEventListener('pause',function(e){var v=e.target;if(!v||v.tagName!=='VIDEO'||v.ended||Date.now()-window.__vpipT>3000)return;" +
             "console.log('Velivo-PiP wznawiam');setTimeout(function(){v.play().catch(function(x){console.log('Velivo-PiP play blad '+x)})},150)},true)})()", null)
         else web()?.evaluateJavascript("window.__vpipT=0", null)
-        // przesunięcie, by film (nie nagłówek strony) był w okienku
-        if (pip) window.decorView.postDelayed({ val w = web() ?: return@postDelayed
-            w.evaluateJavascript("(function(){var v=document.querySelector('video');return v?v.getBoundingClientRect().top:0})()") { t ->
-                val top = t?.toFloatOrNull() ?: 0f
-                if (isInPictureInPictureMode) w.translationY = -top * resources.displayMetrics.density * w.scaleY } }, 300)
+        pipFitted = false
+        // film dopasowany do okienka: skala i przesunięcie liczone z miejsca filmu na stronie i rozmiaru okienka
+        // (nie z pomiaru widoku - na Xiaomi film zostawał przyklejony do lewej)
+        if (pip) listOf(300L, 1200L).forEach { d -> window.decorView.postDelayed({ val w = web() ?: return@postDelayed
+            w.evaluateJavascript("(function(){var v=document.querySelector('video');if(!v)return '';var r=v.getBoundingClientRect();return r.left+','+r.top+','+r.width+','+r.height})()") { t ->
+                val r = t?.trim('"')?.split(',')?.mapNotNull { it.toFloatOrNull() }
+                if (!isInPictureInPictureMode || r == null || r.size != 4 || r[2] <= 0f || r[3] <= 0f) return@evaluateJavascript
+                val den = resources.displayMetrics.density
+                val pw = window.decorView.width.toFloat(); val ph = window.decorView.height.toFloat()
+                val sc = minOf(pw / (r[2] * den), ph / (r[3] * den))
+                pipFitted = true; w.pivotX = 0f; w.pivotY = 0f; w.scaleX = sc; w.scaleY = sc
+                w.translationX = (pw - r[2] * den * sc) / 2 - r[0] * den * sc
+                w.translationY = (ph - r[3] * den * sc) / 2 - r[1] * den * sc
+            } }, d) }
         // diagnostyka: stan filmu po wejściu w okienko, zapisywany bez konsoli strony
         if (pip) { web()?.evaluateJavascript(pipJs, null); listOf(500L, 1500L, 3000L, 6000L, 10000L).forEach { d ->
             window.decorView.postDelayed({ web()?.evaluateJavascript("(function(){var v=document.querySelector('video');return v?('pauza='+v.paused+' czas='+v.currentTime.toFixed(1)+' gotowy='+v.readyState+' filmow='+document.querySelectorAll('video').length):'brak filmu'})()") {
@@ -603,10 +612,10 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
                 if (isInPictureInPictureMode && normalW > 0 && normalH > 0) {
                     setMeasuredDimension(normalW, normalH)
                     val sc = MeasureSpec.getSize(ws).toFloat() / normalW   // na szerokość okienka - film u góry strony je wypełnia
-                    pivotX = 0f; pivotY = 0f; scaleX = sc; scaleY = sc
+                    if (!pipFitted) { pivotX = 0f; pivotY = 0f; scaleX = sc; scaleY = sc }
                     return
                 }
-                scaleX = 1f; scaleY = 1f; translationY = 0f
+                scaleX = 1f; scaleY = 1f; translationX = 0f; translationY = 0f
                 // karta grająca pod spodem nie zmienia rozmiaru (np. przy klawiaturze) - YouTube pauzował po zmianie rozmiaru
                 if (this === bgTab?.web && normalW > 0 && normalH > 0) { setMeasuredDimension(normalW, normalH); return }
                 super.onMeasure(ws, hs)
@@ -911,6 +920,7 @@ window.__vZwin.observe(d.documentElement,{childList:true,subtree:true});zwin();}
     }
 
     private var bgTab: Tab? = null
+    private var pipFitted = false   // film w okienku już dopasowany (pomiar widoku nie nadpisuje skali)
 
     private fun show(i: Int) {
         if (::findBar.isInitialized && findBar.visibility == View.VISIBLE) closeFind()   // szukanie dotyczy jednej karty

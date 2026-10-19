@@ -393,13 +393,11 @@ set(p0,p);})"""
         android.util.Log.i("Velivo-PiP", "okienko: $pip, pełny ekran: ${fullView != null}")
         super.onPictureInPictureModeChanged(pip, cfg)
         pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
-        // bez przestawiania strony (YouTube pauzował po zmianie układu); film wznawiany, jeśli strona go wstrzymała
-        if (pip) listOf(500L, 1500L).forEach { d ->
-            window.decorView.postDelayed({
-                if (isInPictureInPictureMode) web()?.evaluateJavascript("(function(){var v=document.querySelector('video');" +
-                    "if(v&&v.paused&&!v.ended){console.log('Velivo-PiP wznawiam');v.play();}})()", null)
-            }, d)
-        }
+        // bez przestawiania strony; pauzę, którą YouTube robi tuż po wejściu w okienko, cofamy (tylko przez 3 s)
+        if (pip) web()?.evaluateJavascript("(function(){window.__vpipT=Date.now();if(window.__vpipL)return;window.__vpipL=1;" +
+            "document.addEventListener('pause',function(e){var v=e.target;if(!v||v.tagName!=='VIDEO'||v.ended||Date.now()-window.__vpipT>3000)return;" +
+            "console.log('Velivo-PiP wznawiam');setTimeout(function(){v.play().catch(function(x){console.log('Velivo-PiP play blad '+x)})},150)},true)})()", null)
+        else web()?.evaluateJavascript("window.__vpipT=0", null)
     }
 
     // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu

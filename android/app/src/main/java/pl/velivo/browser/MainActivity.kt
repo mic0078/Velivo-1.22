@@ -1929,7 +1929,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             onOpen = { r, shownRows ->
                 val future = if (at > System.currentTimeMillis() + 60_000) Tv.nowNext(epg[(r.tag as Tv.Channel).source] ?: emptyMap(), r.tag as Tv.Channel, at).first else null
                 if (future != null) { showOpts(r.tag as Tv.Channel, future); return@MediaScreen }   // 📅 audycja później - zaplanuj albo oglądaj
-                val items = shownRows.map { val ch = it.tag as Tv.Channel; PlayerActivity.Item(ch.name, ch.url, ch.key, info = it.sub, desc = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.desc ?: "", endsAt = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.stop ?: 0L) }
+                val items = shownRows.map { val ch = it.tag as Tv.Channel; PlayerActivity.Item(ch.name, ch.url, ch.key, ch = ch, info = it.sub, desc = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.desc ?: "", endsAt = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.stop ?: 0L) }
                 prefs.edit().putStringSet("tv-ogladane", watched + (r.tag as Tv.Channel).key).apply()
                 play(items, shownRows.indexOf(r), live = true)
             },
@@ -2006,7 +2006,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val plan = TvPlan.find(this, ch.key, s.start)
         val opts = mutableListOf<Pair<String, () -> Unit>>()
         if (Tv.canCatchup(ch, s)) opts.add(getString(R.string.tv_catchup) to {   // ⏪ archiwum: audycja, która była (albo od początku tej, co trwa)
-            play(listOf(PlayerActivity.Item(ch.name + " – " + s.title, Tv.catchupUrl(ch, s), null, info = fmtTime(s.start) + "–" + fmtTime(s.stop), desc = s.desc)), 0, live = false) })
+            play(listOf(PlayerActivity.Item(ch.name + " – " + s.title, ch.url, null, info = fmtTime(s.start) + "–" + fmtTime(s.stop), desc = s.desc, ch = ch, arch = PlayerActivity.Arch(s.start, s.stop))), 0, live = false) })
         if (s.stop > now) opts.add(getString(R.string.tv_plan_watch) to { playChannel(ch) })
         if (s.start > now) opts.add(if (plan == null) getString(R.string.tv_plan_at, fmtTime(s.start)) to { TvPlan.add(this, ch, s); toast(getString(R.string.tv_plan_set, s.title, fmtTime(s.start))); changed() }
             else getString(R.string.tv_plan_remove) to { TvPlan.remove(this, plan.id); changed() })
@@ -2091,7 +2091,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             val src = Tv.sources(passwords).firstOrNull { it.id == ch.source } ?: return@Thread
             val all = runCatching { Tv.channels(this, passwords, src, false) }.getOrNull() ?: return@Thread
             val i = all.indexOfFirst { it.key == ch.key }.coerceAtLeast(0)
-            runOnUiThread { PlayerActivity.wake = wake; play(all.map { PlayerActivity.Item(it.name, it.url, it.key) }, i, live = true) }
+            runOnUiThread { PlayerActivity.wake = wake; play(all.map { PlayerActivity.Item(it.name, it.url, it.key, ch = it) }, i, live = true) }
         }.start()
     }
 

@@ -39,7 +39,10 @@ import java.lang.ref.WeakReference
 // (stare AVI, AC3, MPEG-TS, HLS). Pamięta miejsce w filmie, obraz w obrazie, granie w tle, wyłącznik czasowy,
 // gesty: jasność (lewa strona), głośność (prawa), przewijanie w bok; w telewizji w górę / w dół = następny / poprzedni kanał.
 class PlayerActivity : Activity() {
-    class Item(val title: String, val uri: String, val key: String?, val headers: Map<String, String> = emptyMap(), val jellyId: String? = null, val info: String = "", val desc: String = "", val endsAt: Long = 0)
+    class Item(val title: String, val uri: String, val key: String?, val headers: Map<String, String> = emptyMap(), val jellyId: String? = null, val info: String = "", val desc: String = "", val endsAt: Long = 0,
+               val ch: Tv.Channel? = null, val arch: Arch? = null)
+    // audycja z archiwum (jak w Velivo na Windows): kanał, czas audycji i odmiana adresu (-1 = zapamiętana dla serwera)
+    class Arch(val start: Long, val stop: Long, var variant: Int = -1)
 
     companion object {
         // kolejka ustawiana przed otwarciem (w pamięci - adresy z tokenem nie idą przez Intent ani do logów)
@@ -97,6 +100,8 @@ class PlayerActivity : Activity() {
         val top = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(10), dp(8), dp(10)); setBackgroundColor(Color.argb(140, 27, 23, 51))
             addView(titleView, LinearLayout.LayoutParams(0, -2, 1f))
+            if (queue.getOrNull(index)?.arch != null) addView(btn("⏩", R.string.tv_arch_live) { goLive() })   // z archiwum na żywo
+            else if (live && queue.any { q -> q.ch?.let { Tv.hasCatchup(it) } == true }) addView(btn("⏪", R.string.tv_arch_restart) { startOver() })   // od początku audycji (archiwum)
             if (live) addView(btn("☆", R.string.tv_fav) { toggleFav() }.also { favBtn = it })   // ⭐ ulubiony kanał (jak na liście kanałów)
             addView(btn("🗨", R.string.player_tracks) { askTracks() })
             addView(btn("🌙", R.string.sleep_title) { askSleep() })
@@ -161,10 +166,19 @@ class PlayerActivity : Activity() {
     private fun onVlc(e: MediaPlayer.Event) {
         when (e.type) {
             MediaPlayer.Event.Buffering -> busy.visibility = if (e.buffering < 100f) View.VISIBLE else View.GONE
-            MediaPlayer.Event.Playing -> { if (resumeAt > 0) { player.setTime(resumeAt); resumeAt = 0 }; busy.visibility = View.GONE; ui.removeCallbacks(stuck); playBtn.text = "⏸"; updatePip(); poke() }
+            MediaPlayer.Event.Playing -> { queue.getOrNull(index)?.let { c -> if (c.arch != null && c.ch != null) prefs.edit().putInt("tv-archiwum-" + Tv.archiveHost(c.ch.url), c.arch.variant).apply() }   // ta odmiana działa u dostawcy
+                if (resumeAt > 0) { player.setTime(resumeAt); resumeAt = 0 }; busy.visibility = View.GONE; ui.removeCallbacks(stuck); playBtn.text = "⏸"; updatePip(); poke() }
             MediaPlayer.Event.Paused -> { playBtn.text = "▶"; updatePip(); showControls(true) }
-            MediaPlayer.Event.EndReached -> if (!live) { savePos(true); next(1) } else load(index)   // kanał się urwał - wznów
-            MediaPlayer.Event.EncounteredError -> { busy.visibility = View.GONE; toast(getString(R.string.player_error)) }   // bez adresu (może mieć token)
+            MediaPlayer.Event.EndReached -> { val c = queue.getOrNull(index); if (c?.arch != null) archiveEnded(c) else if (!live) { savePos(true); next(1) } else load(index) }   // kanał się urwał - wznów
+            MediaPlayer.Event.EncounteredError -> {
+                busy.visibility = View.GONE
+                val c = queue.getOrNull(index); val ar = c?.arch; val ach = c?.ch
+                if (ar != null && ach != null) {   // archiwum: serwer nie przyjął tej odmiany adresu - kolejna, aż któraś zadziała
+                    if (ar.variant + 1 < 10 && Tv.catchupUrl(ach, ar.start, ar.stop, ar.variant + 1) != null) { ar.variant++; toast(getString(R.string.tv_arch_try)); load(index); return }
+                    toast(getString(R.string.tv_arch_none)); return
+                }
+                toast(getString(R.string.player_error))   // bez adresu (może mieć token)
+            }
         }
     }
 
@@ -198,7 +212,10 @@ class PlayerActivity : Activity() {
         descView.visibility = if (descView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         busy.visibility = View.VISIBLE
         fd?.close(); fd = null
-        val m = if (it.uri.startsWith("content://")) {
+        val ar = it.arch; val ach = it.ch
+        if (ar != null && ach != null && ar.variant < 0) ar.variant = prefs.getInt("tv-archiwum-" + Tv.archiveHost(ach.url), 0)
+        val archUrl = if (ar != null && ach != null) (Tv.catchupUrl(ach, ar.start, ar.stop, ar.variant) ?: Tv.catchupUrl(ach, ar.start, ar.stop, 0).also { ar.variant = 0 }) else null
+        val m = if (archUrl != null) Media(vlc, Uri.parse(archUrl)) else if (it.uri.startsWith("content://")) {
             fd = contentResolver.openFileDescriptor(Uri.parse(it.uri), "r")
             Media(vlc, fd!!.fileDescriptor)
         } else {
@@ -304,6 +321,35 @@ class PlayerActivity : Activity() {
             }
         })
         root.setOnTouchListener { _, e -> det.onTouchEvent(e) }
+    }
+
+    // koniec audycji z archiwum: następna z archiwum, a gdy już trwa - na żywo (jak na Windows)
+    private fun archiveEnded(c: Item) {
+        val ch = c.ch ?: return; val ar = c.arch ?: return
+        val nx = Tv.cachedShows(ch).firstOrNull { it.start >= ar.stop }
+        if (nx != null && nx.stop <= System.currentTimeMillis()) openArchive(ch, nx) else goLive()
+    }
+
+    private fun openArchive(ch: Tv.Channel, s: Tv.Show) {
+        queue = listOf(Item(ch.name + " – " + s.title, ch.url, null, info = fmtClock(s.start) + "–" + fmtClock(s.stop), desc = s.desc, ch = ch, arch = Arch(s.start, s.stop))); index = 0; live = false
+        recreate()
+    }
+
+    private fun fmtClock(ms: Long) = java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ms))
+
+    // ⏮ od początku trwającej audycji (archiwum kanału)
+    private fun startOver() {
+        val ch = queue.getOrNull(index)?.ch
+        val s = ch?.let { c -> Tv.cachedShows(c).firstOrNull { it.start <= System.currentTimeMillis() && it.stop > System.currentTimeMillis() } }
+        if (ch == null || s == null || !Tv.canCatchup(ch, s)) { toast(getString(R.string.tv_arch_none)); return }
+        openArchive(ch, s)
+    }
+
+    // ⏩ na żywo: ten kanał bez archiwum
+    private fun goLive() {
+        val ch = queue.getOrNull(index)?.ch ?: return
+        queue = listOf(Item(ch.name, ch.url, ch.key, ch = ch)); index = 0; live = true
+        recreate()
     }
 
     private var favBtn: Button? = null

@@ -76,11 +76,13 @@ object Tv {
             when {
                 l.startsWith("#EXTM3U") -> { epg = attr(l, "url-tvg").ifEmpty { attr(l, "x-tvg-url") }.substringBefore(','); dCu = attr(l, "catchup"); dCuSrc = attr(l, "catchup-source"); dCuDays = attr(l, "catchup-days").toIntOrNull() ?: 0 }
                 l.startsWith("#EXTINF") -> { name = l.substringAfterLast(',').trim(); logo = attr(l, "tvg-logo"); group = attr(l, "group-title"); tvg = attr(l, "tvg-id")
-                    cu = attr(l, "catchup").ifEmpty { dCu }; cuSrc = attr(l, "catchup-source").ifEmpty { dCuSrc }
-                    cuDays = (attr(l, "catchup-days").ifEmpty { attr(l, "tvg-rec") }).toIntOrNull() ?: dCuDays
-                    if (cu.isEmpty() && cuDays > 0) cu = "default" }
+                    cu = attr(l, "catchup").ifEmpty { attr(l, "catchup-type") }.ifEmpty { dCu }.lowercase(); cuSrc = attr(l, "catchup-source").ifEmpty { dCuSrc }
+                    cuDays = listOf(attr(l, "catchup-days"), attr(l, "timeshift"), attr(l, "tvg-rec")).mapNotNull { it.toIntOrNull() }.maxOrNull() ?: dCuDays }
                 l.startsWith("#EXTGRP:") -> group = l.substringAfter(':').trim()
                 l.isNotEmpty() && !l.startsWith("#") -> {
+                    // jak na Windows: dni bez rodzaju - rodzaj po adresie; rodzaj bez dni - typowe 3 dni
+                    if (cuDays > 0 && cu.isEmpty()) cu = if (cuSrc.isNotEmpty()) "default" else if (xcLive.matches(l)) "xc" else "flussonic"
+                    else if (cu.isNotEmpty() && cuDays == 0 && cu != "disabled") cuDays = 3
                     if (name.isNotEmpty()) out.add(Channel(source, name, logo, group, l, tvg, cu, cuSrc, cuDays))
                     name = ""; logo = ""; group = ""; tvg = ""; cu = ""; cuSrc = ""; cuDays = 0
                 }
@@ -120,7 +122,7 @@ object Tv {
         if (src.epg.isEmpty()) return emptyMap()
         val wanted = HashSet<String>()
         chans.forEach { keys(it).forEach { k -> wanted.add(k) } }
-        val back = chans.maxOfOrNull { if (it.catchup.isNotEmpty()) it.catchupDays.coerceAtLeast(1) else 0 }?.coerceIn(0, 7) ?: 0
+        val back = chans.filter { hasCatchup(it) }.maxOfOrNull { it.catchupDays }?.coerceIn(0, 7) ?: 0
         val from = System.currentTimeMillis() - (if (back > 0) back * 24 else 6) * 3600_000L   // wstecz tyle dni, ile archiwum kanałów (⏪), najwyżej 7
         val to = System.currentTimeMillis() + 72 * 3600_000L   // program na 3 dni
         val names = HashMap<String, MutableList<String>>()   // id kanału w programie -> nazwy
@@ -184,36 +186,63 @@ object Tv {
         dt.toInstant(zone).toEpochMilli()
     }.getOrDefault(0L)
 
-    // archiwum audycji (jak Televizo / IPTV Smarters): adres według rodzaju z listy - własny wzór, "append", "shift" albo Xtream
-    fun canCatchup(ch: Channel, s: Show): Boolean {
-        if (ch.catchup.isEmpty() || ch.catchup == "disabled") return false
-        val days = if (ch.catchupDays > 0) ch.catchupDays else 7
-        return s.start < System.currentTimeMillis() && s.start > System.currentTimeMillis() - days * 86_400_000L
+    // ---------- archiwum (catch-up) - jak w Velivo na Windows (Iptv.cs) ----------
+    private val xcLive = Regex("""^(https?://[^/]+)/(?:live/)?([^/]+)/([^/]+)/(\d+)(\.\w+)?$""", RegexOption.IGNORE_CASE)
+
+    fun hasCatchup(c: Channel) = c.catchupDays > 0 && c.catchup.isNotEmpty() && c.catchup != "disabled"
+
+    // audycja jest jeszcze w archiwum: zaczęła się i nie jest starsza niż liczba dni archiwum
+    fun canCatchup(c: Channel, s: Show) = hasCatchup(c) && s.start < System.currentTimeMillis() && s.start >= System.currentTimeMillis() - c.catchupDays * 86_400_000L
+
+    // adres audycji z archiwum - formaty jak w popularnych odtwarzaczach IPTV (Kodi IPTV Simple, TiviMate):
+    // flussonic: .../index.m3u8 -> .../index-{start}-{dlugosc}.m3u8, .../mpegts -> .../timeshift_abs-{start}.ts; shift: ?utc=&lutc=;
+    // xc: /live/u/h/id.ts -> /timeshift/u/h/{minuty}/{rrrr-mm-dd:gg-mm}/id.ts; default / append: wzór z catchup-source
+    // variant: kolejne odmiany adresu u tego samego rodzaju (serwery się różnią) - null, gdy więcej nie ma
+    fun catchupUrl(c: Channel, start: Long, end: Long, variant: Int = 0): String? {
+        if (!hasCatchup(c)) return null
+        val s = start / 1000; val e = end / 1000; val n = System.currentTimeMillis() / 1000
+        val dur = maxOf(60L, e - s)
+        var url = c.url; var q = ""
+        val qi = url.indexOf('?'); if (qi >= 0) { q = url.substring(qi); url = url.substring(0, qi) }
+        fun fill(t0: String): String {
+            var t = t0
+            for ((k, v) in listOf("utc" to s, "start" to s, "timestamp" to s, "utcend" to e, "end" to e, "lutc" to n, "now" to n, "duration" to dur, "offset" to maxOf(0L, n - s)))
+                t = t.replace("\${" + k + "}", v.toString()).replace("{" + k + "}", v.toString())
+            t = Regex("""\{duration:(\d+)\}""").replace(t) { m -> (dur / maxOf(1L, m.groupValues[1].toLong())).toString() }
+            val u = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { timeInMillis = start }
+            fun two(v: Int) = String.format(java.util.Locale.US, "%02d", v)
+            return t.replace("{Y}", u.get(java.util.Calendar.YEAR).toString()).replace("{m}", two(u.get(java.util.Calendar.MONTH) + 1)).replace("{d}", two(u.get(java.util.Calendar.DAY_OF_MONTH)))
+                .replace("{H}", two(u.get(java.util.Calendar.HOUR_OF_DAY))).replace("{M}", two(u.get(java.util.Calendar.MINUTE))).replace("{S}", two(u.get(java.util.Calendar.SECOND)))
+        }
+        fun shift() = c.url + (if ('?' in c.url) "&" else "?") + "utc=$s&lutc=$n"
+        fun flussonic(): String? {
+            val sl = url.lastIndexOf('/'); if (sl < 0) return null
+            val dir = url.substring(0, sl + 1); val last = url.substring(sl + 1)
+            if (last.endsWith(".m3u8", true)) {
+                val b = last.dropLast(5)
+                return when (variant) {   // odmiany Flussonic dla HLS (różne serwery / pośrednicy)
+                    0 -> "$dir$b-$s-$dur.m3u8$q"; 1 -> "${dir}archive-$s-$dur.m3u8$q"; 2 -> "${dir}timeshift_abs-$s.m3u8$q"
+                    3 -> "$dir$b-$s-now.m3u8$q"; 4 -> "${dir}timeshift_abs-$s.ts$q"; 5 -> shift(); else -> null
+                }
+            }
+            return when (variant) { 0 -> "${dir}timeshift_abs-$s.ts$q"; 1 -> "${dir}archive-$s-$dur.ts$q"; 2 -> shift(); else -> null }   // strumień mpegts
+        }
+        return when (c.catchup) {
+            "append" -> if (variant == 0) c.url + fill(c.catchupSrc) else null
+            "shift" -> if (variant == 0) shift() else null
+            "xc" -> { val m = xcLive.find(c.url); if (m == null || variant > 0) null else
+                m.groupValues[1] + "/timeshift/" + m.groupValues[2] + "/" + m.groupValues[3] + "/" + (dur / 60) + "/" + java.text.SimpleDateFormat("yyyy-MM-dd:HH-mm", java.util.Locale.US).format(java.util.Date(start)) + "/" + m.groupValues[4] + ".ts" }
+            "default" -> if (c.catchupSrc.isNotEmpty()) (if (variant == 0) fill(c.catchupSrc) else null) else flussonic()
+            "flussonic", "fs", "flussonic-hls", "flussonic-ts" -> flussonic()
+            else -> if (variant == 0 && c.catchupSrc.isNotEmpty()) fill(c.catchupSrc) else null
+        }
     }
 
-    fun catchupUrl(ch: Channel, s: Show): String {
-        val now = System.currentTimeMillis() / 1000; val st = s.start / 1000; val en = s.stop / 1000; val dur = en - st
-        fun fill(t: String): String {
-            val c = java.util.Calendar.getInstance().apply { timeInMillis = s.start }
-            fun two(v: Int) = String.format("%02d", v)
-            return t.replace(Regex("""\$?\{(utc|start|timestamp)\}"""), st.toString()).replace(Regex("""\$?\{(utcend|end)\}"""), en.toString())
-                .replace(Regex("""\$?\{(lutc|now)\}"""), now.toString()).replace(Regex("""\$?\{duration:60\}"""), (dur / 60).toString())
-                .replace(Regex("""\$?\{duration\}"""), dur.toString()).replace(Regex("""\$?\{offset:1\}"""), (now - st).toString())
-                .replace("{Y}", c.get(java.util.Calendar.YEAR).toString()).replace("{m}", two(c.get(java.util.Calendar.MONTH) + 1)).replace("{d}", two(c.get(java.util.Calendar.DAY_OF_MONTH)))
-                .replace("{H}", two(c.get(java.util.Calendar.HOUR_OF_DAY))).replace("{M}", two(c.get(java.util.Calendar.MINUTE))).replace("{S}", two(c.get(java.util.Calendar.SECOND)))
-        }
-        val xc = Regex("""^(https?://[^/]+)/(?:live/)?([^/]+)/([^/]+)/(\d+)(?:\.(\w+))?$""").find(ch.url)
-        return when {
-            ch.catchupSrc.isNotEmpty() && ch.catchup == "append" -> ch.url + fill(ch.catchupSrc)
-            ch.catchupSrc.isNotEmpty() -> fill(ch.catchupSrc)
-            (ch.catchup == "xc" || ch.catchup == "default") && xc != null -> {   // Xtream Codes: /timeshift/użytkownik/hasło/minuty/rrrr-mm-dd:gg-mm/id.ts
-                val (host, u, p, id, ext) = xc.destructured
-                val t = java.text.SimpleDateFormat("yyyy-MM-dd:HH-mm", java.util.Locale.US).format(java.util.Date(s.start))
-                "$host/timeshift/$u/$p/${dur / 60}/$t/$id.${ext.ifEmpty { "ts" }}"
-            }
-            else -> ch.url + (if ('?' in ch.url) "&" else "?") + "utc=$st&lutc=$now"   // shift / timeshift / flussonic
-        }
-    }
+    // program kanału z pamięci (odtwarzacz: następna audycja z archiwum, "od początku")
+    fun cachedShows(ch: Channel): List<Show> = memEpg[ch.source]?.let { showsFor(it, ch) } ?: emptyList()
+
+    // działająca odmiana adresu archiwum zapamiętana dla serwera (następnym razem od razu)
+    fun archiveHost(url: String) = runCatching { java.net.URI(url).authority.lowercase() }.getOrDefault("")
 
     fun showsFor(epg: Map<String, List<Show>>, ch: Channel): List<Show> = keys(ch).firstNotNullOfOrNull { epg[it] } ?: emptyList()
 

@@ -337,4 +337,8 @@
     <string name="tv_catchup">⏪ Watch from the archive</string>
     <string name="tv_grid">🗓 TV guide grid</string>
     <string name="tv_grid_more">Showing the first %1$d of %2$d channels – pick a group or favourites</string>
+    <string name="tv_arch_try">⏪ Trying another archive format…</string>
+    <string name="tv_arch_none">⏪ The server does not provide this programme from the archive</string>
+    <string name="tv_arch_live">Live (back from the archive)</string>
+    <string name="tv_arch_restart">From the start of the programme (archive)</string>
 </resources>

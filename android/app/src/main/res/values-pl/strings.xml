@@ -337,4 +337,8 @@
     <string name="tv_catchup">⏪ Oglądaj z archiwum</string>
     <string name="tv_grid">🗓 Siatka programu</string>
     <string name="tv_grid_more">Pierwsze %1$d z %2$d kanałów – wybierz grupę albo ulubione</string>
+    <string name="tv_arch_try">⏪ Próbuję inny format archiwum…</string>
+    <string name="tv_arch_none">⏪ Serwer nie udostępnia tej audycji z archiwum</string>
+    <string name="tv_arch_live">Na żywo (wróć z archiwum)</string>
+    <string name="tv_arch_restart">Od początku programu (archiwum)</string>
 </resources>

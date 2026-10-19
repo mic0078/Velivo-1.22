@@ -406,19 +406,11 @@ set(p0,p);})"""
     }
 
     // okienko zamknięte (✕) - film nie gra dalej w tle bez obrazu
-    // Wejście w okienko z pełnego ekranu na chwilę zatrzymuje Velivo (onStop) - pauza dopiero, gdy po sekundzie
-    // okienko dalej jest zatrzymane (zamknięte), a nie od razu (wtedy film stawał przy każdym wejściu w okienko)
-    private var stopped = false
-    override fun onStart() { super.onStart(); stopped = false }
+    // Okienko: część telefonów (np. Motorola) zatrzymuje Velivo (onStop), choć okienko dalej gra - nie da się odróżnić
+    // od zamknięcia okienka. Dlatego bez pauzy: gra dalej jak w tle, z powiadomieniem „Zatrzymaj”.
     override fun onStop() {
         super.onStop()
-        stopped = true
-        if (isInPictureInPictureMode) pipCheck.postDelayed({
-            if (stopped && isInPictureInPictureMode) {
-                tabs.forEach { it.web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause()})", null) }
-                PlaybackService.stop(this)
-            }
-        }, 1000)
+        if (isInPictureInPictureMode && prefs.getBoolean("tlo", true)) PlaybackService.start(this, web()?.title ?: "")
     }
 
     // --- 🌙 Wyłącznik czasowy: muzyka / film / czytanie cichnie po wybranym czasie (do snu) ---

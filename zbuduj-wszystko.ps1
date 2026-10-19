@@ -46,6 +46,9 @@ $cands += $roots | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { Ge
 $cands += $env:JAVA_HOME
 $cands += @("$env:ProgramFiles\Java", "$env:ProgramFiles\Eclipse Adoptium", "$env:ProgramFiles\Microsoft", "$env:ProgramFiles\Zulu", "$env:ProgramFiles\Amazon Corretto", "$env:USERPROFILE\.jdks") |
     Where-Object { Test-Path $_ } | ForEach-Object { Get-ChildItem $_ -Directory -ErrorAction SilentlyContinue } | Select-Object -ExpandProperty FullName
+$cands += Get-ChildItem 'HKLM:\SOFTWARE\JavaSoft\JDK', 'HKLM:\SOFTWARE\Eclipse Adoptium\JDK', 'HKLM:\SOFTWARE\Microsoft\JDK' -Recurse -ErrorAction SilentlyContinue |
+    ForEach-Object { $_.GetValue('JavaHome'); $_.GetValue('Path') }
+$cands += (Get-Command java.exe -All -ErrorAction SilentlyContinue | ForEach-Object { Split-Path (Split-Path $_.Source) })
 $java = $null; $jv = ''
 foreach ($c in ($cands | Where-Object { $_ -and (Test-Path (Join-Path $_ 'bin\java.exe')) } | Select-Object -Unique)) {
     $v = (& (Join-Path $c 'bin\java.exe') -version 2>&1 | Select-Object -First 1) -replace '.*"(.*)".*', '$1'

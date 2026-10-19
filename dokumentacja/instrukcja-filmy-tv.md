@@ -262,6 +262,8 @@ Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** 
 - **▶ Odtwórz wszystkie po kolei**, **🔀 losowo** albo stuknij utwór – Velivo gra po kolei z Twojej listy (także w tle i przy zgaszonym ekranie), YouTube nie wtrąca swoich propozycji.
 - Przytrzymaj utwór – zmień kategorię, dodaj do playlisty / usuń z playlisty, zmień nazwę, usuń.
 
+> **Masz już Jellyfin z kluczem API na komputerze?** Na Windows: menu Synchronizacji → „🎬 Wyślij ustawienia Filmów i TV do: 📱…”. Telefon zapyta o zgodę, zapisze adres i klucz zaszyfrowane, a gdy na serwerze jest jeden użytkownik — wybierze go sam. Nic nie wpisujesz.
+
 ### ▶ Odtwarzacz
 - Stuknięcie – przyciski: pauza, przewijanie, **napisy** i **ścieżka dźwięku (lektor / język)** w ustawieniach odtwarzacza.
 - **Gesty (filmy):** lewa połowa w górę / w dół – **jasność**, prawa – **głośność**, w bok – przewijanie (cała szerokość = 3 minuty).

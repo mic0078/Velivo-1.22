@@ -2191,7 +2191,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun setupJellyfinUser() {
         val c = Jelly.conf(passwords) ?: return
         Thread {
-            val users = runCatching { Jelly.users(c) }.getOrNull() ?: return@Thread
+            val users = runCatching { Jelly.users(c) }.getOrNull()
+            if (users.isNullOrEmpty()) { runOnUiThread { toast(getString(R.string.jf_error)) }; return@Thread }
+            if (users.size == 1) { Jelly.save(passwords, Jelly.Conf(c.url, c.key, users[0].first)); return@Thread }   // jeden użytkownik - bez pytania
             runOnUiThread { AlertDialog.Builder(this).setTitle(R.string.jf_user).setItems(users.map { it.second }.toTypedArray()) { _, i -> Jelly.save(passwords, Jelly.Conf(c.url, c.key, users[i].first)) }.show() }
         }.start()
     }

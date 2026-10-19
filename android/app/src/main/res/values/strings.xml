@@ -325,4 +325,6 @@
     <string name="player_back">Back 10 s</string>
     <string name="player_fwd">Forward 10 s</string>
     <string name="player_no_tracks">No audio or subtitle tracks to choose</string>
+    <string name="sleep_show_end">📺 After this programme ends (%1$d min)</string>
+    <string name="sleep_film_end">🎬 After this film ends (%1$d min)</string>
 </resources>

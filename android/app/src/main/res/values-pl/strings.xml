@@ -325,4 +325,6 @@
     <string name="player_back">10 s wstecz</string>
     <string name="player_fwd">10 s do przodu</string>
     <string name="player_no_tracks">Brak ścieżek dźwięku i napisów do wyboru</string>
+    <string name="sleep_show_end">📺 Po zakończeniu tego programu (%1$d min)</string>
+    <string name="sleep_film_end">🎬 Po zakończeniu filmu (%1$d min)</string>
 </resources>

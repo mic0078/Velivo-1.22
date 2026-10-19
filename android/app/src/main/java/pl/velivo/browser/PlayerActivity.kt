@@ -39,7 +39,7 @@ import java.lang.ref.WeakReference
 // (stare AVI, AC3, MPEG-TS, HLS). Pamięta miejsce w filmie, obraz w obrazie, granie w tle, wyłącznik czasowy,
 // gesty: jasność (lewa strona), głośność (prawa), przewijanie w bok; w telewizji w górę / w dół = następny / poprzedni kanał.
 class PlayerActivity : Activity() {
-    class Item(val title: String, val uri: String, val key: String?, val headers: Map<String, String> = emptyMap(), val jellyId: String? = null, val info: String = "", val desc: String = "")
+    class Item(val title: String, val uri: String, val key: String?, val headers: Map<String, String> = emptyMap(), val jellyId: String? = null, val info: String = "", val desc: String = "", val endsAt: Long = 0)
 
     companion object {
         // kolejka ustawiana przed otwarciem (w pamięci - adresy z tokenem nie idą przez Intent ani do logów)
@@ -302,8 +302,11 @@ class PlayerActivity : Activity() {
     }
 
     private fun askSleep() {
-        val mins = intArrayOf(15, 30, 45, 60, 90, 0)
-        val labels = mins.map { if (it == 0) getString(R.string.sleep_none) else getString(R.string.sleep_min, it) }.toTypedArray()
+        // na górze: po zakończeniu tego programu (TV, z programu) albo tego filmu
+        val endMs = if (live) (queue.getOrNull(index)?.endsAt ?: 0L) - System.currentTimeMillis() else player.length - player.time
+        val endMin = if (endMs > 60_000) ((endMs + 59_999) / 60_000).toInt() else 0
+        val mins = (if (endMin > 0) intArrayOf(endMin) else intArrayOf()) + intArrayOf(15, 30, 45, 60, 90, 0)
+        val labels = mins.mapIndexed { k, it -> if (k == 0 && endMin > 0) getString(if (live) R.string.sleep_show_end else R.string.sleep_film_end, it) else if (it == 0) getString(R.string.sleep_none) else getString(R.string.sleep_min, it) }.toTypedArray()
         AlertDialog.Builder(this).setTitle(R.string.sleep_title).setItems(labels) { _, i ->
             ui.removeCallbacks(sleepRun)
             if (mins[i] == 0) { sleepAt = 0; toast(getString(R.string.sleep_off)) }
@@ -311,7 +314,7 @@ class PlayerActivity : Activity() {
         }.show()
     }
 
-    private val sleepRun = Runnable { sleepAt = 0; player.pause(); PlaybackService.stop(this) }
+    private val sleepRun = Runnable { sleepAt = 0; player.pause(); PlaybackService.stop(this); finish() }   // koniec: odtwarzacz zamknięty, ekran sam się wygasi
 
     // --- obraz w obrazie i granie w tle ---
     private fun pipParams() = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).apply {

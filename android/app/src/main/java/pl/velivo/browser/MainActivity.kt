@@ -1925,7 +1925,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         scr = MediaScreen("📺 " + getString(R.string.tv), "tv", listOf(getString(R.string.sort_fav_first), getString(R.string.sort_az), getString(R.string.tv_sort_list)),
             sorter = { l, s -> when (s) { 0 -> l.sortedWith(compareBy({ it.star != true }, { it.title.lowercase() })); 1 -> l.sortedBy { it.title.lowercase() }; else -> l } },
             onOpen = { r, shownRows ->
-                val items = shownRows.map { val ch = it.tag as Tv.Channel; PlayerActivity.Item(ch.name, ch.url, null, info = it.sub, desc = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.desc ?: "") }
+                val items = shownRows.map { val ch = it.tag as Tv.Channel; PlayerActivity.Item(ch.name, ch.url, null, info = it.sub, desc = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.desc ?: "", endsAt = Tv.nowNext(epg[ch.source] ?: emptyMap(), ch).first?.stop ?: 0L) }
                 prefs.edit().putStringSet("tv-ogladane", watched + (r.tag as Tv.Channel).key).apply()
                 play(items, shownRows.indexOf(r), live = true)
             },

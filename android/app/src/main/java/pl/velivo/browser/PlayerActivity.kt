@@ -87,13 +87,22 @@ class PlayerActivity : Activity() {
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 // kanał bez rozszerzenia w adresie: drugi raz jako HLS albo jako zwykły strumień (MPEG-TS)
-                if (retryAs < 2) { retryAs++; load(index, keepRetry = true); return }
+                val cur = queue.getOrNull(index)
+                if (cur?.jellyId != null) { if (retryAs == 0) { retryAs = 3; toast(getString(R.string.player_transcode)); load(index, keepRetry = true); return } }   // Jellyfin: serwer przerobi film (stare AVI, nietypowe kodeki)
+                else if (retryAs < 2) { retryAs++; load(index, keepRetry = true); return }
                 // powód bez adresu (może mieć token): kod HTTP serwera albo rodzaj błędu odtwarzacza
                 var c: Throwable? = error; var why = error.errorCodeName.removePrefix("ERROR_CODE_")
                 while (c != null) { c.message?.let { m -> Regex("Response code: (\\d+)").find(m)?.let { why = "HTTP " + it.groupValues[1] } }; c = c.cause }
                 toast(getString(R.string.player_error) + " (" + why + ")")
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) { updatePip() }
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                // Jellyfin: obraz albo dźwięk w formacie, którego telefon nie odtworzy (stare AVI) - od razu przerobienie na serwerze
+                fun missing(t: Int) = tracks.groups.any { g -> g.type == t } && tracks.groups.none { g -> g.type == t && g.isSupported }
+                if ((missing(C.TRACK_TYPE_VIDEO) || missing(C.TRACK_TYPE_AUDIO)) && retryAs == 0 && queue.getOrNull(index)?.jellyId != null) {
+                    retryAs = 3; toast(getString(R.string.player_transcode)); ui.post { load(index, keepRetry = true) }
+                }
+            }
             override fun onPlaybackStateChanged(state: Int) {
                 ui.removeCallbacks(stuck)
                 if (state == Player.STATE_BUFFERING) ui.postDelayed(stuck, 25000)   // serwer nic nie przysyła - zwykle limit połączeń (TV gra na innym urządzeniu)
@@ -140,7 +149,7 @@ class PlayerActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(dp(52), dp(48)).apply { setMargins(dp(4), 0, dp(4), 0) }
     }
 
-    private var retryAs = 0   // 0 jak w adresie, 1 HLS, 2 zwykły strumień
+    private var retryAs = 0   // 0 jak w adresie, 1 HLS, 2 zwykły strumień, 3 Jellyfin przerabia na H.264/AAC
 
     private fun load(i: Int, keepRetry: Boolean = false) {
         val it = queue.getOrNull(i) ?: return finish()
@@ -150,8 +159,11 @@ class PlayerActivity : Activity() {
         descView.text = listOf(it.info, it.desc).filter { d -> d.isNotEmpty() }.joinToString("\n")
         descView.visibility = if (descView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         httpFactory?.setDefaultRequestProperties(it.headers)   // np. klucz Jellyfin w nagłówku, nie w adresie
-        val mi = MediaItem.Builder().setUri(it.uri)
-        when (retryAs) { 1 -> mi.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8); 2 -> mi.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T) }
+        val uri = if (retryAs == 3 && it.jellyId != null)   // przekodowanie na serwerze Jellyfin (jak VLC na Windows - serwer ma FFmpeg); klucz dalej w nagłówku
+            it.uri.substringBefore("/Videos/") + "/Videos/${it.jellyId}/master.m3u8?MediaSourceId=${it.jellyId}&VideoCodec=h264&AudioCodec=aac,mp3&TranscodingMaxAudioChannels=2&SegmentContainer=ts&DeviceId=velivo-android&PlaySessionId=" + java.util.UUID.randomUUID().toString().replace("-", "")
+            else it.uri
+        val mi = MediaItem.Builder().setUri(uri)
+        when (retryAs) { 1, 3 -> mi.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8); 2 -> mi.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP2T) }
         player.setMediaItem(mi.build())
         player.prepare()
         val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f

@@ -318,4 +318,5 @@
     <string name="tv_tomorrow">Tomorrow</string>
     <string name="tv_day_after">Day after tomorrow</string>
     <string name="player_stuck">The server sends no picture. If TV is playing on another device (e.g. the computer), stop it there – many lists allow only one connection at a time.</string>
+    <string name="player_transcode">This file needs conversion – the Jellyfin server is converting it, one moment…</string>
 </resources>

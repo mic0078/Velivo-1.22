@@ -2319,10 +2319,21 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun showPhoneVideos() {
         val perms = if (Build.VERSION.SDK_INT >= 33) arrayOf(android.Manifest.permission.READ_MEDIA_VIDEO, android.Manifest.permission.READ_MEDIA_AUDIO) else arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
         if (perms.any { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED } && afterVideoPerm == null) { afterVideoPerm = { showPhoneVideos() }; requestPermissions(perms, REQ_VIDEOS); return }
+        // widok: 0 wszystko (filmy, potem muzyka), 1 tylko filmy, 2 tylko muzyka - zapamiętany; w każdym alfabetycznie
+        var kind = prefs.getInt("telefon-rodzaj", 0)
+        var all = listOf<MRow>()
+        fun audio(r: MRow) = r.title.startsWith("🎵")
+        fun name(r: MRow) = r.title.removePrefix("🎵 ").lowercase()
+        fun shown() = all.filter { kind == 0 || (kind == 2) == audio(it) }
+        val kinds = listOf(getString(R.string.phone_all), "🎬 " + getString(R.string.phone_only_video), "🎵 " + getString(R.string.phone_only_audio))
         lateinit var scr: MediaScreen
         scr = MediaScreen("📱 " + getString(R.string.phone_videos), "telefon", listOf(getString(R.string.sort_az), getString(R.string.sort_newest)),
-            sorter = { l, s -> if (s == 0) l.sortedBy { it.title.lowercase() } else l.sortedByDescending { (it.tag as Pair<*, *>).second as Long } },
-            onOpen = { r, shown -> play(shown.map { val u = (it.tag as Pair<*, *>).first.toString(); PlayerActivity.Item(it.title, u, "plik-" + u.hashCode()) }, shown.indexOf(r), false) })
+            sorter = { l, s -> if (s == 0) l.sortedWith(compareBy({ audio(it) }, { name(it) })) else l.sortedByDescending { (it.tag as Pair<*, *>).second as Long } },
+            onOpen = { r, shownRows -> play(shownRows.map { val u = (it.tag as Pair<*, *>).first.toString(); PlayerActivity.Item(it.title.removePrefix("🎵 "), u, "plik-" + u.hashCode()) }, shownRows.indexOf(r), false) })
+        fun info() = kinds[kind] + " · " + shown().count { !audio(it) } + " 🎬 · " + shown().count { audio(it) } + " 🎵"
+        scr.addButton("☰", R.string.tv_filter) {
+            AlertDialog.Builder(this).setSingleChoiceItems(kinds.toTypedArray(), kind) { d, i -> kind = i; prefs.edit().putInt("telefon-rodzaj", i).apply(); d.dismiss(); scr.setRows(shown(), info()) }.show()
+        }
         scr.show()
         scr.setRows(emptyList(), getString(R.string.tv_loading))
         Thread {
@@ -2337,7 +2348,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                     }
                 }
             }
-            runOnUiThread { scr.setRows(rows, if (rows.isEmpty()) getString(R.string.my_films_empty) else "") }
+            runOnUiThread { all = rows; scr.setRows(shown(), if (rows.isEmpty()) getString(R.string.my_films_empty) else info()) }
         }.start()
     }
 

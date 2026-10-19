@@ -349,4 +349,7 @@
     <string name="phone_videos">Videos and music on the phone</string>
     <string name="default_browser_done">Velivo is already your default browser</string>
     <string name="default_player_help">To always open videos and music in Velivo: open a video or song in Gallery or Files → Open with → Velivo → Always. To go back, clear the defaults of that app in Android settings.</string>
+    <string name="phone_all">Everything (videos, then music)</string>
+    <string name="phone_only_video">Videos only</string>
+    <string name="phone_only_audio">Music only</string>
 </resources>

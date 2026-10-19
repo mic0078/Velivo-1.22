@@ -387,13 +387,15 @@ set(p0,p);})"""
 
     override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
         super.onPictureInPictureModeChanged(pip, cfg)
+        // pełny ekran filmu (poziomo) w okienku rozjeżdża się (szare pole) - w okienku zawsze zwykła strona z filmem na całość
+        if (pip && fullView != null) exitFullscreen()
         pipBars.forEach { it.visibility = if (pip) View.GONE else if (it == findBar || it == pickBar) it.visibility else View.VISIBLE }
         // w okienku tylko film, na całą powierzchnię
         web()?.evaluateJavascript(if (pip) "(function(){var s=document.getElementById('velivo-pip')||document.createElement('style');s.id='velivo-pip';" +
             "s.textContent='video{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
             "document.documentElement.appendChild(s);var v=document.querySelector('video');if(v&&v.paused)v.play();})()" else "(function(){var s=document.getElementById('velivo-pip');if(s)s.remove();})()", null)
         // z pełnego ekranu: YouTube zamyka pełny ekran przy zmianie rozmiaru i przy tym pauzuje - wznów jeszcze kilka razy
-        if (pip) for (d in longArrayOf(400, 1200, 2500)) pipCheck.postDelayed({
+        if (pip) for (d in longArrayOf(400, 1200, 2500, 4000, 6000, 8000)) pipCheck.postDelayed({
             if (isInPictureInPictureMode) web()?.evaluateJavascript("(function(){var v=document.querySelector('video');if(v&&v.paused&&!v.ended){var p=v.play();if(p&&p.catch)p.catch(function(){})}})()", null)
         }, d)
     }

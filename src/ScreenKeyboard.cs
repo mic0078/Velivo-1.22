@@ -554,12 +554,13 @@ namespace Velivo
             if (_pWord.Length == 0 && ",.!?:;".IndexOf(sep) >= 0 && (autoSp || _pPrev == ' ' && _pPrevSpace && !string.IsNullOrEmpty(_pPrevWord)) && !_physStale)
             {   // znak przylega do slowa: "kot ." -> "kot." (po slowie z paska tez spacja za nim: "kot, ")
                 Inject(KeyIn(0x08, '\0').Concat(TextIn(autoSp ? sep + " " : sep.ToString()))); SentAdd(null, sep, false, null, true);
-                _pPrev = autoSp ? ' ' : sep; _pCap = autoSp && ".!?".IndexOf(sep) >= 0; _pAfterComma = sep == ',' && !autoSp; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
+                _pPrev = autoSp ? ' ' : sep; _pCap = (autoSp || sep == '?' || sep == '!') && ".!?".IndexOf(sep) >= 0; _pAfterComma = (sep == ',' || sep == '?' || sep == '!') && !autoSp; _pPrevWord = _pPrevWord2 = null; _pPrevSpace = false;
                 PhysPred(null, false); return true;
             }   // inny klawisz (strzalki, skroty) - nie wiemy, gdzie jest kursor
             bool capAfter = sep == ' ' && (_pPrev == '.' || _pPrev == '!' || _pPrev == '?') ;
-            _pAfterComma = sep == ',' && _pWord.Length > 0 && _pWord.All(char.IsLetter);
-            string word = _pWord; _pWord = ""; var retyped = _pRetype; _pRetype = null; _pPrev = sep; _pCap = capAfter;
+            // po przecinku, ? i ! zawsze spacja: "kot,pies" -> "kot, pies", "jak?dobrze" -> "jak? Dobrze" (kropka nie - adresy i liczby: 3.5, onet.pl)
+            _pAfterComma = (sep == ',' || sep == '?' || sep == '!') && _pWord.Length > 0 && _pWord.All(char.IsLetter);
+            string word = _pWord; _pWord = ""; var retyped = _pRetype; _pRetype = null; _pPrev = sep; _pCap = capAfter || _pAfterComma && sep != ',';
             string prevW = _pPrevWord, prevW2 = _pPrevWord2; bool prevSpace = _pPrevSpace; _pPrevWord = sep == ' ' ? word : null; _pPrevSpace = sep == ' ';
             var ze = prevSpace && word.Length > 0 ? SwipeTyping.ZeAsZe(prevW, word, prevW2) : null;   // ze to -> że to (ze mną zostaje)
             bool zeBack = _pZeAuto && prevSpace && word.Length > 0 && word.All(char.IsLetter) && SwipeTyping.ZeAsZe("ze", word, null) == null, zeBackComma = _pZeComma; _pZeAuto = false;   // mówi że mną -> mówi ze mną

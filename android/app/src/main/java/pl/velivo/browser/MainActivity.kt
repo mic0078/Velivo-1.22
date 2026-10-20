@@ -1259,7 +1259,9 @@ window.__vStop=function(){mark(null);ov.remove();window.__vPick=null;};})()""", 
         AlertDialog.Builder(this).setTitle(R.string.hide_element).setMessage(R.string.hide_ask)
             .setPositiveButton(R.string.hide_yes) { _, _ -> hidePicked() }
             .setNeutralButton(R.string.hide_bigger) { _, _ -> web()?.evaluateJavascript("window.__vBig&&__vBig()") { askHide() } }
-            .setNegativeButton(android.R.string.cancel, null)
+            // Anuluj (albo Wstecz) kończy zaznaczanie - strona od razu działa normalnie (linki, artykuły)
+            .setNegativeButton(android.R.string.cancel) { _, _ -> stopPick() }
+            .setOnCancelListener { stopPick() }
             .show()
     }
 

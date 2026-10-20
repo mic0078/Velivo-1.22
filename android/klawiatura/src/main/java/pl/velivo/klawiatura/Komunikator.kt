@@ -246,6 +246,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // „jestem w sieci” - po powrocie do domowego Wi-Fi kontakty od razu dosyłają zaległe wiadomości
     fun announce() = Thread { repeat(3) { sendUdp(packet("p2p-here"), null); Thread.sleep(1500) }; contacts.toList().forEach { resend(it) } }.start()
 
+    // „kto jest w sieci?” - kontakty odpowiadają, status 🟢 od razu prawdziwy
+    fun ping() = Thread { sendUdp(packet("p2p-here"), null); repeat(2) { sendUdp(packet("p2p-who"), null); Thread.sleep(700) } }.start()
+
     @Synchronized fun contact(id: String) = contacts.firstOrNull { it.id == id }
 
     // urządzenia z Velivo (telefony i komputery) w tej sieci - ok. 2,5 s
@@ -709,7 +712,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             statusBarColor = Color.rgb(0x1E, 0x18, 0x38); navigationBarColor = Color.rgb(0x13, 0x2A, 0x35)
         }
         d.setOnKeyListener { _, code, e -> if (code == android.view.KeyEvent.KEYCODE_BACK && e.action == android.view.KeyEvent.ACTION_UP && chatWith != null) { show(); true } else false }
-        d.setOnDismissListener { onClose?.invoke(); screen = null; page = null; chatWith = null; chatRefresh = null; listRefresh = null; k.chatOpen = null }
+        // realny stan kontaktów: pytanie od razu i co 30 s, dopóki komunikator otwarty
+        val h = Handler(Looper.getMainLooper())
+        val tick = object : Runnable { override fun run() { k.ping(); h.postDelayed({ (chatRefresh ?: listRefresh)?.invoke() }, 2000); h.postDelayed(this, 30000) } }
+        h.post(tick)
+        d.setOnDismissListener { h.removeCallbacksAndMessages(null); onClose?.invoke(); screen = null; page = null; chatWith = null; chatRefresh = null; listRefresh = null; k.chatOpen = null }
         screen = d; page = root
         d.show()
         return root

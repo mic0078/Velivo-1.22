@@ -817,7 +817,14 @@ namespace Velivo
                 var peer = await KomChoosePeer(w, L.T("📎 Wyślij pliki do…")); if (peer.Addr != null) await KomSendFilesTo(w, peer.Name, peer.Addr, KomContactById(peer.Id));
             }));
             w.Activated += (s, e) => { if (_komOpenId != null && _komUnread.ContainsKey(_komOpenId)) FillChat(); };
-            w.Closed += (s, e) => { _komWindow = null; _komRefresh = null; _komSelect = null; };
+            // realny stan kontaktow: pytanie "kto jest w sieci" od razu po otwarciu i co 30 s, dopoki okno otwarte
+            void Ping() { var who = KomPacket("p2p-who"); var here = KomPacket("p2p-here"); _ = Task.Run(async () => { KomSendUdp(here, null); for (int i = 0; i < 2; i++) { KomSendUdp(who, null); await Task.Delay(700); } }); }
+            var presence = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            presence.Tick += (s, e) => { Ping(); FillList(); FillChat(); };
+            presence.Start();
+            Ping();
+            _ = Task.Delay(2500).ContinueWith(_ => Dispatcher.BeginInvoke(new Action(() => { if (_komWindow == w) { FillList(); FillChat(); } })));
+            w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; };
             _komWindow = w;
             if (openId != null) _komOpenId = openId;
             FillList(); FillChat();

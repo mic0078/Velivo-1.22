@@ -223,6 +223,7 @@ namespace Velivo
             long ts = (long?)p["ts"] ?? 0;
             if (Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 600000) return;
             var c = KomContactById(from);
+            if (t == "p2p-bye") { if (c != null && _komLastSeen.Remove(c.Id)) _komRefresh?.Invoke(); return; }   // zamknal Velivo - od razu poza siecia
             if (c != null)
             {
                 bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow;
@@ -451,9 +452,16 @@ namespace Velivo
             finally { _komInFlight.Remove(m.Mid); }
         }
 
-        // 🟢 w sieci: kontakt odezwal sie w ostatnich 2,5 min (kazde Velivo z komunikatorem oglasza sie co minute)
+        // 🟢 w sieci: kontakt odezwal sie w ostatnich 95 s (kazde Velivo z komunikatorem oglasza sie co minute, okno pyta co 30 s)
         readonly Dictionary<string, DateTime> _komLastSeen = new Dictionary<string, DateTime>();
-        bool KomOnline(string id) => _komLastSeen.TryGetValue(id, out var t) && DateTime.UtcNow - t < TimeSpan.FromSeconds(150);
+        bool KomOnline(string id) => _komLastSeen.TryGetValue(id, out var t) && DateTime.UtcNow - t < TimeSpan.FromSeconds(95);
+
+        // zamkniecie Velivo: kontakty od razu widza "poza siecia"
+        internal void KomBye()
+        {
+            if (!_komLoaded || _komContacts.Count == 0) return;
+            for (int i = 0; i < 2; i++) KomSendUdp(KomPacket("p2p-bye"), null);
+        }
 
         void KomStartResend()
         {

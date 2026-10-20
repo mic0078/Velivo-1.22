@@ -3352,6 +3352,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     override fun onPause() {
         android.util.Log.i("Velivo-PiP", "wstrzymane (w okienku: $isInPictureInPictureMode)")
         pipCheck.removeCallbacks(pipTick)
+        if (kom.contacts.isNotEmpty() && !kom.background) kom.bye()   // bez odbioru w tle - kontakty od razu widzą „poza siecią”
         stopLan()
         KomunikatorUsluga.start(this, kom)   // 💬 wiadomości z powiadomieniem także po zamknięciu Velivo
         idle.removeCallbacks(idleCheck)

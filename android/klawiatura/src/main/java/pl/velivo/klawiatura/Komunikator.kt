@@ -197,6 +197,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val from = p.optString("id")
         if (from == myId || from.length != 32 || sender == null) return true
         if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) return true
+        if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
         contact(from)?.let { c ->
             val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis()
             if (t == "p2p-here" && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
@@ -596,9 +597,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             .setContentIntent(pi).setOngoing(true).build()
     }
 
-    // 🟢 w sieci: kontakt odezwał się w ostatnich 2,5 min (każde Velivo z komunikatorem ogłasza się co minutę)
+    // 🟢 w sieci: kontakt odezwał się w ostatnich 95 s (każde Velivo z komunikatorem ogłasza się co minutę, okno komunikatora pyta co 30 s)
     private val lastSeen = java.util.concurrent.ConcurrentHashMap<String, Long>()
-    fun online(id: String) = System.currentTimeMillis() - (lastSeen[id] ?: 0L) < 150000
+    fun online(id: String) = System.currentTimeMillis() - (lastSeen[id] ?: 0L) < 95000
+
+    // wychodzimy z sieci (Velivo zamknięte bez odbioru w tle) - kontakty od razu widzą „poza siecią”
+    fun bye() = Thread { repeat(2) { sendUdp(packet("p2p-bye"), null); Thread.sleep(150) } }.start()
     private var shownOnline = emptySet<String>()
 
     // niedoręczone (…) - ponownie, gdy kontakt odezwie się w sieci, i co minutę

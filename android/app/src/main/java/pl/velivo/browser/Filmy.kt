@@ -125,9 +125,15 @@ object Tv {
         if (src.epg.isEmpty()) return emptyMap()
         val wanted = HashSet<String>()
         chans.forEach { keys(it).forEach { k -> wanted.add(k) } }
+        // dawny program (starszy niż 6 godzin) tylko dla kanałów z archiwum ⏪ - pozostałe go nie potrzebują
+        // (lista z tysiącami kanałów i tvg-rec=7: tydzień wstecz dla wszystkich zapełniał całą pamięć telefonu)
+        val archKeys = HashSet<String>().also { a -> chans.filter { hasCatchup(it) }.forEach { keys(it).forEach { k -> a.add(k) } } }
+        val recent = System.currentTimeMillis() - 6 * 3600_000L
         val back = chans.filter { hasCatchup(it) }.maxOfOrNull { it.catchupDays }?.coerceIn(0, 7) ?: 0
         val from = System.currentTimeMillis() - (if (back > 0) back * 24 else 6) * 3600_000L   // wstecz tyle dni, ile archiwum kanałów (⏪), najwyżej 7
         val to = System.currentTimeMillis() + 72 * 3600_000L   // program na 3 dni
+        // opisy tylko blisko "teraz" (od 6 godzin wstecz do jutra) - przy tysiącach kanałów i archiwum opisy zajmowały setki MB
+        val descFrom = System.currentTimeMillis() - 6 * 3600_000L; val descTo = System.currentTimeMillis() + 30 * 3600_000L
         val names = HashMap<String, MutableList<String>>()   // id kanału w programie -> nazwy
         val out = HashMap<String, MutableList<Show>>()
         open(src.epg).use { input ->
@@ -157,8 +163,8 @@ object Tv {
                         if (p.name == "programme") {
                             val id = curId ?: ""
                             if (stop > from && start < to) {
-                                val cands = (listOf(id) + (names[id] ?: emptyList())).flatMap { listOf(it.lowercase(), epgKey(it)) }.filter { it.isNotEmpty() && it in wanted }.distinct()
-                                if (cands.isNotEmpty()) { val sh = Show(start, stop, title.trim(), desc.trim().take(400)); cands.forEach { k -> out.getOrPut(k) { ArrayList() }.add(sh) } }
+                                val cands = (listOf(id) + (names[id] ?: emptyList())).flatMap { listOf(it.lowercase(), epgKey(it)) }.filter { it.isNotEmpty() && it in wanted && (stop > recent || it in archKeys) }.distinct()
+                                if (cands.isNotEmpty()) { val sh = Show(start, stop, title.trim(), if (stop > descFrom && start < descTo) desc.trim().take(300) else ""); cands.forEach { k -> out.getOrPut(k) { ArrayList() }.add(sh) } }
                             }
                         }
                         field = ""
@@ -168,17 +174,33 @@ object Tv {
             }
         }
         out.values.forEach { it.sortBy { s -> s.start } }
-        val j = JSONObject()
-        out.forEach { (k, l) -> j.put(k, JSONArray().apply { l.forEach { put(JSONArray().put(it.start).put(it.stop).put(it.title).put(it.desc)) } }) }
-        f.writeText(j.toString())
+        // zapis strumieniem prosto do pliku - bez budowania całego tekstu w pamięci (przy 8000 kanałów: brak pamięci, 150 MB naraz)
+        android.util.JsonWriter(java.io.OutputStreamWriter(java.io.BufferedOutputStream(java.io.FileOutputStream(f)), Charsets.UTF_8)).use { w ->
+            w.beginObject()
+            out.forEach { (k, l) -> w.name(k); w.beginArray(); l.forEach { w.beginArray(); w.value(it.start); w.value(it.stop); w.value(it.title); w.value(it.desc); w.endArray() }; w.endArray() }
+            w.endObject()
+        }
         cacheFile(ctx, src.id, ".epg6.json").delete()   // stary zapis (bez adresu w nazwie)
         memEpg[key] = out; memEpg[src.id] = out
         return out
     }
 
+    // odczyt strumieniem (plik programu bywa duży); ten sam program kilku kanałów - jeden obiekt
     private fun readEpg(f: File): Map<String, List<Show>>? = runCatching {
-        val j = JSONObject(f.readText())
-        j.keys().asSequence().associateWith { k -> val a = j.getJSONArray(k); (0 until a.length()).map { val x = a.getJSONArray(it); Show(x.getLong(0), x.getLong(1), x.getString(2), x.getString(3)) } }
+        val out = HashMap<String, List<Show>>()
+        val same = HashMap<String, Show>()
+        android.util.JsonReader(java.io.InputStreamReader(java.io.BufferedInputStream(java.io.FileInputStream(f)), Charsets.UTF_8)).use { r ->
+            r.beginObject()
+            while (r.hasNext()) {
+                val k = r.nextName(); val l = ArrayList<Show>()
+                r.beginArray()
+                while (r.hasNext()) { r.beginArray(); val a = r.nextLong(); val b = r.nextLong(); val t = r.nextString(); val d = r.nextString(); r.endArray()
+                    l.add(same.getOrPut("$a|$b|$t") { Show(a, b, t, d) }) }
+                r.endArray(); out[k] = l
+            }
+            r.endObject()
+        }
+        out
     }.getOrNull()
 
     // 20261019183000 +0200

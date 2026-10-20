@@ -133,6 +133,8 @@ class KlawiaturaVelivo : InputMethodService() {
         view.theme(); view.refresh()
     }
 
+    // ➤ w komunikatorze Velivo: popraw ostatnie słowo przed wysłaniem
+    override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord("") }
     override fun onFinishInputView(finishingInput: Boolean) { super.onFinishInputView(finishingInput); stopListening() }
     override fun onDestroy() { tts?.shutdown(); rec?.destroy(); super.onDestroy() }
 

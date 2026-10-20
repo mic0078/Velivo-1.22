@@ -29,6 +29,7 @@ namespace Velivo
             public string Tag { get; set; }
             public int Length { get; set; }
             public string Name { get; set; }   // plik przesylany miedzy urzadzeniami (LanFiles.cs)
+            public long Size { get; set; }     // duzy plik po kawalkach (file2) - rozmiar bez limitu int
         }
 
         const int QuickAccessLanPort = LanPort;
@@ -300,6 +301,11 @@ namespace Velivo
                     if (header != null && header.Type == "file")
                     {
                         await ReceiveLanFileAsync(stream, header, client.Client.RemoteEndPoint as IPEndPoint, token);
+                        return;
+                    }
+                    if (header != null && header.Type == "file2")
+                    {
+                        await ReceiveLanFile2Async(stream, header, client.Client.RemoteEndPoint as IPEndPoint, token);
                         return;
                     }
                     if (header != null && header.Type == "lan-state")

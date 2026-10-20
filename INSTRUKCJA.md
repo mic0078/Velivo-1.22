@@ -965,7 +965,7 @@ Stan połączenia pokazuje Ustawienia → **Panel diagnostyczny LAN…**.
 
 ### 📎 Wysyłanie plików
 
-Prawy przycisk na karcie → **📺 Wyślij do… → 📎 Wyślij plik do: nazwa** i wybierz plik (do 100 MB). Na drugim urządzeniu pojawia się pytanie z nazwą i rozmiarem pliku – **nic nie jest przesyłane bez zgody odbiorcy**. Przyjęty plik trafia do folderu **Pobrane**. Plik jest szyfrowany kluczem z parowania, a odbiorca sprawdza jego sumę kontrolną.
+Przycisk **📎** na pasku Velivo, menu ikony w zasobniku **📎 Wyślij pliki do…** albo prawy przycisk na karcie → **📺 Wyślij do… → 📎 Wyślij plik do: nazwa** – wybierz jeden lub kilka plików, **bez limitu rozmiaru** (duże pliki idą po kawałkach). Na drugim urządzeniu pojawia się pytanie z nazwą i rozmiarem pliku – **nic nie jest przesyłane bez zgody odbiorcy**. Komputer pyta też, **gdzie zapisać** (okno „Zapisz jako”, domyślnie Pobrane); telefon zapisuje w Pobranych. Plik jest szyfrowany kluczem z parowania, a odbiorca sprawdza jego sumę kontrolną.
 
 ### 📱 Telefon (Velivo na Androida)
 

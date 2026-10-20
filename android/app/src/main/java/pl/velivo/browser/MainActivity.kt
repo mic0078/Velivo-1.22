@@ -2885,7 +2885,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             askFile = { dev, name, size, accept ->
                 AlertDialog.Builder(this)
                     .setTitle(R.string.file_title)
-                    .setMessage(getString(R.string.file_ask, dev, name, android.text.format.Formatter.formatShortFileSize(this, size.toLong())))
+                    .setMessage(getString(R.string.file_ask, dev, name, android.text.format.Formatter.formatShortFileSize(this, size)))
                     .setPositiveButton(R.string.file_accept) { _, _ -> accept(true) }
                     .setNegativeButton(android.R.string.cancel) { _, _ -> accept(false) }
                     .setOnCancelListener { accept(false) }
@@ -2902,6 +2902,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             onTab = { dev, url, title, time -> receiveTab(dev, url, title, time) },
             onMedia = { dev, jf, tv -> receiveMediaConf(dev, jf, tv) },
             onMediaShared = { dev, code, jf, tv -> receiveMediaConf(dev, jf, tv, code) },
+            tmpDir = cacheDir,
+            saveFileFrom = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
                     runOnUiThread {
@@ -2929,15 +2931,16 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // Plik z komputera do Pobranych (MediaStore - bez dodatkowych uprawnień).
-    private fun saveToDownloads(name: String, data: ByteArray, dev: String) {
+    private fun saveToDownloads(name: String, data: ByteArray?, dev: String, from: java.io.File? = null) {
         val values = android.content.ContentValues().apply {
             put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
             put(android.provider.MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
         val ok = runCatching {
             val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)!!
-            contentResolver.openOutputStream(uri)!!.use { it.write(data) }
+            contentResolver.openOutputStream(uri)!!.use { o -> if (from != null) from.inputStream().use { it.copyTo(o, 1 shl 16) } else o.write(data!!) }
         }.isSuccess
+        from?.delete()
         runOnUiThread { toast(getString(if (ok) R.string.file_saved else R.string.file_failed, name, dev)) }
     }
 
@@ -2989,10 +2992,11 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             // komputer musi się najpierw odezwać w sieci (adres) - czekamy do 30 s
             var waited = 0
             while (lan.computer == null && waited < 30) { Thread.sleep(1000); waited++ }
+            // po kawałkach - bez limitu rozmiaru i bez wczytywania całego pliku do pamięci
             val result = runCatching {
-                val size = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
-                if (size > LanSync.FILE_LIMIT) "plik większy niż 100 MB"
-                else lan.sendFile(name, contentResolver.openInputStream(uri)!!.use { it.readBytes() })
+                var size = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                if (size < 0) size = contentResolver.openInputStream(uri)!!.use { s -> var n = 0L; val b = ByteArray(1 shl 16); while (true) { val r = s.read(b); if (r < 0) break; n += r }; n }
+                lan.sendFile2(name, size) { contentResolver.openInputStream(uri)!! }
             }.getOrElse { it.message ?: "błąd" }
             runOnUiThread {
                 toast(when (result) {

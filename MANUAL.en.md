@@ -623,7 +623,7 @@ The connection status is in Settings → **LAN diagnostics panel…**.
 
 ### 📎 Sending files
 
-Right-click a tab → **📺 Send to… → 📎 Send a file to: name** and pick a file (up to 100 MB). The other device asks with the file name and size – **nothing is transferred without the recipient's consent**. An accepted file goes to **Downloads**. The file is encrypted with the pairing key and the recipient checks its checksum.
+The **📎** button on the Velivo bar, the tray icon menu **📎 Send files to…** or right-click a tab → **📺 Send to… → 📎 Send a file to: name** – pick one or more files, **no size limit** (large files go in chunks). The other device asks with the file name and size – **nothing is transferred without the recipient's consent**. The computer also asks **where to save** (a “Save as” window, Downloads by default); the phone saves to Downloads. The file is encrypted with the pairing key and the recipient checks its checksum.
 
 ### 📱 Phone (Velivo for Android)
 

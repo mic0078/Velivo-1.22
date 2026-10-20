@@ -29,7 +29,7 @@ namespace Velivo
     {
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
         sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; }
-        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie
+        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
         static string KomFile => Path.Combine(DataDir, "komunikator.dat");
@@ -65,7 +65,7 @@ namespace Velivo
                         if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false });
                     }
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
-                        _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false }).ToList();
+                        _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false }).ToList();
                     foreach (var kv in o["unread"]?.AsObject() ?? new JsonObject()) _komUnread[kv.Key] = (int)kv.Value;
                 }
             }
@@ -81,7 +81,7 @@ namespace Velivo
                 foreach (var kv in _komChats)
                 {
                     var a = new JsonArray();
-                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read });
+                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File });
                     chats[kv.Key] = a;
                 }
                 var unread = new JsonObject(); foreach (var kv in _komUnread) unread[kv.Key] = kv.Value;
@@ -429,7 +429,7 @@ namespace Velivo
         void KomResendPending(KomContact c)
         {
             long week = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 7L * 86400000;
-            foreach (var m in KomChat(c.Id).Where(x => x.Mine && !x.Ok && x.Ts > week).ToList()) KomDeliver(c, m);
+            foreach (var m in KomChat(c.Id).Where(x => x.Mine && !x.Ok && !x.File && x.Ts > week).ToList()) KomDeliver(c, m);
         }
 
         // najpierw na znany adres, potem do calej sieci; 4 proby co 1,5 s; potem co minute (zegar) i gdy kontakt sie odezwie
@@ -673,7 +673,7 @@ namespace Velivo
         void KomNote(KomContact c, bool mine, string text, string mid = null)
         {
             if (mid == null || mid.Length != 32 || KomChat(c.Id).Any(m => m.Mid == mid)) mid = Guid.NewGuid().ToString("N");
-            KomChat(c.Id).Add(new KomMsg { Mine = mine, Text = text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = mid });
+            KomChat(c.Id).Add(new KomMsg { Mine = mine, Text = text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = mid, File = true });
             KomSave(); _komRefresh?.Invoke();
         }
 
@@ -968,7 +968,8 @@ namespace Velivo
                 var c = Current(); if (c != null) { await AttachTo(c); return; }   // zaznaczony kontakt - bez szukania i bez kodu
                 var peer = await KomChoosePeer(w, L.T("📎 Wyślij pliki do…")); if (peer.Addr != null) await KomSendFilesTo(w, peer.Name, peer.Addr, KomContactById(peer.Id));
             }));
-            w.Activated += (s, e) => { if (_komOpenId != null && _komUnread.ContainsKey(_komOpenId)) FillChat(); };
+            // okno na wierzchu: rozmowa widoczna - "przeczytane" (✓✓) dla wszystkiego, co w niej czeka (takze plikow)
+            w.Activated += (s, e) => { if (_komOpenId == null) return; if (_komUnread.ContainsKey(_komOpenId)) FillChat(); var oc = Current(); if (oc != null) KomSendRead(oc); };
             // realny stan kontaktow: pytanie "kto jest w sieci" od razu po otwarciu i co 30 s, dopoki okno otwarte
             void Ping() { var who = KomPacket("p2p-who"); var here = KomPacket("p2p-here"); _ = Task.Run(async () => { KomSendUdp(here, null); for (int i = 0; i < 2; i++) { KomSendUdp(who, null); await Task.Delay(700); } }); }
             var presence = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
@@ -1064,10 +1065,17 @@ namespace Velivo
                 Window codeWin = null;
                 var fn = Path.GetFileName(f); var fmid = Guid.NewGuid().ToString("N"); long fsize = 0; try { fsize = new FileInfo(f).Length; } catch (Exception) { }
                 KomInfo("📎 " + fn + L.T(" – czekam, aż odbiorca przyjmie…"), 0);
+                // wpis w rozmowie od razu („…”): potwierdzenie przeczytania od odbiorcy moze przyjsc, zanim tu skonczymy
+                KomMsg pend = null;
+                if (to != null) { pend = new KomMsg { Mine = true, Text = "📎 " + fn + " · " + KomSize(fsize), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = false, Mid = fmid, File = true }; KomChat(to.Id).Add(pend); KomSave(); _komRefresh?.Invoke(); }
                 var r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
                     (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))), fmid);
                 codeWin?.Close();
-                if (r == "ok" && to != null) KomNote(to, true, "📎 " + fn + " · " + KomSize(fsize) + L.T(" – odebrano"), fmid);
+                if (pend != null)
+                {
+                    if (r == "ok") { pend.Ok = true; pend.Text += L.T(" – odebrano"); } else KomChat(to.Id).Remove(pend);   // odrzucony / blad - bez wpisu
+                    KomSave(); _komRefresh?.Invoke();
+                }
                 KomInfo("📎 " + fn + ": " + (r == "ok" ? L.T("wysłano") : r));
                 try { if (owner.IsVisible) owner.Activate(); } catch (Exception) { }   // rozmowa dalej na wierzchu
             }

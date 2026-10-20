@@ -70,7 +70,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // name - nazwa wyświetlana (własna albo urządzenia); device - prawdziwa nazwa urządzenia (aktualizowana z sieci); own - nazwa nadana przez użytkownika
     class Contact(val id: String, var name: String, val key: ByteArray, var addr: String, var device: String = name, var own: Boolean = false)
     // read: moja - odbiorca przeczytał (✓✓); odebrana - wysłaliśmy „przeczytane”
-    class Msg(val mine: Boolean, val text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false)
+    // file: wpis o pliku (nie wysyłany ponownie jako tekst)
+    class Msg(val mine: Boolean, var text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false, var file: Boolean = false)
 
     private val prefs = ctx.getSharedPreferences("komunikator", Context.MODE_PRIVATE)
     private val random = SecureRandom()
@@ -122,18 +123,18 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     @Synchronized fun chat(id: String): MutableList<Msg> = chats.getOrPut(id) {
         runCatching {
             val a = JSONArray(open(prefs.getString("rozmowa-$id", null)) ?: "[]")
-            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid"), it.optBoolean("rd")) }.toMutableList()
+            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid"), it.optBoolean("rd"), it.optBoolean("f")) }.toMutableList()
         }.getOrDefault(mutableListOf())
     }
     @Synchronized private fun saveChat(id: String) {
         val l = chat(id); while (l.size > 500) l.removeAt(0)
-        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid).put("rd", it.read)) }
+        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid).put("rd", it.read).put("f", it.file)) }
         prefs.edit().putString("rozmowa-$id", seal(a.toString())).apply()
     }
     // --- przeniesienie klawiatura -> przeglądarka (telefon z obiema aplikacjami: jeden komunikator, bez dublowania) ---
     @Synchronized fun export(): String = JSONObject().put("cid", myId)
         .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own)) } })
-        .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read)) } }) } })
+        .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read).put("f", m.file)) } }) } })
         .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).toString()
 
     // dane z klawiatury: bez własnych kontaktów przejmujemy też jej identyfikator (inne urządzenia dalej nas znają);
@@ -151,7 +152,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val list = chat(id); val have = list.map { it.mid }.toHashSet()
                 val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
                 for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
-                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid"), m.optBoolean("rd")))
+                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid"), m.optBoolean("rd"), m.optBoolean("f")))
                 }
                 list.sortBy { it.ts }
                 val un = o.optJSONObject("unread")?.optInt(id) ?: 0
@@ -458,6 +459,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val ad = fileAd(h)
         val mid = UUID.randomUUID().toString().replace("-", ""); h.put("Mid", mid)   // poza podpisem - tylko do ✓✓ w rozmowie
         if (to != null) h.put("Mac", b64(hmac(to.key, ad)))   // kontakt rozpozna nadawcę bez kodu
+        // wpis w rozmowie od razu („…”): „przeczytane” od odbiorcy może przyjść, zanim tu skończymy
+        val pend = to?.let { c -> Msg(true, "📎 $name · " + sizeText(size), System.currentTimeMillis(), false, mid, file = true).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
         return runCatching {
             java.net.Socket().use { s ->
                 s.connect(InetSocketAddress(target, PORT), 5000); s.soTimeout = 15000
@@ -485,16 +488,21 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 }
                 if (sent != size) return@use "plik zmienił się w trakcie"
                 val ack = ByteArray(32).also { inp.readFully(it) }
-                if (MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok".also { to?.let { c -> note(c, true, "📎 $name · " + sizeText(size) + if (pl) " – odebrano" else " – received", mid) } } else "błąd potwierdzenia"
+                if (MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"
             }
-        }.getOrElse { it.message ?: it.javaClass.simpleName }
+        }.getOrElse { it.message ?: it.javaClass.simpleName }.also { r ->
+            if (to != null && pend != null) {
+                if (r == "ok") { pend.ok = true; pend.text += if (pl) " – odebrano" else " – received" } else synchronized(this) { chat(to.id).remove(pend) }   // odrzucony / błąd - bez wpisu
+                saveChat(to.id); main.post { onChange() }
+            }
+        }
     }
 
     // plik w historii rozmowy (jak załącznik w innych komunikatorach)
     // plik w rozmowie: ten sam identyfikator u nadawcy i odbiorcy (Mid z nagłówka) - „przeczytane” (✓✓) jak przy wiadomościach
     private fun note(c: Contact, mine: Boolean, text: String, mid: String? = null) {
         val id = mid?.takeIf { it.length == 32 && synchronized(this) { chat(c.id).none { m -> m.mid == it } } } ?: UUID.randomUUID().toString().replace("-", "")
-        val m = Msg(mine, text, System.currentTimeMillis(), true, id)
+        val m = Msg(mine, text, System.currentTimeMillis(), true, id, file = true)
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
         main.post { onChange() }
@@ -631,7 +639,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     // niedoręczone (…) - ponownie, gdy kontakt odezwie się w sieci, i co minutę
     private fun resend(c: Contact) {
-        val pending = synchronized(this) { chat(c.id).filter { it.mine && !it.ok && System.currentTimeMillis() - it.ts < 7L * 86400000 } }
+        val pending = synchronized(this) { chat(c.id).filter { it.mine && !it.ok && !it.file && System.currentTimeMillis() - it.ts < 7L * 86400000 } }
         pending.forEach { deliver(c, it) }
     }
     private val resender = Thread {

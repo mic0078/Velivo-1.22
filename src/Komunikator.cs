@@ -104,6 +104,7 @@ namespace Velivo
         {
             KomLoad();
             KomStartResend();
+            if (_komContacts.Count > 0) KomEnsureTray();
             if (_komUdp != null || _lanRx != null) return;
             try
             {
@@ -283,10 +284,11 @@ namespace Velivo
             if (c.Addr != sender.ToString()) c.Addr = sender.ToString();
             if (text.Length > 4000) text = text.Substring(0, 4000);
             KomChat(c.Id).Add(new KomMsg { Mine = false, Text = text, Ts = ts, Ok = true, Mid = mid });
-            bool visible = _komWindow != null && _komWindow.IsActive && _komOpenId == c.Id;
+            bool visible = _komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == c.Id;
             if (!visible) _komUnread[c.Id] = (_komUnread.TryGetValue(c.Id, out var u) ? u : 0) + 1;
             KomSave();
             _komRefresh?.Invoke();
+            KomTrayUpdate();
             if (!visible) KomNotify(c, text); else KomSendRead(c);
             KomResendPending(c);
         }
@@ -550,6 +552,7 @@ namespace Velivo
 
         void KomAddContact(KomContact c)
         {
+            KomEnsureTray();
             _komContacts.RemoveAll(x => x.Id == c.Id); _komContacts.Add(c); KomSave(); _komRefresh?.Invoke();
         }
 
@@ -713,7 +716,8 @@ namespace Velivo
         {
             KomLoad();
             if (_lanRx == null) KomStartOwn();
-            if (_komWindow != null) { _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
+            KomEnsureTray();
+            if (_komWindow != null) { if (!_komWindow.IsVisible) _komWindow.Show(); _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
             var w = new Window { Icon = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/komunikator.ico")), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true };
             if (IsVisible) w.Owner = null;
             var root = new Grid { Margin = new Thickness(8) };
@@ -824,7 +828,7 @@ namespace Velivo
                     });
                 }
                 scroll.ScrollToEnd();
-                if (_komUnread.Remove(c.Id)) { KomSave(); FillList(); }
+                if (_komUnread.Remove(c.Id)) { KomSave(); FillList(); KomTrayUpdate(); }
                 if (w.IsActive) KomSendRead(c);
             }
             _komRefresh = () => Dispatcher.BeginInvoke(new Action(() => { FillList(); FillChat(); }));
@@ -862,6 +866,8 @@ namespace Velivo
             Ping();
             _ = Task.Delay(2500).ContinueWith(_ => Dispatcher.BeginInvoke(new Action(() => { if (_komWindow == w) { FillList(); FillChat(); } })));
             w.SourceInitialized += (s, e) => SetWindowAppId(w, "Velivo.Komunikator");
+            // ✕ - do zasobnika (ikona komunikatora), komunikator dalej odbiera; zamyka sie naprawde tylko z Velivo
+            w.Closing += (s, e) => { if (_komExit) return; e.Cancel = true; w.Hide(); KomEnsureTray(); };
             w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; };
             _komWindow = w;
             if (openId != null) _komOpenId = openId;
@@ -933,6 +939,42 @@ namespace Velivo
                 if (r == "ok" && to != null) KomNote(to, true, "📎 " + Path.GetFileName(f));
                 ShowToast(Path.GetFileName(f) + ": " + (r == "ok" ? L.T("wysłano") : r), null);
             }
+        }
+
+        // 💬 wlasna ikona komunikatora w zasobniku (jak w innych komunikatorach): ✕ chowa okno tutaj, komunikator dalej odbiera wiadomosci
+        System.Windows.Forms.NotifyIcon _komTray;
+        bool _komExit;   // prawdziwe zamkniecie (wyjscie z Velivo), nie chowanie do zasobnika
+
+        void KomEnsureTray()
+        {
+            if (_komTray != null) { KomTrayUpdate(); return; }
+            System.Drawing.Icon icon;
+            try { using (var st = Application.GetResourceStream(new Uri("pack://application:,,,/komunikator.ico")).Stream) icon = new System.Drawing.Icon(st, 32, 32); }
+            catch (Exception) { icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath); }
+            _komTray = new System.Windows.Forms.NotifyIcon { Icon = icon, Visible = true };
+            var menu = new System.Windows.Forms.ContextMenuStrip();
+            menu.Items.Add(L.T("💬 Otwórz komunikator"), null, (s, e) => Dispatcher.Invoke(() => ShowMessenger()));
+            menu.Items.Add(L.T("➕ Dodaj kontakt"), null, (s, e) => Dispatcher.Invoke(async () => { ShowMessenger(); if (_komWindow != null) await KomAddDialog(_komWindow); }));
+            menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));
+            menu.Items.Add(L.T("Zamknij Velivo"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
+            _komTray.ContextMenuStrip = menu;
+            _komTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(() => ShowMessenger()); };
+            KomTrayUpdate();
+        }
+
+        // podpowiedz ikony: liczba nieprzeczytanych
+        void KomTrayUpdate()
+        {
+            if (_komTray == null) return;
+            int n = _komUnread.Values.Sum();
+            var t = L.T("Komunikator Velivo") + (n > 0 ? " – " + n + L.T(" nowe") : "");
+            _komTray.Text = t.Length > 63 ? t.Substring(0, 63) : t;
+        }
+
+        void KomTrayRemove()
+        {
+            try { if (_komTray != null) { _komTray.Visible = false; _komTray.Dispose(); _komTray = null; } } catch (Exception) { }
         }
 
         // menu zasobnika: 💬 Komunikator

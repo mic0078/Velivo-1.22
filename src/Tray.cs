@@ -149,6 +149,7 @@ namespace Velivo
         {
             _reallyExit = true;
             try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); _tray = null; } } catch (Exception) { }
+            KomTrayRemove();
             Close();
             Application.Current.Shutdown();
         }

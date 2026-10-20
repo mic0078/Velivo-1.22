@@ -22,7 +22,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Nienawidzę błędów i powtarzania tego samego w kółko. Kod ma być bez błędów, solidny i działać perfekcyjnie.
 * Wyciągam wnioski z tego, co zepsułem, pamiętam to i uczę się na innych aplikacjach dostępnych w sieci.
 * Claude nie pyta się o błędy – ma znać błędy i poprawiać je bez kompilacji od początku.
-* Claude nie dopisuje kodu, lecz poprawia istniejący.
+* Claude poprawia i nie dopisuje kodu, ale poprawia kod.
 * Aplikacje mają być lekkie i nie rosnąć w nieskończoność.
 
 ## Gałęzie

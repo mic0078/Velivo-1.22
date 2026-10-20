@@ -1360,18 +1360,30 @@ namespace Velivo
                 ToolTip = L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.") };
             string techKey = null, techShort = "", techFull = "";   // dane techniczne biezacego filmu (raz na film)
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            netTimer.Tick += (s, e) =>
+            bool netBusy = false;
+            netTimer.Tick += async (s, e) =>
             {
                 // zmiany tylko gdy naprawde inne - kazda zmiana przerysowuje cala warstwe paska (przesuwany napis by sie zacinal)
                 var n = DateTime.Now; var tt0 = n.ToString("HH:mm"); if (nowTime.Text != tt0) { nowTime.Text = tt0; nowDate.Text = n.ToString("ddd d.MM"); }
+                if (netBusy) return;
                 long total = 0, sent = 0;
+                // liczniki karty sieciowej w tle: pytanie Windows o wszystkie karty (VPN, Hyper-V, Bluetooth) trwa nawet
+                // kilkadziesiat ms - w watku okna co sekunde przycinalo obraz TV i filmow
+                netBusy = true;
                 try
                 {
-                    foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
-                        if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
-                        { var st0 = ni.GetIPStatistics(); total += st0.BytesReceived; sent += st0.BytesSent; }
+                    var r = await System.Threading.Tasks.Task.Run(() =>
+                    {
+                        long t1 = 0, s1 = 0;
+                        foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                            if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                            { var st0 = ni.GetIPStatistics(); t1 += st0.BytesReceived; s1 += st0.BytesSent; }
+                        return (t1, s1);
+                    });
+                    total = r.t1; sent = r.s1;
                 }
                 catch (Exception) { return; }
+                finally { netBusy = false; }
                 if (netLast >= 0 && controls.Visibility != Visibility.Visible) { netLast = total; netUpLast = sent; return; }   // pasek schowany - bez rysowania
                 try
                 {   // jakosc biezacego strumienia (statystyki VLC)
@@ -1554,7 +1566,28 @@ namespace Velivo
                 catch (Exception ex) { App.LogError(ex); }
             };
             var saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            saveTimer.Tick += (s, e) => { if (mp.IsPlaying) savePos(); };
+            // co 10 s miejsce w filmie zapisywane w tle (wczytanie i zapis calej biblioteki w watku okna przycinaly obraz);
+            // przy pauzie, zmianie filmu i zamknieciu - jak dotad, od razu
+            bool saveBusy = false;
+            saveTimer.Tick += async (s, e) =>
+            {
+                if (!mp.IsPlaying || current == null || saveBusy || _remoteFilms.ContainsKey(current.Path)) { if (mp.IsPlaying && current != null && !saveBusy) savePos(); return; }
+                long t = mp.Time, len = mp.Length; var cur = current; bool sh = IsShared(cur);
+                saveBusy = true;
+                try
+                {
+                    await System.Threading.Tasks.Task.Run(() =>
+                    {
+                        var l = LoadLibrary();
+                        var v = FindEntry(l, cur.Path, sh);
+                        if (v == null) return;
+                        RecordProgress(v, t, len, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        SaveLibrary(l);
+                    });
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                finally { saveBusy = false; }
+            };
             saveTimer.Start();
 
             // lektor: napisy z pliku obok filmu albo wczytane z menu Napisy

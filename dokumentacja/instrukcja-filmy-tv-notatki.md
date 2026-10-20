@@ -116,3 +116,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 
 - Windows: podczas odtwarzania (TV, film) synchronizacja LAN nie buduje i nie szyfruje stanu co 2 s w wątku okna (PlayerBusy) - wysyła zmiany po zatrzymaniu; przycinanie obrazu TV po zmianach sieciowych.
 - Windows, mikroprzycięcia: wykres sieci w pasku odtwarzacza liczy karty sieciowe w tle (było co 1 s w wątku okna); zapis miejsca filmu co 10 s w tle bez przebudowy listy biblioteki; klawiatura ekranowa sprawdza pole hasła innego programu (UI Automation) w tle.
+- Android: Lektor.kt (SRT/VTT/ASS, Windows-1250, TTS com.google.android.tts gdy jest, ściszanie VLC do 35 %, tempo do 2x, kwestie co 150 ms); Jelly.subtitles (MediaStreams → /Videos/{id}/{ms}/Subtitles/{i}/Stream.srt), searchSubs/downloadSub (RemoteSearch/Subtitles); pełny opis po przytrzymaniu w bibliotece.

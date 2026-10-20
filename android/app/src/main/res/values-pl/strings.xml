@@ -371,4 +371,20 @@
     <string name="wallpaper_both">Ekran główny i blokady</string>
     <string name="wallpaper_done">Tapeta ustawiona</string>
     <string name="wallpaper_fail">Nie udało się ustawić tapety</string>
+    <string name="lektor_on">Lektor: czytaj napisy na głos</string>
+    <string name="lektor_off">Lektor: wyłącz</string>
+    <string name="lektor_pick">Napisy dla lektora…</string>
+    <string name="lektor_stopped">Lektor wyłączony</string>
+    <string name="lektor_ready">Lektor włączony – czyta napisy na głos</string>
+    <string name="lektor_error">Nie udało się pobrać napisów z Jellyfin</string>
+    <string name="lektor_no_subs">Ten film nie ma napisów tekstowych w Jellyfin – pobierz je przez ⬇</string>
+    <string name="subs_download">Pobierz napisy (Jellyfin)</string>
+    <string name="subs_searching">Szukam napisów…</string>
+    <string name="subs_none">Nie znaleziono napisów</string>
+    <string name="subs_no_plugin">Serwer Jellyfin nie umie szukać napisów – zainstaluj w Jellyfin wtyczkę napisów (np. OpenSubtitles)</string>
+    <string name="subs_done">Napisy pobrane na serwer</string>
+    <string name="subs_fail">Nie udało się pobrać napisów</string>
+    <string name="jf_info">Pełny opis</string>
+    <string name="jf_play">Odtwórz</string>
+    <string name="jf_lektor">Odtwórz z lektorem</string>
 </resources>

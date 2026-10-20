@@ -371,4 +371,20 @@
     <string name="wallpaper_both">Home and lock screen</string>
     <string name="wallpaper_done">Wallpaper set</string>
     <string name="wallpaper_fail">Could not set the wallpaper</string>
+    <string name="lektor_on">Lector: read subtitles aloud</string>
+    <string name="lektor_off">Lector: off</string>
+    <string name="lektor_pick">Subtitles for the lector…</string>
+    <string name="lektor_stopped">Lector off</string>
+    <string name="lektor_ready">Lector on – reads the subtitles aloud</string>
+    <string name="lektor_error">Could not load subtitles from Jellyfin</string>
+    <string name="lektor_no_subs">This film has no text subtitles in Jellyfin – download them with ⬇</string>
+    <string name="subs_download">Download subtitles (Jellyfin)</string>
+    <string name="subs_searching">Searching for subtitles…</string>
+    <string name="subs_none">No subtitles found</string>
+    <string name="subs_no_plugin">The Jellyfin server cannot search for subtitles – install a subtitle plugin (e.g. OpenSubtitles) in Jellyfin</string>
+    <string name="subs_done">Subtitles downloaded to the server</string>
+    <string name="subs_fail">Could not download the subtitles</string>
+    <string name="jf_info">Full description</string>
+    <string name="jf_play">Play</string>
+    <string name="jf_lektor">Play with lector</string>
 </resources>

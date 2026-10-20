@@ -2355,6 +2355,17 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 val it = r.tag as Jelly.Item
                 if (it.type == "Series") showEpisodes(c, it)
                 else { val movies = shownRows.map { x -> x.tag as Jelly.Item }.filter { x -> x.type != "Series" }; play(movies.map { x -> item(x) }, movies.indexOf(it), false) }
+            },
+            // przytrzymanie: pełny opis filmu (pod tytułem jest skrócony) i odtwarzanie z lektorem
+            onLong = { r ->
+                val it = r.tag as Jelly.Item
+                val meta = listOf(if (it.year > 0) it.year.toString() else "", dur(it.ticks)).filter { x -> x.isNotEmpty() }.joinToString(" · ")
+                val body = TextView(this).apply { text = (if (meta.isNotEmpty()) meta + "\n\n" else "") + it.overview.ifEmpty { "—" }; textSize = 16f; setPadding(dp(22), dp(8), dp(22), dp(8)); setTextIsSelectable(true) }
+                val d = AlertDialog.Builder(this).setTitle(if (it.series.isNotEmpty()) it.series + " – " + it.name else it.name)
+                    .setView(ScrollView(this).apply { addView(body) })
+                    .setPositiveButton(R.string.jf_play) { _, _ -> if (it.type == "Series") showEpisodes(c, it) else play(listOf(item(it)), 0, false) }
+                if (it.type != "Series") d.setNeutralButton(R.string.jf_lektor) { _, _ -> prefs.edit().putBoolean("lektor", true).apply(); play(listOf(item(it)), 0, false) }
+                d.setNegativeButton(android.R.string.cancel, null).show()
             })
         fun load() {
             // najpierw zapis z telefonu (od razu), potem świeże dane z serwera w tle

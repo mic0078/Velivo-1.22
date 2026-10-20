@@ -315,6 +315,38 @@ object Jelly {
         h.responseCode
     }
 
+    // --- napisy z Jellyfin (do lektora i do pobrania) ---
+    class Sub(val label: String, val path: String, val lang: String)
+    fun bytes(c: Conf, path: String): ByteArray {
+        val h = URL(c.url + path).openConnection() as HttpURLConnection
+        h.connectTimeout = 15000; h.readTimeout = 60000
+        h.setRequestProperty("X-Emby-Token", c.key)
+        return h.inputStream.use { it.readBytes() }
+    }
+    // napisy tekstowe filmu (zewnętrzne pliki i wbudowane w film) - Jellyfin podaje je jako SRT; polskie najpierw
+    fun subtitles(c: Conf, id: String): List<Sub> {
+        val item = if (c.user.isNotEmpty()) JSONObject(get(c, "/Users/${c.user}/Items/$id"))
+            else JSONObject(get(c, "/Items?Ids=$id&Fields=MediaSources,MediaStreams")).optJSONArray("Items")?.optJSONObject(0) ?: return emptyList()
+        val ms = item.optJSONArray("MediaSources")?.optJSONObject(0) ?: return emptyList()
+        val msId = ms.optString("Id", id)
+        val st = ms.optJSONArray("MediaStreams") ?: return emptyList()
+        return (0 until st.length()).map { st.getJSONObject(it) }.filter { it.optString("Type") == "Subtitle" && it.optBoolean("IsTextSubtitleStream", true) }
+            .map { Sub(it.optString("DisplayTitle").ifEmpty { it.optString("Language").ifEmpty { "?" } }, "/Videos/$id/$msId/Subtitles/${it.optInt("Index")}/Stream.srt", it.optString("Language")) }
+            .sortedBy { if (it.lang.lowercase() in setOf("pol", "pl", "polish")) 0 else 1 }
+    }
+    // wyszukiwanie napisów w sieci przez serwer (wtyczka napisów w Jellyfin, np. OpenSubtitles) i pobranie do filmu
+    fun searchSubs(c: Conf, id: String, lang: String): List<Pair<String, String>> {
+        val a = JSONArray(get(c, "/Items/$id/RemoteSearch/Subtitles/$lang"))
+        return (0 until a.length()).map { a.getJSONObject(it) }.map { it.getString("Id") to (it.optString("Name") + " · " + it.optString("ProviderName") + (if (it.optInt("DownloadCount") > 0) " · ⬇" + it.optInt("DownloadCount") else "")) }
+    }
+    fun downloadSub(c: Conf, id: String, subId: String): Int {
+        val h = URL(c.url + "/Items/$id/RemoteSearch/Subtitles/" + java.net.URLEncoder.encode(subId, "UTF-8")).openConnection() as HttpURLConnection
+        h.requestMethod = "POST"; h.connectTimeout = 15000; h.readTimeout = 60000
+        h.setRequestProperty("X-Emby-Token", c.key); h.doOutput = true
+        h.outputStream.use { }
+        return h.responseCode
+    }
+
     fun users(c: Conf): List<Pair<String, String>> {
         val a = JSONArray(get(c, "/Users"))
         return (0 until a.length()).map { a.getJSONObject(it).let { o -> o.getString("Id") to o.getString("Name") } }

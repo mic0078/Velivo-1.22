@@ -252,6 +252,9 @@ Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** 
 - **Bez kluczy API:** Velivo **samo znajduje serwer Jellyfin w sieci domowej**. Stuknij go, wybierz siebie z listy użytkowników i wpisz hasło – jak w aplikacji Jellyfin. (Nie widać serwera – **Wpisz adres serwera…**, np. `192.168.1.10`.) Telefon dostaje własny token – zaszyfrowany, widoczny w Jellyfin → Urządzenia (można go tam odwołać); idzie w nagłówku, nigdy w adresie.
 - **☰:** Oglądane dalej / Filmy / Seriale. Plakaty, rok, czas, opis; sortowanie A–Z, najnowsze, rok (zapamiętane).
 - Serial → lista odcinków → odcinek; następny odcinek włącza się sam.
+- **Pełny opis filmu:** przytrzymaj film na liście – pełny opis, rok i czas trwania, a do tego **Odtwórz** albo **Odtwórz z lektorem**.
+- **🗣 Lektor (jak na Windows):** w odtwarzaczu 🗨 → *Lektor: czytaj napisy na głos*. Czyta napisy filmu z Jellyfin głosem Google (gdy jest w telefonie), film na ten czas jest ściszony; przy szybkich dialogach przyspiesza, zaległe kwestie pomija. *Napisy dla lektora…* – wybór napisów (polskie najpierw). Ustawienie jest zapamiętane.
+- **⬇ Pobierz napisy (Jellyfin):** w odtwarzaczu 🗨 – szuka polskich (potem angielskich) napisów przez serwer Jellyfin i pobiera wybrane do filmu; potrzebna wtyczka napisów w Jellyfin (np. OpenSubtitles).
 - **Miejsce w filmie** zapamiętane w telefonie i odesłane do Jellyfin – „Oglądane dalej” zgadza się też na komputerze i telewizorze.
 
 ### 📁 Moje filmy

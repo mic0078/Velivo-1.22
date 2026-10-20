@@ -79,6 +79,10 @@ class PlayerActivity : Activity() {
     private val posPrefs by lazy { getSharedPreferences("filmy", Context.MODE_PRIVATE) }
     private val pw by lazy { Passwords(this) }
     private var sleepAt = 0L
+    // 🗣 lektor: czyta napisy filmu z Jellyfin głosem Google, film na ten czas ściszony (jak na Windows)
+    private var lektor: Lektor? = null
+    private val lektorTick = object : Runnable { override fun run() { lektor?.let { if (player.isPlaying) it.at(player.time) }; ui.postDelayed(this, 150) } }
+    private fun lektorOn() = prefs.getBoolean("lektor", false)
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
@@ -127,7 +131,7 @@ class PlayerActivity : Activity() {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar, p: Int, user: Boolean) { if (user) timeView.text = fmt(player.length * p / 1000) + " · " + fmt(player.length) }
                 override fun onStartTrackingTouch(s: SeekBar) { seeking = true; ui.removeCallbacks(hide) }
-                override fun onStopTrackingTouch(s: SeekBar) { seeking = false; player.setTime(player.length * s.progress / 1000); poke() }
+                override fun onStopTrackingTouch(s: SeekBar) { seeking = false; player.setTime(player.length * s.progress / 1000); lektor?.seeked(); poke() }
             })
         }
         timeView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(dp(14), 0, dp(14), dp(12)) }
@@ -222,7 +226,7 @@ class PlayerActivity : Activity() {
 
     private fun poke() { ui.removeCallbacks(hide); ui.postDelayed(hide, 4000) }
 
-    private fun jump(d: Long) { player.setTime((player.time + d).coerceAtLeast(0)); poke() }
+    private fun jump(d: Long) { player.setTime((player.time + d).coerceAtLeast(0)); lektor?.seeked(); poke() }
 
     private fun load(i: Int) {
         val it = queue.getOrNull(i) ?: return finish()
@@ -250,6 +254,8 @@ class PlayerActivity : Activity() {
         player.media = m
         m.release()
         player.play()
+        lektor?.stop(); lektor?.load("")
+        if (lektorOn() && it.jellyId != null) lektorSubs(it, null)
         val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f
         resumeAt = if (!live && pos > 15f) (pos * 1000).toLong() else 0L   // skok po starcie - bez komunikatów po drodze
         ui.removeCallbacks(stuck); ui.postDelayed(stuck, 25000)   // serwer nic nie przysyła - zwykle limit połączeń (TV gra na innym urządzeniu)
@@ -288,14 +294,74 @@ class PlayerActivity : Activity() {
         Thread { runCatching { Jelly.reportStopped(c, id, pos) } }.start()
     }
 
-    // lektor / język i napisy (jak w VLC)
+    // lektor / język i napisy (jak w VLC); film z Jellyfin: także 🗣 lektor czytający napisy i ⬇ pobieranie napisów
     private fun askTracks() {
         val a = player.audioTracks ?: emptyArray(); val s = player.spuTracks ?: emptyArray()
-        val labels = a.map { "🔊 " + it.name + if (it.id == player.audioTrack) " ✓" else "" } + s.map { "🗨 " + it.name + if (it.id == player.spuTrack) " ✓" else "" }
+        val it = queue.getOrNull(index)
+        val jf = it?.jellyId != null && !live
+        val extra = if (jf) listOf((if (lektorOn()) "🗣 " + getString(R.string.lektor_off) else "🗣 " + getString(R.string.lektor_on)), "📄 " + getString(R.string.lektor_pick), "⬇ " + getString(R.string.subs_download)) else emptyList()
+        val labels = a.map { "🔊 " + it.name + if (it.id == player.audioTrack) " ✓" else "" } + s.map { "🗨 " + it.name + if (it.id == player.spuTrack) " ✓" else "" } + extra
         if (labels.isEmpty()) { toast(getString(R.string.player_no_tracks)); return }
         AlertDialog.Builder(this).setTitle(R.string.player_tracks).setItems(labels.toTypedArray()) { _, i ->
-            if (i < a.size) player.setAudioTrack(a[i].id) else player.setSpuTrack(s[i - a.size].id)
+            when {
+                i < a.size -> player.setAudioTrack(a[i].id)
+                i < a.size + s.size -> player.setSpuTrack(s[i - a.size].id)
+                i == a.size + s.size -> { val on = !lektorOn(); prefs.edit().putBoolean("lektor", on).apply()
+                    if (on && it != null) lektorSubs(it, null) else { lektor?.stop(); lektor?.load(""); toast(getString(R.string.lektor_stopped)) } }
+                i == a.size + s.size + 1 -> if (it != null) pickSubs(it)
+                else -> if (it != null) downloadSubs(it)
+            }
         }.show()
+    }
+
+    // napisy z Jellyfin dla lektora: wybrane albo pierwsze (polskie najpierw)
+    private fun lektorSubs(it: Item, path: String?) {
+        val c = Jelly.conf(pw) ?: return; val id = it.jellyId ?: return
+        Thread {
+            val r = runCatching {
+                val p = path ?: Jelly.subtitles(c, id).firstOrNull()?.path ?: return@runCatching null
+                Lektor.text(Jelly.bytes(c, p))
+            }
+            ui.post {
+                val txt = r.getOrNull()
+                if (txt == null) { toast(getString(if (r.isFailure) R.string.lektor_error else R.string.lektor_no_subs)); return@post }
+                val l = lektor ?: Lektor(this) { d -> ui.post { runCatching { player.volume = if (d) 35 else 100 } } }.also { lektor = it; ui.post(lektorTick) }
+                l.load(txt)
+                if (!l.loaded) { toast(getString(R.string.lektor_no_subs)); return@post }
+                prefs.edit().putBoolean("lektor", true).apply()
+                toast(getString(R.string.lektor_ready))
+            }
+        }.start()
+    }
+
+    private fun pickSubs(it: Item) {
+        val c = Jelly.conf(pw) ?: return; val id = it.jellyId ?: return
+        Thread {
+            val l = runCatching { Jelly.subtitles(c, id) }.getOrDefault(emptyList())
+            ui.post {
+                if (l.isEmpty()) { toast(getString(R.string.lektor_no_subs)); return@post }
+                AlertDialog.Builder(this).setTitle(R.string.lektor_pick).setItems(l.map { s -> s.label }.toTypedArray()) { _, i -> lektorSubs(it, l[i].path) }.show()
+            }
+        }.start()
+    }
+
+    // ⬇ napisy z sieci przez serwer Jellyfin (jego wtyczka napisów): polskie, potem angielskie
+    private fun downloadSubs(it: Item) {
+        val c = Jelly.conf(pw) ?: return; val id = it.jellyId ?: return
+        toast(getString(R.string.subs_searching))
+        Thread {
+            val r = runCatching { Jelly.searchSubs(c, id, "pol").ifEmpty { Jelly.searchSubs(c, id, "eng") } }
+            ui.post {
+                val l = r.getOrNull()
+                if (l.isNullOrEmpty()) { toast(getString(if (r.isFailure) R.string.subs_no_plugin else R.string.subs_none)); return@post }
+                AlertDialog.Builder(this).setTitle(R.string.subs_download).setItems(l.map { x -> x.second }.toTypedArray()) { _, i ->
+                    Thread {
+                        val code = runCatching { Jelly.downloadSub(c, id, l[i].first) }.getOrDefault(0)
+                        ui.post { if (code in 200..299) { toast(getString(R.string.subs_done)); ui.postDelayed({ lektorSubs(it, null) }, 3000) } else toast(getString(R.string.subs_fail)) }
+                    }.start()
+                }.show()
+            }
+        }.start()
     }
 
     // gesty jak w aplikacjach wideo (w pionie i w poziomie): lewa połowa w górę / w dół - jasność, prawa - głośność;
@@ -337,7 +403,7 @@ class PlayerActivity : Activity() {
                         while (Math.abs(acc) >= step) { audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (acc > 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, 0); acc -= Math.signum(acc) * step }
                         show("🔊 " + audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100 / max + "%")
                     }
-                    3 -> { val t = (startPos + (tx / root.width * 180_000).toLong()).coerceAtLeast(0); player.setTime(t); show(fmt(t)) }   // cała szerokość = 3 minuty
+                    3 -> { val t = (startPos + (tx / root.width * 180_000).toLong()).coerceAtLeast(0); player.setTime(t); lektor?.seeked(); show(fmt(t)) }   // cała szerokość = 3 minuty
                 }
                 return mode > 0
             }
@@ -450,6 +516,7 @@ class PlayerActivity : Activity() {
     override fun onDestroy() {
         savePos(); reportJellyfin()
         ui.removeCallbacksAndMessages(null)
+        lektor?.release(); lektor = null
         PlaybackService.stop(this)
         player.stop(); player.detachViews(); player.release()   // biblioteka VLC zostaje na następne otwarcie
         fd?.close()

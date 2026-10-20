@@ -73,15 +73,17 @@ class PlayerActivity : Activity() {
     private var seeking = false
     private var resumeAt = 0L   // miejsce w filmie do wznowienia, gdy obraz ruszy
     private val ui = Handler(Looper.getMainLooper())
-    private val stuck = Runnable { if (!player.isPlaying) toast(getString(R.string.player_stuck)) }
-    private val hide = Runnable { if (player.isPlaying) showControls(false) }
+    // po zamknięciu odtwarzacza (zwolniony VLC) żadne opóźnione zadanie nie może już pytać odtwarzacza - wywracało Velivo
+    @Volatile private var gone = false
+    private val stuck = Runnable { if (!gone && !player.isPlaying) toast(getString(R.string.player_stuck)) }
+    private val hide = Runnable { if (!gone && player.isPlaying) showControls(false) }
     private val prefs by lazy { getSharedPreferences("velivo", Context.MODE_PRIVATE) }
     private val posPrefs by lazy { getSharedPreferences("filmy", Context.MODE_PRIVATE) }
     private val pw by lazy { Passwords(this) }
     private var sleepAt = 0L
     // 🗣 lektor: czyta napisy filmu z Jellyfin głosem Google, film na ten czas ściszony (jak na Windows)
     private var lektor: Lektor? = null
-    private val lektorTick = object : Runnable { override fun run() { lektor?.let { if (player.isPlaying) it.at(player.time) }; ui.postDelayed(this, 150) } }
+    private val lektorTick = object : Runnable { override fun run() { if (gone) return; lektor?.let { if (player.isPlaying) it.at(player.time) }; ui.postDelayed(this, 150) } }
     private fun lektorOn() = prefs.getBoolean("lektor", false)
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -189,6 +191,7 @@ class PlayerActivity : Activity() {
     private fun fmt(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return if (s >= 3600) String.format("%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) else String.format("%02d:%02d", s / 60, s % 60) }
 
     private fun onVlc(e: MediaPlayer.Event) {
+        if (gone) return
         when (e.type) {
             MediaPlayer.Event.Buffering -> busy.visibility = if (e.buffering < 100f) View.VISIBLE else View.GONE
             MediaPlayer.Event.Playing -> { queue.getOrNull(index)?.let { c -> if (c.arch != null && c.ch != null) prefs.edit().putInt("tv-archiwum-" + Tv.archiveHost(c.ch.url), c.arch.variant).apply() }   // ta odmiana działa u dostawcy
@@ -210,6 +213,7 @@ class PlayerActivity : Activity() {
     // czas i pasek postępu co pół sekundy
     private val tick = object : Runnable {
         override fun run() {
+            if (gone) return
             if (!live && !seeking) {
                 val len = player.length; val t = player.time
                 if (len > 0) seek.progress = (t * 1000 / len).toInt()
@@ -273,7 +277,7 @@ class PlayerActivity : Activity() {
 
     // miejsce w filmie (telefon; Jellyfin - także na serwerze), co 5 s i przy wyjściu
     private val saver = object : Runnable {
-        override fun run() { savePos(); ui.postDelayed(this, 5000) }
+        override fun run() { if (gone) return; savePos(); ui.postDelayed(this, 5000) }
     }
 
     private fun savePos(ended: Boolean = false) {
@@ -344,10 +348,11 @@ class PlayerActivity : Activity() {
                 Lektor.text(Jelly.bytes(c, p))
             }
             ui.post {
+                if (gone) return@post
                 val txt = r.getOrNull()
                 if (txt == null) { toast(getString(if (r.isFailure) R.string.lektor_error else R.string.lektor_no_subs)); return@post }
                 // głośność filmu podczas czytania i głośność lektora - osobno, z ustawień (🎚)
-                val l = lektor ?: Lektor(this) { d -> ui.post { runCatching { player.volume = if (d) prefs.getInt("lektor-film", 35) else 100 } } }.also { lektor = it; ui.post(lektorTick) }
+                val l = lektor ?: Lektor(this) { d -> ui.post { if (!gone) runCatching { player.volume = if (d) prefs.getInt("lektor-film", 35) else 100 } } }.also { lektor = it; ui.post(lektorTick) }
                 l.volume = prefs.getInt("lektor-glos", 100) / 100f
                 l.load(txt)
                 if (!l.loaded) { toast(getString(R.string.lektor_no_subs)); return@post }
@@ -497,6 +502,7 @@ class PlayerActivity : Activity() {
 
     // koniec: odtwarzanie zatrzymane, Velivo schodzi na bok - telefon wraca do zwykłego czuwania (ekran gaśnie jak zawsze)
     private val sleepRun = Runnable {
+        if (gone) return@Runnable
         sleepAt = 0; sleepShowEnd = false; player.pause(); PlaybackService.stop(this)
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         moveTaskToBack(true); finish()
@@ -538,6 +544,7 @@ class PlayerActivity : Activity() {
 
     override fun onDestroy() {
         savePos(); reportJellyfin()
+        gone = true
         ui.removeCallbacksAndMessages(null)
         lektor?.release(); lektor = null
         PlaybackService.stop(this)

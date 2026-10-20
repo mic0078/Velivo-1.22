@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 🎤 dyktowanie - tylko po stuknięciu mikrofonu -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 💬 przeniesienie komunikatora klawiatura -> przeglądarka: tylko między aplikacjami Velivo (ten sam podpis) -->
+    <permission android:name="pl.velivo.permission.KOMUNIKATOR" android:protectionLevel="signature" />
+    <uses-permission android:name="pl.velivo.permission.KOMUNIKATOR" />
+
     <!-- 💬 komunikator i pliki w sieci domowej (bez internetu - tylko Wi-Fi w domu) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -31,6 +35,8 @@
         <service android:name=".KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Local network messenger: receives messages from devices on the home Wi-Fi without internet" />
         </service>
+        <provider android:name=".KomunikatorDane" android:authorities="pl.velivo.klawiatura.komunikator" android:exported="true"
+            android:permission="pl.velivo.permission.KOMUNIKATOR" />
         <!-- ⌨ klawiatura (włączana w ustawieniach Androida, działa we wszystkich aplikacjach) -->
         <service android:name=".KlawiaturaVelivo" android:label="@string/kb_name" android:exported="true"
             android:permission="android.permission.BIND_INPUT_METHOD">

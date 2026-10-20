@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 💬 przeniesienie komunikatora klawiatura -> przeglądarka: tylko między aplikacjami Velivo (ten sam podpis) -->
+    <permission android:name="pl.velivo.permission.KOMUNIKATOR" android:protectionLevel="signature" />
+    <uses-permission android:name="pl.velivo.permission.KOMUNIKATOR" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 🎨 Tapeta Velivo - tylko po wyborze w menu -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />

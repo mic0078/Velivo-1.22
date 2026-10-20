@@ -2936,6 +2936,15 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             k.openIntent = { id -> Intent(this, MainActivity::class.java).setAction(ACTION_MESSENGER).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP) }
             k.udpOut = { d, t -> lan.sendRaw(d, t) }
             k.saveFile = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) }
+            // klawiatura Velivo miała własny komunikator: przejmujemy kontakty i rozmowy (jeden komunikator w telefonie, bez dublowania)
+            Thread {
+                runCatching {
+                    val u = Uri.parse("content://pl.velivo.klawiatura.komunikator")
+                    val json = contentResolver.call(u, "oddaj", null, null)?.getString("json") ?: return@runCatching
+                    k.import(json)
+                    contentResolver.call(u, "przekazano", null, null)
+                }
+            }.start()
         }
     }
     private val komOkno: KomunikatorOkno by lazy { KomunikatorOkno(this, kom) { pickP2pFiles() } }

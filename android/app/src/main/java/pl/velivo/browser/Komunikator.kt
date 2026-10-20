@@ -72,7 +72,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private val prefs = ctx.getSharedPreferences("komunikator", Context.MODE_PRIVATE)
     private val random = SecureRandom()
     private val main = Handler(Looper.getMainLooper())
-    val myId: String = prefs.getString("cid", null) ?: UUID.randomUUID().toString().replace("-", "").also { prefs.edit().putString("cid", it).apply() }
+    var myId: String = prefs.getString("cid", null) ?: UUID.randomUUID().toString().replace("-", "").also { prefs.edit().putString("cid", it).apply() }
+        private set
 
     // nadawanie UDP: z gniazda przeglądarki (LanSync) albo własnego (klawiatura, listen())
     var udpOut: ((ByteArray, InetAddress) -> Unit)? = null
@@ -126,6 +127,47 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid)) }
         prefs.edit().putString("rozmowa-$id", seal(a.toString())).apply()
     }
+    // --- przeniesienie klawiatura -> przeglądarka (telefon z obiema aplikacjami: jeden komunikator, bez dublowania) ---
+    @Synchronized fun export(): String = JSONObject().put("cid", myId)
+        .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr)) } })
+        .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid)) } }) } })
+        .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).toString()
+
+    // dane z klawiatury: bez własnych kontaktów przejmujemy też jej identyfikator (inne urządzenia dalej nas znają);
+    // rozmowy łączone po identyfikatorze wiadomości - nic się nie powtarza
+    fun import(json: String) {
+        val o = JSONObject(json)
+        synchronized(this) {
+            val cid = o.optString("cid")
+            if (contacts.isEmpty() && cid.length == 32) { myId = cid; prefs.edit().putString("cid", cid).apply() }
+            val a = o.optJSONArray("contacts") ?: JSONArray()
+            for (i in 0 until a.length()) {
+                val j = a.getJSONObject(i); val key = unb64(j.optString("key")); val id = j.optString("id")
+                if (key.size != 32 || id.length != 32) continue
+                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr")))
+                val list = chat(id); val have = list.map { it.mid }.toHashSet()
+                val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
+                for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
+                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid")))
+                }
+                list.sortBy { it.ts }
+                val un = o.optJSONObject("unread")?.optInt(id) ?: 0
+                if (un > 0) prefs.edit().putInt("nowe-$id", unread(id) + un).apply()
+            }
+        }
+        saveContacts(); synchronized(this) { contacts.toList() }.forEach { saveChat(it.id) }
+        main.post { onChange() }
+    }
+
+    // po przeniesieniu do przeglądarki: klawiatura nic nie trzyma i nie nasłuchuje
+    fun wipe() {
+        close()
+        synchronized(this) { contacts.clear(); chats.clear() }
+        prefs.edit().clear().putBoolean("przeniesione", true).apply()
+        myId = UUID.randomUUID().toString().replace("-", "")
+        prefs.edit().putString("cid", myId).putBoolean("przeniesione", true).apply()
+    }
+
     fun unread(id: String) = prefs.getInt("nowe-$id", 0)
     fun markRead(id: String) { prefs.edit().putInt("nowe-$id", 0).apply() }
     fun remove(c: Contact) {
@@ -747,6 +789,8 @@ class KomunikatorUsluga : Service() {
             if (Build.VERSION.SDK_INT >= 34) startForeground(41919, k.listenNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             else startForeground(41919, k.listenNotification())
         }.onFailure { stopSelf(); return START_NOT_STICKY }
+        // klawiatura w telefonie z przeglądarką Velivo (np. po restarcie usługi): komunikator jest w przeglądarce - tu nic nie nasłuchuje
+        if (otherOwner(this)) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(); return START_NOT_STICKY }
         if (lock == null) lock = (applicationContext.getSystemService(WIFI_SERVICE) as android.net.wifi.WifiManager).createMulticastLock("velivo-czat").apply { setReferenceCounted(false); acquire() }
         k.listen()
         if (net == null) net = object : android.net.ConnectivityManager.NetworkCallback() {
@@ -762,9 +806,11 @@ class KomunikatorUsluga : Service() {
     }
 
     companion object {
+        const val BROWSER = "pl.velivo.browser"
         // aplikacja schodzi z ekranu: nasłuch przejmuje usługa (tylko z kontaktami i włączonym odbiorem w tle)
+        fun otherOwner(ctx: Context) = ctx.packageName != BROWSER && runCatching { ctx.packageManager.getPackageInfo(BROWSER, 0) }.isSuccess
         fun start(ctx: Context, k: Komunikator) {
-            if (k.contacts.isEmpty() || !k.background) return
+            if (k.contacts.isEmpty() || !k.background || otherOwner(ctx)) return
             runCatching { ctx.startForegroundService(Intent(ctx, KomunikatorUsluga::class.java)) }
         }
         // aplikacja na ekranie: gniazda wracają do aplikacji

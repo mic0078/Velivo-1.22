@@ -487,6 +487,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }.start()
     }
 
+    val idle get() = udp == null && udpOut == null
+
     fun close() {
         runCatching { udp?.close() }; runCatching { tcp?.close() }
         udp = null; tcp = null
@@ -516,18 +518,32 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         nm.createNotificationChannel(NotificationChannel("nasluch", if (pl) "Komunikator w tle" else "Messenger in background", NotificationManager.IMPORTANCE_MIN))
     }
 
-    private fun notifyMessage(c: Contact) {
+    fun notifyMessage(c: Contact, quiet: Boolean = false) {
         if (chatOpen == c.id) return
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
         channels(nm)
-        val last = synchronized(this) { chat(c.id).filter { !it.mine }.takeLast(5) }
-        val st = Notification.InboxStyle(); last.forEach { st.addLine(it.text.replace('\n', ' ')) }
+        // jak w innych komunikatorach: ostatnie wiadomości w powiadomieniu, odpowiedź i „przeczytane” bez otwierania Velivo
+        val pl = Locale.getDefault().language == "pl"
+        val last = synchronized(this) { chat(c.id).takeLast(6) }
+        val me = android.app.Person.Builder().setName(if (pl) "Ty" else "You").build()
+        val them = android.app.Person.Builder().setName(c.name).setKey(c.id).build()
+        val st = Notification.MessagingStyle(me)
+        last.forEach { st.addMessage(Notification.MessagingStyle.Message(it.text, it.ts, if (it.mine) null else them)) }
         val n = unread(c.id)
         val pi = PendingIntent.getActivity(ctx, c.id.hashCode(), openIntent(c.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        fun act(what: String) = Intent(ctx, KomunikatorAkcja::class.java).setAction(what).putExtra("id", c.id).setPackage(ctx.packageName)
+        val replyPi = PendingIntent.getBroadcast(ctx, c.id.hashCode() + 1, act(KomunikatorAkcja.REPLY), PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val readPi = PendingIntent.getBroadcast(ctx, c.id.hashCode() + 2, act(KomunikatorAkcja.READ), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val reply = Notification.Action.Builder(android.graphics.drawable.Icon.createWithResource(ctx, android.R.drawable.ic_menu_send), if (pl) "Odpowiedz" else "Reply", replyPi)
+            .addRemoteInput(android.app.RemoteInput.Builder(KomunikatorAkcja.TEXT).setLabel(if (pl) "Wiadomość" else "Message").build())
+            .setSemanticAction(Notification.Action.SEMANTIC_ACTION_REPLY).setAllowGeneratedReplies(false).build()
+        val read = Notification.Action.Builder(android.graphics.drawable.Icon.createWithResource(ctx, android.R.drawable.ic_menu_view), if (pl) "Przeczytane" else "Mark as read", readPi)
+            .setSemanticAction(Notification.Action.SEMANTIC_ACTION_MARK_AS_READ).build()
         runCatching {
             nm.notify(c.id.hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
-                .setContentTitle("💬 " + c.name + if (n > 1) " ($n)" else "").setContentText(last.lastOrNull()?.text ?: "")
-                .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setContentIntent(pi).setAutoCancel(true).build())
+                .setContentTitle(c.name).setContentText(last.lastOrNull()?.text ?: "")
+                .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setContentIntent(pi).setAutoCancel(true)
+                .setOnlyAlertOnce(quiet).addAction(reply).addAction(read).setShowWhen(true).build())
         }
     }
     fun clearNotification(id: String) { ctx.getSystemService(NotificationManager::class.java)?.cancel(id.hashCode()) }
@@ -845,5 +861,31 @@ class KomunikatorUsluga : Service() {
         }
         // aplikacja na ekranie: gniazda wracają do aplikacji
         fun stop(ctx: Context, k: Komunikator) { k.close(); runCatching { ctx.stopService(Intent(ctx, KomunikatorUsluga::class.java)) } }
+    }
+}
+
+// przyciski w powiadomieniu: „Odpowiedz” (pisane w powiadomieniu) i „Przeczytane” - Velivo się nie otwiera
+class KomunikatorAkcja : android.content.BroadcastReceiver() {
+    override fun onReceive(ctx: Context, i: Intent) {
+        val k = Komunikator.get(ctx) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
+        val c = k.contact(i.getStringExtra("id") ?: return) ?: return
+        when (i.action) {
+            READ -> { k.markRead(c.id); k.clearNotification(c.id) }
+            REPLY -> {
+                val text = android.app.RemoteInput.getResultsFromIntent(i)?.getCharSequence(TEXT)?.toString()?.trim().orEmpty()
+                if (text.isEmpty()) return
+                val done = goAsync()
+                // aplikacja zamknięta i usługa nie działa - na chwilę własne gniazda, żeby wiadomość wyszła
+                if (k.idle) k.listen()
+                k.send(c, text); k.markRead(c.id)
+                k.notifyMessage(c, quiet = true)   // odpowiedź widać w powiadomieniu, bez ponownego dźwięku
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ done.finish() }, 8000)
+            }
+        }
+    }
+    companion object {
+        const val REPLY = "pl.velivo.komunikator.ODPOWIEDZ"
+        const val READ = "pl.velivo.komunikator.PRZECZYTANE"
+        const val TEXT = "tekst"
     }
 }

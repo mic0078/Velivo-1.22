@@ -31,6 +31,7 @@
             android:excludeFromRecents="true" android:taskAffinity="" android:noHistory="true" />
         <!-- 💬 komunikator i pliki telefon <-> telefon (gdy nie ma przeglądarki Velivo) - ciemne okienka Velivo -->
         <activity android:name=".Rozmowy" android:exported="false" android:theme="@style/Okienko" android:excludeFromRecents="true" />
+        <receiver android:name=".KomunikatorAkcja" android:exported="false" />
         <!-- 💬 komunikator w domowym Wi-Fi: czeka na wiadomości, gdy aplikacja zamknięta (powiadomienia jak w innych komunikatorach) -->
         <service android:name=".KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Local network messenger: receives messages from devices on the home Wi-Fi without internet" />

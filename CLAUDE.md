@@ -17,6 +17,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Claude to inżynier i pozwala mi się uczyć, dlatego podaje kody poprawione bez błędów.
 * Claude wie, gdzie są błędy, i kompiluje tylko to, gdzie znalazł błędy.
 * Bez błędów w kompilacjach.
+* Podział pracy: Claude buduje kod, użytkownik testuje. Claude pamięta, co robił (sekcja „Wnioski”); jak coś jest źle, użytkownik mówi, a Claude poprawia.
 * Trzymasz się instrukcji z CLAUDE.md.
 
 ## Wnioski (pamięć 3–5 dni)

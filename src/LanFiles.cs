@@ -8,6 +8,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using System.Collections.Generic;
+using System.Windows.Controls;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -121,11 +123,54 @@ namespace Velivo
             }
         }
 
+        // 📎 na pasku Velivo i w menu zasobnika: pliki do sparowanego telefonu / komputera (jeden - od razu, kilka - wybór)
+        Button _sendFileBtn;
+        void InitSendFileButton()
+        {
+            _sendFileBtn = new Button { Content = "📎", FontSize = 16, Width = 40, Height = 36, Margin = new Thickness(2, 3, 2, 0), ToolTip = L.T("Wyślij pliki do telefonu lub komputera (sparowanego w sieci)") };
+            DockPanel.SetDock(_sendFileBtn, Dock.Right);
+            _sendFileBtn.Click += (s, e) => SendFilesChoose(_sendFileBtn);
+            int at = _tidyBtn != null ? TabBarPanel.Children.IndexOf(_tidyBtn) : -1;
+            TabBarPanel.Children.Insert(at >= 0 ? at : 1, _sendFileBtn);
+        }
+
+        bool SendFilesReady()
+        {
+            if (_lanEncryptionKey == null || _lanLegacyNoKeyMode || !_settings.LanSync) { ShowToast(L.T("Najpierw sparuj telefon lub komputer (Synchronizacja LAN w ustawieniach)"), null); return false; }
+            if (SendTargets().Count == 0) { ShowToast(L.T("Brak innych Velivo w sieci (muszą być włączone)"), null); return false; }
+            return true;
+        }
+
+        void SendFilesChoose(FrameworkElement anchor)
+        {
+            if (!SendFilesReady()) return;
+            var t = SendTargets();
+            if (t.Count == 1) { _ = SendFileToPeer(t[0]); return; }
+            var cm = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+            foreach (var p0 in t) { var p = p0; var it = new MenuItem { Header = "📎 " + (string.IsNullOrWhiteSpace(p.Device) ? p.Id.Substring(0, 8) : p.Device) }; it.Click += async (a, b) => await SendFileToPeer(p); cm.Items.Add(it); }
+            cm.IsOpen = true;
+        }
+
+        // menu zasobnika: lista urzadzen budowana przy otwarciu
+        System.Windows.Forms.ToolStripMenuItem TraySendFilesItem()
+        {
+            var root = new System.Windows.Forms.ToolStripMenuItem(L.T("📎 Wyślij pliki do…"));
+            root.DropDownItems.Add("…");
+            root.DropDownOpening += (s, e) => Dispatcher.Invoke(() =>
+            {
+                root.DropDownItems.Clear();
+                var t = (_lanEncryptionKey == null || _lanLegacyNoKeyMode || !_settings.LanSync) ? new List<LanPeerInfo>() : SendTargets();
+                if (t.Count == 0) { root.DropDownItems.Add(new System.Windows.Forms.ToolStripMenuItem(_lanEncryptionKey == null ? L.T("Najpierw sparuj telefon lub komputer (Synchronizacja LAN w ustawieniach)") : L.T("Brak innych Velivo w sieci (muszą być włączone)")) { Enabled = false }); return; }
+                foreach (var p0 in t) { var p = p0; root.DropDownItems.Add((string.IsNullOrWhiteSpace(p.Device) ? p.Id.Substring(0, 8) : p.Device), null, (a, b) => Dispatcher.Invoke(async () => await SendFileToPeer(p))); }
+            });
+            return root;
+        }
+
         async Task SendFileToPeer(LanPeerInfo peer)
         {
             // kilka plikow naraz (Ctrl / Shift w oknie wyboru) - wysylane po kolei, telefon pyta o kazdy
             var dlg = new Microsoft.Win32.OpenFileDialog { Title = (L.En ? "Send files to " : "Wyślij pliki do: ") + peer.Device, Multiselect = true };
-            if (dlg.ShowDialog(this) != true) return;
+            if ((IsVisible ? dlg.ShowDialog(this) : dlg.ShowDialog()) != true) return;   // z zasobnika - okno Velivo bywa schowane
             foreach (var f in dlg.FileNames)
             {
                 var info = new FileInfo(f);

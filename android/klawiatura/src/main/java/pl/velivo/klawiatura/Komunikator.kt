@@ -774,6 +774,15 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
+    // mały okrągły przycisk-ikona w nagłówku (zwykły Button ma 88 dp szerokości i łamał tytuł na kilka linii)
+    private fun icon(text: String, tip: String, size: Float = 20f, act: () -> Unit) = TextView(a).apply {
+        this.text = text; textSize = size; gravity = Gravity.CENTER; setTextColor(ink); contentDescription = tip; tooltipText = tip
+        isClickable = true; isFocusable = true
+        background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(60, 128, 128, 128)), null, GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.WHITE) })
+        layoutParams = LinearLayout.LayoutParams(px(44), px(44)).apply { leftMargin = px(2) }
+        setOnClickListener { act() }
+    }
+
     private fun pill(text: String, tip: String, act: () -> Unit) = Button(a).apply {
         this.text = text; isAllCaps = false; textSize = 15f; setTextColor(pal().mineFg); contentDescription = tip; tooltipText = tip
         background = GradientDrawable().apply { setColor(pal().mine); cornerRadius = px(22).toFloat() }
@@ -824,15 +833,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }
         fill()
         listRefresh = { if (chatWith == null) fill() }
-        val close = Button(a).apply { text = "✕"; textSize = 18f; background = null; setTextColor(ink); contentDescription = t("Zamknij", "Close"); tooltipText = t("Zamknij", "Close"); setOnClickListener { screen?.dismiss() } }
-        val title = TextView(a).apply { text = "💬 " + t("Komunikator Velivo", "Velivo messenger"); textSize = 20f; setTextColor(ink); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(16), 0, 0, 0) }
-        val bell = Button(a).apply {
-            fun label() { text = if (k.background) "🔔" else "🔕"; contentDescription = t("Wiadomości, gdy Velivo zamknięte: ", "Messages while Velivo is closed: ") + (if (k.background) t("wł.", "on") else t("wył.", "off")); tooltipText = contentDescription }
-            label(); textSize = 18f; background = null
-            setOnClickListener { k.background = !k.background; label(); Toast.makeText(a, contentDescription, Toast.LENGTH_SHORT).show() }
+        val close = icon("✕", t("Zamknij", "Close")) { screen?.dismiss() }
+        val title = TextView(a).apply {
+            text = "💬 " + t("Komunikator Velivo", "Velivo messenger"); textSize = 20f; setTextColor(ink); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(16), 0, px(4), 0)
         }
-        val palette = Button(a).apply { text = "🎨"; textSize = 18f; background = null; contentDescription = t("Motyw komunikatora", "Messenger theme"); tooltipText = contentDescription; setOnClickListener { chooseTheme() } }
-        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(6), px(4), px(6)); addView(title); addView(palette); addView(bell); addView(close) }
+        lateinit var bell: TextView
+        fun bellLabel() { bell.text = if (k.background) "🔔" else "🔕"; bell.contentDescription = t("Wiadomości, gdy Velivo zamknięte: ", "Messages while Velivo is closed: ") + (if (k.background) t("wł.", "on") else t("wył.", "off")); bell.tooltipText = bell.contentDescription }
+        bell = icon("🔔", "") { k.background = !k.background; bellLabel(); Toast.makeText(a, bell.contentDescription, Toast.LENGTH_SHORT).show() }
+        bellLabel()
+        val palette = icon("🎨", t("Motyw komunikatora", "Messenger theme")) { chooseTheme() }
+        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(8), px(8), px(8)); addView(title); addView(palette); addView(bell); addView(close) }
         val actions = LinearLayout(a).apply {
             gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
             addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj telefon lub komputer z Velivo w tej sieci", "Add a phone or computer with Velivo on this network")) { addContact() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
@@ -993,8 +1004,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val clip = round("📎", t("Załącz plik", "Attach file"), pal().button) { attachTo = c; pickFiles() }
         val btn = round("➤", t("Wyślij", "Send"), violet) { send() }
         val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(input); addView(btn) }
-        val back = Button(a).apply { text = "←"; textSize = 22f; background = null; setTextColor(ink); contentDescription = t("Rozmowy", "Chats"); tooltipText = t("Rozmowy", "Chats"); setOnClickListener { show() } }
-        val title = TextView(a).apply { textSize = 18f; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+        val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
+        val title = TextView(a).apply { textSize = 18f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
         fun status() {
             val on = k.online(c.id)
             title.text = android.text.SpannableStringBuilder(c.name).apply {

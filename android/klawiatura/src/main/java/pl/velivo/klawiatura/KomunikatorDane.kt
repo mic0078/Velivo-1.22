@@ -16,6 +16,7 @@ class KomunikatorDane : ContentProvider() {
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
         val ctx = context ?: return null
         if (ctx.checkCallingPermission(PERM) != PackageManager.PERMISSION_GRANTED) return null
+        Rozmowy.syncIcon(ctx)   // przeglądarka Velivo się odezwała - ikona komunikatora klawiatury znika od razu (bez dwóch takich samych)
         val k = Komunikator.get(ctx) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
         return when (method) {
             "oddaj" -> if (k.contacts.isEmpty()) null else Bundle().apply { putString("json", k.export()) }

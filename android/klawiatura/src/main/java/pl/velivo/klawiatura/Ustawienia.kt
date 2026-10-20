@@ -18,12 +18,15 @@ import android.widget.TextView
 import android.widget.Toast
 
 // Ustawienia klawiatury Velivo: włączenie, wybór, mikrofon do dyktowania, motyw, Mój słownik.
-class Ustawienia : Activity() {
+open class Ustawienia : Activity() {
     companion object { const val ACTION_THEME = "pl.velivo.klawiatura.MOTYW"; const val ACTION_HEIGHT = "pl.velivo.klawiatura.WYSOKOSC" }
     private val REQ_MIC = 1
+    // z klawiatury (motyw, wysokość, słownik, mikrofon): samo okienko nad pisaniem, bez ekranu ustawień pod spodem; po wyborze powrót do pisania
+    protected open val quick = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (quick) { if (!runAction(intent)) finish(); return }
         val dp = resources.displayMetrics.density
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding((20 * dp).toInt(), (28 * dp).toInt(), (20 * dp).toInt(), (20 * dp).toInt())
@@ -44,32 +47,38 @@ class Ustawienia : Activity() {
         button(R.string.kb_height, R.string.kb_height_tip) { chooseHeight() }
         button(R.string.kb_words, R.string.kb_words) { showWords() }
         setContentView(ScrollView(this).apply { isFillViewport = true; addView(box) })
-        when (intent?.action) {
+        runAction(intent)
+    }
+
+    private fun runAction(i: Intent?): Boolean {
+        when (i?.action) {
             KlawiaturaVelivo.ACTION_MIC -> requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC)
             KlawiaturaVelivo.ACTION_WORDS -> showWords()
             ACTION_THEME -> chooseTheme()
             ACTION_HEIGHT -> chooseHeight()
+            else -> return false
         }
+        return true
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.action == KlawiaturaVelivo.ACTION_MIC) requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC)
-        if (intent.action == KlawiaturaVelivo.ACTION_WORDS) showWords()
-        if (intent.action == ACTION_THEME) chooseTheme()
-        if (intent.action == ACTION_HEIGHT) chooseHeight()
+        runAction(intent)
     }
+
+    private fun done() { if (quick) finish() }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_MIC && grantResults.any { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) Toast.makeText(this, R.string.kb_mic_ok, Toast.LENGTH_LONG).show()
+        done()
     }
 
     // motyw jak w Velivo: ciemny (domyślnie), jasny, czarno-biały, jak w telefonie
     private fun chooseTheme() {
         val pr = KlawiaturaVelivo.prefs(this)
         val names = arrayOf(getString(R.string.kb_theme_system), getString(R.string.kb_theme_light), getString(R.string.kb_theme_dark), getString(R.string.kb_theme_contrast))
-        AlertDialog.Builder(this).setTitle(R.string.kb_theme).setSingleChoiceItems(names, pr.getInt("motyw", 2)) { d, i -> pr.edit().putInt("motyw", i).apply(); d.dismiss() }.show()
+        AlertDialog.Builder(this).setTitle(R.string.kb_theme).setSingleChoiceItems(names, pr.getInt("motyw", 2)) { d, i -> pr.edit().putInt("motyw", i).apply(); d.dismiss() }.setOnDismissListener { done() }.show()
     }
 
     // wysokość klawiszy (procent) - na grubsze palce wyższa
@@ -79,7 +88,7 @@ class Ustawienia : Activity() {
         val names = sizes.map { "$it %" }.toTypedArray()
         AlertDialog.Builder(this).setTitle(R.string.kb_height).setSingleChoiceItems(names, sizes.indexOf(pr.getInt("wysokosc", 120)).coerceAtLeast(0)) { d, i ->
             pr.edit().putInt("wysokosc", sizes[i]).apply(); d.dismiss()
-        }.show()
+        }.setOnDismissListener { done() }.show()
     }
 
     // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)
@@ -90,7 +99,10 @@ class Ustawienia : Activity() {
             AlertDialog.Builder(this).setTitle("📖 " + getString(R.string.kb_words)).setMessage(R.string.kb_words_help)
                 .setView(ScrollView(this).apply { addView(box) })
                 .setPositiveButton(android.R.string.ok) { _, _ -> KlawiaturaVelivo.setOwnWords(this, box.text.split('\n')) }
-                .setNegativeButton(android.R.string.cancel, null).show()
+                .setNegativeButton(android.R.string.cancel, null).setOnDismissListener { done() }.show()
         }
     }
 }
+
+// to samo okienko co w ustawieniach, ale przezroczyste - otwierane z klawiatury, zamyka się po wyborze
+class SzybkieUstawienia : Ustawienia() { override val quick = true }

@@ -323,7 +323,7 @@ class KlawiaturaVelivo : InputMethodService() {
         if (listening) { stopListening(); return }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             // zgodę na mikrofon daje się w ustawieniach klawiatury (klawiatura nie może sama zapytać)
-            startActivity(Intent(this, Ustawienia::class.java).setAction(ACTION_MIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
+            startActivity(Intent(this, SzybkieUstawienia::class.java).setAction(ACTION_MIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
         }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { Toast.makeText(this, R.string.kb_mic_none, Toast.LENGTH_LONG).show(); return }
         val r = rec ?: SpeechRecognizer.createSpeechRecognizer(this).also { rec = it }
@@ -638,8 +638,8 @@ class KlawiaturaVelivo : InputMethodService() {
                 "notes" -> velivo("pl.velivo.browser.KARTECZKI")
                 "search" -> velivo("pl.velivo.browser.WIDZET_SZUKAJ")
                 "yt" -> velivo("pl.velivo.browser.WIDZET_YT")
-                "theme" -> startActivity(Intent(context, Ustawienia::class.java).setAction(Ustawienia.ACTION_THEME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                "height" -> startActivity(Intent(context, Ustawienia::class.java).setAction(Ustawienia.ACTION_HEIGHT).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "theme" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_THEME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "height" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_HEIGHT).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 "settings" -> startActivity(Intent(context, Ustawienia::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 "switch" -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
                 "back" -> { menuOpen = false; refresh(); return }
@@ -656,7 +656,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 "fix" -> pr.edit().putBoolean("klaw-korekta", !pref("klaw-korekta")).apply()
                 "klik" -> pr.edit().putBoolean("klaw-klik", !pref("klaw-klik")).apply()
                 "read" -> pr.edit().putBoolean("klaw-czytaj", !pref("klaw-czytaj", false)).apply()
-                "words" -> startActivity(Intent(context, Ustawienia::class.java).setAction(ACTION_WORDS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "words" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(ACTION_WORDS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 "mic" -> toggleMic()
                 "lang" -> { pr.edit().putString("klaw-jezyk", if (lang(context) == "pl") "en" else "pl").apply(); load(context) { refresh() } }
                 "hide" -> requestHideSelf(0)

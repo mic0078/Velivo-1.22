@@ -7,13 +7,16 @@
         <!-- karteczki, szukanie i YouTube otwierane w przeglądarce Velivo -->
         <package android:name="pl.velivo.browser" /></queries>
     <application android:label="@string/kb_name" android:icon="@mipmap/ic_launcher" android:allowBackup="false" android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.NoActionBar">
+        android:theme="@style/Velivo.Klawiatura">
         <activity android:name=".Ustawienia" android:exported="true" android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- okienka z klawiatury (motyw, wysokość, słownik, mikrofon) - przezroczyste, bez ekranu ustawień pod spodem -->
+        <activity android:name=".SzybkieUstawienia" android:exported="false" android:theme="@style/Okienko"
+            android:excludeFromRecents="true" android:taskAffinity="" android:noHistory="true" />
         <!-- ⌨ klawiatura (włączana w ustawieniach Androida, działa we wszystkich aplikacjach) -->
         <service android:name=".KlawiaturaVelivo" android:label="@string/kb_name" android:exported="true"
             android:permission="android.permission.BIND_INPUT_METHOD">

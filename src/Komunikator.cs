@@ -658,19 +658,21 @@ namespace Velivo
                     var msg = (L.En ? "📎 File from " : "📎 Plik od ") + dev + ": " + Path.GetFileName(target);
                     if (_komWindow != null && _komWindow.IsVisible) KomInfo(msg + L.T(" – zapisano"));   // okno zostaje na wierzchu
                     else ShowToast(msg, target);
-                    if (from != null) KomNote(from, false, "📎 " + Path.GetFileName(target));
+                    if (from != null) KomNote(from, false, "📎 " + Path.GetFileName(target) + " · " + KomSize(size), (string)h["Mid"]);
                 });
             }
             finally { if (tmp != null) try { File.Delete(tmp); } catch (Exception) { } CryptographicOperations.ZeroMemory(key); }
         }
 
-        void KomNote(KomContact c, bool mine, string text)
+        // plik w rozmowie: ten sam identyfikator u nadawcy i odbiorcy (Mid z naglowka) - "przeczytane" (✓✓) dziala jak przy wiadomosciach
+        void KomNote(KomContact c, bool mine, string text, string mid = null)
         {
-            KomChat(c.Id).Add(new KomMsg { Mine = mine, Text = text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = Guid.NewGuid().ToString("N") });
+            if (mid == null || mid.Length != 32 || KomChat(c.Id).Any(m => m.Mid == mid)) mid = Guid.NewGuid().ToString("N");
+            KomChat(c.Id).Add(new KomMsg { Mine = mine, Text = text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = mid });
             KomSave(); _komRefresh?.Invoke();
         }
 
-        async Task<string> KomSendFile(IPAddress addr, string path, Action<string> showCode, KomContact to = null, Action<long, long> progress = null)
+        async Task<string> KomSendFile(IPAddress addr, string path, Action<string> showCode, KomContact to = null, Action<long, long> progress = null, string mid = null)
         {
             var name = SafeFileName(Path.GetFileName(path));
             try
@@ -685,6 +687,7 @@ namespace Velivo
                     {
                         var pubA = me.ExportSubjectPublicKeyInfo(); var baseNonce = RandomNumberGenerator.GetBytes(12);
                         var h = new JsonObject { ["Type"] = "p2p-file", ["Id"] = _komId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
+                        if (mid != null) h["Mid"] = mid;
                         var ad = KomFileAd(h);
                         if (to != null) using (var hm = new HMACSHA256(to.Key)) h["Mac"] = Convert.ToBase64String(hm.ComputeHash(ad));   // kontakt rozpozna nadawce bez kodu
                         cts.CancelAfter(TimeSpan.FromSeconds(10));
@@ -1047,12 +1050,12 @@ namespace Velivo
             foreach (var f in dlg.FileNames)
             {
                 Window codeWin = null;
-                var fn = Path.GetFileName(f);
+                var fn = Path.GetFileName(f); var fmid = Guid.NewGuid().ToString("N"); long fsize = 0; try { fsize = new FileInfo(f).Length; } catch (Exception) { }
                 KomInfo("📎 " + fn + L.T(" – czekam, aż odbiorca przyjmie…"), 0);
                 var r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
-                    (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))));
+                    (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))), fmid);
                 codeWin?.Close();
-                if (r == "ok" && to != null) KomNote(to, true, "📎 " + Path.GetFileName(f));
+                if (r == "ok" && to != null) KomNote(to, true, "📎 " + fn + " · " + KomSize(fsize) + L.T(" – odebrano"), fmid);
                 KomInfo("📎 " + fn + ": " + (r == "ok" ? L.T("wysłano") : r));
                 try { if (owner.IsVisible) owner.Activate(); } catch (Exception) { }   // rozmowa dalej na wierzchu
             }

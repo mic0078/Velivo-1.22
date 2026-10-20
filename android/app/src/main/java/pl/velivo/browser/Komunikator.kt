@@ -242,6 +242,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     // usunięcie wiadomości tylko u siebie
+    private val pl get() = Locale.getDefault().language == "pl"
+    private fun sizeText(n: Long) = when { n >= 1L shl 30 -> String.format(Locale.ROOT, "%.1f GB", n / 1073741824.0); n >= 1L shl 20 -> String.format(Locale.ROOT, "%.1f MB", n / 1048576.0); else -> "${maxOf(1, n / 1024)} KB" }
+
     fun deleteLocal(c: Contact, m: Msg) { synchronized(this) { chat(c.id).remove(m) }; saveChat(c.id); main.post { onChange() } }
 
     // „jestem w sieci” - po powrocie do domowego Wi-Fi kontakty od razu dosyłają zaległe wiadomości
@@ -427,7 +430,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             good = true
             saveFile(name, tmp, dev)
             out.write(hmac(key, ("file-ack\n" + h.optString("Hash")).toByteArray(Charsets.UTF_8))); out.flush()
-            if (from != null) note(from, false, "📎 $name")
+            if (from != null) note(from, false, "📎 $name · " + sizeText(size), h.optString("Mid"))
         } finally { if (!good) tmp.delete() }
     }
 
@@ -441,6 +444,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val h = JSONObject().put("Type", "p2p-file").put("Id", myId).put("Device", deviceName()).put("Hash", hash).put("Size", size)
             .put("Name", name).put("Pub", b64(pubA)).put("Nonce", b64(base))
         val ad = fileAd(h)
+        val mid = UUID.randomUUID().toString().replace("-", ""); h.put("Mid", mid)   // poza podpisem - tylko do ✓✓ w rozmowie
         if (to != null) h.put("Mac", b64(hmac(to.key, ad)))   // kontakt rozpozna nadawcę bez kodu
         return runCatching {
             java.net.Socket().use { s ->
@@ -469,14 +473,16 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 }
                 if (sent != size) return@use "plik zmienił się w trakcie"
                 val ack = ByteArray(32).also { inp.readFully(it) }
-                if (MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok".also { to?.let { c -> note(c, true, "📎 $name") } } else "błąd potwierdzenia"
+                if (MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok".also { to?.let { c -> note(c, true, "📎 $name · " + sizeText(size) + if (pl) " – odebrano" else " – received", mid) } } else "błąd potwierdzenia"
             }
         }.getOrElse { it.message ?: it.javaClass.simpleName }
     }
 
     // plik w historii rozmowy (jak załącznik w innych komunikatorach)
-    private fun note(c: Contact, mine: Boolean, text: String) {
-        val m = Msg(mine, text, System.currentTimeMillis(), true, UUID.randomUUID().toString().replace("-", ""))
+    // plik w rozmowie: ten sam identyfikator u nadawcy i odbiorcy (Mid z nagłówka) - „przeczytane” (✓✓) jak przy wiadomościach
+    private fun note(c: Contact, mine: Boolean, text: String, mid: String? = null) {
+        val id = mid?.takeIf { it.length == 32 && synchronized(this) { chat(c.id).none { m -> m.mid == it } } } ?: UUID.randomUUID().toString().replace("-", "")
+        val m = Msg(mine, text, System.currentTimeMillis(), true, id)
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
         main.post { onChange() }

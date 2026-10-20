@@ -248,23 +248,18 @@ The same keyboard as on the computer, in Velivo colours (dark, light or black-an
 
 Velivo menu → **🎨 Velivo wallpaper**: a preview (violet–turquoise gradient with the V logo), then *Home screen* or *Home and lock screen*. On Android 12 and newer the system takes its colours from the wallpaper – buttons, settings and quick tiles get Velivo accents (Xiaomi, Huawei and Oppo set only the wallpaper).
 
-## 8d. Velivo messenger and files between phones
+## 8d. Velivo messenger
 
-Chats and files on your home Wi-Fi – no internet, no server, no phone number. Works between phones (the **Velivo browser or just the Velivo keyboard** is enough) and computers with Velivo for Windows.
+Chats, photos and files between your phones and computers with Velivo – no phone number and no third-party server. The Velivo browser or just the Velivo keyboard is enough; on a computer, Velivo for Windows.
 
-* **Own icon:** “Velivo Messenger” on the phone home screen (only one, even with both the browser and the keyboard) and on the Windows desktop (installer option “Velivo messenger on the desktop”).
-* **Opening:** Velivo menu → **💬 Messenger** (or 📤 → 💬). In the keyboard: **V** logo → **💬**. On Windows: the **💬** button on the bar or the tray icon menu.
-* **Adding a contact (once):** **➕ Add** → pick the device (it must have the messenger open on the same network). Both screens show a 6-digit code – the other device accepts only if the code matches.
-* **Status:** 🟢 green – the contact is on the network now; ⚪ grey – offline.
-* **Messages** are encrypted. If the recipient is away (e.g. left home), the message shows **…** and Velivo sends it by itself when they are back on the home network (up to 7 days). Delivered ones show **✓**.
-* **Notifications:** like other messengers – also when Velivo is closed. The phone then shows a quiet, permanent notification “Velivo messenger is waiting for messages”. Turn it off in the messenger: **🔔 Messages while Velivo is closed**.
-* **📎 Attach file** in a chat – any file, no size limit. Photos and files from **added contacts** (up to 2 GB) arrive straight in the chat, like other messengers: photos as thumbnails (tap – full screen), files open with a tap. Saving: long-press → Save to Gallery / Downloads (Windows: right click → Save as…). Switch: 🎨 → “Files from contacts at once”. Files from people outside your contacts and larger than 2 GB – always with a question.
-* **Ticks:** … waiting to be sent, ✓ delivered (waiting to be opened), ✓✓ read – also for photos and files.
-* **📲 Files to another phone** (menu, 📤 or keyboard) – also to someone not in your contacts: both screens then show a code to compare.
-* Long-press a contact: **rename** or **delete** the contact and chat.
-* Contacts and chats are stored only on the device, encrypted (Android Keystore / Windows DPAPI).
-* **🌍 Chats away from home:** one always-on computer with Velivo becomes the relay. In its messenger: 🎨 → **🌍 Chats away from home…** → tick the relay, enter the home address (e.g. from No-IP) and the port (default 41920). In the router forward this TCP port to that computer (like for Jellyfin). Other devices get the address automatically while at home. Away from home the phone and computers connect through the relay by themselves (the chat shows “online (via internet)”), at home as before through the home network. Messages, ticks, photos and files work. Only your contacts can use it; everything is encrypted. The top of the messenger always shows 🏠 **At home – home network** or 🌍 **Away from home – via internet**; contacts show 🏠 / 🌍.
-* **✉ Invitation via internet** (someone far away who was never on your network): ➕ Add contact → **✉ Invite via internet** → send the code (SMS, e-mail, messenger). The other person: ➕ → **🔑 I have an invitation** → pastes the code. You get a request (also as a notification when Velivo is in the background) with a 6-digit code – accept if it matches. The invitation works once and expires after 7 days; it needs the relay turned on.
+* **Opening:** the “Velivo Messenger” icon (phone and Windows desktop) or the Velivo menu → 💬.
+* **Adding a contact (once, at home):** ➕ Add → pick the device → both screens show the same 6-digit code → accept.
+* **At home and away – automatic:** devices that met at home also talk over the internet. Nothing to set up. The top shows 🏠 **At home** or 🌍 **Away from home – via internet**. The computer at home should be on.
+* **Someone far away (never at your place):** ➕ → ✉ **Invite via internet** → send the code. The other person: ➕ → 🔑 **I have an invitation**. Accept if the code matches. The invitation works once, 7 days.
+* **Signs:** 🟢 online, ⚪ offline; … sending, ✓ delivered, ✓✓ read.
+* **Photos and files:** 📎 in a chat. From contacts they arrive at once (photos as thumbnails). Saving: long-press (phone) or right-click (Windows).
+* **Notifications** also when Velivo is closed; reply straight from the notification.
+* **More:** long-press a contact – rename, delete. 🎨 – colours. Everything is encrypted and stored only on your devices.
 
 ## 9. When something goes wrong
 

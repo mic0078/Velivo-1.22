@@ -248,23 +248,18 @@ Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub 
 
 Menu Velivo → **🎨 Tapeta Velivo**: podgląd tapety (gradient fiolet – turkus z logo V), potem *Ekran główny* albo *Ekran główny i blokady*. Na Androidzie 12 i nowszym system sam dobiera kolory do tapety – przyciski, ustawienia i szybkie kafelki dostają akcenty Velivo (Xiaomi, Huawei, Oppo ustawią samą tapetę).
 
-## 8d. Komunikator Velivo i pliki między telefonami
+## 8d. Komunikator Velivo
 
-Rozmowy i pliki w domowym Wi-Fi – bez internetu, bez serwera, bez numeru telefonu. Działa między telefonami (wystarczy **przeglądarka Velivo albo sama klawiatura Velivo**) i komputerami z Velivo na Windows.
+Rozmowy, zdjęcia i pliki między Twoimi telefonami i komputerami z Velivo – bez numeru telefonu i bez obcego serwera. Wystarczy przeglądarka Velivo albo sama klawiatura Velivo; na komputerze Velivo na Windows.
 
-* **Własna ikona:** „Komunikator Velivo” na ekranie telefonu (jedna, nawet przy przeglądarce i klawiaturze) i na pulpicie Windows (instalator, „Komunikator Velivo na pulpicie”).
-* **Otwieranie:** menu Velivo → **💬 Komunikator** (albo 📤 → 💬). W klawiaturze: logo **V** → **💬**. Na Windows: przycisk **💬** na pasku albo menu ikony w zasobniku.
-* **Dodanie kontaktu (raz):** **➕ Dodaj** → wybierz urządzenie z listy (drugie musi mieć otwarty komunikator w tej samej sieci). Na obu ekranach pojawi się 6-cyfrowy kod – drugie urządzenie przyjmuje tylko, gdy kod jest taki sam.
-* **Status:** 🟢 zielony – kontakt jest teraz w sieci; ⚪ szary – poza siecią.
-* **Wiadomości** są szyfrowane. Gdy odbiorcy nie ma (np. wyszedł z domu), wiadomość ma znak **…** i Velivo wyśle ją sama, gdy wróci do domowej sieci (do 7 dni). Doręczona ma **✓**.
-* **Powiadomienia:** jak w innych komunikatorach – także gdy Velivo jest zamknięte. Telefon pokazuje wtedy ciche, stałe powiadomienie „Komunikator Velivo czeka na wiadomości”. Wyłączysz to w komunikatorze: **🔔 Wiadomości, gdy Velivo zamknięte**.
-* **📎 Załącz plik** w rozmowie – dowolny plik, bez limitu rozmiaru. Zdjęcia i pliki od **dodanych kontaktów** (do 2 GB) przychodzą od razu do rozmowy, jak w innych komunikatorach: zdjęcia jako miniatury (stuknięcie – pełny ekran), pliki otwiera stuknięcie. Zapis: przytrzymanie → Zapisz w Galerii / w Pobranych (Windows: prawy przycisk → Zapisz jako…). Wyłącznik: 🎨 → „Pliki od kontaktów od razu”. Pliki od osób spoza kontaktów i większe niż 2 GB – zawsze z pytaniem.
-* **Potwierdzenia:** … czeka na wysłanie, ✓ doręczone (czeka na otwarcie), ✓✓ odczytane – także przy zdjęciach i plikach.
-* **📲 Pliki na inny telefon** (menu, 📤 albo klawiatura) – także do osoby spoza kontaktów: wtedy oba ekrany pokazują kod do porównania.
-* Przytrzymaj kontakt: **zmiana nazwy** albo **usunięcie** kontaktu z rozmową.
-* Kontakty i rozmowy są zapisane tylko w urządzeniu, zaszyfrowane (Android Keystore / Windows DPAPI).
-* **🌍 Rozmowy poza domem:** jeden komputer z Velivo, który jest zawsze włączony, zostaje pośrednikiem. W komunikatorze na tym komputerze: 🎨 → **🌍 Rozmowy poza domem…** → zaznacz pośrednika, wpisz adres domu (np. z No-IP) i port (domyślnie 41920). W routerze przekieruj ten port TCP na ten komputer (tak jak dla Jellyfin). Pozostałe urządzenia dostaną adres same, gdy będą w domu. Poza domem telefon i komputer same łączą się przez pośrednika (w rozmowie: „w sieci (przez internet)”), w domu – jak dotąd przez sieć domową. Działają wiadomości, potwierdzenia, zdjęcia i pliki. Korzystać mogą tylko Twoje kontakty; wszystko jest szyfrowane. U góry komunikatora zawsze widać: 🏠 **W domu – sieć domowa** albo 🌍 **Poza domem – przez internet**; przy kontaktach 🏠 / 🌍.
-* **✉ Zaproszenie przez internet** (ktoś daleko, nigdy nie był w Twojej sieci): ➕ Dodaj kontakt → **✉ Zaproś przez internet** → wyślij kod (SMS, e-mail, komunikator). Druga osoba: ➕ → **🔑 Mam zaproszenie** → wkleja kod. U Ciebie pojawia się prośba (także jako powiadomienie, gdy Velivo jest w tle) z 6-cyfrowym kodem – przyjmij, gdy jest taki sam. Zaproszenie działa raz i wygasa po 7 dniach; wymaga włączonego pośrednika.
+* **Otwieranie:** ikona „Komunikator Velivo” (telefon i pulpit Windows) albo menu Velivo → 💬.
+* **Dodanie kontaktu (raz, w domu):** ➕ Dodaj → wybierz urządzenie → oba ekrany pokazują ten sam 6-cyfrowy kod → przyjmij.
+* **W domu i poza domem – samo:** urządzenia, które poznały się w domu, rozmawiają też przez internet. Nic nie trzeba ustawiać. U góry widać 🏠 **W domu** albo 🌍 **Poza domem – przez internet**. Komputer w domu powinien być włączony.
+* **Ktoś daleko (nigdy nie był u Ciebie):** ➕ → ✉ **Zaproś przez internet** → wyślij kod. Druga osoba: ➕ → 🔑 **Mam zaproszenie**. Przyjmujesz, gdy kod się zgadza. Zaproszenie działa raz, 7 dni.
+* **Znaczki:** 🟢 w sieci, ⚪ poza siecią; … wysyłanie, ✓ doręczone, ✓✓ przeczytane.
+* **Zdjęcia i pliki:** 📎 w rozmowie. Od kontaktów przychodzą od razu (zdjęcia jako miniatury). Zapis: przytrzymanie (telefon) albo prawy przycisk (Windows).
+* **Powiadomienia** także przy zamkniętym Velivo; odpowiedź prosto z powiadomienia.
+* **Więcej:** przytrzymaj kontakt – zmiana nazwy, usunięcie. 🎨 – kolory. Wszystko jest szyfrowane i zapisane tylko w Twoich urządzeniach.
 
 ## 9. Gdy coś pójdzie nie tak
 

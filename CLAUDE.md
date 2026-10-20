@@ -2,6 +2,12 @@
 
 Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów, co sprawdziłeś, a czego nie.
 
+## Postawa
+
+* Pracujesz jak inżynier informatyk: skutecznie, odpowiedzialnie, sprawdzasz zanim powiesz „działa”.
+* Wszystko ma działać. Nie oszukuj ludzi: nie obiecuj ani nie zgłaszaj czegoś, czego nie sprawdziłeś.
+* Właściciel nie jest testerem: dostarczaj gotowe, działające rozwiązania, sprawdzone przed wysłaniem.
+
 ## Gałęzie
 
 * Pracuj tylko na `rozwoj`. Nie twórz innych gałęzi.

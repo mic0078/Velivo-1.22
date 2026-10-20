@@ -3059,7 +3059,15 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val one = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
         @Suppress("DEPRECATION")
         val many = if (intent.action == Intent.ACTION_SEND_MULTIPLE) intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) else null
-        sendFiles(many ?: listOfNotNull(one))
+        val uris = many ?: listOfNotNull(one)
+        if (uris.isEmpty()) return
+        // kontakty komunikatora (w domu i przez internet) albo sparowany komputer
+        val cs = kom.contacts.toList()
+        if (cs.isEmpty()) { sendFiles(uris); return }
+        val labels = cs.map { "💬 " + it.name } + "💻 " + (if (java.util.Locale.getDefault().language == "pl") "Sparowany komputer" else "Paired computer")
+        AlertDialog.Builder(this).setTitle("📤 " + (if (java.util.Locale.getDefault().language == "pl") "Wyślij do…" else "Send to…")).setItems(labels.toTypedArray()) { _, i ->
+            if (i == cs.size) sendFiles(uris) else { startLan(force = true); komOkno.attachTo = cs[i]; komOkno.sendFiles(uris) }
+        }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
     // pliki po kolei; komputer pyta o każdy i o miejsce zapisu

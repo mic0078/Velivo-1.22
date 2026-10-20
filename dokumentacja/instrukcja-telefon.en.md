@@ -141,7 +141,7 @@ With several computers use the **recovery file** (computer: Save recovery file�
 | --- | --- |
 | Bookmarks, passwords, Quick Access | From the computer to the phone – automatically while Velivo is open |
 | New bookmarks and passwords from the phone | To the computer – the computer asks whether to add them |
-| A file from the phone | **Share → Velivo**; the computer asks for consent |
+| A file from the phone | **Share → Velivo** – pick a messenger contact (at home or over the internet) or the paired computer; the computer asks for consent |
 | A file from the computer | On the computer 📎 Send a file to: phone; saved to Downloads |
 | A tab from the phone | Menu → 📤 Send to computer |
 | A tab from the computer | On the computer: right-click a tab → 📺 Send to… → phone; the phone opens it straight away (YouTube from the same point) |

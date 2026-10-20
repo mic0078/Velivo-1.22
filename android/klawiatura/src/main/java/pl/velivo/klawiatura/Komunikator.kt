@@ -1331,7 +1331,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
         }
         val input = EditText(a).apply {
-            hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
             maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             setTextColor(ink); setHintTextColor(dim); textSize = 16f
             background = GradientDrawable().apply { setColor(pal().input); cornerRadius = px(22).toFloat(); setStroke(px(1), pal().border) }; setPadding(px(16), px(11), px(16), px(11))

@@ -156,8 +156,9 @@ namespace Velivo
         {
             var from = (string)p["id"]; var t = (string)p["t"];
             if (from == null || from.Length != 32 || IPAddress.IsLoopback(addr)) return;
+            if (_komRemote.ContainsKey(from)) return;   // echo pakietu urzadzenia poza domem, ktory sami przekazalismy - nie jest w domu
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
-            if (from == _komId || _komRemote.IsEmpty || _komRemote.ContainsKey(from)) return;   // nasze / juz przekazane - bez echa
+            if (from == _komId || _komRemote.IsEmpty) return;   // nasze - bez echa
             var to = (string)p["to"];
             if (to != null) { if (_komRemote.TryGetValue(to, out var rc)) KomSendFrame(rc, p); return; }
             if (t == "p2p-here" || t == "p2p-who" || t == "p2p-bye") foreach (var c in _komRemote.Values) KomSendFrame(c, p);

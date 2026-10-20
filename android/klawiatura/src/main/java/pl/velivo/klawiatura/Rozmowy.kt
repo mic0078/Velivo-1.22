@@ -22,6 +22,7 @@ class Rozmowy : Activity() {
         k.saveFile = { name, tmp, dev -> save(name, tmp, dev) }
         k.openIntent = { id -> Intent(applicationContext, Rozmowy::class.java).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         okno = KomunikatorOkno(this, k) { pick() }
+        okno.onClose = { if (!picking) finish() }
         KomunikatorUsluga.stop(this, k)   // okno otwarte - gniazda tutaj, nie w usłudze
         k.listen()
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
@@ -33,13 +34,16 @@ class Rozmowy : Activity() {
         }
     }
 
+    private var picking = false
     private fun pick() = runCatching {
+        picking = true
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true), 1)
     }
 
     @Deprecated("Activity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        picking = false
         if (resultCode != RESULT_OK || data == null) { okno.show(); return }
         val l = ArrayList<Uri>(); data.clipData?.let { c -> for (i in 0 until c.itemCount) l.add(c.getItemAt(i).uri) } ?: data.data?.let { l.add(it) }
         okno.sendFiles(l)

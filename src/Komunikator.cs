@@ -28,7 +28,7 @@ namespace Velivo
     public partial class MainWindow
     {
         sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; }
-        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; }
+        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
         static string KomFile => Path.Combine(DataDir, "komunikator.dat");
@@ -63,7 +63,7 @@ namespace Velivo
                         if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "" });
                     }
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
-                        _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "" }).ToList();
+                        _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false }).ToList();
                     foreach (var kv in o["unread"]?.AsObject() ?? new JsonObject()) _komUnread[kv.Key] = (int)kv.Value;
                 }
             }
@@ -79,7 +79,7 @@ namespace Velivo
                 foreach (var kv in _komChats)
                 {
                     var a = new JsonArray();
-                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid });
+                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read });
                     chats[kv.Key] = a;
                 }
                 var unread = new JsonObject(); foreach (var kv in _komUnread) unread[kv.Key] = kv.Value;
@@ -244,6 +244,18 @@ namespace Velivo
                         return;
                     }
                 case "p2p-msg": KomReceive(p, c, sender, ts); return;
+                case "p2p-read":   // ✓✓ odbiorca przeczytal nasze wiadomosci
+                    {
+                        if (c == null || (string)p["to"] != _komId) return;
+                        var mids = (string)p["mids"] ?? "";
+                        var mac = KomB64((string)p["mac"]); var exp = KomHmac(c.Key, "read\n" + mids);
+                        if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) return;
+                        var set = new HashSet<string>(mids.Split(','));
+                        bool any = false;
+                        foreach (var m in KomChat(c.Id)) if (m.Mine && !m.Read && set.Contains(m.Mid)) { m.Read = true; m.Ok = true; any = true; }
+                        if (any) { KomSave(); _komRefresh?.Invoke(); }
+                        return;
+                    }
             }
             if (c != null) KomResendPending(c);   // odezwal sie - dosylamy niedoreczone
         }
@@ -274,7 +286,7 @@ namespace Velivo
             if (!visible) _komUnread[c.Id] = (_komUnread.TryGetValue(c.Id, out var u) ? u : 0) + 1;
             KomSave();
             _komRefresh?.Invoke();
-            if (!visible) KomNotify(c, text);
+            if (!visible) KomNotify(c, text); else KomSendRead(c);
             KomResendPending(c);
         }
 
@@ -354,6 +366,22 @@ namespace Velivo
             var fi = new FlashInfo { Hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle, Flags = 3 | 12, Count = 3 };
             fi.Size = (uint)System.Runtime.InteropServices.Marshal.SizeOf(fi);
             FlashWindowEx(ref fi);
+        }
+
+        // rozmowa na ekranie: "przeczytane" do nadawcy
+        void KomSendRead(KomContact c)
+        {
+            var mids = KomChat(c.Id).Where(m => !m.Mine && !m.Read && m.Mid.Length == 32).ToList();
+            if (mids.Count == 0) return;
+            foreach (var m in mids) m.Read = true;
+            KomSave();
+            IPAddress.TryParse(c.Addr ?? "", out var to);
+            foreach (var part in mids.Select(m => m.Mid).Chunk(60))
+            {
+                var j = string.Join(",", part);
+                var p = KomPacket("p2p-read"); p["to"] = c.Id; p["mids"] = j; p["mac"] = Convert.ToBase64String(KomHmac(c.Key, "read\n" + j));
+                KomSendUdp(p, to);
+            }
         }
 
         void KomSend(KomContact c, string text)
@@ -741,7 +769,7 @@ namespace Velivo
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))
                 {
                     var time = DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime;
-                    var stamp = (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Ok ? " ✓" : " …") : "");
+                    var stamp = (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read ? " ✓✓" : m.Ok ? " ✓" : " …") : "");
                     var body = new StackPanel();
                     // kolory dymkow na sztywno - czytelne w jasnym i ciemnym motywie (bez ramek pola tekstowego)
                     bool dark = DarkWindows;
@@ -760,6 +788,7 @@ namespace Velivo
                 }
                 scroll.ScrollToEnd();
                 if (_komUnread.Remove(c.Id)) { KomSave(); FillList(); }
+                if (w.IsActive) KomSendRead(c);
             }
             _komRefresh = () => Dispatcher.BeginInvoke(new Action(() => { FillList(); FillChat(); }));
             _komSelect = id => { _komOpenId = id; FillList(); FillChat(); };

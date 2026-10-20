@@ -32,6 +32,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -67,7 +68,8 @@ import javax.crypto.spec.SecretKeySpec
 class Komunikator private constructor(private val ctx: Context, private val deviceName: () -> String) {
     class Peer(val id: String, val name: String, val addr: InetAddress)
     class Contact(val id: String, var name: String, val key: ByteArray, var addr: String)
-    class Msg(val mine: Boolean, val text: String, val ts: Long, var ok: Boolean, val mid: String)
+    // read: moja - odbiorca przeczytał (✓✓); odebrana - wysłaliśmy „przeczytane”
+    class Msg(val mine: Boolean, val text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false)
 
     private val prefs = ctx.getSharedPreferences("komunikator", Context.MODE_PRIVATE)
     private val random = SecureRandom()
@@ -119,18 +121,18 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     @Synchronized fun chat(id: String): MutableList<Msg> = chats.getOrPut(id) {
         runCatching {
             val a = JSONArray(open(prefs.getString("rozmowa-$id", null)) ?: "[]")
-            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid")) }.toMutableList()
+            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid"), it.optBoolean("rd")) }.toMutableList()
         }.getOrDefault(mutableListOf())
     }
     @Synchronized private fun saveChat(id: String) {
         val l = chat(id); while (l.size > 500) l.removeAt(0)
-        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid)) }
+        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid).put("rd", it.read)) }
         prefs.edit().putString("rozmowa-$id", seal(a.toString())).apply()
     }
     // --- przeniesienie klawiatura -> przeglądarka (telefon z obiema aplikacjami: jeden komunikator, bez dublowania) ---
     @Synchronized fun export(): String = JSONObject().put("cid", myId)
         .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr)) } })
-        .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid)) } }) } })
+        .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read)) } }) } })
         .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).toString()
 
     // dane z klawiatury: bez własnych kontaktów przejmujemy też jej identyfikator (inne urządzenia dalej nas znają);
@@ -148,7 +150,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val list = chat(id); val have = list.map { it.mid }.toHashSet()
                 val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
                 for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
-                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid")))
+                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid"), m.optBoolean("rd")))
                 }
                 list.sortBy { it.ts }
                 val un = o.optJSONObject("unread")?.optInt(id) ?: 0
@@ -211,9 +213,35 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 if (c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
                 acks[mid]?.countDown()
             }
+            // ✓✓ odbiorca przeczytał nasze wiadomości
+            "p2p-read" -> {
+                val c = contact(from) ?: return true; val mids = p.optString("mids")
+                if (p.optString("to") != myId || !MessageDigest.isEqual(unb64(p.optString("mac")), hmac(c.key, "read\n$mids".toByteArray()))) return true
+                val set = mids.split(',').toHashSet(); var any = false
+                synchronized(this) { chat(c.id).forEach { if (it.mine && !it.read && it.mid in set) { it.read = true; it.ok = true; any = true } } }
+                if (any) { saveChat(c.id); main.post { onChange() } }
+            }
         }
         return true
     }
+
+    // rozmowa na ekranie: „przeczytane” do nadawcy (najwyżej 60 naraz)
+    fun sendRead(c: Contact) {
+        val mids = synchronized(this) { chat(c.id).filter { !it.mine && !it.read }.onEach { it.read = true }.map { it.mid }.filter { it.length == 32 } }
+        if (mids.isEmpty()) return
+        saveChat(c.id)
+        Thread {
+            for (part in mids.chunked(60)) {
+                val j = part.joinToString(",")
+                val p = packet("p2p-read").put("to", c.id).put("mids", j).put("mac", b64(hmac(c.key, "read\n$j".toByteArray())))
+                val to = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()
+                sendUdp(p, to)
+            }
+        }.start()
+    }
+
+    // usunięcie wiadomości tylko u siebie
+    fun deleteLocal(c: Contact, m: Msg) { synchronized(this) { chat(c.id).remove(m) }; saveChat(c.id); main.post { onChange() } }
 
     // „jestem w sieci” - po powrocie do domowego Wi-Fi kontakty od razu dosyłają zaległe wiadomości
     fun announce() = Thread { repeat(3) { sendUdp(packet("p2p-here"), null); Thread.sleep(1500) }; contacts.toList().forEach { resend(it) } }.start()
@@ -519,7 +547,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     fun notifyMessage(c: Contact, quiet: Boolean = false) {
-        if (chatOpen == c.id) return
+        if (chatOpen == c.id) { if (!quiet) chatSound(); sendRead(c); return }
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
         channels(nm)
         // jak w innych komunikatorach: ostatnie wiadomości w powiadomieniu, odpowiedź i „przeczytane” bez otwierania Velivo
@@ -546,6 +574,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 .setOnlyAlertOnce(quiet).addAction(reply).addAction(read).setShowWhen(true).build())
         }
     }
+    // rozmowa na ekranie: bez powiadomienia, tylko krótki dźwięk (jak w innych komunikatorach); wyciszony telefon - cisza
+    private fun chatSound() = runCatching {
+        val am = ctx.getSystemService(android.media.AudioManager::class.java)
+        if (am?.ringerMode != android.media.AudioManager.RINGER_MODE_NORMAL) return@runCatching
+        android.media.RingtoneManager.getRingtone(ctx, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))?.play()
+    }
+
     fun clearNotification(id: String) { ctx.getSystemService(NotificationManager::class.java)?.cancel(id.hashCode()) }
 
     fun listenNotification(): Notification {
@@ -610,7 +645,6 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun t(p: String, e: String) = if (pl) p else e
     private val dp = a.resources.displayMetrics.density
     private fun px(v: Int) = (v * dp).toInt()
-    private var list: AlertDialog? = null
     private var chatWith: String? = null
     private var chatRefresh: (() -> Unit)? = null
 
@@ -629,46 +663,126 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 .setPositiveButton(t("Przyjmij", "Accept")) { _, _ -> accept(true) }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> accept(false) }
                 .setOnCancelListener { accept(false) }.show()
         }
-        k.onChange = { chatRefresh?.invoke(); if (list?.isShowing == true) { list?.dismiss(); show() } }
+        // rozmowa „na ekranie” tylko, gdy aplikacja jest na wierzchu - w tle / przy wygaszonym ekranie zwykłe powiadomienia
+        a.application.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(x: Activity) { if (x === a) k.chatOpen = chatWith }
+            override fun onActivityPaused(x: Activity) { if (x === a) k.chatOpen = null }
+            override fun onActivityDestroyed(x: Activity) { if (x === a) { k.chatOpen = null; a.application.unregisterActivityLifecycleCallbacks(this) } }
+            override fun onActivityCreated(x: Activity, b: android.os.Bundle?) {}
+            override fun onActivityStarted(x: Activity) {}
+            override fun onActivityStopped(x: Activity) {}
+            override fun onActivitySaveInstanceState(x: Activity, b: android.os.Bundle) {}
+        })
+        k.onChange = { chatRefresh?.invoke() ?: listRefresh?.invoke() }
     }
 
     fun sizeText(n: Long) = when { n >= 1L shl 30 -> String.format(Locale.ROOT, "%.1f GB", n / 1073741824.0); n >= 1L shl 20 -> String.format(Locale.ROOT, "%.1f MB", n / 1048576.0); else -> "${maxOf(1, n / 1024)} KB" }
 
     private fun bg(color: Int, r: Int) = GradientDrawable().apply { setColor(color); cornerRadius = px(r).toFloat() }
 
-    // lista kontaktów
-    fun show() {
-        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(16), px(8), px(16), px(8)) }
-        if (k.contacts.isEmpty()) box.addView(TextView(a).apply {
-            text = t("Brak kontaktów. Stuknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo (telefon: przeglądarka albo klawiatura Velivo, komputer: Velivo na Windows) w tej samej sieci Wi-Fi.",
-                "No contacts yet. Tap “➕ Add” while the other device has Velivo messenger open (phone: Velivo browser or keyboard, computer: Velivo for Windows) on the same Wi-Fi.")
-            setPadding(0, px(8), 0, px(8))
-        })
-        for (c in k.contacts.sortedByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0 }) {
-            val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull()
-            val on = k.online(c.id)
-            box.addView(TextView(a).apply {
-                text = (if (on) "🟢 " else "⚪ ") + c.name + (if (n > 0) "  ($n)" else "") + (last?.let { "\n" + (if (it.mine) "➜ " else "") + it.text.replace('\n', ' ').take(60) } ?: "")
-                textSize = 16f; setPadding(px(12), px(10), px(12), px(10))
-                background = bg(Color.argb(40, 109, 63, 219), 12)
-                layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) }
-                if (!on) alpha = 0.7f
-                contentDescription = t("Rozmowa z ", "Chat with ") + c.name + " - " + (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
-                setOnClickListener { list?.dismiss(); openChat(c) }
-                setOnLongClickListener { manage(c); true }
-            })
+    // --- jeden pełny ekran jak w innych komunikatorach: lista rozmów <-> rozmowa (strzałka / Wstecz) ---
+    private var screen: android.app.Dialog? = null
+    private var page: FrameLayout? = null
+    private var listRefresh: (() -> Unit)? = null
+    var onClose: (() -> Unit)? = null   // klawiatura: przezroczyste okno znika razem z komunikatorem
+    private val ink = Color.rgb(0xEC, 0xE8, 0xFF)
+    private val dim = Color.argb(0xA0, 0xEC, 0xE8, 0xFF)
+    private val green = Color.rgb(34, 197, 94)
+    private val violet = Color.rgb(0x6D, 0x3F, 0xDB)
+
+    private fun page(): FrameLayout {
+        page?.let { if (screen?.isShowing == true) return it }
+        val d = android.app.Dialog(a, android.R.style.Theme_Material_NoActionBar)
+        val root = FrameLayout(a).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(0x1E, 0x18, 0x38), Color.rgb(0x19, 0x1B, 0x33), Color.rgb(0x13, 0x2A, 0x35)))
+            // pasek stanu u góry, klawiatura / pasek nawigacji u dołu - pole wpisywania zawsze nad klawiaturą
+            if (Build.VERSION.SDK_INT >= 30) setOnApplyWindowInsetsListener { v, ins ->
+                val bars = ins.getInsets(android.view.WindowInsets.Type.systemBars()); val ime = ins.getInsets(android.view.WindowInsets.Type.ime())
+                v.setPadding(0, bars.top, 0, maxOf(bars.bottom, ime.bottom)); ins
+            }
         }
-        box.addView(TextView(a).apply {
-            fun label() = (if (k.background) "🔔 " else "🔕 ") + t("Wiadomości, gdy Velivo zamknięte: ", "Messages while Velivo is closed: ") + (if (k.background) t("wł.", "on") else t("wył.", "off"))
-            text = label(); setPadding(px(4), px(12), px(4), px(4)); textSize = 14f
-            tooltipText = t("Komunikator czeka w tle i pokazuje powiadomienia o nowych wiadomościach", "The messenger waits in the background and notifies about new messages")
-            setOnClickListener { k.background = !k.background; text = label() }
+        d.setContentView(root)
+        d.window?.apply {
+            setLayout(-1, -1)
+            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            if (Build.VERSION.SDK_INT >= 30) setDecorFitsSystemWindows(false)
+            statusBarColor = Color.rgb(0x1E, 0x18, 0x38); navigationBarColor = Color.rgb(0x13, 0x2A, 0x35)
+        }
+        d.setOnKeyListener { _, code, e -> if (code == android.view.KeyEvent.KEYCODE_BACK && e.action == android.view.KeyEvent.ACTION_UP && chatWith != null) { show(); true } else false }
+        d.setOnDismissListener { onClose?.invoke(); screen = null; page = null; chatWith = null; chatRefresh = null; listRefresh = null; k.chatOpen = null }
+        screen = d; page = root
+        d.show()
+        return root
+    }
+
+    private fun pill(text: String, tip: String, act: () -> Unit) = Button(a).apply {
+        this.text = text; isAllCaps = false; textSize = 15f; setTextColor(Color.WHITE); contentDescription = tip; tooltipText = tip
+        background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.rgb(0x7C, 0x3A, 0xED), Color.rgb(0x06, 0xB6, 0xD4))).apply { cornerRadius = px(22).toFloat() }
+        setPadding(px(14), 0, px(14), 0); setOnClickListener { act() }
+    }
+
+    private fun when_(ts: Long): String {
+        val d = java.util.Calendar.getInstance().apply { timeInMillis = ts }; val now = java.util.Calendar.getInstance()
+        return if (d.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR) && d.get(java.util.Calendar.DAY_OF_YEAR) == now.get(java.util.Calendar.DAY_OF_YEAR))
+            java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date(ts))
+        else java.text.SimpleDateFormat("d MMM", Locale.getDefault()).format(java.util.Date(ts))
+    }
+
+    // lista rozmów
+    fun show() {
+        val root = page()
+        chatWith = null; k.chatOpen = null; chatRefresh = null
+        val rows = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(10), px(4), px(10), px(8)) }
+        fun fill() {
+            rows.removeAllViews()
+            if (k.contacts.isEmpty()) rows.addView(TextView(a).apply {
+                text = t("Brak kontaktów.\n\nStuknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo (telefon: przeglądarka albo klawiatura Velivo, komputer: Velivo na Windows) w tej samej sieci Wi-Fi.",
+                    "No contacts yet.\n\nTap “➕ Add” while the other device has Velivo messenger open (phone: Velivo browser or keyboard, computer: Velivo for Windows) on the same Wi-Fi.")
+                setTextColor(dim); textSize = 15f; setPadding(px(10), px(24), px(10), px(8))
+            })
+            for (c in k.contacts.sortedByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0 }) {
+                val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull(); val on = k.online(c.id)
+                val dot = View(a).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (on) green else Color.GRAY) }; layoutParams = LinearLayout.LayoutParams(px(12), px(12)).apply { rightMargin = px(12) } }
+                val name = TextView(a).apply { text = c.name; textSize = 17f; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+                val time = TextView(a).apply { text = last?.let { when_(it.ts) } ?: ""; textSize = 12f; setTextColor(if (n > 0) green else dim) }
+                val top = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(name); addView(time) }
+                val snippet = TextView(a).apply {
+                    text = last?.let { (if (it.mine) (if (it.read) "✓✓ " else if (it.ok) "✓ " else "… ") else "") + it.text.replace('\n', ' ') } ?: (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
+                    textSize = 14f; setTextColor(dim); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                }
+                val badge = TextView(a).apply { text = n.toString(); textSize = 12f; setTextColor(Color.BLACK); gravity = Gravity.CENTER; minWidth = px(22); setPadding(px(6), px(1), px(6), px(1)); background = bg(green, 11); visibility = if (n > 0) View.VISIBLE else View.GONE }
+                val bottom = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(snippet); addView(badge) }
+                val text = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); addView(top); addView(bottom) }
+                rows.addView(LinearLayout(a).apply {
+                    gravity = Gravity.CENTER_VERTICAL; setPadding(px(14), px(12), px(14), px(12)); background = bg(Color.argb(46, 109, 63, 219), 14)
+                    layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) }
+                    addView(dot); addView(text)
+                    contentDescription = t("Rozmowa z ", "Chat with ") + c.name + " - " + (if (on) t("w sieci", "online") else t("poza siecią", "offline")) + if (n > 0) ", " + t("nowe: ", "new: ") + n else ""
+                    setOnClickListener { openChat(c) }
+                    setOnLongClickListener { manage(c); true }
+                })
+            }
+        }
+        fill()
+        listRefresh = { if (chatWith == null) fill() }
+        val close = Button(a).apply { text = "✕"; textSize = 18f; background = null; setTextColor(ink); contentDescription = t("Zamknij", "Close"); tooltipText = t("Zamknij", "Close"); setOnClickListener { screen?.dismiss() } }
+        val title = TextView(a).apply { text = "💬 " + t("Komunikator Velivo", "Velivo messenger"); textSize = 20f; setTextColor(ink); layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(16), 0, 0, 0) }
+        val bell = Button(a).apply {
+            fun label() { text = if (k.background) "🔔" else "🔕"; contentDescription = t("Wiadomości, gdy Velivo zamknięte: ", "Messages while Velivo is closed: ") + (if (k.background) t("wł.", "on") else t("wył.", "off")); tooltipText = contentDescription }
+            label(); textSize = 18f; background = null
+            setOnClickListener { k.background = !k.background; label(); Toast.makeText(a, contentDescription, Toast.LENGTH_SHORT).show() }
+        }
+        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(6), px(4), px(6)); addView(title); addView(bell); addView(close) }
+        val actions = LinearLayout(a).apply {
+            gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
+            addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj telefon lub komputer z Velivo w tej sieci", "Add a phone or computer with Velivo on this network")) { addContact() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
+            addView(pill("📤 " + t("Wyślij pliki", "Send files"), t("Pliki na telefon lub komputer z Velivo w tej sieci", "Files to a phone or computer with Velivo on this network")) { attachTo = null; pickFiles() }, LinearLayout.LayoutParams(0, px(46), 1f))
+        }
+        root.removeAllViews()
+        root.addView(LinearLayout(a).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(head); addView(ScrollView(a).apply { addView(rows); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }); addView(actions)
         })
-        list = AlertDialog.Builder(a).setTitle("💬 " + t("Komunikator Velivo", "Velivo messenger"))
-            .setView(ScrollView(a).apply { addView(box) })
-            .setPositiveButton("➕ " + t("Dodaj", "Add")) { _, _ -> addContact() }
-            .setNeutralButton("📤 " + t("Pliki", "Files")) { _, _ -> attachTo = null; pickFiles() }
-            .setNegativeButton(t("Zamknij", "Close"), null).show()
     }
 
     private fun manage(c: Komunikator.Contact) {
@@ -756,72 +870,88 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }.start()
     }
 
-    // okno rozmowy
+    // rozmowa
     fun openChat(c: Komunikator.Contact) {
+        val root = page()
+        listRefresh = null
         k.markRead(c.id); chatWith = c.id; k.chatOpen = c.id; k.clearNotification(c.id)
+        k.sendRead(c)
         val msgs = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(4), px(8), px(4)) }
         val scroll = ScrollView(a).apply { addView(msgs); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }
         val fmt = java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
+        val dayFmt = java.text.SimpleDateFormat("EEEE, d MMMM", Locale.getDefault())
         fun fill() {
             msgs.removeAllViews()
-            for (m in k.chat(c.id).takeLast(200)) msgs.addView(TextView(a).apply {
-                text = m.text + "\n" + fmt.format(java.util.Date(m.ts)) + (if (m.mine) (if (m.ok) " ✓" else " …") else "")
-                setTextIsSelectable(true); textSize = 15f
-                setPadding(px(10), px(6), px(10), px(6))
-                background = bg(if (m.mine) Color.rgb(109, 63, 219) else Color.argb(60, 128, 128, 128), 14)
-                setTextColor(if (m.mine) Color.WHITE else Color.rgb(0xEC, 0xE8, 0xFF))
-                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(4); if (m.mine) leftMargin = px(40) else rightMargin = px(40) }
-            })
+            var lastDay = ""
+            for (m in k.chat(c.id).takeLast(300)) {
+                val day = dayFmt.format(java.util.Date(m.ts))
+                if (day != lastDay) {
+                    lastDay = day
+                    msgs.addView(TextView(a).apply {
+                        text = if (when_(m.ts).contains(':')) t("Dzisiaj", "Today") else day; textSize = 12f; setTextColor(dim)
+                        setPadding(px(10), px(3), px(10), px(3)); background = bg(Color.argb(60, 0, 0, 0), 10)
+                        layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = px(10); bottomMargin = px(4) }
+                    })
+                }
+                msgs.addView(TextView(a).apply {
+                    val tick = if (m.mine) (if (m.read) "  ✓✓" else if (m.ok) "  ✓" else "  …") else ""
+                    text = android.text.SpannableStringBuilder(m.text).apply {
+                        append("\n"); val st = length; append(fmt.format(java.util.Date(m.ts)) + tick)
+                        setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
+                        setSpan(android.text.style.ForegroundColorSpan(if (m.mine && m.read) Color.rgb(0x7D, 0xF9, 0xFF) else Color.argb(0xB0, 255, 255, 255)), st, length, 0)
+                    }
+                    textSize = 16f; setTextColor(if (m.mine) Color.WHITE else ink)
+                    setPadding(px(12), px(7), px(12), px(7))
+                    background = bg(if (m.mine) violet else Color.rgb(0x3A, 0x33, 0x60), 16)
+                    layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(3); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
+                    contentDescription = (if (m.mine) t("Ty: ", "You: ") else c.name + ": ") + m.text + ", " + fmt.format(java.util.Date(m.ts)) +
+                        if (m.mine) ", " + (if (m.read) t("przeczytane", "read") else if (m.ok) t("doręczone", "delivered") else t("czeka na doręczenie", "waiting")) else ""
+                    setOnLongClickListener {
+                        AlertDialog.Builder(a).setItems(arrayOf("📋 " + t("Kopiuj", "Copy"), "🗑 " + t("Usuń u mnie", "Delete for me"))) { _, i ->
+                            if (i == 0) { (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", m.text)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
+                            else k.deleteLocal(c, m)
+                        }.show(); true
+                    }
+                })
+            }
             scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
         }
         val input = EditText(a).apply {
             hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-            maxLines = 4; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); imeOptions = EditorInfo.IME_ACTION_SEND
+            maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             setTextColor(Color.WHITE); setHintTextColor(Color.argb(0x99, 255, 255, 255)); textSize = 16f
-            background = bg(Color.rgb(0x2E, 0x27, 0x68), 20); setPadding(px(14), px(10), px(14), px(10))
+            background = bg(Color.rgb(0x2E, 0x27, 0x68), 22); setPadding(px(16), px(11), px(16), px(11))
+        }
+        fun round(text: String, tip: String, color: Int, act: () -> Unit) = Button(a).apply {
+            this.text = text; textSize = 18f; setTextColor(Color.WHITE); contentDescription = tip; tooltipText = tip; setPadding(0, 0, 0, 0)
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
+            layoutParams = LinearLayout.LayoutParams(px(46), px(46)).apply { leftMargin = px(6); rightMargin = px(6) }
+            setOnClickListener { act() }
         }
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, s); fill() }
-        val btn = Button(a).apply { text = "➤"; contentDescription = t("Wyślij", "Send"); tooltipText = t("Wyślij", "Send"); setOnClickListener { send() } }
-        input.setOnEditorActionListener { _, id, _ -> if (id == EditorInfo.IME_ACTION_SEND) { send(); true } else false }
-        val clip = Button(a).apply { text = "📎"; contentDescription = t("Załącz plik", "Attach file"); tooltipText = t("Załącz plik", "Attach file"); setOnClickListener { attachTo = c; pickFiles() } }
-        val row = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(6), 0, px(6)); addView(clip); addView(input); addView(btn) }
-        // pełny ekran jak w innych komunikatorach: nagłówek, wiadomości, pole wpisywania zawsze tuż nad klawiaturą
-        val dlg = android.app.Dialog(a, android.R.style.Theme_Material_NoActionBar)
-        val back = Button(a).apply { text = "←"; textSize = 20f; contentDescription = t("Kontakty", "Contacts"); tooltipText = t("Kontakty", "Contacts"); background = null; setTextColor(Color.WHITE); setOnClickListener { dlg.dismiss(); show() } }
+        val clip = round("📎", t("Załącz plik", "Attach file"), Color.rgb(0x2E, 0x27, 0x68)) { attachTo = c; pickFiles() }
+        val btn = round("➤", t("Wyślij", "Send"), violet) { send() }
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(input); addView(btn) }
+        val back = Button(a).apply { text = "←"; textSize = 22f; background = null; setTextColor(ink); contentDescription = t("Rozmowy", "Chats"); tooltipText = t("Rozmowy", "Chats"); setOnClickListener { show() } }
         val title = TextView(a).apply { textSize = 18f; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
         fun status() {
             val on = k.online(c.id)
             title.text = android.text.SpannableStringBuilder(c.name).apply {
                 append("\n"); val st = length
                 append(if (on) "● " + t("w sieci", "online") else "● " + t("poza siecią – wiadomości dojdą, gdy wróci", "offline – messages arrive when back"))
-                setSpan(android.text.style.ForegroundColorSpan(if (on) Color.rgb(34, 197, 94) else Color.GRAY), st, length, 0)
+                setSpan(android.text.style.ForegroundColorSpan(if (on) green else Color.GRAY), st, length, 0)
                 setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0)
             }
-            title.setTextColor(Color.WHITE)
+            title.setTextColor(ink)
         }
-        val head = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(8)); addView(back); addView(title) }
-        val root = LinearLayout(a).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(px(8), 0, px(8), 0)
-            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(0x1E, 0x18, 0x38), Color.rgb(0x19, 0x1B, 0x33), Color.rgb(0x13, 0x2A, 0x35)))
-            addView(head); addView(scroll); addView(row)
-            // pasek stanu u góry, klawiatura / pasek nawigacji u dołu (także przy wyświetlaniu od krawędzi do krawędzi)
-            if (Build.VERSION.SDK_INT >= 30) setOnApplyWindowInsetsListener { v, ins ->
-                val bars = ins.getInsets(android.view.WindowInsets.Type.systemBars()); val ime = ins.getInsets(android.view.WindowInsets.Type.ime())
-                v.setPadding(px(8), bars.top, px(8), maxOf(bars.bottom, ime.bottom)); scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }; ins
-            }
-        }
+        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back); addView(title) }
         fill(); status()
-        chatRefresh = { k.markRead(c.id); fill(); status() }
-        dlg.setContentView(root)
-        dlg.window?.apply {
-            setLayout(-1, -1)
-            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-            if (Build.VERSION.SDK_INT >= 30) setDecorFitsSystemWindows(false)
-            statusBarColor = Color.rgb(0x1E, 0x18, 0x38); navigationBarColor = Color.rgb(0x13, 0x2A, 0x35)
-        }
-        dlg.setOnDismissListener { chatWith = null; chatRefresh = null; k.chatOpen = null }
-        dlg.show()
+        chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }
+        root.removeAllViews()
+        root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(head); addView(scroll); addView(row) })
     }
+
+    private fun ColorDrawableCompat(c: Int) = android.graphics.drawable.ColorDrawable(c)
 }
 
 // usługa w tle: gdy aplikacja zamknięta, komunikator czeka na wiadomości (stałe ciche powiadomienie, jak w innych komunikatorach)

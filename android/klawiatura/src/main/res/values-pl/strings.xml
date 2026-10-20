@@ -36,4 +36,6 @@
     <string name="kb_m_settings">Ustawienia</string>
     <string name="kb_m_back">Wróć do klawiszy</string>
     <string name="kb_m_no_velivo">Zainstaluj przeglądarkę Velivo, by używać karteczek, szukania i YouTube</string>
+    <string name="kb_m_send">Wyślij na komputer</string>
+    <string name="kb_m_send_tip">Wyślij pliki albo kartę na sparowany komputer (przez przeglądarkę Velivo)</string>
 </resources>

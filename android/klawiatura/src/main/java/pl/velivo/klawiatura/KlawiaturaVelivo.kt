@@ -620,7 +620,7 @@ class KlawiaturaVelivo : InputMethodService() {
         // --- menu pod logo V ---
         private var menuOpen = false
         private val menu = ArrayList<K>()
-        private val menuItems = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt",
+        private val menuItems = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt", "📤" to "sendpc",
             "✓" to "fix", "🔈" to "klik", "🔊" to "read", "🎤" to "mic",
             "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height",
             "⌨" to "switch", "⚙" to "settings", "⌄" to "hide", "⌨︎" to "back")
@@ -637,7 +637,7 @@ class KlawiaturaVelivo : InputMethodService() {
         }
         private fun isOn(c: String) = when (c) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; else -> false }
         private fun menuName(c: String) = when (c) {
-            "note" -> R.string.kb_m_note; "notes" -> R.string.kb_m_notes; "search" -> R.string.kb_m_search; "yt" -> R.string.kb_m_yt
+            "sendpc" -> R.string.kb_m_send; "note" -> R.string.kb_m_note; "notes" -> R.string.kb_m_notes; "search" -> R.string.kb_m_search; "yt" -> R.string.kb_m_yt
             "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "read" -> R.string.kb_read; "mic" -> R.string.kb_mic
             "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height
             "switch" -> R.string.kb_m_switch; "settings" -> R.string.kb_m_settings; "hide" -> R.string.kb_hide; else -> R.string.kb_m_back
@@ -650,6 +650,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private fun menuAction(c: String) {
             when (c) {
                 "note" -> velivo("pl.velivo.browser.KARTECZKA_NOWA")
+                "sendpc" -> velivo("pl.velivo.browser.WYSLIJ_NA_KOMPUTER")
                 "notes" -> velivo("pl.velivo.browser.KARTECZKI")
                 "search" -> velivo("pl.velivo.browser.WIDZET_SZUKAJ")
                 "yt" -> velivo("pl.velivo.browser.WIDZET_YT")

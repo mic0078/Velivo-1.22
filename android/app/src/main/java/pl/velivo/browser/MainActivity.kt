@@ -186,6 +186,7 @@ class MainActivity : Activity() {
         Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
         if (intent?.action == Karteczki.ACTION_NEW) window.decorView.post { newNote() }
+        if (intent?.action == ACTION_SEND_PC) window.decorView.post { askSendToComputer() }
         if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
         if (intent?.action == Widzet.ACTION_SEARCH || intent?.action == Widzet.ACTION_YT) { val a = intent.action; window.decorView.post { widgetAction(a) } }
         if (intent?.action == TvPlan.ACTION) window.decorView.post { startPlanned(intent.getIntExtra("id", -1)) }
@@ -242,6 +243,7 @@ class MainActivity : Activity() {
         const val REQ_ROLE = 9
         const val REQ_VIDEOS = 10
         const val REQ_SENDFILE = 31
+        const val ACTION_SEND_PC = "pl.velivo.browser.WYSLIJ_NA_KOMPUTER"   // z klawiatury Velivo: pliki / karta na komputer
         val YOUTUBE_ORIGINS = setOf("https://www.youtube.com", "https://m.youtube.com", "https://youtube.com", "https://music.youtube.com")
         const val BANK_IDLE_MS = 10 * 60 * 1000L
 
@@ -268,6 +270,7 @@ set(p0,p);})"""
         super.onNewIntent(intent)
         if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
         if (intent.action == Karteczki.ACTION_NEW) { newNote(); return }
+        if (intent.action == ACTION_SEND_PC) { askSendToComputer(); return }
         if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
         if (intent.action == Widzet.ACTION_SEARCH || intent.action == Widzet.ACTION_YT) { widgetAction(intent.action); return }
         if (intent.action == TvPlan.ACTION) { startPlanned(intent.getIntExtra("id", -1)); return }

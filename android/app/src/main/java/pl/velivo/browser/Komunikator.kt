@@ -540,6 +540,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // --- powiadomienia o wiadomościach (jak w innych komunikatorach) ---
     @Volatile var chatOpen: String? = null          // rozmowa widoczna na ekranie - bez powiadomienia
     var openIntent: (contactId: String?) -> Intent = { Intent() }   // co otworzyć po stuknięciu powiadomienia
+    var theme: String
+        get() = prefs.getString("motyw", "auto") ?: "auto"
+        set(v) { prefs.edit().putString("motyw", v).apply() }
     var background: Boolean
         get() = prefs.getBoolean("tlo", true)
         set(v) { prefs.edit().putBoolean("tlo", v).apply() }
@@ -695,16 +698,34 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private var page: FrameLayout? = null
     private var listRefresh: (() -> Unit)? = null
     var onClose: (() -> Unit)? = null   // klawiatura: przezroczyste okno znika razem z komunikatorem
-    private val ink = Color.rgb(0xEC, 0xE8, 0xFF)
-    private val dim = Color.argb(0xA0, 0xEC, 0xE8, 0xFF)
+    // 🎨 motywy komunikatora - te same zestawy co w Velivo na Windows (Komunikator.cs)
+    class Pal(val key: String, val pl: String, val en: String, val dark: Boolean, private val c: List<String>) {
+        private fun h(i: Int) = Color.parseColor("#" + c[i])
+        val bg1 = h(0); val bg2 = h(1); val panel = h(2); val fg = h(3); val dim = h(4); val mine = h(5); val mineFg = h(6); val theirs = h(7); val input = h(8); val border = h(9); val button = h(10)
+    }
+    private val palettes = listOf(
+        Pal("noc", "🌙 Velivo nocny", "🌙 Velivo night", true, listOf("1E1838", "132A35", "2E2560", "ECE8FF", "A9A3CC", "6D3FDB", "FFFFFF", "3A3360", "2E2768", "4A3F8A", "2E2768")),
+        Pal("jasny", "☀ Velivo jasny", "☀ Velivo light", false, listOf("E6E1F5", "DCE6F0", "F1EEFA", "2A2255", "6E6894", "6D3FDB", "FFFFFF", "FBFAFF", "FAF9FE", "B9ACE6", "E4DEF7")),
+        Pal("ocean", "🌊 Ocean", "🌊 Ocean", true, listOf("0B2540", "0E4D64", "10314F", "E3F4FF", "9CC3D9", "0284C7", "FFFFFF", "1D4A6B", "0F2F4A", "2F6C93", "15466B")),
+        Pal("las", "🌲 Las", "🌲 Forest", true, listOf("14281D", "1F3D2B", "1B3326", "E6F5EA", "A3C4AE", "15803D", "FFFFFF", "2D5240", "183025", "3C6B52", "24473A")),
+        Pal("zachod", "🌅 Zachód słońca", "🌅 Sunset", true, listOf("3B1C32", "6A2C3E", "4A2238", "FFEDE6", "D9AFA8", "EA580C", "FFFFFF", "6E3448", "3F1D30", "8C4A5C", "5C2A42")),
+        Pal("grafit", "🖤 Grafit", "🖤 Graphite", true, listOf("1C1C1E", "2C2C2E", "242426", "EDEDED", "A0A0A5", "3A82F7", "FFFFFF", "3A3A3C", "2A2A2C", "48484A", "333336")),
+        Pal("roza", "🌸 Róża", "🌸 Rose", false, listOf("FCE7F3", "F5E1FF", "FBEFF7", "4A1D3A", "8E5C7C", "DB2777", "FFFFFF", "FFFFFF", "FFF7FB", "F0ABD0", "F7D9EA")),
+        Pal("mieta", "🍃 Mięta", "🍃 Mint", false, listOf("E0F7EF", "DDEFF7", "EEFAF5", "17352B", "5E8577", "0F9D74", "FFFFFF", "FFFFFF", "F7FDFB", "9ED9C5", "D4F0E6")),
+        Pal("kontrast", "◐ Wysoki kontrast", "◐ High contrast", true, listOf("000000", "000000", "000000", "FFFFFF", "FFFF00", "FFFF00", "000000", "1A1A1A", "000000", "FFFFFF", "000000")),
+    )
+    // auto - jak motyw telefonu (noc / dzień)
+    private fun pal(): Pal = palettes.firstOrNull { it.key == k.theme }
+        ?: if ((a.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_NO) palettes[1] else palettes[0]
+    private val ink get() = pal().fg
+    private val dim get() = pal().dim
     private val green = Color.rgb(34, 197, 94)
-    private val violet = Color.rgb(0x6D, 0x3F, 0xDB)
+    private val violet get() = pal().mine
 
     private fun page(): FrameLayout {
         page?.let { if (screen?.isShowing == true) return it }
         val d = android.app.Dialog(a, android.R.style.Theme_Material_NoActionBar)
         val root = FrameLayout(a).apply {
-            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(0x1E, 0x18, 0x38), Color.rgb(0x19, 0x1B, 0x33), Color.rgb(0x13, 0x2A, 0x35)))
             // pasek stanu u góry, klawiatura / pasek nawigacji u dołu - pole wpisywania zawsze nad klawiaturą
             if (Build.VERSION.SDK_INT >= 30) setOnApplyWindowInsetsListener { v, ins ->
                 val bars = ins.getInsets(android.view.WindowInsets.Type.systemBars()); val ime = ins.getInsets(android.view.WindowInsets.Type.ime())
@@ -716,8 +737,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             setLayout(-1, -1)
             setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
             if (Build.VERSION.SDK_INT >= 30) setDecorFitsSystemWindows(false)
-            statusBarColor = Color.rgb(0x1E, 0x18, 0x38); navigationBarColor = Color.rgb(0x13, 0x2A, 0x35)
         }
+        paint(d, root)
         d.setOnKeyListener { _, code, e -> if (code == android.view.KeyEvent.KEYCODE_BACK && e.action == android.view.KeyEvent.ACTION_UP && chatWith != null) { show(); true } else false }
         // realny stan kontaktów: pytanie od razu i co 30 s, dopóki komunikator otwarty
         val h = Handler(Looper.getMainLooper())
@@ -729,9 +750,33 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         return root
     }
 
+    // tło i paski systemu w kolorach motywu
+    private fun paint(d: android.app.Dialog?, root: View) {
+        val p = pal()
+        root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(p.bg1, p.bg2))
+        d?.window?.apply {
+            statusBarColor = p.bg1; navigationBarColor = p.bg2
+            if (Build.VERSION.SDK_INT >= 30) decorView.windowInsetsController?.setSystemBarsAppearance(
+                if (p.dark) 0 else android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
+        }
+    }
+
+    private fun chooseTheme() {
+        val keys = listOf("auto") + palettes.map { it.key }
+        val names = listOf(t("📱 Automatyczny (jak telefon)", "📱 Automatic (like the phone)")) + palettes.map { if (pl) it.pl else it.en }
+        AlertDialog.Builder(a).setTitle("🎨 " + t("Motyw komunikatora", "Messenger theme"))
+            .setSingleChoiceItems(names.toTypedArray(), keys.indexOf(k.theme).coerceAtLeast(0)) { d, i ->
+                k.theme = keys[i]; d.dismiss()
+                page?.let { paint(screen, it) }
+                val c = chatWith?.let { k.contact(it) }
+                if (c != null) openChat(c) else show()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     private fun pill(text: String, tip: String, act: () -> Unit) = Button(a).apply {
-        this.text = text; isAllCaps = false; textSize = 15f; setTextColor(Color.WHITE); contentDescription = tip; tooltipText = tip
-        background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.rgb(0x7C, 0x3A, 0xED), Color.rgb(0x06, 0xB6, 0xD4))).apply { cornerRadius = px(22).toFloat() }
+        this.text = text; isAllCaps = false; textSize = 15f; setTextColor(pal().mineFg); contentDescription = tip; tooltipText = tip
+        background = GradientDrawable().apply { setColor(pal().mine); cornerRadius = px(22).toFloat() }
         setPadding(px(14), 0, px(14), 0); setOnClickListener { act() }
     }
 
@@ -768,7 +813,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 val bottom = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(snippet); addView(badge) }
                 val text = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); addView(top); addView(bottom) }
                 rows.addView(LinearLayout(a).apply {
-                    gravity = Gravity.CENTER_VERTICAL; setPadding(px(14), px(12), px(14), px(12)); background = bg(Color.argb(46, 109, 63, 219), 14)
+                    gravity = Gravity.CENTER_VERTICAL; setPadding(px(14), px(12), px(14), px(12)); background = bg(pal().panel, 14)
                     layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) }
                     addView(dot); addView(text)
                     contentDescription = t("Rozmowa z ", "Chat with ") + c.name + " - " + (if (on) t("w sieci", "online") else t("poza siecią", "offline")) + if (n > 0) ", " + t("nowe: ", "new: ") + n else ""
@@ -786,7 +831,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             label(); textSize = 18f; background = null
             setOnClickListener { k.background = !k.background; label(); Toast.makeText(a, contentDescription, Toast.LENGTH_SHORT).show() }
         }
-        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(6), px(4), px(6)); addView(title); addView(bell); addView(close) }
+        val palette = Button(a).apply { text = "🎨"; textSize = 18f; background = null; contentDescription = t("Motyw komunikatora", "Messenger theme"); tooltipText = contentDescription; setOnClickListener { chooseTheme() } }
+        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(6), px(4), px(6)); addView(title); addView(palette); addView(bell); addView(close) }
         val actions = LinearLayout(a).apply {
             gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
             addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj telefon lub komputer z Velivo w tej sieci", "Add a phone or computer with Velivo on this network")) { addContact() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
@@ -912,11 +958,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     text = android.text.SpannableStringBuilder(m.text).apply {
                         append("\n"); val st = length; append(fmt.format(java.util.Date(m.ts)) + tick)
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
-                        setSpan(android.text.style.ForegroundColorSpan(if (m.mine && m.read) Color.rgb(0x7D, 0xF9, 0xFF) else Color.argb(0xB0, 255, 255, 255)), st, length, 0)
+                        val p = pal(); val base = if (m.mine) p.mineFg else p.dim
+                        setSpan(android.text.style.ForegroundColorSpan(if (m.mine && m.read) (if (p.key == "kontrast") Color.rgb(0, 0, 0xCC) else Color.rgb(0x7D, 0xF9, 0xFF)) else Color.argb(0xC0, Color.red(base), Color.green(base), Color.blue(base))), st, length, 0)
                     }
-                    textSize = 16f; setTextColor(if (m.mine) Color.WHITE else ink)
+                    textSize = 16f; setTextColor(if (m.mine) pal().mineFg else ink)
                     setPadding(px(12), px(7), px(12), px(7))
-                    background = bg(if (m.mine) violet else Color.rgb(0x3A, 0x33, 0x60), 16)
+                    background = bg(if (m.mine) violet else pal().theirs, 16)
                     layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(3); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
                     contentDescription = (if (m.mine) t("Ty: ", "You: ") else c.name + ": ") + m.text + ", " + fmt.format(java.util.Date(m.ts)) +
                         if (m.mine) ", " + (if (m.read) t("przeczytane", "read") else if (m.ok) t("doręczone", "delivered") else t("czeka na doręczenie", "waiting")) else ""
@@ -933,17 +980,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val input = EditText(a).apply {
             hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            setTextColor(Color.WHITE); setHintTextColor(Color.argb(0x99, 255, 255, 255)); textSize = 16f
-            background = bg(Color.rgb(0x2E, 0x27, 0x68), 22); setPadding(px(16), px(11), px(16), px(11))
+            setTextColor(ink); setHintTextColor(dim); textSize = 16f
+            background = GradientDrawable().apply { setColor(pal().input); cornerRadius = px(22).toFloat(); setStroke(px(1), pal().border) }; setPadding(px(16), px(11), px(16), px(11))
         }
         fun round(text: String, tip: String, color: Int, act: () -> Unit) = Button(a).apply {
-            this.text = text; textSize = 18f; setTextColor(Color.WHITE); contentDescription = tip; tooltipText = tip; setPadding(0, 0, 0, 0)
+            this.text = text; textSize = 18f; setTextColor(if (color == violet) pal().mineFg else ink); contentDescription = tip; tooltipText = tip; setPadding(0, 0, 0, 0)
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
             layoutParams = LinearLayout.LayoutParams(px(46), px(46)).apply { leftMargin = px(6); rightMargin = px(6) }
             setOnClickListener { act() }
         }
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, s); fill() }
-        val clip = round("📎", t("Załącz plik", "Attach file"), Color.rgb(0x2E, 0x27, 0x68)) { attachTo = c; pickFiles() }
+        val clip = round("📎", t("Załącz plik", "Attach file"), pal().button) { attachTo = c; pickFiles() }
         val btn = round("➤", t("Wyślij", "Send"), violet) { send() }
         val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(input); addView(btn) }
         val back = Button(a).apply { text = "←"; textSize = 22f; background = null; setTextColor(ink); contentDescription = t("Rozmowy", "Chats"); tooltipText = t("Rozmowy", "Chats"); setOnClickListener { show() } }

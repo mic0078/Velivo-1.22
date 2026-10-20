@@ -57,6 +57,7 @@ namespace Velivo
                 {
                     var o = JsonNode.Parse(ProtectedData.Unprotect(File.ReadAllBytes(KomFile), KomEntropy, DataProtectionScope.CurrentUser));
                     _komId = (string)o["id"];
+                    _komTheme = (string)o["theme"] ?? "auto";
                     foreach (var c in o["contacts"]?.AsArray() ?? new JsonArray())
                     {
                         var k = Convert.FromBase64String((string)c["key"] ?? "");
@@ -87,7 +88,7 @@ namespace Velivo
                 {
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme
                 };
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(o.ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
@@ -303,10 +304,10 @@ namespace Velivo
             // ta sama osoba - jedno okienko z nowa trescia
             var old = _komPopups.FirstOrDefault(p => (string)p.Tag == c.Id);
             if (old != null) { old.Close(); }
-            bool dark = DarkWindows;
-            var bg = new SolidColorBrush(dark ? Color.FromRgb(0x1B, 0x17, 0x33) : Color.FromRgb(0xF1, 0xEE, 0xFA));
-            var fg = new SolidColorBrush(dark ? Color.FromRgb(0xEC, 0xE8, 0xFF) : Color.FromRgb(0x1B, 0x17, 0x33));
-            var accent = new SolidColorBrush(Color.FromRgb(0x6D, 0x3F, 0xDB));
+            var pal = KomCurrentPal();   // powiadomienie w kolorach motywu komunikatora
+            var bg = new SolidColorBrush(pal.Panel);
+            var fg = new SolidColorBrush(pal.Fg);
+            var accent = new SolidColorBrush(pal.Mine);
             var w = new Window
             {
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ResizeMode = ResizeMode.NoResize,
@@ -317,8 +318,8 @@ namespace Velivo
             var close = new Button { Content = "✕", Width = 26, Height = 26, Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = fg, ToolTip = L.T("Zamknij"), Cursor = Cursors.Hand };
             var head = new DockPanel(); DockPanel.SetDock(close, Dock.Right); head.Children.Add(close); head.Children.Add(title);
             var body = new TextBlock { Text = shortText, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14, Margin = new Thickness(0, 6, 0, 8), MaxHeight = 140, TextTrimming = TextTrimming.CharacterEllipsis, Cursor = Cursors.Hand, ToolTip = L.T("Otwórz rozmowę") };
-            var reply = new TextBox { MinHeight = 30, VerticalContentAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(dark ? Color.FromRgb(0x24, 0x1F, 0x45) : Color.FromRgb(0xF3, 0xF1, 0xFB)), Foreground = fg, BorderBrush = accent, CaretBrush = fg, ToolTip = L.T("Odpowiedz (Enter - wyślij)") };
-            var send = new Button { Content = "➤", Width = 36, Margin = new Thickness(6, 0, 0, 0), Background = accent, Foreground = Brushes.White, BorderThickness = new Thickness(0), ToolTip = L.T("Wyślij"), Cursor = Cursors.Hand };
+            var reply = new TextBox { MinHeight = 30, VerticalContentAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(pal.Input), Foreground = fg, BorderBrush = accent, CaretBrush = fg, ToolTip = L.T("Odpowiedz (Enter - wyślij)") };
+            var send = new Button { Content = "➤", Width = 36, Margin = new Thickness(6, 0, 0, 0), Background = accent, Foreground = new SolidColorBrush(pal.MineFg), BorderThickness = new Thickness(0), ToolTip = L.T("Wyślij"), Cursor = Cursors.Hand };
             var row = new DockPanel(); DockPanel.SetDock(send, Dock.Right); row.Children.Add(send); row.Children.Add(reply);
             var stack = new StackPanel { Children = { head, body, row } };
             w.Content = new Border
@@ -711,6 +712,31 @@ namespace Velivo
             catch (Exception ex) { return ex.Message; }
         }
 
+        // ---------- motywy okna komunikatora ----------
+        sealed class KomPal
+        {
+            public string Key, Pl, En; public bool Dark;
+            public Color Bg1, Bg2, Panel, Fg, Dim, Mine, MineFg, Theirs, Input, Border, Button;
+        }
+        static Color Hex(string h) => (Color)ColorConverter.ConvertFromString("#" + h);
+        static KomPal Pal(string key, string pl, string en, bool dark, params string[] c) => new KomPal { Key = key, Pl = pl, En = en, Dark = dark,
+            Bg1 = Hex(c[0]), Bg2 = Hex(c[1]), Panel = Hex(c[2]), Fg = Hex(c[3]), Dim = Hex(c[4]), Mine = Hex(c[5]), MineFg = Hex(c[6]), Theirs = Hex(c[7]), Input = Hex(c[8]), Border = Hex(c[9]), Button = Hex(c[10]) };
+        // te same zestawy co w telefonie (Komunikator.kt)
+        static readonly KomPal[] KomPalettes =
+        {
+            Pal("noc", "🌙 Velivo nocny", "🌙 Velivo night", true, "1E1838", "132A35", "241F45", "ECE8FF", "A9A3CC", "6D3FDB", "FFFFFF", "3A3360", "241F45", "4A3F8A", "2E2768"),
+            Pal("jasny", "☀ Velivo jasny", "☀ Velivo light", false, "E6E1F5", "DCE6F0", "F1EEFA", "2A2255", "6E6894", "6D3FDB", "FFFFFF", "FBFAFF", "FAF9FE", "B9ACE6", "E4DEF7"),
+            Pal("ocean", "🌊 Ocean", "🌊 Ocean", true, "0B2540", "0E4D64", "10314F", "E3F4FF", "9CC3D9", "0284C7", "FFFFFF", "1D4A6B", "0F2F4A", "2F6C93", "15466B"),
+            Pal("las", "🌲 Las", "🌲 Forest", true, "14281D", "1F3D2B", "1B3326", "E6F5EA", "A3C4AE", "15803D", "FFFFFF", "2D5240", "183025", "3C6B52", "24473A"),
+            Pal("zachod", "🌅 Zachód słońca", "🌅 Sunset", true, "3B1C32", "6A2C3E", "4A2238", "FFEDE6", "D9AFA8", "EA580C", "FFFFFF", "6E3448", "3F1D30", "8C4A5C", "5C2A42"),
+            Pal("grafit", "🖤 Grafit", "🖤 Graphite", true, "1C1C1E", "2C2C2E", "242426", "EDEDED", "A0A0A5", "3A82F7", "FFFFFF", "3A3A3C", "2A2A2C", "48484A", "333336"),
+            Pal("roza", "🌸 Róża", "🌸 Rose", false, "FCE7F3", "F5E1FF", "FBEFF7", "4A1D3A", "8E5C7C", "DB2777", "FFFFFF", "FFFFFF", "FFF7FB", "F0ABD0", "F7D9EA"),
+            Pal("mieta", "🍃 Mięta", "🍃 Mint", false, "E0F7EF", "DDEFF7", "EEFAF5", "17352B", "5E8577", "0F9D74", "FFFFFF", "FFFFFF", "F7FDFB", "9ED9C5", "D4F0E6"),
+            Pal("kontrast", "◐ Wysoki kontrast", "◐ High contrast", true, "000000", "000000", "000000", "FFFFFF", "FFFF00", "FFFF00", "000000", "1A1A1A", "000000", "FFFFFF", "000000"),
+        };
+        string _komTheme = "auto";   // auto - jak motyw okien Velivo
+        KomPal KomCurrentPal() => KomPalettes.FirstOrDefault(p => p.Key == _komTheme) ?? (DarkWindows ? KomPalettes[0] : KomPalettes[1]);
+
         // ---------- okno ----------
         internal void ShowMessenger(string openId = null)
         {
@@ -718,7 +744,7 @@ namespace Velivo
             if (_lanRx == null) KomStartOwn();
             KomEnsureTray();
             if (_komWindow != null) { if (!_komWindow.IsVisible) _komWindow.Show(); _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
-            var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true };
+            var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true, Uid = "own-theme" };
             if (IsVisible) w.Owner = null;
             var root = new Grid { Margin = new Thickness(8) };
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
@@ -729,7 +755,8 @@ namespace Velivo
             var left = new DockPanel();
             var leftButtons = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
             DockPanel.SetDock(leftButtons, Dock.Bottom);
-            Button Btn(string text, string tip, RoutedEventHandler h) { var b = new Button { Content = text, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), ToolTip = tip }; b.Click += h; return b; }
+            var buttons = new List<Button>();
+            Button Btn(string text, string tip, RoutedEventHandler h) { var b = new Button { Content = text, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), ToolTip = tip }; b.Click += h; buttons.Add(b); return b; }
             var list = new ListBox { HorizontalContentAlignment = HorizontalAlignment.Stretch };
             ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
             left.Children.Add(leftButtons); left.Children.Add(list);
@@ -750,17 +777,25 @@ namespace Velivo
             right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
-            // jasny motyw: lagodne tlo Velivo (lawenda / szaroniebieski) zamiast razacej bieli; ciemny - z motywu okien
-            if (!DarkWindows)
+            buttons.Add(sendBtn); buttons.Add(fileBtn);
+            root.Margin = new Thickness(0);
+            left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
+            KomPal pal = null;
+            // 🎨 motyw komunikatora: tlo, lista, dymki, pole wpisywania, przyciski i pasek tytulu
+            void ApplyTheme()
             {
-                Brush B(byte r0, byte g0, byte b0) { var b = new SolidColorBrush(Color.FromRgb(r0, g0, b0)); b.Freeze(); return b; }
-                root.Margin = new Thickness(0);
-                root.Background = new LinearGradientBrush(Color.FromRgb(0xE6, 0xE1, 0xF5), Color.FromRgb(0xDC, 0xE6, 0xF0), 45);
-                left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
-                list.Background = B(0xF1, 0xEE, 0xFA); list.BorderBrush = B(0xD3, 0xCB, 0xEE);
-                input.Background = B(0xFA, 0xF9, 0xFE); input.BorderBrush = B(0xB9, 0xAC, 0xE6);
-                header.Foreground = B(0x2A, 0x22, 0x55);
+                pal = KomCurrentPal();
+                SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+                root.Background = new LinearGradientBrush(pal.Bg1, pal.Bg2, 45);
+                w.Background = B(pal.Bg1); w.Foreground = B(pal.Fg);
+                list.Background = B(pal.Panel); list.BorderBrush = B(pal.Border); list.Foreground = B(pal.Fg);
+                input.Background = B(pal.Input); input.BorderBrush = B(pal.Border); input.Foreground = B(pal.Fg); input.CaretBrush = B(pal.Fg);
+                header.Foreground = B(pal.Fg);
+                foreach (var b in buttons) { b.Background = B(pal.Button); b.Foreground = B(pal.Fg); b.BorderBrush = B(pal.Border); }
+                sendBtn.Background = B(pal.Mine); sendBtn.Foreground = B(pal.MineFg);
+                try { var h = new System.Windows.Interop.WindowInteropHelper(w).Handle; if (h != IntPtr.Zero) { int on = pal.Dark ? 1 : 0; DwmSetWindowAttribute(h, 20, ref on, 4); } } catch (Exception) { }
             }
+            ApplyTheme();
 
             KomContact Current() => KomContactById(_komOpenId ?? "");
             void FillList()
@@ -775,9 +810,9 @@ namespace Velivo
                     _komUnread.TryGetValue(c.Id, out var un);
                     bool on = KomOnline(c.Id);
                     var tb = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, Opacity = on ? 1 : 0.7 };
-                    tb.Inlines.Add(new System.Windows.Documents.Run("● ") { Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : Brushes.Gray, FontSize = 14 });
+                    tb.Inlines.Add(new System.Windows.Documents.Run("● ") { Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim), FontSize = 14 });
                     tb.Inlines.Add(new System.Windows.Documents.Run(c.Name + (un > 0 ? "  (" + un + ")" : "")) { FontWeight = un > 0 ? FontWeights.Bold : FontWeights.Normal });
-                    if (last != null) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run((last.Mine ? "➜ " : "") + last.Text.Replace('\n', ' ')) { FontSize = 11, Foreground = Brushes.Gray }); }
+                    if (last != null) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run((last.Mine ? "➜ " : "") + last.Text.Replace('\n', ' ')) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) }); }
                     var item = new ListBoxItem { Content = tb, Tag = c.Id, Padding = new Thickness(6), ToolTip = L.T("Rozmowa z ") + c.Name + " – " + (on ? L.T("w sieci") : L.T("poza siecią")) };
                     var cm = new ContextMenu();
                     var ren = new MenuItem { Header = L.T("✏ Zmień nazwę") }; ren.Click += (s, e) => KomRename(c);
@@ -802,7 +837,7 @@ namespace Velivo
                     header.Inlines.Add(new System.Windows.Documents.Run("💬 " + c.Name + "  "));
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
                     header.Inlines.Add(new System.Windows.Documents.Run(on ? L.T("● w sieci") : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
-                        { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : Brushes.Gray });
+                        { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
                 }
                 input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = c != null;
                 msgs.Children.Clear();
@@ -812,9 +847,8 @@ namespace Velivo
                     var time = DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime;
                     var stamp = (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read ? " ✓✓" : m.Ok ? " ✓" : " …") : "");
                     var body = new StackPanel();
-                    // kolory dymkow na sztywno - czytelne w jasnym i ciemnym motywie (bez ramek pola tekstowego)
-                    bool dark = DarkWindows;
-                    var fg = m.Mine ? Brushes.White : new SolidColorBrush(dark ? Color.FromRgb(0xEC, 0xE8, 0xFF) : Color.FromRgb(0x1B, 0x17, 0x33));
+                    // kolory dymkow z motywu komunikatora (bez ramek pola tekstowego)
+                    var fg = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg);
                     var txt = new TextBlock { Text = m.Text, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14 };
                     var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; copy.Click += (s2, e2) => { try { Clipboard.SetText(copyText); } catch (Exception) { } };
                     txt.ContextMenu = new ContextMenu { Items = { copy } };
@@ -824,7 +858,7 @@ namespace Velivo
                     {
                         Child = body, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(m.Mine ? 60 : 0, 3, m.Mine ? 0 : 60, 3),
                         HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                        Background = m.Mine ? new SolidColorBrush(Color.FromRgb(0x6D, 0x3F, 0xDB)) : new SolidColorBrush(dark ? Color.FromRgb(0x3A, 0x33, 0x60) : Color.FromRgb(0xFB, 0xFA, 0xFF))
+                        Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs)
                     });
                 }
                 scroll.ScrollToEnd();
@@ -851,6 +885,14 @@ namespace Velivo
                 await KomSendFilesTo(w, c.Name, addr, c);
             }
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
+            leftButtons.Children.Add(Btn("🎨", L.T("Motyw komunikatora – kolory okna i wiadomości"), (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = (UIElement)s, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+                void Add(string key, string label) { var it = new MenuItem { Header = label, IsCheckable = true, IsChecked = _komTheme == key }; it.Click += (a, b) => { _komTheme = key; KomSave(); ApplyTheme(); FillList(); FillChat(); }; cm.Items.Add(it); }
+                Add("auto", L.T("🖥 Automatyczny (jak Velivo)"));
+                foreach (var p in KomPalettes) Add(p.Key, L.En ? p.En : p.Pl);
+                cm.IsOpen = true;
+            }));
             leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: telefon lub komputer z Velivo w tej samej sieci"), async (s, e) => await KomAddDialog(w)));
             leftButtons.Children.Add(Btn(L.T("📎 Plik do…"), L.T("Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)"), async (s, e) =>
             {
@@ -865,7 +907,7 @@ namespace Velivo
             presence.Start();
             Ping();
             _ = Task.Delay(2500).ContinueWith(_ => Dispatcher.BeginInvoke(new Action(() => { if (_komWindow == w) { FillList(); FillChat(); } })));
-            w.SourceInitialized += (s, e) => SetWindowAppId(w, "Velivo.Komunikator");
+            w.SourceInitialized += (s, e) => { SetWindowAppId(w, "Velivo.Komunikator"); ApplyTheme(); };
             // ✕ - do zasobnika (ikona komunikatora), komunikator dalej odbiera; zamyka sie naprawde tylko z Velivo
             w.Closing += (s, e) => { if (_komExit) return; e.Cancel = true; w.Hide(); KomEnsureTray(); };
             w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; };

@@ -35,7 +35,7 @@ namespace Velivo
         // wywolywane przy otwarciu kazdego okna (App) i po zmianie ustawienia (otwarte okna)
         internal static void ApplyWindowTheme(Window w)
         {
-            if (w is MainWindow || w.AllowsTransparency || w.WindowStyle == WindowStyle.None) return;   // glowne okno ma motywy przegladarki, warstwy na filmie - bez zmian
+            if (w is MainWindow || w.AllowsTransparency || w.WindowStyle == WindowStyle.None || "own-theme".Equals(w.Uid)) return;   // own-theme: okno z wlasnymi motywami (komunikator)   // glowne okno ma motywy przegladarki, warstwy na filmie - bez zmian
             if (w.Background is SolidColorBrush sb && sb.Color == Colors.Black) return;   // odtwarzacz - i tak ciemny
             bool dark = DarkWindows;
             try

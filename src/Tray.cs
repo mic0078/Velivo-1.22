@@ -66,6 +66,9 @@ namespace Velivo
                 // lagodny "oddech": 100% -> 65% -> 100% w 8 krokach (bez migania)
                 _trayFrames = new[] { 1f, 0.92f, 0.82f, 0.72f, 0.65f, 0.72f, 0.82f, 0.92f }.Select(a => MakeDimIcon(_trayIcon, a)).ToArray();
                 _tray = new System.Windows.Forms.NotifyIcon { Icon = _trayIcon, Text = "Velivo", Visible = true };
+                // 💬 klikniecie dymka nowej wiadomosci - od razu ta rozmowa
+                _tray.BalloonTipClicked += (s, e) => Dispatcher.Invoke(() => { var id = _komBalloonId; _komBalloonId = null; if (id != null) ShowMessenger(id); });
+                _tray.BalloonTipClosed += (s, e) => _komBalloonId = null;
                 var menu = new System.Windows.Forms.ContextMenuStrip();
                 menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));
                 var filmItem = menu.Items.Add(L.T("🎬 Biblioteka filmów"), null, (s, e) => Dispatcher.Invoke(ShowVideoLibrary));
@@ -77,6 +80,7 @@ namespace Velivo
                 // jak przyciski na pasku Velivo: filmy i TV tylko, gdy sa wlaczone / zainstalowane
                 menu.Opening += (s, e) => { tvItem.Visible = _tvBtn != null; filmItem.Visible = _filmBtn != null; playerItem.Visible = _playerBtn != null; };
                 menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+                menu.Items.Add(TrayMessengerItem());
                 menu.Items.Add(TraySendFilesItem());
                 menu.Items.Add(L.T("Synchronizuj teraz"), null, (s, e) => Dispatcher.Invoke(() => { TrayPulse(4); try { LanBroadcastState(true); } catch (Exception ex) { App.LogError(ex); } }));
                 menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());

@@ -49,6 +49,8 @@ open class Ustawienia : Activity() {
         // 📤 pliki na komputer - przez przeglądarkę Velivo (parowanie i szyfrowanie są tam)
         button(R.string.kb_m_send, R.string.kb_m_send_tip) { runCatching { startActivity(Intent("pl.velivo.browser.WYSLIJ_NA_KOMPUTER").setClassName("pl.velivo.browser", "pl.velivo.browser.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             .onFailure { Toast.makeText(this, R.string.kb_m_no_velivo, Toast.LENGTH_LONG).show() } }
+        button(R.string.kb_m_chat, R.string.kb_m_chat_tip) { Rozmowy.open(this, false) }
+        button(R.string.kb_m_phone, R.string.kb_m_phone_tip) { Rozmowy.open(this, true) }
         setContentView(ScrollView(this).apply { isFillViewport = true; addView(box) })
         runAction(intent)
     }

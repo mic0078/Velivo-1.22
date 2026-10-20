@@ -56,6 +56,8 @@ class LanSync(
     // duży plik (file2, po kawałkach): zapis z pliku tymczasowego; tmpDir - gdzie go składać
     private val tmpDir: java.io.File? = null,
     private val saveFileFrom: (name: String, tmp: java.io.File, device: String) -> Unit = { _, t, _ -> t.delete() },
+    // komunikator i pliki telefon <-> telefon (Komunikator.kt) - na gniazdach tej synchronizacji
+    private val p2p: Komunikator? = null,
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -158,6 +160,9 @@ class LanSync(
             runCatching { s.send(DatagramPacket(data, data.size, target, PORT)) }
     }
 
+    // pakiet komunikatora (gotowe bajty) przez gniazdo synchronizacji
+    fun sendRaw(data: ByteArray, target: InetAddress) { udp?.send(DatagramPacket(data, data.size, target, PORT)) }
+
     private fun sendTo(p: JSONObject, target: InetAddress) {
         val data = p.toString().toByteArray(Charsets.UTF_8)
         udp?.send(DatagramPacket(data, data.size, target, PORT))
@@ -176,6 +181,7 @@ class LanSync(
 
     private fun handle(data: ByteArray, sender: InetAddress? = null) {
         val p = JSONObject(String(data, Charsets.UTF_8))
+        if (p2p?.handleUdp(p, sender) == true) return   // komunikator: własny identyfikator i własna kontrola
         val from = p.optString("id")
         if (from == id || from.length != 32) return
         val now = System.currentTimeMillis()
@@ -441,6 +447,7 @@ class LanSync(
                             if (header.optString("Type") == "quick-access") { quickAccess(header, inp, it.getOutputStream()); return@use }
                             if (header.optString("Type") == "file") { receiveFile(header, inp, it); return@use }
                             if (header.optString("Type") == "file2") { receiveFile2(header, inp, it); return@use }
+                            if (p2p?.handleTcp(header, inp, it) == true) return@use
                             val len = header.optInt("Length")
                             if (header.optString("Type") != "lan-state" || len <= 0 || len > TCP_LIMIT) return@use
                             val data = ByteArray(len).also { b -> inp.readFully(b) }

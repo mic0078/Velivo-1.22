@@ -247,6 +247,20 @@ Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub 
 
 Menu Velivo → **🎨 Tapeta Velivo**: podgląd tapety (gradient fiolet – turkus z logo V), potem *Ekran główny* albo *Ekran główny i blokady*. Na Androidzie 12 i nowszym system sam dobiera kolory do tapety – przyciski, ustawienia i szybkie kafelki dostają akcenty Velivo (Xiaomi, Huawei, Oppo ustawią samą tapetę).
 
+## 8d. Komunikator Velivo i pliki między telefonami
+
+Rozmowy i pliki w domowym Wi-Fi – bez internetu, bez serwera, bez numeru telefonu. Działa między telefonami (wystarczy **przeglądarka Velivo albo sama klawiatura Velivo**) i komputerami z Velivo na Windows.
+
+* **Otwieranie:** menu Velivo → **💬 Komunikator** (albo 📤 → 💬). W klawiaturze: logo **V** → **💬**. Na Windows: przycisk **💬** na pasku albo menu ikony w zasobniku.
+* **Dodanie kontaktu (raz):** **➕ Dodaj** → wybierz urządzenie z listy (drugie musi mieć otwarty komunikator w tej samej sieci). Na obu ekranach pojawi się 6-cyfrowy kod – drugie urządzenie przyjmuje tylko, gdy kod jest taki sam.
+* **Status:** 🟢 zielony – kontakt jest teraz w sieci; ⚪ szary – poza siecią.
+* **Wiadomości** są szyfrowane. Gdy odbiorcy nie ma (np. wyszedł z domu), wiadomość ma znak **…** i Velivo wyśle ją sama, gdy wróci do domowej sieci (do 7 dni). Doręczona ma **✓**.
+* **Powiadomienia:** jak w innych komunikatorach – także gdy Velivo jest zamknięte. Telefon pokazuje wtedy ciche, stałe powiadomienie „Komunikator Velivo czeka na wiadomości”. Wyłączysz to w komunikatorze: **🔔 Wiadomości, gdy Velivo zamknięte**.
+* **📎 Załącz plik** w rozmowie – dowolny plik, bez limitu rozmiaru. Odbiorca zawsze potwierdza przyjęcie; plik trafia do **Pobranych** (na Windows – tam, gdzie wskażesz).
+* **📲 Pliki na inny telefon** (menu, 📤 albo klawiatura) – także do osoby spoza kontaktów: wtedy oba ekrany pokazują kod do porównania.
+* Przytrzymaj kontakt: **zmiana nazwy** albo **usunięcie** kontaktu z rozmową.
+* Kontakty i rozmowy są zapisane tylko w urządzeniu, zaszyfrowane (Android Keystore / Windows DPAPI).
+
 ## 9. Gdy coś pójdzie nie tak
 
 - Jeśli Velivo zamknie się przez błąd, przy następnym uruchomieniu pokaże okno **„Velivo zamknęło się przez błąd”** z przyciskiem **Kopiuj** – wklej ten opis twórcy Velivo (bez adresów i treści stron – sam przebieg błędu).

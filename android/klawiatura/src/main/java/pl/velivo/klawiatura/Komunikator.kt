@@ -1,0 +1,773 @@
+package pl.velivo.klawiatura
+
+// Ten sam plik jest w przeglądarce Velivo (pl.velivo.browser) i w klawiaturze Velivo (pl.velivo.klawiatura) - zmieniaj oba.
+// Komunikator Velivo i pliki telefon <-> telefon w sieci domowej, bez internetu i bez serwera (port 41919, jak LanSync).
+//  * szukanie: UDP "p2p-who" -> "p2p-here" (tylko nazwa urządzenia i identyfikator czatu),
+//  * kontakt: jednorazowo przez TCP "p2p-pair" - klucze ECDH P-256, ten sam 6-cyfrowy kod na obu ekranach, zgoda odbiorcy,
+//  * wiadomości: UDP "p2p-msg" szyfrowane AES-GCM kluczem kontaktu, potwierdzenie "p2p-ack" (HMAC),
+//  * pliki: TCP "p2p-file" - jednorazowe klucze ECDH, kod do porównania, zgoda odbiorcy, kawałki 1 MB (AES-GCM), suma SHA-256.
+// Kontakty i rozmowy zapisane w telefonie zaszyfrowane kluczem z Android Keystore.
+
+import android.app.Activity
+import android.app.AlertDialog
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Intent
+import android.os.IBinder
+import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.text.InputType
+import android.util.Base64
+import android.view.Gravity
+import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.DataInputStream
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.NetworkInterface
+import java.net.ServerSocket
+import java.security.KeyFactory
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.security.spec.ECGenParameterSpec
+import java.security.spec.X509EncodedKeySpec
+import java.util.Locale
+import java.util.UUID
+import javax.crypto.Cipher
+import javax.crypto.KeyAgreement
+import javax.crypto.KeyGenerator
+import javax.crypto.Mac
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
+
+class Komunikator private constructor(private val ctx: Context, private val deviceName: () -> String) {
+    class Peer(val id: String, val name: String, val addr: InetAddress)
+    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String)
+    class Msg(val mine: Boolean, val text: String, val ts: Long, var ok: Boolean, val mid: String)
+
+    private val prefs = ctx.getSharedPreferences("komunikator", Context.MODE_PRIVATE)
+    private val random = SecureRandom()
+    private val main = Handler(Looper.getMainLooper())
+    val myId: String = prefs.getString("cid", null) ?: UUID.randomUUID().toString().replace("-", "").also { prefs.edit().putString("cid", it).apply() }
+
+    // nadawanie UDP: z gniazda przeglądarki (LanSync) albo własnego (klawiatura, listen())
+    var udpOut: ((ByteArray, InetAddress) -> Unit)? = null
+    // odbiór (okna ustawia UI): prośba o kontakt, plik, nowa wiadomość
+    var askPair: (device: String, code: String, accept: (Boolean) -> Unit) -> Unit = { _, _, a -> a(false) }
+    var askFile: (device: String, name: String, size: Long, code: String, accept: (Boolean) -> Unit) -> Unit = { _, _, _, _, a -> a(false) }
+    var saveFile: (name: String, tmp: java.io.File, device: String) -> Unit = { _, t, _ -> t.delete() }
+    var onMessage: (contact: Contact, msg: Msg) -> Unit = { _, _ -> }
+    var onChange: () -> Unit = {}
+
+    // --- zapis (Keystore) ---
+    private fun keystore(): SecretKey {
+        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (ks.getKey("velivo-komunikator", null) as? SecretKey)?.let { return it }
+        val g = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        g.init(KeyGenParameterSpec.Builder("velivo-komunikator", KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
+        return g.generateKey()
+    }
+    private fun seal(s: String): String = runCatching {
+        val c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, keystore())
+        b64(c.iv + c.doFinal(s.toByteArray(Charsets.UTF_8)))
+    }.getOrDefault("")
+    private fun open(s: String?): String? = runCatching {
+        val r = unb64(s ?: return null); if (r.size < 29) return null
+        val c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.DECRYPT_MODE, keystore(), GCMParameterSpec(128, r, 0, 12))
+        String(c.doFinal(r, 12, r.size - 12), Charsets.UTF_8)
+    }.getOrNull()
+
+    val contacts: MutableList<Contact> = runCatching {
+        val a = JSONArray(open(prefs.getString("kontakty", null)) ?: "[]")
+        (0 until a.length()).map { a.getJSONObject(it) }.map { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr")) }
+            .filter { it.key.size == 32 }.toMutableList()
+    }.getOrDefault(mutableListOf())
+
+    @Synchronized private fun saveContacts() {
+        val a = JSONArray()
+        contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr)) }
+        prefs.edit().putString("kontakty", seal(a.toString())).apply()
+    }
+
+    private val chats = HashMap<String, MutableList<Msg>>()
+    @Synchronized fun chat(id: String): MutableList<Msg> = chats.getOrPut(id) {
+        runCatching {
+            val a = JSONArray(open(prefs.getString("rozmowa-$id", null)) ?: "[]")
+            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid")) }.toMutableList()
+        }.getOrDefault(mutableListOf())
+    }
+    @Synchronized private fun saveChat(id: String) {
+        val l = chat(id); while (l.size > 500) l.removeAt(0)
+        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid)) }
+        prefs.edit().putString("rozmowa-$id", seal(a.toString())).apply()
+    }
+    fun unread(id: String) = prefs.getInt("nowe-$id", 0)
+    fun markRead(id: String) { prefs.edit().putInt("nowe-$id", 0).apply() }
+    fun remove(c: Contact) {
+        synchronized(this) { contacts.removeAll { it.id == c.id }; chats.remove(c.id) }
+        saveContacts(); prefs.edit().remove("rozmowa-${c.id}").remove("nowe-${c.id}").apply(); onChange()
+    }
+    fun rename(c: Contact, name: String) { c.name = name.take(64); saveContacts(); onChange() }
+
+    // --- UDP ---
+    private fun packet(t: String) = JSONObject().put("t", t).put("id", myId).put("device", deviceName()).put("ts", System.currentTimeMillis()).put("kind", "phone")
+    private fun sendUdp(p: JSONObject, to: InetAddress?) {
+        val d = p.toString().toByteArray(Charsets.UTF_8)
+        val own = udp
+        val out: (ByteArray, InetAddress) -> Unit = if (own != null) { b, to -> own.send(DatagramPacket(b, b.size, to, PORT)) } else udpOut ?: return
+        if (to != null) runCatching { out(d, to) } else for (t in broadcastTargets()) runCatching { out(d, t) }
+    }
+
+    private val found = java.util.concurrent.ConcurrentHashMap<String, Peer>()
+    private val acks = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.CountDownLatch>()
+    private val seen = java.util.Collections.synchronizedSet(LinkedHashSet<String>())
+
+    // pakiet "p2p-*" z sieci (z LanSync albo z listen()); true - obsłużony
+    fun handleUdp(p: JSONObject, sender: InetAddress?): Boolean {
+        val t = p.optString("t"); if (!t.startsWith("p2p-")) return false
+        val from = p.optString("id")
+        if (from == myId || from.length != 32 || sender == null) return true
+        if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) return true
+        contact(from)?.let { c -> val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); if (!was) main.post { onChange() } }
+        if (t != "p2p-ack" && t != "p2p-msg") contact(from)?.let { c -> Thread { resend(c) }.start() }
+        when (t) {
+            "p2p-who" -> sendUdp(packet("p2p-here"), sender)
+            "p2p-here" -> found[from] = Peer(from, clean(p.optString("device")), sender)
+            "p2p-msg" -> message(p, sender)
+            "p2p-ack" -> {
+                val c = contact(from) ?: return true; val mid = p.optString("mid")
+                if (!MessageDigest.isEqual(unb64(p.optString("mac")), hmac(c.key, "ack\n$mid".toByteArray()))) return true
+                if (c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
+                acks[mid]?.countDown()
+            }
+        }
+        return true
+    }
+
+    // „jestem w sieci” - po powrocie do domowego Wi-Fi kontakty od razu dosyłają zaległe wiadomości
+    fun announce() = Thread { repeat(3) { sendUdp(packet("p2p-here"), null); Thread.sleep(1500) }; contacts.toList().forEach { resend(it) } }.start()
+
+    @Synchronized fun contact(id: String) = contacts.firstOrNull { it.id == id }
+
+    // urządzenia z Velivo (telefony i komputery) w tej sieci - ok. 2,5 s
+    fun find(): List<Peer> {
+        found.clear()
+        repeat(3) { sendUdp(packet("p2p-who"), null); Thread.sleep(800) }
+        return found.values.sortedBy { it.name.lowercase() }
+    }
+
+    private fun msgAd(from: String, to: String, mid: String, ts: Long) = "p2p-msg\n$from\n$to\n$mid\n$ts".toByteArray(Charsets.UTF_8)
+
+    private fun message(p: JSONObject, sender: InetAddress) {
+        if (p.optString("to") != myId) return
+        val c = contact(p.optString("id")) ?: return
+        val mid = p.optString("mid"); if (mid.length != 32) return
+        val n = unb64(p.optString("n")); if (n.size != 12) return
+        val text = runCatching {
+            val ci = Cipher.getInstance("AES/GCM/NoPadding")
+            ci.init(Cipher.DECRYPT_MODE, SecretKeySpec(c.key, "AES"), GCMParameterSpec(128, n))
+            ci.updateAAD(msgAd(c.id, myId, mid, p.optLong("ts")))
+            String(ci.doFinal(unb64(p.optString("c"))), Charsets.UTF_8)
+        }.getOrNull() ?: return
+        sendUdp(packet("p2p-ack").put("mid", mid).put("mac", b64(hmac(c.key, "ack\n$mid".toByteArray()))), sender)
+        if (!seen.add(mid)) return   // powtórzenie (np. potwierdzenie nie doszło) - tylko ponowne ack
+        if (seen.size > 2000) synchronized(seen) { seen.iterator().let { it.next(); it.remove() } }
+        if (c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
+        val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
+        synchronized(this) { chat(c.id).add(m) }
+        saveChat(c.id)
+        prefs.edit().putInt("nowe-${c.id}", unread(c.id) + 1).apply()
+        notifyMessage(c)
+        main.post { onMessage(c, m); onChange() }
+        Thread { resend(c) }.start()   // odezwał się - może czekają nasze niedoręczone
+    }
+
+    // wysłanie (w tle): najpierw na znany adres, potem do całej sieci; 3 próby
+    fun send(c: Contact, text: String): Msg {
+        val mid = UUID.randomUUID().toString().replace("-", "")
+        val m = Msg(true, text.take(MAX_TEXT), System.currentTimeMillis(), false, mid)
+        synchronized(this) { chat(c.id).add(m) }
+        saveChat(c.id)
+        deliver(c, m)
+        return m
+    }
+
+    private val inFlight = java.util.Collections.synchronizedSet(HashSet<String>())
+    private fun deliver(c: Contact, m: Msg) {
+        if (!inFlight.add(m.mid)) return
+        val mid = m.mid
+        Thread {
+            val n = ByteArray(12).also { random.nextBytes(it) }
+            val p = packet("p2p-msg"); p.put("ts", m.ts).put("to", c.id).put("mid", mid).put("n", b64(n))
+            val ci = Cipher.getInstance("AES/GCM/NoPadding")
+            ci.init(Cipher.ENCRYPT_MODE, SecretKeySpec(c.key, "AES"), GCMParameterSpec(128, n))
+            ci.updateAAD(msgAd(myId, c.id, mid, m.ts))
+            p.put("c", b64(ci.doFinal(m.text.toByteArray(Charsets.UTF_8))))
+            val latch = java.util.concurrent.CountDownLatch(1); acks[mid] = latch
+            val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()
+            for (i in 0 until 4) {
+                sendUdp(p, if (i % 2 == 0 && known != null) known else null)
+                if (latch.await(1500, java.util.concurrent.TimeUnit.MILLISECONDS)) { m.ok = true; break }
+            }
+            acks.remove(mid); inFlight.remove(mid); saveChat(c.id)
+            main.post { onChange() }
+        }.start()
+    }
+
+    // --- TCP (kontakt i pliki) ---
+    fun handleTcp(h: JSONObject, inp: DataInputStream, sock: java.net.Socket): Boolean = when (h.optString("Type")) {
+        "p2p-pair" -> { runCatching { receivePair(h, inp, sock) }; true }
+        "p2p-file" -> { runCatching { receiveFile(h, inp, sock) }; true }
+        else -> false
+    }
+
+    private fun ecPair() = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
+    private fun agree(priv: KeyPair, other: ByteArray, label: String, pubA: ByteArray, pubB: ByteArray): ByteArray {
+        val ka = KeyAgreement.getInstance("ECDH"); ka.init(priv.private)
+        ka.doPhase(KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(other)), true)
+        return MessageDigest.getInstance("SHA-256").digest(ka.generateSecret() + label.toByteArray() + pubA + pubB)
+    }
+    private fun ask(block: ((Boolean) -> Unit) -> Unit): Boolean {
+        val latch = java.util.concurrent.CountDownLatch(1); var ok = false
+        main.post { block { yes -> ok = yes; latch.countDown() } }
+        return latch.await(3, java.util.concurrent.TimeUnit.MINUTES) && ok
+    }
+    private fun writeBlock(out: java.io.OutputStream, b: ByteArray) { out.write(int4(b.size)); out.write(b); out.flush() }
+    private fun readBlock(inp: DataInputStream, max: Int): ByteArray? { val l = readInt4(inp); if (l <= 0 || l > max) return null; return ByteArray(l).also { inp.readFully(it) } }
+
+    private fun receivePair(h: JSONObject, inp: DataInputStream, sock: java.net.Socket) {
+        val other = h.optString("Id"); if (other.length != 32 || other == myId) return
+        val pubA = unb64(h.optString("Pub")); if (pubA.isEmpty() || pubA.size > 200) return
+        val dev = clean(h.optString("Device"))
+        val mine = ecPair(); val pubB = mine.public.encoded
+        val out = sock.getOutputStream()
+        writeBlock(out, pubB)
+        val key = agree(mine, pubA, "velivo-czat", pubA, pubB)
+        val ok = ask { a -> askPair(dev, code(key), a) }
+        out.write(if (ok) 1 else 0); out.flush()
+        if (!ok) return
+        writeBlock(out, JSONObject().put("Id", myId).put("Device", deviceName()).toString().toByteArray(Charsets.UTF_8))
+        addContact(Contact(other, dev, key, sock.inetAddress.hostAddress ?: ""))
+    }
+
+    private fun addContact(c: Contact) {
+        synchronized(this) { contacts.removeAll { it.id == c.id }; contacts.add(c) }
+        saveContacts(); main.post { onChange() }
+    }
+
+    // dodanie kontaktu: showCode - kod do porównania z drugim ekranem; wynik "ok", "odrzucono" albo opis błędu
+    fun pair(peer: Peer, showCode: (String) -> Unit): String = runCatching {
+        java.net.Socket().use { s ->
+            s.connect(InetSocketAddress(peer.addr, PORT), 5000); s.soTimeout = 15000
+            val mine = ecPair(); val pubA = mine.public.encoded
+            val out = s.getOutputStream()
+            writeBlock(out, JSONObject().put("Type", "p2p-pair").put("Id", myId).put("Device", deviceName()).put("Pub", b64(pubA)).toString().toByteArray(Charsets.UTF_8))
+            val inp = DataInputStream(s.getInputStream())
+            val pubB = readBlock(inp, 200) ?: return@use "błąd"
+            val key = agree(mine, pubB, "velivo-czat", pubA, pubB)
+            showCode(code(key))
+            s.soTimeout = 180000
+            if (inp.read() != 1) return@use "odrzucono"
+            val info = JSONObject(String(readBlock(inp, 4096) ?: return@use "błąd", Charsets.UTF_8))
+            if (info.optString("Id") != peer.id) return@use "błąd"
+            addContact(Contact(peer.id, clean(info.optString("Device")).ifEmpty { peer.name }, key, peer.addr.hostAddress ?: ""))
+            "ok"
+        }
+    }.getOrElse { it.message ?: it.javaClass.simpleName }
+
+    var tmpDir: java.io.File = ctx.cacheDir
+
+    private fun fileAd(h: JSONObject) = listOf(h.optString("Type"), h.optString("Id"), h.optString("Device"), h.optString("Hash"),
+        h.optLong("Size").toString(), h.optString("Name"), h.optString("Pub"), h.optString("Nonce")).joinToString("\n").toByteArray(Charsets.UTF_8)
+    private fun chunkNonce(base: ByteArray, i: Int) = base.copyOf().also { n -> for (b in 0..3) n[8 + b] = (n[8 + b].toInt() xor (i shr (24 - 8 * b))).toByte() }
+    private fun chunkAad(ad: ByteArray, i: Int, last: Boolean) = ad + ("\n$i\n" + (if (last) "1" else "0")).toByteArray(Charsets.UTF_8)
+    private fun chunks(size: Long) = maxOf(1L, (size + CHUNK - 1) / CHUNK).toInt()
+
+    private fun receiveFile(h: JSONObject, inp: DataInputStream, sock: java.net.Socket) {
+        val size = h.optLong("Size")
+        if (size < 0 || size > (1L shl 40) || h.optString("Id").length != 32 || h.optString("Id") == myId) return
+        val pubA = unb64(h.optString("Pub")); val base = unb64(h.optString("Nonce"))
+        if (pubA.isEmpty() || pubA.size > 200 || base.size != 12) return
+        val name = h.optString("Name").replace('\\', '/').substringAfterLast('/').filter { !it.isISOControl() && it !in "<>:\"|?*" }
+            .trim().trimStart('.').ifEmpty { "plik" }.takeLast(120)
+        val dev = clean(h.optString("Device"))
+        val mine = ecPair(); val pubB = mine.public.encoded
+        val out = sock.getOutputStream()
+        writeBlock(out, pubB)   // nadawca liczy ten sam kod i pokazuje go u siebie
+        val key = agree(mine, pubA, "velivo-p2p", pubA, pubB)
+        val ad = fileAd(h)
+        // od kontaktu (podpis kluczem kontaktu) - bez kodu, jak załącznik w rozmowie; zgoda odbiorcy zawsze
+        val from = contact(h.optString("Id"))?.takeIf { c -> MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(c.key, ad)) }
+        val ok = ask { a -> askFile(from?.name ?: dev, name, size, if (from != null) "" else code(key), a) }
+        out.write(if (ok) 1 else 0); out.flush()
+        if (!ok) return
+        sock.soTimeout = 60000
+        val tmp = java.io.File(tmpDir, "odbior-" + UUID.randomUUID() + ".part")
+        var good = false
+        try {
+            val md = MessageDigest.getInstance("SHA-256")
+            java.io.FileOutputStream(tmp).use { fo ->
+                val n = chunks(size); var got = 0L
+                for (i in 0 until n) {
+                    val l = readInt4(inp); if (l < 16 || l > CHUNK + 16) return
+                    val enc = ByteArray(l).also { b -> inp.readFully(b) }
+                    val c = Cipher.getInstance("AES/GCM/NoPadding")
+                    c.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, chunkNonce(base, i)))
+                    c.updateAAD(chunkAad(ad, i, i == n - 1))
+                    val plain = c.doFinal(enc)
+                    got += plain.size; if (got > size) return
+                    md.update(plain); fo.write(plain)
+                }
+                if (got != size) return
+            }
+            if (!hex(md.digest()).equals(h.optString("Hash"), ignoreCase = true)) return
+            good = true
+            saveFile(name, tmp, dev)
+            out.write(hmac(key, ("file-ack\n" + h.optString("Hash")).toByteArray(Charsets.UTF_8))); out.flush()
+            if (from != null) note(from, false, "📎 $name")
+        } finally { if (!good) tmp.delete() }
+    }
+
+    // plik na inny telefon: open() - strumień od początku (dwa razy: suma, potem wysyłka)
+    fun sendFile(target: InetAddress, name: String, size: Long, open: () -> java.io.InputStream, showCode: (String) -> Unit, to: Contact? = null): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        open().use { s -> val b = ByteArray(1 shl 16); while (true) { val r = s.read(b); if (r < 0) break; md.update(b, 0, r) } }
+        val hash = hex(md.digest())
+        val mine = ecPair(); val pubA = mine.public.encoded
+        val base = ByteArray(12).also { random.nextBytes(it) }
+        val h = JSONObject().put("Type", "p2p-file").put("Id", myId).put("Device", deviceName()).put("Hash", hash).put("Size", size)
+            .put("Name", name).put("Pub", b64(pubA)).put("Nonce", b64(base))
+        val ad = fileAd(h)
+        if (to != null) h.put("Mac", b64(hmac(to.key, ad)))   // kontakt rozpozna nadawcę bez kodu
+        return runCatching {
+            java.net.Socket().use { s ->
+                s.connect(InetSocketAddress(target, PORT), 5000); s.soTimeout = 15000
+                val out = java.io.BufferedOutputStream(s.getOutputStream(), 1 shl 16)
+                writeBlock(out, h.toString().toByteArray(Charsets.UTF_8))
+                val inp = DataInputStream(s.getInputStream())
+                val pubB = readBlock(inp, 200) ?: return@use "błąd"
+                val key = agree(mine, pubB, "velivo-p2p", pubA, pubB)
+                showCode(code(key))
+                s.soTimeout = 180000
+                if (inp.read() != 1) return@use "odrzucono"
+                s.soTimeout = 300000
+                val n = chunks(size); var sent = 0L
+                open().use { src ->
+                    val buf = ByteArray(CHUNK)
+                    for (i in 0 until n) {
+                        var len = 0
+                        while (len < CHUNK) { val r = src.read(buf, len, CHUNK - len); if (r < 0) break; len += r }
+                        sent += len
+                        val c = Cipher.getInstance("AES/GCM/NoPadding")
+                        c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, chunkNonce(base, i)))
+                        c.updateAAD(chunkAad(ad, i, i == n - 1))
+                        writeBlock(out, c.doFinal(buf, 0, len))
+                    }
+                }
+                if (sent != size) return@use "plik zmienił się w trakcie"
+                val ack = ByteArray(32).also { inp.readFully(it) }
+                if (MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok".also { to?.let { c -> note(c, true, "📎 $name") } } else "błąd potwierdzenia"
+            }
+        }.getOrElse { it.message ?: it.javaClass.simpleName }
+    }
+
+    // plik w historii rozmowy (jak załącznik w innych komunikatorach)
+    private fun note(c: Contact, mine: Boolean, text: String) {
+        val m = Msg(mine, text, System.currentTimeMillis(), true, UUID.randomUUID().toString().replace("-", ""))
+        synchronized(this) { chat(c.id).add(m) }
+        saveChat(c.id)
+        main.post { onChange() }
+    }
+
+    // --- własne gniazda (klawiatura bez przeglądarki; przeglądarka używa gniazd LanSync) ---
+    @Volatile private var udp: DatagramSocket? = null
+    @Volatile private var tcp: ServerSocket? = null
+    var listenError: String? = null
+
+    fun listen() {
+        if (udp != null) return
+        listenError = null
+        val u = runCatching { DatagramSocket(null).apply { reuseAddress = true; broadcast = true; bind(InetSocketAddress(PORT)) } }
+            .getOrElse { listenError = it.message; return }
+        udp = u
+        Thread {
+            val buf = ByteArray(65536)
+            while (udp === u) runCatching {
+                val p = DatagramPacket(buf, buf.size); u.receive(p)
+                handleUdp(JSONObject(String(p.data, 0, p.length, Charsets.UTF_8)), p.address)
+            }.onFailure { if (udp !== u) return@Thread }
+        }.start()
+        Thread {
+            val s = runCatching { ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(PORT)) } }.getOrElse { listenError = it.message; return@Thread }
+            tcp = s
+            while (tcp === s) {
+                val c = runCatching { s.accept() }.getOrNull() ?: break
+                Thread {
+                    runCatching {
+                        c.use {
+                            it.soTimeout = 15000
+                            val inp = DataInputStream(it.getInputStream())
+                            val hb = readBlock(inp, 4096) ?: return@use
+                            handleTcp(JSONObject(String(hb, Charsets.UTF_8)), inp, it)
+                        }
+                    }
+                }.start()
+            }
+        }.start()
+    }
+
+    fun close() {
+        runCatching { udp?.close() }; runCatching { tcp?.close() }
+        udp = null; tcp = null
+    }
+
+    private fun broadcastTargets(): List<InetAddress> {
+        val list = mutableListOf(InetAddress.getByName("255.255.255.255"))
+        runCatching {
+            for (ni in NetworkInterface.getNetworkInterfaces()) {
+                if (!ni.isUp || ni.isLoopback) continue
+                for (ia in ni.interfaceAddresses) ia.broadcast?.let { if (it !in list) list.add(it) }
+            }
+        }
+        return list
+    }
+
+    // --- powiadomienia o wiadomościach (jak w innych komunikatorach) ---
+    @Volatile var chatOpen: String? = null          // rozmowa widoczna na ekranie - bez powiadomienia
+    var openIntent: (contactId: String?) -> Intent = { Intent() }   // co otworzyć po stuknięciu powiadomienia
+    var background: Boolean
+        get() = prefs.getBoolean("tlo", true)
+        set(v) { prefs.edit().putBoolean("tlo", v).apply() }
+
+    private fun channels(nm: NotificationManager) {
+        val pl = Locale.getDefault().language == "pl"
+        nm.createNotificationChannel(NotificationChannel("wiadomosci", if (pl) "Wiadomości" else "Messages", NotificationManager.IMPORTANCE_HIGH))
+        nm.createNotificationChannel(NotificationChannel("nasluch", if (pl) "Komunikator w tle" else "Messenger in background", NotificationManager.IMPORTANCE_MIN))
+    }
+
+    private fun notifyMessage(c: Contact) {
+        if (chatOpen == c.id) return
+        val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+        channels(nm)
+        val last = synchronized(this) { chat(c.id).filter { !it.mine }.takeLast(5) }
+        val st = Notification.InboxStyle(); last.forEach { st.addLine(it.text.replace('\n', ' ')) }
+        val n = unread(c.id)
+        val pi = PendingIntent.getActivity(ctx, c.id.hashCode(), openIntent(c.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        runCatching {
+            nm.notify(c.id.hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setContentTitle("💬 " + c.name + if (n > 1) " ($n)" else "").setContentText(last.lastOrNull()?.text ?: "")
+                .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setContentIntent(pi).setAutoCancel(true).build())
+        }
+    }
+    fun clearNotification(id: String) { ctx.getSystemService(NotificationManager::class.java)?.cancel(id.hashCode()) }
+
+    fun listenNotification(): Notification {
+        val nm = ctx.getSystemService(NotificationManager::class.java); if (nm != null) channels(nm)
+        val pl = Locale.getDefault().language == "pl"
+        val pi = PendingIntent.getActivity(ctx, 1, openIntent(null), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return Notification.Builder(ctx, "nasluch").setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(if (pl) "Komunikator Velivo" else "Velivo messenger")
+            .setContentText(if (pl) "Czeka na wiadomości w domowym Wi-Fi" else "Waiting for messages on home Wi-Fi")
+            .setContentIntent(pi).setOngoing(true).build()
+    }
+
+    // 🟢 w sieci: kontakt odezwał się w ostatnich 2,5 min (każde Velivo z komunikatorem ogłasza się co minutę)
+    private val lastSeen = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    fun online(id: String) = System.currentTimeMillis() - (lastSeen[id] ?: 0L) < 150000
+    private var shownOnline = emptySet<String>()
+
+    // niedoręczone (…) - ponownie, gdy kontakt odezwie się w sieci, i co minutę
+    private fun resend(c: Contact) {
+        val pending = synchronized(this) { chat(c.id).filter { it.mine && !it.ok && System.currentTimeMillis() - it.ts < 7L * 86400000 } }
+        pending.forEach { deliver(c, it) }
+    }
+    private val resender = Thread {
+        while (true) runCatching {
+            Thread.sleep(60000)
+            val list = synchronized(this) { contacts.toList() }
+            if ((udpOut != null || udp != null) && list.isNotEmpty()) { sendUdp(packet("p2p-here"), null); list.forEach { resend(it) } }
+            val now = list.filter { online(it.id) }.map { it.id }.toSet()
+            if (now != shownOnline) { shownOnline = now; main.post { onChange() } }
+        }
+    }.apply { isDaemon = true }
+
+    companion object {
+        @Volatile private var one: Komunikator? = null
+        // jeden w aplikacji - okna i usługa w tle widzą te same rozmowy
+        fun get(ctx: Context, deviceName: () -> String): Komunikator = one ?: synchronized(this) {
+            one ?: Komunikator(ctx.applicationContext, deviceName).also { one = it; it.resender.start() }
+        }
+        const val PORT = 41919
+        const val CHUNK = 1 shl 20
+        const val MAX_TEXT = 4000
+        fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
+        fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
+        fun hex(b: ByteArray) = b.joinToString("") { "%02X".format(it) }
+        fun clean(s: String) = s.filter { !it.isISOControl() }.trim().take(64)
+        fun hmac(key: ByteArray, data: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)
+        fun int4(n: Int) = byteArrayOf(n.toByte(), (n shr 8).toByte(), (n shr 16).toByte(), (n shr 24).toByte())
+        fun readInt4(inp: DataInputStream): Int { val b = ByteArray(4).also { inp.readFully(it) }; return (b[0].toInt() and 0xff) or ((b[1].toInt() and 0xff) shl 8) or ((b[2].toInt() and 0xff) shl 16) or ((b[3].toInt() and 0xff) shl 24) }
+        // 6 cyfr "123 456" z klucza - ten sam na obu urządzeniach tylko, gdy nikt się nie podszył
+        fun code(key: ByteArray): String {
+            val d = MessageDigest.getInstance("SHA-256").digest(key + "kod".toByteArray())
+            val n = ((d[0].toLong() and 0xff) shl 24 or ((d[1].toLong() and 0xff) shl 16) or ((d[2].toLong() and 0xff) shl 8) or (d[3].toLong() and 0xff)) % 1_000_000
+            return String.format(Locale.ROOT, "%03d %03d", n / 1000, n % 1000)
+        }
+    }
+}
+
+// Okna komunikatora (wspólne dla przeglądarki i klawiatury): kontakty, rozmowa, dodawanie kontaktu, pliki.
+// pickFiles - wybór plików przez aplikację (wynik w onActivityResult); open/size - odczyt wybranego pliku.
+class KomunikatorOkno(private val a: Activity, private val k: Komunikator, private val pickFiles: () -> Unit) {
+    private val pl = Locale.getDefault().language == "pl"
+    private fun t(p: String, e: String) = if (pl) p else e
+    private val dp = a.resources.displayMetrics.density
+    private fun px(v: Int) = (v * dp).toInt()
+    private var list: AlertDialog? = null
+    private var chatWith: String? = null
+    private var chatRefresh: (() -> Unit)? = null
+
+    init {
+        k.askPair = { dev, code, accept ->
+            AlertDialog.Builder(a).setTitle("💬 " + t("Nowy kontakt", "New contact"))
+                .setMessage(t("„$dev” chce dodać Cię do komunikatora Velivo.\n\nKod: $code\n\nPrzyjmij tylko, gdy na drugim urządzeniu jest ten sam kod.",
+                    "“$dev” wants to add you to Velivo messenger.\n\nCode: $code\n\nAccept only if the other device shows the same code."))
+                .setPositiveButton(t("Przyjmij", "Accept")) { _, _ -> accept(true) }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> accept(false) }
+                .setOnCancelListener { accept(false) }.show()
+        }
+        k.askFile = { dev, name, size, code, accept ->
+            AlertDialog.Builder(a).setTitle("📥 " + t("Plik z: ", "File from: ") + dev)
+                .setMessage("$name (${sizeText(size)})" + if (code.isEmpty()) "" else "\n\n" + t("Kod: $code\n\nPrzyjmij tylko, gdy telefon nadawcy pokazuje ten sam kod.",
+                    "Code: $code\n\nAccept only if the sender's phone shows the same code."))
+                .setPositiveButton(t("Przyjmij", "Accept")) { _, _ -> accept(true) }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> accept(false) }
+                .setOnCancelListener { accept(false) }.show()
+        }
+        k.onChange = { chatRefresh?.invoke(); if (list?.isShowing == true) { list?.dismiss(); show() } }
+    }
+
+    fun sizeText(n: Long) = when { n >= 1L shl 30 -> String.format(Locale.ROOT, "%.1f GB", n / 1073741824.0); n >= 1L shl 20 -> String.format(Locale.ROOT, "%.1f MB", n / 1048576.0); else -> "${maxOf(1, n / 1024)} KB" }
+
+    private fun bg(color: Int, r: Int) = GradientDrawable().apply { setColor(color); cornerRadius = px(r).toFloat() }
+
+    // lista kontaktów
+    fun show() {
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(16), px(8), px(16), px(8)) }
+        if (k.contacts.isEmpty()) box.addView(TextView(a).apply {
+            text = t("Brak kontaktów. Stuknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo (telefon: przeglądarka albo klawiatura Velivo, komputer: Velivo na Windows) w tej samej sieci Wi-Fi.",
+                "No contacts yet. Tap “➕ Add” while the other device has Velivo messenger open (phone: Velivo browser or keyboard, computer: Velivo for Windows) on the same Wi-Fi.")
+            setPadding(0, px(8), 0, px(8))
+        })
+        for (c in k.contacts.sortedByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0 }) {
+            val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull()
+            val on = k.online(c.id)
+            box.addView(TextView(a).apply {
+                text = (if (on) "🟢 " else "⚪ ") + c.name + (if (n > 0) "  ($n)" else "") + (last?.let { "\n" + (if (it.mine) "➜ " else "") + it.text.replace('\n', ' ').take(60) } ?: "")
+                textSize = 16f; setPadding(px(12), px(10), px(12), px(10))
+                background = bg(Color.argb(40, 109, 63, 219), 12)
+                layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) }
+                if (!on) alpha = 0.7f
+                contentDescription = t("Rozmowa z ", "Chat with ") + c.name + " - " + (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
+                setOnClickListener { list?.dismiss(); openChat(c) }
+                setOnLongClickListener { manage(c); true }
+            })
+        }
+        box.addView(TextView(a).apply {
+            fun label() = (if (k.background) "🔔 " else "🔕 ") + t("Wiadomości, gdy Velivo zamknięte: ", "Messages while Velivo is closed: ") + (if (k.background) t("wł.", "on") else t("wył.", "off"))
+            text = label(); setPadding(px(4), px(12), px(4), px(4)); textSize = 14f
+            tooltipText = t("Komunikator czeka w tle i pokazuje powiadomienia o nowych wiadomościach", "The messenger waits in the background and notifies about new messages")
+            setOnClickListener { k.background = !k.background; text = label() }
+        })
+        list = AlertDialog.Builder(a).setTitle("💬 " + t("Komunikator Velivo", "Velivo messenger"))
+            .setView(ScrollView(a).apply { addView(box) })
+            .setPositiveButton("➕ " + t("Dodaj", "Add")) { _, _ -> addContact() }
+            .setNeutralButton("📤 " + t("Pliki", "Files")) { _, _ -> attachTo = null; pickFiles() }
+            .setNegativeButton(t("Zamknij", "Close"), null).show()
+    }
+
+    private fun manage(c: Komunikator.Contact) {
+        AlertDialog.Builder(a).setTitle(c.name).setItems(arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"))) { _, i ->
+            if (i == 0) {
+                val e = EditText(a).apply { setText(c.name); setSingleLine() }
+                AlertDialog.Builder(a).setTitle(t("Nazwa", "Name")).setView(e).setPositiveButton(android.R.string.ok) { _, _ -> e.text.toString().trim().takeIf { it.isNotEmpty() }?.let { k.rename(c, it) } }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+            } else AlertDialog.Builder(a).setMessage(t("Usunąć „${c.name}” i całą rozmowę?", "Delete “${c.name}” and the whole chat?"))
+                .setPositiveButton(t("Usuń", "Delete")) { _, _ -> k.remove(c) }.setNegativeButton(android.R.string.cancel, null).show()
+        }.show()
+    }
+
+    // szukanie urządzeń w sieci i wybór jednego
+    private fun choosePeer(title: String, then: (Komunikator.Peer) -> Unit) {
+        val wait = AlertDialog.Builder(a).setTitle(title).setMessage(t("Szukam urządzeń z Velivo w tej sieci…", "Looking for Velivo devices on this network…")).show()
+        Thread {
+            val peers = k.find()
+            a.runOnUiThread {
+                wait.dismiss()
+                if (peers.isEmpty()) AlertDialog.Builder(a).setTitle(title)
+                    .setMessage(t("Nie znaleziono. Na drugim urządzeniu otwórz komunikator Velivo (albo przeglądarkę Velivo) w tej samej sieci Wi-Fi i spróbuj ponownie.",
+                        "Nothing found. Open Velivo messenger (or the Velivo browser) on the other device on the same Wi-Fi and try again."))
+                    .setPositiveButton(t("Ponów", "Retry")) { _, _ -> choosePeer(title, then) }.setNegativeButton(android.R.string.cancel, null).show()
+                else AlertDialog.Builder(a).setTitle(title).setItems(peers.map { (if (k.contact(it.id) != null) "👤 " else "📱 ") + it.name }.toTypedArray()) { _, i -> then(peers[i]) }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+            }
+        }.start()
+    }
+
+    private fun codeDialog(title: String, code: String) = AlertDialog.Builder(a).setTitle(title)
+        .setMessage(t("Kod: $code\n\nSprawdź, czy drugie urządzenie pokazuje ten sam kod, i przyjmij tam.", "Code: $code\n\nCheck that the other device shows the same code and accept there.")).show()
+
+    private fun addContact() = choosePeer("➕ " + t("Dodaj kontakt", "Add contact")) { p ->
+        var d: AlertDialog? = null
+        Thread {
+            val r = k.pair(p) { code -> a.runOnUiThread { d = codeDialog("➕ " + p.name, code) } }
+            a.runOnUiThread {
+                d?.dismiss()
+                Toast.makeText(a, if (r == "ok") t("Dodano: ", "Added: ") + p.name else t("Nie dodano: ", "Not added: ") + r, Toast.LENGTH_LONG).show()
+                if (r == "ok") k.contact(p.id)?.let { openChat(it) }
+            }
+        }.start()
+    }
+
+    // pliki wybrane w aplikacji -> wybór telefonu -> wysyłka po kolei z kodem
+    // 📎 w rozmowie: pliki dla tego kontaktu (wybór w aplikacji, potem sendFiles)
+    var attachTo: Komunikator.Contact? = null
+
+    fun sendFiles(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        val c = attachTo; attachTo = null
+        if (c != null) {
+            Thread {
+                val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()
+                val addr = k.find().firstOrNull { it.id == c.id }?.addr ?: known
+                a.runOnUiThread {
+                    if (addr == null) Toast.makeText(a, t("${c.name} nie ma teraz w sieci", "${c.name} is not on the network now"), Toast.LENGTH_LONG).show()
+                    else sendFilesTo(uris, Komunikator.Peer(c.id, c.name, addr), c)
+                }
+            }.start()
+            return
+        }
+        choosePeer("📤 " + t("Wyślij pliki do…", "Send files to…")) { p -> sendFilesTo(uris, p, k.contact(p.id)) }
+    }
+
+    private fun sendFilesTo(uris: List<Uri>, p: Komunikator.Peer, c: Komunikator.Contact?) {
+            Thread {
+                for (u in uris) {
+                    val name = runCatching { a.contentResolver.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } }.getOrNull()
+                        ?: u.lastPathSegment ?: "plik"
+                    val size = runCatching { a.contentResolver.openAssetFileDescriptor(u, "r")?.use { it.length } ?: -1L }.getOrDefault(-1L).let { s ->
+                        if (s >= 0) s else runCatching { a.contentResolver.openInputStream(u)!!.use { st -> var n = 0L; val b = ByteArray(1 shl 16); while (true) { val r = st.read(b); if (r < 0) break; n += r }; n } }.getOrDefault(-1L)
+                    }
+                    if (size < 0) { a.runOnUiThread { Toast.makeText(a, t("Nie można odczytać: ", "Cannot read: ") + name, Toast.LENGTH_LONG).show() }; continue }
+                    var d: AlertDialog? = null
+                    if (c != null) a.runOnUiThread { Toast.makeText(a, t("Wysyłam: ", "Sending: ") + name, Toast.LENGTH_SHORT).show() }
+                    val r = k.sendFile(p.addr, name, size, { a.contentResolver.openInputStream(u)!! }, { code -> if (c == null) a.runOnUiThread { d = codeDialog("📤 $name → ${p.name}", code) } }, c)
+                    a.runOnUiThread {
+                        d?.dismiss()
+                        Toast.makeText(a, name + ": " + when (r) { "ok" -> t("wysłano", "sent"); "odrzucono" -> t("odrzucono", "declined"); else -> t("błąd - ", "error - ") + r }, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }.start()
+    }
+
+    // okno rozmowy
+    fun openChat(c: Komunikator.Contact) {
+        k.markRead(c.id); chatWith = c.id; k.chatOpen = c.id; k.clearNotification(c.id)
+        val msgs = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(4), px(8), px(4)) }
+        val scroll = ScrollView(a).apply { addView(msgs); layoutParams = LinearLayout.LayoutParams(-1, (a.resources.displayMetrics.heightPixels * 0.5).toInt()) }
+        val fmt = java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
+        fun fill() {
+            msgs.removeAllViews()
+            for (m in k.chat(c.id).takeLast(200)) msgs.addView(TextView(a).apply {
+                text = m.text + "\n" + fmt.format(java.util.Date(m.ts)) + (if (m.mine) (if (m.ok) " ✓" else " …") else "")
+                setTextIsSelectable(true); textSize = 15f
+                setPadding(px(10), px(6), px(10), px(6))
+                background = bg(if (m.mine) Color.rgb(109, 63, 219) else Color.argb(60, 128, 128, 128), 14)
+                if (m.mine) setTextColor(Color.WHITE)
+                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(4); if (m.mine) leftMargin = px(40) else rightMargin = px(40) }
+            })
+            scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+        }
+        val input = EditText(a).apply {
+            hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            maxLines = 4; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); imeOptions = EditorInfo.IME_ACTION_SEND
+        }
+        fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, s); fill() }
+        val btn = Button(a).apply { text = "➤"; contentDescription = t("Wyślij", "Send"); tooltipText = t("Wyślij", "Send"); setOnClickListener { send() } }
+        input.setOnEditorActionListener { _, id, _ -> if (id == EditorInfo.IME_ACTION_SEND) { send(); true } else false }
+        val clip = Button(a).apply { text = "📎"; contentDescription = t("Załącz plik", "Attach file"); tooltipText = t("Załącz plik", "Attach file"); setOnClickListener { attachTo = c; pickFiles() } }
+        val row = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; addView(clip); addView(input); addView(btn) }
+        val root = LinearLayout(a).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(px(8), 0, px(8), px(4))
+            addView(scroll); addView(row)
+        }
+        fill()
+        val title = TextView(a).apply { textSize = 20f; setPadding(px(20), px(16), px(20), px(4)) }
+        fun status() { val on = k.online(c.id); title.text = "💬 " + c.name + "\n" + (if (on) "🟢 " + t("w sieci", "online") else "⚪ " + t("poza siecią – wiadomości dojdą, gdy wróci", "offline – messages arrive when back")); title.setTextColor(if (on) Color.rgb(34, 197, 94) else Color.GRAY) }
+        status()
+        chatRefresh = { k.markRead(c.id); fill(); status() }
+        AlertDialog.Builder(a).setCustomTitle(title).setView(root)
+            .setNegativeButton(t("Kontakty", "Contacts")) { _, _ -> show() }
+            .setOnDismissListener { chatWith = null; chatRefresh = null; k.chatOpen = null }.show()
+            .also { it.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE) }
+    }
+}
+
+// usługa w tle: gdy aplikacja zamknięta, komunikator czeka na wiadomości (stałe ciche powiadomienie, jak w innych komunikatorach)
+class KomunikatorUsluga : Service() {
+    private var lock: android.net.wifi.WifiManager.MulticastLock? = null
+    private var net: android.net.ConnectivityManager.NetworkCallback? = null
+    override fun onBind(i: Intent?): IBinder? = null
+    override fun onStartCommand(i: Intent?, flags: Int, id: Int): Int {
+        val k = Komunikator.get(this) { (android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL).trim() }
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 34) startForeground(41919, k.listenNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            else startForeground(41919, k.listenNotification())
+        }.onFailure { stopSelf(); return START_NOT_STICKY }
+        if (lock == null) lock = (applicationContext.getSystemService(WIFI_SERVICE) as android.net.wifi.WifiManager).createMulticastLock("velivo-czat").apply { setReferenceCounted(false); acquire() }
+        k.listen()
+        if (net == null) net = object : android.net.ConnectivityManager.NetworkCallback() {
+            // powrót do domowego Wi-Fi (np. po wyjściu z domu): ogłoszenie - nadawcy dosyłają, co czekało
+            override fun onAvailable(n: android.net.Network) { k.listen(); k.announce() }
+        }.also { cb -> runCatching { getSystemService(android.net.ConnectivityManager::class.java)?.registerNetworkCallback(
+            android.net.NetworkRequest.Builder().addTransportType(android.net.NetworkCapabilities.TRANSPORT_WIFI).build(), cb) } }
+        return START_STICKY
+    }
+    override fun onDestroy() {
+        net?.let { cb -> runCatching { getSystemService(android.net.ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) } }
+        runCatching { lock?.release() }; super.onDestroy()
+    }
+
+    companion object {
+        // aplikacja schodzi z ekranu: nasłuch przejmuje usługa (tylko z kontaktami i włączonym odbiorem w tle)
+        fun start(ctx: Context, k: Komunikator) {
+            if (k.contacts.isEmpty() || !k.background) return
+            runCatching { ctx.startForegroundService(Intent(ctx, KomunikatorUsluga::class.java)) }
+        }
+        // aplikacja na ekranie: gniazda wracają do aplikacji
+        fun stop(ctx: Context, k: Komunikator) { k.close(); runCatching { ctx.stopService(Intent(ctx, KomunikatorUsluga::class.java)) } }
+    }
+}

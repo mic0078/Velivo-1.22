@@ -247,6 +247,20 @@ The same keyboard as on the computer, in Velivo colours (dark, light or black-an
 
 Velivo menu → **🎨 Velivo wallpaper**: a preview (violet–turquoise gradient with the V logo), then *Home screen* or *Home and lock screen*. On Android 12 and newer the system takes its colours from the wallpaper – buttons, settings and quick tiles get Velivo accents (Xiaomi, Huawei and Oppo set only the wallpaper).
 
+## 8d. Velivo messenger and files between phones
+
+Chats and files on your home Wi-Fi – no internet, no server, no phone number. Works between phones (the **Velivo browser or just the Velivo keyboard** is enough) and computers with Velivo for Windows.
+
+* **Opening:** Velivo menu → **💬 Messenger** (or 📤 → 💬). In the keyboard: **V** logo → **💬**. On Windows: the **💬** button on the bar or the tray icon menu.
+* **Adding a contact (once):** **➕ Add** → pick the device (it must have the messenger open on the same network). Both screens show a 6-digit code – the other device accepts only if the code matches.
+* **Status:** 🟢 green – the contact is on the network now; ⚪ grey – offline.
+* **Messages** are encrypted. If the recipient is away (e.g. left home), the message shows **…** and Velivo sends it by itself when they are back on the home network (up to 7 days). Delivered ones show **✓**.
+* **Notifications:** like other messengers – also when Velivo is closed. The phone then shows a quiet, permanent notification “Velivo messenger is waiting for messages”. Turn it off in the messenger: **🔔 Messages while Velivo is closed**.
+* **📎 Attach file** in a chat – any file, no size limit. The recipient always confirms; the file goes to **Downloads** (on Windows – where you choose).
+* **📲 Files to another phone** (menu, 📤 or keyboard) – also to someone not in your contacts: both screens then show a code to compare.
+* Long-press a contact: **rename** or **delete** the contact and chat.
+* Contacts and chats are stored only on the device, encrypted (Android Keystore / Windows DPAPI).
+
 ## 9. When something goes wrong
 
 - If Velivo closes because of an error, next time it opens it shows **"Velivo closed because of an error"** with a **Copy** button – send that description to the Velivo developer (no addresses or page content – just how the error happened).

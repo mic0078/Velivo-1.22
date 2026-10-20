@@ -187,6 +187,8 @@ class MainActivity : Activity() {
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
         if (intent?.action == Karteczki.ACTION_NEW) window.decorView.post { newNote() }
         if (intent?.action == ACTION_SEND_PC) window.decorView.post { askSendToComputer() }
+        if (intent?.action == ACTION_MESSENGER) window.decorView.post { showMessenger(intent.getStringExtra("czat")) }
+        if (intent?.action == ACTION_SEND_PHONE) window.decorView.post { pickP2pFiles() }
         if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
         if (intent?.action == Widzet.ACTION_SEARCH || intent?.action == Widzet.ACTION_YT) { val a = intent.action; window.decorView.post { widgetAction(a) } }
         if (intent?.action == TvPlan.ACTION) window.decorView.post { startPlanned(intent.getIntExtra("id", -1)) }
@@ -243,6 +245,9 @@ class MainActivity : Activity() {
         const val REQ_ROLE = 9
         const val REQ_VIDEOS = 10
         const val REQ_SENDFILE = 31
+        const val REQ_P2PFILE = 32
+        const val ACTION_MESSENGER = "pl.velivo.browser.KOMUNIKATOR"        // z klawiatury Velivo: komunikator w sieci domowej
+        const val ACTION_SEND_PHONE = "pl.velivo.browser.WYSLIJ_NA_TELEFON" // z klawiatury Velivo: pliki na inny telefon
         const val ACTION_SEND_PC = "pl.velivo.browser.WYSLIJ_NA_KOMPUTER"   // z klawiatury Velivo: pliki / karta na komputer
         val YOUTUBE_ORIGINS = setOf("https://www.youtube.com", "https://m.youtube.com", "https://youtube.com", "https://music.youtube.com")
         const val BANK_IDLE_MS = 10 * 60 * 1000L
@@ -271,6 +276,8 @@ set(p0,p);})"""
         if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
         if (intent.action == Karteczki.ACTION_NEW) { newNote(); return }
         if (intent.action == ACTION_SEND_PC) { askSendToComputer(); return }
+        if (intent.action == ACTION_MESSENGER) { showMessenger(intent.getStringExtra("czat")); return }
+        if (intent.action == ACTION_SEND_PHONE) { pickP2pFiles(); return }
         if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
         if (intent.action == Widzet.ACTION_SEARCH || intent.action == Widzet.ACTION_YT) { widgetAction(intent.action); return }
         if (intent.action == TvPlan.ACTION) { startPlanned(intent.getIntExtra("id", -1)); return }
@@ -1438,6 +1445,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             17 -> toggleDesktop()
             20 -> startPick()
             21 -> askSendToComputer()
+            41 -> showMessenger()
+            42 -> pickP2pFiles()
             30 -> showTv()
             31 -> showLibrary()
             32 -> showMyFiles()
@@ -1569,7 +1578,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Triple("🎵", R.string.yt_my_songs, 33), Triple("⭐", R.string.yt_add, 34), Triple("🌙", R.string.sleep_title, 35)))
         section(R.string.menu_mine, listOf(
             Triple("🔖", R.string.bookmarks, 4), Triple("🕘", R.string.history, 5), Triple("🔑", R.string.passwords, 9),
-            Triple("🗒", R.string.notes, 23), Triple("📝", R.string.note_new, 24), Triple("📥", R.string.downloads, 25)))
+            Triple("🗒", R.string.notes, 23), Triple("📝", R.string.note_new, 24), Triple("📥", R.string.downloads, 25),
+            Triple("💬", R.string.messenger, 41), Triple("📲", R.string.send_phone, 42)))
         section(R.string.menu_settings, listOf(
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
             Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6),
@@ -2906,6 +2916,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             onMedia = { dev, jf, tv -> receiveMediaConf(dev, jf, tv) },
             onMediaShared = { dev, code, jf, tv -> receiveMediaConf(dev, jf, tv, code) },
             tmpDir = cacheDir,
+            p2p = kom,
             saveFileFrom = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {
@@ -2919,13 +2930,38 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
     private var multicastLock: WifiManager.MulticastLock? = null
 
+    // 💬 komunikator i 📲 pliki telefon <-> telefon / komputer w sieci domowej (Komunikator.kt), na gniazdach LanSync
+    private val kom: Komunikator by lazy {
+        Komunikator.get(this) { prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL }.also { k ->
+            k.openIntent = { id -> Intent(this, MainActivity::class.java).setAction(ACTION_MESSENGER).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP) }
+            k.udpOut = { d, t -> lan.sendRaw(d, t) }
+            k.saveFile = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) }
+        }
+    }
+    private val komOkno: KomunikatorOkno by lazy { KomunikatorOkno(this, kom) { pickP2pFiles() } }
+
+    private fun showMessenger(id: String? = null) {
+        komOkno; startLan(force = true)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 0)   // powiadomienia o nowych wiadomościach
+        id?.let { kom.contact(it) }?.let { komOkno.openChat(it) } ?: komOkno.show()
+    }
+
+    private fun pickP2pFiles() {
+        komOkno; startLan(force = true)
+        runCatching { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true), REQ_P2PFILE) }
+    }
+
     // force: na chwilę także bez włączonej synchronizacji (prośba o Filmy i TV z telefonu bez parowania)
     private fun startLan(force: Boolean = false) {
-        if (!force && !prefs.getBoolean("lan", false)) return
+        if (!force && !prefs.getBoolean("lan", false) && kom.contacts.isEmpty()) return   // z kontaktami komunikatora - odbiór wiadomości, gdy Velivo otwarte
+        komOkno   // okna pytań komunikatora (kontakt, plik, wiadomość) gotowe przed pierwszym pakietem
         if (multicastLock == null) multicastLock = (applicationContext.getSystemService(WIFI_SERVICE) as WifiManager)
             .createMulticastLock("velivo-lan").apply { setReferenceCounted(false) }
         multicastLock?.acquire()
+        KomunikatorUsluga.stop(this, kom)   // gniazda komunikatora wracają z usługi w tle do Velivo
         lan.start()
+        if (kom.contacts.isNotEmpty()) kom.announce()   // kontakty dosyłają wiadomości z czasu, gdy Velivo było zamknięte
     }
 
     private fun stopLan() {
@@ -2957,9 +2993,11 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // 💻 Wyślij na komputer: bieżąca karta albo pliki z telefonu (dokumenty, zdjęcia, cokolwiek - kilka naraz)
     private fun askSendToComputer() {
-        if (!lan.paired) { askPairFirst(); return }
-        AlertDialog.Builder(this).setTitle("💻 " + getString(R.string.send_to_pc))
-            .setItems(arrayOf("🔗 " + getString(R.string.send_pc_tab), "📄 " + getString(R.string.send_pc_files))) { _, i ->
+        AlertDialog.Builder(this).setTitle("📤 " + getString(R.string.send_to_pc))
+            .setItems(arrayOf("🔗 " + getString(R.string.send_pc_tab), "📄 " + getString(R.string.send_pc_files), "📲 " + getString(R.string.send_phone), "💬 " + getString(R.string.messenger))) { _, i ->
+                if (i == 2) { pickP2pFiles(); return@setItems }
+                if (i == 3) { showMessenger(); return@setItems }
+                if (!lan.paired) { askPairFirst(); return@setItems }
                 if (i == 0) sendTabToComputer()
                 else runCatching { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true), REQ_SENDFILE) }
             }.setNegativeButton(android.R.string.cancel, null).show()
@@ -3132,9 +3170,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     @Deprecated("Activity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_SENDFILE && resultCode == RESULT_OK && data != null) {
+        if ((requestCode == REQ_SENDFILE || requestCode == REQ_P2PFILE) && resultCode == RESULT_OK && data != null) {
             val l = ArrayList<Uri>(); data.clipData?.let { c -> for (i in 0 until c.itemCount) l.add(c.getItemAt(i).uri) } ?: data.data?.let { l.add(it) }
-            sendFiles(l); return
+            if (requestCode == REQ_P2PFILE) { startLan(force = true); komOkno.sendFiles(l) } else sendFiles(l)
+            return
         }
         if (requestCode == REQ_MEDIA) {
             val cb = pickCallback; pickCallback = null
@@ -3298,6 +3337,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         android.util.Log.i("Velivo-PiP", "wstrzymane (w okienku: $isInPictureInPictureMode)")
         pipCheck.removeCallbacks(pipTick)
         stopLan()
+        KomunikatorUsluga.start(this, kom)   // 💬 wiadomości z powiadomieniem także po zamknięciu Velivo
         idle.removeCallbacks(idleCheck)
         backgroundPlayback()
         saveTabs()

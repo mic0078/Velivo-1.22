@@ -297,6 +297,7 @@ namespace Velivo
                     if (headerLength <= 0 || headerLength > 4096) return;
                     var headerBytes = new byte[headerLength];
                     if (!await ReadExactAsync(stream, headerBytes, headerBytes.Length, token)) return;
+                    if (await KomTcpAsync(headerBytes, stream, client, token)) return;   // 💬 komunikator: kontakt / plik
                     header = JsonSerializer.Deserialize<QuickAccessLanHeader>(headerBytes);
                     if (header != null && header.Type == "file")
                     {

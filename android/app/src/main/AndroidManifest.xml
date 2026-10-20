@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- 📱 filmy i muzyka z telefonu (lista wszystkich) - tylko gdy użytkownik ją otworzy -->
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
@@ -84,6 +86,10 @@
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widzet_velivo" />
         </receiver>
+        <!-- 💬 komunikator w domowym Wi-Fi: czeka na wiadomości, gdy aplikacja zamknięta (powiadomienia jak w innych komunikatorach) -->
+        <service android:name=".KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Local network messenger: receives messages from devices on the home Wi-Fi without internet" />
+        </service>
         <service
             android:name=".Odswiezanie"
             android:exported="false"

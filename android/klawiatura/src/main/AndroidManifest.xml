@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 🎤 dyktowanie - tylko po stuknięciu mikrofonu -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 💬 komunikator i pliki w sieci domowej (bez internetu - tylko Wi-Fi w domu) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- dyktowanie: usługa rozpoznawania mowy w telefonie -->
     <queries><intent><action android:name="android.speech.RecognitionService" /></intent>
         <!-- karteczki, szukanie i YouTube otwierane w przeglądarce Velivo -->
@@ -17,6 +25,12 @@
         <!-- okienka z klawiatury (motyw, wysokość, słownik, mikrofon) - przezroczyste, bez ekranu ustawień pod spodem -->
         <activity android:name=".SzybkieUstawienia" android:exported="false" android:theme="@style/Okienko"
             android:excludeFromRecents="true" android:taskAffinity="" android:noHistory="true" />
+        <!-- 💬 komunikator i pliki telefon <-> telefon (gdy nie ma przeglądarki Velivo) - ciemne okienka Velivo -->
+        <activity android:name=".Rozmowy" android:exported="false" android:theme="@style/Okienko" android:excludeFromRecents="true" />
+        <!-- 💬 komunikator w domowym Wi-Fi: czeka na wiadomości, gdy aplikacja zamknięta (powiadomienia jak w innych komunikatorach) -->
+        <service android:name=".KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Local network messenger: receives messages from devices on the home Wi-Fi without internet" />
+        </service>
         <!-- ⌨ klawiatura (włączana w ustawieniach Androida, działa we wszystkich aplikacjach) -->
         <service android:name=".KlawiaturaVelivo" android:label="@string/kb_name" android:exported="true"
             android:permission="android.permission.BIND_INPUT_METHOD">

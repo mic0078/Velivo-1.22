@@ -399,5 +399,7 @@
     <string name="lan_pair_first">Żeby wysyłać pliki i karty na komputer, połącz raz ten telefon z Velivo na komputerze. Oba muszą być w tej samej sieci Wi-Fi. Komputer pokaże kod – zaakceptuj tylko, gdy się zgadza. Potem wysyłanie działa od razu.</string>
     <string name="send_to_pc">Wyślij na komputer</string>
     <string name="send_pc_tab">Ta karta</string>
+    <string name="messenger">Komunikator</string>
+    <string name="send_phone">Pliki na inny telefon…</string>
     <string name="send_pc_files">Pliki z telefonu…</string>
 </resources>

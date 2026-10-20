@@ -36,6 +36,13 @@
     <string name="kb_m_settings">Ustawienia</string>
     <string name="kb_m_back">Wróć do klawiszy</string>
     <string name="kb_m_no_velivo">Zainstaluj przeglądarkę Velivo, by używać karteczek, szukania i YouTube</string>
+    <string name="kb_m_chat">Komunikator</string>
+    <string name="kb_m_chat_tip">Rozmowy z telefonami i komputerami z Velivo w domowym Wi-Fi (bez internetu)</string>
+    <string name="kb_m_phone">Pliki na telefon</string>
+    <string name="kb_m_phone_tip">Wyślij pliki na inny telefon z Velivo w tym samym Wi-Fi</string>
+    <string name="kb_p2p_port">Nie można nasłuchiwać w sieci domowej (%s) - zamknij przeglądarkę Velivo i spróbuj ponownie</string>
+    <string name="kb_p2p_saved">Zapisano w Pobranych: %1$s (od: %2$s)</string>
+    <string name="kb_p2p_failed">Nie udało się zapisać %1$s (od: %2$s)</string>
     <string name="kb_m_send">Wyślij na komputer</string>
     <string name="kb_m_send_tip">Wyślij pliki albo kartę na sparowany komputer (przez przeglądarkę Velivo)</string>
 </resources>

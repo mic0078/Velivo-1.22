@@ -433,7 +433,8 @@ namespace Velivo
         void StartLanSync()
         {
             StopLanSync();
-            if (_settings == null || !_settings.LanSync) return;
+            if (_settings == null || !_settings.LanSync) { KomStartOwn(); return; }   // 💬 komunikator dziala i bez synchronizacji
+            KomStopOwn();
             bool hasKey = AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey);
             _lanLegacyNoKeyMode = !hasKey;
             _lanCts = new CancellationTokenSource();
@@ -449,6 +450,7 @@ namespace Velivo
                 _lanTx.EnableBroadcast = true;
                 StartQuickAccessLanListener(_lanCts.Token);
                 _ = Task.Run(() => LanListenLoop(_lanCts.Token));
+                KomLoad(); KomStartResend(); if (_komContacts.Count > 0) KomAnnounce();
                 _lanStartedUtc = DateTime.UtcNow;
 
                 // dane wysylane po zmianie plikow (obserwator), a nie skanowanie co 2 s; zegar tylko przypomina "jestem"
@@ -484,7 +486,7 @@ namespace Velivo
                     LanBroadcastAnnounce();
                 }
             }
-            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog(L.T("Błąd startu LAN sync: ") + ex.Message); }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog(L.T("Błąd startu LAN sync: ") + ex.Message); KomStartOwn(); }
         }
 
         // --- wysylanie po zmianie: obserwator plikow danych i Szybkiego Dostepu ---
@@ -576,6 +578,7 @@ namespace Velivo
                 {
                     var res = await _lanRx.ReceiveAsync(ct);
                     if (res.Buffer == null || res.Buffer.Length == 0 || res.Buffer.Length > 60000) continue;
+                    if (KomUdp(res.Buffer, res.RemoteEndPoint)) continue;   // 💬 komunikator (Komunikator.cs)
                     await HandleLanPacketAsync(res.Buffer, res.RemoteEndPoint, false);
                 }
                 catch (OperationCanceledException) { break; }

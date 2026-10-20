@@ -2671,6 +2671,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun newNote() = newNoteThen {}
 
     private fun showNotes(openId: String? = null) {
+        // przypomnienia o terminach to powiadomienia - na Androidzie 13+ potrzebna zgoda (pytamy raz, przy karteczkach)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED && !prefs.getBoolean("karteczki-zgoda", false)) {
+            prefs.edit().putBoolean("karteczki-zgoda", true).apply(); requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 3)
+        }
         val dlg = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(c("#F7F4FF", "#15121F")) }
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)); setBackgroundColor(BAR) }

@@ -2336,7 +2336,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun showLibrary() {
         val c = Jelly.conf(passwords) ?: return setupJellyfin { showLibrary() }
         val hdr = mapOf("X-Emby-Token" to c.key)
-        var mode = prefs.getInt("jf-widok", 0)   // 0 oglądane dalej, 1 filmy, 2 seriale
+        var mode = prefs.getInt("jf-widok2", 1)   // 0 oglądane dalej, 1 filmy (domyślnie - cała biblioteka od razu), 2 seriale
         var lib = listOf<Jelly.Item>(); var resume = listOf<Jelly.Item>()
         lateinit var scr: MediaScreen
         fun dur(t: Long) = if (t > 0) (t / 600_000_000).let { m -> if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min" } else ""
@@ -2344,7 +2344,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             listOf(if (it.year > 0) it.year.toString() else "", dur(it.ticks), if (it.posTicks > 0 && it.ticks > 0) "▶ " + (it.posTicks * 100 / it.ticks) + "%" else "").filter { s -> s.isNotEmpty() }.joinToString(" · ") +
                 if (it.overview.isNotEmpty()) "\n" + it.overview else "", Jelly.image(c, it.id), hdr, tag = it)
         fun rows() = when (mode) { 0 -> resume; 1 -> lib.filter { it.type != "Series" }; else -> lib.filter { it.type == "Series" } }.map { row(it) }
-        val titles = listOf(getString(R.string.jf_resume), getString(R.string.jf_movies), getString(R.string.jf_series))
+        // nazwa widoku z liczbą pozycji - od razu widać, że to np. „Oglądane dalej (12)”, a nie cała biblioteka
+        val names = listOf(getString(R.string.jf_resume), getString(R.string.jf_movies), getString(R.string.jf_series))
+        fun count(m: Int) = when (m) { 0 -> resume.size; 1 -> lib.count { it.type != "Series" }; else -> lib.count { it.type == "Series" } }
+        val titles = object : AbstractList<String>() { override val size = 3; override fun get(index: Int) = names[index] + " (" + count(index) + ")" }
         fun item(it: Jelly.Item) = PlayerActivity.Item(if (it.series.isNotEmpty()) it.series + " – " + it.name else it.name, Jelly.stream(c, it.id), "jf-" + it.id, hdr, it.id)
         scr = MediaScreen("🎬 " + getString(R.string.jf_library), "jf", listOf(getString(R.string.sort_az), getString(R.string.sort_newest), getString(R.string.jf_sort_year)),
             sorter = { l, s -> when (s) { 0 -> l.sortedBy { it.title.lowercase() }; 1 -> l.sortedByDescending { (it.tag as Jelly.Item).added }; else -> l.sortedByDescending { (it.tag as Jelly.Item).year } } },
@@ -2363,7 +2366,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             }.start()
         }
         scr.addButton("☰", R.string.tv_filter) {
-            AlertDialog.Builder(this).setSingleChoiceItems(titles.toTypedArray(), mode) { d, i -> mode = i; prefs.edit().putInt("jf-widok", i).apply(); d.dismiss(); scr.setRows(rows(), titles[mode]) }.show()
+            AlertDialog.Builder(this).setSingleChoiceItems(titles.toTypedArray(), mode) { d, i -> mode = i; prefs.edit().putInt("jf-widok2", i).apply(); d.dismiss(); scr.setRows(rows(), titles[mode]) }.show()
         }
         scr.addButton("⟳", R.string.reload) { load() }
         scr.addButton("⚙", R.string.jf_settings) { setupJellyfin { load() } }

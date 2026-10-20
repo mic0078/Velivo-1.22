@@ -642,6 +642,7 @@ namespace Velivo
                                 got += l - 16; if (got > size) return;
                                 sha.AppendData(plain, 0, l - 16);
                                 await fo.WriteAsync(plain.AsMemory(0, l - 16), token);
+                                if (i % 4 == 3 || i == n - 1) { long g = got; _ = Dispatcher.BeginInvoke(new Action(() => KomInfo("📥 " + name + L.T(" od ") + dev + "  " + (size > 0 ? (int)(g * 100 / size) : 100) + " %  (" + KomSize(g) + L.T(" z ") + KomSize(size) + ")", size > 0 ? (double)g / size : 1))); }
                             }
                         }
                         if (got != size) return;
@@ -652,7 +653,13 @@ namespace Velivo
                 File.Move(tmp, target); tmp = null;
                 var ack = KomHmac(key, "file-ack\n" + (string)h["Hash"]);
                 await s.WriteAsync(ack, 0, ack.Length, token);
-                await Dispatcher.InvokeAsync(() => { ShowToast((L.En ? "📎 File from " : "📎 Plik od ") + dev + ": " + Path.GetFileName(target), target); if (from != null) KomNote(from, false, "📎 " + Path.GetFileName(target)); });
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    var msg = (L.En ? "📎 File from " : "📎 Plik od ") + dev + ": " + Path.GetFileName(target);
+                    if (_komWindow != null && _komWindow.IsVisible) KomInfo(msg + L.T(" – zapisano"));   // okno zostaje na wierzchu
+                    else ShowToast(msg, target);
+                    if (from != null) KomNote(from, false, "📎 " + Path.GetFileName(target));
+                });
             }
             finally { if (tmp != null) try { File.Delete(tmp); } catch (Exception) { } CryptographicOperations.ZeroMemory(key); }
         }
@@ -663,7 +670,7 @@ namespace Velivo
             KomSave(); _komRefresh?.Invoke();
         }
 
-        async Task<string> KomSendFile(IPAddress addr, string path, Action<string> showCode, KomContact to = null)
+        async Task<string> KomSendFile(IPAddress addr, string path, Action<string> showCode, KomContact to = null, Action<long, long> progress = null)
         {
             var name = SafeFileName(Path.GetFileName(path));
             try
@@ -698,6 +705,7 @@ namespace Velivo
                             {
                                 int len = 0; while (len < LanChunk) { int r = await f.ReadAsync(buf, len, LanChunk - len); if (r <= 0) break; len += r; }
                                 sent += len;
+                                if (progress != null && (i % 4 == 3 || i == n - 1)) progress(sent, size);   // co ok. 4 MB
                                 gcm.Encrypt(ChunkNonce(baseNonce, i), buf.AsSpan(0, len), ct.AsSpan(0, len), tag, ChunkAad(ad, i, i == n - 1));
                                 await s.WriteAsync(BitConverter.GetBytes(len + 16), 0, 4); await s.WriteAsync(ct, 0, len); await s.WriteAsync(tag, 0, 16);
                             }
@@ -808,11 +816,24 @@ namespace Velivo
             var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
             var bottom = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             DockPanel.SetDock(bottom, Dock.Bottom);
+            // pasek stanu: wysylanie / odbior pliku z postepem, wyniki - okno zostaje otwarte
+            var statusText = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+            var statusBar = new ProgressBar { Height = 6, Minimum = 0, Maximum = 1, Margin = new Thickness(0, 3, 0, 0), Visibility = Visibility.Collapsed };
+            var status = new StackPanel { Margin = new Thickness(4, 4, 4, 0), Visibility = Visibility.Collapsed, Children = { statusText, statusBar } };
+            DockPanel.SetDock(status, Dock.Bottom);
+            var statusHide = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
+            statusHide.Tick += (s, e) => { statusHide.Stop(); status.Visibility = Visibility.Collapsed; };
+            _komStatus = (t, p) =>
+            {
+                status.Visibility = Visibility.Visible; statusText.Text = t;
+                statusBar.Visibility = p >= 0 ? Visibility.Visible : Visibility.Collapsed; if (p >= 0) statusBar.Value = p;
+                statusHide.Stop(); if (p < 0) statusHide.Start();
+            };
             DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
             bottom.Children.Add(fileBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
             var msgs = new StackPanel { Margin = new Thickness(4) };
             var scroll = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(scroll);
+            right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(status); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
             buttons.Add(sendBtn); buttons.Add(fileBtn);
@@ -828,7 +849,7 @@ namespace Velivo
                 w.Background = B(pal.Bg1); w.Foreground = B(pal.Fg);
                 list.Background = B(pal.Panel); list.BorderBrush = B(pal.Border); list.Foreground = B(pal.Fg); KomListStyle(list, pal);
                 input.Background = B(pal.Input); input.BorderBrush = B(pal.Border); input.Foreground = B(pal.Fg); input.CaretBrush = B(pal.Fg);
-                header.Foreground = B(pal.Fg);
+                header.Foreground = B(pal.Fg); statusText.Foreground = B(pal.Dim); statusBar.Foreground = B(pal.Mine); statusBar.Background = B(pal.Input); statusBar.BorderBrush = B(pal.Border);
                 foreach (var b in buttons) { b.Background = B(pal.Button); b.Foreground = B(pal.Fg); b.BorderBrush = B(pal.Border); }
                 sendBtn.Background = B(pal.Mine); sendBtn.Foreground = B(pal.MineFg);
                 try { var h = new System.Windows.Interop.WindowInteropHelper(w).Handle; if (h != IntPtr.Zero) { int on = pal.Dark ? 1 : 0; DwmSetWindowAttribute(h, 20, ref on, 4); } } catch (Exception) { }
@@ -919,7 +940,7 @@ namespace Velivo
             {
                 IPAddress addr = null;
                 if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr)) { addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr; }
-                if (addr == null) { ShowToast(L.T("Tej osoby nie ma teraz w sieci"), null); return; }
+                if (addr == null) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
                 await KomSendFilesTo(w, c.Name, addr, c);
             }
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
@@ -948,7 +969,7 @@ namespace Velivo
             w.SourceInitialized += (s, e) => { SetWindowAppId(w, "Velivo.Komunikator"); ApplyTheme(); };
             // ✕ - do zasobnika (ikona komunikatora), komunikator dalej odbiera; zamyka sie naprawde tylko z Velivo
             w.Closing += (s, e) => { if (_komExit) return; e.Cancel = true; w.Hide(); KomEnsureTray(); };
-            w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; };
+            w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; _komStatus = null; };
             _komWindow = w;
             if (openId != null) _komOpenId = openId;
             FillList(); FillChat();
@@ -956,6 +977,15 @@ namespace Velivo
             input.Focus();
         }
         Action<string> _komSelect;
+        Action<string, double> _komStatus;   // pasek stanu w oknie komunikatora: tekst, postep 0..1 (albo -1 - bez paska)
+
+        // informacja w komunikatorze (okno otwarte - jego pasek stanu; schowane - dymek). Dymek przegladarki
+        // wyciagal okno przegladarki na wierzch i zaslanial komunikator
+        void KomInfo(string text, double progress = -1)
+        {
+            if (_komWindow != null && _komWindow.IsVisible && _komStatus != null) _komStatus(text, progress);
+            else if (progress < 0) ShowToast(text, null);
+        }
 
         void KomRename(KomContact c)
         {
@@ -1006,7 +1036,7 @@ namespace Velivo
             Window codeWin = null;
             var r = await KomPair(p.Id, p.Name, p.Addr, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "➕ " + p.Name, code)));
             codeWin?.Close();
-            ShowToast(r == "ok" ? L.T("Dodano: ") + p.Name : L.T("Nie dodano: ") + r, null);
+            KomInfo(r == "ok" ? L.T("Dodano: ") + p.Name : L.T("Nie dodano: ") + r);
             if (r == "ok") _komSelect?.Invoke(p.Id);
         }
 
@@ -1017,11 +1047,14 @@ namespace Velivo
             foreach (var f in dlg.FileNames)
             {
                 Window codeWin = null;
-                if (to != null) ShowToast(L.T("Wysyłam: ") + Path.GetFileName(f), null);
-                var r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + Path.GetFileName(f) + " → " + name, code)), to);
+                var fn = Path.GetFileName(f);
+                KomInfo("📎 " + fn + L.T(" – czekam, aż odbiorca przyjmie…"), 0);
+                var r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
+                    (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))));
                 codeWin?.Close();
                 if (r == "ok" && to != null) KomNote(to, true, "📎 " + Path.GetFileName(f));
-                ShowToast(Path.GetFileName(f) + ": " + (r == "ok" ? L.T("wysłano") : r), null);
+                KomInfo("📎 " + fn + ": " + (r == "ok" ? L.T("wysłano") : r));
+                try { if (owner.IsVisible) owner.Activate(); } catch (Exception) { }   // rozmowa dalej na wierzchu
             }
         }
 

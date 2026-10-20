@@ -108,6 +108,7 @@ class KlawiaturaVelivo : InputMethodService() {
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
     private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
     private var listening = false
+    private var afterPunct = false   // po , ; : ! ? następna litera dostaje spację przed sobą (kot,pies -> kot, pies)
 
     override fun onCreate() {
         super.onCreate()
@@ -124,8 +125,9 @@ class KlawiaturaVelivo : InputMethodService() {
         secret = cls == InputType.TYPE_CLASS_TEXT && (v == InputType.TYPE_TEXT_VARIATION_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) ||
             cls == InputType.TYPE_CLASS_NUMBER && v == InputType.TYPE_NUMBER_VARIATION_PASSWORD ||
             info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
-        cur = ""; fixFrom = null; addAsk = null; lastSwipe = null; alt = false; caps = false
-        prevWord = null; prevWord2 = null; sentence.clear()
+        // ponowne uruchomienie tego samego pola (WhatsApp, przeglądarki robią to często w trakcie pisania) - stan pisania zostaje
+        if (!restarting) { cur = ""; fixFrom = null; addAsk = null; lastSwipe = null; alt = false; caps = false; afterPunct = false
+            prevWord = null; prevWord2 = null; sentence.clear() }
         autoShift()
         view.theme(); view.refresh()
     }
@@ -160,8 +162,12 @@ class KlawiaturaVelivo : InputMethodService() {
         val up = shift xor caps
         if (ch.isLetter()) ch = if (up) ch.uppercaseChar() else ch
         else if (shift && !shiftAuto) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) ch = "!@#$%^&*()_+{}:\"<>?"[i] }
-        if (ch.isLetter()) { ic.commitText(ch.toString(), 1); cur += ch }
-        else finishWord(ch.toString())
+        if (ch.isLetter()) {
+            if (afterPunct && before(1).let { it.isNotEmpty() && it[0] in ",;:!?" }) ic.commitText(" ", 1)
+            afterPunct = false
+            ic.commitText(ch.toString(), 1); cur += ch
+        }
+        else { afterPunct = false; finishWord(ch.toString()) }
         if (shift && !caps) shift = false
         if (!ch.isLetter()) autoShift()
         view.refresh()
@@ -170,7 +176,9 @@ class KlawiaturaVelivo : InputMethodService() {
     // koniec słowa (spacja, znak, Enter): autokorekta, przecinek, „że”, sklejanie, nauka
     private fun finishWord(sep: String) {
         val ic = currentInputConnection ?: return
-        val w = cur; cur = ""
+        // słowo z tekstu przed kursorem (nie tylko z pamięci klawiatury - pole bywa uruchamiane od nowa w trakcie pisania)
+        val w = before(48).takeLastWhile { it.isLetter() }.ifEmpty { cur }.takeIf { it.isNotEmpty() && before(it.length) == it } ?: ""; cur = ""
+        if (prevWord == null && w.isNotEmpty()) before(120).dropLast(w.length).trimEnd().split(' ', '\n').lastOrNull { it.isNotEmpty() }?.trim(',', '.', '!', '?', ';', ':')?.takeIf { it.all(Char::isLetter) }?.let { prevWord = it.lowercase() }
         var out = w
         if (w.isNotEmpty() && !secret) {
             val fix = if (pref("klaw-korekta")) Slownik.complete(w, keep) else null
@@ -181,7 +189,14 @@ class KlawiaturaVelivo : InputMethodService() {
             }
             afterWord(out)
         }
-        ic.commitText(sep, 1)
+ 
+        // interpunkcja jak w Velivo na Windows: znak przylega do słowa ("kot ." -> "kot."), po , ; : ! ? spacja przed następnym słowem
+        if (sep.length == 1 && sep[0] in ",.!?:;" && w.isEmpty()) {
+            val b = before(2)
+            if (b.length == 2 && b[1] == ' ' && (b[0].isLetterOrDigit() || b[0] in ")\"'")) ic.deleteSurroundingText(1, 0)
+        }
+        if (sep.isNotEmpty()) ic.commitText(sep, 1)
+        afterPunct = sep.length == 1 && sep[0] in ",;:!?"
         if (sep == "\n" || sep in listOf(".", "!", "?")) { if (!secret) Slownik.learnSentence(sentence.toString() + sep.trim()); sentence.clear(); prevWord = null; prevWord2 = null }
     }
 
@@ -256,7 +271,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val ic = currentInputConnection ?: return
         val info = currentInputEditorInfo
         val action = (info?.imeOptions ?: 0) and EditorInfo.IME_MASK_ACTION
-        if (cur.isNotEmpty() && !secret) { val w = cur; cur = ""; afterWord(w) }
+        if (!secret) finishWord("")   // ostatnie słowo przed Enter też poprawione (zolw⏎ -> żółw)
         if (!secret && sentence.isNotEmpty()) { Slownik.learnSentence(sentence.toString()); sentence.clear() }
         prevWord = null; prevWord2 = null
         if (info != null && action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED && info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION == 0) ic.performEditorAction(action)

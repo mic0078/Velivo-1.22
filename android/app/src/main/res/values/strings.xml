@@ -361,4 +361,6 @@
     <string name="widget_notes">🗒 Notes</string>
     <string name="widget_desc">Search, YouTube and your sticky notes with their dates</string>
     <string name="widget_no_notes">No sticky notes – tap 🗒 to add one</string>
+    <string name="kb_menu">Velivo keyboard</string>
+    <string name="kb_missing">The Velivo keyboard is a separate app (file Velivo-klawiatura.apk). After installing it, sticky notes, search and YouTube from the keyboard open here in Velivo.</string>
 </resources>

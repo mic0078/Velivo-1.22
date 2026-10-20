@@ -1442,6 +1442,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             37 -> AlertDialog.Builder(this).setTitle(R.string.default_player).setMessage(R.string.default_player_help)
                 .setPositiveButton(R.string.phone_videos) { _, _ -> showPhoneVideos() }.setNegativeButton(android.R.string.ok, null).show()
             38 -> showPhoneVideos()
+            39 -> openKeyboardApp()
             23 -> showNotes()
             24 -> newNote()
             25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
@@ -1565,7 +1566,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         section(R.string.menu_settings, listOf(
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
             Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6),
-            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38)),
+            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38), Triple("⌨", R.string.kb_menu, 39)),
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
         // na samym dole menu też płaski pasek YouTube (przytrzymanie: wyłącznik czasowy i pobudka)
         box.addView(TextView(this).apply {
@@ -2510,6 +2511,12 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_VIDEOS && grantResults.any { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) afterVideoPerm?.invoke()   // choć filmy albo choć muzyka
         afterVideoPerm = null
+    }
+
+    // ⌨ klawiatura Velivo (osobna aplikacja): jej ustawienia, a gdy jej nie ma - informacja; karteczki z klawiatury trafiają tutaj
+    private fun openKeyboardApp() {
+        val i = packageManager.getLaunchIntentForPackage("pl.velivo.klawiatura")
+        if (i != null) startActivity(i) else AlertDialog.Builder(this).setTitle("⌨ " + getString(R.string.kb_menu)).setMessage(R.string.kb_missing).setPositiveButton(android.R.string.ok, null).show()
     }
 
     private fun showMyFiles() {

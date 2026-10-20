@@ -361,4 +361,6 @@
     <string name="widget_notes">🗒 Karteczki</string>
     <string name="widget_desc">Szukaj, YouTube i Twoje karteczki z terminami</string>
     <string name="widget_no_notes">Brak karteczek – stuknij 🗒, aby dodać</string>
+    <string name="kb_menu">Klawiatura Velivo</string>
+    <string name="kb_missing">Klawiatura Velivo to osobna aplikacja (plik Velivo-klawiatura.apk). Po jej zainstalowaniu karteczki, szukanie i YouTube z klawiatury otwierają się tutaj, w Velivo.</string>
 </resources>

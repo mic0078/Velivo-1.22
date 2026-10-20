@@ -554,6 +554,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private val lanSeen = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val viaNet = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
     fun viaInternet(id: String) = up != null || viaNet.containsKey(id)
+    val away get() = up != null              // 🌍 ten telefon poza domem (połączony przez pośrednika)
+    val awayVia get() = upRelay?.name
     @Volatile private var up: Frames? = null
     @Volatile private var upRelay: Contact? = null
     private val started = System.currentTimeMillis()
@@ -998,7 +1000,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val root = page()
         chatWith = null; k.chatOpen = null; chatRefresh = null
         val rows = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(10), px(4), px(10), px(8)) }
+        // 🏠 / 🌍 jak połączony jest ten telefon - zawsze widoczne u góry
+        val netBar = TextView(a).apply { textSize = 14f; setTextColor(Color.WHITE); setPadding(px(14), px(8), px(14), px(8)); layoutParams = LinearLayout.LayoutParams(-1, -2).apply { leftMargin = px(10); rightMargin = px(10); bottomMargin = px(6) } }
         fun fill() {
+            netBar.text = if (k.away) t("🌍 Poza domem – przez internet", "🌍 Away from home – via internet") + (k.awayVia?.let { t(" (przez $it)", " (through $it)") } ?: "") else t("🏠 W domu – sieć domowa", "🏠 At home – home network")
+            netBar.background = bg(if (k.away) Color.rgb(0x25, 0x63, 0xEB) else Color.rgb(0x16, 0xA3, 0x4A), 10)
             rows.removeAllViews()
             if (k.contacts.isEmpty()) rows.addView(TextView(a).apply {
                 text = t("Brak kontaktów.\n\nStuknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo (telefon: przeglądarka albo klawiatura Velivo, komputer: Velivo na Windows) w tej samej sieci Wi-Fi.",
@@ -1024,7 +1030,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 rows.addView(LinearLayout(a).apply {
                     gravity = Gravity.CENTER_VERTICAL; setPadding(px(14), px(12), px(14), px(12)); background = bg(pal().panel, 14)
                     layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) }
-                    addView(dot); addView(text)
+                    addView(dot)
+                    if (on) addView(TextView(a).apply { text = if (k.viaInternet(c.id)) "🌍" else "🏠"; textSize = 15f; setPadding(0, 0, px(8), 0); contentDescription = if (k.viaInternet(c.id)) t("przez internet", "via internet") else t("sieć domowa", "home network") })
+                    addView(text)
                     contentDescription = t("Rozmowa z ", "Chat with ") + c.name + " - " + (if (on) t("w sieci", "online") else t("poza siecią", "offline")) + if (n > 0) ", " + t("nowe: ", "new: ") + n else ""
                     setOnClickListener { openChat(c) }
                     setOnLongClickListener { manage(c); true }
@@ -1052,7 +1060,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         root.removeAllViews()
         root.addView(LinearLayout(a).apply {
             orientation = LinearLayout.VERTICAL
-            addView(head); addView(ScrollView(a).apply { addView(rows); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }); addView(actions)
+            addView(head); addView(netBar); addView(ScrollView(a).apply { addView(rows); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }); addView(actions)
         })
     }
 
@@ -1220,7 +1228,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 if (c.own && c.device.isNotEmpty() && c.device != c.name) { val s0 = length; append("  (" + c.device + ")"); setSpan(android.text.style.RelativeSizeSpan(0.7f), s0, length, 0) }
                 append("\n"); val st = length
                 val seen = k.lastSeenAt(c.id)?.let { " · " + t("ostatnio ", "last seen ") + when_(it) } ?: ""
-                append(if (on) "● " + (if (k.viaInternet(c.id)) t("w sieci (przez internet)", "online (via internet)") else t("w sieci", "online")) else "● " + t("poza siecią", "offline") + seen + "\n" + t("wiadomości dojdą, gdy wróci", "messages arrive when back"))
+                append(if (on) "● " + (if (k.viaInternet(c.id)) t("w sieci · 🌍 przez internet", "online · 🌍 via internet") else t("w sieci · 🏠 sieć domowa", "online · 🏠 home network")) else "● " + t("poza siecią", "offline") + seen + "\n" + t("wiadomości dojdą, gdy wróci", "messages arrive when back"))
                 setSpan(android.text.style.ForegroundColorSpan(if (on) green else Color.GRAY), st, length, 0)
                 setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0)
             }

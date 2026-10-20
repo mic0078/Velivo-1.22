@@ -475,6 +475,7 @@ namespace Velivo
         // 🟢 w sieci: kontakt odezwal sie w ostatnich 95 s (kazde Velivo z komunikatorem oglasza sie co minute, okno pyta co 30 s)
         readonly Dictionary<string, DateTime> _komLastSeen = new Dictionary<string, DateTime>();
         readonly Dictionary<string, DateTime> _komSeenAt = new Dictionary<string, DateTime>();   // "ostatnio w sieci" - zostaje po pozegnaniu
+        bool KomViaNet(string id) => _komUp != null || _komViaNet.ContainsKey(id);   // 🌍 kontakt osiagalny przez internet (nie w sieci domowej)
         bool KomOnline(string id) => _komLastSeen.TryGetValue(id, out var t) && DateTime.UtcNow - t < TimeSpan.FromSeconds(95);
 
         // zamkniecie Velivo: kontakty od razu widza "poza siecia"
@@ -872,6 +873,11 @@ namespace Velivo
             Button Btn(string text, string tip, RoutedEventHandler h) { var b = new Button { Content = text, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), ToolTip = tip }; b.Click += h; buttons.Add(b); return b; }
             var list = new ListBox { HorizontalContentAlignment = HorizontalAlignment.Stretch };
             ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+            // 🏠 / 🌍 jak polaczony jest ten komputer - zawsze widoczne u gory
+            var netState = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(0, 0, 0, 6) };
+            var netText = new TextBlock { FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
+            netState.Child = netText; DockPanel.SetDock(netState, Dock.Top);
+            left.Children.Add(netState);
             left.Children.Add(leftButtons); left.Children.Add(list);
             root.Children.Add(left);
 
@@ -937,6 +943,7 @@ namespace Velivo
                     bool on = KomOnline(c.Id);
                     var tb = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, Opacity = on ? 1 : 0.7 };
                     tb.Inlines.Add(new System.Windows.Documents.Run("● ") { Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim), FontSize = 14 });
+                    if (on) tb.Inlines.Add(new System.Windows.Documents.Run(KomViaNet(c.Id) ? "🌍 " : "🏠 ") { ToolTip = KomViaNet(c.Id) ? L.T("przez internet") : L.T("sieć domowa") });
                     tb.Inlines.Add(new System.Windows.Documents.Run(c.Name + (un > 0 ? "  (" + un + ")" : "")) { FontWeight = un > 0 ? FontWeights.Bold : FontWeights.Normal });
                     if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) tb.Inlines.Add(new System.Windows.Documents.Run("  " + c.Device) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) });   // prawdziwe urzadzenie
                     if (last != null) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run((last.Mine ? "➜ " : "") + last.Text.Replace('\n', ' ')) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) }); }
@@ -953,8 +960,16 @@ namespace Velivo
                     if (c.Id == sel) item.IsSelected = true;
                 }
             }
+            void FillNet()
+            {
+                var away = _komUp != null;
+                netText.Text = away ? L.T("🌍 Poza domem – przez internet") + (_komUpRelay != null ? L.T(" (przez ") + _komUpRelay.Name + ")" : "") : L.T("🏠 W domu – sieć domowa");
+                netState.Background = new SolidColorBrush(away ? Color.FromRgb(0x25, 0x63, 0xEB) : Color.FromRgb(0x16, 0xA3, 0x4A));
+                netState.ToolTip = away ? L.T("Wiadomości i pliki idą przez pośrednika w domu, zaszyfrowane") : L.T("Wiadomości i pliki idą prosto w sieci domowej");
+            }
             void FillChat()
             {
+                FillNet();
                 var c = Current();
                 header.Inlines.Clear();
                 if (c == null) header.Text = L.T("Wybierz rozmowę z listy");
@@ -964,7 +979,7 @@ namespace Velivo
                     header.Inlines.Add(new System.Windows.Documents.Run("💬 " + c.Name + "  "));
                     if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) header.Inlines.Add(new System.Windows.Documents.Run("(" + c.Device + ")  ") { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
-                    header.Inlines.Add(new System.Windows.Documents.Run(on ? (_komViaNet.ContainsKey(c.Id) || _komUp != null ? L.T("● w sieci (przez internet)") : L.T("● w sieci")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
+                    header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
                 }
                 input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = c != null;

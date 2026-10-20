@@ -2088,8 +2088,11 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 val errText = if (err.isNotEmpty()) " · " + getString(R.string.tv_error) + err else ""
                 runOnUiThread { chans = all; scr.setRows(rows(), info() + errText) }
                 val ep = HashMap<String, Map<String, List<Tv.Show>>>()
-                per.forEach { (s, c) -> ep[s.id] = runCatching { Tv.epg(this, s, c, refresh) }.getOrDefault(emptyMap()) }
-                runOnUiThread { epg = ep; scr.setRows(rows(), info() + errText) }
+                // błąd programu TV widać na ekranie (dawniej cisza - czekało się bez końca); pusty program przy podanym adresie też
+                var epgErr = ""
+                per.forEach { (s, c) -> ep[s.id] = runCatching { Tv.epg(this, s, c, refresh) }.getOrElse { e -> epgErr += "\n" + s.name + " – " + getString(R.string.tv_epg_error) + ": " + tvErr(e); emptyMap() }
+                    .also { m -> if (m.isEmpty() && s.epg.isNotEmpty() && c.isNotEmpty() && epgErr.isEmpty()) epgErr += "\n" + s.name + " – " + getString(R.string.tv_epg_none) } }
+                runOnUiThread { epg = ep; scr.setRows(rows(), info() + errText + (if (epgErr.isNotEmpty()) " · " + epgErr.trim() else "")) }
             }.start()
         }
         scr.addButton("📅", R.string.tv_guide) {   // pełny program: co leci na wszystkich kanałach o wybranej porze

@@ -116,9 +116,12 @@ object Tv {
 
     // Program TV (XMLTV): tylko kanały z listy i tylko od 6 godzin wstecz do 2 dni naprzód - mało pamięci, szybko
     fun epg(ctx: Context, src: Source, chans: List<Channel>, refresh: Boolean): Map<String, List<Show>> {
-        val f = cacheFile(ctx, src.id, ".epg6.json")
-        val fresh = f.exists() && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L   // program odświeżany co 12 godzin
-        if (!refresh && fresh) { memEpg[src.id]?.let { return it }; readEpg(f)?.let { memEpg[src.id] = it; return it } }
+        // zapis programu związany z adresem EPG: nowy / zmieniony adres pobiera się od razu (dawniej stary, pusty zapis
+        // był „świeży” jeszcze 12 godzin i własnego EPG nie było widać); pusty zapis nigdy nie jest świeży
+        val key = src.id + "-" + Integer.toHexString(src.epg.hashCode())
+        val f = cacheFile(ctx, key, ".epg7.json")
+        val fresh = f.exists() && f.length() > 2 && System.currentTimeMillis() - f.lastModified() < 12 * 3600_000L   // program odświeżany co 12 godzin
+        if (!refresh && fresh) { memEpg[key]?.let { return it }; readEpg(f)?.let { memEpg[key] = it; memEpg[src.id] = it; return it } }
         if (src.epg.isEmpty()) return emptyMap()
         val wanted = HashSet<String>()
         chans.forEach { keys(it).forEach { k -> wanted.add(k) } }
@@ -168,7 +171,8 @@ object Tv {
         val j = JSONObject()
         out.forEach { (k, l) -> j.put(k, JSONArray().apply { l.forEach { put(JSONArray().put(it.start).put(it.stop).put(it.title).put(it.desc)) } }) }
         f.writeText(j.toString())
-        memEpg[src.id] = out
+        cacheFile(ctx, src.id, ".epg6.json").delete()   // stary zapis (bez adresu w nazwie)
+        memEpg[key] = out; memEpg[src.id] = out
         return out
     }
 

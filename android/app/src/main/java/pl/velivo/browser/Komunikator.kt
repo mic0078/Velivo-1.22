@@ -1031,7 +1031,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     gravity = Gravity.CENTER_VERTICAL; setPadding(px(14), px(12), px(14), px(12)); background = bg(pal().panel, 14)
                     layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) }
                     addView(dot)
-                    if (on) addView(TextView(a).apply { text = if (k.viaInternet(c.id)) "🌍" else "🏠"; textSize = 15f; setPadding(0, 0, px(8), 0); contentDescription = if (k.viaInternet(c.id)) t("przez internet", "via internet") else t("sieć domowa", "home network") })
+                    if (on) addView(TextView(a).apply { setText(if (k.viaInternet(c.id)) "🌍" else "🏠"); textSize = 15f; setPadding(0, 0, px(8), 0); contentDescription = if (k.viaInternet(c.id)) t("przez internet", "via internet") else t("sieć domowa", "home network") })
                     addView(text)
                     contentDescription = t("Rozmowa z ", "Chat with ") + c.name + " - " + (if (on) t("w sieci", "online") else t("poza siecią", "offline")) + if (n > 0) ", " + t("nowe: ", "new: ") + n else ""
                     setOnClickListener { openChat(c) }

@@ -397,4 +397,7 @@
     <string name="subs_shift_reset">Reset</string>
     <string name="account_no_name">Account without a name</string>
     <string name="lan_pair_first">To send files and tabs to the computer, connect this phone with Velivo on the computer once. Both must be on the same Wi-Fi. The computer shows a code – accept only if it matches. After that, sending works straight away.</string>
+    <string name="send_to_pc">Send to computer</string>
+    <string name="send_pc_tab">This tab</string>
+    <string name="send_pc_files">Files from the phone…</string>
 </resources>

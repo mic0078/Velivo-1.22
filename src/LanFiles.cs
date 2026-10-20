@@ -71,14 +71,21 @@ namespace Velivo
                 if (mac.Length != expected.Length || !CryptographicOperations.FixedTimeEquals(mac, expected)) return;
 
                 var name = SafeFileName(header.Name);
-                bool accept = false;
+                bool accept = false; string target = null;
                 await Dispatcher.InvokeAsync(() =>
                 {
                     var size = header.Length - 16;
                     var text = (L.En ? "" : "") + device + (L.En ? " is sending a file:\n\n" : " wysyła plik:\n\n") + name + "\n" +
                         (size >= 1048576 ? (size / 1048576.0).ToString("0.0", CultureInfo.CurrentCulture) + " MB" : Math.Max(1, size / 1024) + " KB") +
-                        (L.En ? "\n\nAccept and save to Downloads?" : "\n\nPrzyjąć i zapisać w Pobranych?");
+                        (L.En ? "\n\nAccept? Next you choose where to save it." : "\n\nPrzyjąć? Potem wybierzesz, gdzie go zapisać.");
                     accept = MessageBox.Show(PairDialogOwner(), text, L.En ? "Velivo – file" : "Velivo – plik", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                    if (accept)
+                    {   // gdzie zapisac: okno Windows "Zapisz jako" (domyslnie Pobrane, nazwa z telefonu); Anuluj = odrzucenie pliku
+                        var def = FreeDownloadPath(name);
+                        var dlg = new Microsoft.Win32.SaveFileDialog { Title = (L.En ? "Save file from " : "Zapisz plik od: ") + device, FileName = Path.GetFileName(def), InitialDirectory = Path.GetDirectoryName(def),
+                            Filter = (L.En ? "All files" : "Wszystkie pliki") + "|*.*", OverwritePrompt = true };
+                        if (dlg.ShowDialog(PairDialogOwner()) == true) target = dlg.FileName; else accept = false;
+                    }
                 });
                 await stream.WriteAsync(new[] { (byte)(accept ? 1 : 0) }, 0, 1, token);
                 if (!accept) return;
@@ -96,7 +103,7 @@ namespace Velivo
                 var plain = new byte[cipher.Length];
                 using (var gcm = new AesGcm(enc, 16)) gcm.Decrypt(nonce, cipher, tag, plain, ad);
                 if (!string.Equals(Convert.ToHexString(SHA256.HashData(plain)), header.Hash, StringComparison.OrdinalIgnoreCase)) return;
-                var path = FreeDownloadPath(name);
+                var path = target ?? FreeDownloadPath(name);
                 File.WriteAllBytes(path, plain);
                 var ack = QuickAccessLanMac(auth, "file-ack\n" + header.Hash);
                 await stream.WriteAsync(ack, 0, ack.Length, token);

@@ -141,7 +141,7 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
 | --- | --- |
 | Zakładki, hasła, Szybki Dostęp | Z komputera na telefon – same, gdy Velivo jest otwarte |
 | Nowe zakładki i hasła z telefonu | Na komputer – komputer pyta, czy dodać |
-| Plik z telefonu | **Udostępnij → Velivo**; komputer pyta o zgodę |
+| Plik z telefonu | Menu → **📤 Wyślij na komputer → 📄 Pliki z telefonu…** (kilka naraz) albo **Udostępnij → Velivo**; komputer pyta o zgodę i gdzie zapisać |
 | Plik z komputera | Na komputerze 📎 Wyślij plik do: telefon; zapis w Pobranych |
 | Karta z telefonu | Menu → 📤 Wyślij na komputer |
 | Karta z komputera | Na komputerze: prawy przycisk na karcie → 📺 Wyślij do… → telefon; telefon otwiera ją od razu (YouTube od tego samego miejsca) |

@@ -196,7 +196,7 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
         }
         dropPrivateProfile() // resztki po poprzedniej sesji
-        if (intent?.action == Intent.ACTION_SEND) sendSharedFile(intent)
+        if (intent?.action == Intent.ACTION_SEND || intent?.action == Intent.ACTION_SEND_MULTIPLE) sendSharedFile(intent)
         val link = intent?.dataString?.takeIf { intent?.action != Intent.ACTION_SEND }
         if (!restoreTabs() && link == null) newTab(false, home)
         if (link != null) newTab(false, link)
@@ -241,6 +241,7 @@ class MainActivity : Activity() {
         const val REQ_MEDIA = 8
         const val REQ_ROLE = 9
         const val REQ_VIDEOS = 10
+        const val REQ_SENDFILE = 31
         val YOUTUBE_ORIGINS = setOf("https://www.youtube.com", "https://m.youtube.com", "https://youtube.com", "https://music.youtube.com")
         const val BANK_IDLE_MS = 10 * 60 * 1000L
 
@@ -279,7 +280,7 @@ set(p0,p);})"""
         startLan()
             return
         }
-        if (intent.action == Intent.ACTION_SEND) { sendSharedFile(intent); return }
+        if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) { sendSharedFile(intent); return }
         intent.dataString?.let { newTab(false, it) }
     }
 
@@ -1433,7 +1434,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             16 -> openFind()
             17 -> toggleDesktop()
             20 -> startPick()
-            21 -> sendTabToComputer()
+            21 -> askSendToComputer()
             30 -> showTv()
             31 -> showLibrary()
             32 -> showMyFiles()
@@ -1554,7 +1555,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         // po 3 w rzędzie, pełne rzędy: karty, ta strona, moje, ustawienia
         section(R.string.menu_tabs, listOf(
             Triple("＋", R.string.new_tab, 1), Triple("🕶", R.string.new_private_tab, 2), Triple("⭐", R.string.quick_access, 14),
-            Triple("🏦", R.string.bank_mode, 10), Triple("📤", R.string.send_tab, 21), Triple("🖥", R.string.desktop_mode, 17)),
+            Triple("🏦", R.string.bank_mode, 10), Triple("📤", R.string.send_to_pc, 21), Triple("🖥", R.string.desktop_mode, 17)),
             mapOf(17 to (tabs.getOrNull(cur)?.desktop == true)))
         section(R.string.menu_page, listOf(
             Triple("🔎", R.string.find_in_page, 16), Triple("📖", R.string.reader, 18),
@@ -2948,17 +2949,43 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
+    // 💻 Wyślij na komputer: bieżąca karta albo pliki z telefonu (dokumenty, zdjęcia, cokolwiek - kilka naraz)
+    private fun askSendToComputer() {
+        if (!lan.paired) { askPairFirst(); return }
+        AlertDialog.Builder(this).setTitle("💻 " + getString(R.string.send_to_pc))
+            .setItems(arrayOf("🔗 " + getString(R.string.send_pc_tab), "📄 " + getString(R.string.send_pc_files))) { _, i ->
+                if (i == 0) sendTabToComputer()
+                else runCatching { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true), REQ_SENDFILE) }
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     private fun sendSharedFile(intent: Intent) {
         @Suppress("DEPRECATION")
-        val uri = (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)) ?: return
+        val one = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+        @Suppress("DEPRECATION")
+        val many = if (intent.action == Intent.ACTION_SEND_MULTIPLE) intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) else null
+        sendFiles(many ?: listOfNotNull(one))
+    }
+
+    // pliki po kolei; komputer pyta o każdy i o miejsce zapisu
+    private fun sendFiles(uris: List<Uri>) {
+        if (uris.isEmpty()) return
         if (!lan.paired) { askPairFirst(); return }
+        prefs.edit().putBoolean("lan", true).apply()
+        startLan()
+        Thread {
+            for (uri in uris) sendFileNow(uri)
+        }.start()
+    }
+
+    private fun sendFileNow(uri: Uri) {
         prefs.edit().putBoolean("lan", true).apply()
         startLan()
         val name = runCatching {
             contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
         }.getOrNull() ?: uri.lastPathSegment ?: "plik"
-        toast(getString(R.string.file_waiting, name))
-        Thread {
+        runOnUiThread { toast(getString(R.string.file_waiting, name)) }
+        run {
             // komputer musi się najpierw odezwać w sieci (adres) - czekamy do 30 s
             var waited = 0
             while (lan.computer == null && waited < 30) { Thread.sleep(1000); waited++ }
@@ -2974,7 +3001,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                     else -> getString(R.string.file_send_failed, result)
                 })
             }
-        }.start()
+        }
     }
 
     // Zakładki (Windows: "adres<TAB>tytuł") i hasła z komputera dopisywane do telefonu; nic nie jest usuwane.
@@ -3098,6 +3125,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     @Deprecated("Activity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_SENDFILE && resultCode == RESULT_OK && data != null) {
+            val l = ArrayList<Uri>(); data.clipData?.let { c -> for (i in 0 until c.itemCount) l.add(c.getItemAt(i).uri) } ?: data.data?.let { l.add(it) }
+            sendFiles(l); return
+        }
         if (requestCode == REQ_MEDIA) {
             val cb = pickCallback; pickCallback = null
             if (resultCode != RESULT_OK || data == null) return

@@ -392,7 +392,7 @@ class KlawiaturaVelivo : InputMethodService() {
             if (contrast) { bg1 = Color.BLACK; bg2 = Color.BLACK; bg3 = Color.BLACK; keyBg = Color.BLACK; keyFn = Color.BLACK; text = Color.WHITE; dim = Color.WHITE; border = Color.WHITE }
             else if (dark) { bg1 = Color.rgb(0x1E, 0x18, 0x38); bg2 = Color.rgb(0x19, 0x1B, 0x33); bg3 = Color.rgb(0x13, 0x2A, 0x35); keyBg = Color.argb(0x14, 255, 255, 255); keyFn = Color.argb(0x22, 255, 255, 255); text = Color.WHITE; dim = Color.argb(0xB0, 255, 255, 255); border = 0 }
             else { bg1 = Color.rgb(0xF1, 0xEC, 0xFF); bg2 = Color.rgb(0xEC, 0xF0, 0xFB); bg3 = Color.rgb(0xE3, 0xF6, 0xF8); keyBg = Color.WHITE; keyFn = Color.rgb(0xDD, 0xD8, 0xF0); text = Color.rgb(0x1E, 0x1B, 0x33); dim = Color.rgb(0x55, 0x50, 0x70); border = 0 }
-            invalidate()
+            requestLayout(); invalidate()
         }
 
         init { theme(); isHapticFeedbackEnabled = true }
@@ -401,7 +401,8 @@ class KlawiaturaVelivo : InputMethodService() {
 
         private val headH get() = 38 * dp
         private val sugH get() = 40 * dp
-        private val keyH get() = 50 * dp
+        // wysokość klawiszy z ustawień (procent); domyślnie wyższe niż zwykle - wygodniej trafić palcem
+        private val keyH get() = 50 * dp * prefs(context).getInt("wysokosc", 120) / 100f
 
         override fun onMeasure(ws: Int, hs: Int) {
             setMeasuredDimension(MeasureSpec.getSize(ws), (headH + sugH + keyH * 5 + 10 * dp).toInt())

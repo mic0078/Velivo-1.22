@@ -26,4 +26,6 @@
     <string name="kb_theme_light">Jasny</string>
     <string name="kb_theme_dark">Ciemny (Velivo)</string>
     <string name="kb_theme_contrast">Czarno-biały (wysoki kontrast)</string>
+    <string name="kb_height">Wysokość klawiszy</string>
+    <string name="kb_height_tip">Wyższe klawisze łatwiej trafić palcem</string>
 </resources>

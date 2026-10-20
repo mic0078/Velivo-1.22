@@ -26,4 +26,6 @@
     <string name="kb_theme_light">Light</string>
     <string name="kb_theme_dark">Dark (Velivo)</string>
     <string name="kb_theme_contrast">Black and white (high contrast)</string>
+    <string name="kb_height">Key height</string>
+    <string name="kb_height_tip">Taller keys are easier to hit with a finger</string>
 </resources>

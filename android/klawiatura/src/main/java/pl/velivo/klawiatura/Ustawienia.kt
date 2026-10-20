@@ -40,6 +40,7 @@ class Ustawienia : Activity() {
         button(R.string.kb_choose, R.string.kb_choose_tip) { (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker() }
         button(R.string.kb_mic_allow, R.string.kb_mic) { requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC) }
         button(R.string.kb_theme, R.string.kb_theme_tip) { chooseTheme() }
+        button(R.string.kb_height, R.string.kb_height_tip) { chooseHeight() }
         button(R.string.kb_words, R.string.kb_words) { showWords() }
         setContentView(ScrollView(this).apply { isFillViewport = true; addView(box) })
         when (intent?.action) {
@@ -64,6 +65,16 @@ class Ustawienia : Activity() {
         val pr = KlawiaturaVelivo.prefs(this)
         val names = arrayOf(getString(R.string.kb_theme_system), getString(R.string.kb_theme_light), getString(R.string.kb_theme_dark), getString(R.string.kb_theme_contrast))
         AlertDialog.Builder(this).setTitle(R.string.kb_theme).setSingleChoiceItems(names, pr.getInt("motyw", 2)) { d, i -> pr.edit().putInt("motyw", i).apply(); d.dismiss() }.show()
+    }
+
+    // wysokość klawiszy (procent) - na grubsze palce wyższa
+    private fun chooseHeight() {
+        val pr = KlawiaturaVelivo.prefs(this)
+        val sizes = intArrayOf(90, 100, 110, 120, 135, 150, 170)
+        val names = sizes.map { "$it %" }.toTypedArray()
+        AlertDialog.Builder(this).setTitle(R.string.kb_height).setSingleChoiceItems(names, sizes.indexOf(pr.getInt("wysokosc", 120)).coerceAtLeast(0)) { d, i ->
+            pr.edit().putInt("wysokosc", sizes[i]).apply(); d.dismiss()
+        }.show()
     }
 
     // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)

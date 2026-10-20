@@ -19,6 +19,7 @@ import android.widget.Toast
 
 // Ustawienia klawiatury Velivo: włączenie, wybór, mikrofon do dyktowania, motyw, Mój słownik.
 class Ustawienia : Activity() {
+    companion object { const val ACTION_THEME = "pl.velivo.klawiatura.MOTYW"; const val ACTION_HEIGHT = "pl.velivo.klawiatura.WYSOKOSC" }
     private val REQ_MIC = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,6 +47,8 @@ class Ustawienia : Activity() {
         when (intent?.action) {
             KlawiaturaVelivo.ACTION_MIC -> requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC)
             KlawiaturaVelivo.ACTION_WORDS -> showWords()
+            ACTION_THEME -> chooseTheme()
+            ACTION_HEIGHT -> chooseHeight()
         }
     }
 
@@ -53,6 +56,8 @@ class Ustawienia : Activity() {
         super.onNewIntent(intent)
         if (intent.action == KlawiaturaVelivo.ACTION_MIC) requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC)
         if (intent.action == KlawiaturaVelivo.ACTION_WORDS) showWords()
+        if (intent.action == ACTION_THEME) chooseTheme()
+        if (intent.action == ACTION_HEIGHT) chooseHeight()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

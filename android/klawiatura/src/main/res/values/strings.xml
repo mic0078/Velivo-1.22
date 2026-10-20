@@ -28,4 +28,12 @@
     <string name="kb_theme_contrast">Black and white (high contrast)</string>
     <string name="kb_height">Key height</string>
     <string name="kb_height_tip">Taller keys are easier to hit with a finger</string>
+    <string name="kb_m_note">New sticky note</string>
+    <string name="kb_m_notes">Sticky notes</string>
+    <string name="kb_m_search">Search in Velivo</string>
+    <string name="kb_m_yt">YouTube</string>
+    <string name="kb_m_switch">Change keyboard</string>
+    <string name="kb_m_settings">Settings</string>
+    <string name="kb_m_back">Back to keys</string>
+    <string name="kb_m_no_velivo">Install the Velivo browser to use notes, search and YouTube</string>
 </resources>

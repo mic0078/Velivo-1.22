@@ -28,4 +28,12 @@
     <string name="kb_theme_contrast">Czarno-biały (wysoki kontrast)</string>
     <string name="kb_height">Wysokość klawiszy</string>
     <string name="kb_height_tip">Wyższe klawisze łatwiej trafić palcem</string>
+    <string name="kb_m_note">Nowa karteczka</string>
+    <string name="kb_m_notes">Karteczki</string>
+    <string name="kb_m_search">Szukaj w Velivo</string>
+    <string name="kb_m_yt">YouTube</string>
+    <string name="kb_m_switch">Zmień klawiaturę</string>
+    <string name="kb_m_settings">Ustawienia</string>
+    <string name="kb_m_back">Wróć do klawiszy</string>
+    <string name="kb_m_no_velivo">Zainstaluj przeglądarkę Velivo, by używać karteczek, szukania i YouTube</string>
 </resources>

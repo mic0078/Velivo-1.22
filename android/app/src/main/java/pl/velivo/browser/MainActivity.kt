@@ -185,6 +185,7 @@ class MainActivity : Activity() {
         if (!prefs.getBoolean("filmy-v2", false)) { getSharedPreferences("filmy", Context.MODE_PRIVATE).edit().clear().apply(); prefs.edit().putBoolean("filmy-v2", true).apply() }
         Thread { runCatching { Karteczki.notifyDue(this) } }.start()   // termin dziś / jutro, gdy Velivo otwarte po 9:00
         if (intent?.action == Karteczki.ACTION_NOTES) window.decorView.post { showNotes(intent.getStringExtra("id")) }
+        if (intent?.action == Karteczki.ACTION_NEW) window.decorView.post { newNote() }
         if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
         if (intent?.action == Widzet.ACTION_SEARCH || intent?.action == Widzet.ACTION_YT) { val a = intent.action; window.decorView.post { widgetAction(a) } }
         if (intent?.action == TvPlan.ACTION) window.decorView.post { startPlanned(intent.getIntExtra("id", -1)) }
@@ -265,6 +266,7 @@ set(p0,p);})"""
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == Karteczki.ACTION_NOTES) { showNotes(intent.getStringExtra("id")); return }
+        if (intent.action == Karteczki.ACTION_NEW) { newNote(); return }
         if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
         if (intent.action == Widzet.ACTION_SEARCH || intent.action == Widzet.ACTION_YT) { widgetAction(intent.action); return }
         if (intent.action == TvPlan.ACTION) { startPlanned(intent.getIntExtra("id", -1)); return }

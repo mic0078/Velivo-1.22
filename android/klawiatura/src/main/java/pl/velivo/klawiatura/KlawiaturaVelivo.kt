@@ -484,8 +484,20 @@ class KlawiaturaVelivo : InputMethodService() {
                 val t = if (s.startsWith("➕")) "➕ " + getString(R.string.kb_add, s.substring(1)) else s
                 cv.drawText(fit(t, r.width() - 8 * dp), r.centerX(), r.centerY() + 6 * dp, tp)
             }
+            // menu pod logo V: wszystkie funkcje i opcje w kafelkach (zamiast klawiszy)
+            if (menuOpen) {
+                layoutMenu()
+                for (k in menu) {
+                    val on = k === pressed || isOn(k.code)
+                    key(cv, k.r, on, fn = true)
+                    tp.color = if (on) Color.WHITE else text; tp.textSize = 22 * dp
+                    cv.drawText(k.label, k.r.centerX(), k.r.centerY() - 2 * dp, tp)
+                    tp.textSize = 11.5f * dp; tp.color = if (on) Color.WHITE else dim
+                    cv.drawText(fit(getString(menuName(k.code)), k.r.width() - 6 * dp), k.r.centerX(), k.r.bottom - 8 * dp, tp)
+                }
+            }
             // klawisze
-            for (k in keys) {
+            if (!menuOpen) for (k in keys) {
                 val on = k === pressed && !swiping || k.code == "shift" && (shift || caps) || k.code == "caps" && caps || k.code == "alt" && alt
                 key(cv, k.r, on, fn = k.code.length > 1 || k.code == "?")
                 val l = label(k)
@@ -550,6 +562,8 @@ class KlawiaturaVelivo : InputMethodService() {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = x; downY = y; downAt = SystemClock.uptimeMillis(); longDone = false; swiping = false; trace.clear()
+                    if (y < headH && x < (head.minOfOrNull { it.r.left } ?: width.toFloat())) { menuOpen = !menuOpen; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED); invalidate(); return true }   // logo V: menu
+                    if (menuOpen && y >= headH) { pressed = menu.firstOrNull { it.r.contains(x, y) }; pressed?.let { k -> postDelayed({ if (pressed === k) { longDone = true; tip(menuName(k.code)) } }, 500) }; invalidate(); return true }
                     if (y < headH) { pressed = head.firstOrNull { it.r.contains(x, y) }; pressed?.let { k -> postDelayed({ if (pressed === k) { longDone = true; tip(headTip(k.code)) } }, 500) }; invalidate(); return true }
                     if (y < headH + sugH) { pressed = null; return true }
                     pressed = keyAt(x, y); trace.add(Slownik.P(x.toDouble(), y.toDouble()))
@@ -571,6 +585,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     removeCallbacks(longPress); removeCallbacks(repeat)
                     val k = pressed; pressed = null
                     if (downY < headH) { if (k != null && !longDone && k.r.contains(x, y)) headAction(k.code); invalidate(); return true }
+                    if (menuOpen) { if (k != null && !longDone && k.r.contains(x, y)) menuAction(k.code); invalidate(); return true }
                     if (downY < headH + sugH) { sugR.firstOrNull { it.first.contains(x, y) }?.second?.let { s -> if (s.startsWith("➕")) addWord(s.substring(1)) else pick(s) }; return true }
                     if (swiping) {
                         swiping = false
@@ -585,6 +600,52 @@ class KlawiaturaVelivo : InputMethodService() {
                 MotionEvent.ACTION_CANCEL -> { removeCallbacks(longPress); removeCallbacks(repeat); pressed = null; swiping = false; trace.clear(); invalidate() }
             }
             return true
+        }
+
+        // --- menu pod logo V ---
+        private var menuOpen = false
+        private val menu = ArrayList<K>()
+        private val menuItems = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt",
+            "✓" to "fix", "🔈" to "klik", "🔊" to "read", "🎤" to "mic",
+            "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height",
+            "⌨" to "switch", "⚙" to "settings", "⌄" to "hide", "⌨︎" to "back")
+        private fun layoutMenu() {
+            menu.clear()
+            val cols = 4; val pad = 4 * dp
+            val top = headH; val h = (height - top - 6 * dp) / ((menuItems.size + cols - 1) / cols)
+            val w = (width - pad * 2) / cols
+            menuItems.forEachIndexed { i, (l, c) ->
+                val k = K(if (c == "lang") lang(context).uppercase() else l, c, 1f)
+                k.r.set(pad + w * (i % cols) + 2 * dp, top + h * (i / cols) + 3 * dp, pad + w * (i % cols + 1) - 2 * dp, top + h * (i / cols + 1) - 3 * dp)
+                menu.add(k)
+            }
+        }
+        private fun isOn(c: String) = when (c) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; else -> false }
+        private fun menuName(c: String) = when (c) {
+            "note" -> R.string.kb_m_note; "notes" -> R.string.kb_m_notes; "search" -> R.string.kb_m_search; "yt" -> R.string.kb_m_yt
+            "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "read" -> R.string.kb_read; "mic" -> R.string.kb_mic
+            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height
+            "switch" -> R.string.kb_m_switch; "settings" -> R.string.kb_m_settings; "hide" -> R.string.kb_hide; else -> R.string.kb_m_back
+        }
+        // funkcje Velivo (karteczki, szukanie, YouTube) - otwierane w przeglądarce Velivo
+        private fun velivo(action: String) {
+            runCatching { startActivity(Intent(action).setClassName("pl.velivo.browser", "pl.velivo.browser.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { Toast.makeText(context, R.string.kb_m_no_velivo, Toast.LENGTH_LONG).show() }
+        }
+        private fun menuAction(c: String) {
+            when (c) {
+                "note" -> velivo("pl.velivo.browser.KARTECZKA_NOWA")
+                "notes" -> velivo("pl.velivo.browser.KARTECZKI")
+                "search" -> velivo("pl.velivo.browser.WIDZET_SZUKAJ")
+                "yt" -> velivo("pl.velivo.browser.WIDZET_YT")
+                "theme" -> startActivity(Intent(context, Ustawienia::class.java).setAction(Ustawienia.ACTION_THEME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "height" -> startActivity(Intent(context, Ustawienia::class.java).setAction(Ustawienia.ACTION_HEIGHT).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "settings" -> startActivity(Intent(context, Ustawienia::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "switch" -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
+                "back" -> { menuOpen = false; refresh(); return }
+                else -> { headAction(c); if (c == "lang" || c == "hide") menuOpen = false; refresh(); return }
+            }
+            menuOpen = false; refresh()
         }
 
         private fun headTip(c: String) = when (c) { "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "words" -> R.string.kb_words; "mic" -> R.string.kb_mic; "read" -> R.string.kb_read; "lang" -> R.string.kb_lang; else -> R.string.kb_hide }

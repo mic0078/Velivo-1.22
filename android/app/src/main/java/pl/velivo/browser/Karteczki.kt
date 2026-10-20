@@ -112,6 +112,7 @@ object Karteczki {
     }
 
     const val ACTION_NOTES = "pl.velivo.browser.KARTECZKI"
+    const val ACTION_NEW = "pl.velivo.browser.KARTECZKA_NOWA"   // nowa karteczka (z klawiatury Velivo)
 
     class Przypomnienie : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {

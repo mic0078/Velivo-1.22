@@ -1757,11 +1757,49 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     // To samo konto zapisane np. dla cda.pl i www.cda.pl - na liście raz.
     private fun accountsFor(host: String) = passwords.forHost(host).distinctBy { it.user to it.pass }
 
+    // wybór konta do wpisania hasła: przejrzysta lista (inicjał w kółku, login, strona tylko gdy inna), szukanie przy wielu kontach
     private fun chooseAccount(w: WebView, saved: List<Passwords.Entry>) {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.fill_password)
-            .setItems(saved.map { it.user.ifEmpty { "—" } + "   (" + it.host + ")" }.toTypedArray()) { _, i -> fill(w, saved[i]) }
-            .show()
+        val host = secureHost(w) ?: ""
+        val sorted = saved.sortedWith(compareBy({ it.user.isEmpty() }, { it.user.lowercase() }))
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        lateinit var dlg: AlertDialog
+        fun fillList(q: String) {
+            list.removeAllViews()
+            sorted.filter { q.isEmpty() || it.user.contains(q, true) || it.host.contains(q, true) }.forEach { e ->
+                val row = LinearLayout(this).apply {
+                    gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(10), dp(12), dp(10)); background = round(Color.TRANSPARENT)
+                    isClickable = true; foreground = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(50, 139, 92, 246)), null, null)
+                    contentDescription = e.user.ifEmpty { getString(R.string.account_no_name) }
+                    setOnClickListener { dlg.dismiss(); fill(w, e) }
+                }
+                row.addView(TextView(this).apply {   // inicjał w kółku w gradiencie Velivo
+                    text = (e.user.firstOrNull { it.isLetterOrDigit() } ?: '•').uppercase(); gravity = Gravity.CENTER; textSize = 17f; setTextColor(Color.WHITE)
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(BRAND1, BRAND2)).apply { shape = GradientDrawable.OVAL }
+                }, LinearLayout.LayoutParams(dp(40), dp(40)))
+                row.addView(LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0)
+                    addView(TextView(this@MainActivity).apply { text = e.user.ifEmpty { getString(R.string.account_no_name) }; textSize = 16f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                        setTypeface(typeface, android.graphics.Typeface.BOLD) })
+                    if (e.host != host) addView(TextView(this@MainActivity).apply { text = e.host; textSize = 12.5f; alpha = 0.7f; maxLines = 1 })
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                list.addView(row)
+            }
+        }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(4), dp(12), dp(4)) }
+        box.addView(TextView(this).apply { text = "🔒 " + host; textSize = 13f; alpha = 0.75f; setPadding(dp(12), 0, dp(12), dp(8)) })
+        if (sorted.size > 6) box.addView(EditText(this).apply {   // szukanie przy wielu kontach
+            hint = getString(R.string.search_hint); setSingleLine(); inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) { fillList(s?.toString()?.trim() ?: "") }
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            })
+        })
+        box.addView(ScrollView(this).apply { addView(list) }, LinearLayout.LayoutParams(-1, -2))
+        fillList("")
+        dlg = AlertDialog.Builder(this).setTitle("🔑 " + getString(R.string.fill_password)).setView(box).setNegativeButton(android.R.string.cancel, null).create()
+        dlg.show()
     }
 
     // Ręcznie z menu - gdy formularz logowania pojawił się dopiero po załadowaniu strony.

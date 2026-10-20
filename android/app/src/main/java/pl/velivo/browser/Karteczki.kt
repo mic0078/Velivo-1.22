@@ -45,6 +45,7 @@ object Karteczki {
         list.forEach { a.put(JSONObject().put("Id", it.id).put("Kind", it.kind).put("Text", it.text).put("Color", it.color).put("Repeat", it.repeat)) }
         prefs(ctx).edit().putString("karteczki", a.toString()).apply()
         schedule(ctx)
+        Widzet.refresh(ctx)   // widżet na pulpicie od razu z nową treścią
     }
 
     private val dateRe = Regex("""(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)|(?<![\d.])(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?![\d/])""")
@@ -111,6 +112,7 @@ object Karteczki {
     }
 
     const val ACTION_NOTES = "pl.velivo.browser.KARTECZKI"
+    const val ACTION_NEW = "pl.velivo.browser.KARTECZKA_NOWA"   // nowa karteczka (z klawiatury Velivo)
 
     class Przypomnienie : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {

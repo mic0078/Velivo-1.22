@@ -105,6 +105,17 @@ namespace Velivo
         internal static Func<string, int> UseCount;
         static double Score(Entry e) { int n = 0; try { n = UseCount?.Invoke(e.Word) ?? 0; } catch (Exception) { } return e.Rank / (1.0 + 3.0 * Math.Min(n, 50)); }
         static string Fold(string w) { return new string(w.ToLowerInvariant().Select(BaseKey).ToArray()); }
+        // sasiednie klawisze (QWERTY) - typowa pomylka palca
+        static readonly string[] _rows = { "qwertyuiop", "asdfghjkl", "zxcvbnm" };
+        static IEnumerable<char> Near(char c)
+        {
+            for (int r = 0; r < 3; r++)
+            {
+                int i = _rows[r].IndexOf(c); if (i < 0) continue;
+                if (i > 0) yield return _rows[r][i - 1];
+                if (i + 1 < _rows[r].Length) yield return _rows[r][i + 1];
+            }
+        }
         // anyRank: literowka tez do rzadkiego slowa (do rozpoznania literowek w Moim slowniku, nie do poprawiania w trakcie pisania)
         internal static string Correct(string typed, ICollection<string> keep = null, bool anyRank = false)
         {
@@ -159,6 +170,21 @@ namespace Velivo
                 }
                 foreach (var c in abc) cand(fw + c);
             }
+            if (best == null && w.Length >= 4 && !anyRank)
+            {   // dwie pomylki palca: litera sasiada na klawiaturze + jedna inna (eicej -> więcej) - tylko bardzo czeste slowa
+                const string abc = "abcdefghijklmnopqrstuvwxyz";
+                Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && e.Rank < 3000 && (best == null || Score(e) < Score(best))) best = e; };
+                for (int i = 0; i < fw.Length; i++)
+                    foreach (var nb in Near(fw[i]))
+                    {
+                        var x = fw.Substring(0, i) + nb + fw.Substring(i + 1);
+                        for (int j = 0; j <= x.Length; j++)
+                        {
+                            if (j < x.Length) { cand(x.Remove(j, 1)); if (j != i) foreach (var c in abc) if (c != x[j]) cand(x.Substring(0, j) + c + x.Substring(j + 1)); }
+                            foreach (var c in abc) cand(x.Insert(j, c.ToString()));
+                        }
+                    }
+            }
             if (best == null || best.Word == w) return null;
             var r = Polite(best.Word);
             if (typed.All(char.IsUpper) && typed.Length > 1) return r.ToUpperInvariant();
@@ -180,6 +206,8 @@ namespace Velivo
             bool ownP; lock (_ownFold) ownP = _ownFold.ContainsValue(p.ToLowerInvariant());
             if (!_foldAll.TryGetValue(Fold(p), out var pl)) return ownP ? p : fix;   // Moje slowo (imie, nazwisko) - tez wstawiamy
             var pe = pl.OrderBy(Score).First(); if (pe.Rank >= 60000 && !ownP) return fix;   // bardzo rzadkie slowo - nie zgadujemy
+            // brakujaca litera czestego slowa wygrywa z dokonczeniem rzadszego: zarz -> zaraz (nie zarzuty); komp -> komputer zostaje
+            if (fix != null && fix.Length == typed.Length + 1 && _foldAll.TryGetValue(Fold(fix), out var fl) && Score(fl.OrderBy(Score).First()) <= Score(pe)) return fix;
             if (_main.Contains(w))
             {   // wpisane to tez slowo: zostaje, chyba ze rzadkie, a dokonczenie duzo czestsze (pra -> prawda; dom, nie, kot zostaja)
                 var we = _foldAll.TryGetValue(Fold(w), out var wl) ? wl.FirstOrDefault(e => e.Word == w) : null;

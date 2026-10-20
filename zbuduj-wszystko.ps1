@@ -3,25 +3,68 @@
 #                                              .\zbuduj-wszystko.ps1 -TylkoAndroid
 # Android: wersja "pelna" (APK dla rodziny) oraz "sklep" i "sklepyt" (AAB do Google Play), podpisane Twoim kluczem.
 # Hasla do klucza wpisujesz przy kazdej budowie - nigdzie nie sa zapisywane; zapamietana jest tylko sciezka do pliku klucza.
-param([switch]$TylkoAndroid)
+# Buduje tylko to, co sie zmienilo od ostatniej udanej budowy (zmiana samej dokumentacji - nic):
+#   Windows - zmiany w src\, testy\ albo zbuduj.ps1
+#   Android - zmiany w android\ i we wspolnym Szybkim Dostepie (src\QuickAccessExtension\kod)
+#   -Wszystko  - zbuduj obie wersje mimo braku zmian
+param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep)   # -Sklep - takze 2 wersje AAB do Google Play
 $ErrorActionPreference = 'Stop'
+trap { Write-Host "Blad: $_" -ForegroundColor Red; Read-Host 'Nacisnij Enter, aby zamknac'; exit 1 }
 Set-Location $PSScriptRoot
+New-Item -ItemType Directory -Force build | Out-Null
+try { Stop-Transcript | Out-Null } catch { }   # poprzednia budowa w tym samym oknie mogla zostawic zapis otwarty
+try { Start-Transcript -Path (Join-Path $PSScriptRoot 'build\budowa.log') -Force | Out-Null } catch { }   # gdyby okno sie zamknelo - przebieg zostaje w build\budowa.log
 
-if (-not $TylkoAndroid) {
-    & (Join-Path $PSScriptRoot 'zbuduj.ps1')   # git pull, testy, Velivo na Windows, instalator
-    if ($LASTEXITCODE -ne 0) { Write-Host "Windows nie zbudowane - Android pomijam." -ForegroundColor Red; exit 1 }
-} else {
-    git checkout rozwoj
-    git pull origin rozwoj
+git checkout rozwoj
+git pull origin rozwoj
+$head = (git rev-parse HEAD).Trim()
+$cfgDir = Join-Path $env:LOCALAPPDATA 'Velivo-budowa'
+New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
+function Changed($name, $patterns) {
+    if ($Wszystko) { return $true }
+    $f = Join-Path $cfgDir "ostatnio-$name.txt"
+    if (-not (Test-Path $f)) { return $true }
+    $last = (Get-Content $f -Raw).Trim()
+    $files = git diff --name-only $last $head 2>$null
+    if ($LASTEXITCODE -ne 0) { return $true }   # nieznana zmiana (np. po przepisaniu historii) - budujemy
+    return [bool]($files | Where-Object { $p = $_; $patterns | Where-Object { $p -like $_ } })
 }
+$needWin = (-not $TylkoAndroid) -and (Changed 'windows' @('src/*', 'testy/*', 'zbuduj.ps1'))
+$needAnd = Changed 'android' @('android/*', 'src/QuickAccessExtension/kod/*')
+if (-not $needWin -and -not $needAnd) { Write-Host "Brak zmian w programie od ostatniej budowy - nic do budowania (dokumentacja nie wymaga nowej wersji). Wymuszenie: .\zbuduj-wszystko.ps1 -Wszystko" -ForegroundColor Green; exit 0 }
+Write-Host ("Do zbudowania: " + (@(if ($needWin) { 'Windows' }; if ($needAnd) { 'Android' }) -join ' + ')) -ForegroundColor Cyan
 
-Write-Host "Android: 3 wersje..." -ForegroundColor Cyan
-# Java z Android Studio (bez osobnej instalacji)
-if (-not $env:JAVA_HOME -or -not (Test-Path $env:JAVA_HOME)) {
-    $jbr = @("$env:ProgramFiles\Android\Android Studio\jbr", "$env:LOCALAPPDATA\Programs\Android Studio\jbr", "${env:ProgramFiles(x86)}\Android\Android Studio\jbr") | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $jbr) { Write-Host "Nie znaleziono Javy z Android Studio (folder jbr). Zainstaluj Android Studio." -ForegroundColor Red; exit 1 }
-    $env:JAVA_HOME = $jbr
+if ($needWin) {
+    & (Join-Path $PSScriptRoot 'zbuduj.ps1')   # testy, Velivo na Windows, instalator
+    if ($LASTEXITCODE -ne 0) { Write-Host "Windows nie zbudowane." -ForegroundColor Red; exit 1 }
+    Set-Content (Join-Path $cfgDir 'ostatnio-windows.txt') $head
+} else { Write-Host "Windows bez zmian - pomijam (instalator z poprzedniej budowy jest aktualny)." -ForegroundColor DarkGray }
+if (-not $needAnd) { Write-Host "Android bez zmian - pomijam." -ForegroundColor DarkGray; exit 0 }
+
+Write-Host ($(if ($Sklep) { "Android: 3 wersje..." } else { "Android: wersja pelna (APK). Wersje do sklepu: -Sklep" })) -ForegroundColor Cyan
+# Java dla Gradle: wersja 17-24 (Gradle 8.x nie dziala na Javie 25+). Szukamy: VELIVO_JAVA, jbr Android Studio, JAVA_HOME, zainstalowane JDK.
+$roots = @("$env:ProgramFiles\Android", "$env:LOCALAPPDATA\Programs", "${env:ProgramFiles(x86)}\Android", "$env:LOCALAPPDATA\JetBrains\Toolbox\apps", "$env:ProgramFiles")
+$cands = @($env:VELIVO_JAVA)
+$cands += $roots | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { Get-ChildItem $_ -Directory -Filter 'Android Studio*' -ErrorAction SilentlyContinue } |
+    ForEach-Object { Get-ChildItem $_.FullName -Directory -Recurse -Depth 3 -Filter 'jbr' -ErrorAction SilentlyContinue } | Select-Object -ExpandProperty FullName
+$cands += $env:JAVA_HOME
+$cands += @("$env:ProgramFiles\Java", "$env:ProgramFiles\Eclipse Adoptium", "$env:ProgramFiles\Microsoft", "$env:ProgramFiles\Zulu", "$env:ProgramFiles\Amazon Corretto", "$env:USERPROFILE\.jdks") |
+    Where-Object { Test-Path $_ } | ForEach-Object { Get-ChildItem $_ -Directory -ErrorAction SilentlyContinue } | Select-Object -ExpandProperty FullName
+$cands += Get-ChildItem 'HKLM:\SOFTWARE\JavaSoft\JDK', 'HKLM:\SOFTWARE\Eclipse Adoptium\JDK', 'HKLM:\SOFTWARE\Microsoft\JDK' -Recurse -ErrorAction SilentlyContinue |
+    ForEach-Object { $_.GetValue('JavaHome'); $_.GetValue('Path') }
+$cands += (Get-Command java.exe -All -ErrorAction SilentlyContinue | ForEach-Object { Split-Path (Split-Path $_.Source) })
+$java = $null; $jv = ''
+foreach ($c in ($cands | Where-Object { $_ -and (Test-Path (Join-Path $_ 'bin\java.exe')) } | Select-Object -Unique)) {
+    $ErrorActionPreference = 'Continue'   # java -version pisze na stderr - przy 'Stop' PowerShell 5 przerywa skrypt
+    $v = (& (Join-Path $c 'bin\java.exe') -version 2>&1 | Select-Object -First 1 | ForEach-Object { "$_" }) -replace '.*"(.*)".*', '$1'
+    $ErrorActionPreference = 'Stop'
+    $m = [int](($v -split '[.+-]')[0])
+    if ($m -ge 17 -and $m -le 24) { $java = $c; $jv = $v; break }
+    Write-Host "Pomijam Jave $v ($c) - Gradle potrzebuje 17-24." -ForegroundColor DarkGray
 }
+if (-not $java) { Write-Host "Brak Javy 17-24. Zainstaluj JDK 21 (np. winget install Microsoft.OpenJDK.21) albo podaj: `$env:VELIVO_JAVA='sciezka'" -ForegroundColor Red; exit 1 }
+$env:JAVA_HOME = $java
+Write-Host "Java do budowy: $java ($jv)" -ForegroundColor DarkGray
 # SDK Androida: local.properties tworzy Android Studio przy pierwszym otwarciu projektu
 $lp = Join-Path $PSScriptRoot 'android\local.properties'
 if (-not (Test-Path $lp)) {
@@ -31,10 +74,9 @@ if (-not (Test-Path $lp)) {
 }
 
 # Klucz podpisu: sciezka zapamietana poza repozytorium, hasla tylko w pamieci na czas budowy
-$cfgDir = Join-Path $env:LOCALAPPDATA 'Velivo-budowa'
-New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
 $cfg = Join-Path $cfgDir 'klucz.txt'
 $ks = if (Test-Path $cfg) { (Get-Content $cfg -Raw).Trim() } else { '' }
+if (-not $ks -or -not (Test-Path $ks)) { $def = Join-Path $env:USERPROFILE 'Documents\velivo-klucz.jks'; if (Test-Path $def) { $ks = $def; Set-Content $cfg $ks } }   # domyslnie: Dokumenty\velivo-klucz.jks
 if (-not $ks -or -not (Test-Path $ks)) {
     $ks = (Read-Host "Pelna sciezka do pliku klucza (.jks), np. C:\Users\andro\Velivo-klucz.jks").Trim('"', ' ')
     if (-not (Test-Path $ks)) { Write-Host "Nie ma takiego pliku: $ks" -ForegroundColor Red; exit 1 }
@@ -54,7 +96,7 @@ try {
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.store.password} = $ksPass
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.alias} = $alias
     ${env:ORG_GRADLE_PROJECT_android.injected.signing.key.password} = $keyPass
-    & .\gradlew.bat --no-daemon assemblePelnaRelease bundleSklepRelease bundleSklepytRelease
+    & .\gradlew.bat --console=plain @(if ($Sklep) { 'assemblePelnaRelease', 'bundleSklepRelease', 'bundleSklepytRelease', ':klawiatura:assembleRelease' } else { 'assemblePelnaRelease', ':klawiatura:assembleRelease' })
     if ($LASTEXITCODE -ne 0) { Write-Host "Budowa Androida nie powiodla sie (zle haslo? brak SDK?)." -ForegroundColor Red; exit 1 }
 } finally {
     Pop-Location; $ksPass = $null; $keyPass = $null
@@ -66,11 +108,17 @@ Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $o = Join-Path $PSScriptRoot 'android\app\build\outputs'
 Copy-Item "$o\apk\pelna\release\*.apk" (Join-Path $out 'Velivo-pelna.apk')
-Copy-Item "$o\bundle\sklepRelease\*.aab" (Join-Path $out 'Velivo-sklep.aab')
-Copy-Item "$o\bundle\sklepytRelease\*.aab" (Join-Path $out 'Velivo-sklepyt.aab')
+Copy-Item (Join-Path $PSScriptRoot 'android\klawiatura\build\outputs\apk\release\*.apk') (Join-Path $out 'Velivo-klawiatura.apk')
+if ($Sklep) {
+    Copy-Item "$o\bundle\sklepRelease\*.aab" (Join-Path $out 'Velivo-sklep.aab')
+    Copy-Item "$o\bundle\sklepytRelease\*.aab" (Join-Path $out 'Velivo-sklepyt.aab')
+}
+Set-Content (Join-Path $cfgDir 'ostatnio-android.txt') $head
 Write-Host "Gotowe:" -ForegroundColor Green
-if (-not $TylkoAndroid) { Write-Host "  Instalator\Velivo-Setup-1.22.exe   - Windows" }
+if ($needWin) { Write-Host "  build\instalator\Velivo-Setup-1.22.exe - Windows" }
 Write-Host "  build\android\Velivo-pelna.apk      - telefon (Ty i mama, WhatsApp)"
-Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"
-Write-Host "  build\android\Velivo-sklepyt.aab    - Google Play (jak Brave)"
+Write-Host "  build\android\Velivo-klawiatura.apk - klawiatura Velivo (osobna aplikacja)"
+if ($Sklep) { Write-Host "  build\android\Velivo-sklep.aab      - Google Play (ostrozna)"
+Write-Host "  build\android\Velivo-sklepyt.aab    - Google Play (jak Brave)" }
 Start-Process $out
+try { Stop-Transcript | Out-Null } catch { }

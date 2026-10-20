@@ -309,6 +309,7 @@ namespace Velivo
             item("\uE8F4", L.T("Dodaj folder z filmami do biblioteki…"), () => { var d = PickFolder(); if (d != null) AddPathsToLibrary(new[] { d }); });
             menu.Items.Add(new Separator());
             item("\uE74D", L.T("Odinstaluj odtwarzacz filmów…"), UninstallVlc);
+            menu.Items.Add(PhoneMediaMenu());
             _filmBtn.ContextMenu = menu;
             StartIptvScheduler();   // zaplanowane wlaczenie filmu dziala takze bez modulu TV
             AutoSyncJellyfin();   // informacje o filmach z Jellyfin - uzupelnienie lokalnej bazy w tle (gdy ustawione)
@@ -419,6 +420,15 @@ namespace Velivo
         {
             var syncMsg = await System.Threading.Tasks.Task.Run(() => SyncJellyfin(jc, _ => { }));
             if (tvView || !File.Exists(JellyfinFilesFile)) return syncMsg;
+            var msg = await JellyfinAddNewAsync(shared);
+            if (askOwner != null) AskRemovedFromJellyfin(askOwner);
+            return msg;
+        }
+
+        // nowe filmy z Jellyfin (plik dostępny na tym komputerze) do biblioteki; niedostępne - do raportu
+        async System.Threading.Tasks.Task<string> JellyfinAddNewAsync(bool shared)
+        {
+            if (!File.Exists(JellyfinFilesFile)) return "";
             var jfFiles = File.ReadAllLines(JellyfinFilesFile).ToList();
             var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), File.Exists));
             int n = 0;
@@ -426,7 +436,7 @@ namespace Velivo
             // brakujace pliki (Jellyfin zna, tu niedostepne) - do raportu, zeby bylo widac dlaczego
             var missing = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), p => !File.Exists(p)));
             try { File.AppendAllLines(System.IO.Path.Combine(DataDir, "jellyfin-raport.txt"), new[] { "", "Pliki z Jellyfin niedostępne na tym komputerze (" + missing.Count + "):" }.Concat(missing.Select(m => "  " + m))); } catch (Exception) { }
-            if (askOwner != null) AskRemovedFromJellyfin(askOwner);
+            _libRefresh?.Invoke();
             return L.T("🎬 Nowe filmy z Jellyfin: ") + n + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : "");
         }
         bool _libSharedView;   // otwarta biblioteka: wspolna albo tego komputera
@@ -1196,10 +1206,15 @@ namespace Velivo
     </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>");
         }
 
+        // odtwarzacz, ktory teraz gra - synchronizacja LAN czeka, zeby nie przycinac obrazu (TV, filmy)
+        static LibVLCSharp.Shared.MediaPlayer _playerMp;
+        static bool PlayerBusy { get { try { return _playerMp != null && _playerMp.IsPlaying; } catch (Exception) { return false; } } }
+
         void BuildVlcWindow()
         {
             LibraryVideo current = null;   // film, ktory teraz gra (jego wpis w bibliotece)
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
+            _playerMp = mp;
             var view = new VideoView { MediaPlayer = mp, Background = Brushes.Black };
             var win = new Window { Title = L.T("Odtwarzacz filmów"), Width = 960, Height = 600, Background = Brushes.Black, Icon = Icon, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             // warstwa na obrazie (nad okienkiem VLC): dwuklik = pelny ekran, klik = pauza, ruch myszy = pokaz pasek
@@ -1345,18 +1360,30 @@ namespace Velivo
                 ToolTip = L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.") };
             string techKey = null, techShort = "", techFull = "";   // dane techniczne biezacego filmu (raz na film)
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            netTimer.Tick += (s, e) =>
+            bool netBusy = false;
+            netTimer.Tick += async (s, e) =>
             {
                 // zmiany tylko gdy naprawde inne - kazda zmiana przerysowuje cala warstwe paska (przesuwany napis by sie zacinal)
                 var n = DateTime.Now; var tt0 = n.ToString("HH:mm"); if (nowTime.Text != tt0) { nowTime.Text = tt0; nowDate.Text = n.ToString("ddd d.MM"); }
+                if (netBusy) return;
                 long total = 0, sent = 0;
+                // liczniki karty sieciowej w tle: pytanie Windows o wszystkie karty (VPN, Hyper-V, Bluetooth) trwa nawet
+                // kilkadziesiat ms - w watku okna co sekunde przycinalo obraz TV i filmow
+                netBusy = true;
                 try
                 {
-                    foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
-                        if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
-                        { var st0 = ni.GetIPStatistics(); total += st0.BytesReceived; sent += st0.BytesSent; }
+                    var r = await System.Threading.Tasks.Task.Run(() =>
+                    {
+                        long t1 = 0, s1 = 0;
+                        foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                            if (ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                            { var st0 = ni.GetIPStatistics(); t1 += st0.BytesReceived; s1 += st0.BytesSent; }
+                        return (t1, s1);
+                    });
+                    total = r.t1; sent = r.s1;
                 }
                 catch (Exception) { return; }
+                finally { netBusy = false; }
                 if (netLast >= 0 && controls.Visibility != Visibility.Visible) { netLast = total; netUpLast = sent; return; }   // pasek schowany - bez rysowania
                 try
                 {   // jakosc biezacego strumienia (statystyki VLC)
@@ -1539,7 +1566,28 @@ namespace Velivo
                 catch (Exception ex) { App.LogError(ex); }
             };
             var saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            saveTimer.Tick += (s, e) => { if (mp.IsPlaying) savePos(); };
+            // co 10 s miejsce w filmie zapisywane w tle (wczytanie i zapis calej biblioteki w watku okna przycinaly obraz);
+            // przy pauzie, zmianie filmu i zamknieciu - jak dotad, od razu
+            bool saveBusy = false;
+            saveTimer.Tick += async (s, e) =>
+            {
+                if (!mp.IsPlaying || current == null || saveBusy || _remoteFilms.ContainsKey(current.Path)) { if (mp.IsPlaying && current != null && !saveBusy) savePos(); return; }
+                long t = mp.Time, len = mp.Length; var cur = current; bool sh = IsShared(cur);
+                saveBusy = true;
+                try
+                {
+                    await System.Threading.Tasks.Task.Run(() =>
+                    {
+                        var l = LoadLibrary();
+                        var v = FindEntry(l, cur.Path, sh);
+                        if (v == null) return;
+                        RecordProgress(v, t, len, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        SaveLibrary(l);
+                    });
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                finally { saveBusy = false; }
+            };
             saveTimer.Start();
 
             // lektor: napisy z pliku obok filmu albo wczytane z menu Napisy
@@ -1743,6 +1791,7 @@ namespace Velivo
             // straznik kanalu na zywo: obraz stoi (czas sie nie przesuwa) albo strumien sie urwal - ponowne polaczenie
             string curRecFile = null; long recResume = -1; DateTime pausedAt = DateTime.Now;
             bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
+            long aPlayed = -1, aVideo = -1; int aSilent = 0; DateTime aReload = DateTime.MinValue;   // straznik dzwieku
             var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             tvWatch.Tick += (s, e) =>
             {
@@ -1754,6 +1803,35 @@ namespace Velivo
                 if (pth != null && _iptvPlaying.ContainsKey(pth) && mp.State == VLCState.Paused && curRecFile == null && IptvSt.PauseRelease && (DateTime.Now - pausedAt).TotalMinutes >= 5)
                 { userStopped = true; mp.Stop(); showOsd(L.T("⏸ Połączenie z dostawcą zwolnione po 5 min pauzy – ▶ wznawia")); return; }
                 if (pth == null || !_iptvPlaying.ContainsKey(pth) || userStopped || mp.State == VLCState.Paused) { lastTvProgress = DateTime.Now; return; }
+                // straznik dzwieku: obraz idzie, a dzwiek przestal grac (po dluzszym ogladaniu wyjscie dzwieku VLC potrafi sie
+                // zawiesic - wczesniej pomagalo tylko 🔄 Odswiez). Najpierw ponowne wlaczenie sciezki dzwieku (bez przerwy w obrazie),
+                // gdy to nie pomoze - odswiezenie kanalu (najwyzej raz na minute)
+                try
+                {
+                    var st = mp.State == VLCState.Playing && !mp.Mute && mp.Volume > 0 && mp.AudioTrackCount > 0 ? mp.Media?.Statistics : null;
+                    if (st == null) { aSilent = 0; aPlayed = -1; }
+                    else
+                    {
+                        var stats = st.Value;
+                        bool videoGoes = stats.DecodedVideo != aVideo, silent = aPlayed >= 0 && stats.PlayedAudioBuffers == aPlayed;
+                        aVideo = stats.DecodedVideo; aPlayed = stats.PlayedAudioBuffers;
+                        aSilent = videoGoes && silent ? aSilent + 1 : 0;
+                        if (aSilent == 3)
+                        {
+                            try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " dzwiek przestal grac (obraz idzie) - ponowne wlaczenie sciezki\n"); } catch (Exception) { }
+                            var tr = mp.AudioTrack; mp.SetAudioTrack(-1); mp.SetAudioTrack(tr);
+                            showOsd(L.T("🔊 Dźwięk zniknął – przywracam…"));
+                        }
+                        else if (aSilent >= 8 && (DateTime.Now - aReload).TotalSeconds > 60)
+                        {
+                            try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " dzwiek nadal nie gra - odswiezenie kanalu\n"); } catch (Exception) { }
+                            aSilent = 0; aReload = DateTime.Now; aPlayed = -1;
+                            showOsd(L.T("🔊 Dźwięk zniknął – odświeżam kanał…"));
+                            _vlcLoad(_playIndex); return;
+                        }
+                    }
+                }
+                catch (Exception ex) { App.LogError(ex); }
                 if (mp.State == VLCState.Playing && mp.Time != lastTvTime) { lastTvTime = mp.Time; lastTvProgress = DateTime.Now; tvRetries = 0; return; }
                 var wait = Math.Max(8, IptvSt.Buffer + 6) * (tvRetries >= 3 ? 2 : 1);   // po kilku probach rzadziej
                 if ((DateTime.Now - lastTvProgress).TotalSeconds < wait) return;

@@ -52,36 +52,6 @@ namespace Velivo
             }
         }
 
-        // Jednorazowo: kafelki zapisane dawniej przez most programu Sejf kopiujemy do folderu Velivo, bo teraz strona
-        // Szybkiego Dostepu czyta i zapisuje tylko tam. Folder Sejfu zostaje nietkniety; istniejacych plikow nie nadpisujemy.
-        static void MigrateSejfQuickAccessData()
-        {
-            try
-            {
-                var own = Path.Combine(QuickAccessDataDir, "dane");
-                if (File.Exists(Path.Combine(own, "kopia.json"))) return;
-                // folder danych Sejfu: obok jego mostu albo wyzej, czasem w podfolderze "Szybki Dostep"
-                var roots = new List<string> { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Sejf") };
-                var most = FindSejfMost();
-                for (var d = most == null ? null : Path.GetDirectoryName(most); d != null && roots.Count < 5; d = Path.GetDirectoryName(d)) roots.Add(d);
-                var source = roots
-                    .SelectMany(r => new[] { r, Path.Combine(r, "Szybki Dostep"), Path.Combine(r, "Szybki Dostęp") })
-                    .Select(r => Path.Combine(r, "dane"))
-                    .FirstOrDefault(d => File.Exists(Path.Combine(d, "kopia.json")) &&
-                        !string.Equals(Path.GetFullPath(d), Path.GetFullPath(own), StringComparison.OrdinalIgnoreCase));
-                if (source == null) return;
-                foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-                {
-                    if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) continue;
-                    var target = Path.Combine(own, Path.GetRelativePath(source, file));
-                    if (File.Exists(target)) continue;
-                    Directory.CreateDirectory(Path.GetDirectoryName(target));
-                    File.Copy(file, target);
-                }
-            }
-            catch (Exception ex) { App.LogError(ex); }
-        }
-
         static bool IsSafeQuickAccessArchivePath(string relative)
         {
             if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith("/", StringComparison.Ordinal) || relative.Contains(":")) return false;

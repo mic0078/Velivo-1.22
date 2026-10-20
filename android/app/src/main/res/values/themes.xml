@@ -35,4 +35,23 @@
         <item name="android:textColorSecondary">#B9B0E0</item>
         <item name="android:colorBackground">#1B1733</item>
     </style>
+    <!-- czarno-biały (wysoki kontrast) dla słabowidzących: czarne tło, białe napisy i ramki -->
+    <style name="Velivo.Contrast" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#FFFFFF</item>
+        <item name="android:colorPrimary">#FFFFFF</item>
+        <item name="android:colorControlActivated">#FFFFFF</item>
+        <item name="android:alertDialogTheme">@style/Velivo.Dialog.Contrast</item>
+    </style>
+    <style name="Velivo.Dialog.Contrast" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/okno_kontrast</item>
+        <item name="android:colorAccent">#FFFFFF</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#FFFFFF</item>
+        <item name="android:colorBackground">#000000</item>
+    </style>
+    <!-- odtwarzacz: czarne tło, pełny ekran, okna (wyłącznik, ścieżki) w ciemnych kolorach Velivo -->
+    <style name="Velivo.Player" parent="Velivo.Dark">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

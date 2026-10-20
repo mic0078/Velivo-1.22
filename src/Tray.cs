@@ -77,6 +77,8 @@ namespace Velivo
                 // jak przyciski na pasku Velivo: filmy i TV tylko, gdy sa wlaczone / zainstalowane
                 menu.Opening += (s, e) => { tvItem.Visible = _tvBtn != null; filmItem.Visible = _filmBtn != null; playerItem.Visible = _playerBtn != null; };
                 menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+                menu.Items.Add(TrayMessengerItem());
+                menu.Items.Add(TraySendFilesItem());
                 menu.Items.Add(L.T("Synchronizuj teraz"), null, (s, e) => Dispatcher.Invoke(() => { TrayPulse(4); try { LanBroadcastState(true); } catch (Exception ex) { App.LogError(ex); } }));
                 menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
                 menu.Items.Add(L.T("Zamknij Velivo całkowicie"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
@@ -147,6 +149,7 @@ namespace Velivo
         {
             _reallyExit = true;
             try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); _tray = null; } } catch (Exception) { }
+            KomTrayRemove();
             Close();
             Application.Current.Shutdown();
         }

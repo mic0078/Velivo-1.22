@@ -47,6 +47,8 @@ namespace Velivo
             public string pub { get; set; }
             public string proof { get; set; }
             public string kind { get; set; }   // "phone" - Velivo na Androida (puste - komputer)
+            public int part { get; set; }      // media-give: numer kawalka
+            public int parts { get; set; }     // media-give: liczba kawalkow
         }
 
         sealed class LanSyncPayload
@@ -431,7 +433,8 @@ namespace Velivo
         void StartLanSync()
         {
             StopLanSync();
-            if (_settings == null || !_settings.LanSync) return;
+            if (_settings == null || !_settings.LanSync) { KomStartOwn(); return; }   // 💬 komunikator dziala i bez synchronizacji
+            KomStopOwn();
             bool hasKey = AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey);
             _lanLegacyNoKeyMode = !hasKey;
             _lanCts = new CancellationTokenSource();
@@ -447,9 +450,13 @@ namespace Velivo
                 _lanTx.EnableBroadcast = true;
                 StartQuickAccessLanListener(_lanCts.Token);
                 _ = Task.Run(() => LanListenLoop(_lanCts.Token));
+                KomLoad(); KomStartResend(); if (_komContacts.Count > 0) { KomAnnounce(); KomEnsureTray(); }
                 _lanStartedUtc = DateTime.UtcNow;
 
-                _lanTick = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+                // dane wysylane po zmianie plikow (obserwator), a nie skanowanie co 2 s; zegar tylko przypomina "jestem"
+                // i co 5 min sprawdza na wszelki wypadek (zgubione zdarzenie pliku)
+                StartLanWatch();
+                _lanTick = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
                 _lanTick.Tick += (s, e) =>
                 {
                     if (_lanApplying) return;
@@ -461,11 +468,8 @@ namespace Velivo
                         return;
                     }
                     if (_lanAuthenticationKey != null && DateTime.UtcNow - _lastHello > TimeSpan.FromSeconds(12)) LanBroadcastHello();
-                    if (_lanEncryptionKey != null)
-                    {
-                        LanBroadcastState(false);
-                        BroadcastQuickAccessLan();
-                    }
+                    if (DateTime.UtcNow - _lanLastCheck > TimeSpan.FromMinutes(5)) { _lanDirty = _qaDirty = true; _lanLastCheck = DateTime.UtcNow; }
+                    LanSendDirty();
                 };
                 _lanTick.Start();
                 LanLog(hasKey
@@ -482,11 +486,68 @@ namespace Velivo
                     LanBroadcastAnnounce();
                 }
             }
-            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog(L.T("Błąd startu LAN sync: ") + ex.Message); }
+            catch (Exception ex) { _lanErrors++; App.LogError(ex); StopLanSync(); LanLog(L.T("Błąd startu LAN sync: ") + ex.Message); KomStartOwn(); }
+        }
+
+        // --- wysylanie po zmianie: obserwator plikow danych i Szybkiego Dostepu ---
+        FileSystemWatcher _lanWatchData, _lanWatchQa;
+        DispatcherTimer _lanDebounce;
+        volatile bool _lanDirty, _qaDirty;
+        DateTime _lanLastCheck = DateTime.UtcNow;
+
+        void StartLanWatch()
+        {
+            StopLanWatch();
+            _lanDebounce = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+            _lanDebounce.Tick += (s, e) => { _lanDebounce.Stop(); LanSendDirty(); };
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ustawienia.txt", "zakladki.txt", "prywatnosc.txt",
+                Path.GetFileName(BookmarkTombstonesFile), Path.GetFileName(ProfilesFile), Path.GetFileName(ExtensionsSyncListFile), Path.GetFileName(PinnedFile), Path.GetFileName(PasswordVaultFile) };
+            try
+            {
+                if (Directory.Exists(DataDir))
+                {
+                    _lanWatchData = new FileSystemWatcher(DataDir) { IncludeSubdirectories = false, NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size };
+                    FileSystemEventHandler h = (s, e) => { var n = e.Name ?? ""; if (names.Contains(n) || n.StartsWith("bank", StringComparison.OrdinalIgnoreCase)) LanMarkDirty(false); };
+                    _lanWatchData.Changed += h; _lanWatchData.Created += h; _lanWatchData.Deleted += h; _lanWatchData.Renamed += (s, e) => h(s, e);
+                    _lanWatchData.EnableRaisingEvents = true;
+                }
+                if (Directory.Exists(QuickAccessDataDir))
+                {
+                    _lanWatchQa = new FileSystemWatcher(QuickAccessDataDir) { IncludeSubdirectories = true, NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.DirectoryName };
+                    FileSystemEventHandler q = (s, e) => { if (!string.Equals(Path.GetFileName(e.Name ?? ""), "z-sieci.json", StringComparison.OrdinalIgnoreCase)) LanMarkDirty(true); };
+                    _lanWatchQa.Changed += q; _lanWatchQa.Created += q; _lanWatchQa.Deleted += q; _lanWatchQa.Renamed += (s, e) => q(s, e);
+                    _lanWatchQa.EnableRaisingEvents = true;
+                }
+            }
+            catch (Exception ex) { App.LogError(ex); }   // bez obserwatora - zostaje sprawdzanie co 5 min
+        }
+
+        void LanMarkDirty(bool qa)
+        {
+            if (qa) _qaDirty = true; else _lanDirty = true;
+            Dispatcher.BeginInvoke(new Action(() => { if (_lanDebounce == null) return; _lanDebounce.Stop(); _lanDebounce.Start(); }));
+        }
+
+        // wysyla tylko to, co sie zmienilo; podczas ogladania (TV, film) czeka - obraz sie nie przycina
+        void LanSendDirty()
+        {
+            if (_lanApplying || _lanLegacyNoKeyMode || _lanEncryptionKey == null || PlayerBusy) return;
+            if (_lanDirty) { _lanDirty = false; LanBroadcastState(false); }
+            if (_qaDirty) { _qaDirty = false; BroadcastQuickAccessLan(); }
+        }
+
+        void StopLanWatch()
+        {
+            try { _lanWatchData?.Dispose(); } catch (Exception) { }
+            try { _lanWatchQa?.Dispose(); } catch (Exception) { }
+            _lanWatchData = _lanWatchQa = null;
+            try { _lanDebounce?.Stop(); } catch (Exception) { }
+            _lanDebounce = null;
         }
 
         void StopLanSync()
         {
+            StopLanWatch();
             try { _lanTick?.Stop(); } catch (Exception) { }
             _lanTick = null;
             try { _lanCts?.Cancel(); } catch (Exception) { }
@@ -517,6 +578,7 @@ namespace Velivo
                 {
                     var res = await _lanRx.ReceiveAsync(ct);
                     if (res.Buffer == null || res.Buffer.Length == 0 || res.Buffer.Length > 60000) continue;
+                    if (KomUdp(res.Buffer, res.RemoteEndPoint)) continue;   // 💬 komunikator (Komunikator.cs)
                     await HandleLanPacketAsync(res.Buffer, res.RemoteEndPoint, false);
                 }
                 catch (OperationCanceledException) { break; }
@@ -549,6 +611,11 @@ namespace Velivo
 
             // telefon nigdy nie wysyla stanu (ustawien) - takie pakiety od telefonu odrzucamy; telefon dodaje tylko przez "phone-add" (z pytaniem)
             if (pkt.kind == "phone" && (pkt.t == "state" || pkt.t == "state-plain" || pkt.t == "announce")) return;
+            if (pkt.t == "media-ask")   // Filmy i TV bez parowania - zawsze z pytaniem do wlasciciela komputera
+            {
+                await Dispatcher.InvokeAsync(() => { try { HandleMediaAsk(pkt, remote.Address.ToString()); } catch (Exception ex) { App.LogError(ex); } });
+                return;
+            }
             if (pkt.t != null && pkt.t.StartsWith("pair-", StringComparison.Ordinal))
             {
                 await Dispatcher.InvokeAsync(() => HandleLanPairPacket(pkt, remote.Address.ToString()));
@@ -670,7 +737,7 @@ namespace Velivo
             }
             if (pkt.t == "hello")
             {
-                await Dispatcher.InvokeAsync(() => { LanBroadcastState(isNewPeer); LanBroadcastHistory(isNewPeer); });
+                await Dispatcher.InvokeAsync(() => { LanBroadcastState(isNewPeer); LanBroadcastHistory(isNewPeer); if (isNewPeer) LanMarkDirty(true); });
                 return;
             }
             if (pkt.t == "state" || pkt.t == "state-plain")

@@ -34,28 +34,34 @@ W Android Studio: **Build → Select Build Variant** → `pelnaRelease`, `sklepR
 
 ## Opis w sklepie
 
-**Krótki (PL):** Lekka, prywatna przeglądarka: bez śledzenia, z blokadą reklam, czytnikiem i dużymi napisami.
+**Krótki (PL):** Prywatna przeglądarka z telewizją, filmami i odtwarzaczem – lekka, bez śledzenia i reklam.
 
 **Pełny (PL):**
-Velivo to lekka i prywatna przeglądarka – bez konta, bez chmury, bez śledzenia.
+Velivo to lekka i prywatna przeglądarka – bez konta, bez chmury, bez śledzenia – z wbudowaną telewizją i filmami.
 • Blokada reklam i elementów śledzących, bez pustych pól po reklamach
 • Ochrona przed fałszywymi stronami banków i podejrzanymi aplikacjami
-• Czytnik i czytanie artykułów na głos, także przy zgaszonym ekranie
-• Powiększanie dwoma palcami – wygodne dla osób słabiej widzących
-• Karteczki z przypomnieniem dzień wcześniej, pobudka z ulubionym utworem
-• Tryb bankowy i karty prywatne, hasła szyfrowane w telefonie
+• Telewizja z Twojej listy IPTV (M3U): program TV, siatka programu, archiwum, zaplanowane włączenie audycji
+• Odtwarzacz na bibliotece VLC – każdy film i dźwięk, także stare AVI; gesty jasności i głośności, okienko, wyłącznik czasowy
+• Twoja biblioteka Jellyfin w sieci domowej – bez kluczy, logowanie nazwą i hasłem
+• Filmy i muzyka z telefonu w jednym miejscu, Velivo jako domyślny odtwarzacz i przeglądarka (gdy chcesz)
+• Czytnik i czytanie na głos, powiększanie dwoma palcami, ciemny i czarno-biały motyw – wygodne dla słabowidzących
+• Karteczki z przypomnieniem, tryb bankowy, karty prywatne, hasła szyfrowane w telefonie
 • Synchronizacja z Velivo na Windows w sieci domowej – bez serwerów
+Velivo nie dostarcza kanałów ani filmów – odtwarza Twoje własne listy i Twój serwer.
 
-**Short (EN):** A light, private browser: no tracking, ad blocking, reader view and large text.
+**Short (EN):** A private browser with TV, films and a player – light, no tracking, no adverts.
 
 **Full (EN):**
-Velivo is a light, private browser – no account, no cloud, no tracking.
+Velivo is a light, private browser – no account, no cloud, no tracking – with built-in TV and films.
 • Blocks adverts and trackers, with no empty boxes left behind
 • Protection against fake bank sites and suspicious apps
-• Reader view and read aloud, even with the screen off
-• Two-finger zoom – comfortable for people with weaker eyesight
-• Sticky notes with a reminder the day before, wake-up with your favourite track
-• Banking mode and private tabs, passwords encrypted on the phone
+• TV from your own IPTV list (M3U): TV guide, guide grid, catch-up, scheduled programmes
+• Player built on the VLC library – every film and sound, old AVI too; brightness and volume gestures, picture-in-picture, sleep timer
+• Your Jellyfin library on the home network – no keys, sign in with name and password
+• Videos and music on the phone in one place, Velivo as default player and browser (if you want)
+• Reader view and read aloud, two-finger zoom, dark and black-and-white themes – comfortable for weaker eyesight
+• Sticky notes with reminders, banking mode, private tabs, passwords encrypted on the phone
 • Sync with Velivo for Windows on your home network – no servers
+Velivo provides no channels or films – it plays your own lists and your own server.
 
 W opisie i na zrzutach **nie** pisz o „YouTube bez reklam” ani o graniu YouTube w tle.

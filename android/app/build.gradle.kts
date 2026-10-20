@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// numer wersji rośnie sam z każdą zmianą (liczba zmian w git) - nowy plik instaluje się na starym jako aktualizacja,
+// z zachowaniem danych (ten sam klucz podpisu); tak samo w Google Play
+val zmiany = runCatching { providers.exec { commandLine("git", "rev-list", "--count", "HEAD") }.standardOutput.asText.get().trim().toInt() }.getOrDefault(2)
+
 android {
     namespace = "pl.velivo.browser"
     compileSdk = 35
@@ -10,8 +14,9 @@ android {
         applicationId = "pl.velivo.browser"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.22"
+        versionCode = zmiany
+        versionName = "1.22.$zmiany"
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }   // tylko telefony ARM - mniejszy plik (VLC ma kod natywny)
     }
     // Trzy wersje z jednego kodu:
     //  pelna  - APK dla rodziny (YouTube bez reklam i w tle, dokładny budzik) - jak dotąd, ten sam identyfikator;
@@ -43,7 +48,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
@@ -60,4 +65,6 @@ base { archivesName.set("Velivo") }
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
+    // odtwarzacz filmów i telewizji: biblioteka VLC (jak VLC na Windows) - każdy format: stare AVI, AC3/E-AC3, MPEG-TS, HLS
+    implementation("org.videolan.android:libvlc-all:3.6.5")
 }

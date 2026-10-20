@@ -38,6 +38,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
 pl.DesktopIcon=Skrót na pulpicie
+pl.MessengerIcon=Komunikator Velivo na pulpicie (rozmowy w sieci domowej)
 pl.Addons=Dodatki (opcjonalne):
 en.Addons=Add-ons (optional):
 pl.VideoPlayer=Odtwarzacz filmów jak VLC – AVI, MKV, WMV i inne formaty, biblioteka filmów (pobiera ok. 145 MB z oficjalnej paczki VideoLAN; można go później odinstalować w Velivo)
@@ -49,6 +50,7 @@ en.VideoPlayerFailed=Could not download the video player:%n%1%n%nVelivo will be 
 pl.VideoPlayerUnpack=Nie udało się rozpakować odtwarzacza filmów – Velivo działa bez niego. Uruchom instalator ponownie, aby spróbować jeszcze raz.
 en.VideoPlayerUnpack=Could not unpack the video player – Velivo works without it. Run the installer again to retry.
 en.DesktopIcon=Desktop shortcut
+en.MessengerIcon=Velivo messenger on the desktop (chats on the home network)
 pl.Shortcuts=Skróty:
 en.Shortcuts=Shortcuts:
 pl.RunApp=Uruchom %1
@@ -80,6 +82,7 @@ en.NeedWebView=Microsoft Edge WebView2 Runtime was not found (usually included i
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"
+Name: "komunikatoricon"; Description: "{cm:MessengerIcon}"; GroupDescription: "{cm:Shortcuts}"
 ; odtwarzacz filmow (libvlc) - tylko na wyrazne zyczenie uzytkownika
 Name: "videoplayer"; Description: "{cm:VideoPlayer}"; GroupDescription: "{cm:Addons}"; Flags: unchecked
 ; telewizja IPTV - osobny modul na odtwarzaczu filmow (bez wlasnego pobierania)
@@ -118,6 +121,9 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\Velivo.exe"
 ; sama klawiatura ekranowa - osobny identyfikator, wiec po przypieciu ma wlasna ikone na pasku zadan
 Name: "{autoprograms}\{#AppName} Klawiatura"; Filename: "{app}\Velivo.exe"; Parameters: "--klawiatura"; AppUserModelID: "Velivo.Klawiatura"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\Velivo.exe"; Tasks: desktopicon
+; 💬 sam komunikator - wlasna ikona i osobny identyfikator (po przypieciu wlasna ikona na pasku zadan)
+Name: "{autoprograms}\Komunikator {#AppName}"; Filename: "{app}\Velivo.exe"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"
+Name: "{autodesktop}\Komunikator {#AppName}"; Filename: "{app}\Velivo.exe"; Parameters: "--komunikator"; IconFilename: "{app}\komunikator.ico"; AppUserModelID: "Velivo.Komunikator"; Tasks: komunikatoricon
 
 [Registry]
 ; autostart wlaczany w Ustawieniach Velivo - przy odinstalowaniu wpis znika (ValueType none = instalator go nie tworzy)

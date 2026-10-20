@@ -28,6 +28,22 @@ Nowe funkcje dodawaj tak, by nie zmieniały istniejącego działania bez potrzeb
 * Nie czekaj bez potrzeby na długie zadania; podaj dostępny wynik i później uzupełnij raport.
 * Nie scalaj do `main`, jeśli testy ostatniej zmiany nie są zielone.
 
+## Budowa u właściciela (Windows, PowerShell)
+
+Na końcu odpowiedzi podawaj polecenia i napisz, co trzeba zbudować (Windows, Android, oba, nic):
+
+```
+cd "C:\Users\andro\Desktop\Velivo 1.22 z github"
+git checkout rozwoj
+git pull origin rozwoj
+.\zbuduj-wszystko.ps1 -TylkoAndroid
+```
+
+* Android dla znajomych (sam APK) – domyślnie: `.\zbuduj-wszystko.ps1 -TylkoAndroid`.
+* Android, 3 wersje (APK + 2× AAB do Google Play) – tylko przed publikacją w sklepie: `.\zbuduj-wszystko.ps1 -TylkoAndroid -Sklep`.
+* Budować w zwykłym PowerShell, nie jako administrator.
+* Tylko Windows: `.\zbuduj-wszystko.ps1`. Szybkie próby Androida: ▶ w Android Studio (wariant pelnaDebug).
+
 ## Interfejs i dokumentacja
 
 * Przyciski, ikony i pozycje menu mają podpowiedzi PL i EN, także w klawiaturze ekranowej i odtwarzaczu.

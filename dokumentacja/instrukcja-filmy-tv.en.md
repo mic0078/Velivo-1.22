@@ -4,6 +4,11 @@
 
 ---
 
+## 0. At home and away
+
+* **🎬 Films and TV through the messenger:** in the Velivo messenger on Windows – right-click a contact → **🎬 Send Films and TV** (Jellyfin and TV channel lists, also from files). Works at home and via internet (through the relay). A phone on the home network saves at once; via internet it always asks.
+* **Jellyfin away from home (phone):** Library → Jellyfin settings → **🌍 Address away from home (internet)**, e.g. `http://myhome.ddns.net:8097`. At home Velivo uses the home address (🏠); when the server does not answer at home it asks whether to connect via internet (🌍; *Yes* or *Always*).
+
 ## 1. First steps
 
 The top Velivo bar has four buttons:
@@ -58,7 +63,7 @@ The bar appears when you move the mouse and hides after a moment.
 | 📺 | TV channels |
 | 📅 | Full TV guide |
 | ℹ | Info bar |
-| 🔄 | Reload the channel |
+| 🔄 | Reload the channel. If the sound disappears while the picture keeps playing, Velivo restores it by itself after a few seconds (“🔊 Sound dropped – restoring…”) and reloads the channel if needed |
 | 🎞 | Playlists and my queue |
 | ⭐📺 | My favourite channels (alphabetical) |
 | ⭐🎬 | My favourite videos (alphabetical) |
@@ -232,3 +237,43 @@ Passwords are encrypted for your Windows account – restore on the same account
 **Files for reporting problems** (data folder `%LOCALAPPDATA%\Programs\Velivo\Dane`):
 - `vlc.log` – the last video or channel (before sending, replace the token with XXX),
 - `bledy.log` – program errors (appears only when something goes wrong).
+
+## 14. Films and TV on the phone (Velivo for Android)
+
+Menu (the V logo) → the **Films and TV** group: **📺 Television**, **🎬 Library** (Jellyfin), **📁 My films**. It works in every phone version (including Google Play) – Velivo has no channels of its own; you only watch from your own list.
+
+**Quick start – settings from the computer:** on the computer right-click a tab → 📺 Send to… → **🎬 Send Films & TV settings to: 📱 phone**. The computer asks, and the phone asks before saving. The Jellyfin address and key and your channel lists (with the TV guide) are sent encrypted, only to that phone. Then choose who's watching (the Jellyfin user) on the phone.
+
+### 📺 Television
+- **Your own channel lists:** ⚙ → **➕ Add a channel list** – a name, an M3U address (or an **M3U file from the phone**) and a TV guide address (EPG / XMLTV, optional; if the list names one in its header, Velivo picks it up). Several lists at once; ⚙ → list → Edit / Delete.
+- **TV guide:** "Now: … (until 21:00)" and "Next: …" by every channel; press and hold a channel → **📅 TV guide** (upcoming programmes with descriptions). Downloaded every 12 hours, only for channels on your list.
+- **⭐ Favourites:** the star by a channel. **📋 My lists:** press and hold a channel → Add to list / New list of my own (e.g. "For Mum").
+- **☰ Show:** all, favourites, my lists or a group from the list. Search and sorting (favourites first, A–Z, list order) – remembered.
+- **Watching:** tap a channel. **Swipe up / down** – next / previous channel (from the visible list). Velivo remembers the last channel.
+- **Privacy:** the list address (usually with a token) and the channel list are stored on the phone **encrypted** (Android Keystore); the token never appears in messages or logs.
+
+### 🎬 Library (Jellyfin)
+- **No API keys:** Velivo **finds the Jellyfin server on your home network by itself**. Tap it, pick yourself from the user list and enter your password – as in the Jellyfin app. (Server not shown – **Enter the server address…**, e.g. `192.168.1.10`.) The phone gets its own token – encrypted, visible in Jellyfin → Devices (you can revoke it there); it goes in a header, never in the address.
+- **☰:** Continue watching / Films / Series. Posters, year, length, description; sort A–Z, newest, year (remembered).
+- A series → its episodes → an episode; the next episode starts by itself.
+- **Your place in a video** is remembered on the phone and sent back to Jellyfin – "Continue watching" matches on the computer and TV too.
+
+### 📁 My films
+- **＋** – choose films or music from the phone (several at once). Velivo only gets access to **the files you choose** (no access to the whole storage). Press and hold – remove from the list (the file stays).
+
+### 🎵 My songs (YouTube)
+- **Your own list of YouTube songs – stored on the phone only**, no Google account needed. Menu → Films and TV → **⭐ Add this song** (while a song plays on YouTube) – choose a **category** (Pop, Rock, Dance, Folk, Classical, Jazz, For sleep, Relaxing, For children, Other or your own) and optionally a **playlist** (e.g. "Mum's bedtime"). The same by pressing and holding the red YouTube bar.
+- Menu → **🎵 My songs**: thumbnails, sorting **A–Z / by category / recently added** (remembered), ☰ – all, one category or one playlist, search.
+- **▶ Play all in order**, **🔀 shuffle** or tap a song – Velivo plays your list in order (also in the background and with the screen off), without YouTube slipping in its own suggestions.
+- Press and hold a song – change category, add to / remove from a playlist, rename, delete.
+
+> **Already have Jellyfin with an API key on the PC?** On Windows: right-click 🎬 or 📺 → "📱 Send Films & TV to phone" → pick the phone. TV lists from files on disk go too (their content, encrypted; large lists go separately as a file – the phone asks and adds them to 📺 TV itself). The phone asks first, stores the address and key encrypted, and picks the user itself if the server has only one. Nothing to type.
+
+- **📲 Films and TV without pairing (e.g. your mum's phone):** On the phone: TV → ⚙ → **📲 Ask the computer for Films and TV** (or the button when adding a list). The computer (Velivo for Windows on the same network, LAN sync on) asks with a 6-digit code – the owner clicks **Yes**, the phone shows the same code and asks before saving. **Only** TV channel lists and the Jellyfin server address arrive (no key – sign in with your own Jellyfin user, e.g. "Mum"). **Passwords, bookmarks and Quick Access never go this way** – only after pairing. The exchange is encrypted with a one-time key. Note: the channel list gives access to your TV provider (often one stream at a time).
+
+### ▶ Player
+- Tap – controls: pause, seeking, **subtitles** and **audio track (narrator / language)** in the player settings.
+- **Gestures (films):** left half up / down – **brightness**, right half – **volume**, sideways – seek (full width = 3 minutes).
+- **Remembers your place** (videos over 2 minutes), "▶ Carrying on from …"; watched to the end – next time from the start.
+- **⧉ Picture-in-picture** (also by itself when you go to the home screen), **plays in the background** with the screen off (notification with "Stop" and "🌙 Stop in 30 min"), **🌙 sleep timer** in the player. Unplugging headphones pauses.
+- Two fingers in the menu and lists enlarge text and buttons (as everywhere in Velivo).

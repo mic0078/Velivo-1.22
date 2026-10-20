@@ -595,6 +595,9 @@ namespace Velivo
                 {
                     var r = await Task.Run(() => SyncJellyfin(c, t => Dispatcher.BeginInvoke(new Action(() => info.Text = t))));
                     info.Foreground = Brushes.SeaGreen; info.Text = r;
+                    // od razu jak 🔄 Odśwież: nowe filmy z Jellyfin do biblioteki (wcześniej tylko opisy i plakaty - biblioteka zostawała pusta)
+                    var add = await JellyfinAddNewAsync(_libSharedView);
+                    info.Text = r + "\n" + add;
                     _libRefresh?.Invoke();
                 }
                 catch (Exception ex) { info.Foreground = Brushes.IndianRed; info.Text = L.T("⚠ Nie udało się: ") + ex.Message; }

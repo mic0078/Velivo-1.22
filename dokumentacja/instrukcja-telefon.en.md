@@ -1,15 +1,31 @@
 # Velivo for phones – manual
 
-Velivo for Android is a light, private browser in Velivo colours, linked to Velivo for Windows. It needs Android 10 or newer. The computer is the "main" device: anything coming from the phone is always confirmed on the computer.
+Velivo for Android is a light, private browser in Velivo colours with built-in TV, a film library, a video and music player (VLC) and a link to Velivo for Windows. It needs Android 10 or newer. No accounts, no adverts, no tracking – everything stays on the phone. The computer is the "main" device: anything coming from the phone is always confirmed on the computer.
+
+> **👓 Good for people with weak eyesight – why:**
+> - **everything zooms with two fingers** – menu, buttons, lists and page text (up to 220%), and each page remembers its own size;
+> - **large tiles with icons and labels**, three to a row (two when zoomed a lot), large player buttons;
+> - **clear colours** – dark, light or a **black-and-white high-contrast theme** (Theme in Settings);
+> - **reader view** (just the text, large letters) and **read aloud**, also with the screen off;
+> - **brightness and volume gestures** in the player, no hunting for small sliders;
+> - **sticky notes with reminders** (doctor, medicines) and **protection against fake websites** – a red warning with one "Go back (safely)" button;
+> - **no adverts or pop-ups** covering the content.
+>
+> Step-by-step setup: chapter 7.
+
+This manual describes the full version (`Velivo-pelna.apk`). The Google Play versions differ only in YouTube – chapter 10.
 
 ## 1. Screen and menu
 
 - **Address bar** – type an address or search words (searches go through Startpage).
 - **🕶** – new private tab. **The button with a number** – the tab list with thumbnails (tap = switch, ✕ or a sideways swipe = close).
-- **Velivo logo** – the menu. Tiles are in four groups, three to a row: **Tabs**, **This page** (find, reader view, read aloud, remove element, add bookmark, fill in password), **Mine**, **Settings** (with a **🌐 Language** tile). The blocked-ads counter is at the top.
+- **Velivo logo** – the menu. Tiles are in five groups, three to a row: **Tabs**, **This page**, **Films and TV**, **Mine**, **Settings**. At the top, the green "🛡 Blocked ads" counter – tap it for the privacy panel (chapter 6).
+- **Swipe down** closes the menu and list windows (TV, library, notes, guide grid) and shows the page underneath – when the list is scrolled to the very top. Back closes them too.
 - **Bottom bar** – ◀ back, ▶ forward, ⟳ reload, ⌂ start page, ＋ new tab (Quick Access).
 - **The red "▶ YouTube" bar at the very bottom** – YouTube without adverts; press and hold: sleep timer and wake-up (chapter 8).
 - **Press and hold on an advert** or an empty "ADVERT" box – Velivo asks whether to remove it.
+
+- **Home-screen widget:** press and hold an empty spot on the home screen → **Widgets** → **Velivo**. It has **🔎 Search** (opens Velivo with the keyboard), **▶ YouTube** and **🗒 Notes** with the nearest dates ("today", "tomorrow", a date). It shows only your notes on the phone and refreshes after every change. It can be resized.
 
 ## 1a. Zoom (for weaker eyesight)
 
@@ -66,6 +82,17 @@ Quicker: **press and hold** on an advert or an empty "ADVERT" box – Velivo ask
 
 The rules are kept on the phone only (they do not sync with the computer).
 
+**Films and TV** (details in chapter 8a):
+
+| Tile | What it does |
+| --- | --- |
+| 📺 TV | Channels from your IPTV list (M3U) with the TV guide, guide grid, catch-up ⏪ and scheduling ⏰ |
+| 🎬 Library | Films and series from your Jellyfin server on the home network – continue watching, films, series with episodes |
+| 🎞 My films | Your own list of chosen files (phone, memory card, cloud drive) – ＋ adds, press and hold removes from the list |
+| 🎵 My songs | Your list of songs from YouTube: categories, own playlists, playing in order |
+| ⭐ Add this song | Adds the video/song open on YouTube to My songs |
+| 🌙 Stop playing in… | Sleep timer: after this song, after 15–90 minutes or your own time; ⏰ wake-up with a song |
+
 ## 3. Mine
 
 | Tile | What it does |
@@ -92,10 +119,13 @@ Passwords are encrypted with a key in the Android Keystore (the key never leaves
 | --- | --- |
 | Block ads | The same lists as on the computer (EasyList, EasyPrivacy, KAD) – bundled with the app, refreshed every 4 days. No empty box or error frame is left where an advert was (hiding rules as in uBlock Origin); no adverts on YouTube |
 | Play in background | Video / music keep playing after you leave the app and with the screen off (notification with "Stop" and "🌙 Stop in 30 min"); a video moves to a picture-in-picture window |
-| Theme | Like the phone / light / dark – in Velivo colours |
+| Theme | **Dark Velivo (default)** / light / like the phone – in Velivo colours, or **black and white (high contrast)** – black background, white text and frames, coloured icons; for weak eyesight |
 | Sync with computer | Pairing, recovery file, phone name on the network |
 | 🌐 Language | Polish or English – for Velivo only (the system app-language picker) |
 | Clear history | Deletes the browsing history |
+| 🧭 Default browser | Android's own question: make Velivo the default browser (links from other apps open in Velivo). Only if you want |
+| ▶ Default player | How to make videos and music from Gallery, Files or WhatsApp open in Velivo: Open with → Velivo → **Always**. Android does not let an app set this by itself |
+| 📱 Videos and music on the phone | All videos, music and sounds on the whole phone (system ones too) – ☰: everything / 🎬 videos / 🎵 my music / 🔔 built-in sounds (ringtones, notifications, alarms); A–Z or newest; counter at the top. The first time, Android asks for access to videos and music |
 
 ## 5. Connecting to the computer
 
@@ -128,6 +158,10 @@ With several computers use the **recovery file** (computer: Save recovery file�
 - The connection is encrypted (AES-GCM) with the key from pairing; other phones on the network can read nothing.
 - Your reading position, removed elements and settings stay on the phone.
 
+- **Films and TV:** channel list addresses (often with a token) and Jellyfin sign-in data are encrypted on the phone (Android Keystore) and never go to logs or error messages. The channel list and guide are stored encrypted. Scheduled programmes remember only the channel name.
+- **Videos and music on the phone:** Velivo reads them only when you ask (after Android's permission) and sends nothing.
+- **No accounts, no telemetry:** Velivo sends no statistics or data to the author. A crash report is made only on the phone and goes anywhere only if you copy it yourself.
+
 ## 7. Velivo for people with weaker eyesight – step-by-step setup
 
 Best set up once, together with the person who will use the phone:
@@ -151,6 +185,87 @@ Best set up once, together with the person who will use the phone:
 - **⏰ Wake-up / scheduled playback:** press and hold the red YouTube bar → **⏰ Wake-up with a track…** → choose the track: **from the current tab** (e.g. an open YouTube video), **from bookmarks** or **from history** → the time → when: **every day, Mon–Fri, weekend, chosen days** or **once**. At that time Velivo opens even on the lock screen and plays the track with the volume rising gently; **Turn off** or **Snooze 10 min**. In the same place: **▶ Try the wake-up now** and **Turn off wake-up**. The alarm icon in the phone's status bar shows a wake-up is set.
 - The sleep timer also has **Custom time (minutes)…** – any number of minutes.
 
+## 8a. Films and TV
+
+### Player (VLC)
+
+Velivo plays everything with the VLC library – the same as Velivo for Windows: TV channels (MPEG-TS, HLS), old AVI, MKV, MP4, AC3 sound, subtitles. Nothing to install.
+
+- **Top bar:** title and what is on; **🗨** audio language and subtitles; **🌙** sleep timer; **⧉** picture-in-picture; **✕** close. On TV also **☆/⭐** favourite channel, **⏪** from the start of the programme (catch-up) or **⏩** live.
+- **Middle:** ⏮ previous, ⏪ −10 s, ⏯, ⏩ +10 s, ⏭ next (on TV – previous / next channel in the list).
+- **Bottom:** programme description (now, next, details), for films the progress bar and time.
+- **Gestures (portrait and landscape):** left half up/down – **brightness**, right half – **volume** (☀ / 🔊 % indicator), sideways – seek in a film, double tap – ±10 s, tap – show / hide buttons.
+- **Remembered position:** a film resumes where you stopped (Jellyfin – on the server too).
+- **Picture-in-picture and background:** going Home – small window; with the screen off it keeps playing (notification with Stop). Closing the small window stops playback.
+- **🌙 Sleep timer:** at the top **"📺 After this programme ends"** (TV – exactly when the programme ends, also after switching channels) or **"🎬 After this film ends"**, then 15–90 minutes. Playback stops and the phone goes back to normal standby.
+- **Music:** audio files get a space-like VLC visualisation (if the phone supports it).
+
+### 📺 TV
+
+1. **Channel list:** ⚙ → add a list: M3U address (link from your provider) or a file on the phone, optionally a TV guide (EPG) address. Lists can also be sent from Velivo for Windows: right-click 🎬 or 📺 → **📱 Send Films & TV to phone** (large lists from files too). ⚙ → a list → **Edit / Delete**.
+2. **Channels on screen:** A–Z by default (or favourites first / list order), search, **☰** group / ⭐ favourites / 📋 own lists. Under a channel: "Now … (until …) / Next …". **☆** – favourite. Press and hold a channel – 📅 its guide, add to an own list.
+3. **📅 TV guide:** what is on now / today at 20:00 / tomorrow / at a chosen time; **⏰ Scheduled**; **📋 What's on** (channels of the chosen group A–Z → channel guide); **🗓 Guide grid** (channels A–Z × time, red "now" line, scroll sideways – forward and into the archive).
+4. **A programme** (tap in the guide, grid, "what's on"):
+   - **⏰ Turn on at 21:00** → "Turn on and keep playing" or "Turn on and stop when it ends". At that time Velivo turns the channel on by itself – also on the lock screen (system alarm).
+   - **⏪ Watch from the archive** – past programmes (as many days back as the channel has, e.g. 3; at most 7) or the current one from its start. Velivo finds the catch-up format your provider uses (Flussonic, Xtream, shift, own pattern from the list) and remembers it. After a catch-up programme it plays the next one, and when it reaches "now" – live.
+   - **▶ Watch now**, **ℹ Description**.
+5. **Fast:** the list and guide are stored on the phone (encrypted) – TV opens at once, the guide refreshes in the background (every 12 hours), **⟳** forces a refresh. At night (charging + Wi-Fi + phone idle) Velivo refreshes lists, guide and library by itself.
+6. **When a channel does not play:** after 25 s a message – many lists allow one connection at a time; stop TV on the other device (e.g. the computer).
+
+- **📲 Films and TV without pairing (e.g. your mum's phone):** TV → ⚙ → **📲 Ask the computer for Films and TV** (or the button when adding a list). The computer (Velivo for Windows on the same network, LAN sync on) asks with a 6-digit code – the owner clicks **Yes**, the phone shows the same code and asks before saving. **Only** TV channel lists and the Jellyfin server address arrive (no key – sign in with your own Jellyfin user, e.g. "Mum"). **Passwords, bookmarks and Quick Access never go this way** – only after pairing. The exchange is encrypted with a one-time key. Note: the channel list gives access to your TV provider (often one stream at a time).
+
+### 🎬 Library (Jellyfin)
+
+- **No API keys:** Velivo finds the Jellyfin server on your home network → pick a user → password. The server gives the phone its own token (visible in Jellyfin → Devices, can be revoked). Or the settings come from the computer.
+- **Views:** continue watching, films, series (☰); sort A–Z / newest / year. Series → episodes.
+- The library opens at once from the phone's copy and refreshes from the server – films deleted on the server disappear, new ones appear.
+
+### 🎞 My films and 📱 videos and music on the phone
+
+- **🎞 My films** – your chosen list of files (＋ add, press and hold – remove from the list; the file stays on the phone).
+- **📱 Videos and music on the phone** (Settings) – everything on the phone, split into videos, my music and built-in sounds; tap plays, ⏮ ⏭ move through the list.
+
+### 🎵 My songs (YouTube)
+
+Menu → **⭐ Add this song** on an open YouTube video (category, playlists) → **🎵 My songs**: A–Z / categories / newest, ☰ category or playlist, plays in order. Stored only on the phone.
+
+## 8b. Velivo keyboard
+
+The same keyboard as on the computer, in Velivo colours (dark, light or black-and-white theme – chosen in the keyboard app). Works in every app.
+
+* **Layout like a regular phone keyboard:** 10 keys per row (wider, easier to hit). Extra characters – **long-press** a key with the small character above the letter (e.g. D → -, J → ;, M → /, digits → ! @ # …, comma → !, full stop → …); Polish letters as before (long-press A → ą). **Double-tap ⇧** – caps lock.
+* **Separate app** “Velivo keyboard” (file `Velivo-klawiatura.apk`). **Turn on:** open the Velivo keyboard app → *Turn on* (Android settings), then *Choose*. Hold the space bar to switch keyboards.
+* **Menu under the V logo:** tap the Velivo logo in the top-left corner of the keyboard – all functions replace the keys: 🗒 new sticky note, 📋 notes, 🔍 search in Velivo, ▶ YouTube, autocorrect, sound, read aloud, dictation, My dictionary, language, theme, key height, change keyboard and settings. Tap the logo again to return to the keys.
+* **Swipe typing (flow):** slide your finger across the letters. Wrong word: ⌫ removes it, or pick another from the suggestion bar.
+* **Polish letters:** hold a letter (a → ą) or turn on the **ą** key.
+* **Autocorrect ✓**; ⌫ right after a correction restores what you typed.
+* **Suggestion bar:** completions, next word, ➕ adds a new word to My dictionary.
+* **📖 My dictionary:** one word per line – add or delete.
+* **🎤 Dictation:** the first time the keyboard app asks for microphone access. **🔊** reads aloud what you type. **PL / EN** – dictionary language.
+* Nothing is learned in password fields. Learned words are encrypted on the phone.
+
+## 8c. Velivo wallpaper
+
+Velivo menu → **🎨 Velivo wallpaper**: a preview (violet–turquoise gradient with the V logo), then *Home screen* or *Home and lock screen*. On Android 12 and newer the system takes its colours from the wallpaper – buttons, settings and quick tiles get Velivo accents (Xiaomi, Huawei and Oppo set only the wallpaper).
+
+## 8d. Velivo messenger and files between phones
+
+Chats and files on your home Wi-Fi – no internet, no server, no phone number. Works between phones (the **Velivo browser or just the Velivo keyboard** is enough) and computers with Velivo for Windows.
+
+* **Own icon:** “Velivo Messenger” on the phone home screen (only one, even with both the browser and the keyboard) and on the Windows desktop (installer option “Velivo messenger on the desktop”).
+* **Opening:** Velivo menu → **💬 Messenger** (or 📤 → 💬). In the keyboard: **V** logo → **💬**. On Windows: the **💬** button on the bar or the tray icon menu.
+* **Adding a contact (once):** **➕ Add** → pick the device (it must have the messenger open on the same network). Both screens show a 6-digit code – the other device accepts only if the code matches.
+* **Status:** 🟢 green – the contact is on the network now; ⚪ grey – offline.
+* **Messages** are encrypted. If the recipient is away (e.g. left home), the message shows **…** and Velivo sends it by itself when they are back on the home network (up to 7 days). Delivered ones show **✓**.
+* **Notifications:** like other messengers – also when Velivo is closed. The phone then shows a quiet, permanent notification “Velivo messenger is waiting for messages”. Turn it off in the messenger: **🔔 Messages while Velivo is closed**.
+* **📎 Attach file** in a chat – any file, no size limit. Photos and files from **added contacts** (up to 2 GB) arrive straight in the chat, like other messengers: photos as thumbnails (tap – full screen), files open with a tap. Saving: long-press → Save to Gallery / Downloads (Windows: right click → Save as…). Switch: 🎨 → “Files from contacts at once”. Files from people outside your contacts and larger than 2 GB – always with a question.
+* **Ticks:** … waiting to be sent, ✓ delivered (waiting to be opened), ✓✓ read – also for photos and files.
+* **📲 Files to another phone** (menu, 📤 or keyboard) – also to someone not in your contacts: both screens then show a code to compare.
+* Long-press a contact: **rename** or **delete** the contact and chat.
+* Contacts and chats are stored only on the device, encrypted (Android Keystore / Windows DPAPI).
+* **🌍 Chats away from home:** one always-on computer with Velivo becomes the relay. In its messenger: 🎨 → **🌍 Chats away from home…** → tick the relay, enter the home address (e.g. from No-IP) and the port (default 41920). In the router forward this TCP port to that computer (like for Jellyfin). Other devices get the address automatically while at home. Away from home the phone and computers connect through the relay by themselves (the chat shows “online (via internet)”), at home as before through the home network. Messages, ticks, photos and files work. Only your contacts can use it; everything is encrypted. The top of the messenger always shows 🏠 **At home – home network** or 🌍 **Away from home – via internet**; contacts show 🏠 / 🌍.
+* **✉ Invitation via internet** (someone far away who was never on your network): ➕ Add contact → **✉ Invite via internet** → send the code (SMS, e-mail, messenger). The other person: ➕ → **🔑 I have an invitation** → pastes the code. You get a request (also as a notification when Velivo is in the background) with a 6-digit code – accept if it matches. The invitation works once and expires after 7 days; it needs the relay turned on.
+
 ## 9. When something goes wrong
 
 - If Velivo closes because of an error, next time it opens it shows **"Velivo closed because of an error"** with a **Copy** button – send that description to the Velivo developer (no addresses or page content – just how the error happened).
@@ -158,3 +273,17 @@ Best set up once, together with the person who will use the phone:
 - A site misbehaves because of ad blocking: the privacy panel (the 🛡 counter in the menu) → **Turn off blocking here**.
 - Reading or music stops after the screen turns off (Xiaomi): Settings → Apps → Velivo → Battery saver → **No restrictions**.
 - The wake-up didn't ring: check the phone isn't muted and that Velivo has **Alarms & reminders** permission in Android Settings.
+
+## 10. Installing, updates and app versions
+
+- **Installing from the file** `Velivo-pelna.apk` (e.g. from WhatsApp): the phone asks to allow installs from that source. Google Play Protect warns about **every** app from outside Google Play – choose **More details → Install anyway**. It does not mean Velivo is harmful; there is no warning when installing from Google Play.
+- **Updates:** open the new `Velivo-pelna.apk` and tap **Update** – it installs over the old version and everything stays (settings, channel lists, favourites, passwords, notes). **Do not uninstall** the old version – you would lose your data.
+- **Three versions from one code base:**
+
+| Version | File | For whom | YouTube |
+| --- | --- | --- | --- |
+| Full | `Velivo-pelna.apk` | You, family, friends (install from the file) | No adverts, in the background, "YouTube · no adverts" bar, My songs |
+| Store | `Velivo-sklep.aab` | Google Play – careful | No ad blocking on YouTube and no YouTube in the background |
+| Store YT | `Velivo-sklepyt.aab` | Google Play – like Brave | Ad blocking and background play on YouTube too, without advertising it |
+
+Everything else (browser, privacy, TV, films, Jellyfin, notes, sync) is the same. The full version and the store versions are different apps for the phone – they update separately (file / Google Play).

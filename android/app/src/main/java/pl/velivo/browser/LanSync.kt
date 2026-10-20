@@ -45,10 +45,19 @@ class LanSync(
     private val onState: (device: String, bookmarks: String?, passwords: String?) -> Unit,
     private val onQuickAccess: (device: String, zip: ByteArray) -> Unit = { _, _ -> },
     // plik z komputera: pytanie (odpowiedź przez accept(true/false)), potem zapis
-    private val askFile: (device: String, name: String, size: Int, accept: (Boolean) -> Unit) -> Unit = { _, _, _, a -> a(false) },
+    private val askFile: (device: String, name: String, size: Long, accept: (Boolean) -> Unit) -> Unit = { _, _, _, a -> a(false) },
     private val saveFile: (name: String, data: ByteArray, device: String) -> Unit = { _, _, _ -> },
     // karta wysłana z komputera (📺 Wyślij do… w Velivo na Windows)
     private val onTab: (device: String, url: String, title: String, time: Double) -> Unit = { _, _, _, _ -> },
+    // ustawienia Filmów i TV z komputera (Jellyfin, listy kanałów) - telefon zawsze pyta
+    private val onMedia: (device: String, jellyfin: JSONObject?, tv: JSONArray?) -> Unit = { _, _, _ -> },
+    // Filmy i TV udostępnione bez parowania - z kodem do porównania z komputerem
+    private val onMediaShared: (device: String, code: String, jellyfin: JSONObject?, tv: JSONArray?) -> Unit = { _, _, _, _ -> },
+    // duży plik (file2, po kawałkach): zapis z pliku tymczasowego; tmpDir - gdzie go składać
+    private val tmpDir: java.io.File? = null,
+    private val saveFileFrom: (name: String, tmp: java.io.File, device: String) -> Unit = { _, t, _ -> t.delete() },
+    // komunikator i pliki telefon <-> telefon (Komunikator.kt) - na gniazdach tej synchronizacji
+    private val p2p: Komunikator? = null,
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -151,6 +160,9 @@ class LanSync(
             runCatching { s.send(DatagramPacket(data, data.size, target, PORT)) }
     }
 
+    // pakiet komunikatora (gotowe bajty) przez gniazdo synchronizacji
+    fun sendRaw(data: ByteArray, target: InetAddress) { udp?.send(DatagramPacket(data, data.size, target, PORT)) }
+
     private fun sendTo(p: JSONObject, target: InetAddress) {
         val data = p.toString().toByteArray(Charsets.UTF_8)
         udp?.send(DatagramPacket(data, data.size, target, PORT))
@@ -169,6 +181,7 @@ class LanSync(
 
     private fun handle(data: ByteArray, sender: InetAddress? = null) {
         val p = JSONObject(String(data, Charsets.UTF_8))
+        if (p2p?.handleUdp(p, sender) == true) return   // komunikator: własny identyfikator i własna kontrola
         val from = p.optString("id")
         if (from == id || from.length != 32) return
         val now = System.currentTimeMillis()
@@ -181,6 +194,8 @@ class LanSync(
             "pair-key" -> pairKey(p, sender)
             "state" -> state(p, sender)
             "tab" -> tab(p)
+            "media-conf" -> mediaConf(p)
+            "media-give" -> mediaGive(p)
         }
     }
 
@@ -312,6 +327,53 @@ class LanSync(
         ui(Runnable { onTab(dev, url, j.optString("title").take(300), j.optDouble("time", 0.0)) })
     }
 
+    private fun mediaConf(p: JSONObject) {
+        val j = openBlob(p) ?: return
+        if (j.optString("to") != id) return
+        val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
+        ui(Runnable { onMedia(dev, j.optJSONObject("jellyfin"), j.optJSONArray("tv")) })
+    }
+
+    // --- Filmy i TV bez parowania (np. telefon mamy): prośba z jednorazowym kluczem ECDH, komputer pyta właściciela
+    // i pokazuje kod; odpowiedź (listy TV, adres Jellyfin - bez haseł i zakładek) przychodzi w kawałkach, szyfrowana tym kluczem.
+    private var mediaAsk: Triple<String, java.security.KeyPair, Long>? = null   // pairId, moje klucze, do kiedy
+    private val mediaParts = HashMap<Int, String>()
+
+    fun askMedia() {
+        val kp = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
+        val pairId = UUID.randomUUID().toString().replace("-", "")
+        mediaAsk = Triple(pairId, kp, System.currentTimeMillis() + 3 * 60 * 1000)
+        synchronized(mediaParts) { mediaParts.clear() }
+        Thread {
+            while (running && mediaAsk?.first == pairId && System.currentTimeMillis() < (mediaAsk?.third ?: 0)) {
+                runCatching { send(packet("media-ask").put("hash", "").put("pairId", pairId).put("pub", b64(kp.public.encoded))) }
+                Thread.sleep(4000)
+            }
+        }.start()
+    }
+
+    private fun mediaGive(p: JSONObject) {
+        val ask = mediaAsk ?: return
+        if (p.optString("pairId") != ask.first || p.optString("hash") != id || System.currentTimeMillis() > ask.third) return
+        val parts = p.optInt("parts"); val part = p.optInt("part")
+        if (parts !in 1..200 || part !in 0 until parts) return
+        val all = synchronized(mediaParts) { mediaParts[part] = p.optString("data"); if (mediaParts.size == parts) (0 until parts).joinToString("") { mediaParts[it] ?: "" } else null } ?: return
+        mediaAsk = null
+        val remote = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(unb64(p.optString("pub"))))
+        val ka = KeyAgreement.getInstance("ECDH").apply { init(ask.second.private); doPhase(remote, true) }
+        val agreement = MessageDigest.getInstance("SHA-256").digest(ka.generateSecret())   // jak .NET DeriveKeyMaterial
+        val key = hmac(agreement, "Velivo LAN pairing v1\n${ask.first}".toByteArray())
+        val digest = hmac(key, "Velivo LAN pairing code v1\n${ask.first}".toByteArray())
+        val n = ((digest[0].toLong() and 0xff) or ((digest[1].toLong() and 0xff) shl 8) or ((digest[2].toLong() and 0xff) shl 16) or ((digest[3].toLong() and 0xff) shl 24)) % 1000000
+        val c = Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, unb64(p.optString("nonce"))))
+        c.updateAAD(ask.first.toByteArray(Charsets.UTF_8))
+        val plain = runCatching { c.doFinal(unb64(all) + unb64(p.optString("tag"))) }.getOrNull() ?: return
+        val j = runCatching { JSONObject(String(gunzip(plain), Charsets.UTF_8)) }.getOrNull() ?: return
+        val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
+        ui(Runnable { onMediaShared(dev, n.toString().padStart(6, '0'), j.optJSONObject("jellyfin"), j.optJSONArray("tv")) })
+    }
+
     // Telefon → komputer: karta (ten sam format co "📺 Wyślij do…" na Windows).
     fun sendTab(url: String, title: String, time: Double): Boolean {
         val to = pcId ?: return false
@@ -384,6 +446,8 @@ class LanSync(
                             val header = JSONObject(String(ByteArray(hl).also { b -> inp.readFully(b) }, Charsets.UTF_8))
                             if (header.optString("Type") == "quick-access") { quickAccess(header, inp, it.getOutputStream()); return@use }
                             if (header.optString("Type") == "file") { receiveFile(header, inp, it); return@use }
+                            if (header.optString("Type") == "file2") { receiveFile2(header, inp, it); return@use }
+                            if (p2p?.handleTcp(header, inp, it) == true) return@use
                             val len = header.optInt("Length")
                             if (header.optString("Type") != "lan-state" || len <= 0 || len > TCP_LIMIT) return@use
                             val data = ByteArray(len).also { b -> inp.readFully(b) }
@@ -442,7 +506,7 @@ class LanSync(
         val dev = h.optString("Device").filter { !it.isISOControl() }.take(64)
         val latch = java.util.concurrent.CountDownLatch(1)
         var ok = false
-        ui(Runnable { askFile(dev, name, len - 16) { yes -> ok = yes; latch.countDown() } })
+        ui(Runnable { askFile(dev, name, (len - 16).toLong()) { yes -> ok = yes; latch.countDown() } })
         if (!latch.await(3, java.util.concurrent.TimeUnit.MINUTES)) ok = false
         val out = sock.getOutputStream()
         out.write(if (ok) 1 else 0); out.flush()
@@ -457,6 +521,106 @@ class LanSync(
         if (!hash.equals(h.optString("Hash"), ignoreCase = true)) return
         saveFile(name, plain, dev)
         out.write(hmac(a, ("file-ack\n" + h.optString("Hash")).toByteArray(Charsets.UTF_8))); out.flush()
+    }
+
+    // --- file2: duże pliki po kawałkach 1 MB (AES-GCM każdy kawałek, nonce = bazowy XOR numer, AAD z numerem i znacznikiem końca) ---
+    private fun file2Ad(h: JSONObject) = listOf(h.optString("Type"), h.optString("Id"), h.optString("Device"), h.optString("Profile"),
+        h.optLong("Timestamp").toString(), h.optString("Hash"), h.optLong("Size").toString(), h.optString("Name")).joinToString("\n").toByteArray(Charsets.UTF_8)
+    private fun chunkNonce(base: ByteArray, i: Int) = base.copyOf().also { n -> for (b in 0..3) n[8 + b] = (n[8 + b].toInt() xor (i shr (24 - 8 * b))).toByte() }
+    private fun chunkAad(ad: ByteArray, i: Int, last: Boolean) = ad + ("\n$i\n" + (if (last) "1" else "0")).toByteArray(Charsets.UTF_8)
+    private fun chunks(size: Long) = maxOf(1L, (size + CHUNK - 1) / CHUNK).toInt()
+
+    private fun receiveFile2(h: JSONObject, inp: DataInputStream, sock: java.net.Socket) {
+        val k = encKey ?: return; val a = authKey ?: return
+        val size = h.optLong("Size")
+        if (size < 0 || size > FILE2_LIMIT || h.optString("Id").length != 32 || h.optString("Id") == id) return
+        if (Math.abs(h.optLong("Timestamp") - System.currentTimeMillis()) > 300000) return
+        val ad = file2Ad(h)
+        if (!MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(a, ad))) return
+        val base = unb64(h.optString("Nonce")); if (base.size != 12) return
+        val name = h.optString("Name").replace('\\', '/').substringAfterLast('/').filter { !it.isISOControl() && it !in "<>:\"|?*" }
+            .trim().trimStart('.').ifEmpty { "plik" }.takeLast(120)
+        val dev = h.optString("Device").filter { !it.isISOControl() }.take(64)
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var ok = false
+        ui(Runnable { askFile(dev, name, size) { yes -> ok = yes; latch.countDown() } })
+        if (!latch.await(3, java.util.concurrent.TimeUnit.MINUTES)) ok = false
+        val out = sock.getOutputStream()
+        out.write(if (ok) 1 else 0); out.flush()
+        if (!ok) return
+        sock.soTimeout = 60000
+        val tmp = java.io.File(tmpDir ?: return, "odbior-" + UUID.randomUUID() + ".part")
+        var good = false
+        try {
+            val md = MessageDigest.getInstance("SHA-256")
+            java.io.FileOutputStream(tmp).use { fo ->
+                val n = chunks(size); var got = 0L
+                for (i in 0 until n) {
+                    val lb = ByteArray(4).also { b -> inp.readFully(b) }
+                    val l = (lb[0].toInt() and 0xff) or ((lb[1].toInt() and 0xff) shl 8) or ((lb[2].toInt() and 0xff) shl 16) or ((lb[3].toInt() and 0xff) shl 24)
+                    if (l < 16 || l > CHUNK + 16) return
+                    val enc = ByteArray(l).also { b -> inp.readFully(b) }
+                    val c = Cipher.getInstance("AES/GCM/NoPadding")
+                    c.init(Cipher.DECRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, chunkNonce(base, i)))
+                    c.updateAAD(chunkAad(ad, i, i == n - 1))
+                    val plain = c.doFinal(enc)
+                    got += plain.size; if (got > size) return
+                    md.update(plain); fo.write(plain)
+                }
+                if (got != size) return
+            }
+            if (!md.digest().joinToString("") { "%02X".format(it) }.equals(h.optString("Hash"), ignoreCase = true)) return
+            good = true
+            saveFileFrom(name, tmp, dev)
+            out.write(hmac(a, ("file-ack\n" + h.optString("Hash")).toByteArray(Charsets.UTF_8))); out.flush()
+        } finally { if (!good) tmp.delete() }
+    }
+
+    // wysłanie dużego pliku do komputera: open() - strumień od początku (dwa razy: suma, potem wysyłka)
+    fun sendFile2(name: String, size: Long, open: () -> java.io.InputStream): String {
+        val k = encKey ?: return "brak parowania"
+        val a = authKey ?: return "brak parowania"
+        val target = pcAddress ?: return "brak komputera w sieci"
+        val md = MessageDigest.getInstance("SHA-256")
+        open().use { s -> val b = ByteArray(1 shl 16); while (true) { val r = s.read(b); if (r < 0) break; md.update(b, 0, r) } }
+        val hash = md.digest().joinToString("") { "%02X".format(it) }
+        val base = ByteArray(12).also { random.nextBytes(it) }
+        val h = JSONObject().put("Type", "file2").put("Id", id).put("Device", deviceName()).put("Profile", profile())
+            .put("Timestamp", System.currentTimeMillis()).put("Hash", hash).put("Size", size).put("Length", 0).put("Name", name).put("Nonce", b64(base))
+        val ad = file2Ad(h)
+        h.put("Mac", b64(hmac(a, ad)))
+        return runCatching {
+            java.net.Socket().use { s ->
+                s.connect(InetSocketAddress(target, PORT), 5000)
+                s.soTimeout = 180000
+                val out = java.io.BufferedOutputStream(s.getOutputStream(), 1 shl 16)
+                val hb = h.toString().toByteArray(Charsets.UTF_8)
+                out.write(byteArrayOf(hb.size.toByte(), (hb.size shr 8).toByte(), (hb.size shr 16).toByte(), (hb.size shr 24).toByte()))
+                out.write(hb); out.flush()
+                val inp = DataInputStream(s.getInputStream())
+                if (inp.read() != 1) return@use "odrzucono"
+                s.soTimeout = 300000
+                val n = chunks(size); var sent = 0L
+                open().use { src ->
+                    val buf = ByteArray(CHUNK)
+                    for (i in 0 until n) {
+                        var len = 0
+                        while (len < CHUNK) { val r = src.read(buf, len, CHUNK - len); if (r < 0) break; len += r }
+                        sent += len
+                        val c = Cipher.getInstance("AES/GCM/NoPadding")
+                        c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, chunkNonce(base, i)))
+                        c.updateAAD(chunkAad(ad, i, i == n - 1))
+                        val enc = c.doFinal(buf, 0, len)
+                        out.write(byteArrayOf(enc.size.toByte(), (enc.size shr 8).toByte(), (enc.size shr 16).toByte(), (enc.size shr 24).toByte()))
+                        out.write(enc)
+                    }
+                    out.flush()
+                }
+                if (sent != size) return@use "plik zmienił się w trakcie"
+                val ack = ByteArray(32).also { inp.readFully(it) }
+                if (MessageDigest.isEqual(ack, hmac(a, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"
+            }
+        }.getOrElse { it.message ?: it.javaClass.simpleName }
     }
 
     // Wysłanie pliku do komputera, z którym telefon się synchronizuje. Wynik: "ok", "odrzucono" albo opis błędu.
@@ -504,6 +668,8 @@ class LanSync(
         const val TCP_LIMIT = 8 * 1024 * 1024
         const val QA_LIMIT = 24 * 1024 * 1024
         const val FILE_LIMIT = 100 * 1024 * 1024
+        const val CHUNK = 1 shl 20                          // kawałek dużego pliku: 1 MB
+        const val FILE2_LIMIT = 1L shl 40   // bez praktycznego limitu (1 TB - tylko ochrona przed błędnym nagłówkiem)
 
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))

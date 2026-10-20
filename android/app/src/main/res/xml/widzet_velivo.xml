@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp" android:minHeight="150dp" android:targetCellWidth="4" android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical" android:updatePeriodMillis="10800000"
+    android:initialLayout="@layout/widzet_velivo" android:previewLayout="@layout/widzet_velivo"
+    android:description="@string/widget_desc" android:widgetCategory="home_screen" />

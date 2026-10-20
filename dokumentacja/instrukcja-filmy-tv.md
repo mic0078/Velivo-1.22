@@ -4,6 +4,11 @@
 
 ---
 
+## 0. W domu i poza domem
+
+* **🎬 Filmy i TV przez komunikator:** w komunikatorze Velivo na Windows – prawy przycisk na kontakcie → **🎬 Wyślij Filmy i TV** (Jellyfin i listy kanałów TV, także z plików). Działa w domu i przez internet (przez pośrednika). Telefon w sieci domowej zapisuje od razu; przez internet zawsze pyta.
+* **Jellyfin poza domem (telefon):** Biblioteka → ustawienia Jellyfin → **🌍 Adres poza domem (internet)**, np. `http://mojdom.ddns.net:8097`. W domu Velivo używa adresu domowego (🏠), a gdy serwer nie odpowiada w domu – pyta, czy połączyć przez internet (🌍; *Tak* albo *Zawsze*).
+
 ## 1. Pierwsze kroki
 
 Na górnym pasku Velivo masz cztery przyciski:
@@ -58,7 +63,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 | 📺 | Kanały telewizji |
 | 📅 | Pełny program TV |
 | ℹ | Pasek informacji |
-| 🔄 | Odśwież kanał |
+| 🔄 | Odśwież kanał. Gdy dźwięk sam zniknie, a obraz gra dalej, Velivo po kilku sekundach samo przywraca dźwięk („🔊 Dźwięk zniknął – przywracam…”), a w razie potrzeby odświeża kanał |
 | 🎞 | Playlisty i moja kolejka |
 | ⭐📺 | Moje ulubione kanały (alfabetycznie) |
 | ⭐🎬 | Moje ulubione filmy (alfabetycznie) |
@@ -133,6 +138,7 @@ Otwórz klawiszem **L** albo przesuń kursor do lewej krawędzi obrazu.
 - **✏ Zmień tytuł**, **🔎 Wyszukaj informacje w sieci**, **📝 Uzupełnij informacje ręcznie**.
 - Opisy i okładki mogą pochodzić z Jellyfin i Filmwebu.
 - **🔄 Odśwież** pobiera nowe dane z Jellyfin i dopisuje do biblioteki nowe filmy. Jeśli jakieś filmy usunięto z Jellyfin, Velivo pokaże ich listę i usunie je z biblioteki dopiero po **Tak** – pliki na dysku zostają.
+- **⬇ Pobierz / uzupełnij teraz** w **🎞 Jellyfin…** też od razu dopisuje nowe filmy do biblioteki (jak 🔄 Odśwież). Filmy, których plików nie widać z tego komputera (np. dysk innego komputera z Jellyfin), Velivo wypisze jako „niedostępne tutaj” – lista jest w `jellyfin-raport.txt` w folderze danych.
 - **Samo odświeżanie:** w **🎞 Jellyfin…** wybierz „co godzinę”, „co 6 godzin” albo „raz dziennie”. Nowe filmy trafiają do biblioteki same; o usuniętych Velivo przypomni dymkiem i zapyta przy 🔄 Odśwież.
 
 ---
@@ -232,3 +238,47 @@ Hasła są zaszyfrowane dla Twojego konta Windows – przywracaj na tym samym ko
 **Pliki do zgłaszania problemów** (folder danych `%LOCALAPPDATA%\Programs\Velivo\Dane`):
 - `vlc.log` – ostatni film lub kanał (przed wysłaniem zamień token na XXX),
 - `bledy.log` – błędy programu (pojawia się tylko, gdy coś pójdzie nie tak).
+
+## 14. Filmy i TV na telefonie (Velivo na Androida)
+
+Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** (Jellyfin), **📁 Moje filmy**. Działa we wszystkich wersjach telefonu (także ze Sklepu Google Play) – Velivo nie ma żadnych kanałów, oglądasz tylko z własnej listy.
+
+**Szybki start – ustawienia z komputera:** na komputerze prawy przycisk na karcie → 📺 Wyślij do… → **🎬 Wyślij ustawienia Filmów i TV do: 📱 telefon**. Komputer pyta, telefon też pyta przed zapisem. Przechodzą adres i klucz Jellyfin oraz listy kanałów (z programem TV) – zaszyfrowane, tylko do tego telefonu. Potem w telefonie wybierz, kto ogląda (użytkownik Jellyfin).
+
+### 📺 Telewizja
+- **Własne listy kanałów:** ⚙ → **➕ Dodaj listę kanałów** – nazwa, adres M3U (albo **plik M3U z telefonu**) i adres programu TV (EPG / XMLTV, opcjonalnie; jeśli lista ma go w nagłówku, Velivo weźmie go sam). Kilka list naraz; ⚙ → lista → Zmień / Usuń.
+- **Program TV:** przy każdym kanale „Teraz: … (do 21:00)” i „Potem: …”; przytrzymaj kanał → **📅 Program TV** (najbliższe audycje z opisem). Program pobierany co 12 godzin, tylko dla kanałów z listy.
+- **⭐ Ulubione:** gwiazdka przy kanale. **📋 Moje listy:** przytrzymaj kanał → Dodaj do listy / Nowa własna lista (np. „Dla mamy”).
+- **☰ Pokaż:** wszystkie, ulubione, moje listy albo grupę z listy. Szukanie i sortowanie (ulubione najpierw, A–Z, kolejność z listy) – zapamiętane.
+- **Oglądanie:** stuknij kanał. **Przesunięcie palcem w górę / w dół** – następny / poprzedni kanał (z widocznej listy). Velivo pamięta ostatni kanał.
+- **Prywatność:** adres listy (zwykle z tokenem) i lista kanałów są zapisane w telefonie **zaszyfrowane** (Android Keystore); token nigdy nie pojawia się w komunikatach ani w logach.
+
+### 🎬 Biblioteka (Jellyfin)
+- **Bez kluczy API:** Velivo **samo znajduje serwer Jellyfin w sieci domowej**. Stuknij go, wybierz siebie z listy użytkowników i wpisz hasło – jak w aplikacji Jellyfin. (Nie widać serwera – **Wpisz adres serwera…**, np. `192.168.1.10`.) Telefon dostaje własny token – zaszyfrowany, widoczny w Jellyfin → Urządzenia (można go tam odwołać); idzie w nagłówku, nigdy w adresie.
+- **☰:** Oglądane dalej / Filmy / Seriale. Plakaty, rok, czas, opis; sortowanie A–Z, najnowsze, rok (zapamiętane).
+- Serial → lista odcinków → odcinek; następny odcinek włącza się sam.
+- **Pełny opis filmu:** przytrzymaj film na liście – pełny opis, rok i czas trwania, a do tego **Odtwórz** albo **Odtwórz z lektorem**.
+- **🗣 Lektor (jak na Windows):** w odtwarzaczu 🗨 → *Lektor: czytaj napisy na głos*. Czyta napisy filmu z Jellyfin głosem Google (gdy jest w telefonie), film na ten czas jest ściszony; przy szybkich dialogach przyspiesza, zaległe kwestie pomija. *Napisy dla lektora…* – wybór napisów (polskie najpierw). Ustawienie jest zapamiętane. **🎚 Głośność filmu i lektora** – osobno: jak głośny jest film w czasie czytania (domyślnie 35 %, 100 % = bez ściszania) i jak głośny jest lektor; zmiana słychać od razu.
+- **⏱ Przesunięcie napisów:** w odtwarzaczu 🗨 → *Przesunięcie napisów* – przyciski −1 s, −0,1, +0,1, +1 s działają na żywo (film gra dalej) dla napisów na ekranie i dla lektora; napisy za późno – „−”, za wcześnie – „+”. Zapamiętane dla tego filmu, *Zeruj* wraca do 0.
+- **⬇ Pobierz napisy (Jellyfin):** w odtwarzaczu 🗨 – szuka polskich (potem angielskich) napisów przez serwer Jellyfin i pobiera wybrane do filmu; potrzebna wtyczka napisów w Jellyfin (np. OpenSubtitles).
+- **Miejsce w filmie** zapamiętane w telefonie i odesłane do Jellyfin – „Oglądane dalej” zgadza się też na komputerze i telewizorze.
+
+### 📁 Moje filmy
+- **＋** – wybierz filmy lub muzykę z telefonu (wiele naraz). Velivo ma dostęp **tylko do wybranych plików** (bez dostępu do całej pamięci). Przytrzymaj – usuń z listy (plik zostaje).
+
+### 🎵 Moje utwory (YouTube)
+- **Twoja lista utworów z YouTube – zapisana tylko w telefonie**, bez konta Google. Menu → Filmy i TV → **⭐ Dodaj ten utwór** (gdy gra utwór na YouTube) – wybierz **kategorię** (Pop, Rock, Disco polo, Biesiadne, Klasyczna, Jazz, Do snu, Relaks, Dla dzieci, Inne albo własna) i opcjonalnie **playlistę** (np. „Do snu mamy”). To samo przytrzymując czerwony pasek YouTube.
+- Menu → **🎵 Moje utwory**: miniatury, sortowanie **A–Z / kategoriami / ostatnio dodane** (zapamiętane), ☰ – wszystkie, jedna kategoria albo jedna playlista, szukanie.
+- **▶ Odtwórz wszystkie po kolei**, **🔀 losowo** albo stuknij utwór – Velivo gra po kolei z Twojej listy (także w tle i przy zgaszonym ekranie), YouTube nie wtrąca swoich propozycji.
+- Przytrzymaj utwór – zmień kategorię, dodaj do playlisty / usuń z playlisty, zmień nazwę, usuń.
+
+> **Masz już Jellyfin z kluczem API na komputerze?** Na Windows: prawy klik na 🎬 albo 📺 → „📱 Wyślij Filmy i TV do telefonu” → wybierz telefon. Listy TV z pliku na dysku też idą (ich treść, zaszyfrowana; duże listy idą osobno jak plik – telefon zapyta o zgodę i sam doda je do 📺 Telewizji). Telefon zapyta o zgodę, zapisze adres i klucz zaszyfrowane, a gdy na serwerze jest jeden użytkownik — wybierze go sam. Nic nie wpisujesz.
+
+- **📲 Filmy i TV bez parowania (np. telefon mamy):** Na telefonie: Telewizja → ⚙ → **📲 Poproś komputer o Filmy i TV** (albo przycisk przy dodawaniu listy). Na komputerze (Velivo na Windows, w tej samej sieci, z włączoną synchronizacją LAN) wyskakuje pytanie z 6-cyfrowym kodem – właściciel klika **Tak**, telefon pokazuje ten sam kod i pyta o zapis. Przychodzą **tylko** listy kanałów TV i adres serwera Jellyfin (bez klucza – logowanie własnym użytkownikiem Jellyfin, np. „Mama”). **Hasła, zakładki i Szybki Dostęp nigdy nie idą tą drogą** – tylko po parowaniu. Wymiana jest szyfrowana jednorazowym kluczem. Uwaga: lista kanałów daje dostęp do Twojego dostawcy TV (często jedno oglądanie naraz).
+
+### ▶ Odtwarzacz
+- Stuknięcie – przyciski: pauza, przewijanie, **napisy** i **ścieżka dźwięku (lektor / język)** w ustawieniach odtwarzacza.
+- **Gesty (filmy):** lewa połowa w górę / w dół – **jasność**, prawa – **głośność**, w bok – przewijanie (cała szerokość = 3 minuty).
+- **Pamięta miejsce** (filmy dłuższe niż 2 min), „▶ Wznawiam od miejsca …”; obejrzany do końca – następnym razem od początku.
+- **⧉ Obraz w obrazie** (także samo po wyjściu do ekranu głównego), **gra w tle** przy zgaszonym ekranie (powiadomienie z „Zatrzymaj” i „🌙 Wyłącz za 30 min”), **🌙 wyłącznik czasowy** w odtwarzaczu. Wyjęcie słuchawek – pauza.
+- Dwa palce w menu i listach powiększają napisy i przyciski (jak w całym Velivo).

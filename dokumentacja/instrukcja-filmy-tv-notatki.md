@@ -103,3 +103,19 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - TV na żywo: zamiast −10 s / +10 s / 1× przyciski ↶ poprzedni kanał (po kolei), ⇤ do pierwszego, 🕘 historia (20 ostatnich, alfabetycznie). Przy filmie i archiwum bez zmian.
 - Historia kanałów zapisana na stałe (IptvSt.Hist, 20 ostatnich, aktualizowana na bieżąco); ↶ i ⇤ tylko przesuwają się po historii – nic nie kasują.
 - Jellyfin: 🔄 Odśwież pyta o filmy usunięte z Jellyfin (lista, usuwa z biblioteki Velivo dopiero po „Tak”, pliki zostają; gdy serwer zwróci wyraźnie mniej filmów – nic nie oznacza). Samo odświeżanie w oknie 🎞 Jellyfin…: wyłączone / co godzinę / co 6 godzin / raz dziennie (sprawdzane co 10 min, pierwsze 2 min po starcie).
+- Android (Filmy i TV): odtwarzacz Media3/ExoPlayer (PlayerActivity) – HLS, MPEG-TS, MP4/MKV, napisy i ścieżki dźwięku z menu odtwarzacza; PiP, tło (PlaybackService), wyłącznik, gesty (jasność / głośność / przewijanie; TV: przesunięcie = kanał). Pozycja w filmie: prefs „filmy” (klucze jf-*, moje-*), Jellyfin – POST /Sessions/Playing/Stopped.
+- Android TV: źródła (nazwa, M3U http/https lub plik content://, EPG) zaszyfrowane (Passwords.secret „tv-zrodla”), lista kanałów w filesDir/tv/<id>.bin zaszyfrowana; EPG XMLTV (gz) parsowany strumieniowo, tylko kanały z listy, okno −6 h…+48 h, cache 12 h. Ulubione i własne listy po kluczu źródło|nazwa (nie po adresie z tokenem).
+- Android Jellyfin: X-Emby-Token w nagłówku (obrazy i strumień też), Users → wybór użytkownika, Items (Movie, Series), Resume, Shows/Episodes.
+- Windows → telefon: pakiet „media-conf” (zaszyfrowany blob, tylko do wskazanego 📱, pytanie po obu stronach) – adres i klucz Jellyfin, źródła IPTV http(s) z EPG.
+
+- 📱 Wyślij Filmy i TV do telefonu: w menu 🎬 i 📺 (prawy klik); listy TV z pliku wysyłane jako treść (małe w pakiecie UDP, większe niż ~60 KB osobno przez TCP jako Velivo-TV-*.m3u – telefon dodaje je do Telewizji).
+
+- Filmy i TV bez parowania: telefon "media-ask" (ECDH P-256 jednorazowy), komputer pyta z kodem (jak parowanie), "media-give" w kawałkach po 40 000 znaków base64, AES-GCM z AD = pairId; tylko listy TV i adres Jellyfin (bez klucza). Jedno okno pytania naraz.
+
+- Okno 🎞 Jellyfin: „Pobierz / uzupełnij teraz” po SyncJellyfin wywołuje JellyfinAddNewAsync (to samo co 🔄 Odśwież) – wcześniej tylko metadane, biblioteka nowego profilu zostawała pusta (0 / 0).
+
+- Windows: podczas odtwarzania (TV, film) synchronizacja LAN nie buduje i nie szyfruje stanu co 2 s w wątku okna (PlayerBusy) - wysyła zmiany po zatrzymaniu; przycinanie obrazu TV po zmianach sieciowych.
+- Windows, mikroprzycięcia: wykres sieci w pasku odtwarzacza liczy karty sieciowe w tle (było co 1 s w wątku okna); zapis miejsca filmu co 10 s w tle bez przebudowy listy biblioteki; klawiatura ekranowa sprawdza pole hasła innego programu (UI Automation) w tle.
+- Android: Lektor.kt (SRT/VTT/ASS, Windows-1250, TTS com.google.android.tts gdy jest, ściszanie VLC do 35 %, tempo do 2x, kwestie co 150 ms); Jelly.subtitles (MediaStreams → /Videos/{id}/{ms}/Subtitles/{i}/Stream.srt), searchSubs/downloadSub (RemoteSearch/Subtitles); pełny opis po przytrzymaniu w bibliotece.
+- Windows, TV: strażnik dźwięku w tvWatch (co 2 s) - gdy obraz idzie (DecodedVideo rośnie), a PlayedAudioBuffers stoi 6 s: SetAudioTrack(-1)/(tr) bez przerwy w obrazie; nadal cisza po 16 s - _vlcLoad (najwyżej raz na minutę). Wpisy w vlc.log. Przyczyna gubienia dźwięku po dłuższym oglądaniu nieustalona (pomagało 🔄 Odśwież).
+- Filmy i TV poza domem: Windows KomSendMedia wysyła plik Velivo-Filmy-TV.json komunikatorem (KomSendFile, przez pośrednika poza domem); telefon (Komunikator.kt receiveFile) rozpoznaje nazwę, przekazuje do onMedia → receiveMediaConf(ask = przez internet). Jelly.Conf.net - adres internetowy; showLibrary: homeReachable (1,5 s) → adres domowy, inaczej pytanie (pref jf-net-ok = zawsze); Jelly.base(c) we wszystkich adresach Jellyfin.

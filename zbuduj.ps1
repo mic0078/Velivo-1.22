@@ -7,7 +7,6 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
 Write-Host "1/4 Najnowsze zmiany (git pull)..." -ForegroundColor Cyan
-git checkout -- Instalator 2>$null   # poprzednio zbudowany instalator (plik z repozytorium) nie blokuje pobrania zmian
 git checkout rozwoj   # instalator testowy zawsze z galezi roboczej (main = wersja publiczna)
 git pull origin rozwoj
 if ($LASTEXITCODE -ne 0) { Write-Host "Nie udalo sie pobrac zmian z galezi rozwoj." -ForegroundColor Red; exit 1 }
@@ -29,12 +28,16 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja nie powiodla sie." -Foreground
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { Write-Host "Brak Inno Setup: winget install JRSoftware.InnoSetup" -ForegroundColor Red; exit 1 }
-$old = Join-Path $PSScriptRoot 'Instalator\Velivo-Setup-1.22.exe'
+# instalator budowany lokalnie trafia do build\instalator (poza repozytorium) - nigdy nie miesza sie
+# ze starym plikiem Instalator\Velivo-Setup-1.22.exe z repozytorium (strona pobierania)
+$outDir = Join-Path $PSScriptRoot 'build\instalator'
+New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+$old = Join-Path $outDir 'Velivo-Setup-1.22.exe'
 for ($i = 0; $i -lt 10 -and (Test-Path $old); $i++) { try { Remove-Item $old -Force -ErrorAction Stop } catch { Start-Sleep 2 } }   # stary instalator (otwarty / sprawdzany przez antywirus) - kilka prob
 if (Test-Path $old) { Write-Host "Stary instalator jest w uzyciu - zamknij okno instalacji Velivo i uruchom skrypt ponownie." -ForegroundColor Red; exit 1 }
 # antywirus skanuje nowy plik w chwili wstawiania ikony (EndUpdateResource failed) - do 3 prob z przerwa
-for ($i = 1; $i -le 3; $i++) { & $iscc /DPelny src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 3) { Write-Host "Ponawiam budowe instalatora ($i/3)..." -ForegroundColor Yellow; Start-Sleep 5 } }
+for ($i = 1; $i -le 3; $i++) { & $iscc /DPelny "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 3) { Write-Host "Ponawiam budowe instalatora ($i/3)..." -ForegroundColor Yellow; Start-Sleep 5 } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 
-Write-Host "Gotowe: Instalator\Velivo-Setup-1.22.exe (zamknij Velivo calkowicie przed instalacja)" -ForegroundColor Green
-Start-Process (Join-Path $PSScriptRoot 'Instalator')
+Write-Host "Gotowe: build\instalator\Velivo-Setup-1.22.exe (zamknij Velivo calkowicie przed instalacja)" -ForegroundColor Green
+Start-Process $outDir

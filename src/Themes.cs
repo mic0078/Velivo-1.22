@@ -17,8 +17,8 @@ namespace Velivo
         static readonly Dictionary<string, BrowserTheme> BrowserThemes = new Dictionary<string, BrowserTheme>(StringComparer.OrdinalIgnoreCase)
         {
             // domyslny: kolory Velivo z ikony (fiolet -> turkus) - klucz "jasny" bez zmian, zeby zapisane ustawienia dzialaly
-            { "jasny",   new BrowserTheme { Name = "Velivo (domyślny)", TabBar = "#E9E3FB", ToolBar = "#F7F4FF", ActiveTab = "#FFFFFF", Fg = "#2A2150", AddressBg = "#FFFFFF", AddressBorder = "#B9AEE8", Hover = "#E4DDFB", Pressed = "#D3C8F7", Window = "#F1EDFC" } },
-            { "velivo-noc", new BrowserTheme { Name = "Velivo nocny",  TabBar = "#1B1733", ToolBar = "#241F45", ActiveTab = "#2E2768", Fg = "#ECE8FF", AddressBg = "#1A1636", AddressBorder = "#4A3F8A", Hover = "#332B6E", Pressed = "#3F3585", Window = "#1B1733" } },
+            { "jasny",   new BrowserTheme { Name = "Velivo jasny", TabBar = "#E9E3FB", ToolBar = "#F7F4FF", ActiveTab = "#FFFFFF", Fg = "#2A2150", AddressBg = "#FFFFFF", AddressBorder = "#B9AEE8", Hover = "#E4DDFB", Pressed = "#D3C8F7", Window = "#F1EDFC" } },
+            { "velivo-noc", new BrowserTheme { Name = "Velivo nocny (domyślny)",  TabBar = "#1B1733", ToolBar = "#241F45", ActiveTab = "#2E2768", Fg = "#ECE8FF", AddressBg = "#1A1636", AddressBorder = "#4A3F8A", Hover = "#332B6E", Pressed = "#3F3585", Window = "#1B1733" } },
             { "grafit",  new BrowserTheme { Name = "Grafit",           TabBar = "#1F2328", ToolBar = "#2D333B", ActiveTab = "#2D333B", Fg = "#E6EDF3", AddressBg = "#22272E", AddressBorder = "#444C56", Hover = "#3B444F", Pressed = "#4B5563", Window = "#1F2328" } },
             { "granat",  new BrowserTheme { Name = "Granat",           TabBar = "#0B1A33", ToolBar = "#132A4D", ActiveTab = "#132A4D", Fg = "#E2E8F0", AddressBg = "#0E2140", AddressBorder = "#2B4A7A", Hover = "#1E3A66", Pressed = "#284B80", Window = "#0B1A33" } },
             { "fiolet",  new BrowserTheme { Name = "Nocny fiolet",     TabBar = "#1E1033", ToolBar = "#2E1A4D", ActiveTab = "#2E1A4D", Fg = "#EDE9FE", AddressBg = "#24143E", AddressBorder = "#5B3E8C", Hover = "#3E2766", Pressed = "#4C2F80", Window = "#1E1033" } },

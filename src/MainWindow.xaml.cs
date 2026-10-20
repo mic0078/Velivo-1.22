@@ -155,7 +155,7 @@ namespace Velivo
             Closed += (s, e) => CloseIndependent();   // okna niezalezne (biblioteka, telewizja...) zamykaja sie razem z Velivo   // odtwarzacz zamykany razem z Velivo - wznowi ostatni program
             Closing += (s, e) => { if (!e.Cancel) SaveSession(); }; // karty do przywrocenia przy nastepnym starcie
             Closing += OnClosingCleanup;
-            Closed += (s, e) => { _mainClosed = true; StopMost(); StopLanSync(); StopTorrents(); foreach (var w in _noteWindows.Values.ToList()) w.Close(); };   // karteczki bez wlasciciela trzymalyby proces przy zyciu
+            Closed += (s, e) => { _mainClosed = true; StopMost(); KomBye(); KomRelayStop(); _komExit = true; KomTrayRemove(); _komWindow?.Close(); foreach (var p in _komPopups.ToList()) p.Close(); StopLanSync(); KomStopOwn(); StopTorrents(); foreach (var w in _noteWindows.Values.ToList()) w.Close(); };   // karteczki bez wlasciciela trzymalyby proces przy zyciu
             LoadJobs(); // lista pobran z poprzedniego uruchomienia (przerwane mozna wznowic)
             LoadZoom();
             LoadSiteModes();
@@ -163,6 +163,8 @@ namespace Velivo
             InitVlcFeature();   // 🎬 odtwarzacz filmow - tylko gdy dodatek wybrany w instalatorze
             InitIptvFeature();  // 📺 telewizja IPTV - osobny modul z instalatora (wymaga odtwarzacza filmow)
             InitTidyButton();   // 🧹 porzadki i kopia bezpieczenstwa danych
+            InitSendFileButton();   // 📎 pliki do telefonu / komputera
+            InitMessengerButton();   // 💬 komunikator w sieci domowej
             StartDialogGuard(); // okna wyboru pliku / folderu zawsze w calosci na ekranie
             InitZoomMenu();
             UpdateDarkButton();
@@ -184,7 +186,6 @@ namespace Velivo
                     EnsureSejfMostAllowedOrigins();
                     EnsureOneTimeQuickAccessWebViewReset();
                     MigrateQuickAccessProfilePath();
-                    MigrateSejfQuickAccessData();
                     // smieci sprzatamy tylko, gdy nie dziala inne okno przegladarki (jego silnik trzyma te pliki)
                     if (System.Diagnostics.Process.GetProcessesByName("Velivo").Length <= 1) CleanJunkAtStartup();
                     _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(DataDir, "Profil"),

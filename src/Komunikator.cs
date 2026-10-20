@@ -718,7 +718,7 @@ namespace Velivo
             if (_lanRx == null) KomStartOwn();
             KomEnsureTray();
             if (_komWindow != null) { if (!_komWindow.IsVisible) _komWindow.Show(); _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
-            var w = new Window { Icon = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/komunikator.ico")), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true };
+            var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true };
             if (IsVisible) w.Owner = null;
             var root = new Grid { Margin = new Thickness(8) };
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
@@ -943,14 +943,23 @@ namespace Velivo
 
         // 💬 wlasna ikona komunikatora w zasobniku (jak w innych komunikatorach): ✕ chowa okno tutaj, komunikator dalej odbiera wiadomosci
         System.Windows.Forms.NotifyIcon _komTray;
+        static string KomIconFile => Path.Combine(AppContext.BaseDirectory, "komunikator.ico");
+        static System.Windows.Media.ImageSource KomWindowIcon()
+        {
+            try { if (File.Exists(KomIconFile)) return System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(KomIconFile)); } catch (Exception) { }
+            try { return new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/komunikator.ico")); } catch (Exception) { return null; }
+        }
         bool _komExit;   // prawdziwe zamkniecie (wyjscie z Velivo), nie chowanie do zasobnika
 
         void KomEnsureTray()
         {
             if (_komTray != null) { KomTrayUpdate(); return; }
-            System.Drawing.Icon icon;
-            try { using (var st = Application.GetResourceStream(new Uri("pack://application:,,,/komunikator.ico")).Stream) icon = new System.Drawing.Icon(st, 32, 32); }
-            catch (Exception) { icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath); }
+            // ta sama ikona co skrot na pulpicie (plik obok Velivo.exe), w rozmiarze zasobnika - nie ikona przegladarki
+            System.Drawing.Icon icon = null;
+            var size = System.Windows.Forms.SystemInformation.SmallIconSize;
+            try { if (File.Exists(KomIconFile)) icon = new System.Drawing.Icon(KomIconFile, size); } catch (Exception ex) { App.LogError(ex); }
+            if (icon == null) try { using (var st = Application.GetResourceStream(new Uri("pack://application:,,,/komunikator.ico")).Stream) icon = new System.Drawing.Icon(st, size); } catch (Exception ex) { App.LogError(ex); }
+            if (icon == null) icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath);
             _komTray = new System.Windows.Forms.NotifyIcon { Icon = icon, Visible = true };
             var menu = new System.Windows.Forms.ContextMenuStrip();
             menu.Items.Add(L.T("💬 Otwórz komunikator"), null, (s, e) => Dispatcher.Invoke(() => ShowMessenger()));

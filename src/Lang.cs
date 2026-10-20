@@ -932,6 +932,8 @@ namespace Velivo
             { "Wyślij pliki do telefonu lub komputera (sparowanego w sieci)", "Send files to a phone or computer (paired on the network)" },
             { "Najpierw sparuj telefon lub komputer (Synchronizacja LAN w ustawieniach)", "First pair a phone or computer (LAN sync in settings)" },
             { "📎 Wyślij pliki do…", "📎 Send files to…" },
+            { "Otwórz rozmowę", "Open the chat" },
+            { "Odpowiedz (Enter - wyślij)", "Reply (Enter - send)" },
             { "Brak kontaktów. Kliknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo w tej samej sieci.", "No contacts yet. Click “➕ Add” while the other device has Velivo messenger open on the same network." },
             { "Dodaj kontakt: telefon lub komputer z Velivo w tej samej sieci", "Add a contact: a phone or computer with Velivo on the same network" },
             { "Dodano: ", "Added: " },

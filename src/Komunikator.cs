@@ -223,7 +223,12 @@ namespace Velivo
             long ts = (long?)p["ts"] ?? 0;
             if (Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 600000) return;
             var c = KomContactById(from);
-            if (c != null) { bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; if (!was) _komRefresh?.Invoke(); }
+            if (c != null)
+            {
+                bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow;
+                if (t == "p2p-here" && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
+                if (!was) _komRefresh?.Invoke();
+            }
             switch (t)
             {
                 case "p2p-who": KomSendUdp(KomPacket("p2p-here"), sender); break;
@@ -273,24 +278,73 @@ namespace Velivo
             KomResendPending(c);
         }
 
-        // powiadomienie jak w innych komunikatorach: dymek z zasobnika (Velivo schowane) albo komunikat w oknie
+        // powiadomienie jak w innych komunikatorach: okienko Velivo w prawym dolnym rogu, nad innymi programami
+        // (takze gdy Velivo jest zminimalizowane lub w zasobniku): nadawca, tresc, szybka odpowiedz; klikniecie - rozmowa
+        readonly List<Window> _komPopups = new List<Window>();
         void KomNotify(KomContact c, string text)
         {
-            var shortText = text.Replace('\n', ' '); if (shortText.Length > 120) shortText = shortText.Substring(0, 120) + "…";
             try { System.Media.SystemSounds.Asterisk.Play(); } catch (Exception) { }
-            if (_tray != null && (!IsVisible || WindowState == WindowState.Minimized))
-            {
-                try
-                {
-                    _komBalloonId = c.Id;
-                    _tray.ShowBalloonTip(5000, "💬 " + c.Name, shortText, System.Windows.Forms.ToolTipIcon.Info);
-                }
-                catch (Exception) { }
-            }
-            else ShowToast("💬 " + c.Name + ": " + shortText, null);
             try { if (_komWindow != null && !_komWindow.IsActive) FlashWindowEx(_komWindow); } catch (Exception) { }
+            // ta sama osoba - jedno okienko z nowa trescia
+            var old = _komPopups.FirstOrDefault(p => (string)p.Tag == c.Id);
+            if (old != null) { old.Close(); }
+            bool dark = DarkWindows;
+            var bg = new SolidColorBrush(dark ? Color.FromRgb(0x1B, 0x17, 0x33) : Color.FromRgb(0xFF, 0xFF, 0xFF));
+            var fg = new SolidColorBrush(dark ? Color.FromRgb(0xEC, 0xE8, 0xFF) : Color.FromRgb(0x1B, 0x17, 0x33));
+            var accent = new SolidColorBrush(Color.FromRgb(0x6D, 0x3F, 0xDB));
+            var w = new Window
+            {
+                WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ResizeMode = ResizeMode.NoResize,
+                Topmost = true, ShowInTaskbar = false, ShowActivated = false, Width = 340, SizeToContent = SizeToContent.Height, Tag = c.Id, Title = "Velivo"
+            };
+            var shortText = text.Length > 300 ? text.Substring(0, 300) + "…" : text;
+            var title = new TextBlock { Text = "💬 " + c.Name, FontWeight = FontWeights.SemiBold, FontSize = 15, Foreground = fg, TextTrimming = TextTrimming.CharacterEllipsis };
+            var close = new Button { Content = "✕", Width = 26, Height = 26, Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = fg, ToolTip = L.T("Zamknij"), Cursor = Cursors.Hand };
+            var head = new DockPanel(); DockPanel.SetDock(close, Dock.Right); head.Children.Add(close); head.Children.Add(title);
+            var body = new TextBlock { Text = shortText, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14, Margin = new Thickness(0, 6, 0, 8), MaxHeight = 140, TextTrimming = TextTrimming.CharacterEllipsis, Cursor = Cursors.Hand, ToolTip = L.T("Otwórz rozmowę") };
+            var reply = new TextBox { MinHeight = 30, VerticalContentAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(dark ? Color.FromRgb(0x24, 0x1F, 0x45) : Color.FromRgb(0xF3, 0xF1, 0xFB)), Foreground = fg, BorderBrush = accent, CaretBrush = fg, ToolTip = L.T("Odpowiedz (Enter - wyślij)") };
+            var send = new Button { Content = "➤", Width = 36, Margin = new Thickness(6, 0, 0, 0), Background = accent, Foreground = Brushes.White, BorderThickness = new Thickness(0), ToolTip = L.T("Wyślij"), Cursor = Cursors.Hand };
+            var row = new DockPanel(); DockPanel.SetDock(send, Dock.Right); row.Children.Add(send); row.Children.Add(reply);
+            var stack = new StackPanel { Children = { head, body, row } };
+            w.Content = new Border
+            {
+                Background = bg, BorderBrush = accent, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 10, 10, 12), Margin = new Thickness(8),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, Opacity = 0.35, ShadowDepth = 2 }, Child = stack
+            };
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
+            timer.Tick += (s, e) => { if (!w.IsMouseOver && !reply.IsKeyboardFocusWithin && reply.Text.Length == 0) w.Close(); };
+            void Open() { w.Close(); ShowMessenger(c.Id); }
+            body.MouseLeftButtonUp += (s, e) => Open();
+            title.MouseLeftButtonUp += (s, e) => Open();
+            close.Click += (s, e) => w.Close();
+            void Reply()
+            {
+                var t = reply.Text.Trim(); if (t.Length == 0) return;
+                KomSend(c, t); _komUnread.Remove(c.Id); KomSave(); _komRefresh?.Invoke(); w.Close();
+            }
+            send.Click += (s, e) => Reply();
+            reply.PreviewKeyDown += (s, e) => { if (e.Key == Key.Enter) { e.Handled = true; Reply(); } else if (e.Key == Key.Escape) w.Close(); };
+            reply.GotKeyboardFocus += (s, e) => timer.Stop();
+            w.Closed += (s, e) => { timer.Stop(); _komPopups.Remove(w); KomStackPopups(); };
+            w.SourceInitialized += (s, e) => KomStackPopups();
+            _komPopups.Add(w);
+            w.Show();
+            KomStackPopups();
+            timer.Start();
         }
-        string _komBalloonId;
+
+        // okienka jedno nad drugim w prawym dolnym rogu ekranu (nad paskiem zadan), najwyzej 4
+        void KomStackPopups()
+        {
+            while (_komPopups.Count > 4) _komPopups[0].Close();
+            var area = SystemParameters.WorkArea; double bottom = area.Bottom - 4;
+            foreach (var p in _komPopups.AsEnumerable().Reverse())
+            {
+                p.UpdateLayout();
+                double h = p.ActualHeight > 0 ? p.ActualHeight : 150;
+                p.Left = area.Right - p.Width - 4; p.Top = bottom - h; bottom -= h;
+            }
+        }
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
         struct FlashInfo { public uint Size; public IntPtr Hwnd; public uint Flags; public uint Count; public uint Timeout; }
@@ -678,13 +732,19 @@ namespace Velivo
                     var time = DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime;
                     var stamp = (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Ok ? " ✓" : " …") : "");
                     var body = new StackPanel();
-                    body.Children.Add(new TextBox { Text = m.Text, IsReadOnly = true, BorderThickness = new Thickness(0), Background = Brushes.Transparent, TextWrapping = TextWrapping.Wrap, Foreground = m.Mine ? Brushes.White : (Brush)w.Foreground ?? Brushes.Black, FontSize = 14 });
-                    body.Children.Add(new TextBlock { Text = stamp, FontSize = 10, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Right, Foreground = m.Mine ? Brushes.White : (Brush)w.Foreground ?? Brushes.Black, ToolTip = m.Mine && !m.Ok ? L.T("Jeszcze nie doręczono – Velivo wyśle, gdy odbiorca będzie w sieci") : null });
+                    // kolory dymkow na sztywno - czytelne w jasnym i ciemnym motywie (bez ramek pola tekstowego)
+                    bool dark = DarkWindows;
+                    var fg = m.Mine ? Brushes.White : new SolidColorBrush(dark ? Color.FromRgb(0xEC, 0xE8, 0xFF) : Color.FromRgb(0x1B, 0x17, 0x33));
+                    var txt = new TextBlock { Text = m.Text, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14 };
+                    var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; copy.Click += (s2, e2) => { try { Clipboard.SetText(copyText); } catch (Exception) { } };
+                    txt.ContextMenu = new ContextMenu { Items = { copy } };
+                    body.Children.Add(txt);
+                    body.Children.Add(new TextBlock { Text = stamp, FontSize = 10, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine && !m.Ok ? L.T("Jeszcze nie doręczono – Velivo wyśle, gdy odbiorca będzie w sieci") : null });
                     msgs.Children.Add(new Border
                     {
                         Child = body, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(m.Mine ? 60 : 0, 3, m.Mine ? 0 : 60, 3),
                         HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                        Background = m.Mine ? new SolidColorBrush(Color.FromRgb(0x6D, 0x3F, 0xDB)) : new SolidColorBrush(Color.FromArgb(0x40, 0x80, 0x80, 0x80))
+                        Background = m.Mine ? new SolidColorBrush(Color.FromRgb(0x6D, 0x3F, 0xDB)) : new SolidColorBrush(dark ? Color.FromRgb(0x3A, 0x33, 0x60) : Color.FromRgb(0xEC, 0xE8, 0xF8))
                     });
                 }
                 scroll.ScrollToEnd();
@@ -701,19 +761,20 @@ namespace Velivo
             }
             sendBtn.Click += (s, e) => DoSend();
             input.PreviewKeyDown += (s, e) => { if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0) { e.Handled = true; DoSend(); } };
-            fileBtn.Click += async (s, e) =>
+            // 📎 do zaznaczonego kontaktu: 🟢 w sieci - od razu na znany adres; szukanie tylko, gdy adresu nie znamy
+            async Task AttachTo(KomContact c)
             {
-                var c = Current(); if (c == null) return;
-                var f = await KomFind();
-                var addr = f.FirstOrDefault(x => x.Id == c.Id).Addr;
-                if (addr == null) IPAddress.TryParse(c.Addr ?? "", out addr);
+                IPAddress addr = null;
+                if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr)) { addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr; }
                 if (addr == null) { ShowToast(L.T("Tej osoby nie ma teraz w sieci"), null); return; }
                 await KomSendFilesTo(w, c.Name, addr, c);
-            };
+            }
+            fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
             leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: telefon lub komputer z Velivo w tej samej sieci"), async (s, e) => await KomAddDialog(w)));
             leftButtons.Children.Add(Btn(L.T("📎 Plik do…"), L.T("Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)"), async (s, e) =>
             {
-                var peer = await KomChoosePeer(w, L.T("📎 Wyślij pliki do…")); if (peer.Addr != null) await KomSendFilesTo(w, peer.Name, peer.Addr);
+                var c = Current(); if (c != null) { await AttachTo(c); return; }   // zaznaczony kontakt - bez szukania i bez kodu
+                var peer = await KomChoosePeer(w, L.T("📎 Wyślij pliki do…")); if (peer.Addr != null) await KomSendFilesTo(w, peer.Name, peer.Addr, KomContactById(peer.Id));
             }));
             w.Activated += (s, e) => { if (_komOpenId != null && _komUnread.ContainsKey(_komOpenId)) FillChat(); };
             w.Closed += (s, e) => { _komWindow = null; _komRefresh = null; _komSelect = null; };

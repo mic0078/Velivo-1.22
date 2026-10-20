@@ -66,9 +66,6 @@ namespace Velivo
                 // lagodny "oddech": 100% -> 65% -> 100% w 8 krokach (bez migania)
                 _trayFrames = new[] { 1f, 0.92f, 0.82f, 0.72f, 0.65f, 0.72f, 0.82f, 0.92f }.Select(a => MakeDimIcon(_trayIcon, a)).ToArray();
                 _tray = new System.Windows.Forms.NotifyIcon { Icon = _trayIcon, Text = "Velivo", Visible = true };
-                // 💬 klikniecie dymka nowej wiadomosci - od razu ta rozmowa
-                _tray.BalloonTipClicked += (s, e) => Dispatcher.Invoke(() => { var id = _komBalloonId; _komBalloonId = null; if (id != null) ShowMessenger(id); });
-                _tray.BalloonTipClosed += (s, e) => _komBalloonId = null;
                 var menu = new System.Windows.Forms.ContextMenuStrip();
                 menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));
                 var filmItem = menu.Items.Add(L.T("🎬 Biblioteka filmów"), null, (s, e) => Dispatcher.Invoke(ShowVideoLibrary));

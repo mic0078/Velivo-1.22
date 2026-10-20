@@ -195,7 +195,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val from = p.optString("id")
         if (from == myId || from.length != 32 || sender == null) return true
         if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) return true
-        contact(from)?.let { c -> val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); if (!was) main.post { onChange() } }
+        contact(from)?.let { c ->
+            val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis()
+            if (t == "p2p-here" && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
+            if (!was) main.post { onChange() }
+        }
         if (t != "p2p-ack" && t != "p2p-msg") contact(from)?.let { c -> Thread { resend(c) }.start() }
         when (t) {
             "p2p-who" -> sendUdp(packet("p2p-here"), sender)
@@ -704,7 +708,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (c != null) {
             Thread {
                 val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()
-                val addr = k.find().firstOrNull { it.id == c.id }?.addr ?: known
+                // 🟢 w sieci i znany adres - od razu, bez szukania
+                val addr = (if (k.online(c.id)) known else null) ?: k.find().firstOrNull { it.id == c.id }?.addr ?: known
                 a.runOnUiThread {
                     if (addr == null) Toast.makeText(a, t("${c.name} nie ma teraz w sieci", "${c.name} is not on the network now"), Toast.LENGTH_LONG).show()
                     else sendFilesTo(uris, Komunikator.Peer(c.id, c.name, addr), c)

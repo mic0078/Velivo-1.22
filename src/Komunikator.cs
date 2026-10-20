@@ -65,18 +65,33 @@ namespace Velivo
                         var ik = KomB64((string)iv["k"]); long ie = (long?)iv["exp"] ?? 0;
                         if (ik.Length == 32 && ie > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) _komInvites[KomInviteId(ik)] = new KomInvite { K = ik, By = (string)iv["by"], Exp = ie };
                     }
-                    _komRelayOn = (bool?)o["relayOn"] ?? false; _komRelayHost = (string)o["relayHost"] ?? ""; _komRelayPort = (int?)o["relayPort"] ?? 41920;
+                    _komRelayOn = (bool?)o["relayOn"] ?? false; _komRelayAuto = (bool?)o["relayAuto"] ?? true; _komRelayAsked = (bool?)o["relayAsked"] ?? false; _komRelayHost = (string)o["relayHost"] ?? ""; _komRelayPort = (int?)o["relayPort"] ?? 41920;
+                    // kazdy wpis osobno - jeden uszkodzony nie kasuje reszty kontaktow i rozmow
                     foreach (var c in o["contacts"]?.AsArray() ?? new JsonArray())
-                    {
-                        var k = Convert.FromBase64String((string)c["key"] ?? "");
-                        if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false, Relay = (string)c["relay"] });
-                    }
+                        try
+                        {
+                            var k = Convert.FromBase64String((string)c["key"] ?? "");
+                            if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false, Relay = (string)c["relay"] });
+                        }
+                        catch (Exception ex) { App.LogError(ex); }
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
-                        _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"] }).ToList();
-                    foreach (var kv in o["unread"]?.AsObject() ?? new JsonObject()) _komUnread[kv.Key] = (int)kv.Value;
+                        try
+                        {
+                            var l = new List<KomMsg>();
+                            foreach (var m in kv.Value.AsArray())
+                                try { l.Add(new KomMsg { Mine = (bool?)m["me"] ?? false, Text = (string)m["t"] ?? "", Ts = (long?)m["ts"] ?? 0, Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"] }); }
+                                catch (Exception) { }
+                            _komChats[kv.Key] = l;
+                        }
+                        catch (Exception ex) { App.LogError(ex); }
+                    foreach (var kv in o["unread"]?.AsObject() ?? new JsonObject()) try { _komUnread[kv.Key] = (int?)kv.Value ?? 0; } catch (Exception) { }
                 }
             }
-            catch (Exception ex) { App.LogError(ex); }
+            catch (Exception ex)
+            {   // plik nieczytelny - zostaje jako kopia (nigdy nie nadpisujemy kontaktow pusta lista)
+                App.LogError(ex);
+                try { if (File.Exists(KomFile)) File.Copy(KomFile, KomFile + ".kopia-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"), false); } catch (Exception) { }
+            }
             if (string.IsNullOrEmpty(_komId) || _komId.Length != 32) _komId = Guid.NewGuid().ToString("N");
         }
 
@@ -96,7 +111,7 @@ namespace Velivo
                 {
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["relayOn"] = _komRelayOn, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
                 };
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(o.ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
@@ -495,6 +510,7 @@ namespace Velivo
         {
             if (_komResend != null) return;
             KomRelayStart(); KomUpStart();   // 🌍 pośrednik (gdy wlaczony) i laczenie z pośrednikiem poza domem
+            Dispatcher.BeginInvoke(new Action(KomRelayAskOnce), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // kontakty sprzed tej wersji - takze poza domem
             _komResend = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
             _komResend.Tick += (s, e) =>
             {
@@ -590,6 +606,7 @@ namespace Velivo
             KomEnsureTray();
             var old = KomContactById(c.Id); if (old != null && old.Own) { c.Own = true; c.Name = old.Name; }   // ponowne dodanie - wlasna nazwa zostaje
             _komContacts.RemoveAll(x => x.Id == c.Id); _komContacts.Add(c); KomSave(); _komRefresh?.Invoke();
+            Dispatcher.BeginInvoke(new Action(KomRelayAskOnce), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🌍 jedno pytanie o rozmowy poza domem
         }
 
         async Task<string> KomPair(string id, string name, IPAddress addr, Action<string> showCode)

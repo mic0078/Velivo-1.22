@@ -174,7 +174,14 @@ namespace Velivo
         void KomRelayStart()
         {
             KomRelayStop();
-            if (!_komRelayOn) return;
+            if (!_komRelayOn) { _komRelayAutoTimer?.Stop(); return; }
+            _ = KomRelayAutoAsync();
+            if (_komRelayAutoTimer == null)
+            {
+                _komRelayAutoTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromHours(1) };
+                _komRelayAutoTimer.Tick += async (s, e) => await KomRelayAutoAsync();
+            }
+            _komRelayAutoTimer.Start();
             try
             {
                 _komRelayCts = new CancellationTokenSource(); var token = _komRelayCts.Token;
@@ -357,8 +364,10 @@ namespace Velivo
         void KomUpCheck()
         {
             if (DateTime.UtcNow - _komUpSince < TimeSpan.FromSeconds(30) && !_komUpForce) return;   // po starcie najpierw sprawdzamy sieć domową (pośrednik odpowiada w sekundę)
-            var relay = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay));
-            bool home = relay == null || _komRelayOn || (_komLanSeen.TryGetValue(relay.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
+            // komputery z rozmowami poza domem (kazdy z kontaktami moze nim byc); w domu - ktorykolwiek widoczny w sieci domowej
+            var relays = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay)).ToList();
+            var relay = relays.FirstOrDefault();
+            bool home = relay == null || _komRelayOn || relays.Any(r => _komLanSeen.TryGetValue(r.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
             if (home) { if (_komUp != null) { try { _komUp.Fs.Dispose(); } catch (Exception) { } _komUp = null; KomAnnounce(); } return; }
             if (_komUp != null || _komUpConnecting) { if (_komUp != null) KomSendFrame(_komUp, new JsonObject { ["t"] = "relay-ping" }); return; }
             _komUpConnecting = true;
@@ -366,7 +375,8 @@ namespace Velivo
             {
                 try
                 {
-                    var fs = await KomRelayConnect(relay, "main", null, null, CancellationToken.None);
+                    KomFrameStream fs = null;
+                    foreach (var cand in relays) { fs = await KomRelayConnect(cand, "main", null, null, CancellationToken.None); if (fs != null) { relay = cand; break; } }   // pierwszy, ktory odpowie
                     if (fs == null) return;
                     var me = new KomRemoteConn { Fs = fs };
                     _komUpRelay = relay; _komUp = me;
@@ -520,26 +530,117 @@ namespace Velivo
             });
         }
 
+        // ---------- automatycznie: adres domu i port w routerze (bez wiedzy technicznej) ----------
+        // UPnP: router podaje swoj adres w internecie i otwiera port na ten komputer. Gdy router tego nie umie - adres
+        // z publicznej uslugi (api.ipify.org), port trzeba wtedy otworzyc recznie. Adres sprawdzany co godzine (zmiana IP).
+        bool _komRelayAuto = true;   // adres ustalany automatycznie (pusty albo nie wpisany recznie)
+        string _komRelayRouter = "";  // co zrobil router (do okna)
+        System.Windows.Threading.DispatcherTimer _komRelayAutoTimer;
+
+        async Task KomRelayAutoAsync()
+        {
+            if (!_komRelayOn) return;
+            var port = _komRelayPort;
+            var (ext, mapped, note) = await Task.Run(() => KomUpnpAsync(port));
+            // port zajety w routerze (np. inny komputer w domu) - nastepny wolny 41920-41929, sam
+            if (!mapped && note == "taken" && _komRelayAuto)
+                for (int p2 = 41920; p2 <= 41929 && !mapped; p2++)
+                {
+                    if (p2 == port) continue;
+                    var res = await Task.Run(() => KomUpnpAsync(p2));
+                    if (res.mapped) { mapped = true; note = ""; ext = res.ext ?? ext; _komRelayPort = p2; KomSave(); KomRelayStart(); KomAnnounce(); return; }
+                }
+            if (ext == null && _komRelayAuto)
+                try { using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(6) }) ext = (await http.GetStringAsync("https://api.ipify.org")).Trim(); }
+                catch (Exception) { }
+            if (ext != null && !IPAddress.TryParse(ext, out _)) ext = null;
+            _komRelayRouter = mapped ? L.T("Router: port otwarty automatycznie") : (note == "taken" ? L.T("Router: port już przekierowany (ręcznie)") : L.T("Router nie otworzył portu sam – przekieruj go w routerze na ten komputer"));
+            if (_komRelayAuto && ext != null && ext != _komRelayHost) { _komRelayHost = ext; KomSave(); KomAnnounce(); }   // nowy adres - urzadzenia w domu dostaja go od razu
+            KomRelayStatus();
+        }
+
+        // UPnP (IGD): adres zewnetrzny routera i przekierowanie portu TCP na ten komputer; note: "taken" - port juz zajety (np. recznie)
+        static async Task<(string ext, bool mapped, string note)> KomUpnpAsync(int port)
+        {
+            try
+            {
+                string location = null;
+                using (var udp = new UdpClient(AddressFamily.InterNetwork))
+                {
+                    var req = Encoding.ASCII.GetBytes("M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 2\r\nST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n\r\n");
+                    await udp.SendAsync(req, req.Length, new IPEndPoint(IPAddress.Parse("239.255.255.250"), 1900));
+                    var end = DateTime.UtcNow.AddSeconds(3);
+                    while (location == null && DateTime.UtcNow < end)
+                    {
+                        var t = udp.ReceiveAsync();
+                        if (await Task.WhenAny(t, Task.Delay(end - DateTime.UtcNow)) != t) break;
+                        var m = System.Text.RegularExpressions.Regex.Match(Encoding.ASCII.GetString(t.Result.Buffer), @"(?im)^location:\s*(\S+)");
+                        if (m.Success) location = m.Groups[1].Value;
+                    }
+                }
+                if (location == null) return (null, false, "");
+                using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(6) })
+                {
+                    var desc = await http.GetStringAsync(location);
+                    string svc = null, ctrl = null;
+                    foreach (System.Text.RegularExpressions.Match s in System.Text.RegularExpressions.Regex.Matches(desc, @"<service>(.*?)</service>", System.Text.RegularExpressions.RegexOptions.Singleline))
+                    {
+                        var st = System.Text.RegularExpressions.Regex.Match(s.Value, @"<serviceType>(.*?)</serviceType>").Groups[1].Value.Trim();
+                        if (st.Contains("WANIPConnection") || st.Contains("WANPPPConnection")) { svc = st; ctrl = System.Text.RegularExpressions.Regex.Match(s.Value, @"<controlURL>(.*?)</controlURL>").Groups[1].Value.Trim(); break; }
+                    }
+                    if (svc == null || ctrl.Length == 0) return (null, false, "");
+                    var url = new Uri(new Uri(location), ctrl);
+                    async Task<(int code, string body)> Soap(string action, string args)
+                    {
+                        var body = "<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:" + action + " xmlns:u=\"" + svc + "\">" + args + "</u:" + action + "></s:Body></s:Envelope>";
+                        var rq = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, url) { Content = new System.Net.Http.StringContent(body, Encoding.UTF8, "text/xml") };
+                        rq.Headers.TryAddWithoutValidation("SOAPAction", "\"" + svc + "#" + action + "\"");
+                        using (var rs = await http.SendAsync(rq)) return ((int)rs.StatusCode, await rs.Content.ReadAsStringAsync());
+                    }
+                    var (c1, b1) = await Soap("GetExternalIPAddress", "");
+                    var ext = c1 == 200 ? System.Text.RegularExpressions.Regex.Match(b1, @"<NewExternalIPAddress>(.*?)</NewExternalIPAddress>").Groups[1].Value.Trim() : null;
+                    if (string.IsNullOrEmpty(ext) || ext.StartsWith("0.")) ext = null;
+                    // adres tego komputera w sieci domowej (ta karta, ktora widzi router)
+                    string local;
+                    using (var probe = new UdpClient(AddressFamily.InterNetwork)) { probe.Connect(url.Host, url.Port); local = ((IPEndPoint)probe.Client.LocalEndPoint).Address.ToString(); }
+                    var (c2, b2) = await Soap("AddPortMapping", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol><NewInternalPort>" + port +
+                        "</NewInternalPort><NewInternalClient>" + local + "</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>Velivo</NewPortMappingDescription><NewLeaseDuration>0</NewLeaseDuration>");
+                    return (ext, c2 == 200, c2 != 200 && b2.Contains("718") ? "taken" : "");
+                }
+            }
+            catch (Exception) { return (null, false, ""); }
+        }
+
         // ---------- okno ustawien ----------
         TextBlock _komRelayStatusText;
         void KomRelayStatus()
         {
             if (_komRelayStatusText == null) return;
-            _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port"));
+            _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port")) +
+                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + _komRelayRouter : "");
+        }
+
+        // komputer z kontaktami: rozmowy poza domem wlaczaja sie same (zgoda - polaczenie w domu); adres i port ustawiane same.
+        // Wylaczyc mozna w 🎨 → 🌍 (wtedy juz samo sie nie wlacza)
+        bool _komRelayAsked;   // uzytkownik sam wylaczyl - nie wlaczamy ponownie
+        void KomRelayAskOnce()
+        {
+            if (_komRelayAsked || _komRelayOn || _komContacts.Count == 0) return;
+            _komRelayOn = true; _komRelayAuto = true; KomSave(); KomRelayStart(); KomAnnounce();
         }
 
         void KomRelayDialog(Window owner)
         {
             var on = new CheckBox { Content = L.T("Ten komputer jest pośrednikiem dla rozmów poza domem (musi być zawsze włączony)"), IsChecked = _komRelayOn, Margin = new Thickness(0, 0, 0, 10) };
-            var host = new TextBox { Text = _komRelayHost, MinWidth = 300, ToolTip = L.T("Adres domu w internecie, np. z No-IP: mojdom.ddns.net") };
+            var host = new TextBox { Text = _komRelayAuto ? "" : _komRelayHost, MinWidth = 300, ToolTip = L.T("Puste – Velivo ustali adres domu samo. Możesz wpisać własny, np. z No-IP: mojdom.ddns.net") };
             var port = new TextBox { Text = _komRelayPort.ToString(), Width = 90, ToolTip = L.T("Port TCP przekierowany w routerze na ten komputer") };
             _komRelayStatusText = new TextBlock { Margin = new Thickness(0, 10, 0, 0), FontWeight = FontWeights.SemiBold };
             var info = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Margin = new Thickness(0, 10, 0, 0), Opacity = 0.85,
-                Text = L.T("W routerze przekieruj ten port TCP na ten komputer (jak dla Jellyfin). Pozostałe urządzenia dostaną adres same w sieci domowej – poza domem połączą się przez ten komputer, w domu jak dotąd. Korzystać mogą tylko Twoje kontakty; wiadomości i pliki są szyfrowane.") };
+                Text = L.T("Wystarczy zaznaczyć – Velivo samo ustali adres domu i spróbuje otworzyć port w routerze. Gdy router tego nie umie, przekieruj ten port TCP na ten komputer (jak dla Jellyfin). Pozostałe urządzenia dostaną adres same w sieci domowej. Korzystać mogą tylko Twoje kontakty; wiadomości i pliki są szyfrowane.") };
             var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(18, 4, 18, 4), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
             var grid = new StackPanel { Margin = new Thickness(16), Children = {
                 on,
-                new TextBlock { Text = L.T("Adres (No-IP / domena):") }, host,
+                new TextBlock { Text = L.T("Adres domu (puste – ustalany automatycznie):") }, host,
                 new TextBlock { Text = L.T("Port:"), Margin = new Thickness(0, 8, 0, 0) }, port,
                 _komRelayStatusText, info, ok } };
             var d = new Window { Title = L.T("🌍 Rozmowy poza domem"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid };
@@ -548,13 +649,15 @@ namespace Velivo
             ok.Click += (s, e) => d.DialogResult = true;
             d.Closed += (s, e) => _komRelayStatusText = null;
             if (d.ShowDialog() != true) return;
+            if (_komRelayOn && on.IsChecked != true) _komRelayAsked = true;   // wylaczone recznie - zostaje wylaczone
             _komRelayOn = on.IsChecked == true;
-            _komRelayHost = host.Text.Trim();
+            var typed = host.Text.Trim();
+            _komRelayAuto = typed.Length == 0;   // puste - adres ustala Velivo (i pilnuje zmian IP)
+            if (!_komRelayAuto) _komRelayHost = typed;
             if (int.TryParse(port.Text.Trim(), out var pt) && pt > 0 && pt < 65536) _komRelayPort = pt;
-            if (_komRelayOn && _komRelayHost.Length == 0) { _komRelayOn = false; KomInfo(L.T("🌍 Wpisz adres domu (No-IP), żeby włączyć pośrednika")); }
             KomSave();
             KomRelayStart();
-            if (_komRelayOn) KomAnnounce();   // urzadzenia w domu od razu dostaja adres pośrednika
+            if (_komRelayOn) { KomAnnounce(); KomInfo(L.T("🌍 Pośrednik włączony – ustalam adres domu i port w routerze…")); }   // urzadzenia w domu od razu dostaja adres pośrednika
         }
     }
 }

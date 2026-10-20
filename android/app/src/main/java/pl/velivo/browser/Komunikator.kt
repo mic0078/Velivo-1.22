@@ -113,9 +113,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         String(c.doFinal(r, 12, r.size - 12), Charsets.UTF_8)
     }.getOrNull()
 
+    // zapisane kontakty, których nie dało się odczytać - zostają jako kopia, nie nadpisujemy ich pustą listą
+    private val contactsUnreadable = prefs.getString("kontakty", null).let { raw -> raw != null && open(raw) == null }.also { bad ->
+        if (bad) prefs.edit().putString("kontakty-kopia-" + System.currentTimeMillis(), prefs.getString("kontakty", null)).apply()
+    }
     val contacts: MutableList<Contact> = runCatching {
         val a = JSONArray(open(prefs.getString("kontakty", null)) ?: "[]")
-        (0 until a.length()).map { a.getJSONObject(it) }.map { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own"), it.optString("relay").ifEmpty { null }) }
+        (0 until a.length()).mapNotNull { i -> runCatching { a.getJSONObject(i) }.getOrNull() }.mapNotNull { runCatching { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own"), it.optString("relay").ifEmpty { null }) }.getOrNull() }
             .filter { it.key.size == 32 }.toMutableList()
     }.getOrDefault(mutableListOf())
 
@@ -702,24 +706,28 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private val upLoop = Thread {
         while (true) runCatching {
             Thread.sleep(20000)
-            val relay = synchronized(this) { contacts.firstOrNull { it.relay != null } }
-            val home = relay == null || (System.currentTimeMillis() - started < 30000 && !upForce) || System.currentTimeMillis() - (lanSeen[relay.id] ?: 0L) < 100000
+            // komputery z rozmowami poza domem (każdy z kontaktami może nim być); w domu - którykolwiek widoczny w sieci domowej
+            val relays = synchronized(this) { contacts.filter { it.relay != null } }
+            var relay = relays.firstOrNull()
+            val home = relay == null || (System.currentTimeMillis() - started < 30000 && !upForce) || relays.any { System.currentTimeMillis() - (lanSeen[it.id] ?: 0L) < 100000 }
             val u = up
             if (home) { if (u != null) { up = null; u.close(); announce() }; return@runCatching }
             if (u != null) { upSend(u, JSONObject().put("t", "relay-ping")); return@runCatching }
             if (udpOut == null && udp == null) return@runCatching   // komunikator nie działa (aplikacja zamknięta bez odbioru w tle)
-            val f = relayConnect(relay!!, "main") ?: return@runCatching
-            upRelay = relay; up = f
+            var f: Frames? = null
+            for (cand in relays) { f = relayConnect(cand, "main"); if (f != null) { relay = cand; break } }   // pierwszy, który odpowie
+            val ff = f ?: return@runCatching; val rl = relay!!
+            upRelay = rl; up = ff
             announce()   // jestem (przez internet) + zaległe wiadomości
             Thread {
                 runCatching {
-                    while (up === f) {
-                        val p = JSONObject(String(f.readFrame(), Charsets.UTF_8)); val t = p.optString("t")
-                        if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(relay, tid) }.start(); continue }
+                    while (up === ff) {
+                        val p = JSONObject(String(ff.readFrame(), Charsets.UTF_8)); val t = p.optString("t")
+                        if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(rl, tid) }.start(); continue }
                         if (t.startsWith("p2p-")) handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true)
                     }
                 }
-                if (up === f) { up = null; runCatching { f.close() } }
+                if (up === ff) { up = null; runCatching { ff.close() } }
                 main.post { onChange() }
             }.start()
             main.post { onChange() }

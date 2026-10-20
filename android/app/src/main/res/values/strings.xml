@@ -387,4 +387,7 @@
     <string name="jf_info">Full description</string>
     <string name="jf_play">Play</string>
     <string name="jf_lektor">Play with lector</string>
+    <string name="lektor_levels">Film and lector volume</string>
+    <string name="lektor_film_vol">Film while the lector reads</string>
+    <string name="lektor_voice_vol">Lector voice</string>
 </resources>

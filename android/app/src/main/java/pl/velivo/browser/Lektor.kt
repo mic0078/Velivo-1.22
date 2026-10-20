@@ -65,6 +65,7 @@ class Lektor(ctx: Context, private val duck: (Boolean) -> Unit) {
         }
     }
 
+    var volume = 1f   // głośność lektora 0..1 (osobno od filmu, jak na Windows)
     private var cues: List<Cue> = emptyList()
     private var last = -1
     private var ready = false
@@ -103,7 +104,8 @@ class Lektor(ctx: Context, private val duck: (Boolean) -> Unit) {
         val need = c.text.length * 65L   // ok. 65 ms na znak przy zwykłym tempie
         val room = (c.end - c.start).coerceAtLeast(400)
         tts.setSpeechRate((need.toFloat() / room).coerceIn(1f, 2f))
-        tts.speak(c.text, TextToSpeech.QUEUE_FLUSH, null, "c$found")   // zaległa kwestia przerwana - czytamy bieżącą
+        val par = android.os.Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f)) }
+        tts.speak(c.text, TextToSpeech.QUEUE_FLUSH, par, "c$found")   // zaległa kwestia przerwana - czytamy bieżącą
     }
 
     fun seeked() { last = -1; tts.stop(); if (speaking) { speaking = false; duck(false) } }

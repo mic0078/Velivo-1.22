@@ -387,4 +387,7 @@
     <string name="jf_info">Pełny opis</string>
     <string name="jf_play">Odtwórz</string>
     <string name="jf_lektor">Odtwórz z lektorem</string>
+    <string name="lektor_levels">Głośność filmu i lektora</string>
+    <string name="lektor_film_vol">Film w czasie czytania</string>
+    <string name="lektor_voice_vol">Głos lektora</string>
 </resources>

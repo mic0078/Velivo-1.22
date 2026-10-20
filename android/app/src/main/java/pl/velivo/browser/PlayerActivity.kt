@@ -299,7 +299,7 @@ class PlayerActivity : Activity() {
         val a = player.audioTracks ?: emptyArray(); val s = player.spuTracks ?: emptyArray()
         val it = queue.getOrNull(index)
         val jf = it?.jellyId != null && !live
-        val extra = if (jf) listOf((if (lektorOn()) "🗣 " + getString(R.string.lektor_off) else "🗣 " + getString(R.string.lektor_on)), "📄 " + getString(R.string.lektor_pick), "⬇ " + getString(R.string.subs_download)) else emptyList()
+        val extra = if (jf) listOf((if (lektorOn()) "🗣 " + getString(R.string.lektor_off) else "🗣 " + getString(R.string.lektor_on)), "📄 " + getString(R.string.lektor_pick), "⬇ " + getString(R.string.subs_download), "🎚 " + getString(R.string.lektor_levels)) else emptyList()
         val labels = a.map { "🔊 " + it.name + if (it.id == player.audioTrack) " ✓" else "" } + s.map { "🗨 " + it.name + if (it.id == player.spuTrack) " ✓" else "" } + extra
         if (labels.isEmpty()) { toast(getString(R.string.player_no_tracks)); return }
         AlertDialog.Builder(this).setTitle(R.string.player_tracks).setItems(labels.toTypedArray()) { _, i ->
@@ -309,9 +309,30 @@ class PlayerActivity : Activity() {
                 i == a.size + s.size -> { val on = !lektorOn(); prefs.edit().putBoolean("lektor", on).apply()
                     if (on && it != null) lektorSubs(it, null) else { lektor?.stop(); lektor?.load(""); toast(getString(R.string.lektor_stopped)) } }
                 i == a.size + s.size + 1 -> if (it != null) pickSubs(it)
-                else -> if (it != null) downloadSubs(it)
+                i == a.size + s.size + 2 -> if (it != null) downloadSubs(it)
+                else -> lektorLevels()
             }
         }.show()
+    }
+
+    // 🎚 głośność filmu w czasie czytania i głośność lektora - osobno (jak na Windows); od razu słychać zmianę
+    private fun lektorLevels() {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(8), dp(22), dp(4)) }
+        fun row(label: Int, key: String, def: Int, apply: (Int) -> Unit) {
+            val t = TextView(this).apply { textSize = 15f }
+            fun upd(v: Int) { t.text = getString(label) + ": " + v + " %" }
+            val v0 = prefs.getInt(key, def); upd(v0)
+            box.addView(t)
+            box.addView(SeekBar(this).apply { max = 100; progress = v0; contentDescription = getString(label)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar, p: Int, user: Boolean) { if (user) { upd(p); prefs.edit().putInt(key, p).apply(); apply(p) } }
+                    override fun onStartTrackingTouch(s: SeekBar) {}
+                    override fun onStopTrackingTouch(s: SeekBar) {}
+                }) }, LinearLayout.LayoutParams(-1, dp(44)))
+        }
+        row(R.string.lektor_film_vol, "lektor-film", 35) { }
+        row(R.string.lektor_voice_vol, "lektor-glos", 100) { v -> lektor?.volume = v / 100f }
+        AlertDialog.Builder(this).setTitle("🎚 " + getString(R.string.lektor_levels)).setView(box).setPositiveButton(android.R.string.ok, null).show()
     }
 
     // napisy z Jellyfin dla lektora: wybrane albo pierwsze (polskie najpierw)
@@ -325,7 +346,9 @@ class PlayerActivity : Activity() {
             ui.post {
                 val txt = r.getOrNull()
                 if (txt == null) { toast(getString(if (r.isFailure) R.string.lektor_error else R.string.lektor_no_subs)); return@post }
-                val l = lektor ?: Lektor(this) { d -> ui.post { runCatching { player.volume = if (d) 35 else 100 } } }.also { lektor = it; ui.post(lektorTick) }
+                // głośność filmu podczas czytania i głośność lektora - osobno, z ustawień (🎚)
+                val l = lektor ?: Lektor(this) { d -> ui.post { runCatching { player.volume = if (d) prefs.getInt("lektor-film", 35) else 100 } } }.also { lektor = it; ui.post(lektorTick) }
+                l.volume = prefs.getInt("lektor-glos", 100) / 100f
                 l.load(txt)
                 if (!l.loaded) { toast(getString(R.string.lektor_no_subs)); return@post }
                 prefs.edit().putBoolean("lektor", true).apply()

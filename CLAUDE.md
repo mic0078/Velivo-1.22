@@ -19,6 +19,8 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Nie dopisuję nowych linijek, tylko poprawiam te, które już są w kodzie.
 * Nie zwiększam pliku bez potrzeby.
 * Trzymam się instrukcji z CLAUDE.md, a jak czegoś nie wiem, pytam użytkownika w pytaniach.
+* Nienawidzę błędów i powtarzania tego samego w kółko. Kod ma być bez błędów, solidny i działać perfekcyjnie.
+* Wyciągam wnioski z tego, co zepsułem, pamiętam to i uczę się na innych aplikacjach dostępnych w sieci.
 
 ## Gałęzie
 

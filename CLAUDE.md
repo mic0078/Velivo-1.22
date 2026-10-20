@@ -15,6 +15,15 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Zawsze piszesz, co sprawdziłeś, a czego nie.
 * Trzymasz się instrukcji z CLAUDE.md.
 
+## Wnioski (pamięć 3 dni)
+
+Claude zapamiętuje do 3 dni wstecz: po każdym błędzie dopisz tu jedną linijkę z datą, wpisy starsze niż 3 dni usuń.
+
+* 2026-10-20: przed wysłaniem kompiluj Windows, przeglądarkę i klawiaturę oraz sprawdź tłumaczenia.
+* 2026-10-20: nie zapisuj pliku przez `open(f,'w').write(open(f).read())` – czyści plik.
+* 2026-10-20: pośrednik słyszy własne przekazane pakiety – urządzenie z `_komRemote` nie jest w domu.
+* 2026-10-20: polecenia dla PowerShell, nie cmd.
+
 ## Gałęzie
 
 * Pracuj tylko na `rozwoj`. Nie twórz innych gałęzi.

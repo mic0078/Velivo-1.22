@@ -111,3 +111,5 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - 📱 Wyślij Filmy i TV do telefonu: w menu 🎬 i 📺 (prawy klik); listy TV z pliku wysyłane jako treść (małe w pakiecie UDP, większe niż ~60 KB osobno przez TCP jako Velivo-TV-*.m3u – telefon dodaje je do Telewizji).
 
 - Filmy i TV bez parowania: telefon "media-ask" (ECDH P-256 jednorazowy), komputer pyta z kodem (jak parowanie), "media-give" w kawałkach po 40 000 znaków base64, AES-GCM z AD = pairId; tylko listy TV i adres Jellyfin (bez klucza). Jedno okno pytania naraz.
+
+- Okno 🎞 Jellyfin: „Pobierz / uzupełnij teraz” po SyncJellyfin wywołuje JellyfinAddNewAsync (to samo co 🔄 Odśwież) – wcześniej tylko metadane, biblioteka nowego profilu zostawała pusta (0 / 0).

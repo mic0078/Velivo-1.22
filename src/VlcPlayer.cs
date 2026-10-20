@@ -420,6 +420,15 @@ namespace Velivo
         {
             var syncMsg = await System.Threading.Tasks.Task.Run(() => SyncJellyfin(jc, _ => { }));
             if (tvView || !File.Exists(JellyfinFilesFile)) return syncMsg;
+            var msg = await JellyfinAddNewAsync(shared);
+            if (askOwner != null) AskRemovedFromJellyfin(askOwner);
+            return msg;
+        }
+
+        // nowe filmy z Jellyfin (plik dostępny na tym komputerze) do biblioteki; niedostępne - do raportu
+        async System.Threading.Tasks.Task<string> JellyfinAddNewAsync(bool shared)
+        {
+            if (!File.Exists(JellyfinFilesFile)) return "";
             var jfFiles = File.ReadAllLines(JellyfinFilesFile).ToList();
             var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), File.Exists));
             int n = 0;
@@ -427,7 +436,7 @@ namespace Velivo
             // brakujace pliki (Jellyfin zna, tu niedostepne) - do raportu, zeby bylo widac dlaczego
             var missing = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), p => !File.Exists(p)));
             try { File.AppendAllLines(System.IO.Path.Combine(DataDir, "jellyfin-raport.txt"), new[] { "", "Pliki z Jellyfin niedostępne na tym komputerze (" + missing.Count + "):" }.Concat(missing.Select(m => "  " + m))); } catch (Exception) { }
-            if (askOwner != null) AskRemovedFromJellyfin(askOwner);
+            _libRefresh?.Invoke();
             return L.T("🎬 Nowe filmy z Jellyfin: ") + n + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : "");
         }
         bool _libSharedView;   // otwarta biblioteka: wspolna albo tego komputera

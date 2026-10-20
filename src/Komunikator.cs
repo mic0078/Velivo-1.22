@@ -226,7 +226,7 @@ namespace Velivo
             if (t == "p2p-bye") { if (c != null && _komLastSeen.Remove(c.Id)) _komRefresh?.Invoke(); return; }   // zamknal Velivo - od razu poza siecia
             if (c != null)
             {
-                bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow;
+                bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; _komSeenAt[c.Id] = DateTime.Now;
                 if (t == "p2p-here" && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
                 if (!was) _komRefresh?.Invoke();
             }
@@ -454,6 +454,7 @@ namespace Velivo
 
         // 🟢 w sieci: kontakt odezwal sie w ostatnich 95 s (kazde Velivo z komunikatorem oglasza sie co minute, okno pyta co 30 s)
         readonly Dictionary<string, DateTime> _komLastSeen = new Dictionary<string, DateTime>();
+        readonly Dictionary<string, DateTime> _komSeenAt = new Dictionary<string, DateTime>();   // "ostatnio w sieci" - zostaje po pozegnaniu
         bool KomOnline(string id) => _komLastSeen.TryGetValue(id, out var t) && DateTime.UtcNow - t < TimeSpan.FromSeconds(95);
 
         // zamkniecie Velivo: kontakty od razu widza "poza siecia"
@@ -795,7 +796,8 @@ namespace Velivo
                 {
                     bool on = KomOnline(c.Id);
                     header.Inlines.Add(new System.Windows.Documents.Run("💬 " + c.Name + "  "));
-                    header.Inlines.Add(new System.Windows.Documents.Run(on ? L.T("● w sieci") : L.T("● poza siecią – wiadomości dojdą, gdy wróci"))
+                    var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
+                    header.Inlines.Add(new System.Windows.Documents.Run(on ? L.T("● w sieci") : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : Brushes.Gray });
                 }
                 input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = c != null;

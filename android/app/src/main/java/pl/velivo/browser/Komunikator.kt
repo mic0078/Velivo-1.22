@@ -199,7 +199,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) return true
         if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
         contact(from)?.let { c ->
-            val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis()
+            val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); seenAt[c.id] = System.currentTimeMillis()
             if (t == "p2p-here" && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
             if (!was) main.post { onChange() }
         }
@@ -600,6 +600,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 🟢 w sieci: kontakt odezwał się w ostatnich 95 s (każde Velivo z komunikatorem ogłasza się co minutę, okno komunikatora pyta co 30 s)
     private val lastSeen = java.util.concurrent.ConcurrentHashMap<String, Long>()
     fun online(id: String) = System.currentTimeMillis() - (lastSeen[id] ?: 0L) < 95000
+    // „ostatnio w sieci” (jak w innych komunikatorach) - zostaje także po pożegnaniu
+    private val seenAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    fun lastSeenAt(id: String): Long? = seenAt[id]
 
     // wychodzimy z sieci (Velivo zamknięte bez odbioru w tle) - kontakty od razu widzą „poza siecią”
     fun bye() = Thread { repeat(2) { sendUdp(packet("p2p-bye"), null); Thread.sleep(150) } }.start()
@@ -949,7 +952,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             val on = k.online(c.id)
             title.text = android.text.SpannableStringBuilder(c.name).apply {
                 append("\n"); val st = length
-                append(if (on) "● " + t("w sieci", "online") else "● " + t("poza siecią – wiadomości dojdą, gdy wróci", "offline – messages arrive when back"))
+                val seen = k.lastSeenAt(c.id)?.let { " · " + t("ostatnio ", "last seen ") + when_(it) } ?: ""
+                append(if (on) "● " + t("w sieci", "online") else "● " + t("poza siecią", "offline") + seen + "\n" + t("wiadomości dojdą, gdy wróci", "messages arrive when back"))
                 setSpan(android.text.style.ForegroundColorSpan(if (on) green else Color.GRAY), st, length, 0)
                 setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0)
             }

@@ -263,6 +263,7 @@ Rozmowy i pliki w domowym Wi-Fi – bez internetu, bez serwera, bez numeru telef
 * **📲 Pliki na inny telefon** (menu, 📤 albo klawiatura) – także do osoby spoza kontaktów: wtedy oba ekrany pokazują kod do porównania.
 * Przytrzymaj kontakt: **zmiana nazwy** albo **usunięcie** kontaktu z rozmową.
 * Kontakty i rozmowy są zapisane tylko w urządzeniu, zaszyfrowane (Android Keystore / Windows DPAPI).
+* **🌍 Rozmowy poza domem:** jeden komputer z Velivo, który jest zawsze włączony, zostaje pośrednikiem. W komunikatorze na tym komputerze: 🎨 → **🌍 Rozmowy poza domem…** → zaznacz pośrednika, wpisz adres domu (np. z No-IP) i port (domyślnie 41920). W routerze przekieruj ten port TCP na ten komputer (tak jak dla Jellyfin). Pozostałe urządzenia dostaną adres same, gdy będą w domu. Poza domem telefon i komputer same łączą się przez pośrednika (w rozmowie: „w sieci (przez internet)”), w domu – jak dotąd przez sieć domową. Działają wiadomości, potwierdzenia, zdjęcia i pliki. Korzystać mogą tylko Twoje kontakty; wszystko jest szyfrowane.
 
 ## 9. Gdy coś pójdzie nie tak
 

@@ -68,7 +68,8 @@ import javax.crypto.spec.SecretKeySpec
 class Komunikator private constructor(private val ctx: Context, private val deviceName: () -> String) {
     class Peer(val id: String, val name: String, val addr: InetAddress)
     // name - nazwa wyświetlana (własna albo urządzenia); device - prawdziwa nazwa urządzenia (aktualizowana z sieci); own - nazwa nadana przez użytkownika
-    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String, var device: String = name, var own: Boolean = false)
+    // relay - adres pośrednika tego kontaktu (No-IP:port, np. NUCBOX) - rozmowy poza domem
+    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String, var device: String = name, var own: Boolean = false, var relay: String? = null)
     // read: moja - odbiorca przeczytał (✓✓); odebrana - wysłaliśmy „przeczytane”
     // file: wpis o pliku (nie wysyłany ponownie jako tekst)
     class Msg(val mine: Boolean, var text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false, var file: Boolean = false, var path: String? = null)
@@ -109,13 +110,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     val contacts: MutableList<Contact> = runCatching {
         val a = JSONArray(open(prefs.getString("kontakty", null)) ?: "[]")
-        (0 until a.length()).map { a.getJSONObject(it) }.map { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own")) }
+        (0 until a.length()).map { a.getJSONObject(it) }.map { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own"), it.optString("relay").ifEmpty { null }) }
             .filter { it.key.size == 32 }.toMutableList()
     }.getOrDefault(mutableListOf())
 
     @Synchronized private fun saveContacts() {
         val a = JSONArray()
-        contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own)) }
+        contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own).put("relay", it.relay ?: "")) }
         prefs.edit().putString("kontakty", seal(a.toString())).apply()
     }
 
@@ -133,7 +134,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // --- przeniesienie klawiatura -> przeglądarka (telefon z obiema aplikacjami: jeden komunikator, bez dublowania) ---
     @Synchronized fun export(): String = JSONObject().put("cid", myId)
-        .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own)) } })
+        .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own).put("relay", it.relay ?: "")) } })
         .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read).put("f", m.file).put("p", m.path ?: "")) } }) } })
         .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).toString()
 
@@ -148,7 +149,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             for (i in 0 until a.length()) {
                 val j = a.getJSONObject(i); val key = unb64(j.optString("key")); val id = j.optString("id")
                 if (key.size != 32 || id.length != 32) continue
-                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr"), j.optString("dev", j.optString("name")), j.optBoolean("own")))
+                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr"), j.optString("dev", j.optString("name")), j.optBoolean("own"), j.optString("relay").ifEmpty { null }))
                 val list = chat(id); val have = list.map { it.mid }.toHashSet()
                 val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
                 for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
@@ -188,6 +189,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // --- UDP ---
     private fun packet(t: String) = JSONObject().put("t", t).put("id", myId).put("device", deviceName()).put("ts", System.currentTimeMillis()).put("kind", "phone")
     private fun sendUdp(p: JSONObject, to: InetAddress?) {
+        up?.let { u -> upSend(u, p); return }   // 🌍 poza domem - wszystko przez pośrednika
         val d = p.toString().toByteArray(Charsets.UTF_8)
         val own = udp
         val out: (ByteArray, InetAddress) -> Unit = if (own != null) { b, to -> own.send(DatagramPacket(b, b.size, to, PORT)) } else udpOut ?: return
@@ -199,10 +201,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private val seen = java.util.Collections.synchronizedSet(LinkedHashSet<String>())
 
     // pakiet "p2p-*" z sieci (z LanSync albo z listen()); true - obsłużony
-    fun handleUdp(p: JSONObject, sender: InetAddress?): Boolean {
+    // viaRelay - pakiet przyszedł przez pośrednika (poza domem), nie z sieci domowej
+    fun handleUdp(p: JSONObject, sender: InetAddress?, viaRelay: Boolean = false): Boolean {
         val t = p.optString("t"); if (!t.startsWith("p2p-")) return false
         val from = p.optString("id")
         if (from == myId || from.length != 32 || sender == null) return true
+        if (viaRelay) viaNet[from] = true else { lanSeen[from] = System.currentTimeMillis(); viaNet.remove(from) }
         if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) return true
         if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
         contact(from)?.let { c ->
@@ -211,6 +215,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             // prawdziwa nazwa urządzenia (zmieniona na tamtym telefonie / komputerze); własna nazwa kontaktu zostaje
             val real = clean(p.optString("device"))
             if (real.isNotEmpty() && real != c.device) { c.device = real; if (!c.own) c.name = real; saveContacts(); main.post { onChange() } }
+            // 🌍 adres pośrednika kontaktu (np. NUCBOX z No-IP) - poza domem rozmowy idą przez niego
+            val rl = p.optString("relay")
+            if (t == "p2p-here" && rl.isNotEmpty() && rl.length < 200 && ':' in rl && rl != c.relay) { c.relay = rl; saveContacts() }
             if (!was) main.post { onChange() }
         }
         if (t != "p2p-ack" && t != "p2p-msg") contact(from)?.let { c -> Thread { resend(c) }.start() }
@@ -289,7 +296,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             ci.updateAAD(msgAd(c.id, myId, mid, p.optLong("ts")))
             String(ci.doFinal(unb64(p.optString("c"))), Charsets.UTF_8)
         }.getOrNull() ?: return
-        sendUdp(packet("p2p-ack").put("mid", mid).put("mac", b64(hmac(c.key, "ack\n$mid".toByteArray()))), sender)
+        sendUdp(packet("p2p-ack").put("to", c.id).put("mid", mid).put("mac", b64(hmac(c.key, "ack\n$mid".toByteArray()))), sender)
         if (!seen.add(mid)) return   // powtórzenie (np. potwierdzenie nie doszło) - tylko ponowne ack
         if (seen.size > 2000) synchronized(seen) { seen.iterator().let { it.next(); it.remove() } }
         if (c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
@@ -335,9 +342,16 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     // --- TCP (kontakt i pliki) ---
-    fun handleTcp(h: JSONObject, inp: DataInputStream, sock: java.net.Socket): Boolean = when (h.optString("Type")) {
-        "p2p-pair" -> { runCatching { receivePair(h, inp, sock) }; true }
-        "p2p-file" -> { runCatching { receiveFile(h, inp, sock) }; true }
+    // połączenie: TCP w sieci domowej albo szyfrowany tunel przez pośrednika
+    class Conn(val inp: DataInputStream, val out: java.io.OutputStream, val addr: InetAddress?, private val sock: java.net.Socket) : java.io.Closeable {
+        fun timeout(ms: Int) { runCatching { sock.soTimeout = ms } }
+        override fun close() { runCatching { out.flush() }; runCatching { sock.close() } }
+    }
+
+    fun handleTcp(h: JSONObject, inp: DataInputStream, sock: java.net.Socket): Boolean = handleTcp(h, Conn(inp, sock.getOutputStream(), sock.inetAddress, sock))
+    fun handleTcp(h: JSONObject, c: Conn): Boolean = when (h.optString("Type")) {
+        "p2p-pair" -> { runCatching { receivePair(h, c) }; true }
+        "p2p-file" -> { runCatching { receiveFile(h, c) }; true }
         else -> false
     }
 
@@ -355,19 +369,20 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun writeBlock(out: java.io.OutputStream, b: ByteArray) { out.write(int4(b.size)); out.write(b); out.flush() }
     private fun readBlock(inp: DataInputStream, max: Int): ByteArray? { val l = readInt4(inp); if (l <= 0 || l > max) return null; return ByteArray(l).also { inp.readFully(it) } }
 
-    private fun receivePair(h: JSONObject, inp: DataInputStream, sock: java.net.Socket) {
+    private fun receivePair(h: JSONObject, cn: Conn) {
+        val inp = cn.inp
         val other = h.optString("Id"); if (other.length != 32 || other == myId) return
         val pubA = unb64(h.optString("Pub")); if (pubA.isEmpty() || pubA.size > 200) return
         val dev = clean(h.optString("Device"))
         val mine = ecPair(); val pubB = mine.public.encoded
-        val out = sock.getOutputStream()
+        val out = cn.out
         writeBlock(out, pubB)
         val key = agree(mine, pubA, "velivo-czat", pubA, pubB)
         val ok = ask { a -> askPair(dev, code(key), a) }
         out.write(if (ok) 1 else 0); out.flush()
         if (!ok) return
         writeBlock(out, JSONObject().put("Id", myId).put("Device", deviceName()).toString().toByteArray(Charsets.UTF_8))
-        addContact(Contact(other, dev, key, sock.inetAddress.hostAddress ?: ""))
+        addContact(Contact(other, dev, key, cn.addr?.hostAddress ?: ""))
     }
 
     private fun addContact(c: Contact) {
@@ -406,7 +421,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun chunkAad(ad: ByteArray, i: Int, last: Boolean) = ad + ("\n$i\n" + (if (last) "1" else "0")).toByteArray(Charsets.UTF_8)
     private fun chunks(size: Long) = maxOf(1L, (size + CHUNK - 1) / CHUNK).toInt()
 
-    private fun receiveFile(h: JSONObject, inp: DataInputStream, sock: java.net.Socket) {
+    private fun receiveFile(h: JSONObject, cn: Conn) {
+        val inp = cn.inp
         val size = h.optLong("Size")
         if (size < 0 || size > (1L shl 40) || h.optString("Id").length != 32 || h.optString("Id") == myId) return
         val pubA = unb64(h.optString("Pub")); val base = unb64(h.optString("Nonce"))
@@ -415,7 +431,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             .trim().trimStart('.').ifEmpty { "plik" }.takeLast(120)
         val dev = clean(h.optString("Device"))
         val mine = ecPair(); val pubB = mine.public.encoded
-        val out = sock.getOutputStream()
+        val out = cn.out
         writeBlock(out, pubB)   // nadawca liczy ten sam kod i pokazuje go u siebie
         val key = agree(mine, pubA, "velivo-p2p", pubA, pubB)
         val ad = fileAd(h)
@@ -425,7 +441,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val ok = auto || ask { a -> askFile(from?.name ?: dev, name, size, if (from != null) "" else code(key), a) }
         out.write(if (ok) 1 else 0); out.flush()
         if (!ok) return
-        sock.soTimeout = 60000
+        cn.timeout(60000)
         val tmp = java.io.File(tmpDir, "odbior-" + UUID.randomUUID() + ".part")
         var good = false
         try {
@@ -474,6 +490,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val ad = fileAd(h)
         val mid = UUID.randomUUID().toString().replace("-", ""); h.put("Mid", mid)   // poza podpisem - tylko do ✓✓ w rozmowie
         if (to != null) h.put("Mac", b64(hmac(to.key, ad)))   // kontakt rozpozna nadawcę bez kodu
+        if (to != null) h.put("To", to.id)   // pośrednik wie, komu przekazać (poza podpisem)
         // wpis w rozmowie od razu („…”): „przeczytane” od odbiorcy może przyjść, zanim tu skończymy
         // wysłane zdjęcie: mała kopia w Velivo (miniatura w rozmowie)
         val thumb = if (to != null && isImage(name)) runCatching {
@@ -485,17 +502,17 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }.getOrNull() else null
         val pend = to?.let { c -> Msg(true, (if (thumb != null) "🖼 " else "📎 ") + "$name · " + sizeText(size), System.currentTimeMillis(), false, mid, file = true, path = thumb).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
         return runCatching {
-            java.net.Socket().use { s ->
-                s.connect(InetSocketAddress(target, PORT), 5000); s.soTimeout = 15000
-                val out = java.io.BufferedOutputStream(s.getOutputStream(), 1 shl 16)
+            connect(target, to?.id).use { s ->   // poza domem - tunel przez pośrednika
+                s.timeout(15000)
+                val out = java.io.BufferedOutputStream(s.out, 1 shl 16)
                 writeBlock(out, h.toString().toByteArray(Charsets.UTF_8))
-                val inp = DataInputStream(s.getInputStream())
+                val inp = s.inp
                 val pubB = readBlock(inp, 200) ?: return@use "błąd"
                 val key = agree(mine, pubB, "velivo-p2p", pubA, pubB)
                 showCode(code(key))
-                s.soTimeout = 180000
+                s.timeout(180000)
                 if (inp.read() != 1) return@use "odrzucono"
-                s.soTimeout = 300000
+                s.timeout(300000)
                 val n = chunks(size); var sent = 0L
                 open().use { src ->
                     val buf = ByteArray(CHUNK)
@@ -529,6 +546,127 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
         main.post { onChange() }
+    }
+
+    // --- 🌍 poza domem: połączenie z pośrednikiem (komputer z Velivo, zawsze włączony, adres No-IP i własny port) ---
+    // Ten sam protokół co Velivo na Windows (KomunikatorPosrednik.cs): podpis kluczem kontaktu, klucz sesji, ramki AES-GCM;
+    // pakiety p2p-* jak w sieci domowej, pliki tunelem. W domu (pośrednik widoczny w sieci domowej) - jak dotąd.
+    private val lanSeen = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val viaNet = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    fun viaInternet(id: String) = up != null || viaNet.containsKey(id)
+    @Volatile private var up: Frames? = null
+    @Volatile private var upRelay: Contact? = null
+    private val started = System.currentTimeMillis()
+    private val upWriter = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    // [4 bajty długości][nonce 12][dane][tag 16] - AES-GCM kluczem sesji
+    class Frames(val sock: java.net.Socket, key: ByteArray) : java.io.Closeable {
+        private val k = SecretKeySpec(key, "AES"); private val rnd = SecureRandom()
+        private val rawIn = DataInputStream(java.io.BufferedInputStream(sock.getInputStream(), 1 shl 16)); private val rawOut = sock.getOutputStream()
+        fun readFrame(): ByteArray {
+            val l = readInt4(rawIn); if (l < 28 || l > (2 shl 20)) throw java.io.IOException("ramka")
+            val f = ByteArray(l).also { rawIn.readFully(it) }
+            val c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.DECRYPT_MODE, k, GCMParameterSpec(128, f, 0, 12))
+            return c.doFinal(f, 12, l - 12)
+        }
+        @Synchronized fun writeFrame(d: ByteArray, off: Int = 0, len: Int = d.size) {
+            val n = ByteArray(12).also { rnd.nextBytes(it) }
+            val c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, k, GCMParameterSpec(128, n))
+            val e = c.doFinal(d, off, len)
+            rawOut.write(int4(12 + e.size)); rawOut.write(n); rawOut.write(e); rawOut.flush()
+        }
+        val input = object : java.io.InputStream() {
+            private var b = ByteArray(0); private var p = 0
+            override fun read(): Int { val one = ByteArray(1); return if (read(one, 0, 1) <= 0) -1 else one[0].toInt() and 0xff }
+            override fun read(buf: ByteArray, off: Int, len: Int): Int {
+                if (p >= b.size) { b = runCatching { readFrame() }.getOrElse { return -1 }; p = 0; if (b.isEmpty()) return -1 }
+                val n = minOf(len, b.size - p); System.arraycopy(b, p, buf, off, n); p += n; return n
+            }
+        }
+        val output = object : java.io.OutputStream() {
+            private val bo = java.io.ByteArrayOutputStream()
+            override fun write(x: Int) { bo.write(x); if (bo.size() >= 1 shl 20) flush() }
+            // duży zapis - po kawałkach 1 MB (ramka nie większa niż 2 MB, które przyjmuje druga strona)
+            override fun write(buf: ByteArray, off: Int, len: Int) {
+                var o = off; var n = len
+                while (n > 0) { val k = minOf(n, (1 shl 20) - bo.size()); bo.write(buf, o, k); o += k; n -= k; if (bo.size() >= 1 shl 20) flush() }
+            }
+            override fun flush() { if (bo.size() > 0) { val d = bo.toByteArray(); bo.reset(); writeFrame(d) } }
+        }
+        override fun close() { runCatching { output.flush() }; runCatching { sock.close() } }
+    }
+
+    private fun macOf(key: ByteArray, label: String, data: ByteArray) = hmac(key, label.toByteArray(Charsets.US_ASCII) + data)
+
+    // mode: "main" (pakiety), "tunnel" (plik do `to`), "tunnel-in" (plik do nas, `tunnel` = id)
+    private fun relayConnect(relay: Contact, mode: String, tunnel: String? = null, to: String? = null): Frames? = runCatching {
+        val hp = (relay.relay ?: return null).split(':'); if (hp.size != 2) return null
+        val sock = java.net.Socket()
+        try {
+            sock.connect(InetSocketAddress(hp[0], hp[1].toInt()), 12000)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
+            sock.soTimeout = 15000; sock.keepAlive = true
+            val out = sock.getOutputStream(); val inp = DataInputStream(sock.getInputStream())
+            val nc = ByteArray(16).also { random.nextBytes(it) }
+            val hello = JSONObject().put("Type", "relay-hello").put("Id", myId).put("Relay", relay.id).put("Nonce", b64(nc))
+                .put("Ts", System.currentTimeMillis()).put("Mode", mode).put("Tunnel", tunnel ?: "").put("To", to ?: "").toString().toByteArray(Charsets.UTF_8)
+            writeBlock(out, hello); writeBlock(out, macOf(relay.key, "relay-hello\n", hello))
+            val rep = readBlock(inp, 4096) ?: throw java.io.IOException(); val mac = readBlock(inp, 64) ?: throw java.io.IOException()
+            if (!MessageDigest.isEqual(mac, macOf(relay.key, "relay-ok\n", hello + rep))) throw java.io.IOException("to nie nasz pośrednik")
+            val ns = unb64(JSONObject(String(rep, Charsets.UTF_8)).optString("Nonce")); if (ns.size != 16) throw java.io.IOException()
+            sock.soTimeout = 150000
+            Frames(sock, MessageDigest.getInstance("SHA-256").digest(relay.key + "velivo-relay".toByteArray(Charsets.US_ASCII) + nc + ns))
+        } catch (e: Exception) { runCatching { sock.close() }; throw e }
+    }.getOrNull()
+
+    private fun upSend(u: Frames, p: JSONObject) {
+        val d = p.toString().toByteArray(Charsets.UTF_8)
+        upWriter.execute { runCatching { u.writeFrame(d) }.onFailure { if (up === u) { up = null; runCatching { u.close() } } } }
+    }
+
+    // połączenie do urządzenia: poza domem - tunel przez pośrednika; w domu - TCP w sieci domowej
+    private fun connect(target: InetAddress, toId: String?): Conn {
+        val relay = upRelay
+        if (up != null && relay != null && toId != null) relayConnect(relay, "tunnel", to = toId)?.let { f -> return Conn(DataInputStream(f.input), f.output, null, f.sock) }
+        val s = java.net.Socket(); s.connect(InetSocketAddress(target, PORT), 5000)
+        return Conn(DataInputStream(s.getInputStream()), s.getOutputStream(), target, s)
+    }
+
+    // co 20 s: pośrednik nie widoczny w sieci domowej - połączenie przez internet; widoczny - z powrotem w domu
+    private val upLoop = Thread {
+        while (true) runCatching {
+            Thread.sleep(20000)
+            val relay = synchronized(this) { contacts.firstOrNull { it.relay != null } }
+            val home = relay == null || System.currentTimeMillis() - started < 30000 || System.currentTimeMillis() - (lanSeen[relay.id] ?: 0L) < 100000
+            val u = up
+            if (home) { if (u != null) { up = null; u.close(); announce() }; return@runCatching }
+            if (u != null) { upSend(u, JSONObject().put("t", "relay-ping")); return@runCatching }
+            if (udpOut == null && udp == null) return@runCatching   // komunikator nie działa (aplikacja zamknięta bez odbioru w tle)
+            val f = relayConnect(relay!!, "main") ?: return@runCatching
+            upRelay = relay; up = f
+            announce()   // jestem (przez internet) + zaległe wiadomości
+            Thread {
+                runCatching {
+                    while (up === f) {
+                        val p = JSONObject(String(f.readFrame(), Charsets.UTF_8)); val t = p.optString("t")
+                        if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(relay, tid) }.start(); continue }
+                        if (t.startsWith("p2p-")) handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true)
+                    }
+                }
+                if (up === f) { up = null; runCatching { f.close() } }
+                main.post { onChange() }
+            }.start()
+            main.post { onChange() }
+        }
+    }.apply { isDaemon = true }
+
+    // plik do nas od urządzenia w domu (przez pośrednika)
+    private fun tunnelIn(relay: Contact, tid: String) {
+        val f = relayConnect(relay, "tunnel-in", tunnel = tid) ?: return
+        f.use { runCatching {
+            val inp = DataInputStream(f.input)
+            val hb = readBlock(inp, 4096) ?: return
+            handleTcp(JSONObject(String(hb, Charsets.UTF_8)), Conn(inp, f.output, null, f.sock))
+        } }
     }
 
     // --- własne gniazda (klawiatura bez przeglądarki; przeglądarka używa gniazd LanSync) ---
@@ -686,7 +824,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         @Volatile private var one: Komunikator? = null
         // jeden w aplikacji - okna i usługa w tle widzą te same rozmowy
         fun get(ctx: Context, deviceName: () -> String): Komunikator = one ?: synchronized(this) {
-            one ?: Komunikator(ctx.applicationContext, deviceName).also { one = it; it.resender.start() }
+            one ?: Komunikator(ctx.applicationContext, deviceName).also { one = it; it.resender.start(); it.upLoop.start() }
         }
         const val PORT = 41919
         const val CHUNK = 1 shl 20
@@ -1082,7 +1220,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 if (c.own && c.device.isNotEmpty() && c.device != c.name) { val s0 = length; append("  (" + c.device + ")"); setSpan(android.text.style.RelativeSizeSpan(0.7f), s0, length, 0) }
                 append("\n"); val st = length
                 val seen = k.lastSeenAt(c.id)?.let { " · " + t("ostatnio ", "last seen ") + when_(it) } ?: ""
-                append(if (on) "● " + t("w sieci", "online") else "● " + t("poza siecią", "offline") + seen + "\n" + t("wiadomości dojdą, gdy wróci", "messages arrive when back"))
+                append(if (on) "● " + (if (k.viaInternet(c.id)) t("w sieci (przez internet)", "online (via internet)") else t("w sieci", "online")) else "● " + t("poza siecią", "offline") + seen + "\n" + t("wiadomości dojdą, gdy wróci", "messages arrive when back"))
                 setSpan(android.text.style.ForegroundColorSpan(if (on) green else Color.GRAY), st, length, 0)
                 setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0)
             }

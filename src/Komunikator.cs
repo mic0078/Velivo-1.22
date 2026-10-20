@@ -28,7 +28,7 @@ namespace Velivo
     public partial class MainWindow
     {
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
-        sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; }
+        sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; }   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
         sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
@@ -60,10 +60,11 @@ namespace Velivo
                     _komId = (string)o["id"];
                     _komTheme = (string)o["theme"] ?? "auto";
                     _komAutoImages = (bool?)o["autoimg"] ?? true;
+                    _komRelayOn = (bool?)o["relayOn"] ?? false; _komRelayHost = (string)o["relayHost"] ?? ""; _komRelayPort = (int?)o["relayPort"] ?? 41920;
                     foreach (var c in o["contacts"]?.AsArray() ?? new JsonArray())
                     {
                         var k = Convert.FromBase64String((string)c["key"] ?? "");
-                        if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false });
+                        if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false, Relay = (string)c["relay"] });
                     }
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
                         _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"] }).ToList();
@@ -89,8 +90,8 @@ namespace Velivo
                 var o = new JsonObject
                 {
                     ["id"] = _komId,
-                    ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages
+                    ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["relayOn"] = _komRelayOn, ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
                 };
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(o.ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
@@ -170,6 +171,8 @@ namespace Velivo
 
         void KomSendUdp(JsonObject p, IPAddress to)
         {
+            // pośrednik / poza domem: pakiet do urzadzenia za pośrednikiem - tunelem (KomunikatorPosrednik.cs)
+            if (KomRouteRemote(p, to == null)) return;
             var d = Encoding.UTF8.GetBytes(p.ToJsonString());
             var s = _komUdp ?? _lanTx;
             if (s == null) return;
@@ -198,7 +201,12 @@ namespace Velivo
             return l;
         }
 
-        JsonObject KomPacket(string t) => new JsonObject { ["t"] = t, ["id"] = _komId, ["device"] = _lanDeviceName, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["kind"] = "pc" };
+        JsonObject KomPacket(string t)
+        {
+            var p = new JsonObject { ["t"] = t, ["id"] = _komId, ["device"] = _lanDeviceName, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["kind"] = "pc" };
+            if (t == "p2p-here" && _komRelayOn && _komRelayHost.Length > 0) p["relay"] = _komRelayHost + ":" + _komRelayPort;   // 🌍 pośrednik: kontakty zapamietuja adres na wyjscie z domu
+            return p;
+        }
         static string KomClean(string s) => new string((s ?? "").Where(ch => !char.IsControl(ch)).ToArray()).Trim() is var x && x.Length > 64 ? x.Substring(0, 64) : new string((s ?? "").Where(ch => !char.IsControl(ch)).ToArray()).Trim();
         static byte[] KomHmac(byte[] key, string s) { using (var h = new HMACSHA256(key)) return h.ComputeHash(Encoding.UTF8.GetBytes(s)); }
         static byte[] KomB64(string s) { try { return Convert.FromBase64String(s ?? ""); } catch (FormatException) { return Array.Empty<byte>(); } }
@@ -215,6 +223,7 @@ namespace Velivo
             if (buf.Length < 8 || Encoding.UTF8.GetString(buf, 0, Math.Min(buf.Length, 200)).IndexOf("\"p2p-", StringComparison.Ordinal) < 0) return false;
             JsonNode p; try { p = JsonNode.Parse(buf); } catch (Exception) { return false; }
             var t = (string)p?["t"]; if (t == null || !t.StartsWith("p2p-", StringComparison.Ordinal)) return false;
+            KomRelayFromLan(p, remote.Address);   // pośrednik: do urzadzen poza domem
             Dispatcher.BeginInvoke(new Action(() => { try { KomHandle(p, remote.Address); } catch (Exception ex) { App.LogError(ex); } }));
             return true;
         }
@@ -232,6 +241,9 @@ namespace Velivo
             {
                 bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; _komSeenAt[c.Id] = DateTime.Now;
                 if (t == "p2p-here" && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
+                // 🌍 adres pośrednika kontaktu (np. NUCBOX z No-IP) - poza domem rozmowy ida przez niego
+                var relayAddr = (string)p["relay"];
+                if (t == "p2p-here" && relayAddr != null && relayAddr.Length < 200 && relayAddr.Contains(':') && relayAddr != c.Relay) { c.Relay = relayAddr; KomSave(); }
                 // prawdziwa nazwa urzadzenia (zmieniona na tamtym komputerze / telefonie); wlasna nazwa kontaktu zostaje
                 var realName = KomClean((string)p["device"]);
                 if (realName.Length > 0 && realName != c.Device) { c.Device = realName; if (!c.Own) c.Name = realName; KomSave(); _komRefresh?.Invoke(); }
@@ -284,7 +296,7 @@ namespace Velivo
                 text = Encoding.UTF8.GetString(plain);
             }
             catch (CryptographicException) { return; }
-            var ack = KomPacket("p2p-ack"); ack["mid"] = mid; ack["mac"] = Convert.ToBase64String(KomHmac(c.Key, "ack\n" + mid));
+            var ack = KomPacket("p2p-ack"); ack["to"] = c.Id; ack["mid"] = mid; ack["mac"] = Convert.ToBase64String(KomHmac(c.Key, "ack\n" + mid));
             KomSendUdp(ack, sender);
             if (!_komSeen.Add(mid)) return;   // powtorka - tylko ponowne potwierdzenie
             if (c.Addr != sender.ToString()) c.Addr = sender.ToString();
@@ -475,6 +487,7 @@ namespace Velivo
         void KomStartResend()
         {
             if (_komResend != null) return;
+            KomRelayStart(); KomUpStart();   // 🌍 pośrednik (gdy wlaczony) i laczenie z pośrednikiem poza domem
             _komResend = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
             _komResend.Tick += (s, e) =>
             {
@@ -520,12 +533,18 @@ namespace Velivo
         }
 
         // naglowek TCP z odbiornika LAN albo wlasnego; true - obsluzony tutaj
-        internal async Task<bool> KomTcpAsync(byte[] headerBytes, NetworkStream stream, TcpClient client, CancellationToken token)
+        internal Task<bool> KomTcpAsync(byte[] headerBytes, NetworkStream stream, TcpClient client, CancellationToken token) =>
+            KomTcpAsync(headerBytes, stream, (client.Client.RemoteEndPoint as IPEndPoint)?.Address, token);
+
+        // strumien: polaczenie w sieci domowej albo zaszyfrowany tunel przez pośrednika (KomunikatorPosrednik.cs)
+        internal async Task<bool> KomTcpAsync(byte[] headerBytes, Stream stream, IPAddress remote, CancellationToken token)
         {
             JsonNode h; try { h = JsonNode.Parse(headerBytes); } catch (Exception) { return false; }
             var type = (string)h?["Type"];
             if (type != "p2p-pair" && type != "p2p-file") return false;
-            var remote = (client.Client.RemoteEndPoint as IPEndPoint)?.Address;
+            // plik dla urzadzenia poza domem polaczonego przez tego pośrednika - przekazanie tunelem
+            var toId = (string)h["To"];
+            if (type == "p2p-file" && toId != null && toId != _komId && _komRemote.ContainsKey(toId)) { await KomRelayToRemote(toId, headerBytes, stream, token); return true; }
             try { if (type == "p2p-pair") await KomReceivePair(h, stream, remote, token); else await KomReceiveFile(h, stream, token); }
             catch (Exception ex) { if (!token.IsCancellationRequested) App.LogError(ex); }
             return true;
@@ -536,7 +555,7 @@ namespace Velivo
             return await Dispatcher.InvokeAsync(() => MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), text, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes);
         }
 
-        async Task KomReceivePair(JsonNode h, NetworkStream s, IPAddress remote, CancellationToken token)
+        async Task KomReceivePair(JsonNode h, Stream s, IPAddress remote, CancellationToken token)
         {
             await Dispatcher.InvokeAsync(KomLoad);
             var other = (string)h["Id"] ?? ""; if (other.Length != 32 || other == _komId) return;
@@ -593,7 +612,7 @@ namespace Velivo
 
         static string KomSize(long size) => size >= 1073741824 ? (size / 1073741824.0).ToString("0.00", CultureInfo.CurrentCulture) + " GB" : size >= 1048576 ? (size / 1048576.0).ToString("0.0", CultureInfo.CurrentCulture) + " MB" : Math.Max(1, size / 1024) + " KB";
 
-        async Task KomReceiveFile(JsonNode h, NetworkStream s, CancellationToken token)
+        async Task KomReceiveFile(JsonNode h, Stream s, CancellationToken token)
         {
             long size = (long?)h["Size"] ?? -1; var id = (string)h["Id"] ?? "";
             if (size < 0 || size > LanFile2Limit || id.Length != 32 || id == _komId) return;
@@ -710,11 +729,13 @@ namespace Velivo
                         var pubA = me.ExportSubjectPublicKeyInfo(); var baseNonce = RandomNumberGenerator.GetBytes(12);
                         var h = new JsonObject { ["Type"] = "p2p-file", ["Id"] = _komId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
                         if (mid != null) h["Mid"] = mid;
+                        if (to != null) h["To"] = to.Id;   // pośrednik wie, komu przekazac (poza podpisem)
                         var ad = KomFileAd(h);
                         if (to != null) using (var hm = new HMACSHA256(to.Key)) h["Mac"] = Convert.ToBase64String(hm.ComputeHash(ad));   // kontakt rozpozna nadawce bez kodu
-                        cts.CancelAfter(TimeSpan.FromSeconds(10));
-                        await cl.ConnectAsync(addr, LanPort, cts.Token);
-                        var s = cl.GetStream();
+                        cts.CancelAfter(TimeSpan.FromSeconds(15));
+                        // poza domem - tunel przez pośrednika; w domu - prosto do urzadzenia
+                        Stream s = await KomOpenAsync(cl, addr, to?.Id, cts.Token);
+                        using var tunnel = s as IDisposable;
                         await KomWriteBlock(s, Encoding.UTF8.GetBytes(h.ToJsonString()), cts.Token);
                         var pubB = await KomReadBlock(s, 200, cts.Token); if (pubB == null) return "błąd";
                         var key = KomAgree(me, pubB, "velivo-p2p", pubA, pubB);
@@ -733,6 +754,7 @@ namespace Velivo
                                 if (progress != null && (i % 4 == 3 || i == n - 1)) progress(sent, size);   // co ok. 4 MB
                                 gcm.Encrypt(ChunkNonce(baseNonce, i), buf.AsSpan(0, len), ct.AsSpan(0, len), tag, ChunkAad(ad, i, i == n - 1));
                                 await s.WriteAsync(BitConverter.GetBytes(len + 16), 0, 4); await s.WriteAsync(ct, 0, len); await s.WriteAsync(tag, 0, 16);
+                                if (s is KomFrameStream) await s.FlushAsync();   // tunel: ramka na kawalek
                             }
                         }
                         if (sent != size) return L.T("plik zmienił się w trakcie");
@@ -942,7 +964,7 @@ namespace Velivo
                     header.Inlines.Add(new System.Windows.Documents.Run("💬 " + c.Name + "  "));
                     if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) header.Inlines.Add(new System.Windows.Documents.Run("(" + c.Device + ")  ") { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
-                    header.Inlines.Add(new System.Windows.Documents.Run(on ? L.T("● w sieci") : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
+                    header.Inlines.Add(new System.Windows.Documents.Run(on ? (_komViaNet.ContainsKey(c.Id) || _komUp != null ? L.T("● w sieci (przez internet)") : L.T("● w sieci")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
                 }
                 input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = c != null;
@@ -1020,6 +1042,7 @@ namespace Velivo
                 Add("auto", L.T("🖥 Automatyczny (jak Velivo)"));
                 foreach (var p in KomPalettes) Add(p.Key, L.En ? p.En : p.Pl);
                 cm.Items.Add(new Separator());
+                var net = new MenuItem { Header = L.T("🌍 Rozmowy poza domem…") }; net.Click += (a, b) => KomRelayDialog(w); cm.Items.Add(net);
                 var ai = new MenuItem { Header = L.T("🖼 Zdjęcia i pliki od kontaktów od razu w rozmowie (bez pytania)"), IsCheckable = true, IsChecked = _komAutoImages };
                 ai.Click += (a, b) => { _komAutoImages = ai.IsChecked; KomSave(); };
                 cm.Items.Add(ai);

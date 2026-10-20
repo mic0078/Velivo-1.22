@@ -263,6 +263,7 @@ Chats and files on your home Wi-Fi – no internet, no server, no phone number. 
 * **📲 Files to another phone** (menu, 📤 or keyboard) – also to someone not in your contacts: both screens then show a code to compare.
 * Long-press a contact: **rename** or **delete** the contact and chat.
 * Contacts and chats are stored only on the device, encrypted (Android Keystore / Windows DPAPI).
+* **🌍 Chats away from home:** one always-on computer with Velivo becomes the relay. In its messenger: 🎨 → **🌍 Chats away from home…** → tick the relay, enter the home address (e.g. from No-IP) and the port (default 41920). In the router forward this TCP port to that computer (like for Jellyfin). Other devices get the address automatically while at home. Away from home the phone and computers connect through the relay by themselves (the chat shows “online (via internet)”), at home as before through the home network. Messages, ticks, photos and files work. Only your contacts can use it; everything is encrypted.
 
 ## 9. When something goes wrong
 

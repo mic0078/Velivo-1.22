@@ -734,7 +734,45 @@ namespace Velivo
             Pal("mieta", "🍃 Mięta", "🍃 Mint", false, "E0F7EF", "DDEFF7", "EEFAF5", "17352B", "5E8577", "0F9D74", "FFFFFF", "FFFFFF", "F7FDFB", "9ED9C5", "D4F0E6"),
             Pal("kontrast", "◐ Wysoki kontrast", "◐ High contrast", true, "000000", "000000", "000000", "FFFFFF", "FFFF00", "FFFF00", "000000", "1A1A1A", "000000", "FFFFFF", "000000"),
         };
-        string _komTheme = "auto";   // auto - jak motyw okien Velivo
+        string _komTheme = "auto";
+
+        // male okna komunikatora (zmiana nazwy, szukanie, kod) w kolorach jego motywu
+        void KomStyle(Window d)
+        {
+            var p = KomCurrentPal();
+            SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+            d.Uid = "own-theme"; d.Background = B(p.Panel); d.Foreground = B(p.Fg);
+            void Walk(DependencyObject o)
+            {
+                if (o is TextBox t) { t.Background = B(p.Input); t.Foreground = B(p.Fg); t.BorderBrush = B(p.Border); t.CaretBrush = B(p.Fg); }
+                else if (o is ListBox l) { l.Background = B(p.Input); l.Foreground = B(p.Fg); l.BorderBrush = B(p.Border); KomListStyle(l, p); }
+                else if (o is Button b) { b.Background = B(p.Mine); b.Foreground = B(p.MineFg); b.BorderBrush = B(p.Border); }
+                else if (o is TextBlock tb) tb.Foreground = B(p.Fg);
+                foreach (var ch in LogicalTreeHelper.GetChildren(o)) if (ch is DependencyObject dc) Walk(dc);
+            }
+            Walk(d);
+            d.SourceInitialized += (s, e) => { try { var h = new System.Windows.Interop.WindowInteropHelper(d).Handle; int on = p.Dark ? 1 : 0; DwmSetWindowAttribute(h, 20, ref on, 4); } catch (Exception) { } };
+        }
+
+        // zaznaczenie i najechanie na liscie w kolorach motywu (zamiast jasnoniebieskiego Windows)
+        static void KomListStyle(ListBox l, KomPal p)
+        {
+            var sel = new SolidColorBrush(Color.FromArgb(0x70, p.Mine.R, p.Mine.G, p.Mine.B)); sel.Freeze();
+            var hov = new SolidColorBrush(Color.FromArgb(0x30, p.Mine.R, p.Mine.G, p.Mine.B)); hov.Freeze();
+            var border = new FrameworkElementFactory(typeof(Border), "bd");
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
+            border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+            border.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+            border.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
+            var tpl = new ControlTemplate(typeof(ListBoxItem)) { VisualTree = border };
+            var tOver = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; tOver.Setters.Add(new Setter(Border.BackgroundProperty, hov, "bd")); tpl.Triggers.Add(tOver);
+            var tSel = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true }; tSel.Setters.Add(new Setter(Border.BackgroundProperty, sel, "bd")); tpl.Triggers.Add(tSel);
+            var st = new Style(typeof(ListBoxItem));
+            st.Setters.Add(new Setter(Control.TemplateProperty, tpl));
+            st.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+            st.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(2, 1, 2, 1)));
+            l.ItemContainerStyle = st;
+        }   // auto - jak motyw okien Velivo
         KomPal KomCurrentPal() => KomPalettes.FirstOrDefault(p => p.Key == _komTheme) ?? (DarkWindows ? KomPalettes[0] : KomPalettes[1]);
 
         // ---------- okno ----------
@@ -788,7 +826,7 @@ namespace Velivo
                 SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
                 root.Background = new LinearGradientBrush(pal.Bg1, pal.Bg2, 45);
                 w.Background = B(pal.Bg1); w.Foreground = B(pal.Fg);
-                list.Background = B(pal.Panel); list.BorderBrush = B(pal.Border); list.Foreground = B(pal.Fg);
+                list.Background = B(pal.Panel); list.BorderBrush = B(pal.Border); list.Foreground = B(pal.Fg); KomListStyle(list, pal);
                 input.Background = B(pal.Input); input.BorderBrush = B(pal.Border); input.Foreground = B(pal.Fg); input.CaretBrush = B(pal.Fg);
                 header.Foreground = B(pal.Fg);
                 foreach (var b in buttons) { b.Background = B(pal.Button); b.Foreground = B(pal.Fg); b.BorderBrush = B(pal.Border); }
@@ -924,6 +962,7 @@ namespace Velivo
             var box = new TextBox { Text = c.Name, Margin = new Thickness(10), MinWidth = 260 };
             var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(10, 0, 10, 10), HorizontalAlignment = HorizontalAlignment.Right };
             var d = new Window { Title = L.T("✏ Zmień nazwę"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = _komWindow, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { box, ok } } };
+            KomStyle(d);
             ok.Click += (s, e) => d.DialogResult = true;
             box.SelectAll(); box.Focus();
             if (d.ShowDialog() == true && box.Text.Trim().Length > 0) { c.Name = box.Text.Trim().Length > 64 ? box.Text.Trim().Substring(0, 64) : box.Text.Trim(); KomSave(); _komRefresh?.Invoke(); }
@@ -933,6 +972,7 @@ namespace Velivo
         {
             var wait = new Window { Title = title, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Content = new TextBlock { Text = L.T("Szukam urządzeń z Velivo w tej sieci…"), Margin = new Thickness(24) } };
+            KomStyle(wait);
             wait.Show();
             var found = await KomFind();
             wait.Close();
@@ -942,6 +982,7 @@ namespace Velivo
             lb.SelectedIndex = 0;
             var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(10, 0, 10, 10), HorizontalAlignment = HorizontalAlignment.Right };
             var d = new Window { Title = title, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { lb, ok } } };
+            KomStyle(d);
             ok.Click += (s, e) => d.DialogResult = true;
             lb.MouseDoubleClick += (s, e) => d.DialogResult = true;
             return d.ShowDialog() == true && lb.SelectedIndex >= 0 ? found[lb.SelectedIndex] : default;
@@ -953,6 +994,7 @@ namespace Velivo
                 Content = new StackPanel { Margin = new Thickness(24), Children = {
                     new TextBlock { Text = code, FontSize = 32, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center },
                     new TextBlock { Text = L.T("Sprawdź, czy drugie urządzenie pokazuje ten sam kod, i przyjmij tam."), Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 320 } } } };
+            KomStyle(w);
             w.Show();
             return w;
         }

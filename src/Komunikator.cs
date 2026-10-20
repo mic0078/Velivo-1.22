@@ -29,7 +29,7 @@ namespace Velivo
     {
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
         sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; }
-        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
+        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
         static string KomFile => Path.Combine(DataDir, "komunikator.dat");
@@ -59,13 +59,14 @@ namespace Velivo
                     var o = JsonNode.Parse(ProtectedData.Unprotect(File.ReadAllBytes(KomFile), KomEntropy, DataProtectionScope.CurrentUser));
                     _komId = (string)o["id"];
                     _komTheme = (string)o["theme"] ?? "auto";
+                    _komAutoImages = (bool?)o["autoimg"] ?? true;
                     foreach (var c in o["contacts"]?.AsArray() ?? new JsonArray())
                     {
                         var k = Convert.FromBase64String((string)c["key"] ?? "");
                         if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false });
                     }
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
-                        _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false }).ToList();
+                        _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"] }).ToList();
                     foreach (var kv in o["unread"]?.AsObject() ?? new JsonObject()) _komUnread[kv.Key] = (int)kv.Value;
                 }
             }
@@ -81,7 +82,7 @@ namespace Velivo
                 foreach (var kv in _komChats)
                 {
                     var a = new JsonArray();
-                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File });
+                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File, ["p"] = m.Path });
                     chats[kv.Key] = a;
                 }
                 var unread = new JsonObject(); foreach (var kv in _komUnread) unread[kv.Key] = kv.Value;
@@ -89,7 +90,7 @@ namespace Velivo
                 {
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages
                 };
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(o.ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
@@ -615,6 +616,17 @@ namespace Velivo
                 var c = KomContactById(id); var mac = KomB64((string)h["Mac"]);
                 if (c != null) using (var hm = new HMACSHA256(c.Key)) { var exp = hm.ComputeHash(ad); if (mac.Length == 32 && CryptographicOperations.FixedTimeEquals(mac, exp)) from = c; }
                 if (from != null) dev = from.Name;
+                if (from != null && _komAutoImages && size <= KomAutoImageLimit)
+                {   // zdjecie / plik od kontaktu - od razu do rozmowy (bez pytania i bez okna zapisu)
+                    try
+                    {
+                        Directory.CreateDirectory(KomMediaDir);
+                        var p0 = System.IO.Path.Combine(KomMediaDir, name); var stem = System.IO.Path.GetFileNameWithoutExtension(name); var ext = System.IO.Path.GetExtension(name);
+                        for (int i = 2; File.Exists(p0); i++) p0 = System.IO.Path.Combine(KomMediaDir, stem + " (" + i + ")" + ext);
+                        target = p0; accept = true; return;
+                    }
+                    catch (Exception ex) { App.LogError(ex); }
+                }
                 var text = dev + (L.En ? " is sending a file:\n\n" : " wysyła plik:\n\n") + name + "\n" + KomSize(size) +
                     (from != null ? "" : (L.En ? "\n\nCode: " : "\n\nKod: ") + KomCode(key) + L.T("\n\nPrzyjmij tylko, gdy telefon nadawcy pokazuje ten sam kod."));
                 accept = MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), text, L.En ? "Velivo – file" : "Velivo – plik", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
@@ -663,17 +675,22 @@ namespace Velivo
                     var msg = (L.En ? "📎 File from " : "📎 Plik od ") + dev + ": " + Path.GetFileName(target);
                     if (_komWindow != null && _komWindow.IsVisible) KomInfo(msg + L.T(" – zapisano"));   // okno zostaje na wierzchu
                     else ShowToast(msg, target);
-                    if (from != null) KomNote(from, false, "📎 " + Path.GetFileName(target) + " · " + KomSize(size), (string)h["Mid"]);
+                    if (from != null) KomNote(from, false, (KomIsImage(target) ? "🖼 " : "📎 ") + Path.GetFileName(target) + " · " + KomSize(size), (string)h["Mid"], target);
+                    if (from != null && !(_komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == from.Id))
+                    {   // plik / zdjecie jak wiadomosc: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)
+                        _komUnread[from.Id] = (_komUnread.TryGetValue(from.Id, out var un0) ? un0 : 0) + 1; KomSave(); KomTrayUpdate();
+                        KomNotify(from, (KomIsImage(target) ? "🖼 " : "📎 ") + Path.GetFileName(target));
+                    }
                 });
             }
             finally { if (tmp != null) try { File.Delete(tmp); } catch (Exception) { } CryptographicOperations.ZeroMemory(key); }
         }
 
         // plik w rozmowie: ten sam identyfikator u nadawcy i odbiorcy (Mid z naglowka) - "przeczytane" (✓✓) dziala jak przy wiadomosciach
-        void KomNote(KomContact c, bool mine, string text, string mid = null)
+        void KomNote(KomContact c, bool mine, string text, string mid = null, string path = null)
         {
             if (mid == null || mid.Length != 32 || KomChat(c.Id).Any(m => m.Mid == mid)) mid = Guid.NewGuid().ToString("N");
-            KomChat(c.Id).Add(new KomMsg { Mine = mine, Text = text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = mid, File = true });
+            KomChat(c.Id).Add(new KomMsg { Mine = mine, Text = text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = mid, File = true, Path = path });
             KomSave(); _komRefresh?.Invoke();
         }
 
@@ -751,6 +768,26 @@ namespace Velivo
             Pal("kontrast", "◐ Wysoki kontrast", "◐ High contrast", true, "000000", "000000", "000000", "FFFFFF", "FFFF00", "FFFF00", "000000", "1A1A1A", "000000", "FFFFFF", "000000"),
         };
         string _komTheme = "auto";
+        // 🖼📎 zdjecia i pliki od dodanych kontaktow (do 2 GB) od razu w rozmowie, jak w innych komunikatorach (zgoda: dodanie kontaktu kodem);
+        // zapis w wybranym miejscu - prawy przycisk; wylacznik w 🎨. Wieksze i od nieznajomych - z pytaniem
+        bool _komAutoImages = true;
+        const long KomAutoImageLimit = 2L * 1024 * 1024 * 1024;
+        static string KomMediaDir => System.IO.Path.Combine(DataDir, "Komunikator");
+        static bool KomIsImage(string name) => new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp" }.Contains(System.IO.Path.GetExtension(name ?? "").ToLowerInvariant());
+        readonly Dictionary<string, ImageSource> _komThumbs = new Dictionary<string, ImageSource>();
+        // miniatura do rozmowy (raz na plik - lista odswieza sie czesto)
+        ImageSource KomThumb(string path)
+        {
+            if (_komThumbs.TryGetValue(path, out var t)) return t;
+            try
+            {
+                var b = new System.Windows.Media.Imaging.BitmapImage();
+                b.BeginInit(); b.UriSource = new Uri(path); b.DecodePixelWidth = 260; b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); b.Freeze();
+                t = b;
+            }
+            catch (Exception) { t = null; }
+            _komThumbs[path] = t; return t;
+        }
 
         // male okna komunikatora (zmiana nazwy, szukanie, kod) w kolorach jego motywu
         void KomStyle(Window d)
@@ -918,9 +955,31 @@ namespace Velivo
                     var body = new StackPanel();
                     // kolory dymkow z motywu komunikatora (bez ramek pola tekstowego)
                     var fg = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg);
+                    // zdjecie: miniatura w dymku; klikniecie - pelny obraz; plik - klikniecie otwiera
+                    bool hasFile = !string.IsNullOrEmpty(m.Path) && File.Exists(m.Path);
+                    if (hasFile && KomIsImage(m.Path) && KomThumb(m.Path) is ImageSource th)
+                    {
+                        var img = new Image { Source = th, MaxWidth = 260, MaxHeight = 260, Stretch = Stretch.Uniform, Cursor = Cursors.Hand, Margin = new Thickness(0, 2, 0, 4), ToolTip = L.T("Otwórz zdjęcie") };
+                        var ip = m.Path; img.MouseLeftButtonUp += (s2, e2) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ip) { UseShellExecute = true }); } catch (Exception) { } };
+                        body.Children.Add(img);
+                    }
                     var txt = new TextBlock { Text = m.Text, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14 };
+                    if (hasFile) { var fp = m.Path; txt.Cursor = Cursors.Hand; txt.MouseLeftButtonUp += (s2, e2) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { } }; }
                     var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; copy.Click += (s2, e2) => { try { Clipboard.SetText(copyText); } catch (Exception) { } };
                     txt.ContextMenu = new ContextMenu { Items = { copy } };
+                    if (hasFile)
+                    {
+                        var fp2 = m.Path;
+                        var saveAs = new MenuItem { Header = L.T("💾 Zapisz jako…") };
+                        saveAs.Click += (s2, e2) =>
+                        {
+                            var dlg = new Microsoft.Win32.SaveFileDialog { FileName = System.IO.Path.GetFileName(fp2), Filter = (L.En ? "All files" : "Wszystkie pliki") + "|*.*", OverwritePrompt = true };
+                            if (dlg.ShowDialog(w) == true) try { File.Copy(fp2, dlg.FileName, true); } catch (Exception ex) { KomInfo(ex.Message); }
+                        };
+                        var showIn = new MenuItem { Header = L.T("📁 Pokaż w folderze") }; showIn.Click += (s2, e2) => { try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + fp2 + "\""); } catch (Exception) { } };
+                        txt.ContextMenu.Items.Add(saveAs); txt.ContextMenu.Items.Add(showIn);
+                        foreach (var ch in body.Children.OfType<Image>()) ch.ContextMenu = txt.ContextMenu;
+                    }
                     body.Children.Add(txt);
                     body.Children.Add(new TextBlock { Text = stamp, FontSize = 10, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine && !m.Ok ? L.T("Jeszcze nie doręczono – Velivo wyśle, gdy odbiorca będzie w sieci") : null });
                     msgs.Children.Add(new Border
@@ -960,6 +1019,10 @@ namespace Velivo
                 void Add(string key, string label) { var it = new MenuItem { Header = label, IsCheckable = true, IsChecked = _komTheme == key }; it.Click += (a, b) => { _komTheme = key; KomSave(); ApplyTheme(); FillList(); FillChat(); }; cm.Items.Add(it); }
                 Add("auto", L.T("🖥 Automatyczny (jak Velivo)"));
                 foreach (var p in KomPalettes) Add(p.Key, L.En ? p.En : p.Pl);
+                cm.Items.Add(new Separator());
+                var ai = new MenuItem { Header = L.T("🖼 Zdjęcia i pliki od kontaktów od razu w rozmowie (bez pytania)"), IsCheckable = true, IsChecked = _komAutoImages };
+                ai.Click += (a, b) => { _komAutoImages = ai.IsChecked; KomSave(); };
+                cm.Items.Add(ai);
                 cm.IsOpen = true;
             }));
             leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: telefon lub komputer z Velivo w tej samej sieci"), async (s, e) => await KomAddDialog(w)));
@@ -1067,7 +1130,7 @@ namespace Velivo
                 KomInfo("📎 " + fn + L.T(" – czekam, aż odbiorca przyjmie…"), 0);
                 // wpis w rozmowie od razu („…”): potwierdzenie przeczytania od odbiorcy moze przyjsc, zanim tu skonczymy
                 KomMsg pend = null;
-                if (to != null) { pend = new KomMsg { Mine = true, Text = "📎 " + fn + " · " + KomSize(fsize), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = false, Mid = fmid, File = true }; KomChat(to.Id).Add(pend); KomSave(); _komRefresh?.Invoke(); }
+                if (to != null) { pend = new KomMsg { Mine = true, Text = "📎 " + fn + " · " + KomSize(fsize), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = false, Mid = fmid, File = true, Path = f }; KomChat(to.Id).Add(pend); KomSave(); _komRefresh?.Invoke(); }
                 var r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
                     (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))), fmid);
                 codeWin?.Close();

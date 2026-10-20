@@ -257,7 +257,8 @@ Rozmowy i pliki w domowym Wi-Fi – bez internetu, bez serwera, bez numeru telef
 * **Status:** 🟢 zielony – kontakt jest teraz w sieci; ⚪ szary – poza siecią.
 * **Wiadomości** są szyfrowane. Gdy odbiorcy nie ma (np. wyszedł z domu), wiadomość ma znak **…** i Velivo wyśle ją sama, gdy wróci do domowej sieci (do 7 dni). Doręczona ma **✓**.
 * **Powiadomienia:** jak w innych komunikatorach – także gdy Velivo jest zamknięte. Telefon pokazuje wtedy ciche, stałe powiadomienie „Komunikator Velivo czeka na wiadomości”. Wyłączysz to w komunikatorze: **🔔 Wiadomości, gdy Velivo zamknięte**.
-* **📎 Załącz plik** w rozmowie – dowolny plik, bez limitu rozmiaru. Odbiorca zawsze potwierdza przyjęcie; plik trafia do **Pobranych** (na Windows – tam, gdzie wskażesz).
+* **📎 Załącz plik** w rozmowie – dowolny plik, bez limitu rozmiaru. Zdjęcia i pliki od **dodanych kontaktów** (do 2 GB) przychodzą od razu do rozmowy, jak w innych komunikatorach: zdjęcia jako miniatury (stuknięcie – pełny ekran), pliki otwiera stuknięcie. Zapis: przytrzymanie → Zapisz w Galerii / w Pobranych (Windows: prawy przycisk → Zapisz jako…). Wyłącznik: 🎨 → „Pliki od kontaktów od razu”. Pliki od osób spoza kontaktów i większe niż 2 GB – zawsze z pytaniem.
+* **Potwierdzenia:** … czeka na wysłanie, ✓ doręczone (czeka na otwarcie), ✓✓ odczytane – także przy zdjęciach i plikach.
 * **📲 Pliki na inny telefon** (menu, 📤 albo klawiatura) – także do osoby spoza kontaktów: wtedy oba ekrany pokazują kod do porównania.
 * Przytrzymaj kontakt: **zmiana nazwy** albo **usunięcie** kontaktu z rozmową.
 * Kontakty i rozmowy są zapisane tylko w urządzeniu, zaszyfrowane (Android Keystore / Windows DPAPI).

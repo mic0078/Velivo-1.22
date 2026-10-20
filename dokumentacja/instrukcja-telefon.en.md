@@ -257,7 +257,8 @@ Chats and files on your home Wi-Fi – no internet, no server, no phone number. 
 * **Status:** 🟢 green – the contact is on the network now; ⚪ grey – offline.
 * **Messages** are encrypted. If the recipient is away (e.g. left home), the message shows **…** and Velivo sends it by itself when they are back on the home network (up to 7 days). Delivered ones show **✓**.
 * **Notifications:** like other messengers – also when Velivo is closed. The phone then shows a quiet, permanent notification “Velivo messenger is waiting for messages”. Turn it off in the messenger: **🔔 Messages while Velivo is closed**.
-* **📎 Attach file** in a chat – any file, no size limit. The recipient always confirms; the file goes to **Downloads** (on Windows – where you choose).
+* **📎 Attach file** in a chat – any file, no size limit. Photos and files from **added contacts** (up to 2 GB) arrive straight in the chat, like other messengers: photos as thumbnails (tap – full screen), files open with a tap. Saving: long-press → Save to Gallery / Downloads (Windows: right click → Save as…). Switch: 🎨 → “Files from contacts at once”. Files from people outside your contacts and larger than 2 GB – always with a question.
+* **Ticks:** … waiting to be sent, ✓ delivered (waiting to be opened), ✓✓ read – also for photos and files.
 * **📲 Files to another phone** (menu, 📤 or keyboard) – also to someone not in your contacts: both screens then show a code to compare.
 * Long-press a contact: **rename** or **delete** the contact and chat.
 * Contacts and chats are stored only on the device, encrypted (Android Keystore / Windows DPAPI).

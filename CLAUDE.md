@@ -45,7 +45,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 ## Budowa u właściciela (Windows, PowerShell, nie jako administrator)
 
-Na końcu odpowiedzi napisz, co zbudować (Windows, Android, oba). Polecenia zawsze dla **PowerShell**:
+Claude zawsze podaje kod kompilacji do PowerShell (cały blok poniżej). Na końcu odpowiedzi napisz, co zbudować (Windows, Android, oba):
 
 ```
 cd "C:\Users\andro\Desktop\Velivo 1.22 z github"

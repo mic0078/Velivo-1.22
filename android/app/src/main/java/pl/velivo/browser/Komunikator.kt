@@ -744,7 +744,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     fun openChat(c: Komunikator.Contact) {
         k.markRead(c.id); chatWith = c.id; k.chatOpen = c.id; k.clearNotification(c.id)
         val msgs = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(4), px(8), px(4)) }
-        val scroll = ScrollView(a).apply { addView(msgs); layoutParams = LinearLayout.LayoutParams(-1, (a.resources.displayMetrics.heightPixels * 0.5).toInt()) }
+        val scroll = ScrollView(a).apply { addView(msgs); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }
         val fmt = java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
         fun fill() {
             msgs.removeAllViews()
@@ -753,7 +753,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 setTextIsSelectable(true); textSize = 15f
                 setPadding(px(10), px(6), px(10), px(6))
                 background = bg(if (m.mine) Color.rgb(109, 63, 219) else Color.argb(60, 128, 128, 128), 14)
-                if (m.mine) setTextColor(Color.WHITE)
+                setTextColor(if (m.mine) Color.WHITE else Color.rgb(0xEC, 0xE8, 0xFF))
                 layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(4); if (m.mine) leftMargin = px(40) else rightMargin = px(40) }
             })
             scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
@@ -761,25 +761,50 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val input = EditText(a).apply {
             hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             maxLines = 4; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); imeOptions = EditorInfo.IME_ACTION_SEND
+            setTextColor(Color.WHITE); setHintTextColor(Color.argb(0x99, 255, 255, 255)); textSize = 16f
+            background = bg(Color.rgb(0x2E, 0x27, 0x68), 20); setPadding(px(14), px(10), px(14), px(10))
         }
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, s); fill() }
         val btn = Button(a).apply { text = "➤"; contentDescription = t("Wyślij", "Send"); tooltipText = t("Wyślij", "Send"); setOnClickListener { send() } }
         input.setOnEditorActionListener { _, id, _ -> if (id == EditorInfo.IME_ACTION_SEND) { send(); true } else false }
         val clip = Button(a).apply { text = "📎"; contentDescription = t("Załącz plik", "Attach file"); tooltipText = t("Załącz plik", "Attach file"); setOnClickListener { attachTo = c; pickFiles() } }
-        val row = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; addView(clip); addView(input); addView(btn) }
-        val root = LinearLayout(a).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(px(8), 0, px(8), px(4))
-            addView(scroll); addView(row)
+        val row = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(6), 0, px(6)); addView(clip); addView(input); addView(btn) }
+        // pełny ekran jak w innych komunikatorach: nagłówek, wiadomości, pole wpisywania zawsze tuż nad klawiaturą
+        val dlg = android.app.Dialog(a, android.R.style.Theme_Material_NoActionBar)
+        val back = Button(a).apply { text = "←"; textSize = 20f; contentDescription = t("Kontakty", "Contacts"); tooltipText = t("Kontakty", "Contacts"); background = null; setTextColor(Color.WHITE); setOnClickListener { dlg.dismiss(); show() } }
+        val title = TextView(a).apply { textSize = 18f; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+        fun status() {
+            val on = k.online(c.id)
+            title.text = android.text.SpannableStringBuilder(c.name).apply {
+                append("\n"); val st = length
+                append(if (on) "● " + t("w sieci", "online") else "● " + t("poza siecią – wiadomości dojdą, gdy wróci", "offline – messages arrive when back"))
+                setSpan(android.text.style.ForegroundColorSpan(if (on) Color.rgb(34, 197, 94) else Color.GRAY), st, length, 0)
+                setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0)
+            }
+            title.setTextColor(Color.WHITE)
         }
-        fill()
-        val title = TextView(a).apply { textSize = 20f; setPadding(px(20), px(16), px(20), px(4)) }
-        fun status() { val on = k.online(c.id); title.text = "💬 " + c.name + "\n" + (if (on) "🟢 " + t("w sieci", "online") else "⚪ " + t("poza siecią – wiadomości dojdą, gdy wróci", "offline – messages arrive when back")); title.setTextColor(if (on) Color.rgb(34, 197, 94) else Color.GRAY) }
-        status()
+        val head = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(8)); addView(back); addView(title) }
+        val root = LinearLayout(a).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(px(8), 0, px(8), 0)
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(0x1E, 0x18, 0x38), Color.rgb(0x19, 0x1B, 0x33), Color.rgb(0x13, 0x2A, 0x35)))
+            addView(head); addView(scroll); addView(row)
+            // pasek stanu u góry, klawiatura / pasek nawigacji u dołu (także przy wyświetlaniu od krawędzi do krawędzi)
+            if (Build.VERSION.SDK_INT >= 30) setOnApplyWindowInsetsListener { v, ins ->
+                val bars = ins.getInsets(android.view.WindowInsets.Type.systemBars()); val ime = ins.getInsets(android.view.WindowInsets.Type.ime())
+                v.setPadding(px(8), bars.top, px(8), maxOf(bars.bottom, ime.bottom)); scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }; ins
+            }
+        }
+        fill(); status()
         chatRefresh = { k.markRead(c.id); fill(); status() }
-        AlertDialog.Builder(a).setCustomTitle(title).setView(root)
-            .setNegativeButton(t("Kontakty", "Contacts")) { _, _ -> show() }
-            .setOnDismissListener { chatWith = null; chatRefresh = null; k.chatOpen = null }.show()
-            .also { it.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE) }
+        dlg.setContentView(root)
+        dlg.window?.apply {
+            setLayout(-1, -1)
+            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            if (Build.VERSION.SDK_INT >= 30) setDecorFitsSystemWindows(false)
+            statusBarColor = Color.rgb(0x1E, 0x18, 0x38); navigationBarColor = Color.rgb(0x13, 0x2A, 0x35)
+        }
+        dlg.setOnDismissListener { chatWith = null; chatRefresh = null; k.chatOpen = null }
+        dlg.show()
     }
 }
 

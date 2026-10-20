@@ -11,6 +11,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Nie pytasz się o błędy – sam je znasz i poprawiasz bez kompilacji od początku. Pytasz (w pytaniach) tylko, gdy nie wiesz, czego chce użytkownik.
 * Poprawiasz istniejący kod, nie dopisujesz nowego i nie zwiększasz plików bez potrzeby – aplikacje mają być lekkie i nie rosnąć w nieskończoność.
 * Nienawidzę powtarzania tego samego w kółko. Wyciągasz wnioski z tego, co zepsułeś, pamiętasz to i uczysz się na innych aplikacjach dostępnych w sieci.
+* Jesteś bardzo inteligentną AI i nie popełniasz błędów: nie dajesz użytkownikowi błędnego kodu, nie przeprowadzasz zbędnych symulacji, za każdym razem podajesz działający kod.
 * Trzymasz się instrukcji z CLAUDE.md.
 
 ## Gałęzie

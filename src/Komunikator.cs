@@ -224,7 +224,7 @@ namespace Velivo
         JsonObject KomPacket(string t)
         {
             var p = new JsonObject { ["t"] = t, ["id"] = _komId, ["device"] = _lanDeviceName, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["kind"] = "pc" };
-            if (t == "p2p-here" && _komRelayOn && _komRelayHost.Length > 0) p["relay"] = _komRelayHost + ":" + _komRelayPort;   // 🌍 pośrednik: kontakty zapamietuja adres na wyjscie z domu
+            if (t == "p2p-here" && _komRelayOn && _komRelayHost.Length > 0 && _komUp == null) p["relay"] = _komRelayHost + ":" + _komRelayPort;   // tylko w domu (laptop poza domem nie podaje adresu obcej sieci)   // 🌍 pośrednik: kontakty zapamietuja adres na wyjscie z domu
             return p;
         }
         static string KomClean(string s) => new string((s ?? "").Where(ch => !char.IsControl(ch)).ToArray()).Trim() is var x && x.Length > 64 ? x.Substring(0, 64) : new string((s ?? "").Where(ch => !char.IsControl(ch)).ToArray()).Trim();

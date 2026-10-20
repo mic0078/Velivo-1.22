@@ -709,7 +709,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             // komputery z rozmowami poza domem (każdy z kontaktami może nim być); w domu - którykolwiek widoczny w sieci domowej
             val relays = synchronized(this) { contacts.filter { it.relay != null } }
             var relay = relays.firstOrNull()
-            val home = relay == null || (System.currentTimeMillis() - started < 30000 && !upForce) || relays.any { System.currentTimeMillis() - (lanSeen[it.id] ?: 0L) < 100000 }
+            // w domu = w sieci domowej widać którykolwiek kontakt (wtedy wszystko jak dotąd, prosto); poza domem - nikogo
+            val now = System.currentTimeMillis()
+            val home = relay == null || (now - started < 30000 && !upForce) || synchronized(this) { contacts.any { now - (lanSeen[it.id] ?: 0L) < 100000 } }
             val u = up
             if (home) { if (u != null) { up = null; u.close(); announce() }; return@runCatching }
             if (u != null) { upSend(u, JSONObject().put("t", "relay-ping")); return@runCatching }

@@ -367,7 +367,8 @@ namespace Velivo
             // komputery z rozmowami poza domem (kazdy z kontaktami moze nim byc); w domu - ktorykolwiek widoczny w sieci domowej
             var relays = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay)).ToList();
             var relay = relays.FirstOrDefault();
-            bool home = relay == null || _komRelayOn || relays.Any(r => _komLanSeen.TryGetValue(r.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
+            // w domu = w sieci domowej widac ktorykolwiek kontakt (wtedy wszystko jak dotad, prosto); poza domem - nikogo
+            bool home = relay == null || _komContacts.Any(c => _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
             if (home) { if (_komUp != null) { try { _komUp.Fs.Dispose(); } catch (Exception) { } _komUp = null; KomAnnounce(); } return; }
             if (_komUp != null || _komUpConnecting) { if (_komUp != null) KomSendFrame(_komUp, new JsonObject { ["t"] = "relay-ping" }); return; }
             _komUpConnecting = true;
@@ -539,7 +540,7 @@ namespace Velivo
 
         async Task KomRelayAutoAsync()
         {
-            if (!_komRelayOn) return;
+            if (!_komRelayOn || _komUp != null) return;   // poza domem (laptop) - nie ustalamy adresu obcej sieci
             var port = _komRelayPort;
             var (ext, mapped, note) = await Task.Run(() => KomUpnpAsync(port));
             // port zajety w routerze (np. inny komputer w domu) - nastepny wolny 41920-41929, sam

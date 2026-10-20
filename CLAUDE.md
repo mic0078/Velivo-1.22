@@ -22,7 +22,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 
 ## Wnioski (pamięć 3–5 dni)
 
-Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był aktywny: po każdym błędzie dopisz tu jedną linijkę z datą, starsze wpisy usuń.
+Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był aktywny: po każdym błędzie dopisz tu jedną linijkę z datą, by je naprawiać, jeśli wystąpią ponownie; starsze wpisy usuń.
 
 * 2026-10-20: przed wysłaniem kompiluj poprawioną część i sprawdź tłumaczenia.
 * 2026-10-20: nie zapisuj pliku przez `open(f,'w').write(open(f).read())` – czyści plik.

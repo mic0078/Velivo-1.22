@@ -27,7 +27,8 @@ namespace Velivo
     // Kontakty i rozmowy w pliku zaszyfrowanym DPAPI. Gdy synchronizacja LAN jest wylaczona - wlasne gniazda.
     public partial class MainWindow
     {
-        sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; }
+        // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
+        sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; }
         sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
@@ -61,7 +62,7 @@ namespace Velivo
                     foreach (var c in o["contacts"]?.AsArray() ?? new JsonArray())
                     {
                         var k = Convert.FromBase64String((string)c["key"] ?? "");
-                        if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "" });
+                        if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false });
                     }
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
                         _komChats[kv.Key] = kv.Value.AsArray().Select(m => new KomMsg { Mine = (bool)m["me"], Text = (string)m["t"], Ts = (long)m["ts"], Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false }).ToList();
@@ -87,7 +88,7 @@ namespace Velivo
                 var o = new JsonObject
                 {
                     ["id"] = _komId,
-                    ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr }).ToArray()),
+                    ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own }).ToArray()),
                     ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme
                 };
                 Directory.CreateDirectory(DataDir);
@@ -230,6 +231,9 @@ namespace Velivo
             {
                 bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; _komSeenAt[c.Id] = DateTime.Now;
                 if (t == "p2p-here" && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
+                // prawdziwa nazwa urzadzenia (zmieniona na tamtym komputerze / telefonie); wlasna nazwa kontaktu zostaje
+                var realName = KomClean((string)p["device"]);
+                if (realName.Length > 0 && realName != c.Device) { c.Device = realName; if (!c.Own) c.Name = realName; KomSave(); _komRefresh?.Invoke(); }
                 if (!was) _komRefresh?.Invoke();
             }
             switch (t)
@@ -547,13 +551,14 @@ namespace Velivo
                 await s.WriteAsync(new[] { (byte)(ok ? 1 : 0) }, 0, 1, token); await s.FlushAsync(token);
                 if (!ok) return;
                 await KomWriteBlock(s, Encoding.UTF8.GetBytes(new JsonObject { ["Id"] = _komId, ["Device"] = _lanDeviceName }.ToJsonString()), token);
-                await Dispatcher.InvokeAsync(() => KomAddContact(new KomContact { Id = other, Name = dev, Key = key, Addr = remote?.ToString() ?? "" }));
+                await Dispatcher.InvokeAsync(() => KomAddContact(new KomContact { Id = other, Name = dev, Device = dev, Key = key, Addr = remote?.ToString() ?? "" }));
             }
         }
 
         void KomAddContact(KomContact c)
         {
             KomEnsureTray();
+            var old = KomContactById(c.Id); if (old != null && old.Own) { c.Own = true; c.Name = old.Name; }   // ponowne dodanie - wlasna nazwa zostaje
             _komContacts.RemoveAll(x => x.Id == c.Id); _komContacts.Add(c); KomSave(); _komRefresh?.Invoke();
         }
 
@@ -575,7 +580,7 @@ namespace Velivo
                     var info = await KomReadBlock(s, 4096, cts.Token); if (info == null) return "błąd";
                     var o = JsonNode.Parse(info); if ((string)o["Id"] != id) return "błąd";
                     var dev = KomClean((string)o["Device"]);
-                    KomAddContact(new KomContact { Id = id, Name = dev.Length > 0 ? dev : name, Key = key, Addr = addr.ToString() });
+                    KomAddContact(new KomContact { Id = id, Name = dev.Length > 0 ? dev : name, Device = dev.Length > 0 ? dev : name, Key = key, Addr = addr.ToString() });
                     return "ok";
                 }
             }
@@ -874,6 +879,7 @@ namespace Velivo
                     var tb = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, Opacity = on ? 1 : 0.7 };
                     tb.Inlines.Add(new System.Windows.Documents.Run("● ") { Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim), FontSize = 14 });
                     tb.Inlines.Add(new System.Windows.Documents.Run(c.Name + (un > 0 ? "  (" + un + ")" : "")) { FontWeight = un > 0 ? FontWeights.Bold : FontWeights.Normal });
+                    if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) tb.Inlines.Add(new System.Windows.Documents.Run("  " + c.Device) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) });   // prawdziwe urzadzenie
                     if (last != null) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run((last.Mine ? "➜ " : "") + last.Text.Replace('\n', ' ')) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) }); }
                     var item = new ListBoxItem { Content = tb, Tag = c.Id, Padding = new Thickness(6), ToolTip = L.T("Rozmowa z ") + c.Name + " – " + (on ? L.T("w sieci") : L.T("poza siecią")) };
                     var cm = new ContextMenu();
@@ -897,6 +903,7 @@ namespace Velivo
                 {
                     bool on = KomOnline(c.Id);
                     header.Inlines.Add(new System.Windows.Documents.Run("💬 " + c.Name + "  "));
+                    if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) header.Inlines.Add(new System.Windows.Documents.Run("(" + c.Device + ")  ") { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
                     header.Inlines.Add(new System.Windows.Documents.Run(on ? L.T("● w sieci") : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
@@ -992,13 +999,18 @@ namespace Velivo
 
         void KomRename(KomContact c)
         {
-            var box = new TextBox { Text = c.Name, Margin = new Thickness(10), MinWidth = 260 };
+            var box = new TextBox { Text = c.Name, Margin = new Thickness(10, 0, 10, 10), MinWidth = 260, ToolTip = L.T("Pusta nazwa – wraca nazwa urządzenia") };
+            var real = new TextBlock { Text = L.T("Urządzenie: ") + (c.Device ?? c.Name) + L.T("  (puste pole – nazwa urządzenia)"), Margin = new Thickness(10, 10, 10, 6), Opacity = 0.75 };
             var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(10, 0, 10, 10), HorizontalAlignment = HorizontalAlignment.Right };
-            var d = new Window { Title = L.T("✏ Zmień nazwę"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = _komWindow, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { box, ok } } };
+            var d = new Window { Title = L.T("✏ Zmień nazwę"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = _komWindow, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { real, box, ok } } };
             KomStyle(d);
             ok.Click += (s, e) => d.DialogResult = true;
             box.SelectAll(); box.Focus();
-            if (d.ShowDialog() == true && box.Text.Trim().Length > 0) { c.Name = box.Text.Trim().Length > 64 ? box.Text.Trim().Substring(0, 64) : box.Text.Trim(); KomSave(); _komRefresh?.Invoke(); }
+            if (d.ShowDialog() != true) return;
+            // wlasna nazwa kontaktu; pusta albo taka jak urzadzenia - znow nazwa urzadzenia (aktualizowana z sieci)
+            var nn = box.Text.Trim(); if (nn.Length > 64) nn = nn.Substring(0, 64);
+            if (nn.Length == 0 || nn == c.Device) { c.Own = false; c.Name = c.Device ?? c.Name; } else { c.Own = true; c.Name = nn; }
+            KomSave(); _komRefresh?.Invoke();
         }
 
         async Task<(string Id, string Name, IPAddress Addr)> KomChoosePeer(Window owner, string title)

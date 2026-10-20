@@ -67,7 +67,8 @@ import javax.crypto.spec.SecretKeySpec
 
 class Komunikator private constructor(private val ctx: Context, private val deviceName: () -> String) {
     class Peer(val id: String, val name: String, val addr: InetAddress)
-    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String)
+    // name - nazwa wyświetlana (własna albo urządzenia); device - prawdziwa nazwa urządzenia (aktualizowana z sieci); own - nazwa nadana przez użytkownika
+    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String, var device: String = name, var own: Boolean = false)
     // read: moja - odbiorca przeczytał (✓✓); odebrana - wysłaliśmy „przeczytane”
     class Msg(val mine: Boolean, val text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false)
 
@@ -107,13 +108,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     val contacts: MutableList<Contact> = runCatching {
         val a = JSONArray(open(prefs.getString("kontakty", null)) ?: "[]")
-        (0 until a.length()).map { a.getJSONObject(it) }.map { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr")) }
+        (0 until a.length()).map { a.getJSONObject(it) }.map { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own")) }
             .filter { it.key.size == 32 }.toMutableList()
     }.getOrDefault(mutableListOf())
 
     @Synchronized private fun saveContacts() {
         val a = JSONArray()
-        contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr)) }
+        contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own)) }
         prefs.edit().putString("kontakty", seal(a.toString())).apply()
     }
 
@@ -131,7 +132,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // --- przeniesienie klawiatura -> przeglądarka (telefon z obiema aplikacjami: jeden komunikator, bez dublowania) ---
     @Synchronized fun export(): String = JSONObject().put("cid", myId)
-        .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr)) } })
+        .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own)) } })
         .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read)) } }) } })
         .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).toString()
 
@@ -146,7 +147,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             for (i in 0 until a.length()) {
                 val j = a.getJSONObject(i); val key = unb64(j.optString("key")); val id = j.optString("id")
                 if (key.size != 32 || id.length != 32) continue
-                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr")))
+                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr"), j.optString("dev", j.optString("name")), j.optBoolean("own")))
                 val list = chat(id); val have = list.map { it.mid }.toHashSet()
                 val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
                 for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
@@ -176,7 +177,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         synchronized(this) { contacts.removeAll { it.id == c.id }; chats.remove(c.id) }
         saveContacts(); prefs.edit().remove("rozmowa-${c.id}").remove("nowe-${c.id}").apply(); onChange()
     }
-    fun rename(c: Contact, name: String) { c.name = name.take(64); saveContacts(); onChange() }
+    // własna nazwa kontaktu; pusta albo taka jak urządzenia - znów nazwa urządzenia (aktualizowana z sieci)
+    fun rename(c: Contact, name: String) {
+        val n = name.trim().take(64)
+        if (n.isEmpty() || n == c.device) { c.own = false; c.name = c.device } else { c.own = true; c.name = n }
+        saveContacts(); onChange()
+    }
 
     // --- UDP ---
     private fun packet(t: String) = JSONObject().put("t", t).put("id", myId).put("device", deviceName()).put("ts", System.currentTimeMillis()).put("kind", "phone")
@@ -201,6 +207,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         contact(from)?.let { c ->
             val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); seenAt[c.id] = System.currentTimeMillis()
             if (t == "p2p-here" && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
+            // prawdziwa nazwa urządzenia (zmieniona na tamtym telefonie / komputerze); własna nazwa kontaktu zostaje
+            val real = clean(p.optString("device"))
+            if (real.isNotEmpty() && real != c.device) { c.device = real; if (!c.own) c.name = real; saveContacts(); main.post { onChange() } }
             if (!was) main.post { onChange() }
         }
         if (t != "p2p-ack" && t != "p2p-msg") contact(from)?.let { c -> Thread { resend(c) }.start() }
@@ -357,7 +366,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     private fun addContact(c: Contact) {
-        synchronized(this) { contacts.removeAll { it.id == c.id }; contacts.add(c) }
+        synchronized(this) {
+            contact(c.id)?.takeIf { it.own }?.let { old -> c.own = true; c.name = old.name }   // ponowne dodanie - własna nazwa zostaje
+            contacts.removeAll { it.id == c.id }; contacts.add(c)
+        }
         saveContacts(); main.post { onChange() }
     }
 
@@ -817,7 +829,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             for (c in k.contacts.sortedByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0 }) {
                 val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull(); val on = k.online(c.id)
                 val dot = View(a).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (on) green else Color.GRAY) }; layoutParams = LinearLayout.LayoutParams(px(12), px(12)).apply { rightMargin = px(12) } }
-                val name = TextView(a).apply { text = c.name; textSize = 17f; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+                val name = TextView(a).apply {
+                    text = android.text.SpannableStringBuilder(c.name).apply {
+                        if (c.own && c.device.isNotEmpty() && c.device != c.name) { val st = length; append("  " + c.device); setSpan(android.text.style.ForegroundColorSpan(dim), st, length, 0); setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0) }   // prawdziwe urządzenie
+                    }; textSize = 17f; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
                 val time = TextView(a).apply { text = last?.let { when_(it.ts) } ?: ""; textSize = 12f; setTextColor(if (n > 0) green else dim) }
                 val top = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(name); addView(time) }
                 val snippet = TextView(a).apply {
@@ -865,8 +880,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun manage(c: Komunikator.Contact) {
         AlertDialog.Builder(a).setTitle(c.name).setItems(arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"))) { _, i ->
             if (i == 0) {
-                val e = EditText(a).apply { setText(c.name); setSingleLine() }
-                AlertDialog.Builder(a).setTitle(t("Nazwa", "Name")).setView(e).setPositiveButton(android.R.string.ok) { _, _ -> e.text.toString().trim().takeIf { it.isNotEmpty() }?.let { k.rename(c, it) } }
+                val e = EditText(a).apply { setText(c.name); setSingleLine(); hint = c.device }
+                AlertDialog.Builder(a).setTitle(t("Nazwa", "Name")).setMessage(t("Urządzenie: ", "Device: ") + c.device + t("\nPuste pole – nazwa urządzenia", "\nEmpty field – device name")).setView(e)
+                    .setPositiveButton(android.R.string.ok) { _, _ -> k.rename(c, e.text.toString()) }
                     .setNegativeButton(android.R.string.cancel, null).show()
             } else AlertDialog.Builder(a).setMessage(t("Usunąć „${c.name}” i całą rozmowę?", "Delete “${c.name}” and the whole chat?"))
                 .setPositiveButton(t("Usuń", "Delete")) { _, _ -> k.remove(c) }.setNegativeButton(android.R.string.cancel, null).show()
@@ -1015,6 +1031,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         fun status() {
             val on = k.online(c.id)
             title.text = android.text.SpannableStringBuilder(c.name).apply {
+                if (c.own && c.device.isNotEmpty() && c.device != c.name) { val s0 = length; append("  (" + c.device + ")"); setSpan(android.text.style.RelativeSizeSpan(0.7f), s0, length, 0) }
                 append("\n"); val st = length
                 val seen = k.lastSeenAt(c.id)?.let { " · " + t("ostatnio ", "last seen ") + when_(it) } ?: ""
                 append(if (on) "● " + t("w sieci", "online") else "● " + t("poza siecią", "offline") + seen + "\n" + t("wiadomości dojdą, gdy wróci", "messages arrive when back"))

@@ -4,6 +4,11 @@
 
 ---
 
+## 0. W domu i poza domem
+
+* **🎬 Filmy i TV przez komunikator:** w komunikatorze Velivo na Windows – prawy przycisk na kontakcie → **🎬 Wyślij Filmy i TV** (Jellyfin i listy kanałów TV, także z plików). Działa w domu i przez internet (przez pośrednika). Telefon w sieci domowej zapisuje od razu; przez internet zawsze pyta.
+* **Jellyfin poza domem (telefon):** Biblioteka → ustawienia Jellyfin → **🌍 Adres poza domem (internet)**, np. `http://mojdom.ddns.net:8097`. W domu Velivo używa adresu domowego (🏠), a gdy serwer nie odpowiada w domu – pyta, czy połączyć przez internet (🌍; *Tak* albo *Zawsze*).
+
 ## 1. Pierwsze kroki
 
 Na górnym pasku Velivo masz cztery przyciski:

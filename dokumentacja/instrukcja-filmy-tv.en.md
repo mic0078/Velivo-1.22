@@ -4,6 +4,11 @@
 
 ---
 
+## 0. At home and away
+
+* **🎬 Films and TV through the messenger:** in the Velivo messenger on Windows – right-click a contact → **🎬 Send Films and TV** (Jellyfin and TV channel lists, also from files). Works at home and via internet (through the relay). A phone on the home network saves at once; via internet it always asks.
+* **Jellyfin away from home (phone):** Library → Jellyfin settings → **🌍 Address away from home (internet)**, e.g. `http://myhome.ddns.net:8097`. At home Velivo uses the home address (🏠); when the server does not answer at home it asks whether to connect via internet (🌍; *Yes* or *Always*).
+
 ## 1. First steps
 
 The top Velivo bar has four buttons:

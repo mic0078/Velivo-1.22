@@ -980,7 +980,8 @@ namespace Velivo
                         if (MessageBox.Show(w, (L.En ? "Delete “" + c.Name + "” and the whole chat?" : "Usunąć „" + c.Name + "” i całą rozmowę?"), L.T("Komunikator Velivo"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                         _komContacts.Remove(c); _komChats.Remove(c.Id); _komUnread.Remove(c.Id); if (_komOpenId == c.Id) _komOpenId = null; KomSave(); _komRefresh?.Invoke();
                     };
-                    cm.Items.Add(ren); cm.Items.Add(del); item.ContextMenu = cm;
+                    var med = new MenuItem { Header = L.T("🎬 Wyślij Filmy i TV") }; med.Click += async (s, e) => await KomSendMedia(w, c);
+                    cm.Items.Add(ren); cm.Items.Add(med); cm.Items.Add(del); item.ContextMenu = cm;
                     list.Items.Add(item);
                     if (c.Id == sel) item.IsSelected = true;
                 }
@@ -1130,6 +1131,31 @@ namespace Velivo
         {
             if (_komWindow != null && _komWindow.IsVisible && _komStatus != null) _komStatus(text, progress);
             else if (progress < 0) ShowToast(text, null);
+        }
+
+        // 🎬 Jellyfin i listy TV do kontaktu przez komunikator (w domu i przez internet); telefon w domu zapisuje od razu, przez internet pyta
+        async Task KomSendMedia(Window owner, KomContact c)
+        {
+            var jc = LoadJellyfinConf(); var tv = MediaTvLists();
+            if (jc == null && tv.Count == 0) { KomInfo(L.T("Na tym komputerze nie ma ustawionego Jellyfin ani list TV.")); return; }
+            var ask = (L.En ? "Send to " : "Wysłać do: ") + c.Name + "\n\n" + (jc != null ? "• Jellyfin (" + jc.Url + ")\n" : "") + (tv.Count > 0 ? L.T("• listy kanałów TV: ") + tv.Count + "\n" : "") +
+                      L.T("\nAdresy mogą zawierać Twoje prywatne klucze – idą zaszyfrowane, tylko do tej osoby.");
+            if (MessageBox.Show(owner, ask, L.T("🎬 Wyślij Filmy i TV"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            var payload = new JsonObject { ["tv"] = new JsonArray(tv.Select(d => (JsonNode)new JsonObject(d.Select(kv => new KeyValuePair<string, JsonNode>(kv.Key, kv.Value)))).ToArray()) };
+            if (jc != null) payload["jellyfin"] = new JsonObject { ["url"] = jc.Url, ["key"] = jc.Key };
+            var path = Path.Combine(Path.GetTempPath(), "Velivo-Filmy-TV.json");
+            File.WriteAllText(path, payload.ToJsonString());
+            try
+            {
+                IPAddress addr = null;
+                if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr)) addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr;
+                if (addr == null && _komUp == null) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
+                KomInfo(L.T("🎬 Wysyłam Filmy i TV…"), 0);
+                var r = await KomSendFile(addr ?? IPAddress.Loopback, path, _ => { }, c);
+                KomInfo(r == "ok" ? L.T("🎬 Wysłano Filmy i TV do: ") + c.Name : L.T("🎬 Nie wysłano: ") + r);
+                if (r == "ok") KomNote(c, true, L.T("🎬 Filmy i TV"));
+            }
+            finally { try { File.Delete(path); } catch (Exception) { } }
         }
 
         void KomRename(KomContact c)

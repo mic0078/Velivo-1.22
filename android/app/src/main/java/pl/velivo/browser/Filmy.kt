@@ -289,18 +289,28 @@ object Tv {
 // Jellyfin: adres i klucz API wpisane przez Ciebie (albo przesłane z Velivo na komputerze) - zaszyfrowane w telefonie.
 // Klucz idzie w nagłówku X-Emby-Token, nigdy w adresie (nie trafia do logów ani historii).
 object Jelly {
-    class Conf(val url: String, val key: String, val user: String)
+    // url - adres w sieci domowej; net - adres przez internet (np. No-IP), używany poza domem po zgodzie
+    class Conf(val url: String, val key: String, val user: String, val net: String = "")
+
+    // 🌍 poza domem: adres internetowy zamiast domowego (ustawia biblioteka po sprawdzeniu i zgodzie)
+    @Volatile var away = false
+    fun base(c: Conf) = if (away && c.net.isNotEmpty()) c.net else c.url
+    // czy serwer odpowiada pod adresem domowym (krótko - w domu od razu)
+    fun homeReachable(c: Conf): Boolean = runCatching {
+        val h = URL(base(c) + "/System/Info/Public").openConnection() as HttpURLConnection
+        h.connectTimeout = 1500; h.readTimeout = 2500; h.responseCode in 200..299
+    }.getOrDefault(false)
     class Item(val id: String, val name: String, val type: String, val year: Int, val overview: String, val series: String, val ticks: Long, val posTicks: Long, val added: String)
 
     fun conf(pw: Passwords): Conf? = runCatching {
         val j = JSONObject(pw.secret("jellyfin") ?: return null)
-        Conf(j.getString("url").trimEnd('/'), j.getString("key"), j.optString("user"))
+        Conf(j.getString("url").trimEnd('/'), j.getString("key"), j.optString("user"), j.optString("net").trimEnd('/'))
     }.getOrNull()
 
-    fun save(pw: Passwords, c: Conf?) = pw.setSecret("jellyfin", c?.let { JSONObject().put("url", it.url.trimEnd('/')).put("key", it.key).put("user", it.user).toString() })
+    fun save(pw: Passwords, c: Conf?) = pw.setSecret("jellyfin", c?.let { JSONObject().put("url", it.url.trimEnd('/')).put("key", it.key).put("user", it.user).put("net", it.net.trimEnd('/')).toString() })
 
     fun get(c: Conf, path: String): String {
-        val h = URL(c.url + path).openConnection() as HttpURLConnection
+        val h = URL(base(c) + path).openConnection() as HttpURLConnection
         h.connectTimeout = 15000; h.readTimeout = 30000
         h.setRequestProperty("X-Emby-Token", c.key)
         h.setRequestProperty("Accept", "application/json")
@@ -308,7 +318,7 @@ object Jelly {
     }
 
     fun post(c: Conf, path: String, body: JSONObject) = runCatching {
-        val h = URL(c.url + path).openConnection() as HttpURLConnection
+        val h = URL(base(c) + path).openConnection() as HttpURLConnection
         h.requestMethod = "POST"; h.doOutput = true; h.connectTimeout = 10000; h.readTimeout = 10000
         h.setRequestProperty("X-Emby-Token", c.key); h.setRequestProperty("Content-Type", "application/json")
         h.outputStream.use { it.write(body.toString().toByteArray()) }
@@ -318,7 +328,7 @@ object Jelly {
     // --- napisy z Jellyfin (do lektora i do pobrania) ---
     class Sub(val label: String, val path: String, val lang: String)
     fun bytes(c: Conf, path: String): ByteArray {
-        val h = URL(c.url + path).openConnection() as HttpURLConnection
+        val h = URL(base(c) + path).openConnection() as HttpURLConnection
         h.connectTimeout = 15000; h.readTimeout = 60000
         h.setRequestProperty("X-Emby-Token", c.key)
         return h.inputStream.use { it.readBytes() }
@@ -340,7 +350,7 @@ object Jelly {
         return (0 until a.length()).map { a.getJSONObject(it) }.map { it.getString("Id") to (it.optString("Name") + " · " + it.optString("ProviderName") + (if (it.optInt("DownloadCount") > 0) " · ⬇" + it.optInt("DownloadCount") else "")) }
     }
     fun downloadSub(c: Conf, id: String, subId: String): Int {
-        val h = URL(c.url + "/Items/$id/RemoteSearch/Subtitles/" + java.net.URLEncoder.encode(subId, "UTF-8")).openConnection() as HttpURLConnection
+        val h = URL(base(c) + "/Items/$id/RemoteSearch/Subtitles/" + java.net.URLEncoder.encode(subId, "UTF-8")).openConnection() as HttpURLConnection
         h.requestMethod = "POST"; h.connectTimeout = 15000; h.readTimeout = 60000
         h.setRequestProperty("X-Emby-Token", c.key); h.doOutput = true
         h.outputStream.use { }
@@ -419,8 +429,8 @@ object Jelly {
         items(j.getString("lib")) to items(j.getString("res"))
     }.getOrNull()
     fun episodes(c: Conf, seriesId: String) = items(get(c, "/Shows/$seriesId/Episodes?UserId=${c.user}&Fields=Overview"))
-    fun image(c: Conf, id: String) = c.url + "/Items/$id/Images/Primary?maxHeight=360&quality=80"
-    fun stream(c: Conf, id: String) = c.url + "/Videos/$id/stream?static=true"
+    fun image(c: Conf, id: String) = base(c) + "/Items/$id/Images/Primary?maxHeight=360&quality=80"
+    fun stream(c: Conf, id: String) = base(c) + "/Videos/$id/stream?static=true"
 
     // miejsce w filmie wraca do Jellyfin (Oglądane dalej także na komputerze i telewizorze)
     fun reportStopped(c: Conf, id: String, posMs: Long) =

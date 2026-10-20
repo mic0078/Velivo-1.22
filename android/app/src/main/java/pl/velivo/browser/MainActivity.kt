@@ -2387,8 +2387,27 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // ---------- 🎬 Biblioteka (Jellyfin) ----------
+    // 🏠 w sieci domowej - adres domowy od razu; 🌍 poza domem - adres internetowy po zgodzie (raz albo zawsze)
     private fun showLibrary() {
         val c = Jelly.conf(passwords) ?: return setupJellyfin { showLibrary() }
+        Thread {
+            val home = Jelly.homeReachable(c)
+            runOnUiThread {
+                when {
+                    home -> { Jelly.away = false; toast(getString(R.string.jf_home)); openLibrary() }
+                    c.net.isEmpty() -> { Jelly.away = false; openLibrary() }   // brak adresu internetowego - jak dotąd
+                    prefs.getBoolean("jf-net-ok", false) -> { Jelly.away = true; toast(getString(R.string.jf_net)); openLibrary() }
+                    else -> AlertDialog.Builder(this).setTitle("🌍 " + getString(R.string.jf_away_title)).setMessage(getString(R.string.jf_away_ask, c.net))
+                        .setPositiveButton(R.string.jf_away_yes) { _, _ -> Jelly.away = true; openLibrary() }
+                        .setNeutralButton(R.string.jf_away_always) { _, _ -> prefs.edit().putBoolean("jf-net-ok", true).apply(); Jelly.away = true; openLibrary() }
+                        .setNegativeButton(android.R.string.cancel, null).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun openLibrary() {
+        val c = Jelly.conf(passwords) ?: return
         val hdr = mapOf("X-Emby-Token" to c.key)
         var mode = prefs.getInt("jf-widok2", 1)   // 0 oglądane dalej, 1 filmy (domyślnie - cała biblioteka od razu), 2 seriale
         var lib = listOf<Jelly.Item>(); var resume = listOf<Jelly.Item>()
@@ -2463,8 +2482,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         Thread {
             val found = Jelly.discover()
             runOnUiThread {
+                val cur = Jelly.conf(passwords)
                 val labels = found.map { "🎬 " + it.second + "\n" + it.first } + getString(R.string.jf_manual) +
-                    (if (Jelly.conf(passwords) != null) listOf(getString(R.string.jf_forget)) else emptyList())
+                    (if (cur != null) listOf("🌍 " + getString(R.string.jf_net_addr) + (if (cur.net.isNotEmpty()) "\n" + cur.net else ""), getString(R.string.jf_forget)) else emptyList())
                 AlertDialog.Builder(this).setTitle(if (found.isEmpty()) getString(R.string.jf_none_found) else getString(R.string.jf_settings))
                     .setItems(labels.toTypedArray()) { _, i ->
                         when {
@@ -2477,6 +2497,16 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                                         if (u.isNotEmpty() && !u.startsWith("http")) u = "http://$u"
                                         if (!u.contains(Regex(":\\d+$")) && u.count { it == ':' } == 1) u += ":8096"
                                         jellyfinUser(u, done)
+                                    }.setNegativeButton(android.R.string.cancel, null).show()
+                            }
+                            cur != null && i == found.size + 1 -> {   // adres poza domem (internet), np. http://mojdom.ddns.net:8097
+                                val net = EditText(this).apply { setSingleLine(); setText(cur.net); hint = "http://mojdom.ddns.net:8097"; inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
+                                AlertDialog.Builder(this).setTitle("🌍 " + getString(R.string.jf_net_addr)).setMessage(R.string.jf_net_info)
+                                    .setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(net, LinearLayout.LayoutParams(-1, -2)) })
+                                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                                        var u = net.text.toString().trim().trimEnd('/')
+                                        if (u.isNotEmpty() && !u.startsWith("http")) u = "http://$u"
+                                        Jelly.save(passwords, Jelly.Conf(cur.url, cur.key, cur.user, u)); toast(getString(R.string.media_conf_saved))
                                     }.setNegativeButton(android.R.string.cancel, null).show()
                             }
                             else -> { Jelly.save(passwords, null); toast(getString(R.string.jf_forgotten)) }
@@ -2670,13 +2700,13 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // ustawienia z Velivo na komputerze (Jellyfin, listy TV) - zawsze z pytaniem
     // code: Filmy i TV bez parowania - ten sam kod musi być na komputerze; Jellyfin bez klucza - logowanie swoim użytkownikiem
-    private fun receiveMediaConf(dev: String, jf: org.json.JSONObject?, tv: org.json.JSONArray?, code: String? = null) {
+    // ask = false - z komunikatora w sieci domowej (zaufanie jak w domu); przez internet i bez parowania - zawsze z pytaniem
+    private fun receiveMediaConf(dev: String, jf: org.json.JSONObject?, tv: org.json.JSONArray?, code: String? = null, ask: Boolean = true) {
         val n = tv?.length() ?: 0
         val text = getString(R.string.media_conf_ask, dev, if (jf != null) "Jellyfin" else "—", n) + if (code != null) "\n\n" + getString(R.string.media_share_code, code) else ""
-        AlertDialog.Builder(this).setTitle(R.string.media_conf_title).setMessage(text)
-            .setPositiveButton(R.string.file_accept) { _, _ ->
+        fun apply() {
                 val jfKey = jf?.optString("key").orEmpty()
-                if (jf != null && jfKey.isNotEmpty()) Jelly.save(passwords, Jelly.Conf(jf.optString("url"), jfKey, ""))
+                if (jf != null && jfKey.isNotEmpty()) Jelly.save(passwords, Jelly.Conf(jf.optString("url"), jfKey, "", jf.optString("net").ifEmpty { Jelly.conf(passwords)?.net.orEmpty() }))
                 if (tv != null) {
                     val list = Tv.sources(passwords)
                     for (i in 0 until tv.length()) { val o = tv.getJSONObject(i); val u = o.optString("url"); val m3u = o.optString("m3u")
@@ -2689,7 +2719,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 }
                 toast(getString(R.string.media_conf_saved))
                 if (jf != null) { if (jfKey.isNotEmpty()) setupJellyfinUser() else jellyfinUser(jf.optString("url").trimEnd('/')) {} }
-            }.setNegativeButton(android.R.string.cancel, null).show()
+        }
+        if (!ask) { apply(); return }
+        AlertDialog.Builder(this).setTitle(R.string.media_conf_title).setMessage(text)
+            .setPositiveButton(R.string.file_accept) { _, _ -> apply() }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun setupJellyfinUser() {
@@ -2697,8 +2730,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         Thread {
             val users = runCatching { Jelly.users(c) }.getOrNull()
             if (users.isNullOrEmpty()) { runOnUiThread { toast(getString(R.string.jf_error)) }; return@Thread }
-            if (users.size == 1) { Jelly.save(passwords, Jelly.Conf(c.url, c.key, users[0].first)); return@Thread }   // jeden użytkownik - bez pytania
-            runOnUiThread { AlertDialog.Builder(this).setTitle(R.string.jf_user).setItems(users.map { it.second }.toTypedArray()) { _, i -> Jelly.save(passwords, Jelly.Conf(c.url, c.key, users[i].first)) }.show() }
+            if (users.size == 1) { Jelly.save(passwords, Jelly.Conf(c.url, c.key, users[0].first, c.net)); return@Thread }   // jeden użytkownik - bez pytania
+            runOnUiThread { AlertDialog.Builder(this).setTitle(R.string.jf_user).setItems(users.map { it.second }.toTypedArray()) { _, i -> Jelly.save(passwords, Jelly.Conf(c.url, c.key, users[i].first, c.net)) }.show() }
         }.start()
     }
 
@@ -2938,6 +2971,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             k.openIntent = { id -> Intent(this, MainActivity::class.java).setAction(ACTION_MESSENGER).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP) }
             k.udpOut = { d, t -> lan.sendRaw(d, t) }
             k.saveFile = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) }
+            // 🎬 Filmy i TV z komunikatora: w domu od razu, przez internet - z pytaniem
+            k.onMedia = { dev, j, viaNet -> runCatching { receiveMediaConf(dev, j.optJSONObject("jellyfin"), j.optJSONArray("tv"), ask = viaNet) } }
             // klawiatura Velivo miała własny komunikator: przejmujemy kontakty i rozmowy (jeden komunikator w telefonie, bez dublowania)
             Thread {
                 runCatching {

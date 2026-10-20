@@ -90,6 +90,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     var askFile: (device: String, name: String, size: Long, code: String, accept: (Boolean) -> Unit) -> Unit = { _, _, _, _, a -> a(false) }
     var saveFile: (name: String, tmp: java.io.File, device: String) -> Unit = { _, t, _ -> t.delete() }
     var onMessage: (contact: Contact, msg: Msg) -> Unit = { _, _ -> }
+    // 🎬 Filmy i TV od kontaktu (plik Velivo-Filmy-TV.json z Velivo na Windows); viaNet - przyszło przez internet (wtedy z pytaniem)
+    var onMedia: ((device: String, json: JSONObject, viaNet: Boolean) -> Unit)? = null
     var onChange: () -> Unit = {}
 
     // --- zapis (Keystore) ---
@@ -491,7 +493,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val ad = fileAd(h)
         // od kontaktu (podpis kluczem kontaktu) - bez kodu, jak załącznik w rozmowie; zgoda odbiorcy zawsze
         val from = contact(h.optString("Id"))?.takeIf { c -> MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(c.key, ad)) }
-        val auto = from != null && autoImages && size <= 2L * 1024 * 1024 * 1024   // zdjęcie / plik od kontaktu - od razu do rozmowy (jak w innych komunikatorach)
+        val media = from != null && onMedia != null && name.startsWith("Velivo-Filmy-TV") && name.endsWith(".json") && size < 64L * 1024 * 1024
+        val auto = media || (from != null && autoImages && size <= 2L * 1024 * 1024 * 1024)   // zdjęcie / plik od kontaktu - od razu do rozmowy (jak w innych komunikatorach)
         val ok = auto || ask { a -> askFile(from?.name ?: dev, name, size, if (from != null) "" else code(key), a) }
         out.write(if (ok) 1 else 0); out.flush()
         if (!ok) return
@@ -517,6 +520,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (!hex(md.digest()).equals(h.optString("Hash"), ignoreCase = true)) return
             good = true
             var saved: String? = null
+            if (media) {   // ustawienia Filmów i TV - do Velivo (w domu od razu, przez internet z pytaniem), nie do Pobranych
+                val j = runCatching { JSONObject(tmp.readText(Charsets.UTF_8)) }.getOrNull(); tmp.delete()
+                out.write(hmac(key, ("file-ack\n" + h.optString("Hash")).toByteArray(Charsets.UTF_8))); out.flush()
+                if (j != null) { val via = cn.addr == null; main.post { onMedia?.invoke(from!!.name, j, via) } }
+                note(from!!, false, "🎬 " + (if (Locale.getDefault().language == "pl") "Filmy i TV" else "Films and TV"), h.optString("Mid"))
+                return
+            }
             if (auto) {   // w Velivo (w rozmowie); do Galerii / Pobranych - przytrzymanie
                 var f = java.io.File(mediaDir, name); var i = 2
                 while (f.exists()) f = java.io.File(mediaDir, name.substringBeforeLast('.') + " ($i)." + name.substringAfterLast('.')).also { i++ }

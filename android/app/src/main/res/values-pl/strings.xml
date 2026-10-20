@@ -403,4 +403,12 @@
     <string name="messenger">Komunikator</string>
     <string name="send_phone">Pliki na inny telefon…</string>
     <string name="send_pc_files">Pliki z telefonu…</string>
+    <string name="jf_home">🏠 Jellyfin – sieć domowa</string>
+    <string name="jf_net">🌍 Jellyfin – przez internet</string>
+    <string name="jf_away_title">Poza domem</string>
+    <string name="jf_away_ask">Serwer Jellyfin nie odpowiada w sieci domowej. Połączyć przez internet (%s)? Użyje to danych komórkowych.</string>
+    <string name="jf_away_yes">Tak</string>
+    <string name="jf_away_always">Zawsze</string>
+    <string name="jf_net_addr">Adres poza domem (internet)</string>
+    <string name="jf_net_info">Używany tylko, gdy serwer nie odpowiada w domu – Velivo najpierw zapyta. Np. http://mojdom.ddns.net:8097</string>
 </resources>

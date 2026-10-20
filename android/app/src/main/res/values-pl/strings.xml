@@ -396,4 +396,5 @@
     <string name="subs_shift_help">Napisy za późno – naciśnij −, za wcześnie – naciśnij +. Działa na żywo dla napisów na ekranie i dla lektora; zapamiętane dla tego filmu.</string>
     <string name="subs_shift_reset">Zeruj</string>
     <string name="account_no_name">Konto bez nazwy</string>
+    <string name="lan_pair_first">Żeby wysyłać pliki i karty na komputer, połącz raz ten telefon z Velivo na komputerze. Oba muszą być w tej samej sieci Wi-Fi. Komputer pokaże kod – zaakceptuj tylko, gdy się zgadza. Potem wysyłanie działa od razu.</string>
 </resources>

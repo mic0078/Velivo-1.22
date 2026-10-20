@@ -2843,7 +2843,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val url = w.url ?: return
         if (tabs.getOrNull(cur)?.let { it.priv || it.bank } == true) { toast(getString(R.string.send_tab_private)); return }
         if (!(url.startsWith("http://") || url.startsWith("https://"))) { toast(getString(R.string.send_tab_bad)); return }
-        if (!prefs.getBoolean("lan", false) || !lan.paired) { toast(getString(R.string.lan_not_paired)); return }
+        if (!prefs.getBoolean("lan", false) || !lan.paired) { askPairFirst(); return }
         w.evaluateJavascript("(function(){var v=[].slice.call(document.querySelectorAll('video')).filter(function(x){return x.currentTime>0}).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight})[0];return v?v.currentTime:0})()") { r ->
             val time = r.toDoubleOrNull() ?: 0.0
             if (lan.sendTab(url, w.title ?: url, time)) toast(getString(R.string.send_tab_done, prefs.getString("lan-komputer", "") ?: ""))
@@ -2941,10 +2941,17 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // Udostępnij → Velivo: plik z galerii / menedżera plików idzie do komputera (komputer pyta o zgodę).
+    // wysyłanie na komputer wymaga jednorazowego sparowania (bezpieczeństwo plików) - zamiast suchego „Nie sparowano” od razu można połączyć
+    private fun askPairFirst() {
+        AlertDialog.Builder(this).setTitle("💻 " + getString(R.string.lan_not_paired)).setMessage(R.string.lan_pair_first)
+            .setPositiveButton(R.string.lan_pair) { _, _ -> prefs.edit().putBoolean("lan", true).apply(); startLan(); lan.startPairing(); showPairingWait() }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     private fun sendSharedFile(intent: Intent) {
         @Suppress("DEPRECATION")
         val uri = (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)) ?: return
-        if (!lan.paired) { toast(getString(R.string.lan_not_paired)); return }
+        if (!lan.paired) { askPairFirst(); return }
         prefs.edit().putBoolean("lan", true).apply()
         startLan()
         val name = runCatching {

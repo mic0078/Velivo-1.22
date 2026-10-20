@@ -233,6 +233,7 @@ Menu → **⭐ Add this song** on an open YouTube video (category, playlists) �
 
 The same keyboard as on the computer, in Velivo colours (dark, light or black-and-white theme – chosen in the keyboard app). Works in every app.
 
+* **Layout like a regular phone keyboard:** 10 keys per row (wider, easier to hit). Extra characters – **long-press** a key with the small character above the letter (e.g. D → -, J → ;, M → /, digits → ! @ # …, comma → !, full stop → …); Polish letters as before (long-press A → ą). **Double-tap ⇧** – caps lock.
 * **Separate app** “Velivo keyboard” (file `Velivo-klawiatura.apk`). **Turn on:** open the Velivo keyboard app → *Turn on* (Android settings), then *Choose*. Hold the space bar to switch keyboards.
 * **Menu under the V logo:** tap the Velivo logo in the top-left corner of the keyboard – all functions replace the keys: 🗒 new sticky note, 📋 notes, 🔍 search in Velivo, ▶ YouTube, autocorrect, sound, read aloud, dictation, My dictionary, language, theme, key height, change keyboard and settings. Tap the logo again to return to the keys.
 * **Swipe typing (flow):** slide your finger across the letters. Wrong word: ⌫ removes it, or pick another from the suggestion bar.

@@ -235,6 +235,7 @@ Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub 
 
 * **Osobna aplikacja** „Klawiatura Velivo” (plik `Velivo-klawiatura.apk`). **Włączenie:** otwórz aplikację Klawiatura Velivo → *Włącz* (ustawienia Androida), potem *Wybierz*. Przytrzymanie spacji przełącza klawiaturę.
 * **Menu pod logo V:** stuknij logo Velivo w lewym górnym rogu klawiatury – zamiast klawiszy pokażą się wszystkie funkcje: 🗒 nowa karteczka, 📋 karteczki, 🔍 szukaj w Velivo, ▶ YouTube, autokorekta, dźwięk, czytanie, dyktowanie, Mój słownik, język, motyw, wysokość klawiszy, zmiana klawiatury i ustawienia. Ponowne stuknięcie logo wraca do klawiszy.
+* **Układ jak zwykła klawiatura telefonu:** 10 klawiszy w rzędzie (szersze, łatwiej trafić). Znaki dodatkowe – **przytrzymaj** klawisz z małym znakiem nad literą (np. D → -, J → ;, M → /, cyfry → ! @ # …, przecinek → !, kropka → …); polskie litery jak dotąd (przytrzymanie A → ą). **⇧ dwa razy szybko** – stałe wielkie litery.
 * **Pisanie przeciągnięciem (flow):** przeciągnij palcem po literach słowa. Zły wynik: ⌫ usuwa całe słowo albo wybierz inne z paska propozycji.
 * **Polskie litery:** przytrzymaj literę (a → ą) albo włącz klawisz **ą**.
 * **Autokorekta ✓** (np. zolw → żółw, napewno → na pewno, ze → że), przecinek przed „że”, „który”; ⌫ zaraz po poprawce przywraca wpisane słowo.

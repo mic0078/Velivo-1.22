@@ -382,7 +382,8 @@ class KlawiaturaVelivo : InputMethodService() {
     private inner class Klawisze(ctx: Context) : View(ctx) {
         inner class K(val label: String, val code: String, val w: Float) { val r = RectF() }
         private val dp = resources.displayMetrics.density
-        private val rows = listOf("1234567890-=", "qwertyuiop[]", "asdfghjkl;'", "zxcvbnm,./")
+        // 10 klawiszy w rzędzie (jak zwykłe klawiatury telefonu) - szersze, łatwiej trafić; znaki - przytrzymanie (podpowiedź w rogu)
+        private val rows = listOf("1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm")
         private val keys = ArrayList<K>()
         private val head = ArrayList<K>()     // nagłówek: przełączniki
         private val sugR = ArrayList<Pair<RectF, String>>()
@@ -394,6 +395,12 @@ class KlawiaturaVelivo : InputMethodService() {
         private val trace = ArrayList<Slownik.P>(); private var swiping = false
         private var waveX = 0f; private var waveY = 0f; private var waveAt = 0L
         private var longDone = false
+        private var shiftAt = 0L
+        // znaki pod przytrzymaniem (bez dodatkowych klawiszy w rzędzie); litery z polskimi znakami (a c e l n o s z x) - polska litera
+        private val longSym = mapOf('1' to '!', '2' to '@', '3' to '#', '4' to '$', '5' to '%', '6' to '^', '7' to '&', '8' to '*', '9' to '(', '0' to ')',
+            'q' to '%', 'w' to '^', 'r' to '=', 't' to '[', 'y' to ']', 'u' to '{', 'i' to '}', 'p' to '_',
+            'd' to '-', 'f' to '+', 'g' to '(', 'h' to ')', 'j' to ';', 'k' to ':',
+            'v' to '\'', 'b' to '"', 'm' to '/', ',' to '!', '.' to '…')
 
         // motywy jak w Velivo: ciemny (logo), jasny, czarno-biały (wybór w ustawieniach klawiatury)
         private var bg1 = 0; private var bg2 = 0; private var bg3 = 0; private var keyBg = 0; private var keyFn = 0; private var text = 0; private var dim = 0; private var border = 0
@@ -439,12 +446,12 @@ class KlawiaturaVelivo : InputMethodService() {
             val lay = listOf(
                 rows[0].map { K(it.toString(), it.toString(), 1f) },
                 rows[1].map { K(it.toString(), it.toString(), 1f) },
-                listOf(K("⇪", "caps", 1f)) + rows[2].map { K(it.toString(), it.toString(), 1f) },
+                rows[2].map { K(it.toString(), it.toString(), 1f) },
                 listOf(K("⇧", "shift", 1.5f)) + rows[3].map { K(it.toString(), it.toString(), 1f) } + listOf(K("⌫", "bs", 1.5f)),
-                listOf(K("ą", "alt", 1.3f), K("?", "?", 1f), K(if (lang(context) == "pl") "Polski" else "English", "space", 5.2f), K("⌫ " + getString(R.string.kb_word), "bsw", 2f), K("⏎", "enter", 1.6f)))
+                listOf(K("ą", "alt", 1.2f), K("?", "?", 1f), K(",", ",", 1f), K(if (lang(context) == "pl") "Polski" else "English", "space", 3.8f), K(".", ".", 1f), K("⌫ " + getString(R.string.kb_word), "bsw", 1.9f), K("⏎", "enter", 1.4f)))
             for (row in lay) {
                 val units = row.sumOf { it.w.toDouble() }.toFloat()
-                val u = (width - pad * 2) / max(units, 10.5f)
+                val u = (width - pad * 2) / max(units, 10f)
                 var kx = pad + ((width - pad * 2) - u * units) / 2
                 for (k in row) { k.r.set(kx + 2 * dp, y + 3 * dp, kx + u * k.w - 2 * dp, y + keyH - 3 * dp); kx += u * k.w; keys.add(k) }
                 y += keyH
@@ -515,13 +522,13 @@ class KlawiaturaVelivo : InputMethodService() {
             // klawisze
             if (!menuOpen) for (k in keys) {
                 val on = k === pressed && !swiping || k.code == "shift" && (shift || caps) || k.code == "caps" && caps || k.code == "alt" && alt
-                key(cv, k.r, on, fn = k.code.length > 1 || k.code == "?")
+                key(cv, k.r, on, fn = k.code.length > 1 || k.code in setOf("?", ",", "."))
                 val l = label(k)
-                tp.textSize = (if (l.length > 2) 14 else 20) * dp; tp.color = if (on) Color.WHITE else text
-                cv.drawText(l, k.r.centerX(), k.r.centerY() + 7 * dp, tp)
-                // mała podpowiedź znaku z ⇧ / polskiej litery w rogu
-                val hint = if (k.code.length == 1) { val i = "acelnoszx".indexOf(k.code[0]); if (i >= 0 && !alt) "ąćęłńóśżź"[i].toString() else { val j = "1234567890-=[];',./".indexOf(k.code[0]); if (j >= 0 && !(shift && !shiftAuto)) "!@#$%^&*()_+{}:\"<>?"[j].toString() else "" } } else ""
-                if (hint.isNotEmpty()) { tp.textSize = 10 * dp; tp.color = dim; cv.drawText(hint, k.r.right - 7 * dp, k.r.top + 12 * dp, tp) }
+                val hint = if (k.code.length == 1) { val i = "acelnoszx".indexOf(k.code[0]); if (i >= 0 && !alt) "ąćęłńóśżź"[i].toString() else longSym[k.code[0]]?.toString() ?: "" } else ""
+                // jak zwykłe klawiatury telefonu: znak z przytrzymania mały nad literą, litera większa poniżej
+                tp.textSize = (if (l.length > 2) 14 else 22) * dp; tp.color = if (on) Color.WHITE else text
+                cv.drawText(l, k.r.centerX(), k.r.centerY() + (if (hint.isNotEmpty()) 12 else 8) * dp, tp)
+                if (hint.isNotEmpty()) { tp.textSize = 12 * dp; tp.color = dim; cv.drawText(hint, k.r.centerX(), k.r.top + 15 * dp, tp) }
             }
             // ślad przeciągania w gradiencie logo
             if (swiping && trace.size > 1) {
@@ -567,7 +574,8 @@ class KlawiaturaVelivo : InputMethodService() {
                 k.code == "bs" -> { longDone = true; post(repeat) }
                 // przytrzymanie litery: polska litera (a -> ą), cyfry - znak z ⇧
                 k.code.length == 1 && "acelnoszx".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = alt; alt = true; type(k.code[0]); alt = was; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
-                k.code.length == 1 && "1234567890-=[];',./".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = shift; val wa = shiftAuto; shift = true; shiftAuto = false; type(k.code[0]); shift = was; shiftAuto = wa }
+                // przytrzymanie cyfry / litery / , . - znak z podpowiedzi w rogu
+                k.code.length == 1 && longSym[k.code[0]] != null -> { longDone = true; val was = shift; val wa = shiftAuto; shift = false; type(longSym[k.code[0]]!!); shift = was && !wa; shiftAuto = wa; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
                 k.code == "space" -> { longDone = true; (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker() }
             }
         }
@@ -691,7 +699,8 @@ class KlawiaturaVelivo : InputMethodService() {
 
         private fun keyAction(k: K) {
             when (k.code) {
-                "shift" -> { if (caps) { caps = false; shift = false } else shift = !shift; shiftAuto = false; refresh() }
+                // ⇧ dwa razy szybko - stałe wielkie litery (zamiast osobnego ⇪)
+                "shift" -> { val now = System.currentTimeMillis(); if (caps) { caps = false; shift = false } else if (shift && now - shiftAt < 400) { caps = true; shift = true } else shift = !shift; shiftAt = now; shiftAuto = false; refresh() }
                 "caps" -> { caps = !caps; shift = caps; shiftAuto = false; refresh() }
                 "alt" -> { alt = !alt; refresh() }
                 "bs" -> backspace()

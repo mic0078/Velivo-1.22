@@ -11,6 +11,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Nie potrzebuję testów.
 * Nie chcę zgadywanek.
 * Potrzebuję wiarygodnego CLAUDE.md.
+* Proponujesz rozwiązania.
 
 ## Gałęzie
 

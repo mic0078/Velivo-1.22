@@ -1791,6 +1791,7 @@ namespace Velivo
             // straznik kanalu na zywo: obraz stoi (czas sie nie przesuwa) albo strumien sie urwal - ponowne polaczenie
             string curRecFile = null; long recResume = -1; DateTime pausedAt = DateTime.Now;
             bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
+            long aPlayed = -1, aVideo = -1; int aSilent = 0; DateTime aReload = DateTime.MinValue;   // straznik dzwieku
             var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             tvWatch.Tick += (s, e) =>
             {
@@ -1802,6 +1803,35 @@ namespace Velivo
                 if (pth != null && _iptvPlaying.ContainsKey(pth) && mp.State == VLCState.Paused && curRecFile == null && IptvSt.PauseRelease && (DateTime.Now - pausedAt).TotalMinutes >= 5)
                 { userStopped = true; mp.Stop(); showOsd(L.T("⏸ Połączenie z dostawcą zwolnione po 5 min pauzy – ▶ wznawia")); return; }
                 if (pth == null || !_iptvPlaying.ContainsKey(pth) || userStopped || mp.State == VLCState.Paused) { lastTvProgress = DateTime.Now; return; }
+                // straznik dzwieku: obraz idzie, a dzwiek przestal grac (po dluzszym ogladaniu wyjscie dzwieku VLC potrafi sie
+                // zawiesic - wczesniej pomagalo tylko 🔄 Odswiez). Najpierw ponowne wlaczenie sciezki dzwieku (bez przerwy w obrazie),
+                // gdy to nie pomoze - odswiezenie kanalu (najwyzej raz na minute)
+                try
+                {
+                    var st = mp.State == VLCState.Playing && !mp.Mute && mp.Volume > 0 && mp.AudioTrackCount > 0 ? mp.Media?.Statistics : null;
+                    if (st == null) { aSilent = 0; aPlayed = -1; }
+                    else
+                    {
+                        var stats = st.Value;
+                        bool videoGoes = stats.DecodedVideo != aVideo, silent = aPlayed >= 0 && stats.PlayedAudioBuffers == aPlayed;
+                        aVideo = stats.DecodedVideo; aPlayed = stats.PlayedAudioBuffers;
+                        aSilent = videoGoes && silent ? aSilent + 1 : 0;
+                        if (aSilent == 3)
+                        {
+                            try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " dzwiek przestal grac (obraz idzie) - ponowne wlaczenie sciezki\n"); } catch (Exception) { }
+                            var tr = mp.AudioTrack; mp.SetAudioTrack(-1); mp.SetAudioTrack(tr);
+                            showOsd(L.T("🔊 Dźwięk zniknął – przywracam…"));
+                        }
+                        else if (aSilent >= 8 && (DateTime.Now - aReload).TotalSeconds > 60)
+                        {
+                            try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " dzwiek nadal nie gra - odswiezenie kanalu\n"); } catch (Exception) { }
+                            aSilent = 0; aReload = DateTime.Now; aPlayed = -1;
+                            showOsd(L.T("🔊 Dźwięk zniknął – odświeżam kanał…"));
+                            _vlcLoad(_playIndex); return;
+                        }
+                    }
+                }
+                catch (Exception ex) { App.LogError(ex); }
                 if (mp.State == VLCState.Playing && mp.Time != lastTvTime) { lastTvTime = mp.Time; lastTvProgress = DateTime.Now; tvRetries = 0; return; }
                 var wait = Math.Max(8, IptvSt.Buffer + 6) * (tvRetries >= 3 ? 2 : 1);   // po kilku probach rzadziej
                 if ((DateTime.Now - lastTvProgress).TotalSeconds < wait) return;

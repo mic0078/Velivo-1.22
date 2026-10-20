@@ -365,4 +365,10 @@
     <string name="kb_missing">Klawiatura Velivo to osobna aplikacja (plik Velivo-klawiatura.apk). Po jej zainstalowaniu karteczki, szukanie i YouTube z klawiatury otwierają się tutaj, w Velivo.</string>
     <string name="tv_epg_error">nie udało się pobrać programu TV</string>
     <string name="tv_epg_none">program TV nie pasuje do żadnego kanału z tej listy (sprawdź adres EPG)</string>
+    <string name="wallpaper">Tapeta Velivo</string>
+    <string name="wallpaper_help">Gradient fiolet – turkus z logo Velivo. Na Androidzie 12 i nowszym system dobiera kolory do tapety (przyciski, ustawienia, szybkie kafelki) – cały telefon dostaje akcenty Velivo.</string>
+    <string name="wallpaper_home">Ekran główny</string>
+    <string name="wallpaper_both">Ekran główny i blokady</string>
+    <string name="wallpaper_done">Tapeta ustawiona</string>
+    <string name="wallpaper_fail">Nie udało się ustawić tapety</string>
 </resources>

@@ -365,4 +365,10 @@
     <string name="kb_missing">The Velivo keyboard is a separate app (file Velivo-klawiatura.apk). After installing it, sticky notes, search and YouTube from the keyboard open here in Velivo.</string>
     <string name="tv_epg_error">TV guide could not be loaded</string>
     <string name="tv_epg_none">The TV guide does not match any channel on this list (check the EPG address)</string>
+    <string name="wallpaper">Velivo wallpaper</string>
+    <string name="wallpaper_help">Violet and turquoise gradient with the Velivo logo. On Android 12 and newer the system picks its colours from the wallpaper (buttons, settings, quick tiles) – the whole phone gets Velivo accents.</string>
+    <string name="wallpaper_home">Home screen</string>
+    <string name="wallpaper_both">Home and lock screen</string>
+    <string name="wallpaper_done">Wallpaper set</string>
+    <string name="wallpaper_fail">Could not set the wallpaper</string>
 </resources>

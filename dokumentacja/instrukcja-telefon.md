@@ -243,6 +243,10 @@ Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub 
 * **🎤 Dyktowanie:** za pierwszym razem aplikacja klawiatury zapyta o zgodę na mikrofon. **🔊** czyta na głos to, co piszesz. **PL / EN** – język słownika.
 * W polach haseł klawiatura niczego nie zapamiętuje. Nauka słów jest zaszyfrowana w telefonie.
 
+## 8c. Tapeta Velivo
+
+Menu Velivo → **🎨 Tapeta Velivo**: podgląd tapety (gradient fiolet – turkus z logo V), potem *Ekran główny* albo *Ekran główny i blokady*. Na Androidzie 12 i nowszym system sam dobiera kolory do tapety – przyciski, ustawienia i szybkie kafelki dostają akcenty Velivo (Xiaomi, Huawei, Oppo ustawią samą tapetę).
+
 ## 9. Gdy coś pójdzie nie tak
 
 - Jeśli Velivo zamknie się przez błąd, przy następnym uruchomieniu pokaże okno **„Velivo zamknęło się przez błąd”** z przyciskiem **Kopiuj** – wklej ten opis twórcy Velivo (bez adresów i treści stron – sam przebieg błędu).

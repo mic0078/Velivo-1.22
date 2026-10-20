@@ -1445,6 +1445,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 .setPositiveButton(R.string.phone_videos) { _, _ -> showPhoneVideos() }.setNegativeButton(android.R.string.ok, null).show()
             38 -> showPhoneVideos()
             39 -> openKeyboardApp()
+            40 -> showWallpaper()
             23 -> showNotes()
             24 -> newNote()
             25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
@@ -1568,7 +1569,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         section(R.string.menu_settings, listOf(
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
             Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6),
-            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38), Triple("⌨", R.string.kb_menu, 39)),
+            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38), Triple("⌨", R.string.kb_menu, 39), Triple("🎨", R.string.wallpaper, 40)),
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
         // na samym dole menu też płaski pasek YouTube (przytrzymanie: wyłącznik czasowy i pobudka)
         box.addView(TextView(this).apply {
@@ -2522,6 +2523,49 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun openKeyboardApp() {
         val i = packageManager.getLaunchIntentForPackage("pl.velivo.klawiatura")
         if (i != null) startActivity(i) else AlertDialog.Builder(this).setTitle("⌨ " + getString(R.string.kb_menu)).setMessage(R.string.kb_missing).setPositiveButton(android.R.string.ok, null).show()
+    }
+
+    // 🎨 Tapeta Velivo: gradient fiolet -> turkus z logo; na Androidzie 12+ system dobiera do niej kolory (Material You)
+    private fun wallpaperBitmap(w: Int, h: Int): android.graphics.Bitmap {
+        val b = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(b)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.shader = android.graphics.LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), intArrayOf(Color.parseColor("#1E1838"), Color.parseColor("#191B33"), Color.parseColor("#132A35")), floatArrayOf(0f, 0.55f, 1f), android.graphics.Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+        // miękkie poświaty w kolorach logo
+        fun glow(x: Float, y: Float, r: Float, col: Int) { p.shader = android.graphics.RadialGradient(x, y, r, intArrayOf(col, Color.TRANSPARENT), null, android.graphics.Shader.TileMode.CLAMP); c.drawCircle(x, y, r, p) }
+        glow(w * 0.15f, h * 0.2f, w * 0.9f, Color.argb(150, 0x7C, 0x3A, 0xED))
+        glow(w * 0.9f, h * 0.85f, w * 0.9f, Color.argb(140, 0x06, 0xB6, 0xD4))
+        glow(w * 0.5f, h * 0.5f, w * 0.5f, Color.argb(60, 0x4F, 0x6B, 0xED))
+        p.shader = null
+        // logo V
+        val s = w * 0.30f; val l = (w - s) / 2; val t = h * 0.40f - s / 2
+        val rect = android.graphics.RectF(l, t, l + s, t + s)
+        p.shader = android.graphics.LinearGradient(rect.left, rect.top, rect.right, rect.bottom, intArrayOf(Color.parseColor("#8B5CF6"), Color.parseColor("#4F6BED"), Color.parseColor("#06B6D4")), null, android.graphics.Shader.TileMode.CLAMP)
+        p.setShadowLayer(s * 0.12f, 0f, s * 0.04f, Color.argb(120, 0, 0, 0))
+        c.drawRoundRect(rect, s * 0.24f, s * 0.24f, p)
+        p.clearShadowLayer(); p.shader = null
+        p.color = Color.WHITE; p.textAlign = android.graphics.Paint.Align.CENTER; p.textSize = s * 0.72f; p.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        c.drawText("V", rect.centerX() + s * 0.06f, rect.centerY() + s * 0.26f, p)
+        // trzy smugi prędkości (coraz bledsze)
+        for (i in 0..2) { p.alpha = 230 - i * 70; p.strokeWidth = s * 0.045f; p.strokeCap = android.graphics.Paint.Cap.ROUND
+            val y = rect.top + s * (0.40f + i * 0.13f); c.drawLine(rect.left + s * 0.10f, y, rect.left + s * (0.30f - i * 0.04f), y, p) }
+        p.alpha = 255
+        return b
+    }
+
+    private fun showWallpaper() {
+        val dm = resources.displayMetrics
+        val bmp = wallpaperBitmap(dm.widthPixels, dm.heightPixels)
+        val img = ImageView(this).apply { setImageBitmap(bmp); adjustViewBounds = true; setPadding(dp(24), dp(8), dp(24), dp(8)); contentDescription = getString(R.string.wallpaper) }
+        fun set(which: Int) {
+            runCatching { android.app.WallpaperManager.getInstance(this).setBitmap(bmp, null, true, which); toast(getString(R.string.wallpaper_done)) }
+                .onFailure { toast(getString(R.string.wallpaper_fail)) }
+        }
+        AlertDialog.Builder(this).setTitle("🎨 " + getString(R.string.wallpaper)).setMessage(R.string.wallpaper_help).setView(img)
+            .setPositiveButton(R.string.wallpaper_home) { _, _ -> set(android.app.WallpaperManager.FLAG_SYSTEM) }
+            .setNeutralButton(R.string.wallpaper_both) { _, _ -> set(android.app.WallpaperManager.FLAG_SYSTEM or android.app.WallpaperManager.FLAG_LOCK) }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun showMyFiles() {

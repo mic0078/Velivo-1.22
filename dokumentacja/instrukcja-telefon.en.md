@@ -243,6 +243,10 @@ The same keyboard as on the computer, in Velivo colours (dark, light or black-an
 * **🎤 Dictation:** the first time the keyboard app asks for microphone access. **🔊** reads aloud what you type. **PL / EN** – dictionary language.
 * Nothing is learned in password fields. Learned words are encrypted on the phone.
 
+## 8c. Velivo wallpaper
+
+Velivo menu → **🎨 Velivo wallpaper**: a preview (violet–turquoise gradient with the V logo), then *Home screen* or *Home and lock screen*. On Android 12 and newer the system takes its colours from the wallpaper – buttons, settings and quick tiles get Velivo accents (Xiaomi, Huawei and Oppo set only the wallpaper).
+
 ## 9. When something goes wrong
 
 - If Velivo closes because of an error, next time it opens it shows **"Velivo closed because of an error"** with a **Copy** button – send that description to the Velivo developer (no addresses or page content – just how the error happened).

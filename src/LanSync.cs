@@ -463,7 +463,9 @@ namespace Velivo
                         return;
                     }
                     if (_lanAuthenticationKey != null && DateTime.UtcNow - _lastHello > TimeSpan.FromSeconds(12)) LanBroadcastHello();
-                    if (_lanEncryptionKey != null)
+                    // podczas oglądania (TV, film) bez czytania plików i szyfrowania co 2 s w wątku okna - obraz się nie przycina;
+                    // zmiany wyjdą po zatrzymaniu odtwarzania
+                    if (_lanEncryptionKey != null && !PlayerBusy)
                     {
                         LanBroadcastState(false);
                         BroadcastQuickAccessLan();

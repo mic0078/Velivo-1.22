@@ -113,3 +113,5 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Filmy i TV bez parowania: telefon "media-ask" (ECDH P-256 jednorazowy), komputer pyta z kodem (jak parowanie), "media-give" w kawałkach po 40 000 znaków base64, AES-GCM z AD = pairId; tylko listy TV i adres Jellyfin (bez klucza). Jedno okno pytania naraz.
 
 - Okno 🎞 Jellyfin: „Pobierz / uzupełnij teraz” po SyncJellyfin wywołuje JellyfinAddNewAsync (to samo co 🔄 Odśwież) – wcześniej tylko metadane, biblioteka nowego profilu zostawała pusta (0 / 0).
+
+- Windows: podczas odtwarzania (TV, film) synchronizacja LAN nie buduje i nie szyfruje stanu co 2 s w wątku okna (PlayerBusy) - wysyła zmiany po zatrzymaniu; przycinanie obrazu TV po zmianach sieciowych.

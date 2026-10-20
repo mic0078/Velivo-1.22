@@ -1206,10 +1206,15 @@ namespace Velivo
     </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>");
         }
 
+        // odtwarzacz, ktory teraz gra - synchronizacja LAN czeka, zeby nie przycinac obrazu (TV, filmy)
+        static LibVLCSharp.Shared.MediaPlayer _playerMp;
+        static bool PlayerBusy { get { try { return _playerMp != null && _playerMp.IsPlaying; } catch (Exception) { return false; } } }
+
         void BuildVlcWindow()
         {
             LibraryVideo current = null;   // film, ktory teraz gra (jego wpis w bibliotece)
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
+            _playerMp = mp;
             var view = new VideoView { MediaPlayer = mp, Background = Brushes.Black };
             var win = new Window { Title = L.T("Odtwarzacz filmów"), Width = 960, Height = 600, Background = Brushes.Black, Icon = Icon, WindowStartupLocation = WindowStartupLocation.CenterScreen };
             // warstwa na obrazie (nad okienkiem VLC): dwuklik = pelny ekran, klik = pauza, ruch myszy = pokaz pasek

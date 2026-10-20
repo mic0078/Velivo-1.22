@@ -932,6 +932,7 @@ namespace Velivo
             { "Wyślij pliki do telefonu lub komputera (sparowanego w sieci)", "Send files to a phone or computer (paired on the network)" },
             { "Najpierw sparuj telefon lub komputer (Synchronizacja LAN w ustawieniach)", "First pair a phone or computer (LAN sync in settings)" },
             { "📎 Wyślij pliki do…", "📎 Send files to…" },
+            { " – odebrano", " – received" },
             { "Pusta nazwa – wraca nazwa urządzenia", "Empty name – the device name returns" },
             { "Urządzenie: ", "Device: " },
             { "  (puste pole – nazwa urządzenia)", "  (empty field – device name)" },

@@ -22,7 +22,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 
 Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był aktywny: po każdym błędzie dopisz tu jedną linijkę z datą, starsze wpisy usuń.
 
-* 2026-10-20: przed wysłaniem kompiluj Windows, przeglądarkę i klawiaturę oraz sprawdź tłumaczenia.
+* 2026-10-20: przed wysłaniem kompiluj poprawioną część i sprawdź tłumaczenia.
 * 2026-10-20: nie zapisuj pliku przez `open(f,'w').write(open(f).read())` – czyści plik.
 * 2026-10-20: pośrednik słyszy własne przekazane pakiety – urządzenie z `_komRemote` nie jest w domu.
 * 2026-10-20: polecenia dla PowerShell, nie cmd.
@@ -36,7 +36,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 ## Przed każdym wysłaniem
 
 1. Najmniejsza poprawka tylko zgłoszonej sprawy, bez martwego kodu.
-2. Kompilacja Windows i Androida (przeglądarka i klawiatura) bez błędów.
+2. Kompiluj tę część (Windows, przeglądarka, klawiatura), w której poprawiłeś błąd – bez błędów.
 3. Każdy napis `L.T("…")` ma tłumaczenie w `Lang.cs` (test `SlownikTests`); napisy Androida w PL i EN.
 4. Sprawdź `git diff`. Wysyłaj dopiero po pomyślnej kompilacji.
 

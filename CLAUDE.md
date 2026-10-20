@@ -1,53 +1,36 @@
 # Zasady pracy w repozytorium Velivo
 
-Velivo ma być lekkie, szybkie i dyskretne — każdą zmianę oceniaj pod kątem płynności, rozmiaru i prywatności.
+Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów, co sprawdziłeś, a czego nie.
 
-## Gałęzie i scalanie
+## Gałęzie
 
-* `rozwoj` to jedyna gałąź robocza. Nie twórz innych gałęzi.
-* `main` jest wersją publiczną; push uruchamia publikację instalatora.
-* Do `main` scalaj tylko po zielonych testach na ostatniej zmianie i wyraźnym poleceniu właściciela: „scal”.
-* Nie zmieniaj opublikowanej historii `main` przez force-push, rebase ani amend.
+* Pracuj tylko na `rozwoj`. Nie twórz innych gałęzi.
+* `main` to wersja publiczna (push publikuje instalator). Scalaj tylko na polecenie „scal” i po zielonych testach.
+* Na `main` bez force-push, rebase i amend.
 
-## Zmiany i testy
+## Przed każdym wysłaniem
 
-1. Sprawdź stan repozytorium i dostępne testy.
-2. Odtwórz problem przed poprawką. Jeśli nie da się tego zautomatyzować, opisz sposób reprodukcji i ograniczenie.
-3. Wprowadź najmniejszą czytelną poprawkę. Nie dodawaj martwego kodu ani nie zmieniaj niezwiązanych zachowań.
-4. Uruchom właściwe testy, w tym testy bezpieczeństwa, jeśli są dostępne.
-5. Przed pushem sprawdź `git diff` i potwierdź, że zmiany dotyczą tylko zgłoszonej sprawy.
+1. Najmniejsza poprawka tylko zgłoszonej sprawy, bez martwego kodu.
+2. Kompilacja Windows i Androida (przeglądarka i klawiatura) bez błędów.
+3. Każdy napis `L.T("…")` ma tłumaczenie w `Lang.cs` (test `SlownikTests`); napisy Androida w PL i EN.
+4. Sprawdź `git diff`. Wysyłaj dopiero po pomyślnej kompilacji.
 
-Nowe funkcje dodawaj tak, by nie zmieniały istniejącego działania bez potrzeby. Gdy coś się zepsuje, najpierw przywróć działanie, potem szukaj przyczyny.
+## Interfejs
 
-## Instalator testowy
+* Przyciski, ikony i menu mają podpowiedzi PL i EN.
+* Wygląd Velivo (bez szarych okien Androida), czytelny w jasnym i ciemnym motywie.
+* Zmiany Filmów i TV opisz w `dokumentacja/instrukcja-filmy-tv.md` i `instrukcja-filmy-tv-notatki.md`; telefonu – w `instrukcja-telefon.md` (PL i EN).
 
-* Zmiany w `src/` na `rozwoj` uruchamiają workflow `instalator-rozwoj.yml`.
-* Na `rozwoj` buduj tylko instalator testowy.
-* Gdy artefakt będzie dostępny, podaj jego rzeczywisty link z GitHub Actions. Nie zgaduj adresu.
-* Sprawdź wynik testów i zgłoś go. Napraw czerwone testy związane ze zmianą.
-* Nie czekaj bez potrzeby na długie zadania; podaj dostępny wynik i później uzupełnij raport.
-* Nie scalaj do `main`, jeśli testy ostatniej zmiany nie są zielone.
+## Budowa u właściciela (Windows, PowerShell, nie jako administrator)
 
-## Budowa u właściciela (Windows, PowerShell)
-
-Na końcu odpowiedzi podawaj polecenia i napisz, co trzeba zbudować (Windows, Android, oba, nic):
+Na końcu odpowiedzi napisz, co zbudować (Windows, Android, oba). Polecenia zawsze dla **PowerShell**:
 
 ```
 cd "C:\Users\andro\Desktop\Velivo 1.22 z github"
 git checkout rozwoj
 git pull origin rozwoj
-.\zbuduj-wszystko.ps1 -TylkoAndroid
+.\zbuduj-wszystko.ps1 -Wszystko
 ```
 
-* Android dla znajomych (sam APK) – domyślnie: `.\zbuduj-wszystko.ps1 -TylkoAndroid`.
-* Android, 3 wersje (APK + 2× AAB do Google Play) – tylko przed publikacją w sklepie: `.\zbuduj-wszystko.ps1 -TylkoAndroid -Sklep`.
-* Budować w zwykłym PowerShell, nie jako administrator.
-* Tylko Windows: `.\zbuduj-wszystko.ps1`. Szybkie próby Androida: ▶ w Android Studio (wariant pelnaDebug).
-
-## Interfejs i dokumentacja
-
-* Przyciski, ikony i pozycje menu mają podpowiedzi PL i EN, także w klawiaturze ekranowej i odtwarzaczu.
-* Listy mają sortowanie i zapamiętują ustawienia okna oraz szerokości kolumn.
-* Zmiany funkcji filmów lub TV opisz w `dokumentacja/instrukcja-filmy-tv-notatki.md` i `dokumentacja/instrukcja-filmy-tv.md`.
-
-Odpowiadaj po polsku. Raportuj, co sprawdziłeś i czego nie udało się zweryfikować.
+* Tylko Windows: `.\zbuduj-wszystko.ps1`. Tylko Android: `-TylkoAndroid`. Do Google Play: `-TylkoAndroid -Sklep`.
+* Gotowe pliki: `build\` (instalator), `build\android\` (`Velivo-pelna.apk`, `Velivo-klawiatura.apk`).

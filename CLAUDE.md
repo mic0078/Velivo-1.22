@@ -29,7 +29,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-20: pośrednik słyszy własne przekazane pakiety – urządzenie z `_komRemote` nie jest w domu.
 * 2026-10-20: polecenia dla PowerShell, nie cmd.
 * 2026-10-21: przycisk ➤ omijał klawiaturę – ostatnie słowo bez poprawki; teraz ➤ prosi klawiaturę o poprawkę (`pl.velivo.slowo`), Enter = Wyślij.
-* 2026-10-21: zdjęcie od kontaktu zapisuje się na komputerze po cichu w folderze `Komunikator` – użytkownik go nie widzi.
+* 2026-10-21: pakiety przez pośrednika mają adres 127.0.0.1 – nie zapisuj go jako adresu kontaktu (zrzut trafiał do samego telefonu).
 
 ## Gałęzie
 

@@ -220,7 +220,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
         contact(from)?.let { c ->
             val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); seenAt[c.id] = System.currentTimeMillis()
-            if (t == "p2p-here" && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
+            if (t == "p2p-here" && !viaRelay && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
             // prawdziwa nazwa urządzenia (zmieniona na tamtym telefonie / komputerze); własna nazwa kontaktu zostaje
             val real = clean(p.optString("device"))
             if (real.isNotEmpty() && real != c.device) { c.device = real; if (!c.own) c.name = real; saveContacts(); main.post { onChange() } }
@@ -237,7 +237,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             "p2p-ack" -> {
                 val c = contact(from) ?: return true; val mid = p.optString("mid")
                 if (!MessageDigest.isEqual(unb64(p.optString("mac")), hmac(c.key, "ack\n$mid".toByteArray()))) return true
-                if (c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
+                if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
                 acks[mid]?.countDown()
             }
             // ✓✓ odbiorca przeczytał nasze wiadomości
@@ -308,7 +308,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         sendUdp(packet("p2p-ack").put("to", c.id).put("mid", mid).put("mac", b64(hmac(c.key, "ack\n$mid".toByteArray()))), sender)
         if (!seen.add(mid)) return   // powtórzenie (np. potwierdzenie nie doszło) - tylko ponowne ack
         if (seen.size > 2000) synchronized(seen) { seen.iterator().let { it.next(); it.remove() } }
-        if (c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
+        if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
         val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
@@ -340,7 +340,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             ci.updateAAD(msgAd(myId, c.id, mid, m.ts))
             p.put("c", b64(ci.doFinal(m.text.toByteArray(Charsets.UTF_8))))
             val latch = java.util.concurrent.CountDownLatch(1); acks[mid] = latch
-            val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()
+            val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { !it.isLoopbackAddress }
             for (i in 0 until 4) {
                 sendUdp(p, if (i % 2 == 0 && known != null) known else null)
                 if (latch.await(1500, java.util.concurrent.TimeUnit.MILLISECONDS)) { m.ok = true; break }
@@ -1243,9 +1243,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val c = attachTo; attachTo = null
         if (c != null) {
             Thread {
-                val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()
+                val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { !it.isLoopbackAddress }
                 // 🟢 w sieci i znany adres - od razu, bez szukania
-                val addr = (if (k.online(c.id)) known else null) ?: k.find().firstOrNull { it.id == c.id }?.addr ?: known
+                val addr = (if (k.online(c.id)) known else null) ?: k.find().firstOrNull { it.id == c.id }?.addr ?: known ?: if (k.viaInternet(c.id)) InetAddress.getLoopbackAddress() else null   // poza domem: tunel przez pośrednika
                 a.runOnUiThread {
                     if (addr == null) Toast.makeText(a, t("${c.name} nie ma teraz w sieci", "${c.name} is not on the network now"), Toast.LENGTH_LONG).show()
                     else sendFilesTo(uris, Komunikator.Peer(c.id, c.name, addr), c)

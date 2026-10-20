@@ -260,7 +260,7 @@ namespace Velivo
             if (c != null)
             {
                 bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; _komSeenAt[c.Id] = DateTime.Now;
-                if (t == "p2p-here" && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
+                if (t == "p2p-here" && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
                 // 🌍 adres pośrednika kontaktu (np. NUCBOX z No-IP) - poza domem rozmowy ida przez niego
                 var relayAddr = (string)p["relay"];
                 if (t == "p2p-here" && relayAddr != null && relayAddr.Length < 200 && relayAddr.Contains(':') && relayAddr != c.Relay) { c.Relay = relayAddr; KomSave(); }
@@ -279,7 +279,7 @@ namespace Velivo
                         var mid = (string)p["mid"] ?? "";
                         var mac = KomB64((string)p["mac"]); var exp = KomHmac(c.Key, "ack\n" + mid);
                         if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) return;
-                        if (c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }
+                        if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }
                         if (_komAcks.TryGetValue(mid, out var tcs)) tcs.TrySetResult(true);
                         return;
                     }
@@ -320,7 +320,7 @@ namespace Velivo
             var ack = KomPacket("p2p-ack"); ack["to"] = c.Id; ack["mid"] = mid; ack["mac"] = Convert.ToBase64String(KomHmac(c.Key, "ack\n" + mid));
             KomSendUdp(ack, sender);
             if (!_komSeen.Add(mid)) return;   // powtorka - tylko ponowne potwierdzenie
-            if (c.Addr != sender.ToString()) c.Addr = sender.ToString();
+            if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
             if (text.Length > 4000) text = text.Substring(0, 4000);
             KomChat(c.Id).Add(new KomMsg { Mine = false, Text = text, Ts = ts, Ok = true, Mid = mid });
             bool visible = _komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == c.Id;
@@ -1088,9 +1088,9 @@ namespace Velivo
             async Task AttachTo(KomContact c)
             {
                 IPAddress addr = null;
-                if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr)) { addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr; }
-                if (addr == null) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
-                await KomSendFilesTo(w, c.Name, addr, c);
+                if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) { addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr; }
+                if (addr == null && _komUp == null) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
+                await KomSendFilesTo(w, c.Name, addr ?? IPAddress.Loopback, c);   // poza domem: tunel przez pośrednika
             }
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
             leftButtons.Children.Add(Btn("🎨", L.T("Motyw komunikatora – kolory okna i wiadomości"), (s, e) =>
@@ -1165,7 +1165,7 @@ namespace Velivo
             try
             {
                 IPAddress addr = null;
-                if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr)) addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr;
+                if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr;
                 if (addr == null && _komUp == null) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
                 KomInfo(L.T("🎬 Wysyłam Filmy i TV…"), 0);
                 var r = await KomSendFile(addr ?? IPAddress.Loopback, path, _ => { }, c);

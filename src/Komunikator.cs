@@ -60,6 +60,11 @@ namespace Velivo
                     _komId = (string)o["id"];
                     _komTheme = (string)o["theme"] ?? "auto";
                     _komAutoImages = (bool?)o["autoimg"] ?? true;
+                    foreach (var iv in o["invites"]?.AsArray() ?? new JsonArray())   // ✉ zaproszenia czekajace na pośredniku
+                    {
+                        var ik = KomB64((string)iv["k"]); long ie = (long?)iv["exp"] ?? 0;
+                        if (ik.Length == 32 && ie > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) _komInvites[KomInviteId(ik)] = new KomInvite { K = ik, By = (string)iv["by"], Exp = ie };
+                    }
                     _komRelayOn = (bool?)o["relayOn"] ?? false; _komRelayHost = (string)o["relayHost"] ?? ""; _komRelayPort = (int?)o["relayPort"] ?? 41920;
                     foreach (var c in o["contacts"]?.AsArray() ?? new JsonArray())
                     {
@@ -91,7 +96,7 @@ namespace Velivo
                 {
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["relayOn"] = _komRelayOn, ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["relayOn"] = _komRelayOn, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
                 };
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(o.ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
@@ -264,6 +269,7 @@ namespace Velivo
                         return;
                     }
                 case "p2p-msg": KomReceive(p, c, sender, ts); return;
+                case "p2p-invite": KomInviteStore(p, c); return;   // ✉ zaproszenie od kontaktu (ten komputer jest pośrednikiem)
                 case "p2p-read":   // ✓✓ odbiorca przeczytal nasze wiadomosci
                     {
                         if (c == null || (string)p["to"] != _komId) return;
@@ -556,7 +562,8 @@ namespace Velivo
             return await Dispatcher.InvokeAsync(() => MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), text, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes);
         }
 
-        async Task KomReceivePair(JsonNode h, Stream s, IPAddress remote, CancellationToken token)
+        // auto - nowe urzadzenie z zaproszeniem dolacza do pośrednika (zgoda dana zaproszeniem; rozmowa wymaga jeszcze zgody zapraszajacego)
+        async Task KomReceivePair(JsonNode h, Stream s, IPAddress remote, CancellationToken token, bool auto = false)
         {
             await Dispatcher.InvokeAsync(KomLoad);
             var other = (string)h["Id"] ?? ""; if (other.Length != 32 || other == _komId) return;
@@ -567,7 +574,9 @@ namespace Velivo
                 var pubB = me.ExportSubjectPublicKeyInfo();
                 await KomWriteBlock(s, pubB, token);
                 var key = KomAgree(me, pubA, "velivo-czat", pubA, pubB);
-                var ok = await KomAsk(L.T("💬 Nowy kontakt"), (L.En ? "“" + dev + "” wants to add you to Velivo messenger.\n\nCode: " : "„" + dev + "” chce dodać Cię do komunikatora Velivo.\n\nKod: ") + KomCode(key) +
+                var invited = (bool?)h["Invited"] == true;
+                if (!auto) await Dispatcher.InvokeAsync(() => { try { System.Media.SystemSounds.Asterisk.Play(); } catch (Exception) { } });   // prośba od razu slyszalna, takze z zasobnika
+                var ok = auto || await KomAsk(L.T("💬 Nowy kontakt") + (invited ? L.T(" (zaproszenie przez internet)") : ""), (L.En ? "“" + dev + "” wants to add you to Velivo messenger.\n\nCode: " : "„" + dev + "” chce dodać Cię do komunikatora Velivo.\n\nKod: ") + KomCode(key) +
                     L.T("\n\nPrzyjmij tylko, gdy na drugim urządzeniu jest ten sam kod."));
                 await s.WriteAsync(new[] { (byte)(ok ? 1 : 0) }, 0, 1, token); await s.FlushAsync(token);
                 if (!ok) return;
@@ -589,19 +598,35 @@ namespace Velivo
             {
                 using (var cl = new TcpClient())
                 using (var cts = new CancellationTokenSource(TimeSpan.FromMinutes(4)))
-                using (var me = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256))
                 {
                     await cl.ConnectAsync(addr, LanPort, cts.Token);
-                    var s = cl.GetStream(); var pubA = me.ExportSubjectPublicKeyInfo();
-                    await KomWriteBlock(s, Encoding.UTF8.GetBytes(new JsonObject { ["Type"] = "p2p-pair", ["Id"] = _komId, ["Device"] = _lanDeviceName, ["Pub"] = Convert.ToBase64String(pubA) }.ToJsonString()), cts.Token);
+                    return await KomPairOn(cl.GetStream(), id, name, addr.ToString(), null, false, showCode, cts.Token);
+                }
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
+
+        // dodanie kontaktu na gotowym polaczeniu (siec domowa albo tunel przez pośrednika z zaproszeniem)
+        async Task<string> KomPairOn(Stream s, string id, string name, string addr, string relay, bool invited, Action<string> showCode, CancellationToken token)
+        {
+            try
+            {
+                using (var me = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256))
+                {
+                    var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    var pubA = me.ExportSubjectPublicKeyInfo();
+                    var hj = new JsonObject { ["Type"] = "p2p-pair", ["Id"] = _komId, ["Device"] = _lanDeviceName, ["Pub"] = Convert.ToBase64String(pubA) };
+                    if (invited) hj["Invited"] = true;
+                    await KomWriteBlock(s, Encoding.UTF8.GetBytes(hj.ToJsonString()), cts.Token);
                     var pubB = await KomReadBlock(s, 200, cts.Token); if (pubB == null) return "błąd";
                     var key = KomAgree(me, pubB, "velivo-czat", pubA, pubB);
                     showCode(KomCode(key));
                     var b = new byte[1]; if (!await ReadExactAsync(s, b, 1, cts.Token) || b[0] != 1) return L.T("odrzucono");
                     var info = await KomReadBlock(s, 4096, cts.Token); if (info == null) return "błąd";
-                    var o = JsonNode.Parse(info); if ((string)o["Id"] != id) return "błąd";
-                    var dev = KomClean((string)o["Device"]);
-                    KomAddContact(new KomContact { Id = id, Name = dev.Length > 0 ? dev : name, Device = dev.Length > 0 ? dev : name, Key = key, Addr = addr.ToString() });
+                    var o = JsonNode.Parse(info); if (id != null && (string)o["Id"] != id) return "błąd";
+                    var dev = KomClean((string)o["Device"]); var cid = (string)o["Id"]; if (cid == null || cid.Length != 32) return "błąd";
+                    var nc = new KomContact { Id = cid, Name = dev.Length > 0 ? dev : name, Device = dev.Length > 0 ? dev : name, Key = key, Addr = addr ?? "", Relay = relay };
+                    await Dispatcher.InvokeAsync(() => KomAddContact(nc));
                     return "ok";
                 }
             }
@@ -1063,7 +1088,15 @@ namespace Velivo
                 cm.Items.Add(ai);
                 cm.IsOpen = true;
             }));
-            leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: telefon lub komputer z Velivo w tej samej sieci"), async (s, e) => await KomAddDialog(w)));
+            leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)"), (s, e) =>
+            {
+                var cm = new ContextMenu { PlacementTarget = (UIElement)s, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+                var lan = new MenuItem { Header = L.T("📶 W tej sieci (z kodem)") }; lan.Click += async (a, b) => await KomAddDialog(w);
+                var inv = new MenuItem { Header = L.T("✉ Zaproś przez internet…") }; inv.Click += (a, b) => KomInviteDialog(w);
+                var join = new MenuItem { Header = L.T("🔑 Mam zaproszenie…") }; join.Click += (a, b) => KomJoinDialog(w);
+                cm.Items.Add(lan); cm.Items.Add(inv); cm.Items.Add(join);
+                cm.IsOpen = true;
+            }));
             leftButtons.Children.Add(Btn(L.T("📎 Plik do…"), L.T("Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)"), async (s, e) =>
             {
                 var c = Current(); if (c != null) { await AttachTo(c); return; }   // zaznaczony kontakt - bez szukania i bez kodu

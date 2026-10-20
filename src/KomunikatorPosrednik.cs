@@ -216,6 +216,10 @@ namespace Velivo
                 var h = JsonNode.Parse(hello);
                 id = (string)h["Id"];
                 KomContact c = null; await Dispatcher.InvokeAsync(() => { KomLoad(); c = KomContactById(id ?? ""); });
+                // ✉ nowe urzadzenie z zaproszeniem: klucz zaproszenia zamiast klucza kontaktu (jednorazowo, do dolaczenia)
+                KomInvite inv = null;
+                if ((string)h["Mode"] == "invite" && _komInvites.TryGetValue((string)h["Tunnel"] ?? "", out inv) && inv.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() && id?.Length == 32 && id != _komId)
+                    c = new KomContact { Id = id, Key = inv.K };
                 long ts = (long?)h["Ts"] ?? 0;
                 // tylko kontakty tego komputera, swiezy podpis kluczem kontaktu
                 if (c == null || (string)h["Type"] != "relay-hello" || (string)h["Relay"] != _komId || Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000) { cl.Dispose(); return; }
@@ -229,6 +233,15 @@ namespace Velivo
                 fs = new KomFrameStream(cl, KomSessionKey(c.Key, nc, ns));
                 var mode = (string)h["Mode"]; var to = (string)h["To"] ?? ""; var tid = (string)h["Tunnel"] ?? "";
 
+                if (mode == "invite")
+                {   // dolaczenie do pośrednika: tylko dodanie kontaktu (bez pytania), zaproszenie zuzyte
+                    if (inv == null) return;
+                    var hb = await KomReadBlock(fs, 4096, token); if (hb == null) return;
+                    var ph = JsonNode.Parse(hb); if ((string)ph?["Type"] != "p2p-pair" || (string)ph["Id"] != id) return;
+                    _komInvites.TryRemove(KomInviteId(inv.K), out _); await Dispatcher.InvokeAsync(KomSave);
+                    await KomReceivePair(ph, fs, IPAddress.Loopback, token, auto: true);
+                    return;
+                }
                 if (mode == "tunnel-in") { if (_komTunnels.TryRemove(tid, out var w)) { w.TrySetResult(fs); fs = null; } return; }   // strumien odbiera czekajacy tunel
                 if (mode == "tunnel") { await KomRelayTunnel(fs, to, token); return; }
                 if (mode != "main") return;
@@ -343,7 +356,7 @@ namespace Velivo
         readonly DateTime _komUpSince = DateTime.UtcNow;
         void KomUpCheck()
         {
-            if (DateTime.UtcNow - _komUpSince < TimeSpan.FromSeconds(30)) return;   // po starcie najpierw sprawdzamy sieć domową (pośrednik odpowiada w sekundę)
+            if (DateTime.UtcNow - _komUpSince < TimeSpan.FromSeconds(30) && !_komUpForce) return;   // po starcie najpierw sprawdzamy sieć domową (pośrednik odpowiada w sekundę)
             var relay = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay));
             bool home = relay == null || _komRelayOn || (_komLanSeen.TryGetValue(relay.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
             if (home) { if (_komUp != null) { try { _komUp.Fs.Dispose(); } catch (Exception) { } _komUp = null; KomAnnounce(); } return; }
@@ -381,6 +394,130 @@ namespace Velivo
                 var hb = await KomReadBlock(fs, 4096, CancellationToken.None); if (hb == null) return;
                 await KomTcpAsync(hb, fs, IPAddress.Loopback, CancellationToken.None);
             }
+        }
+
+        // ---------- ✉ zaproszenia przez internet ----------
+        // Kod zaproszenia: adres pośrednika, jego identyfikator, jednorazowy klucz (token), kto zaprasza. Pośrednik zna tylko
+        // skrot klucza (K = SHA256(token)) - z nim nowe urzadzenie dolacza do pośrednika, potem prosi zapraszajacego o kontakt
+        // (6-cyfrowy kod na obu ekranach i zgoda). Zaproszenie dziala raz i wygasa po 7 dniach.
+        sealed class KomInvite { public byte[] K; public string By; public long Exp; }
+        readonly ConcurrentDictionary<string, KomInvite> _komInvites = new ConcurrentDictionary<string, KomInvite>();
+        static string KomInviteId(byte[] k) => Convert.ToHexString(k, 0, 8);
+
+        // zaproszenie od kontaktu (pakiet p2p-invite do pośrednika; klucz zaszyfrowany kluczem kontaktu)
+        void KomInviteStore(JsonNode p, KomContact c)
+        {
+            if (!_komRelayOn || c == null || (string)p["to"] != _komId) return;
+            var n = KomB64((string)p["n"]); var ek = KomB64((string)p["ek"]); long exp = (long?)p["exp"] ?? 0;
+            if (n.Length != 12 || ek.Length != 48 || exp < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() || exp > DateTimeOffset.UtcNow.AddDays(8).ToUnixTimeMilliseconds()) return;
+            var k = new byte[32];
+            try { using (var g = new AesGcm(c.Key, 16)) g.Decrypt(n, ek.AsSpan(0, 32), ek.AsSpan(32, 16), k, Encoding.ASCII.GetBytes("velivo-invite\n" + exp)); }
+            catch (CryptographicException) { return; }
+            _komInvites[KomInviteId(k)] = new KomInvite { K = k, By = c.Id, Exp = exp };
+            KomSave();
+        }
+
+        // nowy kod zaproszenia; null - brak pośrednika (opis w tekscie bledu)
+        string KomCreateInvite(out string error)
+        {
+            error = null;
+            string host; string relayId; KomContact relay = null;
+            if (_komRelayOn && _komRelayHost.Length > 0) { host = _komRelayHost + ":" + _komRelayPort; relayId = _komId; }
+            else
+            {
+                relay = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay));
+                if (relay == null) { error = L.T("Najpierw włącz pośrednika (🎨 → 🌍 Rozmowy poza domem) na komputerze, który jest zawsze włączony, i otwórz tu komunikator w domu."); return null; }
+                host = relay.Relay; relayId = relay.Id;
+            }
+            var token = RandomNumberGenerator.GetBytes(16); var k = SHA256.HashData(token);
+            long exp = DateTimeOffset.UtcNow.AddDays(7).ToUnixTimeMilliseconds();
+            if (relay == null) { _komInvites[KomInviteId(k)] = new KomInvite { K = k, By = _komId, Exp = exp }; KomSave(); }
+            else
+            {   // pośrednik musi znac zaproszenie - klucz zaszyfrowany kluczem kontaktu z pośrednikiem
+                var n = RandomNumberGenerator.GetBytes(12); var ct = new byte[32]; var tag = new byte[16];
+                using (var g = new AesGcm(relay.Key, 16)) g.Encrypt(n, k, ct, tag, Encoding.ASCII.GetBytes("velivo-invite\n" + exp));
+                var p = KomPacket("p2p-invite"); p["to"] = relay.Id; p["n"] = Convert.ToBase64String(n); p["ek"] = Convert.ToBase64String(ct.Concat(tag).ToArray()); p["exp"] = exp;
+                IPAddress.TryParse(relay.Addr ?? "", out var ra);
+                for (int i = 0; i < 3; i++) KomSendUdp(p, i == 0 ? ra : null);
+            }
+            var code = new JsonObject { ["h"] = host, ["r"] = relayId, ["t"] = Convert.ToBase64String(token), ["i"] = _komId, ["n"] = _lanDeviceName }.ToJsonString();
+            return "VELIVO1:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(code)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        }
+
+        // dolaczenie z kodem: do pośrednika (bez pytania - zaproszenie), potem prośba o kontakt do zapraszajacego
+        async Task<string> KomJoin(string code, Action<string> showCode)
+        {
+            JsonNode j;
+            try
+            {
+                var b = code.Trim(); var at = b.IndexOf("VELIVO1:", StringComparison.OrdinalIgnoreCase); if (at < 0) return L.T("To nie jest kod zaproszenia Velivo");
+                b = b.Substring(at + 8).Trim().Split(' ', '\n', '\r')[0].Replace('-', '+').Replace('_', '/'); b = b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
+                j = JsonNode.Parse(Convert.FromBase64String(b));
+            }
+            catch (Exception) { return L.T("To nie jest kod zaproszenia Velivo"); }
+            string host = (string)j["h"], relayId = (string)j["r"], inviter = (string)j["i"], name = KomClean((string)j["n"]);
+            var token = KomB64((string)j["t"]);
+            if (host == null || relayId?.Length != 32 || inviter?.Length != 32 || token.Length != 16) return L.T("To nie jest kod zaproszenia Velivo");
+            if (inviter == _komId) return L.T("To Twoje własne zaproszenie");
+            var k = SHA256.HashData(token);
+            // 1) pośrednik - nowy kontakt bez pytania (zaproszenie); z nim rozmowy poza domem
+            var tmp = new KomContact { Id = relayId, Key = k, Relay = host, Name = "Velivo" };
+            using (var fs = await KomRelayConnect(tmp, "invite", KomInviteId(k), null, CancellationToken.None))
+            {
+                if (fs == null) return L.T("Nie można połączyć z pośrednikiem – zaproszenie wygasło albo dom jest niedostępny");
+                var r1 = await KomPairOn(fs, relayId, "Velivo", "", host, true, _ => { }, CancellationToken.None);
+                if (r1 != "ok") return r1;
+            }
+            if (inviter == relayId) { KomUpCheckNow(); return "ok"; }
+            // 2) zapraszajacy - prośba z kodem do porownania, zgoda po jego stronie
+            var relay = KomContactById(relayId);
+            using (var fs2 = await KomRelayConnect(relay, "tunnel", null, inviter, CancellationToken.None))
+            {
+                if (fs2 == null) return L.T("Nie można połączyć z pośrednikiem");
+                var r2 = await KomPairOn(fs2, inviter, name, "", null, true, showCode, CancellationToken.None);
+                KomUpCheckNow();
+                return r2 == "ok" ? "ok" : (r2 == L.T("odrzucono") ? r2 : L.T("Zapraszający jest teraz niedostępny – spróbuj, gdy będzie w sieci (") + r2 + ")");
+            }
+        }
+
+        void KomUpCheckNow() { Dispatcher.BeginInvoke(new Action(() => { _komUpForce = true; KomUpCheck(); })); }
+        bool _komUpForce;
+
+        void KomInviteDialog(Window owner)
+        {
+            var code = KomCreateInvite(out var err);
+            if (code == null) { MessageBox.Show(owner, err, L.T("✉ Zaproś przez internet")); return; }
+            var box = new TextBox { Text = code, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Margin = new Thickness(0, 8, 0, 8), FontFamily = new System.Windows.Media.FontFamily("Consolas") };
+            var copy = new Button { Content = L.T("📋 Kopiuj"), Padding = new Thickness(14, 4, 14, 4), HorizontalAlignment = HorizontalAlignment.Left };
+            copy.Click += (s, e) => { try { Clipboard.SetText(code); copy.Content = L.T("✓ Skopiowano"); } catch (Exception) { } };
+            var d = new Window { Title = L.T("✉ Zaproś przez internet"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel { Margin = new Thickness(16), Children = {
+                    new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Text = L.T("Wyślij ten kod osobie, która ma Velivo (SMS, e-mail, komunikator). Ona wkleja go w komunikatorze: ➕ → 🔑 Mam zaproszenie. U Ciebie pojawi się prośba z kodem – przyjmij, gdy kod się zgadza. Zaproszenie działa raz, przez 7 dni.") },
+                    box, copy } } };
+            KomStyle(d);
+            d.ShowDialog();
+        }
+
+        void KomJoinDialog(Window owner)
+        {
+            var box = new TextBox { MinWidth = 420, MaxWidth = 460, Height = 70, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, Margin = new Thickness(0, 8, 0, 8) };
+            try { if (Clipboard.ContainsText() && Clipboard.GetText().Contains("VELIVO1:")) box.Text = Clipboard.GetText().Trim(); } catch (Exception) { }
+            var ok = new Button { Content = L.T("Połącz"), IsDefault = true, Padding = new Thickness(18, 4, 18, 4), HorizontalAlignment = HorizontalAlignment.Right };
+            var d = new Window { Title = L.T("🔑 Mam zaproszenie"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel { Margin = new Thickness(16), Children = { new TextBlock { Text = L.T("Wklej kod zaproszenia (VELIVO1:…):") }, box, ok } } };
+            KomStyle(d);
+            ok.Click += (s, e) => d.DialogResult = true;
+            if (d.ShowDialog() != true || box.Text.Trim().Length == 0) return;
+            var code = box.Text;
+            KomInfo(L.T("✉ Łączę z zapraszającym…"), 0);
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                Window codeWin = null;
+                var r = await KomJoin(code, c => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, L.T("✉ Zaproszenie"), c)));
+                codeWin?.Close();
+                KomInfo(r == "ok" ? L.T("✉ Dodano kontakt – możecie rozmawiać przez internet") : L.T("✉ Nie dodano: ") + r);
+                if (r == "ok") _komRefresh?.Invoke();
+            });
         }
 
         // ---------- okno ustawien ----------

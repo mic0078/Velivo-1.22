@@ -289,7 +289,7 @@ namespace Velivo
             var old = _komPopups.FirstOrDefault(p => (string)p.Tag == c.Id);
             if (old != null) { old.Close(); }
             bool dark = DarkWindows;
-            var bg = new SolidColorBrush(dark ? Color.FromRgb(0x1B, 0x17, 0x33) : Color.FromRgb(0xFF, 0xFF, 0xFF));
+            var bg = new SolidColorBrush(dark ? Color.FromRgb(0x1B, 0x17, 0x33) : Color.FromRgb(0xF1, 0xEE, 0xFA));
             var fg = new SolidColorBrush(dark ? Color.FromRgb(0xEC, 0xE8, 0xFF) : Color.FromRgb(0x1B, 0x17, 0x33));
             var accent = new SolidColorBrush(Color.FromRgb(0x6D, 0x3F, 0xDB));
             var w = new Window
@@ -682,6 +682,17 @@ namespace Velivo
             right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
+            // jasny motyw: lagodne tlo Velivo (lawenda / szaroniebieski) zamiast razacej bieli; ciemny - z motywu okien
+            if (!DarkWindows)
+            {
+                Brush B(byte r0, byte g0, byte b0) { var b = new SolidColorBrush(Color.FromRgb(r0, g0, b0)); b.Freeze(); return b; }
+                root.Margin = new Thickness(0);
+                root.Background = new LinearGradientBrush(Color.FromRgb(0xE6, 0xE1, 0xF5), Color.FromRgb(0xDC, 0xE6, 0xF0), 45);
+                left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
+                list.Background = B(0xF1, 0xEE, 0xFA); list.BorderBrush = B(0xD3, 0xCB, 0xEE);
+                input.Background = B(0xFA, 0xF9, 0xFE); input.BorderBrush = B(0xB9, 0xAC, 0xE6);
+                header.Foreground = B(0x2A, 0x22, 0x55);
+            }
 
             KomContact Current() => KomContactById(_komOpenId ?? "");
             void FillList()
@@ -744,7 +755,7 @@ namespace Velivo
                     {
                         Child = body, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(m.Mine ? 60 : 0, 3, m.Mine ? 0 : 60, 3),
                         HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                        Background = m.Mine ? new SolidColorBrush(Color.FromRgb(0x6D, 0x3F, 0xDB)) : new SolidColorBrush(dark ? Color.FromRgb(0x3A, 0x33, 0x60) : Color.FromRgb(0xEC, 0xE8, 0xF8))
+                        Background = m.Mine ? new SolidColorBrush(Color.FromRgb(0x6D, 0x3F, 0xDB)) : new SolidColorBrush(dark ? Color.FromRgb(0x3A, 0x33, 0x60) : Color.FromRgb(0xFB, 0xFA, 0xFF))
                     });
                 }
                 scroll.ScrollToEnd();

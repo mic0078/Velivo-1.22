@@ -83,7 +83,11 @@ class PlayerActivity : Activity() {
     private var sleepAt = 0L
     // 🗣 lektor: czyta napisy filmu z Jellyfin głosem Google, film na ten czas ściszony (jak na Windows)
     private var lektor: Lektor? = null
-    private val lektorTick = object : Runnable { override fun run() { if (gone) return; lektor?.let { if (player.isPlaying) it.at(player.time) }; ui.postDelayed(this, 150) } }
+    private val lektorTick = object : Runnable { override fun run() { if (gone) return; lektor?.let { if (player.isPlaying) it.at(player.time - subDelay) }; ui.postDelayed(this, 150) } }
+    // ⏱ przesunięcie napisów (ms, + = później): ekran VLC i lektor razem, zapamiętane dla filmu
+    private var subDelay = 0L
+    private fun subKey() = queue.getOrNull(index)?.key?.let { "napisy-przes-$it" }
+    private fun applySubDelay() { runCatching { player.setSpuDelay(subDelay * 1000) }; lektor?.seeked() }
     private fun lektorOn() = prefs.getBoolean("lektor", false)
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -258,6 +262,8 @@ class PlayerActivity : Activity() {
         player.media = m
         m.release()
         player.play()
+        subDelay = subKey()?.let { k -> prefs.getLong(k, 0L) } ?: 0L
+        if (subDelay != 0L) applySubDelay()
         lektor?.stop(); lektor?.load("")
         if (lektorOn() && it.jellyId != null) lektorSubs(it, null)
         val pos = it.key?.let { k -> posPrefs.getFloat(k, 0f) } ?: 0f
@@ -304,19 +310,40 @@ class PlayerActivity : Activity() {
         val it = queue.getOrNull(index)
         val jf = it?.jellyId != null && !live
         val extra = if (jf) listOf((if (lektorOn()) "🗣 " + getString(R.string.lektor_off) else "🗣 " + getString(R.string.lektor_on)), "📄 " + getString(R.string.lektor_pick), "⬇ " + getString(R.string.subs_download), "🎚 " + getString(R.string.lektor_levels)) else emptyList()
-        val labels = a.map { "🔊 " + it.name + if (it.id == player.audioTrack) " ✓" else "" } + s.map { "🗨 " + it.name + if (it.id == player.spuTrack) " ✓" else "" } + extra
+        val shift = if (!live && (s.isNotEmpty() || lektor?.loaded == true)) listOf("⏱ " + getString(R.string.subs_shift) + fmtDelay()) else emptyList()
+        val labels = a.map { "🔊 " + it.name + if (it.id == player.audioTrack) " ✓" else "" } + s.map { "🗨 " + it.name + if (it.id == player.spuTrack) " ✓" else "" } + shift + extra
         if (labels.isEmpty()) { toast(getString(R.string.player_no_tracks)); return }
         AlertDialog.Builder(this).setTitle(R.string.player_tracks).setItems(labels.toTypedArray()) { _, i ->
+            val j = i - shift.size   // pozycje po przesunięciu napisów
             when {
                 i < a.size -> player.setAudioTrack(a[i].id)
                 i < a.size + s.size -> player.setSpuTrack(s[i - a.size].id)
-                i == a.size + s.size -> { val on = !lektorOn(); prefs.edit().putBoolean("lektor", on).apply()
+                shift.isNotEmpty() && i == a.size + s.size -> askSubDelay()
+                j == a.size + s.size -> { val on = !lektorOn(); prefs.edit().putBoolean("lektor", on).apply()
                     if (on && it != null) lektorSubs(it, null) else { lektor?.stop(); lektor?.load(""); toast(getString(R.string.lektor_stopped)) } }
-                i == a.size + s.size + 1 -> if (it != null) pickSubs(it)
-                i == a.size + s.size + 2 -> if (it != null) downloadSubs(it)
+                j == a.size + s.size + 1 -> if (it != null) pickSubs(it)
+                j == a.size + s.size + 2 -> if (it != null) downloadSubs(it)
                 else -> lektorLevels()
             }
         }.show()
+    }
+
+    private fun fmtDelay() = if (subDelay == 0L) "" else " (" + (if (subDelay > 0) "+" else "") + String.format(java.util.Locale.ROOT, "%.1f", subDelay / 1000.0) + " s)"
+
+    // ⏱ przesunięcie napisów na żywo: film gra dalej, zmiana widać / słychać od razu (napisy na ekranie i lektor)
+    private fun askSubDelay() {
+        val label = TextView(this).apply { textSize = 22f; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(8)) }
+        fun upd() { label.text = (if (subDelay > 0) "+" else "") + String.format(java.util.Locale.ROOT, "%.1f", subDelay / 1000.0) + " s" }
+        fun step(d: Long) { subDelay = if (d == 0L) 0L else subDelay + d; applySubDelay(); subKey()?.let { k -> prefs.edit().putLong(k, subDelay).apply() }; upd() }
+        upd()
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER
+            listOf("−1 s" to -1000L, "−0.1" to -100L, "+0.1" to 100L, "+1 s" to 1000L).forEach { (t, d) ->
+                addView(Button(this@PlayerActivity).apply { text = t; isAllCaps = false; contentDescription = getString(if (d < 0) R.string.subs_earlier else R.string.subs_later); tooltipText = contentDescription; setOnClickListener { step(d) } }) } }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(4), dp(16), dp(4))
+            addView(label); addView(row)
+            addView(TextView(this@PlayerActivity).apply { text = getString(R.string.subs_shift_help); textSize = 13f; setPadding(0, dp(8), 0, 0) }) }
+        AlertDialog.Builder(this).setTitle("⏱ " + getString(R.string.subs_shift)).setView(box)
+            .setPositiveButton(android.R.string.ok, null).setNeutralButton(R.string.subs_shift_reset) { _, _ -> step(0) }.show()
     }
 
     // 🎚 głośność filmu w czasie czytania i głośność lektora - osobno (jak na Windows); od razu słychać zmianę

@@ -390,4 +390,9 @@
     <string name="lektor_levels">Film and lector volume</string>
     <string name="lektor_film_vol">Film while the lector reads</string>
     <string name="lektor_voice_vol">Lector voice</string>
+    <string name="subs_shift">Subtitle timing</string>
+    <string name="subs_earlier">Subtitles earlier</string>
+    <string name="subs_later">Subtitles later</string>
+    <string name="subs_shift_help">Subtitles too late – press −, too early – press +. Works live for the subtitles on screen and for the lector; remembered for this film.</string>
+    <string name="subs_shift_reset">Reset</string>
 </resources>

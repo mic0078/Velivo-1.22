@@ -254,6 +254,7 @@ Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** 
 - Serial → lista odcinków → odcinek; następny odcinek włącza się sam.
 - **Pełny opis filmu:** przytrzymaj film na liście – pełny opis, rok i czas trwania, a do tego **Odtwórz** albo **Odtwórz z lektorem**.
 - **🗣 Lektor (jak na Windows):** w odtwarzaczu 🗨 → *Lektor: czytaj napisy na głos*. Czyta napisy filmu z Jellyfin głosem Google (gdy jest w telefonie), film na ten czas jest ściszony; przy szybkich dialogach przyspiesza, zaległe kwestie pomija. *Napisy dla lektora…* – wybór napisów (polskie najpierw). Ustawienie jest zapamiętane. **🎚 Głośność filmu i lektora** – osobno: jak głośny jest film w czasie czytania (domyślnie 35 %, 100 % = bez ściszania) i jak głośny jest lektor; zmiana słychać od razu.
+- **⏱ Przesunięcie napisów:** w odtwarzaczu 🗨 → *Przesunięcie napisów* – przyciski −1 s, −0,1, +0,1, +1 s działają na żywo (film gra dalej) dla napisów na ekranie i dla lektora; napisy za późno – „−”, za wcześnie – „+”. Zapamiętane dla tego filmu, *Zeruj* wraca do 0.
 - **⬇ Pobierz napisy (Jellyfin):** w odtwarzaczu 🗨 – szuka polskich (potem angielskich) napisów przez serwer Jellyfin i pobiera wybrane do filmu; potrzebna wtyczka napisów w Jellyfin (np. OpenSubtitles).
 - **Miejsce w filmie** zapamiętane w telefonie i odesłane do Jellyfin – „Oglądane dalej” zgadza się też na komputerze i telewizorze.
 

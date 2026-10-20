@@ -356,7 +356,7 @@ namespace Velivo
             var close = new Button { Content = "✕", Width = 26, Height = 26, Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = fg, ToolTip = L.T("Zamknij"), Cursor = Cursors.Hand };
             var head = new DockPanel(); DockPanel.SetDock(close, Dock.Right); head.Children.Add(close); head.Children.Add(title);
             var body = new TextBlock { Text = shortText, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14, Margin = new Thickness(0, 6, 0, 8), MaxHeight = 140, TextTrimming = TextTrimming.CharacterEllipsis, Cursor = Cursors.Hand, ToolTip = L.T("Otwórz rozmowę") };
-            var reply = new TextBox { MinHeight = 30, VerticalContentAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(pal.Input), Foreground = fg, BorderBrush = accent, CaretBrush = fg, ToolTip = L.T("Odpowiedz (Enter - wyślij)") };
+            var reply = new TextBox { MinHeight = 30, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, VerticalContentAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(pal.Input), Foreground = fg, BorderBrush = accent, CaretBrush = fg, ToolTip = L.T("Odpowiedz (Enter - wyślij)") };
             var send = new Button { Content = "➤", Width = 36, Margin = new Thickness(6, 0, 0, 0), Background = accent, Foreground = new SolidColorBrush(pal.MineFg), BorderThickness = new Thickness(0), ToolTip = L.T("Wyślij"), Cursor = Cursors.Hand };
             var row = new DockPanel(); DockPanel.SetDock(send, Dock.Right); row.Children.Add(send); row.Children.Add(reply);
             var stack = new StackPanel { Children = { head, body, row } };
@@ -926,7 +926,7 @@ namespace Velivo
             var right = new DockPanel(); Grid.SetColumn(right, 2);
             var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6) };
             DockPanel.SetDock(header, Dock.Top);
-            var input = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
+            var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
             var sendBtn = new Button { Content = "➤", FontSize = 16, Width = 44, Margin = new Thickness(6, 0, 0, 0), ToolTip = L.T("Wyślij") };
             var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
             var bottom = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };

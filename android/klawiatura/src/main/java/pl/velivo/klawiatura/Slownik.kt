@@ -144,7 +144,7 @@ object Slownik {
         if (best == null && w.length >= 4 && !anyRank) {
             // dwie pomyłki palca: litera sąsiada na klawiaturze + jedna inna (eicej -> więcej) - tylko bardzo częste słowa
             val abc = "abcdefghijklmnopqrstuvwxyz"
-            fun cand(v: String) { val e = f[v]; if (e != null && e.rank < 3000 && (best == null || score(e) < score(best!!))) best = e }
+            fun cand(v: String) { val e = f[v]; if (e != null && e.rank < (if (w.length >= 6) 15000 else 3000) && (best == null || score(e) < score(best!!))) best = e }
             for (i in fw.indices) for (nb in near(fw[i])) {
                 val x = fw.substring(0, i) + nb + fw.substring(i + 1)
                 for (j in 0..x.length) {

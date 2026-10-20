@@ -1331,8 +1331,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
         }
         val input = EditText(a).apply {
-            hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
-            maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND; setHorizontallyScrolling(false); maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             setTextColor(ink); setHintTextColor(dim); textSize = 16f
             background = GradientDrawable().apply { setColor(pal().input); cornerRadius = px(22).toFloat(); setStroke(px(1), pal().border) }; setPadding(px(16), px(11), px(16), px(11))
         }
@@ -1345,6 +1345,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, s); fill() }
         val clip = round("📎", t("Załącz plik", "Attach file"), pal().button) { attachTo = c; pickFiles() }
         val btn = round("➤", t("Wyślij", "Send"), violet) { send() }
+        input.setOnEditorActionListener { _, id, _ -> if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { send(); true } else false }
         val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(input); addView(btn) }
         val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
         val title = TextView(a).apply { textSize = 18f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }

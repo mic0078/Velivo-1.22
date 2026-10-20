@@ -18,6 +18,9 @@ class Rozmowy : Activity() {
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
+        syncIcon(this)
+        // z ikony, a w telefonie jest przeglądarka Velivo - jej komunikator (jeden w telefonie)
+        if (hasBrowser(this)) { open(this, intent?.action == ACTION_FILES); finish(); return }
         k = Komunikator.get(this) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
         k.saveFile = { name, tmp, dev -> save(name, tmp, dev) }
         k.openIntent = { id -> Intent(applicationContext, Rozmowy::class.java).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
@@ -66,6 +69,15 @@ class Rozmowy : Activity() {
     companion object {
         const val ACTION_FILES = "pl.velivo.klawiatura.PLIKI"
         // z przeglądarką Velivo w telefonie - jej komunikator (te same kontakty co w menu Velivo); bez niej - własne okno klawiatury
+        fun hasBrowser(ctx: android.content.Context) = runCatching { ctx.packageManager.getPackageInfo("pl.velivo.browser", 0) }.isSuccess
+
+        // ikona „Komunikator Velivo” klawiatury tylko bez przeglądarki (z przeglądarką ikona jest w niej - bez dwóch takich samych)
+        fun syncIcon(ctx: android.content.Context) = runCatching {
+            val cn = android.content.ComponentName(ctx, "pl.velivo.klawiatura.KomunikatorStart")
+            val want = if (hasBrowser(ctx)) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+            if (ctx.packageManager.getComponentEnabledSetting(cn) != want) ctx.packageManager.setComponentEnabledSetting(cn, want, android.content.pm.PackageManager.DONT_KILL_APP)
+        }
+
         fun open(ctx: android.content.Context, files: Boolean) {
             val browser = Intent(if (files) "pl.velivo.browser.WYSLIJ_NA_TELEFON" else "pl.velivo.browser.KOMUNIKATOR")
                 .setClassName("pl.velivo.browser", "pl.velivo.browser.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

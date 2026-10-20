@@ -188,6 +188,7 @@ class MainActivity : Activity() {
         if (intent?.action == Karteczki.ACTION_NEW) window.decorView.post { newNote() }
         if (intent?.action == ACTION_SEND_PC) window.decorView.post { askSendToComputer() }
         if (intent?.action == ACTION_MESSENGER) window.decorView.post { showMessenger(intent.getStringExtra("czat")) }
+        if (fromMessengerIcon(intent)) window.decorView.post { showMessenger(fromIcon = true) }
         if (intent?.action == ACTION_SEND_PHONE) window.decorView.post { pickP2pFiles() }
         if (intent?.action == Budzik.ACTION_WAKE) window.decorView.post { wakeUp() }
         if (intent?.action == Widzet.ACTION_SEARCH || intent?.action == Widzet.ACTION_YT) { val a = intent.action; window.decorView.post { widgetAction(a) } }
@@ -277,6 +278,7 @@ set(p0,p);})"""
         if (intent.action == Karteczki.ACTION_NEW) { newNote(); return }
         if (intent.action == ACTION_SEND_PC) { askSendToComputer(); return }
         if (intent.action == ACTION_MESSENGER) { showMessenger(intent.getStringExtra("czat")); return }
+        if (fromMessengerIcon(intent)) { showMessenger(fromIcon = true); return }
         if (intent.action == ACTION_SEND_PHONE) { pickP2pFiles(); return }
         if (intent.action == Budzik.ACTION_WAKE) { wakeUp(); return }
         if (intent.action == Widzet.ACTION_SEARCH || intent.action == Widzet.ACTION_YT) { widgetAction(intent.action); return }
@@ -2949,8 +2951,13 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
     private val komOkno: KomunikatorOkno by lazy { KomunikatorOkno(this, kom) { pickP2pFiles() } }
 
-    private fun showMessenger(id: String? = null) {
+    // ikona „Komunikator Velivo” (alias tej aktywności)
+    private fun fromMessengerIcon(i: Intent?) = i?.action == Intent.ACTION_MAIN && i.component?.className == "pl.velivo.browser.KomunikatorStart"
+
+    // fromIcon: otwarte ikoną komunikatora - po zamknięciu komunikatora wracamy do ekranu telefonu, nie do przeglądarki
+    private fun showMessenger(id: String? = null, fromIcon: Boolean = false) {
         komOkno; startLan(force = true)
+        komOkno.onClose = if (fromIcon) ({ moveTaskToBack(true); Unit }) else null
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 0)   // powiadomienia o nowych wiadomościach
         id?.let { kom.contact(it) }?.let { komOkno.openChat(it) } ?: komOkno.show()

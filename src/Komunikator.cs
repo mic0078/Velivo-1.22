@@ -358,6 +358,33 @@ namespace Velivo
             }
         }
 
+        // wlasna ikona komunikatora na pasku zadan: identyfikator okna jak skrot "Komunikator Velivo" (Velivo.Komunikator)
+        [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
+        interface IKomPropStore
+        {
+            int GetCount(out uint c); int GetAt(uint i, out KomPropKey k); int GetValue(ref KomPropKey k, out KomPropVar v);
+            int SetValue(ref KomPropKey k, ref KomPropVar v); int Commit();
+        }
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 4)]
+        struct KomPropKey { public Guid Fmtid; public uint Pid; }
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit)]
+        struct KomPropVar { [System.Runtime.InteropServices.FieldOffset(0)] public ushort Vt; [System.Runtime.InteropServices.FieldOffset(8)] public IntPtr Ptr; }
+        [System.Runtime.InteropServices.DllImport("shell32.dll", EntryPoint = "SHGetPropertyStoreForWindow")] static extern int KomGetPropStore(IntPtr hwnd, ref Guid iid, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Interface)] out IKomPropStore store);
+        static void SetWindowAppId(Window w, string id)
+        {
+            try
+            {
+                var h = new System.Windows.Interop.WindowInteropHelper(w).Handle; if (h == IntPtr.Zero) return;
+                var iid = typeof(IKomPropStore).GUID;
+                if (KomGetPropStore(h, ref iid, out var store) != 0 || store == null) return;
+                var key = new KomPropKey { Fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), Pid = 5 };
+                var v = new KomPropVar { Vt = 31, Ptr = System.Runtime.InteropServices.Marshal.StringToCoTaskMemUni(id) };   // VT_LPWSTR
+                try { store.SetValue(ref key, ref v); store.Commit(); }
+                finally { System.Runtime.InteropServices.Marshal.FreeCoTaskMem(v.Ptr); System.Runtime.InteropServices.Marshal.ReleaseComObject(store); }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
         struct FlashInfo { public uint Size; public IntPtr Hwnd; public uint Flags; public uint Count; public uint Timeout; }
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool FlashWindowEx(ref FlashInfo fi);
@@ -673,12 +700,12 @@ namespace Velivo
         }
 
         // ---------- okno ----------
-        void ShowMessenger(string openId = null)
+        internal void ShowMessenger(string openId = null)
         {
             KomLoad();
             if (_lanRx == null) KomStartOwn();
             if (_komWindow != null) { _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
-            var w = new Window { Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true };
+            var w = new Window { Icon = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/komunikator.ico")), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true };
             if (IsVisible) w.Owner = null;
             var root = new Grid { Margin = new Thickness(8) };
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
@@ -824,6 +851,7 @@ namespace Velivo
             presence.Start();
             Ping();
             _ = Task.Delay(2500).ContinueWith(_ => Dispatcher.BeginInvoke(new Action(() => { if (_komWindow == w) { FillList(); FillChat(); } })));
+            w.SourceInitialized += (s, e) => SetWindowAppId(w, "Velivo.Komunikator");
             w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; };
             _komWindow = w;
             if (openId != null) _komOpenId = openId;

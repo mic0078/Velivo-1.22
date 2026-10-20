@@ -251,6 +251,7 @@ Menu Velivo → **🎨 Tapeta Velivo**: podgląd tapety (gradient fiolet – tur
 
 Rozmowy i pliki w domowym Wi-Fi – bez internetu, bez serwera, bez numeru telefonu. Działa między telefonami (wystarczy **przeglądarka Velivo albo sama klawiatura Velivo**) i komputerami z Velivo na Windows.
 
+* **Własna ikona:** „Komunikator Velivo” na ekranie telefonu (jedna, nawet przy przeglądarce i klawiaturze) i na pulpicie Windows (instalator, „Komunikator Velivo na pulpicie”).
 * **Otwieranie:** menu Velivo → **💬 Komunikator** (albo 📤 → 💬). W klawiaturze: logo **V** → **💬**. Na Windows: przycisk **💬** na pasku albo menu ikony w zasobniku.
 * **Dodanie kontaktu (raz):** **➕ Dodaj** → wybierz urządzenie z listy (drugie musi mieć otwarty komunikator w tej samej sieci). Na obu ekranach pojawi się 6-cyfrowy kod – drugie urządzenie przyjmuje tylko, gdy kod jest taki sam.
 * **Status:** 🟢 zielony – kontakt jest teraz w sieci; ⚪ szary – poza siecią.

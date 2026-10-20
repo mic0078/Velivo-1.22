@@ -251,6 +251,7 @@ Velivo menu → **🎨 Velivo wallpaper**: a preview (violet–turquoise gradien
 
 Chats and files on your home Wi-Fi – no internet, no server, no phone number. Works between phones (the **Velivo browser or just the Velivo keyboard** is enough) and computers with Velivo for Windows.
 
+* **Own icon:** “Velivo Messenger” on the phone home screen (only one, even with both the browser and the keyboard) and on the Windows desktop (installer option “Velivo messenger on the desktop”).
 * **Opening:** Velivo menu → **💬 Messenger** (or 📤 → 💬). In the keyboard: **V** logo → **💬**. On Windows: the **💬** button on the bar or the tray icon menu.
 * **Adding a contact (once):** **➕ Add** → pick the device (it must have the messenger open on the same network). Both screens show a 6-digit code – the other device accepts only if the code matches.
 * **Status:** 🟢 green – the contact is on the network now; ⚪ grey – offline.

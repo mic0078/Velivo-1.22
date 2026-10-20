@@ -26,6 +26,7 @@ open class Ustawienia : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Rozmowy.syncIcon(this)
         if (quick) { if (!runAction(intent)) finish(); return }
         val dp = resources.displayMetrics.density
         val box = LinearLayout(this).apply {

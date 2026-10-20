@@ -112,6 +112,7 @@ class KlawiaturaVelivo : InputMethodService() {
 
     override fun onCreate() {
         super.onCreate()
+        Rozmowy.syncIcon(this)   // ikona komunikatora: w klawiaturze tylko bez przeglądarki Velivo
         load(this) { if (::view.isInitialized) view.refresh() }
     }
 

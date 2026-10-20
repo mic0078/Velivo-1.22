@@ -36,6 +36,7 @@
     <string name="kb_m_settings">Ustawienia</string>
     <string name="kb_m_back">Wróć do klawiszy</string>
     <string name="kb_m_no_velivo">Zainstaluj przeglądarkę Velivo, by używać karteczek, szukania i YouTube</string>
+    <string name="kb_messenger_app">Komunikator Velivo</string>
     <string name="kb_m_chat">Komunikator</string>
     <string name="kb_m_chat_tip">Rozmowy z telefonami i komputerami z Velivo w domowym Wi-Fi (bez internetu)</string>
     <string name="kb_m_phone">Pliki na telefon</string>

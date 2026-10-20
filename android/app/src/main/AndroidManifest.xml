@@ -59,6 +59,14 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <!-- 💬 osobna ikona „Komunikator Velivo” w menu aplikacji - otwiera od razu komunikator -->
+        <activity-alias android:name=".KomunikatorStart" android:targetActivity=".MainActivity" android:exported="true"
+            android:label="@string/messenger_app" android:icon="@mipmap/ic_komunikator">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <!-- odtwarzacz filmów i telewizji: pełny ekran, obraz w obrazie -->
         <activity
             android:name=".PlayerActivity"

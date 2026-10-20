@@ -123,11 +123,15 @@ namespace Velivo
 
         async Task SendFileToPeer(LanPeerInfo peer)
         {
-            var dlg = new Microsoft.Win32.OpenFileDialog { Title = (L.En ? "Send a file to " : "Wyślij plik do: ") + peer.Device };
+            // kilka plikow naraz (Ctrl / Shift w oknie wyboru) - wysylane po kolei, telefon pyta o kazdy
+            var dlg = new Microsoft.Win32.OpenFileDialog { Title = (L.En ? "Send files to " : "Wyślij pliki do: ") + peer.Device, Multiselect = true };
             if (dlg.ShowDialog(this) != true) return;
-            var info = new FileInfo(dlg.FileName);
-            if (info.Length > LanFileLimitBytes) { ShowToast(L.En ? "The file is larger than 100 MB." : "Plik jest większy niż 100 MB.", null); return; }
-            await SendBytesToPeer(peer, SafeFileName(info.Name), () => File.ReadAllBytes(info.FullName));
+            foreach (var f in dlg.FileNames)
+            {
+                var info = new FileInfo(f);
+                if (info.Length > LanFileLimitBytes) { ShowToast((L.En ? "Larger than 100 MB, skipped: " : "Większy niż 100 MB, pominięty: ") + info.Name, null); continue; }
+                await SendBytesToPeer(peer, SafeFileName(info.Name), () => File.ReadAllBytes(info.FullName));
+            }
         }
 
         // wyslanie danych jako pliku przez TCP (telefon/komputer pyta o zgode) - takze duze listy TV z 📱 Wyslij Filmy i TV

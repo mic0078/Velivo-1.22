@@ -553,6 +553,15 @@ namespace Velivo
         // trojki slow (zwroty): "daj znać" -> "jak"; ten sam zapis co pary (klucz z dwiema spacjami)
         // Twoje poprawki: slowo skasowane i wpisane od nowa (kmoputer -> komputer) - nastepnym razem poprawiane samo
         static readonly Dictionary<string, string> _myFix = new Dictionary<string, string>();
+
+        // 🔄 wymiana nauki z klawiatura telefonu: pary slow i Twoje poprawki - laczone, nic nie kasowane
+        internal static Dictionary<string, int> SyncPairs() { lock (_pairs) return _pairs.OrderByDescending(x => x.Value).Take(1000).ToDictionary(x => x.Key, x => x.Value); }
+        internal static Dictionary<string, string> SyncFixes() { lock (_myFix) return new Dictionary<string, string>(_myFix); }
+        internal static void SyncMerge(IDictionary<string, int> p, IDictionary<string, string> fx)
+        {
+            if (p != null) lock (_pairs) foreach (var kv in p) if (kv.Key.Count(c => c == ' ') == 1 && (!_pairs.TryGetValue(kv.Key, out var n) || n < kv.Value)) _pairs[kv.Key] = Math.Min(kv.Value, 1000);
+            if (fx != null) lock (_myFix) foreach (var kv in fx) if (kv.Key.Length is >= 2 and <= 40 && kv.Value?.Length is >= 2 and <= 40 && !_myFix.ContainsKey(kv.Key)) _myFix[kv.Key] = kv.Value;
+        }
         internal static bool LearnFix(string typo, string fix)
         {
             if (string.IsNullOrEmpty(typo) || string.IsNullOrEmpty(fix) || typo.Length < 3 || fix.Length < 2 || !typo.All(char.IsLetter) || !fix.All(char.IsLetter)) return false;

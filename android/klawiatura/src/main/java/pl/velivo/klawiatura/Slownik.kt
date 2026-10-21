@@ -447,6 +447,14 @@ object Slownik {
 
     // Twoje poprawki: słowo skasowane i wpisane od nowa (kmoputer -> komputer) - następnym razem poprawiane samo
     private val myFix = LinkedHashMap<String, String>()
+
+    // 🔄 wymiana nauki z drugą klawiaturą Velivo (telefon <-> komputer): pary słów i Twoje poprawki - łączone, nic nie kasowane
+    fun syncPairs(n: Int = 1000): Map<String, Int> = synchronized(pairs) { pairs.entries.sortedByDescending { it.value }.take(n).associate { it.key to it.value } }
+    fun syncFixes(): Map<String, String> = synchronized(myFix) { HashMap(myFix) }
+    fun syncMerge(p: Map<String, Int>, fx: Map<String, String>) {
+        synchronized(pairs) { p.forEach { (k, v) -> if (k.count { it == ' ' } == 1 && (pairs[k] ?: 0) < v) pairs[k] = minOf(v, 1000) } }
+        synchronized(myFix) { fx.forEach { (k, v) -> if (k.length in 2..40 && v.length in 2..40) myFix.putIfAbsent(k, v) } }
+    }
     fun learnFix(typo: String, fix: String): Boolean {
         if (typo.length < 3 || fix.length < 2 || !typo.all { it.isLetter() } || !fix.all { it.isLetter() }) return false
         val t = typo.lowercase(); val f = fix.lowercase(); val m = main

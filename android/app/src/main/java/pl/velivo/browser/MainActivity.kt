@@ -2952,6 +2952,9 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             onMediaShared = { dev, code, jf, tv -> receiveMediaConf(dev, jf, tv, code) },
             tmpDir = cacheDir,
             p2p = kom,
+            keyboard = { json ->   // 🔄 nauka klawiatury Velivo (osobna aplikacja) - przez jej dostawcę danych, tylko aplikacje Velivo
+                runCatching { contentResolver.call(Uri.parse("content://pl.velivo.klawiatura.komunikator"), if (json == null) "slownik" else "slownik-wgraj", json, null)?.getString("json") }.getOrNull()
+            },
             saveFileFrom = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) },
             onQuickAccess = { dev, zip ->
                 runCatching { quickAccess.importFromComputer(zip) }.onSuccess {

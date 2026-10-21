@@ -11,6 +11,36 @@ namespace Velivo
     // zaszyfrowane kluczem z parowania (jak "tab"). Komputer jest glowny - nic nie dodaje bez potwierdzenia.
     public partial class MainWindow
     {
+        // 🔄 nauka klawiatury Velivo telefon <-> komputer (zaszyfrowana kluczem z parowania)
+        sealed class LanKbSync
+        {
+            public string to { get; set; }
+            public bool reply { get; set; }
+            public List<string> own { get; set; }
+            public List<string> nofix { get; set; }
+            public Dictionary<string, int> pairs { get; set; }
+            public Dictionary<string, string> fix { get; set; }
+        }
+        void ReceiveKbSync(LanStatePacket pkt, LanKbSync k)
+        {
+            if (k == null || k.to != _lanId || !SwipeTyping.Loaded) return;   // slownik niewczytany - nic nie zapisujemy (bez nadpisania nauki)
+            lock (_swLearned)
+            {
+                foreach (var w0 in (k.own ?? new List<string>()).Take(5000)) { var w = (w0 ?? "").Trim().ToLowerInvariant(); if (w.Length is >= 2 and <= 40 && !w.Contains(' ') && _swOwn.Add(w)) { SwipeTyping.AddUserWord(w); if (!_swLearned.ContainsKey(w)) _swLearned[w] = 1; } }
+                SwipeTyping.SyncMerge(k.pairs, k.fix);
+                SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
+            }
+            var nf = new HashSet<string>((GetPref("klawiatura-bez-korekty") ?? "").Split('|').Where(x => x.Length > 0));
+            foreach (var w in k.nofix ?? new List<string>()) if (w?.Length is >= 2 and <= 40) nf.Add(w);
+            SetPref("klawiatura-bez-korekty", string.Join("|", nf.Skip(Math.Max(0, nf.Count - 500))));
+            if (k.reply) return;
+            LanKbSync mine;   // odpowiedz: nauka tego komputera dla telefonu
+            lock (_swLearned) mine = new LanKbSync { to = pkt.id, reply = true, own = _swOwn.ToList(), nofix = nf.ToList(), pairs = SwipeTyping.SyncPairs(), fix = SwipeTyping.SyncFixes() };
+            var outPkt = new LanStatePacket { t = "kb", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), hash = "" };
+            EncryptLanBlob(outPkt, JsonSerializer.SerializeToUtf8Bytes(mine));
+            LanSend(outPkt);
+        }
+
         sealed class LanPhoneAdd
         {
             public string to { get; set; }

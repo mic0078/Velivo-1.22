@@ -58,6 +58,8 @@ class LanSync(
     private val saveFileFrom: (name: String, tmp: java.io.File, device: String) -> Unit = { _, t, _ -> t.delete() },
     // komunikator i pliki telefon <-> telefon (Komunikator.kt) - na gniazdach tej synchronizacji
     private val p2p: Komunikator? = null,
+    // 🔄 nauka klawiatury Velivo: null - wydaj (JSON), tekst - przyjmij
+    private val keyboard: (String?) -> String? = { null },
 ) {
     // Nowe id przy każdym uruchomieniu: Windows traktuje telefon jak nowe urządzenie i od razu wysyła mu cały stan.
     private val id = UUID.randomUUID().toString().replace("-", "")
@@ -194,6 +196,7 @@ class LanSync(
             "pair-key" -> pairKey(p, sender)
             "state" -> state(p, sender)
             "tab" -> tab(p)
+            "kb" -> kb(p)
             "media-conf" -> mediaConf(p)
             "media-give" -> mediaGive(p)
         }
@@ -291,6 +294,27 @@ class LanSync(
         if (sender != null) pcAddress = sender
         val dev = p.optString("device").filter { !it.isISOControl() }.take(64)
         ui(Runnable { onState(dev, json.optString("bookmarks", null), json.optString("passwords", null)) })
+        sendKb(false)   // 🔄 po synchronizacji: nauka klawiatury z telefonu do komputera (komputer odsyła swoją)
+    }
+
+    // 🔄 klawiatura Velivo telefon <-> komputer: Mój słownik, cofnięte poprawki, pary słów, Twoje poprawki - łączone po obu stronach
+    @Volatile private var kbSent = 0L
+    private fun sendKb(reply: Boolean) {
+        val to = pcId ?: return
+        if (!reply && System.currentTimeMillis() - kbSent < 600000) return   // co najwyżej co 10 min
+        kbSent = System.currentTimeMillis()
+        Thread {
+            runCatching {
+                val o = JSONObject(keyboard(null) ?: return@runCatching).put("to", to).put("reply", reply)
+                val pkt = sealBlob("kb", o) ?: return@runCatching
+                pcAddress?.let { sendTo(pkt, it) } ?: send(pkt)
+            }
+        }.start()
+    }
+    private fun kb(p: JSONObject) {
+        val j = openBlob(p) ?: return
+        if (j.optString("to") != id) return
+        Thread { runCatching { keyboard(j.toString()) } }.start()
     }
 
     // Paczka zaszyfrowana kluczem z parowania (DecryptLanBlob w Velivo na Windows).

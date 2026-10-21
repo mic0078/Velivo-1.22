@@ -46,6 +46,31 @@ class KlawiaturaVelivo : InputMethodService() {
         private val learned = HashMap<String, Int>()
         private val own = HashSet<String>()
 
+        // 🔄 nauka dla drugiej klawiatury Velivo (przez przeglądarkę Velivo i jej synchronizację w domowej sieci)
+        fun syncExport(ctx: Context): String {
+            loadNow(ctx)
+            val o = org.json.JSONObject()
+            synchronized(learned) { o.put("own", org.json.JSONArray(own.toList())) }
+            o.put("nofix", org.json.JSONArray((prefs(ctx).getStringSet("bez-korekty", emptySet()) ?: emptySet()).toList()))
+            o.put("pairs", org.json.JSONObject(Slownik.syncPairs() as Map<*, *>)).put("fix", org.json.JSONObject(Slownik.syncFixes() as Map<*, *>))
+            return o.toString()
+        }
+        fun syncImport(ctx: Context, json: String) {
+            val o = runCatching { org.json.JSONObject(json) }.getOrNull() ?: return
+            loadNow(ctx); if (!Slownik.loaded) return   // najpierw cała dotychczasowa nauka - zapis nigdy jej nie nadpisze pustą
+            o.optJSONArray("own")?.let { a -> synchronized(learned) { for (i in 0 until minOf(a.length(), 5000)) { val w = a.optString(i).trim().lowercase(); if (w.length in 2..40 && !w.contains(' ') && own.add(w)) Slownik.addUserWord(w) } } }
+            o.optJSONArray("nofix")?.let { a -> val set = HashSet(prefs(ctx).getStringSet("bez-korekty", emptySet()) ?: emptySet()); for (i in 0 until a.length()) a.optString(i).takeIf { it.length in 2..40 }?.let { set.add(it) }; prefs(ctx).edit().putStringSet("bez-korekty", HashSet(set.toList().takeLast(500))).apply() }
+            val p = HashMap<String, Int>(); o.optJSONObject("pairs")?.let { j -> j.keys().forEach { k -> p[k] = j.optInt(k) } }
+            val fx = HashMap<String, String>(); o.optJSONObject("fix")?.let { j -> j.keys().forEach { k -> fx[k] = j.optString(k) } }
+            Slownik.syncMerge(p, fx)
+            save(ctx)
+        }
+        // wczytanie słownika i nauki od razu (wołane spoza klawiatury, np. przy wymianie nauki)
+        private fun loadNow(ctx: Context) {
+            if (Slownik.loaded && loadedLang == lang(ctx)) return
+            val l = java.util.concurrent.CountDownLatch(1); load(ctx) { l.countDown() }; l.await(20, java.util.concurrent.TimeUnit.SECONDS)
+        }
+
         fun lang(ctx: Context): String = prefs(ctx).getString("klaw-jezyk", null) ?: if (Locale.getDefault().language == "pl") "pl" else "en"
         fun prefs(ctx: Context) = ctx.getSharedPreferences("klawiatura", Context.MODE_PRIVATE)
         private fun file(ctx: Context) = File(ctx.filesDir, "klawiatura.bin")

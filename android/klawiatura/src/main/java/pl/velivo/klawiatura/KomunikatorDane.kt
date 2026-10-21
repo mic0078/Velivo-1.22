@@ -20,6 +20,8 @@ class KomunikatorDane : ContentProvider() {
         val k = Komunikator.get(ctx) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
         return when (method) {
             "oddaj" -> if (k.contacts.isEmpty()) null else Bundle().apply { putString("json", k.export()) }
+            "slownik" -> Bundle().apply { putString("json", KlawiaturaVelivo.syncExport(ctx)) }   // 🔄 nauka klawiatury dla komputera
+            "slownik-wgraj" -> { arg?.let { KlawiaturaVelivo.syncImport(ctx, it) }; null }
             "przekazano" -> { runCatching { ctx.stopService(Intent(ctx, KomunikatorUsluga::class.java)) }; k.wipe(); null }
             else -> null
         }

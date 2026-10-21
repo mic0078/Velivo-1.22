@@ -640,6 +640,7 @@ namespace Velivo
             LanHistoryPayload hist = null;
             LanTabPayload sentTab = null;
             LanPhoneAdd phoneAdd = null;
+            LanKbSync kbSync = null;
             LanFilmMsg film = null;
             if (pkt.t == "film")   // filmy w sieci (LanVideo.cs) - tylko sparowane, zaszyfrowane
             {
@@ -670,6 +671,16 @@ namespace Velivo
                 catch (JsonException) { return; }
                 catch (InvalidDataException) { return; }
                 if (phoneAdd == null) return;
+            }
+            else if (pkt.t == "kb")   // 🔄 nauka klawiatury z telefonu (LanPhone.cs) - tylko sparowane, zaszyfrowane
+            {
+                if (_lanLegacyNoKeyMode) return;
+                try { kbSync = DecryptLanBlob<LanKbSync>(pkt); }
+                catch (CryptographicException) { return; }
+                catch (FormatException) { return; }
+                catch (JsonException) { return; }
+                catch (InvalidDataException) { return; }
+                if (kbSync == null) return;
             }
             else if (pkt.t == "hist")
             {
@@ -715,6 +726,12 @@ namespace Velivo
             {
                 var fm = film; var fp = pkt;
                 await Dispatcher.InvokeAsync(() => ReceiveLanFilm(fp, fm));
+                return;
+            }
+            if (pkt.t == "kb")
+            {
+                var kb = kbSync; var kp = pkt;
+                await Dispatcher.InvokeAsync(() => { try { ReceiveKbSync(kp, kb); } catch (Exception ex) { App.LogError(ex); } });
                 return;
             }
             if (pkt.t == "phone-add")

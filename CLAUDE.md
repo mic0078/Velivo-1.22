@@ -32,6 +32,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-21: „BUILD FAILED” Androida po ~25 s = złe hasło klucza, nie kod; skrypt sprawdza hasło od razu (keytool).
 * 2026-10-21: sieć domowa zawsze działa: tryb „poza domem” wysyła przez pośrednika I w sieci domowej.
 * 2026-10-21: próba połączenia z pośrednikiem po adresie domowym dodawała 1,5 s do każdego połączenia poza domem (zacinanie) – cofnięta; przed zmianą połączeń policz, ile razy się wykonuje.
+* 2026-10-22: pośrednik (NUCBOX) przechodził w „poza domem”, gdy nikogo nie słyszał w Wi-Fi (po naprawie echa) – przestawał przekazywać; działający pośrednik jest zawsze „w domu”.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

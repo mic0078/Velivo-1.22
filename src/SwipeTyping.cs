@@ -25,19 +25,24 @@ namespace Velivo
         }
 
         static Dictionary<int, List<KeyValuePair<string, Entry>>> _byLen;
-        // odleglosc (zamiana, brak, nadmiar, przestawienie liter); od "max" wzwyz - wynik = max
-        static int Dist(string a, string b, int max)
+        // sasiednie klawisze (takze w rzedzie wyzej / nizej) - palec na ekranie trafia obok: b/n, u/i, s/d
+        static readonly Dictionary<char, (double R, double C)> _keyPos = new[] { "qwertyuiop", "asdfghjkl", "zxcvbnm" }.SelectMany((row, r) => row.Select((c, i) => (c, r, i)))
+            .ToDictionary(x => x.c, x => ((double)x.r, x.i + new[] { 0.0, 0.25, 0.75 }[x.r]));
+        static bool Adj(char x, char y) => _keyPos.TryGetValue(x, out var a) && _keyPos.TryGetValue(y, out var b) && Math.Abs(a.R - b.R) <= 1 && Math.Abs(a.C - b.C) <= 1.3;
+        // odleglosc w polowkach: litera obok na klawiaturze = 1, inna litera / brak / nadmiar / przestawienie = 2; od "max" wzwyz - wynik = max
+        static int Dist(string a, string b, int max, bool soft = true)
         {
-            if (Math.Abs(a.Length - b.Length) >= max) return max;
+            if (Math.Abs(a.Length - b.Length) * 2 >= max) return max;
             var p2 = new int[b.Length + 1]; var p = new int[b.Length + 1]; var c = new int[b.Length + 1];
-            for (int j = 0; j <= b.Length; j++) p[j] = j;
+            for (int j = 0; j <= b.Length; j++) p[j] = j * 2;
             for (int i = 1; i <= a.Length; i++)
             {
-                c[0] = i; int low = i;
+                c[0] = i * 2; int low = c[0];
                 for (int j = 1; j <= b.Length; j++)
                 {
-                    int v = Math.Min(Math.Min(p[j] + 1, c[j - 1] + 1), p[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
-                    if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = Math.Min(v, p2[j - 2] + 1);
+                    int sub = a[i - 1] == b[j - 1] ? 0 : soft && Adj(a[i - 1], b[j - 1]) ? 1 : 2;
+                    int v = Math.Min(Math.Min(p[j] + 2, c[j - 1] + 2), p[j - 1] + sub);
+                    if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = Math.Min(v, p2[j - 2] + 2);
                     c[j] = v; if (v < low) low = v;
                 }
                 if (low >= max) return max;
@@ -192,7 +197,7 @@ namespace Velivo
                 var pc = w.Substring(0, w.Length - 2) + "ąc";
                 return char.IsUpper(typed[0]) ? char.ToUpperInvariant(pc[0]) + pc.Substring(1) : pc;
             }
-            if (split && w.Length >= 4 && !anyRank && _foldAll != null)
+            if (split && w.Length >= 4 && !anyRank && _foldAll != null && !_foldAll.ContainsKey(Fold(w)))
             {   // sklejone dwa znane slowa (otym -> o tym, nastole -> na stole, sietak -> się tak) - przed poprawianiem liter
                 string sp = null; int sk = int.MaxValue;
                 for (int i = 1; i <= Math.Min(4, w.Length - 2); i++)   // najczestsza para: jakto -> jak to (nie "ja kto")
@@ -229,17 +234,18 @@ namespace Velivo
                 // (literokem -> literówek; dobre slowo spoza slownika, np. kompiluje, zostaje)
                 var idx = _byLen;
                 if (idx == null) { idx = new Dictionary<int, List<KeyValuePair<string, Entry>>>(); foreach (var kv in fold) { if (!idx.TryGetValue(kv.Key.Length, out var l)) idx[kv.Key.Length] = l = new List<KeyValuePair<string, Entry>>(); l.Add(kv); } _byLen = idx; }
-                int bd = 3, bl = 0;
+                int bd = 5, bl = 0;   // w polowkach: do 2 pomylek (4), pomylka o sasiedni klawisz = pol
                 for (int len = fw.Length - 1; len <= fw.Length + 1; len++)
                     if (idx.TryGetValue(len, out var group))
                         foreach (var kv in group)
                         {
-                            if (kv.Key[0] != fw[0] || kv.Value.Rank >= 120000) continue;
-                            int d = Dist(fw, kv.Key, Math.Min(bd + 1, 3));
-                            if (d == 2) { int p = 0, q = 0; while (p < fw.Length && p < kv.Key.Length && fw[p] == kv.Key[p]) p++; while (q < fw.Length && q < kv.Key.Length && fw[fw.Length - 1 - q] == kv.Key[kv.Key.Length - 1 - q]) q++; if (p * 2 < fw.Length && q < 4) continue; }   // idelelnie -> idealnie, kompiluje zostaje
+                            if (kv.Key[0] != fw[0] && !Adj(kv.Key[0], fw[0]) || kv.Value.Rank >= 120000) continue;
+                            int d = Dist(fw, kv.Key, Math.Min(bd + 1, 5));
+                            // dwie pomylki "nie obok" (kompiluje / kombinuje) - tylko przy zgodnym poczatku albo koncowce (idelelnie -> idealnie)
+                            if (d > 2 && d - Dist(fw, kv.Key, 9, false) / 2 >= 2) { int p = 0, q = 0; while (p < fw.Length && p < kv.Key.Length && fw[p] == kv.Key[p]) p++; while (q < fw.Length && q < kv.Key.Length && fw[fw.Length - 1 - q] == kv.Key[kv.Key.Length - 1 - q]) q++; if (p * 2 < fw.Length && q < 4) continue; }   // idelelnie -> idealnie, kompiluje zostaje
                             // remis: ta sama dlugosc (zamiana litery) przed brakiem / nadmiarem, potem czestsze
                             bool same = kv.Key.Length == fw.Length, bsame = bl == fw.Length;
-                            if (d < 3 && (d < bd || d == bd && (same && !bsame || same == bsame && Score(kv.Value) < Score(best)))) { bd = d; best = kv.Value; bl = kv.Key.Length; }
+                            if (d < 5 && (d < bd || d == bd && (same && !bsame || same == bsame && Score(kv.Value) < Score(best)))) { bd = d; best = kv.Value; bl = kv.Key.Length; }
                         }
             }
             if (best == null && w.Length >= 4 && !anyRank)
@@ -259,7 +265,7 @@ namespace Velivo
             }
             if (best == null && split && w.Length >= 5 && !anyRank)
             {   // sklejone slowa (michodziloe -> mi chodziło): czeste krotkie slowo + znane albo poprawione slowo
-                for (int i = 1; i <= Math.Min(4, w.Length - 3); i++)
+                for (int i = 2; i <= Math.Min(4, w.Length - 3); i++)   // z poprawka drugiej czesci tylko po dluzszym slowie (mi chodziło; nie "o danielowi")
                 {
                     var l = w.Substring(0, i);
                     if (_foldAll == null || !_foldAll.TryGetValue(Fold(l), out var le) || !le.Any(e => e.Word == l && e.Rank < 300)) continue;
@@ -328,7 +334,7 @@ namespace Velivo
                 var near = new List<(int D, Entry E)>();
                 for (int len = fw.Length - 2; len <= fw.Length + 2; len++)
                     if (_byLen != null && _byLen.TryGetValue(len, out var group))
-                        foreach (var kv in group) { if (kv.Key[0] != fw[0] || kv.Value.Rank >= 120000) continue; int d = Dist(fw, kv.Key, 5); if (d < 5) near.Add((d, kv.Value)); }
+                        foreach (var kv in group) { if (kv.Key[0] != fw[0] && !Adj(kv.Key[0], fw[0]) || kv.Value.Rank >= 120000) continue; int d = Dist(fw, kv.Key, 9); if (d < 9) near.Add((d, kv.Value)); }
                 foreach (var e in near.OrderBy(x => x.D).ThenBy(x => Score(x.E)).Take(count).Select(x => x.E))
                     res.Add(char.IsUpper(typed[0]) ? char.ToUpperInvariant(e.Word[0]) + e.Word.Substring(1) : e.Word);
                 return res;

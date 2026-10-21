@@ -119,14 +119,19 @@ object Slownik {
 
     @Volatile private var byLen: HashMap<Int, ArrayList<Pair<String, Entry>>>? = null
     // odległość (zamiana, brak, nadmiar, przestawienie liter); od "max" wzwyż - wynik = max
-    private fun dist(a: String, b: String, max: Int): Int {
-        if (Math.abs(a.length - b.length) >= max) return max
-        var p2 = IntArray(b.length + 1); var p = IntArray(b.length + 1) { it }; var c = IntArray(b.length + 1)
+    // sąsiednie klawisze (także w rzędzie wyżej / niżej) - palec na ekranie trafia obok: b/n, u/i, s/d
+    private val keyPos = HashMap<Char, Pair<Double, Double>>().also { m -> rows.forEachIndexed { r, row -> row.forEachIndexed { i, c -> m[c] = r.toDouble() to i + doubleArrayOf(0.0, 0.25, 0.75)[r] } } }
+    private fun adj(x: Char, y: Char): Boolean { val a = keyPos[x] ?: return false; val b = keyPos[y] ?: return false; return Math.abs(a.first - b.first) <= 1 && Math.abs(a.second - b.second) <= 1.3 }
+    // odległość w połówkach: litera obok na klawiaturze = 1, inna litera / brak / nadmiar / przestawienie = 2; od "max" wzwyż - wynik = max
+    private fun dist(a: String, b: String, max: Int, soft: Boolean = true): Int {
+        if (Math.abs(a.length - b.length) * 2 >= max) return max
+        var p2 = IntArray(b.length + 1); var p = IntArray(b.length + 1) { it * 2 }; var c = IntArray(b.length + 1)
         for (i in 1..a.length) {
-            c[0] = i; var low = i
+            c[0] = i * 2; var low = c[0]
             for (j in 1..b.length) {
-                var v = minOf(p[j] + 1, c[j - 1] + 1, p[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
-                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = minOf(v, p2[j - 2] + 1)
+                val sub = if (a[i - 1] == b[j - 1]) 0 else if (soft && adj(a[i - 1], b[j - 1])) 1 else 2
+                var v = minOf(p[j] + 2, c[j - 1] + 2, p[j - 1] + sub)
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = minOf(v, p2[j - 2] + 2)
                 c[j] = v; if (v < low) low = v
             }
             if (low >= max) return max
@@ -164,7 +169,7 @@ object Slownik {
         if (w in m || imperative(w, m)) return null
         // imiesłów bez polskich znaków: psujac -> psując, robiac -> robiąc (gdy jest „psują”)
         if (w.length >= 5 && w.endsWith("ac") && w.dropLast(2) + "ą" in m) return cap(typed, w.dropLast(2) + "ąc")
-        if (split && w.length >= 4 && !anyRank) {
+        if (split && w.length >= 4 && !anyRank && foldAll?.containsKey(w.map(::baseKey).joinToString("")) != true) {
             // sklejone dwa znane słowa (otym -> o tym, nastole -> na stole, sietak -> się tak) - przed poprawianiem liter
             val all = foldAll; var sp: String? = null; var sk = Int.MAX_VALUE
             for (i in 1..minOf(4, w.length - 2)) {   // najczęstsza para: jakto -> jak to (nie „ja kto”)
@@ -188,13 +193,14 @@ object Slownik {
             // dłuższe słowo: najbliższe znane słowo (także rzadsze): jedna pomyłka (windos -> windows) albo dwie, gdy zgadza się początek
             // (literokem -> literówek; dobre słowo spoza słownika, np. kompiluje, zostaje)
             val idx = byLen ?: HashMap<Int, ArrayList<Pair<String, Entry>>>().also { m -> f.forEach { (k, e) -> m.getOrPut(k.length) { ArrayList() }.add(k to e) }; byLen = m }
-            var bd = 3; var bl = 0
+            var bd = 5; var bl = 0   // w połówkach: do 2 pomyłek (4), pomyłka o sąsiedni klawisz = pół
             for (len in fw.length - 1..fw.length + 1) for ((k, e) in idx[len] ?: continue) {
-                if (k[0] != fw[0] || e.rank >= 120000) continue
-                val d = dist(fw, k, minOf(bd + 1, 3))
-                if (d == 2 && fw.commonPrefixWith(k).length * 2 < fw.length && fw.commonSuffixWith(k).length < 4) continue   // idelelnie -> idealnie, kompiluje zostaje
+                if (k[0] != fw[0] && !adj(k[0], fw[0]) || e.rank >= 120000) continue
+                val d = dist(fw, k, minOf(bd + 1, 5))
+                // dwie pomyłki „nie obok” (kompiluje / kombinuje) - tylko przy zgodnym początku albo końcówce (idelelnie -> idealnie)
+                if (d > 2 && d - dist(fw, k, 9, false) / 2 >= 2 && fw.commonPrefixWith(k).length * 2 < fw.length && fw.commonSuffixWith(k).length < 4) continue
                 // remis: ta sama długość (zamiana litery) przed brakiem / nadmiarem, potem częstsze
-                if (d < 3 && (d < bd || (d == bd && (k.length == fw.length) > (bl == fw.length) || d == bd && (k.length == fw.length) == (bl == fw.length) && score(e) < score(best!!)))) { bd = d; best = e; bl = k.length }
+                if (d < 5 && (d < bd || (d == bd && (k.length == fw.length) > (bl == fw.length) || d == bd && (k.length == fw.length) == (bl == fw.length) && score(e) < score(best!!)))) { bd = d; best = e; bl = k.length }
             }
         }
         if (best == null && w.length >= 4 && !anyRank) {
@@ -211,7 +217,7 @@ object Slownik {
         }
         if (best == null && split && w.length >= 5 && !anyRank) {
             // sklejone słowa (michodziloe -> mi chodziło): częste krótkie słowo + znane albo poprawione słowo
-            for (i in 1..minOf(4, w.length - 3)) {
+            for (i in 2..minOf(4, w.length - 3)) {   // z poprawką drugiej części tylko po dłuższym słowie (mi chodziło; nie „o danielowi”)
                 val l = w.substring(0, i)
                 if ((foldAll?.get(fold(l))?.firstOrNull { it.word == l }?.rank ?: Int.MAX_VALUE) >= 300) continue
                 val r = w.substring(i)
@@ -267,8 +273,8 @@ object Slownik {
             if (byLen == null) correct("xxxxxxx")
             val near = ArrayList<Pair<Int, Entry>>()
             for (len in fw.length - 2..fw.length + 2) for ((k, e) in byLen?.get(len) ?: continue) {
-                if (k[0] != fw[0] || e.rank >= 120000) continue
-                val d = dist(fw, k, 5); if (d < 5) near.add(d to e)
+                if (k[0] != fw[0] && !adj(k[0], fw[0]) || e.rank >= 120000) continue
+                val d = dist(fw, k, 9); if (d < 9) near.add(d to e)
             }
             near.sortedWith(compareBy({ it.first }, { score(it.second) })).take(count).forEach { res.add(cap(typed, it.second.word)) }
             return res

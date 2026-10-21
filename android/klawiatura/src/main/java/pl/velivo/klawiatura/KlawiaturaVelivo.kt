@@ -183,6 +183,15 @@ class KlawiaturaVelivo : InputMethodService() {
     // koniec słowa (spacja, znak, Enter): autokorekta, przecinek, „że”, sklejanie, nauka
     private fun finishWord(sep: String) {
         val ic = currentInputConnection ?: return
+        // dwie spacje -> kropka i spacja (jak na Windows): "kot  " -> "kot. "
+        if (sep == " " && cur.isEmpty() && !secret) {
+            val b = before(2)
+            if (b.length == 2 && b[1] == ' ' && b[0].isLetterOrDigit()) {
+                ic.beginBatchEdit(); ic.deleteSurroundingText(1, 0); ic.commitText(". ", 1); ic.endBatchEdit()
+                if (sentence.isNotEmpty()) { Slownik.learnSentence(sentence.toString() + "."); sentence.clear() }
+                prevWord = null; prevWord2 = null; afterPunct = false; autoShift(); return
+            }
+        }
         // słowo z tekstu przed kursorem (nie tylko z pamięci klawiatury - pole bywa uruchamiane od nowa w trakcie pisania)
         val w = before(48).takeLastWhile { it.isLetter() }.ifEmpty { cur }.takeIf { it.isNotEmpty() && before(it.length) == it } ?: ""; cur = ""
         if (prevWord == null && w.isNotEmpty()) before(120).dropLast(w.length).trimEnd().split(' ', '\n').lastOrNull { it.isNotEmpty() }?.trim(',', '.', '!', '?', ';', ':')?.takeIf { it.all(Char::isLetter) }?.let { prevWord = it.lowercase() }

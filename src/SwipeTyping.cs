@@ -173,7 +173,7 @@ namespace Velivo
             if (best == null && w.Length >= 4 && !anyRank)
             {   // dwie pomylki palca: litera sasiada na klawiaturze + jedna inna (eicej -> więcej) - tylko bardzo czeste slowa
                 const string abc = "abcdefghijklmnopqrstuvwxyz";
-                Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && e.Rank < 3000 && (best == null || Score(e) < Score(best))) best = e; };
+                Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && e.Rank < (w.Length >= 6 ? 15000 : 3000) && (best == null || Score(e) < Score(best))) best = e; };
                 for (int i = 0; i < fw.Length; i++)
                     foreach (var nb in Near(fw[i]))
                     {

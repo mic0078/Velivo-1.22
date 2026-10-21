@@ -1033,6 +1033,7 @@ namespace Velivo
             { "Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)", "Send files to a phone or computer with Velivo on this network (no pairing, with a code)" },
             { "Wyślij", "Send" },
             { "Rozmowa wideo", "Video call" },
+            { "Przeczytane", "Read" },
             { "📶 Velivo w tej sieci: ", "📶 Velivo on this network: " },
             { "urządzenie", "device" },
             { " – dodasz je w komunikatorze: ➕ Dodaj", " – add it in the messenger: ➕ Add" },

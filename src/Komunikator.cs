@@ -1075,7 +1075,11 @@ namespace Velivo
                         foreach (var ch in body.Children.OfType<Image>()) ch.ContextMenu = txt.ContextMenu;
                     }
                     body.Children.Add(txt);
-                    body.Children.Add(new TextBlock { Text = stamp, FontSize = 10, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine && !m.Ok ? L.T("Jeszcze nie doręczono – Velivo wyśle, gdy odbiorca będzie w sieci") : null });
+                    var stampTb = new TextBlock { FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine && !m.Ok ? L.T("Jeszcze nie doręczono – Velivo wyśle, gdy odbiorca będzie w sieci") : m.Mine && m.Read ? L.T("Przeczytane") : null };
+                    // przeczytane (✓✓) na niebiesko - jak w telefonie
+                    if (m.Mine && m.Read) { stampTb.Inlines.Add(new System.Windows.Documents.Run(stamp.Substring(0, stamp.Length - 3)) { Foreground = new SolidColorBrush(Color.FromArgb(0xB3, fg.Color.R, fg.Color.G, fg.Color.B)) }); stampTb.Inlines.Add(new System.Windows.Documents.Run(" ✓✓") { Foreground = new SolidColorBrush(pal.Key == "kontrast" ? Color.FromRgb(0, 0, 0xCC) : Color.FromRgb(0x7D, 0xF9, 0xFF)), FontWeight = FontWeights.Bold }); }
+                    else { stampTb.Text = stamp; stampTb.Opacity = 0.7; }
+                    body.Children.Add(stampTb);
                     msgs.Children.Add(new Border
                     {
                         Child = body, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(m.Mine ? 60 : 0, 3, m.Mine ? 0 : 60, 3),

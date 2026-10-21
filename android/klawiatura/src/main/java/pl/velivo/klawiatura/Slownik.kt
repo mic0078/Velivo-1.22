@@ -176,7 +176,9 @@ object Slownik {
         val ownSame = synchronized(ownFold) { ownFold[fw] }
         if (best == null && ownSame != null && ownSame != w) best = Entry(ownSame, "", 3000)
         else if (best == null && w.length >= 4) {
-            variants(fw) { v -> val e = f[v]; if (e != null && (anyRank || e.rank < 15000) && (best == null || score(e) < score(best!!))) best = e }
+            // ostatnia litera zwykle wpisana dobrze: dzialc -> działać (nie działce)
+            var bk = Double.MAX_VALUE
+            variants(fw) { v -> val e = f[v]; if (e != null && (anyRank || e.rank < 15000)) { val key = score(e) * (if (v.last() == fw.last()) 1.0 else 50.0); if (key < bk) { bk = key; best = e } } }
         }
         if (best == null && w.length >= 6 && !anyRank) {
             // dłuższe słowo: najbliższe znane słowo (także rzadsze): jedna pomyłka (windos -> windows) albo dwie, gdy zgadza się początek
@@ -186,7 +188,7 @@ object Slownik {
             for (len in fw.length - 1..fw.length + 1) for ((k, e) in idx[len] ?: continue) {
                 if (k[0] != fw[0] || e.rank >= 120000) continue
                 val d = dist(fw, k, minOf(bd + 1, 3))
-                if (d == 2 && fw.commonPrefixWith(k).length * 2 < fw.length) continue
+                if (d == 2 && fw.commonPrefixWith(k).length * 2 < fw.length && fw.commonSuffixWith(k).length < 4) continue   // idelelnie -> idealnie, kompiluje zostaje
                 // remis: ta sama długość (zamiana litery) przed brakiem / nadmiarem, potem częstsze
                 if (d < 3 && (d < bd || (d == bd && (k.length == fw.length) > (bl == fw.length) || d == bd && (k.length == fw.length) == (bl == fw.length) && score(e) < score(best!!)))) { bd = d; best = e; bl = k.length }
             }

@@ -206,7 +206,8 @@ namespace Velivo
             else if (best == null && w.Length >= 4)   // jedna litera rozni (krotkich slow nie zgadujemy)
             {
                 const string abc = "abcdefghijklmnopqrstuvwxyz";
-                Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && (anyRank || e.Rank < 15000) && (best == null || Score(e) < Score(best))) best = e; };   // literowka -> tylko czeste slowo (rzadkie poprawne slowo spoza slownika zostaje)
+                double bk = double.MaxValue;   // ostatnia litera zwykle wpisana dobrze: dzialc -> działać (nie działce)
+                Action<string> cand = v => { if (fold.TryGetValue(v, out var e) && (anyRank || e.Rank < 15000)) { var key = Score(e) * (v.Length > 0 && v[v.Length - 1] == fw[fw.Length - 1] ? 1.0 : 50.0); if (key < bk) { bk = key; best = e; } } };   // literowka -> tylko czeste slowo (rzadkie poprawne slowo spoza slownika zostaje)
                 for (int i = 0; i < fw.Length; i++)
                 {
                     cand(fw.Remove(i, 1));
@@ -227,7 +228,7 @@ namespace Velivo
                         {
                             if (kv.Key[0] != fw[0] || kv.Value.Rank >= 120000) continue;
                             int d = Dist(fw, kv.Key, Math.Min(bd + 1, 3));
-                            if (d == 2) { int p = 0; while (p < fw.Length && p < kv.Key.Length && fw[p] == kv.Key[p]) p++; if (p * 2 < fw.Length) continue; }
+                            if (d == 2) { int p = 0, q = 0; while (p < fw.Length && p < kv.Key.Length && fw[p] == kv.Key[p]) p++; while (q < fw.Length && q < kv.Key.Length && fw[fw.Length - 1 - q] == kv.Key[kv.Key.Length - 1 - q]) q++; if (p * 2 < fw.Length && q < 4) continue; }   // idelelnie -> idealnie, kompiluje zostaje
                             // remis: ta sama dlugosc (zamiana litery) przed brakiem / nadmiarem, potem czestsze
                             bool same = kv.Key.Length == fw.Length, bsame = bl == fw.Length;
                             if (d < 3 && (d < bd || d == bd && (same && !bsame || same == bsame && Score(kv.Value) < Score(best)))) { bd = d; best = kv.Value; bl = kv.Key.Length; }

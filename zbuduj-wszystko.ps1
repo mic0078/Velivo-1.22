@@ -85,7 +85,16 @@ if (-not $ks -or -not (Test-Path $ks)) {
 $alias = Read-Host "Alias klucza (Enter = velivo)"
 if (-not $alias) { $alias = 'velivo' }
 function Plain($s) { [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)) }
-$ksPass = Plain (Read-Host "Haslo do pliku klucza" -AsSecureString)
+# haslo sprawdzane od razu (keytool z Javy Android Studio) - pomylka: ponowne wpisanie zamiast bledu po calej budowie
+$keytool = @("$env:JAVA_HOME\bin\keytool.exe", "$env:ProgramFiles\Android\Android Studio\jbr\bin\keytool.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+for ($i = 1; $i -le 3; $i++) {
+    $ksPass = Plain (Read-Host "Haslo do pliku klucza" -AsSecureString)
+    if (-not $keytool) { break }
+    & $keytool -list -keystore $ks -storepass $ksPass -alias $alias *> $null
+    if ($LASTEXITCODE -eq 0) { break }
+    Write-Host "Zle haslo albo alias klucza - sprobuj jeszcze raz ($i/3)." -ForegroundColor Yellow
+    if ($i -eq 3) { exit 1 }
+}
 $keyPass = Plain (Read-Host "Haslo klucza (Enter = to samo)" -AsSecureString)
 if (-not $keyPass) { $keyPass = $ksPass }
 

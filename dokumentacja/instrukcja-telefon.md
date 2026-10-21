@@ -255,7 +255,7 @@ Rozmowy, zdjęcia i pliki między Twoimi telefonami i komputerami z Velivo – b
 * **Otwieranie:** ikona „Komunikator Velivo” (telefon i pulpit Windows) albo menu Velivo → 💬.
 * **Dodanie kontaktu (raz, w domu):** ➕ Dodaj → wybierz urządzenie → oba ekrany pokazują ten sam 6-cyfrowy kod → przyjmij.
 * **W domu i poza domem – samo:** urządzenia, które poznały się w domu, rozmawiają też przez internet. Nic nie trzeba ustawiać. U góry widać 🏠 **W domu** albo 🌍 **Poza domem – przez internet**. Komputer w domu powinien być włączony.
-* **Ktoś daleko (nigdy nie był u Ciebie):** ➕ → ✉ **Zaproś przez internet** → wyślij kod. Druga osoba: ➕ → 🔑 **Mam zaproszenie**. Przyjmujesz, gdy kod się zgadza. Zaproszenie działa raz, 7 dni.
+* **Ktoś daleko (nigdy nie był u Ciebie):** ➕ → ✉ **Zaproś przez internet** → 📤 **Wyślij…** → WhatsApp, SMS albo inna aplikacja (osobę wybierasz z kontaktów w tamtej aplikacji). Druga osoba: ➕ → 🔑 **Mam zaproszenie**. Przyjmujesz, gdy kod się zgadza. Zaproszenie działa raz, 7 dni.
 * **Znaczki:** 🟢 w sieci, ⚪ poza siecią; … wysyłanie, ✓ doręczone, ✓✓ przeczytane.
 * **Zdjęcia i pliki:** 📎 w rozmowie. Od kontaktów przychodzą od razu (zdjęcia jako miniatury). Zapis: przytrzymanie (telefon) albo prawy przycisk (Windows).
 * **Powiadomienia** także przy zamkniętym Velivo; odpowiedź prosto z powiadomienia.

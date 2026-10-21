@@ -1301,6 +1301,22 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
+    // zaproszenie: WhatsApp / SMS (osobę wybierasz z kontaktów w tamtej aplikacji - Velivo nie czyta książki adresowej) albo inna aplikacja
+    private fun sendInvite(code: String) {
+        val text = t("Zaproszenie do komunikatora Velivo:\n", "Velivo messenger invitation:\n") + code
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
+        AlertDialog.Builder(a).setTitle("📤 " + t("Wyślij zaproszenie", "Send invitation"))
+            .setItems(arrayOf("💬 WhatsApp", "✉ SMS", "📤 " + t("Inna aplikacja…", "Other app…"))) { _, i ->
+                runCatching {
+                    when (i) {
+                        0 -> a.startActivity(android.content.Intent(send).setPackage("com.whatsapp"))
+                        1 -> a.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, Uri.parse("smsto:")).putExtra("sms_body", text))
+                        else -> a.startActivity(android.content.Intent.createChooser(send, null))
+                    }
+                }.onFailure { Toast.makeText(a, t("Nie ma tej aplikacji – wybierz inną", "App not installed – choose another"), Toast.LENGTH_LONG).show(); runCatching { a.startActivity(android.content.Intent.createChooser(send, null)) } }
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     private fun invite() {
         val code = k.createInvite()
         if (code == null) { AlertDialog.Builder(a).setTitle("✉ " + t("Zaproś przez internet", "Invite via internet"))
@@ -1308,7 +1324,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             .setPositiveButton(android.R.string.ok, null).show(); return }
         AlertDialog.Builder(a).setTitle("✉ " + t("Zaproś przez internet", "Invite via internet"))
             .setMessage(t("Wyślij ten kod osobie, która ma Velivo. Ona wkleja go w komunikatorze: ➕ → 🔑 Mam zaproszenie. U Ciebie pojawi się prośba z kodem – przyjmij, gdy kod się zgadza. Działa raz, przez 7 dni.\n\n", "Send this code to a person who has Velivo. They paste it in the messenger: ➕ → 🔑 I have an invitation. You will get a request with a code – accept if it matches. Works once, for 7 days.\n\n") + code)
-            .setPositiveButton("📤 " + t("Udostępnij", "Share")) { _, _ -> runCatching { a.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, t("Zaproszenie do komunikatora Velivo:\n", "Velivo messenger invitation:\n") + code), null)) } }
+            .setPositiveButton("📤 " + t("Wyślij…", "Send…")) { _, _ -> sendInvite(code) }
             .setNeutralButton("📋 " + t("Kopiuj", "Copy")) { _, _ -> (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", code)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
             .setNegativeButton(t("Zamknij", "Close"), null).show()
     }

@@ -19,6 +19,14 @@ namespace Velivo
         const string KomCallTag = "\u0001velivo-rozmowa\n";
         Window _komCallWin; WebView2 _komCallView; string _komCallWith; Window _komRingWin;
 
+        // poza domem: przekaźnik TURN na domowym komputerze (pośredniku), z którym jesteśmy połączeni
+        string KomTurnIce()
+        {
+            var r = _komUpRelay;
+            if (_komUp == null || r?.Relay == null) return "[]";
+            return new JsonArray { new JsonObject { ["urls"] = "turn:" + r.Relay + "?transport=tcp", ["username"] = _komId, ["credential"] = KomTurnPass(r.Key) } }.ToJsonString();
+        }
+
         void KomSendCall(KomContact c, JsonObject o) =>
             KomDeliver(c, new KomMsg { Mine = true, Text = KomCallTag + o.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
 
@@ -101,7 +109,7 @@ namespace Velivo
                     if (k == "end") ended = true;
                     KomSendCall(c, o);
                 };
-                core.Navigate("https://velivo-rozmowa/rozmowa.html?rola=" + (caller ? "dzwoni" : "odbiera") + "&net=" + (KomViaNet(c.Id) ? "1" : "0") + "&pl=" + (L.En ? "0" : "1"));
+                core.Navigate("https://velivo-rozmowa/rozmowa.html?rola=" + (caller ? "dzwoni" : "odbiera") + "&ice=" + Uri.EscapeDataString(KomTurnIce()) + "&pl=" + (L.En ? "0" : "1"));
             }
             catch (Exception ex) { App.LogError(ex); w.Close(); }
         }

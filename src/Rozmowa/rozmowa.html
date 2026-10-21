@@ -13,7 +13,7 @@ button.off{background:#6b6b80}#end{background:#e53935}
 </style></head><body>
 <video id="you" autoplay playsinline></video><video id="me" autoplay playsinline muted></video>
 <div id="st"></div>
-<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="end">⏹</button></div>
+<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="end">⏹</button></div>
 <script>
 const q = new URLSearchParams(location.search), caller = q.get('rola') === 'dzwoni', pl = q.get('pl') !== '0';
 const T = (p, e) => pl ? p : e;
@@ -21,9 +21,9 @@ const you = document.getElementById('you'), me = document.getElementById('me'), 
 function status(s) { st.textContent = s; }
 function out(o) { const s = JSON.stringify(o); if (window.velivo) velivo.send(s); else if (window.chrome && chrome.webview) chrome.webview.postMessage(s); }
 mic.title = T('Mikrofon wł./wył.', 'Microphone on/off'); cam.title = T('Kamera wł./wył.', 'Camera on/off');
-flip.title = T('Przełącz kamerę', 'Switch camera'); end.title = T('Zakończ rozmowę', 'End call');
-// poza domem - adres publiczny ze STUN (w domu wystarczą adresy sieci domowej)
-const ice = q.get('net') === '1' ? [{ urls: 'stun:stun.l.google.com:19302' }] : [];
+flip.title = T('Przełącz kamerę', 'Switch camera'); spk.title = T('Głośnik / słuchawka', 'Speaker / earpiece'); end.title = T('Zakończ rozmowę', 'End call');
+// poza domem - prywatny przekaźnik na domowym komputerze (TURN), bez serwerów firm trzecich; w domu - prosto w sieci domowej
+let ice = []; try { ice = JSON.parse(q.get('ice') || '[]'); } catch (e) { }
 let pc = null, local = null, facing = 'user', connected = false, done = false;
 const pend = [];
 async function media() {
@@ -79,5 +79,8 @@ flip.onclick = async () => {
     me.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none';
   } catch (e) { flip.style.display = 'none'; }
 };
+// telefon: głośnik albo słuchawka przy uchu (słuchawki przewodowe / Bluetooth - same)
+if (window.velivo && velivo.speakerOn) { if (!velivo.speakerOn()) spk.classList.add('off'); spk.onclick = () => spk.classList.toggle('off', !velivo.speaker()); }
+else spk.style.display = 'none';
 start();
 </script></body></html>

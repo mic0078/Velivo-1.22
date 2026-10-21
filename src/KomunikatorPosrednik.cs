@@ -214,6 +214,10 @@ namespace Velivo
             try
             {
                 var s = cl.GetStream(); s.ReadTimeout = 15000;
+                // 📹 ten sam port: TURN dla rozmów wideo (KomunikatorTurn.cs) albo komunikator
+                for (int i = 0; i < 150 && cl.Available < 8; i++) await Task.Delay(100, token);
+                var peek = new byte[8];
+                if (cl.Available >= 8 && cl.Client.Receive(peek, 8, SocketFlags.Peek) == 8 && KomIsStun(peek)) { s.ReadTimeout = Timeout.Infinite; await KomTurnServe(cl, token); return; }
                 byte[] hello, mac;
                 using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {

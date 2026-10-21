@@ -332,6 +332,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 📹 rozmowa wideo: sygnały (dzwonię, odbieram, opis połączenia) jako zaszyfrowane wiadomości - poza czatem
     var onCall: ((Contact, JSONObject) -> Unit)? = null
     var ringing: Pair<String, Long>? = null   // kto dzwoni (z czasu, gdy Velivo było w tle)
+    // poza domem: przekaźnik TURN na domowym komputerze (pośredniku) - prywatnie, bez serwerów firm trzecich
+    fun turnIce(): String {
+        val r = upRelay; val hp = r?.relay
+        if (up == null || r == null || hp == null) return "[]"
+        return JSONArray().put(JSONObject().put("urls", "turn:$hp?transport=tcp").put("username", myId).put("credential", b64(hmac(r.key, "velivo-turn".toByteArray(Charsets.UTF_8))))).toString()
+    }
     fun sendCall(c: Contact, o: JSONObject) = deliver(c, Msg(true, CALL + o, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
     private fun onCallSignal(c: Contact, o: JSONObject) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
@@ -346,9 +352,16 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val pl = Locale.getDefault().language == "pl"
         val pi = PendingIntent.getActivity(ctx, "rozmowa".hashCode(), openIntent(c.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         runCatching {
-            nm.notify("rozmowa".hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
+            // jak w WhatsApp: dzwonek w kółko i od razu okno „Odbierz / Odrzuć” na cały ekran (także na zablokowanym telefonie)
+            nm.createNotificationChannel(NotificationChannel("rozmowy", if (pl) "Rozmowy wideo" else "Video calls", NotificationManager.IMPORTANCE_HIGH).apply {
+                setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
+                    android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build())
+            })
+            val n = Notification.Builder(ctx, "rozmowy").setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle("📹 " + c.name).setContentText(if (pl) "Dzwoni – stuknij, by odebrać" else "Calling – tap to answer")
-                .setCategory(Notification.CATEGORY_CALL).setContentIntent(pi).setAutoCancel(true).setTimeoutAfter(45000).build())
+                .setCategory(Notification.CATEGORY_CALL).setContentIntent(pi).setFullScreenIntent(pi, true).setAutoCancel(true).setTimeoutAfter(45000).build()
+            n.flags = n.flags or Notification.FLAG_INSISTENT
+            nm.notify("rozmowa".hashCode(), n)
         }
     }
 
@@ -1107,6 +1120,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun incoming(c: Komunikator.Contact) {
         if (ringDlg?.isShowing == true) return
         k.ringing = null
+        a.getSystemService(NotificationManager::class.java)?.cancel("rozmowa".hashCode())   // dzwonek gra okno, nie powiadomienie
         val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         fun btn(text: String, tip: String, color: Int, act: () -> Unit) = TextView(a).apply {
             this.text = text; textSize = 30f; gravity = Gravity.CENTER; contentDescription = tip; tooltipText = tip
@@ -1120,7 +1134,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             addView(btn("📞", t("Odbierz", "Answer"), green) { d.dismiss(); openCall(c, false) }) }
         d.setContentView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setBackgroundColor(pal().bg1); addView(name); addView(row) })
         d.setOnCancelListener { k.sendCall(c, JSONObject().put("k", "reject")) }
-        d.setOnDismissListener { ringTone?.stop(); ringTone = null; ringDlg = null; a.getSystemService(NotificationManager::class.java)?.cancel("rozmowa".hashCode()) }
+        d.setOnDismissListener { ringTone?.stop(); ringTone = null; ringDlg = null; a.getSystemService(NotificationManager::class.java)?.cancel("rozmowa".hashCode())
+            if (callView == null) { a.setShowWhenLocked(false); a.setTurnScreenOn(false) } }
+        a.setShowWhenLocked(true); a.setTurnScreenOn(true)   // jak w WhatsApp: także na zablokowanym ekranie
+        (a.getSystemService(android.app.KeyguardManager::class.java))?.requestDismissKeyguard(a, null)
         ringDlg = d; if (runCatching { d.show() }.isFailure) { ringDlg = null; return }
         a.window.decorView.postDelayed({ if (ringDlg === d) d.dismiss() }, 45000)
         ringTone = runCatching { android.media.RingtoneManager.getRingtone(a, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)) }.getOrNull()?.also { runCatching { it.play() } }
@@ -1133,6 +1150,24 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         val w = android.webkit.WebView(a)
         var ended = false
+        // dźwięk: słuchawki (przewodowe / Bluetooth) - w nich; bez słuchawek - głośnik; 🔊 przełącza głośnik / słuchawkę przy uchu
+        val am = a.getSystemService(android.media.AudioManager::class.java)
+        val oldMode = am?.mode; val oldSpeaker = am?.isSpeakerphoneOn
+        val heads = intArrayOf(android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO, android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET, android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES, android.media.AudioDeviceInfo.TYPE_USB_HEADSET, 26 /* TYPE_BLE_HEADSET */)
+        var spk = am?.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)?.none { it.type in heads } ?: true
+        fun route() = runCatching {
+            val m = am ?: return@runCatching
+            if (Build.VERSION.SDK_INT >= 31) {
+                val devs = m.availableCommunicationDevices
+                val pick = if (spk) devs.firstOrNull { it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                    else devs.firstOrNull { it.type in heads } ?: devs.firstOrNull { it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
+                if (pick != null) m.setCommunicationDevice(pick)
+            } else {
+                @Suppress("DEPRECATION") m.isSpeakerphoneOn = spk
+                @Suppress("DEPRECATION") if (!spk && m.isBluetoothScoAvailableOffCall) m.startBluetoothSco()
+            }
+        }
+        runCatching { am?.mode = android.media.AudioManager.MODE_IN_COMMUNICATION }; route()
         w.settings.javaScriptEnabled = true; w.settings.mediaPlaybackRequiresUserGesture = false
         w.setBackgroundColor(Color.rgb(18, 15, 36))
         w.addJavascriptInterface(object {
@@ -1142,6 +1177,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 if (o.optString("k") == "end") ended = true
                 k.sendCall(c, o)
             }
+            @android.webkit.JavascriptInterface fun speaker(): Boolean { spk = !spk; a.runOnUiThread { route() }; return spk }
+            @android.webkit.JavascriptInterface fun speakerOn(): Boolean = spk
         }, "velivo")
         w.webChromeClient = object : android.webkit.WebChromeClient() {
             override fun onPermissionRequest(r: android.webkit.PermissionRequest) {
@@ -1149,20 +1186,21 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 a.runOnUiThread { tryGrant(0) }
             }
         }
-        val am = a.getSystemService(android.media.AudioManager::class.java)
-        val oldMode = am?.mode; val oldSpeaker = am?.isSpeakerphoneOn
-        runCatching { am?.mode = android.media.AudioManager.MODE_IN_COMMUNICATION; am?.isSpeakerphoneOn = true }
         d.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         d.setContentView(w)
         d.setOnDismissListener {
             if (!ended) k.sendCall(c, JSONObject().put("k", "end"))
             callView = null; callWith = null
             runCatching { w.destroy() }
-            runCatching { oldMode?.let { am?.mode = it }; oldSpeaker?.let { am?.isSpeakerphoneOn = it } }
+            runCatching {
+                if (Build.VERSION.SDK_INT >= 31) am?.clearCommunicationDevice() else { @Suppress("DEPRECATION") am?.stopBluetoothSco() }
+                oldMode?.let { am?.mode = it }; @Suppress("DEPRECATION") oldSpeaker?.let { am?.isSpeakerphoneOn = it }
+            }
+            a.setShowWhenLocked(false); a.setTurnScreenOn(false)
         }
         callView = w; callWith = c.id
         val html = runCatching { a.assets.open("rozmowa.html").bufferedReader().use { it.readText() } }.getOrNull() ?: return
-        val q = "?rola=" + (if (caller) "dzwoni" else "odbiera") + "&net=" + (if (k.viaInternet(c.id)) "1" else "0") + "&pl=" + (if (pl) "1" else "0")
+        val q = "?rola=" + (if (caller) "dzwoni" else "odbiera") + "&ice=" + Uri.encode(k.turnIce()) + "&pl=" + (if (pl) "1" else "0")
         w.loadDataWithBaseURL("https://velivo.rozmowa/rozmowa.html$q", html, "text/html", "utf-8", null)
         d.show()
     }

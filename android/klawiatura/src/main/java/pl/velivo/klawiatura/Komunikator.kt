@@ -665,6 +665,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     @Volatile private var up: Frames? = null
     @Volatile private var upRelay: Contact? = null
     private val started = System.currentTimeMillis()
+    // 🌍 nazwa domu w internecie (np. mojdom.ddns.net z adresu Jellyfin poza domem) - gdy dom dostanie nowy adres IP, pośrednik i tak się znajdzie
+    var homeName: String
+        get() = prefs.getString("dom-nazwa", "") ?: ""
+        set(v) { if (v != homeName) prefs.edit().putString("dom-nazwa", v).apply() }
     @Volatile var upForce = false   // po dołączeniu z zaproszeniem - od razu przez internet
     private val upWriter = java.util.concurrent.Executors.newSingleThreadExecutor()
 
@@ -807,6 +811,17 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (udpOut == null && udp == null) return@runCatching   // komunikator nie działa (aplikacja zamknięta bez odbioru w tle)
             var f: Frames? = null
             for (cand in relays) { f = relayConnect(cand, "main"); if (f != null) { relay = cand; break } }   // pierwszy, który odpowie
+            // adres domu się zmienił (nowe IP od operatora) - przez nazwę domu, port zapamiętany i domyślny
+            val hn = homeName
+            if (f == null && hn.isNotEmpty()) for (cand in relays) {
+                val old = cand.relay ?: continue
+                for (port in listOf(old.substringAfterLast(':'), "41920").distinct()) {
+                    val alt = "$hn:$port"; if (alt == old) continue
+                    cand.relay = alt; f = relayConnect(cand, "main")
+                    if (f != null) { relay = cand; saveContacts(); break } else cand.relay = old
+                }
+                if (f != null) break
+            }
             val ff = f ?: return@runCatching; val rl = relay!!
             upRelay = rl; up = ff
             announce()   // jestem (przez internet) + zaległe wiadomości

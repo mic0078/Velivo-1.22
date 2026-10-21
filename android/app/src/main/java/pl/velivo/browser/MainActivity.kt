@@ -2973,6 +2973,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         Komunikator.get(this) { prefs.getString("lan-nazwa", null)?.ifBlank { null } ?: LanSync.MODEL }.also { k ->
             k.openIntent = { id -> Intent(this, MainActivity::class.java).setAction(ACTION_MESSENGER).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP) }
             k.udpOut = { d, t -> lan.sendRaw(d, t) }
+            Thread { runCatching { Jelly.conf(passwords)?.net?.let { n -> java.net.URI(n).host }?.let { h -> if (java.net.InetAddress.getAllByName(h).isNotEmpty()) k.homeName = h } } }.start()   // nazwa domu (No-IP) z adresu Jellyfin poza domem
             k.saveFile = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) }
             // 🎬 Filmy i TV z komunikatora: w domu od razu, przez internet - z pytaniem
             k.onMedia = { dev, j, viaNet -> runCatching { receiveMediaConf(dev, j.optJSONObject("jellyfin"), j.optJSONArray("tv"), ask = viaNet) } }

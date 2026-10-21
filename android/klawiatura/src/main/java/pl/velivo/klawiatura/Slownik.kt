@@ -44,7 +44,7 @@ object Slownik {
             l.add(e)
             ends.getOrPut("" + e.keys[0] + e.keys.last()) { ArrayList() }.add(e)
         }
-        words = l; byEnds = ends; fold = null; main = null
+        words = l; byEnds = ends; fold = null; main = null; byLen = null
         synchronized(ownFold) { ownFold.clear() }
         correct("xx")
     }
@@ -106,6 +106,24 @@ object Slownik {
         return true
     }
 
+    @Volatile private var byLen: HashMap<Int, ArrayList<Pair<String, Entry>>>? = null
+    // odległość (zamiana, brak, nadmiar, przestawienie liter); od "max" wzwyż - wynik = max
+    private fun dist(a: String, b: String, max: Int): Int {
+        if (Math.abs(a.length - b.length) >= max) return max
+        var p2 = IntArray(b.length + 1); var p = IntArray(b.length + 1) { it }; var c = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            c[0] = i; var low = i
+            for (j in 1..b.length) {
+                var v = minOf(p[j] + 1, c[j - 1] + 1, p[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = minOf(v, p2[j - 2] + 1)
+                c[j] = v; if (v < low) low = v
+            }
+            if (low >= max) return max
+            val t = p2; p2 = p; p = c; c = t
+        }
+        return minOf(p[b.length], max)
+    }
+
     private fun variants(fw: String, cand: (String) -> Unit) {
         val abc = "abcdefghijklmnopqrstuvwxyz"
         for (i in fw.indices) {
@@ -151,6 +169,15 @@ object Slownik {
                     if (j < x.length) { cand(x.removeRange(j, j + 1)); if (j != i) for (c in abc) if (c != x[j]) cand(x.substring(0, j) + c + x.substring(j + 1)) }
                     for (c in abc) cand(x.substring(0, j) + c + x.substring(j))
                 }
+            }
+        }
+        if (best == null && w.length >= 7 && !anyRank) {
+            // długie słowo: najbliższe znane słowo (do 2 pomyłek; literokem -> literówek, komunikatira -> komunikatora), także rzadsze
+            val idx = byLen ?: HashMap<Int, ArrayList<Pair<String, Entry>>>().also { m -> f.forEach { (k, e) -> m.getOrPut(k.length) { ArrayList() }.add(k to e) }; byLen = m }
+            var bd = 3
+            for (len in fw.length - 1..fw.length + 1) for ((k, e) in idx[len] ?: continue) {
+                if (k[0] != fw[0] || e.rank >= 120000) continue
+                val d = dist(fw, k, minOf(bd + 1, 3)); if (d < 3 && (d < bd || (d == bd && score(e) < score(best!!)))) { bd = d; best = e }
             }
         }
         val b = best ?: return null

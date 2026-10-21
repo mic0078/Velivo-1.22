@@ -11,6 +11,28 @@ namespace Velivo
     internal static class SwipeTyping
     {
         // polskie litery przeciaga sie przez litere podstawowa - takze "ź" przez "z" (jak w telefonie)
+        static Dictionary<int, List<KeyValuePair<string, Entry>>> _byLen;
+        // odleglosc (zamiana, brak, nadmiar, przestawienie liter); od "max" wzwyz - wynik = max
+        static int Dist(string a, string b, int max)
+        {
+            if (Math.Abs(a.Length - b.Length) >= max) return max;
+            var p2 = new int[b.Length + 1]; var p = new int[b.Length + 1]; var c = new int[b.Length + 1];
+            for (int j = 0; j <= b.Length; j++) p[j] = j;
+            for (int i = 1; i <= a.Length; i++)
+            {
+                c[0] = i; int low = i;
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int v = Math.Min(Math.Min(p[j] + 1, c[j - 1] + 1), p[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
+                    if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = Math.Min(v, p2[j - 2] + 1);
+                    c[j] = v; if (v < low) low = v;
+                }
+                if (low >= max) return max;
+                var t = p2; p2 = p; p = c; c = t;
+            }
+            return Math.Min(p[b.Length], max);
+        }
+
         internal static char BaseKey(char c)
         {
             var i = "ąćęłńóśżź".IndexOf(c);
@@ -58,7 +80,7 @@ namespace Velivo
                 if (!ends.TryGetValue(k2, out var l)) ends[k2] = l = new List<Entry>();
                 l.Add(e);
             }
-            _words = list; _byEnds = ends; _fold = null; _main = null;
+            _words = list; _byEnds = ends; _fold = null; _main = null; _byLen = null;
             lock (_ownFold) _ownFold.Clear();   // Moje slowa dodawane po wczytaniu od nowa (inny jezyk - bez slow z poprzedniego)
             Correct("xx");   // indeks autokorekty od razu (w tle) - przy pisaniu sprawdzenie slowa trwa ulamek milisekundy
         }
@@ -184,6 +206,20 @@ namespace Velivo
                             foreach (var c in abc) cand(x.Insert(j, c.ToString()));
                         }
                     }
+            }
+            if (best == null && w.Length >= 7 && !anyRank)
+            {   // dlugie slowo: najblizsze znane slowo (do 2 pomylek; literokem -> literówek, komunikatira -> komunikatora), takze rzadsze
+                var idx = _byLen;
+                if (idx == null) { idx = new Dictionary<int, List<KeyValuePair<string, Entry>>>(); foreach (var kv in fold) { if (!idx.TryGetValue(kv.Key.Length, out var l)) idx[kv.Key.Length] = l = new List<KeyValuePair<string, Entry>>(); l.Add(kv); } _byLen = idx; }
+                int bd = 3;
+                for (int len = fw.Length - 1; len <= fw.Length + 1; len++)
+                    if (idx.TryGetValue(len, out var group))
+                        foreach (var kv in group)
+                        {
+                            if (kv.Key[0] != fw[0] || kv.Value.Rank >= 120000) continue;
+                            int d = Dist(fw, kv.Key, Math.Min(bd + 1, 3));
+                            if (d < 3 && (d < bd || (d == bd && Score(kv.Value) < Score(best)))) { bd = d; best = kv.Value; }
+                        }
             }
             if (best == null || best.Word == w) return null;
             var r = Polite(best.Word);

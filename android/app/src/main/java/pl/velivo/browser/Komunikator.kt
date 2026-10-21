@@ -1705,7 +1705,8 @@ class KomunikatorUsluga : Service() {
             else startForeground(41919, k.listenNotification())
         }.onFailure { stopSelf(); return START_NOT_STICKY }
         // klawiatura w telefonie z przeglądarką Velivo (np. po restarcie usługi): komunikator jest w przeglądarce - tu nic nie nasłuchuje
-        if (otherOwner(this)) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(); return START_NOT_STICKY }
+        started = true
+        if (otherOwner(this) || stopAsked) { stopAsked = false; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(); return START_NOT_STICKY }
         if (lock == null) lock = (applicationContext.getSystemService(WIFI_SERVICE) as android.net.wifi.WifiManager).createMulticastLock("velivo-czat").apply { setReferenceCounted(false); acquire() }
         k.listen()
         if (net == null) net = object : android.net.ConnectivityManager.NetworkCallback() {
@@ -1717,7 +1718,7 @@ class KomunikatorUsluga : Service() {
     }
     override fun onDestroy() {
         net?.let { cb -> runCatching { getSystemService(android.net.ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) } }
-        runCatching { lock?.release() }; super.onDestroy()
+        started = false; runCatching { lock?.release() }; super.onDestroy()
     }
 
     companion object {
@@ -1726,10 +1727,19 @@ class KomunikatorUsluga : Service() {
         fun otherOwner(ctx: Context) = ctx.packageName != BROWSER && runCatching { ctx.packageManager.getPackageInfo(BROWSER, 0) }.isSuccess
         fun start(ctx: Context, k: Komunikator) {
             if (k.contacts.isEmpty() || !k.background || otherOwner(ctx)) return
-            runCatching { ctx.startForegroundService(Intent(ctx, KomunikatorUsluga::class.java)) }
+            stopAsked = false
+            runCatching { ctx.startForegroundService(Intent(ctx, KomunikatorUsluga::class.java)); asked = true }
         }
+        // usługa uruchomiona, a jeszcze nie pokazała powiadomienia - zatrzymanie teraz kończy się błędem Androida; zatrzyma się sama zaraz po starcie
+        @Volatile private var asked = false
+        @Volatile private var started = false
+        @Volatile private var stopAsked = false
         // aplikacja na ekranie: gniazda wracają do aplikacji
-        fun stop(ctx: Context, k: Komunikator) { k.close(); runCatching { ctx.stopService(Intent(ctx, KomunikatorUsluga::class.java)) } }
+        fun stop(ctx: Context, k: Komunikator) {
+            k.close()
+            if (asked && !started) { stopAsked = true; return }
+            asked = false; runCatching { ctx.stopService(Intent(ctx, KomunikatorUsluga::class.java)) }
+        }
     }
 }
 

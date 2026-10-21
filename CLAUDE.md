@@ -44,7 +44,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 ## Na potem (pomysły właściciela)
 
-* Sieć pośredników znajomych: komputery z Velivo wymieniają listę pośredników i przekazują sobie wiadomości, gdy mój komputer padnie (treść dalej szyfrowana; telefony nie są pośrednikami).
+* Sieć pośredników znajomych: telefon poza domem łączy się już ze wszystkimi pośrednikami z kontaktów naraz (2026-10-22); dalej na potem: pośrednicy przekazujący między sobą (gdy rozmówcy mają różnych pośredników) i pliki/wideo przez dodatkowych pośredników.
 * Prywatny serwer właściciela zamiast domowego komputera (właściciel zakłada go sam; Claude daje wymagania i pośrednika dla serwera).
 
 ## Gałęzie

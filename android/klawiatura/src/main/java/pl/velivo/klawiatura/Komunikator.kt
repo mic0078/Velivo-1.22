@@ -198,7 +198,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // --- UDP ---
     private fun packet(t: String) = JSONObject().put("t", t).put("id", myId).put("device", deviceName()).put("ts", System.currentTimeMillis()).put("kind", "phone")
     private fun sendUdp(p: JSONObject, to: InetAddress?) {
-        up?.let { u -> upSend(u, p) }   // 🌍 poza domem - przez pośrednika, a sieć domowa i tak dalej (w domu nic nie znika)
+        up?.let { u -> upSend(u, p); upMore.values.forEach { m -> upSend(m, p) } }   // 🌍 poza domem - przez każdego pośrednika, a sieć domowa i tak dalej (w domu nic nie znika)
         val d = p.toString().toByteArray(Charsets.UTF_8)
         val own = udp
         val out: (ByteArray, InetAddress) -> Unit = if (own != null) { b, to -> own.send(DatagramPacket(b, b.size, to, PORT)) } else udpOut ?: return
@@ -729,8 +729,36 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     private fun upSend(u: Frames, p: JSONObject) {
         val d = p.toString().toByteArray(Charsets.UTF_8)
-        upWriter.execute { runCatching { u.writeFrame(d) }.onFailure { if (up === u) { up = null; runCatching { u.close() } } } }
+        upWriter.execute { runCatching { u.writeFrame(d) }.onFailure { if (up === u) up = null; upMore.entries.removeIf { it.value === u }; runCatching { u.close() } } }
     }
+
+    // 🌍 pozostali pośrednicy (inne komputery z Velivo w kontaktach) - wiadomości idą przez każdego, który działa
+    private val upMore = java.util.concurrent.ConcurrentHashMap<String, Frames>()
+    @Volatile private var moreAt = 0L
+    private fun connectMore(relays: List<Contact>) {
+        if (System.currentTimeMillis() - moreAt < 60000) return
+        moreAt = System.currentTimeMillis()
+        Thread {
+            for (c in relays) {
+                if (c.id == upRelay?.id || upMore.containsKey(c.id) || up == null) continue
+                val f = relayConnect(c, "main") ?: continue
+                upMore[c.id] = f; upReader(f, c)
+                upSend(f, packet("p2p-here"))
+            }
+        }.start()
+    }
+    private fun upReader(ff: Frames, rl: Contact) = Thread {
+        runCatching {
+            while (up === ff || upMore[rl.id] === ff) {
+                val p = JSONObject(String(ff.readFrame(), Charsets.UTF_8)); val t = p.optString("t")
+                if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(rl, tid) }.start(); continue }
+                if (t.startsWith("p2p-")) handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true)
+            }
+        }
+        if (up === ff) up = null
+        upMore.remove(rl.id, ff); runCatching { ff.close() }
+        main.post { onChange() }
+    }.start()
 
     // połączenie do urządzenia: poza domem - tunel przez pośrednika; w domu - TCP w sieci domowej
     private fun connect(target: InetAddress, toId: String?): Conn {
@@ -758,26 +786,27 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             // w domu = w sieci domowej widać którykolwiek kontakt (wtedy wszystko jak dotąd, prosto); poza domem - nikogo
             val now = System.currentTimeMillis()
             val home = relay == null || (now - started < 30000 && !upForce) || synchronized(this) { contacts.any { now - (lanSeen[it.id] ?: 0L) < 100000 } }
+            if (home) {
+                up?.let { up = null; it.close(); announce() }
+                upMore.values.forEach { runCatching { it.close() } }; upMore.clear()
+                return@runCatching
+            }
+            // główny pośrednik padł, a inny działa - przejmuje
+            if (up == null) upMore.entries.firstOrNull()?.let { (id, f) -> contact(id)?.let { c -> upRelay = c; up = f; upMore.remove(id); announce() } }
             val u = up
-            if (home) { if (u != null) { up = null; u.close(); announce() }; return@runCatching }
-            if (u != null) { if (now - lastPing > 20000) { lastPing = now; upSend(u, JSONObject().put("t", "relay-ping")) }; return@runCatching }
+            if (u != null) {
+                if (now - lastPing > 20000) { lastPing = now; upSend(u, JSONObject().put("t", "relay-ping")); upMore.values.forEach { upSend(it, JSONObject().put("t", "relay-ping")) } }
+                connectMore(relays)   // każdy włączony pośrednik przekazuje - łączymy się ze wszystkimi
+                return@runCatching
+            }
             if (udpOut == null && udp == null) return@runCatching   // komunikator nie działa (aplikacja zamknięta bez odbioru w tle)
             var f: Frames? = null
             for (cand in relays) { f = relayConnect(cand, "main"); if (f != null) { relay = cand; break } }   // pierwszy, który odpowie
             val ff = f ?: return@runCatching; val rl = relay!!
             upRelay = rl; up = ff
             announce()   // jestem (przez internet) + zaległe wiadomości
-            Thread {
-                runCatching {
-                    while (up === ff) {
-                        val p = JSONObject(String(ff.readFrame(), Charsets.UTF_8)); val t = p.optString("t")
-                        if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(rl, tid) }.start(); continue }
-                        if (t.startsWith("p2p-")) handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true)
-                    }
-                }
-                if (up === ff) { up = null; runCatching { ff.close() } }
-                main.post { onChange() }
-            }.start()
+            upReader(ff, rl)
+            connectMore(relays)
             main.post { onChange() }
         }
     }.apply { isDaemon = true }

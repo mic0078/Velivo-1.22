@@ -740,9 +740,17 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     // co 20 s: pośrednik nie widoczny w sieci domowej - połączenie przez internet; widoczny - z powrotem w domu
+    @Volatile private var lastIps = ""
+    @Volatile private var lastPing = 0L
     private val upLoop = Thread {
         while (true) runCatching {
-            Thread.sleep(20000)
+            Thread.sleep(5000)
+            // zmiana sieci (Wi-Fi <-> dane komórkowe): od razu od nowa - kto jest w domu, bez czekania na stare „widziany w domu”
+            val ips = runCatching { NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }.filter { !it.isLoopbackAddress && it is java.net.Inet4Address }.joinToString { it.hostAddress ?: "" } }.getOrDefault("")
+            if (ips != lastIps) {
+                val first = lastIps.isEmpty(); lastIps = ips
+                if (!first) { lanSeen.clear(); runCatching { sendUdp(packet("p2p-who"), null) }; Thread.sleep(1500) }   // w domowym Wi-Fi komputery odpowiadają w ~1 s
+            }
             // komputery z rozmowami poza domem (każdy z kontaktami może nim być); w domu - którykolwiek widoczny w sieci domowej
             val relays = synchronized(this) { contacts.filter { it.relay != null } }
             var relay = relays.firstOrNull()
@@ -751,7 +759,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val home = relay == null || (now - started < 30000 && !upForce) || synchronized(this) { contacts.any { now - (lanSeen[it.id] ?: 0L) < 100000 } }
             val u = up
             if (home) { if (u != null) { up = null; u.close(); announce() }; return@runCatching }
-            if (u != null) { upSend(u, JSONObject().put("t", "relay-ping")); return@runCatching }
+            if (u != null) { if (now - lastPing > 20000) { lastPing = now; upSend(u, JSONObject().put("t", "relay-ping")) }; return@runCatching }
             if (udpOut == null && udp == null) return@runCatching   // komunikator nie działa (aplikacja zamknięta bez odbioru w tle)
             var f: Frames? = null
             for (cand in relays) { f = relayConnect(cand, "main"); if (f != null) { relay = cand; break } }   // pierwszy, który odpowie

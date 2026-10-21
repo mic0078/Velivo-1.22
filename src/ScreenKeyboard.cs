@@ -574,6 +574,15 @@ namespace Velivo
             if (fix == null && sep == ' ' && prevSpace) { fix = SwipeTyping.ZeNow(word, prevW); zeNow = fix != null; }   // myślę ze -> myślę, że
             if (retyped != null && SwipeTyping.LearnFix(retyped, fix ?? word)) { var lf = _physFixLearned; if (lf != null) Application.Current?.Dispatcher.BeginInvoke(new Action(() => lf(retyped, fix ?? word))); }
             var fin = fix ?? word; if (sep == ' ') _pPrevWord = fin;
+            // dwa slowa pisane razem (na prawdę -> naprawdę, z resztą -> zresztą) - od razu, jak na telefonie
+            var jp = prevSpace && ze == null && !zeBack && !string.IsNullOrEmpty(prevW) ? SwipeTyping.JoinPair(prevW, fin) : null;
+            if (jp != null)
+            {
+                if (sep == ' ') _pPrevWord = jp;
+                SentAdd(fin, sep, false, null, true); PhysPred(sep == ' ' ? jp : null, true);
+                Inject(Enumerable.Range(0, prevW.Length + 1 + word.Length).SelectMany(_ => KeyIn(0x08, '\0')).Concat(TextIn(jp + sep)));
+                return true;
+            }
             bool comma = sep == ' ' && prevSpace && SwipeTyping.NeedsComma(fin, prevW);   // wiem że -> wiem, że
             SentAdd(fin, sep, comma, zeBack ? "ze" : ze, true);
             _pZeAuto = zeNow; _pZeComma = comma;

@@ -19,7 +19,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-20: przed wysłaniem kompiluj poprawioną część i sprawdź tłumaczenia.
 * 2026-10-20: nie zapisuj pliku przez `open(f,'w').write(open(f).read())` – czyści plik.
 * 2026-10-20: pośrednik słyszy własne przekazane pakiety – urządzenie z `_komRemote` nie jest w domu.
-* 2026-10-20: polecenia dla PowerShell, nie cmd.
+* 2026-10-20: polecenia dla PowerShell, nie cmd – także gdy właściciel pisze „cmd” (pracuje w PowerShell; `cd /d` tam nie działa).
 * 2026-10-21: przycisk ➤ omijał klawiaturę – ostatnie słowo bez poprawki; teraz ➤ prosi klawiaturę o poprawkę (`pl.velivo.slowo`), Enter = Wyślij.
 * 2026-10-21: pakiety przez pośrednika mają adres 127.0.0.1 – nie zapisuj go jako adresu kontaktu (zrzut trafiał do samego telefonu).
 * 2026-10-21: zrzuty ekranu mają działać w obie strony: Windows → telefon działa, telefon → Windows (Udostępnij → Velivo) jeszcze nie – do naprawy.

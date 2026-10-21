@@ -22,6 +22,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-20: polecenia dla PowerShell, nie cmd – także gdy właściciel pisze „cmd” (pracuje w PowerShell; `cd /d` tam nie działa).
 * 2026-10-21: przycisk ➤ omijał klawiaturę – ostatnie słowo bez poprawki; teraz ➤ prosi klawiaturę o poprawkę (`pl.velivo.slowo`), Enter = Wyślij.
 * 2026-10-21: pakiety przez pośrednika mają adres 127.0.0.1 – nie zapisuj go jako adresu kontaktu (zrzut trafiał do samego telefonu).
+* 2026-10-21: pośrednik wysyłał pliki do urządzenia poza domem przez 127.0.0.1 – po poprawce adresu przestało działać; teraz KomOpenAsync: odbiorca w `_komRemote` → tunel.
 * 2026-10-21: zrzuty ekranu mają działać w obie strony: Windows → telefon działa, telefon → Windows (Udostępnij → Velivo) jeszcze nie – do naprawy.
 * 2026-10-21: dzwonek rozmowy nie odblokowuje telefonu (bez prośby o PIN) – tylko okno nad ekranem blokady.
 * 2026-10-21: „BUILD FAILED” Androida po ~25 s = złe hasło klucza, nie kod; skrypt sprawdza hasło od razu (keytool).

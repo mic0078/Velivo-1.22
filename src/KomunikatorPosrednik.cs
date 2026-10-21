@@ -125,6 +125,8 @@ namespace Velivo
                 var fs = await KomRelayConnect(relay, "tunnel", null, toId, token);
                 if (fs != null) return fs;
             }
+            // jesteśmy pośrednikiem, a odbiorca jest poza domem - przez własny odbiornik, który przekazuje tunelem
+            if (toId != null && _komRemote.ContainsKey(toId)) addr = IPAddress.Loopback;
             await cl.ConnectAsync(addr, LanPort, token);
             return cl.GetStream();
         }

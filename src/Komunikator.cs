@@ -1091,7 +1091,7 @@ namespace Velivo
             {
                 IPAddress addr = null;
                 if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) { addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr; }
-                if (addr == null && _komUp == null) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
+                if (addr == null && _komUp == null && !_komRemote.ContainsKey(c.Id)) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
                 await KomSendFilesTo(w, c.Name, addr ?? IPAddress.Loopback, c);   // poza domem: tunel przez pośrednika
             }
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
@@ -1169,7 +1169,7 @@ namespace Velivo
             {
                 IPAddress addr = null;
                 if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr;
-                if (addr == null && _komUp == null) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
+                if (addr == null && _komUp == null && !_komRemote.ContainsKey(c.Id)) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
                 KomInfo(L.T("🎬 Wysyłam Filmy i TV…"), 0);
                 var r = await KomSendFile(addr ?? IPAddress.Loopback, path, _ => { }, c);
                 KomInfo(r == "ok" ? L.T("🎬 Wysłano Filmy i TV do: ") + c.Name : L.T("🎬 Nie wysłano: ") + r);

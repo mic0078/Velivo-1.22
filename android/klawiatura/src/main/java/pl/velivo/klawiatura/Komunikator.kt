@@ -1285,7 +1285,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val actions = LinearLayout(a).apply {
             gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
             addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)", "Add a contact: on this network or via internet (invitation)")) { addChoice() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
-            addView(pill("📤 " + t("Wyślij pliki", "Send files"), t("Pliki na telefon lub komputer z Velivo w tej sieci", "Files to a phone or computer with Velivo on this network")) { attachTo = null; pickFiles() }, LinearLayout.LayoutParams(0, px(46), 1f))
+            addView(pill("📤 " + t("Wyślij pliki", "Send files"), t("Pliki do osoby z komunikatora (w domu i poza domem)", "Files to a messenger contact (at home and away)")) { attachTo = null; pickFiles() }, LinearLayout.LayoutParams(0, px(46), 1f))
         }
         root.removeAllViews()
         root.addView(LinearLayout(a).apply {
@@ -1411,7 +1411,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }.start()
             return
         }
-        choosePeer("📤 " + t("Wyślij pliki do…", "Send files to…")) { p -> sendFilesTo(uris, p, k.contact(p.id)) }
+        // kontakty (w domu i poza domem) - jak 📎 w rozmowie; inne urządzenie w tej sieci - wyszukanie z kodem
+        val cs = k.contacts.sortedByDescending { k.online(it.id) }
+        if (cs.isEmpty()) { choosePeer("📤 " + t("Wyślij pliki do…", "Send files to…")) { p -> sendFilesTo(uris, p, k.contact(p.id)) }; return }
+        AlertDialog.Builder(a).setTitle("📤 " + t("Wyślij pliki do…", "Send files to…"))
+            .setItems((cs.map { (if (k.online(it.id)) "🟢 " else "⚪ ") + it.name } + ("📶 " + t("Inne urządzenie w tej sieci…", "Other device on this network…"))).toTypedArray()) { _, i ->
+                if (i < cs.size) { attachTo = cs[i]; sendFiles(uris) } else choosePeer("📤 " + t("Wyślij pliki do…", "Send files to…")) { p -> sendFilesTo(uris, p, k.contact(p.id)) }
+            }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun sendFilesTo(uris: List<Uri>, p: Komunikator.Peer, c: Komunikator.Contact?) {

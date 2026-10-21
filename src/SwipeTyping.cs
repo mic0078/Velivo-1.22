@@ -14,6 +14,7 @@ namespace Velivo
         // odmiana znanego czasownika (slownik jej nie ma): naprawiaj(cie) <- naprawiać, kupuj(cie) / instaluje / instalujesz <- -ować
         static bool Imperative(string w, ICollection<string> m)
         {
+            if (w.Length >= 4 && w.EndsWith("ąc") && m.Contains(w.Substring(0, w.Length - 1))) return true;   // psując <- psują
             var b = w.EndsWith("cie") ? w.Substring(0, w.Length - 3) : w;
             // czasownik na -ować takze z przedrostkiem (instaluje <- zainstalować)
             bool Owac(string stem) => new[] { "", "za", "po", "prze", "wy", "do", "od", "na", "z", "s", "u", "roz", "przy", "w" }.Any(p => m.Contains(p + stem + "ować"));
@@ -185,16 +186,23 @@ namespace Velivo
                     return (char.IsUpper(typed[0]) ? "Nie " : "nie ") + restOk;
             }
             if (main.Contains(w) || Imperative(w, main)) return null;
+            // imieslow bez polskich znakow: psujac -> psując, robiac -> robiąc (gdy jest "psują")
+            if (w.Length >= 5 && w.EndsWith("ac") && main.Contains(w.Substring(0, w.Length - 2) + "ą"))
+            {
+                var pc = w.Substring(0, w.Length - 2) + "ąc";
+                return char.IsUpper(typed[0]) ? char.ToUpperInvariant(pc[0]) + pc.Substring(1) : pc;
+            }
             if (split && w.Length >= 4 && !anyRank && _foldAll != null)
             {   // sklejone dwa znane slowa (otym -> o tym, nastole -> na stole, sietak -> się tak) - przed poprawianiem liter
-                for (int i = 1; i <= Math.Min(4, w.Length - 2); i++)
+                string sp = null; int sk = int.MaxValue;
+                for (int i = 1; i <= Math.Min(4, w.Length - 2); i++)   // najczestsza para: jakto -> jak to (nie "ja kto")
                 {
                     if (!_foldAll.TryGetValue(Fold(w.Substring(0, i)), out var ll) || !_foldAll.TryGetValue(Fold(w.Substring(i)), out var rl)) continue;
-                    var le = ll.Where(e => e.Rank < 300).OrderBy(e => e.Rank).FirstOrDefault(); var re = rl.Where(e => e.Rank < 120000).OrderBy(Score).FirstOrDefault();
+                    var le = ll.Where(e => e.Rank < 300).OrderBy(e => e.Rank).FirstOrDefault(); var re = rl.Where(e => e.Rank < (w.Length - i < 3 ? 300 : 120000)).OrderBy(Score).FirstOrDefault();   // robiac - nie "robi ac"
                     if (le == null || re == null) continue;
-                    var sp = le.Word + " " + re.Word;
-                    return char.IsUpper(typed[0]) ? char.ToUpperInvariant(sp[0]) + sp.Substring(1) : sp;
+                    if (le.Rank + re.Rank < sk) { sk = le.Rank + re.Rank; sp = le.Word + " " + re.Word; }
                 }
+                if (sp != null) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(sp[0]) + sp.Substring(1) : sp;
             }
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
             var fw = new string(w.Select(BaseKey).ToArray());

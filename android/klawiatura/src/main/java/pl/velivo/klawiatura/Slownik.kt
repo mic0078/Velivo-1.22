@@ -108,6 +108,7 @@ object Slownik {
 
     // odmiana znanego czasownika (słownik jej nie ma): naprawiaj(cie) <- naprawiać, kupuj(cie) / instaluje / instalujesz <- -ować
     private fun imperative(w: String, m: Set<String>): Boolean {
+        if (w.length >= 4 && w.endsWith("ąc") && w.dropLast(1) in m) return true   // psując <- psują
         val b = w.removeSuffix("cie")
         // czasownik na -ować także z przedrostkiem (instaluje <- zainstalować)
         fun owac(stem: String) = arrayOf("", "za", "po", "prze", "wy", "do", "od", "na", "z", "s", "u", "roz", "przy", "w").any { it + stem + "ować" in m }
@@ -161,14 +162,17 @@ object Slownik {
             if (restOk != null && (isVerbish(restOk) || foldAll?.containsKey(fold(w)) != true)) return (if (typed[0].isUpperCase()) "Nie " else "nie ") + restOk
         }
         if (w in m || imperative(w, m)) return null
+        // imiesłów bez polskich znaków: psujac -> psując, robiac -> robiąc (gdy jest „psują”)
+        if (w.length >= 5 && w.endsWith("ac") && w.dropLast(2) + "ą" in m) return cap(typed, w.dropLast(2) + "ąc")
         if (split && w.length >= 4 && !anyRank) {
             // sklejone dwa znane słowa (otym -> o tym, nastole -> na stole, sietak -> się tak) - przed poprawianiem liter
-            val all = foldAll
-            for (i in 1..minOf(4, w.length - 2)) {
+            val all = foldAll; var sp: String? = null; var sk = Int.MAX_VALUE
+            for (i in 1..minOf(4, w.length - 2)) {   // najczęstsza para: jakto -> jak to (nie „ja kto”)
                 val l = all?.get(fold(w.substring(0, i)))?.filter { it.rank < 300 }?.minByOrNull { it.rank } ?: continue
-                val r = all[fold(w.substring(i))]?.filter { it.rank < 120000 }?.minByOrNull(::score) ?: continue
-                return cap(typed, l.word + " " + r.word)
+                val r = all[fold(w.substring(i))]?.filter { it.rank < (if (w.length - i < 3) 300 else 120000) }?.minByOrNull(::score) ?: continue   // robiac - nie „robi ac”
+                if (l.rank + r.rank < sk) { sk = l.rank + r.rank; sp = l.word + " " + r.word }
             }
+            if (sp != null) return cap(typed, sp)
         }
         synchronized(ownFold) { if (ownFold.containsValue(w)) return null }
         val fw = w.map(::baseKey).joinToString("")

@@ -131,11 +131,15 @@ class KlawiaturaVelivo : InputMethodService() {
             prevWord = null; prevWord2 = null; sentence.clear() }
         autoShift()
         view.theme(); view.refresh()
+        komNew()?.listen()   // telefon tylko z klawiaturą Velivo: widoczny w domowym Wi-Fi do dodania, póki klawiatura na ekranie
     }
+
+    // komunikator klawiatury bez kontaktów (bez przeglądarki Velivo) - nasłuch tylko na czas pisania
+    private fun komNew() = if (Rozmowy.hasBrowser(this)) null else Komunikator.get(this) { (android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL).trim() }.takeIf { it.contacts.isEmpty() }
 
     // ➤ w komunikatorze Velivo: popraw ostatnie słowo przed wysłaniem
     override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord("") }
-    override fun onFinishInputView(finishingInput: Boolean) { super.onFinishInputView(finishingInput); stopListening() }
+    override fun onFinishInputView(finishingInput: Boolean) { super.onFinishInputView(finishingInput); stopListening(); komNew()?.close() }
     override fun onDestroy() { tts?.shutdown(); rec?.destroy(); super.onDestroy() }
 
     private fun pref(k: String, def: Boolean = true) = prefs(this).getBoolean(k, def)

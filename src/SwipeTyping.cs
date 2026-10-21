@@ -609,6 +609,23 @@ namespace Velivo
         }
 
         static int PairCount(string k) { lock (_pairs) return _pairs.TryGetValue(k, out var c) ? c : 0; }
+
+        // kontekst z Twojego pisania: po tym slowie zwykle piszesz inne, bardzo podobne (to pewni -> to pewnie) - po co najmniej 3 razach
+        internal static string ContextFix(string prev, string word, ICollection<string> keep = null)
+        {
+            if (string.IsNullOrEmpty(prev) || word == null || word.Length < 3 || !word.All(char.IsLetter)) return null;
+            var p = prev.ToLowerInvariant(); var w = word.ToLowerInvariant();
+            if (keep != null && keep.Contains(w) || PairCount(p + " " + w) > 0) return null;
+            string best = null; int bn = 2;
+            lock (_pairs)
+                foreach (var kv in _pairs)
+                {
+                    if (kv.Value <= bn || !kv.Key.StartsWith(p + " ", StringComparison.Ordinal)) continue;
+                    var c = kv.Key.Substring(p.Length + 1); if (c == w || c.Contains(' ')) continue;
+                    if (Dist(Fold(w), Fold(c), 3) <= 2) { best = c; bn = kv.Value; }
+                }
+            return best == null ? null : char.IsUpper(word[0]) ? char.ToUpperInvariant(best[0]) + best.Substring(1) : best;
+        }
         internal static void LearnTriple(string prev2, string prev, string word)
         {
             if (string.IsNullOrEmpty(prev2) || string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(word)) return;

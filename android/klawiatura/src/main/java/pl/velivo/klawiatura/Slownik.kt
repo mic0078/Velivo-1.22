@@ -481,6 +481,22 @@ object Slownik {
     }
 
     private fun pairCount(k: String) = synchronized(pairs) { pairs[k] ?: 0 }
+
+    // kontekst z Twojego pisania: po tym słowie zwykle piszesz inne, bardzo podobne (to pewni -> to pewnie) - po co najmniej 3 razach
+    fun contextFix(prev: String?, word: String, keep: Collection<String>? = null): String? {
+        if (prev.isNullOrEmpty() || word.length < 3 || !word.all { it.isLetter() }) return null
+        val p = prev.lowercase(); val w = word.lowercase()
+        if (keep != null && w in keep || pairCount("$p $w") > 0) return null
+        var best: String? = null; var bn = 2
+        synchronized(pairs) {
+            for ((k, n) in pairs) {
+                if (n <= bn || !k.startsWith("$p ")) continue
+                val c = k.substring(p.length + 1); if (c == w || c.contains(' ')) continue
+                if (dist(fold(w), fold(c), 3) <= 2) { best = c; bn = n }
+            }
+        }
+        return best?.let { cap(word, it) }
+    }
     private fun following(ctx: String): List<Map.Entry<String, Int>> {
         val k = "$ctx "
         return synchronized(pairs) { pairs.entries.filter { it.key.startsWith(k) && it.key.indexOf(' ', k.length) < 0 && it.value >= 2 }.sortedByDescending { it.value }.map { java.util.AbstractMap.SimpleEntry(it.key, it.value) } }

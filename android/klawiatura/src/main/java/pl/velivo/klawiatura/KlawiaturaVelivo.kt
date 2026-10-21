@@ -188,7 +188,7 @@ class KlawiaturaVelivo : InputMethodService() {
         if (prevWord == null && w.isNotEmpty()) before(120).dropLast(w.length).trimEnd().split(' ', '\n').lastOrNull { it.isNotEmpty() }?.trim(',', '.', '!', '?', ';', ':')?.takeIf { it.all(Char::isLetter) }?.let { prevWord = it.lowercase() }
         var out = w
         if (w.isNotEmpty() && !secret) {
-            val fix = if (pref("klaw-korekta")) Slownik.complete(w, keep) else null
+            val fix = if (pref("klaw-korekta")) Slownik.complete(w, keep) ?: Slownik.contextFix(prevWord, w, keep) else null
             Slownik.zeNow(fix ?: w, prevWord)?.let { out = it } ?: run { if (fix != null) out = fix }
             if (out != w) {
                 ic.beginBatchEdit(); ic.deleteSurroundingText(w.length, 0); ic.commitText(out, 1); ic.endBatchEdit()

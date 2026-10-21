@@ -413,6 +413,7 @@ namespace Velivo
         // Klik myszy, inny klawisz albo przerwa > 4 s = nowe slowo (nie wiemy, gdzie jest kursor). Pole hasla - nic.
         static volatile Func<string, string> _physCorrect;      // null = wylaczona (klawiatura zamknieta / korekta wylaczona)
         static volatile bool _physSecret = true;
+        static volatile string _physPrev;   // poprzednie slowo przy zwyklym pisaniu - do poprawek z kontekstu
         static volatile bool _physStale;   // po dluzszej przerwie pole nie jest jeszcze sprawdzone (do 0,3 s): slowa liczymy, ale niczego nie zmieniamy
         static volatile bool _physPause;   // okienko "Dodaj słowo" - wpisujesz nowe slowo, bez poprawiania                // pole hasla (sprawdzane przez klawiature co 0,3 s); na start - bezpiecznie
         static Action<string, string> _physNotify, _physUndone; static Action<string> _physAsk; static Action<string, bool> _physPred;
@@ -569,6 +570,7 @@ namespace Velivo
             _pPrevWord2 = sep == ' ' ? prevW : null;
             if (_physStale) { SentAdd(word, sep, false, null, false); PhysPred(null, false); return false; }   // pierwsza chwila po przerwie: slowo zapamietane (przecinek przed nastepnym), bez poprawek i nauki
             if (word.Length < 2 && ze == null && !zeBack && !(sep == ' ' && SwipeTyping.NeedsComma(word, prevW))) { SentAdd(word, sep, false, null, true); PhysPred(null, false); return false; }
+            _physPrev = prevSpace ? prevW : null;   // kontekst: poprzednie slowo (to pewni -> to pewnie)
             var fix = word.Length >= 2 ? corr(word) : null;
             bool zeNow = false;
             if (fix == null && sep == ' ' && prevSpace) { fix = SwipeTyping.ZeNow(word, prevW); zeNow = fix != null; }   // myślę ze -> myślę, że
@@ -1064,7 +1066,7 @@ namespace Velivo
             // ✓ autokorekta pisowni (wl./wyl., domyslnie wlaczona) - takze polskie znaki: zolw -> żółw
             var fixB = key(ico("\uE8FB", "abc"), 58); fixB.Height = 28; fixB.FontSize = 12; DockPanel.SetDock(fixB, Dock.Right);
             Action fixShow = () => { bool on = GetPref("klawiatura-korekta") != "0"; fixB.Background = on ? accent : Brushes.Transparent; fixB.ToolTip = on ? L.T("Autokorekta pisowni: włączona – słowo spoza słownika poprawiane po spacji (też polskie znaki: zolw → żółw); ⌫ zaraz po poprawce cofa ją. Kliknij, aby wyłączyć") : L.T("Autokorekta pisowni: wyłączona (kliknij, aby włączyć)"); };
-            Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) return SwipeTyping.Complete(wd, noFix); }) : null;
+            Action physApply = () => _physCorrect = GetPref("klawiatura-korekta") != "0" ? (Func<string, string>)(wd => { lock (noFix) return SwipeTyping.Complete(wd, noFix) ?? SwipeTyping.ContextFix(_physPrev, wd, noFix); }) : null;
             fixShow(); fixB.Click += (s, e) => { SetPref("klawiatura-korekta", GetPref("klawiatura-korekta") != "0" ? "0" : "1"); fixShow(); physApply(); };
             head.Children.Add(fixB);
             // 🔈 klik przy pisaniu (wl./wyl., domyslnie wlaczony)

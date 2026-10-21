@@ -41,6 +41,11 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * Klawiatura zapamiętuje na stałe: Mój słownik, cofnięte poprawki (⌫), częste słowa i pary – zaszyfrowane na urządzeniu.
 * Budowa: hasło klucza sprawdzane od razu; instalator ponawia przy antywirusie.
 
+## Na potem (pomysły właściciela)
+
+* Sieć pośredników znajomych: komputery z Velivo wymieniają listę pośredników i przekazują sobie wiadomości, gdy mój komputer padnie (treść dalej szyfrowana; telefony nie są pośrednikami).
+* Prywatny serwer właściciela zamiast domowego komputera (właściciel zakłada go sam; Claude daje wymagania i pośrednika dla serwera).
+
 ## Gałęzie
 
 * Pracuj tylko na `rozwoj`. Nie twórz innych gałęzi.

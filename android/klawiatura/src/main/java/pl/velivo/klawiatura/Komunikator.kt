@@ -1137,7 +1137,6 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         d.setOnDismissListener { ringTone?.stop(); ringTone = null; ringDlg = null; a.getSystemService(NotificationManager::class.java)?.cancel("rozmowa".hashCode())
             if (callView == null) { a.setShowWhenLocked(false); a.setTurnScreenOn(false) } }
         a.setShowWhenLocked(true); a.setTurnScreenOn(true)   // jak w WhatsApp: także na zablokowanym ekranie
-        (a.getSystemService(android.app.KeyguardManager::class.java))?.requestDismissKeyguard(a, null)
         ringDlg = d; if (runCatching { d.show() }.isFailure) { ringDlg = null; return }
         a.window.decorView.postDelayed({ if (ringDlg === d) d.dismiss() }, 45000)
         ringTone = runCatching { android.media.RingtoneManager.getRingtone(a, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)) }.getOrNull()?.also { runCatching { it.play() } }

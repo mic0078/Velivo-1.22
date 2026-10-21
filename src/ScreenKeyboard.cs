@@ -706,11 +706,12 @@ namespace Velivo
                 if (added0) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));
                 lock (_swLearned) { _swOwn.Add(lw0); SwipeTyping.AddUserWord(lw0); _swLearned[lw0] = (_swLearned.TryGetValue(lw0, out var c0) ? c0 : 0) + 1; SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }
             };   // cofniete poprawki - tych slow nie poprawiamy
-            // cofnieta poprawka (⌫): do konca tej sesji bez poprawiania; do Mojego slownika tylko po kliknieciu ➕ (nie kazde dziwne slowo)
+            // cofnieta poprawka (⌫): na stale bez poprawiania; do Mojego slownika tylko po kliknieciu ➕ (nie kazde dziwne slowo)
             Action<string> keepOnce = kw =>
             {
                 var lw1 = (kw ?? "").Trim().ToLowerInvariant(); if (lw1.Length < 2 || !lw1.All(char.IsLetter) || SwipeTyping.IsMisspelling(lw1)) return;
-                lock (noFix) noFix.Add(lw1);
+                bool added1; lock (noFix) added1 = noFix.Add(lw1);
+                if (added1) lock (noFix) SetPref("klawiatura-bez-korekty", string.Join("|", noFix.Skip(Math.Max(0, noFix.Count - 500))));   // na stałe - nie poprawia drugi raz
                 if (!SwipeTyping.IsKnown(lw1)) askAdd(kw.Trim());
             };
             Action<string, string> fixLearned = null;   // ustawiane nizej (pasek komunikatu)

@@ -11,6 +11,13 @@ namespace Velivo
     internal static class SwipeTyping
     {
         // polskie litery przeciaga sie przez litere podstawowa - takze "ź" przez "z" (jak w telefonie)
+        // forma rozkazujaca znanego czasownika (slownik jej nie ma): naprawiaj(cie) <- naprawiać, kupuj(cie) <- kupować
+        static bool Imperative(string w, ICollection<string> m)
+        {
+            var b = w.EndsWith("cie") ? w.Substring(0, w.Length - 3) : w;
+            return b.Length >= 4 && (b.EndsWith("aj") && m.Contains(b.Substring(0, b.Length - 1) + "ć") || b.EndsWith("uj") && m.Contains(b.Substring(0, b.Length - 2) + "ować"));
+        }
+
         static Dictionary<int, List<KeyValuePair<string, Entry>>> _byLen;
         // odleglosc (zamiana, brak, nadmiar, przestawienie liter); od "max" wzwyz - wynik = max
         static int Dist(string a, string b, int max)
@@ -172,7 +179,7 @@ namespace Velivo
                 if (restOk != null && (IsVerbish(restOk) || !_foldAll.ContainsKey(Fold(w))))   // czasownik - osobno, nawet gdy blad "niewiem" jest w slowniku z tekstow
                     return (char.IsUpper(typed[0]) ? "Nie " : "nie ") + restOk;
             }
-            if (main.Contains(w)) return null;
+            if (main.Contains(w) || Imperative(w, main)) return null;
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
             var fw = new string(w.Select(BaseKey).ToArray());
             Entry best = null;
@@ -192,6 +199,24 @@ namespace Velivo
                 }
                 foreach (var c in abc) cand(fw + c);
             }
+            if (best == null && w.Length >= 6 && !anyRank)
+            {   // dluzsze slowo: najblizsze znane slowo (takze rzadsze): jedna pomylka (windos -> windows) albo dwie, gdy zgadza sie poczatek
+                // (literokem -> literówek; dobre slowo spoza slownika, np. kompiluje, zostaje)
+                var idx = _byLen;
+                if (idx == null) { idx = new Dictionary<int, List<KeyValuePair<string, Entry>>>(); foreach (var kv in fold) { if (!idx.TryGetValue(kv.Key.Length, out var l)) idx[kv.Key.Length] = l = new List<KeyValuePair<string, Entry>>(); l.Add(kv); } _byLen = idx; }
+                int bd = 3, bl = 0;
+                for (int len = fw.Length - 1; len <= fw.Length + 1; len++)
+                    if (idx.TryGetValue(len, out var group))
+                        foreach (var kv in group)
+                        {
+                            if (kv.Key[0] != fw[0] || kv.Value.Rank >= 120000) continue;
+                            int d = Dist(fw, kv.Key, Math.Min(bd + 1, 3));
+                            if (d == 2) { int p = 0; while (p < fw.Length && p < kv.Key.Length && fw[p] == kv.Key[p]) p++; if (p * 2 < fw.Length) continue; }
+                            // remis: ta sama dlugosc (zamiana litery) przed brakiem / nadmiarem, potem czestsze
+                            bool same = kv.Key.Length == fw.Length, bsame = bl == fw.Length;
+                            if (d < 3 && (d < bd || d == bd && (same && !bsame || same == bsame && Score(kv.Value) < Score(best)))) { bd = d; best = kv.Value; bl = kv.Key.Length; }
+                        }
+            }
             if (best == null && w.Length >= 4 && !anyRank)
             {   // dwie pomylki palca: litera sasiada na klawiaturze + jedna inna (eicej -> więcej) - tylko bardzo czeste slowa
                 const string abc = "abcdefghijklmnopqrstuvwxyz";
@@ -206,20 +231,6 @@ namespace Velivo
                             foreach (var c in abc) cand(x.Insert(j, c.ToString()));
                         }
                     }
-            }
-            if (best == null && w.Length >= 7 && !anyRank)
-            {   // dlugie slowo: najblizsze znane slowo (do 2 pomylek; literokem -> literówek, komunikatira -> komunikatora), takze rzadsze
-                var idx = _byLen;
-                if (idx == null) { idx = new Dictionary<int, List<KeyValuePair<string, Entry>>>(); foreach (var kv in fold) { if (!idx.TryGetValue(kv.Key.Length, out var l)) idx[kv.Key.Length] = l = new List<KeyValuePair<string, Entry>>(); l.Add(kv); } _byLen = idx; }
-                int bd = 3;
-                for (int len = fw.Length - 1; len <= fw.Length + 1; len++)
-                    if (idx.TryGetValue(len, out var group))
-                        foreach (var kv in group)
-                        {
-                            if (kv.Key[0] != fw[0] || kv.Value.Rank >= 120000) continue;
-                            int d = Dist(fw, kv.Key, Math.Min(bd + 1, 3));
-                            if (d < 3 && (d < bd || (d == bd && Score(kv.Value) < Score(best)))) { bd = d; best = kv.Value; }
-                        }
             }
             if (best == null || best.Word == w) return null;
             var r = Polite(best.Word);

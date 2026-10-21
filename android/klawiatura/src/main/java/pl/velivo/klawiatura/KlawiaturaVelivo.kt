@@ -102,7 +102,7 @@ class KlawiaturaVelivo : InputMethodService() {
     private var cur = ""                // bieżące słowo z klawiszy
     private var prevWord: String? = null; private var prevWord2: String? = null
     private var fixFrom: String? = null; private var fixTo: String? = null; private var fixSep = ""
-    private val keep = HashSet<String>()   // cofnięte poprawki - bez poprawiania do końca sesji
+    private val keep by lazy { HashSet(prefs(this).getStringSet("bez-korekty", emptySet()) ?: emptySet()) }   // cofnięte poprawki (⌫) - zapamiętane na stałe, tych słów już nie poprawiamy
     private var addAsk: String? = null    // „Dodać do słownika?”
     private var sentence = StringBuilder()
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
@@ -243,7 +243,8 @@ class KlawiaturaVelivo : InputMethodService() {
         val f = fixFrom; val t = fixTo
         if (f != null && t != null && before(t.length + fixSep.length) == t + fixSep) {
             ic.beginBatchEdit(); ic.deleteSurroundingText(t.length + fixSep.length, 0); ic.commitText(f + fixSep, 1); ic.endBatchEdit()
-            keep.add(f.lowercase()); fixFrom = null; addAsk = f; view.refresh(); return
+            keep.add(f.lowercase()); prefs(this).edit().putStringSet("bez-korekty", HashSet(keep.toList().takeLast(500))).apply()
+            fixFrom = null; addAsk = f; view.refresh(); return
         }
         fixFrom = null
         // ⌫ po przeciągnięciu - całe słowo i zapomnienie złego śladu

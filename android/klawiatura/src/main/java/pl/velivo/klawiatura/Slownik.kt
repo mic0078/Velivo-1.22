@@ -106,6 +106,12 @@ object Slownik {
         return true
     }
 
+    // forma rozkazująca znanego czasownika (słownik jej nie ma): naprawiaj(cie) <- naprawiać, kupuj(cie) <- kupować
+    private fun imperative(w: String, m: Set<String>): Boolean {
+        val b = w.removeSuffix("cie")
+        return b.length >= 4 && (b.endsWith("aj") && b.dropLast(1) + "ć" in m || b.endsWith("uj") && b.dropLast(2) + "ować" in m)
+    }
+
     @Volatile private var byLen: HashMap<Int, ArrayList<Pair<String, Entry>>>? = null
     // odległość (zamiana, brak, nadmiar, przestawienie liter); od "max" wzwyż - wynik = max
     private fun dist(a: String, b: String, max: Int): Int {
@@ -150,7 +156,7 @@ object Slownik {
             val restOk = foldAll?.get(fold(rest))?.filter { it.rank < 4000 }?.minByOrNull { if (it.word == rest) -1.0 else score(it) }?.word
             if (restOk != null && (isVerbish(restOk) || foldAll?.containsKey(fold(w)) != true)) return (if (typed[0].isUpperCase()) "Nie " else "nie ") + restOk
         }
-        if (w in m) return null
+        if (w in m || imperative(w, m)) return null
         synchronized(ownFold) { if (ownFold.containsValue(w)) return null }
         val fw = w.map(::baseKey).joinToString("")
         var best: Entry? = foldAll?.get(fw)?.minByOrNull(::score) ?: f[fw]
@@ -158,6 +164,19 @@ object Slownik {
         if (best == null && ownSame != null && ownSame != w) best = Entry(ownSame, "", 3000)
         else if (best == null && w.length >= 4) {
             variants(fw) { v -> val e = f[v]; if (e != null && (anyRank || e.rank < 15000) && (best == null || score(e) < score(best!!))) best = e }
+        }
+        if (best == null && w.length >= 6 && !anyRank) {
+            // dłuższe słowo: najbliższe znane słowo (także rzadsze): jedna pomyłka (windos -> windows) albo dwie, gdy zgadza się początek
+            // (literokem -> literówek; dobre słowo spoza słownika, np. kompiluje, zostaje)
+            val idx = byLen ?: HashMap<Int, ArrayList<Pair<String, Entry>>>().also { m -> f.forEach { (k, e) -> m.getOrPut(k.length) { ArrayList() }.add(k to e) }; byLen = m }
+            var bd = 3; var bl = 0
+            for (len in fw.length - 1..fw.length + 1) for ((k, e) in idx[len] ?: continue) {
+                if (k[0] != fw[0] || e.rank >= 120000) continue
+                val d = dist(fw, k, minOf(bd + 1, 3))
+                if (d == 2 && fw.commonPrefixWith(k).length * 2 < fw.length) continue
+                // remis: ta sama długość (zamiana litery) przed brakiem / nadmiarem, potem częstsze
+                if (d < 3 && (d < bd || (d == bd && (k.length == fw.length) > (bl == fw.length) || d == bd && (k.length == fw.length) == (bl == fw.length) && score(e) < score(best!!)))) { bd = d; best = e; bl = k.length }
+            }
         }
         if (best == null && w.length >= 4 && !anyRank) {
             // dwie pomyłki palca: litera sąsiada na klawiaturze + jedna inna (eicej -> więcej) - tylko bardzo częste słowa
@@ -169,15 +188,6 @@ object Slownik {
                     if (j < x.length) { cand(x.removeRange(j, j + 1)); if (j != i) for (c in abc) if (c != x[j]) cand(x.substring(0, j) + c + x.substring(j + 1)) }
                     for (c in abc) cand(x.substring(0, j) + c + x.substring(j))
                 }
-            }
-        }
-        if (best == null && w.length >= 7 && !anyRank) {
-            // długie słowo: najbliższe znane słowo (do 2 pomyłek; literokem -> literówek, komunikatira -> komunikatora), także rzadsze
-            val idx = byLen ?: HashMap<Int, ArrayList<Pair<String, Entry>>>().also { m -> f.forEach { (k, e) -> m.getOrPut(k.length) { ArrayList() }.add(k to e) }; byLen = m }
-            var bd = 3
-            for (len in fw.length - 1..fw.length + 1) for ((k, e) in idx[len] ?: continue) {
-                if (k[0] != fw[0] || e.rank >= 120000) continue
-                val d = dist(fw, k, minOf(bd + 1, 3)); if (d < 3 && (d < bd || (d == bd && score(e) < score(best!!)))) { bd = d; best = e }
             }
         }
         val b = best ?: return null

@@ -709,12 +709,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // mode: "main" (pakiety), "tunnel" (plik do `to`), "tunnel-in" (plik do nas, `tunnel` = id)
     private fun relayConnect(relay: Contact, mode: String, tunnel: String? = null, to: String? = null): Frames? = runCatching {
         val hp = (relay.relay ?: return null).split(':'); if (hp.size != 2) return null
-        // najpierw adres w sieci domowej (router bez „NAT loopback”), potem internet
-        val lanSock = runCatching { InetAddress.getByName(relay.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { it.isSiteLocalAddress }
-            ?.let { a -> runCatching { java.net.Socket().apply { connect(InetSocketAddress(a, hp[1].toInt()), 1500) } }.getOrNull() }
-        val sock = lanSock ?: java.net.Socket()
+        val sock = java.net.Socket()
         try {
-            if (lanSock == null) sock.connect(InetSocketAddress(hp[0], hp[1].toInt()), 12000)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
+            sock.connect(InetSocketAddress(hp[0], hp[1].toInt()), 12000)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
             sock.soTimeout = 15000; sock.keepAlive = true
             val out = sock.getOutputStream(); val inp = DataInputStream(sock.getInputStream())
             val nc = ByteArray(16).also { random.nextBytes(it) }

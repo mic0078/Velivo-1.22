@@ -96,12 +96,7 @@ namespace Velivo
                 using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
                     cts.CancelAfter(TimeSpan.FromSeconds(12));
-                    // najpierw adres w sieci domowej (komputer w domu, ktory nie slyszy sieci - np. zapora; router bez "NAT loopback"), potem internet
-                    bool lan = false;
-                    if (IPAddress.TryParse(relay.Addr ?? "", out var la) && !IPAddress.IsLoopback(la) && TurnPeerOk(la))
-                        try { using (var lc = CancellationTokenSource.CreateLinkedTokenSource(cts.Token)) { lc.CancelAfter(1500); await cl.ConnectAsync(la, port, lc.Token); lan = true; } }
-                        catch (Exception) { cl.Dispose(); cl = new TcpClient(); }
-                    if (!lan) await cl.ConnectAsync(hp[0], port, cts.Token);   // nazwa No-IP sprawdzana przy kazdym polaczeniu - zmiana IP domu nie przeszkadza
+                    await cl.ConnectAsync(hp[0], port, cts.Token);   // nazwa No-IP sprawdzana przy kazdym polaczeniu - zmiana IP domu nie przeszkadza
                     var s = cl.GetStream();
                     var nc = RandomNumberGenerator.GetBytes(16);
                     var hello = Encoding.UTF8.GetBytes(new JsonObject { ["Type"] = "relay-hello", ["Id"] = _komId, ["Relay"] = relay.Id, ["Nonce"] = Convert.ToBase64String(nc),

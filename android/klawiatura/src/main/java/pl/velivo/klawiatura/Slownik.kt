@@ -141,7 +141,7 @@ object Slownik {
     }
 
     // autokorekta: słowo spoza słownika -> najczęstsze znane słowo różniące się polskimi znakami albo jedną literą; null = zostaw
-    fun correct(typed: String, keep: Collection<String>? = null, anyRank: Boolean = false): String? {
+    fun correct(typed: String, keep: Collection<String>? = null, anyRank: Boolean = false, split: Boolean = true): String? {
         if (words == null || typed.length < 2 || !typed.all { it.isLetter() }) return null
         if (!index()) return null
         val w = typed.lowercase()
@@ -157,6 +157,15 @@ object Slownik {
             if (restOk != null && (isVerbish(restOk) || foldAll?.containsKey(fold(w)) != true)) return (if (typed[0].isUpperCase()) "Nie " else "nie ") + restOk
         }
         if (w in m || imperative(w, m)) return null
+        if (split && w.length >= 4 && !anyRank) {
+            // sklejone dwa znane słowa (otym -> o tym, nastole -> na stole, sietak -> się tak) - przed poprawianiem liter
+            val all = foldAll
+            for (i in 1..minOf(4, w.length - 2)) {
+                val l = all?.get(fold(w.substring(0, i)))?.filter { it.rank < 300 }?.minByOrNull { it.rank } ?: continue
+                val r = all[fold(w.substring(i))]?.filter { it.rank < 120000 }?.minByOrNull(::score) ?: continue
+                return cap(typed, l.word + " " + r.word)
+            }
+        }
         synchronized(ownFold) { if (ownFold.containsValue(w)) return null }
         val fw = w.map(::baseKey).joinToString("")
         var best: Entry? = foldAll?.get(fw)?.minByOrNull(::score) ?: f[fw]
@@ -188,6 +197,16 @@ object Slownik {
                     if (j < x.length) { cand(x.removeRange(j, j + 1)); if (j != i) for (c in abc) if (c != x[j]) cand(x.substring(0, j) + c + x.substring(j + 1)) }
                     for (c in abc) cand(x.substring(0, j) + c + x.substring(j))
                 }
+            }
+        }
+        if (best == null && split && w.length >= 5 && !anyRank) {
+            // sklejone słowa (michodziloe -> mi chodziło): częste krótkie słowo + znane albo poprawione słowo
+            for (i in 1..minOf(4, w.length - 3)) {
+                val l = w.substring(0, i)
+                if ((foldAll?.get(fold(l))?.firstOrNull { it.word == l }?.rank ?: Int.MAX_VALUE) >= 300) continue
+                val r = w.substring(i)
+                val rw = if (r in m) r else correct(r, keep, false, false)?.lowercase()?.takeIf { !it.contains(' ') } ?: continue
+                return cap(typed, "$l $rw")
             }
         }
         val b = best ?: return null

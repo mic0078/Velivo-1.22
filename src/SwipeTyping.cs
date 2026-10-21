@@ -146,7 +146,7 @@ namespace Velivo
             }
         }
         // anyRank: literowka tez do rzadkiego slowa (do rozpoznania literowek w Moim slowniku, nie do poprawiania w trakcie pisania)
-        internal static string Correct(string typed, ICollection<string> keep = null, bool anyRank = false)
+        internal static string Correct(string typed, ICollection<string> keep = null, bool anyRank = false, bool split = true)
         {
             if (_words == null || string.IsNullOrEmpty(typed) || typed.Length < 2 || !typed.All(char.IsLetter)) return null;
             var w = typed.ToLowerInvariant();
@@ -180,6 +180,17 @@ namespace Velivo
                     return (char.IsUpper(typed[0]) ? "Nie " : "nie ") + restOk;
             }
             if (main.Contains(w) || Imperative(w, main)) return null;
+            if (split && w.Length >= 4 && !anyRank && _foldAll != null)
+            {   // sklejone dwa znane slowa (otym -> o tym, nastole -> na stole, sietak -> się tak) - przed poprawianiem liter
+                for (int i = 1; i <= Math.Min(4, w.Length - 2); i++)
+                {
+                    if (!_foldAll.TryGetValue(Fold(w.Substring(0, i)), out var ll) || !_foldAll.TryGetValue(Fold(w.Substring(i)), out var rl)) continue;
+                    var le = ll.Where(e => e.Rank < 300).OrderBy(e => e.Rank).FirstOrDefault(); var re = rl.Where(e => e.Rank < 120000).OrderBy(Score).FirstOrDefault();
+                    if (le == null || re == null) continue;
+                    var sp = le.Word + " " + re.Word;
+                    return char.IsUpper(typed[0]) ? char.ToUpperInvariant(sp[0]) + sp.Substring(1) : sp;
+                }
+            }
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
             var fw = new string(w.Select(BaseKey).ToArray());
             Entry best = null;
@@ -231,6 +242,19 @@ namespace Velivo
                             foreach (var c in abc) cand(x.Insert(j, c.ToString()));
                         }
                     }
+            }
+            if (best == null && split && w.Length >= 5 && !anyRank)
+            {   // sklejone slowa (michodziloe -> mi chodziło): czeste krotkie slowo + znane albo poprawione slowo
+                for (int i = 1; i <= Math.Min(4, w.Length - 3); i++)
+                {
+                    var l = w.Substring(0, i);
+                    if (_foldAll == null || !_foldAll.TryGetValue(Fold(l), out var le) || !le.Any(e => e.Word == l && e.Rank < 300)) continue;
+                    var rest = w.Substring(i);
+                    var rw = main.Contains(rest) ? rest : Correct(rest, keep, false, false)?.ToLowerInvariant();
+                    if (rw == null || rw.Contains(' ')) continue;
+                    var sp = l + " " + rw;
+                    return char.IsUpper(typed[0]) ? char.ToUpperInvariant(sp[0]) + sp.Substring(1) : sp;
+                }
             }
             if (best == null || best.Word == w) return null;
             var r = Polite(best.Word);

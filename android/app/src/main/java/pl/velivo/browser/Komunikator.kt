@@ -734,6 +734,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     // 🌍 pozostali pośrednicy (inne komputery z Velivo w kontaktach) - wiadomości idą przez każdego, który działa
     private val upMore = java.util.concurrent.ConcurrentHashMap<String, Frames>()
+    private val upRx = java.util.concurrent.ConcurrentHashMap<Frames, Long>()   // ostatnia ramka od pośrednika (odpowiedź na sygnał)
     @Volatile private var moreAt = 0L
     private fun connectMore(relays: List<Contact>) {
         if (System.currentTimeMillis() - moreAt < 60000) return
@@ -748,15 +749,17 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }.start()
     }
     private fun upReader(ff: Frames, rl: Contact) = Thread {
+        upRx[ff] = System.currentTimeMillis()
         runCatching {
             while (up === ff || upMore[rl.id] === ff) {
                 val p = JSONObject(String(ff.readFrame(), Charsets.UTF_8)); val t = p.optString("t")
+                upRx[ff] = System.currentTimeMillis()
                 if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(rl, tid) }.start(); continue }
                 if (t.startsWith("p2p-")) handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true)
             }
         }
         if (up === ff) up = null
-        upMore.remove(rl.id, ff); runCatching { ff.close() }
+        upMore.remove(rl.id, ff); upRx.remove(ff); runCatching { ff.close() }
         main.post { onChange() }
     }.start()
 
@@ -796,6 +799,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val u = up
             if (u != null) {
                 if (now - lastPing > 20000) { lastPing = now; upSend(u, JSONObject().put("t", "relay-ping")); upMore.values.forEach { upSend(it, JSONObject().put("t", "relay-ping")) } }
+                // połączenie „umarło po cichu” (operator zerwał bez powiadomienia) - pośrednik nie odpowiada na sygnał 50 s: od nowa
+                (listOf(u) + upMore.values).forEach { x -> if (now - (upRx[x] ?: now) > 50000) runCatching { x.close() } }
                 connectMore(relays)   // każdy włączony pośrednik przekazuje - łączymy się ze wszystkimi
                 return@runCatching
             }

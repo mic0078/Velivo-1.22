@@ -261,6 +261,8 @@ Chats, photos and files between your phones and computers with Velivo – no pho
 * **Notifications** also when Velivo is closed; reply straight from the notification.
 * **More:** long-press a contact – rename, delete. 🎨 – colours. Everything is encrypted and stored only on your devices.
 
+**📹 Video call:** in a chat tap 📹 (on the computer 📹 next to 📎). The other person sees “Answer / Decline” (in the background – a notification). During the call: 🎤 microphone, 📷 camera, 🔄 front/back camera, ⏹ end. The first time the phone asks for camera and microphone. At home (🏠) the picture goes directly between devices; over the internet (🌍) usually too, but some mobile networks may block it.
+
 ## 9. When something goes wrong
 
 - If Velivo closes because of an error, next time it opens it shows **"Velivo closed because of an error"** with a **Copy** button – send that description to the Velivo developer (no addresses or page content – just how the error happened).

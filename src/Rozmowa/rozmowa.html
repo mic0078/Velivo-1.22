@@ -1,0 +1,83 @@
+<!doctype html>
+<!-- Rozmowa wideo Velivo (Windows i telefon): obraz i dźwięk WebRTC prosto między urządzeniami,
+     zestawienie połączenia przez szyfrowany komunikator (velivo.send / chrome.webview.postMessage, odpowiedzi - onSig) -->
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+html,body{margin:0;height:100%;background:#120f24;color:#fff;font-family:system-ui,sans-serif;overflow:hidden}
+#you{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#120f24}
+#me{position:fixed;right:12px;top:12px;width:28vw;max-width:220px;border-radius:12px;border:2px solid #7c4dff;transform:scaleX(-1);background:#000}
+#st{position:fixed;left:0;right:0;top:40%;text-align:center;font-size:20px;text-shadow:0 1px 4px #000}
+#bar{position:fixed;left:0;right:0;bottom:24px;display:flex;justify-content:center;gap:18px}
+button{width:60px;height:60px;border-radius:50%;border:0;font-size:24px;background:#3a2f6b;color:#fff}
+button.off{background:#6b6b80}#end{background:#e53935}
+</style></head><body>
+<video id="you" autoplay playsinline></video><video id="me" autoplay playsinline muted></video>
+<div id="st"></div>
+<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="end">⏹</button></div>
+<script>
+const q = new URLSearchParams(location.search), caller = q.get('rola') === 'dzwoni', pl = q.get('pl') !== '0';
+const T = (p, e) => pl ? p : e;
+const you = document.getElementById('you'), me = document.getElementById('me'), st = document.getElementById('st');
+function status(s) { st.textContent = s; }
+function out(o) { const s = JSON.stringify(o); if (window.velivo) velivo.send(s); else if (window.chrome && chrome.webview) chrome.webview.postMessage(s); }
+mic.title = T('Mikrofon wł./wył.', 'Microphone on/off'); cam.title = T('Kamera wł./wył.', 'Camera on/off');
+flip.title = T('Przełącz kamerę', 'Switch camera'); end.title = T('Zakończ rozmowę', 'End call');
+// poza domem - adres publiczny ze STUN (w domu wystarczą adresy sieci domowej)
+const ice = q.get('net') === '1' ? [{ urls: 'stun:stun.l.google.com:19302' }] : [];
+let pc = null, local = null, facing = 'user', connected = false, done = false;
+const pend = [];
+async function media() {
+  try { return await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  catch (e) { return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+}
+async function start() {
+  status(caller ? T('Dzwonię…', 'Calling…') : T('Łączę…', 'Connecting…'));
+  try { local = await media(); } catch (e) { status(T('Brak dostępu do mikrofonu i kamery', 'No microphone or camera access')); out({ k: 'end' }); setTimeout(() => out({ k: 'close' }), 2500); return; }
+  me.srcObject = local;
+  if (!local.getVideoTracks().length) { cam.classList.add('off'); flip.style.display = 'none'; }
+  pc = new RTCPeerConnection({ iceServers: ice });
+  local.getTracks().forEach(t => pc.addTrack(t, local));
+  pc.ontrack = e => { if (you.srcObject !== e.streams[0]) you.srcObject = e.streams[0]; };
+  pc.onicecandidate = e => { if (e.candidate) out({ k: 'ice', c: e.candidate.toJSON() }); };
+  pc.onconnectionstatechange = () => {
+    const s = pc.connectionState;
+    if (s === 'connected') { connected = true; status(''); }
+    else if (s === 'disconnected') status(T('Słabe połączenie…', 'Weak connection…'));
+    else if (s === 'failed') { status(T('Nie udało się połączyć', 'Could not connect')); hang(); }
+  };
+  out({ k: caller ? 'ring' : 'accept' });
+  if (caller) setTimeout(() => { if (!connected && !done && !pc.remoteDescription) { status(T('Nie odbiera', 'No answer')); hang(); } }, 45000);
+}
+function flush() { while (pend.length) pc.addIceCandidate(pend.shift()).catch(() => {}); }
+window.onSig = async function (o) {
+  if (typeof o === 'string') o = JSON.parse(o);
+  if (done) return;
+  try {
+    if (o.k === 'accept' && caller && pc) { status(T('Łączę…', 'Connecting…')); const of = await pc.createOffer(); await pc.setLocalDescription(of); out({ k: 'offer', sdp: of.sdp }); }
+    else if (o.k === 'offer' && pc) { await pc.setRemoteDescription({ type: 'offer', sdp: o.sdp }); flush(); const an = await pc.createAnswer(); await pc.setLocalDescription(an); out({ k: 'answer', sdp: an.sdp }); }
+    else if (o.k === 'answer' && pc) { await pc.setRemoteDescription({ type: 'answer', sdp: o.sdp }); flush(); }
+    else if (o.k === 'ice') { if (pc && pc.remoteDescription) pc.addIceCandidate(o.c).catch(() => {}); else pend.push(o.c); }
+    else if (o.k === 'reject' || o.k === 'busy') { status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
+    else if (o.k === 'end') { status(T('Rozmowa zakończona', 'Call ended')); finish(); }
+  } catch (e) { status(T('Błąd połączenia', 'Connection error')); hang(); }
+};
+if (window.chrome && chrome.webview) chrome.webview.addEventListener('message', e => onSig(e.data));
+function finish() { if (done) return; done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
+function hang() { if (done) return; out({ k: 'end' }); finish(); }
+window.hang = hang;
+end.onclick = () => { status(T('Rozmowa zakończona', 'Call ended')); hang(); };
+mic.onclick = () => { if (!local) return; local.getAudioTracks().forEach(t => t.enabled = !t.enabled); mic.classList.toggle('off'); };
+cam.onclick = () => { if (!local) return; local.getVideoTracks().forEach(t => t.enabled = !t.enabled); cam.classList.toggle('off'); me.style.visibility = cam.classList.contains('off') ? 'hidden' : 'visible'; };
+flip.onclick = async () => {
+  if (!local || !local.getVideoTracks().length) return;
+  try {
+    facing = facing === 'user' ? 'environment' : 'user';
+    const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    const nt = s.getVideoTracks()[0], old = local.getVideoTracks()[0];
+    const snd = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video'); if (snd) await snd.replaceTrack(nt);
+    local.removeTrack(old); old.stop(); local.addTrack(nt); me.srcObject = local;
+    me.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none';
+  } catch (e) { flip.style.display = 'none'; }
+};
+start();
+</script></body></html>

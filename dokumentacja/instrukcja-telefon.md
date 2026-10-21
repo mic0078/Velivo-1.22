@@ -261,6 +261,8 @@ Rozmowy, zdjęcia i pliki między Twoimi telefonami i komputerami z Velivo – b
 * **Powiadomienia** także przy zamkniętym Velivo; odpowiedź prosto z powiadomienia.
 * **Więcej:** przytrzymaj kontakt – zmiana nazwy, usunięcie. 🎨 – kolory. Wszystko jest szyfrowane i zapisane tylko w Twoich urządzeniach.
 
+**📹 Rozmowa wideo:** w rozmowie stuknij 📹 (na komputerze 📹 obok 📎). U drugiej osoby pojawi się „Odbierz / Odrzuć” (w tle – powiadomienie). W trakcie: 🎤 mikrofon, 📷 kamera, 🔄 przednia/tylna kamera, ⏹ koniec. Za pierwszym razem telefon zapyta o kamerę i mikrofon. W domu (🏠) obraz idzie prosto między urządzeniami; przez internet (🌍) zwykle też, ale niektóre sieci komórkowe mogą to zablokować.
+
 ## 9. Gdy coś pójdzie nie tak
 
 - Jeśli Velivo zamknie się przez błąd, przy następnym uruchomieniu pokaże okno **„Velivo zamknęło się przez błąd”** z przyciskiem **Kopiuj** – wklej ten opis twórcy Velivo (bez adresów i treści stron – sam przebieg błędu).

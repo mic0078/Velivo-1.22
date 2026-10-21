@@ -309,6 +309,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (!seen.add(mid)) return   // powtórzenie (np. potwierdzenie nie doszło) - tylko ponowne ack
         if (seen.size > 2000) synchronized(seen) { seen.iterator().let { it.next(); it.remove() } }
         if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
+        if (text.startsWith(CALL)) { val o = runCatching { JSONObject(text.substring(CALL.length)) }.getOrNull() ?: return; onCallSignal(c, o); return }
         val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
@@ -326,6 +327,29 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         saveChat(c.id)
         deliver(c, m)
         return m
+    }
+
+    // 📹 rozmowa wideo: sygnały (dzwonię, odbieram, opis połączenia) jako zaszyfrowane wiadomości - poza czatem
+    var onCall: ((Contact, JSONObject) -> Unit)? = null
+    var ringing: Pair<String, Long>? = null   // kto dzwoni (z czasu, gdy Velivo było w tle)
+    fun sendCall(c: Contact, o: JSONObject) = deliver(c, Msg(true, CALL + o, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
+    private fun onCallSignal(c: Contact, o: JSONObject) {
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        when (o.optString("k")) {
+            "ring" -> { ringing = c.id to System.currentTimeMillis(); if (nm != null) notifyCall(nm, c) }
+            "end" -> { if (ringing?.first == c.id) ringing = null; nm?.cancel("rozmowa".hashCode()) }
+        }
+        main.post { onCall?.invoke(c, o) }
+    }
+    private fun notifyCall(nm: NotificationManager, c: Contact) {
+        channels(nm)
+        val pl = Locale.getDefault().language == "pl"
+        val pi = PendingIntent.getActivity(ctx, "rozmowa".hashCode(), openIntent(c.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        runCatching {
+            nm.notify("rozmowa".hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setContentTitle("📹 " + c.name).setContentText(if (pl) "Dzwoni – stuknij, by odebrać" else "Calling – tap to answer")
+                .setCategory(Notification.CATEGORY_CALL).setContentIntent(pi).setAutoCancel(true).setTimeoutAfter(45000).build())
+        }
     }
 
     private val inFlight = java.util.Collections.synchronizedSet(HashSet<String>())
@@ -918,6 +942,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val PORT = 41919
         const val CHUNK = 1 shl 20
         const val MAX_TEXT = 4000
+        const val CALL = "\u0001velivo-rozmowa\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
         fun hex(b: ByteArray) = b.joinToString("") { "%02X".format(it) }
@@ -945,6 +970,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private var chatRefresh: (() -> Unit)? = null
 
     init {
+        k.onCall = { c, o -> onCall(c, o) }
         k.askPair = { dev, code, accept ->
             AlertDialog.Builder(a).setTitle("💬 " + t("Nowy kontakt", "New contact"))
                 .setMessage(t("„$dev” chce dodać Cię do komunikatora Velivo.\n\nKod: $code\n\nPrzyjmij tylko, gdy na drugim urządzeniu jest ten sam kod.",
@@ -1062,6 +1088,85 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
 
     // mały okrągły przycisk-ikona w nagłówku (zwykły Button ma 88 dp szerokości i łamał tytuł na kilka linii)
+    // 📹 rozmowa wideo: strona rozmowy (rozmowa.html, WebRTC) na cały ekran; sygnały przez komunikator
+    private var callView: android.webkit.WebView? = null
+    private var callWith: String? = null
+    private var ringDlg: android.app.Dialog? = null
+    private var ringTone: android.media.Ringtone? = null
+    private fun onCall(c: Komunikator.Contact, o: JSONObject) {
+        val kind = o.optString("k")
+        if (kind == "ring") { if (callView != null) k.sendCall(c, JSONObject().put("k", "busy")) else incoming(c); return }
+        if (kind == "end" && callView == null) { ringDlg?.dismiss(); return }
+        if (callWith == c.id) callView?.evaluateJavascript("onSig(" + JSONObject.quote(o.toString()) + ")", null)
+    }
+    // ktoś dzwonił, gdy Velivo było w tle - po otwarciu od razu „Odbierz / Odrzuć”
+    private fun ringPending(c: Komunikator.Contact) {
+        val r = k.ringing ?: return
+        if (r.first == c.id && System.currentTimeMillis() - r.second < 45000) incoming(c)
+    }
+    private fun incoming(c: Komunikator.Contact) {
+        if (ringDlg?.isShowing == true) return
+        k.ringing = null
+        val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        fun btn(text: String, tip: String, color: Int, act: () -> Unit) = TextView(a).apply {
+            this.text = text; textSize = 30f; gravity = Gravity.CENTER; contentDescription = tip; tooltipText = tip
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
+            layoutParams = LinearLayout.LayoutParams(px(76), px(76)).apply { leftMargin = px(28); rightMargin = px(28) }
+            setOnClickListener { act() }
+        }
+        val name = TextView(a).apply { text = "📹 " + c.name + "\n" + t("dzwoni…", "is calling…"); textSize = 26f; gravity = Gravity.CENTER; setTextColor(ink) }
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER; setPadding(0, px(48), 0, 0)
+            addView(btn("✕", t("Odrzuć", "Decline"), Color.rgb(229, 57, 53)) { k.sendCall(c, JSONObject().put("k", "reject")); d.dismiss() })
+            addView(btn("📞", t("Odbierz", "Answer"), green) { d.dismiss(); openCall(c, false) }) }
+        d.setContentView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setBackgroundColor(pal().bg1); addView(name); addView(row) })
+        d.setOnCancelListener { k.sendCall(c, JSONObject().put("k", "reject")) }
+        d.setOnDismissListener { ringTone?.stop(); ringTone = null; ringDlg = null; a.getSystemService(NotificationManager::class.java)?.cancel("rozmowa".hashCode()) }
+        ringDlg = d; if (runCatching { d.show() }.isFailure) { ringDlg = null; return }
+        a.window.decorView.postDelayed({ if (ringDlg === d) d.dismiss() }, 45000)
+        ringTone = runCatching { android.media.RingtoneManager.getRingtone(a, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)) }.getOrNull()?.also { runCatching { it.play() } }
+    }
+    fun openCall(c: Komunikator.Contact, caller: Boolean) {
+        if (callView != null) return
+        val perms = arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.RECORD_AUDIO)
+        fun granted() = perms.all { a.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+        if (!granted()) a.requestPermissions(perms, 4711)
+        val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val w = android.webkit.WebView(a)
+        var ended = false
+        w.settings.javaScriptEnabled = true; w.settings.mediaPlaybackRequiresUserGesture = false
+        w.setBackgroundColor(Color.rgb(18, 15, 36))
+        w.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface fun send(s: String) {
+                val o = runCatching { JSONObject(s) }.getOrNull() ?: return
+                if (o.optString("k") == "close") { a.runOnUiThread { d.dismiss() }; return }
+                if (o.optString("k") == "end") ended = true
+                k.sendCall(c, o)
+            }
+        }, "velivo")
+        w.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onPermissionRequest(r: android.webkit.PermissionRequest) {
+                fun tryGrant(n: Int) { if (granted()) r.grant(r.resources) else if (n < 120) w.postDelayed({ tryGrant(n + 1) }, 500) else r.deny() }
+                a.runOnUiThread { tryGrant(0) }
+            }
+        }
+        val am = a.getSystemService(android.media.AudioManager::class.java)
+        val oldMode = am?.mode; val oldSpeaker = am?.isSpeakerphoneOn
+        runCatching { am?.mode = android.media.AudioManager.MODE_IN_COMMUNICATION; am?.isSpeakerphoneOn = true }
+        d.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        d.setContentView(w)
+        d.setOnDismissListener {
+            if (!ended) k.sendCall(c, JSONObject().put("k", "end"))
+            callView = null; callWith = null
+            runCatching { w.destroy() }
+            runCatching { oldMode?.let { am?.mode = it }; oldSpeaker?.let { am?.isSpeakerphoneOn = it } }
+        }
+        callView = w; callWith = c.id
+        val html = runCatching { a.assets.open("rozmowa.html").bufferedReader().use { it.readText() } }.getOrNull() ?: return
+        val q = "?rola=" + (if (caller) "dzwoni" else "odbiera") + "&net=" + (if (k.viaInternet(c.id)) "1" else "0") + "&pl=" + (if (pl) "1" else "0")
+        w.loadDataWithBaseURL("https://velivo.rozmowa/rozmowa.html$q", html, "text/html", "utf-8", null)
+        d.show()
+    }
+
     private fun icon(text: String, tip: String, size: Float = 20f, act: () -> Unit) = TextView(a).apply {
         this.text = text; textSize = size; gravity = Gravity.CENTER; setTextColor(ink); contentDescription = tip; tooltipText = tip
         isClickable = true; isFocusable = true
@@ -1362,8 +1467,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }
             title.setTextColor(ink)
         }
-        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back); addView(title) }
-        fill(); status()
+        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back); addView(title)
+            addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) }
+        fill(); status(); ringPending(c)
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }
         root.removeAllViews()
         root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(head); addView(scroll); addView(row) })

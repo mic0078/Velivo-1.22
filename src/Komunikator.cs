@@ -321,6 +321,7 @@ namespace Velivo
             KomSendUdp(ack, sender);
             if (!_komSeen.Add(mid)) return;   // powtorka - tylko ponowne potwierdzenie
             if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
+            if (text.StartsWith(KomCallTag, StringComparison.Ordinal)) { KomOnCall(c, text.Substring(KomCallTag.Length)); return; }   // 📹 sygnał rozmowy wideo - poza czatem
             if (text.Length > 4000) text = text.Substring(0, 4000);
             KomChat(c.Id).Add(new KomMsg { Mine = false, Text = text, Ts = ts, Ok = true, Mid = mid });
             bool visible = _komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == c.Id;
@@ -929,6 +930,7 @@ namespace Velivo
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
             var sendBtn = new Button { Content = "➤", FontSize = 16, Width = 44, Margin = new Thickness(6, 0, 0, 0), ToolTip = L.T("Wyślij") };
             var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
+            var callBtn = new Button { Content = "📹", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa wideo") };
             var bottom = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             DockPanel.SetDock(bottom, Dock.Bottom);
             // pasek stanu: wysylanie / odbior pliku z postepem, wyniki - okno zostaje otwarte
@@ -944,14 +946,14 @@ namespace Velivo
                 statusBar.Visibility = p >= 0 ? Visibility.Visible : Visibility.Collapsed; if (p >= 0) statusBar.Value = p;
                 statusHide.Stop(); if (p < 0) statusHide.Start();
             };
-            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
-            bottom.Children.Add(fileBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
+            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
+            bottom.Children.Add(callBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
             var msgs = new StackPanel { Margin = new Thickness(4) };
             var scroll = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(status); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
-            buttons.Add(sendBtn); buttons.Add(fileBtn);
+            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(callBtn);
             root.Margin = new Thickness(0);
             left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
             KomPal pal = null;
@@ -1025,7 +1027,7 @@ namespace Velivo
                     header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
                 }
-                input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = c != null;
+                input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = callBtn.IsEnabled = c != null;
                 msgs.Children.Clear();
                 if (c == null) return;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))
@@ -1093,6 +1095,7 @@ namespace Velivo
                 await KomSendFilesTo(w, c.Name, addr ?? IPAddress.Loopback, c);   // poza domem: tunel przez pośrednika
             }
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
+            callBtn.Click += (s, e) => KomOpenCall(Current(), true);
             leftButtons.Children.Add(Btn("🎨", L.T("Motyw komunikatora – kolory okna i wiadomości"), (s, e) =>
             {
                 var cm = new ContextMenu { PlacementTarget = (UIElement)s, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };

@@ -28,6 +28,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    // 📹 strona rozmowy wideo - ta sama co w przeglądarce i na Windows
+    sourceSets["main"].assets.srcDirs("src/main/assets", "../../src/Rozmowa")
 }
 
 // plik instalacyjny: Velivo-klawiatura-release.apk

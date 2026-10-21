@@ -4,6 +4,11 @@
     <permission android:name="pl.velivo.permission.KOMUNIKATOR" android:protectionLevel="signature" />
     <uses-permission android:name="pl.velivo.permission.KOMUNIKATOR" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 📹 rozmowa wideo w komunikatorze (kamera i mikrofon tylko w trakcie rozmowy) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- 🎨 Tapeta Velivo - tylko po wyborze w menu -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

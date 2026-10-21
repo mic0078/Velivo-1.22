@@ -30,6 +30,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-21: zrzuty ekranu mają działać w obie strony: Windows → telefon działa, telefon → Windows (Udostępnij → Velivo) jeszcze nie – do naprawy.
 * 2026-10-21: dzwonek rozmowy nie odblokowuje telefonu (bez prośby o PIN) – tylko okno nad ekranem blokady.
 * 2026-10-21: „BUILD FAILED” Androida po ~25 s = złe hasło klucza, nie kod; skrypt sprawdza hasło od razu (keytool).
+* 2026-10-21: sieć domowa zawsze działa: tryb „poza domem” wysyła przez pośrednika I w sieci domowej; z pośrednikiem łączymy się najpierw po adresie domowym (router bez NAT loopback).
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

@@ -198,7 +198,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // --- UDP ---
     private fun packet(t: String) = JSONObject().put("t", t).put("id", myId).put("device", deviceName()).put("ts", System.currentTimeMillis()).put("kind", "phone")
     private fun sendUdp(p: JSONObject, to: InetAddress?) {
-        up?.let { u -> upSend(u, p); return }   // 🌍 poza domem - wszystko przez pośrednika
+        up?.let { u -> upSend(u, p) }   // 🌍 poza domem - przez pośrednika, a sieć domowa i tak dalej (w domu nic nie znika)
         val d = p.toString().toByteArray(Charsets.UTF_8)
         val own = udp
         val out: (ByteArray, InetAddress) -> Unit = if (own != null) { b, to -> own.send(DatagramPacket(b, b.size, to, PORT)) } else udpOut ?: return
@@ -709,9 +709,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // mode: "main" (pakiety), "tunnel" (plik do `to`), "tunnel-in" (plik do nas, `tunnel` = id)
     private fun relayConnect(relay: Contact, mode: String, tunnel: String? = null, to: String? = null): Frames? = runCatching {
         val hp = (relay.relay ?: return null).split(':'); if (hp.size != 2) return null
-        val sock = java.net.Socket()
+        // najpierw adres w sieci domowej (router bez „NAT loopback”), potem internet
+        val lanSock = runCatching { InetAddress.getByName(relay.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { it.isSiteLocalAddress }
+            ?.let { a -> runCatching { java.net.Socket().apply { connect(InetSocketAddress(a, hp[1].toInt()), 1500) } }.getOrNull() }
+        val sock = lanSock ?: java.net.Socket()
         try {
-            sock.connect(InetSocketAddress(hp[0], hp[1].toInt()), 12000)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
+            if (lanSock == null) sock.connect(InetSocketAddress(hp[0], hp[1].toInt()), 12000)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
             sock.soTimeout = 15000; sock.keepAlive = true
             val out = sock.getOutputStream(); val inp = DataInputStream(sock.getInputStream())
             val nc = ByteArray(16).also { random.nextBytes(it) }

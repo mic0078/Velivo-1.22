@@ -270,7 +270,12 @@ namespace Velivo
                 {
                     var data = await Task.Run(() => fs.ReadFrame(), token);
                     var p = JsonNode.Parse(data); var t = (string)p?["t"];
-                    if (t == "relay-ping") { KomSendFrame(me, new JsonObject { ["t"] = "relay-pong" }); continue; }
+                    if (t == "relay-ping")
+                    {   // sygnał co 20 s - urządzenie poza domem nadal w sieci (inaczej po 95 s „poza siecią”, choć połączone)
+                        KomSendFrame(me, new JsonObject { ["t"] = "relay-pong" });
+                        var pid = id; _ = Dispatcher.BeginInvoke(new Action(() => { bool was = KomOnline(pid); _komLastSeen[pid] = DateTime.UtcNow; _komSeenAt[pid] = DateTime.Now; if (!was) _komRefresh?.Invoke(); }));
+                        continue;
+                    }
                     if (t == null || !t.StartsWith("p2p-", StringComparison.Ordinal) || (string)p["id"] != id) continue;   // tylko pakiety tego urzadzenia
                     var pto = (string)p["to"];
                     if (t == "p2p-who") { KomSendFrame(me, KomRelayHere()); KomLanRaw(p, null); foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p); continue; }

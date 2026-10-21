@@ -763,6 +763,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             while (up === ff || upMore[rl.id] === ff) {
                 val p = JSONObject(String(ff.readFrame(), Charsets.UTF_8)); val t = p.optString("t")
                 upRx[ff] = System.currentTimeMillis()
+                // odpowiedź pośrednika na sygnał - pośrednik nadal w sieci (inaczej po chwili „poza siecią”, choć połączone)
+                if (t == "relay-pong") { val was = online(rl.id); lastSeen[rl.id] = System.currentTimeMillis(); seenAt[rl.id] = System.currentTimeMillis(); viaNet[rl.id] = true; if (!was) main.post { onChange() }; continue }
                 if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(rl, tid) }.start(); continue }
                 if (t.startsWith("p2p-")) handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true)
             }

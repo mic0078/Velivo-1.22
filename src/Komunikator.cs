@@ -60,6 +60,7 @@ namespace Velivo
                     _komId = (string)o["id"];
                     _komTheme = (string)o["theme"] ?? "auto";
                     _komAutoImages = (bool?)o["autoimg"] ?? true;
+                    _komNotifyNew = (bool?)o["notifynew"] ?? true;
                     foreach (var iv in o["invites"]?.AsArray() ?? new JsonArray())   // ✉ zaproszenia czekajace na pośredniku
                     {
                         var ik = KomB64((string)iv["k"]); long ie = (long?)iv["exp"] ?? 0;
@@ -111,7 +112,7 @@ namespace Velivo
                 {
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
                 };
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(o.ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
@@ -248,6 +249,16 @@ namespace Velivo
             return true;
         }
 
+        // 📶 w domowej sieci jest urzadzenie z Velivo spoza kontaktow - powiadomienie raz na dobe (wylaczane w 🎨)
+        bool _komNotifyNew = true;
+        readonly Dictionary<string, DateTime> _komNewSeen = new Dictionary<string, DateTime>();
+        void KomNotifyNew(string id, string dev)
+        {
+            if (!_komNotifyNew || _komNewSeen.TryGetValue(id, out var at) && DateTime.UtcNow - at < TimeSpan.FromDays(1)) return;
+            _komNewSeen[id] = DateTime.UtcNow;
+            ShowToast(L.T("📶 Velivo w tej sieci: ") + (dev.Length > 0 ? dev : L.T("urządzenie")) + L.T(" – dodasz je w komunikatorze: ➕ Dodaj"), null);
+        }
+
         void KomHandle(JsonNode p, IPAddress sender)
         {
             KomLoad();
@@ -257,6 +268,7 @@ namespace Velivo
             if (Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 600000) return;
             var c = KomContactById(from);
             if (t == "p2p-bye") { if (c != null && _komLastSeen.Remove(c.Id)) _komRefresh?.Invoke(); return; }   // zamknal Velivo - od razu poza siecia
+            if (c == null && !IPAddress.IsLoopback(sender) && (t == "p2p-here" || t == "p2p-who")) KomNotifyNew(from, KomClean((string)p["device"]));
             if (c != null)
             {
                 bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; _komSeenAt[c.Id] = DateTime.Now;
@@ -1107,6 +1119,9 @@ namespace Velivo
                 var ai = new MenuItem { Header = L.T("🖼 Zdjęcia i pliki od kontaktów od razu w rozmowie (bez pytania)"), IsCheckable = true, IsChecked = _komAutoImages };
                 ai.Click += (a, b) => { _komAutoImages = ai.IsChecked; KomSave(); };
                 cm.Items.Add(ai);
+                var nn = new MenuItem { Header = L.T("📶 Powiadamiaj o urządzeniach Velivo w sieci spoza kontaktów"), IsCheckable = true, IsChecked = _komNotifyNew };
+                nn.Click += (a, b) => { _komNotifyNew = nn.IsChecked; KomSave(); };
+                cm.Items.Add(nn);
                 cm.IsOpen = true;
             }));
             leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)"), (s, e) =>

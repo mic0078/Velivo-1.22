@@ -218,6 +218,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (viaRelay) viaNet[from] = true else { lanSeen[from] = System.currentTimeMillis(); viaNet.remove(from) }
         if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) return true
         if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
+        if (!viaRelay && (t == "p2p-here" || t == "p2p-who") && contact(from) == null) notifyNewDevice(from, clean(p.optString("device")))
         contact(from)?.let { c ->
             val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); seenAt[c.id] = System.currentTimeMillis()
             if (t == "p2p-here" && !viaRelay && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
@@ -904,6 +905,28 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         android.media.RingtoneManager.getRingtone(ctx, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))?.play()
     }
 
+    // 📶 w domowym Wi-Fi jest urządzenie z Velivo spoza kontaktów - powiadomienie raz na dobę (do wyłączenia)
+    private fun notifyNewDevice(id: String, dev: String) {
+        if (!prefs.getBoolean("powiadom-nowe", true)) return
+        val now = System.currentTimeMillis(); if (now - prefs.getLong("nowe-urz-$id", 0) < 86400000) return
+        prefs.edit().putLong("nowe-urz-$id", now).apply()
+        val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+        channels(nm)
+        val pl = Locale.getDefault().language == "pl"
+        val pi = PendingIntent.getActivity(ctx, 78, openIntent(null), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val off = PendingIntent.getBroadcast(ctx, 79, Intent(ctx, KomunikatorAkcja::class.java).setAction(KomunikatorAkcja.NEW_OFF).setPackage(ctx.packageName), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        runCatching {
+            nm.notify("nowe-urz".hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setContentTitle(if (pl) "📶 Velivo w tej sieci" else "📶 Velivo on this network")
+                .setContentText(if (pl) "„${dev.ifEmpty { "Urządzenie" }}” – stuknij, by dodać do komunikatora" else "“${dev.ifEmpty { "Device" }}” – tap to add to the messenger")
+                .setContentIntent(pi).setAutoCancel(true).setOnlyAlertOnce(true)
+                .addAction(Notification.Action.Builder(null, if (pl) "Nie pokazuj" else "Don't show", off).build()).build())
+        }
+    }
+    var newDeviceNotifications: Boolean
+        get() = prefs.getBoolean("powiadom-nowe", true)
+        set(v) { prefs.edit().putBoolean("powiadom-nowe", v).apply() }
+
     private fun notifyPair(dev: String) {
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
         channels(nm)
@@ -1304,8 +1327,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     private fun addChoice() {
         AlertDialog.Builder(a).setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
-            .setItems(arrayOf("📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"))) { _, i ->
-                when (i) { 0 -> addContact(); 1 -> invite(); else -> joinDialog() }
+            .setItems(arrayOf("📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
+                "📶 " + (if (k.newDeviceNotifications) t("Powiadomienia o nowych urządzeniach: wł.", "New device notifications: on") else t("Powiadomienia o nowych urządzeniach: wył.", "New device notifications: off")))) { _, i ->
+                when (i) { 0 -> addContact(); 1 -> invite(); 2 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
@@ -1664,6 +1688,7 @@ class KomunikatorUsluga : Service() {
 class KomunikatorAkcja : android.content.BroadcastReceiver() {
     override fun onReceive(ctx: Context, i: Intent) {
         val k = Komunikator.get(ctx) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
+        if (i.action == NEW_OFF) { k.newDeviceNotifications = false; ctx.getSystemService(NotificationManager::class.java)?.cancel("nowe-urz".hashCode()); return }
         val c = k.contact(i.getStringExtra("id") ?: return) ?: return
         when (i.action) {
             READ -> { k.markRead(c.id); k.clearNotification(c.id) }
@@ -1682,6 +1707,7 @@ class KomunikatorAkcja : android.content.BroadcastReceiver() {
     companion object {
         const val REPLY = "pl.velivo.komunikator.ODPOWIEDZ"
         const val READ = "pl.velivo.komunikator.PRZECZYTANE"
+        const val NEW_OFF = "pl.velivo.komunikator.NOWE_WYL"
         const val TEXT = "tekst"
     }
 }

@@ -1091,7 +1091,11 @@ namespace Velivo
                 if (_komUnread.Remove(c.Id)) { KomSave(); FillList(); KomTrayUpdate(); }
                 if (w.IsActive) KomSendRead(c);
             }
-            _komRefresh = () => Dispatcher.BeginInvoke(new Action(() => { FillList(); FillChat(); }));
+            // odswiezanie okna najwyzej co 0,4 s - seria pakietow (obecnosc, potwierdzenia) nie przebudowuje rozmowy setki razy
+            bool refreshQueued = false;
+            var refreshTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            refreshTimer.Tick += (s, e) => { refreshTimer.Stop(); refreshQueued = false; if (_komWindow == w) { FillList(); FillChat(); } };
+            _komRefresh = () => Dispatcher.BeginInvoke(new Action(() => { if (refreshQueued) return; refreshQueued = true; refreshTimer.Start(); }));
             _komSelect = id => { _komOpenId = id; FillList(); FillChat(); };
             list.SelectionChanged += (s, e) => { if (list.SelectedItem is ListBoxItem it && it.Tag is string id && id != _komOpenId) { _komOpenId = id; FillChat(); } };
             void DoSend()

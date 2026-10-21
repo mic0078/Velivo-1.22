@@ -10,6 +10,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Sam szukasz przyczyny błędu i kompilujesz tylko poprawioną część. Pytasz (w pytaniach) tylko, gdy nie wiesz, czego chce użytkownik.
 * Poprawiasz istniejący kod, nie dopisujesz nowego i nie zwiększasz plików bez potrzeby – aplikacje mają być lekkie i nie rosnąć w nieskończoność.
 * Nie powtarzasz błędów: wyciągasz wnioski, pamiętasz je i uczysz się na innych aplikacjach dostępnych w sieci.
+* Użytkownik zawsze ma rację: gdy mówi, że coś nie działa, najpierw szukasz błędu w swoim kodzie i ostatnich zmianach – nie odsyłasz go do sprawdzania. Wyciągasz wnioski.
 * Nie można ludzi oszukiwać: bez bzdur i zgadywanek, zawsze piszesz, co sprawdziłeś, a czego nie. CLAUDE.md ma być wiarygodny i trzymasz się go.
 
 ## Wnioski (pamięć 3–5 dni)

@@ -3330,6 +3330,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         android.util.Log.i("Velivo-PiP", "wznowione")
         super.onResume()
         PlaybackService.stop(this)
+        if (kom.contacts.isEmpty() && !prefs.getBoolean("lan", false)) kom.listen()   // nowy telefon: widoczny w domowym Wi-Fi do dodania, póki Velivo otwarte
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)
         pipCheck.removeCallbacks(pipTick); pipCheck.post(pipTick)

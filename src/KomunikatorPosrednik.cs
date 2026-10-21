@@ -551,6 +551,8 @@ namespace Velivo
             if (!_komRelayOn || _komUp != null) return;   // poza domem (laptop) - nie ustalamy adresu obcej sieci
             var port = _komRelayPort;
             var (ext, mapped, note) = await Task.Run(() => KomUpnpAsync(port));
+            // wczesniej przeniesiony na inny port, a 41920 znow prowadzi tu (np. reczne przekierowanie) - wracamy na 41920
+            if (port != 41920 && _komRelayAuto && (await Task.Run(() => KomUpnpAsync(41920))).mapped) { _komRelayPort = 41920; KomSave(); KomRelayStart(); KomAnnounce(); return; }
             // port zajety w routerze (np. inny komputer w domu) - nastepny wolny 41920-41929, sam
             if (!mapped && note == "taken" && _komRelayAuto)
                 for (int p2 = 41920; p2 <= 41929 && !mapped; p2++)
@@ -614,7 +616,14 @@ namespace Velivo
                     using (var probe = new UdpClient(AddressFamily.InterNetwork)) { probe.Connect(url.Host, url.Port); local = ((IPEndPoint)probe.Client.LocalEndPoint).Address.ToString(); }
                     var (c2, b2) = await Soap("AddPortMapping", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol><NewInternalPort>" + port +
                         "</NewInternalPort><NewInternalClient>" + local + "</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>Velivo</NewPortMappingDescription><NewLeaseDuration>0</NewLeaseDuration>");
-                    return (ext, c2 == 200, c2 != 200 && b2.Contains("718") ? "taken" : "");
+                    if (c2 != 200 && b2.Contains("718"))
+                    {
+                        // juz przekierowany (np. recznie w routerze) - jesli na ten komputer, to dziala
+                        var (c3, b3) = await Soap("GetSpecificPortMappingEntry", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol>");
+                        var who = c3 == 200 ? System.Text.RegularExpressions.Regex.Match(b3, @"<NewInternalClient>(.*?)</NewInternalClient>").Groups[1].Value.Trim() : "";
+                        return (ext, who == local, who == local ? "" : "taken");
+                    }
+                    return (ext, c2 == 200, "");
                 }
             }
             catch (Exception) { return (null, false, ""); }

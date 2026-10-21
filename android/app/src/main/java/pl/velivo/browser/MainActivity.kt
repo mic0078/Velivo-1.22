@@ -3005,7 +3005,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // force: na chwilę także bez włączonej synchronizacji (prośba o Filmy i TV z telefonu bez parowania)
     private fun startLan(force: Boolean = false) {
-        if (!force && !prefs.getBoolean("lan", false) && kom.contacts.isEmpty()) return   // z kontaktami komunikatora - odbiór wiadomości, gdy Velivo otwarte
+        // bez kontaktów i bez synchronizacji: sam komunikator nasłuchuje, póki Velivo otwarte - telefon widoczny w domowym Wi-Fi do dodania
+        if (!force && !prefs.getBoolean("lan", false) && kom.contacts.isEmpty()) { kom.listen(); return }
         komOkno   // okna pytań komunikatora (kontakt, plik, wiadomość) gotowe przed pierwszym pakietem
         if (multicastLock == null) multicastLock = (applicationContext.getSystemService(WIFI_SERVICE) as WifiManager)
             .createMulticastLock("velivo-lan").apply { setReferenceCounted(false) }
@@ -3397,6 +3398,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         pipCheck.removeCallbacks(pipTick)
         if (kom.contacts.isNotEmpty() && !kom.background) kom.bye()   // bez odbioru w tle - kontakty od razu widzą „poza siecią”
         stopLan()
+        if (kom.contacts.isEmpty()) kom.close()   // nowy telefon bez kontaktów - widoczny tylko, gdy Velivo otwarte
         KomunikatorUsluga.start(this, kom)   // 💬 wiadomości z powiadomieniem także po zamknięciu Velivo
         idle.removeCallbacks(idleCheck)
         backgroundPlayback()

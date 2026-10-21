@@ -3334,6 +3334,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         android.util.Log.i("Velivo-PiP", "wznowione")
         super.onResume()
         PlaybackService.stop(this)
+        kom.wake()   // 🌍 po uśpieniu ekranu połączenie z pośrednikiem od nowa, gdy milczy
         startLan()   // sieć domowa wraca po onPause (stopLan): synchronizacja, komunikator; usługa w tle oddaje port 41919
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)

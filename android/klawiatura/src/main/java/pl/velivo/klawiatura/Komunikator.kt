@@ -731,6 +731,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         } catch (e: Exception) { runCatching { sock.close() }; throw e }
     }.getOrNull()
 
+    // połączenia z pośrednikami od nowa (stare po zmianie sieci albo uśpieniu telefonu bywają martwe bez błędu)
+    private fun dropUp() { up?.let { runCatching { it.close() } }; upMore.values.forEach { runCatching { it.close() } }; moreAt = 0L }
+    // telefon obudzony / Velivo na ekranie: pośrednik milczy ponad 25 s - od razu nowe połączenie (bez czekania 50 s)
+    fun wake() { val u = up ?: return; if (System.currentTimeMillis() - (upRx[u] ?: 0L) > 25000) Thread { dropUp() }.start() }
+
     private fun upSend(u: Frames, p: JSONObject) {
         val d = p.toString().toByteArray(Charsets.UTF_8)
         upWriter.execute { runCatching { u.writeFrame(d) }.onFailure { if (up === u) up = null; upMore.entries.removeIf { it.value === u }; runCatching { u.close() } } }
@@ -782,10 +787,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         while (true) runCatching {
             Thread.sleep(5000)
             // zmiana sieci (Wi-Fi <-> dane komórkowe): od razu od nowa - kto jest w domu, bez czekania na stare „widziany w domu”
-            val ips = runCatching { NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }.filter { !it.isLoopbackAddress && it is java.net.Inet4Address }.joinToString { it.hostAddress ?: "" } }.getOrDefault("")
+            val ips = runCatching { NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }.filter { !it.isLoopbackAddress && it is java.net.Inet4Address }.joinToString { it.hostAddress ?: "" } }.getOrDefault("") +
+                runCatching { " " + ctx.getSystemService(android.net.ConnectivityManager::class.java)?.activeNetwork }.getOrDefault("")   // nowa sieć (np. po uśpieniu) - jak wyłączenie i włączenie danych
             if (ips != lastIps) {
                 val first = lastIps.isEmpty(); lastIps = ips
-                if (!first) { lanSeen.clear(); runCatching { sendUdp(packet("p2p-who"), null) }; Thread.sleep(1500) }   // w domowym Wi-Fi komputery odpowiadają w ~1 s
+                if (!first) { dropUp(); lanSeen.clear(); runCatching { sendUdp(packet("p2p-who"), null) }; Thread.sleep(1500) }   // w domowym Wi-Fi komputery odpowiadają w ~1 s
             }
             // komputery z rozmowami poza domem (każdy z kontaktami może nim być); w domu - którykolwiek widoczny w sieci domowej
             val relays = synchronized(this) { contacts.filter { it.relay != null } }

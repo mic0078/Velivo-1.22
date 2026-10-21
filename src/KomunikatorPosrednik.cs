@@ -592,7 +592,7 @@ namespace Velivo
                     while (location == null && DateTime.UtcNow < end)
                     {
                         var t = udp.ReceiveAsync();
-                        if (await Task.WhenAny(t, Task.Delay(end - DateTime.UtcNow)) != t) break;
+                        if (await Task.WhenAny(t, Task.Delay(end - DateTime.UtcNow)) != t) { _ = t.ContinueWith(x => _ = x.Exception, TaskContinuationOptions.OnlyOnFaulted); break; }   // router nie odpowiedzial - bez wpisu w dzienniku
                         var m = System.Text.RegularExpressions.Regex.Match(Encoding.ASCII.GetString(t.Result.Buffer), @"(?im)^location:\s*(\S+)");
                         if (m.Success) location = m.Groups[1].Value;
                     }

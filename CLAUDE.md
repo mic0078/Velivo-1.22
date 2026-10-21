@@ -37,7 +37,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-22: ręczne przekierowanie 41920 w routerze → UPnP 718 → pośrednik sam przenosił się na 41921 (telefon tracił połączenie); teraz 718 na ten komputer = działa, powrót na 41920.
 * 2026-10-22: dom dostał nowy adres IP – telefon poza domem znał tylko stary i nie mógł wrócić; teraz próbuje nazwy domu (No-IP z adresu Jellyfin poza domem).
 * 2026-10-22: usługa komunikatora zatrzymana (powrót do aplikacji) zanim pokazała powiadomienie → awaria Androida 14; teraz zatrzymuje się sama po starcie.
-* 2026-10-22: usługa komunikatora w tle (ten sam port 41919) zostawała po powrocie do Velivo i zabierała pakiety synchronizacji – szybki dostęp przestał się synchronizować; teraz zatrzymywana w onResume.
+* 2026-10-22: po onPause (stopLan) sieć domowa nie wracała w onResume – szybki dostęp i komunikator w domu się gubiły; onResume woła startLan(). Przed zmianą cyklu życia sprawdź, co włącza i wyłącza sieć.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

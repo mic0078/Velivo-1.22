@@ -3334,8 +3334,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         android.util.Log.i("Velivo-PiP", "wznowione")
         super.onResume()
         PlaybackService.stop(this)
-        KomunikatorUsluga.stop(this, kom)   // usługa w tle słucha na tym samym porcie - zabierała pakiety synchronizacji (szybki dostęp)
-        if (kom.contacts.isEmpty() && !prefs.getBoolean("lan", false)) kom.listen()   // nowy telefon: widoczny w domowym Wi-Fi do dodania, póki Velivo otwarte
+        startLan()   // sieć domowa wraca po onPause (stopLan): synchronizacja, komunikator; usługa w tle oddaje port 41919
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)
         pipCheck.removeCallbacks(pipTick); pipCheck.post(pipTick)

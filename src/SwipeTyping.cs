@@ -247,6 +247,7 @@ namespace Velivo
             if (_main == null || typed.Length < 3 || !typed.All(char.IsLetter)) return fix;
             var w = typed.ToLowerInvariant();
             if (keep != null && keep.Contains(w)) return fix;
+            if (Imperative(w, _main)) return fix;   // naprawiaj - dobre slowo, bez dokanczania do "naprawiają"
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return fix;
             var p = Predict(typed, false, 3).FirstOrDefault(x => x.Length > typed.Length && Fold(x).StartsWith(Fold(w), StringComparison.Ordinal));   // pierwsze dokonczenie w pasku propozycji
             if (p == null || _foldAll == null) return fix;
@@ -270,7 +271,7 @@ namespace Velivo
             if (_words == null || string.IsNullOrEmpty(typed) || typed.Length < 3 || !typed.All(char.IsLetter)) return res;
             var w = typed.ToLowerInvariant();
             if (keep != null && keep.Contains(w)) return res;
-            Correct("xx"); var fold = _fold; var main = _main; if (fold == null || main == null || main.Contains(w)) return res;
+            Correct("xx"); var fold = _fold; var main = _main; if (fold == null || main == null || main.Contains(w) || Imperative(w, main)) return res;
             var fw = new string(w.Select(BaseKey).ToArray());
             var found = new Dictionary<string, Entry>();
             Action<string> cand = v => { if (fold.TryGetValue(v, out var e)) found[e.Word] = e; };
@@ -283,6 +284,17 @@ namespace Velivo
                 foreach (var c in abc) { if (c != fw[i]) cand(fw.Substring(0, i) + c + fw.Substring(i + 1)); cand(fw.Insert(i, c.ToString())); }
             }
             foreach (var c in abc) cand(fw + c);
+            if (found.Count == 0 && fw.Length >= 6)
+            {   // duzo bledow (interezuskdal): najblizsze slowa tylko jako propozycje - bez zamiany
+                if (_byLen == null) Correct("xxxxxxx");
+                var near = new List<(int D, Entry E)>();
+                for (int len = fw.Length - 2; len <= fw.Length + 2; len++)
+                    if (_byLen != null && _byLen.TryGetValue(len, out var group))
+                        foreach (var kv in group) { if (kv.Key[0] != fw[0] || kv.Value.Rank >= 120000) continue; int d = Dist(fw, kv.Key, 5); if (d < 5) near.Add((d, kv.Value)); }
+                foreach (var e in near.OrderBy(x => x.D).ThenBy(x => Score(x.E)).Take(count).Select(x => x.E))
+                    res.Add(char.IsUpper(typed[0]) ? char.ToUpperInvariant(e.Word[0]) + e.Word.Substring(1) : e.Word);
+                return res;
+            }
             foreach (var e in found.Values.OrderBy(Score).Take(count))
                 res.Add(char.IsUpper(typed[0]) ? char.ToUpperInvariant(e.Word[0]) + e.Word.Substring(1) : e.Word);
             return res;

@@ -205,6 +205,7 @@ object Slownik {
         if (typed.length < 3 || !typed.all { it.isLetter() }) return fix
         val w = typed.lowercase()
         if (keep != null && w in keep) return fix
+        if (imperative(w, m)) return fix   // naprawiaj - dobre słowo, bez dokańczania do „naprawiają”
         synchronized(ownFold) { if (ownFold.containsValue(w)) return fix }
         val p = predict(typed, false, 3).firstOrNull { it.length > typed.length && fold(it).startsWith(fold(w)) } ?: return fix
         val all = foldAll ?: return fix
@@ -227,11 +228,22 @@ object Slownik {
         val w = typed.lowercase()
         if (keep != null && w in keep) return res
         if (!index()) return res
-        val f = fold!!; if (w in main!!) return res
+        val f = fold!!; if (w in main!! || imperative(w, main!!)) return res
         val fw = w.map(::baseKey).joinToString("")
         val found = HashMap<String, Entry>()
         f[fw]?.let { found[it.word] = it }
         variants(fw) { v -> f[v]?.let { found[it.word] = it } }
+        if (found.isEmpty() && fw.length >= 6) {
+            // dużo błędów (interezuskdal): najbliższe słowa tylko jako propozycje - bez zamiany
+            if (byLen == null) correct("xxxxxxx")
+            val near = ArrayList<Pair<Int, Entry>>()
+            for (len in fw.length - 2..fw.length + 2) for ((k, e) in byLen?.get(len) ?: continue) {
+                if (k[0] != fw[0] || e.rank >= 120000) continue
+                val d = dist(fw, k, 5); if (d < 5) near.add(d to e)
+            }
+            near.sortedWith(compareBy({ it.first }, { score(it.second) })).take(count).forEach { res.add(cap(typed, it.second.word)) }
+            return res
+        }
         found.values.sortedBy(::score).take(count).forEach { res.add(cap(typed, it.word)) }
         return res
     }

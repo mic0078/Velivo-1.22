@@ -106,10 +106,14 @@ object Slownik {
         return true
     }
 
-    // forma rozkazująca znanego czasownika (słownik jej nie ma): naprawiaj(cie) <- naprawiać, kupuj(cie) <- kupować
+    // odmiana znanego czasownika (słownik jej nie ma): naprawiaj(cie) <- naprawiać, kupuj(cie) / instaluje / instalujesz <- -ować
     private fun imperative(w: String, m: Set<String>): Boolean {
         val b = w.removeSuffix("cie")
-        return b.length >= 4 && (b.endsWith("aj") && b.dropLast(1) + "ć" in m || b.endsWith("uj") && b.dropLast(2) + "ować" in m)
+        // czasownik na -ować także z przedrostkiem (instaluje <- zainstalować)
+        fun owac(stem: String) = arrayOf("", "za", "po", "prze", "wy", "do", "od", "na", "z", "s", "u", "roz", "przy", "w").any { it + stem + "ować" in m }
+        if (b.length >= 4 && (b.endsWith("aj") && b.dropLast(1) + "ć" in m || b.endsWith("uj") && owac(b.dropLast(2)))) return true
+        for (e in arrayOf("uje", "ujesz", "ujemy", "ujecie", "ują", "ujący", "ująca", "ujące")) if (w.length > e.length + 2 && w.endsWith(e) && owac(w.dropLast(e.length))) return true
+        return false
     }
 
     @Volatile private var byLen: HashMap<Int, ArrayList<Pair<String, Entry>>>? = null

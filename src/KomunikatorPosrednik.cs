@@ -546,20 +546,28 @@ namespace Velivo
         string _komRelayRouter = "";  // co zrobil router (do okna)
         System.Windows.Threading.DispatcherTimer _komRelayAutoTimer;
 
+        DateTime _komRelayMoved;   // zmiana portu najwyzej raz na godzine (bez przeskakiwania 41920 <-> 41921 w kolko)
+        bool _komRelayBusy;
         async Task KomRelayAutoAsync()
         {
-            if (!_komRelayOn || _komUp != null) return;   // poza domem (laptop) - nie ustalamy adresu obcej sieci
+            if (!_komRelayOn || _komUp != null || _komRelayBusy) return;
+            _komRelayBusy = true;
+            try { await KomRelayAutoOnce(); } finally { _komRelayBusy = false; }
+        }
+        async Task KomRelayAutoOnce()
+        {
+            bool canMove = DateTime.UtcNow - _komRelayMoved > TimeSpan.FromHours(1);   // poza domem (laptop) - nie ustalamy adresu obcej sieci
             var port = _komRelayPort;
             var (ext, mapped, note) = await Task.Run(() => KomUpnpAsync(port));
             // wczesniej przeniesiony na inny port, a 41920 znow prowadzi tu (np. reczne przekierowanie) - wracamy na 41920
-            if (port != 41920 && _komRelayAuto && (await Task.Run(() => KomUpnpAsync(41920))).mapped) { _komRelayPort = 41920; KomSave(); KomRelayStart(); KomAnnounce(); return; }
+            if (port != 41920 && _komRelayAuto && canMove && (await Task.Run(() => KomUpnpAsync(41920))).mapped) { _komRelayMoved = DateTime.UtcNow; _komRelayPort = 41920; KomSave(); KomRelayStart(); KomAnnounce(); return; }
             // port zajety w routerze (np. inny komputer w domu) - nastepny wolny 41920-41929, sam
-            if (!mapped && note == "taken" && _komRelayAuto)
+            if (!mapped && note == "taken" && _komRelayAuto && canMove)
                 for (int p2 = 41920; p2 <= 41929 && !mapped; p2++)
                 {
                     if (p2 == port) continue;
                     var res = await Task.Run(() => KomUpnpAsync(p2));
-                    if (res.mapped) { mapped = true; note = ""; ext = res.ext ?? ext; _komRelayPort = p2; KomSave(); KomRelayStart(); KomAnnounce(); return; }
+                    if (res.mapped) { _komRelayMoved = DateTime.UtcNow; mapped = true; note = ""; ext = res.ext ?? ext; _komRelayPort = p2; KomSave(); KomRelayStart(); KomAnnounce(); return; }
                 }
             if (ext == null && _komRelayAuto)
                 try { using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(6) }) ext = (await http.GetStringAsync("https://api.ipify.org")).Trim(); }

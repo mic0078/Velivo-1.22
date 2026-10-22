@@ -182,7 +182,12 @@ namespace Velivo
             if (_komRelayAutoTimer == null)
             {
                 _komRelayAutoTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromHours(1) };
-                _komRelayAutoTimer.Tick += async (s, e) => await KomRelayAutoAsync();
+                _komRelayAutoTimer.Tick += async (s, e) =>
+                {   // 🔎 co godzinę: pamięć i wątki pośrednika (szukanie przyczyny zawieszania / zamykania Velivo na NUCBOX)
+                    using (var me = System.Diagnostics.Process.GetCurrentProcess())
+                        App.LogInfo("Pośrednik: pamięć " + me.PrivateMemorySize64 / 1048576 + " MB, wątki " + me.Threads.Count + ", uchwyty " + me.HandleCount + ", połączenia " + _komRemote.Count);
+                    await KomRelayAutoAsync();
+                };
             }
             _komRelayAutoTimer.Start();
             try

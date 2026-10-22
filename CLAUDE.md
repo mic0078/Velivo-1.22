@@ -41,7 +41,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-22: Windows się zawieszał – możliwe przeskakiwanie pośrednika 41920 ↔ 41921 w kółko (restart + ogłoszenia); zmiana portu najwyżej raz na godzinę, bez nakładania się sprawdzeń.
 * 2026-10-22: komunikator Windows zamulał – każdy pakiet (obecność, potwierdzenie) przebudowywał całą rozmowę (300 dymków); odświeżanie najwyżej co 0,4 s. Zawieszony pośrednik = telefon traci internet.
 * 2026-10-22: „urządzenia poza domem: 0” mimo przekierowania w routerze = zapora Windows (np. po przywracaniu systemu); reguła wejściowa TCP 41920 (PowerShell jako administrator) – zadziałało.
-* 2026-10-22: po uśpieniu telefonu połączenie z pośrednikiem martwe bez błędu – wracało dopiero po wył./wł. danych; teraz zmiana sieci (activeNetwork) i powrót do Velivo łączą od nowa.
+* 2026-10-22: zrywanie połączenia przy każdej „zmianie sieci” (activeNetwork bywa null w tle) rozłączało co kilka sekund – usunięte; nowe połączenie tylko po 50 s ciszy albo po powrocie do Velivo (25 s ciszy).
 * 2026-10-22: przez internet po ~95 s „poza siecią”, choć połączenie żyło – sygnał relay-ping/pong nie odświeżał obecności; teraz odświeża po obu stronach.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 

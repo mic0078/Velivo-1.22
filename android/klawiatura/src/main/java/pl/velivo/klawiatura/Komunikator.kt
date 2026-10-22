@@ -789,11 +789,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         while (true) runCatching {
             Thread.sleep(5000)
             // zmiana sieci (Wi-Fi <-> dane komórkowe): od razu od nowa - kto jest w domu, bez czekania na stare „widziany w domu”
-            val ips = runCatching { NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }.filter { !it.isLoopbackAddress && it is java.net.Inet4Address }.joinToString { it.hostAddress ?: "" } }.getOrDefault("") +
-                runCatching { " " + ctx.getSystemService(android.net.ConnectivityManager::class.java)?.activeNetwork }.getOrDefault("")   // nowa sieć (np. po uśpieniu) - jak wyłączenie i włączenie danych
+            val ips = runCatching { NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }.filter { !it.isLoopbackAddress && it is java.net.Inet4Address }.joinToString { it.hostAddress ?: "" } }.getOrDefault("")
             if (ips != lastIps) {
                 val first = lastIps.isEmpty(); lastIps = ips
-                if (!first) { dropUp(); lanSeen.clear(); runCatching { sendUdp(packet("p2p-who"), null) }; Thread.sleep(1500) }   // w domowym Wi-Fi komputery odpowiadają w ~1 s
+                if (!first) { lanSeen.clear(); runCatching { sendUdp(packet("p2p-who"), null) }; Thread.sleep(1500) }   // w domowym Wi-Fi komputery odpowiadają w ~1 s
             }
             // komputery z rozmowami poza domem (każdy z kontaktami może nim być); w domu - którykolwiek widoczny w sieci domowej
             val relays = synchronized(this) { contacts.filter { it.relay != null } }

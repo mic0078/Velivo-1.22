@@ -732,12 +732,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }.getOrNull()
 
     // połączenia z pośrednikami od nowa (stare po zmianie sieci albo uśpieniu telefonu bywają martwe bez błędu)
-    private fun dropUp() { up?.let { closeUp(it, "powrót do Velivo, pośrednik milczał") }; upMore.values.forEach { closeUp(it, "powrót do Velivo") }; moreAt = 0L }
+    private fun dropUp() { up?.let { closeUp(it, "powrót do Velivo, pośrednik milczał", alive = false) }; upMore.values.forEach { closeUp(it, "powrót do Velivo", alive = false) }; moreAt = 0L }
     // 🔎 zamknięcie połączenia z pośrednikiem z podaniem powodu (pośrednik zapisuje go w dzienniku)
     @Volatile private var lastWhy = ""
-    private fun closeUp(f: Frames, why: String) {
-        runCatching { f.writeFrame(JSONObject().put("t", "relay-log").put("why", "zamykam: $why").toString().toByteArray(Charsets.UTF_8)) }
-        runCatching { f.close() }
+    private fun closeUp(f: Frames, why: String, alive: Boolean = true) {
+        // martwe połączenie: tylko zamknięcie (zapis mógłby zawisnąć i zatrzymać ponowne łączenie)
+        if (alive) upWriter.execute { runCatching { f.writeFrame(JSONObject().put("t", "relay-log").put("why", "zamykam: $why").toString().toByteArray(Charsets.UTF_8)) }; runCatching { f.close() } }
+        else { lastWhy = why; runCatching { f.sock.close() } }
     }
     // telefon obudzony / Velivo na ekranie: pośrednik milczy ponad 25 s - od razu nowe połączenie (bez czekania 50 s)
     fun wake() { val u = up ?: return; if (System.currentTimeMillis() - (upRx[u] ?: 0L) > 25000) Thread { dropUp() }.start() }
@@ -777,7 +778,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 if (t.startsWith("p2p-")) runCatching { handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true) }
             }
             closeUp(ff, "połączenie zastąpione innym")
-        }.onFailure { lastWhy = (it.javaClass.simpleName + " " + (it.message ?: "")).take(160) }
+        }.onFailure { if (lastWhy.isEmpty()) lastWhy = (it.javaClass.simpleName + " " + (it.message ?: "")).take(160) }
         if (up === ff) up = null
         upMore.remove(rl.id, ff); upRx.remove(ff); runCatching { ff.close() }
         main.post { onChange() }
@@ -801,6 +802,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val ips = runCatching { NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }.filter { !it.isLoopbackAddress && it is java.net.Inet4Address }.joinToString { it.hostAddress ?: "" } }.getOrDefault("")
             if (ips != lastIps) {
                 val first = lastIps.isEmpty(); lastIps = ips
+                // inna sieć (np. jeden internet -> drugi): połączenie z adresu, którego już nie ma, jest martwe - od razu nowe
+                if (!first) (listOfNotNull(up) + upMore.values).forEach { x -> val a = (x.sock.localAddress as? java.net.Inet4Address)?.hostAddress; if (a != null && a !in ips.split(", ")) closeUp(x, "zmiana sieci", alive = false) }
                 if (!first) { lanSeen.clear(); runCatching { sendUdp(packet("p2p-who"), null) }; Thread.sleep(1500) }   // w domowym Wi-Fi komputery odpowiadają w ~1 s
             }
             // komputery z rozmowami poza domem (każdy z kontaktami może nim być); w domu - którykolwiek widoczny w sieci domowej
@@ -820,7 +823,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (u != null) {
                 if (now - lastPing > 20000) { lastPing = now; upSend(u, JSONObject().put("t", "relay-ping")); upMore.values.forEach { upSend(it, JSONObject().put("t", "relay-ping")) } }
                 // połączenie „umarło po cichu” (operator zerwał bez powiadomienia) - pośrednik nie odpowiada na sygnał 50 s: od nowa
-                (listOf(u) + upMore.values).forEach { x -> if (now - (upRx[x] ?: now) > 50000) closeUp(x, "cisza 50 s") }
+                (listOf(u) + upMore.values).forEach { x -> if (now - (upRx[x] ?: now) > 50000) closeUp(x, "cisza 50 s", alive = false) }
                 connectMore(relays)   // każdy włączony pośrednik przekazuje - łączymy się ze wszystkimi
                 return@runCatching
             }

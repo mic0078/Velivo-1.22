@@ -212,7 +212,7 @@ namespace Velivo
 
         async Task KomRelayServe(TcpClient cl, CancellationToken token)
         {
-            KomFrameStream fs = null; string id = null; KomRemoteConn me = null;
+            KomFrameStream fs = null; string id = null; KomRemoteConn me = null; var meAt = DateTime.UtcNow;
             try
             {
                 var s = cl.GetStream(); s.ReadTimeout = 15000;
@@ -260,7 +260,7 @@ namespace Velivo
                 if (mode == "tunnel") { await KomRelayTunnel(fs, to, token); return; }
                 if (mode != "main") return;
 
-                me = new KomRemoteConn { Fs = fs };
+                me = new KomRemoteConn { Fs = fs }; meAt = DateTime.UtcNow;
                 if (_komRemote.TryRemove(id, out var old)) try { old.Fs.Dispose(); } catch (Exception) { }
                 _komRemote[id] = me;
                 _komViaNet[id] = true;
@@ -288,7 +288,10 @@ namespace Velivo
                     if (pto == null) foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p);
                 }
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {   // 🔎 dziennik: dlaczego urzadzenie poza domem sie rozlaczylo (do szukania przyczyny zrywania)
+                if (me != null) App.LogError(new Exception("Pośrednik: rozłączono " + (id ?? "").Substring(0, Math.Min(6, (id ?? "").Length)) + " po " + (int)(DateTime.UtcNow - meAt).TotalSeconds + " s: " + ex.GetType().Name + " " + ex.Message));
+            }
             finally
             {
                 if (me != null && id != null && _komRemote.TryGetValue(id, out var cur) && cur == me)

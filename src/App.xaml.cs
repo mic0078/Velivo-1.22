@@ -171,13 +171,15 @@ namespace Velivo
             catch (Exception ex) { LogError(ex); }
         }
 
-        internal static void LogError(Exception ex)
+        internal static void LogError(Exception ex) { if (ex != null) LogLine(ex.ToString()); }
+        // ℹ informacja (np. powód rozłączenia pośrednika) - bez „System.Exception:”, odróżnia się od prawdziwych błędów
+        internal static void LogInfo(string text) => LogLine("ℹ " + text);
+        static void LogLine(string text)
         {
-            if (ex == null) return;
             try
             {
                 File.AppendAllText(Path.Combine(Velivo.MainWindow.DataFolder, "bledy.log"),
-                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\n" + ex + "\n\n");
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\n" + text + "\n\n");
             }
             catch (Exception) { }
         }

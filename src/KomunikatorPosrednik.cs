@@ -271,7 +271,7 @@ namespace Velivo
                 {
                     var data = await Task.Run(() => fs.ReadFrame(), token);
                     var p = JsonNode.Parse(data); var t = (string)p?["t"];
-                    if (t == "relay-log") { App.LogError(new Exception("Pośrednik: " + id.Substring(0, 6) + " – " + ((string)p["why"] ?? "?"))); continue; }   // 🔎 powód rozłączenia podany przez telefon
+                    if (t == "relay-log") { App.LogInfo(("Pośrednik: " + id.Substring(0, 6) + " – " + ((string)p["why"] ?? "?"))); continue; }   // 🔎 powód rozłączenia podany przez telefon
                     if (t == "relay-ping")
                     {   // sygnał co 20 s - urządzenie poza domem nadal w sieci (inaczej po 95 s „poza siecią”, choć połączone)
                         KomSendFrame(me, new JsonObject { ["t"] = "relay-pong" });
@@ -292,7 +292,7 @@ namespace Velivo
             }
             catch (Exception ex)
             {   // 🔎 dziennik: dlaczego urzadzenie poza domem sie rozlaczylo (do szukania przyczyny zrywania)
-                if (me != null && ex is not IOException && ex is not EndOfStreamException && ex is not ObjectDisposedException) App.LogError(new Exception("Pośrednik: rozłączono " + (id ?? "").Substring(0, Math.Min(6, (id ?? "").Length)) + " po " + (int)(DateTime.UtcNow - meAt).TotalSeconds + " s: " + ex.GetType().Name + " " + ex.Message));
+                if (me != null && ex is not IOException && ex is not EndOfStreamException && ex is not ObjectDisposedException) App.LogInfo(("Pośrednik: rozłączono " + (id ?? "").Substring(0, Math.Min(6, (id ?? "").Length)) + " po " + (int)(DateTime.UtcNow - meAt).TotalSeconds + " s: " + ex.GetType().Name + " " + ex.Message));
             }
             finally
             {

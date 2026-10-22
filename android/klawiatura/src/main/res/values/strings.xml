@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="kb_name">Velivo keyboard</string>
-    <string name="kb_word">word</string>
     <string name="kb_add">Add „%1$s”</string>
     <string name="kb_added">Added to My dictionary: %1$s</string>
     <string name="kb_fix">Autocorrect on / off</string>

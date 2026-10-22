@@ -132,6 +132,7 @@ class KlawiaturaVelivo : InputMethodService() {
     private var sentence = StringBuilder()
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
     private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
+    private var sym = 0   // 0 - litery, 1 - znaki (?123), 2 - więcej znaków (=\<) - jak w Gboard
     private var listening = false
     private var afterPunct = false   // po , ; : ! ? następna litera dostaje spację przed sobą (kot,pies -> kot, pies)
 
@@ -193,7 +194,7 @@ class KlawiaturaVelivo : InputMethodService() {
         if (alt) { val i = "acelnoszx".indexOf(ch.lowercaseChar()); if (i >= 0) ch = "ąćęłńóśżź"[i]; if (!caps) alt = false }
         val up = shift xor caps
         if (ch.isLetter()) ch = if (up) ch.uppercaseChar() else ch
-        else if (shift && !shiftAuto) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) ch = "!@#$%^&*()_+{}:\"<>?"[i] }
+        else if (shift && !shiftAuto && sym == 0) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) ch = "!@#$%^&*()_+{}:\"<>?"[i] }
         if (ch.isLetter()) {
             if (afterPunct && before(1).let { it.isNotEmpty() && it[0] in ",;:!?" }) ic.commitText(" ", 1)
             afterPunct = false
@@ -483,13 +484,20 @@ class KlawiaturaVelivo : InputMethodService() {
             val bw = min(40 * dp, (width - 44 * dp) / hs.size - 2 * dp)   // przyciski mieszczą się obok logo na każdym telefonie
             for ((l, c) in hs.reversed()) { val k = K(l, c, bw); k.r.set(x - k.w, 4 * dp, x, headH - 2 * dp); head.add(k); x -= k.w + 2 * dp }
             var y = headH + sugH
-            // 4 rzędy jak na Windows; ostatni z ⇧ i ⌫
-            val lay = listOf(
-                rows[0].map { K(it.toString(), it.toString(), 1f) },
-                rows[1].map { K(it.toString(), it.toString(), 1f) },
-                rows[2].map { K(it.toString(), it.toString(), 1f) },
-                listOf(K("⇧", "shift", 1.5f)) + rows[3].map { K(it.toString(), it.toString(), 1f) } + listOf(K("⌫", "bs", 1.5f)),
-                listOf(K("ą", "alt", 1.2f), K("?", "?", 1f), K(",", ",", 1f), K(if (lang(context) == "pl") "Polski" else "English", "space", 3.8f), K(".", ".", 1f), K("⌫ " + getString(R.string.kb_word), "bsw", 1.9f), K("⏎", "enter", 1.4f)))
+            // układ jak w Gboard: litery z cyframi u góry; ?123 - znaki, =\< - więcej znaków
+            fun chars(s: String) = s.map { K(it.toString(), it.toString(), 1f) }
+            val space = K(if (lang(context) == "pl") "Polski" else "English", "space", 4f)
+            val lay = when (sym) {
+                1 -> listOf(chars("1234567890"), chars("@#\$_&-+()/"), chars("%^=[]{}<>~"),
+                    listOf(K("=\\<", "sym2", 1.5f)) + chars("*\"':;!?") + listOf(K("⌫", "bs", 1.5f)),
+                    listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
+                2 -> listOf(chars("1234567890"), chars("~`|•√π÷×§∆"), chars("£€¥°©®™✓¶\\"),
+                    listOf(K("?123", "sym", 1.5f)) + chars("«»„”–—·") + listOf(K("⌫", "bs", 1.5f)),
+                    listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
+                else -> listOf(chars(rows[0]), chars(rows[1]), chars(rows[2]),
+                    listOf(K("⇧", "shift", 1.5f)) + chars(rows[3]) + listOf(K("⌫", "bs", 1.5f)),
+                    listOf(K("?123", "sym", 1.5f), K(",", ",", 1f), K("ą", "alt", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
+            }
             for (row in lay) {
                 val units = row.sumOf { it.w.toDouble() }.toFloat()
                 val u = (width - pad * 2) / max(units, 10f)
@@ -509,7 +517,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 var ch = c[0]
                 if (alt) { val i = "acelnoszx".indexOf(ch); if (i >= 0) ch = "ąćęłńóśżź"[i] }
                 if (ch.isLetter()) return (if (shift xor caps) ch.uppercaseChar() else ch).toString()
-                if (shift && !shiftAuto) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) return "!@#$%^&*()_+{}:\"<>?"[i].toString() }
+                if (shift && !shiftAuto && sym == 0) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) return "!@#$%^&*()_+{}:\"<>?"[i].toString() }
                 return ch.toString()
             }
             return k.label
@@ -565,7 +573,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 val on = k === pressed && !swiping || k.code == "shift" && (shift || caps) || k.code == "caps" && caps || k.code == "alt" && alt
                 key(cv, k.r, on, fn = k.code.length > 1 || k.code in setOf("?", ",", "."))
                 val l = label(k)
-                val hint = if (k.code.length == 1) { val i = "acelnoszx".indexOf(k.code[0]); if (i >= 0 && !alt) "ąćęłńóśżź"[i].toString() else longSym[k.code[0]]?.toString() ?: "" } else ""
+                val hint = if (k.code.length == 1 && sym == 0) { val i = "acelnoszx".indexOf(k.code[0]); if (i >= 0 && !alt) "ąćęłńóśżź"[i].toString() else longSym[k.code[0]]?.toString() ?: "" } else ""
                 // jak zwykłe klawiatury telefonu: znak z przytrzymania mały nad literą, litera większa poniżej
                 tp.textSize = (if (l.length > 2) 14 else 22) * dp; tp.color = if (on) Color.WHITE else text
                 cv.drawText(l, k.r.centerX(), k.r.centerY() + (if (hint.isNotEmpty()) 12 else 8) * dp, tp)
@@ -607,16 +615,18 @@ class KlawiaturaVelivo : InputMethodService() {
 
         private fun keyAt(x: Float, y: Float): K? = keys.firstOrNull { it.r.contains(x, y) } ?: keys.minByOrNull { hypot(it.r.centerX() - x, it.r.centerY() - y) }?.takeIf { y > headH + sugH }
 
-        private val repeat = object : Runnable { override fun run() { if (pressed?.code == "bs" && !swiping) { backspace(); longDone = true; postDelayed(this, 60) } } }
+        // przytrzymanie ⌫: najpierw litery, po chwili całe słowa (jak w Gboard)
+        private var reps = 0
+        private val repeat = object : Runnable { override fun run() { if (pressed?.code == "bs" && !swiping) { if (reps++ < 12) backspace() else deleteWord(); longDone = true; postDelayed(this, if (reps > 12) 250L else 60L) } } }
         private val longPress = Runnable {
             val k = pressed ?: return@Runnable
             if (swiping) return@Runnable
             when {
-                k.code == "bs" -> { longDone = true; post(repeat) }
+                k.code == "bs" -> { longDone = true; reps = 0; post(repeat) }
                 // przytrzymanie litery: polska litera (a -> ą), cyfry - znak z ⇧
-                k.code.length == 1 && "acelnoszx".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = alt; alt = true; type(k.code[0]); alt = was; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
+                k.code.length == 1 && sym == 0 && "acelnoszx".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = alt; alt = true; type(k.code[0]); alt = was; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
                 // przytrzymanie cyfry / litery / , . - znak z podpowiedzi w rogu
-                k.code.length == 1 && longSym[k.code[0]] != null -> { longDone = true; val was = shift; val wa = shiftAuto; shift = false; type(longSym[k.code[0]]!!); shift = was && !wa; shiftAuto = wa; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
+                k.code.length == 1 && sym == 0 && longSym[k.code[0]] != null -> { longDone = true; val was = shift; val wa = shiftAuto; shift = false; type(longSym[k.code[0]]!!); shift = was && !wa; shiftAuto = wa; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
                 k.code == "space" -> { longDone = true; (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker() }
             }
         }
@@ -745,7 +755,9 @@ class KlawiaturaVelivo : InputMethodService() {
                 "caps" -> { caps = !caps; shift = caps; shiftAuto = false; refresh() }
                 "alt" -> { alt = !alt; refresh() }
                 "bs" -> backspace()
-                "bsw" -> deleteWord()
+                "sym" -> { sym = 1; shift = false; caps = false; alt = false; refresh() }
+                "sym2" -> { sym = 2; refresh() }
+                "abc" -> { sym = 0; refresh() }
                 "enter" -> enter()
                 "space" -> { lastSwipe?.let { if (before(1) == " ") { lastSwipe = null; refresh(); return } }; type(' ') }
                 else -> type(k.code[0])

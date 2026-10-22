@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="kb_name">Klawiatura Velivo</string>
-    <string name="kb_word">słowo</string>
     <string name="kb_add">Dodaj „%1$s”</string>
     <string name="kb_added">Dodano do Mojego słownika: %1$s</string>
     <string name="kb_fix">Autokorekta wł. / wył.</string>

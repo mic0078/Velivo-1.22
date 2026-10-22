@@ -59,7 +59,6 @@
     <string name="lan_not_paired">Not paired</string>
     <string name="lan_waiting">Paired – waiting for the computer</string>
     <string name="lan_status">Last sync: %1$s, %2$s</string>
-    <string name="lan_received">From %1$s: bookmarks %2$d, passwords %3$d</string>
     <string name="lan_name">Phone name on the network</string>
     <string name="lan_name_help">The computer shows this name when pairing – e.g. “Michael\'s phone”, so it is easy to tell phones apart.</string>
     <string name="close_tab_short">Close</string>

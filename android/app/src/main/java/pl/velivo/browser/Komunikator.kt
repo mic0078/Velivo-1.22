@@ -987,7 +987,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             nm.notify("nowe-urz".hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle(if (pl) "📶 Velivo w tej sieci" else "📶 Velivo on this network")
                 .setContentText(if (pl) "„${dev.ifEmpty { "Urządzenie" }}” – stuknij, by dodać do komunikatora" else "“${dev.ifEmpty { "Device" }}” – tap to add to the messenger")
-                .setContentIntent(pi).setAutoCancel(true).setOnlyAlertOnce(true)
+                .setContentIntent(pi).setAutoCancel(true).setOnlyAlertOnce(true).setSilent(true)   // bez dźwięku i budzenia ekranu - to tylko informacja
                 .addAction(Notification.Action.Builder(null, if (pl) "Nie pokazuj" else "Don't show", off).build()).build())
         }
     }

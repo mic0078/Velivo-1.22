@@ -59,7 +59,6 @@
     <string name="lan_not_paired">Nie sparowano</string>
     <string name="lan_waiting">Sparowano – czekam na komputer</string>
     <string name="lan_status">Ostatnio: %1$s, %2$s</string>
-    <string name="lan_received">Z %1$s: zakładki %2$d, hasła %3$d</string>
     <string name="lan_name">Nazwa telefonu w sieci</string>
     <string name="lan_name_help">Tę nazwę pokaże komputer przy parowaniu – np. „Telefon Michała”, żeby łatwo odróżnić telefony.</string>
     <string name="close_tab_short">Zamknij</string>

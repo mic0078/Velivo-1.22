@@ -3115,18 +3115,15 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // Zakładki (Windows: "adres<TAB>tytuł") i hasła z komputera dopisywane do telefonu; nic nie jest usuwane.
     private fun applyLanState(dev: String, bookmarks: String?, pwds: String?) {
-        var added = 0
         bookmarks?.lines()?.reversed()?.forEach { line ->
             val parts = line.split('\t')
             val url = parts[0].trim()
             if (!url.startsWith("http") || list("zakladki").any { it.endsWith("\t" + url) }) return@forEach
             addTo("zakladki", parts.getOrNull(1)?.ifBlank { null } ?: url, url, 2000)
-            added++
         }
         val pcPasswords = pwds?.let { LanSync.parsePasswords(it) } ?: emptyList()
-        val pw = passwords.saveAll(pcPasswords)
+        passwords.saveAll(pcPasswords)   // po cichu - bez komunikatu przy każdej synchronizacji (przeszkadzał w pisaniu)
         prefs.edit().putString("lan-komputer", dev).putLong("lan-czas", System.currentTimeMillis()).apply()
-        if (added + pw > 0) toast(getString(R.string.lan_received, dev, added, pw))
         // co komputer już ma - tego telefon nie wysyła
         if (bookmarks != null && pwds != null) {
             val pcUrls = bookmarks.lines().map { it.split('\t')[0].trim() }.filter { it.startsWith("http") }.toSet()

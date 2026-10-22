@@ -382,11 +382,12 @@ namespace Velivo
         {
             if (DateTime.UtcNow - _komUpSince < TimeSpan.FromSeconds(30) && !_komUpForce) return;   // po starcie najpierw sprawdzamy sieć domową (pośrednik odpowiada w sekundę)
             // komputery z rozmowami poza domem (kazdy z kontaktami moze nim byc); w domu - ktorykolwiek widoczny w sieci domowej
-            var relays = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay)).ToList();
+            var relays = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && c.Relay != _komRelayHost + ":" + _komRelayPort).ToList();   // nie my sami
             var relay = relays.FirstOrDefault();
             // w domu = w sieci domowej widac ktorykolwiek kontakt (wtedy wszystko jak dotad, prosto); poza domem - nikogo
             // pośrednik (działający) zawsze jest „w domu” - nigdy sam nie łączy się z innym pośrednikiem, przekazuje dalej
-            bool home = relay == null || _komRelayListener != null || relays.Any(c => _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));   // w domu = widać pośrednika, nie dowolny kontakt (np. telefon w tej samej obcej sieci)
+            // pośrednik z wpisanym adresem domu albo z podłączonymi urządzeniami (np. NUCBOX) zawsze w domu; inny komputer z włączonym pośrednikiem (np. GPD na hotspocie) - w domu tylko, gdy widzi pośrednika
+            bool home = relay == null || (_komRelayListener != null && (!_komRemote.IsEmpty || !_komRelayAuto)) || relays.Any(c => _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));   // w domu = widać pośrednika, nie dowolny kontakt (np. telefon w tej samej obcej sieci)
             if (home) { if (_komUp != null) { try { _komUp.Fs.Dispose(); } catch (Exception) { } _komUp = null; KomAnnounce(); } return; }
             if (_komUp != null || _komUpConnecting) { if (_komUp != null) KomSendFrame(_komUp, new JsonObject { ["t"] = "relay-ping" }); return; }
             _komUpConnecting = true;

@@ -132,7 +132,7 @@ class KlawiaturaVelivo : InputMethodService() {
     private var sentence = StringBuilder()
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
     private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
-    private var sym = 0   // 0 - litery, 1 - znaki (?123), 2 - więcej znaków (=\<) - jak w Gboard
+    private var sym = 0   // 0 - litery, 1 - znaki (?123), 2 - więcej znaków (=\<), 3 - emoji (przytrzymanie @) - jak w Gboard
     private var listening = false
     private var afterPunct = false   // po , ; : ! ? następna litera dostaje spację przed sobą (kot,pies -> kot, pies)
 
@@ -494,9 +494,12 @@ class KlawiaturaVelivo : InputMethodService() {
                 2 -> listOf(chars("1234567890"), chars("~`|•√π÷×§∆"), chars("£€¥°©®™✓¶\\"),
                     listOf(K("?123", "sym", 1.5f)) + chars("«»„”–—·") + listOf(K("⌫", "bs", 1.5f)),
                     listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
+                3 -> listOf("😀😂😊😍😘😉😎🤔😅😭", "😢😡😴🤗🙄😬🥰😇🤣😱", "👍👎👌👏🙏💪🤝✌👋🙌", "❤💔🔥🎉✨⭐✅❌☕🎁")
+                    .map { r -> Regex("\\X").findAll(r).map { K(it.value, it.value, 1f) }.toList() } +
+                    listOf(listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⌫", "bs", 1.5f)))
                 else -> listOf(chars(rows[0]), chars(rows[1]), chars(rows[2]),
                     listOf(K("⇧", "shift", 1.5f)) + chars(rows[3]) + listOf(K("⌫", "bs", 1.5f)),
-                    listOf(K("?123", "sym", 1.5f), K(",", ",", 1f), K("ą", "alt", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
+                    listOf(K("?123", "sym", 1.5f), K(",", ",", 1f), K("@", "@", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
             }
             for (row in lay) {
                 val units = row.sumOf { it.w.toDouble() }.toFloat()
@@ -623,6 +626,8 @@ class KlawiaturaVelivo : InputMethodService() {
             if (swiping) return@Runnable
             when {
                 k.code == "bs" -> { longDone = true; reps = 0; post(repeat) }
+                // przytrzymanie @ - emoji
+                k.code == "@" && sym == 0 -> { longDone = true; sym = 3; refresh(); performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
                 // przytrzymanie litery: polska litera (a -> ą), cyfry - znak z ⇧
                 k.code.length == 1 && sym == 0 && "acelnoszx".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = alt; alt = true; type(k.code[0]); alt = was; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
                 // przytrzymanie cyfry / litery / , . - znak z podpowiedzi w rogu
@@ -760,7 +765,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 "abc" -> { sym = 0; refresh() }
                 "enter" -> enter()
                 "space" -> { lastSwipe?.let { if (before(1) == " ") { lastSwipe = null; refresh(); return } }; type(' ') }
-                else -> type(k.code[0])
+                else -> if (k.code.length == 1) type(k.code[0]) else currentInputConnection?.commitText(k.code, 1)   // emoji (kilka znaków)
             }
         }
     }

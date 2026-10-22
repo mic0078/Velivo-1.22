@@ -732,7 +732,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }.getOrNull()
 
     // połączenia z pośrednikami od nowa (stare po zmianie sieci albo uśpieniu telefonu bywają martwe bez błędu)
-    private fun dropUp() { up?.let { runCatching { it.close() } }; upMore.values.forEach { runCatching { it.close() } }; moreAt = 0L }
+    private fun dropUp() { up?.let { closeUp(it, "powrót do Velivo, pośrednik milczał") }; upMore.values.forEach { closeUp(it, "powrót do Velivo") }; moreAt = 0L }
+    // 🔎 zamknięcie połączenia z pośrednikiem z podaniem powodu (pośrednik zapisuje go w dzienniku)
+    @Volatile private var lastWhy = ""
+    private fun closeUp(f: Frames, why: String) {
+        runCatching { f.writeFrame(JSONObject().put("t", "relay-log").put("why", "zamykam: $why").toString().toByteArray(Charsets.UTF_8)) }
+        runCatching { f.close() }
+    }
     // telefon obudzony / Velivo na ekranie: pośrednik milczy ponad 25 s - od razu nowe połączenie (bez czekania 50 s)
     fun wake() { val u = up ?: return; if (System.currentTimeMillis() - (upRx[u] ?: 0L) > 25000) Thread { dropUp() }.start() }
 
@@ -759,6 +765,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     private fun upReader(ff: Frames, rl: Contact) = Thread {
         upRx[ff] = System.currentTimeMillis()
+        if (lastWhy.isNotEmpty()) { val w = lastWhy; lastWhy = ""; upSend(ff, JSONObject().put("t", "relay-log").put("why", "poprzednie zerwanie: $w")) }
         runCatching {
             while (up === ff || upMore[rl.id] === ff) {
                 val raw = ff.readFrame(); val p = runCatching { JSONObject(String(raw, Charsets.UTF_8)) }.getOrNull() ?: continue; val t = p.optString("t")
@@ -769,7 +776,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 // błąd przy jednym pakiecie nie może zrywać połączenia z pośrednikiem (zamykało je po kilku sekundach)
                 if (t.startsWith("p2p-")) runCatching { handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true) }
             }
-        }
+            closeUp(ff, "połączenie zastąpione innym")
+        }.onFailure { lastWhy = (it.javaClass.simpleName + " " + (it.message ?: "")).take(160) }
         if (up === ff) up = null
         upMore.remove(rl.id, ff); upRx.remove(ff); runCatching { ff.close() }
         main.post { onChange() }
@@ -802,8 +810,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val now = System.currentTimeMillis()
             val home = relay == null || (now - started < 30000 && !upForce) || synchronized(this) { contacts.any { now - (lanSeen[it.id] ?: 0L) < 100000 } }
             if (home) {
-                up?.let { up = null; it.close(); announce() }
-                upMore.values.forEach { runCatching { it.close() } }; upMore.clear()
+                up?.let { up = null; closeUp(it, "w domu (widać kontakt w Wi-Fi)"); announce() }
+                upMore.values.forEach { closeUp(it, "w domu") }; upMore.clear()
                 return@runCatching
             }
             // główny pośrednik padł, a inny działa - przejmuje
@@ -812,7 +820,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (u != null) {
                 if (now - lastPing > 20000) { lastPing = now; upSend(u, JSONObject().put("t", "relay-ping")); upMore.values.forEach { upSend(it, JSONObject().put("t", "relay-ping")) } }
                 // połączenie „umarło po cichu” (operator zerwał bez powiadomienia) - pośrednik nie odpowiada na sygnał 50 s: od nowa
-                (listOf(u) + upMore.values).forEach { x -> if (now - (upRx[x] ?: now) > 50000) runCatching { x.close() } }
+                (listOf(u) + upMore.values).forEach { x -> if (now - (upRx[x] ?: now) > 50000) closeUp(x, "cisza 50 s") }
                 connectMore(relays)   // każdy włączony pośrednik przekazuje - łączymy się ze wszystkimi
                 return@runCatching
             }

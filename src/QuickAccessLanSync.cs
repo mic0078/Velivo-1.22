@@ -255,7 +255,7 @@ namespace Velivo
             }
             catch (Exception ex)
             {
-                if (!token.IsCancellationRequested) App.LogError(ex);
+                if (!token.IsCancellationRequested && ex is not IOException && ex is not System.Net.Sockets.SocketException) App.LogError(ex);   // telefon zasnął / wyszedł z sieci - zwykłe zerwanie, nie błąd
             }
             finally
             {
@@ -393,7 +393,7 @@ namespace Velivo
             }
             catch (Exception ex)
             {
-                if (!token.IsCancellationRequested) App.LogError(ex);
+                if (!token.IsCancellationRequested && ex is not IOException && ex is not System.Net.Sockets.SocketException) App.LogError(ex);   // telefon zasnął / wyszedł z sieci - zwykłe zerwanie, nie błąd
             }
             finally
             {

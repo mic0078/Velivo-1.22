@@ -935,6 +935,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun channels(nm: NotificationManager) {
         val pl = Locale.getDefault().language == "pl"
         nm.createNotificationChannel(NotificationChannel("wiadomosci", if (pl) "Wiadomości" else "Messages", NotificationManager.IMPORTANCE_HIGH))
+        nm.createNotificationChannel(NotificationChannel("informacje", if (pl) "Informacje" else "Information", NotificationManager.IMPORTANCE_LOW))
         nm.createNotificationChannel(NotificationChannel("nasluch", if (pl) "Komunikator w tle" else "Messenger in background", NotificationManager.IMPORTANCE_MIN))
     }
 
@@ -984,10 +985,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val pi = PendingIntent.getActivity(ctx, 78, openIntent(null), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val off = PendingIntent.getBroadcast(ctx, 79, Intent(ctx, KomunikatorAkcja::class.java).setAction(KomunikatorAkcja.NEW_OFF).setPackage(ctx.packageName), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         runCatching {
-            nm.notify("nowe-urz".hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
+            nm.notify("nowe-urz".hashCode(), Notification.Builder(ctx, "informacje")   // cichy kanał - bez dźwięku i budzenia ekranu.setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle(if (pl) "📶 Velivo w tej sieci" else "📶 Velivo on this network")
                 .setContentText(if (pl) "„${dev.ifEmpty { "Urządzenie" }}” – stuknij, by dodać do komunikatora" else "“${dev.ifEmpty { "Device" }}” – tap to add to the messenger")
-                .setContentIntent(pi).setAutoCancel(true).setOnlyAlertOnce(true).setSilent(true)   // bez dźwięku i budzenia ekranu - to tylko informacja
+                .setContentIntent(pi).setAutoCancel(true).setOnlyAlertOnce(true)
                 .addAction(Notification.Action.Builder(null, if (pl) "Nie pokazuj" else "Don't show", off).build()).build())
         }
     }

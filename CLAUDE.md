@@ -48,6 +48,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-22: każdy komputer z kontaktami sam włącza pośrednika, a „pośrednik zawsze w domu” → GPD na hotspocie nigdy nie łączył się z NUCBOX; teraz zawsze w domu tylko pośrednik z wpisanym adresem albo z podłączonymi urządzeniami.
 * 2026-10-22: zamknięcie z powodem (zapis do martwego połączenia) mogło zawisnąć i zatrzymać ponowne łączenie; zmiana jednego internetu na inny nie zrywała starego połączenia – teraz martwe tylko zamykane, a połączenie z adresu, którego już nie ma, od razu od nowa.
 * 2026-10-22: synchronizacja z komputerem pokazywała komunikat przy każdej wymianie (nad klawiaturą), a „📶 Velivo w tej sieci” budziło ekran – teraz po cichu.
+* 2026-10-22: Notification.Builder nie ma setSilent (jest tylko w NotificationCompat) – moja kontrolna kompilacja tego nie wyłapała, budowa padła; nowe metody Androida sprawdzaj w dokumentacji SDK.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

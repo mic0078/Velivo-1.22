@@ -808,7 +808,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             var relay = relays.firstOrNull()
             // w domu = w sieci domowej widać którykolwiek kontakt (wtedy wszystko jak dotąd, prosto); poza domem - nikogo
             val now = System.currentTimeMillis()
-            val home = relay == null || (now - started < 30000 && !upForce) || synchronized(this) { contacts.any { now - (lanSeen[it.id] ?: 0L) < 100000 } }
+            val home = relay == null || (now - started < 30000 && !upForce) || relays.any { now - (lanSeen[it.id] ?: 0L) < 100000 }   // w domu = widać pośrednika (np. NUCBOX); inny telefon w tej samej sieci (hotspot) to nie dom
             if (home) {
                 up?.let { up = null; closeUp(it, "w domu (widać kontakt w Wi-Fi)"); announce() }
                 upMore.values.forEach { closeUp(it, "w domu") }; upMore.clear()

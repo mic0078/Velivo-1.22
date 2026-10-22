@@ -386,7 +386,7 @@ namespace Velivo
             var relay = relays.FirstOrDefault();
             // w domu = w sieci domowej widac ktorykolwiek kontakt (wtedy wszystko jak dotad, prosto); poza domem - nikogo
             // pośrednik (działający) zawsze jest „w domu” - nigdy sam nie łączy się z innym pośrednikiem, przekazuje dalej
-            bool home = relay == null || _komRelayListener != null || _komContacts.Any(c => _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
+            bool home = relay == null || _komRelayListener != null || relays.Any(c => _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));   // w domu = widać pośrednika, nie dowolny kontakt (np. telefon w tej samej obcej sieci)
             if (home) { if (_komUp != null) { try { _komUp.Fs.Dispose(); } catch (Exception) { } _komUp = null; KomAnnounce(); } return; }
             if (_komUp != null || _komUpConnecting) { if (_komUp != null) KomSendFrame(_komUp, new JsonObject { ["t"] = "relay-ping" }); return; }
             _komUpConnecting = true;

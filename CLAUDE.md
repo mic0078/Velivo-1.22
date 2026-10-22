@@ -44,6 +44,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-22: zrywanie połączenia przy każdej „zmianie sieci” (activeNetwork bywa null w tle) rozłączało co kilka sekund – usunięte; nowe połączenie tylko po 50 s ciszy albo po powrocie do Velivo (25 s ciszy).
 * 2026-10-22: przez internet po ~95 s „poza siecią”, choć połączenie żyło – sygnał relay-ping/pong nie odświeżał obecności; teraz odświeża po obu stronach.
 * 2026-10-22: dziennik pośrednika: telefon sam zamykał połączenie (EndOfStream po 6 s i 248 s) – wyjątek przy jednym pakiecie (wiadomość, obecność) kończył czytanie i zrywał połączenie; teraz pakiet z błędem jest pomijany. Najpierw dziennik, potem poprawka.
+* 2026-10-22: hotspot z drugim telefonem (kontakt) = „w domu” → telefon zamykał połączenie z pośrednikiem (to samo EndOfStream po 6 s); teraz „w domu” tylko, gdy widać pośrednika.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

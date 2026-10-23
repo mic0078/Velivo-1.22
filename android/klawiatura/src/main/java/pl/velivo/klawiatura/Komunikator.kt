@@ -569,7 +569,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 note(from!!, false, "🎬 " + (if (Locale.getDefault().language == "pl") "Filmy i TV" else "Films and TV"), h.optString("Mid"))
                 return
             }
-            if (auto) {   // w Velivo (w rozmowie); do Galerii / Pobranych - przytrzymanie
+            if (from != null) {   // od kontaktu: w Velivo (w rozmowie, stuknięcie otwiera); do Galerii / Pobranych - przytrzymanie
                 var f = java.io.File(mediaDir, name); var i = 2
                 while (f.exists()) f = java.io.File(mediaDir, name.substringBeforeLast('.') + " ($i)." + name.substringAfterLast('.')).also { i++ }
                 if (tmp.renameTo(f) || runCatching { tmp.copyTo(f); tmp.delete() }.isSuccess) saved = f.path
@@ -1600,7 +1600,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     contentDescription = (if (m.mine) t("Ty: ", "You: ") else c.name + ": ") + m.text + ", " + fmt.format(java.util.Date(m.ts)) +
                         if (m.mine) ", " + (if (m.read) t("przeczytane", "read") else if (m.ok) t("doręczone", "delivered") else t("czeka na doręczenie", "waiting")) else ""
                     // 🔗 adresy w wiadomości - stuknięcie otwiera przeglądarkę
-                    if (m.path == null) android.text.util.Linkify.addLinks(this, android.text.util.Linkify.WEB_URLS)
+                    if (m.path == null && android.text.util.Linkify.addLinks(this, android.text.util.Linkify.WEB_URLS)) (text as? android.text.Spannable)?.let { sp ->
+                        sp.getSpans(0, sp.length, android.text.style.URLSpan::class.java).forEach { u ->
+                            val st = sp.getSpanStart(u); val en = sp.getSpanEnd(u); sp.removeSpan(u)
+                            sp.setSpan(object : android.text.style.ClickableSpan() { override fun onClick(v: View) { openLink(u.url) } }, st, en, 0)
+                        }
+                    }
                     if (img != null) setOnClickListener { showPhoto(m.path!!) }
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
                     setOnLongClickListener { msgMenu(c, m); true }
@@ -1678,6 +1683,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         a.contentResolver.openOutputStream(uri)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
         uri
     }.getOrNull()?.also { downloaded[path] = it }
+
+    // link: najpierw aplikacja przypisana do takich linków (np. YouTube), inaczej domyślna przeglądarka
+    private fun openLink(url: String) {
+        val i = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)).addCategory(android.content.Intent.CATEGORY_BROWSABLE)
+        if (Build.VERSION.SDK_INT >= 30 && runCatching { a.startActivity(android.content.Intent(i).addFlags(android.content.Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER)) }.isSuccess) return
+        runCatching { a.startActivity(i) }.onFailure { Toast.makeText(a, t("Nie udało się otworzyć", "Could not open"), Toast.LENGTH_SHORT).show() }
+    }
 
     private fun openFile(path: String) {
         val uri = toDownloads(path) ?: run { Toast.makeText(a, t("Nie udało się otworzyć", "Could not open"), Toast.LENGTH_SHORT).show(); return }

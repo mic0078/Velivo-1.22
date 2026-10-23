@@ -483,6 +483,20 @@ namespace Velivo
         {
             long week = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 7L * 86400000;
             foreach (var m in KomChat(c.Id).Where(x => x.Mine && !x.Ok && !x.File && x.Ts > week).ToList()) KomDeliver(c, m);
+            foreach (var m in KomChat(c.Id).Where(x => x.Mine && !x.Ok && x.File && x.Ts > week && KomOnline(c.Id) && File.Exists(x.Path ?? "")).ToList()) KomResendFile(c, m);
+        }
+        // 📎 plik, który czekał na odbiorcę - wysyłany sam, gdy kontakt się odezwie
+        async void KomResendFile(KomContact c, KomMsg m)
+        {
+            if (!_komInFlight.Add(m.Mid)) return;
+            try
+            {
+                IPAddress.TryParse(c.Addr ?? "", out var addr);
+                var r = await KomSendFile(addr ?? IPAddress.Loopback, m.Path, _ => { }, c, null, m.Mid);
+                if (r == "ok") { m.Ok = true; m.Text += L.T(" – odebrano"); KomSave(); _komRefresh?.Invoke(); }
+                else if (r == L.T("odrzucono")) { KomChat(c.Id).Remove(m); KomSave(); _komRefresh?.Invoke(); }
+            }
+            finally { _komInFlight.Remove(m.Mid); }
         }
 
         // najpierw na znany adres, potem do calej sieci; 4 proby co 1,5 s; potem co minute (zegar) i gdy kontakt sie odezwie
@@ -583,9 +597,15 @@ namespace Velivo
         {
             JsonNode h; try { h = JsonNode.Parse(headerBytes); } catch (Exception) { return false; }
             var type = (string)h?["Type"];
-            if (type != "p2p-pair" && type != "p2p-file") return false;
+            if (type != "p2p-pair" && type != "p2p-file" && type != "p2p-box") return false;
             // plik dla urzadzenia poza domem polaczonego przez tego pośrednika - przekazanie tunelem
             var toId = (string)h["To"];
+            if (type == "p2p-box" && toId != _komId)
+            {   // 📬 pośrednik: plik do kontaktu, którego może nie być - przechowanie i oddanie, gdy się pojawi
+                if (_komRelayListener == null) return true;
+                try { await KomBoxStore(h, headerBytes, stream, token); } catch (Exception ex) { if (!token.IsCancellationRequested && ex is not IOException) App.LogError(ex); }
+                return true;
+            }
             if (type == "p2p-file" && toId != null && toId != _komId && _komRemote.ContainsKey(toId)) { await KomRelayToRemote(toId, headerBytes, stream, token); return true; }
             try { if (type == "p2p-pair") await KomReceivePair(h, stream, remote, token); else await KomReceiveFile(h, stream, token); }
             catch (Exception ex) { if (!token.IsCancellationRequested) App.LogError(ex); }
@@ -678,11 +698,13 @@ namespace Velivo
         {
             long size = (long?)h["Size"] ?? -1; var id = (string)h["Id"] ?? "";
             if (size < 0 || size > LanFile2Limit || id.Length != 32 || id == _komId) return;
+            bool box = (string)h["Type"] == "p2p-box";   // 📬 plik ze skrzynki pośrednika - klucz z klucza kontaktu (nadawcy mogło już nie być)
             var pubA = KomB64((string)h["Pub"]); var baseNonce = KomB64((string)h["Nonce"]);
-            if (pubA.Length == 0 || pubA.Length > 200 || baseNonce.Length != 12) return;
+            if ((!box && (pubA.Length == 0 || pubA.Length > 200)) || baseNonce.Length != 12) return;
             var name = SafeFileName((string)h["Name"]); var dev = KomClean((string)h["Device"]);
             byte[] key;
-            using (var me = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256))
+            if (box) { var bc = await Dispatcher.InvokeAsync(() => KomContactById(id)); if (bc == null) return; key = KomHmac(bc.Key, "velivo-box\n" + (string)h["Nonce"]); }
+            else using (var me = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256))
             {
                 var pubB = me.ExportSubjectPublicKeyInfo();
                 await KomWriteBlock(s, pubB, token);
@@ -717,6 +739,7 @@ namespace Velivo
                     Filter = (L.En ? "All files" : "Wszystkie pliki") + "|*.*", OverwritePrompt = true };
                 if (dlg.ShowDialog((Window)_komWindow ?? PairDialogOwner()) == true) target = dlg.FileName; else accept = false;
             });
+            if (box && from == null) accept = false;   // skrzynka - tylko od kontaktu
             await s.WriteAsync(new[] { (byte)(accept ? 1 : 0) }, 0, 1, token); await s.FlushAsync(token);
             if (!accept) return;
             string tmp = target + ".velivo-part";
@@ -775,7 +798,8 @@ namespace Velivo
             KomSave(); _komRefresh?.Invoke();
         }
 
-        async Task<string> KomSendFile(IPAddress addr, string path, Action<string> showCode, KomContact to = null, Action<long, long> progress = null, string mid = null)
+        // box - 📬 do skrzynki pośrednika (odbiorcy nie ma): klucz z klucza kontaktu, bez wymiany kluczy z odbiorcą
+        async Task<string> KomSendFile(IPAddress addr, string path, Action<string> showCode, KomContact to = null, Action<long, long> progress = null, string mid = null, bool box = false)
         {
             var name = SafeFileName(Path.GetFileName(path));
             try
@@ -789,7 +813,7 @@ namespace Velivo
                     using (var cts = new CancellationTokenSource())
                     {
                         var pubA = me.ExportSubjectPublicKeyInfo(); var baseNonce = RandomNumberGenerator.GetBytes(12);
-                        var h = new JsonObject { ["Type"] = "p2p-file", ["Id"] = _komId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
+                        var h = new JsonObject { ["Type"] = box ? "p2p-box" : "p2p-file", ["Id"] = _komId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = box ? "" : Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
                         if (mid != null) h["Mid"] = mid;
                         if (to != null) h["To"] = to.Id;   // pośrednik wie, komu przekazac (poza podpisem)
                         var ad = KomFileAd(h);
@@ -799,9 +823,14 @@ namespace Velivo
                         Stream s = await KomOpenAsync(cl, addr, to?.Id, cts.Token);
                         using var tunnel = s as IDisposable;
                         await KomWriteBlock(s, Encoding.UTF8.GetBytes(h.ToJsonString()), cts.Token);
-                        var pubB = await KomReadBlock(s, 200, cts.Token); if (pubB == null) return "błąd";
-                        var key = KomAgree(me, pubB, "velivo-p2p", pubA, pubB);
-                        if (to == null) showCode(KomCode(key));
+                        byte[] key;
+                        if (box) key = KomHmac(to.Key, "velivo-box\n" + (string)h["Nonce"]);
+                        else
+                        {
+                            var pubB = await KomReadBlock(s, 200, cts.Token); if (pubB == null) return "błąd";
+                            key = KomAgree(me, pubB, "velivo-p2p", pubA, pubB);
+                            if (to == null) showCode(KomCode(key));
+                        }
                         cts.CancelAfter(TimeSpan.FromMinutes(4));
                         var b = new byte[1]; if (!await ReadExactAsync(s, b, 1, cts.Token) || b[0] != 1) return L.T("odrzucono");
                         cts.CancelAfter(Timeout.InfiniteTimeSpan);
@@ -822,7 +851,7 @@ namespace Velivo
                         if (sent != size) return L.T("plik zmienił się w trakcie");
                         var ack = new byte[32];
                         using (var t2 = new CancellationTokenSource(TimeSpan.FromMinutes(2))) if (!await ReadExactAsync(s, ack, 32, t2.Token)) return "błąd";
-                        return CryptographicOperations.FixedTimeEquals(ack, KomHmac(key, "file-ack\n" + hash)) ? "ok" : "błąd";
+                        return box || CryptographicOperations.FixedTimeEquals(ack, KomHmac(key, "file-ack\n" + hash)) ? "ok" : "błąd";   // skrzynka: potwierdza pośrednik
                     }
                 });
             }
@@ -1301,7 +1330,11 @@ namespace Velivo
                 codeWin?.Close();
                 if (pend != null)
                 {
-                    if (r == "ok") { pend.Ok = true; pend.Text += L.T(" – odebrano"); } else KomChat(to.Id).Remove(pend);   // odrzucony / blad - bez wpisu
+                    if (r == "ok") { pend.Ok = true; pend.Text += L.T(" – odebrano"); }
+                    else if (r == L.T("odrzucono")) KomChat(to.Id).Remove(pend);   // odrzucony - bez wpisu
+                    // odbiorcy nie ma (wyłączony, poza zasięgiem) - plik czeka („…”) i idzie sam, gdy się pojawi
+                    else if (await KomSendViaBox(to, f, fmid) == "ok") { pend.Ok = true; pend.Text += L.T(" – 📬 czeka na serwerze"); KomInfo("📎 " + fn + L.T(" – 📬 czeka na serwerze, dojdzie, gdy odbiorca się pojawi")); KomSave(); _komRefresh?.Invoke(); continue; }
+                    else { KomInfo("📎 " + fn + L.T(" – odbiorca niedostępny, wyślę, gdy się pojawi")); KomSave(); _komRefresh?.Invoke(); continue; }
                     KomSave(); _komRefresh?.Invoke();
                 }
                 KomInfo("📎 " + fn + ": " + (r == "ok" ? L.T("wysłano") : r));

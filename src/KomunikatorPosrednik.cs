@@ -117,6 +117,98 @@ namespace Velivo
         static byte[] KomMacBytes(byte[] key, string label, byte[] data) { using (var h = new HMACSHA256(key)) return h.ComputeHash(Encoding.ASCII.GetBytes(label).Concat(data).ToArray()); }
 
         // strumien do urzadzenia: poza domem - tunel przez pośrednika; w domu - TCP w sieci domowej
+        // tunel do urządzenia poza domem: prośba „relay-open”, urządzenie łączy się z powrotem (do 20 s)
+        async Task<KomFrameStream> KomRelayOpenTo(string toId, CancellationToken token)
+        {
+            if (!_komRemote.TryGetValue(toId, out var rc)) return null;
+            var tid = Guid.NewGuid().ToString("N");
+            var w = new TaskCompletionSource<KomFrameStream>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _komTunnels[tid] = w;
+            KomSendFrame(rc, new JsonObject { ["t"] = "relay-open", ["tid"] = tid });
+            var done = await Task.WhenAny(w.Task, Task.Delay(20000, token));
+            _komTunnels.TryRemove(tid, out _);
+            return done == w.Task ? w.Task.Result : null;
+        }
+
+        // 📬 skrzynka na pliki: plik do kontaktu, którego nie ma - zaszyfrowany kluczem nadawcy i odbiorcy (pośrednik go nie odczyta),
+        // na dysku pośrednika do odebrania (DataDir\skrzynka\<odbiorca>); oddawany, gdy odbiorca się pojawi (internet albo sieć domowa)
+        static string KomBoxDir(string id) => Path.Combine(DataDir, "skrzynka", id);
+        async Task KomBoxStore(JsonNode h, byte[] hb, Stream s, CancellationToken token)
+        {
+            var to = (string)h["To"] ?? ""; long size = (long?)h["Size"] ?? -1;
+            if (to.Length != 32 || size < 0 || size > LanFile2Limit) return;
+            if (!await Dispatcher.InvokeAsync(() => KomContactById(to) != null && KomContactById((string)h["Id"] ?? "") != null)) return;   // tylko między kontaktami tego komputera
+            var dir = KomBoxDir(to); Directory.CreateDirectory(dir);
+            var f = Path.Combine(dir, DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "-" + Guid.NewGuid().ToString("N"));
+            await s.WriteAsync(new byte[] { 1 }, 0, 1, token); await s.FlushAsync(token);
+            try
+            {
+                using (var fo = new FileStream(f + ".part", FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
+                {
+                    int n = ChunkCount(size); var lb = new byte[4]; var buf = new byte[LanChunk + 16];
+                    for (int i = 0; i < n; i++)
+                    {
+                        using var idle = CancellationTokenSource.CreateLinkedTokenSource(token); idle.CancelAfter(TimeSpan.FromSeconds(60));
+                        if (!await ReadExactAsync(s, lb, 4, idle.Token)) return;
+                        int l = BitConverter.ToInt32(lb, 0); if (l < 16 || l > LanChunk + 16) return;
+                        if (!await ReadExactAsync(s, buf, l, idle.Token)) return;
+                        await fo.WriteAsync(lb, 0, 4, token); await fo.WriteAsync(buf, 0, l, token);
+                    }
+                }
+                File.Move(f + ".part", f + ".bin"); File.WriteAllBytes(f + ".hdr", hb);
+                await s.WriteAsync(new byte[32], 0, 32, token); await s.FlushAsync(token);   // przechowane
+            }
+            finally { try { File.Delete(f + ".part"); } catch (Exception) { } }
+            _ = KomBoxFlush(to);
+        }
+        readonly ConcurrentDictionary<string, bool> _komBoxBusy = new ConcurrentDictionary<string, bool>();
+        async Task KomBoxFlush(string id)
+        {
+            var dir = KomBoxDir(id);
+            if (!Directory.Exists(dir) || !_komBoxBusy.TryAdd(id, true)) return;
+            try
+            {
+                foreach (var hdr in Directory.GetFiles(dir, "*.hdr").OrderBy(x => x))
+                {
+                    var bin = Path.ChangeExtension(hdr, ".bin");
+                    if (!File.Exists(bin)) { File.Delete(hdr); continue; }
+                    using var cts = new CancellationTokenSource(TimeSpan.FromHours(2));
+                    Stream st = null; TcpClient cl = null;
+                    try
+                    {
+                        if (_komRemote.ContainsKey(id)) st = await KomRelayOpenTo(id, cts.Token);
+                        else if (_komLanAddr.TryGetValue(id, out var a) && _komLanSeen.TryGetValue(id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100))
+                        { cl = new TcpClient(); await cl.ConnectAsync(a, LanPort, cts.Token); st = cl.GetStream(); }
+                        if (st == null) return;   // odbiorcy nie ma - zostaje w skrzynce
+                        await KomWriteBlock(st, File.ReadAllBytes(hdr), cts.Token);
+                        var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token)) return;
+                        if (b[0] == 1)
+                        {
+                            using (var fi = File.OpenRead(bin)) await fi.CopyToAsync(st, 1 << 16, cts.Token);
+                            await st.FlushAsync(cts.Token);
+                            if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) return;
+                        }
+                        File.Delete(bin); File.Delete(hdr);   // odebrany (albo odrzucony przez odbiorcę)
+                    }
+                    catch (Exception) { return; }
+                    finally { st?.Dispose(); cl?.Dispose(); }
+                }
+                if (Directory.GetFiles(dir).Length == 0) Directory.Delete(dir);
+            }
+            finally { _komBoxBusy.TryRemove(id, out _); }
+        }
+        // nadawca: odbiorcy nie ma - plik do skrzynki pośrednika (sam pośrednik: do własnej)
+        async Task<string> KomSendViaBox(KomContact to, string path, string mid)
+        {
+            IPAddress addr = IPAddress.Loopback;
+            if (_komRelayListener == null && _komUp == null)
+            {   // w domu: pośrednik w sieci domowej
+                var rc = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay) && _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
+                if (rc == null || !IPAddress.TryParse(rc.Addr ?? "", out addr)) return "brak";
+            }
+            return await KomSendFile(addr, path, _ => { }, to, null, mid, box: true);
+        }
+
         async Task<Stream> KomOpenAsync(TcpClient cl, IPAddress addr, string toId, CancellationToken token)
         {
             var up = _komUp; var relay = _komUpRelay;
@@ -169,7 +261,7 @@ namespace Velivo
         }
 
         // 📬 skrzynka pośrednika: zaszyfrowane wiadomości (pośrednik ich nie odczyta) do urządzenia, którego nie ma ani przez internet,
-        // ani w sieci domowej - doręczane, gdy się pojawi (najwyżej 300 na urządzenie, tylko do kontaktów tego komputera, do zamknięcia Velivo)
+        // ani w sieci domowej - doręczane, gdy się pojawi (najwyżej 300 na urządzenie, tylko do kontaktów tego komputera; zapisane na dysku - przetrwają ponowne uruchomienie)
         readonly ConcurrentDictionary<string, List<JsonNode>> _komStore = new ConcurrentDictionary<string, List<JsonNode>>();
         bool KomStoreKeep(JsonNode p, string to)
         {
@@ -179,12 +271,36 @@ namespace Velivo
             var l = _komStore.GetOrAdd(to, _ => new List<JsonNode>());
             var mid = (string)p["mid"];
             lock (l) { if (!l.Any(x => (string)x["mid"] == mid)) { l.Add(p.DeepClone()); if (l.Count > 300) l.RemoveAt(0); } }
+            KomStoreSave();
             return true;
         }
         void KomStoreFlush(string id, KomRemoteConn rc, IPAddress addr)
         {
+            if (_komRelayListener != null) _ = KomBoxFlush(id);   // 📬 pliki ze skrzynki
             if (!_komStore.TryRemove(id, out var l)) return;
             lock (l) foreach (var p in l) { if (rc != null) KomSendFrame(rc, p); else KomLanRaw(p, addr); }
+            KomStoreSave();
+        }
+        static string KomStoreFile => Path.Combine(DataDir, "komunikator-skrzynka.json");
+        void KomStoreSave()
+        {
+            try
+            {
+                var o = new JsonObject();
+                foreach (var kv in _komStore) lock (kv.Value) o[kv.Key] = new JsonArray(kv.Value.Select(x => x.DeepClone()).ToArray());
+                File.WriteAllText(KomStoreFile, o.ToJsonString());
+            }
+            catch (Exception) { }
+        }
+        void KomStoreLoad()
+        {
+            try
+            {
+                if (!_komStore.IsEmpty || !File.Exists(KomStoreFile)) return;
+                if (JsonNode.Parse(File.ReadAllText(KomStoreFile)) is JsonObject o)
+                    foreach (var kv in o) if (kv.Value is JsonArray a) _komStore[kv.Key] = a.Select(x => x.DeepClone()).ToList();
+            }
+            catch (Exception) { }
         }
 
         void KomLanRaw(JsonNode p, IPAddress to)
@@ -199,6 +315,7 @@ namespace Velivo
         {
             KomRelayStop();
             if (!_komRelayOn) { _komRelayAutoTimer?.Stop(); return; }
+            KomStoreLoad();   // 📬 wiadomości czekające sprzed ponownego uruchomienia
             _ = KomRelayAutoAsync();
             if (_komRelayAutoTimer == null)
             {
@@ -347,6 +464,8 @@ namespace Velivo
                 return;
             }
             if (_komRemote.ContainsKey(to)) { await KomRelayToRemote(to, null, fs, token); return; }
+            var hb0 = await KomReadBlock(fs, 4096, token); if (hb0 == null) return;
+            if (Encoding.UTF8.GetString(hb0).Contains("\"p2p-box\"")) { await KomTcpAsync(hb0, fs, IPAddress.Loopback, token); return; }   // 📬 odbiorcy nie ma - skrzynka pośrednika
             IPAddress addr = null;
             if (!_komLanAddr.TryGetValue(to, out addr))
             {   // adresu jeszcze nie znamy - pytanie w sieci domowej
@@ -357,6 +476,7 @@ namespace Velivo
             using (var lan = new TcpClient())
             {
                 await lan.ConnectAsync(addr, LanPort, token);
+                await KomWriteBlock(lan.GetStream(), hb0, token);
                 await KomPipe(fs, lan.GetStream(), token);
             }
         }
@@ -364,15 +484,8 @@ namespace Velivo
         // plik dla urzadzenia poza domem: prosba o tunel, potem przekazywanie w obie strony
         async Task KomRelayToRemote(string toId, byte[] headerBytes, Stream src, CancellationToken token)
         {
-            if (!_komRemote.TryGetValue(toId, out var rc)) return;
-            var tid = Guid.NewGuid().ToString("N");
-            var w = new TaskCompletionSource<KomFrameStream>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _komTunnels[tid] = w;
-            KomSendFrame(rc, new JsonObject { ["t"] = "relay-open", ["tid"] = tid });
-            var done = await Task.WhenAny(w.Task, Task.Delay(20000, token));
-            _komTunnels.TryRemove(tid, out _);
-            if (done != w.Task) return;
-            using (var fs = w.Task.Result)
+            var fs0 = await KomRelayOpenTo(toId, token); if (fs0 == null) return;
+            using (var fs = fs0)
             {
                 if (headerBytes != null) { await KomWriteBlock(fs, headerBytes, token); }
                 await KomPipe(src, fs, token);

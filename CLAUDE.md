@@ -59,6 +59,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 ## Zrobione (pamięć)
 
 * Komunikator: w domu i poza domem przez domowy komputer (pośrednik, UPnP, bez ustawiania); 🏠/🌍; pliki i zrzuty w obie strony; zaproszenia (WhatsApp, SMS); rozmowy wideo (WebRTC, poza domem prywatny TURN na porcie pośrednika).
+* 📬 Skrzynka pośrednika: wiadomości (`komunikator-skrzynka.json`) i pliki (`skrzynka\<odbiorca>`, typ `p2p-box`, klucz z klucza kontaktu) dla nieobecnych – oddawane, gdy odbiorca się pojawi.
 * Klawiatura (Windows i telefon, te same reguły): do 2 pomyłek sama, większe – propozycje; nie zmienia dobrych słów (formy -aj, -uje, -ąc); sklejone słowa (mi chodziło, o tym); na prawdę → naprawdę; przecinek przed „że”.
 * Klawiatura zapamiętuje na stałe: Mój słownik, cofnięte poprawki (⌫), częste słowa i pary – zaszyfrowane na urządzeniu.
 * Budowa: hasło klucza sprawdzane od razu; instalator ponawia przy antywirusie.

@@ -406,7 +406,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun handleTcp(h: JSONObject, inp: DataInputStream, sock: java.net.Socket): Boolean = handleTcp(h, Conn(inp, sock.getOutputStream(), sock.inetAddress, sock))
     fun handleTcp(h: JSONObject, c: Conn): Boolean = when (h.optString("Type")) {
         "p2p-pair" -> { runCatching { receivePair(h, c) }; true }
-        "p2p-file" -> { runCatching { receiveFile(h, c) }; true }
+        "p2p-file", "p2p-box" -> { runCatching { receiveFile(h, c) }; true }
         else -> false
     }
 
@@ -531,21 +531,21 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val inp = cn.inp
         val size = h.optLong("Size")
         if (size < 0 || size > (1L shl 40) || h.optString("Id").length != 32 || h.optString("Id") == myId) return
+        val box = h.optString("Type") == "p2p-box"   // 📬 plik ze skrzynki pośrednika - klucz z klucza kontaktu (nadawcy mogło już nie być)
         val pubA = unb64(h.optString("Pub")); val base = unb64(h.optString("Nonce"))
-        if (pubA.isEmpty() || pubA.size > 200 || base.size != 12) return
+        if ((!box && (pubA.isEmpty() || pubA.size > 200)) || base.size != 12) return
         val name = h.optString("Name").replace('\\', '/').substringAfterLast('/').filter { !it.isISOControl() && it !in "<>:\"|?*" }
             .trim().trimStart('.').ifEmpty { "plik" }.takeLast(120)
         val dev = clean(h.optString("Device"))
-        val mine = ecPair(); val pubB = mine.public.encoded
         val out = cn.out
-        writeBlock(out, pubB)   // nadawca liczy ten sam kod i pokazuje go u siebie
-        val key = agree(mine, pubA, "velivo-p2p", pubA, pubB)
+        val key = if (box) hmac((contact(h.optString("Id")) ?: return).key, ("velivo-box\n" + h.optString("Nonce")).toByteArray(Charsets.UTF_8))
+        else { val mine = ecPair(); val pubB = mine.public.encoded; writeBlock(out, pubB); agree(mine, pubA, "velivo-p2p", pubA, pubB) }   // nadawca liczy ten sam kod i pokazuje go u siebie
         val ad = fileAd(h)
         // od kontaktu (podpis kluczem kontaktu) - bez kodu, jak załącznik w rozmowie; zgoda odbiorcy zawsze
         val from = contact(h.optString("Id"))?.takeIf { c -> MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(c.key, ad)) }
         val media = from != null && onMedia != null && name.startsWith("Velivo-Filmy-TV") && name.endsWith(".json") && size < 64L * 1024 * 1024
         val auto = media || (from != null && autoImages && size <= 2L * 1024 * 1024 * 1024)   // zdjęcie / plik od kontaktu - od razu do rozmowy (jak w innych komunikatorach)
-        val ok = auto || ask { a -> askFile(from?.name ?: dev, name, size, if (from != null) "" else code(key), a) }
+        val ok = (!box || from != null) && (auto || ask { a -> askFile(from?.name ?: dev, name, size, if (from != null) "" else code(key), a) })
         out.write(if (ok) 1 else 0); out.flush()
         if (!ok) return
         cn.timeout(60000)
@@ -593,37 +593,38 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     // plik na inny telefon: open() - strumień od początku (dwa razy: suma, potem wysyłka)
-    fun sendFile(target: InetAddress, name: String, size: Long, open: () -> java.io.InputStream, showCode: (String) -> Unit, to: Contact? = null): String {
+    // retry - plik, który czekał na odbiorcę (kopia w Velivo), wysyłany ponownie z tym samym wpisem w rozmowie
+    // box - 📬 do skrzynki pośrednika (odbiorcy nie ma): klucz z klucza kontaktu, bez wymiany kluczy z odbiorcą
+    fun sendFile(target: InetAddress, name: String, size: Long, open: () -> java.io.InputStream, showCode: (String) -> Unit, to: Contact? = null, retry: Msg? = null, box: Boolean = false): String {
         val md = MessageDigest.getInstance("SHA-256")
         open().use { s -> val b = ByteArray(1 shl 16); while (true) { val r = s.read(b); if (r < 0) break; md.update(b, 0, r) } }
         val hash = hex(md.digest())
         val mine = ecPair(); val pubA = mine.public.encoded
         val base = ByteArray(12).also { random.nextBytes(it) }
-        val h = JSONObject().put("Type", "p2p-file").put("Id", myId).put("Device", deviceName()).put("Hash", hash).put("Size", size)
-            .put("Name", name).put("Pub", b64(pubA)).put("Nonce", b64(base))
+        val h = JSONObject().put("Type", if (box) "p2p-box" else "p2p-file").put("Id", myId).put("Device", deviceName()).put("Hash", hash).put("Size", size)
+            .put("Name", name).put("Pub", if (box) "" else b64(pubA)).put("Nonce", b64(base))
         val ad = fileAd(h)
-        val mid = UUID.randomUUID().toString().replace("-", ""); h.put("Mid", mid)   // poza podpisem - tylko do ✓✓ w rozmowie
+        val mid = retry?.mid ?: UUID.randomUUID().toString().replace("-", ""); h.put("Mid", mid)   // poza podpisem - tylko do ✓✓ w rozmowie
         if (to != null) h.put("Mac", b64(hmac(to.key, ad)))   // kontakt rozpozna nadawcę bez kodu
         if (to != null) h.put("To", to.id)   // pośrednik wie, komu przekazać (poza podpisem)
         // wpis w rozmowie od razu („…”): „przeczytane” od odbiorcy może przyjść, zanim tu skończymy
         // wysłane zdjęcie: mała kopia w Velivo (miniatura w rozmowie)
-        val thumb = if (to != null && isImage(name)) runCatching {
+        val thumb = if (to != null && retry == null && isImage(name)) runCatching {
             val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
             open().use { android.graphics.BitmapFactory.decodeStream(it, null, o) }
             var smp = 1; while (maxOf(o.outWidth, o.outHeight) / smp > 1280) smp *= 2
             val bmp = open().use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp }) }!!
             val f = java.io.File(mediaDir, "wyslane-$mid.jpg"); f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }; f.path
         }.getOrNull() else null
-        val pend = to?.let { c -> Msg(true, (if (thumb != null) "🖼 " else "📎 ") + "$name · " + sizeText(size), System.currentTimeMillis(), false, mid, file = true, path = thumb).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
+        val pend = retry ?: to?.let { c -> Msg(true, (if (thumb != null) "🖼 " else "📎 ") + "$name · " + sizeText(size), System.currentTimeMillis(), false, mid, file = true, path = thumb).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
         return runCatching {
             connect(target, to?.id).use { s ->   // poza domem - tunel przez pośrednika
                 s.timeout(15000)
                 val out = java.io.BufferedOutputStream(s.out, 1 shl 16)
                 writeBlock(out, h.toString().toByteArray(Charsets.UTF_8))
                 val inp = s.inp
-                val pubB = readBlock(inp, 200) ?: return@use "błąd"
-                val key = agree(mine, pubB, "velivo-p2p", pubA, pubB)
-                showCode(code(key))
+                val key = if (box) hmac(to!!.key, ("velivo-box\n" + h.optString("Nonce")).toByteArray(Charsets.UTF_8))
+                else { val pubB = readBlock(inp, 200) ?: return@use "błąd"; agree(mine, pubB, "velivo-p2p", pubA, pubB).also { showCode(code(it)) } }
                 s.timeout(180000)
                 if (inp.read() != 1) return@use "odrzucono"
                 s.timeout(300000)
@@ -642,11 +643,16 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 }
                 if (sent != size) return@use "plik zmienił się w trakcie"
                 val ack = ByteArray(32).also { inp.readFully(it) }
-                if (MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"
+                if (box || MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"   // skrzynka: potwierdza pośrednik
             }
         }.getOrElse { it.message ?: it.javaClass.simpleName }.also { r ->
             if (to != null && pend != null) {
-                if (r == "ok") { pend.ok = true; pend.text += if (pl) " – odebrano" else " – received" } else { synchronized(this) { chat(to.id).remove(pend) }; pend.path?.let { java.io.File(it).delete() } }   // odrzucony / błąd - bez wpisu
+                if (r == "ok") { pend.ok = true; pend.text += if (box) (if (pl) " – 📬 czeka na serwerze" else " – 📬 waiting on the server") else if (pl) " – odebrano" else " – received" }
+                else if (r == "odrzucono") { synchronized(this) { chat(to.id).remove(pend) }; pend.path?.let { java.io.File(it).delete() } }   // odrzucony - bez wpisu
+                else if (retry == null && sendBox(to, name, size, open, pend) != "ok") runCatching {   // odbiorcy nie ma: 📬 do skrzynki pośrednika; bez pośrednika - kopia w Velivo („…”), wyślę sama, gdy się pojawi
+                    val keep = java.io.File(mediaDir, "wyslane-$mid-$name"); open().use { i -> keep.outputStream().use { i.copyTo(it) } }
+                    pend.path?.let { java.io.File(it).delete() }; pend.path = keep.path
+                }.onFailure { synchronized(this) { chat(to.id).remove(pend) } }
                 saveChat(to.id); main.post { onChange() }
             }
         }
@@ -654,6 +660,14 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     // plik w historii rozmowy (jak załącznik w innych komunikatorach)
     // plik w rozmowie: ten sam identyfikator u nadawcy i odbiorcy (Mid z nagłówka) - „przeczytane” (✓✓) jak przy wiadomościach
+    // 📬 odbiorcy nie ma - plik do skrzynki pośrednika (poza domem tunelem, w domu do pośrednika w Wi-Fi); oddany, gdy odbiorca się pojawi
+    private fun sendBox(to: Contact, name: String, size: Long, open: () -> java.io.InputStream, pend: Msg): String {
+        val now = System.currentTimeMillis()
+        val home = synchronized(this) { contacts.firstOrNull { it.relay != null && now - (lanSeen[it.id] ?: 0L) < 100000 } }
+        val target = if (up != null) InetAddress.getLoopbackAddress() else home?.addr?.let { a -> runCatching { InetAddress.getByName(a) }.getOrNull() } ?: return "brak"
+        return sendFile(target, name, size, open, {}, to, pend, box = true)
+    }
+
     private fun note(c: Contact, mine: Boolean, text: String, mid: String? = null, path: String? = null) {
         val id = mid?.takeIf { it.length == 32 && synchronized(this) { chat(c.id).none { m -> m.mid == it } } } ?: UUID.randomUUID().toString().replace("-", "")
         val m = Msg(mine, text, System.currentTimeMillis(), true, id, file = true, path = path)
@@ -1050,6 +1064,17 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun resend(c: Contact) {
         val pending = synchronized(this) { chat(c.id).filter { it.mine && !it.ok && !it.file && System.currentTimeMillis() - it.ts < 7L * 86400000 } }
         pending.forEach { deliver(c, it) }
+        // 📎 pliki, które czekały na odbiorcę - gdy jest w sieci
+        if (online(c.id)) synchronized(this) { chat(c.id).filter { it.mine && !it.ok && it.file && it.path?.let { p -> java.io.File(p).name.startsWith("wyslane-${it.mid}-") } == true } }.forEach { m ->
+            if (!inFlight.add(m.mid)) return@forEach
+            Thread {
+                runCatching {
+                    val f = java.io.File(m.path!!); val target = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull() ?: InetAddress.getLoopbackAddress()
+                    sendFile(target, f.name.removePrefix("wyslane-${m.mid}-"), f.length(), { f.inputStream() }, {}, c, m)
+                }
+                inFlight.remove(m.mid)
+            }.start()
+        }
     }
     private val resender = Thread {
         while (true) runCatching {

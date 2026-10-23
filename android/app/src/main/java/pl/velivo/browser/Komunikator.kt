@@ -347,7 +347,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 👤 przedstawienie: dwie osoby z moich kontaktów (znane z sieci domowej, teraz choćby poza domem) dostają siebie nawzajem
     // jako kontakty - ze wspólnym, nowym kluczem; wizytówki idą zaszyfrowane kluczem każdej z nich
     fun introduce(ids: List<String>) {
-        val cs = ids.mapNotNull { contact(it) }.filter { !it.isGroup }
+        // + moi pośrednicy (np. NUCBOX) - żeby nowi znajomi mogli się łączyć także przez internet
+        val cs = (ids.mapNotNull { contact(it) } + synchronized(this) { contacts.filter { it.relay != null } }).filter { !it.isGroup }.distinctBy { it.id }
         for (i in cs.indices) for (j in i + 1 until cs.size) {
             val key = ByteArray(32).also { random.nextBytes(it) }
             fun card(c: Contact) = JSONObject().put("id", c.id).put("name", c.name).put("dev", c.device).put("key", b64(key)).put("relay", c.relay ?: "").toString()

@@ -526,6 +526,7 @@ namespace Velivo
         const string KomCardTag = "\u0001velivo-kontakt\n";
         void KomIntroduce(List<KomContact> cs)
         {
+            cs = cs.Concat(_komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup)).GroupBy(c => c.Id).Select(g => g.First()).ToList();   // + moi pośrednicy (np. NUCBOX) - połączenie także przez internet
             for (int i = 0; i < cs.Count; i++)
                 for (int j = i + 1; j < cs.Count; j++)
                 {

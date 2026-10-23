@@ -779,7 +779,7 @@ namespace Velivo
                     var msg = (L.En ? "📎 File from " : "📎 Plik od ") + dev + ": " + Path.GetFileName(target);
                     if (_komWindow != null && _komWindow.IsVisible) KomInfo(msg + L.T(" – zapisano"));   // okno zostaje na wierzchu
                     else ShowToast(msg, target);
-                    if (from != null) KomNote(from, false, (KomIsImage(target) ? "🖼 " : "📎 ") + Path.GetFileName(target) + " · " + KomSize(size), (string)h["Mid"], target);
+                    if (from != null) KomNote(from, false, KomFileLabel(Path.GetFileName(target), size), (string)h["Mid"], target);
                     if (from != null && !(_komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == from.Id))
                     {   // plik / zdjecie jak wiadomosc: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)
                         _komUnread[from.Id] = (_komUnread.TryGetValue(from.Id, out var un0) ? un0 : 0) + 1; KomSave(); KomTrayUpdate();
@@ -977,6 +977,7 @@ namespace Velivo
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
             var sendBtn = new Button { Content = "➤", FontSize = 16, Width = 44, Margin = new Thickness(6, 0, 0, 0), ToolTip = L.T("Wyślij") };
             var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
+            var micBtn = new Button { Content = "🎤", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Wiadomość głosowa: kliknij, mów, kliknij ponownie, by wysłać") };
             var callBtn = new Button { Content = "📹", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa wideo") };
             var bottom = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             DockPanel.SetDock(bottom, Dock.Bottom);
@@ -993,14 +994,14 @@ namespace Velivo
                 statusBar.Visibility = p >= 0 ? Visibility.Visible : Visibility.Collapsed; if (p >= 0) statusBar.Value = p;
                 statusHide.Stop(); if (p < 0) statusHide.Start();
             };
-            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
-            bottom.Children.Add(callBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
+            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
+            bottom.Children.Add(callBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(micBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
             var msgs = new StackPanel { Margin = new Thickness(4) };
             var scroll = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(status); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
-            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(callBtn);
+            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(callBtn);
             root.Margin = new Thickness(0);
             left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
             KomPal pal = null;
@@ -1074,7 +1075,7 @@ namespace Velivo
                     header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
                 }
-                input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = callBtn.IsEnabled = c != null;
+                input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = micBtn.IsEnabled = callBtn.IsEnabled = c != null;
                 msgs.Children.Clear();
                 if (c == null) return;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))
@@ -1153,13 +1154,31 @@ namespace Velivo
             sendBtn.Click += (s, e) => DoSend();
             input.PreviewKeyDown += (s, e) => { if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0) { e.Handled = true; DoSend(); } };
             // 📎 do zaznaczonego kontaktu: 🟢 w sieci - od razu na znany adres; szukanie tylko, gdy adresu nie znamy
-            async Task AttachTo(KomContact c)
+            async Task AttachTo(KomContact c, string[] files = null)
             {
                 IPAddress addr = null;
                 if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) { addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr; }
-                if (addr == null && _komUp == null && !_komRemote.ContainsKey(c.Id)) { KomInfo(L.T("Tej osoby nie ma teraz w sieci")); return; }
-                await KomSendFilesTo(w, c.Name, addr ?? IPAddress.Loopback, c);   // poza domem: tunel przez pośrednika
+                await KomSendFilesTo(w, c.Name, addr ?? IPAddress.Loopback, c, files);   // poza domem: tunel przez pośrednika; nie ma nikogo - 📬 skrzynka / czeka u nas
             }
+            // 🎤 wiadomość głosowa: klik - nagrywanie (mikrofon Windows), klik ponownie - wysyłka jak plik
+            bool recording = false; string recPath = null; DateTime recAt = default;
+            micBtn.Click += async (s, e) =>
+            {
+                var c = Current(); if (c == null) return;
+                if (!recording)
+                {
+                    recPath = Path.Combine(Path.GetTempPath(), "Glosowa-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".wav");
+                    KomMci("close velivorec"); 
+                    if (KomMci("open new type waveaudio alias velivorec") != 0 || KomMci("set velivorec bitspersample 16 channels 1 samplespersec 22050") != 0 || KomMci("record velivorec") != 0)
+                    { KomMci("close velivorec"); KomInfo(L.T("Nie udało się włączyć mikrofonu")); return; }
+                    recording = true; recAt = DateTime.UtcNow; micBtn.Content = "⏹"; KomInfo("🎤 " + L.T("Nagrywam… kliknij ⏹, by wysłać"));
+                    return;
+                }
+                recording = false; micBtn.Content = "🎤";
+                KomMci("stop velivorec"); bool ok = KomMci("save velivorec \"" + recPath + "\"") == 0; KomMci("close velivorec");
+                if (ok && DateTime.UtcNow - recAt > TimeSpan.FromMilliseconds(700) && File.Exists(recPath)) await AttachTo(c, new[] { recPath });
+                else try { File.Delete(recPath); } catch (Exception) { }
+            };
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
             callBtn.Click += (s, e) => KomOpenCall(Current(), true);
             leftButtons.Children.Add(Btn("🎨", L.T("Motyw komunikatora – kolory okna i wiadomości"), (s, e) =>
@@ -1313,18 +1332,28 @@ namespace Velivo
             if (r == "ok") _komSelect?.Invoke(p.Id);
         }
 
-        async Task KomSendFilesTo(Window owner, string name, IPAddress addr, KomContact to = null)
+        [System.Runtime.InteropServices.DllImport("winmm.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, EntryPoint = "mciSendStringW")] static extern int KomMciSend(string cmd, System.Text.StringBuilder ret, int len, IntPtr cb);
+        // 🎤 wiadomość głosowa (plik „Glosowa-…”) - opis w rozmowie zamiast nazwy pliku (jak w telefonie)
+        static string KomFileLabel(string name, long size) => (name.StartsWith("Glosowa-", StringComparison.Ordinal) ? "🎤 " + L.T("Wiadomość głosowa") : (KomIsImage(name) ? "🖼 " : "📎 ") + name) + " · " + KomSize(size);
+        static int KomMci(string cmd) { try { return KomMciSend(cmd, null, 0, IntPtr.Zero); } catch (Exception) { return -1; } }
+
+        // files - gotowe pliki (np. 🎤 nagranie); bez - okno wyboru
+        async Task KomSendFilesTo(Window owner, string name, IPAddress addr, KomContact to = null, string[] files = null)
         {
-            var dlg = new Microsoft.Win32.OpenFileDialog { Title = (L.En ? "Send files to " : "Wyślij pliki do: ") + name, Multiselect = true };
-            if (dlg.ShowDialog(owner) != true) return;
-            foreach (var f in dlg.FileNames)
+            if (files == null)
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog { Title = (L.En ? "Send files to " : "Wyślij pliki do: ") + name, Multiselect = true };
+                if (dlg.ShowDialog(owner) != true) return;
+                files = dlg.FileNames;
+            }
+            foreach (var f in files)
             {
                 Window codeWin = null;
                 var fn = Path.GetFileName(f); var fmid = Guid.NewGuid().ToString("N"); long fsize = 0; try { fsize = new FileInfo(f).Length; } catch (Exception) { }
                 KomInfo("📎 " + fn + L.T(" – czekam, aż odbiorca przyjmie…"), 0);
                 // wpis w rozmowie od razu („…”): potwierdzenie przeczytania od odbiorcy moze przyjsc, zanim tu skonczymy
                 KomMsg pend = null;
-                if (to != null) { pend = new KomMsg { Mine = true, Text = "📎 " + fn + " · " + KomSize(fsize), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = false, Mid = fmid, File = true, Path = f }; KomChat(to.Id).Add(pend); KomSave(); _komRefresh?.Invoke(); }
+                if (to != null) { pend = new KomMsg { Mine = true, Text = KomFileLabel(fn, fsize), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = false, Mid = fmid, File = true, Path = f }; KomChat(to.Id).Add(pend); KomSave(); _komRefresh?.Invoke(); }
                 var r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
                     (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))), fmid);
                 codeWin?.Close();

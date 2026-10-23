@@ -584,7 +584,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             } else saveFile(name, tmp, dev)
             out.write(hmac(key, ("file-ack\n" + h.optString("Hash")).toByteArray(Charsets.UTF_8))); out.flush()
             if (from != null) {
-                note(from, false, (if (isImage(name)) "🖼 " else "📎 ") + "$name · " + sizeText(size), h.optString("Mid"), saved)
+                note(from, false, fileLabel(name, size, isImage(name)), h.optString("Mid"), saved)
                 // plik / zdjęcie jak wiadomość: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)
                 if (chatOpen != from.id) prefs.edit().putInt("nowe-${from.id}", unread(from.id) + 1).apply()
                 notifyMessage(from)
@@ -616,7 +616,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val bmp = open().use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp }) }!!
             val f = java.io.File(mediaDir, "wyslane-$mid.jpg"); f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }; f.path
         }.getOrNull() else null
-        val pend = retry ?: to?.let { c -> Msg(true, (if (thumb != null) "🖼 " else "📎 ") + "$name · " + sizeText(size), System.currentTimeMillis(), false, mid, file = true, path = thumb).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
+        val pend = retry ?: to?.let { c -> Msg(true, fileLabel(name, size, thumb != null), System.currentTimeMillis(), false, mid, file = true, path = thumb).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
         return runCatching {
             connect(target, to?.id).use { s ->   // poza domem - tunel przez pośrednika
                 s.timeout(15000)
@@ -667,6 +667,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val target = if (up != null) InetAddress.getLoopbackAddress() else home?.addr?.let { a -> runCatching { InetAddress.getByName(a) }.getOrNull() } ?: return "brak"
         return sendFile(target, name, size, open, {}, to, pend, box = true)
     }
+
+    // 🎤 wiadomość głosowa (plik „Glosowa-….m4a”) - opis w rozmowie zamiast nazwy pliku
+    private fun fileLabel(name: String, size: Long, image: Boolean) =
+        if (name.startsWith("Glosowa-")) "🎤 " + (if (pl) "Wiadomość głosowa" else "Voice message") + " · " + sizeText(size)
+        else (if (image) "🖼 " else "📎 ") + "$name · " + sizeText(size)
 
     private fun note(c: Contact, mine: Boolean, text: String, mid: String? = null, path: String? = null) {
         val id = mid?.takeIf { it.length == 32 && synchronized(this) { chat(c.id).none { m -> m.mid == it } } } ?: UUID.randomUUID().toString().replace("-", "")
@@ -1551,8 +1556,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 // 🟢 w sieci i znany adres - od razu, bez szukania
                 val addr = (if (k.online(c.id)) known else null) ?: k.find().firstOrNull { it.id == c.id }?.addr ?: known ?: if (k.viaInternet(c.id)) InetAddress.getLoopbackAddress() else null   // poza domem: tunel przez pośrednika
                 a.runOnUiThread {
-                    if (addr == null) Toast.makeText(a, t("${c.name} nie ma teraz w sieci", "${c.name} is not on the network now"), Toast.LENGTH_LONG).show()
-                    else sendFilesTo(uris, Komunikator.Peer(c.id, c.name, addr), c)
+                    // nie ma w sieci - i tak wysyłka: 📬 do skrzynki pośrednika albo czeka u nas i idzie sama
+                    sendFilesTo(uris, Komunikator.Peer(c.id, c.name, addr ?: InetAddress.getLoopbackAddress()), c)
                 }
             }.start()
             return
@@ -1641,6 +1646,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                         }
                     }
                     if (img != null) setOnClickListener { showPhoto(m.path!!) }
+                    else if (m.path != null && java.io.File(m.path!!).exists() && m.text.startsWith("🎤")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
@@ -1661,10 +1667,35 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, s); fill() }
         val clip = round("📎", t("Załącz plik", "Attach file"), pal().button) { attachTo = c; pickFiles() }
+        // 🎤 wiadomość głosowa: stuknij - nagrywanie, stuknij ponownie - wysyłka (jak plik: w domu, przez internet, do skrzynki)
+        var rec: android.media.MediaRecorder? = null; var recFile: java.io.File? = null; var recAt = 0L
+        val mic = round("🎤", t("Wiadomość głosowa: stuknij, mów, stuknij ponownie, by wysłać", "Voice message: tap, speak, tap again to send"), pal().button) {}
+        mic.setOnClickListener {
+            val r = rec
+            if (r == null) {
+                if (a.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) { a.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 4712); return@setOnClickListener }
+                val f = java.io.File(a.cacheDir, "Glosowa-" + java.text.SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.ROOT).format(java.util.Date()) + ".m4a")
+                rec = runCatching {
+                    @Suppress("DEPRECATION") (if (Build.VERSION.SDK_INT >= 31) android.media.MediaRecorder(a) else android.media.MediaRecorder()).apply {
+                        setAudioSource(android.media.MediaRecorder.AudioSource.MIC); setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+                        setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC); setAudioEncodingBitRate(64000); setAudioSamplingRate(44100)
+                        setOutputFile(f.path); prepare(); start()
+                    }
+                }.getOrNull()
+                if (rec != null) { recFile = f; recAt = System.currentTimeMillis(); mic.text = "⏹"; (mic.background as? GradientDrawable)?.setColor(Color.rgb(229, 57, 53))
+                    Toast.makeText(a, "🎤 " + t("Nagrywam… stuknij ⏹, by wysłać", "Recording… tap ⏹ to send"), Toast.LENGTH_SHORT).show() }
+                else Toast.makeText(a, t("Nie udało się włączyć mikrofonu", "Could not start the microphone"), Toast.LENGTH_SHORT).show()
+            } else {
+                rec = null; val ok = runCatching { r.stop() }.isSuccess; r.release()
+                mic.text = "🎤"; (mic.background as? GradientDrawable)?.setColor(pal().button)
+                val f = recFile; recFile = null
+                if (ok && f != null && System.currentTimeMillis() - recAt > 700) { attachTo = c; sendFiles(listOf(Uri.fromFile(f))) } else f?.delete()
+            }
+        }
         val btn = round("➤", t("Wyślij", "Send"), violet) {   // klawiatura Velivo najpierw poprawia ostatnie słowo, potem wysyłka
             (a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).sendAppPrivateCommand(input, "pl.velivo.slowo", null); input.postDelayed({ send() }, 150) }
         input.setOnEditorActionListener { _, id, _ -> if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { send(); true } else false }
-        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(input); addView(btn) }
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(mic); addView(input); addView(btn) }
         val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
         val title = TextView(a).apply { textSize = 18f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
         fun status() {
@@ -1717,6 +1748,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         a.contentResolver.openOutputStream(uri)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
         uri
     }.getOrNull()?.also { downloaded[path] = it }
+
+    // 🎤 odtwarzanie wiadomości głosowej w rozmowie (stuknięcie ponownie - stop)
+    private var player: android.media.MediaPlayer? = null; private var playing: String? = null
+    private fun play(path: String) {
+        val was = playing; player?.let { runCatching { it.stop() }; it.release() }; player = null; playing = null
+        if (was == path) return
+        player = runCatching { android.media.MediaPlayer().apply { setDataSource(path); setOnCompletionListener { it.release(); if (player === it) { player = null; playing = null } }; prepare(); start() } }.getOrNull()
+        if (player != null) { playing = path; Toast.makeText(a, "▶ " + t("Wiadomość głosowa (stuknij, by zatrzymać)", "Voice message (tap to stop)"), Toast.LENGTH_SHORT).show() }
+        else Toast.makeText(a, t("Nie udało się odtworzyć", "Could not play"), Toast.LENGTH_SHORT).show()
+    }
 
     // link: najpierw aplikacja przypisana do takich linków (np. YouTube), inaczej domyślna przeglądarka
     private fun openLink(url: String) {

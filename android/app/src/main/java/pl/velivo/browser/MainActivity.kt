@@ -2993,12 +2993,31 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     // ikona „Komunikator Velivo” (alias tej aktywności)
     private fun fromMessengerIcon(i: Intent?) = i?.action == Intent.ACTION_MAIN && i.component?.className == "pl.velivo.browser.KomunikatorStart"
 
+    // 💬 wiadomości i 📹 rozmowy zawsze widoczne na ekranie (także zablokowanym): gdy Android to blokuje - prośba o włączenie (raz na uruchomienie)
+    private var alertsAsked = false
+    private fun screenAlerts() {
+        if (alertsAsked) return
+        val nm = getSystemService(android.app.NotificationManager::class.java) ?: return
+        val off = !nm.areNotificationsEnabled()
+        val noFull = Build.VERSION.SDK_INT >= 34 && !nm.canUseFullScreenIntent()
+        if (!off && !noFull) return
+        alertsAsked = true
+        AlertDialog.Builder(this).setTitle(R.string.kom_alerts_title).setMessage(R.string.kom_alerts_msg)
+            .setPositiveButton(R.string.kom_alerts_on) { _, _ ->
+                runCatching {
+                    startActivity(if (off) Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                        else Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName")))
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     // fromIcon: otwarte ikoną komunikatora - po zamknięciu komunikatora wracamy do ekranu telefonu, nie do przeglądarki
     private fun showMessenger(id: String? = null, fromIcon: Boolean = false) {
         komOkno; startLan(force = true)
         komOkno.onClose = if (fromIcon) ({ moveTaskToBack(true); Unit }) else null
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 0)   // powiadomienia o nowych wiadomościach
+        else screenAlerts()
         id?.let { kom.contact(it) }?.let { komOkno.openChat(it) } ?: komOkno.show()
     }
 
@@ -3331,6 +3350,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         android.util.Log.i("Velivo-PiP", "wznowione")
         super.onResume()
         PlaybackService.stop(this)
+        if (kom.contacts.isNotEmpty()) screenAlerts()   // wiadomości i rozmowy muszą być widoczne na ekranie
         kom.wake()   // 🌍 po uśpieniu ekranu połączenie z pośrednikiem od nowa, gdy milczy
         startLan()   // sieć domowa wraca po onPause (stopLan): synchronizacja, komunikator; usługa w tle oddaje port 41919
         lockBankIfIdle()

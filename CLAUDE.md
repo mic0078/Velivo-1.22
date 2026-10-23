@@ -52,6 +52,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-23: Velivo zamykało się po zamknięciu filmu – zegar synchronizacji pytał zwolniony odtwarzacz VLC (PlayerBusy → IsPlaying na zwolnionym, 0xc0000005); po zamknięciu odtwarzacza _playerMp = null. Przyczynę dał dziennik Windows (Get-WinEvent Id 1000,1026).
 * 2026-10-23: telefon w domu co ~3 min przeskakiwał dom ↔ internet (pośrednik milczał w Wi-Fi ponad 100 s); teraz po 40 s ciszy telefon pyta pośrednika (p2p-who) w Wi-Fi.
 * 2026-10-23: plik od kontaktu przyjęty „z pytaniem” szedł do Pobranych bez ścieżki w rozmowie – stuknięcie nic nie robiło; teraz zawsze w rozmowie. Linki: najpierw aplikacja przypisana (FLAG_ACTIVITY_REQUIRE_NON_BROWSER), potem przeglądarka.
+* 2026-10-23: mama nie widziała dzwonka ani wiadomości – Android 14 blokuje rozmowy na cały ekran bez zgody (canUseFullScreenIntent), a powiadomienia mogą być wyłączone; Velivo sprawdza i prosi o włączenie, wiadomości widoczne na zablokowanym ekranie.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

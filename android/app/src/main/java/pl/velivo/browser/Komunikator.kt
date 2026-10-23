@@ -360,7 +360,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             })
             val n = Notification.Builder(ctx, "rozmowy").setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle("📹 " + c.name).setContentText(if (pl) "Dzwoni – stuknij, by odebrać" else "Calling – tap to answer")
-                .setCategory(Notification.CATEGORY_CALL).setContentIntent(pi).setFullScreenIntent(pi, true).setAutoCancel(true).setTimeoutAfter(45000).build()
+                .setCategory(Notification.CATEGORY_CALL).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setFullScreenIntent(pi, true).setAutoCancel(true).setTimeoutAfter(45000).build()
             n.flags = n.flags or Notification.FLAG_INSISTENT
             nm.notify("rozmowa".hashCode(), n)
         }
@@ -967,7 +967,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         runCatching {
             nm.notify(c.id.hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle(c.name).setContentText(last.lastOrNull()?.text ?: "")
-                .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setContentIntent(pi).setAutoCancel(true)
+                .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setAutoCancel(true)
                 .setOnlyAlertOnce(quiet).addAction(reply).addAction(read).setShowWhen(true).build())
         }
     }

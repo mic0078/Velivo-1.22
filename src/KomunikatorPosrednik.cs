@@ -160,10 +160,31 @@ namespace Velivo
             if (from == null || from.Length != 32 || IPAddress.IsLoopback(addr)) return;
             if (_komRemote.ContainsKey(from)) return;   // echo pakietu urzadzenia poza domem, ktory sami przekazalismy - nie jest w domu
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
+            KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
+            if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) return;
             if (from == _komId || _komRemote.IsEmpty) return;   // nasze - bez echa
             var to = (string)p["to"];
             if (to != null) { if (_komRemote.TryGetValue(to, out var rc)) KomSendFrame(rc, p); return; }
             if (t == "p2p-here" || t == "p2p-who" || t == "p2p-bye") foreach (var c in _komRemote.Values) KomSendFrame(c, p);
+        }
+
+        // 📬 skrzynka pośrednika: zaszyfrowane wiadomości (pośrednik ich nie odczyta) do urządzenia, którego nie ma ani przez internet,
+        // ani w sieci domowej - doręczane, gdy się pojawi (najwyżej 300 na urządzenie, tylko do kontaktów tego komputera, do zamknięcia Velivo)
+        readonly ConcurrentDictionary<string, List<JsonNode>> _komStore = new ConcurrentDictionary<string, List<JsonNode>>();
+        bool KomStoreKeep(JsonNode p, string to)
+        {
+            if (_komRelayListener == null || (string)p["t"] != "p2p-msg" || to == _komId || _komRemote.ContainsKey(to)) return false;
+            if (_komLanSeen.TryGetValue(to, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100)) return false;   // w domu - dojdzie siecią domową
+            try { if (!_komContacts.ToArray().Any(c => c.Id == to)) return false; } catch (Exception) { return false; }
+            var l = _komStore.GetOrAdd(to, _ => new List<JsonNode>());
+            var mid = (string)p["mid"];
+            lock (l) { if (!l.Any(x => (string)x["mid"] == mid)) { l.Add(p.DeepClone()); if (l.Count > 300) l.RemoveAt(0); } }
+            return true;
+        }
+        void KomStoreFlush(string id, KomRemoteConn rc, IPAddress addr)
+        {
+            if (!_komStore.TryRemove(id, out var l)) return;
+            lock (l) foreach (var p in l) { if (rc != null) KomSendFrame(rc, p); else KomLanRaw(p, addr); }
         }
 
         void KomLanRaw(JsonNode p, IPAddress to)
@@ -271,6 +292,7 @@ namespace Velivo
                 _komRemote[id] = me;
                 _komViaNet[id] = true;
                 KomSendFrame(me, KomRelayHere());   // pośrednik jest w sieci
+                KomStoreFlush(id, me, null);   // 📬 wiadomości, które czekały, aż się pojawi
                 await Dispatcher.InvokeAsync(() => { KomRelayStatus(); _komRefresh?.Invoke(); });
                 while (!token.IsCancellationRequested)
                 {
@@ -291,6 +313,7 @@ namespace Velivo
                     if (pto == _komId) continue;
                     if (pto != null && _komRemote.TryGetValue(pto, out var rc)) { KomSendFrame(rc, p); continue; }   // oba urzadzenia poza domem
                     // do sieci domowej: znany adres albo do wszystkich
+                    if (pto != null && KomStoreKeep(p, pto)) continue;   // odbiorca niedostępny - pośrednik przechowuje
                     KomLanRaw(p, pto != null && _komLanAddr.TryGetValue(pto, out var a) ? a : null);
                     if (pto == null) foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p);
                 }

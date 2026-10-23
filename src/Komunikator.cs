@@ -270,8 +270,9 @@ namespace Velivo
             string t = (string)p["t"], from = (string)p["id"];
             if (from == null || from == _komId || from.Length != 32) return;
             long ts = (long?)p["ts"] ?? 0;
-            if (Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 600000) return;
             var c = KomContactById(from);
+            // stara wiadomość (czekała u nadawcy albo na pośredniku) - przyjęta, bez zmiany obecności; inne stare pakiety - pominięte
+            if (Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 600000) { if (t == "p2p-msg") KomReceive(p, c, sender, ts); return; }
             if (t == "p2p-bye") { if (c != null && _komLastSeen.Remove(c.Id)) _komRefresh?.Invoke(); return; }   // zamknal Velivo - od razu poza siecia
             if (c == null && !IPAddress.IsLoopback(sender) && (t == "p2p-here" || t == "p2p-who")) KomNotifyNew(from, KomClean((string)p["device"]));
             if (c != null)
@@ -336,7 +337,7 @@ namespace Velivo
             catch (CryptographicException) { return; }
             var ack = KomPacket("p2p-ack"); ack["to"] = c.Id; ack["mid"] = mid; ack["mac"] = Convert.ToBase64String(KomHmac(c.Key, "ack\n" + mid));
             KomSendUdp(ack, sender);
-            if (!_komSeen.Add(mid)) return;   // powtorka - tylko ponowne potwierdzenie
+            if (!_komSeen.Add(mid) || KomChat(c.Id).Any(x => x.Mid == mid)) return;   // powtorka (takze po ponownym uruchomieniu) - tylko ponowne potwierdzenie
             if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
             if (text.StartsWith(KomCallTag, StringComparison.Ordinal)) { KomOnCall(c, text.Substring(KomCallTag.Length)); return; }   // 📹 sygnał rozmowy wideo - poza czatem
             if (text.Length > 4000) text = text.Substring(0, 4000);

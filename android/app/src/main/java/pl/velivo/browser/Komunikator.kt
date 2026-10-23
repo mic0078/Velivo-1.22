@@ -216,7 +216,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val from = p.optString("id")
         if (from == myId || from.length != 32 || sender == null) return true
         if (viaRelay) viaNet[from] = true else { lanSeen[from] = System.currentTimeMillis(); viaNet.remove(from) }
-        if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) return true
+        // stara wiadomość (czekała u nadawcy albo na pośredniku) - przyjęta, bez zmiany obecności; inne stare pakiety - pominięte
+        if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) { if (t == "p2p-msg") message(p, sender); return true }
         if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
         if (!viaRelay && (t == "p2p-here" || t == "p2p-who") && contact(from) == null) notifyNewDevice(from, clean(p.optString("device")))
         contact(from)?.let { c ->
@@ -307,7 +308,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             String(ci.doFinal(unb64(p.optString("c"))), Charsets.UTF_8)
         }.getOrNull() ?: return
         sendUdp(packet("p2p-ack").put("to", c.id).put("mid", mid).put("mac", b64(hmac(c.key, "ack\n$mid".toByteArray()))), sender)
-        if (!seen.add(mid)) return   // powtórzenie (np. potwierdzenie nie doszło) - tylko ponowne ack
+        if (!seen.add(mid) || synchronized(this) { chat(c.id).any { it.mid == mid } }) return   // powtórzenie (także po ponownym uruchomieniu) (np. potwierdzenie nie doszło) - tylko ponowne ack
         if (seen.size > 2000) synchronized(seen) { seen.iterator().let { it.next(); it.remove() } }
         if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
         if (text.startsWith(CALL)) { val o = runCatching { JSONObject(text.substring(CALL.length)) }.getOrNull() ?: return; onCallSignal(c, o); return }

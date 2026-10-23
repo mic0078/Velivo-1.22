@@ -61,6 +61,9 @@ namespace Velivo
                     _komTheme = (string)o["theme"] ?? "auto";
                     _komAutoImages = (bool?)o["autoimg"] ?? true;
                     _komNotifyNew = (bool?)o["notifynew"] ?? true; _komSound = (string)o["sound"] ?? "";
+                    if (o["asks"] is JsonObject ak) foreach (var kv in ak) if (kv.Value != null) _komAskKeys[kv.Key] = (string)kv.Value;
+                    if (o["askReq"] is JsonObject aq) foreach (var kv in aq) if (kv.Value is JsonObject v) _komAskReq[kv.Key] = (JsonObject)v.DeepClone();
+                    if (o["askRes"] is JsonObject ar) foreach (var kv in ar) if (kv.Value is JsonObject v) _komAskRes[kv.Key] = (JsonObject)v.DeepClone();
                     foreach (var iv in o["invites"]?.AsArray() ?? new JsonArray())   // ✉ zaproszenia czekajace na pośredniku
                     {
                         var ik = KomB64((string)iv["k"]); long ie = (long?)iv["exp"] ?? 0;
@@ -112,7 +115,8 @@ namespace Velivo
                 {
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["sound"] = _komSound, ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["sound"] = _komSound, ["asks"] = new JsonObject(_komAskKeys.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value))),
+                    ["askReq"] = new JsonObject(_komAskReq.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["askRes"] = new JsonObject(_komAskRes.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
                 };
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(o.ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
@@ -340,6 +344,9 @@ namespace Velivo
             if (!_komSeen.Add(mid) || KomChat(c.Id).Any(x => x.Mid == mid)) return;   // powtorka (takze po ponownym uruchomieniu) - tylko ponowne potwierdzenie
             if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
             if (text.StartsWith(KomCallTag, StringComparison.Ordinal)) { KomOnCall(c, text.Substring(KomCallTag.Length)); return; }   // 📹 sygnał rozmowy wideo - poza czatem
+            if (text.StartsWith(KomAddrTag, StringComparison.Ordinal)) { var sk = text.Substring(KomAddrTag.Length).Trim(); if (sk.Length == 0) _komAskKeys.TryRemove(c.Id, out _); else _komAskKeys[c.Id] = sk; KomSave(); return; }   // 🔗 sekret „Mój adres” od właściciela
+            if (text.StartsWith(KomAskOkTag, StringComparison.Ordinal)) { KomAskAnswer(c, text.Substring(KomAskOkTag.Length)); return; }   // 🔗 odpowiedź na prośbę
+            if (text.StartsWith(KomAskTag, StringComparison.Ordinal)) return;   // prośby obsługuje telefon właściciela
             if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego
             if (text.StartsWith(KomGroupTag, StringComparison.Ordinal)) { var g = KomGroupIn(c, text.Substring(KomGroupTag.Length)); if (g == null) return; text = c.Name + ": " + text.Substring(text.IndexOf('\n', KomGroupTag.Length) + 1); c = g; }   // 👥 wiadomość w grupie - do rozmowy grupy
             if (text.Length > 4000) text = text.Substring(0, 4000);

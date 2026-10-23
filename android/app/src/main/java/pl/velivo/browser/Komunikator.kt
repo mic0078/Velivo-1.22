@@ -316,6 +316,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (text.startsWith(CALL)) { val o = runCatching { JSONObject(text.substring(CALL.length)) }.getOrNull() ?: return; onCallSignal(c, o); return }
         if (text.startsWith(GROUP)) { groupIn(c, text.substring(GROUP.length), p.optLong("ts"), mid); return }   // 👥 wiadomość w grupie
         if (text.startsWith(CARD)) { cardIn(c, text.substring(CARD.length)); return }   // 👤 kontakt przedstawiony przez znajomego
+        if (text.startsWith(ASK)) { askIn(c, text.substring(ASK.length)); return }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
+        if (text.startsWith(ADDR) || text.startsWith(ASKOK)) return   // dla pośrednika (Windows)
         val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
@@ -367,6 +369,89 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         main.post { onChange(); onCards() }
     }
     var onCards: () -> Unit = {}
+
+    // 🔗 „Mój adres Velivo” (jak numer w WhatsApp): link, który można dać każdemu; prośba idzie przez mojego pośrednika (NUCBOX),
+    // ja decyduję Dodaj / Odrzuć. Nowa osoba dostaje tylko komunikator (sieć domowa, filmy, synchronizacja - nie).
+    private fun hidden(c: Contact, text: String) = deliver(c, Msg(true, text, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
+    private fun myRelay() = synchronized(this) { contacts.firstOrNull { it.relay != null && !it.isGroup } }
+    fun myAddress(reset: Boolean = false): String? {
+        val r = myRelay() ?: return null
+        var sk = prefs.getString("moj-adres", null)
+        if (sk == null || reset) { sk = b64(ByteArray(24).also { random.nextBytes(it) }); prefs.edit().putString("moj-adres", sk).apply() }
+        hidden(r, ADDR + sk)   // pośrednik zna sekret - wpuszcza tylko prośby z tym linkiem
+        val j = JSONObject().put("a", r.relay).put("o", myId).put("s", sk).put("n", deviceName())
+        return "VELIVO-KONTAKT:" + Base64.encodeToString(j.toString().toByteArray(Charsets.UTF_8), Base64.NO_WRAP or Base64.URL_SAFE)
+    }
+    // prośba od kogoś z moim linkiem - czeka na zgodę (okno przy otwarciu komunikatora)
+    private fun askIn(relay: Contact, body: String) {
+        val j = runCatching { JSONObject(body) }.getOrNull() ?: return
+        val id = j.optString("id"); if (id.length != 32 || contact(id) != null) return
+        val l = askList(); if ((0 until l.length()).any { JSONObject(l.getString(it)).optString("id") == id }) return
+        l.put(j.put("r", relay.id).toString()); prefs.edit().putString("prosby-adres", l.toString()).apply()
+        notifyPair(clean(j.optString("name")))
+        main.post { onChange(); onCards() }
+    }
+    private fun askList() = runCatching { JSONArray(prefs.getString("prosby-adres", "[]")) }.getOrDefault(JSONArray())
+    fun nextAsk(): String? { val l = askList(); return if (l.length() == 0) null else clean(JSONObject(l.getString(0)).optString("name")).ifEmpty { "Velivo" } }
+    fun answerAsk(yes: Boolean) {
+        val l = askList(); if (l.length() == 0) return
+        val j = JSONObject(l.getString(0)); l.remove(0); prefs.edit().putString("prosby-adres", l.toString()).apply()
+        val relay = contact(j.optString("r")) ?: return; val id = j.optString("id")
+        if (!yes) { hidden(relay, ASKOK + JSONObject().put("id", id).put("ok", false)); return }
+        val pub = unb64(j.optString("pub")); if (pub.isEmpty() || contact(id) != null) return
+        val pair = ecPair(); val myPub = pair.public.encoded
+        val key = runCatching { agree(pair, pub, "velivo-prosba", pub, myPub) }.getOrNull() ?: return
+        val name = clean(j.optString("name")).ifEmpty { "Velivo" }
+        synchronized(this) { contacts.add(Contact(id, name, key, "", name, false, relay.relay)) }
+        saveContacts()
+        hidden(relay, ASKOK + JSONObject().put("id", id).put("ok", true).put("pub", b64(myPub)).put("name", deviceName()))
+        main.post { onChange() }
+    }
+    // ja proszę: link od kogoś - prośba przez jego pośrednika; odpowiedź odbieram co minutę (on może być poza siecią)
+    fun requestByLink(link: String): Boolean {
+        val j = runCatching { JSONObject(String(Base64.decode(link.trim().substringAfter("VELIVO-KONTAKT:").trim(), Base64.URL_SAFE), Charsets.UTF_8)) }.getOrNull() ?: return false
+        if (j.optString("o").length != 32 || j.optString("o") == myId || !j.optString("a").contains(':') || j.optString("s").isEmpty()) return false
+        val pair = ecPair()
+        j.put("priv", b64(pair.private.encoded)).put("pub", b64(pair.public.encoded))
+        val l = myAsks(); l.put(j.toString()); prefs.edit().putString("moje-prosby", l.toString()).apply()
+        Thread { pollAsks() }.start()
+        return true
+    }
+    private fun myAsks() = runCatching { JSONArray(prefs.getString("moje-prosby", "[]")) }.getOrDefault(JSONArray())
+    @Synchronized fun pollAsks() {
+        val l = myAsks(); if (l.length() == 0) return
+        val keep = JSONArray()
+        for (i in 0 until l.length()) {
+            val j = JSONObject(l.getString(i)); var done = false
+            runCatching {
+                val hp = j.optString("a"); val sk = unb64(j.optString("s")); val ts = System.currentTimeMillis()
+                java.net.Socket().use { so ->
+                    so.connect(InetSocketAddress(hp.substringBeforeLast(':'), hp.substringAfterLast(':').toInt()), 12000); so.soTimeout = 15000
+                    val out = so.getOutputStream(); val inp = DataInputStream(so.getInputStream())
+                    val hello = JSONObject().put("Type", "relay-ask").put("Id", myId).put("To", j.optString("o")).put("Pub", j.optString("pub")).put("Name", deviceName()).put("Ts", ts)
+                    writeBlock(out, hello.toString().toByteArray(Charsets.UTF_8))
+                    writeBlock(out, hmac(sk, "velivo-ask\n$myId\n${j.optString("o")}\n${j.optString("pub")}\n$ts".toByteArray(Charsets.UTF_8)))
+                    val rb = readBlock(inp, 8192) ?: return@use; val mac = readBlock(inp, 64) ?: return@use
+                    if (!MessageDigest.isEqual(mac, hmac(sk, String(rb, Charsets.UTF_8).toByteArray(Charsets.UTF_8)))) return@use
+                    val r = JSONObject(String(rb, Charsets.UTF_8))
+                    if (r.optBoolean("wait")) return@use
+                    done = true
+                    if (!r.optBoolean("ok")) { main.post { onAskResult?.invoke(clean(j.optString("n")), false) }; return@use }
+                    val kp = KeyPair(KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(unb64(j.optString("pub")))), KeyFactory.getInstance("EC").generatePrivate(java.security.spec.PKCS8EncodedKeySpec(unb64(j.optString("priv")))))
+                    val myPub = unb64(j.optString("pub"))
+                    val oPub = unb64(r.optString("ownerPub")); val rPub = unb64(r.optString("relayPub"))
+                    val owner = Contact(r.optString("owner"), clean(r.optString("ownerName")).ifEmpty { clean(j.optString("n")) }, agree(kp, oPub, "velivo-prosba", myPub, oPub), "", clean(r.optString("ownerName")), false, hp)
+                    val relay = Contact(r.optString("relay"), clean(r.optString("relayName")).ifEmpty { "Velivo" }, agree(kp, rPub, "velivo-prosba", myPub, rPub), "", clean(r.optString("relayName")), false, r.optString("relayAddr").takeIf { ':' in it } ?: hp)
+                    synchronized(this) { listOf(owner, relay).forEach { c -> if (c.id.length == 32 && contact(c.id) == null) contacts.add(c) } }
+                    saveContacts(); announce()
+                    main.post { onChange(); onAskResult?.invoke(owner.name, true) }
+                }
+            }
+            if (!done) keep.put(j.toString())
+        }
+        prefs.edit().putString("moje-prosby", keep.toString()).apply()
+    }
+    var onAskResult: ((String, Boolean) -> Unit)? = null
     private fun cardList() = runCatching { JSONArray(prefs.getString("prosby-kontakt", "[]")) }.getOrDefault(JSONArray())
     // pierwsza czekająca prośba: (kto poleca, kogo) albo null
     fun nextCard(): Pair<String, String>? {
@@ -1180,6 +1265,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             Thread.sleep(60000)
             val list = synchronized(this) { contacts.toList() }
             if ((udpOut != null || udp != null) && list.isNotEmpty()) { sendUdp(packet("p2p-here"), null); list.forEach { resend(it) } }
+            pollAsks()   // 🔗 moje prośby z linku - czy ktoś już odpowiedział
             val now = list.filter { online(it.id) }.map { it.id }.toSet()
             if (now != shownOnline) { shownOnline = now; main.post { onChange() } }
         }
@@ -1198,6 +1284,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val CALL = "\u0001velivo-rozmowa\n"
         const val GROUP = "\u0001velivo-grupa\n"
         const val CARD = "\u0001velivo-kontakt\n"
+        const val ADDR = "\u0001velivo-adres\n"; const val ASK = "\u0001velivo-prosba\n"; const val ASKOK = "\u0001velivo-prosba-ok\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
         fun hex(b: ByteArray) = b.joinToString("") { "%02X".format(it) }
@@ -1226,6 +1313,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private var cardOpen = false
     private fun cards() {
         if (cardOpen || a.isFinishing) return
+        k.nextAsk()?.let { name ->   // 🔗 prośba z mojego adresu
+            cardOpen = true
+            AlertDialog.Builder(a).setTitle("👤 " + t("Prośba o kontakt", "Contact request"))
+                .setMessage(t("$name chce się z Tobą kontaktować przez Velivo (z Twojego adresu).\n\nDodać? Dostanie tylko komunikator – bez Twojej sieci domowej.", "$name wants to contact you via Velivo (from your address).\n\nAdd? They get the messenger only – not your home network."))
+                .setPositiveButton(t("Dodaj", "Add")) { _, _ -> Thread { k.answerAsk(true) }.start() }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> Thread { k.answerAsk(false) }.start() }
+                .setOnDismissListener { cardOpen = false; a.window.decorView.postDelayed({ cards() }, 300) }.show()
+            return
+        }
         val (who, name) = k.nextCard() ?: return
         cardOpen = true
         AlertDialog.Builder(a).setTitle("👤 " + t("Prośba o kontakt", "Contact request"))
@@ -1244,7 +1339,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 .setOnCancelListener { accept(false) }.show()
         }
         k.pendingPair?.let { (d, c, acc) -> k.pendingPair = null; a.window.decorView.post { k.askPair(d, c, acc) } }   // prośba z czasu, gdy Velivo było w tle
-        k.onCards = { cards() }; a.window.decorView.post { cards() }   // 👤 prośby o kontakt od znajomych (także z czasu, gdy Velivo było w tle)
+        k.onCards = { cards() }; a.window.decorView.post { cards() }
+        k.onAskResult = { name, ok -> Toast.makeText(a, if (ok) "👤 " + t("$name przyjął(a) Twoją prośbę – jest w kontaktach", "$name accepted your request – now in contacts") else t("$name odrzucił(a) prośbę", "$name declined the request"), Toast.LENGTH_LONG).show() }   // 👤 prośby o kontakt od znajomych (także z czasu, gdy Velivo było w tle)
         k.askFile = { dev, name, size, code, accept ->
             AlertDialog.Builder(a).setTitle("📥 " + t("Plik z: ", "File from: ") + dev)
                 .setMessage("$name (${sizeText(size)})" + if (code.isEmpty()) "" else "\n\n" + t("Kod: $code\n\nPrzyjmij tylko, gdy telefon nadawcy pokazuje ten sam kod.",
@@ -1552,6 +1648,27 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         })
     }
 
+    // 🔗 mój adres: link dla każdego (prośba → Dodaj / Odrzuć u mnie); „Zmień” - stary link przestaje działać
+    private fun myAddress(reset: Boolean = false) {
+        val link = k.myAddress(reset) ?: run { Toast.makeText(a, t("Potrzebny pośrednik (np. NUCBOX) w kontaktach – połącz się z nim raz w domu", "A relay (e.g. NUCBOX) is needed in contacts – connect to it once at home"), Toast.LENGTH_LONG).show(); return }
+        val tv = TextView(a).apply { text = link; setTextIsSelectable(true); textSize = 13f; setPadding(px(20), px(10), px(20), px(4)); setTextColor(ink) }
+        AlertDialog.Builder(a).setTitle("🔗 " + t("Mój adres Velivo", "My Velivo address"))
+            .setMessage(t("Daj go każdemu, kto ma Velivo – wyśle Ci prośbę, a Ty zdecydujesz: Dodaj / Odrzuć. Dostanie tylko komunikator (bez Twojej sieci domowej).",
+                "Give it to anyone with Velivo – they send you a request and you decide: Add / Decline. They get the messenger only (not your home network)."))
+            .setView(tv)
+            .setPositiveButton("📤 " + t("Udostępnij", "Share")) { _, _ -> runCatching { a.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, t("Dodaj mnie w Velivo (Dodaj kontakt → 🔗 Mam czyjś adres): ", "Add me in Velivo (Add contact → 🔗 I have someone's address): ") + link), null)) } }
+            .setNeutralButton("🔄 " + t("Zmień", "Change")) { _, _ -> myAddress(true) }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+    private fun haveAddress() {
+        val e = EditText(a).apply { hint = "VELIVO-KONTAKT:…"; minLines = 2 }
+        AlertDialog.Builder(a).setTitle("🔗 " + t("Wklej adres Velivo", "Paste a Velivo address")).setView(e)
+            .setPositiveButton(t("Wyślij prośbę", "Send request")) { _, _ ->
+                val ok = k.requestByLink(e.text.toString().substringAfter("VELIVO-KONTAKT:", "").let { if (it.isEmpty()) e.text.toString() else "VELIVO-KONTAKT:$it" }.trim())
+                Toast.makeText(a, if (ok) "👤 " + t("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie", "Request sent – the contact appears when they accept") else t("To nie jest adres Velivo", "This is not a Velivo address"), Toast.LENGTH_LONG).show()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     // 👤 połączenie znajomych: np. mama i GPD znają się z domu, ale nie dodały się - teraz zostaną kontaktami także poza domem
     private fun introduce() {
         val cs = k.contacts.filter { !it.isGroup }
@@ -1586,9 +1703,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     private fun addChoice() {
         AlertDialog.Builder(a).setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
-            .setItems(arrayOf("👤 " + t("Połącz moich znajomych ze sobą…", "Connect my contacts with each other…"), "👥 " + t("Nowa grupa…", "New group…"), "📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
+            .setItems(arrayOf("🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"), "🔗 " + t("Mam czyjś adres Velivo…", "I have someone's Velivo address…"), "👤 " + t("Połącz moich znajomych ze sobą…", "Connect my contacts with each other…"), "👥 " + t("Nowa grupa…", "New group…"), "📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
                 "📶 " + (if (k.newDeviceNotifications) t("Powiadomienia o nowych urządzeniach: wł.", "New device notifications: on") else t("Powiadomienia o nowych urządzeniach: wył.", "New device notifications: off")))) { _, i ->
-                when (i) { 0 -> introduce(); 1 -> newGroup(); 2 -> addContact(); 3 -> invite(); 4 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
+                when (i) { 0 -> myAddress(); 1 -> haveAddress(); 2 -> introduce(); 3 -> newGroup(); 4 -> addContact(); 5 -> invite(); 6 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 

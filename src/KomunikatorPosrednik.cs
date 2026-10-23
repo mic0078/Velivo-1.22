@@ -371,6 +371,7 @@ namespace Velivo
                 }
                 if (hello == null || mac == null) { cl.Dispose(); return; }
                 var h = JsonNode.Parse(hello);
+                if ((string)h?["Type"] == "relay-ask") { await KomAskServe(h, mac, s, token); return; }   // 🔗 prośba o kontakt z linku „Mój adres Velivo” (ktoś spoza kontaktów)
                 id = (string)h["Id"];
                 KomContact c = null; await Dispatcher.InvokeAsync(() => { KomLoad(); c = KomContactById(id ?? ""); });
                 // ✉ nowe urzadzenie z zaproszeniem: klucz zaproszenia zamiast klucza kontaktu (jednorazowo, do dolaczenia)
@@ -573,6 +574,54 @@ namespace Velivo
         // (6-cyfrowy kod na obu ekranach i zgoda). Zaproszenie dziala raz i wygasa po 7 dniach.
         sealed class KomInvite { public byte[] K; public string By; public long Exp; }
         readonly ConcurrentDictionary<string, KomInvite> _komInvites = new ConcurrentDictionary<string, KomInvite>();
+
+        // 🔗 „Mój adres Velivo” (jak numer w WhatsApp): ktoś spoza kontaktów, kto ma link, wysyła prośbę; właściciel adresu (np. telefon)
+        // decyduje Dodaj / Odrzuć. Pośrednik tylko przekazuje: sekret linku (od właściciela), prośby i odpowiedzi; nowa osoba dostaje wyłącznie komunikator
+        // (rozmowy szyfrowane kluczem z wymiany kluczy z właścicielem; sieć domowa, filmy i synchronizacja - nie)
+        internal const string KomAddrTag = "\u0001velivo-adres\n", KomAskTag = "\u0001velivo-prosba\n", KomAskOkTag = "\u0001velivo-prosba-ok\n";
+        readonly ConcurrentDictionary<string, string> _komAskKeys = new ConcurrentDictionary<string, string>();   // właściciel -> sekret linku (base64)
+        readonly ConcurrentDictionary<string, JsonObject> _komAskReq = new ConcurrentDictionary<string, JsonObject>();   // proszący -> {pub, name, owner}
+        readonly ConcurrentDictionary<string, JsonObject> _komAskRes = new ConcurrentDictionary<string, JsonObject>();   // proszący -> odpowiedź właściciela
+        async Task KomAskServe(JsonNode h, byte[] mac, Stream s, CancellationToken token)
+        {
+            string rid = (string)h["Id"] ?? "", owner = (string)h["To"] ?? "", pub = (string)h["Pub"] ?? ""; long ts = (long?)h["Ts"] ?? 0;
+            if (rid.Length != 32 || pub.Length is 0 or > 400 || !_komAskKeys.TryGetValue(owner, out var sb) || Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000) return;
+            var key = Convert.FromBase64String(sb);
+            var exp = KomHmac(key, "velivo-ask\n" + rid + "\n" + owner + "\n" + pub + "\n" + ts);
+            if (mac == null || mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) return;   // bez ważnego linku - nic
+            JsonObject resp;
+            if (_komAskRes.TryGetValue(rid, out var r) && (string)r["owner"] == owner) { resp = r; _komAskRes.TryRemove(rid, out _); await Dispatcher.InvokeAsync(KomSave); }
+            else
+            {
+                resp = new JsonObject { ["wait"] = true };
+                bool fresh = !_komAskReq.ContainsKey(rid);
+                if (_komAskReq.Count < 200) _komAskReq[rid] = new JsonObject { ["pub"] = pub, ["name"] = KomClean((string)h["Name"]), ["owner"] = owner };
+                if (fresh) await Dispatcher.InvokeAsync(() =>
+                {   // prośba do właściciela (jak zwykła wiadomość: od razu albo przez skrzynkę 📬)
+                    var oc = KomContactById(owner); if (oc == null) return;
+                    KomDeliver(oc, new KomMsg { Mine = true, Text = KomAskTag + new JsonObject { ["id"] = rid, ["name"] = KomClean((string)h["Name"]), ["pub"] = pub }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                    KomSave();
+                });
+            }
+            var rb = Encoding.UTF8.GetBytes(resp.ToJsonString());
+            await KomWriteBlock(s, rb, token); await KomWriteBlock(s, KomHmac(key, Encoding.UTF8.GetString(rb)), token);
+        }
+        // odpowiedź właściciela: Dodaj - pośrednik też dodaje proszącego (tylko komunikator), żeby mógł się łączyć przez internet
+        void KomAskAnswer(KomContact owner, string body)
+        {
+            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
+            var rid = (string)j?["id"] ?? "";
+            if (!_komAskReq.TryRemove(rid, out var req) || (string)req["owner"] != owner.Id) return;
+            if ((bool?)j["ok"] != true) { _komAskRes[rid] = new JsonObject { ["owner"] = owner.Id, ["ok"] = false }; KomSave(); return; }
+            var reqPub = Convert.FromBase64String((string)req["pub"]);
+            using var me = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
+            var myPub = me.ExportSubjectPublicKeyInfo();
+            byte[] k; try { k = KomAgree(me, reqPub, "velivo-prosba", reqPub, myPub); } catch (Exception) { return; }
+            if (KomContactById(rid) == null) _komContacts.Add(new KomContact { Id = rid, Name = (string)req["name"] is { Length: > 0 } n ? n : "Velivo", Key = k, Addr = "", Device = (string)req["name"] ?? "", Own = false });
+            _komAskRes[rid] = new JsonObject { ["owner"] = owner.Id, ["ok"] = true, ["ownerName"] = (string)j["name"] ?? owner.Name, ["ownerPub"] = (string)j["pub"],
+                ["relay"] = _komId, ["relayName"] = _lanDeviceName, ["relayPub"] = Convert.ToBase64String(myPub), ["relayAddr"] = _komRelayHost + ":" + _komRelayPort };
+            KomSave(); _komRefresh?.Invoke();
+        }
         static string KomInviteId(byte[] k) => Convert.ToHexString(k, 0, 8);
 
         // zaproszenie od kontaktu (pakiet p2p-invite do pośrednika; klucz zaszyfrowany kluczem kontaktu)

@@ -254,6 +254,8 @@ Chats, photos and files between your phones and computers with Velivo – no pho
 
 * **Messages and calls always on screen:** when opened, Velivo checks whether the phone allows notifications, full-screen calls and running in the background (no battery saving) – if not, it asks you to turn them on (**Turn on** → settings).
 * **🎤 Voice messages:** the 🎤 button in a chat – tap, speak, tap ⏹ to send (on Windows the same, by clicking). Tapping a voice message plays it in the chat (again – stop). They travel like files: at home, over the internet and via the 📬 mailbox.
+* **👥 Groups:** ➕ → **👥 New group…** – tick people and type a name (e.g. Family). A message goes to each member separately, encrypted with their key (no group server); for others the group appears with the first message. Groups carry text for now (files, voice and calls – in 1:1 chats).
+* **🔊 Read aloud:** tapping a text message reads it aloud (again – stop); a voice message – tapping plays it.
 * **🎬 Video messages:** in a chat 📎 → **🎬 Record a video message** (phone camera, up to 3 min); they travel like files, also via the 📬 mailbox; tapping plays.
 * **📬 Mailbox on the relay computer:** messages and files (even big films) for someone who is away wait encrypted on the relay (e.g. NUCBOX) and arrive on their own when the recipient appears – the sender does not need to be online then. A file in the mailbox: “✓ … 📬 waiting on the server”.
 * **Links and files in a chat:** tapping an address opens the browser, tapping a file opens it in the app assigned to that type (no folder picking).

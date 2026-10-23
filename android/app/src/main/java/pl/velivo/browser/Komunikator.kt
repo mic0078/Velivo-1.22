@@ -69,7 +69,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     class Peer(val id: String, val name: String, val addr: InetAddress)
     // name - nazwa wyświetlana (własna albo urządzenia); device - prawdziwa nazwa urządzenia (aktualizowana z sieci); own - nazwa nadana przez użytkownika
     // relay - adres pośrednika tego kontaktu (No-IP:port, np. NUCBOX) - rozmowy poza domem
-    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String, var device: String = name, var own: Boolean = false, var relay: String? = null)
+    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String, var device: String = name, var own: Boolean = false, var relay: String? = null) {
+        val isGroup get() = key.isEmpty()   // 👥 grupa: bez klucza, członkowie w addr („grupa:id,id”)
+    }
     // read: moja - odbiorca przeczytał (✓✓); odebrana - wysłaliśmy „przeczytane”
     // file: wpis o pliku (nie wysyłany ponownie jako tekst)
     class Msg(val mine: Boolean, var text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false, var file: Boolean = false, var path: String? = null)
@@ -312,6 +314,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (seen.size > 2000) synchronized(seen) { seen.iterator().let { it.next(); it.remove() } }
         if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
         if (text.startsWith(CALL)) { val o = runCatching { JSONObject(text.substring(CALL.length)) }.getOrNull() ?: return; onCallSignal(c, o); return }
+        if (text.startsWith(GROUP)) { groupIn(c, text.substring(GROUP.length), p.optLong("ts"), mid); return }   // 👥 wiadomość w grupie
         val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
@@ -326,9 +329,39 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val mid = UUID.randomUUID().toString().replace("-", "")
         val m = Msg(true, text.take(MAX_TEXT), System.currentTimeMillis(), false, mid)
         synchronized(this) { chat(c.id).add(m) }
+        if (c.isGroup) { groupOut(c, m.text); m.ok = true }   // 👥 do każdego z grupy osobno (szyfrowane jego kluczem)
         saveChat(c.id)
-        deliver(c, m)
+        if (!c.isGroup) deliver(c, m)
         return m
+    }
+
+    // 👥 grupy (jak w Signal: bez serwera grup) - wiadomość idzie do każdego członka osobno, z nazwą i składem grupy;
+    // u odbiorcy grupa tworzy się sama; członkowie, których ktoś nie ma w kontaktach, dostają ją od innych
+    fun members(g: Contact) = g.addr.removePrefix("grupa:").split(',').filter { it.length == 32 && it != myId }
+    fun newGroup(name: String, ids: List<String>): Contact {
+        val g = Contact(UUID.randomUUID().toString().replace("-", ""), name, ByteArray(0), "grupa:" + ids.joinToString(","), "👥", own = true)
+        synchronized(this) { contacts.add(g) }; saveContacts(); main.post { onChange() }
+        return g
+    }
+    private fun groupOut(g: Contact, text: String) {
+        val head = JSONObject().put("g", g.id).put("n", g.name).put("m", JSONArray(members(g) + myId)).toString()
+        for (id in members(g)) contact(id)?.takeIf { !it.isGroup }?.let { deliver(it, Msg(true, GROUP + head + "\n" + text, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", ""))) }
+    }
+    private fun groupIn(from: Contact, body: String, ts: Long, mid: String) {
+        val head = runCatching { JSONObject(body.substringBefore('\n')) }.getOrNull() ?: return
+        val gid = head.optString("g").takeIf { it.length == 32 } ?: return
+        val ids = (0 until (head.optJSONArray("m")?.length() ?: 0)).map { head.getJSONArray("m").optString(it) }.filter { it.length == 32 && it != myId }.toSet() + from.id
+        val g = synchronized(this) {
+            contact(gid)?.also { it.addr = "grupa:" + (members(it) + ids).distinct().joinToString(",") }
+                ?: Contact(gid, clean(head.optString("n")).ifEmpty { "👥" }, ByteArray(0), "grupa:" + ids.joinToString(","), "👥", own = true).also { contacts.add(it) }
+        }
+        saveContacts()
+        val m = Msg(false, (from.name + ": " + body.substringAfter('\n')).take(MAX_TEXT), ts, true, mid)
+        synchronized(this) { chat(g.id).add(m) }
+        saveChat(g.id)
+        prefs.edit().putInt("nowe-${g.id}", unread(g.id) + 1).apply()
+        notifyMessage(g)
+        main.post { onMessage(g, m); onChange() }
     }
 
     // 📹 rozmowa wideo: sygnały (dzwonię, odbieram, opis połączenia) jako zaszyfrowane wiadomości - poza czatem
@@ -376,7 +409,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     private val inFlight = java.util.Collections.synchronizedSet(HashSet<String>())
     private fun deliver(c: Contact, m: Msg) {
-        if (!inFlight.add(m.mid)) return
+        if (c.isGroup || !inFlight.add(m.mid)) return   // grupa nie ma klucza - jej wiadomości idą przez groupOut
         val mid = m.mid
         Thread {
             val n = ByteArray(12).also { random.nextBytes(it) }
@@ -1118,6 +1151,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val CHUNK = 1 shl 20
         const val MAX_TEXT = 4000
         const val CALL = "\u0001velivo-rozmowa\n"
+        const val GROUP = "\u0001velivo-grupa\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
         fun hex(b: ByteArray) = b.joinToString("") { "%02X".format(it) }
@@ -1461,11 +1495,28 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         })
     }
 
+    // 👥 nowa grupa: nazwa i osoby z kontaktów; pierwsza wiadomość tworzy grupę u wszystkich
+    private fun newGroup() {
+        val cs = k.contacts.filter { !it.isGroup }
+        if (cs.size < 2) { Toast.makeText(a, t("Do grupy potrzeba co najmniej 2 kontaktów", "A group needs at least 2 contacts"), Toast.LENGTH_LONG).show(); return }
+        val pick = BooleanArray(cs.size)
+        AlertDialog.Builder(a).setTitle("👥 " + t("Kto w grupie?", "Who is in the group?"))
+            .setMultiChoiceItems(cs.map { it.name }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
+            .setPositiveButton(t("Dalej", "Next")) { _, _ ->
+                val ids = cs.filterIndexed { i, _ -> pick[i] }.map { it.id }
+                if (ids.isEmpty()) return@setPositiveButton
+                val e = EditText(a).apply { setSingleLine(); hint = t("np. Rodzina", "e.g. Family") }
+                AlertDialog.Builder(a).setTitle("👥 " + t("Nazwa grupy", "Group name")).setView(e)
+                    .setPositiveButton(t("Utwórz", "Create")) { _, _ -> openChat(k.newGroup(e.text.toString().trim().ifEmpty { t("Grupa", "Group") }.take(64), ids)) }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     private fun addChoice() {
         AlertDialog.Builder(a).setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
-            .setItems(arrayOf("📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
+            .setItems(arrayOf("👥 " + t("Nowa grupa…", "New group…"), "📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
                 "📶 " + (if (k.newDeviceNotifications) t("Powiadomienia o nowych urządzeniach: wł.", "New device notifications: on") else t("Powiadomienia o nowych urządzeniach: wył.", "New device notifications: off")))) { _, i ->
-                when (i) { 0 -> addContact(); 1 -> invite(); 2 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
+                when (i) { 0 -> newGroup(); 1 -> addContact(); 2 -> invite(); 3 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
@@ -1665,6 +1716,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     if (img != null) setOnClickListener { showPhoto(m.path!!) }
                     else if (m.path != null && java.io.File(m.path!!).exists() && m.text.startsWith("🎤")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
+                    else if (!m.file) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
             }
@@ -1721,10 +1773,15 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val btn = round("➤", t("Wyślij", "Send"), violet) {   // klawiatura Velivo najpierw poprawia ostatnie słowo, potem wysyłka
             (a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).sendAppPrivateCommand(input, "pl.velivo.slowo", null); input.postDelayed({ send() }, 150) }
         input.setOnEditorActionListener { _, id, _ -> if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { send(); true } else false }
-        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(mic); addView(input); addView(btn) }
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); if (!c.isGroup) { addView(clip); addView(mic) }; addView(input); addView(btn) }
         val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
         val title = TextView(a).apply { textSize = 18f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
         fun status() {
+            if (c.isGroup) {   // 👥 grupa: skład zamiast „w sieci”
+                val names = k.members(c).map { id -> k.contact(id)?.name ?: "…" }
+                title.text = android.text.SpannableStringBuilder("👥 " + c.name).apply { append("\n"); val st = length; append(names.joinToString(", ")); setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0); setSpan(android.text.style.ForegroundColorSpan(Color.GRAY), st, length, 0) }
+                title.setTextColor(ink); return
+            }
             val on = k.online(c.id)
             title.text = android.text.SpannableStringBuilder(c.name).apply {
                 if (c.own && c.device.isNotEmpty() && c.device != c.name) { val s0 = length; append("  (" + c.device + ")"); setSpan(android.text.style.RelativeSizeSpan(0.7f), s0, length, 0) }
@@ -1737,7 +1794,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             title.setTextColor(ink)
         }
         val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back); addView(title)
-            addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) }
+            if (!c.isGroup) addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) }
         fill(); status(); ringPending(c)
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }
         root.removeAllViews()
@@ -1774,6 +1831,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         a.contentResolver.openOutputStream(uri)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
         uri
     }.getOrNull()?.also { downloaded[path] = it }
+
+    // 🔊 czytanie wiadomości na głos (syntezator mowy telefonu)
+    private var tts: android.speech.tts.TextToSpeech? = null
+    private fun speak(text: String) {
+        val say = { t0: android.speech.tts.TextToSpeech -> if (t0.isSpeaking) t0.stop() else t0.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "kom") }
+        tts?.let { say(it); return }
+        tts = android.speech.tts.TextToSpeech(a) { st -> if (st == android.speech.tts.TextToSpeech.SUCCESS) tts?.let { it.language = Locale.getDefault(); say(it) } }
+    }
 
     // 🎤 odtwarzanie wiadomości głosowej w rozmowie (stuknięcie ponownie - stop)
     private var player: android.media.MediaPlayer? = null; private var playing: String? = null

@@ -254,6 +254,8 @@ Rozmowy, zdjęcia i pliki między Twoimi telefonami i komputerami z Velivo – b
 
 * **Wiadomości i rozmowy zawsze na ekranie:** Velivo po otwarciu samo sprawdza, czy telefon pozwala pokazywać powiadomienia, rozmowy na cały ekran i działać w tle (bez oszczędzania baterii) – jeśli nie, prosi o włączenie (**Włącz** → ustawienia).
 * **🎤 Wiadomości głosowe:** w rozmowie przycisk 🎤 – stuknij, mów, stuknij ⏹, by wysłać (na Windows tak samo, kliknięciem). Stuknięcie wiadomości głosowej odtwarza ją w rozmowie (ponownie – stop). Dochodzą jak pliki: w domu, przez internet i przez skrzynkę 📬.
+* **👥 Grupy:** ➕ → **👥 Nowa grupa…** – zaznacz osoby i wpisz nazwę (np. Rodzina). Wiadomość idzie do każdego z grupy osobno, zaszyfrowana jego kluczem (bez serwera grup); u innych grupa pojawia się sama przy pierwszej wiadomości. W grupie na razie tekst (pliki, głosówki i rozmowy – w rozmowach 1:1).
+* **🔊 Czytanie na głos:** stuknięcie wiadomości tekstowej czyta ją na głos (ponownie – stop); głosówka – stuknięcie odtwarza.
 * **🎬 Wiadomości wideo:** w rozmowie 📎 → **🎬 Nagraj wiadomość wideo** (aparat telefonu, do 3 min); idą jak pliki, także do skrzynki 📬; stuknięcie odtwarza.
 * **📬 Skrzynka na komputerze-pośredniku:** wiadomości i pliki (także duże filmy) do kogoś, kogo nie ma, czekają zaszyfrowane na pośredniku (np. NUCBOX) i dochodzą same, gdy odbiorca się pojawi – nadawca nie musi być wtedy w sieci. Plik w skrzynce: „✓ … 📬 czeka na serwerze”.
 * **Linki i pliki w rozmowie:** stuknięcie adresu otwiera przeglądarkę, stuknięcie pliku otwiera go w aplikacji przypisanej do tego typu (bez wybierania folderu).

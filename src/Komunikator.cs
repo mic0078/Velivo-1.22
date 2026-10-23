@@ -28,7 +28,7 @@ namespace Velivo
     public partial class MainWindow
     {
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
-        sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; }   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
+        sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; public bool IsGroup => Key.Length == 0; }   // 👥 grupa: bez klucza, członkowie w Addr („grupa:id,id”)   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
         sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
@@ -72,7 +72,7 @@ namespace Velivo
                         try
                         {
                             var k = Convert.FromBase64String((string)c["key"] ?? "");
-                            if (k.Length == 32) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false, Relay = (string)c["relay"] });
+                            if (k.Length == 32 || k.Length == 0 && ((string)c["addr"] ?? "").StartsWith("grupa:", StringComparison.Ordinal)) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false, Relay = (string)c["relay"] });
                         }
                         catch (Exception ex) { App.LogError(ex); }
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
@@ -340,6 +340,7 @@ namespace Velivo
             if (!_komSeen.Add(mid) || KomChat(c.Id).Any(x => x.Mid == mid)) return;   // powtorka (takze po ponownym uruchomieniu) - tylko ponowne potwierdzenie
             if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
             if (text.StartsWith(KomCallTag, StringComparison.Ordinal)) { KomOnCall(c, text.Substring(KomCallTag.Length)); return; }   // 📹 sygnał rozmowy wideo - poza czatem
+            if (text.StartsWith(KomGroupTag, StringComparison.Ordinal)) { var g = KomGroupIn(c, text.Substring(KomGroupTag.Length)); if (g == null) return; text = c.Name + ": " + text.Substring(text.IndexOf('\n', KomGroupTag.Length) + 1); c = g; }   // 👥 wiadomość w grupie - do rozmowy grupy
             if (text.Length > 4000) text = text.Substring(0, 4000);
             KomChat(c.Id).Add(new KomMsg { Mine = false, Text = text, Ts = ts, Ok = true, Mid = mid });
             bool visible = _komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == c.Id;
@@ -459,6 +460,7 @@ namespace Velivo
         // rozmowa na ekranie: "przeczytane" do nadawcy
         void KomSendRead(KomContact c)
         {
+            if (c.IsGroup) { foreach (var m in KomChat(c.Id).Where(m => !m.Mine)) m.Read = true; return; }   // 👥 grupa - bez potwierdzeń
             var mids = KomChat(c.Id).Where(m => !m.Mine && !m.Read && m.Mid.Length == 32).ToList();
             if (mids.Count == 0) return;
             foreach (var m in mids) m.Read = true;
@@ -475,8 +477,55 @@ namespace Velivo
         void KomSend(KomContact c, string text)
         {
             var m = new KomMsg { Mine = true, Text = text.Length > 4000 ? text.Substring(0, 4000) : text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") };
-            KomChat(c.Id).Add(m); KomSave();
-            KomDeliver(c, m);
+            KomChat(c.Id).Add(m);
+            if (c.IsGroup) { m.Ok = true; KomGroupOut(c, m.Text); }   // 👥 do każdego z grupy osobno (jego kluczem)
+            KomSave();
+            if (!c.IsGroup) KomDeliver(c, m);
+        }
+
+        // 👥 grupy (jak w Signal: bez serwera grup) - wiadomość do każdego członka osobno, z nazwą i składem grupy; u odbiorcy grupa tworzy się sama
+        const string KomGroupTag = "\u0001velivo-grupa\n";
+        List<string> KomMembers(KomContact g) => (g.Addr ?? "").Replace("grupa:", "").Split(',').Where(x => x.Length == 32 && x != _komId).ToList();
+        void KomGroupOut(KomContact g, string text)
+        {
+            var head = new JsonObject { ["g"] = g.Id, ["n"] = g.Name, ["m"] = new JsonArray(KomMembers(g).Append(_komId).Select(x => (JsonNode)x).ToArray()) }.ToJsonString();
+            foreach (var id in KomMembers(g)) { var mc = KomContactById(id); if (mc != null && !mc.IsGroup) KomDeliver(mc, new KomMsg { Mine = true, Text = KomGroupTag + head + "\n" + text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); }
+        }
+        KomContact KomGroupIn(KomContact from, string body)
+        {
+            JsonNode head; try { head = JsonNode.Parse(body.Substring(0, Math.Max(0, body.IndexOf('\n')))); } catch (Exception) { return null; }
+            var gid = (string)head?["g"]; if (gid == null || gid.Length != 32) return null;
+            var ids = (head["m"] as JsonArray)?.Select(x => (string)x).Where(x => x != null && x.Length == 32 && x != _komId).Append(from.Id).Distinct().ToList() ?? new List<string> { from.Id };
+            var g = KomContactById(gid);
+            if (g == null) { g = new KomContact { Id = gid, Name = KomClean((string)head["n"]) is { Length: > 0 } n ? n : "👥", Key = Array.Empty<byte>(), Addr = "", Device = "👥", Own = true }; _komContacts.Add(g); }
+            if (!g.IsGroup) return null;
+            g.Addr = "grupa:" + string.Join(",", KomMembers(g).Concat(ids).Distinct());
+            return g;
+        }
+        // 👥 nowa grupa: nazwa i osoby z kontaktów (pierwsza wiadomość tworzy grupę u wszystkich)
+        void KomGroupDialog(Window owner)
+        {
+            var cs = _komContacts.Where(c => !c.IsGroup).ToList();
+            if (cs.Count < 2) { KomInfo(L.T("Do grupy potrzeba co najmniej 2 kontaktów")); return; }
+            var name = new TextBox { Text = L.T("Rodzina"), Margin = new Thickness(0, 4, 0, 8) };
+            var list = new StackPanel();
+            foreach (var c in cs) list.Children.Add(new CheckBox { Content = c.Name, Tag = c.Id, Margin = new Thickness(0, 3, 0, 3) });
+            var ok = new Button { Content = L.T("Utwórz"), IsDefault = true, Padding = new Thickness(16, 4, 16, 4), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            var d = new Window { Title = "👥 " + L.T("Nowa grupa"), Owner = owner, Width = 320, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
+                Content = new StackPanel { Margin = new Thickness(14), Children = { new TextBlock { Text = L.T("Nazwa grupy") }, name, new TextBlock { Text = L.T("Kto w grupie?") }, new ScrollViewer { Content = list, MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ok } } };
+            ok.Click += (a, b) =>
+            {
+                var ids = list.Children.OfType<CheckBox>().Where(x => x.IsChecked == true).Select(x => (string)x.Tag).ToList();
+                if (ids.Count == 0) return;
+                var g = KomNewGroup(name.Text.Trim().Length > 0 ? name.Text.Trim() : L.T("Grupa"), ids); d.Close(); _komSelect?.Invoke(g.Id);
+            };
+            KomStyle(d); d.ShowDialog();
+        }
+        KomContact KomNewGroup(string name, IEnumerable<string> ids)
+        {
+            var g = new KomContact { Id = Guid.NewGuid().ToString("N"), Name = name, Key = Array.Empty<byte>(), Addr = "grupa:" + string.Join(",", ids), Device = "👥", Own = true };
+            _komContacts.Add(g); KomSave(); _komRefresh?.Invoke();
+            return g;
         }
 
         void KomResendPending(KomContact c)
@@ -502,7 +551,7 @@ namespace Velivo
         // najpierw na znany adres, potem do calej sieci; 4 proby co 1,5 s; potem co minute (zegar) i gdy kontakt sie odezwie
         async void KomDeliver(KomContact c, KomMsg m)
         {
-            if (!_komInFlight.Add(m.Mid)) return;
+            if (c.IsGroup || !_komInFlight.Add(m.Mid)) return;   // grupa nie ma klucza - jej wiadomości idą przez KomGroupOut
             try
             {
                 var p = KomPacket("p2p-msg"); p["ts"] = m.Ts; p["to"] = c.Id; p["mid"] = m.Mid;
@@ -1066,6 +1115,11 @@ namespace Velivo
                 var c = Current();
                 header.Inlines.Clear();
                 if (c == null) header.Text = L.T("Wybierz rozmowę z listy");
+                else if (c.IsGroup)
+                {   // 👥 grupa: skład zamiast „w sieci”
+                    header.Inlines.Add(new System.Windows.Documents.Run("👥 " + c.Name + "  "));
+                    header.Inlines.Add(new System.Windows.Documents.Run(string.Join(", ", KomMembers(c).Select(id => KomContactById(id)?.Name ?? "…"))) { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
+                }
                 else
                 {
                     bool on = KomOnline(c.Id);
@@ -1075,7 +1129,7 @@ namespace Velivo
                     header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
                 }
-                input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = micBtn.IsEnabled = callBtn.IsEnabled = c != null;
+                input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = micBtn.IsEnabled = callBtn.IsEnabled = c != null && !c.IsGroup;
                 msgs.Children.Clear();
                 if (c == null) return;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))
@@ -1211,7 +1265,8 @@ namespace Velivo
                 var lan = new MenuItem { Header = L.T("📶 W tej sieci (z kodem)") }; lan.Click += async (a, b) => await KomAddDialog(w);
                 var inv = new MenuItem { Header = L.T("✉ Zaproś przez internet…") }; inv.Click += (a, b) => KomInviteDialog(w);
                 var join = new MenuItem { Header = L.T("🔑 Mam zaproszenie…") }; join.Click += (a, b) => KomJoinDialog(w);
-                cm.Items.Add(lan); cm.Items.Add(inv); cm.Items.Add(join);
+                var grp = new MenuItem { Header = L.T("👥 Nowa grupa…") }; grp.Click += (a, b) => KomGroupDialog(w);
+                cm.Items.Add(grp); cm.Items.Add(lan); cm.Items.Add(inv); cm.Items.Add(join);
                 cm.IsOpen = true;
             }));
             leftButtons.Children.Add(Btn(L.T("📎 Plik do…"), L.T("Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)"), async (s, e) =>

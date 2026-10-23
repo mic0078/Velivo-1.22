@@ -795,6 +795,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // co 20 s: pośrednik nie widoczny w sieci domowej - połączenie przez internet; widoczny - z powrotem w domu
     @Volatile private var lastIps = ""
     @Volatile private var lastPing = 0L
+    @Volatile private var whoAt = 0L
     private val upLoop = Thread {
         while (true) runCatching {
             Thread.sleep(5000)
@@ -811,6 +812,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             var relay = relays.firstOrNull()
             // w domu = w sieci domowej widać którykolwiek kontakt (wtedy wszystko jak dotąd, prosto); poza domem - nikogo
             val now = System.currentTimeMillis()
+            // w domu: pośrednik długo milczy w Wi-Fi - pytamy go, zanim uznamy, że jesteśmy poza domem (bez przeskakiwania dom <-> internet co 3 min)
+            if (up == null && now - whoAt > 30000 && relays.any { now - (lanSeen[it.id] ?: 0L) in 40000..100000 }) { whoAt = now; runCatching { sendUdp(packet("p2p-who"), null) } }
             val home = relay == null || (now - started < 30000 && !upForce) || relays.any { now - (lanSeen[it.id] ?: 0L) < 100000 }   // w domu = widać pośrednika (np. NUCBOX); inny telefon w tej samej sieci (hotspot) to nie dom
             if (home) {
                 up?.let { up = null; closeUp(it, "w domu (widać kontakt w Wi-Fi)"); announce() }

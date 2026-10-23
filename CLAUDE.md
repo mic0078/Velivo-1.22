@@ -50,6 +50,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-22: synchronizacja z komputerem pokazywała komunikat przy każdej wymianie (nad klawiaturą), a „📶 Velivo w tej sieci” budziło ekran – teraz po cichu.
 * 2026-10-22: Notification.Builder nie ma setSilent (jest tylko w NotificationCompat) – moja kontrolna kompilacja tego nie wyłapała, budowa padła; nowe metody Androida sprawdzaj w dokumentacji SDK.
 * 2026-10-23: Velivo zamykało się po zamknięciu filmu – zegar synchronizacji pytał zwolniony odtwarzacz VLC (PlayerBusy → IsPlaying na zwolnionym, 0xc0000005); po zamknięciu odtwarzacza _playerMp = null. Przyczynę dał dziennik Windows (Get-WinEvent Id 1000,1026).
+* 2026-10-23: telefon w domu co ~3 min przeskakiwał dom ↔ internet (pośrednik milczał w Wi-Fi ponad 100 s); teraz po 40 s ciszy telefon pyta pośrednika (p2p-who) w Wi-Fi.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

@@ -371,7 +371,7 @@ namespace Velivo
                 Topmost = true, ShowInTaskbar = false, ShowActivated = false, Width = 340, SizeToContent = SizeToContent.Height, Tag = c.Id, Title = "Velivo"
             };
             var shortText = text.Length > 300 ? text.Substring(0, 300) + "…" : text;
-            var title = new TextBlock { Text = "💬 " + c.Name, FontWeight = FontWeights.SemiBold, FontSize = 15, Foreground = fg, TextTrimming = TextTrimming.CharacterEllipsis };
+            var title = new TextBlock { Text = "💬 " + c.Name + L.T(" pisze:"), FontWeight = FontWeights.SemiBold, FontSize = 15, Foreground = fg, TextTrimming = TextTrimming.CharacterEllipsis };
             var close = new Button { Content = "✕", Width = 26, Height = 26, Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = fg, ToolTip = L.T("Zamknij"), Cursor = Cursors.Hand };
             var head = new DockPanel(); DockPanel.SetDock(close, Dock.Right); head.Children.Add(close); head.Children.Add(title);
             var body = new TextBlock { Text = shortText, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14, Margin = new Thickness(0, 6, 0, 8), MaxHeight = 140, TextTrimming = TextTrimming.CharacterEllipsis, Cursor = Cursors.Hand, ToolTip = L.T("Otwórz rozmowę") };

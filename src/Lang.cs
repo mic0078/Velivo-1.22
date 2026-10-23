@@ -953,6 +953,7 @@ namespace Velivo
             { "Nie udało się włączyć mikrofonu", "Could not start the microphone" },
             { "Nagrywam… kliknij ⏹, by wysłać", "Recording… click ⏹ to send" },
             { "Wiadomość głosowa", "Voice message" },
+            { " pisze:", " writes:" },
             { " – 📬 czeka na serwerze, dojdzie, gdy odbiorca się pojawi", " – 📬 waiting on the server, will arrive when the recipient appears" },
             { "Otwórz w Velivo", "Open in Velivo" },
             { "🎬 Wysyłam Filmy i TV…", "🎬 Sending Films and TV…" },

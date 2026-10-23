@@ -972,7 +972,16 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun channelsReady() { ctx.getSystemService(NotificationManager::class.java)?.let { channels(it) } }
     private fun channels(nm: NotificationManager) {
         val pl = Locale.getDefault().language == "pl"
-        nm.createNotificationChannel(NotificationChannel("wiadomosci", if (pl) "Wiadomości" else "Messages", NotificationManager.IMPORTANCE_HIGH))
+        // jak w WhatsApp: wiadomość wyskakuje na górze ekranu (bez przeciągania w dół), dźwięk i wibracja; nowy kanał - stary mógł zostać wyciszony
+        if (nm.getNotificationChannel(MSG_CH) == null) {
+            val old = nm.getNotificationChannel("wiadomosci")
+            nm.createNotificationChannel(NotificationChannel(MSG_CH, if (pl) "Wiadomości" else "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
+                enableVibration(true); vibrationPattern = longArrayOf(0, 250, 150, 250); enableLights(true); lightColor = Color.rgb(0x8B, 0x5C, 0xF6)
+                setShowBadge(true); lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                old?.sound?.let { setSound(it, old.audioAttributes) }   // dźwięk wybrany wcześniej zostaje
+            })
+            if (old != null) nm.deleteNotificationChannel("wiadomosci")
+        }
         nm.createNotificationChannel(NotificationChannel("informacje", if (pl) "Informacje" else "Information", NotificationManager.IMPORTANCE_LOW))
         nm.createNotificationChannel(NotificationChannel("nasluch", if (pl) "Komunikator w tle" else "Messenger in background", NotificationManager.IMPORTANCE_MIN))
     }
@@ -987,7 +996,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val me = android.app.Person.Builder().setName(if (pl) "Ty" else "You").build()
         val them = android.app.Person.Builder().setName(c.name).setKey(c.id).build()
         // jasno: „💬 Nowa wiadomość od …” nad treścią
-        val st = Notification.MessagingStyle(me).setConversationTitle("💬 " + (if (pl) "Nowa wiadomość od " else "New message from ") + c.name).setGroupConversation(true)
+        val st = Notification.MessagingStyle(me).setConversationTitle("💬 " + c.name + (if (pl) " pisze:" else " writes:")).setGroupConversation(true)
         last.forEach { st.addMessage(Notification.MessagingStyle.Message(it.text, it.ts, if (it.mine) null else them)) }
         val n = unread(c.id)
         val pi = PendingIntent.getActivity(ctx, c.id.hashCode(), openIntent(c.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -1000,8 +1009,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val read = Notification.Action.Builder(android.graphics.drawable.Icon.createWithResource(ctx, android.R.drawable.ic_menu_view), if (pl) "Przeczytane" else "Mark as read", readPi)
             .setSemanticAction(Notification.Action.SEMANTIC_ACTION_MARK_AS_READ).build()
         runCatching {
-            nm.notify(c.id.hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat).brand()
-                .setContentTitle(c.name).setContentText(last.lastOrNull()?.text ?: "")
+            nm.notify(c.id.hashCode(), Notification.Builder(ctx, MSG_CH).setSmallIcon(android.R.drawable.stat_notify_chat).brand()
+                .setContentTitle("💬 " + c.name + (if (pl) " pisze:" else " writes:")).setContentText(last.lastOrNull()?.text ?: "")
                 .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setAutoCancel(true)
                 .setOnlyAlertOnce(quiet).addAction(Notification.Action.Builder(null, if (pl) "📖 Otwórz" else "📖 Open", pi).build()).addAction(reply).addAction(read).setShowWhen(true).build())
         }
@@ -1011,7 +1020,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val am = ctx.getSystemService(android.media.AudioManager::class.java)
         if (am?.ringerMode != android.media.AudioManager.RINGER_MODE_NORMAL) return@runCatching
         // 🔔 dźwięk wybrany dla wiadomości Velivo (ustawienia powiadomień), inaczej domyślny
-        val snd = ctx.getSystemService(NotificationManager::class.java)?.getNotificationChannel("wiadomosci")?.sound ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+        val snd = ctx.getSystemService(NotificationManager::class.java)?.getNotificationChannel(MSG_CH)?.sound ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
         android.media.RingtoneManager.getRingtone(ctx, snd)?.play()
     }
 
@@ -1043,7 +1052,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val pl = Locale.getDefault().language == "pl"
         val pi = PendingIntent.getActivity(ctx, 77, openIntent(null), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         runCatching {
-            nm.notify("para".hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
+            nm.notify("para".hashCode(), Notification.Builder(ctx, MSG_CH).setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle(if (pl) "💬 Prośba o kontakt" else "💬 Contact request").setContentText(if (pl) "„$dev” chce dodać Cię do komunikatora – stuknij, by przyjąć" else "“$dev” wants to add you – tap to accept")
                 .setCategory(Notification.CATEGORY_MESSAGE).setContentIntent(pi).setAutoCancel(true).build())
         }
@@ -1099,6 +1108,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }.apply { isDaemon = true }
 
     companion object {
+        const val MSG_CH = "wiadomosci2"   // kanał wiadomości (wyskakujące, z dźwiękiem i wibracją)
         @Volatile private var one: Komunikator? = null
         // jeden w aplikacji - okna i usługa w tle widzą te same rozmowy
         fun get(ctx: Context, deviceName: () -> String): Komunikator = one ?: synchronized(this) {
@@ -1253,7 +1263,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 // wybór dźwięku wiadomości - ustawienia powiadomień Androida dla kanału „Wiadomości”
                 k.channelsReady()
                 runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
-                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName).putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, "wiadomosci")) }
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName).putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, Komunikator.MSG_CH)) }
             }.show()
     }
 

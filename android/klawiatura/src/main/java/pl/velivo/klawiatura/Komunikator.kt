@@ -315,6 +315,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
         if (text.startsWith(CALL)) { val o = runCatching { JSONObject(text.substring(CALL.length)) }.getOrNull() ?: return; onCallSignal(c, o); return }
         if (text.startsWith(GROUP)) { groupIn(c, text.substring(GROUP.length), p.optLong("ts"), mid); return }   // 👥 wiadomość w grupie
+        if (text.startsWith(CARD)) { cardIn(c, text.substring(CARD.length)); return }   // 👤 kontakt przedstawiony przez znajomego
         val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
@@ -343,6 +344,29 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         synchronized(this) { contacts.add(g) }; saveContacts(); main.post { onChange() }
         return g
     }
+    // 👤 przedstawienie: dwie osoby z moich kontaktów (znane z sieci domowej, teraz choćby poza domem) dostają siebie nawzajem
+    // jako kontakty - ze wspólnym, nowym kluczem; wizytówki idą zaszyfrowane kluczem każdej z nich
+    fun introduce(ids: List<String>) {
+        val cs = ids.mapNotNull { contact(it) }.filter { !it.isGroup }
+        for (i in cs.indices) for (j in i + 1 until cs.size) {
+            val key = ByteArray(32).also { random.nextBytes(it) }
+            fun card(c: Contact) = JSONObject().put("id", c.id).put("name", c.name).put("dev", c.device).put("key", b64(key)).put("relay", c.relay ?: "").toString()
+            deliver(cs[i], Msg(true, CARD + card(cs[j]), System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
+            deliver(cs[j], Msg(true, CARD + card(cs[i]), System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
+        }
+    }
+    private fun cardIn(from: Contact, body: String) {
+        val j = runCatching { JSONObject(body) }.getOrNull() ?: return
+        val id = j.optString("id"); val key = unb64(j.optString("key"))
+        if (id.length != 32 || id == myId || key.size != 32 || contact(id) != null) return
+        val name = clean(j.optString("name")).ifEmpty { "Velivo" }
+        synchronized(this) { contacts.add(Contact(id, name, key, "", clean(j.optString("dev")).ifEmpty { name }, false, j.optString("relay").ifEmpty { null })) }
+        saveContacts()
+        val m = Msg(false, "👤 " + (if (pl) "Nowy kontakt: $name (od: ${from.name})" else "New contact: $name (from: ${from.name})"), System.currentTimeMillis(), true, UUID.randomUUID().toString().replace("-", ""))
+        synchronized(this) { chat(from.id).add(m) }; saveChat(from.id)
+        notifyMessage(from); main.post { onChange() }
+    }
+
     private fun groupOut(g: Contact, text: String) {
         val head = JSONObject().put("g", g.id).put("n", g.name).put("m", JSONArray(members(g) + myId)).toString()
         for (id in members(g)) contact(id)?.takeIf { !it.isGroup }?.let { deliver(it, Msg(true, GROUP + head + "\n" + text, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", ""))) }
@@ -1152,6 +1176,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val MAX_TEXT = 4000
         const val CALL = "\u0001velivo-rozmowa\n"
         const val GROUP = "\u0001velivo-grupa\n"
+        const val CARD = "\u0001velivo-kontakt\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
         fun hex(b: ByteArray) = b.joinToString("") { "%02X".format(it) }
@@ -1495,6 +1520,21 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         })
     }
 
+    // 👤 połączenie znajomych: np. mama i GPD znają się z domu, ale nie dodały się - teraz zostaną kontaktami także poza domem
+    private fun introduce() {
+        val cs = k.contacts.filter { !it.isGroup }
+        if (cs.size < 2) { Toast.makeText(a, t("Potrzeba co najmniej 2 kontaktów", "At least 2 contacts are needed"), Toast.LENGTH_LONG).show(); return }
+        val pick = BooleanArray(cs.size)
+        AlertDialog.Builder(a).setTitle("👤 " + t("Kogo połączyć ze sobą?", "Who should be connected?"))
+            .setMultiChoiceItems(cs.map { it.name }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
+            .setPositiveButton(t("Połącz", "Connect")) { _, _ ->
+                val ids = cs.filterIndexed { i, _ -> pick[i] }.map { it.id }
+                if (ids.size < 2) return@setPositiveButton
+                k.introduce(ids)
+                Toast.makeText(a, "👤 " + t("Wysłano – dodadzą się, gdy będą w sieci (także przez skrzynkę 📬)", "Sent – they will be added when online (also via the 📬 mailbox)"), Toast.LENGTH_LONG).show()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     // 👥 nowa grupa: nazwa i osoby z kontaktów; pierwsza wiadomość tworzy grupę u wszystkich
     private fun newGroup() {
         val cs = k.contacts.filter { !it.isGroup }
@@ -1514,9 +1554,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     private fun addChoice() {
         AlertDialog.Builder(a).setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
-            .setItems(arrayOf("👥 " + t("Nowa grupa…", "New group…"), "📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
+            .setItems(arrayOf("👤 " + t("Połącz moich znajomych ze sobą…", "Connect my contacts with each other…"), "👥 " + t("Nowa grupa…", "New group…"), "📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
                 "📶 " + (if (k.newDeviceNotifications) t("Powiadomienia o nowych urządzeniach: wł.", "New device notifications: on") else t("Powiadomienia o nowych urządzeniach: wył.", "New device notifications: off")))) { _, i ->
-                when (i) { 0 -> newGroup(); 1 -> addContact(); 2 -> invite(); 3 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
+                when (i) { 0 -> introduce(); 1 -> newGroup(); 2 -> addContact(); 3 -> invite(); 4 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 

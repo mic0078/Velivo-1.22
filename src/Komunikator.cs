@@ -340,6 +340,7 @@ namespace Velivo
             if (!_komSeen.Add(mid) || KomChat(c.Id).Any(x => x.Mid == mid)) return;   // powtorka (takze po ponownym uruchomieniu) - tylko ponowne potwierdzenie
             if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
             if (text.StartsWith(KomCallTag, StringComparison.Ordinal)) { KomOnCall(c, text.Substring(KomCallTag.Length)); return; }   // 📹 sygnał rozmowy wideo - poza czatem
+            if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego
             if (text.StartsWith(KomGroupTag, StringComparison.Ordinal)) { var g = KomGroupIn(c, text.Substring(KomGroupTag.Length)); if (g == null) return; text = c.Name + ": " + text.Substring(text.IndexOf('\n', KomGroupTag.Length) + 1); c = g; }   // 👥 wiadomość w grupie - do rozmowy grupy
             if (text.Length > 4000) text = text.Substring(0, 4000);
             KomChat(c.Id).Add(new KomMsg { Mine = false, Text = text, Ts = ts, Ok = true, Mid = mid });
@@ -518,6 +519,48 @@ namespace Velivo
                 var ids = list.Children.OfType<CheckBox>().Where(x => x.IsChecked == true).Select(x => (string)x.Tag).ToList();
                 if (ids.Count == 0) return;
                 var g = KomNewGroup(name.Text.Trim().Length > 0 ? name.Text.Trim() : L.T("Grupa"), ids); d.Close(); _komSelect?.Invoke(g.Id);
+            };
+            KomStyle(d); d.ShowDialog();
+        }
+        // 👤 przedstawienie: osoby z moich kontaktów dostają siebie nawzajem (nowy wspólny klucz; wizytówki szyfrowane kluczem każdej z nich)
+        const string KomCardTag = "\u0001velivo-kontakt\n";
+        void KomIntroduce(List<KomContact> cs)
+        {
+            for (int i = 0; i < cs.Count; i++)
+                for (int j = i + 1; j < cs.Count; j++)
+                {
+                    var key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+                    string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "" }.ToJsonString();
+                    KomDeliver(cs[i], new KomMsg { Mine = true, Text = Card(cs[j]), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                    KomDeliver(cs[j], new KomMsg { Mine = true, Text = Card(cs[i]), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                }
+        }
+        void KomCardIn(KomContact from, string body)
+        {
+            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
+            var id = (string)j?["id"]; byte[] key; try { key = Convert.FromBase64String((string)j["key"] ?? ""); } catch (Exception) { return; }
+            if (id == null || id.Length != 32 || id == _komId || key.Length != 32 || KomContactById(id) != null) return;
+            var name = KomClean((string)j["name"]); if (name.Length == 0) name = "Velivo";
+            var relay = (string)j["relay"];
+            _komContacts.Add(new KomContact { Id = id, Name = name, Key = key, Addr = "", Device = KomClean((string)j["dev"]) is { Length: > 0 } dv ? dv : name, Own = false, Relay = string.IsNullOrEmpty(relay) ? null : relay });
+            KomChat(from.Id).Add(new KomMsg { Mine = false, Text = "👤 " + L.T("Nowy kontakt: ") + name + " (" + L.T("od: ") + from.Name + ")", Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = Guid.NewGuid().ToString("N") });
+            KomSave(); _komRefresh?.Invoke();
+            KomNotify(from, "👤 " + L.T("Nowy kontakt: ") + name);
+        }
+        void KomIntroduceDialog(Window owner)
+        {
+            var cs = _komContacts.Where(c => !c.IsGroup).ToList();
+            if (cs.Count < 2) { KomInfo(L.T("Potrzeba co najmniej 2 kontaktów")); return; }
+            var list = new StackPanel();
+            foreach (var c in cs) list.Children.Add(new CheckBox { Content = c.Name, Tag = c, Margin = new Thickness(0, 3, 0, 3) });
+            var ok = new Button { Content = L.T("Połącz"), IsDefault = true, Padding = new Thickness(16, 4, 16, 4), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            var d = new Window { Title = "👤 " + L.T("Kogo połączyć ze sobą?"), Owner = owner, Width = 320, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
+                Content = new StackPanel { Margin = new Thickness(14), Children = { new ScrollViewer { Content = list, MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ok } } };
+            ok.Click += (a, b) =>
+            {
+                var sel = list.Children.OfType<CheckBox>().Where(x => x.IsChecked == true).Select(x => (KomContact)x.Tag).ToList();
+                if (sel.Count < 2) return;
+                KomIntroduce(sel); d.Close(); KomInfo("👤 " + L.T("Wysłano – dodadzą się, gdy będą w sieci (także przez skrzynkę 📬)"));
             };
             KomStyle(d); d.ShowDialog();
         }
@@ -1266,7 +1309,8 @@ namespace Velivo
                 var inv = new MenuItem { Header = L.T("✉ Zaproś przez internet…") }; inv.Click += (a, b) => KomInviteDialog(w);
                 var join = new MenuItem { Header = L.T("🔑 Mam zaproszenie…") }; join.Click += (a, b) => KomJoinDialog(w);
                 var grp = new MenuItem { Header = L.T("👥 Nowa grupa…") }; grp.Click += (a, b) => KomGroupDialog(w);
-                cm.Items.Add(grp); cm.Items.Add(lan); cm.Items.Add(inv); cm.Items.Add(join);
+                var intro = new MenuItem { Header = L.T("👤 Połącz moich znajomych ze sobą…") }; intro.Click += (a, b) => KomIntroduceDialog(w);
+                cm.Items.Add(intro); cm.Items.Add(grp); cm.Items.Add(lan); cm.Items.Add(inv); cm.Items.Add(join);
                 cm.IsOpen = true;
             }));
             leftButtons.Children.Add(Btn(L.T("📎 Plik do…"), L.T("Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)"), async (s, e) =>

@@ -1022,7 +1022,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val pi = PendingIntent.getActivity(ctx, 1, openIntent(null), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(ctx, "nasluch").setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle(if (pl) "Komunikator Velivo" else "Velivo messenger")
-            .setContentText(if (pl) "Czeka na wiadomości w domowym Wi-Fi" else "Waiting for messages on home Wi-Fi")
+            .setContentText(if (pl) "Czeka na wiadomości" else "Waiting for messages")
             .setContentIntent(pi).setOngoing(true).build()
     }
 

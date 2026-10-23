@@ -252,6 +252,7 @@ Velivo menu → **🎨 Velivo wallpaper**: a preview (violet–turquoise gradien
 
 Chats, photos and files between your phones and computers with Velivo – no phone number and no third-party server. The Velivo browser or just the Velivo keyboard is enough; on a computer, Velivo for Windows.
 
+* **Messages and calls always on screen:** when opened, Velivo checks whether the phone allows notifications, full-screen calls and running in the background (no battery saving) – if not, it asks you to turn them on (**Turn on** → settings).
 * **Links and files in a chat:** tapping an address opens the browser, tapping a file opens it in the app assigned to that type (no folder picking).
 * **Message sound:** 🎨 → **🔔 Sound** – pick it in the phone notification settings (Windows: 🎨 → **🔔 Message sound…**).
 * **Opening:** the “Velivo Messenger” icon (phone and Windows desktop) or the Velivo menu → 💬.

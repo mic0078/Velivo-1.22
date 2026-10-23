@@ -2994,19 +2994,22 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     private fun fromMessengerIcon(i: Intent?) = i?.action == Intent.ACTION_MAIN && i.component?.className == "pl.velivo.browser.KomunikatorStart"
 
     // 💬 wiadomości i 📹 rozmowy zawsze widoczne na ekranie (także zablokowanym): gdy Android to blokuje - prośba o włączenie (raz na uruchomienie)
-    private var alertsAsked = false
+    private var alertsAsked = false   // raz na uruchomienie Velivo
     private fun screenAlerts() {
         if (alertsAsked) return
         val nm = getSystemService(android.app.NotificationManager::class.java) ?: return
         val off = !nm.areNotificationsEnabled()
         val noFull = Build.VERSION.SDK_INT >= 34 && !nm.canUseFullScreenIntent()
-        if (!off && !noFull) return
+        // oszczędzanie baterii usypia Velivo w tle - wiadomości dochodzą dopiero po otwarciu (mama nie widziała, że piszę)
+        val sleepy = getSystemService(android.os.PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == false
+        if (!off && !noFull && !sleepy) return
         alertsAsked = true
         AlertDialog.Builder(this).setTitle(R.string.kom_alerts_title).setMessage(R.string.kom_alerts_msg)
             .setPositiveButton(R.string.kom_alerts_on) { _, _ ->
                 runCatching {
                     startActivity(if (off) Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
-                        else Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName")))
+                        else if (noFull) Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))
+                        else Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                 }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }

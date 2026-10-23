@@ -411,6 +411,6 @@
     <string name="jf_net_addr">Address away from home (internet)</string>
     <string name="jf_net_info">Used only when the server is not reachable at home – Velivo asks first. E.g. http://myhome.ddns.net:8097</string>
     <string name="kom_alerts_title">Messages and calls on screen</string>
-    <string name="kom_alerts_msg">For messages and calls to always show on the screen (also when locked), allow Velivo to show notifications and full-screen calls.</string>
+    <string name="kom_alerts_msg">For messages and calls to always show on the screen (also when locked), allow Velivo to show notifications and full-screen calls, and turn off battery saving for Velivo (otherwise messages arrive only after opening it). Then open Velivo again – it will tell you what is still missing.</string>
     <string name="kom_alerts_on">Turn on</string>
 </resources>

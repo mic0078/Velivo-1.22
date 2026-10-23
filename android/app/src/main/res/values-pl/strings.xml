@@ -411,6 +411,6 @@
     <string name="jf_net_addr">Adres poza domem (internet)</string>
     <string name="jf_net_info">Używany tylko, gdy serwer nie odpowiada w domu – Velivo najpierw zapyta. Np. http://mojdom.ddns.net:8097</string>
     <string name="kom_alerts_title">Wiadomości i rozmowy na ekranie</string>
-    <string name="kom_alerts_msg">Żeby wiadomości i rozmowy zawsze pokazywały się na ekranie (także zablokowanym), pozwól Velivo pokazywać powiadomienia i rozmowy na cały ekran.</string>
+    <string name="kom_alerts_msg">Żeby wiadomości i rozmowy zawsze pokazywały się na ekranie (także zablokowanym), pozwól Velivo pokazywać powiadomienia i rozmowy na cały ekran oraz wyłącz dla Velivo oszczędzanie baterii (inaczej wiadomości dochodzą dopiero po otwarciu). Potem otwórz Velivo ponownie – powie, czego jeszcze brakuje.</string>
     <string name="kom_alerts_on">Włącz</string>
 </resources>

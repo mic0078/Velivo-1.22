@@ -356,16 +356,36 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             deliver(cs[j], Msg(true, CARD + card(cs[i]), System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
         }
     }
+    // prośba o kontakt od znajomego: czeka na zgodę (także gdy Velivo w tle / telefon poza domem) - okno przy otwarciu komunikatora
     private fun cardIn(from: Contact, body: String) {
         val j = runCatching { JSONObject(body) }.getOrNull() ?: return
         val id = j.optString("id"); val key = unb64(j.optString("key"))
         if (id.length != 32 || id == myId || key.size != 32 || contact(id) != null) return
+        val list = cardList(); if ((0 until list.length()).any { JSONObject(list.getString(it)).optJSONObject("c")?.optString("id") == id }) return
+        list.put(JSONObject().put("f", from.id).put("c", j).toString()); prefs.edit().putString("prosby-kontakt", list.toString()).apply()
+        notifyPair(clean(j.optString("name")) + (if (pl) " (poleca: ${from.name})" else " (from: ${from.name})"))
+        main.post { onChange(); onCards() }
+    }
+    var onCards: () -> Unit = {}
+    private fun cardList() = runCatching { JSONArray(prefs.getString("prosby-kontakt", "[]")) }.getOrDefault(JSONArray())
+    // pierwsza czekająca prośba: (kto poleca, kogo) albo null
+    fun nextCard(): Pair<String, String>? {
+        val l = cardList(); if (l.length() == 0) return null
+        val o = JSONObject(l.getString(0))
+        return (contact(o.optString("f"))?.name ?: "?") to clean(o.optJSONObject("c")?.optString("name") ?: "")
+    }
+    fun answerCard(yes: Boolean) {
+        val l = cardList(); if (l.length() == 0) return
+        val o = JSONObject(l.getString(0)); l.remove(0); prefs.edit().putString("prosby-kontakt", l.toString()).apply()
+        if (!yes) return
+        val j = o.optJSONObject("c") ?: return; val from = contact(o.optString("f"))
+        val id = j.optString("id"); val key = unb64(j.optString("key"))
+        if (id.length != 32 || key.size != 32 || contact(id) != null) return
         val name = clean(j.optString("name")).ifEmpty { "Velivo" }
         synchronized(this) { contacts.add(Contact(id, name, key, "", clean(j.optString("dev")).ifEmpty { name }, false, j.optString("relay").ifEmpty { null })) }
         saveContacts()
-        val m = Msg(false, "👤 " + (if (pl) "Nowy kontakt: $name (od: ${from.name})" else "New contact: $name (from: ${from.name})"), System.currentTimeMillis(), true, UUID.randomUUID().toString().replace("-", ""))
-        synchronized(this) { chat(from.id).add(m) }; saveChat(from.id)
-        notifyMessage(from); main.post { onChange() }
+        if (from != null) { synchronized(this) { chat(from.id).add(Msg(false, "👤 " + (if (pl) "Nowy kontakt: $name" else "New contact: $name"), System.currentTimeMillis(), true, UUID.randomUUID().toString().replace("-", ""))) }; saveChat(from.id) }
+        announce(); main.post { onChange() }
     }
 
     private fun groupOut(g: Contact, text: String) {
@@ -1203,6 +1223,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun px(v: Int) = (v * dp).toInt()
     private var chatWith: String? = null
     private var chatRefresh: (() -> Unit)? = null
+    private var cardOpen = false
+    private fun cards() {
+        if (cardOpen || a.isFinishing) return
+        val (who, name) = k.nextCard() ?: return
+        cardOpen = true
+        AlertDialog.Builder(a).setTitle("👤 " + t("Prośba o kontakt", "Contact request"))
+            .setMessage(t("$who poleca Ci: $name.\n\nDodać do komunikatora? Będziecie mogli pisać i dzwonić także przez internet.", "$who recommends: $name.\n\nAdd to the messenger? You will be able to message and call also over the internet."))
+            .setPositiveButton(t("Dodaj", "Add")) { _, _ -> k.answerCard(true) }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> k.answerCard(false) }
+            .setOnDismissListener { cardOpen = false; a.window.decorView.post { cards() } }.show()
+    }
 
     init {
         k.onCall = { c, o -> onCall(c, o) }
@@ -1214,6 +1244,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 .setOnCancelListener { accept(false) }.show()
         }
         k.pendingPair?.let { (d, c, acc) -> k.pendingPair = null; a.window.decorView.post { k.askPair(d, c, acc) } }   // prośba z czasu, gdy Velivo było w tle
+        k.onCards = { cards() }; a.window.decorView.post { cards() }   // 👤 prośby o kontakt od znajomych (także z czasu, gdy Velivo było w tle)
         k.askFile = { dev, name, size, code, accept ->
             AlertDialog.Builder(a).setTitle("📥 " + t("Plik z: ", "File from: ") + dev)
                 .setMessage("$name (${sizeText(size)})" + if (code.isEmpty()) "" else "\n\n" + t("Kod: $code\n\nPrzyjmij tylko, gdy telefon nadawcy pokazuje ten sam kod.",

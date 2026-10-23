@@ -543,10 +543,23 @@ namespace Velivo
             if (id == null || id.Length != 32 || id == _komId || key.Length != 32 || KomContactById(id) != null) return;
             var name = KomClean((string)j["name"]); if (name.Length == 0) name = "Velivo";
             var relay = (string)j["relay"];
-            _komContacts.Add(new KomContact { Id = id, Name = name, Key = key, Addr = "", Device = KomClean((string)j["dev"]) is { Length: > 0 } dv ? dv : name, Own = false, Relay = string.IsNullOrEmpty(relay) ? null : relay });
+            // pośrednik (np. NUCBOX, zwykle bez nikogo przy ekranie) - od zaufanego kontaktu od razu, żeby nowy znajomy mógł się łączyć przez internet
+            if (_komRelayListener != null) { KomCardAdd(from, id, name, key, (string)j["dev"], relay); return; }
+            // prośba o kontakt od znajomego - zgoda (okno nad innymi; nie blokuje odbioru)
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (KomContactById(id) != null) return;
+                if (MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), from.Name + L.T(" poleca Ci: ") + name + L.T(".\n\nDodać do komunikatora? Będziecie mogli pisać i dzwonić także przez internet."),
+                    "👤 " + L.T("Prośba o kontakt"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                KomCardAdd(from, id, name, key, (string)j["dev"], relay);
+            }));
+            KomPlaySound();
+        }
+        void KomCardAdd(KomContact from, string id, string name, byte[] key, string dev, string relay)
+        {
+            _komContacts.Add(new KomContact { Id = id, Name = name, Key = key, Addr = "", Device = KomClean(dev) is { Length: > 0 } dv ? dv : name, Own = false, Relay = string.IsNullOrEmpty(relay) ? null : relay });
             KomChat(from.Id).Add(new KomMsg { Mine = false, Text = "👤 " + L.T("Nowy kontakt: ") + name + " (" + L.T("od: ") + from.Name + ")", Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = Guid.NewGuid().ToString("N") });
-            KomSave(); _komRefresh?.Invoke();
-            KomNotify(from, "👤 " + L.T("Nowy kontakt: ") + name);
+            KomSave(); _komRefresh?.Invoke(); KomAnnounce();
         }
         void KomIntroduceDialog(Window owner)
         {

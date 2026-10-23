@@ -3474,6 +3474,7 @@ namespace Velivo
                 if (!_mainClosing) SaveTvResume(-1);
                 if (_hiddenForPlayer && !_mainClosing) { _hiddenForPlayer = false; ShowFromTray(); }   // przegladarka wraca z zasobnika   // odtwarzacz zamkniety recznie - bez wznawiania; przy zamykaniu Velivo zostaje
                 view.MediaPlayer = null;
+                if (_playerMp == mp) _playerMp = null;   // zwolniony za 10 s - zegar synchronizacji nie może już pytać „czy gra” (awaria Velivo)
                 vlcClosed = true;
                 // Stop VLC moze chwile trwac - nie w watku okna; zwolnienie pozniej, gdy kolejka okna i jednorazowe zegary (do 1,5 s) juz minely
                 System.Threading.Tasks.Task.Run(async () => { try { mp.Stop(); await System.Threading.Tasks.Task.Delay(10000); mp.Dispose(); } catch (Exception) { } });

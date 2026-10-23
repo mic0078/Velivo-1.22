@@ -362,7 +362,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             // jasno dla każdego: kto dzwoni i duże przyciski Odbierz (zielony) / Odrzuć (czerwony)
             val rej = PendingIntent.getBroadcast(ctx, "odrzuc".hashCode(), Intent(ctx, KomunikatorAkcja::class.java).setAction(KomunikatorAkcja.REJECT).putExtra("id", c.id).setPackage(ctx.packageName),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            val b = Notification.Builder(ctx, "rozmowy").setSmallIcon(android.R.drawable.stat_notify_chat)
+            val b = Notification.Builder(ctx, "rozmowy").setSmallIcon(android.R.drawable.stat_notify_chat).brand()
                 .setContentTitle("📹 " + c.name + (if (pl) " dzwoni do Ciebie" else " is calling you"))
                 .setContentText(if (pl) "Stuknij zielony przycisk „Odbierz”" else "Tap the green “Answer” button")
             if (Build.VERSION.SDK_INT >= 31) b.setStyle(Notification.CallStyle.forIncomingCall(android.app.Person.Builder().setName(c.name).setImportant(true).build(), rej, pi))
@@ -671,6 +671,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 🎤 wiadomość głosowa (plik „Glosowa-….m4a”) - opis w rozmowie zamiast nazwy pliku
     private fun fileLabel(name: String, size: Long, image: Boolean) =
         if (name.startsWith("Glosowa-")) "🎤 " + (if (pl) "Wiadomość głosowa" else "Voice message") + " · " + sizeText(size)
+        else if (name.substringAfterLast('.').lowercase() in setOf("mp4", "3gp", "webm", "mkv", "mov")) "🎬 " + (if (pl) "Wiadomość wideo" else "Video message") + " · " + sizeText(size)
         else (if (image) "🖼 " else "📎 ") + "$name · " + sizeText(size)
 
     private fun note(c: Contact, mine: Boolean, text: String, mid: String? = null, path: String? = null) {
@@ -962,6 +963,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         get() = prefs.getBoolean("tlo", true)
         set(v) { prefs.edit().putBoolean("tlo", v).apply() }
 
+    // 💬 powiadomienie wyraźnie z komunikatora: ikona Komunikatora Velivo, podpis „Komunikator Velivo”, fioletowy kolor
+    private fun Notification.Builder.brand(): Notification.Builder = apply {
+        val ic = ctx.resources.getIdentifier("ic_komunikator", "mipmap", ctx.packageName)
+        if (ic != 0) setLargeIcon(android.graphics.drawable.Icon.createWithResource(ctx, ic))
+        setSubText(if (pl) "Komunikator Velivo" else "Velivo Messenger"); setColor(Color.rgb(0x8B, 0x5C, 0xF6))
+    }
     fun channelsReady() { ctx.getSystemService(NotificationManager::class.java)?.let { channels(it) } }
     private fun channels(nm: NotificationManager) {
         val pl = Locale.getDefault().language == "pl"
@@ -993,7 +1000,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val read = Notification.Action.Builder(android.graphics.drawable.Icon.createWithResource(ctx, android.R.drawable.ic_menu_view), if (pl) "Przeczytane" else "Mark as read", readPi)
             .setSemanticAction(Notification.Action.SEMANTIC_ACTION_MARK_AS_READ).build()
         runCatching {
-            nm.notify(c.id.hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
+            nm.notify(c.id.hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat).brand()
                 .setContentTitle(c.name).setContentText(last.lastOrNull()?.text ?: "")
                 .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setAutoCancel(true)
                 .setOnlyAlertOnce(quiet).addAction(Notification.Action.Builder(null, if (pl) "📖 Otwórz" else "📖 Open", pi).build()).addAction(reply).addAction(read).setShowWhen(true).build())
@@ -1666,7 +1673,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             setOnClickListener { act() }
         }
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, s); fill() }
-        val clip = round("📎", t("Załącz plik", "Attach file"), pal().button) { attachTo = c; pickFiles() }
+        // 📎 plik albo 🎬 wiadomość wideo (aparat telefonu; nagranie idzie jak plik - także do skrzynki 📬)
+        val clip = round("📎", t("Załącz plik albo nagraj wiadomość wideo", "Attach a file or record a video message"), pal().button) {
+            AlertDialog.Builder(a).setItems(arrayOf("📎 " + t("Plik / zdjęcie", "File / photo"), "🎬 " + t("Nagraj wiadomość wideo", "Record a video message"))) { _, i ->
+                attachTo = c
+                if (i == 0) pickFiles()
+                else if (a.checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { attachTo = null; a.requestPermissions(arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.RECORD_AUDIO), 4713) }
+                else runCatching { a.startActivityForResult(android.content.Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_DURATION_LIMIT, 180), 32) }   // wynik: MainActivity (REQ_P2PFILE) -> sendFiles
+                    .onFailure { attachTo = null; Toast.makeText(a, t("Brak aplikacji aparatu", "No camera app"), Toast.LENGTH_SHORT).show() }
+            }.show()
+        }
         // 🎤 wiadomość głosowa: stuknij - nagrywanie, stuknij ponownie - wysyłka (jak plik: w domu, przez internet, do skrzynki)
         var rec: android.media.MediaRecorder? = null; var recFile: java.io.File? = null; var recAt = 0L
         val mic = round("🎤", t("Wiadomość głosowa: stuknij, mów, stuknij ponownie, by wysłać", "Voice message: tap, speak, tap again to send"), pal().button) {}

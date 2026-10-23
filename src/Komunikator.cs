@@ -60,7 +60,7 @@ namespace Velivo
                     _komId = (string)o["id"];
                     _komTheme = (string)o["theme"] ?? "auto";
                     _komAutoImages = (bool?)o["autoimg"] ?? true;
-                    _komNotifyNew = (bool?)o["notifynew"] ?? true;
+                    _komNotifyNew = (bool?)o["notifynew"] ?? true; _komSound = (string)o["sound"] ?? "";
                     foreach (var iv in o["invites"]?.AsArray() ?? new JsonArray())   // ✉ zaproszenia czekajace na pośredniku
                     {
                         var ik = KomB64((string)iv["k"]); long ie = (long?)iv["exp"] ?? 0;
@@ -112,7 +112,7 @@ namespace Velivo
                 {
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["sound"] = _komSound, ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
                 };
                 Directory.CreateDirectory(DataDir);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(Encoding.UTF8.GetBytes(o.ToJsonString()), KomEntropy, DataProtectionScope.CurrentUser));
@@ -251,6 +251,11 @@ namespace Velivo
 
         // 📶 w domowej sieci jest urzadzenie z Velivo spoza kontaktow - powiadomienie raz na dobe (wylaczane w 🎨)
         bool _komNotifyNew = true;
+        string _komSound = "";   // 🔔 wybrany dźwięk wiadomości (.wav); pusty - dźwięk Windows
+        void KomPlaySound()
+        {
+            try { if (_komSound.Length > 0 && File.Exists(_komSound)) new System.Media.SoundPlayer(_komSound).Play(); else System.Media.SystemSounds.Asterisk.Play(); } catch (Exception) { }
+        }
         readonly Dictionary<string, DateTime> _komNewSeen = new Dictionary<string, DateTime>();
         void KomNotifyNew(string id, string dev)
         {
@@ -350,7 +355,7 @@ namespace Velivo
         readonly List<Window> _komPopups = new List<Window>();
         void KomNotify(KomContact c, string text)
         {
-            try { System.Media.SystemSounds.Asterisk.Play(); } catch (Exception) { }
+            KomPlaySound();
             try { if (_komWindow != null && !_komWindow.IsActive) FlashWindowEx(_komWindow); } catch (Exception) { }
             // ta sama osoba - jedno okienko z nowa trescia
             var old = _komPopups.FirstOrDefault(p => (string)p.Tag == c.Id);
@@ -1057,7 +1062,18 @@ namespace Velivo
                         var ip = m.Path; img.MouseLeftButtonUp += (s2, e2) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ip) { UseShellExecute = true }); } catch (Exception) { } };
                         body.Children.Add(img);
                     }
-                    var txt = new TextBlock { Text = m.Text, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14 };
+                    var txt = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14 };
+                    // 🔗 adresy w wiadomości - kliknięcie otwiera kartę w Velivo
+                    int at = 0;
+                    foreach (System.Text.RegularExpressions.Match um in System.Text.RegularExpressions.Regex.Matches(hasFile ? "" : m.Text, @"(https?://|www\.)[^\s<>""]+[^\s<>"".,;:!?)\]]"))
+                    {
+                        txt.Inlines.Add(new System.Windows.Documents.Run(m.Text.Substring(at, um.Index - at)));
+                        var u = um.Value.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + um.Value : um.Value;
+                        var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(um.Value)) { Foreground = fg, Cursor = Cursors.Hand, ToolTip = L.T("Otwórz w Velivo") };
+                        link.Click += (s2, e2) => { AddTab(u); Activate(); };
+                        txt.Inlines.Add(link); at = um.Index + um.Length;
+                    }
+                    txt.Inlines.Add(new System.Windows.Documents.Run(m.Text.Substring(at)));
                     if (hasFile) { var fp = m.Path; txt.Cursor = Cursors.Hand; txt.MouseLeftButtonUp += (s2, e2) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { } }; }
                     var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; copy.Click += (s2, e2) => { try { Clipboard.SetText(copyText); } catch (Exception) { } };
                     txt.ContextMenu = new ContextMenu { Items = { copy } };
@@ -1130,6 +1146,14 @@ namespace Velivo
                 var nn = new MenuItem { Header = L.T("📶 Powiadamiaj o urządzeniach Velivo w sieci spoza kontaktów"), IsCheckable = true, IsChecked = _komNotifyNew };
                 nn.Click += (a, b) => { _komNotifyNew = nn.IsChecked; KomSave(); };
                 cm.Items.Add(nn);
+                var snd = new MenuItem { Header = L.T("🔔 Dźwięk wiadomości…") };
+                snd.Click += (a, b) =>
+                {   // wybór z dźwięków Windows (albo dowolny .wav); Anuluj - dźwięk domyślny
+                    var dlg = new Microsoft.Win32.OpenFileDialog { Title = L.T("🔔 Dźwięk wiadomości (Anuluj – dźwięk domyślny)"), Filter = L.T("Dźwięki") + " (*.wav)|*.wav",
+                        InitialDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Media") };
+                    _komSound = dlg.ShowDialog(w) == true ? dlg.FileName : ""; KomSave(); KomPlaySound();
+                };
+                cm.Items.Add(snd);
                 cm.IsOpen = true;
             }));
             leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)"), (s, e) =>

@@ -252,6 +252,8 @@ Menu Velivo → **🎨 Tapeta Velivo**: podgląd tapety (gradient fiolet – tur
 
 Rozmowy, zdjęcia i pliki między Twoimi telefonami i komputerami z Velivo – bez numeru telefonu i bez obcego serwera. Wystarczy przeglądarka Velivo albo sama klawiatura Velivo; na komputerze Velivo na Windows.
 
+* **Linki i pliki w rozmowie:** stuknięcie adresu otwiera przeglądarkę, stuknięcie pliku otwiera go w aplikacji przypisanej do tego typu (bez wybierania folderu).
+* **Dźwięk wiadomości:** 🎨 → **🔔 Dźwięk** – wybór w ustawieniach powiadomień telefonu (Windows: 🎨 → **🔔 Dźwięk wiadomości…**).
 * **Otwieranie:** ikona „Komunikator Velivo” (telefon i pulpit Windows) albo menu Velivo → 💬.
 * **Dodanie kontaktu (raz, w domu):** ➕ Dodaj → wybierz urządzenie → oba ekrany pokazują ten sam 6-cyfrowy kod → przyjmij.
 * **W domu i poza domem – samo:** urządzenia, które poznały się w domu, rozmawiają też przez internet. Nic nie trzeba ustawiać. U góry widać 🏠 **W domu** albo 🌍 **Poza domem – przez internet**. Komputer w domu powinien być włączony.

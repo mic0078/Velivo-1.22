@@ -935,6 +935,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         get() = prefs.getBoolean("tlo", true)
         set(v) { prefs.edit().putBoolean("tlo", v).apply() }
 
+    fun channelsReady() { ctx.getSystemService(NotificationManager::class.java)?.let { channels(it) } }
     private fun channels(nm: NotificationManager) {
         val pl = Locale.getDefault().language == "pl"
         nm.createNotificationChannel(NotificationChannel("wiadomosci", if (pl) "Wiadomości" else "Messages", NotificationManager.IMPORTANCE_HIGH))
@@ -974,7 +975,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun chatSound() = runCatching {
         val am = ctx.getSystemService(android.media.AudioManager::class.java)
         if (am?.ringerMode != android.media.AudioManager.RINGER_MODE_NORMAL) return@runCatching
-        android.media.RingtoneManager.getRingtone(ctx, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))?.play()
+        // 🔔 dźwięk wybrany dla wiadomości Velivo (ustawienia powiadomień), inaczej domyślny
+        val snd = ctx.getSystemService(NotificationManager::class.java)?.getNotificationChannel("wiadomosci")?.sound ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+        android.media.RingtoneManager.getRingtone(ctx, snd)?.play()
     }
 
     // 📶 w domowym Wi-Fi jest urządzenie z Velivo spoza kontaktów - powiadomienie raz na dobę (do wyłączenia)
@@ -1200,7 +1203,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }.setNeutralButton("🖼 " + t("Pliki od kontaktów od razu: ", "Files from contacts at once: ") + if (k.autoImages) t("wł.", "on") else t("wył.", "off")) { _, _ ->
                 k.autoImages = !k.autoImages
                 Toast.makeText(a, "🖼 " + t("Zdjęcia i pliki od kontaktów od razu w rozmowie: ", "Photos and files from contacts straight into the chat: ") + if (k.autoImages) t("wł.", "on") else t("wył.", "off"), Toast.LENGTH_LONG).show()
-            }.setNegativeButton(android.R.string.cancel, null).show()
+            }.setNegativeButton("🔔 " + t("Dźwięk", "Sound")) { _, _ ->
+                // wybór dźwięku wiadomości - ustawienia powiadomień Androida dla kanału „Wiadomości”
+                k.channelsReady()
+                runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName).putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, "wiadomosci")) }
+            }.show()
     }
 
     // mały okrągły przycisk-ikona w nagłówku (zwykły Button ma 88 dp szerokości i łamał tytuł na kilka linii)
@@ -1591,6 +1599,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(3); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
                     contentDescription = (if (m.mine) t("Ty: ", "You: ") else c.name + ": ") + m.text + ", " + fmt.format(java.util.Date(m.ts)) +
                         if (m.mine) ", " + (if (m.read) t("przeczytane", "read") else if (m.ok) t("doręczone", "delivered") else t("czeka na doręczenie", "waiting")) else ""
+                    // 🔗 adresy w wiadomości - stuknięcie otwiera przeglądarkę
+                    if (m.path == null) android.text.util.Linkify.addLinks(this, android.text.util.Linkify.WEB_URLS)
                     if (img != null) setOnClickListener { showPhoto(m.path!!) }
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
                     setOnLongClickListener { msgMenu(c, m); true }

@@ -358,8 +358,15 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
                     android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build())
             })
-            val n = Notification.Builder(ctx, "rozmowy").setSmallIcon(android.R.drawable.stat_notify_chat)
-                .setContentTitle("📹 " + c.name).setContentText(if (pl) "Dzwoni – stuknij, by odebrać" else "Calling – tap to answer")
+            // jasno dla każdego: kto dzwoni i duże przyciski Odbierz (zielony) / Odrzuć (czerwony)
+            val rej = PendingIntent.getBroadcast(ctx, "odrzuc".hashCode(), Intent(ctx, KomunikatorAkcja::class.java).setAction(KomunikatorAkcja.REJECT).putExtra("id", c.id).setPackage(ctx.packageName),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val b = Notification.Builder(ctx, "rozmowy").setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setContentTitle("📹 " + c.name + (if (pl) " dzwoni do Ciebie" else " is calling you"))
+                .setContentText(if (pl) "Stuknij zielony przycisk „Odbierz”" else "Tap the green “Answer” button")
+            if (Build.VERSION.SDK_INT >= 31) b.setStyle(Notification.CallStyle.forIncomingCall(android.app.Person.Builder().setName(c.name).setImportant(true).build(), rej, pi))
+            else b.addAction(Notification.Action.Builder(null, if (pl) "✕ Odrzuć" else "✕ Decline", rej).build()).addAction(Notification.Action.Builder(null, if (pl) "📞 Odbierz" else "📞 Answer", pi).build())
+            val n = b
                 .setCategory(Notification.CATEGORY_CALL).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setFullScreenIntent(pi, true).setAutoCancel(true).setTimeoutAfter(45000).build()
             n.flags = n.flags or Notification.FLAG_INSISTENT
             nm.notify("rozmowa".hashCode(), n)
@@ -952,7 +959,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val last = synchronized(this) { chat(c.id).takeLast(6) }
         val me = android.app.Person.Builder().setName(if (pl) "Ty" else "You").build()
         val them = android.app.Person.Builder().setName(c.name).setKey(c.id).build()
-        val st = Notification.MessagingStyle(me)
+        // jasno: „💬 Nowa wiadomość od …” nad treścią
+        val st = Notification.MessagingStyle(me).setConversationTitle("💬 " + (if (pl) "Nowa wiadomość od " else "New message from ") + c.name).setGroupConversation(true)
         last.forEach { st.addMessage(Notification.MessagingStyle.Message(it.text, it.ts, if (it.mine) null else them)) }
         val n = unread(c.id)
         val pi = PendingIntent.getActivity(ctx, c.id.hashCode(), openIntent(c.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -968,7 +976,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             nm.notify(c.id.hashCode(), Notification.Builder(ctx, "wiadomosci").setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle(c.name).setContentText(last.lastOrNull()?.text ?: "")
                 .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setAutoCancel(true)
-                .setOnlyAlertOnce(quiet).addAction(reply).addAction(read).setShowWhen(true).build())
+                .setOnlyAlertOnce(quiet).addAction(Notification.Action.Builder(null, if (pl) "📖 Otwórz" else "📖 Open", pi).build()).addAction(reply).addAction(read).setShowWhen(true).build())
         }
     }
     // rozmowa na ekranie: bez powiadomienia, tylko krótki dźwięk (jak w innych komunikatorach); wyciszony telefon - cisza
@@ -1792,6 +1800,7 @@ class KomunikatorUsluga : Service() {
 class KomunikatorAkcja : android.content.BroadcastReceiver() {
     override fun onReceive(ctx: Context, i: Intent) {
         val k = Komunikator.get(ctx) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
+        if (i.action == REJECT) { k.contact(i.getStringExtra("id") ?: return)?.let { c -> k.sendCall(c, JSONObject().put("k", "reject")) }; ctx.getSystemService(NotificationManager::class.java)?.cancel("rozmowa".hashCode()); return }
         if (i.action == NEW_OFF) { k.newDeviceNotifications = false; ctx.getSystemService(NotificationManager::class.java)?.cancel("nowe-urz".hashCode()); return }
         val c = k.contact(i.getStringExtra("id") ?: return) ?: return
         when (i.action) {
@@ -1812,6 +1821,7 @@ class KomunikatorAkcja : android.content.BroadcastReceiver() {
         const val REPLY = "pl.velivo.komunikator.ODPOWIEDZ"
         const val READ = "pl.velivo.komunikator.PRZECZYTANE"
         const val NEW_OFF = "pl.velivo.komunikator.NOWE_WYL"
+        const val REJECT = "pl.velivo.komunikator.ODRZUC"
         const val TEXT = "tekst"
     }
 }

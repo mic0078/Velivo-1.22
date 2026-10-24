@@ -588,6 +588,26 @@ namespace Velivo
             };
             KomStyle(d); d.ShowDialog();
         }
+        // 👥 pliki w grupie: jeden wpis w rozmowie grupy, do każdego członka osobno (nieobecni - 📬 skrzynka pośrednika)
+        async Task KomSendGroupFiles(Window owner, KomContact g, string[] files)
+        {
+            if (files == null) { var dlg = new Microsoft.Win32.OpenFileDialog { Title = "👥 " + g.Name, Multiselect = true }; if (dlg.ShowDialog(owner) != true) return; files = dlg.FileNames; }
+            foreach (var f in files)
+            {
+                long size = 0; try { size = new FileInfo(f).Length; } catch (Exception) { continue; }
+                KomChat(g.Id).Add(new KomMsg { Mine = true, Text = KomFileLabel(Path.GetFileName(f), size), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = Guid.NewGuid().ToString("N"), File = true, Path = f });
+                KomSave(); _komRefresh?.Invoke();
+                KomInfo("👥 " + Path.GetFileName(f) + L.T(" – wysyłam do grupy…"), 0);
+                foreach (var id in KomMembers(g))
+                {
+                    var mc = KomContactById(id); if (mc == null || mc.IsGroup) continue;
+                    IPAddress.TryParse(mc.Addr ?? "", out var a0); var mid = Guid.NewGuid().ToString("N");
+                    var r = await KomSendFile(KomOnline(mc.Id) && a0 != null ? a0 : IPAddress.Loopback, f, _ => { }, mc, null, mid, group: g);
+                    if (r != "ok" && r != L.T("odrzucono")) await KomSendViaBox(mc, f, mid, g);
+                }
+                KomInfo("👥 " + Path.GetFileName(f) + L.T(" – wysłano do grupy (nieobecnym przez skrzynkę 📬)"));
+            }
+        }
         KomContact KomNewGroup(string name, IEnumerable<string> ids)
         {
             var g = new KomContact { Id = Guid.NewGuid().ToString("N"), Name = name, Key = Array.Empty<byte>(), Addr = "grupa:" + string.Join(",", ids), Device = "👥", Own = true };
@@ -895,7 +915,11 @@ namespace Velivo
                     var msg = (L.En ? "📎 File from " : "📎 Plik od ") + dev + ": " + Path.GetFileName(target);
                     if (_komWindow != null && _komWindow.IsVisible) KomInfo(msg + L.T(" – zapisano"));   // okno zostaje na wierzchu
                     else ShowToast(msg, target);
-                    if (from != null) KomNote(from, false, KomFileLabel(Path.GetFileName(target), size), (string)h["Mid"], target);
+                    // 👥 plik w grupie - do rozmowy grupy (grupa tworzy się sama)
+                    var grp = from != null && h["Group"] is JsonObject gh ? KomGroupIn(from, gh.ToJsonString() + "\n") : null;
+                    var into = grp ?? from;
+                    if (from != null) KomNote(into, false, (grp != null ? from.Name + ": " : "") + KomFileLabel(Path.GetFileName(target), size), (string)h["Mid"], target);
+                    if (from != null) from = into;
                     if (from != null && !(_komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == from.Id))
                     {   // plik / zdjecie jak wiadomosc: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)
                         _komUnread[from.Id] = (_komUnread.TryGetValue(from.Id, out var un0) ? un0 : 0) + 1; KomSave(); KomTrayUpdate();
@@ -915,7 +939,7 @@ namespace Velivo
         }
 
         // box - 📬 do skrzynki pośrednika (odbiorcy nie ma): klucz z klucza kontaktu, bez wymiany kluczy z odbiorcą
-        async Task<string> KomSendFile(IPAddress addr, string path, Action<string> showCode, KomContact to = null, Action<long, long> progress = null, string mid = null, bool box = false)
+        async Task<string> KomSendFile(IPAddress addr, string path, Action<string> showCode, KomContact to = null, Action<long, long> progress = null, string mid = null, bool box = false, KomContact group = null)
         {
             var name = SafeFileName(Path.GetFileName(path));
             try
@@ -932,6 +956,7 @@ namespace Velivo
                         var h = new JsonObject { ["Type"] = box ? "p2p-box" : "p2p-file", ["Id"] = _komId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = box ? "" : Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
                         if (mid != null) h["Mid"] = mid;
                         if (to != null) h["To"] = to.Id;   // pośrednik wie, komu przekazac (poza podpisem)
+                        if (group != null) h["Group"] = new JsonObject { ["g"] = group.Id, ["n"] = group.Name, ["m"] = new JsonArray(KomMembers(group).Append(_komId).Select(x => (JsonNode)x).ToArray()) };   // 👥 plik w grupie
                         var ad = KomFileAd(h);
                         if (to != null) using (var hm = new HMACSHA256(to.Key)) h["Mac"] = Convert.ToBase64String(hm.ComputeHash(ad));   // kontakt rozpozna nadawce bez kodu
                         cts.CancelAfter(TimeSpan.FromSeconds(15));
@@ -1205,7 +1230,7 @@ namespace Velivo
                     headerDone:;
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;
-                fileBtn.IsEnabled = micBtn.IsEnabled = callBtn.IsEnabled = c != null && !c.IsGroup;   // grupa: na razie tekst
+                fileBtn.IsEnabled = micBtn.IsEnabled = c != null; callBtn.IsEnabled = c != null && !c.IsGroup;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
                 msgs.Children.Clear();
                 if (c == null) return;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))
@@ -1286,6 +1311,7 @@ namespace Velivo
             // 📎 do zaznaczonego kontaktu: 🟢 w sieci - od razu na znany adres; szukanie tylko, gdy adresu nie znamy
             async Task AttachTo(KomContact c, string[] files = null)
             {
+                if (c.IsGroup) { await KomSendGroupFiles(w, c, files); return; }   // 👥 do każdego w grupie osobno
                 IPAddress addr = null;
                 if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) { addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr; }
                 await KomSendFilesTo(w, c.Name, addr ?? IPAddress.Loopback, c, files);   // poza domem: tunel przez pośrednika; nie ma nikogo - 📬 skrzynka / czeka u nas
@@ -1312,18 +1338,18 @@ namespace Velivo
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
             // 🖱 pliki przeciągnięte myszką z Eksploratora na okno rozmowy - wysyłka jak 📎
             w.AllowDrop = true;
-            w.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Effects = Current() is KomContact dc && !dc.IsGroup ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };   // Preview - pole tekstowe nie przejmuje plików
+            w.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Effects = Current() is KomContact dc ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };   // Preview - pole tekstowe nie przejmuje plików
             w.PreviewDrop += async (s, e) =>
             {
                 if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Handled = true;
-                var c = Current(); if (c == null || c.IsGroup || e.Data.GetData(DataFormats.FileDrop) is not string[] dropped) return;
+                var c = Current(); if (c == null || e.Data.GetData(DataFormats.FileDrop) is not string[] dropped) return;
                 var files = dropped.Where(File.Exists).ToArray(); if (files.Length > 0) await AttachTo(c, files);
             };
             // 📋 Ctrl+V w polu wiadomości: skopiowane pliki albo obraz (np. zrzut ekranu) - wysyłka; tekst wkleja się jak zwykle
             input.PreviewKeyDown += async (s, e) =>
             {
                 if (e.Key != Key.V || (Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
-                var c = Current(); if (c == null || c.IsGroup) return;
+                var c = Current(); if (c == null) return;
                 string[] files = null;
                 try
                 {

@@ -955,6 +955,8 @@ namespace Velivo
             { "Wiadomość głosowa", "Voice message" },
             { " pisze:", " writes:" },
             { "pisze…", "typing…" },
+            { " – wysyłam do grupy…", " – sending to the group…" },
+            { " – wysłano do grupy (nieobecnym przez skrzynkę 📬)", " – sent to the group (via the 📬 mailbox for those away)" },
             { " poleca Ci: ", " recommends: " },
             { ".\n\nDodać do komunikatora? Będziecie mogli pisać i dzwonić także przez internet.", ".\n\nAdd to the messenger? You will be able to message and call also over the internet." },
             { "Prośba o kontakt", "Contact request" },

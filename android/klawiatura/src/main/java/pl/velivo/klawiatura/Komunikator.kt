@@ -475,19 +475,35 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         announce(); main.post { onChange() }
     }
 
+    // 👥 plik / zdjęcie / głosówka / wideo w grupie: jeden wpis w rozmowie grupy, do każdego członka osobno (nieobecni - 📬 skrzynka)
+    fun sendGroupFile(g: Contact, name: String, size: Long, open: () -> java.io.InputStream): String {
+        val m = Msg(true, fileLabel(name, size, isImage(name)), System.currentTimeMillis(), true, UUID.randomUUID().toString().replace("-", ""), file = true)
+        synchronized(this) { chat(g.id).add(m) }; saveChat(g.id); main.post { onChange() }
+        val res = members(g).mapNotNull { contact(it)?.takeIf { c -> !c.isGroup } }.map { c ->
+            val t = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { online(c.id) } ?: InetAddress.getLoopbackAddress()
+            sendFile(t, name, size, open, {}, c, group = g)
+        }
+        return if (res.all { it == "ok" }) "ok" else if (res.all { it == "ok" || it == "skrzynka" || it == "czeka" }) "skrzynka" else res.firstOrNull { it != "ok" } ?: "ok"
+    }
+
     private fun groupOut(g: Contact, text: String) {
         val head = JSONObject().put("g", g.id).put("n", g.name).put("m", JSONArray(members(g) + myId)).toString()
         for (id in members(g)) contact(id)?.takeIf { !it.isGroup }?.let { deliver(it, Msg(true, GROUP + head + "\n" + text, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", ""))) }
     }
-    private fun groupIn(from: Contact, body: String, ts: Long, mid: String) {
-        val head = runCatching { JSONObject(body.substringBefore('\n')) }.getOrNull() ?: return
-        val gid = head.optString("g").takeIf { it.length == 32 } ?: return
+    // grupa z nagłówka (g - id, n - nazwa, m - członkowie): tworzy się sama, skład się uzupełnia
+    private fun groupOf(from: Contact, head: JSONObject): Contact? {
+        val gid = head.optString("g").takeIf { it.length == 32 } ?: return null
         val ids = (0 until (head.optJSONArray("m")?.length() ?: 0)).map { head.getJSONArray("m").optString(it) }.filter { it.length == 32 && it != myId }.toSet() + from.id
         val g = synchronized(this) {
             contact(gid)?.also { it.addr = "grupa:" + (members(it) + ids).distinct().joinToString(",") }
                 ?: Contact(gid, clean(head.optString("n")).ifEmpty { "👥" }, ByteArray(0), "grupa:" + ids.joinToString(","), "👥", own = true).also { contacts.add(it) }
         }
         saveContacts()
+        return g.takeIf { it.isGroup }
+    }
+    private fun groupIn(from: Contact, body: String, ts: Long, mid: String) {
+        val head = runCatching { JSONObject(body.substringBefore('\n')) }.getOrNull() ?: return
+        val g = groupOf(from, head) ?: return
         val m = Msg(false, (from.name + ": " + body.substringAfter('\n')).take(MAX_TEXT), ts, true, mid)
         synchronized(this) { chat(g.id).add(m) }
         saveChat(g.id)
@@ -749,10 +765,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             } else saveFile(name, tmp, dev)
             out.write(hmac(key, ("file-ack\n" + h.optString("Hash")).toByteArray(Charsets.UTF_8))); out.flush()
             if (from != null) {
-                note(from, false, fileLabel(name, size, isImage(name)), h.optString("Mid"), saved)
+                val grp = h.optJSONObject("Group")?.let { groupOf(from, it) }   // 👥 plik w grupie - do rozmowy grupy
+                if (grp != null) { note(grp, false, from.name + ": " + fileLabel(name, size, isImage(name)), h.optString("Mid"), saved); if (chatOpen != grp.id) prefs.edit().putInt("nowe-${grp.id}", unread(grp.id) + 1).apply(); notifyMessage(grp) }
+                else note(from, false, fileLabel(name, size, isImage(name)), h.optString("Mid"), saved)
                 // plik / zdjęcie jak wiadomość: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)
-                if (chatOpen != from.id) prefs.edit().putInt("nowe-${from.id}", unread(from.id) + 1).apply()
-                notifyMessage(from)
+                if (grp == null) { if (chatOpen != from.id) prefs.edit().putInt("nowe-${from.id}", unread(from.id) + 1).apply(); notifyMessage(from) }
             }
         } finally { if (!good) tmp.delete() }
     }
@@ -760,7 +777,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // plik na inny telefon: open() - strumień od początku (dwa razy: suma, potem wysyłka)
     // retry - plik, który czekał na odbiorcę (kopia w Velivo), wysyłany ponownie z tym samym wpisem w rozmowie
     // box - 📬 do skrzynki pośrednika (odbiorcy nie ma): klucz z klucza kontaktu, bez wymiany kluczy z odbiorcą
-    fun sendFile(target: InetAddress, name: String, size: Long, open: () -> java.io.InputStream, showCode: (String) -> Unit, to: Contact? = null, retry: Msg? = null, box: Boolean = false): String {
+    fun sendFile(target: InetAddress, name: String, size: Long, open: () -> java.io.InputStream, showCode: (String) -> Unit, to: Contact? = null, retry: Msg? = null, box: Boolean = false, group: Contact? = null): String {
         val md = MessageDigest.getInstance("SHA-256")
         open().use { s -> val b = ByteArray(1 shl 16); while (true) { val r = s.read(b); if (r < 0) break; md.update(b, 0, r) } }
         val hash = hex(md.digest())
@@ -772,6 +789,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val mid = retry?.mid ?: UUID.randomUUID().toString().replace("-", ""); h.put("Mid", mid)   // poza podpisem - tylko do ✓✓ w rozmowie
         if (to != null) h.put("Mac", b64(hmac(to.key, ad)))   // kontakt rozpozna nadawcę bez kodu
         if (to != null) h.put("To", to.id)   // pośrednik wie, komu przekazać (poza podpisem)
+        if (group != null) h.put("Group", JSONObject().put("g", group.id).put("n", group.name).put("m", JSONArray(members(group) + myId)))   // 👥 plik w grupie - u odbiorcy do rozmowy grupy
         // wpis w rozmowie od razu („…”): „przeczytane” od odbiorcy może przyjść, zanim tu skończymy
         // wysłane zdjęcie: mała kopia w Velivo (miniatura w rozmowie)
         val thumb = if (to != null && retry == null && isImage(name)) runCatching {
@@ -783,7 +801,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }.getOrNull() else null
         // 🎤 własna głosówka - kopia w Velivo, żeby można ją było odsłuchać u siebie (jak w WhatsApp)
         val voice = if (to != null && retry == null && name.startsWith("Glosowa-")) runCatching { java.io.File(mediaDir, "moja-$mid-$name").also { f -> open().use { i -> f.outputStream().use { i.copyTo(it) } } }.path }.getOrNull() else null
-        val pend = retry ?: to?.let { c -> Msg(true, fileLabel(name, size, thumb != null), System.currentTimeMillis(), false, mid, file = true, path = thumb ?: voice).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
+        val pend = retry ?: to?.let { c -> Msg(true, fileLabel(name, size, thumb != null), System.currentTimeMillis(), false, mid, file = true, path = thumb ?: voice).also { m -> if (group == null) { synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } } }   // w grupie wpis jest w rozmowie grupy (sendGroupFile)
         return runCatching {
             connect(target, to?.id).use { s ->   // poza domem - tunel przez pośrednika
                 s.timeout(15000)
@@ -819,7 +837,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 if (r == "ok") { pend.ok = true; pend.text += if (box) (if (pl) " – 📬 czeka na serwerze" else " – 📬 waiting on the server") else if (pl) " – odebrano" else " – received" }
                 else if (r == "odrzucono") { synchronized(this) { chat(to.id).remove(pend) }; pend.path?.let { java.io.File(it).delete() } }   // odrzucony - bez wpisu
                 else if (retry == null) {
-                    if (sendBox(to, name, size, open, pend) == "ok") res = "skrzynka"   // odbiorcy nie ma: 📬 do skrzynki pośrednika
+                    if (sendBox(to, name, size, open, pend, group) == "ok") res = "skrzynka"   // odbiorcy nie ma: 📬 do skrzynki pośrednika
                     else runCatching {   // bez pośrednika - kopia w Velivo („…”), wyślę sama, gdy się pojawi
                         val keep = java.io.File(mediaDir, "wyslane-$mid-$name"); open().use { i -> keep.outputStream().use { i.copyTo(it) } }
                         pend.path?.let { java.io.File(it).delete() }; pend.path = keep.path; res = "czeka"
@@ -834,12 +852,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // plik w historii rozmowy (jak załącznik w innych komunikatorach)
     // plik w rozmowie: ten sam identyfikator u nadawcy i odbiorcy (Mid z nagłówka) - „przeczytane” (✓✓) jak przy wiadomościach
     // 📬 odbiorcy nie ma - plik do skrzynki pośrednika (poza domem tunelem, w domu do pośrednika w Wi-Fi); oddany, gdy odbiorca się pojawi
-    private fun sendBox(to: Contact, name: String, size: Long, open: () -> java.io.InputStream, pend: Msg): String {
+    private fun sendBox(to: Contact, name: String, size: Long, open: () -> java.io.InputStream, pend: Msg, group: Contact? = null): String {
         val now = System.currentTimeMillis()
         val home = synchronized(this) { contacts.firstOrNull { it.relay != null && now - (lanSeen[it.id] ?: 0L) < HOME_MS } }
         // w domu - do pośrednika w Wi-Fi; poza domem - tunelem przez pośrednika (także gdy połączenie jeszcze nie wstało)
         val target = home?.takeIf { up == null }?.addr?.let { a -> runCatching { InetAddress.getByName(a) }.getOrNull() } ?: InetAddress.getLoopbackAddress()
-        return sendFile(target, name, size, open, {}, to, pend, box = true)
+        return sendFile(target, name, size, open, {}, to, pend, box = true, group = group)
     }
 
     // 🎤 wiadomość głosowa (plik „Glosowa-….m4a”) - opis w rozmowie zamiast nazwy pliku
@@ -1832,6 +1850,19 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     fun sendFiles(uris: List<Uri>) {
         if (uris.isEmpty()) return
         val c = attachTo; attachTo = null
+        if (c != null && c.isGroup) {   // 👥 do każdego w grupie osobno
+            Thread {
+                for (u in uris) {
+                    val name = runCatching { a.contentResolver.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { q -> if (q.moveToFirst()) q.getString(0) else null } }.getOrNull() ?: u.lastPathSegment ?: "plik"
+                    val size = runCatching { a.contentResolver.openAssetFileDescriptor(u, "r")?.use { it.length } ?: -1L }.getOrDefault(-1L)
+                    if (size < 0) continue
+                    a.runOnUiThread { Toast.makeText(a, t("Wysyłam do grupy: ", "Sending to the group: ") + name, Toast.LENGTH_SHORT).show() }
+                    val r = k.sendGroupFile(c, name, size) { a.contentResolver.openInputStream(u)!! }
+                    a.runOnUiThread { Toast.makeText(a, name + ": " + if (r == "ok") t("wysłano", "sent") else "📬 " + t("dla nieobecnych czeka na serwerze", "waits on the server for those away"), Toast.LENGTH_LONG).show() }
+                }
+            }.start()
+            return
+        }
         if (c != null) {
             Thread {
                 val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { !it.isLoopbackAddress }
@@ -1931,7 +1962,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                         }
                     }
                     if (img != null) setOnClickListener { showPhoto(m.path!!) }
-                    else if (m.path != null && java.io.File(m.path!!).exists() && m.text.startsWith("🎤")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
+                    else if (m.path != null && java.io.File(m.path!!).exists() && java.io.File(m.path!!).name.contains("Glosowa-")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     setOnLongClickListener { msgMenu(c, m); true }
@@ -1990,7 +2021,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val btn = round("➤", t("Wyślij", "Send"), violet) {   // klawiatura Velivo najpierw poprawia ostatnie słowo, potem wysyłka
             (a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).sendAppPrivateCommand(input, "pl.velivo.slowo", null); input.postDelayed({ send() }, 150) }
         input.setOnEditorActionListener { _, id, _ -> if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { send(); true } else false }
-        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); if (!c.isGroup) { addView(clip); addView(mic) }; addView(input); addView(btn) }
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(mic); addView(input); addView(btn) }
         val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
         val title = TextView(a).apply { textSize = 18f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
         fun status() {

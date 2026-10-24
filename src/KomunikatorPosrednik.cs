@@ -198,7 +198,7 @@ namespace Velivo
             finally { _komBoxBusy.TryRemove(id, out _); }
         }
         // nadawca: odbiorcy nie ma - plik do skrzynki pośrednika (sam pośrednik: do własnej)
-        async Task<string> KomSendViaBox(KomContact to, string path, string mid)
+        async Task<string> KomSendViaBox(KomContact to, string path, string mid, KomContact group = null)
         {
             IPAddress addr = IPAddress.Loopback;
             if (_komRelayListener == null && _komUp == null)
@@ -206,7 +206,7 @@ namespace Velivo
                 var rc = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay) && _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
                 if (rc == null || !IPAddress.TryParse(rc.Addr ?? "", out addr)) return "brak";
             }
-            return await KomSendFile(addr, path, _ => { }, to, null, mid, box: true);
+            return await KomSendFile(addr, path, _ => { }, to, null, mid, box: true, group: group);
         }
 
         async Task<Stream> KomOpenAsync(TcpClient cl, IPAddress addr, string toId, CancellationToken token)

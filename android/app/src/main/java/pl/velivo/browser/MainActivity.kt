@@ -695,7 +695,7 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
                 }
                 if (u.scheme != "http" && u.scheme != "https") return
                 val fake = if (host in protectionAllowed) null else Ochrona.checkLookalike(host, vaultDomains)
-                if (fake != null) { view.stopLoading(); warnLookalike(view, url, host, fake) }
+                if (fake != null) { view.stopLoading(); if (view === web()) warnLookalike(view, url, host, fake) }   // karta w tle (reklama, przekierowanie) - zatrzymana po cichu, bez okna nad komunikatorem
             }
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val s = req.url.scheme ?: return false

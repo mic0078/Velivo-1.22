@@ -12,7 +12,8 @@ object Ochrona {
         "facebook" to listOf("facebook.com", "fb.com", "fbcdn.net", "facebook.net"),
         "instagram" to listOf("instagram.com"),
         "whatsapp" to listOf("whatsapp.com", "whatsapp.net"),
-        "google" to listOf("google.com", "google.co.uk", "google.pl", "googleusercontent.com", "googleapis.com", "youtube.com", "gmail.com"),
+        "google" to listOf("google.com", "google.co.uk", "google.pl", "googleusercontent.com", "googleapis.com", "youtube.com", "gmail.com",
+            "googleadservices.com", "googlesyndication.com", "googletagmanager.com", "google-analytics.com", "googlevideo.com", "gstatic.com", "doubleclick.net"),   // własne domeny Google - nie podróbki
         "gmail" to listOf("gmail.com", "google.com"),
         "microsoft" to listOf("microsoft.com", "microsoftonline.com", "live.com", "outlook.com", "office.com", "office365.com", "msn.com", "bing.com", "skype.com", "sharepoint.com", "onedrive.com", "xbox.com"),
         "outlook" to listOf("outlook.com", "live.com", "office.com", "microsoft.com"),

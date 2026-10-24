@@ -808,16 +808,22 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val ack = ByteArray(32).also { inp.readFully(it) }
                 if (box || MessageDigest.isEqual(ack, hmac(key, "file-ack\n$hash".toByteArray(Charsets.UTF_8)))) "ok" else "błąd potwierdzenia"   // skrzynka: potwierdza pośrednik
             }
-        }.getOrElse { it.message ?: it.javaClass.simpleName }.also { r ->
+        }.getOrElse { it.message ?: it.javaClass.simpleName }.let { r ->
+            // wynik dla okna: "ok", "odrzucono", "skrzynka" (📬 czeka na serwerze), "czeka" (u nas, pójdzie sama) albo błąd
+            var res = r
             if (to != null && pend != null) {
                 if (r == "ok") { pend.ok = true; pend.text += if (box) (if (pl) " – 📬 czeka na serwerze" else " – 📬 waiting on the server") else if (pl) " – odebrano" else " – received" }
                 else if (r == "odrzucono") { synchronized(this) { chat(to.id).remove(pend) }; pend.path?.let { java.io.File(it).delete() } }   // odrzucony - bez wpisu
-                else if (retry == null && sendBox(to, name, size, open, pend) != "ok") runCatching {   // odbiorcy nie ma: 📬 do skrzynki pośrednika; bez pośrednika - kopia w Velivo („…”), wyślę sama, gdy się pojawi
-                    val keep = java.io.File(mediaDir, "wyslane-$mid-$name"); open().use { i -> keep.outputStream().use { i.copyTo(it) } }
-                    pend.path?.let { java.io.File(it).delete() }; pend.path = keep.path
-                }.onFailure { synchronized(this) { chat(to.id).remove(pend) } }
+                else if (retry == null) {
+                    if (sendBox(to, name, size, open, pend) == "ok") res = "skrzynka"   // odbiorcy nie ma: 📬 do skrzynki pośrednika
+                    else runCatching {   // bez pośrednika - kopia w Velivo („…”), wyślę sama, gdy się pojawi
+                        val keep = java.io.File(mediaDir, "wyslane-$mid-$name"); open().use { i -> keep.outputStream().use { i.copyTo(it) } }
+                        pend.path?.let { java.io.File(it).delete() }; pend.path = keep.path; res = "czeka"
+                    }.onFailure { synchronized(this) { chat(to.id).remove(pend) } }
+                }
                 saveChat(to.id); main.post { onChange() }
             }
+            res
         }
     }
 
@@ -826,8 +832,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 📬 odbiorcy nie ma - plik do skrzynki pośrednika (poza domem tunelem, w domu do pośrednika w Wi-Fi); oddany, gdy odbiorca się pojawi
     private fun sendBox(to: Contact, name: String, size: Long, open: () -> java.io.InputStream, pend: Msg): String {
         val now = System.currentTimeMillis()
-        val home = synchronized(this) { contacts.firstOrNull { it.relay != null && now - (lanSeen[it.id] ?: 0L) < 100000 } }
-        val target = if (up != null) InetAddress.getLoopbackAddress() else home?.addr?.let { a -> runCatching { InetAddress.getByName(a) }.getOrNull() } ?: return "brak"
+        val home = synchronized(this) { contacts.firstOrNull { it.relay != null && now - (lanSeen[it.id] ?: 0L) < HOME_MS } }
+        // w domu - do pośrednika w Wi-Fi; poza domem - tunelem przez pośrednika (także gdy połączenie jeszcze nie wstało)
+        val target = home?.takeIf { up == null }?.addr?.let { a -> runCatching { InetAddress.getByName(a) }.getOrNull() } ?: InetAddress.getLoopbackAddress()
         return sendFile(target, name, size, open, {}, to, pend, box = true)
     }
 
@@ -977,8 +984,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     // połączenie do urządzenia: poza domem - tunel przez pośrednika; w domu - TCP w sieci domowej
     private fun connect(target: InetAddress, toId: String?): Conn {
-        val relay = upRelay
-        if (up != null && relay != null && toId != null) relayConnect(relay, "tunnel", to = toId)?.let { f -> return Conn(DataInputStream(f.input), f.output, null, f.sock) }
+        // poza domem - tunel przez pośrednika; bez gotowego połączenia (adres 127.0.0.1 = „nie wiem gdzie”) - pierwszy pośrednik z kontaktów
+        val relay = upRelay ?: myRelay().takeIf { target.isLoopbackAddress }
+        if ((up != null || target.isLoopbackAddress) && relay != null && toId != null) relayConnect(relay, "tunnel", to = toId)?.let { f -> return Conn(DataInputStream(f.input), f.output, null, f.sock) }
         val s = java.net.Socket(); s.connect(InetSocketAddress(target, PORT), 5000)
         return Conn(DataInputStream(s.getInputStream()), s.getOutputStream(), target, s)
     }
@@ -1004,8 +1012,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             // w domu = w sieci domowej widać którykolwiek kontakt (wtedy wszystko jak dotąd, prosto); poza domem - nikogo
             val now = System.currentTimeMillis()
             // w domu: pośrednik długo milczy w Wi-Fi - pytamy go, zanim uznamy, że jesteśmy poza domem (bez przeskakiwania dom <-> internet co 3 min)
-            if (up == null && now - whoAt > 30000 && relays.any { now - (lanSeen[it.id] ?: 0L) in 40000..100000 }) { whoAt = now; runCatching { sendUdp(packet("p2p-who"), null) } }
-            val home = relay == null || (now - started < 30000 && !upForce) || relays.any { now - (lanSeen[it.id] ?: 0L) < 100000 }   // w domu = widać pośrednika (np. NUCBOX); inny telefon w tej samej sieci (hotspot) to nie dom
+            if (up == null && now - whoAt > 30000 && relays.any { now - (lanSeen[it.id] ?: 0L) in 40000L..HOME_MS }) { whoAt = now; runCatching { sendUdp(packet("p2p-who"), null) } }
+            val home = relay == null || (now - started < 30000 && !upForce) || relays.any { now - (lanSeen[it.id] ?: 0L) < HOME_MS }   // w domu = widać pośrednika (np. NUCBOX); inny telefon w tej samej sieci (hotspot) to nie dom
             if (home) {
                 up?.let { up = null; closeUp(it, "w domu (widać kontakt w Wi-Fi)"); announce() }
                 upMore.values.forEach { closeUp(it, "w domu") }; upMore.clear()
@@ -1282,6 +1290,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val CHUNK = 1 shl 20
         const val MAX_TEXT = 4000
         const val CALL = "\u0001velivo-rozmowa\n"
+        // w domu: pośrednik widziany w Wi-Fi w ostatnich 10 min (wyjście z domu wykrywa zmiana adresu sieci - od razu);
+        // krócej - telefon w domu przeskakiwał co kilka minut na internet i z powrotem (dziennik pośrednika)
+        const val HOME_MS = 600000L
         const val GROUP = "\u0001velivo-grupa\n"
         const val CARD = "\u0001velivo-kontakt\n"
         const val ADDR = "\u0001velivo-adres\n"; const val ASK = "\u0001velivo-prosba\n"; const val ASKOK = "\u0001velivo-prosba-ok\n"
@@ -1842,7 +1853,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     val r = k.sendFile(p.addr, name, size, { a.contentResolver.openInputStream(u)!! }, { code -> if (c == null) a.runOnUiThread { d = codeDialog("📤 $name → ${p.name}", code) } }, c)
                     a.runOnUiThread {
                         d?.dismiss()
-                        Toast.makeText(a, name + ": " + when (r) { "ok" -> t("wysłano", "sent"); "odrzucono" -> t("odrzucono", "declined"); else -> t("błąd - ", "error - ") + r }, Toast.LENGTH_LONG).show()
+                        Toast.makeText(a, name + ": " + when (r) { "ok" -> t("wysłano", "sent"); "odrzucono" -> t("odrzucono", "declined")
+                            "skrzynka" -> "📬 " + t("czeka na serwerze – dojdzie, gdy odbiorca się pojawi", "waiting on the server – arrives when the recipient appears")
+                            "czeka" -> "⏳ " + t("wyślę sama, gdy odbiorca będzie w sieci", "will send when the recipient is online")
+                            else -> t("błąd - ", "error - ") + r }, Toast.LENGTH_LONG).show()
                     }
                 }
             }.start()
@@ -1905,7 +1919,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     if (img != null) setOnClickListener { showPhoto(m.path!!) }
                     else if (m.path != null && java.io.File(m.path!!).exists() && m.text.startsWith("🎤")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
-                    else if (!m.file) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
+                    else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
             }
@@ -2043,6 +2057,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun openLink(url: String) {
         val i = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)).addCategory(android.content.Intent.CATEGORY_BROWSABLE)
         if (Build.VERSION.SDK_INT >= 30 && runCatching { a.startActivity(android.content.Intent(i).addFlags(android.content.Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER)) }.isSuccess) return
+        // przeglądarką jest samo Velivo - komunikator się zamyka, żeby strona była widoczna (inaczej otwierała się pod nim)
+        if (a.packageManager.resolveActivity(i, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName == a.packageName) screen?.dismiss()
         runCatching { a.startActivity(i) }.onFailure { Toast.makeText(a, t("Nie udało się otworzyć", "Could not open"), Toast.LENGTH_SHORT).show() }
     }
 

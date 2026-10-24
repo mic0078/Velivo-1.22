@@ -255,6 +255,7 @@ namespace Velivo
 
         // 📶 w domowej sieci jest urzadzenie z Velivo spoza kontaktow - powiadomienie raz na dobe (wylaczane w 🎨)
         bool _komNotifyNew = true;
+        readonly Dictionary<string, DateTime> _komTypingAt = new Dictionary<string, DateTime>();   // ✍ „pisze…” od kontaktu
         string _komSound = "";   // 🔔 wybrany dźwięk wiadomości (.wav); pusty - dźwięk Windows
         void KomPlaySound()
         {
@@ -294,6 +295,7 @@ namespace Velivo
             switch (t)
             {
                 case "p2p-who": KomSendUdp(KomPacket("p2p-here"), sender); break;
+                case "p2p-typing": if (c != null && (string)p["to"] == _komId) { _komTypingAt[c.Id] = DateTime.UtcNow; _komRefresh?.Invoke(); _ = Task.Delay(6500).ContinueWith(_ => _komRefresh?.Invoke()); } return;   // ✍ „pisze…”
                 case "p2p-here": _komFound[from] = (KomClean((string)p["device"]), sender); break;
                 case "p2p-ack":
                     {
@@ -343,6 +345,7 @@ namespace Velivo
             KomSendUdp(ack, sender);
             if (!_komSeen.Add(mid) || KomChat(c.Id).Any(x => x.Mid == mid)) return;   // powtorka (takze po ponownym uruchomieniu) - tylko ponowne potwierdzenie
             if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
+            _komTypingAt.Remove(c.Id);
             if (text.StartsWith(KomCallTag, StringComparison.Ordinal)) { KomOnCall(c, text.Substring(KomCallTag.Length)); return; }   // 📹 sygnał rozmowy wideo - poza czatem
             if (text.StartsWith(KomAddrTag, StringComparison.Ordinal)) { var sk = text.Substring(KomAddrTag.Length).Trim(); if (sk.Length == 0) _komAskKeys.TryRemove(c.Id, out _); else _komAskKeys[c.Id] = sk; KomSave(); return; }   // 🔗 sekret „Mój adres” od właściciela
             if (text.StartsWith(KomAskOkTag, StringComparison.Ordinal)) { KomAskAnswer(c, text.Substring(KomAskOkTag.Length)); return; }   // 🔗 odpowiedź na prośbę
@@ -1088,6 +1091,12 @@ namespace Velivo
             var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6) };
             DockPanel.SetDock(header, Dock.Top);
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
+            DateTime typedAt = default;
+            input.TextChanged += (s0, e0) =>
+            {   // ✍ druga osoba widzi „pisze…” (sygnał co najwyżej co 3 s)
+                var tc = Current(); if (tc == null || tc.IsGroup || input.Text.Length == 0 || DateTime.UtcNow - typedAt < TimeSpan.FromSeconds(3)) return;
+                typedAt = DateTime.UtcNow; var tp = KomPacket("p2p-typing"); tp["to"] = tc.Id; IPAddress.TryParse(tc.Addr ?? "", out var ta); KomSendUdp(tp, ta);
+            };
             var sendBtn = new Button { Content = "➤", FontSize = 16, Width = 44, Margin = new Thickness(6, 0, 0, 0), ToolTip = L.T("Wyślij") };
             var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
             var micBtn = new Button { Content = "🎤", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Wiadomość głosowa: kliknij, mów, kliknij ponownie, by wysłać") };
@@ -1189,11 +1198,14 @@ namespace Velivo
                     bool on = KomOnline(c.Id);
                     header.Inlines.Add(new System.Windows.Documents.Run("💬 " + c.Name + "  "));
                     if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) header.Inlines.Add(new System.Windows.Documents.Run("(" + c.Device + ")  ") { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
+                    if (_komTypingAt.TryGetValue(c.Id, out var ty) && DateTime.UtcNow - ty < TimeSpan.FromSeconds(6)) { header.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) }); goto headerDone; }
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
                     header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
+                    headerDone:;
                 }
-                input.IsEnabled = sendBtn.IsEnabled = fileBtn.IsEnabled = micBtn.IsEnabled = callBtn.IsEnabled = c != null && !c.IsGroup;
+                input.IsEnabled = sendBtn.IsEnabled = c != null;
+                fileBtn.IsEnabled = micBtn.IsEnabled = callBtn.IsEnabled = c != null && !c.IsGroup;   // grupa: na razie tekst
                 msgs.Children.Clear();
                 if (c == null) return;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))

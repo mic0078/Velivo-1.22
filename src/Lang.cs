@@ -954,6 +954,7 @@ namespace Velivo
             { "Nagrywam… kliknij ⏹, by wysłać", "Recording… click ⏹ to send" },
             { "Wiadomość głosowa", "Voice message" },
             { " pisze:", " writes:" },
+            { "pisze…", "typing…" },
             { " poleca Ci: ", " recommends: " },
             { ".\n\nDodać do komunikatora? Będziecie mogli pisać i dzwonić także przez internet.", ".\n\nAdd to the messenger? You will be able to message and call also over the internet." },
             { "Prośba o kontakt", "Contact request" },

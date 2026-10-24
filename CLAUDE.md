@@ -56,6 +56,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-23: wiadomość doręczona ponad 10 min po napisaniu była po cichu odrzucana (sprawdzanie świeżości ts dla wszystkich pakietów) – teraz stare wiadomości przyjmowane (powtórki po mid w rozmowie); pośrednik przechowuje wiadomości do niedostępnych i doręcza, gdy się pojawią.
 * 2026-10-23: wiadomości nie wyskakiwały na górze ekranu (trzeba było przeciągać w dół) – kanału powiadomień nie da się podnieść po utworzeniu; nowy kanał „wiadomosci2” (HIGH, wibracja, ekran blokady), stary usuwany z zachowaniem dźwięku.
 * 2026-10-24: telefon w domu co ~5 min łączył się przez internet i wracał („zamykam: w domu” setki razy) – „w domu” trzymane 10 min (wyjście wykrywa zmiana adresu sieci); plik do nieobecnego pokazywał „błąd”, choć szedł do skrzynki; link z komunikatora otwierał się w Velivo pod oknem komunikatora; fałszywe „oszustwo” dla googleadservices.com z karty w tle.
+* 2026-10-24: Windows: po dodaniu grup pole wiadomości było wyłączone także w zwykłych rozmowach? – nie, ale w grupach tak (IsEnabled pola zależało od !IsGroup) – poprawione: tekst w grupie działa.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

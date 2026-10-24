@@ -233,9 +233,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (t == "p2p-here" && rl.isNotEmpty() && rl.length < 200 && ':' in rl && rl != c.relay) { c.relay = rl; saveContacts() }
             if (!was) main.post { onChange() }
         }
-        if (t != "p2p-ack" && t != "p2p-msg") contact(from)?.let { c -> Thread { resend(c) }.start() }
+        if (t != "p2p-ack" && t != "p2p-msg" && t != "p2p-typing") contact(from)?.let { c -> Thread { resend(c) }.start() }
         when (t) {
             "p2p-who" -> sendUdp(packet("p2p-here"), sender)
+            "p2p-typing" -> if (p.optString("to") == myId && contact(from) != null) { typingAt[from] = System.currentTimeMillis(); main.post { onTyping(from) } }   // ✍ „pisze…”
             "p2p-here" -> found[from] = Peer(from, clean(p.optString("device")), sender)
             "p2p-msg" -> message(p, sender)
             "p2p-ack" -> {
@@ -314,6 +315,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (seen.size > 2000) synchronized(seen) { seen.iterator().let { it.next(); it.remove() } }
         if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
         if (text.startsWith(CALL)) { val o = runCatching { JSONObject(text.substring(CALL.length)) }.getOrNull() ?: return; onCallSignal(c, o); return }
+        typingAt.remove(c.id)
         if (text.startsWith(GROUP)) { groupIn(c, text.substring(GROUP.length), p.optLong("ts"), mid); return }   // 👥 wiadomość w grupie
         if (text.startsWith(CARD)) { cardIn(c, text.substring(CARD.length)); return }   // 👤 kontakt przedstawiony przez znajomego
         if (text.startsWith(ASK)) { askIn(c, text.substring(ASK.length)); return }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
@@ -779,7 +781,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val bmp = open().use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp }) }!!
             val f = java.io.File(mediaDir, "wyslane-$mid.jpg"); f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }; f.path
         }.getOrNull() else null
-        val pend = retry ?: to?.let { c -> Msg(true, fileLabel(name, size, thumb != null), System.currentTimeMillis(), false, mid, file = true, path = thumb).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
+        // 🎤 własna głosówka - kopia w Velivo, żeby można ją było odsłuchać u siebie (jak w WhatsApp)
+        val voice = if (to != null && retry == null && name.startsWith("Glosowa-")) runCatching { java.io.File(mediaDir, "moja-$mid-$name").also { f -> open().use { i -> f.outputStream().use { i.copyTo(it) } } }.path }.getOrNull() else null
+        val pend = retry ?: to?.let { c -> Msg(true, fileLabel(name, size, thumb != null), System.currentTimeMillis(), false, mid, file = true, path = thumb ?: voice).also { m -> synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } }
         return runCatching {
             connect(target, to?.id).use { s ->   // poza domem - tunel przez pośrednika
                 s.timeout(15000)
@@ -857,6 +861,16 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // pakiety p2p-* jak w sieci domowej, pliki tunelem. W domu (pośrednik widoczny w sieci domowej) - jak dotąd.
     private val lanSeen = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val viaNet = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    // ✍ „pisze…” jak w WhatsApp: sygnał co najwyżej co 3 s, ważny 6 s; wiadomość od osoby kasuje go od razu
+    private val typingAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val typingSent = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    var onTyping: (String) -> Unit = {}
+    fun typing(id: String) = System.currentTimeMillis() - (typingAt[id] ?: 0L) < 6000
+    fun sendTyping(c: Contact) {
+        if (c.isGroup || System.currentTimeMillis() - (typingSent[c.id] ?: 0L) < 3000) return
+        typingSent[c.id] = System.currentTimeMillis()
+        Thread { runCatching { sendUdp(packet("p2p-typing").put("to", c.id), runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()) } }.start()
+    }
     fun viaInternet(id: String) = up != null || viaNet.containsKey(id)
     val away get() = up != null              // 🌍 ten telefon poza domem (połączony przez pośrednika)
     val awayVia get() = upRelay?.name
@@ -1986,6 +2000,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 title.setTextColor(ink); return
             }
             val on = k.online(c.id)
+            if (k.typing(c.id)) {   // ✍ „pisze…”
+                title.text = android.text.SpannableStringBuilder(c.name).apply { append("\n"); val st = length; append("✍ " + t("pisze…", "typing…")); setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0); setSpan(android.text.style.ForegroundColorSpan(green), st, length, 0) }
+                title.setTextColor(ink); return
+            }
             title.text = android.text.SpannableStringBuilder(c.name).apply {
                 if (c.own && c.device.isNotEmpty() && c.device != c.name) { val s0 = length; append("  (" + c.device + ")"); setSpan(android.text.style.RelativeSizeSpan(0.7f), s0, length, 0) }
                 append("\n"); val st = length
@@ -1999,6 +2017,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back); addView(title)
             if (!c.isGroup) addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) }
         fill(); status(); ringPending(c)
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(x: CharSequence?, st: Int, n: Int, af: Int) {}
+            override fun onTextChanged(x: CharSequence?, st: Int, b: Int, n: Int) { if (n > 0) k.sendTyping(c) }   // ✍ druga osoba widzi „pisze…”
+            override fun afterTextChanged(x: android.text.Editable?) {}
+        })
+        k.onTyping = { id -> if (id == c.id && chatWith == c.id) { status(); input.postDelayed({ if (chatWith == c.id) status() }, 6500) } }
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }
         root.removeAllViews()
         root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(head); addView(scroll); addView(row) })

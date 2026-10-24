@@ -1310,6 +1310,35 @@ namespace Velivo
                 else try { File.Delete(recPath); } catch (Exception) { }
             };
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
+            // 🖱 pliki przeciągnięte myszką z Eksploratora na okno rozmowy - wysyłka jak 📎
+            w.AllowDrop = true;
+            w.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Effects = Current() is KomContact dc && !dc.IsGroup ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };   // Preview - pole tekstowe nie przejmuje plików
+            w.PreviewDrop += async (s, e) =>
+            {
+                if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Handled = true;
+                var c = Current(); if (c == null || c.IsGroup || e.Data.GetData(DataFormats.FileDrop) is not string[] dropped) return;
+                var files = dropped.Where(File.Exists).ToArray(); if (files.Length > 0) await AttachTo(c, files);
+            };
+            // 📋 Ctrl+V w polu wiadomości: skopiowane pliki albo obraz (np. zrzut ekranu) - wysyłka; tekst wkleja się jak zwykle
+            input.PreviewKeyDown += async (s, e) =>
+            {
+                if (e.Key != Key.V || (Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+                var c = Current(); if (c == null || c.IsGroup) return;
+                string[] files = null;
+                try
+                {
+                    if (Clipboard.ContainsFileDropList()) files = Clipboard.GetFileDropList().Cast<string>().Where(File.Exists).ToArray();
+                    else if (Clipboard.ContainsImage() && Clipboard.GetImage() is System.Windows.Media.Imaging.BitmapSource img)
+                    {
+                        var p = Path.Combine(Path.GetTempPath(), "Obraz-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".png");
+                        using (var fs = File.Create(p)) { var enc = new System.Windows.Media.Imaging.PngBitmapEncoder(); enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(img)); enc.Save(fs); }
+                        files = new[] { p };
+                    }
+                }
+                catch (Exception) { return; }
+                if (files == null || files.Length == 0) return;
+                e.Handled = true; await AttachTo(c, files);
+            };
             callBtn.Click += (s, e) => KomOpenCall(Current(), true);
             leftButtons.Children.Add(Btn("🎨", L.T("Motyw komunikatora – kolory okna i wiadomości"), (s, e) =>
             {

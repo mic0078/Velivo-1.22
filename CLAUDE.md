@@ -60,6 +60,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 ## Zrobione (pamięć)
 
+* **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.
+
 * Komunikator: w domu i poza domem przez domowy komputer (pośrednik, UPnP, bez ustawiania); 🏠/🌍; pliki i zrzuty w obie strony; zaproszenia (WhatsApp, SMS); rozmowy wideo (WebRTC, poza domem prywatny TURN na porcie pośrednika).
 * 📬 Skrzynka pośrednika: wiadomości (`komunikator-skrzynka.json`) i pliki (`skrzynka\<odbiorca>`, typ `p2p-box`, klucz z klucza kontaktu) dla nieobecnych – oddawane, gdy odbiorca się pojawi.
 * 🔗 „Mój adres Velivo”: link dla każdego (sekret u pośrednika), prośba → Dodaj/Odrzuć u właściciela; obcy dostaje tylko komunikator. Dom (sieć domowa, filmy, synchronizacja) ≠ komunikator przez internet.

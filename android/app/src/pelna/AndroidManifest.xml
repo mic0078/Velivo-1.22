@@ -2,4 +2,6 @@
 <!-- wersja pelna (APK poza sklepem): budzik o dokladnej godzinie bez pytania o zgode -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- komunikator: aplikacja (.apk) od kontaktu otwiera się instalatorem po stuknięciu (jak w WhatsApp) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

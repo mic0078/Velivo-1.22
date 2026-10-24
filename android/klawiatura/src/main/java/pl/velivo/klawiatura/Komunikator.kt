@@ -2063,8 +2063,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
 
     private fun openFile(path: String) {
+        // 📦 aplikacja (.apk): instalator Androida; za pierwszym razem zgoda „Instaluj nieznane aplikacje” dla Velivo
+        if (path.endsWith(".apk", true) && !a.packageManager.canRequestPackageInstalls()) {
+            Toast.makeText(a, t("Pozwól Velivo instalować aplikacje, wróć i stuknij plik jeszcze raz", "Allow Velivo to install apps, then come back and tap the file again"), Toast.LENGTH_LONG).show()
+            runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.packageName))) }
+            return
+        }
         val uri = toDownloads(path) ?: run { Toast.makeText(a, t("Nie udało się otworzyć", "Could not open"), Toast.LENGTH_SHORT).show(); return }
-        val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(path.substringAfterLast('.', "").lowercase()) ?: "*/*"
+        val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(path.substringAfterLast('.', "").lowercase()) ?: if (path.endsWith(".apk", true)) "application/vnd.android.package-archive" else "*/*"
         runCatching { a.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
             .onFailure { Toast.makeText(a, t("Zapisano w Pobranych – brak aplikacji do otwarcia", "Saved to Downloads – no app to open it"), Toast.LENGTH_LONG).show() }
     }

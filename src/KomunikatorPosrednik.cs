@@ -743,6 +743,7 @@ namespace Velivo
         // ---------- automatycznie: adres domu i port w routerze (bez wiedzy technicznej) ----------
         // UPnP: router podaje swoj adres w internecie i otwiera port na ten komputer. Gdy router tego nie umie - adres
         // z publicznej uslugi (api.ipify.org), port trzeba wtedy otworzyc recznie. Adres sprawdzany co godzine (zmiana IP).
+        bool _komRelayPortFixed;   // port wpisany recznie (inny niz 41920) - Velivo go nie zmienia
         bool _komRelayAuto = true;   // adres ustalany automatycznie (pusty albo nie wpisany recznie)
         string _komRelayRouter = "";  // co zrobil router (do okna)
         System.Windows.Threading.DispatcherTimer _komRelayAutoTimer;
@@ -761,9 +762,9 @@ namespace Velivo
             var port = _komRelayPort;
             var (ext, mapped, note) = await Task.Run(() => KomUpnpAsync(port));
             // wczesniej przeniesiony na inny port, a 41920 znow prowadzi tu (np. reczne przekierowanie) - wracamy na 41920
-            if (port != 41920 && _komRelayAuto && canMove && (await Task.Run(() => KomUpnpAsync(41920))).mapped) { _komRelayMoved = DateTime.UtcNow; _komRelayPort = 41920; KomSave(); KomRelayStart(); KomAnnounce(); return; }
+            if (port != 41920 && _komRelayAuto && !_komRelayPortFixed && canMove && (await Task.Run(() => KomUpnpAsync(41920))).mapped) { _komRelayMoved = DateTime.UtcNow; _komRelayPort = 41920; KomSave(); KomRelayStart(); KomAnnounce(); return; }
             // port zajety w routerze (np. inny komputer w domu) - nastepny wolny 41920-41929, sam
-            if (!mapped && note == "taken" && _komRelayAuto && canMove)
+            if (!mapped && note == "taken" && _komRelayAuto && !_komRelayPortFixed && canMove)
                 for (int p2 = 41920; p2 <= 41929 && !mapped; p2++)
                 {
                     if (p2 == port) continue;
@@ -881,7 +882,7 @@ namespace Velivo
             var typed = host.Text.Trim();
             _komRelayAuto = typed.Length == 0;   // puste - adres ustala Velivo (i pilnuje zmian IP)
             if (!_komRelayAuto) _komRelayHost = typed;
-            if (int.TryParse(port.Text.Trim(), out var pt) && pt > 0 && pt < 65536) _komRelayPort = pt;
+            if (int.TryParse(port.Text.Trim(), out var pt) && pt > 0 && pt < 65536) { _komRelayPortFixed = pt != 41920; _komRelayPort = pt; }   // OK w oknie - port zatwierdzony przez właściciela
             KomSave();
             KomRelayStart();
             if (_komRelayOn) { KomAnnounce(); KomInfo(L.T("🌍 Pośrednik włączony – ustalam adres domu i port w routerze…")); }   // urzadzenia w domu od razu dostaja adres pośrednika

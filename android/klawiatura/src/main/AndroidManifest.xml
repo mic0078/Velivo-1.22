@@ -23,7 +23,7 @@
     <!-- dyktowanie: usługa rozpoznawania mowy w telefonie -->
     <queries><intent><action android:name="android.speech.RecognitionService" /></intent>
         <!-- karteczki, szukanie i YouTube otwierane w przeglądarce Velivo -->
-        <package android:name="pl.velivo.browser" /></queries>
+        <package android:name="pl.velivo.browser" /><package android:name="pl.velivo.komunikator" /></queries>
     <application android:label="@string/kb_name" android:icon="@mipmap/ic_launcher" android:allowBackup="false" android:supportsRtl="true"
         android:theme="@style/Velivo.Klawiatura">
         <activity android:name=".Ustawienia" android:exported="true" android:launchMode="singleTask">

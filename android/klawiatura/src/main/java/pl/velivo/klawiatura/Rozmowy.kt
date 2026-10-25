@@ -20,7 +20,7 @@ class Rozmowy : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         syncIcon(this)
-        // z ikony, a w telefonie jest przeglądarka Velivo - jej komunikator (jeden w telefonie)
+        // z ikony, a w telefonie jest Komunikator Velivo albo przeglądarka Velivo - ich komunikator (jeden w telefonie)
         if (hasBrowser(this)) { open(this, intent?.action == ACTION_FILES); finish(); return }
         k = Komunikator.get(this) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
         k.saveFile = { name, tmp, dev -> save(name, tmp, dev) }
@@ -69,8 +69,8 @@ class Rozmowy : Activity() {
 
     companion object {
         const val ACTION_FILES = "pl.velivo.klawiatura.PLIKI"
-        // z przeglądarką Velivo w telefonie - jej komunikator (te same kontakty co w menu Velivo); bez niej - własne okno klawiatury
-        fun hasBrowser(ctx: android.content.Context) = runCatching { ctx.packageManager.getPackageInfo("pl.velivo.browser", 0) }.isSuccess
+        // z aplikacją Komunikator Velivo albo przeglądarką Velivo w telefonie - tam komunikator; bez nich - własne okno klawiatury
+        fun hasBrowser(ctx: android.content.Context) = Komunikator.owner(ctx) != ctx.packageName
 
         // ikona „Komunikator Velivo” klawiatury tylko bez przeglądarki (z przeglądarką ikona jest w niej - bez dwóch takich samych)
         fun syncIcon(ctx: android.content.Context) = runCatching {
@@ -80,6 +80,8 @@ class Rozmowy : Activity() {
         }
 
         fun open(ctx: android.content.Context, files: Boolean) {
+            if (Komunikator.owner(ctx) == Komunikator.APP && runCatching {
+                    ctx.startActivity(Intent(if (files) "pl.velivo.komunikator.PLIKI" else "pl.velivo.komunikator.OTWORZ").setPackage(Komunikator.APP).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) return
             val browser = Intent(if (files) "pl.velivo.browser.WYSLIJ_NA_TELEFON" else "pl.velivo.browser.KOMUNIKATOR")
                 .setClassName("pl.velivo.browser", "pl.velivo.browser.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             runCatching { ctx.startActivity(browser) }.onFailure {

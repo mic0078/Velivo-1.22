@@ -203,7 +203,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         up?.let { u -> upSend(u, p); upMore.values.forEach { m -> upSend(m, p) } }   // 🌍 poza domem - przez każdego pośrednika, a sieć domowa i tak dalej (w domu nic nie znika)
         val d = p.toString().toByteArray(Charsets.UTF_8)
         val own = udp
-        val out: (ByteArray, InetAddress) -> Unit = if (own != null) { b, to -> own.send(DatagramPacket(b, b.size, to, PORT)) } else udpOut ?: return
+        val out: (ByteArray, InetAddress) -> Unit = if (own != null) { b, to -> own.send(DatagramPacket(b, b.size, to, PORT)); own.send(DatagramPacket(b, b.size, to, OLD_PORT)) } else udpOut ?: return   // nowe i starsze Velivo
         if (to != null) runCatching { out(d, to) } else for (t in broadcastTargets()) runCatching { out(d, t) }
     }
 
@@ -710,7 +710,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     // dodanie kontaktu: showCode - kod do porównania z drugim ekranem; wynik "ok", "odrzucono" albo opis błędu
     fun pair(peer: Peer, showCode: (String) -> Unit): String = runCatching {
-        val s = java.net.Socket(); s.connect(InetSocketAddress(peer.addr, PORT), 5000)
+        val s = lanSocket(peer.addr)
         pairOn(Conn(DataInputStream(s.getInputStream()), s.getOutputStream(), peer.addr, s), peer.id, peer.name, null, false, showCode)
     }.getOrElse { it.message ?: it.javaClass.simpleName }
 
@@ -1089,12 +1089,17 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         main.post { onChange() }
     }.start()
 
+    // TCP w domu: nowe Velivo - port komunikatora, starsze - 41919 (3 s, bo zapora Windows może milczeć)
+    private fun lanSocket(a: InetAddress): java.net.Socket =
+        runCatching { java.net.Socket().apply { connect(InetSocketAddress(a, PORT), 3000) } }.getOrNull()
+            ?: java.net.Socket().apply { connect(InetSocketAddress(a, OLD_PORT), 5000) }
+
     // połączenie do urządzenia: poza domem - tunel przez pośrednika; w domu - TCP w sieci domowej
     private fun connect(target: InetAddress, toId: String?): Conn {
         // poza domem - tunel przez pośrednika; bez gotowego połączenia (adres 127.0.0.1 = „nie wiem gdzie”) - pierwszy pośrednik z kontaktów
         val relay = upRelay ?: myRelay().takeIf { target.isLoopbackAddress }
         if ((up != null || target.isLoopbackAddress) && relay != null && toId != null) relayConnect(relay, "tunnel", to = toId)?.let { f -> return Conn(DataInputStream(f.input), f.output, null, f.sock) }
-        val s = java.net.Socket(); s.connect(InetSocketAddress(target, PORT), 5000)
+        val s = lanSocket(target)
         return Conn(DataInputStream(s.getInputStream()), s.getOutputStream(), target, s)
     }
 
@@ -1396,7 +1401,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         fun get(ctx: Context, deviceName: () -> String): Komunikator = one ?: synchronized(this) {
             one ?: Komunikator(ctx.applicationContext, deviceName).also { one = it; it.resender.start(); it.upLoop.start() }
         }
-        const val PORT = 41919
+        // 💬 własny port komunikatora w sieci domowej (osobna aplikacja Komunikator); 41919 - dom (synchronizacja) i starsze Velivo
+        const val PORT = 41918; const val OLD_PORT = 41919
+        const val APP = "pl.velivo.komunikator"
+        // jeden komunikator w telefonie: aplikacja Komunikator Velivo, bez niej przeglądarka Velivo, bez obu - klawiatura
+        fun owner(ctx: Context): String = listOf(APP, KomunikatorUsluga.BROWSER).firstOrNull { p -> p == ctx.packageName || runCatching { ctx.packageManager.getPackageInfo(p, 0) }.isSuccess } ?: ctx.packageName
         const val CHUNK = 1 shl 20
         const val MAX_TEXT = 4000
         const val CALL = "\u0001velivo-rozmowa\n"
@@ -2369,7 +2378,7 @@ class KomunikatorUsluga : Service() {
     companion object {
         const val BROWSER = "pl.velivo.browser"
         // aplikacja schodzi z ekranu: nasłuch przejmuje usługa (tylko z kontaktami i włączonym odbiorem w tle)
-        fun otherOwner(ctx: Context) = ctx.packageName != BROWSER && runCatching { ctx.packageManager.getPackageInfo(BROWSER, 0) }.isSuccess
+        fun otherOwner(ctx: Context) = Komunikator.owner(ctx) != ctx.packageName
         fun start(ctx: Context, k: Komunikator) {
             if (k.contacts.isEmpty() || !k.background || otherOwner(ctx)) return
             stopAsked = false

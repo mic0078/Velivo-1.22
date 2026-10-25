@@ -71,6 +71,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * Klawiatura (Windows i telefon, te same reguły): do 2 pomyłek sama, większe – propozycje; nie zmienia dobrych słów (formy -aj, -uje, -ąc); sklejone słowa (mi chodziło, o tym); na prawdę → naprawdę; przecinek przed „że”.
 * Klawiatura zapamiętuje na stałe: Mój słownik, cofnięte poprawki (⌫), częste słowa i pary – zaszyfrowane na urządzeniu.
 * Budowa: hasło klucza sprawdzane od razu; instalator ponawia przy antywirusie.
+* 2026-10-25: Komunikator Velivo – osobna aplikacja (`android/komunikator`, `pl.velivo.komunikator`, `Velivo-komunikator.apk`), działa sama. W telefonie jeden komunikator: Komunikator → przeglądarka → klawiatura (`Komunikator.owner`); przejmuje kontakty i rozmowy (dostawcy `…komunikator` „oddaj”). Porty: 41918 komunikator w domu (wysyłka też na 41919 dla starszego Velivo), 41919 dom/synchronizacja, 41917 filmy w sieci (było 41921 – kolizja z pośrednikiem), 41920–41929 pośrednik.
 
 ## Na potem (pomysły właściciela)
 
@@ -110,4 +111,4 @@ git pull origin rozwoj
 ```
 
 * Tylko Windows: `.\zbuduj-wszystko.ps1`. Tylko Android: `-TylkoAndroid`. Do Google Play: `-TylkoAndroid -Sklep`.
-* Gotowe pliki: `build\` (instalator), `build\android\` (`Velivo-pelna.apk`, `Velivo-klawiatura.apk`).
+* Gotowe pliki: `build\` (instalator), `build\android\` (`Velivo-pelna.apk`, `Velivo-klawiatura.apk`, `Velivo-komunikator.apk`).

@@ -130,20 +130,31 @@ namespace Velivo
         KomContact KomContactById(string id) => _komContacts.FirstOrDefault(c => c.Id == id);
 
         // ---------- gniazda ----------
-        // wlasne gniazda, gdy synchronizacja LAN nie dziala (wtedy pakiety p2p przychodza przez LanListenLoop i odbiornik TCP LAN)
+        // 💬 komunikator ma własny port w sieci domowej (osobna aplikacja Komunikator w telefonie); 41919 - dom (synchronizacja),
+        // tam też dalej przychodzą pakiety od starszego Velivo (LanListenLoop i odbiornik TCP LAN)
+        const int KomPort = 41918;
+        // TCP do urządzenia w domu: nowe Velivo - port komunikatora, starsze - 41919 (3 s, bo zapora może milczeć)
+        static async Task<TcpClient> KomTcpConnect(IPAddress a, CancellationToken token)
+        {
+            var c = new TcpClient();
+            try { using (var t = CancellationTokenSource.CreateLinkedTokenSource(token)) { t.CancelAfter(3000); await c.ConnectAsync(a, KomPort, t.Token); } return c; }
+            catch (Exception) when (!token.IsCancellationRequested) { c.Dispose(); }
+            c = new TcpClient();
+            try { await c.ConnectAsync(a, LanPort, token); return c; } catch (Exception) { c.Dispose(); throw; }
+        }
         void KomStartOwn()
         {
             KomLoad();
             KomStartResend();
             if (_komContacts.Count > 0) KomEnsureTray();
-            if (_komUdp != null || _lanRx != null) return;
+            if (_komUdp != null) return;
             try
             {
                 _komCts = new CancellationTokenSource();
                 var u = new UdpClient(AddressFamily.InterNetwork);
                 u.Client.ExclusiveAddressUse = false;
                 u.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                u.Client.Bind(new IPEndPoint(IPAddress.Any, LanPort));
+                u.Client.Bind(new IPEndPoint(IPAddress.Any, KomPort));
                 u.EnableBroadcast = true;
                 _komUdp = u;
                 var token = _komCts.Token;
@@ -157,7 +168,7 @@ namespace Velivo
                         catch (Exception) { }
                     }
                 });
-                var t = new TcpListener(IPAddress.Any, LanPort);
+                var t = new TcpListener(IPAddress.Any, KomPort);
                 t.Start(); _komTcp = t;
                 _ = Task.Run(async () =>
                 {
@@ -204,7 +215,7 @@ namespace Velivo
             var s = _komUdp ?? _lanTx;
             if (s == null) return;
             var targets = to != null ? new List<IPAddress> { to } : KomBroadcastTargets();
-            foreach (var t in targets) try { s.Send(d, d.Length, new IPEndPoint(t, LanPort)); } catch (Exception) { }
+            foreach (var t in targets) foreach (var pt in new[] { KomPort, LanPort }) try { s.Send(d, d.Length, new IPEndPoint(t, pt)); } catch (Exception) { }   // nowe i starsze Velivo
         }
 
         static List<IPAddress> KomBroadcastTargets()
@@ -896,10 +907,9 @@ namespace Velivo
         {
             try
             {
-                using (var cl = new TcpClient())
                 using (var cts = new CancellationTokenSource(TimeSpan.FromMinutes(4)))
+                using (var cl = await KomTcpConnect(addr, cts.Token))
                 {
-                    await cl.ConnectAsync(addr, LanPort, cts.Token);
                     return await KomPairOn(cl.GetStream(), id, name, addr.ToString(), null, false, showCode, cts.Token);
                 }
             }
@@ -1194,7 +1204,7 @@ namespace Velivo
         internal void ShowMessenger(string openId = null)
         {
             KomLoad();
-            if (_lanRx == null) KomStartOwn();
+            KomStartOwn();
             KomEnsureTray();
             if (_komLock && !_komUnlocked) { _ = Dispatcher.InvokeAsync(async () => { if (await KomUnlock()) { _komUnlocked = true; ShowMessenger(openId); } }); return; }
             if (_komWindow != null) { if (!_komWindow.IsVisible) _komWindow.Show(); _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }

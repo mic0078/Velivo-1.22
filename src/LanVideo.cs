@@ -24,7 +24,7 @@ namespace Velivo
     // bez dostepu do innych sciezek. Serwer startuje dopiero przy pierwszym udostepnieniu (Windows zapyta wtedy o zapore).
     public partial class MainWindow
     {
-        const int LanVideoPort = LanPort + 2;
+        const int LanVideoPort = LanPort - 2;   // 41917 - 41920-41929 to pośrednik komunikatora (np. NUCBOX na 41921)
 
         sealed class LanFilmMsg
         {

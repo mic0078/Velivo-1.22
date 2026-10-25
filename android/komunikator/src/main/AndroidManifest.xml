@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 💬 przejęcie kontaktów i rozmów z przeglądarki / klawiatury Velivo: tylko między aplikacjami Velivo (ten sam podpis) -->
+    <permission android:name="pl.velivo.permission.KOMUNIKATOR" android:protectionLevel="signature" />
+    <uses-permission android:name="pl.velivo.permission.KOMUNIKATOR" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 🎤 głosówki i 📹 rozmowy (kamera i mikrofon tylko w trakcie) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- 📲 aplikacje (APK) z rozmowy - instalacja stuknięciem -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <queries>
+        <package android:name="pl.velivo.browser" />
+        <package android:name="pl.velivo.klawiatura" />
+        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>
+    </queries>
+    <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:allowBackup="false" android:supportsRtl="true"
+        android:theme="@style/Velivo.Komunikator">
+        <activity android:name=".Start" android:exported="true" android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Udostępnij → Komunikator Velivo: plik / zdjęcie do osoby z komunikatora -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <!-- z przeglądarki i klawiatury Velivo: 💬 otwiera tę aplikację -->
+            <intent-filter>
+                <action android:name="pl.velivo.komunikator.OTWORZ" />
+                <action android:name="pl.velivo.komunikator.PLIKI" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".KomunikatorAkcja" android:exported="false" />
+        <!-- 💬 czeka na wiadomości, gdy aplikacja zamknięta (powiadomienia jak w innych komunikatorach) -->
+        <service android:name=".KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Messenger: receives messages from devices on the home Wi-Fi and via the owner's home relay" />
+        </service>
+    </application>
+</manifest>

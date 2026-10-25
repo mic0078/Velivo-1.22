@@ -19,7 +19,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -30,7 +29,7 @@
     <!-- ⏰ pobudka: budzik o dokładnej godzinie (Android 14+: za zgodą użytkownika; wersja pełna ma dodatkowo USE_EXACT_ALARM) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- ⌨ klawiatura Velivo (osobna aplikacja) - menu otwiera jej ustawienia -->
-    <queries><package android:name="pl.velivo.klawiatura" /></queries>
+    <queries><package android:name="pl.velivo.klawiatura" /><package android:name="pl.velivo.komunikator" /></queries>
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
@@ -105,6 +104,9 @@
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widzet_velivo" />
         </receiver>
+        <!-- 💬 aplikacja Komunikator Velivo przejmuje stąd kontakty i rozmowy (tylko aplikacje Velivo - ten sam podpis) -->
+        <provider android:name=".KomunikatorDane" android:authorities="pl.velivo.browser.komunikator" android:exported="true"
+            android:permission="pl.velivo.permission.KOMUNIKATOR" />
         <receiver android:name="pl.velivo.komunikator.KomunikatorAkcja" android:exported="false" />
         <!-- 💬 komunikator w domowym Wi-Fi: czeka na wiadomości, gdy aplikacja zamknięta (powiadomienia jak w innych komunikatorach) -->
         <service android:name="pl.velivo.komunikator.KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">

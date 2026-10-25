@@ -95,6 +95,9 @@ class MainActivity : Activity() {
         setTheme(if (contrast) R.style.Velivo_Contrast else if (dark) R.style.Velivo_Dark else R.style.Velivo_Light)
         super.onCreate(savedInstanceState)
         catchCrashes()
+        // 💬 z aplikacją Komunikator Velivo ikona komunikatora przeglądarki znika (bez dwóch takich samych)
+        runCatching { packageManager.setComponentEnabledSetting(android.content.ComponentName(this, "pl.velivo.browser.KomunikatorStart"),
+            if (komApp) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, android.content.pm.PackageManager.DONT_KILL_APP) }
         Thread { runCatching { if (Tv.sources(passwords).isNotEmpty() || Jelly.conf(passwords) != null) Odswiezanie.plan(this) } }.start()   // nocne odświeżanie TV i biblioteki
         window.statusBarColor = BAR
         window.navigationBarColor = BAR
@@ -2952,7 +2955,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             onMedia = { dev, jf, tv -> receiveMediaConf(dev, jf, tv) },
             onMediaShared = { dev, code, jf, tv -> receiveMediaConf(dev, jf, tv, code) },
             tmpDir = cacheDir,
-            p2p = kom,
+            p2p = if (komApp) null else kom,   // 💬 z aplikacją Komunikator Velivo komunikator jest tam (własny port)
             keyboard = { json ->   // 🔄 nauka klawiatury Velivo (osobna aplikacja) - przez jej dostawcę danych, tylko aplikacje Velivo
                 runCatching { contentResolver.call(Uri.parse("content://pl.velivo.klawiatura.komunikator"), if (json == null) "slownik" else "slownik-wgraj", json, null)?.getString("json") }.getOrNull()
             },
@@ -2990,6 +2993,11 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }
     }
     private val komOkno: KomunikatorOkno by lazy { KomunikatorOkno(this, kom) { pickP2pFiles() } }
+    // 💬 w telefonie jest aplikacja Komunikator Velivo - jedyny komunikator; przeglądarka ją tylko otwiera (rozmowy oddała jej sama)
+    private val komApp by lazy { Komunikator.owner(this) != packageName }
+    private fun openKomApp(action: String, id: String? = null) = runCatching {
+        startActivity(Intent(action).setPackage(Komunikator.APP).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.isSuccess
 
     // ikona „Komunikator Velivo” (alias tej aktywności)
     private fun fromMessengerIcon(i: Intent?) = i?.action == Intent.ACTION_MAIN && i.component?.className == "pl.velivo.browser.KomunikatorStart"
@@ -3017,6 +3025,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // fromIcon: otwarte ikoną komunikatora - po zamknięciu komunikatora wracamy do ekranu telefonu, nie do przeglądarki
     private fun showMessenger(id: String? = null, fromIcon: Boolean = false) {
+        if (komApp && openKomApp("pl.velivo.komunikator.OTWORZ", id)) { if (fromIcon) moveTaskToBack(true); return }
         komOkno; startLan(force = true)
         komOkno.onClose = if (fromIcon) ({ moveTaskToBack(true); Unit }) else null
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
@@ -3026,6 +3035,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     private fun pickP2pFiles() {
+        if (komApp && openKomApp("pl.velivo.komunikator.PLIKI")) return
         komOkno; startLan(force = true)
         runCatching { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true), REQ_P2PFILE) }
     }
@@ -3033,14 +3043,20 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     // force: na chwilę także bez włączonej synchronizacji (prośba o Filmy i TV z telefonu bez parowania)
     private fun startLan(force: Boolean = false) {
         // bez kontaktów i bez synchronizacji: sam komunikator nasłuchuje, póki Velivo otwarte - telefon widoczny w domowym Wi-Fi do dodania
+        if (komApp) { if (force || prefs.getBoolean("lan", false)) { multicastLock(); lan.start() }; return }   // 💬 komunikator w swojej aplikacji - tu tylko dom
         if (!force && !prefs.getBoolean("lan", false) && kom.contacts.isEmpty()) { kom.listen(); return }
         komOkno   // okna pytań komunikatora (kontakt, plik, wiadomość) gotowe przed pierwszym pakietem
+        multicastLock()
+        KomunikatorUsluga.stop(this, kom)   // gniazda komunikatora wracają z usługi w tle do Velivo
+        kom.listen()   // własny port komunikatora (41918); starsze Velivo - przez synchronizację (41919)
+        lan.start()
+        if (kom.contacts.isNotEmpty()) kom.announce()   // kontakty dosyłają wiadomości z czasu, gdy Velivo było zamknięte
+    }
+
+    private fun multicastLock() {
         if (multicastLock == null) multicastLock = (applicationContext.getSystemService(WIFI_SERVICE) as WifiManager)
             .createMulticastLock("velivo-lan").apply { setReferenceCounted(false) }
         multicastLock?.acquire()
-        KomunikatorUsluga.stop(this, kom)   // gniazda komunikatora wracają z usługi w tle do Velivo
-        lan.start()
-        if (kom.contacts.isNotEmpty()) kom.announce()   // kontakty dosyłają wiadomości z czasu, gdy Velivo było zamknięte
     }
 
     private fun stopLan() {
@@ -3090,7 +3106,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val uris = many ?: listOfNotNull(one)
         if (uris.isEmpty()) return
         // kontakty komunikatora (w domu i przez internet) albo sparowany komputer
-        val cs = kom.contacts.toList()
+        val cs = if (komApp) emptyList() else kom.contacts.toList()   // z aplikacją Komunikator - Udostępnij → Komunikator Velivo
         if (cs.isEmpty()) { sendFiles(uris); return }
         val labels = cs.map { "💬 " + it.name } + "💻 " + (if (java.util.Locale.getDefault().language == "pl") "Sparowany komputer" else "Paired computer")
         AlertDialog.Builder(this).setTitle("📤 " + (if (java.util.Locale.getDefault().language == "pl") "Wyślij do…" else "Send to…")).setItems(labels.toTypedArray()) { _, i ->
@@ -3354,8 +3370,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         android.util.Log.i("Velivo-PiP", "wznowione")
         super.onResume()
         PlaybackService.stop(this)
-        if (kom.contacts.isNotEmpty()) screenAlerts()   // wiadomości i rozmowy muszą być widoczne na ekranie
-        kom.wake()   // 🌍 po uśpieniu ekranu połączenie z pośrednikiem od nowa, gdy milczy
+        if (!komApp) { if (kom.contacts.isNotEmpty()) screenAlerts(); kom.wake() }   // wiadomości i rozmowy muszą być widoczne na ekranie; 🌍 po uśpieniu połączenie od nowa   // 🌍 po uśpieniu ekranu połączenie z pośrednikiem od nowa, gdy milczy
         startLan()   // sieć domowa wraca po onPause (stopLan): synchronizacja, komunikator; usługa w tle oddaje port 41919
         lockBankIfIdle()
         idle.postDelayed(idleCheck, 30_000)
@@ -3423,10 +3438,12 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     override fun onPause() {
         android.util.Log.i("Velivo-PiP", "wstrzymane (w okienku: $isInPictureInPictureMode)")
         pipCheck.removeCallbacks(pipTick)
-        if (kom.contacts.isNotEmpty() && !kom.background) kom.bye()   // bez odbioru w tle - kontakty od razu widzą „poza siecią”
+        if (!komApp && kom.contacts.isNotEmpty() && !kom.background) kom.bye()   // bez odbioru w tle - kontakty od razu widzą „poza siecią”
         stopLan()
-        if (kom.contacts.isEmpty()) kom.close()   // nowy telefon bez kontaktów - widoczny tylko, gdy Velivo otwarte
-        KomunikatorUsluga.start(this, kom)   // 💬 wiadomości z powiadomieniem także po zamknięciu Velivo
+        if (!komApp) {
+            if (kom.contacts.isEmpty()) kom.close()   // nowy telefon bez kontaktów - widoczny tylko, gdy Velivo otwarte
+            KomunikatorUsluga.start(this, kom)   // 💬 wiadomości z powiadomieniem także po zamknięciu Velivo
+        }
         idle.removeCallbacks(idleCheck)
         backgroundPlayback()
         saveTabs()

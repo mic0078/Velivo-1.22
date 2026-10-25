@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- wygląd Velivo: ciemny gradient, białe napisy, akcent fiolet / turkus (bez szarego wyglądu Androida) -->
+    <style name="Velivo.Komunikator" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#06B6D4</item>
+        <item name="android:colorPrimary">#7C3AED</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:alertDialogTheme">@style/Velivo.Okno</item>
+    </style>
+    <style name="Velivo.Okno" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/okno_tlo</item>
+        <item name="android:colorAccent">#06B6D4</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#D0FFFFFF</item>
+        <item name="android:textColorAlertDialogListItem">#FFFFFF</item>
+        <item name="android:colorBackground">#191B33</item>
+    </style>
+</resources>

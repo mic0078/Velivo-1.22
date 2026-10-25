@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Komunikator Velivo</string>
+    <string name="port_busy">Nie można nasłuchiwać w sieci domowej (%s) - wiadomości dalej dochodzą przez internet</string>
+    <string name="saved">Zapisano w Pobranych: %1$s (od: %2$s)</string>
+    <string name="save_failed">Nie udało się zapisać %1$s (od: %2$s)</string>
+</resources>

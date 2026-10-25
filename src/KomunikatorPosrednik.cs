@@ -178,7 +178,7 @@ namespace Velivo
                     {
                         if (_komRemote.ContainsKey(id)) st = await KomRelayOpenTo(id, cts.Token);
                         else if (_komLanAddr.TryGetValue(id, out var a) && _komLanSeen.TryGetValue(id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100))
-                        { cl = new TcpClient(); await cl.ConnectAsync(a, LanPort, cts.Token); st = cl.GetStream(); }
+                        { cl = await KomTcpConnect(a, cts.Token); st = cl.GetStream(); }
                         if (st == null) return;   // odbiorcy nie ma - zostaje w skrzynce
                         await KomWriteBlock(st, File.ReadAllBytes(hdr), cts.Token);
                         var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token)) return;
@@ -218,9 +218,8 @@ namespace Velivo
                 if (fs != null) return fs;
             }
             // jesteśmy pośrednikiem, a odbiorca jest poza domem - przez własny odbiornik, który przekazuje tunelem
-            if (toId != null && _komRemote.ContainsKey(toId)) addr = IPAddress.Loopback;
-            await cl.ConnectAsync(addr, LanPort, token);
-            return cl.GetStream();
+            if (toId != null && _komRemote.ContainsKey(toId)) { await cl.ConnectAsync(IPAddress.Loopback, KomPort, token); return cl.GetStream(); }
+            return (await KomTcpConnect(addr, token)).GetStream();   // strumień zamyka też połączenie
         }
 
         // pakiet p2p do urzadzenia poza domem (pośrednik) albo przez pośrednika (my poza domem); true - wyslany tunelem
@@ -307,7 +306,7 @@ namespace Velivo
         {
             var d = Encoding.UTF8.GetBytes(p.ToJsonString());
             var s = _komUdp ?? _lanTx; if (s == null) return;
-            foreach (var t in to != null ? new List<IPAddress> { to } : KomBroadcastTargets()) try { s.Send(d, d.Length, new IPEndPoint(t, LanPort)); } catch (Exception) { }
+            foreach (var t in to != null ? new List<IPAddress> { to } : KomBroadcastTargets()) foreach (var pt in new[] { KomPort, LanPort }) try { s.Send(d, d.Length, new IPEndPoint(t, pt)); } catch (Exception) { }
         }
 
         // ---------- pośrednik (serwer) ----------
@@ -474,9 +473,8 @@ namespace Velivo
                 for (int i = 0; i < 15 && !_komLanAddr.TryGetValue(to, out addr); i++) await Task.Delay(200, token);
             }
             if (addr == null) return;
-            using (var lan = new TcpClient())
+            using (var lan = await KomTcpConnect(addr, token))
             {
-                await lan.ConnectAsync(addr, LanPort, token);
                 await KomWriteBlock(lan.GetStream(), hb0, token);
                 await KomPipe(fs, lan.GetStream(), token);
             }

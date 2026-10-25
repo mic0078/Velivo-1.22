@@ -2479,25 +2479,34 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (perms.none { a.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }) {
             a.requestPermissions(perms, 4715); Toast.makeText(a, t("Zezwól na lokalizację i wybierz 📍 jeszcze raz", "Allow location and choose 📍 again"), Toast.LENGTH_LONG).show(); return }
         val lm = a.getSystemService(android.location.LocationManager::class.java) ?: return
-        // źródła dozwolone i włączone; najpierw szybkie (lokalizacja telefonu, sieć - działają w domu), GPS na końcu (w budynku często bez wyniku)
+        // jak Mapy: słuchamy naraz wszystkich dozwolonych źródeł (lokalizacja telefonu, sieć, GPS) i bierzemy pierwszy wynik;
+        // po 40 s - ostatnie znane położenie z dowolnego źródła (w budynku GPS często milczy, sieć bywa wyłączona w ustawieniach)
         val provs = runCatching { lm.getProviders(true) }.getOrDefault(emptyList())
-        val order = listOf("fused", android.location.LocationManager.NETWORK_PROVIDER, android.location.LocationManager.GPS_PROVIDER).filter { it in provs }
-        if (order.isEmpty()) { Toast.makeText(a, t("Włącz lokalizację w telefonie", "Turn on location on the phone"), Toast.LENGTH_LONG).show(); return }
-        Toast.makeText(a, "📍 " + t("Ustalam położenie…", "Finding location…"), Toast.LENGTH_SHORT).show()
-        var sent = false
+        val live = listOf("fused", android.location.LocationManager.NETWORK_PROVIDER, android.location.LocationManager.GPS_PROVIDER).filter { it in provs }
+        if (live.isEmpty()) { Toast.makeText(a, t("Włącz lokalizację w telefonie", "Turn on location on the phone"), Toast.LENGTH_LONG).show(); return }
+        Toast.makeText(a, "📍 " + t("Ustalam położenie…", "Finding location…"), Toast.LENGTH_LONG).show()
+        val h = Handler(Looper.getMainLooper()); var sent = false
+        lateinit var listener: android.location.LocationListener
         fun send(l: android.location.Location?) {
             if (sent) return
-            if (l == null) { Toast.makeText(a, t("Nie udało się ustalić położenia – wyjdź bliżej okna albo włącz Wi-Fi", "Could not get the location – move near a window or turn on Wi-Fi"), Toast.LENGTH_LONG).show(); return }
-            sent = true
+            sent = true; h.removeCallbacksAndMessages(null); runCatching { lm.removeUpdates(listener) }
+            if (l == null) {   // co telefon ma - przyczyna widoczna od razu
+                val fine = a.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                Toast.makeText(a, t("Nie udało się ustalić położenia – podejdź do okna albo włącz Wi-Fi", "Could not get the location – move near a window or turn on Wi-Fi") +
+                    " (" + live.joinToString(", ") + "; " + t("dokładna: ", "precise: ") + (if (fine) t("tak", "yes") else t("nie", "no")) + ")", Toast.LENGTH_LONG).show(); return }
             k.send(c, "📍 " + t("Moja lokalizacja", "My location") + "\nhttps://maps.google.com/?q=" + String.format(Locale.ROOT, "%.6f,%.6f", l.latitude, l.longitude)); done()
         }
-        // ostatnie znane położenie z dowolnego źródła (najświeższe)
-        fun last() = provs.mapNotNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }.maxByOrNull { it.time }
-        fun next(i: Int) {
-            if (i >= order.size || Build.VERSION.SDK_INT < 30) { send(last()); return }
-            runCatching { lm.getCurrentLocation(order[i], null, a.mainExecutor) { l -> if (l != null) send(l) else next(i + 1) } }.onFailure { next(i + 1) }
+        listener = object : android.location.LocationListener {   // wszystkie metody - Android 10 nie ma domyślnych
+            override fun onLocationChanged(l: android.location.Location) = send(l)
+            override fun onProviderEnabled(p: String) {}
+            override fun onProviderDisabled(p: String) {}
+            @Deprecated("Android 10") override fun onStatusChanged(p: String?, st: Int, e: android.os.Bundle?) {}
         }
-        next(0)
+        // świeże ostatnie położenie (do 2 min) - od razu, bez czekania
+        provs.mapNotNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }.maxByOrNull { it.time }
+            ?.takeIf { System.currentTimeMillis() - it.time < 120000 }?.let { send(it); return }
+        live.forEach { p -> runCatching { lm.requestLocationUpdates(p, 0L, 0f, listener, Looper.getMainLooper()) } }
+        h.postDelayed({ send(provs.mapNotNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }.maxByOrNull { it.time }) }, 40000)
     }
 
     private fun play(path: String) {

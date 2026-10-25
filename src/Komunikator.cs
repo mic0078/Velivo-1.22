@@ -220,61 +220,66 @@ namespace Velivo
             c = new TcpClient();
             try { await c.ConnectAsync(a, LanPort, token); return c; } catch (Exception) { c.Dispose(); throw; }
         }
-        void KomStartOwn()
+        // 41918 zawsze; 41919 też, gdy synchronizacja LAN go nie zajmuje (starsze Velivo i zapora przepuszczająca tylko 41919 - NUCBOX)
+        void KomStartOwn(bool old = true)
         {
             KomLoad();
             KomStartResend();
             if (_komContacts.Count > 0) KomEnsureTray();
-            if (_komUdp != null) return;
             try
             {
-                _komCts = new CancellationTokenSource();
-                var u = new UdpClient(AddressFamily.InterNetwork);
-                u.Client.ExclusiveAddressUse = false;
-                u.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                u.Client.Bind(new IPEndPoint(IPAddress.Any, KomPort));
-                u.EnableBroadcast = true;
-                _komUdp = u;
-                var token = _komCts.Token;
-                _ = Task.Run(async () =>
-                {
-                    while (!token.IsCancellationRequested)
-                    {
-                        try { var r = await u.ReceiveAsync(token); if (r.Buffer.Length < 60000) KomUdp(r.Buffer, r.RemoteEndPoint); }
-                        catch (OperationCanceledException) { break; }
-                        catch (ObjectDisposedException) { break; }
-                        catch (Exception) { }
-                    }
-                });
-                var t = new TcpListener(IPAddress.Any, KomPort);
-                t.Start(); _komTcp = t;
-                _ = Task.Run(async () =>
-                {
-                    while (!token.IsCancellationRequested)
-                    {
-                        try
-                        {
-                            var c = await t.AcceptTcpClientAsync(token);
-                            _ = Task.Run(async () =>
-                            {
-                                using (c)
-                                {
-                                    var s = c.GetStream(); var lb = new byte[4];
-                                    if (!await ReadExactAsync(s, lb, 4, token)) return;
-                                    int hl = BitConverter.ToInt32(lb, 0); if (hl <= 0 || hl > 4096) return;
-                                    var hb = new byte[hl]; if (!await ReadExactAsync(s, hb, hl, token)) return;
-                                    await KomTcpAsync(hb, s, c, token);
-                                }
-                            });
-                        }
-                        catch (OperationCanceledException) { break; }
-                        catch (ObjectDisposedException) { break; }
-                        catch (Exception) { }
-                    }
-                });
-                if (_komContacts.Count > 0) KomAnnounce();
+                _komCts ??= new CancellationTokenSource();
+                if (_komUdp == null) { (_komUdp, _komTcp) = KomListen(KomPort, _komCts.Token); if (_komContacts.Count > 0) KomAnnounce(); }
+                if (old && _lanRx == null && _komUdpOld == null) (_komUdpOld, _komTcpOld) = KomListen(LanPort, _komCts.Token);
             }
-            catch (Exception ex) { App.LogError(ex); KomStopOwn(); }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+        UdpClient _komUdpOld; TcpListener _komTcpOld;
+        void KomStopOld() { try { _komUdpOld?.Dispose(); } catch (Exception) { } try { _komTcpOld?.Stop(); } catch (Exception) { } _komUdpOld = null; _komTcpOld = null; }   // port 41919 dla synchronizacji LAN
+        (UdpClient, TcpListener) KomListen(int port, CancellationToken token)
+        {
+            var u = new UdpClient(AddressFamily.InterNetwork);
+            u.Client.ExclusiveAddressUse = false;
+            u.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            u.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+            u.EnableBroadcast = true;
+            _ = Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    try { var r = await u.ReceiveAsync(token); if (r.Buffer.Length < 60000) KomUdp(r.Buffer, r.RemoteEndPoint); }
+                    catch (OperationCanceledException) { break; }
+                    catch (ObjectDisposedException) { break; }
+                    catch (Exception) { }
+                }
+            });
+            var t = new TcpListener(IPAddress.Any, port);
+            try { t.Start(); } catch (Exception) { u.Dispose(); throw; }
+            _ = Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var c = await t.AcceptTcpClientAsync(token);
+                        _ = Task.Run(async () =>
+                        {
+                            using (c)
+                            {
+                                var s = c.GetStream(); var lb = new byte[4];
+                                if (!await ReadExactAsync(s, lb, 4, token)) return;
+                                int hl = BitConverter.ToInt32(lb, 0); if (hl <= 0 || hl > 4096) return;
+                                var hb = new byte[hl]; if (!await ReadExactAsync(s, hb, hl, token)) return;
+                                await KomTcpAsync(hb, s, c, token);
+                            }
+                        });
+                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (ObjectDisposedException) { break; }
+                    catch (Exception) { }
+                }
+            });
+            return (u, t);
         }
 
         void KomStopOwn()
@@ -282,6 +287,7 @@ namespace Velivo
             try { _komCts?.Cancel(); } catch (Exception) { }
             try { _komUdp?.Dispose(); } catch (Exception) { }
             try { _komTcp?.Stop(); } catch (Exception) { }
+            KomStopOld();
             _komUdp = null; _komTcp = null; _komCts = null;
         }
 

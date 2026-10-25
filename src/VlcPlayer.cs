@@ -1213,19 +1213,30 @@ namespace Velivo
 
         // 🕘 historia: 20 ostatnio oglądanych filmów alfabetycznie (ten sam film pod kilkoma ścieżkami - jedna pozycja); plakat, kiedy, ile obejrzano;
         // klik - odtwórz (z pytaniem o wznowienie); prawy przycisk - od początku, folder, usuń z historii, usuń z biblioteki
+        static int _histSort;   // 🕘 historia: 0 - A–Z, 1 - ostatnio oglądany na górze, 2 - najstarszy na górze
         void ShowHistory(FrameworkElement anchor)
         {
+            var pop = new System.Windows.Controls.Primitives.Popup { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Top, StaysOpen = false, AllowsTransparency = true };
             var lib = LoadLibrary();
             var groups = lib.Where(v => v.Last > 0 && v.Peer == null).GroupBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase)
-                .Select(g => (Title: g.Key, Main: g.OrderByDescending(v => v.Last).First(), All: g.ToList())).OrderByDescending(x => x.Main.Last).Take(20)
-                .OrderBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+                .Select(g => (Title: g.Key, Main: g.OrderByDescending(v => v.Last).First(), All: g.ToList())).OrderByDescending(x => x.Main.Last).Take(20).ToList();
+            groups = _histSort == 1 ? groups : _histSort == 2 ? groups.AsEnumerable().Reverse().ToList() : groups.OrderBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+            void SortItems(ItemsControl menu)   // prawy przycisk: sortowanie listy
+            {
+                foreach (var (n, h) in new[] { (0, L.T("Sortuj: A–Z")), (1, L.T("Sortuj: ostatnio oglądany na górze")), (2, L.T("Sortuj: najstarszy na górze")) })
+                {
+                    var mi = new MenuItem { Header = h, IsCheckable = true, IsChecked = _histSort == n };
+                    mi.Click += (q, w2) => { _histSort = n; pop.IsOpen = false; ShowHistory(anchor); };
+                    menu.Items.Add(mi);
+                }
+            }
             var rows = new StackPanel();
-            var pop = new System.Windows.Controls.Primitives.Popup { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Top, StaysOpen = false, AllowsTransparency = true };
             var head = new TextBlock { Text = "🕘 " + L.T("Ostatnio oglądane") + (groups.Count > 0 ? "  (" + groups.Count + ")" : ""), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(12, 10, 12, 6) };
             var tip = new TextBlock { Text = L.T("Klik – odtwórz · prawy przycisk – więcej"), Foreground = Brushes.Gray, FontSize = 11.5, Margin = new Thickness(12, 0, 12, 6) };
             pop.Child = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x18, 0x1B, 0x24)), BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Width = 430,
                 Child = new DockPanel { Children = { head, tip, new ScrollViewer { Content = rows, MaxHeight = 520, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(4, 0, 4, 6) } } } };
             DockPanel.SetDock(head, Dock.Top); DockPanel.SetDock(tip, Dock.Top);
+            var hm = new ContextMenu(); SortItems(hm); ((Border)pop.Child).ContextMenu = hm;
             if (groups.Count == 0) rows.Children.Add(new TextBlock { Text = L.T("Historia jest pusta – obejrzyj jakiś film"), Foreground = Brushes.Silver, Margin = new Thickness(12) });
             var now = DateTime.Now;
             foreach (var g in groups)
@@ -1256,6 +1267,7 @@ namespace Velivo
                     if (MessageBox.Show(Window.GetWindow(anchor) ?? this, L.T("Usunąć z biblioteki Velivo: ") + g.Title + "?\n\n" + L.T("Plik na dysku zostaje."), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                     Change(l2 => l2.RemoveAll(x => keys.Contains(x.Path)));
                 });
+                cm.Items.Add(new Separator()); SortItems(cm);
                 row.ContextMenu = cm;
                 rows.Children.Add(row);
             }

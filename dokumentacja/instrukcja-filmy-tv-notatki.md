@@ -23,7 +23,7 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 - Skróty: spacja, ←/→, ↑/↓ głośność, F pełny ekran, M wycisz, I informacje, L lista, PgUp/PgDn kanał, F5 odśwież, G/H przesunięcie napisów, [ ] prędkość, P/N poprzedni/następny.
 
 ## 3. Menu pod prawym przyciskiem (odtwarzacz)
-- Grupy: odtwarzanie; TV (teraz/następnie, poprzedni/następny kanał, odśwież, nagrywanie, ⏮ od początku programu, ⏩ na żywo); otwórz plik, 🕘 ostatnio oglądane TV (20), 🕘 ostatnio oglądane filmy (20), biblioteka, kanały, program TV, ulubione, wyłącznik, ⧉ PiP, ⏰ zaplanuj włączenie, playlisty; napisy i lektor; widok; ⚙ Ustawienia (przezroczystość listy, pasek informacji, bufor kanałów, ⏱ zapas nagrywania…).
+- Grupy: odtwarzanie; TV (teraz/następnie, poprzedni/następny kanał, odśwież, nagrywanie, ⏮ od początku programu, ⏩ na żywo); otwórz plik, 🕘 ostatnio oglądane TV (20), 🕘 ostatnio oglądane filmy (20), 🕘 historia odtwarzacza (sortowanie A–Z / ostatni / najstarszy), biblioteka, kanały, program TV, ulubione, wyłącznik, ⧉ PiP, ⏰ zaplanuj włączenie, playlisty; napisy i lektor; widok; ⚙ Ustawienia (przezroczystość listy, pasek informacji, bufor kanałów, ⏱ zapas nagrywania…).
 - Kanał z „Ostatnio oglądane TV” gra w swojej grupie (PgUp/PgDn i lista po tej grupie).
 
 ## 4. Lista z lewej (L / kursor przy lewej krawędzi)

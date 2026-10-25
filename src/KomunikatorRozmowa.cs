@@ -47,8 +47,9 @@ namespace Velivo
         {
             if (_komRingWin != null) return;
             var pal = KomCurrentPal();
-            var w = new Window { Title = "Velivo", Width = 340, SizeToContent = SizeToContent.Height, Topmost = true, ResizeMode = ResizeMode.NoResize,
+            var w = new Window { Uid = "own-theme", Title = "Velivo", Width = 340, SizeToContent = SizeToContent.Height, Topmost = true, ResizeMode = ResizeMode.NoResize,
                 WindowStartupLocation = WindowStartupLocation.CenterScreen, Background = new SolidColorBrush(pal.Panel), ShowInTaskbar = true };
+            w.SourceInitialized += (s, e) => { try { var h = new System.Windows.Interop.WindowInteropHelper(w).Handle; int on = pal.Dark ? 1 : 0; DwmSetWindowAttribute(h, 20, ref on, 4); } catch (Exception) { } };   // pasek tytułu w kolorze motywu
             var panel = new StackPanel { Margin = new Thickness(20) };
             panel.Children.Add(new TextBlock { Text = (audio ? "📞 " : "📹 ") + c.Name, FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(pal.Fg), HorizontalAlignment = HorizontalAlignment.Center });
             panel.Children.Add(new TextBlock { Text = L.T("dzwoni…"), FontSize = 14, Foreground = new SolidColorBrush(pal.Dim), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 16) });
@@ -75,7 +76,7 @@ namespace Velivo
             var dir = Path.Combine(AppContext.BaseDirectory, "Rozmowa");
             if (!File.Exists(Path.Combine(dir, "rozmowa.html"))) { MessageBox.Show(this, L.T("Brak pliku rozmowy wideo – zainstaluj Velivo ponownie."), "Velivo"); return; }
             var view = new WebView2 { DefaultBackgroundColor = System.Drawing.Color.FromArgb(18, 15, 36) };
-            var w = new Window { Title = (audio ? "📞 " : "📹 ") + c.Name + " – Velivo", Width = audio ? 420 : 900, Height = audio ? 360 : 600, Content = view, Background = new SolidColorBrush(Color.FromRgb(18, 15, 36)), WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            var w = new Window { Uid = "own-theme", Title = (audio ? "📞 " : "📹 ") + c.Name + " – Velivo", Width = audio ? 420 : 900, Height = audio ? 360 : 600, Content = view, Background = new SolidColorBrush(Color.FromRgb(18, 15, 36)), WindowStartupLocation = WindowStartupLocation.CenterScreen };
             _komCallWin = w; _komCallView = view; _komCallWith = c.Id;
             bool ended = false;
             w.Closed += (s, e) =>
@@ -120,7 +121,7 @@ namespace Velivo
             var dir = Path.Combine(AppContext.BaseDirectory, "Rozmowa");
             if (_env == null || !File.Exists(Path.Combine(dir, "nagraj.html"))) { MessageBox.Show(owner, L.T("Brak pliku rozmowy wideo – zainstaluj Velivo ponownie."), "Velivo"); return; }
             var view = new WebView2 { DefaultBackgroundColor = System.Drawing.Color.FromArgb(18, 15, 36) };
-            var w = new Window { Title = (photo ? "📷 " + L.T("Zrób zdjęcie") : "🎬 " + L.T("Nagraj wiadomość wideo")) + " – Velivo", Width = 720, Height = 520, Content = view, Owner = owner, Background = new SolidColorBrush(Color.FromRgb(18, 15, 36)), WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var w = new Window { Uid = "own-theme", Title = (photo ? "📷 " + L.T("Zrób zdjęcie") : "🎬 " + L.T("Nagraj wiadomość wideo")) + " – Velivo", Width = 720, Height = 520, Content = view, Owner = owner, Background = new SolidColorBrush(Color.FromRgb(18, 15, 36)), WindowStartupLocation = WindowStartupLocation.CenterOwner };
             w.Closed += (s, e) => { try { view.Dispose(); } catch (Exception) { } };
             w.Show();
             try

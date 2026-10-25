@@ -2029,7 +2029,7 @@ namespace Velivo
             var vid = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, Stretch = Stretch.Uniform };
             var hint = new TextBlock { Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(10), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center };
             var grid = new Grid { Background = Brushes.Black, Children = { img, vid, hint } };
-            var d = new Window { Owner = owner, Width = 1000, Height = 700, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid, Background = Brushes.Black, Icon = KomWindowIcon() };
+            var d = new Window { Uid = "own-theme", Owner = owner, Width = 1000, Height = 700, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid, Background = Brushes.Black, Icon = KomWindowIcon() };
             void Show()
             {
                 var p = items[i]; d.Title = "🖼 " + Path.GetFileName(p) + "  (" + (i + 1) + "/" + items.Count + ")"; paused = false;

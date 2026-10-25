@@ -1640,16 +1640,19 @@ namespace Velivo
                 var c = Current(); if (c == null || e.Data.GetData(DataFormats.FileDrop) is not string[] dropped) return;
                 var files = dropped.Where(File.Exists).ToArray(); if (files.Length > 0) await AttachTo(c, files);
             };
-            // 📋 Ctrl+V w polu wiadomości: skopiowane pliki albo obraz (np. zrzut ekranu) - wysyłka; tekst wkleja się jak zwykle
-            input.PreviewKeyDown += async (s, e) =>
+            // 📋 wklejanie w polu wiadomości (Ctrl+V, Shift+Insert, prawy przycisk → Wklej): pliki skopiowane z pulpitu / Eksploratora
+            // albo obraz (np. zrzut ekranu) - wysyłka do rozmowy; tekst wkleja się jak zwykle (komenda Wklej - przed obsługą pola tekstu)
+            bool ClipFiles() { try { return Current() != null && (Clipboard.ContainsFileDropList() || Clipboard.ContainsImage()); } catch (Exception) { return false; } }
+            CommandManager.AddPreviewCanExecuteHandler(input, (s, e) => { if (e.Command == ApplicationCommands.Paste && ClipFiles()) { e.CanExecute = true; e.Handled = true; } });
+            CommandManager.AddPreviewExecutedHandler(input, async (s, e) =>
             {
-                if (e.Key != Key.V || (Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
-                var c = Current(); if (c == null) return;
-                string[] files = null;
+                if (e.Command != ApplicationCommands.Paste || !ClipFiles()) return;
+                e.Handled = true;
+                var c = Current(); string[] files = null;
                 try
                 {
                     if (Clipboard.ContainsFileDropList()) files = Clipboard.GetFileDropList().Cast<string>().Where(File.Exists).ToArray();
-                    else if (Clipboard.ContainsImage() && Clipboard.GetImage() is System.Windows.Media.Imaging.BitmapSource img)
+                    else if (Clipboard.GetImage() is System.Windows.Media.Imaging.BitmapSource img)
                     {
                         var p = Path.Combine(Path.GetTempPath(), "Obraz-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".png");
                         using (var fs = File.Create(p)) { var enc = new System.Windows.Media.Imaging.PngBitmapEncoder(); enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(img)); enc.Save(fs); }
@@ -1657,9 +1660,8 @@ namespace Velivo
                     }
                 }
                 catch (Exception) { return; }
-                if (files == null || files.Length == 0) return;
-                e.Handled = true; await AttachTo(c, files);
-            };
+                if (c != null && files != null && files.Length > 0) await AttachTo(c, files);
+            });
             callBtn.Click += (s, e) => KomOpenCall(Current(), true);
             voiceBtn.Click += (s, e) => KomOpenCall(Current(), true, true);
             galBtn.Click += (s, e) => { var c = Current(); if (c != null) KomGallery(w, c); };

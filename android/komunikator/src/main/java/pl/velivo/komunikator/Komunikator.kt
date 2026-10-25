@@ -1823,12 +1823,24 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     // 💾 hasło kopii (min. 6 znaków); bez niego kopii nie da się odczytać - także na Google Drive
     private var backupPass: String? = null
     var pickingBackup = false
+    // nowa kopia: hasło dwa razy (literówka = kopia nie do odczytania) i 👁 podgląd
     private fun password(create: Boolean, then: (String) -> Unit) {
-        val e = EditText(a).apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD; hint = t("Hasło kopii", "Backup password") }
+        val hidden = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD; val shown = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        val e = EditText(a).apply { inputType = hidden; hint = t("Hasło kopii", "Backup password") }
+        val e2 = EditText(a).apply { inputType = hidden; hint = t("Powtórz hasło", "Repeat password"); visibility = if (create) View.VISIBLE else View.GONE }
+        val eye = android.widget.CheckBox(a).apply { text = "👁 " + t("Pokaż hasło", "Show password"); setTextColor(ink)
+            setOnCheckedChangeListener { _, on -> for (x in listOf(e, e2)) { x.inputType = if (on) shown else hidden; x.setSelection(x.text.length) } } }
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(4), px(20), 0); addView(e); addView(e2); addView(eye) }
         AlertDialog.Builder(a).setTitle("🔑 " + t("Hasło kopii", "Backup password"))
-            .setMessage(if (create) t("Zapamiętaj je – bez hasła kopii nie da się przywrócić (min. 6 znaków).", "Remember it – the backup cannot be restored without it (min. 6 characters).") else null).setView(e)
-            .setPositiveButton(android.R.string.ok) { _, _ -> val p = e.text.toString(); if (p.length >= 6) then(p) else Toast.makeText(a, t("Za krótkie hasło", "Password too short"), Toast.LENGTH_SHORT).show() }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setMessage(if (create) t("Zapamiętaj je – bez hasła kopii nie da się przywrócić (min. 6 znaków).", "Remember it – the backup cannot be restored without it (min. 6 characters).") else null).setView(box)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val p = e.text.toString()
+                when {
+                    p.length < 6 -> Toast.makeText(a, t("Za krótkie hasło", "Password too short"), Toast.LENGTH_SHORT).show()
+                    create && p != e2.text.toString() -> Toast.makeText(a, t("Hasła się różnią – wpisz jeszcze raz", "Passwords differ – enter them again"), Toast.LENGTH_LONG).show()
+                    else -> then(p)
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
     }
     fun backupResult(u: Uri?) {
         val p = backupPass; backupPass = null

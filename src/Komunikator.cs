@@ -1842,16 +1842,30 @@ namespace Velivo
             catch (Exception) { return null; }
         }
         // 🔑 hasło kopii (min. 6 znaków)
+        // nowa kopia: hasło dwa razy (literówka = kopia nie do odczytania) i 👁 podgląd
         string KomPassword(Window owner, bool create)
         {
-            var box = new PasswordBox { Margin = new Thickness(10), MinWidth = 300 };
+            var box = new PasswordBox { Margin = new Thickness(10, 10, 10, 0), MinWidth = 300 }; var box2 = new PasswordBox { Margin = new Thickness(10, 6, 10, 0), MinWidth = 300 };
+            var plain = new TextBox { Margin = box.Margin, MinWidth = 300, Visibility = Visibility.Collapsed }; var plain2 = new TextBox { Margin = box2.Margin, MinWidth = 300, Visibility = Visibility.Collapsed };
+            var eye = new CheckBox { Content = "👁 " + L.T("Pokaż hasło"), Margin = new Thickness(10, 8, 10, 0) };
+            eye.Click += (s, e) =>
+            {
+                bool on = eye.IsChecked == true;
+                if (on) { plain.Text = box.Password; plain2.Text = box2.Password; } else { box.Password = plain.Text; box2.Password = plain2.Text; }
+                box.Visibility = on ? Visibility.Collapsed : Visibility.Visible; plain.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                if (create) { box2.Visibility = box.Visibility; plain2.Visibility = plain.Visibility; }
+            };
+            if (!create) box2.Visibility = Visibility.Collapsed;
             var info = new TextBlock { Text = create ? L.T("Zapamiętaj je – bez hasła kopii nie da się przywrócić (min. 6 znaków).") : L.T("Hasło kopii"), Margin = new Thickness(10, 10, 10, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 320 };
-            var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(10, 0, 10, 10), HorizontalAlignment = HorizontalAlignment.Right };
-            var d = new Window { Title = "🔑 " + L.T("Hasło kopii"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { info, box, ok } } };
+            var rep = new TextBlock { Text = L.T("Powtórz hasło"), Margin = new Thickness(10, 8, 10, 0), Visibility = create ? Visibility.Visible : Visibility.Collapsed };
+            var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(10), HorizontalAlignment = HorizontalAlignment.Right };
+            var d = new Window { Title = "🔑 " + L.T("Hasło kopii"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { info, box, plain, rep, box2, plain2, eye, ok } } };
             KomStyle(d); ok.Click += (s, e) => d.DialogResult = true; box.Focus();
             if (d.ShowDialog() != true) return null;
-            if (box.Password.Length < 6) { KomInfo(L.T("Za krótkie hasło")); return null; }
-            return box.Password;
+            bool shown = eye.IsChecked == true; var p = shown ? plain.Text : box.Password; var p2 = shown ? plain2.Text : box2.Password;
+            if (p.Length < 6) { KomInfo(L.T("Za krótkie hasło")); return null; }
+            if (create && p != p2) { KomInfo(L.T("Hasła się różnią – wpisz jeszcze raz")); return null; }
+            return p;
         }
         // 🔗 mój adres: link do skopiowania (WhatsApp, SMS, e-mail); „Zmień” - stary link przestaje działać
         void KomMyAddressDialog(Window owner)

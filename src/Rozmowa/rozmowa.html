@@ -33,8 +33,12 @@ let pc = null, local = null, facing = 'user', connected = false, done = false;
 let dc = null, sharing = null, mon = null, ctl = false, steer = false;
 // 📱 ekran telefonu: klatki JPEG z Androida (velivo.screen), kawałkami po kanale danych; rozmówca wskazuje 👆 miejsce
 let phoneScr = false, remoteImg = false, pointing = false, fid = 0, parts = null;
-window.scrOn = () => { phoneScr = true; scr.classList.add('on'); dsend({ k: 'scr', on: true, img: true }); };
-window.scrOff = () => { if (!phoneScr) return; phoneScr = false; scr.classList.remove('on'); dsend({ k: 'scr', on: false }); };
+window.scrOn = () => {
+  if (!dc || dc.readyState !== 'open') { velivo.screen(false); status(T('Brak kanału danych z rozmówcą – zaktualizuj Velivo u obu osób i zadzwoń jeszcze raz', 'No data channel with the other person – update Velivo on both devices and call again')); return; }
+  phoneScr = true; scr.classList.add('on'); local.getVideoTracks().forEach(t => t.enabled = false); dsend({ k: 'scr', on: true, img: true });
+  status(T('Pokazujesz ekran', 'Sharing your screen')); setTimeout(() => { if (phoneScr) status(''); }, 3000);
+};
+window.scrOff = () => { if (!phoneScr) return; phoneScr = false; scr.classList.remove('on'); if (!cam.classList.contains('off')) local.getVideoTracks().forEach(t => t.enabled = true); dsend({ k: 'scr', on: false }); };
 window.scrFrame = b => {
   if (!phoneScr || !dc || dc.readyState !== 'open' || dc.bufferedAmount > 512000) return;   // słabe łącze - klatka pominięta
   const id = ++fid, n = Math.ceil(b.length / 16000);
@@ -44,7 +48,7 @@ function frame(o) {
   if (!remoteImg) return;
   if (!parts || parts.id !== o.id) parts = { id: o.id, got: 0, d: [] };
   if (parts.d[o.i] === undefined) { parts.d[o.i] = o.d; parts.got++; }
-  if (parts.got === o.n) { shot.src = 'data:image/jpeg;base64,' + parts.d.join(''); parts = null; }
+  if (parts.got === o.n) { if (!shot.src) status(''); shot.src = 'data:image/jpeg;base64,' + parts.d.join(''); parts = null; }
 }
 const host = o => { if (window.chrome && chrome.webview) chrome.webview.postMessage(JSON.stringify(o)); };   // tylko do własnego Velivo (Windows), nie do rozmówcy
 function dsend(o) { if (dc && dc.readyState === 'open') dc.send(JSON.stringify(o)); }
@@ -54,7 +58,7 @@ function useDc(ch) {
     let o; try { o = JSON.parse(e.data); } catch (x) { return; }
     if (o.k === 'in') { if (ctl) host(o); }
     else if (o.k === 'scr') { you.classList.toggle('scr', o.on); help.style.display = o.on && (o.ctl || o.img) ? 'inline-block' : 'none'; if (!o.on) setSteer(false)
-      remoteImg = o.on && !!o.img; shot.style.display = remoteImg ? 'block' : 'none'; if (!remoteImg) { pointing = false; shot.classList.remove('pt'); shot.removeAttribute('src'); }
+      remoteImg = o.on && !!o.img; shot.style.display = remoteImg ? 'block' : 'none'; status(remoteImg ? T('📱 Ekran rozmówcy – czekam na obraz…', '📱 Their screen – waiting for the picture…') : ''); if (!remoteImg) { pointing = false; shot.classList.remove('pt'); shot.removeAttribute('src'); }
       help.title = remoteImg ? T('Wskaż miejsce na ekranie rozmówcy', 'Point at a spot on their screen') : T('Pomoc zdalna: poproś o sterowanie', 'Remote help: ask for control'); }
     else if (o.k === 'f') frame(o);
     else if (o.k === 'pt') { if (phoneScr && window.velivo && velivo.point) velivo.point(o.x, o.y); }

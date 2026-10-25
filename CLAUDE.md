@@ -68,6 +68,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-25: Komunikator mamy nie dawał się otworzyć – sortowanie listy (📌 + czas) z `?: 0` (Int) przy Long → ClassCastException, gdy kontakt bez wiadomości. W porównaniach czasu zawsze `0L`. Przyczynę dał raport 🐞 – najpierw raport, potem poprawka.
 * 2026-10-25: GIF-y szły jako nieruchome PNG – „Kopiuj obraz” w przeglądarce daje w schowku jedną klatkę; teraz oryginał z adresu w HTML schowka (wklejanie i przeciąganie); GIF animowany w rozmowie (Windows: MediaElement, telefon: AnimatedImageDrawable), telefon nie robi już JPG z GIF-a nadawcy.
 * 2026-10-25: komentarz `// 🎞 …` wstawiony przed kodem w tej samej linii wyłączył rozmiar miniatury zdjęć (adjustViewBounds, maxWidth) – po wstawieniu komentarza sprawdź, czy za nim nie ma kodu.
+* 2026-10-25: ekran telefonu w rozmowie – na Windows tylko kamera (🖥 zielone): bez kanału danych sygnał „pokazuję ekran” po cichu przepadał, ostatni wiersz obrazu bywa krótszy (copyPixelsFromBuffer), a nieruchomy ekran nie dochodził; teraz komunikat zamiast zielonej ikony, kamera wyłączana na czas pokazywania, „czekam na obraz…” u rozmówcy. Funkcje wymagające obu stron: mów, że trzeba zaktualizować obie.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

@@ -954,6 +954,8 @@ namespace Velivo
             { "Nagrywam… kliknij ⏹, by wysłać", "Recording… click ⏹ to send" },
             { "Wiadomość głosowa", "Voice message" },
             { "Wiadomość wideo", "Video message" },
+            { "Historia jest pusta – obejrzyj jakiś film", "History is empty – watch a film" },
+            { "Historia – ostatnio oglądane filmy (A–Z)", "History – recently watched films (A–Z)" },
             { "Brak narzędzia Wycinanie w Windows – użyj Win+Shift+S i Ctrl+V", "Snipping Tool not available – use Win+Shift+S and Ctrl+V" },
             { "Emotki (Win+.)", "Emoji (Win+.)" },
             { "Kopiuj zaznaczone", "Copy selected" },

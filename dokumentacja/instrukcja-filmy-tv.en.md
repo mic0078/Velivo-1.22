@@ -277,3 +277,4 @@ Menu (the V logo) → the **Films and TV** group: **📺 Television**, **🎬 Li
 - **Remembers your place** (videos over 2 minutes), "▶ Carrying on from …"; watched to the end – next time from the start.
 - **⧉ Picture-in-picture** (also by itself when you go to the home screen), **plays in the background** with the screen off (notification with "Stop" and "🌙 Stop in 30 min"), **🌙 sleep timer** in the player. Unplugging headphones pauses.
 - Two fingers in the menu and lists enlarge text and buttons (as everywhere in Velivo).
+* **🕘 History** (player bar, instead of 📌): the 20 most recently watched films in alphabetical order – click to resume. “📌 Always on top” – in the right-click menu. **Full screen** no longer hides the library, channel list or TV guide.

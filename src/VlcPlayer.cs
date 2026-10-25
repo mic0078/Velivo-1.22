@@ -1150,6 +1150,7 @@ namespace Velivo
             { "volume", "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z" },
             { "mute", "M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z" },
             { "pin", "M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z" },
+            { "history", "M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z" },
             { "mini", "M19,11H11V17H19V11M23,19V5C23,3.88 22.1,3 21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19M21,19H3V4.97H21V19Z" },
             { "exitmini", "M21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19V5A2,2 0 0,0 21,3M21,19H3V5H21V19M13,9H5V7H15V17H13V9Z" },
             { "close", "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" },
@@ -1291,7 +1292,8 @@ namespace Velivo
             var lib = glyphBtn("library", L.T("Biblioteka filmów"));
             var full = glyphBtn("full", L.T("Pełny ekran (F, dwuklik)"));
             var mute = glyphBtn("volume", L.T("Wycisz (M)"));
-            var top = glyphBtn("pin", L.T("Zawsze na wierzchu"));
+            var top = glyphBtn("pin", L.T("Zawsze na wierzchu"));   // tylko w menu (prawy przycisk) - na pasku 🕘 historia
+            var hist = glyphBtn("history", L.T("Historia – ostatnio oglądane filmy (A–Z)"));
             var mini = glyphBtn("mini", L.T("Tryb mini – małe okienko na wierzchu (jak dla YouTube)"));
             var fav = glyphBtn("star", L.T("Ulubione – kanał do ⭐ Ulubionych, film do playlisty ⭐ Ulubione"));
             var sleep = glyphBtn("moon", L.T("Wyłącznik czasowy – zatrzymaj po czasie albo po końcu filmu")); sleep.Width = double.NaN; sleep.MinWidth = 40; sleep.Padding = new Thickness(8, 0, 8, 0);
@@ -1307,7 +1309,7 @@ namespace Velivo
             var tvNav = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed }; foreach (var b in new UIElement[] { chBack, chFirst, chHistBtn }) tvNav.Children.Add(b);
             foreach (var b in new UIElement[] { prev, play, stop, next, filmNav, tvNav }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var b in new UIElement[] { fav, sleep, pipBtn, subs, lector, audio, aspect, snap, lib, top, mini, full, mute, vol, volText }) right.Children.Add(b);
+            foreach (var b in new UIElement[] { fav, sleep, pipBtn, subs, lector, audio, aspect, snap, lib, hist, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 4) };
             btnRow.Children.Add(left); btnRow.Children.Add(right);
             // pasek nakladany na obraz (jak w "Na wierzchu"): chowa sie po chwili bez ruchu myszy, film nie zmienia rozmiaru
@@ -1487,7 +1489,7 @@ namespace Velivo
             win.SizeChanged += (s, e) =>
             {
                 double w = win.ActualWidth;
-                foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap, lib, top }) b.Visibility = w >= 820 ? Visibility.Visible : Visibility.Collapsed;
+                foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap, lib, hist }) b.Visibility = w >= 820 ? Visibility.Visible : Visibility.Collapsed;
                 foreach (var b in new UIElement[] { speed, stop }) b.Visibility = w >= 600 ? Visibility.Visible : Visibility.Collapsed;
                 foreach (var b in new UIElement[] { back10, fwd10, volText }) b.Visibility = w >= 480 ? Visibility.Visible : Visibility.Collapsed;
                 vol.Width = w >= 480 ? 110 : 70;
@@ -2589,7 +2591,8 @@ namespace Velivo
             {
                 if (mini0) toggleMini();
                 full0 = !full0;
-                if (full0) { prevState = win.WindowState; win.WindowStyle = WindowStyle.None; win.WindowState = WindowState.Normal; win.WindowState = WindowState.Maximized; win.Topmost = true; }
+                // pełny ekran bez „zawsze na wierzchu” - biblioteka, lista kanałów, program TV i inne okna Velivo pokazują się nad filmem
+                if (full0) { prevState = win.WindowState; win.WindowStyle = WindowStyle.None; win.WindowState = WindowState.Normal; win.WindowState = WindowState.Maximized; win.Topmost = false; }
                 else { win.Topmost = _settings.VlcTopmost; win.WindowStyle = WindowStyle.SingleBorderWindow; win.WindowState = prevState; }
                 showBar();
                 full.Content = PlayerIcon(full0 ? "exitfull" : "full");
@@ -3144,6 +3147,15 @@ namespace Velivo
                 saveLector();
             };
             win.Topmost = _settings.VlcTopmost; showTop();
+            hist.Click += (s, e) =>
+            {   // 🕘 ostatnio oglądane (20 najnowszych) alfabetycznie; klik - odtwórz od miejsca przerwania
+                var films = LoadLibrary().Where(v => v.Last > 0 && v.Peer == null).OrderByDescending(v => v.Last).Take(20)
+                    .Select(v => (v, t: ShownTitle(v, MetaFor(v.Path)))).OrderBy(x => x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
+                var cm = new ContextMenu { PlacementTarget = hist, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+                foreach (var (v, t) in films) { var p = v.Path; var mi = new MenuItem { Header = t + "   ·   " + LastPlayedText(v.Last, DateTime.Now) }; mi.Click += (q, w2) => PlayVideos(new[] { p }, 0); cm.Items.Add(mi); }
+                if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("Historia jest pusta – obejrzyj jakiś film"), IsEnabled = false });
+                cm.IsOpen = true;
+            };
             mute.Click += (s, e) => toggleMute();
             // nad filmem: wlascicielem jest przezroczysta warstwa na obrazie (osobne okno nad odtwarzaczem),
             // inaczej warstwa przykrywa biblioteke i jej X / przyciski nad filmem nie reaguja na klik
@@ -3408,7 +3420,7 @@ namespace Velivo
                 };
                 // co jest ikona na pasku - nie powtarzamy w menu (krotsze menu)
                 var onBar = new[] { "⏸ Pauza", "▶ Odtwarzaj", "⏹ Stop", "⏮ Poprzedni kanał", "⏭ Następny kanał", "ℹ Pokaż informacje", "🔄 Odśwież kanał", "⏺ Nagrywaj ten kanał", "⏹ Zatrzymaj nagrywanie",
-                    "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅 Pełny program TV", "⭐ ", "⏾ Wyłącznik czasowy", "⧉ Obraz w obrazie", "🎞 Playlisty i moja kolejka", "📌 Zawsze na wierzchu", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki" };
+                    "🎬 Biblioteka filmów", "📺 Kanały telewizji", "📅 Pełny program TV", "⭐ ", "⏾ Wyłącznik czasowy", "⧉ Obraz w obrazie", "🎞 Playlisty i moja kolejka", "🔲 Tryb mini", "🖥 Pełny ekran", "📷 Zrzut klatki" };
                 var all = cm.Items.Cast<object>().Where(o => o is MenuItem).Cast<MenuItem>().Where(m => !starts(H(m), onBar)).ToList();
                 cm.Items.Clear();
                 var used = new HashSet<MenuItem>();

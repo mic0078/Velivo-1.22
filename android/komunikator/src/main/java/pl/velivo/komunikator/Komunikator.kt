@@ -1502,8 +1502,17 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         @Volatile private var one: Komunikator? = null
         // jeden w aplikacji - okna i usługa w tle widzą te same rozmowy
         fun get(ctx: Context, deviceName: () -> String): Komunikator = one ?: synchronized(this) {
-            one ?: Komunikator(ctx.applicationContext, deviceName).also { one = it; it.resender.start(); it.upLoop.start() }
+            one ?: Komunikator(ctx.applicationContext, deviceName).also { catchCrashes(ctx.applicationContext); one = it; it.resender.start(); it.upLoop.start() }
         }
+        // 🐞 awaria w dowolnym wątku (okno, usługa w tle, sieć) - zapis do blad.txt; raport przy następnym otwarciu
+        private fun catchCrashes(ctx: Context) {
+            val prev = Thread.getDefaultUncaughtExceptionHandler()
+            Thread.setDefaultUncaughtExceptionHandler { t, e ->
+                runCatching { java.io.File(ctx.filesDir, "blad.txt").writeText(crashHeader(ctx) + "awaria (" + t.name + ")\n" + android.util.Log.getStackTraceString(e).lines().take(40).joinToString("\n")) }
+                prev?.uncaughtException(t, e)
+            }
+        }
+        fun crashHeader(ctx: Context) = ctx.packageName + " " + runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrDefault("?") + ", Android " + Build.VERSION.RELEASE + ", " + Build.MANUFACTURER + " " + Build.MODEL + "\n"
         // 💬 własny port komunikatora w sieci domowej (osobna aplikacja Komunikator); 41919 - dom (synchronizacja) i starsze Velivo
         const val PORT = 41918; const val OLD_PORT = 41919
         const val APP = "pl.velivo.komunikator"

@@ -19,7 +19,12 @@ class Start : Activity() {
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        catchCrashes()
+        // 🐞 po awarii: najpierw raport, zanim wystartuje komunikator i jego sieć (gdyby to one padały - raport i tak dojdzie przez Udostępnij)
+        val f = java.io.File(filesDir, "blad.txt")
+        val crash = runCatching { f.readText() }.getOrDefault(""); f.delete()
+        if (crash.isNotBlank()) report(crash, false) { begin() } else begin()
+    }
+    private fun begin() {
         k = Komunikator.get(this) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }
         k.saveFile = { name, tmp, dev -> save(name, tmp, dev) }
         k.openIntent = { id -> Intent(applicationContext, Start::class.java).putExtra("czat", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP) }
@@ -27,43 +32,40 @@ class Start : Activity() {
         okno.onClose = { if (!picking) moveTaskToBack(true) }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2)
-        Thread { takeOver(); runOnUiThread { handle(intent); lastCrash() } }.start()
+        Thread { takeOver(); runOnUiThread { handle(intent); lastAnr() } }.start()
+        network()
     }
 
-    // 🐞 awaria albo zawieszenie („nie odpowiada”): przy następnym otwarciu raport - jednym stuknięciem do kontaktu (np. syna), bez zgadywania przyczyny
-    private fun catchCrashes() {
-        val prev = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { t, e ->
-            runCatching { java.io.File(filesDir, "blad.txt").writeText(header() + "awaria (" + t.name + ")\n" + android.util.Log.getStackTraceString(e).lines().take(40).joinToString("\n")) }
-            prev?.uncaughtException(t, e)
+    // 🐞 zawieszenie („nie odpowiada”) zapisuje Android (od 11): stos głównego wątku - raport przy następnym otwarciu
+    private fun lastAnr() {
+        if (Build.VERSION.SDK_INT < 30) return
+        runCatching {
+            val p = getSharedPreferences("komunikator", MODE_PRIVATE); val seen = p.getLong("raport-ts", 0)
+            val x = getSystemService(android.app.ActivityManager::class.java)?.getHistoricalProcessExitReasons(null, 0, 1)?.firstOrNull() ?: return
+            if (x.timestamp <= seen) return
+            p.edit().putLong("raport-ts", x.timestamp).apply()
+            if (x.reason != android.app.ApplicationExitInfo.REASON_ANR) return
+            val tr = x.traceInputStream?.bufferedReader()?.use { it.readText() } ?: ""
+            report(Komunikator.crashHeader(this) + "zawieszenie " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(x.timestamp)) + ": " + (x.description ?: "") +
+                "\n\"main\"" + tr.substringAfter("\"main\"", "").lines().take(30).joinToString("\n"), true) {}
         }
     }
-    private fun header() = "Komunikator Velivo " + runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrDefault("?") + ", Android " + Build.VERSION.RELEASE + ", " + Build.MANUFACTURER + " " + Build.MODEL + "\n"
-    private fun lastCrash() {
-        val f = java.io.File(filesDir, "blad.txt")
-        var text = runCatching { f.readText() }.getOrDefault(""); f.delete()
-        // zawieszenie zapisuje Android (od 11): stos głównego wątku w chwili „nie odpowiada”
-        if (text.isBlank() && Build.VERSION.SDK_INT >= 30) runCatching {
-            val p = getSharedPreferences("komunikator", MODE_PRIVATE); val seen = p.getLong("raport-ts", 0)
-            val x = getSystemService(android.app.ActivityManager::class.java)?.getHistoricalProcessExitReasons(null, 0, 1)?.firstOrNull()
-            if (x != null && x.timestamp > seen && x.reason == android.app.ApplicationExitInfo.REASON_ANR) {
-                p.edit().putLong("raport-ts", x.timestamp).apply()
-                val tr = x.traceInputStream?.bufferedReader()?.use { it.readText() } ?: ""
-                val main = tr.substringAfter("\"main\"", "").lines().take(30).joinToString("\n")
-                text = header() + "zawieszenie " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(x.timestamp)) + ": " + (x.description ?: "") + "\n\"main\"" + main
-            } else if (x != null && x.timestamp > seen) p.edit().putLong("raport-ts", x.timestamp).apply()
-        }
-        if (text.isBlank()) return
+    // raport: Udostępnij (WhatsApp, SMS - bez sieci Velivo) albo, gdy komunikator działa, wiadomością do kontaktu
+    private fun report(text: String, running: Boolean, then: () -> Unit) {
         val pl = java.util.Locale.getDefault().language == "pl"
-        val cs = k.contacts.filter { !it.isGroup }
         val d = android.app.AlertDialog.Builder(this).setTitle("🐞 " + if (pl) "Komunikator zamknął się nieoczekiwanie" else "The messenger closed unexpectedly")
-            .setMessage((if (pl) "Wyślij raport – pomoże znaleźć przyczynę.\n\n" else "Send the report – it helps find the cause.\n\n") + text.lines().take(6).joinToString("\n"))
+            .setMessage((if (pl) "Wyślij raport synowi / opiekunowi – pomoże znaleźć przyczynę.\n\n" else "Send the report – it helps find the cause.\n\n") + text.lines().take(6).joinToString("\n"))
             .setNegativeButton(android.R.string.cancel, null)
-        if (cs.isNotEmpty()) d.setPositiveButton("📤 " + if (pl) "Wyślij do…" else "Send to…") { _, _ ->
+            .setNeutralButton("📤 " + if (pl) "Udostępnij" else "Share") { _, _ -> runCatching { startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "🐞 " + text), null)) } }
+            .setOnDismissListener { then() }
+        val cs = if (running) k.contacts.filter { !it.isGroup } else emptyList()
+        if (cs.isNotEmpty()) d.setPositiveButton("💬 " + if (pl) "Wyślij do…" else "Send to…") { _, _ ->
             android.app.AlertDialog.Builder(this).setItems(cs.map { it.name }.toTypedArray()) { _, i -> k.send(cs[i], "🐞 " + text.take(3900)) }.show()
         }
         d.show()
     }
+    private val ready get() = ::okno.isInitialized
+    private fun network() { if (!ready) return; KomunikatorUsluga.stop(this, k); k.listen(); k.wake() }
 
     // kontakty i rozmowy z przeglądarki i klawiatury Velivo (po rozdzieleniu - raz; potem one już nic nie mają)
     private fun takeOver() {
@@ -75,7 +77,7 @@ class Start : Activity() {
         }
     }
 
-    override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); handle(i) }
+    override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); if (ready) handle(i) }
 
     private fun handle(i: Intent?) {
         k.listenError?.let { Toast.makeText(this, getString(R.string.port_busy, it), Toast.LENGTH_LONG).show() }
@@ -102,6 +104,7 @@ class Start : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         picking = false
+        if (!ready) return
         if (requestCode == Komunikator.REQ_PHOTO) { okno.cameraResult(resultCode == RESULT_OK); return }
         if (requestCode == Komunikator.REQ_BACKUP) { okno.backupResult(data?.data.takeIf { resultCode == RESULT_OK }); return }   // 💾 kopia
         if (resultCode != RESULT_OK || data == null) { okno.attachTo = null; okno.pickingPhoto = false; okno.pickingBackup = false; okno.show(); return }
@@ -121,8 +124,8 @@ class Start : Activity() {
     }
 
     // na ekranie - gniazda tutaj; schowana (także aparat, wybór pliku) - czeka usługa w tle (powiadomienia o wiadomościach)
-    override fun onStart() { super.onStart(); KomunikatorUsluga.stop(this, k); k.listen(); k.wake() }
-    override fun onStop() { if (!isChangingConfigurations) { k.close(); KomunikatorUsluga.start(this, k) }; super.onStop() }
+    override fun onStart() { super.onStart(); network() }
+    override fun onStop() { if (ready && !isChangingConfigurations) { k.close(); KomunikatorUsluga.start(this, k) }; super.onStop() }
 
     companion object { const val ACTION_FILES = "pl.velivo.komunikator.PLIKI" }
 }

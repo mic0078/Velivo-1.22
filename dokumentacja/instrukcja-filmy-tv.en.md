@@ -278,3 +278,4 @@ Menu (the V logo) → the **Films and TV** group: **📺 Television**, **🎬 Li
 - **⧉ Picture-in-picture** (also by itself when you go to the home screen), **plays in the background** with the screen off (notification with "Stop" and "🌙 Stop in 30 min"), **🌙 sleep timer** in the player. Unplugging headphones pauses.
 - Two fingers in the menu and lists enlarge text and buttons (as everywhere in Velivo).
 * **🕘 History** (player bar, instead of 📌): the 20 most recently watched films in alphabetical order – click to resume. “📌 Always on top” – in the right-click menu. **Full screen** no longer hides the library, channel list or TV guide.
+* **Films removed from Jellyfin:** when Velivo detects it, a notice with the list stays on screen (also after a restart) until you choose **🗑 Remove from Velivo** or **Keep**. Files on disk stay.

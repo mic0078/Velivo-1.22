@@ -520,6 +520,7 @@ namespace Velivo
             _jellyfinTimer.Tick += async (s, e) =>
             {
                 _jellyfinTimer.Interval = TimeSpan.FromMinutes(10);
+                ShowJellyfinRemoved();   // decyzja o usuniętych z Jellyfin - dymek aż do odpowiedzi (także po ponownym uruchomieniu)
                 var c = LoadJellyfinConf();
                 if (_jellyfinSyncing || c == null || c.AutoHours <= 0 || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key)) return;
                 if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - c.Synced < c.AutoHours * 3600000L) return;
@@ -528,8 +529,7 @@ namespace Velivo
                 {
                     var msg = await JellyfinRefreshAsync(c, false, false, null);
                     _libRefresh?.Invoke();
-                    var removed = PendingRemovedFromJellyfin().Count;
-                    if (removed > 0) ShowToast(L.T("🎬 Usunięte z Jellyfin: ") + removed + L.T(" – kliknij 🔄 Odśwież w bibliotece, aby zdecydować"), null);
+                    if (PendingRemovedFromJellyfin().Count > 0) ShowJellyfinRemoved();
                     else if (msg.StartsWith("🎬")) ShowToast(msg, null);
                 }
                 catch (Exception ex) { App.LogError(ex); }   // serwer wylaczony - sprobujemy przy nastepnym sprawdzeniu
@@ -556,14 +556,43 @@ namespace Velivo
             var text = L.T("Te filmy usunięto z Jellyfin: ") + hits.Count + "\n\n" + string.Join("\n", names) +
                 (hits.Count > names.Count ? "\n… " + (hits.Count - names.Count) : "") +
                 L.T("\n\nUsunąć je także z biblioteki Velivo? Pliki na dysku zostają.");
-            if (MessageBox.Show(owner ?? this, text, "Velivo – Jellyfin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            JellyfinRemovedDecide(MessageBox.Show(owner ?? this, text, "Velivo – Jellyfin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes);
+        }
+        // decyzja: usunąć z biblioteki Velivo (pliki na dysku zostają) albo zostawić - zapamiętana (lista wyczyszczona)
+        void JellyfinRemovedDecide(bool remove)
+        {
+            if (remove)
             {
-                var keys = new HashSet<string>(hits.Select(v => MetaKey(v.Path)));
+                var keys = new HashSet<string>(PendingRemovedFromJellyfin().Select(v => MetaKey(v.Path)));
                 var lib = LoadLibrary();
                 lib.RemoveAll(v => keys.Contains(MetaKey(v.Path)));
-                SaveLibrary(lib);
+                SaveLibrary(lib); _libRefresh?.Invoke();
             }
             try { File.Delete(JellyfinRemovedFile); } catch (Exception) { }
+            try { _jfRemovedToast?.Close(); } catch (Exception) { }
+        }
+        // 🎬 dymek „usunięte z Jellyfin” - zostaje na ekranie, aż wybierzesz: usuń z Velivo / zostaw
+        Window _jfRemovedToast;
+        void ShowJellyfinRemoved()
+        {
+            var hits = PendingRemovedFromJellyfin();
+            if (hits.Count == 0 || _jfRemovedToast != null) return;
+            var names = hits.Take(8).Select(v => "• " + (MetaTitle(MetaFor(v.Path)) ?? CleanTitle(v.Title))).ToList();
+            var panel = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
+            panel.Children.Add(new TextBlock { Text = L.T("🎬 Usunięte z Jellyfin: ") + hits.Count, Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold });
+            panel.Children.Add(new TextBlock { Text = string.Join("\n", names) + (hits.Count > names.Count ? "\n… " + (hits.Count - names.Count) : ""), Foreground = Brushes.Gainsboro, FontSize = 13, TextWrapping = TextWrapping.Wrap, MaxWidth = 360, Margin = new Thickness(0, 6, 0, 0) });
+            panel.Children.Add(new TextBlock { Text = L.T("Usunąć je także z biblioteki Velivo? Pliki na dysku zostają."), Foreground = Brushes.White, FontSize = 13, TextWrapping = TextWrapping.Wrap, MaxWidth = 360, Margin = new Thickness(0, 8, 0, 0) });
+            var toast = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Owner = IsLoaded ? this : null, Topmost = true, ShowActivated = false,
+                SizeToContent = SizeToContent.WidthAndHeight, Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x29, 0x37)), Content = panel };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            var yes = SmallButton("🗑 " + L.T("Usuń z Velivo"), () => JellyfinRemovedDecide(true));
+            var no = SmallButton(L.T("Zostaw"), () => JellyfinRemovedDecide(false));
+            foreach (var b in new[] { yes, no }) { b.Background = new SolidColorBrush(Color.FromRgb(0x37, 0x41, 0x51)); b.Foreground = Brushes.White; b.BorderBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80)); row.Children.Add(b); }
+            panel.Children.Add(row);
+            toast.Loaded += (s, e) => PlaceToast(toast);
+            toast.Closed += (s, e) => _jfRemovedToast = null;
+            _jfRemovedToast = toast;
+            toast.Show();
         }
 
         void ShowJellyfinDialog(Window owner)

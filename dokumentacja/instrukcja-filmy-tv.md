@@ -283,3 +283,4 @@ Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** 
 - **⧉ Obraz w obrazie** (także samo po wyjściu do ekranu głównego), **gra w tle** przy zgaszonym ekranie (powiadomienie z „Zatrzymaj” i „🌙 Wyłącz za 30 min”), **🌙 wyłącznik czasowy** w odtwarzaczu. Wyjęcie słuchawek – pauza.
 - Dwa palce w menu i listach powiększają napisy i przyciski (jak w całym Velivo).
 * **🕘 Historia** (pasek odtwarzacza, w miejscu 📌): 20 ostatnio oglądanych filmów alfabetycznie – klik odtwarza od miejsca przerwania. „📌 Zawsze na wierzchu” – pod prawym przyciskiem. **Pełny ekran** nie zasłania już biblioteki, listy kanałów ani programu TV.
+* **Filmy usunięte z Jellyfin:** gdy Velivo to wykryje, pokazuje dymek z listą, który zostaje na ekranie (także po ponownym uruchomieniu), aż wybierzesz **🗑 Usuń z Velivo** albo **Zostaw**. Pliki na dysku zostają.

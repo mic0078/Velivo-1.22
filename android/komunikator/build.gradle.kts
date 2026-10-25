@@ -30,6 +30,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     sourceSets["main"].java.srcDirs("src/main/java", "src/app/java")
+    sourceSets["main"].res.srcDirs("src/main/res", "src/wspolne/res")   // 🖱 pomoc zdalna (wspólne)
     // 📹 strona rozmowy wideo - ta sama co w przeglądarce i na Windows
     sourceSets["main"].assets.srcDirs("../../src/Rozmowa")
 }

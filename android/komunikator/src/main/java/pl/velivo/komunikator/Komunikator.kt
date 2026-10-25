@@ -1786,6 +1786,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             // 🖥 pokazanie ekranu telefonu rozmówcy; 👆 jego wskazówka nad ekranem
             @android.webkit.JavascriptInterface fun screen(on: Boolean) { a.runOnUiThread { if (on) askScreen() else a.stopService(Intent(a, EkranUsluga::class.java)) } }
             @android.webkit.JavascriptInterface fun point(x: Double, y: Double) { EkranUsluga.point(a.applicationContext, x, y) }
+            // 🖱 sterowanie telefonem: usługa ułatwień dostępu Velivo; działa tylko, gdy osoba zgodziła się w rozmowie
+            @android.webkit.JavascriptInterface fun ctlReady(): Boolean = SterowanieUsluga.on != null
+            @android.webkit.JavascriptInterface fun ctlSetup() { a.runOnUiThread {
+                AlertDialog.Builder(a).setTitle("🖱 " + t("Pomoc zdalna", "Remote help"))
+                    .setMessage(t("Aby rozmówca mógł stukać na Twoim telefonie, włącz raz „Velivo – pomoc zdalna” w Ustawieniach → Ułatwienia dostępu (Pobrane aplikacje). Velivo steruje tylko po Twojej zgodzie w rozmowie i nie czyta ekranu.",
+                        "To let the other person tap on your phone, turn on “Velivo – remote help” once in Settings → Accessibility (Downloaded apps). Velivo only acts after you agree in the call and does not read the screen."))
+                    .setPositiveButton(t("Otwórz ustawienia", "Open settings")) { _, _ -> runCatching { a.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) } }
+                    .setNegativeButton(android.R.string.cancel, null).show() } }
+            @android.webkit.JavascriptInterface fun ctl(on: Boolean) { SterowanieUsluga.allowed = on }
+            @android.webkit.JavascriptInterface fun ask(q: String) { EkranUsluga.ask(a, "🖱 " + c.name + "\n" + q, t("Pozwól", "Allow"), t("Nie", "No")) { yes -> w.post { w.evaluateJavascript("ctlAnswer($yes)", null) } } }
+            @android.webkit.JavascriptInterface fun input(s: String) { runCatching { SterowanieUsluga.input(JSONObject(s)) } }
         }, "velivo")
         w.webChromeClient = object : android.webkit.WebChromeClient() {
             override fun onPermissionRequest(r: android.webkit.PermissionRequest) {
@@ -1798,7 +1809,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         d.setOnDismissListener {
             if (!ended) k.sendCall(c, JSONObject().put("k", "end"))
             callView = null; callWith = null
-            a.stopService(Intent(a, EkranUsluga::class.java)); EkranUsluga.onFrame = null; EkranUsluga.onStop = null
+            a.stopService(Intent(a, EkranUsluga::class.java)); EkranUsluga.onFrame = null; EkranUsluga.onStop = null; SterowanieUsluga.allowed = false
             runCatching { w.destroy() }
             runCatching {
                 if (Build.VERSION.SDK_INT >= 31) am?.clearCommunicationDevice() else { @Suppress("DEPRECATION") am?.stopBluetoothSco() }
@@ -2781,6 +2792,27 @@ class EkranUsluga : Service() {
         @Volatile var onFrame: ((String) -> Unit)? = null
         @Volatile var onStop: (() -> Unit)? = null
         private var hint: View? = null
+        // ❓ pytanie o zgodę widoczne także nad inną aplikacją (osoba pokazuje np. Ustawienia); bez zgody „nad aplikacjami” - zwykłe okno Velivo
+        fun ask(act: Activity, text: String, yes: String, no: String, cb: (Boolean) -> Unit) = Handler(Looper.getMainLooper()).post {
+            val ctx = act.applicationContext
+            if (!android.provider.Settings.canDrawOverlays(ctx)) {
+                AlertDialog.Builder(act).setMessage(text).setPositiveButton(yes) { _, _ -> cb(true) }.setNegativeButton(no) { _, _ -> cb(false) }.setOnCancelListener { cb(false) }.show(); return@post
+            }
+            val wm = ctx.getSystemService(android.view.WindowManager::class.java) ?: return@post
+            val m = ctx.resources.displayMetrics; fun px(v: Int) = (v * m.density).toInt()
+            lateinit var box: LinearLayout
+            fun btn(t: String, c: Int, ok: Boolean) = Button(ctx).apply { this.text = t; isAllCaps = false; setTextColor(Color.WHITE); textSize = 16f
+                background = GradientDrawable().apply { setColor(c); cornerRadius = px(22).toFloat() }
+                layoutParams = LinearLayout.LayoutParams(0, px(48), 1f).apply { leftMargin = px(6); rightMargin = px(6) }
+                setOnClickListener { runCatching { wm.removeView(box) }; cb(ok) } }
+            box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(px(18), px(16), px(18), px(14))
+                background = GradientDrawable().apply { setColor(Color.rgb(31, 41, 55)); cornerRadius = px(18).toFloat() }
+                addView(TextView(ctx).apply { this.text = text; textSize = 17f; setTextColor(Color.WHITE); setPadding(0, 0, 0, px(14)) })
+                addView(LinearLayout(ctx).apply { addView(btn(no, Color.rgb(107, 114, 128), false)); addView(btn(yes, Color.rgb(34, 197, 94), true)) }) }
+            val lp = android.view.WindowManager.LayoutParams((m.widthPixels * 0.9).toInt(), -2, android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, android.graphics.PixelFormat.TRANSLUCENT).apply { gravity = Gravity.CENTER }
+            if (runCatching { wm.addView(box, lp) }.isFailure) cb(false)
+        }
         // cały ekran (z paskami systemu) - tak jak widzi go nagrywanie
         fun size(ctx: Context): android.graphics.Point = if (Build.VERSION.SDK_INT >= 30) ctx.getSystemService(android.view.WindowManager::class.java).maximumWindowMetrics.bounds.let { android.graphics.Point(it.width(), it.height()) }
             else ctx.resources.displayMetrics.let { android.graphics.Point(it.widthPixels, it.heightPixels) }
@@ -2800,6 +2832,45 @@ class EkranUsluga : Service() {
             if (runCatching { wm.addView(v, lp) }.isFailure) return@post
             hint = v
             v.postDelayed({ if (hint === v) { runCatching { wm.removeView(v) }; hint = null } }, 3000)
+        }
+    }
+}
+
+// 🖱 sterowanie telefonem w pomocy zdalnej: stuknięcia i przesunięcia rozmówcy (dispatchGesture); nie czyta ekranu.
+// Włączana raz w Ułatwieniach dostępu; wykonuje ruchy tylko, gdy osoba zgodziła się w rozmowie (allowed), do końca rozmowy.
+class SterowanieUsluga : android.accessibilityservice.AccessibilityService() {
+    override fun onServiceConnected() { on = this }
+    override fun onUnbind(i: Intent?): Boolean { on = null; return super.onUnbind(i) }
+    override fun onDestroy() { on = null; super.onDestroy() }
+    override fun onAccessibilityEvent(e: android.view.accessibility.AccessibilityEvent?) {}
+    override fun onInterrupt() {}
+    companion object {
+        @Volatile var on: SterowanieUsluga? = null
+        @Volatile var allowed = false
+        private var downX = 0f; private var downY = 0f; private var downAt = 0L
+        private val path = ArrayList<android.graphics.PointF>()
+        // x, y - ułamek ekranu; d - palec w dół, m - ruch, u - w górę (wtedy stuknięcie, przytrzymanie albo przesunięcie); k - Esc = Wstecz, Home = ekran główny
+        fun input(o: JSONObject) {
+            val s = on ?: return; if (!allowed) return
+            when (o.optString("t")) {
+                "k" -> if (!o.optBoolean("up")) when (o.optInt("v")) { 27, 8 -> s.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK); 36 -> s.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME); 9 -> s.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS) }
+                "d", "m", "u" -> {
+                    val sz = EkranUsluga.size(s); val x = (o.optDouble("x").coerceIn(0.0, 1.0) * (sz.x - 1)).toFloat(); val y = (o.optDouble("y").coerceIn(0.0, 1.0) * (sz.y - 1)).toFloat()
+                    when (o.optString("t")) {
+                        "d" -> { downX = x; downY = y; downAt = System.currentTimeMillis(); path.clear(); path.add(android.graphics.PointF(x, y)) }
+                        "m" -> if (downAt > 0 && path.size < 200) path.add(android.graphics.PointF(x, y))
+                        "u" -> {
+                            if (downAt == 0L) return
+                            val ms = (System.currentTimeMillis() - downAt).coerceIn(40L, 3000L); downAt = 0
+                            val p = android.graphics.Path().apply { moveTo(downX, downY) }
+                            val far = Math.hypot((x - downX).toDouble(), (y - downY).toDouble()) > 24 * s.resources.displayMetrics.density
+                            if (far) { path.drop(1).forEach { p.lineTo(it.x, it.y) }; p.lineTo(x, y) }
+                            val st = android.accessibilityservice.GestureDescription.StrokeDescription(p, 0, if (far) ms.coerceAtMost(1500L) else if (ms > 500) 800L else 60L)
+                            s.dispatchGesture(android.accessibilityservice.GestureDescription.Builder().addStroke(st).build(), null, null)
+                        }
+                    }
+                }
+            }
         }
     }
 }

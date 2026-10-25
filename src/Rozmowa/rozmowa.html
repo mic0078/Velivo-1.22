@@ -10,7 +10,7 @@ html,body{margin:0;height:100%;background:#120f24;color:#fff;font-family:system-
 #bar{position:fixed;left:0;right:0;bottom:24px;display:flex;justify-content:center;gap:18px}
 button{width:60px;height:60px;border-radius:50%;border:0;font-size:24px;background:#3a2f6b;color:#fff}
 button.off{background:#6b6b80}#end{background:#e53935}button.on{background:#22c55e}
-#you.scr{object-fit:contain;background:#000}#you.steer{touch-action:none;cursor:crosshair}
+#you.scr{object-fit:contain;background:#000}#you.steer,#shot.steer{touch-action:none;cursor:crosshair}
 #scr,#help{display:none}
 #shot{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:none;z-index:1}#shot.pt{cursor:pointer}
 #bar,#st,#me{z-index:3}#dot{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #e53935;background:#e5393566;display:none;z-index:2;pointer-events:none}
@@ -32,13 +32,13 @@ let pc = null, local = null, facing = 'user', connected = false, done = false;
 // 🖥 pomoc zdalna: ekran zamiast kamery; sterowanie myszą i klawiaturą tylko po zgodzie pokazującego (kanał danych WebRTC, prosto między urządzeniami)
 let dc = null, sharing = null, mon = null, ctl = false, steer = false;
 // 📱 ekran telefonu: klatki JPEG z Androida (velivo.screen), kawałkami po kanale danych; rozmówca wskazuje 👆 miejsce
-let phoneScr = false, remoteImg = false, pointing = false, fid = 0, parts = null;
+let phoneScr = false, remoteImg = false, fid = 0, parts = null;
 window.scrOn = () => {
   if (!dc || dc.readyState !== 'open') { velivo.screen(false); status(T('Brak kanału danych z rozmówcą – zaktualizuj Velivo u obu osób i zadzwoń jeszcze raz', 'No data channel with the other person – update Velivo on both devices and call again')); return; }
-  phoneScr = true; scr.classList.add('on'); local.getVideoTracks().forEach(t => t.enabled = false); dsend({ k: 'scr', on: true, img: true });
+  phoneScr = true; scr.classList.add('on'); local.getVideoTracks().forEach(t => t.enabled = false); dsend({ k: 'scr', on: true, img: true, ctl: true });
   status(T('Pokazujesz ekran', 'Sharing your screen')); setTimeout(() => { if (phoneScr) status(''); }, 3000);
 };
-window.scrOff = () => { if (!phoneScr) return; phoneScr = false; scr.classList.remove('on'); if (!cam.classList.contains('off')) local.getVideoTracks().forEach(t => t.enabled = true); dsend({ k: 'scr', on: false }); };
+window.scrOff = () => { if (!phoneScr) return; ctlOff(); phoneScr = false; scr.classList.remove('on'); if (!cam.classList.contains('off')) local.getVideoTracks().forEach(t => t.enabled = true); dsend({ k: 'scr', on: false }); };
 window.scrFrame = b => {
   if (!phoneScr || !dc || dc.readyState !== 'open' || dc.bufferedAmount > 512000) return;   // słabe łącze - klatka pominięta
   const id = ++fid, n = Math.ceil(b.length / 16000);
@@ -56,25 +56,30 @@ function useDc(ch) {
   dc = ch;
   ch.onmessage = e => {
     let o; try { o = JSON.parse(e.data); } catch (x) { return; }
-    if (o.k === 'in') { if (ctl) host(o); }
+    if (o.k === 'in') { if (ctl && phoneScr) velivo.input(e.data); else if (ctl) host(o); }
     else if (o.k === 'scr') { you.classList.toggle('scr', o.on); help.style.display = o.on && (o.ctl || o.img) ? 'inline-block' : 'none'; if (!o.on) setSteer(false)
-      remoteImg = o.on && !!o.img; shot.style.display = remoteImg ? 'block' : 'none'; status(remoteImg ? T('📱 Ekran rozmówcy – czekam na obraz…', '📱 Their screen – waiting for the picture…') : ''); if (!remoteImg) { pointing = false; shot.classList.remove('pt'); shot.removeAttribute('src'); }
-      help.title = remoteImg ? T('Wskaż miejsce na ekranie rozmówcy', 'Point at a spot on their screen') : T('Pomoc zdalna: poproś o sterowanie', 'Remote help: ask for control'); }
+      remoteImg = o.on && !!o.img; shot.style.display = remoteImg ? 'block' : 'none'; status(remoteImg ? T('📱 Ekran rozmówcy – czekam na obraz…', '📱 Their screen – waiting for the picture…') : ''); shot.classList.toggle('pt', remoteImg); if (!remoteImg) shot.removeAttribute('src');
+    }
     else if (o.k === 'f') frame(o);
     else if (o.k === 'pt') { if (phoneScr && window.velivo && velivo.point) velivo.point(o.x, o.y); }
     else if (o.k === 'ctl-ask') ask();
     else if (o.k === 'ctl-ok') { setSteer(true); status(''); }
-    else if (o.k === 'ctl-no') status(T('Nie zgodzono się na sterowanie', 'Control was not allowed'));
+    else if (o.k === 'ctl-no') status(o.why === 'setup' ? T('Rozmówca musi raz włączyć „Velivo – pomoc zdalna” w Ułatwieniach dostępu – właśnie mu to pokazałem', 'The other person must turn on “Velivo – remote help” in Accessibility once – they were just shown how') : T('Nie zgodzono się na sterowanie', 'Control was not allowed'));
     else if (o.k === 'ctl-off') { ctlOff(); setSteer(false); }
   };
 }
-function setSteer(on) { steer = on; you.classList.toggle('steer', on); help.classList.toggle('on', on); }
+function setSteer(on) { steer = on; you.classList.toggle('steer', on); shot.classList.toggle('steer', on); help.classList.toggle('on', on); }
 function ask() {
+  if (phoneScr) {   // 📱 telefon: stuknięcia przez ułatwienia dostępu Velivo, pytanie także nad inną aplikacją
+    if (!velivo.ctlReady()) { velivo.ctlSetup(); dsend({ k: 'ctl-no', why: 'setup' }); return; }
+    velivo.ask(T('Pozwolić rozmówcy stukać i przesuwać na Twoim telefonie?', 'Let the other person tap and swipe on your phone?')); return;
+  }
   if (!sharing || !mon) { dsend({ k: 'ctl-no' }); return; }
   if (!confirm(T('Pozwolić rozmówcy sterować Twoim komputerem (mysz i klawiatura)?\nZakończysz w każdej chwili przyciskiem „Zakończ sterowanie”.', 'Let the other person control your computer (mouse and keyboard)?\nYou can end it at any time with “End control”.'))) { dsend({ k: 'ctl-no' }); return; }
   ctl = true; host({ k: 'ctl-on', w: mon.w, h: mon.h }); dsend({ k: 'ctl-ok' });
 }
-function ctlOff() { if (!ctl) return; ctl = false; host({ k: 'ctl-off' }); dsend({ k: 'ctl-off' }); }
+window.ctlAnswer = yes => { if (!phoneScr) return; if (!yes) { dsend({ k: 'ctl-no' }); return; } ctl = true; velivo.ctl(true); dsend({ k: 'ctl-ok' }); status(T('🖱 Rozmówca steruje – zakończysz przyciskiem 🖥', '🖱 They are in control – stop with 🖥')); };
+function ctlOff() { if (!ctl) return; ctl = false; host({ k: 'ctl-off' }); if (window.velivo && velivo.ctl) velivo.ctl(false); dsend({ k: 'ctl-off' }); }
 const pend = [];
 async function media() {
   if (audio) return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
@@ -152,7 +157,6 @@ async function stopShare() {
   me.srcObject = local; me.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none'; dsend({ k: 'scr', on: false });
 }
 help.onclick = () => {
-  if (remoteImg) { pointing = !pointing; help.classList.toggle('on', pointing); shot.classList.toggle('pt', pointing); return; }
   if (steer) { setSteer(false); dsend({ k: 'ctl-off' }); } else { dsend({ k: 'ctl-ask' }); status(T('Czekam na zgodę…', 'Waiting for permission…')); } };
 // miejsce na obrazie ekranu (bez czarnych pasów) jako ułamek 0..1
 function pos(e, el = you) {
@@ -162,16 +166,18 @@ function pos(e, el = you) {
   return x < 0 || y < 0 || x > 1 || y > 1 ? null : { x, y };
 }
 shot.addEventListener('click', e => {
-  if (!pointing) return; const p = pos(e, shot); if (!p) return;
+  if (steer || !remoteImg) return; const p = pos(e, shot); if (!p) return;   // bez sterowania: kliknięcie = wskazówka 👆
   dsend({ k: 'pt', x: p.x, y: p.y }); dot.style.left = e.clientX + 'px'; dot.style.top = e.clientY + 'px'; dot.style.display = 'block';
   clearTimeout(dot.t); dot.t = setTimeout(() => dot.style.display = 'none', 1500);
 });
 let mv = null;
-you.addEventListener('pointerdown', e => { if (!steer) return; const p = pos(e); if (!p) return; e.preventDefault(); you.setPointerCapture(e.pointerId); dsend({ k: 'in', t: 'd', b: e.button, x: p.x, y: p.y }); });
-you.addEventListener('pointerup', e => { if (!steer) return; const p = pos(e) || mv; if (!p) return; e.preventDefault(); dsend({ k: 'in', t: 'u', b: e.button, x: p.x, y: p.y }); });
-you.addEventListener('pointermove', e => { if (!steer) return; const p = pos(e); if (!p) return; if (!mv) requestAnimationFrame(() => { if (mv) dsend({ k: 'in', t: 'm', x: mv.x, y: mv.y }); mv = null; }); mv = p; });
-you.addEventListener('wheel', e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'w', d: e.deltaY > 0 ? -120 : 120 }); }, { passive: false });
-you.addEventListener('contextmenu', e => { if (steer) e.preventDefault(); });
+[you, shot].forEach(el => {
+el.addEventListener('pointerdown', e => { if (!steer) return; const p = pos(e, el); if (!p) return; e.preventDefault(); el.setPointerCapture(e.pointerId); dsend({ k: 'in', t: 'd', b: e.button, x: p.x, y: p.y }); });
+el.addEventListener('pointerup', e => { if (!steer) return; const p = pos(e, el) || mv; if (!p) return; e.preventDefault(); dsend({ k: 'in', t: 'u', b: e.button, x: p.x, y: p.y }); });
+el.addEventListener('pointermove', e => { if (!steer) return; const p = pos(e, el); if (!p) return; if (!mv) requestAnimationFrame(() => { if (mv) dsend({ k: 'in', t: 'm', x: mv.x, y: mv.y }); mv = null; }); mv = p; });
+el.addEventListener('wheel', e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'w', d: e.deltaY > 0 ? -120 : 120 }); }, { passive: false });
+el.addEventListener('contextmenu', e => { if (steer) e.preventDefault(); });
+});
 ['keydown', 'keyup'].forEach(n => document.addEventListener(n, e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'k', v: e.keyCode, up: n === 'keyup' }); }));
 // telefon: głośnik albo słuchawka przy uchu (słuchawki przewodowe / Bluetooth - same)
 if (window.velivo && velivo.speakerOn) { if (!velivo.speakerOn()) spk.classList.add('off'); spk.onclick = () => spk.classList.toggle('off', !velivo.speaker()); }

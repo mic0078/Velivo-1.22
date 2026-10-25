@@ -82,7 +82,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * Klawiatura zapamiętuje na stałe: Mój słownik, cofnięte poprawki (⌫), częste słowa i pary – zaszyfrowane na urządzeniu.
 * Budowa: hasło klucza sprawdzane od razu; instalator ponawia przy antywirusie.
 * 2026-10-25: Komunikator Velivo – osobna aplikacja (`android/komunikator`, `pl.velivo.komunikator`, `Velivo-komunikator.apk`), działa sama. W telefonie jeden komunikator: Komunikator → przeglądarka → klawiatura (`Komunikator.owner`); przejmuje kontakty i rozmowy (dostawcy `…komunikator` „oddaj”). Porty: 41918 komunikator w domu (wysyłka też na 41919 dla starszego Velivo), 41919 dom/synchronizacja, 41917 filmy w sieci (było 41921 – kolizja z pośrednikiem), 41920–41929 pośrednik.
-* 2026-10-25: 🖥 Pomoc zdalna w rozmowie wideo (`rozmowa.html` + `KomunikatorPomoc.cs`): ekran Windows zamiast kamery, sterowanie kanałem danych WebRTC tylko po zgodzie, czerwony pasek „Zakończ sterowanie”; telefon ogląda i stuka. Ekran telefonu (`EkranUsluga`, MediaProjection, klatki JPEG kanałem danych) i wskazówka 👆 nad aplikacjami. Na potem: sterowanie telefonem (ułatwienia dostępu).
+* 2026-10-25: 🖥 Pomoc zdalna w rozmowie wideo (`rozmowa.html` + `KomunikatorPomoc.cs`): ekran Windows zamiast kamery, sterowanie kanałem danych WebRTC tylko po zgodzie, czerwony pasek „Zakończ sterowanie”; telefon ogląda i stuka. Ekran telefonu (`EkranUsluga`, MediaProjection, klatki JPEG kanałem danych) i wskazówka 👆 nad aplikacjami. Sterowanie telefonem: `SterowanieUsluga` (ułatwienia dostępu, dispatchGesture, bez czytania ekranu), zgoda nad aplikacjami; zasoby wspólne `android/komunikator/src/wspolne/res`.
 
 ## Na potem (pomysły właściciela)
 

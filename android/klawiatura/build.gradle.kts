@@ -32,6 +32,7 @@ android {
     sourceSets["main"].assets.srcDirs("src/main/assets", "../../src/Rozmowa")
     // 💬 komunikator - jedno wspólne źródło dla przeglądarki i klawiatury (android/komunikator)
     sourceSets["main"].java.srcDirs("src/main/java", "../komunikator/src/main/java")
+    sourceSets["main"].res.srcDirs("src/main/res", "../komunikator/src/wspolne/res")   // 🖱 pomoc zdalna (wspólne)
 }
 
 // plik instalacyjny: Velivo-klawiatura-release.apk

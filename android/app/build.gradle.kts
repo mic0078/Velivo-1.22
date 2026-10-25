@@ -58,6 +58,8 @@ android {
     kotlinOptions { jvmTarget = "17" }
     // Szybki Dostęp: ta sama strona co w Velivo na Windows - jedno źródło dla obu wersji
     sourceSets["main"].assets.srcDirs("src/main/assets", "../../src/QuickAccessExtension/kod", "../../src/Rozmowa")
+    // 💬 komunikator - jedno wspólne źródło dla przeglądarki i klawiatury (android/komunikator)
+    sourceSets["main"].java.srcDirs("src/main/java", "../komunikator/src/main/java")
 }
 
 // plik instalacyjny: Velivo-release.apk (zamiast app-release.apk)

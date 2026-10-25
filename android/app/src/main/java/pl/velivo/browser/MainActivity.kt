@@ -1,5 +1,6 @@
 package pl.velivo.browser
 
+import pl.velivo.komunikator.*
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog

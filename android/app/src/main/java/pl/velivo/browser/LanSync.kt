@@ -1,5 +1,6 @@
 package pl.velivo.browser
 
+import pl.velivo.komunikator.*
 import android.os.Build
 import android.util.Base64
 import org.json.JSONArray

@@ -30,6 +30,8 @@ android {
     kotlinOptions { jvmTarget = "17" }
     // 📹 strona rozmowy wideo - ta sama co w przeglądarce i na Windows
     sourceSets["main"].assets.srcDirs("src/main/assets", "../../src/Rozmowa")
+    // 💬 komunikator - jedno wspólne źródło dla przeglądarki i klawiatury (android/komunikator)
+    sourceSets["main"].java.srcDirs("src/main/java", "../komunikator/src/main/java")
 }
 
 // plik instalacyjny: Velivo-klawiatura-release.apk

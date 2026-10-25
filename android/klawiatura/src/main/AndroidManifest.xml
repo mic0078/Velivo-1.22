@@ -45,9 +45,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-        <receiver android:name=".KomunikatorAkcja" android:exported="false" />
+        <receiver android:name="pl.velivo.komunikator.KomunikatorAkcja" android:exported="false" />
         <!-- 💬 komunikator w domowym Wi-Fi: czeka na wiadomości, gdy aplikacja zamknięta (powiadomienia jak w innych komunikatorach) -->
-        <service android:name=".KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
+        <service android:name="pl.velivo.komunikator.KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Local network messenger: receives messages from devices on the home Wi-Fi without internet" />
         </service>
         <provider android:name=".KomunikatorDane" android:authorities="pl.velivo.klawiatura.komunikator" android:exported="true"

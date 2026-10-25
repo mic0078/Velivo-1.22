@@ -1,6 +1,6 @@
-package pl.velivo.klawiatura
+package pl.velivo.komunikator
 
-// Ten sam plik jest w przeglądarce Velivo (pl.velivo.browser) i w klawiaturze Velivo (pl.velivo.klawiatura) - zmieniaj oba.
+// Jeden plik komunikatora dla przeglądarki Velivo i klawiatury Velivo (wspólne źródło w android/komunikator) - poprawka w jednym miejscu.
 // Komunikator Velivo i pliki telefon <-> telefon w sieci domowej, bez internetu i bez serwera (port 41919, jak LanSync).
 //  * szukanie: UDP "p2p-who" -> "p2p-here" (tylko nazwa urządzenia i identyfikator czatu),
 //  * kontakt: jednorazowo przez TCP "p2p-pair" - klucze ECDH P-256, ten sam 6-cyfrowy kod na obu ekranach, zgoda odbiorcy,

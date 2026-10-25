@@ -1,5 +1,6 @@
 package pl.velivo.klawiatura
 
+import pl.velivo.komunikator.*
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context

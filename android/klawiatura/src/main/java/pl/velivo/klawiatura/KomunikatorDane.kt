@@ -1,5 +1,6 @@
 package pl.velivo.klawiatura
 
+import pl.velivo.komunikator.*
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Intent

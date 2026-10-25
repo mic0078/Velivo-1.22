@@ -49,6 +49,7 @@ class Rozmowy : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         picking = false
         if (requestCode == Komunikator.REQ_PHOTO) { okno.cameraResult(resultCode == RESULT_OK); return }
+        if (requestCode == Komunikator.REQ_BACKUP) { okno.backupResult(data?.data.takeIf { resultCode == RESULT_OK }); return }   // 💾 kopia
         if (resultCode != RESULT_OK || data == null) { okno.show(); return }
         val l = ArrayList<Uri>(); data.clipData?.let { c -> for (i in 0 until c.itemCount) l.add(c.getItemAt(i).uri) } ?: data.data?.let { l.add(it) }
         okno.sendFiles(l)

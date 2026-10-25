@@ -140,6 +140,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     @Synchronized private fun saveChat(id: String) {
         val l = chat(id); while (l.size > 500) l.removeAt(0)
+        ttl(id).takeIf { it > 0 }?.let { h ->   // ⏳ znikające wiadomości: starsze niż ustawiony czas - usunięte (z kopiami plików w Velivo)
+            val old = System.currentTimeMillis() - h * 3600000L
+            l.removeAll { m -> (m.ts < old).also { gone -> if (gone) m.path?.let { p -> if (p.startsWith(mediaDir.path)) java.io.File(p).delete() } } }
+        }
         val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid).put("rd", it.read).put("f", it.file).put("p", it.path ?: "").put("re", it.re)) }
         prefs.edit().putString("rozmowa-$id", seal(a.toString())).apply()
     }
@@ -147,7 +151,39 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     @Synchronized fun export(): String = JSONObject().put("cid", myId)
         .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own).put("relay", it.relay ?: "")) } })
         .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read).put("f", m.file).put("p", m.path ?: "").put("re", m.re)) } }) } })
-        .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).toString()
+        .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).put("opt", optExport()).toString()
+
+    // ustawienia rozmów i profilu (przypięte, wyciszone, znikające, szkice, motyw, blokada, „Mój adres”, zdjęcie) - przy przenosinach i w kopii
+    private val optKeys = listOf("motyw", "tlo", "blokada", "autoimg", "pin-", "cisza-", "znikaj-", "szkic-", "moj-adres", "glos-x")
+    private fun optExport() = JSONObject().also { o ->
+        prefs.all.forEach { (n, v) -> if (v != null && optKeys.any { n.startsWith(it) }) o.put(n, v) }
+        photo(myId)?.let { o.put("foto", b64(it.readBytes())) }
+    }
+    private fun optImport(o: JSONObject?) {
+        o ?: return; val e = prefs.edit()
+        o.keys().forEach { n -> runCatching { when {
+            n.startsWith("cisza-") -> e.putLong(n, o.getLong(n)); n.startsWith("znikaj-") -> e.putInt(n, o.getInt(n)); n == "glos-x" -> e.putFloat(n, o.getDouble(n).toFloat())
+            o.get(n) is Boolean -> e.putBoolean(n, o.getBoolean(n)); n != "foto" -> e.putString(n, o.getString(n))
+        } } }
+        unb64(o.optString("foto")).takeIf { it.isNotEmpty() }?.let { java.io.File(mediaDir, "profil-$myId.jpg").writeBytes(it); e.putLong("profil-v", System.currentTimeMillis()) }
+        e.apply()
+    }
+
+    // 💾 kopia zapasowa (jak w WhatsApp, ale u Ciebie): kontakty z kluczami, rozmowy, identyfikator i ustawienia - zaszyfrowane hasłem
+    // (PBKDF2 + AES-GCM); bez plików z rozmów. Przywrócenie na nowym telefonie - kontakty dalej nas znają (ten sam identyfikator).
+    private fun passKey(p: String, salt: ByteArray) = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(javax.crypto.spec.PBEKeySpec(p.toCharArray(), salt, 200000, 256)).encoded
+    fun backup(pass: String): ByteArray {
+        val salt = ByteArray(16).also { random.nextBytes(it) }; val n = ByteArray(12).also { random.nextBytes(it) }
+        val ci = Cipher.getInstance("AES/GCM/NoPadding"); ci.init(Cipher.ENCRYPT_MODE, SecretKeySpec(passKey(pass, salt), "AES"), GCMParameterSpec(128, n))
+        return ("VELIVO-KOPIA1\n" + b64(salt + n + ci.doFinal(export().toByteArray(Charsets.UTF_8)))).toByteArray(Charsets.UTF_8)
+    }
+    fun restore(data: ByteArray, pass: String): Boolean = runCatching {
+        val txt = String(data, Charsets.UTF_8); require(txt.startsWith("VELIVO-KOPIA1\n"))
+        val b = unb64(txt.substringAfter('\n').trim()); require(b.size > 44)
+        val ci = Cipher.getInstance("AES/GCM/NoPadding"); ci.init(Cipher.DECRYPT_MODE, SecretKeySpec(passKey(pass, b.copyOfRange(0, 16)), "AES"), GCMParameterSpec(128, b, 16, 12))
+        val json = String(ci.doFinal(b, 28, b.size - 28), Charsets.UTF_8); require(JSONObject(json).optString("cid").length == 32)   // kopia z telefonu
+        wipe(); import(json); listen(); announce(); true
+    }.getOrDefault(false)
 
     // dane z klawiatury: bez własnych kontaktów przejmujemy też jej identyfikator (inne urządzenia dalej nas znają);
     // rozmowy łączone po identyfikatorze wiadomości - nic się nie powtarza
@@ -171,6 +207,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 if (un > 0) prefs.edit().putInt("nowe-$id", unread(id) + un).apply()
             }
         }
+        optImport(o.optJSONObject("opt"))
         saveContacts(); synchronized(this) { contacts.toList() }.forEach { saveChat(it.id) }
         main.post { onChange() }
     }
@@ -344,6 +381,33 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         main.post { onChange() }
     }
 
+    // 📌 przypięte, 🔕 wyciszone (do kiedy), ✏ szkic - ustawienia rozmowy w tym urządzeniu
+    fun pinned(id: String) = prefs.getBoolean("pin-$id", false)
+    fun setPinned(id: String, on: Boolean) { prefs.edit().putBoolean("pin-$id", on).apply(); main.post { onChange() } }
+    fun muted(id: String) = prefs.getLong("cisza-$id", 0) > System.currentTimeMillis()
+    fun mute(id: String, ms: Long) { prefs.edit().putLong("cisza-$id", if (ms <= 0) 0 else if (ms == Long.MAX_VALUE) ms else System.currentTimeMillis() + ms).apply(); main.post { onChange() } }
+    fun draft(id: String) = prefs.getString("szkic-$id", "") ?: ""
+    fun setDraft(id: String, s: String) { if (s != draft(id)) prefs.edit().putString("szkic-$id", s).apply() }
+    fun tidy(id: String) = saveChat(id)
+    // ⏳ znikające wiadomości (jak w WhatsApp): czas ustawiony w rozmowie dotyczy obu stron
+    fun ttl(id: String) = prefs.getInt("znikaj-$id", 0)
+    fun setTtl(c: Contact, h: Int) { applyTtl(c.id, h, null); tagOut(c, TIMER, JSONObject().put("h", h)) }
+    private fun applyTtl(id: String, h: Int, who: String?) {
+        prefs.edit().putInt("znikaj-$id", h).apply()
+        val what = if (h <= 0) (if (pl) "wyłączone" else "off") else if (h % 24 == 0) "${h / 24} " + (if (pl) "d." else "d") else "$h h"
+        synchronized(this) { chat(id).add(Msg(who == null, "⏳ " + (who?.let { "$it: " } ?: "") + (if (pl) "znikające wiadomości – " else "disappearing messages – ") + what, System.currentTimeMillis(), true, UUID.randomUUID().toString().replace("-", ""))) }
+        saveChat(id); main.post { onChange() }
+    }
+    private fun timerIn(from: Contact, body: String) {
+        val j = runCatching { JSONObject(body) }.getOrNull() ?: return
+        applyTtl(chatOf(from, j), j.optInt("h").coerceIn(0, 24 * 365), from.name)
+    }
+    // 🛡 kod bezpieczeństwa: ten sam na obu urządzeniach (z klucza rozmowy) - zgodny = nikt się nie podszywa
+    fun safety(c: Contact): String {
+        val h = MessageDigest.getInstance("SHA-256").digest("velivo-kod\n".toByteArray(Charsets.UTF_8) + c.key)
+        return (0 until 6).joinToString(" ") { i -> "%05d".format(Locale.ROOT, ((h[i * 4].toLong() and 0xff shl 24) or (h[i * 4 + 1].toLong() and 0xff shl 16) or (h[i * 4 + 2].toLong() and 0xff shl 8) or (h[i * 4 + 3].toLong() and 0xff)) % 100000) }
+    }
+
     fun deleteLocal(c: Contact, m: Msg) {
         synchronized(this) { chat(c.id).remove(m) }; saveChat(c.id)
         m.path?.let { p -> if (p.startsWith(mediaDir.path)) java.io.File(p).delete() }   // kopia pliku w Velivo (nie ta z Pobranych / Galerii)
@@ -390,6 +454,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (text.startsWith(EDIT)) { editIn(c, text.substring(EDIT.length)); return }   // ✏ nadawca poprawił wiadomość
         if (text.startsWith(REACT)) { reactIn(c, text.substring(REACT.length)); return }   // 😀 reakcja na wiadomość
         if (text.startsWith(PHOTO)) { photoIn(c, text.substring(PHOTO.length)); return }   // 🖼 zdjęcie profilowe kontaktu
+        if (text.startsWith(TIMER)) { timerIn(c, text.substring(TIMER.length)); return }   // ⏳ znikające wiadomości
         if (text.startsWith(ASK)) { askIn(c, text.substring(ASK.length)); return }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
         if (text.startsWith(ADDR) || text.startsWith(ASKOK)) return   // dla pośrednika (Windows)
         val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
@@ -1242,6 +1307,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     var theme: String
         get() = prefs.getString("motyw", "auto") ?: "auto"
         set(v) { prefs.edit().putString("motyw", v).apply() }
+    var voiceSpeed: Float   // ⏩ szybkość odtwarzania głosówek (1 / 1,5 / 2)
+        get() = prefs.getFloat("glos-x", 1f)
+        set(v) { prefs.edit().putFloat("glos-x", v).apply() }
     var lock: Boolean   // 🔒 komunikator otwierany odciskiem palca / PIN-em telefonu
         get() = prefs.getBoolean("blokada", false)
         set(v) { prefs.edit().putBoolean("blokada", v).apply() }
@@ -1275,6 +1343,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     fun notifyMessage(c: Contact, quiet: Boolean = false) {
         if (chatOpen == c.id) { if (!quiet) chatSound(); sendRead(c); return }
+        if (muted(c.id)) return   // 🔕 wyciszona rozmowa - tylko licznik w rozmowie
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
         channels(nm)
         // jak w innych komunikatorach: ostatnie wiadomości w powiadomieniu, odpowiedź i „przeczytane” bez otwierania Velivo
@@ -1406,6 +1475,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val PORT = 41918; const val OLD_PORT = 41919
         const val APP = "pl.velivo.komunikator"
         const val REQ_PHOTO = 4733   // 📷 zdjęcie z aparatu - wynik: okno.cameraResult
+        const val REQ_BACKUP = 4734   // 💾 miejsce na kopię (telefon, Google Drive…) - wynik: okno.backupResult
         // jeden komunikator w telefonie: aplikacja Komunikator Velivo, bez niej przeglądarka Velivo, bez obu - klawiatura
         fun owner(ctx: Context): String = listOf(APP, KomunikatorUsluga.BROWSER).firstOrNull { p -> p == ctx.packageName || runCatching { ctx.packageManager.getPackageInfo(p, 0) }.isSuccess } ?: ctx.packageName
         const val CHUNK = 1 shl 20
@@ -1417,7 +1487,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val GROUP = "\u0001velivo-grupa\n"
         const val CARD = "\u0001velivo-kontakt\n"
         const val DEL = "\u0001velivo-usun\n"
-        const val EDIT = "\u0001velivo-edycja\n"; const val REACT = "\u0001velivo-reakcja\n"; const val PHOTO = "\u0001velivo-zdjecie\n"
+        const val EDIT = "\u0001velivo-edycja\n"; const val REACT = "\u0001velivo-reakcja\n"; const val PHOTO = "\u0001velivo-zdjecie\n"; const val TIMER = "\u0001velivo-znikanie\n"
         const val ADDR = "\u0001velivo-adres\n"; const val ASK = "\u0001velivo-prosba\n"; const val ASKOK = "\u0001velivo-prosba-ok\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
@@ -1709,7 +1779,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     // 🖼 zdjęcie profilowe kontaktu (z zieloną obwódką, gdy w sieci); bez zdjęcia - kropka jak dotąd
     private fun avatar(c: Komunikator.Contact, on: Boolean): View {
         val bmp = k.photo(c.id)?.let { decode(it.path, px(44)) }
-        if (bmp == null) return View(a).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (on) green else Color.GRAY) }; layoutParams = LinearLayout.LayoutParams(px(12), px(12)).apply { rightMargin = px(12) } }
+        // bez zdjęcia - kółko z pierwszą literą w stałym kolorze kontaktu (jak w WhatsApp / Signal); obwódka zielona = w sieci
+        if (bmp == null) return TextView(a).apply {
+            text = if (c.isGroup) "👥" else c.name.trim().take(1).uppercase().ifEmpty { "?" }; textSize = 18f; gravity = Gravity.CENTER; setTextColor(Color.WHITE); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            val hue = (c.id.hashCode() and 0x7fffffff) % 360f
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.HSVToColor(floatArrayOf(hue, 0.55f, 0.75f))); setStroke(px(2), if (on) green else Color.TRANSPARENT) }
+            layoutParams = LinearLayout.LayoutParams(px(44), px(44)).apply { rightMargin = px(12) }
+        }
         return android.widget.ImageView(a).apply {
             setImageBitmap(bmp); scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; setPadding(px(2), px(2), px(2), px(2))
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (on) green else Color.GRAY) }
@@ -1726,14 +1802,49 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
     private fun profile() {
         val items = arrayOf("🖼 " + t("Moje zdjęcie profilowe…", "My profile photo…"), "🗑 " + t("Usuń moje zdjęcie", "Remove my photo"),
-            "🔒 " + t("Blokada odciskiem palca / PIN-em: ", "Fingerprint / PIN lock: ") + if (k.lock) t("wł.", "on") else t("wył.", "off"))
+            "🔒 " + t("Blokada odciskiem palca / PIN-em: ", "Fingerprint / PIN lock: ") + if (k.lock) t("wł.", "on") else t("wył.", "off"),
+            "💾 " + t("Kopia zapasowa (telefon, Google Drive, NUCBOX)…", "Backup (phone, Google Drive, NUCBOX)…"), "📥 " + t("Przywróć z kopii (nowy telefon)…", "Restore from backup (new phone)…"),
+            "🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"))
         AlertDialog.Builder(a).setTitle("👤 " + t("Mój profil", "My profile")).setItems(items) { _, i ->
             when (i) {
                 0 -> { pickingPhoto = true; pickFiles() }
                 1 -> Thread { k.setPhoto(null) }.start()
-                else -> { k.lock = !k.lock; Toast.makeText(a, items[2].substringBefore(':') + ": " + if (k.lock) t("wł.", "on") else t("wył.", "off"), Toast.LENGTH_SHORT).show() }
+                2 -> { k.lock = !k.lock; Toast.makeText(a, items[2].substringBefore(':') + ": " + if (k.lock) t("wł.", "on") else t("wył.", "off"), Toast.LENGTH_SHORT).show() }
+                3 -> password(true) { p -> backupPass = p
+                    runCatching { a.startActivityForResult(android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("application/octet-stream")
+                        .putExtra(android.content.Intent.EXTRA_TITLE, "Velivo-kopia-" + java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(java.util.Date()) + ".velivo"), Komunikator.REQ_BACKUP) } }
+                4 -> AlertDialog.Builder(a).setMessage(t("Kopia zastąpi kontakty i rozmowy w tym telefonie (telefon dostanie identyfikator z kopii – kontakty dalej Cię znają). Dalej?",
+                        "The backup replaces contacts and chats on this phone (it gets the identity from the backup – contacts still know you). Continue?"))
+                    .setPositiveButton(t("Wybierz plik", "Choose file")) { _, _ -> pickingBackup = true; pickFiles() }.setNegativeButton(android.R.string.cancel, null).show()
+                else -> myAddress()
             }
         }.show()
+    }
+    // 💾 hasło kopii (min. 6 znaków); bez niego kopii nie da się odczytać - także na Google Drive
+    private var backupPass: String? = null
+    var pickingBackup = false
+    private fun password(create: Boolean, then: (String) -> Unit) {
+        val e = EditText(a).apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD; hint = t("Hasło kopii", "Backup password") }
+        AlertDialog.Builder(a).setTitle("🔑 " + t("Hasło kopii", "Backup password"))
+            .setMessage(if (create) t("Zapamiętaj je – bez hasła kopii nie da się przywrócić (min. 6 znaków).", "Remember it – the backup cannot be restored without it (min. 6 characters).") else null).setView(e)
+            .setPositiveButton(android.R.string.ok) { _, _ -> val p = e.text.toString(); if (p.length >= 6) then(p) else Toast.makeText(a, t("Za krótkie hasło", "Password too short"), Toast.LENGTH_SHORT).show() }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+    fun backupResult(u: Uri?) {
+        val p = backupPass; backupPass = null
+        if (u == null || p == null) return
+        Toast.makeText(a, "💾 " + t("Zapisuję kopię…", "Saving backup…"), Toast.LENGTH_SHORT).show()
+        Thread {
+            val ok = runCatching { a.contentResolver.openOutputStream(u, "wt")!!.use { it.write(k.backup(p)) } }.isSuccess
+            a.runOnUiThread { Toast.makeText(a, if (ok) "💾 " + t("Kopia zapisana", "Backup saved") else t("Nie udało się zapisać kopii", "Could not save the backup"), Toast.LENGTH_LONG).show() }
+        }.start()
+    }
+    private fun restoreFrom(u: Uri) = password(false) { p ->
+        Toast.makeText(a, "📥 " + t("Przywracam…", "Restoring…"), Toast.LENGTH_SHORT).show()
+        Thread {
+            val ok = runCatching { a.contentResolver.openInputStream(u)!!.use { it.readBytes() } }.getOrNull()?.let { k.restore(it, p) } ?: false
+            a.runOnUiThread { Toast.makeText(a, if (ok) "📥 " + t("Przywrócono kontakty i rozmowy", "Contacts and chats restored") else t("Złe hasło albo to nie jest kopia Velivo z telefonu", "Wrong password or not a Velivo phone backup"), Toast.LENGTH_LONG).show(); if (ok) show() }
+        }.start()
     }
     private fun setPhotoFrom(u: Uri) = Thread {
         val jpg = runCatching {
@@ -1782,17 +1893,18 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     "No contacts yet.\n\nTap “➕ Add” while the other device has Velivo messenger open (phone: Velivo browser or keyboard, computer: Velivo for Windows) on the same Wi-Fi.")
                 setTextColor(dim); textSize = 15f; setPadding(px(10), px(24), px(10), px(8))
             })
-            for (c in k.contacts.sortedByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0 }) {
+            for (c in k.contacts.sortedWith(compareByDescending<Komunikator.Contact> { k.pinned(it.id) }.thenByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0 })) {   // 📌 przypięte na górze
                 val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull(); val on = k.online(c.id)
                 val dot = avatar(c, on)
                 val name = TextView(a).apply {
-                    text = android.text.SpannableStringBuilder(c.name).apply {
+                    text = android.text.SpannableStringBuilder((if (k.pinned(c.id)) "📌 " else "") + c.name + if (k.muted(c.id)) " 🔕" else "").apply {
                         if (c.own && c.device.isNotEmpty() && c.device != c.name) { val st = length; append("  " + c.device); setSpan(android.text.style.ForegroundColorSpan(dim), st, length, 0); setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0) }   // prawdziwe urządzenie
                     }; textSize = 17f; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
                 val time = TextView(a).apply { text = last?.let { when_(it.ts) } ?: ""; textSize = 12f; setTextColor(if (n > 0) green else dim) }
                 val top = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(name); addView(time) }
                 val snippet = TextView(a).apply {
-                    text = last?.let { (if (it.mine) (if (it.read) "✓✓ " else if (it.ok) "✓ " else "… ") else "") + it.text.replace('\n', ' ') } ?: (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
+                    val dr = k.draft(c.id)   // ✏ niedokończona wiadomość - jak w WhatsApp
+                    text = if (dr.isNotEmpty()) "✏ " + t("Szkic: ", "Draft: ") + dr.replace('\n', ' ') else last?.let { (if (it.mine) (if (it.read) "✓✓ " else if (it.ok) "✓ " else "… ") else "") + it.text.replace('\n', ' ') } ?: (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
                     textSize = 14f; setTextColor(dim); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
                 }
                 val badge = TextView(a).apply { text = n.toString(); textSize = 12f; setTextColor(Color.BLACK); gravity = Gravity.CENTER; minWidth = px(22); setPadding(px(6), px(1), px(6), px(1)); background = bg(green, 11); visibility = if (n > 0) View.VISIBLE else View.GONE }
@@ -1945,7 +2057,31 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
 
     private fun manage(c: Komunikator.Contact) {
-        AlertDialog.Builder(a).setTitle(c.name).setItems(arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"))) { _, i ->
+        val items = arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"),
+            if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
+            if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
+            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"))
+        AlertDialog.Builder(a).setTitle(c.name).setItems(items) { _, i ->
+            if (i == 2) { k.setPinned(c.id, !k.pinned(c.id)); return@setItems }
+            if (i == 3) {
+                if (k.muted(c.id)) k.mute(c.id, 0)
+                else { val ms = longArrayOf(8 * 3600000L, 7 * 86400000L, Long.MAX_VALUE)
+                    AlertDialog.Builder(a).setTitle("🔕 " + c.name).setItems(arrayOf(t("8 godzin", "8 hours"), t("Tydzień", "A week"), t("Zawsze", "Always"))) { _, j -> k.mute(c.id, ms[j]) }.show() }
+                return@setItems
+            }
+            if (i == 4) {
+                val hs = intArrayOf(0, 24, 7 * 24, 90 * 24)
+                AlertDialog.Builder(a).setTitle("⏳ " + t("Znikające wiadomości – u obu stron", "Disappearing messages – for both sides"))
+                    .setSingleChoiceItems(arrayOf(t("Wyłączone", "Off"), "24 h", t("7 dni", "7 days"), t("90 dni", "90 days")), hs.indexOf(k.ttl(c.id)).coerceAtLeast(0)) { d, j -> d.dismiss(); Thread { k.setTtl(c, hs[j]) }.start() }.show()
+                return@setItems
+            }
+            if (i == 5) {
+                AlertDialog.Builder(a).setTitle("🛡 " + t("Kod bezpieczeństwa", "Safety code") + " – " + c.name)
+                    .setMessage(k.safety(c) + "\n\n" + t("Porównajcie ten kod (u ${c.name}: menu rozmowy z Tobą). Ten sam = rozmowa szyfrowana tylko między Wami, nikt się nie podszywa.",
+                        "Compare this code (on ${c.name}'s device: your chat menu). The same = the chat is encrypted only between you, no one is impersonating."))
+                    .setPositiveButton(android.R.string.ok, null).show()
+                return@setItems
+            }
             if (i == 0) {
                 val e = EditText(a).apply { setText(c.name); setSingleLine(); hint = c.device }
                 AlertDialog.Builder(a).setTitle(t("Nazwa", "Name")).setMessage(t("Urządzenie: ", "Device: ") + c.device + t("\nPuste pole – nazwa urządzenia", "\nEmpty field – device name")).setView(e)
@@ -1995,6 +2131,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     fun sendFiles(uris: List<Uri>) {
         if (uris.isEmpty()) return
         if (pickingPhoto) { pickingPhoto = false; setPhotoFrom(uris[0]); return }
+        if (pickingBackup) { pickingBackup = false; restoreFrom(uris[0]); return }
         val c = attachTo; attachTo = null
         if (c != null && c.isGroup) {   // 👥 do każdego w grupie osobno
             Thread {
@@ -2058,7 +2195,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (locked { openChat(c) }) return
         val root = page()
         listRefresh = null
-        k.markRead(c.id); chatWith = c.id; k.chatOpen = c.id; k.clearNotification(c.id)
+        k.markRead(c.id); chatWith = c.id; k.chatOpen = c.id; k.clearNotification(c.id); k.tidy(c.id)   // ⏳ stare znikające - usunięte
+        var query = ""   // 🔍 szukanie w rozmowie
         k.sendRead(c)
         val msgs = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(4), px(8), px(4)) }
         val scroll = ScrollView(a).apply { addView(msgs); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }
@@ -2067,7 +2205,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         fun fill() {
             msgs.removeAllViews()
             var lastDay = ""
-            for (m in k.chat(c.id).takeLast(300)) {
+            for (m in k.chat(c.id).takeLast(300).filter { query.isEmpty() || it.text.contains(query, true) }) {
                 val day = dayFmt.format(java.util.Date(m.ts))
                 if (day != lastDay) {
                     lastDay = day
@@ -2091,6 +2229,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     val tick = if (m.mine) (if (m.read) "  ✓✓" else if (m.ok) "  ✓" else "  …") else ""
                     text = android.text.SpannableStringBuilder(m.text).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
+                        voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
                         append("\n"); val st = length; append(k.reactions(m).let { if (it.isEmpty()) "" else "$it  " } + fmt.format(java.util.Date(m.ts)) + tick)
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
                         val p = pal(); val base = if (m.mine) p.mineFg else p.dim
@@ -2138,7 +2277,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, (replyTo?.let { k.quote(it) } ?: "") + s); replyTo = null; replyBar.visibility = View.GONE; fill() }
         // 📎 plik albo 🎬 wiadomość wideo (aparat telefonu; nagranie idzie jak plik - także do skrzynki 📬)
         val clip = round("📎", t("Załącz plik albo nagraj wiadomość wideo", "Attach a file or record a video message"), pal().button) {
-            AlertDialog.Builder(a).setItems(arrayOf("📎 " + t("Plik / zdjęcie", "File / photo"), "🎬 " + t("Nagraj wiadomość wideo", "Record a video message"))) { _, i ->
+            AlertDialog.Builder(a).setItems(arrayOf("📎 " + t("Plik / zdjęcie", "File / photo"), "🎬 " + t("Nagraj wiadomość wideo", "Record a video message"), "📍 " + t("Moja lokalizacja", "My location"))) { _, i ->
+                if (i == 2) { sendLocation(c) { fill() }; return@setItems }
                 attachTo = c
                 if (i == 0) pickFiles()
                 else if (a.checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { attachTo = null; a.requestPermissions(arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.RECORD_AUDIO), 4713) }
@@ -2210,15 +2350,24 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             title.setTextColor(ink)
         }
         val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back)
-            if (k.photo(c.id) != null) addView(avatar(c, k.online(c.id)))   // 🖼 zdjęcie profilowe rozmówcy
+            addView(avatar(c, !c.isGroup && k.online(c.id)))   // 🖼 zdjęcie profilowe rozmówcy (bez zdjęcia - litera)
             addView(title)
+            addView(icon("🔍", t("Szukaj w rozmowie", "Search in chat")) {
+                if (query.isNotEmpty()) { query = ""; fill(); return@icon }   // ponownie - wszystkie wiadomości
+                val e = EditText(a).apply { setSingleLine(); hint = t("Słowo…", "Word…") }
+                AlertDialog.Builder(a).setTitle("🔍 " + t("Szukaj w rozmowie", "Search in chat")).setView(e).setPositiveButton(android.R.string.ok) { _, _ ->
+                    query = e.text.toString().trim(); fill()
+                    Toast.makeText(a, t("Znaleziono: ", "Found: ") + k.chat(c.id).count { query.isNotEmpty() && it.text.contains(query, true) } + t(" (🔍 ponownie – wszystkie)", " (🔍 again – all)"), Toast.LENGTH_LONG).show()
+                }.setNegativeButton(android.R.string.cancel, null).show()
+            })
             addView(icon("🖼", t("Zdjęcia, filmy i pliki z rozmowy", "Photos, videos and files in this chat")) { gallery(c) })
             if (!c.isGroup) { addView(icon("📞", t("Rozmowa głosowa", "Voice call")) { openCall(c, true, true) }); addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) } }
+        input.setText(k.draft(c.id)); input.setSelection(input.text.length)
         fill(); status(); ringPending(c)
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(x: CharSequence?, st: Int, n: Int, af: Int) {}
             override fun onTextChanged(x: CharSequence?, st: Int, b: Int, n: Int) { if (n > 0) k.sendTyping(c) }   // ✍ druga osoba widzi „pisze…”
-            override fun afterTextChanged(x: android.text.Editable?) { cam.visibility = if (x.isNullOrEmpty()) View.VISIBLE else View.GONE }   // pisanie - więcej miejsca na tekst (jak w WhatsApp)
+            override fun afterTextChanged(x: android.text.Editable?) { cam.visibility = if (x.isNullOrEmpty()) View.VISIBLE else View.GONE; k.setDraft(c.id, x?.toString() ?: "") }   // ✏ szkic zostaje po wyjściu   // pisanie - więcej miejsca na tekst (jak w WhatsApp)
         })
         k.onTyping = { id -> if (id == c.id && chatWith == c.id) { status(); input.postDelayed({ if (chatWith == c.id) status() }, 6500) } }
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }
@@ -2232,11 +2381,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val file = m.path?.takeIf { !k.isImage(it) && java.io.File(it).exists() && !it.substringAfterLast('/').startsWith("wyslane-") }
         val items = mutableListOf("↩ " + t("Odpowiedz", "Reply"), "😀 " + t("Reakcja", "React"), "↪ " + t("Przekaż…", "Forward…"), "📋 " + t("Kopiuj", "Copy"))
         if (m.mine && !m.file && !m.text.startsWith("🚫") && System.currentTimeMillis() - m.ts < 15 * 60000) items.add("✏ " + t("Edytuj", "Edit"))   // jak w WhatsApp: do 15 min
+        if (m.path?.contains("Glosowa-") == true) items.add("⏩ " + t("Szybkość głosówek: ", "Voice speed: ") + speedText(k.voiceSpeed) + " → " + speedText(nextSpeed()))
         if (photo != null) items.add("💾 " + t("Zapisz w Galerii", "Save to Gallery"))
         if (file != null) items.add("💾 " + t("Zapisz w Pobranych", "Save to Downloads"))
         if (m.mine && !m.text.startsWith("🚫")) items.add("🚫 " + t("Usuń u wszystkich", "Delete for everyone"))
         items.add("🗑 " + t("Usuń u mnie", "Delete for me"))
         AlertDialog.Builder(a).setItems(items.toTypedArray()) { _, i ->
+            if (items[i].startsWith("⏩")) { k.voiceSpeed = nextSpeed(); Toast.makeText(a, "⏩ " + speedText(k.voiceSpeed), Toast.LENGTH_SHORT).show(); return@setItems }
             when (items[i].substringAfter(' ')) {
                 t("Odpowiedz", "Reply") -> onReply?.invoke(m)
                 t("Reakcja", "React") -> { val e = arrayOf("👍", "❤️", "😂", "😮", "😢", "🙏"); AlertDialog.Builder(a).setItems(e) { _, j -> Thread { k.react(c, m, e[j]) }.start() }.show() }
@@ -2298,10 +2449,40 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // 🎤 odtwarzanie wiadomości głosowej w rozmowie (stuknięcie ponownie - stop)
     private var player: android.media.MediaPlayer? = null; private var playing: String? = null
+    private fun nextSpeed() = when (k.voiceSpeed) { 1f -> 1.5f; 1.5f -> 2f; else -> 1f }
+    private fun speedText(x: Float) = if (x == 1.5f) t("1,5×", "1.5×") else "${x.toInt()}×"
+    // 🎤 długość głosówki (raz na plik)
+    private val lengths = HashMap<String, String>()
+    private fun voiceLength(path: String?): String? {
+        if (path == null || !path.contains("Glosowa-") || !java.io.File(path).exists()) return null
+        return lengths.getOrPut(path) {
+            val ms = runCatching { android.media.MediaMetadataRetriever().run { setDataSource(path); (extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong() ?: 0L).also { release() } } }.getOrDefault(0L)
+            if (ms <= 0) "" else "%d:%02d".format(Locale.ROOT, ms / 60000, ms / 1000 % 60)
+        }.ifEmpty { null }
+    }
+    // 📍 lokalizacja jednorazowo: link do mapy (stuknięcie u odbiorcy otwiera Mapy); bez śledzenia
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun sendLocation(c: Komunikator.Contact, done: () -> Unit) {
+        val perms = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (perms.none { a.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }) {
+            a.requestPermissions(perms, 4715); Toast.makeText(a, t("Zezwól na lokalizację i wybierz 📍 jeszcze raz", "Allow location and choose 📍 again"), Toast.LENGTH_LONG).show(); return }
+        val lm = a.getSystemService(android.location.LocationManager::class.java) ?: return
+        val prov = listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER).firstOrNull { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
+            ?: run { Toast.makeText(a, t("Włącz lokalizację w telefonie", "Turn on location on the phone"), Toast.LENGTH_LONG).show(); return }
+        Toast.makeText(a, "📍 " + t("Ustalam położenie…", "Finding location…"), Toast.LENGTH_SHORT).show()
+        fun send(l: android.location.Location?) {
+            if (l == null) { Toast.makeText(a, t("Nie udało się ustalić położenia", "Could not get the location"), Toast.LENGTH_LONG).show(); return }
+            k.send(c, "📍 " + t("Moja lokalizacja", "My location") + "\nhttps://maps.google.com/?q=" + String.format(Locale.ROOT, "%.6f,%.6f", l.latitude, l.longitude)); done()
+        }
+        runCatching { if (Build.VERSION.SDK_INT >= 30) lm.getCurrentLocation(prov, null, a.mainExecutor) { send(it ?: lm.getLastKnownLocation(prov)) } else send(lm.getLastKnownLocation(prov)) }
+            .onFailure { send(null) }
+    }
+
     private fun play(path: String) {
         val was = playing; player?.let { runCatching { it.stop() }; it.release() }; player = null; playing = null
         if (was == path) return
-        player = runCatching { android.media.MediaPlayer().apply { setDataSource(path); setOnCompletionListener { it.release(); if (player === it) { player = null; playing = null } }; prepare(); start() } }.getOrNull()
+        player = runCatching { android.media.MediaPlayer().apply { setDataSource(path); setOnCompletionListener { it.release(); if (player === it) { player = null; playing = null } }; prepare(); start()
+            if (k.voiceSpeed != 1f) playbackParams = playbackParams.setSpeed(k.voiceSpeed) } }.getOrNull()   // ⏩ 1,5× / 2×
         if (player != null) { playing = path; Toast.makeText(a, "▶ " + t("Wiadomość głosowa (stuknij, by zatrzymać)", "Voice message (tap to stop)"), Toast.LENGTH_SHORT).show() }
         else Toast.makeText(a, t("Nie udało się odtworzyć", "Could not play"), Toast.LENGTH_SHORT).show()
     }

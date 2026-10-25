@@ -595,9 +595,11 @@ namespace Velivo
                 bool fresh = !_komAskReq.ContainsKey(rid);
                 if (_komAskReq.Count < 200) _komAskReq[rid] = new JsonObject { ["pub"] = pub, ["name"] = KomClean((string)h["Name"]), ["owner"] = owner };
                 if (fresh) await Dispatcher.InvokeAsync(() =>
-                {   // prośba do właściciela (jak zwykła wiadomość: od razu albo przez skrzynkę 📬)
+                {   // prośba do właściciela (jak zwykła wiadomość: od razu albo przez skrzynkę 📬); właściciel to ten komputer - pytanie tutaj
+                    var ask = new JsonObject { ["id"] = rid, ["name"] = KomClean((string)h["Name"]), ["pub"] = pub }.ToJsonString();
+                    if (owner == _komId) { KomAskIn(null, ask); return; }
                     var oc = KomContactById(owner); if (oc == null) return;
-                    KomDeliver(oc, new KomMsg { Mine = true, Text = KomAskTag + new JsonObject { ["id"] = rid, ["name"] = KomClean((string)h["Name"]), ["pub"] = pub }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                    KomDeliver(oc, new KomMsg { Mine = true, Text = KomAskTag + ask, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
                     KomSave();
                 });
             }
@@ -621,6 +623,119 @@ namespace Velivo
             KomSave(); _komRefresh?.Invoke();
         }
         static string KomInviteId(byte[] k) => Convert.ToHexString(k, 0, 8);
+
+        // 🔗 mój adres na Windows (jak w telefonie): link dla każdego; prośba idzie przez mojego pośrednika albo ten komputer nim jest
+        string KomMyAddress(bool reset)
+        {
+            var r = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup);
+            bool self = _komRelayListener != null && _komRelayHost.Length > 0;
+            var addr = self ? _komRelayHost + ":" + _komRelayPort : r?.Relay;
+            if (addr == null) return null;
+            var sk = (string)_komOpt["moj-adres"];
+            if (sk == null || reset) { sk = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)); _komOpt["moj-adres"] = sk; }
+            if (self) _komAskKeys[_komId] = sk;   // pośrednik zna sekret - wpuszcza tylko prośby z tym linkiem
+            else KomDeliver(r, new KomMsg { Mine = true, Text = KomAddrTag + sk, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+            KomSave();
+            var j = new JsonObject { ["a"] = addr, ["o"] = _komId, ["s"] = sk, ["n"] = _lanDeviceName };
+            return "VELIVO-KONTAKT:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(j.ToJsonString())).Replace('+', '-').Replace('/', '_');
+        }
+        // prośba od kogoś z moim linkiem (relay == null - ten komputer jest pośrednikiem): zgoda właściciela
+        void KomAskIn(KomContact relay, string body)
+        {
+            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
+            var id = (string)j?["id"] ?? ""; var pub = (string)j["pub"] ?? ""; var name = KomClean((string)j["name"]); if (name.Length == 0) name = "Velivo";
+            if (id.Length != 32 || pub.Length == 0 || KomContactById(id) != null) return;
+            KomPlaySound();
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (KomContactById(id) != null) return;
+                bool yes = MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), name + L.T(" prosi o kontakt (przez Twój adres Velivo).\n\nDodać? Dostanie tylko komunikator – bez sieci domowej."),
+                    "🔗 " + L.T("Prośba o kontakt"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                KomAskReply(relay, id, name, pub, yes);
+            }));
+        }
+        void KomAskReply(KomContact relay, string id, string name, string pub, bool yes)
+        {
+            if (relay == null && !_komAskReq.TryRemove(id, out _)) return;
+            if (!yes)
+            {
+                if (relay == null) { _komAskRes[id] = new JsonObject { ["owner"] = _komId, ["ok"] = false }; KomSave(); }
+                else KomDeliver(relay, new KomMsg { Mine = true, Text = KomAskOkTag + new JsonObject { ["id"] = id, ["ok"] = false }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                return;
+            }
+            using var me = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
+            var myPub = me.ExportSubjectPublicKeyInfo(); byte[] reqPub, k;
+            try { reqPub = Convert.FromBase64String(pub); k = KomAgree(me, reqPub, "velivo-prosba", reqPub, myPub); } catch (Exception) { return; }
+            _komContacts.Add(new KomContact { Id = id, Name = name, Key = k, Addr = "", Device = name, Own = false, Relay = relay?.Relay });
+            var mp = Convert.ToBase64String(myPub);
+            if (relay == null) _komAskRes[id] = new JsonObject { ["owner"] = _komId, ["ok"] = true, ["ownerName"] = _lanDeviceName, ["ownerPub"] = mp, ["relay"] = _komId, ["relayName"] = _lanDeviceName, ["relayPub"] = mp, ["relayAddr"] = _komRelayHost + ":" + _komRelayPort };
+            else KomDeliver(relay, new KomMsg { Mine = true, Text = KomAskOkTag + new JsonObject { ["id"] = id, ["ok"] = true, ["pub"] = mp, ["name"] = _lanDeviceName }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+            KomSave(); _komRefresh?.Invoke(); KomAnnounce();
+        }
+        // ja proszę: link od kogoś - prośba przez jego pośrednika; odpowiedź sprawdzana co minutę (on może być poza siecią)
+        bool KomRequestByLink(string link)
+        {
+            try
+            {
+                var s = link.Trim(); var at = s.IndexOf("VELIVO-KONTAKT:", StringComparison.Ordinal); if (at >= 0) s = s.Substring(at + 15).Trim();
+                s = s.Replace('-', '+').Replace('_', '/'); s = s.PadRight(s.Length + (4 - s.Length % 4) % 4, '=');
+                var j = JsonNode.Parse(Convert.FromBase64String(s)) as JsonObject;
+                var o = (string)j?["o"]; var a = (string)j?["a"];
+                if (o?.Length != 32 || o == _komId || a == null || !a.Contains(':') || string.IsNullOrEmpty((string)j["s"])) return false;
+                using var me = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
+                j["priv"] = Convert.ToBase64String(me.ExportPkcs8PrivateKey()); j["pub"] = Convert.ToBase64String(me.ExportSubjectPublicKeyInfo());
+                if (_komOpt["moje-prosby"] is not JsonArray l) _komOpt["moje-prosby"] = l = new JsonArray();
+                l.Add(j); KomSave(); _ = KomPollAsks();
+                return true;
+            }
+            catch (Exception) { return false; }
+        }
+        bool _komPolling;
+        async Task KomPollAsks()
+        {
+            if (_komOpt["moje-prosby"] is not JsonArray l || l.Count == 0 || _komPolling) return;
+            _komPolling = true;
+            try
+            {
+                foreach (var j in l.ToList())
+                {
+                    bool done = false;
+                    try
+                    {
+                        string hp = (string)j["a"], o = (string)j["o"], pub = (string)j["pub"]; var sk = Convert.FromBase64String((string)j["s"]); long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                        using var cl = new TcpClient();
+                        await cl.ConnectAsync(hp.Substring(0, hp.LastIndexOf(':')), int.Parse(hp.Substring(hp.LastIndexOf(':') + 1)), cts.Token);
+                        var st = cl.GetStream();
+                        var hello = new JsonObject { ["Type"] = "relay-ask", ["Id"] = _komId, ["To"] = o, ["Pub"] = pub, ["Name"] = _lanDeviceName, ["Ts"] = ts };
+                        await KomWriteBlock(st, Encoding.UTF8.GetBytes(hello.ToJsonString()), cts.Token);
+                        await KomWriteBlock(st, KomHmac(sk, "velivo-ask\n" + _komId + "\n" + o + "\n" + pub + "\n" + ts), cts.Token);
+                        var rb = await KomReadBlock(st, 8192, cts.Token); var mac = await KomReadBlock(st, 64, cts.Token);
+                        var exp = rb == null ? null : KomHmac(sk, Encoding.UTF8.GetString(rb));
+                        if (mac == null || exp == null || mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) continue;
+                        var r = JsonNode.Parse(rb);
+                        if ((bool?)r?["wait"] == true) continue;
+                        done = true;
+                        var who = KomClean((string)r["ownerName"]) is { Length: > 0 } wn ? wn : KomClean((string)j["n"]);
+                        if ((bool?)r["ok"] != true) { KomInfo("🔗 " + who + L.T(" nie przyjął prośby")); continue; }
+                        using var me = ECDiffieHellman.Create(); me.ImportPkcs8PrivateKey(Convert.FromBase64String((string)j["priv"]), out _);
+                        var myPub = Convert.FromBase64String(pub);
+                        foreach (var (id, nm, pk, rl) in new[] { ((string)r["owner"], who, (string)r["ownerPub"], hp), ((string)r["relay"], KomClean((string)r["relayName"]), (string)r["relayPub"], (string)r["relayAddr"] is string ra && ra.Contains(':') ? ra : hp) })
+                        {
+                            if (id == null || id.Length != 32 || KomContactById(id) != null || pk == null) continue;
+                            var op = Convert.FromBase64String(pk);
+                            _komContacts.Add(new KomContact { Id = id, Name = nm.Length > 0 ? nm : "Velivo", Key = KomAgree(me, op, "velivo-prosba", myPub, op), Addr = "", Device = nm, Own = false, Relay = rl });
+                        }
+                        KomRefreshAfterAsk(who);
+                    }
+                    catch (Exception) { }
+                    finally { if (done) l.Remove(j); }
+                }
+                KomSave();
+            }
+            finally { _komPolling = false; }
+        }
+        void KomRefreshAfterAsk(string who) { KomSave(); _komRefresh?.Invoke(); KomAnnounce(); KomInfo("👤 " + who + L.T(" przyjął prośbę – możecie pisać")); }
 
         // zaproszenie od kontaktu (pakiet p2p-invite do pośrednika; klucz zaszyfrowany kluczem kontaktu)
         void KomInviteStore(JsonNode p, KomContact c)

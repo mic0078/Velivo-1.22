@@ -1002,7 +1002,7 @@ namespace Velivo
             }
             catch (Exception ex)
             {
-                if (token.IsCancellationRequested) return;
+                if (token.IsCancellationRequested || ex is OperationCanceledException or SocketException) return;   // urządzenie wyłączone / nie odpowiada w 5 s - to nie błąd Velivo
                 _lanErrors++;
                 App.LogError(ex);
                 await Dispatcher.InvokeAsync(() => LanLog(L.T("Błąd nadawania LAN: ") + ex.Message));

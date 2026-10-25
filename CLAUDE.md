@@ -76,7 +76,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 ## Na potem (pomysły właściciela)
 
-* Do zrobienia (2026-10-24, właściciel): Filmy z Jellyfin – gdy serwer niedostępny, pokazywać zapamiętaną bibliotekę i odświeżać w tle; ładniejszy wygląd komunikatora na telefonie; wersja Windows: „Mój adres”.
+* Do zrobienia (2026-10-24, właściciel): Filmy z Jellyfin – gdy serwer niedostępny, pokazywać zapamiętaną bibliotekę i odświeżać w tle. (2026-10-25 zrobione: kopia zapasowa z Google Drive, przypięte, wyciszenie, znikające, kod bezpieczeństwa, szukanie, szkic, lokalizacja, głosówki 1,5×, litery zamiast kropek, „Mój adres” na Windows.)
 
 * Sieć pośredników znajomych: telefon poza domem łączy się już ze wszystkimi pośrednikami z kontaktów naraz (2026-10-22); dalej na potem: pośrednicy przekazujący między sobą (gdy rozmówcy mają różnych pośredników) i pliki/wideo przez dodatkowych pośredników.
 * Prywatny serwer właściciela zamiast domowego komputera (właściciel zakłada go sam; Claude daje wymagania i pośrednika dla serwera).

@@ -980,7 +980,7 @@ namespace Velivo
             { "spacja – pauza", "space – pause" },
             { "zamknij", "close" },
             { "💾 Eksport rozmowy…", "💾 Export chat…" },
-            { "🪟 Osobne okienko (na wierzchu)", "🪟 Separate window (on top)" },
+            { "🔝 Osobne okienko (na wierzchu)", "🔝 Separate window (on top)" },
             { "Pokaż hasło", "Show password" },
             { "Powtórz hasło", "Repeat password" },
             { "Hasła się różnią – wpisz jeszcze raz", "Passwords differ – enter them again" },

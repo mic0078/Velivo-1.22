@@ -477,7 +477,7 @@ namespace Velivo
         void KomNotify(KomContact c, string text)
         {
             if (KomMuted(c.Id)) return;   // 🔕 wyciszona rozmowa - tylko licznik
-            if (_komMinis.TryGetValue(c.Id, out var mw) && mw.IsActive) return;   // 🪟 rozmowa otwarta w okienku na wierzchu
+            if (_komMinis.TryGetValue(c.Id, out var mw) && mw.IsActive) return;   // 🔝 rozmowa otwarta w okienku na wierzchu
             if (KomQuietWindows()) { try { if (_komWindow != null && !_komWindow.IsActive) FlashWindowEx(_komWindow); } catch (Exception) { } return; }   // pełny ekran / prezentacja / „Nie przeszkadzać” - bez okienka i dźwięku
             KomPlaySound();
             try { if (_komWindow != null && !_komWindow.IsActive) FlashWindowEx(_komWindow); } catch (Exception) { }
@@ -1459,7 +1459,7 @@ namespace Velivo
                         _komContacts.Remove(c); _komChats.Remove(c.Id); _komUnread.Remove(c.Id); if (_komOpenId == c.Id) _komOpenId = null; KomSave(); _komRefresh?.Invoke();
                     };
                     var med = new MenuItem { Header = L.T("🎬 Wyślij Filmy i TV") }; med.Click += async (s, e) => await KomSendMedia(w, c);
-                    var mini = new MenuItem { Header = L.T("🪟 Osobne okienko (na wierzchu)") }; mini.Click += (s, e) => KomMini(c);
+                    var mini = new MenuItem { Header = L.T("🔝 Osobne okienko (na wierzchu)") }; mini.Click += (s, e) => KomMini(c);
                     var exp = new MenuItem { Header = L.T("💾 Eksport rozmowy…") }; exp.Click += (s, e) => KomExport(w, c);
                     cm.Items.Add(mini); cm.Items.Add(exp);
                     var pin = new MenuItem { Header = KomPinned(c.Id) ? "📌 " + L.T("Odepnij") : "📌 " + L.T("Przypnij na górze") }; pin.Click += (s, e) => KomSetPinned(c.Id, !KomPinned(c.Id));
@@ -2096,7 +2096,7 @@ namespace Velivo
             };
             t.Start();
         }
-        // 🪟 rozmowa w małym okienku na wierzchu (np. z mamą, gdy pracujesz w innym programie)
+        // 🔝 rozmowa w małym okienku na wierzchu (np. z mamą, gdy pracujesz w innym programie)
         readonly Dictionary<string, Window> _komMinis = new Dictionary<string, Window>();
         void KomMini(KomContact c)
         {

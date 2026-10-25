@@ -477,6 +477,8 @@ namespace Velivo
         void KomNotify(KomContact c, string text)
         {
             if (KomMuted(c.Id)) return;   // 🔕 wyciszona rozmowa - tylko licznik
+            if (_komMinis.TryGetValue(c.Id, out var mw) && mw.IsActive) return;   // 🪟 rozmowa otwarta w okienku na wierzchu
+            if (KomQuietWindows()) { try { if (_komWindow != null && !_komWindow.IsActive) FlashWindowEx(_komWindow); } catch (Exception) { } return; }   // pełny ekran / prezentacja / „Nie przeszkadzać” - bez okienka i dźwięku
             KomPlaySound();
             try { if (_komWindow != null && !_komWindow.IsActive) FlashWindowEx(_komWindow); } catch (Exception) { }
             // ta sama osoba - jedno okienko z nowa trescia
@@ -1315,7 +1317,8 @@ namespace Velivo
             KomEnsureTray();
             if (_komLock && !_komUnlocked) { _ = Dispatcher.InvokeAsync(async () => { if (await KomUnlock()) { _komUnlocked = true; ShowMessenger(openId); } }); return; }
             if (_komWindow != null) { if (!_komWindow.IsVisible) _komWindow.Show(); _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
-            var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true, Uid = "own-theme" };
+            var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true, Uid = "own-theme",
+                TaskbarItemInfo = new System.Windows.Shell.TaskbarItemInfo() };   // 🔢 licznik nieprzeczytanych na ikonie paska zadań
             if (IsVisible) w.Owner = null;
             var root = new Grid { Margin = new Thickness(8) };
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
@@ -1376,7 +1379,18 @@ namespace Velivo
             // jak w WhatsApp na komputerze: na dole 📎 (menu), pole tekstu i 🎤 / ➤; rozmowy, galeria i szukanie - w nagłówku
             micBtn.Margin = sendBtn.Margin = new Thickness(6, 0, 0, 0);
             DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Right); DockPanel.SetDock(sendBtn, Dock.Right);
-            bottom.Children.Add(fileBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(micBtn); bottom.Children.Add(input);
+            // 😀 panel emoji Windows (to samo co Win+.) - przy polu wiadomości
+            var emojiBtn = new Button { Content = "😀", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Emotki (Win+.)") };
+            emojiBtn.Click += (s0, e0) => { input.Focus(); keybd_event(0x5B, 0, 0, 0); keybd_event(0xBE, 0, 0, 0); keybd_event(0xBE, 0, 2, 0); keybd_event(0x5B, 0, 2, 0); };
+            DockPanel.SetDock(emojiBtn, Dock.Left); buttons.Add(emojiBtn);
+            bottom.Children.Add(fileBtn); bottom.Children.Add(emojiBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(micBtn); bottom.Children.Add(input);
+            // ☑ zaznaczanie kilku wiadomości: przekaż, kopiuj, usuń u mnie
+            bool selMode = false; var picked = new HashSet<KomMsg>();
+            var selText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
+            var selBar = new DockPanel { Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
+            Button SelBtn(string t, string tip) { var b = new Button { Content = t, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 0), ToolTip = tip }; DockPanel.SetDock(b, Dock.Left); selBar.Children.Add(b); buttons.Add(b); return b; }
+            var selFwd = SelBtn("↪ " + L.T("Przekaż"), L.T("Przekaż zaznaczone")); var selCopy = SelBtn("📋 " + L.T("Kopiuj"), L.T("Kopiuj zaznaczone")); var selDel = SelBtn("🗑 " + L.T("Usuń u mnie"), L.T("Usuń zaznaczone tylko na tym komputerze")); var selEnd = SelBtn("✕", L.T("Zakończ zaznaczanie"));
+            selBar.Children.Add(selText); DockPanel.SetDock(selBar, Dock.Bottom);
             var tools = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(6, 0, 0, 6) };
             foreach (var b in new[] { galBtn, voiceBtn, callBtn }) { b.Height = 34; b.Margin = new Thickness(0, 0, 6, 0); tools.Children.Add(b); }
             tools.Children.Add(searchBox); searchBox.Margin = new Thickness(0); searchBox.Height = 34;
@@ -1390,7 +1404,7 @@ namespace Velivo
             DockPanel.SetDock(replyBar, Dock.Bottom);
             var msgs = new StackPanel { Margin = new Thickness(4) };
             var scroll = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            right.Children.Add(top); right.Children.Add(bottom); right.Children.Add(replyBar); right.Children.Add(status); right.Children.Add(scroll);
+            right.Children.Add(top); right.Children.Add(bottom); right.Children.Add(selBar); right.Children.Add(replyBar); right.Children.Add(status); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
             buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(vidBtn); buttons.Add(camBtn); buttons.Add(locBtn); buttons.Add(callBtn); buttons.Add(voiceBtn); buttons.Add(galBtn);
@@ -1445,6 +1459,9 @@ namespace Velivo
                         _komContacts.Remove(c); _komChats.Remove(c.Id); _komUnread.Remove(c.Id); if (_komOpenId == c.Id) _komOpenId = null; KomSave(); _komRefresh?.Invoke();
                     };
                     var med = new MenuItem { Header = L.T("🎬 Wyślij Filmy i TV") }; med.Click += async (s, e) => await KomSendMedia(w, c);
+                    var mini = new MenuItem { Header = L.T("🪟 Osobne okienko (na wierzchu)") }; mini.Click += (s, e) => KomMini(c);
+                    var exp = new MenuItem { Header = L.T("💾 Eksport rozmowy…") }; exp.Click += (s, e) => KomExport(w, c);
+                    cm.Items.Add(mini); cm.Items.Add(exp);
                     var pin = new MenuItem { Header = KomPinned(c.Id) ? "📌 " + L.T("Odepnij") : "📌 " + L.T("Przypnij na górze") }; pin.Click += (s, e) => KomSetPinned(c.Id, !KomPinned(c.Id));
                     var mute = new MenuItem { Header = KomMuted(c.Id) ? "🔔 " + L.T("Wyłącz wyciszenie") : "🔕 " + L.T("Wycisz") };
                     if (KomMuted(c.Id)) mute.Click += (s, e) => KomMute(c.Id, 0);
@@ -1511,7 +1528,8 @@ namespace Velivo
                     if (hasFile && KomIsImage(m.Path) && KomThumb(m.Path) is ImageSource th)
                     {
                         var img = new Image { Source = th, MaxWidth = 260, MaxHeight = 260, Stretch = Stretch.Uniform, Cursor = Cursors.Hand, Margin = new Thickness(0, 2, 0, 4), ToolTip = L.T("Otwórz zdjęcie") };
-                        var ip = m.Path; img.MouseLeftButtonUp += (s2, e2) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ip) { UseShellExecute = true }); } catch (Exception) { } };
+                        var ip = m.Path; img.MouseLeftButtonUp += (s2, e2) => { if (!selMode) KomViewer(w, c, ip); };   // 🖼 podgląd w Velivo (← → po zdjęciach rozmowy)
+                        KomDragOut(img, ip);
                         body.Children.Add(img);
                     }
                     var txt = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14 };
@@ -1531,7 +1549,17 @@ namespace Velivo
                         var rest = q0.Text.Substring(qe); q0.Text = q0.Text.Substring(0, qe); q0.FontStyle = FontStyles.Italic; q0.Foreground = new SolidColorBrush(Color.FromArgb(0xB0, fg.Color.R, fg.Color.G, fg.Color.B));
                         txt.Inlines.InsertAfter(q0, new System.Windows.Documents.Run(rest));
                     }
-                    if (hasFile) { var fp = m.Path; txt.Cursor = Cursors.Hand; txt.MouseLeftButtonUp += (s2, e2) => { if (Path.GetFileName(fp).Contains("Glosowa-")) { KomPlayVoice(fp); return; } try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { } }; }   // 🎤 głosówka - w komunikatorze
+                    if (hasFile)
+                    {   // 🎤 głosówka - w komunikatorze; 🖼 🎬 - podgląd w Velivo; inne - program Windows; 🖱 przeciągnięcie - plik na pulpit / do folderu
+                        var fp = m.Path; txt.Cursor = Cursors.Hand; KomDragOut(txt, fp);
+                        txt.MouseLeftButtonUp += (s2, e2) =>
+                        {
+                            if (selMode) return;
+                            if (Path.GetFileName(fp).Contains("Glosowa-")) { KomPlayVoice(fp); return; }
+                            if (KomIsImage(fp) || KomIsVideo(fp)) { KomViewer(w, c, fp); return; }
+                            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { }
+                        };
+                    }
                     var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; copy.Click += (s2, e2) => { try { Clipboard.SetText(copyText); } catch (Exception) { } };
                     var rm = m; var rc = c;
                     var rep = new MenuItem { Header = "↩ " + L.T("Odpowiedz") }; rep.Click += (s2, e2) => { replyTo = rm; replyBar.Text = "↩ " + KomQuote(rm).Trim() + "   ✕"; replyBar.Visibility = Visibility.Visible; input.Focus(); };
@@ -1543,7 +1571,8 @@ namespace Velivo
                             if (rm.File && File.Exists(rm.Path ?? "")) await AttachTo(to, new[] { rm.Path }); else KomSend(to, "↪ " + rm.Text);
                         FillList(); FillChat();
                     };
-                    txt.ContextMenu = new ContextMenu { Items = { rep, react, fwd, copy } };
+                    var selIt = new MenuItem { Header = "☑ " + L.T("Zaznacz…") }; selIt.Click += (s2, e2) => { selMode = true; picked.Add(rm); FillChat(); };
+                    txt.ContextMenu = new ContextMenu { Items = { rep, react, fwd, copy, selIt } };
                     if (hasFile && Path.GetFileName(m.Path).Contains("Glosowa-"))
                     {   // ⏩ szybkość głosówek 1× / 1,5× / 2×
                         var sp = new MenuItem { Header = "⏩ " + L.T("Szybkość głosówek: ") + KomSpeedText(KomVoiceSpeed) + " → " + KomSpeedText(KomNextSpeed()) };
@@ -1581,14 +1610,24 @@ namespace Velivo
                     if (m.Mine && m.Read) { stampTb.Inlines.Add(new System.Windows.Documents.Run(stamp.Substring(0, stamp.Length - 3)) { Foreground = new SolidColorBrush(Color.FromArgb(0xB3, fg.Color.R, fg.Color.G, fg.Color.B)) }); stampTb.Inlines.Add(new System.Windows.Documents.Run(" ✓✓") { Foreground = new SolidColorBrush(pal.Key == "kontrast" ? Color.FromRgb(0, 0, 0xCC) : Color.FromRgb(0x7D, 0xF9, 0xFF)), FontWeight = FontWeights.Bold }); }
                     else { stampTb.Text = stamp; stampTb.Opacity = 0.7; }
                     body.Children.Add(stampTb);
-                    msgs.Children.Add(new Border
+                    var bubble = new Border
                     {
                         Child = body, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(m.Mine ? 60 : 0, 3, m.Mine ? 0 : 60, 3),
                         HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
                         Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs)
-                    });
+                    };
+                    if (selMode)
+                    {   // ☑ kliknięcie dymka - zaznacz / odznacz
+                        var sm = m; bool on = picked.Contains(sm);
+                        bubble.BorderThickness = new Thickness(3); bubble.BorderBrush = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : Brushes.Transparent; bubble.Cursor = Cursors.Hand;
+                        body.Children.Insert(0, new TextBlock { Text = on ? "☑" : "☐", Foreground = fg, FontSize = 14 });
+                        bubble.PreviewMouseLeftButtonUp += (s2, e2) => { if (!picked.Remove(sm)) picked.Add(sm); e2.Handled = true; FillChat(); };
+                    }
+                    msgs.Children.Add(bubble);
                 }
-                scroll.ScrollToEnd();
+                if (!selMode) scroll.ScrollToEnd();
+                selBar.Visibility = selMode ? Visibility.Visible : Visibility.Collapsed; bottom.Visibility = selMode ? Visibility.Collapsed : Visibility.Visible;
+                selText.Text = L.T("Zaznaczone: ") + picked.Count;
                 if (_komUnread.Remove(c.Id)) { KomSave(); FillList(); KomTrayUpdate(); }
                 if (w.IsActive) KomSendRead(c);
             }
@@ -1598,7 +1637,7 @@ namespace Velivo
             refreshTimer.Tick += (s, e) => { refreshTimer.Stop(); refreshQueued = false; if (_komWindow == w) { FillList(); FillChat(); } };
             _komRefresh = () => Dispatcher.BeginInvoke(new Action(() => { if (refreshQueued) return; refreshQueued = true; refreshTimer.Start(); }));
             // ✏ szkic: tekst w polu zostaje przy rozmowie (zmiana rozmowy, zamknięcie okna)
-            void Open(string id) { KomSetDraft(_komOpenId, input.Text); _komOpenId = id; searchBox.Clear(); input.Text = KomDraft(id); input.CaretIndex = input.Text.Length; }
+            void Open(string id) { KomSetDraft(_komOpenId, input.Text); _komOpenId = id; selMode = false; picked.Clear(); searchBox.Clear(); input.Text = KomDraft(id); input.CaretIndex = input.Text.Length; }
             input.TextChanged += (s, e) => KomSetDraft(_komOpenId, input.Text);
             searchBox.TextChanged += (s, e) => FillChat();
             _komSelect = id => { Open(id); FillList(); FillChat(); };
@@ -1610,6 +1649,53 @@ namespace Velivo
                 input.Clear(); KomSend(c, (replyTo != null ? KomQuote(replyTo) : "") + text); replyTo = null; replyBar.Visibility = Visibility.Collapsed; FillList(); FillChat();
             }
             sendBtn.Click += (s, e) => DoSend();
+            // ☑ zaznaczone wiadomości
+            selEnd.Click += (s, e) => { selMode = false; picked.Clear(); FillChat(); };
+            selCopy.Click += (s, e) =>
+            {
+                var c = Current(); if (c == null || picked.Count == 0) return;
+                try { Clipboard.SetText(string.Join("\n", KomChat(c.Id).Where(picked.Contains).Select(x => DateTimeOffset.FromUnixTimeMilliseconds(x.Ts).LocalDateTime.ToString("g") + " " + (x.Mine ? L.T("Ty") : c.Name) + ": " + x.Text))); KomInfo("📋 " + L.T("Skopiowano")); } catch (Exception) { }
+            };
+            selDel.Click += (s, e) =>
+            {
+                var c = Current(); if (c == null || picked.Count == 0) return;
+                if (MessageBox.Show(w, L.T("Usunąć zaznaczone wiadomości na tym komputerze?"), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                foreach (var x in picked) { KomChat(c.Id).Remove(x); if (x.Path != null && x.Path.StartsWith(KomMediaDir, StringComparison.OrdinalIgnoreCase)) try { File.Delete(x.Path); } catch (Exception) { } }
+                selMode = false; picked.Clear(); KomSave(); FillList(); FillChat();
+            };
+            selFwd.Click += async (s, e) =>
+            {
+                var c = Current(); if (c == null || picked.Count == 0) return;
+                var chosen = KomChat(c.Id).Where(picked.Contains).ToList();
+                foreach (var to in KomPickContacts(w, "↪ " + L.T("Przekaż do…"), c.Id))
+                    foreach (var x in chosen) if (x.File && File.Exists(x.Path ?? "")) await AttachTo(to, new[] { x.Path }); else KomSend(to, "↪ " + x.Text);
+                selMode = false; picked.Clear(); FillList(); FillChat();
+            };
+            // ⌨ skróty: Ctrl+F szukaj, Ctrl+K przejdź do rozmowy, Alt+↑/↓ poprzednia / następna, Ctrl+Shift+M wycisz, Esc - zamknij odpowiedź / szukanie / zaznaczanie
+            w.PreviewKeyDown += (s, e) =>
+            {
+                var key = e.Key == Key.System ? e.SystemKey : e.Key; var mods = Keyboard.Modifiers;
+                if (mods == ModifierKeys.Control && key == Key.F) { searchBox.Focus(); searchBox.SelectAll(); }
+                else if (mods == ModifierKeys.Control && key == Key.K) KomQuickSwitch(w, id => _komSelect?.Invoke(id));
+                else if (mods == ModifierKeys.Alt && (key == Key.Up || key == Key.Down))
+                {
+                    int i = list.SelectedIndex + (key == Key.Up ? -1 : 1);
+                    if (i >= 0 && i < list.Items.Count && list.Items[i] is ListBoxItem it && it.Tag is string id) _komSelect?.Invoke(id);
+                }
+                else if (mods == (ModifierKeys.Control | ModifierKeys.Shift) && key == Key.M)
+                {
+                    var c = Current(); if (c == null) return;
+                    KomMute(c.Id, KomMuted(c.Id) ? 0 : long.MaxValue); KomInfo(KomMuted(c.Id) ? "🔕 " + L.T("Wyciszono") : "🔔 " + L.T("Wyłączono wyciszenie"));
+                }
+                else if (key == Key.Escape && (selMode || replyTo != null || searchBox.Text.Length > 0))
+                {
+                    if (selMode) { selMode = false; picked.Clear(); FillChat(); }
+                    else if (replyTo != null) { replyTo = null; replyBar.Visibility = Visibility.Collapsed; }
+                    else searchBox.Clear();
+                }
+                else return;
+                e.Handled = true;
+            };
             input.PreviewKeyDown += (s, e) => { if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0) { e.Handled = true; DoSend(); } };
             // 📎 do zaznaczonego kontaktu: 🟢 w sieci - od razu na znany adres; szukanie tylko, gdy adresu nie znamy
             async Task AttachTo(KomContact c, string[] files = null)
@@ -1645,6 +1731,7 @@ namespace Velivo
                 void Add(string text, Action act) { var mi = new MenuItem { Header = text }; mi.Click += (a, b) => act(); cm.Items.Add(mi); }
                 Add("📎 " + L.T("Plik / zdjęcie…"), async () => { var c = Current(); if (c != null) await AttachTo(c); });
                 foreach (var b in new[] { camBtn, vidBtn, locBtn }) { var bb = b; Add(bb.Content + " " + bb.ToolTip, () => bb.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))); }
+                Add("📸 " + L.T("Zrzut ekranu (zaznacz fragment)…"), () => { var c = Current(); if (c != null) KomSnip(async p => await AttachTo(c, new[] { p })); });
                 cm.IsOpen = true;
             };
             locBtn.Click += async (s, e) =>
@@ -1659,10 +1746,10 @@ namespace Velivo
             vidBtn.Click += (s, e) => { var c = Current(); if (c != null) KomRecordVideo(w, async p => await AttachTo(c, new[] { p })); };
             // 🖱 pliki przeciągnięte myszką z Eksploratora na okno rozmowy - wysyłka jak 📎
             w.AllowDrop = true;
-            w.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Effects = Current() is KomContact dc ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };   // Preview - pole tekstowe nie przejmuje plików
+            w.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop) || _komDragOut) return; e.Effects = Current() is KomContact dc ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };   // Preview - pole tekstowe nie przejmuje plików
             w.PreviewDrop += async (s, e) =>
             {
-                if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Handled = true;
+                if (!e.Data.GetDataPresent(DataFormats.FileDrop) || _komDragOut) return; e.Handled = true;   // plik przeciągnięty z tej rozmowy - bez ponownej wysyłki
                 var c = Current(); if (c == null || e.Data.GetData(DataFormats.FileDrop) is not string[] dropped) return;
                 var files = dropped.Where(File.Exists).ToArray(); if (files.Length > 0) await AttachTo(c, files);
             };
@@ -1784,6 +1871,7 @@ namespace Velivo
             w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; _komStatus = null; _komUnlocked = false; };
             w.IsVisibleChanged += (s, e) => { if (!w.IsVisible) { _komUnlocked = false; KomSetDraft(_komOpenId, input.Text); KomSave(); } };   // ✏ szkic zapisany   // 🔒 schowane do zasobnika - przy powrocie znów Windows Hello
             _komWindow = w;
+            KomTrayUpdate();   // 🔢 licznik na pasku zadań od razu
             if (openId != null) _komOpenId = openId;
             FillList(); FillChat();
             w.Show(); w.Activate();
@@ -1907,6 +1995,190 @@ namespace Velivo
             copy.Click += (s, e) => { try { Clipboard.SetText(box.Text); KomInfo("📋 " + L.T("Skopiowano")); } catch (Exception) { } };
             change.Click += (s, e) => box.Text = KomMyAddress(true) ?? box.Text;
             KomStyle(d); d.ShowDialog();
+        }
+
+        // 🔢 czerwone kółko z liczbą nieprzeczytanych (nakładka na ikonę paska zadań, jak w WhatsApp Desktop)
+        static ImageSource KomBadge(int n)
+        {
+            var dv = new DrawingVisual();
+            using (var dc = dv.RenderOpen())
+            {
+                dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35)), new Pen(Brushes.White, 1.5), new Point(16, 16), 15, 15);
+                var ft = new FormattedText(n > 99 ? "99+" : n.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), n > 9 ? 13 : 18, Brushes.White, 1.0);
+                dc.DrawText(ft, new Point(16 - ft.Width / 2, 16 - ft.Height / 2));
+            }
+            var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(32, 32, 96, 96, PixelFormats.Pbgra32); bmp.Render(dv); bmp.Freeze();
+            return bmp;
+        }
+        // pełny ekran (film, gra), prezentacja albo cisza Windows - bez wyskakującego okienka i dźwięku (licznik zostaje)
+        [System.Runtime.InteropServices.DllImport("shell32.dll")] static extern int SHQueryUserNotificationState(out int state);
+        static bool KomQuietWindows() { try { return SHQueryUserNotificationState(out var st) == 0 && st is 2 or 3 or 4 or 6; } catch (Exception) { return false; } }
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, int extra);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetClipboardSequenceNumber();
+
+        static bool KomIsVideo(string p) => new[] { ".mp4", ".webm", ".mkv", ".mov", ".3gp", ".avi", ".wmv", ".m4v" }.Contains(Path.GetExtension(p ?? "").ToLowerInvariant());
+        // 🖼 podgląd zdjęć i filmów z rozmowy w Velivo: ← → po kolei, spacja - pauza, Enter - program Windows, Esc - zamknij
+        void KomViewer(Window owner, KomContact c, string path)
+        {
+            var items = KomChat(c.Id).Select(m => m.Path).Where(p => !string.IsNullOrEmpty(p) && File.Exists(p) && (KomIsImage(p) || KomIsVideo(p))).Distinct().ToList();
+            if (items.Count == 0) return;
+            int i = Math.Max(0, items.IndexOf(path)); bool paused = false;
+            var img = new Image { Stretch = Stretch.Uniform };
+            var vid = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, Stretch = Stretch.Uniform };
+            var hint = new TextBlock { Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(10), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center };
+            var grid = new Grid { Background = Brushes.Black, Children = { img, vid, hint } };
+            var d = new Window { Owner = owner, Width = 1000, Height = 700, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid, Background = Brushes.Black, Icon = KomWindowIcon() };
+            void Show()
+            {
+                var p = items[i]; d.Title = "🖼 " + Path.GetFileName(p) + "  (" + (i + 1) + "/" + items.Count + ")"; paused = false;
+                vid.Stop(); vid.Source = null;
+                if (KomIsVideo(p)) { img.Source = null; img.Visibility = Visibility.Collapsed; vid.Visibility = Visibility.Visible; vid.Source = new Uri(p); vid.Play(); }
+                else
+                {
+                    vid.Visibility = Visibility.Collapsed; img.Visibility = Visibility.Visible;
+                    try { var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.UriSource = new Uri(p); b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); img.Source = b; } catch (Exception) { img.Source = null; }
+                }
+                hint.Text = "← →  " + L.T("poprzednie / następne") + "   ·   Enter – " + L.T("otwórz w programie Windows") + (KomIsVideo(p) ? "   ·   " + L.T("spacja – pauza") : "") + "   ·   Esc – " + L.T("zamknij");
+            }
+            vid.MediaFailed += (s, e) => hint.Text = L.T("Tego filmu nie da się odtworzyć tutaj – Enter otwiera go w programie Windows");
+            d.PreviewKeyDown += (s, e) =>
+            {
+                if (e.Key == Key.Right && i < items.Count - 1) { i++; Show(); }
+                else if (e.Key == Key.Left && i > 0) { i--; Show(); }
+                else if (e.Key == Key.Escape) d.Close();
+                else if (e.Key == Key.Enter) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(items[i]) { UseShellExecute = true }); } catch (Exception) { } }
+                else if (e.Key == Key.Space && vid.Visibility == Visibility.Visible) { if (paused) vid.Play(); else vid.Pause(); paused = !paused; }
+                else return;
+                e.Handled = true;
+            };
+            grid.MouseLeftButtonUp += (s, e) => { var x = e.GetPosition(grid).X; if (x < grid.ActualWidth / 3 && i > 0) { i--; Show(); } else if (x > grid.ActualWidth * 2 / 3 && i < items.Count - 1) { i++; Show(); } };   // klik z lewej / prawej strony
+            d.Closed += (s, e) => { try { vid.Stop(); vid.Close(); } catch (Exception) { } };
+            Show(); d.Show();
+        }
+        // 🖱 plik z rozmowy przeciągnięty myszką na pulpit / do folderu (kopia)
+        bool _komDragOut;
+        void KomDragOut(FrameworkElement el, string path)
+        {
+            Point? start = null;
+            el.PreviewMouseLeftButtonDown += (s, e) => start = e.GetPosition(el);
+            el.PreviewMouseMove += (s, e) =>
+            {
+                if (start == null || e.LeftButton != MouseButtonState.Pressed) { start = null; return; }
+                var p = e.GetPosition(el);
+                if (Math.Abs(p.X - start.Value.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(p.Y - start.Value.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+                start = null; if (!File.Exists(path)) return;
+                _komDragOut = true;
+                try { DragDrop.DoDragDrop(el, new DataObject(DataFormats.FileDrop, new[] { path }), DragDropEffects.Copy); } catch (Exception) { } finally { _komDragOut = false; }
+            };
+        }
+        // 📸 zrzut fragmentu ekranu (Wycinanie Windows) - gdy obraz trafi do schowka, idzie do rozmowy
+        void KomSnip(Action<string> send)
+        {
+            var seq = GetClipboardSequenceNumber();
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-screenclip:") { UseShellExecute = true }); }
+            catch (Exception) { KomInfo(L.T("Brak narzędzia Wycinanie w Windows – użyj Win+Shift+S i Ctrl+V")); return; }
+            KomInfo("📸 " + L.T("Zaznacz fragment ekranu – trafi do rozmowy"));
+            var until = DateTime.UtcNow.AddSeconds(90);
+            var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            t.Tick += (s, e) =>
+            {
+                if (DateTime.UtcNow > until) { t.Stop(); return; }
+                var now = GetClipboardSequenceNumber(); if (now == seq) return; seq = now;
+                try
+                {
+                    if (!Clipboard.ContainsImage() || Clipboard.GetImage() is not System.Windows.Media.Imaging.BitmapSource img) return;
+                    t.Stop();
+                    Directory.CreateDirectory(KomMediaDir); var p = Path.Combine(KomMediaDir, "Zrzut-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".png");
+                    using (var fs = File.Create(p)) { var enc = new System.Windows.Media.Imaging.PngBitmapEncoder(); enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(img)); enc.Save(fs); }
+                    send(p);
+                }
+                catch (Exception) { }
+            };
+            t.Start();
+        }
+        // 🪟 rozmowa w małym okienku na wierzchu (np. z mamą, gdy pracujesz w innym programie)
+        readonly Dictionary<string, Window> _komMinis = new Dictionary<string, Window>();
+        void KomMini(KomContact c)
+        {
+            if (_komMinis.TryGetValue(c.Id, out var old)) { old.Activate(); return; }
+            var pal = KomCurrentPal();
+            var msgs = new StackPanel { Margin = new Thickness(6) }; var sv = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            var box = new TextBox { MinHeight = 30, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(6), ToolTip = L.T("Wiadomość (Enter - wyślij)") };
+            var dp = new DockPanel(); DockPanel.SetDock(box, Dock.Bottom); dp.Children.Add(box); dp.Children.Add(sv);
+            var d = new Window { Title = "💬 " + c.Name, Width = 340, Height = 460, Topmost = true, Content = dp, Icon = KomWindowIcon() };
+            string sig = null;
+            void Fill()
+            {
+                var l = KomChat(c.Id); var last = l.LastOrDefault();
+                var ns = l.Count + ":" + last?.Mid + last?.Read + last?.Ok + last?.Text?.Length; if (ns == sig) return; sig = ns;
+                msgs.Children.Clear();
+                foreach (var m in l.Skip(Math.Max(0, l.Count - 60)))
+                    msgs.Children.Add(new Border { Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs), CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(m.Mine ? 40 : 0, 2, m.Mine ? 0 : 40, 2), HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read ? " ✓✓" : m.Ok ? " ✓" : " …") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } });
+                sv.ScrollToEnd();
+                if (d.IsActive) { if (_komUnread.Remove(c.Id)) { KomSave(); KomTrayUpdate(); _komRefresh?.Invoke(); } KomSendRead(c); }
+            }
+            box.PreviewKeyDown += (s, e) => { if (e.Key != Key.Enter) return; e.Handled = true; var t = box.Text.Trim(); if (t.Length == 0) return; box.Clear(); KomSend(c, t); Fill(); _komRefresh?.Invoke(); };
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; timer.Tick += (s, e) => Fill(); timer.Start();
+            d.Activated += (s, e) => { sig = null; Fill(); };
+            d.Closed += (s, e) => { timer.Stop(); _komMinis.Remove(c.Id); };
+            _komMinis[c.Id] = d;
+            KomStyle(d); d.Show(); Fill(); box.Focus();
+        }
+        // 💾 eksport rozmowy: HTML (ze zdjęciami i plikami w folderze obok) albo tekst
+        void KomExport(Window owner, KomContact c)
+        {
+            var safe = string.Concat(c.Name.Where(ch => !Path.GetInvalidFileNameChars().Contains(ch)));
+            var dlg = new Microsoft.Win32.SaveFileDialog { FileName = "Rozmowa-" + safe + "-" + DateTime.Now.ToString("yyyy-MM-dd") + ".html", Filter = "HTML (*.html)|*.html|" + L.T("Tekst") + " (*.txt)|*.txt" };
+            if (dlg.ShowDialog(owner) != true) return;
+            try
+            {
+                var l = KomChat(c.Id).ToList();
+                string Who(KomMsg m) => m.Mine ? L.T("Ty") : c.Name;
+                string When(KomMsg m) => DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("yyyy-MM-dd HH:mm");
+                static string H(string x) => System.Net.WebUtility.HtmlEncode(x ?? "");
+                if (dlg.FileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)) File.WriteAllLines(dlg.FileName, l.Select(m => When(m) + "  " + Who(m) + ": " + m.Text));
+                else
+                {
+                    var dir = Path.Combine(Path.GetDirectoryName(dlg.FileName), Path.GetFileNameWithoutExtension(dlg.FileName) + "_pliki");
+                    var sb = new StringBuilder("<!doctype html><meta charset=\"utf-8\"><title>" + H(c.Name) + "</title><style>body{font-family:Segoe UI,sans-serif;background:#f4f2fb;max-width:760px;margin:auto;padding:16px}.m{margin:6px 0;padding:8px 12px;border-radius:12px;max-width:75%;background:#fff}.me{background:#ddd2ff;margin-left:auto}.t{font-size:11px;color:#666}img{max-width:100%;border-radius:8px}</style><h2>💬 " + H(c.Name) + "</h2>");
+                    foreach (var m in l)
+                    {
+                        string media = "";
+                        if (!string.IsNullOrEmpty(m.Path) && File.Exists(m.Path))
+                        {
+                            Directory.CreateDirectory(dir); var dest = Path.Combine(dir, Path.GetFileName(m.Path)); if (!File.Exists(dest)) File.Copy(m.Path, dest);
+                            var rel = Uri.EscapeDataString(Path.GetFileName(dir)) + "/" + Uri.EscapeDataString(Path.GetFileName(m.Path));
+                            media = KomIsImage(m.Path) ? "<br><img src=\"" + rel + "\">" : "<br><a href=\"" + rel + "\">" + H(Path.GetFileName(m.Path)) + "</a>";
+                        }
+                        sb.Append("<div class=\"m" + (m.Mine ? " me" : "") + "\"><div class=\"t\">" + H(Who(m)) + " · " + When(m) + "</div>" + H(m.Text).Replace("\n", "<br>") + media + "</div>");
+                    }
+                    File.WriteAllText(dlg.FileName, sb.ToString());
+                }
+                KomInfo("💾 " + L.T("Rozmowa zapisana"));
+            }
+            catch (Exception ex) { KomInfo(L.T("Nie udało się zapisać") + ": " + ex.Message); }
+        }
+        // ⌨ Ctrl+K: przejście do rozmowy po nazwie (wpisz kilka liter, Enter)
+        void KomQuickSwitch(Window owner, Action<string> open)
+        {
+            var box = new TextBox { Margin = new Thickness(10, 10, 10, 6), MinWidth = 300 };
+            var lb = new ListBox { Margin = new Thickness(10, 0, 10, 10), Height = 220 };
+            var d = new Window { Title = "⌨ " + L.T("Przejdź do rozmowy"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { box, lb } } };
+            void Fill() { lb.Items.Clear(); foreach (var c in _komContacts.Where(x => x.Name.Contains(box.Text.Trim(), StringComparison.CurrentCultureIgnoreCase)).OrderByDescending(x => KomChat(x.Id).LastOrDefault()?.Ts ?? 0)) lb.Items.Add(new ListBoxItem { Content = (c.IsGroup ? "👥 " : "💬 ") + c.Name, Tag = c.Id }); if (lb.Items.Count > 0) lb.SelectedIndex = 0; }
+            void Go() { if (lb.SelectedItem is ListBoxItem it && it.Tag is string id) { d.Close(); open(id); } }
+            box.TextChanged += (s, e) => Fill();
+            box.PreviewKeyDown += (s, e) =>
+            {
+                if (e.Key == Key.Down && lb.SelectedIndex < lb.Items.Count - 1) lb.SelectedIndex++;
+                else if (e.Key == Key.Up && lb.SelectedIndex > 0) lb.SelectedIndex--;
+                else if (e.Key == Key.Enter) Go();
+                else if (e.Key == Key.Escape) d.Close();
+                else return;
+                e.Handled = true;
+            };
+            lb.MouseDoubleClick += (s, e) => Go();
+            Fill(); KomStyle(d); box.Focus(); d.ShowDialog();
         }
 
         // ✏ edycja wiadomości (Enter - zapisz)
@@ -2098,6 +2370,7 @@ namespace Velivo
         // podpowiedz ikony: liczba nieprzeczytanych
         void KomTrayUpdate()
         {
+            _ = Dispatcher.BeginInvoke(new Action(() => { if (_komWindow?.TaskbarItemInfo is System.Windows.Shell.TaskbarItemInfo ti) { int un = _komUnread.Values.Sum(); ti.Overlay = un > 0 ? KomBadge(un) : null; } }));   // 🔢 czerwona liczba na ikonie paska zadań
             if (_komTray == null) return;
             int n = _komUnread.Values.Sum();
             var t = L.T("Komunikator Velivo") + (n > 0 ? " – " + n + L.T(" nowe") : "");

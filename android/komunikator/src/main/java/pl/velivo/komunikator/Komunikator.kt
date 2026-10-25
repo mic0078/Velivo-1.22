@@ -2118,7 +2118,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val items = arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"),
             if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
             if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
-            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"))
+            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"))
         AlertDialog.Builder(a).setTitle(c.name).setItems(items) { _, i ->
             if (i == 2) { k.setPinned(c.id, !k.pinned(c.id)); return@setItems }
             if (i == 3) {
@@ -2133,7 +2133,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     .setSingleChoiceItems(arrayOf(t("Wyłączone", "Off"), "24 h", t("7 dni", "7 days"), t("90 dni", "90 days")), hs.indexOf(k.ttl(c.id)).coerceAtLeast(0)) { d, j -> d.dismiss(); Thread { k.setTtl(c, hs[j]) }.start() }.show()
                 return@setItems
             }
-            if (i == 5) {
+            if (i == 5) { exportChat(c); return@setItems }
+            if (i == 6) {
                 AlertDialog.Builder(a).setTitle("🛡 " + t("Kod bezpieczeństwa", "Safety code") + " – " + c.name)
                     .setMessage(k.safety(c) + "\n\n" + t("Porównajcie ten kod (u ${c.name}: menu rozmowy z Tobą). Ten sam = rozmowa szyfrowana tylko między Wami, nikt się nie podszywa.",
                         "Compare this code (on ${c.name}'s device: your chat menu). The same = the chat is encrypted only between you, no one is impersonating."))
@@ -2276,11 +2277,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 // zdjęcie: miniatura nad dymkiem; stuknięcie - pełny ekran
                 val img = m.path?.takeIf { k.isImage(it) }?.let { thumb(it) }
                 if (img != null) msgs.addView(android.widget.ImageView(a).apply {
-                    setImageBitmap(img); m.path?.let { gif(this, it) }   // 🎞 GIF rusza się w rozmowie adjustViewBounds = true; maxWidth = px(240); maxHeight = px(280); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                    setImageBitmap(img); m.path?.let { gif(this, it) }   // 🎞 GIF rusza się w rozmowie
+                    adjustViewBounds = true; maxWidth = px(240); maxHeight = px(280); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
                     clipToOutline = true; outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, px(14).toFloat()) } }
                     layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(6) }
                     contentDescription = t("Zdjęcie: ", "Photo: ") + m.text
-                    setOnClickListener { showPhoto(m.path!!) }
+                    setOnClickListener { showPhoto(m.path!!, photos(c)) }
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
                 msgs.addView(TextView(a).apply {
@@ -2306,7 +2308,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                             sp.setSpan(object : android.text.style.ClickableSpan() { override fun onClick(v: View) { openLink(u.url) } }, st, en, 0)
                         }
                     }
-                    if (img != null) setOnClickListener { showPhoto(m.path!!) }
+                    if (img != null) setOnClickListener { showPhoto(m.path!!, photos(c)) }
                     else if (m.path != null && java.io.File(m.path!!).exists() && java.io.File(m.path!!).name.contains("Glosowa-")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
@@ -2320,6 +2322,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND; setHorizontallyScrolling(false); maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             setTextColor(ink); setHintTextColor(dim); textSize = 16f
             background = GradientDrawable().apply { setColor(pal().input); cornerRadius = px(22).toFloat(); setStroke(px(1), pal().border) }; setPadding(px(16), px(11), px(16), px(11))
+        }
+        // 🎞 GIF-y i naklejki z klawiatury (Gboard i inne) - wysyłane jak plik
+        if (Build.VERSION.SDK_INT >= 31) input.setOnReceiveContentListener(arrayOf("image/*", "video/*")) { _, p ->
+            val clip = p.clip; val uris = (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
+            if (uris.isEmpty()) p else { attachTo = c; sendFiles(uris); null }
         }
         fun round(text: String, tip: String, color: Int, act: () -> Unit) = Button(a).apply {
             this.text = text; textSize = 18f; setTextColor(if (color == violet) pal().mineFg else ink); contentDescription = tip; tooltipText = tip; setPadding(0, 0, 0, 0)
@@ -2444,12 +2451,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (file != null) items.add("💾 " + t("Zapisz w Pobranych", "Save to Downloads"))
         if (m.mine && !m.text.startsWith("🚫")) items.add("🚫 " + t("Usuń u wszystkich", "Delete for everyone"))
         items.add("🗑 " + t("Usuń u mnie", "Delete for me"))
+        items.add("☑ " + t("Zaznacz kilka…", "Select several…"))
         AlertDialog.Builder(a).setItems(items.toTypedArray()) { _, i ->
             if (items[i].startsWith("⏩")) { k.voiceSpeed = nextSpeed(); Toast.makeText(a, "⏩ " + speedText(k.voiceSpeed), Toast.LENGTH_SHORT).show(); return@setItems }
             when (items[i].substringAfter(' ')) {
                 t("Odpowiedz", "Reply") -> onReply?.invoke(m)
                 t("Reakcja", "React") -> { val e = arrayOf("👍", "❤️", "😂", "😮", "😢", "🙏"); AlertDialog.Builder(a).setItems(e) { _, j -> Thread { k.react(c, m, e[j]) }.start() }.show() }
                 t("Przekaż…", "Forward…") -> forward(c, m)
+                t("Zaznacz kilka…", "Select several…") -> select(c, m)
                 t("Edytuj", "Edit") -> { val e = EditText(a).apply { setText(m.text.removeSuffix(" ✏")); setSelection(text.length) }
                     AlertDialog.Builder(a).setTitle("✏ " + t("Edytuj wiadomość", "Edit message")).setView(e)
                         .setPositiveButton(t("Zapisz", "Save")) { _, _ -> val s2 = e.text.toString().trim(); if (s2.isNotEmpty()) Thread { k.edit(c, m, s2) }.start() }.setNegativeButton(android.R.string.cancel, null).show() }
@@ -2463,15 +2472,35 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }.show()
     }
 
+    // ☑ kilka wiadomości naraz: przekaż, kopiuj, usuń u mnie
+    private fun select(c: Komunikator.Contact, first: Komunikator.Msg) {
+        val ms = k.chat(c.id).takeLast(100).reversed(); val pick = BooleanArray(ms.size) { ms[it] === first }
+        val fmt = java.text.SimpleDateFormat("d.MM HH:mm", Locale.getDefault())
+        AlertDialog.Builder(a).setTitle("☑ " + c.name).setMultiChoiceItems(ms.map { (if (it.mine) "› " else "") + it.text.take(80) + " · " + fmt.format(java.util.Date(it.ts)) }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
+            .setPositiveButton("↪ " + t("Przekaż", "Forward")) { _, _ -> ms.filterIndexed { i, _ -> pick[i] }.reversed().let { sel -> forwardAll(c, sel) } }
+            .setNeutralButton("📋 " + t("Kopiuj", "Copy")) { _, _ ->
+                val txt = ms.filterIndexed { i, _ -> pick[i] }.reversed().joinToString("\n") { "[" + fmt.format(java.util.Date(it.ts)) + "] " + (if (it.mine) t("Ja", "Me") else c.name) + ": " + it.text }
+                (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", txt)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
+            .setNegativeButton("🗑 " + t("Usuń u mnie", "Delete for me")) { _, _ -> val sel = ms.filterIndexed { i, _ -> pick[i] }
+                if (sel.isNotEmpty()) AlertDialog.Builder(a).setMessage(t("Usunąć zaznaczone u mnie: ", "Delete selected for me: ") + sel.size + "?")
+                    .setPositiveButton(t("Usuń", "Delete")) { _, _ -> sel.forEach { k.deleteLocal(c, it) } }.setNegativeButton(android.R.string.cancel, null).show() }
+            .show()
+    }
+
     private var onReply: ((Komunikator.Msg) -> Unit)? = null
     // ↪ przekazanie: tekst albo plik do wybranych osób / grup
-    private fun forward(from: Komunikator.Contact, m: Komunikator.Msg) {
-        val cs = k.contacts.filter { it.id != from.id }; if (cs.isEmpty()) return
+    private fun forward(from: Komunikator.Contact, m: Komunikator.Msg) = forwardAll(from, listOf(m))
+    private fun forwardAll(from: Komunikator.Contact, ms: List<Komunikator.Msg>) {
+        val cs = k.contacts.filter { it.id != from.id }; if (cs.isEmpty() || ms.isEmpty()) return
         val pick = BooleanArray(cs.size)
         AlertDialog.Builder(a).setTitle("↪ " + t("Przekaż do…", "Forward to…")).setMultiChoiceItems(cs.map { (if (it.isGroup) "👥 " else "") + it.name }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
             .setPositiveButton(t("Wyślij", "Send")) { _, _ ->
-                val f = m.path?.let { java.io.File(it) }?.takeIf { m.file && it.exists() }
-                for (to in cs.filterIndexed { i, _ -> pick[i] }) if (f != null) { attachTo = to; sendFiles(listOf(Uri.fromFile(f))) } else Thread { k.send(to, "↪ " + m.text) }.start()
+                for (to in cs.filterIndexed { i, _ -> pick[i] }) {
+                    val fs = ms.mapNotNull { m -> m.path?.let { java.io.File(it) }?.takeIf { m.file && it.exists() } }
+                    if (fs.isNotEmpty()) { attachTo = to; sendFiles(fs.map { Uri.fromFile(it) }) }
+                    val txt = ms.filter { m -> !(m.file && m.path?.let { java.io.File(it).exists() } == true) }.map { it.text }
+                    if (txt.isNotEmpty()) Thread { txt.forEach { k.send(to, "↪ " + it) } }.start()
+                }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
     // 🖼 zdjęcia, filmy, głosówki i pliki z rozmowy w jednym miejscu (najnowsze u góry)
@@ -2480,8 +2509,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (ms.isEmpty()) { Toast.makeText(a, t("Brak plików w tej rozmowie", "No files in this chat"), Toast.LENGTH_SHORT).show(); return }
         AlertDialog.Builder(a).setTitle("🖼 " + c.name).setItems(ms.map { (if (k.isImage(it.path!!)) "🖼 " else "") + it.text + " · " + when_(it.ts) }.toTypedArray()) { _, i ->
             val p = ms[i].path!!
-            if (k.isImage(p)) showPhoto(p) else if (p.contains("Glosowa-")) play(p) else openFile(p)
+            if (k.isImage(p)) showPhoto(p, photos(c)) else if (p.contains("Glosowa-")) play(p) else openFile(p)
         }.show()
+    }
+
+    // 💾 rozmowa jako tekst w Pobranych
+    private fun exportChat(c: Komunikator.Contact) {
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        val f = java.io.File(a.cacheDir, "Velivo " + c.name.filter { it.isLetterOrDigit() || it == ' ' }.trim() + " " + java.text.SimpleDateFormat("yyyy-MM-dd HH-mm", Locale.getDefault()).format(java.util.Date()) + ".txt")
+        f.writeText(k.chat(c.id).joinToString("\n") { "[" + fmt.format(java.util.Date(it.ts)) + "] " + (if (it.mine) t("Ja", "Me") else c.name) + ": " + it.text })
+        Toast.makeText(a, if (toDownloads(f.path) != null) t("Zapisano w Pobranych: ", "Saved to Downloads: ") + f.name else t("Nie udało się zapisać", "Could not save"), Toast.LENGTH_LONG).show()
+        f.delete()
     }
 
     // plik z rozmowy w Pobranych (raz) - stamtąd otwiera go inna aplikacja
@@ -2616,16 +2654,26 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (!path.endsWith(".gif", true)) return
         runCatching { (android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(java.io.File(path))) as? android.graphics.drawable.AnimatedImageDrawable)?.let { v.setImageDrawable(it); it.start() } }
     }
-    private fun showPhoto(path: String) {
-        val bmp = decode(path, maxOf(a.resources.displayMetrics.widthPixels, a.resources.displayMetrics.heightPixels)) ?: return
+    private fun photos(c: Komunikator.Contact) = k.chat(c.id).mapNotNull { m -> m.path?.takeIf { k.isImage(it) && java.io.File(it).exists() } }
+    // przesunięcie palcem ←/→ - poprzednie/następne zdjęcie z rozmowy
+    private fun showPhoto(path: String, all: List<String> = listOf(path)) {
+        var i = all.indexOf(path).coerceAtLeast(0); val list = if (all.contains(path)) all else listOf(path)
+        val max = maxOf(a.resources.displayMetrics.widthPixels, a.resources.displayMetrics.heightPixels)
         val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
-        d.setContentView(android.widget.ImageView(a).apply {
-            setImageBitmap(bmp); gif(this, path); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.BLACK)
-            contentDescription = t("Zdjęcie – stuknij, aby zamknąć", "Photo – tap to close")
-            setOnClickListener { d.dismiss() }
-            setOnLongClickListener { saveToGallery(path); true }
+        val v = android.widget.ImageView(a).apply { scaleType = android.widget.ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.BLACK)
+            contentDescription = t("Zdjęcie – stuknij, aby zamknąć; przesuń, aby zobaczyć następne", "Photo – tap to close; swipe for the next one") }
+        fun show() { v.setImageBitmap(decode(list[i], max)); gif(v, list[i]) }
+        val g = android.view.GestureDetector(a, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: android.view.MotionEvent) = true
+            override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { d.dismiss(); return true }
+            override fun onLongPress(e: android.view.MotionEvent) { saveToGallery(list[i]) }
+            override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
+                if (Math.abs(vx) < Math.abs(vy)) return false
+                val n = if (vx < 0) i + 1 else i - 1; if (n in list.indices) { i = n; show() }; return true
+            }
         })
-        d.show()
+        v.setOnTouchListener { _, e -> g.onTouchEvent(e) }
+        show(); d.setContentView(v); d.show()
     }
 
     private fun ColorDrawableCompat(c: Int) = android.graphics.drawable.ColorDrawable(c)

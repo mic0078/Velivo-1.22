@@ -1250,6 +1250,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val u = runCatching { DatagramSocket(null).apply { reuseAddress = true; broadcast = true; bind(InetSocketAddress(PORT)) } }
             .getOrElse { listenError = it.message; return }
         udp = u
+        // część telefonów (Oppo / Realme - ColorOS, niektóre Samsungi) bez tej blokady odrzuca rozgłoszenia Wi-Fi - nie widać nikogo w domu
+        runCatching { (wifiLock ?: (ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager).createMulticastLock("velivo-komunikator").apply { setReferenceCounted(false) }.also { wifiLock = it }).acquire() }
         Thread {
             val buf = ByteArray(65536)
             while (udp === u) runCatching {
@@ -1278,7 +1280,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 
     val idle get() = udp == null && udpOut == null
 
+    private var wifiLock: android.net.wifi.WifiManager.MulticastLock? = null
     fun close() {
+        runCatching { wifiLock?.release() }
         runCatching { udp?.close() }; runCatching { tcp?.close() }
         udp = null; tcp = null
     }

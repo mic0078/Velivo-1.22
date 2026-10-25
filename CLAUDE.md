@@ -63,6 +63,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-25: 📍 lokalizacja z telefonu „nie udało się” 2 razy – źródła pytane po kolei (GPS w domu milczy, sieć bywa pusta); teraz jak Mapy: wszystkie źródła naraz, pierwszy wynik, po 40 s ostatnie znane; błąd pokazuje źródła i „dokładna: tak/nie”. Windows działał.
 * 2026-10-25: duży plik z Windows doszedł 2 razy – w trakcie wysyłki „dosyłanie niedoręczonych” (co minutę / gdy kontakt się odezwie) startowało drugą wysyłkę; teraz wysyłany plik jest w `_komInFlight`.
 * 2026-10-25: po zmianie portu mama i NUCBOX się nie widziały – Windows bez synchronizacji LAN słuchał już tylko 41918 (zapora NUCBOX blokuje), a nie 41919; teraz słucha obu (41919, gdy nie zajmuje go synchronizacja). Zmiana portu = stary port dalej działa.
+* 2026-10-25: Oppo mamy nie widział NUCBOX (Xiaomi, Motorola tak) – aplikacja Komunikator nie brała blokady multicast Wi-Fi (brała ją przeglądarka w startLan); ColorOS bez niej odrzuca rozgłoszenia. Teraz listen() bierze, close() oddaje. Przy przenoszeniu kodu przenoś też to, co robiło otoczenie.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

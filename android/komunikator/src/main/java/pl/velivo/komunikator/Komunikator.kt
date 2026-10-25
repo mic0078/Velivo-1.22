@@ -2724,27 +2724,44 @@ class EkranUsluga : Service() {
             mp = p
             val t = android.os.HandlerThread("velivo-ekran").also { it.start() }; th = t; val h = Handler(t.looper)
             p.registerCallback(object : android.media.projection.MediaProjection.Callback() { override fun onStop() { stopSelf() } }, h)
-            val m = resources.displayMetrics; val sz = size(this); val sc = minOf(1f, 720f / minOf(sz.x, sz.y))
-            val w = (sz.x * sc).toInt() and 1.inv(); val hh = (sz.y * sc).toInt() and 1.inv()
-            val r = android.media.ImageReader.newInstance(w, hh, android.graphics.PixelFormat.RGBA_8888, 2); reader = r
-            var last = 0L
-            r.setOnImageAvailableListener({ ir ->
-                val img = runCatching { ir.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
-                img.use {
-                    val now = System.currentTimeMillis(); val cb = onFrame
-                    if (cb == null || now - last < 330) return@use
-                    last = now
-                    val pl0 = it.planes[0]; val full = android.graphics.Bitmap.createBitmap(pl0.rowStride / pl0.pixelStride, hh, android.graphics.Bitmap.Config.ARGB_8888)
-                    full.copyPixelsFromBuffer(pl0.buffer)
-                    val bmp = android.graphics.Bitmap.createBitmap(full, 0, 0, w, hh)
-                    val o = java.io.ByteArrayOutputStream(); bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 55, o)
-                    if (bmp !== full) bmp.recycle(); full.recycle()
-                    cb(Base64.encodeToString(o.toByteArray(), Base64.NO_WRAP))
-                }
-            }, h)
-            vd = p.createVirtualDisplay("velivo-ekran", w, hh, m.densityDpi, android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, r.surface, null, h)
+            val r = newReader(h)
+            vd = p.createVirtualDisplay("velivo-ekran", r.width, r.height, resources.displayMetrics.densityDpi, android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, r.surface, null, h)
+            hd = h
         }.onFailure { stopSelf() }
         return START_NOT_STICKY
+    }
+    private var hd: Handler? = null
+    private var last = 0L
+    // obraz w rozmiarze ekranu teraz (pion albo poziom), szerokość/wysokość do 720
+    private fun newReader(h: Handler): android.media.ImageReader {
+        val sz = size(this); val sc = minOf(1f, 720f / minOf(sz.x, sz.y))
+        val w = (sz.x * sc).toInt() and 1.inv(); val hh = (sz.y * sc).toInt() and 1.inv()
+        val r = android.media.ImageReader.newInstance(w, hh, android.graphics.PixelFormat.RGBA_8888, 2); reader = r
+        r.setOnImageAvailableListener({ ir ->
+            val img = runCatching { ir.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
+            img.use {
+                val now = System.currentTimeMillis(); val cb = onFrame
+                if (cb == null || now - last < 330 || ir !== reader) return@use
+                last = now
+                val pl0 = it.planes[0]; val full = android.graphics.Bitmap.createBitmap(pl0.rowStride / pl0.pixelStride, hh, android.graphics.Bitmap.Config.ARGB_8888)
+                full.copyPixelsFromBuffer(pl0.buffer)
+                val bmp = android.graphics.Bitmap.createBitmap(full, 0, 0, w, hh)
+                val o = java.io.ByteArrayOutputStream(); bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 55, o)
+                if (bmp !== full) bmp.recycle(); full.recycle()
+                cb(Base64.encodeToString(o.toByteArray(), Base64.NO_WRAP))
+            }
+        }, h)
+        return r
+    }
+    // 🔄 autoobracanie: telefon obrócony - obraz dalej w dobrych proporcjach
+    override fun onConfigurationChanged(c: android.content.res.Configuration) {
+        super.onConfigurationChanged(c)
+        val h = hd ?: return
+        h.post { runCatching {
+            val v = vd ?: return@runCatching; val old = reader; val r = newReader(h)
+            if (old != null && old.width == r.width && old.height == r.height) { reader = old; r.close(); return@runCatching }
+            v.resize(r.width, r.height, resources.displayMetrics.densityDpi); v.surface = r.surface; old?.close()
+        } }
     }
     override fun onDestroy() {
         runCatching { vd?.release() }; runCatching { mp?.stop() }; runCatching { reader?.close() }; th?.quitSafely()

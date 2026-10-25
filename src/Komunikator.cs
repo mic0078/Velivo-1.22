@@ -1529,7 +1529,8 @@ namespace Velivo
                     bool hasFile = !string.IsNullOrEmpty(m.Path) && File.Exists(m.Path);
                     if (hasFile && KomIsImage(m.Path) && KomThumb(m.Path) is ImageSource th)
                     {
-                        var img = new Image { Source = th, MaxWidth = 260, MaxHeight = 260, Stretch = Stretch.Uniform, Cursor = Cursors.Hand, Margin = new Thickness(0, 2, 0, 4), ToolTip = L.T("Otwórz zdjęcie") };
+                        FrameworkElement img = new Image { Source = th, MaxWidth = 260, MaxHeight = 260, Stretch = Stretch.Uniform, Cursor = Cursors.Hand, Margin = new Thickness(0, 2, 0, 4), ToolTip = L.T("Otwórz zdjęcie") };
+                        if (KomIsGif(m.Path)) img = KomGifView(m.Path, 260);   // 🎞 GIF rusza się w rozmowie
                         var ip = m.Path; img.MouseLeftButtonUp += (s2, e2) => { if (!selMode) KomViewer(w, c, ip); };   // 🖼 podgląd w Velivo (← → po zdjęciach rozmowy)
                         KomDragOut(img, ip);
                         body.Children.Add(img);
@@ -1604,7 +1605,7 @@ namespace Velivo
                         };
                         var showIn = new MenuItem { Header = L.T("📁 Pokaż w folderze") }; showIn.Click += (s2, e2) => { try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + fp2 + "\""); } catch (Exception) { } };
                         txt.ContextMenu.Items.Add(saveAs); txt.ContextMenu.Items.Add(showIn);
-                        foreach (var ch in body.Children.OfType<Image>()) ch.ContextMenu = txt.ContextMenu;
+                        foreach (var ch in body.Children.OfType<FrameworkElement>().Where(x => x is Image or MediaElement)) ch.ContextMenu = txt.ContextMenu;
                     }
                     body.Children.Add(txt);
                     var stampTb = new TextBlock { FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine && !m.Ok ? L.T("Jeszcze nie doręczono – Velivo wyśle, gdy odbiorca będzie w sieci") : m.Mine && m.Read ? L.T("Przeczytane") : null };
@@ -1748,10 +1749,17 @@ namespace Velivo
             vidBtn.Click += (s, e) => { var c = Current(); if (c != null) KomRecordVideo(w, async p => await AttachTo(c, new[] { p })); };
             // 🖱 pliki przeciągnięte myszką z Eksploratora na okno rozmowy - wysyłka jak 📎
             w.AllowDrop = true;
-            w.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop) || _komDragOut) return; e.Effects = Current() is KomContact dc ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };   // Preview - pole tekstowe nie przejmuje plików
+            w.PreviewDragOver += (s, e) => { if (!(e.Data.GetDataPresent(DataFormats.FileDrop) || KomGifSource(e.Data) != null) || _komDragOut) return; e.Effects = Current() is KomContact dc ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };   // Preview - pole tekstowe nie przejmuje plików
             w.PreviewDrop += async (s, e) =>
             {
-                if (!e.Data.GetDataPresent(DataFormats.FileDrop) || _komDragOut) return; e.Handled = true;   // plik przeciągnięty z tej rozmowy - bez ponownej wysyłki
+                if (_komDragOut) return;   // plik przeciągnięty z tej rozmowy - bez ponownej wysyłki
+                if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+                {   // 🎞 GIF przeciągnięty z przeglądarki - oryginał (ruchomy), nie nieruchoma klatka
+                    var src = KomGifSource(e.Data); if (src == null) return; e.Handled = true;
+                    var gc = Current(); var gp = await KomGifFetch(src); if (gc != null && gp != null) await AttachTo(gc, new[] { gp });
+                    return;
+                }
+                e.Handled = true;
                 var c = Current(); if (c == null || e.Data.GetData(DataFormats.FileDrop) is not string[] dropped) return;
                 var files = dropped.Where(File.Exists).ToArray(); if (files.Length > 0) await AttachTo(c, files);
             };
@@ -1767,6 +1775,7 @@ namespace Velivo
                 try
                 {
                     if (Clipboard.ContainsFileDropList()) files = Clipboard.GetFileDropList().Cast<string>().Where(File.Exists).ToArray();
+                    else if (KomGifSource(Clipboard.GetDataObject()) is string gsrc && await KomGifFetch(gsrc) is string gif) files = new[] { gif };   // 🎞 „Kopiuj obraz” w przeglądarce: oryginalny GIF zamiast nieruchomej klatki
                     else if (Clipboard.GetImage() is System.Windows.Media.Imaging.BitmapSource img)
                     {
                         var p = Path.Combine(Path.GetTempPath(), "Obraz-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".png");
@@ -2018,6 +2027,45 @@ namespace Velivo
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, int extra);
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetClipboardSequenceNumber();
 
+        // 🎞 GIF z przeglądarki („Kopiuj obraz”, przeciągnięcie): schowek ma tylko jedną klatkę, ale też adres oryginału (HTML) - bierzemy oryginał
+        static string KomGifSource(IDataObject d)
+        {
+            try
+            {
+                if (d == null) return null;
+                if (d.GetDataPresent("GIF") && d.GetData("GIF") is MemoryStream ms) { var p = KomGifPath(); File.WriteAllBytes(p, ms.ToArray()); return p; }
+                var html = d.GetDataPresent(DataFormats.Html) ? d.GetData(DataFormats.Html) as string : null;
+                var m = html == null ? null : System.Text.RegularExpressions.Regex.Match(html, "<img[^>]+src=[\"']([^\"']+)[\"']", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                var url = m != null && m.Success ? System.Net.WebUtility.HtmlDecode(m.Groups[1].Value) : d.GetDataPresent("UniformResourceLocatorW") ? (d.GetData("UniformResourceLocatorW") as MemoryStream) is MemoryStream us ? Encoding.Unicode.GetString(us.ToArray()).TrimEnd('\0') : null : null;
+                if (url == null) return null;
+                if (url.StartsWith("data:image/gif;base64,", StringComparison.OrdinalIgnoreCase)) { var p = KomGifPath(); File.WriteAllBytes(p, Convert.FromBase64String(url.Substring(22))); return p; }
+                return url.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? url : null;
+            }
+            catch (Exception) { return null; }
+        }
+        static string KomGifPath() { Directory.CreateDirectory(KomMediaDir); return Path.Combine(KomMediaDir, "Obraz-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".gif"); }
+        // plik lokalny - gotowy; adres - pobranie (do 25 MB, 15 s); tylko prawdziwy GIF (inaczej null - zostaje zwykły obraz)
+        static async Task<string> KomGifFetch(string src)
+        {
+            if (File.Exists(src)) return src;
+            try
+            {
+                using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(15), MaxResponseContentBufferSize = 25 * 1024 * 1024 };
+                var b = await http.GetByteArrayAsync(src);
+                if (b.Length < 6 || b[0] != 'G' || b[1] != 'I' || b[2] != 'F') return null;
+                var p = KomGifPath(); File.WriteAllBytes(p, b); return p;
+            }
+            catch (Exception) { return null; }
+        }
+        // 🎞 ruchomy GIF (WPF Image pokazuje tylko pierwszą klatkę) - odtwarzany w kółko, bez dźwięku
+        static MediaElement KomGifView(string path, double max)
+        {
+            var v = new MediaElement { Source = new Uri(path), LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, IsMuted = true, Stretch = Stretch.Uniform, MaxWidth = max, MaxHeight = max, Cursor = Cursors.Hand, Margin = new Thickness(0, 2, 0, 4), ToolTip = L.T("Otwórz zdjęcie") };
+            v.Loaded += (s, e) => v.Play();
+            v.MediaEnded += (s, e) => { v.Position = TimeSpan.FromMilliseconds(1); v.Play(); };
+            return v;
+        }
+        static bool KomIsGif(string p) => Path.GetExtension(p ?? "").Equals(".gif", StringComparison.OrdinalIgnoreCase);
         static bool KomIsVideo(string p) => new[] { ".mp4", ".webm", ".mkv", ".mov", ".3gp", ".avi", ".wmv", ".m4v" }.Contains(Path.GetExtension(p ?? "").ToLowerInvariant());
         // 🖼 podgląd zdjęć i filmów z rozmowy w Velivo: ← → po kolei, spacja - pauza, Enter - program Windows, Esc - zamknij
         void KomViewer(Window owner, KomContact c, string path)
@@ -2034,7 +2082,7 @@ namespace Velivo
             {
                 var p = items[i]; d.Title = "🖼 " + Path.GetFileName(p) + "  (" + (i + 1) + "/" + items.Count + ")"; paused = false;
                 vid.Stop(); vid.Source = null;
-                if (KomIsVideo(p)) { img.Source = null; img.Visibility = Visibility.Collapsed; vid.Visibility = Visibility.Visible; vid.Source = new Uri(p); vid.Play(); }
+                if (KomIsVideo(p) || KomIsGif(p)) { img.Source = null; img.Visibility = Visibility.Collapsed; vid.Visibility = Visibility.Visible; vid.Source = new Uri(p); vid.Play(); }
                 else
                 {
                     vid.Visibility = Visibility.Collapsed; img.Visibility = Visibility.Visible;
@@ -2042,6 +2090,7 @@ namespace Velivo
                 }
                 hint.Text = "← →  " + L.T("poprzednie / następne") + "   ·   Enter – " + L.T("otwórz w programie Windows") + (KomIsVideo(p) ? "   ·   " + L.T("spacja – pauza") : "") + "   ·   Esc – " + L.T("zamknij");
             }
+            vid.MediaEnded += (s, e) => { if (KomIsGif(items[i])) { vid.Position = TimeSpan.FromMilliseconds(1); vid.Play(); } };   // 🎞 GIF w kółko
             vid.MediaFailed += (s, e) => hint.Text = L.T("Tego filmu nie da się odtworzyć tutaj – Enter otwiera go w programie Windows");
             d.PreviewKeyDown += (s, e) =>
             {

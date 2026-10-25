@@ -66,6 +66,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-25: Oppo mamy nie widział NUCBOX (Xiaomi, Motorola tak) – aplikacja Komunikator nie brała blokady multicast Wi-Fi (brała ją przeglądarka w startLan); ColorOS bez niej odrzuca rozgłoszenia. Teraz listen() bierze, close() oddaje. Przy przenoszeniu kodu przenoś też to, co robiło otoczenie.
 * 2026-10-25: Oppo nadal nie widział (sam Komunikator) – słuchał tylko 41918, a stary Windows odpowiada na 41919; teraz Komunikator słucha też 41919 (gdy brak przeglądarki), a szukanie pyta każdy adres /24 osobno (telefon i Windows) – nie zależy od rozgłoszeń.
 * 2026-10-25: Komunikator mamy nie dawał się otworzyć – sortowanie listy (📌 + czas) z `?: 0` (Int) przy Long → ClassCastException, gdy kontakt bez wiadomości. W porównaniach czasu zawsze `0L`. Przyczynę dał raport 🐞 – najpierw raport, potem poprawka.
+* 2026-10-25: GIF-y szły jako nieruchome PNG – „Kopiuj obraz” w przeglądarce daje w schowku jedną klatkę; teraz oryginał z adresu w HTML schowka (wklejanie i przeciąganie); GIF animowany w rozmowie (Windows: MediaElement, telefon: AnimatedImageDrawable), telefon nie robi już JPG z GIF-a nadawcy.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

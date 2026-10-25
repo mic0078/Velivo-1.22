@@ -954,7 +954,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (group != null) h.put("Group", JSONObject().put("g", group.id).put("n", group.name).put("m", JSONArray(members(group) + myId)))   // 👥 plik w grupie - u odbiorcy do rozmowy grupy
         // wpis w rozmowie od razu („…”): „przeczytane” od odbiorcy może przyjść, zanim tu skończymy
         // wysłane zdjęcie: mała kopia w Velivo (miniatura w rozmowie)
-        val thumb = if (to != null && retry == null && isImage(name)) runCatching {
+        val thumb = if (to != null && retry == null && name.endsWith(".gif", true) && size in 1..20L * 1024 * 1024) runCatching {   // 🎞 GIF - oryginał (ruchomy), nie nieruchomy JPG
+            java.io.File(mediaDir, "wyslane-$mid.gif").also { f -> open().use { i -> f.outputStream().use { i.copyTo(it) } } }.path
+        }.getOrNull() else if (to != null && retry == null && isImage(name)) runCatching {
             val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
             open().use { android.graphics.BitmapFactory.decodeStream(it, null, o) }
             var smp = 1; while (maxOf(o.outWidth, o.outHeight) / smp > 1280) smp *= 2
@@ -2274,7 +2276,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 // zdjęcie: miniatura nad dymkiem; stuknięcie - pełny ekran
                 val img = m.path?.takeIf { k.isImage(it) }?.let { thumb(it) }
                 if (img != null) msgs.addView(android.widget.ImageView(a).apply {
-                    setImageBitmap(img); adjustViewBounds = true; maxWidth = px(240); maxHeight = px(280); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                    setImageBitmap(img); m.path?.let { gif(this, it) }   // 🎞 GIF rusza się w rozmowie adjustViewBounds = true; maxWidth = px(240); maxHeight = px(280); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
                     clipToOutline = true; outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, px(14).toFloat()) } }
                     layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(6) }
                     contentDescription = t("Zdjęcie: ", "Photo: ") + m.text
@@ -2609,11 +2611,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }.getOrNull()
 
     // zdjęcie na cały ekran (stuknięcie zamyka)
+    // 🎞 ruchomy GIF (Android 9+: AnimatedImageDrawable); inne obrazy - bez zmian
+    private fun gif(v: android.widget.ImageView, path: String) {
+        if (!path.endsWith(".gif", true)) return
+        runCatching { (android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(java.io.File(path))) as? android.graphics.drawable.AnimatedImageDrawable)?.let { v.setImageDrawable(it); it.start() } }
+    }
     private fun showPhoto(path: String) {
         val bmp = decode(path, maxOf(a.resources.displayMetrics.widthPixels, a.resources.displayMetrics.heightPixels)) ?: return
         val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         d.setContentView(android.widget.ImageView(a).apply {
-            setImageBitmap(bmp); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.BLACK)
+            setImageBitmap(bmp); gif(this, path); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.BLACK)
             contentDescription = t("Zdjęcie – stuknij, aby zamknąć", "Photo – tap to close")
             setOnClickListener { d.dismiss() }
             setOnLongClickListener { saveToGallery(path); true }

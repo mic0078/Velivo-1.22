@@ -1947,7 +1947,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     "No contacts yet.\n\nTap “➕ Add” while the other device has Velivo messenger open (phone: Velivo browser or keyboard, computer: Velivo for Windows) on the same Wi-Fi.")
                 setTextColor(dim); textSize = 15f; setPadding(px(10), px(24), px(10), px(8))
             })
-            for (c in k.contacts.sortedWith(compareByDescending<Komunikator.Contact> { k.pinned(it.id) }.thenByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0 })) {   // 📌 przypięte na górze
+            for (c in k.contacts.sortedWith(compareByDescending<Komunikator.Contact> { k.pinned(it.id) }.thenByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0L })) {   // 0L - ten sam typ co czas (Int z Long = awaria sortowania)   // 📌 przypięte na górze
                 val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull(); val on = k.online(c.id)
                 val dot = avatar(c, on)
                 val name = TextView(a).apply {

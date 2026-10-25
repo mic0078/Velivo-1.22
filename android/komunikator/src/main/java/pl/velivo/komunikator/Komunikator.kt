@@ -418,13 +418,33 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun announce() = Thread { repeat(3) { sendUdp(packet("p2p-here"), null); Thread.sleep(1500) }; contacts.toList().forEach { resend(it) } }.start()
 
     // „kto jest w sieci?” - kontakty odpowiadają, status 🟢 od razu prawdziwy
-    fun ping() = Thread { sendUdp(packet("p2p-here"), null); repeat(2) { sendUdp(packet("p2p-who"), null); Thread.sleep(700) } }.start()
+    fun ping() = Thread { sendUdp(packet("p2p-here"), null); sweep(packet("p2p-who")); repeat(2) { sendUdp(packet("p2p-who"), null); Thread.sleep(700) } }.start()
+    // 🔎 pytanie do każdego adresu domowej sieci (/24) osobno - działa też tam, gdzie telefon lub router gubi rozgłoszenia (Oppo / ColorOS)
+    private fun sweep(p: JSONObject) {
+        val own = udp ?: return
+        val d = p.toString().toByteArray(Charsets.UTF_8)
+        runCatching {
+            for (ni in NetworkInterface.getNetworkInterfaces()) {
+                if (!ni.isUp || ni.isLoopback) continue
+                for (ia in ni.interfaceAddresses) {
+                    val a = ia.address as? java.net.Inet4Address ?: continue
+                    if (!a.isSiteLocalAddress) continue   // tylko sieć domowa (nie dane komórkowe)
+                    val b = a.address
+                    for (i in 1..254) if (i != (b[3].toInt() and 0xff)) runCatching {
+                        val t = InetAddress.getByAddress(byteArrayOf(b[0], b[1], b[2], i.toByte()))
+                        own.send(DatagramPacket(d, d.size, t, PORT)); own.send(DatagramPacket(d, d.size, t, OLD_PORT))
+                    }
+                }
+            }
+        }
+    }
 
     @Synchronized fun contact(id: String) = contacts.firstOrNull { it.id == id }
 
     // urządzenia z Velivo (telefony i komputery) w tej sieci - ok. 2,5 s
     fun find(): List<Peer> {
         found.clear()
+        sweep(packet("p2p-who"))
         repeat(3) { sendUdp(packet("p2p-who"), null); Thread.sleep(800) }
         return found.values.sortedBy { it.name.lowercase() }
     }
@@ -1247,22 +1267,30 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun listen() {
         if (udp != null) return
         listenError = null
-        val u = runCatching { DatagramSocket(null).apply { reuseAddress = true; broadcast = true; bind(InetSocketAddress(PORT)) } }
-            .getOrElse { listenError = it.message; return }
-        udp = u
+        udp = serve(PORT, true) ?: return
         // część telefonów (Oppo / Realme - ColorOS, niektóre Samsungi) bez tej blokady odrzuca rozgłoszenia Wi-Fi - nie widać nikogo w domu
         runCatching { (wifiLock ?: (ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager).createMulticastLock("velivo-komunikator").apply { setReferenceCounted(false) }.also { wifiLock = it }).acquire() }
+        // starsze Velivo (np. komputer przed aktualizacją) odpowiada tylko na 41919 - słuchamy też tam, gdy w telefonie nie ma przeglądarki Velivo
+        // (ona trzyma 41919 dla synchronizacji z komputerem i sama przekazuje pakiety komunikatora)
+        if (ctx.packageName != KomunikatorUsluga.BROWSER && runCatching { ctx.packageManager.getPackageInfo(KomunikatorUsluga.BROWSER, 0) }.isFailure) serve(OLD_PORT, false)
+    }
+    private val socks = java.util.concurrent.CopyOnWriteArrayList<java.io.Closeable>()
+    private fun serve(port: Int, main: Boolean): DatagramSocket? {
+        val u = runCatching { DatagramSocket(null).apply { reuseAddress = true; broadcast = true; bind(InetSocketAddress(port)) } }
+            .getOrElse { if (main) listenError = it.message; return null }
+        socks.add(u)
         Thread {
             val buf = ByteArray(65536)
-            while (udp === u) runCatching {
+            while (!u.isClosed) runCatching {
                 val p = DatagramPacket(buf, buf.size); u.receive(p)
                 handleUdp(JSONObject(String(p.data, 0, p.length, Charsets.UTF_8)), p.address)
-            }.onFailure { if (udp !== u) return@Thread }
+            }
         }.start()
         Thread {
-            val s = runCatching { ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(PORT)) } }.getOrElse { listenError = it.message; return@Thread }
-            tcp = s
-            while (tcp === s) {
+            val s = runCatching { ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(port)) } }.getOrElse { if (main) listenError = it.message; return@Thread }
+            socks.add(s); if (u.isClosed) { runCatching { s.close() }; return@Thread }   // zamknięte w międzyczasie
+            if (main) tcp = s
+            while (!s.isClosed) {
                 val c = runCatching { s.accept() }.getOrNull() ?: break
                 Thread {
                     runCatching {
@@ -1276,6 +1304,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 }.start()
             }
         }.start()
+        return u
     }
 
     val idle get() = udp == null && udpOut == null
@@ -1283,7 +1312,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private var wifiLock: android.net.wifi.WifiManager.MulticastLock? = null
     fun close() {
         runCatching { wifiLock?.release() }
-        runCatching { udp?.close() }; runCatching { tcp?.close() }
+        socks.forEach { runCatching { it.close() } }; socks.clear()
         udp = null; tcp = null
     }
 

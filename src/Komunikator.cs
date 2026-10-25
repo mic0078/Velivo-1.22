@@ -902,8 +902,28 @@ namespace Velivo
         async Task<List<(string Id, string Name, IPAddress Addr)>> KomFind()
         {
             _komFound.Clear();
+            KomSweep(KomPacket("p2p-who"));
             for (int i = 0; i < 3; i++) { KomSendUdp(KomPacket("p2p-who"), null); await Task.Delay(800); }
             return _komFound.Select(kv => (kv.Key, kv.Value.Name, kv.Value.Addr)).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        }
+
+        // 🔎 pytanie do każdego adresu domowej sieci (/24) osobno - telefony gubiące rozgłoszenia (Oppo / ColorOS) też się znajdą
+        void KomSweep(JsonObject p)
+        {
+            var s = _komUdp ?? _lanTx; if (s == null) return;
+            var d = Encoding.UTF8.GetBytes(p.ToJsonString());
+            try
+            {
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces().Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback))
+                    foreach (var ua in ni.GetIPProperties().UnicastAddresses.Where(u => u.Address.AddressFamily == AddressFamily.InterNetwork))
+                    {
+                        var b = ua.Address.GetAddressBytes();
+                        if (!(b[0] == 10 || b[0] == 192 && b[1] == 168 || b[0] == 172 && b[1] >= 16 && b[1] <= 31)) continue;   // tylko sieć domowa
+                        for (int i = 1; i <= 254; i++)
+                            if (i != b[3]) foreach (var pt in new[] { KomPort, LanPort }) try { s.Send(d, d.Length, new IPEndPoint(new IPAddress(new[] { b[0], b[1], b[2], (byte)i }), pt)); } catch (Exception) { }
+                    }
+            }
+            catch (Exception) { }
         }
 
         // ---------- TCP: kontakt i pliki ----------

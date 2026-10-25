@@ -1281,6 +1281,8 @@ namespace Velivo
                 if (o is TextBox t) { t.Background = B(p.Input); t.Foreground = B(p.Fg); t.BorderBrush = B(p.Border); t.CaretBrush = B(p.Fg); }
                 else if (o is ListBox l) { l.Background = B(p.Input); l.Foreground = B(p.Fg); l.BorderBrush = B(p.Border); KomListStyle(l, p); }
                 else if (o is Button b) { b.Background = B(p.Mine); b.Foreground = B(p.MineFg); b.BorderBrush = B(p.Border); }
+                else if (o is CheckBox or RadioButton or Label) ((Control)o).Foreground = B(p.Fg);   // ☐ kratki i etykiety - napis czytelny w ciemnych motywach
+                else if (o is PasswordBox pb) { pb.Background = B(p.Input); pb.Foreground = B(p.Fg); pb.BorderBrush = B(p.Border); pb.CaretBrush = B(p.Fg); }
                 else if (o is TextBlock tb) tb.Foreground = B(p.Fg);
                 foreach (var ch in LogicalTreeHelper.GetChildren(o)) if (ch is DependencyObject dc) Walk(dc);
             }

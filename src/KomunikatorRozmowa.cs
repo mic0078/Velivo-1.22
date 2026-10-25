@@ -36,21 +36,21 @@ namespace Velivo
             var k = (string)o?["k"];
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (k == "ring") { if (_komCallWin != null) KomSendCall(c, new JsonObject { ["k"] = "busy" }); else KomIncoming(c); return; }
+                if (k == "ring") { if (_komCallWin != null) KomSendCall(c, new JsonObject { ["k"] = "busy" }); else KomIncoming(c, (bool?)o["a"] == true); return; }
                 if (k == "end" && _komCallWin == null) { _komRingWin?.Close(); return; }
                 if (_komCallWith == c.Id) try { _komCallView?.CoreWebView2?.PostWebMessageAsString(json); } catch (Exception) { }
             }));
         }
 
         // ktoś dzwoni: okienko w kolorach komunikatora, nad innymi programami, dzwonek do 45 s
-        void KomIncoming(KomContact c)
+        void KomIncoming(KomContact c, bool audio)
         {
             if (_komRingWin != null) return;
             var pal = KomCurrentPal();
             var w = new Window { Title = "Velivo", Width = 340, SizeToContent = SizeToContent.Height, Topmost = true, ResizeMode = ResizeMode.NoResize,
                 WindowStartupLocation = WindowStartupLocation.CenterScreen, Background = new SolidColorBrush(pal.Panel), ShowInTaskbar = true };
             var panel = new StackPanel { Margin = new Thickness(20) };
-            panel.Children.Add(new TextBlock { Text = "📹 " + c.Name, FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(pal.Fg), HorizontalAlignment = HorizontalAlignment.Center });
+            panel.Children.Add(new TextBlock { Text = (audio ? "📞 " : "📹 ") + c.Name, FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(pal.Fg), HorizontalAlignment = HorizontalAlignment.Center });
             panel.Children.Add(new TextBlock { Text = L.T("dzwoni…"), FontSize = 14, Foreground = new SolidColorBrush(pal.Dim), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 16) });
             var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             Button Btn(string text, string tip, Color bg) => new Button { Content = text, ToolTip = tip, Width = 120, Height = 40, Margin = new Thickness(8, 0, 8, 0), FontSize = 15,
@@ -60,7 +60,7 @@ namespace Velivo
             row.Children.Add(no); row.Children.Add(yes); panel.Children.Add(row); w.Content = panel;
             bool answered = false;
             no.Click += (s, e) => w.Close();
-            yes.Click += (s, e) => { answered = true; w.Close(); KomOpenCall(c, false); };
+            yes.Click += (s, e) => { answered = true; w.Close(); KomOpenCall(c, false, audio); };
             var ring = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             var start = DateTime.UtcNow;
             ring.Tick += (s, e) => { if (DateTime.UtcNow - start > TimeSpan.FromSeconds(45)) { w.Close(); return; } try { System.Media.SystemSounds.Asterisk.Play(); } catch (Exception) { } };
@@ -69,13 +69,13 @@ namespace Velivo
             try { System.Media.SystemSounds.Asterisk.Play(); } catch (Exception) { }
         }
 
-        async void KomOpenCall(KomContact c, bool caller)
+        async void KomOpenCall(KomContact c, bool caller, bool audio = false)
         {
             if (c == null || _komCallWin != null || _env == null) return;
             var dir = Path.Combine(AppContext.BaseDirectory, "Rozmowa");
             if (!File.Exists(Path.Combine(dir, "rozmowa.html"))) { MessageBox.Show(this, L.T("Brak pliku rozmowy wideo – zainstaluj Velivo ponownie."), "Velivo"); return; }
             var view = new WebView2 { DefaultBackgroundColor = System.Drawing.Color.FromArgb(18, 15, 36) };
-            var w = new Window { Title = "📹 " + c.Name + " – Velivo", Width = 900, Height = 600, Content = view, Background = new SolidColorBrush(Color.FromRgb(18, 15, 36)), WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            var w = new Window { Title = (audio ? "📞 " : "📹 ") + c.Name + " – Velivo", Width = audio ? 420 : 900, Height = audio ? 360 : 600, Content = view, Background = new SolidColorBrush(Color.FromRgb(18, 15, 36)), WindowStartupLocation = WindowStartupLocation.CenterScreen };
             _komCallWin = w; _komCallView = view; _komCallWith = c.Id;
             bool ended = false;
             w.Closed += (s, e) =>
@@ -109,7 +109,7 @@ namespace Velivo
                     if (k == "end") ended = true;
                     KomSendCall(c, o);
                 };
-                core.Navigate("https://velivo-rozmowa/rozmowa.html?rola=" + (caller ? "dzwoni" : "odbiera") + "&ice=" + Uri.EscapeDataString(KomTurnIce()) + "&pl=" + (L.En ? "0" : "1"));
+                core.Navigate("https://velivo-rozmowa/rozmowa.html?rola=" + (caller ? "dzwoni" : "odbiera") + "&ice=" + Uri.EscapeDataString(KomTurnIce()) + "&pl=" + (L.En ? "0" : "1") + (audio ? "&audio=1" : ""));
             }
             catch (Exception ex) { App.LogError(ex); w.Close(); }
         }

@@ -15,7 +15,7 @@ button.off{background:#6b6b80}#end{background:#e53935}
 <div id="st"></div>
 <div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="end">⏹</button></div>
 <script>
-const q = new URLSearchParams(location.search), caller = q.get('rola') === 'dzwoni', pl = q.get('pl') !== '0';
+const q = new URLSearchParams(location.search), caller = q.get('rola') === 'dzwoni', pl = q.get('pl') !== '0', audio = q.get('audio') === '1';   // 📞 audio - rozmowa głosowa (bez kamery)
 const T = (p, e) => pl ? p : e;
 const you = document.getElementById('you'), me = document.getElementById('me'), st = document.getElementById('st');
 function status(s) { st.textContent = s; }
@@ -27,6 +27,7 @@ let ice = []; try { ice = JSON.parse(q.get('ice') || '[]'); } catch (e) { }
 let pc = null, local = null, facing = 'user', connected = false, done = false;
 const pend = [];
 async function media() {
+  if (audio) return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   try { return await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
   catch (e) { return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
 }
@@ -45,7 +46,7 @@ async function start() {
     else if (s === 'disconnected') status(T('Słabe połączenie…', 'Weak connection…'));
     else if (s === 'failed') { status(T('Nie udało się połączyć', 'Could not connect')); hang(); }
   };
-  out({ k: caller ? 'ring' : 'accept' });
+  out(caller ? { k: 'ring', a: audio } : { k: 'accept' });
   if (caller) setTimeout(() => { if (!connected && !done && !pc.remoteDescription) { status(T('Nie odbiera', 'No answer')); hang(); } }, 45000);
 }
 function flush() { while (pend.length) pc.addIceCandidate(pend.shift()).catch(() => {}); }

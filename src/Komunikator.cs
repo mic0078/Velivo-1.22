@@ -29,7 +29,7 @@ namespace Velivo
     {
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
         sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; public bool IsGroup => Key.Length == 0; }   // 👥 grupa: bez klucza, członkowie w Addr („grupa:id,id”)   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
-        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
+        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; public string Re = ""; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
         static string KomFile => Path.Combine(DataDir, "komunikator.dat");
@@ -61,6 +61,8 @@ namespace Velivo
                     _komTheme = (string)o["theme"] ?? "auto";
                     _komAutoImages = (bool?)o["autoimg"] ?? true;
                     _komNotifyNew = (bool?)o["notifynew"] ?? true; _komSound = (string)o["sound"] ?? "";
+                    _komLock = (bool?)o["lock"] ?? false; _komPhotoV = (long?)o["photov"] ?? 0;
+                    if (o["photosent"] is JsonObject ps) foreach (var kv in ps) _komPhotoSent[kv.Key] = (long?)kv.Value ?? 0;
                     if (o["asks"] is JsonObject ak) foreach (var kv in ak) if (kv.Value != null) _komAskKeys[kv.Key] = (string)kv.Value;
                     if (o["askReq"] is JsonObject aq) foreach (var kv in aq) if (kv.Value is JsonObject v) _komAskReq[kv.Key] = (JsonObject)v.DeepClone();
                     if (o["askRes"] is JsonObject ar) foreach (var kv in ar) if (kv.Value is JsonObject v) _komAskRes[kv.Key] = (JsonObject)v.DeepClone();
@@ -83,7 +85,7 @@ namespace Velivo
                         {
                             var l = new List<KomMsg>();
                             foreach (var m in kv.Value.AsArray())
-                                try { l.Add(new KomMsg { Mine = (bool?)m["me"] ?? false, Text = (string)m["t"] ?? "", Ts = (long?)m["ts"] ?? 0, Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"] }); }
+                                try { l.Add(new KomMsg { Mine = (bool?)m["me"] ?? false, Text = (string)m["t"] ?? "", Ts = (long?)m["ts"] ?? 0, Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"], Re = (string)m["re"] ?? "" }); }
                                 catch (Exception) { }
                             _komChats[kv.Key] = l;
                         }
@@ -107,7 +109,7 @@ namespace Velivo
                 foreach (var kv in _komChats)
                 {
                     var a = new JsonArray();
-                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File, ["p"] = m.Path });
+                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File, ["p"] = m.Path, ["re"] = m.Re });
                     chats[kv.Key] = a;
                 }
                 var unread = new JsonObject(); foreach (var kv in _komUnread) unread[kv.Key] = kv.Value;
@@ -115,7 +117,7 @@ namespace Velivo
                 {
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
-                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["sound"] = _komSound, ["asks"] = new JsonObject(_komAskKeys.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value))),
+                    ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["sound"] = _komSound, ["lock"] = _komLock, ["photov"] = _komPhotoV, ["photosent"] = new JsonObject(_komPhotoSent.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value))), ["asks"] = new JsonObject(_komAskKeys.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value))),
                     ["askReq"] = new JsonObject(_komAskReq.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["askRes"] = new JsonObject(_komAskRes.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort
                 };
                 Directory.CreateDirectory(DataDir);
@@ -352,6 +354,9 @@ namespace Velivo
             if (text.StartsWith(KomAskTag, StringComparison.Ordinal)) return;   // prośby obsługuje telefon właściciela
             if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego
             if (text.StartsWith(KomDelTag, StringComparison.Ordinal)) { KomDelIn(c, text.Substring(KomDelTag.Length)); return; }   // 🚫 nadawca usunął wiadomość u wszystkich
+            if (text.StartsWith(KomEditTag, StringComparison.Ordinal)) { KomEditIn(c, text.Substring(KomEditTag.Length)); return; }   // ✏ nadawca poprawił wiadomość
+            if (text.StartsWith(KomReactTag, StringComparison.Ordinal)) { KomReactIn(c, text.Substring(KomReactTag.Length)); return; }   // 😀 reakcja na wiadomość
+            if (text.StartsWith(KomPhotoTag, StringComparison.Ordinal)) { KomPhotoIn(c, text.Substring(KomPhotoTag.Length)); return; }   // 🖼 zdjęcie profilowe kontaktu
             if (text.StartsWith(KomGroupTag, StringComparison.Ordinal))
             {
                 var g = KomGroupIn(c, text.Substring(KomGroupTag.Length)); if (g == null) return;
@@ -367,7 +372,7 @@ namespace Velivo
             _komRefresh?.Invoke();
             KomTrayUpdate();
             if (!visible) KomNotify(c, text); else KomSendRead(c);
-            KomResendPending(c);
+            KomResendPending(c); KomSendPhoto(c);
         }
 
         // powiadomienie jak w innych komunikatorach: okienko Velivo w prawym dolnym rogu, nad innymi programami
@@ -632,6 +637,84 @@ namespace Velivo
             var m = KomChat(chatId).FirstOrDefault(x => x.Mid == (string)j["m"] && !x.Mine); if (m == null) return;
             m.Text = (chatId != from.Id ? from.Name + ": " : "") + "🚫 " + L.T("Wiadomość usunięta"); m.Path = null;
             KomSave(); _komRefresh?.Invoke();
+        }
+        // ✏ poprawka, 😀 reakcja - jak usuwanie: do rozmówcy albo do każdego w grupie (wiadomość wskazana jej id)
+        const string KomEditTag = "\u0001velivo-edycja\n", KomReactTag = "\u0001velivo-reakcja\n", KomPhotoTag = "\u0001velivo-zdjecie\n";
+        void KomTagOut(KomContact c, string tag, JsonObject body)
+        {
+            if (c.IsGroup) body["g"] = c.Id;
+            foreach (var to in c.IsGroup ? KomMembers(c).Select(KomContactById).Where(x => x != null && !x.IsGroup) : new[] { c })
+                KomDeliver(to, new KomMsg { Mine = true, Text = tag + body.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+        }
+        string KomChatOf(KomContact from, JsonNode j) => (string)j?["g"] is { Length: 32 } g && KomContactById(g)?.IsGroup == true ? g : from.Id;
+        void KomEdit(KomContact c, KomMsg m, string text)
+        {
+            if (!m.Mine || m.File) return;
+            if (text.Length > 4000) text = text.Substring(0, 4000);
+            m.Text = text + " ✏"; KomSave(); _komRefresh?.Invoke();
+            KomTagOut(c, KomEditTag, new JsonObject { ["m"] = m.Mid, ["t"] = text });
+        }
+        void KomEditIn(KomContact from, string body)
+        {
+            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
+            var id = KomChatOf(from, j); var m = KomChat(id).FirstOrDefault(x => x.Mid == (string)j["m"] && !x.Mine && !x.File); if (m == null) return;
+            var t = (id != from.Id ? from.Name + ": " : "") + ((string)j["t"] ?? ""); m.Text = (t.Length > 4000 ? t.Substring(0, 4000) : t) + " ✏";
+            KomSave(); _komRefresh?.Invoke();
+        }
+        void KomReact(KomContact c, KomMsg m, string e)
+        {
+            if (("," + m.Re + ",").Contains("," + _komId + ":" + e + ",")) e = "";   // ta sama reakcja ponownie - zdjęta
+            m.Re = KomReSet(m.Re, _komId, e); KomSave(); _komRefresh?.Invoke();
+            KomTagOut(c, KomReactTag, new JsonObject { ["m"] = m.Mid, ["e"] = e });
+        }
+        void KomReactIn(KomContact from, string body)
+        {
+            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
+            var m = KomChat(KomChatOf(from, j)).FirstOrDefault(x => x.Mid == (string)j["m"]); if (m == null) return;
+            var e = (string)j["e"] ?? ""; m.Re = KomReSet(m.Re, from.Id, e.Length > 8 ? e.Substring(0, 8) : e); KomSave(); _komRefresh?.Invoke();
+        }
+        static string KomReSet(string re, string id, string e) => string.Join(",", (re ?? "").Split(',').Where(x => x.Length > 33 && !x.StartsWith(id + ":", StringComparison.Ordinal)).Concat(e.Length > 0 ? new[] { id + ":" + e } : Array.Empty<string>()));
+        static string KomReactions(KomMsg m) => string.Concat((m.Re ?? "").Split(',').Where(x => x.Length > 33).Select(x => x.Substring(33)));
+        // ↩ odpowiedź: pierwszy wiersz cytowanej wiadomości (bez jej cytatu) - czytelne także w starszym Velivo
+        static string KomQuote(KomMsg m) { var l = m.Text.Split('\n').FirstOrDefault(x => !x.StartsWith("› ", StringComparison.Ordinal)) ?? ""; if (l.EndsWith(" ✏", StringComparison.Ordinal)) l = l.Substring(0, l.Length - 2); return "› " + (l.Length > 70 ? l.Substring(0, 70) : l) + "\n"; }
+
+        // 🖼 moje zdjęcie profilowe (małe) - u kontaktów zamiast kropki; nowe dostaje każdy, kto się odezwie
+        bool _komLock; long _komPhotoV; readonly Dictionary<string, long> _komPhotoSent = new Dictionary<string, long>();
+        string KomPhoto(string id) { var p = Path.Combine(KomMediaDir, "profil-" + id + ".jpg"); return File.Exists(p) ? p : null; }
+        void KomSetPhoto(byte[] jpg)
+        {
+            Directory.CreateDirectory(KomMediaDir); var p = Path.Combine(KomMediaDir, "profil-" + _komId + ".jpg");
+            if (jpg == null) File.Delete(p); else File.WriteAllBytes(p, jpg);
+            _komPhotoV = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); KomSave();
+            foreach (var c in _komContacts.Where(x => !x.IsGroup).ToList()) KomSendPhoto(c);
+        }
+        void KomSendPhoto(KomContact c)
+        {
+            if (_komPhotoV == 0 || c.IsGroup || _komPhotoSent.TryGetValue(c.Id, out var v) && v == _komPhotoV) return;
+            _komPhotoSent[c.Id] = _komPhotoV; KomSave();
+            var p = KomPhoto(_komId);
+            KomDeliver(c, new KomMsg { Mine = true, Text = KomPhotoTag + new JsonObject { ["p"] = p != null ? Convert.ToBase64String(File.ReadAllBytes(p)) : "" }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+        }
+        void KomPhotoIn(KomContact from, string body)
+        {
+            byte[] b; try { b = Convert.FromBase64String((string)JsonNode.Parse(body)?["p"] ?? ""); } catch (Exception) { return; }
+            Directory.CreateDirectory(KomMediaDir); var p = Path.Combine(KomMediaDir, "profil-" + from.Id + ".jpg");
+            try { if (b.Length == 0) File.Delete(p); else if (b.Length < 60000) File.WriteAllBytes(p, b); } catch (Exception) { }
+            _komRefresh?.Invoke();
+        }
+        static ImageSource KomAvatar(string path)
+        {
+            try { var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.StreamSource = new MemoryStream(File.ReadAllBytes(path)); b.DecodePixelWidth = 64; b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); b.Freeze(); return b; }
+            catch (Exception) { return null; }
+        }
+        static byte[] KomPhotoJpg(string file)
+        {   // kwadrat 128 px ze środka zdjęcia
+            var src = new System.Windows.Media.Imaging.BitmapImage(); src.BeginInit(); src.UriSource = new Uri(file); src.DecodePixelWidth = 400; src.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; src.EndInit();
+            int n = Math.Min(src.PixelWidth, src.PixelHeight);
+            var crop = new System.Windows.Media.Imaging.CroppedBitmap(src, new Int32Rect((src.PixelWidth - n) / 2, (src.PixelHeight - n) / 2, n, n));
+            var small = new System.Windows.Media.Imaging.TransformedBitmap(crop, new ScaleTransform(128.0 / n, 128.0 / n));
+            var enc = new System.Windows.Media.Imaging.JpegBitmapEncoder { QualityLevel = 80 }; enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(small));
+            using var ms = new MemoryStream(); enc.Save(ms); return ms.ToArray();
         }
         KomContact KomNewGroup(string name, IEnumerable<string> ids)
         {
@@ -1113,6 +1196,7 @@ namespace Velivo
             KomLoad();
             if (_lanRx == null) KomStartOwn();
             KomEnsureTray();
+            if (_komLock && !_komUnlocked) { _ = Dispatcher.InvokeAsync(async () => { if (await KomUnlock()) { _komUnlocked = true; ShowMessenger(openId); } }); return; }
             if (_komWindow != null) { if (!_komWindow.IsVisible) _komWindow.Show(); _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
             var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true, Uid = "own-theme" };
             if (IsVisible) w.Owner = null;
@@ -1151,6 +1235,8 @@ namespace Velivo
             var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
             var micBtn = new Button { Content = "🎤", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Wiadomość głosowa: kliknij, mów, kliknij ponownie, by wysłać") };
             var vidBtn = new Button { Content = "🎬", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Nagraj wiadomość wideo") };
+            var voiceBtn = new Button { Content = "📞", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa głosowa") };
+            var galBtn = new Button { Content = "🖼", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Zdjęcia, filmy i pliki z rozmowy") };
             var callBtn = new Button { Content = "📹", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa wideo") };
             var bottom = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             DockPanel.SetDock(bottom, Dock.Bottom);
@@ -1167,14 +1253,19 @@ namespace Velivo
                 statusBar.Visibility = p >= 0 ? Visibility.Visible : Visibility.Collapsed; if (p >= 0) statusBar.Value = p;
                 statusHide.Stop(); if (p < 0) statusHide.Start();
             };
-            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Left); DockPanel.SetDock(vidBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
-            bottom.Children.Add(callBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(micBtn); bottom.Children.Add(vidBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
+            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Left); DockPanel.SetDock(vidBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(voiceBtn, Dock.Left); DockPanel.SetDock(galBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
+            bottom.Children.Add(voiceBtn); bottom.Children.Add(callBtn); bottom.Children.Add(galBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(micBtn); bottom.Children.Add(vidBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
+            // ↩ odpowiedź na wiadomość: cytat nad polem (kliknięcie - anuluj), idzie przed tekstem
+            KomMsg replyTo = null;
+            var replyBar = new TextBlock { FontSize = 12, FontStyle = FontStyles.Italic, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(6, 4, 6, 0), Visibility = Visibility.Collapsed, Cursor = Cursors.Hand, ToolTip = L.T("Anuluj odpowiedź") };
+            replyBar.MouseLeftButtonUp += (s, e) => { replyTo = null; replyBar.Visibility = Visibility.Collapsed; };
+            DockPanel.SetDock(replyBar, Dock.Bottom);
             var msgs = new StackPanel { Margin = new Thickness(4) };
             var scroll = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(status); right.Children.Add(scroll);
+            right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(replyBar); right.Children.Add(status); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
-            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(vidBtn); buttons.Add(callBtn);
+            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(vidBtn); buttons.Add(callBtn); buttons.Add(voiceBtn); buttons.Add(galBtn);
             root.Margin = new Thickness(0);
             left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
             KomPal pal = null;
@@ -1187,7 +1278,7 @@ namespace Velivo
                 w.Background = B(pal.Bg1); w.Foreground = B(pal.Fg);
                 list.Background = B(pal.Panel); list.BorderBrush = B(pal.Border); list.Foreground = B(pal.Fg); KomListStyle(list, pal);
                 input.Background = B(pal.Input); input.BorderBrush = B(pal.Border); input.Foreground = B(pal.Fg); input.CaretBrush = B(pal.Fg);
-                header.Foreground = B(pal.Fg); statusText.Foreground = B(pal.Dim); statusBar.Foreground = B(pal.Mine); statusBar.Background = B(pal.Input); statusBar.BorderBrush = B(pal.Border);
+                header.Foreground = B(pal.Fg); replyBar.Foreground = B(pal.Dim); statusText.Foreground = B(pal.Dim); statusBar.Foreground = B(pal.Mine); statusBar.Background = B(pal.Input); statusBar.BorderBrush = B(pal.Border);
                 foreach (var b in buttons) { b.Background = B(pal.Button); b.Foreground = B(pal.Fg); b.BorderBrush = B(pal.Border); }
                 sendBtn.Background = B(pal.Mine); sendBtn.Foreground = B(pal.MineFg);
                 try { var h = new System.Windows.Interop.WindowInteropHelper(w).Handle; if (h != IntPtr.Zero) { int on = pal.Dark ? 1 : 0; DwmSetWindowAttribute(h, 20, ref on, 4); } } catch (Exception) { }
@@ -1212,7 +1303,13 @@ namespace Velivo
                     tb.Inlines.Add(new System.Windows.Documents.Run(c.Name + (un > 0 ? "  (" + un + ")" : "")) { FontWeight = un > 0 ? FontWeights.Bold : FontWeights.Normal });
                     if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) tb.Inlines.Add(new System.Windows.Documents.Run("  " + c.Device) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) });   // prawdziwe urzadzenie
                     if (last != null) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run((last.Mine ? "➜ " : "") + last.Text.Replace('\n', ' ')) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) }); }
-                    var item = new ListBoxItem { Content = tb, Tag = c.Id, Padding = new Thickness(6), ToolTip = L.T("Rozmowa z ") + c.Name + " – " + (on ? L.T("w sieci") : L.T("poza siecią")) };
+                    object row = tb;
+                    if (KomPhoto(c.Id) is string ph && KomAvatar(ph) is ImageSource av)
+                    {   // 🖼 zdjęcie profilowe kontaktu (zielona obwódka - w sieci)
+                        var pic = new Border { Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Margin = new Thickness(0, 0, 8, 0), BorderThickness = new Thickness(2), BorderBrush = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim), Background = new ImageBrush(av) { Stretch = Stretch.UniformToFill } };
+                        var dp = new DockPanel(); DockPanel.SetDock(pic, Dock.Left); dp.Children.Add(pic); dp.Children.Add(tb); row = dp;
+                    }
+                    var item = new ListBoxItem { Content = row, Tag = c.Id, Padding = new Thickness(6), ToolTip = L.T("Rozmowa z ") + c.Name + " – " + (on ? L.T("w sieci") : L.T("poza siecią")) };
                     var cm = new ContextMenu();
                     var ren = new MenuItem { Header = L.T("✏ Zmień nazwę") }; ren.Click += (s, e) => KomRename(c);
                     var del = new MenuItem { Header = L.T("🗑 Usuń kontakt i rozmowę") }; del.Click += (s, e) =>
@@ -1256,13 +1353,13 @@ namespace Velivo
                     headerDone:;
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;
-                fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = c != null; callBtn.IsEnabled = c != null && !c.IsGroup;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
+                fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
                 msgs.Children.Clear();
                 if (c == null) return;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))
                 {
                     var time = DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime;
-                    var stamp = (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read ? " ✓✓" : m.Ok ? " ✓" : " …") : "");
+                    var stamp = (KomReactions(m) is { Length: > 0 } rx ? rx + "  " : "") + (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read ? " ✓✓" : m.Ok ? " ✓" : " …") : "");
                     var body = new StackPanel();
                     // kolory dymkow z motywu komunikatora (bez ramek pola tekstowego)
                     var fg = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg);
@@ -1286,9 +1383,30 @@ namespace Velivo
                         txt.Inlines.Add(link); at = um.Index + um.Length;
                     }
                     txt.Inlines.Add(new System.Windows.Documents.Run(m.Text.Substring(at)));
+                    if (!hasFile && m.Text.StartsWith("› ", StringComparison.Ordinal) && txt.Inlines.FirstInline is System.Windows.Documents.Run q0 && q0.Text.IndexOf('\n') is int qe && qe > 0)
+                    {   // ↩ cytat: pierwszy wiersz kursywą, przygaszony
+                        var rest = q0.Text.Substring(qe); q0.Text = q0.Text.Substring(0, qe); q0.FontStyle = FontStyles.Italic; q0.Foreground = new SolidColorBrush(Color.FromArgb(0xB0, fg.Color.R, fg.Color.G, fg.Color.B));
+                        txt.Inlines.InsertAfter(q0, new System.Windows.Documents.Run(rest));
+                    }
                     if (hasFile) { var fp = m.Path; txt.Cursor = Cursors.Hand; txt.MouseLeftButtonUp += (s2, e2) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { } }; }
                     var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; copy.Click += (s2, e2) => { try { Clipboard.SetText(copyText); } catch (Exception) { } };
-                    txt.ContextMenu = new ContextMenu { Items = { copy } };
+                    var rm = m; var rc = c;
+                    var rep = new MenuItem { Header = "↩ " + L.T("Odpowiedz") }; rep.Click += (s2, e2) => { replyTo = rm; replyBar.Text = "↩ " + KomQuote(rm).Trim() + "   ✕"; replyBar.Visibility = Visibility.Visible; input.Focus(); };
+                    var react = new MenuItem { Header = "😀 " + L.T("Reakcja") };
+                    foreach (var em in new[] { "👍", "❤️", "😂", "😮", "😢", "🙏" }) { var ei = new MenuItem { Header = em }; var e0 = em; ei.Click += (s2, e2) => KomReact(rc, rm, e0); react.Items.Add(ei); }
+                    var fwd = new MenuItem { Header = "↪ " + L.T("Przekaż…") }; fwd.Click += async (s2, e2) =>
+                    {
+                        foreach (var to in KomPickContacts(w, "↪ " + L.T("Przekaż do…"), rc.Id))
+                            if (rm.File && File.Exists(rm.Path ?? "")) await AttachTo(to, new[] { rm.Path }); else KomSend(to, "↪ " + rm.Text);
+                        FillList(); FillChat();
+                    };
+                    txt.ContextMenu = new ContextMenu { Items = { rep, react, fwd, copy } };
+                    if (m.Mine && !m.File && !m.Text.StartsWith("🚫") && DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - m.Ts < 15 * 60000)
+                    {   // ✏ jak w WhatsApp: do 15 min
+                        var ed = new MenuItem { Header = "✏ " + L.T("Edytuj") };
+                        ed.Click += (s2, e2) => { var nt = KomAsk(w, "✏ " + L.T("Edytuj wiadomość"), rm.Text.EndsWith(" ✏", StringComparison.Ordinal) ? rm.Text.Substring(0, rm.Text.Length - 2) : rm.Text); if (!string.IsNullOrWhiteSpace(nt)) KomEdit(rc, rm, nt.Trim()); };
+                        txt.ContextMenu.Items.Add(ed);
+                    }
                     if (m.Mine && !m.Text.StartsWith("🚫"))
                     {   // 🚫 jak w WhatsApp
                         var del = new MenuItem { Header = "🚫 " + L.T("Usuń u wszystkich") }; var dm = m; var dc = c;
@@ -1336,7 +1454,7 @@ namespace Velivo
             {
                 var c = Current(); var text = input.Text.Trim();
                 if (c == null || text.Length == 0) return;
-                input.Clear(); KomSend(c, text); FillList(); FillChat();
+                input.Clear(); KomSend(c, (replyTo != null ? KomQuote(replyTo) : "") + text); replyTo = null; replyBar.Visibility = Visibility.Collapsed; FillList(); FillChat();
             }
             sendBtn.Click += (s, e) => DoSend();
             input.PreviewKeyDown += (s, e) => { if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0) { e.Handled = true; DoSend(); } };
@@ -1399,6 +1517,8 @@ namespace Velivo
                 e.Handled = true; await AttachTo(c, files);
             };
             callBtn.Click += (s, e) => KomOpenCall(Current(), true);
+            voiceBtn.Click += (s, e) => KomOpenCall(Current(), true, true);
+            galBtn.Click += (s, e) => { var c = Current(); if (c != null) KomGallery(w, c); };
             leftButtons.Children.Add(Btn("🎨", L.T("Motyw komunikatora – kolory okna i wiadomości"), (s, e) =>
             {
                 var cm = new ContextMenu { PlacementTarget = (UIElement)s, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
@@ -1421,6 +1541,18 @@ namespace Velivo
                     _komSound = dlg.ShowDialog(w) == true ? dlg.FileName : ""; KomSave(); KomPlaySound();
                 };
                 cm.Items.Add(snd);
+                cm.Items.Add(new Separator());
+                var ph = new MenuItem { Header = L.T("👤 Moje zdjęcie profilowe…") };
+                ph.Click += (a, b) =>
+                {
+                    var dlg = new Microsoft.Win32.OpenFileDialog { Title = L.T("👤 Moje zdjęcie profilowe…"), Filter = L.T("Zdjęcia") + "|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp" };
+                    if (dlg.ShowDialog(w) != true) return;
+                    try { KomSetPhoto(KomPhotoJpg(dlg.FileName)); KomInfo("🖼 " + L.T("Zdjęcie wysłane do kontaktów")); } catch (Exception) { KomInfo(L.T("To nie jest zdjęcie")); }
+                };
+                var phDel = new MenuItem { Header = L.T("🗑 Usuń moje zdjęcie") }; phDel.Click += (a, b) => KomSetPhoto(null);
+                var lk = new MenuItem { Header = L.T("🔒 Blokada komunikatora (Windows Hello)"), IsCheckable = true, IsChecked = _komLock };
+                lk.Click += (a, b) => { _komLock = lk.IsChecked; KomSave(); };
+                cm.Items.Add(ph); cm.Items.Add(phDel); cm.Items.Add(lk);
                 cm.IsOpen = true;
             }));
             leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)"), (s, e) =>
@@ -1451,7 +1583,8 @@ namespace Velivo
             w.SourceInitialized += (s, e) => { SetWindowAppId(w, "Velivo.Komunikator"); ApplyTheme(); };
             // ✕ - do zasobnika (ikona komunikatora), komunikator dalej odbiera; zamyka sie naprawde tylko z Velivo
             w.Closing += (s, e) => { if (_komExit) return; e.Cancel = true; w.Hide(); KomEnsureTray(); };
-            w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; _komStatus = null; };
+            w.Closed += (s, e) => { presence.Stop(); _komWindow = null; _komRefresh = null; _komSelect = null; _komStatus = null; _komUnlocked = false; };
+            w.IsVisibleChanged += (s, e) => { if (!w.IsVisible) _komUnlocked = false; };   // 🔒 schowane do zasobnika - przy powrocie znów Windows Hello
             _komWindow = w;
             if (openId != null) _komOpenId = openId;
             FillList(); FillChat();
@@ -1492,6 +1625,57 @@ namespace Velivo
                 if (r == "ok") KomNote(c, true, L.T("🎬 Filmy i TV"));
             }
             finally { try { File.Delete(path); } catch (Exception) { } }
+        }
+
+        // ✏ edycja wiadomości (Enter - zapisz)
+        string KomAsk(Window owner, string title, string text)
+        {
+            var box = new TextBox { Text = text, Margin = new Thickness(10), MinWidth = 340, MaxWidth = 520, TextWrapping = TextWrapping.Wrap, AcceptsReturn = false };
+            var ok = new Button { Content = L.T("Zapisz"), IsDefault = true, Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(10, 0, 10, 10), HorizontalAlignment = HorizontalAlignment.Right };
+            var d = new Window { Title = title, SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { box, ok } } };
+            KomStyle(d); ok.Click += (s, e) => d.DialogResult = true; box.SelectAll(); box.Focus();
+            return d.ShowDialog() == true ? box.Text : null;
+        }
+        // ↪ wybór osób / grup (przekazanie)
+        List<KomContact> KomPickContacts(Window owner, string title, string skip)
+        {
+            var list = new StackPanel();
+            foreach (var c in _komContacts.Where(x => x.Id != skip)) list.Children.Add(new CheckBox { Content = (c.IsGroup ? "👥 " : "") + c.Name, Tag = c, Margin = new Thickness(0, 3, 0, 3) });
+            var ok = new Button { Content = L.T("Wyślij"), IsDefault = true, Padding = new Thickness(16, 4, 16, 4), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            var d = new Window { Title = title, Owner = owner, Width = 320, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
+                Content = new StackPanel { Margin = new Thickness(14), Children = { new ScrollViewer { Content = list, MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ok } } };
+            ok.Click += (a, b) => d.DialogResult = true;
+            KomStyle(d);
+            return d.ShowDialog() == true ? list.Children.OfType<CheckBox>().Where(x => x.IsChecked == true).Select(x => (KomContact)x.Tag).ToList() : new List<KomContact>();
+        }
+        // 🖼 zdjęcia, filmy, głosówki i pliki z rozmowy w jednym miejscu (najnowsze na początku); kliknięcie otwiera
+        void KomGallery(Window owner, KomContact c)
+        {
+            var ms = KomChat(c.Id).Where(m => !string.IsNullOrEmpty(m.Path) && File.Exists(m.Path)).Reverse().ToList();
+            if (ms.Count == 0) { KomInfo(L.T("Brak plików w tej rozmowie")); return; }
+            var wrap = new WrapPanel { Margin = new Thickness(8) };
+            foreach (var m in ms)
+            {
+                var p = m.Path;
+                FrameworkElement el = KomIsImage(p) && KomThumb(p) is ImageSource th ? new Image { Source = th, Width = 120, Height = 120, Stretch = Stretch.UniformToFill }
+                    : new TextBlock { Text = m.Text, Width = 120, Height = 120, TextWrapping = TextWrapping.Wrap, FontSize = 12, Padding = new Thickness(6) };
+                var b = new Border { Child = el, Margin = new Thickness(4), CornerRadius = new CornerRadius(8), ClipToBounds = true, Cursor = Cursors.Hand, ToolTip = m.Text, BorderThickness = new Thickness(1), BorderBrush = Brushes.Gray };
+                b.MouseLeftButtonUp += (s, e) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(p) { UseShellExecute = true }); } catch (Exception) { } };
+                wrap.Children.Add(b);
+            }
+            var d = new Window { Title = "🖼 " + c.Name, Owner = owner, Width = 600, Height = 480, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+            KomStyle(d); d.Show();
+        }
+        // 🔒 blokada: przy otwarciu komunikatora Windows Hello (odcisk palca, twarz albo PIN Windows)
+        bool _komUnlocked;
+        async Task<bool> KomUnlock()
+        {
+            try
+            {
+                if (await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync() != Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available) return true;   // bez Windows Hello - bez blokady
+                return await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Komunikator Velivo")) == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified;
+            }
+            catch (Exception) { return true; }
         }
 
         void KomRename(KomContact c)

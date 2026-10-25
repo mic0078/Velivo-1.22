@@ -2479,15 +2479,25 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (perms.none { a.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }) {
             a.requestPermissions(perms, 4715); Toast.makeText(a, t("Zezwól na lokalizację i wybierz 📍 jeszcze raz", "Allow location and choose 📍 again"), Toast.LENGTH_LONG).show(); return }
         val lm = a.getSystemService(android.location.LocationManager::class.java) ?: return
-        val prov = listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER).firstOrNull { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
-            ?: run { Toast.makeText(a, t("Włącz lokalizację w telefonie", "Turn on location on the phone"), Toast.LENGTH_LONG).show(); return }
+        // źródła dozwolone i włączone; najpierw szybkie (lokalizacja telefonu, sieć - działają w domu), GPS na końcu (w budynku często bez wyniku)
+        val provs = runCatching { lm.getProviders(true) }.getOrDefault(emptyList())
+        val order = listOf("fused", android.location.LocationManager.NETWORK_PROVIDER, android.location.LocationManager.GPS_PROVIDER).filter { it in provs }
+        if (order.isEmpty()) { Toast.makeText(a, t("Włącz lokalizację w telefonie", "Turn on location on the phone"), Toast.LENGTH_LONG).show(); return }
         Toast.makeText(a, "📍 " + t("Ustalam położenie…", "Finding location…"), Toast.LENGTH_SHORT).show()
+        var sent = false
         fun send(l: android.location.Location?) {
-            if (l == null) { Toast.makeText(a, t("Nie udało się ustalić położenia", "Could not get the location"), Toast.LENGTH_LONG).show(); return }
+            if (sent) return
+            if (l == null) { Toast.makeText(a, t("Nie udało się ustalić położenia – wyjdź bliżej okna albo włącz Wi-Fi", "Could not get the location – move near a window or turn on Wi-Fi"), Toast.LENGTH_LONG).show(); return }
+            sent = true
             k.send(c, "📍 " + t("Moja lokalizacja", "My location") + "\nhttps://maps.google.com/?q=" + String.format(Locale.ROOT, "%.6f,%.6f", l.latitude, l.longitude)); done()
         }
-        runCatching { if (Build.VERSION.SDK_INT >= 30) lm.getCurrentLocation(prov, null, a.mainExecutor) { send(it ?: lm.getLastKnownLocation(prov)) } else send(lm.getLastKnownLocation(prov)) }
-            .onFailure { send(null) }
+        // ostatnie znane położenie z dowolnego źródła (najświeższe)
+        fun last() = provs.mapNotNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }.maxByOrNull { it.time }
+        fun next(i: Int) {
+            if (i >= order.size || Build.VERSION.SDK_INT < 30) { send(last()); return }
+            runCatching { lm.getCurrentLocation(order[i], null, a.mainExecutor) { l -> if (l != null) send(l) else next(i + 1) } }.onFailure { next(i + 1) }
+        }
+        next(0)
     }
 
     private fun play(path: String) {

@@ -954,6 +954,8 @@ namespace Velivo
             { "Nagrywam… kliknij ⏹, by wysłać", "Recording… click ⏹ to send" },
             { "Wiadomość głosowa", "Voice message" },
             { "Wiadomość wideo", "Video message" },
+            { "Plik / zdjęcie…", "File / photo…" },
+            { "Załącz: plik, zdjęcie kamerą, wiadomość wideo, lokalizacja", "Attach: file, camera photo, video message, location" },
             { "1,5×", "1.5×" },
             { "7 dni", "7 days" },
             { "8 godzin", "8 hours" },

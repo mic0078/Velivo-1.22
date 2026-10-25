@@ -1315,7 +1315,7 @@ namespace Velivo
             var right = new DockPanel(); Grid.SetColumn(right, 2);
             var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6) };
             var searchBox = new TextBox { Width = 160, Margin = new Thickness(6, 0, 0, 6), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("🔍 Szukaj w rozmowie") };
-            var top = new DockPanel(); DockPanel.SetDock(top, Dock.Top); DockPanel.SetDock(searchBox, Dock.Right); top.Children.Add(searchBox); top.Children.Add(header);
+            var top = new DockPanel(); DockPanel.SetDock(top, Dock.Top);
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
             DateTime typedAt = default;
             input.TextChanged += (s0, e0) =>
@@ -1347,8 +1347,16 @@ namespace Velivo
                 statusBar.Visibility = p >= 0 ? Visibility.Visible : Visibility.Collapsed; if (p >= 0) statusBar.Value = p;
                 statusHide.Stop(); if (p < 0) statusHide.Start();
             };
-            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Left); DockPanel.SetDock(vidBtn, Dock.Left); DockPanel.SetDock(camBtn, Dock.Left); DockPanel.SetDock(locBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(voiceBtn, Dock.Left); DockPanel.SetDock(galBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
-            bottom.Children.Add(voiceBtn); bottom.Children.Add(callBtn); bottom.Children.Add(galBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(micBtn); bottom.Children.Add(camBtn); bottom.Children.Add(locBtn); bottom.Children.Add(vidBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
+            // jak w WhatsApp na komputerze: na dole 📎 (menu), pole tekstu i 🎤 / ➤; rozmowy, galeria i szukanie - w nagłówku
+            micBtn.Margin = sendBtn.Margin = new Thickness(6, 0, 0, 0);
+            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Right); DockPanel.SetDock(sendBtn, Dock.Right);
+            bottom.Children.Add(fileBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(micBtn); bottom.Children.Add(input);
+            var tools = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(6, 0, 0, 6) };
+            foreach (var b in new[] { galBtn, voiceBtn, callBtn }) { b.Height = 34; b.Margin = new Thickness(0, 0, 6, 0); tools.Children.Add(b); }
+            tools.Children.Add(searchBox); searchBox.Margin = new Thickness(0); searchBox.Height = 34;
+            DockPanel.SetDock(tools, Dock.Right); top.Children.Add(tools); top.Children.Add(header);
+            void SendOrMic() { bool t = input.Text.Trim().Length > 0 && (string)micBtn.Content != "⏹"; sendBtn.Visibility = t ? Visibility.Visible : Visibility.Collapsed; micBtn.Visibility = t ? Visibility.Collapsed : Visibility.Visible; }
+            input.TextChanged += (s0, e0) => SendOrMic(); SendOrMic();
             // ↩ odpowiedź na wiadomość: cytat nad polem (kliknięcie - anuluj), idzie przed tekstem
             KomMsg replyTo = null;
             var replyBar = new TextBlock { FontSize = 12, FontStyle = FontStyles.Italic, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(6, 4, 6, 0), Visibility = Visibility.Collapsed, Cursor = Cursors.Hand, ToolTip = L.T("Anuluj odpowiedź") };
@@ -1604,7 +1612,15 @@ namespace Velivo
                 if (ok && DateTime.UtcNow - recAt > TimeSpan.FromMilliseconds(700) && File.Exists(recPath)) await AttachTo(c, new[] { recPath });
                 else try { File.Delete(recPath); } catch (Exception) { }
             };
-            fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
+            fileBtn.ToolTip = L.T("Załącz: plik, zdjęcie kamerą, wiadomość wideo, lokalizacja");
+            fileBtn.Click += (s, e) =>
+            {   // 📎 menu jak w WhatsApp - przyciski nie zabierają miejsca na tekst
+                var cm = new ContextMenu { PlacementTarget = fileBtn, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+                void Add(string text, Action act) { var mi = new MenuItem { Header = text }; mi.Click += (a, b) => act(); cm.Items.Add(mi); }
+                Add("📎 " + L.T("Plik / zdjęcie…"), async () => { var c = Current(); if (c != null) await AttachTo(c); });
+                foreach (var b in new[] { camBtn, vidBtn, locBtn }) { var bb = b; Add(bb.Content + " " + bb.ToolTip, () => bb.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))); }
+                cm.IsOpen = true;
+            };
             locBtn.Click += async (s, e) =>
             {   // 📍 jednorazowo: link do mapy (bez śledzenia)
                 var c = Current(); if (c == null) return;

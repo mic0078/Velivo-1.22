@@ -3270,6 +3270,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     @Deprecated("Activity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == Komunikator.REQ_SCREEN) { komOkno.screenResult(resultCode, data); return }   // 🖥 ekran w rozmowie
         if (requestCode == Komunikator.REQ_PHOTO) { komOkno.cameraResult(resultCode == RESULT_OK); return }   // 📷 zdjęcie do rozmowy
         if (requestCode == Komunikator.REQ_BACKUP) { komOkno.backupResult(data?.data.takeIf { resultCode == RESULT_OK }); return }   // 💾 kopia
         if ((requestCode == REQ_SENDFILE || requestCode == REQ_P2PFILE) && resultCode == RESULT_OK && data != null) {

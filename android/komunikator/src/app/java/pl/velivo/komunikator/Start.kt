@@ -105,6 +105,7 @@ class Start : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         picking = false
         if (!ready) return
+        if (requestCode == Komunikator.REQ_SCREEN) { okno.screenResult(resultCode, data); return }   // 🖥 ekran w rozmowie
         if (requestCode == Komunikator.REQ_PHOTO) { okno.cameraResult(resultCode == RESULT_OK); return }
         if (requestCode == Komunikator.REQ_BACKUP) { okno.backupResult(data?.data.takeIf { resultCode == RESULT_OK }); return }   // 💾 kopia
         if (resultCode != RESULT_OK || data == null) { okno.attachTo = null; okno.pickingPhoto = false; okno.pickingBackup = false; okno.show(); return }

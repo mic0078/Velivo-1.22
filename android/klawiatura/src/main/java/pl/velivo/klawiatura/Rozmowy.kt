@@ -48,6 +48,7 @@ class Rozmowy : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         picking = false
+        if (requestCode == Komunikator.REQ_SCREEN) { okno.screenResult(resultCode, data); return }   // 🖥 ekran w rozmowie
         if (requestCode == Komunikator.REQ_PHOTO) { okno.cameraResult(resultCode == RESULT_OK); return }
         if (requestCode == Komunikator.REQ_BACKUP) { okno.backupResult(data?.data.takeIf { resultCode == RESULT_OK }); return }   // 💾 kopia
         if (resultCode != RESULT_OK || data == null) { okno.show(); return }

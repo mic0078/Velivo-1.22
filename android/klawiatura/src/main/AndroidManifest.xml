@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -50,6 +53,7 @@
         </activity-alias>
         <receiver android:name="pl.velivo.komunikator.KomunikatorAkcja" android:exported="false" />
         <!-- 💬 komunikator w domowym Wi-Fi: czeka na wiadomości, gdy aplikacja zamknięta (powiadomienia jak w innych komunikatorach) -->
+        <service android:name="pl.velivo.komunikator.EkranUsluga" android:exported="false" android:foregroundServiceType="mediaProjection|microphone" />
         <service android:name="pl.velivo.komunikator.KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Local network messenger: receives messages from devices on the home Wi-Fi without internet" />
         </service>

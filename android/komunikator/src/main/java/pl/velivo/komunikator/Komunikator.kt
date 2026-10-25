@@ -1521,6 +1521,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val PORT = 41918; const val OLD_PORT = 41919
         const val APP = "pl.velivo.komunikator"
         const val REQ_PHOTO = 4733   // 📷 zdjęcie z aparatu - wynik: okno.cameraResult
+        const val REQ_SCREEN = 4735   // 🖥 zgoda na pokazanie ekranu w rozmowie - wynik: okno.screenResult
         const val REQ_BACKUP = 4734   // 💾 miejsce na kopię (telefon, Google Drive…) - wynik: okno.backupResult
         // jeden komunikator w telefonie: aplikacja Komunikator Velivo, bez niej przeglądarka Velivo, bez obu - klawiatura
         fun owner(ctx: Context): String = listOf(APP, KomunikatorUsluga.BROWSER).firstOrNull { p -> p == ctx.packageName || runCatching { ctx.packageManager.getPackageInfo(p, 0) }.isSuccess } ?: ctx.packageName
@@ -1772,7 +1773,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }
         runCatching { am?.mode = android.media.AudioManager.MODE_IN_COMMUNICATION }; route()
         w.settings.javaScriptEnabled = true; w.settings.mediaPlaybackRequiresUserGesture = false
-        w.setBackgroundColor(Color.rgb(18, 15, 36))
+        w.setBackgroundColor(Color.rgb(18, 15, 36)); w.setRendererPriorityPolicy(android.webkit.WebView.RENDERER_PRIORITY_IMPORTANT, false)   // rozmowa działa też w tle (🖥 pokazywanie ekranu)
         w.addJavascriptInterface(object {
             @android.webkit.JavascriptInterface fun send(s: String) {
                 val o = runCatching { JSONObject(s) }.getOrNull() ?: return
@@ -1782,6 +1783,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }
             @android.webkit.JavascriptInterface fun speaker(): Boolean { spk = !spk; a.runOnUiThread { route() }; return spk }
             @android.webkit.JavascriptInterface fun speakerOn(): Boolean = spk
+            // 🖥 pokazanie ekranu telefonu rozmówcy; 👆 jego wskazówka nad ekranem
+            @android.webkit.JavascriptInterface fun screen(on: Boolean) { a.runOnUiThread { if (on) askScreen() else a.stopService(Intent(a, EkranUsluga::class.java)) } }
+            @android.webkit.JavascriptInterface fun point(x: Double, y: Double) { EkranUsluga.point(a.applicationContext, x, y) }
         }, "velivo")
         w.webChromeClient = object : android.webkit.WebChromeClient() {
             override fun onPermissionRequest(r: android.webkit.PermissionRequest) {
@@ -1794,6 +1798,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         d.setOnDismissListener {
             if (!ended) k.sendCall(c, JSONObject().put("k", "end"))
             callView = null; callWith = null
+            a.stopService(Intent(a, EkranUsluga::class.java)); EkranUsluga.onFrame = null; EkranUsluga.onStop = null
             runCatching { w.destroy() }
             runCatching {
                 if (Build.VERSION.SDK_INT >= 31) am?.clearCommunicationDevice() else { @Suppress("DEPRECATION") am?.stopBluetoothSco() }
@@ -1842,6 +1847,22 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     var pickingPhoto = false
     // 📷 zdjęcie z aparatu: zrobione - wysyłka oryginału; anulowane - pusty wpis w Galerii usunięty
     private var photoUri: Uri? = null
+    // 🖥 zgoda Androida na nagrywanie ekranu; nad innymi aplikacjami - żeby było widać wskazówkę 👆 rozmówcy
+    private fun askScreen() {
+        if (!android.provider.Settings.canDrawOverlays(a)) Toast.makeText(a, t("Aby widzieć wskazówki 👆 rozmówcy, zezwól Velivo na wyświetlanie nad innymi aplikacjami (Ustawienia → Aplikacje).",
+            "To see the other person's 👆 hints, allow Velivo to display over other apps (Settings → Apps)."), Toast.LENGTH_LONG).show()
+        val mpm = a.getSystemService(android.media.projection.MediaProjectionManager::class.java) ?: return
+        runCatching { a.startActivityForResult(mpm.createScreenCaptureIntent(), Komunikator.REQ_SCREEN) }
+    }
+    fun screenResult(code: Int, data: Intent?) {
+        val w = callView ?: return
+        if (code != Activity.RESULT_OK || data == null) { w.evaluateJavascript("scrOff()", null); return }
+        EkranUsluga.onFrame = { b -> w.post { if (callView === w) w.evaluateJavascript("scrFrame('" + b + "')", null) } }
+        EkranUsluga.onStop = { w.post { if (callView === w) w.evaluateJavascript("scrOff()", null) } }
+        runCatching { a.startForegroundService(Intent(a, EkranUsluga::class.java).putExtra("code", code).putExtra("data", data)) }
+            .onSuccess { w.evaluateJavascript("scrOn()", null) }.onFailure { w.evaluateJavascript("scrOff()", null) }
+        if (!android.provider.Settings.canDrawOverlays(a)) runCatching { a.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + a.packageName))) }
+    }
     fun cameraResult(ok: Boolean) {
         val u = photoUri ?: return; photoUri = null
         if (ok) sendFiles(listOf(u)) else { attachTo = null; runCatching { a.contentResolver.delete(u, null, null) } }
@@ -2677,6 +2698,84 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
 
     private fun ColorDrawableCompat(c: Int) = android.graphics.drawable.ColorDrawable(c)
+}
+
+// 🖥 ekran telefonu w rozmowie (pomoc zdalna): Android pyta o zgodę, pasek powiadomień pokazuje, że ekran jest pokazywany.
+// Klatki JPEG (ok. 3 na sekundę, szerokość do 720) idą do strony rozmowy, stamtąd kanałem danych WebRTC prosto do rozmówcy.
+class EkranUsluga : Service() {
+    private var mp: android.media.projection.MediaProjection? = null
+    private var vd: android.hardware.display.VirtualDisplay? = null
+    private var reader: android.media.ImageReader? = null
+    private var th: android.os.HandlerThread? = null
+    override fun onBind(i: Intent?): IBinder? = null
+    override fun onStartCommand(i: Intent?, flags: Int, id: Int): Int {
+        val pl = Locale.getDefault().language == "pl"
+        val nm = getSystemService(NotificationManager::class.java)
+        nm?.createNotificationChannel(NotificationChannel("ekran", if (pl) "Pokazywanie ekranu" else "Screen sharing", NotificationManager.IMPORTANCE_LOW))
+        val n = Notification.Builder(this, "ekran").setSmallIcon(android.R.drawable.ic_menu_view).setOngoing(true)
+            .setContentTitle(if (pl) "Velivo pokazuje ekran rozmówcy" else "Velivo is sharing your screen")
+            .setContentText(if (pl) "Zakończ w rozmowie (🖥) albo kończąc rozmowę" else "Stop in the call (🖥) or by ending the call").build()
+        runCatching {
+            // 🎤 z mikrofonem - rozmowę słychać dalej, gdy ktoś przejdzie do innej aplikacji (Android wycisza mikrofon w tle)
+            val mic = if (Build.VERSION.SDK_INT >= 30 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
+            startForeground(41921, n, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or mic)
+            val data = if (Build.VERSION.SDK_INT >= 33) i?.getParcelableExtra("data", Intent::class.java) else @Suppress("DEPRECATION") i?.getParcelableExtra("data")
+            val p = getSystemService(android.media.projection.MediaProjectionManager::class.java).getMediaProjection(i!!.getIntExtra("code", 0), data!!)!!
+            mp = p
+            val t = android.os.HandlerThread("velivo-ekran").also { it.start() }; th = t; val h = Handler(t.looper)
+            p.registerCallback(object : android.media.projection.MediaProjection.Callback() { override fun onStop() { stopSelf() } }, h)
+            val m = resources.displayMetrics; val sz = size(this); val sc = minOf(1f, 720f / minOf(sz.x, sz.y))
+            val w = (sz.x * sc).toInt() and 1.inv(); val hh = (sz.y * sc).toInt() and 1.inv()
+            val r = android.media.ImageReader.newInstance(w, hh, android.graphics.PixelFormat.RGBA_8888, 2); reader = r
+            var last = 0L
+            r.setOnImageAvailableListener({ ir ->
+                val img = runCatching { ir.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
+                img.use {
+                    val now = System.currentTimeMillis(); val cb = onFrame
+                    if (cb == null || now - last < 330) return@use
+                    last = now
+                    val pl0 = it.planes[0]; val full = android.graphics.Bitmap.createBitmap(pl0.rowStride / pl0.pixelStride, hh, android.graphics.Bitmap.Config.ARGB_8888)
+                    full.copyPixelsFromBuffer(pl0.buffer)
+                    val bmp = android.graphics.Bitmap.createBitmap(full, 0, 0, w, hh)
+                    val o = java.io.ByteArrayOutputStream(); bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 55, o)
+                    if (bmp !== full) bmp.recycle(); full.recycle()
+                    cb(Base64.encodeToString(o.toByteArray(), Base64.NO_WRAP))
+                }
+            }, h)
+            vd = p.createVirtualDisplay("velivo-ekran", w, hh, m.densityDpi, android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, r.surface, null, h)
+        }.onFailure { stopSelf() }
+        return START_NOT_STICKY
+    }
+    override fun onDestroy() {
+        runCatching { vd?.release() }; runCatching { mp?.stop() }; runCatching { reader?.close() }; th?.quitSafely()
+        onStop?.invoke()
+        super.onDestroy()
+    }
+    companion object {
+        @Volatile var onFrame: ((String) -> Unit)? = null
+        @Volatile var onStop: (() -> Unit)? = null
+        private var hint: View? = null
+        // cały ekran (z paskami systemu) - tak jak widzi go nagrywanie
+        fun size(ctx: Context): android.graphics.Point = if (Build.VERSION.SDK_INT >= 30) ctx.getSystemService(android.view.WindowManager::class.java).maximumWindowMetrics.bounds.let { android.graphics.Point(it.width(), it.height()) }
+            else ctx.resources.displayMetrics.let { android.graphics.Point(it.widthPixels, it.heightPixels) }
+        // 👆 wskazówka rozmówcy: czerwone kółko nad wszystkimi aplikacjami na 3 s (gdy jest zgoda „nad innymi aplikacjami”)
+        fun point(ctx: Context, fx: Double, fy: Double) = Handler(Looper.getMainLooper()).post {
+            if (!android.provider.Settings.canDrawOverlays(ctx)) return@post
+            val wm = ctx.getSystemService(android.view.WindowManager::class.java) ?: return@post
+            hint?.let { runCatching { wm.removeView(it) } }
+            val m = ctx.resources.displayMetrics; val d = (48 * m.density).toInt()
+            val v = TextView(ctx).apply { text = "👆"; textSize = 22f; gravity = Gravity.CENTER
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.argb(110, 229, 57, 53)); setStroke((3 * m.density).toInt(), Color.rgb(229, 57, 53)) } }
+            val lp = android.view.WindowManager.LayoutParams(d, d, android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                android.graphics.PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START
+                    val sz = size(ctx); x = (fx.coerceIn(0.0, 1.0) * sz.x).toInt() - d / 2; y = (fy.coerceIn(0.0, 1.0) * sz.y).toInt() - d / 2
+                    if (Build.VERSION.SDK_INT >= 28) layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }
+            if (runCatching { wm.addView(v, lp) }.isFailure) return@post
+            hint = v
+            v.postDelayed({ if (hint === v) { runCatching { wm.removeView(v) }; hint = null } }, 3000)
+        }
+    }
 }
 
 // usługa w tle: gdy aplikacja zamknięta, komunikator czeka na wiadomości (stałe ciche powiadomienie, jak w innych komunikatorach)

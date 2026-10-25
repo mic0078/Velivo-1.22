@@ -1268,8 +1268,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             })
             if (old != null) nm.deleteNotificationChannel("wiadomosci")
         }
-        nm.createNotificationChannel(NotificationChannel("informacje", if (pl) "Informacje" else "Information", NotificationManager.IMPORTANCE_LOW))
-        nm.createNotificationChannel(NotificationChannel("nasluch", if (pl) "Komunikator w tle" else "Messenger in background", NotificationManager.IMPORTANCE_MIN))
+        // 🔢 licznik na ikonie tylko z wiadomości - nie ze stałego powiadomienia w tle ani informacji
+        nm.createNotificationChannel(NotificationChannel("informacje", if (pl) "Informacje" else "Information", NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) })
+        nm.createNotificationChannel(NotificationChannel("nasluch", if (pl) "Komunikator w tle" else "Messenger in background", NotificationManager.IMPORTANCE_MIN).apply { setShowBadge(false) })
     }
 
     fun notifyMessage(c: Contact, quiet: Boolean = false) {

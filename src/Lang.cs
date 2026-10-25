@@ -954,6 +954,8 @@ namespace Velivo
             { "Nagrywam… kliknij ⏹, by wysłać", "Recording… click ⏹ to send" },
             { "Wiadomość głosowa", "Voice message" },
             { "Wiadomość wideo", "Video message" },
+            { "Zrób zdjęcie", "Take a photo" },
+            { "Zrób zdjęcie kamerą i wyślij (pełna jakość)", "Take a photo with the camera and send it (full quality)" },
             { "Anuluj odpowiedź", "Cancel reply" },
             { "Brak plików w tej rozmowie", "No files in this chat" },
             { "Edytuj wiadomość", "Edit message" },

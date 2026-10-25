@@ -1244,6 +1244,7 @@ namespace Velivo
             var sendBtn = new Button { Content = "➤", FontSize = 16, Width = 44, Margin = new Thickness(6, 0, 0, 0), ToolTip = L.T("Wyślij") };
             var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
             var micBtn = new Button { Content = "🎤", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Wiadomość głosowa: kliknij, mów, kliknij ponownie, by wysłać") };
+            var camBtn = new Button { Content = "📷", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Zrób zdjęcie kamerą i wyślij (pełna jakość)") };
             var vidBtn = new Button { Content = "🎬", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Nagraj wiadomość wideo") };
             var voiceBtn = new Button { Content = "📞", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa głosowa") };
             var galBtn = new Button { Content = "🖼", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Zdjęcia, filmy i pliki z rozmowy") };
@@ -1263,8 +1264,8 @@ namespace Velivo
                 statusBar.Visibility = p >= 0 ? Visibility.Visible : Visibility.Collapsed; if (p >= 0) statusBar.Value = p;
                 statusHide.Stop(); if (p < 0) statusHide.Start();
             };
-            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Left); DockPanel.SetDock(vidBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(voiceBtn, Dock.Left); DockPanel.SetDock(galBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
-            bottom.Children.Add(voiceBtn); bottom.Children.Add(callBtn); bottom.Children.Add(galBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(micBtn); bottom.Children.Add(vidBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
+            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Left); DockPanel.SetDock(vidBtn, Dock.Left); DockPanel.SetDock(camBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(voiceBtn, Dock.Left); DockPanel.SetDock(galBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
+            bottom.Children.Add(voiceBtn); bottom.Children.Add(callBtn); bottom.Children.Add(galBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(micBtn); bottom.Children.Add(camBtn); bottom.Children.Add(vidBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
             // ↩ odpowiedź na wiadomość: cytat nad polem (kliknięcie - anuluj), idzie przed tekstem
             KomMsg replyTo = null;
             var replyBar = new TextBlock { FontSize = 12, FontStyle = FontStyles.Italic, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(6, 4, 6, 0), Visibility = Visibility.Collapsed, Cursor = Cursors.Hand, ToolTip = L.T("Anuluj odpowiedź") };
@@ -1275,7 +1276,7 @@ namespace Velivo
             right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(replyBar); right.Children.Add(status); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
-            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(vidBtn); buttons.Add(callBtn); buttons.Add(voiceBtn); buttons.Add(galBtn);
+            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(vidBtn); buttons.Add(camBtn); buttons.Add(callBtn); buttons.Add(voiceBtn); buttons.Add(galBtn);
             root.Margin = new Thickness(0);
             left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
             KomPal pal = null;
@@ -1365,7 +1366,7 @@ namespace Velivo
                     headerDone:;
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;
-                fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
+                fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = camBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
                 msgs.Children.Clear();
                 if (c == null) return;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))
@@ -1498,6 +1499,7 @@ namespace Velivo
                 else try { File.Delete(recPath); } catch (Exception) { }
             };
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
+            camBtn.Click += (s, e) => { var c = Current(); if (c != null) KomRecordVideo(w, async p => await AttachTo(c, new[] { p }), photo: true); };
             vidBtn.Click += (s, e) => { var c = Current(); if (c != null) KomRecordVideo(w, async p => await AttachTo(c, new[] { p })); };
             // 🖱 pliki przeciągnięte myszką z Eksploratora na okno rozmowy - wysyłka jak 📎
             w.AllowDrop = true;

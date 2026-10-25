@@ -66,6 +66,7 @@ class Start : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         picking = false
+        if (requestCode == Komunikator.REQ_PHOTO) { okno.cameraResult(resultCode == RESULT_OK); return }
         if (resultCode != RESULT_OK || data == null) { okno.attachTo = null; okno.pickingPhoto = false; okno.show(); return }
         val l = ArrayList<Uri>(); data.clipData?.let { c -> for (n in 0 until c.itemCount) l.add(c.getItemAt(n).uri) } ?: data.data?.let { l.add(it) }
         okno.sendFiles(l)   // pliki, 🎬 nagranie z aparatu albo 👤 zdjęcie profilowe

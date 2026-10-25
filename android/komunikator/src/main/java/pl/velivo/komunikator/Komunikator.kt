@@ -1405,6 +1405,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         // 💬 własny port komunikatora w sieci domowej (osobna aplikacja Komunikator); 41919 - dom (synchronizacja) i starsze Velivo
         const val PORT = 41918; const val OLD_PORT = 41919
         const val APP = "pl.velivo.komunikator"
+        const val REQ_PHOTO = 4733   // 📷 zdjęcie z aparatu - wynik: okno.cameraResult
         // jeden komunikator w telefonie: aplikacja Komunikator Velivo, bez niej przeglądarka Velivo, bez obu - klawiatura
         fun owner(ctx: Context): String = listOf(APP, KomunikatorUsluga.BROWSER).firstOrNull { p -> p == ctx.packageName || runCatching { ctx.packageManager.getPackageInfo(p, 0) }.isSuccess } ?: ctx.packageName
         const val CHUNK = 1 shl 20
@@ -1717,6 +1718,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
     // 👤 mój profil: zdjęcie (wybór z plików) i blokada komunikatora
     var pickingPhoto = false
+    // 📷 zdjęcie z aparatu: zrobione - wysyłka oryginału; anulowane - pusty wpis w Galerii usunięty
+    private var photoUri: Uri? = null
+    fun cameraResult(ok: Boolean) {
+        val u = photoUri ?: return; photoUri = null
+        if (ok) sendFiles(listOf(u)) else { attachTo = null; runCatching { a.contentResolver.delete(u, null, null) } }
+    }
     private fun profile() {
         val items = arrayOf("🖼 " + t("Moje zdjęcie profilowe…", "My profile photo…"), "🗑 " + t("Usuń moje zdjęcie", "Remove my photo"),
             "🔒 " + t("Blokada odciskiem palca / PIN-em: ", "Fingerprint / PIN lock: ") + if (k.lock) t("wł.", "on") else t("wył.", "off"))
@@ -2139,6 +2146,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     .onFailure { attachTo = null; Toast.makeText(a, t("Brak aplikacji aparatu", "No camera app"), Toast.LENGTH_SHORT).show() }
             }.show()
         }
+        // 📷 zdjęcie aparatem - jak w WhatsApp, ale w pełnej jakości (oryginał z aparatu, bez zmniejszania); kopia w Galerii (Obrazy/Velivo)
+        val cam = round("📷", t("Zrób zdjęcie i wyślij (pełna jakość)", "Take a photo and send it (full quality)"), pal().button) {
+            if (a.checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { a.requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 4714); return@round }
+            val u = runCatching { a.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "Velivo-" + java.text.SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.ROOT).format(java.util.Date()) + ".jpg")
+                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Velivo") }) }.getOrNull()
+            if (u == null || runCatching { a.startActivityForResult(android.content.Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT, u)
+                    .addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION), Komunikator.REQ_PHOTO) }.isFailure) {
+                u?.let { runCatching { a.contentResolver.delete(it, null, null) } }; Toast.makeText(a, t("Brak aplikacji aparatu", "No camera app"), Toast.LENGTH_SHORT).show()
+            } else { attachTo = c; photoUri = u }
+        }
         // 🎤 wiadomość głosowa: stuknij - nagrywanie, stuknij ponownie - wysyłka (jak plik: w domu, przez internet, do skrzynki)
         var rec: android.media.MediaRecorder? = null; var recFile: java.io.File? = null; var recAt = 0L
         val mic = round("🎤", t("Wiadomość głosowa: stuknij, mów, stuknij ponownie, by wysłać", "Voice message: tap, speak, tap again to send"), pal().button) {}
@@ -2167,7 +2185,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val btn = round("➤", t("Wyślij", "Send"), violet) {   // klawiatura Velivo najpierw poprawia ostatnie słowo, potem wysyłka
             (a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).sendAppPrivateCommand(input, "pl.velivo.slowo", null); input.postDelayed({ send() }, 150) }
         input.setOnEditorActionListener { _, id, _ -> if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { send(); true } else false }
-        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(mic); addView(input); addView(btn) }
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(cam); addView(mic); addView(input); addView(btn) }
         val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
         val title = TextView(a).apply { textSize = 18f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
         fun status() {
@@ -2200,7 +2218,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(x: CharSequence?, st: Int, n: Int, af: Int) {}
             override fun onTextChanged(x: CharSequence?, st: Int, b: Int, n: Int) { if (n > 0) k.sendTyping(c) }   // ✍ druga osoba widzi „pisze…”
-            override fun afterTextChanged(x: android.text.Editable?) {}
+            override fun afterTextChanged(x: android.text.Editable?) { cam.visibility = if (x.isNullOrEmpty()) View.VISIBLE else View.GONE }   // pisanie - więcej miejsca na tekst (jak w WhatsApp)
         })
         k.onTyping = { id -> if (id == c.id && chatWith == c.id) { status(); input.postDelayed({ if (chatWith == c.id) status() }, 6500) } }
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }

@@ -1,5 +1,6 @@
 <!doctype html>
-<!-- 🎬 Wiadomość wideo Velivo (Windows): nagranie z kamery (MediaRecorder, webm), plik oddawany do komunikatora (chrome.webview.postMessage) -->
+<!-- 🎬 Wiadomość wideo Velivo (Windows): nagranie z kamery (MediaRecorder, webm), plik oddawany do komunikatora (chrome.webview.postMessage);
+     foto=1 - 📷 zdjęcie z kamery w pełnej rozdzielczości (JPEG) -->
 <html><head><meta charset="utf-8">
 <style>
 html,body{margin:0;height:100%;background:#120f24;color:#fff;font-family:system-ui,sans-serif;overflow:hidden}
@@ -11,16 +12,20 @@ button{width:64px;height:64px;border-radius:50%;border:0;font-size:26px;backgrou
 <video id="v" autoplay playsinline muted></video><div id="st"></div>
 <div id="bar"><button id="rec">⏺</button><button id="no">✖</button></div>
 <script>
-const pl = new URLSearchParams(location.search).get('pl') !== '0', T = (p, e) => pl ? p : e;
+const q = new URLSearchParams(location.search), pl = q.get('pl') !== '0', foto = q.get('foto') === '1', T = (p, e) => pl ? p : e;
 const out = o => chrome.webview.postMessage(JSON.stringify(o));
-rec.title = T('Nagraj / zatrzymaj i wyślij', 'Record / stop and send'); no.title = T('Anuluj', 'Cancel');
+rec.title = foto ? T('Zrób zdjęcie i wyślij', 'Take a photo and send it') : T('Nagraj / zatrzymaj i wyślij', 'Record / stop and send'); if (foto) rec.textContent = '📷'; no.title = T('Anuluj', 'Cancel');
 no.onclick = () => out({ k: 'close' });
 let mr = null, parts = [], t0 = 0, tick = null;
-navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { echoCancellation: true, noiseSuppression: true } })
-  .then(s => { v.srcObject = s; st.textContent = T('Kliknij ⏺, by nagrać', 'Click ⏺ to record'); window.stream = s; })
+navigator.mediaDevices.getUserMedia(foto ? { video: { width: { ideal: 3840 }, height: { ideal: 2160 } } } : { video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { echoCancellation: true, noiseSuppression: true } })
+  .then(s => { v.srcObject = s; st.textContent = foto ? T('Kliknij 📷, by zrobić zdjęcie', 'Click 📷 to take a photo') : T('Kliknij ⏺, by nagrać', 'Click ⏺ to record'); window.stream = s; })
   .catch(() => { st.textContent = T('Brak kamery lub mikrofonu', 'No camera or microphone'); rec.disabled = true; });
 rec.onclick = () => {
   if (!window.stream) return;
+  if (foto) {   // pełna rozdzielczość kamery, JPEG 95%
+    const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
+    out({ k: 'photo', d: c.toDataURL('image/jpeg', 0.95).split(',')[1] }); return;
+  }
   if (mr) { mr.stop(); return; }
   parts = []; mr = new MediaRecorder(window.stream, { mimeType: 'video/webm' });
   mr.ondataavailable = e => { if (e.data.size) parts.push(e.data); };

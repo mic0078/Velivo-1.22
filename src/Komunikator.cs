@@ -351,7 +351,14 @@ namespace Velivo
             if (text.StartsWith(KomAskOkTag, StringComparison.Ordinal)) { KomAskAnswer(c, text.Substring(KomAskOkTag.Length)); return; }   // 🔗 odpowiedź na prośbę
             if (text.StartsWith(KomAskTag, StringComparison.Ordinal)) return;   // prośby obsługuje telefon właściciela
             if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego
-            if (text.StartsWith(KomGroupTag, StringComparison.Ordinal)) { var g = KomGroupIn(c, text.Substring(KomGroupTag.Length)); if (g == null) return; text = c.Name + ": " + text.Substring(text.IndexOf('\n', KomGroupTag.Length) + 1); c = g; }   // 👥 wiadomość w grupie - do rozmowy grupy
+            if (text.StartsWith(KomDelTag, StringComparison.Ordinal)) { KomDelIn(c, text.Substring(KomDelTag.Length)); return; }   // 🚫 nadawca usunął wiadomość u wszystkich
+            if (text.StartsWith(KomGroupTag, StringComparison.Ordinal))
+            {
+                var g = KomGroupIn(c, text.Substring(KomGroupTag.Length)); if (g == null) return;
+                try { if ((string)JsonNode.Parse(text.Substring(KomGroupTag.Length, text.IndexOf('\n', KomGroupTag.Length) - KomGroupTag.Length))?["gm"] is { Length: 32 } gm) mid = gm; } catch (Exception) { }   // ten sam id u wszystkich (usuwanie)
+                if (KomChat(g.Id).Any(x => x.Mid == mid)) return;
+                text = c.Name + ": " + text.Substring(text.IndexOf('\n', KomGroupTag.Length) + 1); c = g;
+            }   // 👥 wiadomość w grupie - do rozmowy grupy
             if (text.Length > 4000) text = text.Substring(0, 4000);
             KomChat(c.Id).Add(new KomMsg { Mine = false, Text = text, Ts = ts, Ok = true, Mid = mid });
             bool visible = _komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == c.Id;
@@ -489,7 +496,7 @@ namespace Velivo
         {
             var m = new KomMsg { Mine = true, Text = text.Length > 4000 ? text.Substring(0, 4000) : text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") };
             KomChat(c.Id).Add(m);
-            if (c.IsGroup) { m.Ok = true; KomGroupOut(c, m.Text); }   // 👥 do każdego z grupy osobno (jego kluczem)
+            if (c.IsGroup) { m.Ok = true; KomGroupOut(c, m.Text, m.Mid); }   // 👥 do każdego z grupy osobno (jego kluczem)
             KomSave();
             if (!c.IsGroup) KomDeliver(c, m);
         }
@@ -497,9 +504,9 @@ namespace Velivo
         // 👥 grupy (jak w Signal: bez serwera grup) - wiadomość do każdego członka osobno, z nazwą i składem grupy; u odbiorcy grupa tworzy się sama
         const string KomGroupTag = "\u0001velivo-grupa\n";
         List<string> KomMembers(KomContact g) => (g.Addr ?? "").Replace("grupa:", "").Split(',').Where(x => x.Length == 32 && x != _komId).ToList();
-        void KomGroupOut(KomContact g, string text)
+        void KomGroupOut(KomContact g, string text, string gm)
         {
-            var head = new JsonObject { ["g"] = g.Id, ["n"] = g.Name, ["m"] = new JsonArray(KomMembers(g).Append(_komId).Select(x => (JsonNode)x).ToArray()) }.ToJsonString();
+            var head = new JsonObject { ["g"] = g.Id, ["n"] = g.Name, ["m"] = new JsonArray(KomMembers(g).Append(_komId).Select(x => (JsonNode)x).ToArray()), ["gm"] = gm }.ToJsonString();
             foreach (var id in KomMembers(g)) { var mc = KomContactById(id); if (mc != null && !mc.IsGroup) KomDeliver(mc, new KomMsg { Mine = true, Text = KomGroupTag + head + "\n" + text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); }
         }
         KomContact KomGroupIn(KomContact from, string body)
@@ -607,6 +614,24 @@ namespace Velivo
                 }
                 KomInfo("👥 " + Path.GetFileName(f) + L.T(" – wysłano do grupy (nieobecnym przez skrzynkę 📬)"));
             }
+        }
+        // 🚫 usuń u wszystkich (jak w WhatsApp): u mnie i u odbiorców zostaje „Wiadomość usunięta”
+        const string KomDelTag = "\u0001velivo-usun\n";
+        void KomDeleteForAll(KomContact c, KomMsg m)
+        {
+            if (!m.Mine) return;
+            m.Text = "🚫 " + L.T("Usunięto tę wiadomość"); m.Path = null; m.Ok = true; KomSave(); _komRefresh?.Invoke();
+            var body = new JsonObject { ["m"] = m.Mid }; if (c.IsGroup) body["g"] = c.Id;
+            foreach (var to in c.IsGroup ? KomMembers(c).Select(KomContactById).Where(x => x != null && !x.IsGroup) : new[] { c })
+                KomDeliver(to, new KomMsg { Mine = true, Text = KomDelTag + body.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+        }
+        void KomDelIn(KomContact from, string body)
+        {
+            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
+            var gid = (string)j?["g"]; var chatId = gid != null && KomContactById(gid)?.IsGroup == true ? gid : from.Id;
+            var m = KomChat(chatId).FirstOrDefault(x => x.Mid == (string)j["m"] && !x.Mine); if (m == null) return;
+            m.Text = (chatId != from.Id ? from.Name + ": " : "") + "🚫 " + L.T("Wiadomość usunięta"); m.Path = null;
+            KomSave(); _komRefresh?.Invoke();
         }
         KomContact KomNewGroup(string name, IEnumerable<string> ids)
         {
@@ -1263,6 +1288,12 @@ namespace Velivo
                     if (hasFile) { var fp = m.Path; txt.Cursor = Cursors.Hand; txt.MouseLeftButtonUp += (s2, e2) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { } }; }
                     var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; copy.Click += (s2, e2) => { try { Clipboard.SetText(copyText); } catch (Exception) { } };
                     txt.ContextMenu = new ContextMenu { Items = { copy } };
+                    if (m.Mine && !m.Text.StartsWith("🚫"))
+                    {   // 🚫 jak w WhatsApp
+                        var del = new MenuItem { Header = "🚫 " + L.T("Usuń u wszystkich") }; var dm = m; var dc = c;
+                        del.Click += (s2, e2) => { if (MessageBox.Show(w, L.T("Usunąć tę wiadomość u wszystkich?"), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) KomDeleteForAll(dc, dm); };
+                        txt.ContextMenu.Items.Add(del);
+                    }
                     if (hasFile)
                     {
                         var fp2 = m.Path;

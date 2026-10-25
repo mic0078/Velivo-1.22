@@ -276,6 +276,24 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private val pl get() = Locale.getDefault().language == "pl"
     private fun sizeText(n: Long) = when { n >= 1L shl 30 -> String.format(Locale.ROOT, "%.1f GB", n / 1073741824.0); n >= 1L shl 20 -> String.format(Locale.ROOT, "%.1f MB", n / 1048576.0); else -> "${maxOf(1, n / 1024)} KB" }
 
+    // 🚫 usuń u wszystkich (jak w WhatsApp): u mnie i u odbiorców zostaje „Wiadomość usunięta”
+    fun deleteForAll(c: Contact, m: Msg) {
+        if (!m.mine) return
+        m.text = "🚫 " + (if (pl) "Usunięto tę wiadomość" else "You deleted this message"); m.path?.let { p -> if (p.startsWith(mediaDir.path)) java.io.File(p).delete() }; m.path = null; m.ok = true
+        saveChat(c.id); main.post { onChange() }
+        val body = JSONObject().put("m", m.mid).apply { if (c.isGroup) put("g", c.id) }.toString()
+        val to = if (c.isGroup) members(c).mapNotNull { contact(it)?.takeIf { x -> !x.isGroup } } else listOf(c)
+        to.forEach { hidden(it, DEL + body) }
+    }
+    private fun delIn(from: Contact, body: String) {
+        val j = runCatching { JSONObject(body) }.getOrNull() ?: return
+        val chatId = j.optString("g").takeIf { it.length == 32 && contact(it)?.isGroup == true } ?: from.id
+        val m = synchronized(this) { chat(chatId).firstOrNull { it.mid == j.optString("m") && !it.mine } } ?: return
+        m.text = (if (chatId != from.id) from.name + ": " else "") + "🚫 " + (if (pl) "Wiadomość usunięta" else "This message was deleted")
+        m.path?.let { p -> if (p.startsWith(mediaDir.path)) java.io.File(p).delete() }; m.path = null
+        saveChat(chatId); main.post { onChange() }
+    }
+
     fun deleteLocal(c: Contact, m: Msg) {
         synchronized(this) { chat(c.id).remove(m) }; saveChat(c.id)
         m.path?.let { p -> if (p.startsWith(mediaDir.path)) java.io.File(p).delete() }   // kopia pliku w Velivo (nie ta z Pobranych / Galerii)
@@ -318,6 +336,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         typingAt.remove(c.id)
         if (text.startsWith(GROUP)) { groupIn(c, text.substring(GROUP.length), p.optLong("ts"), mid); return }   // 👥 wiadomość w grupie
         if (text.startsWith(CARD)) { cardIn(c, text.substring(CARD.length)); return }   // 👤 kontakt przedstawiony przez znajomego
+        if (text.startsWith(DEL)) { delIn(c, text.substring(DEL.length)); return }   // 🚫 nadawca usunął wiadomość u wszystkich
         if (text.startsWith(ASK)) { askIn(c, text.substring(ASK.length)); return }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
         if (text.startsWith(ADDR) || text.startsWith(ASKOK)) return   // dla pośrednika (Windows)
         val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
@@ -334,7 +353,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val mid = UUID.randomUUID().toString().replace("-", "")
         val m = Msg(true, text.take(MAX_TEXT), System.currentTimeMillis(), false, mid)
         synchronized(this) { chat(c.id).add(m) }
-        if (c.isGroup) { groupOut(c, m.text); m.ok = true }   // 👥 do każdego z grupy osobno (szyfrowane jego kluczem)
+        if (c.isGroup) { groupOut(c, m.text, m.mid); m.ok = true }   // 👥 do każdego z grupy osobno (szyfrowane jego kluczem)
         saveChat(c.id)
         if (!c.isGroup) deliver(c, m)
         return m
@@ -486,8 +505,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         return if (res.all { it == "ok" }) "ok" else if (res.all { it == "ok" || it == "skrzynka" || it == "czeka" }) "skrzynka" else res.firstOrNull { it != "ok" } ?: "ok"
     }
 
-    private fun groupOut(g: Contact, text: String) {
-        val head = JSONObject().put("g", g.id).put("n", g.name).put("m", JSONArray(members(g) + myId)).toString()
+    private fun groupOut(g: Contact, text: String, gm: String) {
+        val head = JSONObject().put("g", g.id).put("n", g.name).put("m", JSONArray(members(g) + myId)).put("gm", gm).toString()   // gm - ten sam id u wszystkich (usuwanie u wszystkich)
         for (id in members(g)) contact(id)?.takeIf { !it.isGroup }?.let { deliver(it, Msg(true, GROUP + head + "\n" + text, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", ""))) }
     }
     // grupa z nagłówka (g - id, n - nazwa, m - członkowie): tworzy się sama, skład się uzupełnia
@@ -504,7 +523,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun groupIn(from: Contact, body: String, ts: Long, mid: String) {
         val head = runCatching { JSONObject(body.substringBefore('\n')) }.getOrNull() ?: return
         val g = groupOf(from, head) ?: return
-        val m = Msg(false, (from.name + ": " + body.substringAfter('\n')).take(MAX_TEXT), ts, true, mid)
+        val gm = head.optString("gm").takeIf { it.length == 32 } ?: mid
+        if (synchronized(this) { chat(g.id).any { it.mid == gm } }) return
+        val m = Msg(false, (from.name + ": " + body.substringAfter('\n')).take(MAX_TEXT), ts, true, gm)
         synchronized(this) { chat(g.id).add(m) }
         saveChat(g.id)
         prefs.edit().putInt("nowe-${g.id}", unread(g.id) + 1).apply()
@@ -1327,6 +1348,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val HOME_MS = 600000L
         const val GROUP = "\u0001velivo-grupa\n"
         const val CARD = "\u0001velivo-kontakt\n"
+        const val DEL = "\u0001velivo-usun\n"
         const val ADDR = "\u0001velivo-adres\n"; const val ASK = "\u0001velivo-prosba\n"; const val ASKOK = "\u0001velivo-prosba-ok\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
@@ -2066,12 +2088,15 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val items = mutableListOf("📋 " + t("Kopiuj", "Copy"))
         if (photo != null) items.add("💾 " + t("Zapisz w Galerii", "Save to Gallery"))
         if (file != null) items.add("💾 " + t("Zapisz w Pobranych", "Save to Downloads"))
+        if (m.mine && !m.text.startsWith("🚫")) items.add("🚫 " + t("Usuń u wszystkich", "Delete for everyone"))
         items.add("🗑 " + t("Usuń u mnie", "Delete for me"))
         AlertDialog.Builder(a).setItems(items.toTypedArray()) { _, i ->
             when (items[i].substringAfter(' ')) {
                 t("Kopiuj", "Copy") -> { (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", m.text)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
                 t("Zapisz w Galerii", "Save to Gallery") -> saveToGallery(photo!!)
                 t("Zapisz w Pobranych", "Save to Downloads") -> Toast.makeText(a, if (toDownloads(file!!) != null) t("Zapisano w Pobranych", "Saved to Downloads") else t("Nie udało się zapisać", "Could not save"), Toast.LENGTH_SHORT).show()
+                t("Usuń u wszystkich", "Delete for everyone") -> AlertDialog.Builder(a).setMessage(t("Usunąć tę wiadomość u wszystkich?", "Delete this message for everyone?"))
+                    .setPositiveButton(t("Usuń", "Delete")) { _, _ -> Thread { k.deleteForAll(c, m) }.start() }.setNegativeButton(android.R.string.cancel, null).show()
                 else -> k.deleteLocal(c, m)
             }
         }.show()

@@ -1790,9 +1790,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             @android.webkit.JavascriptInterface fun ctlReady(): Boolean = SterowanieUsluga.on != null
             @android.webkit.JavascriptInterface fun ctlSetup() { a.runOnUiThread {
                 AlertDialog.Builder(a).setTitle("🖱 " + t("Pomoc zdalna", "Remote help"))
-                    .setMessage(t("Aby rozmówca mógł stukać na Twoim telefonie, włącz raz „Velivo – pomoc zdalna” w Ustawieniach → Ułatwienia dostępu (Pobrane aplikacje). Velivo steruje tylko po Twojej zgodzie w rozmowie i nie czyta ekranu.",
-                        "To let the other person tap on your phone, turn on “Velivo – remote help” once in Settings → Accessibility (Downloaded apps). Velivo only acts after you agree in the call and does not read the screen."))
-                    .setPositiveButton(t("Otwórz ustawienia", "Open settings")) { _, _ -> runCatching { a.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) } }
+                    .setMessage(t("Aby rozmówca mógł stukać na Twoim telefonie, włącz raz „Velivo – pomoc zdalna” w Ustawieniach → Ułatwienia dostępu (Pobrane aplikacje).\n\n" +
+                        "Gdy Android pisze „Ustawienia z ograniczonym dostępem” (Velivo nie jest ze Sklepu Play): 1) „Informacje o aplikacji” → ⋮ w prawym górnym rogu → „Zezwól na ustawienia z ograniczeniami”, 2) wróć i włącz w Ułatwieniach dostępu.\n\nVelivo steruje tylko po Twojej zgodzie w rozmowie i nie czyta ekranu.",
+                        "To let the other person tap on your phone, turn on “Velivo – remote help” once in Settings → Accessibility (Downloaded apps).\n\n" +
+                        "If Android says “Restricted setting” (Velivo is not from the Play Store): 1) “App info” → ⋮ in the top right → “Allow restricted settings”, 2) go back and turn it on in Accessibility.\n\nVelivo only acts after you agree in the call and does not read the screen."))
+                    .setPositiveButton(t("Ułatwienia dostępu", "Accessibility")) { _, _ -> runCatching { a.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) } }
+                    .setNeutralButton(t("Informacje o aplikacji", "App info")) { _, _ -> runCatching { a.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + a.packageName))) } }
                     .setNegativeButton(android.R.string.cancel, null).show() } }
             @android.webkit.JavascriptInterface fun ctl(on: Boolean) { SterowanieUsluga.allowed = on }
             @android.webkit.JavascriptInterface fun ask(q: String) { EkranUsluga.ask(a, "🖱 " + c.name + "\n" + q, t("Pozwól", "Allow"), t("Nie", "No")) { yes -> w.post { w.evaluateJavascript("ctlAnswer($yes)", null) } } }

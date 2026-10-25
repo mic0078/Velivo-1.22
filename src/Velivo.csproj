@@ -45,8 +45,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Include="Rozmowa\rozmowa.html">
-      <Link>Rozmowa\rozmowa.html</Link>
+    <Content Include="Rozmowa\*.html">
+      <Link>Rozmowa\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>

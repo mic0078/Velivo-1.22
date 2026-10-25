@@ -1150,6 +1150,7 @@ namespace Velivo
             var sendBtn = new Button { Content = "➤", FontSize = 16, Width = 44, Margin = new Thickness(6, 0, 0, 0), ToolTip = L.T("Wyślij") };
             var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
             var micBtn = new Button { Content = "🎤", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Wiadomość głosowa: kliknij, mów, kliknij ponownie, by wysłać") };
+            var vidBtn = new Button { Content = "🎬", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Nagraj wiadomość wideo") };
             var callBtn = new Button { Content = "📹", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa wideo") };
             var bottom = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             DockPanel.SetDock(bottom, Dock.Bottom);
@@ -1166,14 +1167,14 @@ namespace Velivo
                 statusBar.Visibility = p >= 0 ? Visibility.Visible : Visibility.Collapsed; if (p >= 0) statusBar.Value = p;
                 statusHide.Stop(); if (p < 0) statusHide.Start();
             };
-            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
-            bottom.Children.Add(callBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(micBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
+            DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Left); DockPanel.SetDock(vidBtn, Dock.Left); DockPanel.SetDock(callBtn, Dock.Left); DockPanel.SetDock(sendBtn, Dock.Right);
+            bottom.Children.Add(callBtn); bottom.Children.Add(fileBtn); bottom.Children.Add(micBtn); bottom.Children.Add(vidBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(input);
             var msgs = new StackPanel { Margin = new Thickness(4) };
             var scroll = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             right.Children.Add(header); right.Children.Add(bottom); right.Children.Add(status); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
-            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(callBtn);
+            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(vidBtn); buttons.Add(callBtn);
             root.Margin = new Thickness(0);
             left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
             KomPal pal = null;
@@ -1255,7 +1256,7 @@ namespace Velivo
                     headerDone:;
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;
-                fileBtn.IsEnabled = micBtn.IsEnabled = c != null; callBtn.IsEnabled = c != null && !c.IsGroup;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
+                fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = c != null; callBtn.IsEnabled = c != null && !c.IsGroup;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
                 msgs.Children.Clear();
                 if (c == null) return;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)))
@@ -1354,7 +1355,7 @@ namespace Velivo
                 var c = Current(); if (c == null) return;
                 if (!recording)
                 {
-                    recPath = Path.Combine(Path.GetTempPath(), "Glosowa-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".wav");
+                    Directory.CreateDirectory(KomMediaDir); recPath = Path.Combine(KomMediaDir, "Glosowa-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".wav");
                     KomMci("close velivorec"); 
                     if (KomMci("open new type waveaudio alias velivorec") != 0 || KomMci("set velivorec bitspersample 16 channels 1 samplespersec 22050") != 0 || KomMci("record velivorec") != 0)
                     { KomMci("close velivorec"); KomInfo(L.T("Nie udało się włączyć mikrofonu")); return; }
@@ -1367,6 +1368,7 @@ namespace Velivo
                 else try { File.Delete(recPath); } catch (Exception) { }
             };
             fileBtn.Click += async (s, e) => { var c = Current(); if (c != null) await AttachTo(c); };
+            vidBtn.Click += (s, e) => { var c = Current(); if (c != null) KomRecordVideo(w, async p => await AttachTo(c, new[] { p })); };
             // 🖱 pliki przeciągnięte myszką z Eksploratora na okno rozmowy - wysyłka jak 📎
             w.AllowDrop = true;
             w.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Effects = Current() is KomContact dc ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };   // Preview - pole tekstowe nie przejmuje plików
@@ -1552,7 +1554,7 @@ namespace Velivo
 
         [System.Runtime.InteropServices.DllImport("winmm.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, EntryPoint = "mciSendStringW")] static extern int KomMciSend(string cmd, System.Text.StringBuilder ret, int len, IntPtr cb);
         // 🎤 wiadomość głosowa (plik „Glosowa-…”) - opis w rozmowie zamiast nazwy pliku (jak w telefonie)
-        static string KomFileLabel(string name, long size) => (name.StartsWith("Glosowa-", StringComparison.Ordinal) ? "🎤 " + L.T("Wiadomość głosowa") : (KomIsImage(name) ? "🖼 " : "📎 ") + name) + " · " + KomSize(size);
+        static string KomFileLabel(string name, long size) => (name.StartsWith("Glosowa-", StringComparison.Ordinal) ? "🎤 " + L.T("Wiadomość głosowa") : (new[] { ".mp4", ".webm", ".mkv", ".mov", ".3gp" }.Contains(System.IO.Path.GetExtension(name).ToLowerInvariant()) ? "🎬 " + L.T("Wiadomość wideo") : (KomIsImage(name) ? "🖼 " : "📎 ") + name)) + " · " + KomSize(size);
         static int KomMci(string cmd) { try { return KomMciSend(cmd, null, 0, IntPtr.Zero); } catch (Exception) { return -1; } }
 
         // files - gotowe pliki (np. 🎤 nagranie); bez - okno wyboru

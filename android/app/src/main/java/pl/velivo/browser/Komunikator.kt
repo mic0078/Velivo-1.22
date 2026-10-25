@@ -820,8 +820,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val bmp = open().use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp }) }!!
             val f = java.io.File(mediaDir, "wyslane-$mid.jpg"); f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }; f.path
         }.getOrNull() else null
-        // 🎤 własna głosówka - kopia w Velivo, żeby można ją było odsłuchać u siebie (jak w WhatsApp)
-        val voice = if (to != null && retry == null && name.startsWith("Glosowa-")) runCatching { java.io.File(mediaDir, "moja-$mid-$name").also { f -> open().use { i -> f.outputStream().use { i.copyTo(it) } } }.path }.getOrNull() else null
+        // 🎤 własna głosówka / 🎬 wideo - kopia w Velivo, żeby można ją było odsłuchać u siebie (jak w WhatsApp)
+        val voice = if (to != null && retry == null && (name.startsWith("Glosowa-") || name.substringAfterLast('.').lowercase() in setOf("mp4", "3gp", "webm", "mkv", "mov"))) runCatching { java.io.File(mediaDir, "moja-$mid-$name").also { f -> open().use { i -> f.outputStream().use { i.copyTo(it) } } }.path }.getOrNull() else null
         val pend = retry ?: to?.let { c -> Msg(true, fileLabel(name, size, thumb != null), System.currentTimeMillis(), false, mid, file = true, path = thumb ?: voice).also { m -> if (group == null) { synchronized(this) { chat(c.id).add(m) }; saveChat(c.id); main.post { onChange() } } } }   // w grupie wpis jest w rozmowie grupy (sendGroupFile)
         return runCatching {
             connect(target, to?.id).use { s ->   // poza domem - tunel przez pośrednika

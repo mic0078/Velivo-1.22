@@ -113,5 +113,44 @@ namespace Velivo
             }
             catch (Exception ex) { App.LogError(ex); w.Close(); }
         }
+
+        // 🎬 wiadomość wideo z kamery Windows (Rozmowa\nagraj.html); nagranie zostaje w Velivo - odtworzenie u siebie
+        async void KomRecordVideo(Window owner, Action<string> send)
+        {
+            var dir = Path.Combine(AppContext.BaseDirectory, "Rozmowa");
+            if (_env == null || !File.Exists(Path.Combine(dir, "nagraj.html"))) { MessageBox.Show(owner, L.T("Brak pliku rozmowy wideo – zainstaluj Velivo ponownie."), "Velivo"); return; }
+            var view = new WebView2 { DefaultBackgroundColor = System.Drawing.Color.FromArgb(18, 15, 36) };
+            var w = new Window { Title = "🎬 " + L.T("Nagraj wiadomość wideo") + " – Velivo", Width = 720, Height = 520, Content = view, Owner = owner, Background = new SolidColorBrush(Color.FromRgb(18, 15, 36)), WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            w.Closed += (s, e) => { try { view.Dispose(); } catch (Exception) { } };
+            w.Show();
+            try
+            {
+                await view.EnsureCoreWebView2Async(_env);
+                var core = view.CoreWebView2;
+                core.Settings.AreDevToolsEnabled = false; core.Settings.AreDefaultContextMenusEnabled = false; core.Settings.IsStatusBarEnabled = false;
+                core.SetVirtualHostNameToFolderMapping("velivo-rozmowa", dir, CoreWebView2HostResourceAccessKind.Deny);
+                core.PermissionRequested += (s, e) => e.State = e.Uri.StartsWith("https://velivo-rozmowa/", StringComparison.OrdinalIgnoreCase) && (e.PermissionKind == CoreWebView2PermissionKind.Camera || e.PermissionKind == CoreWebView2PermissionKind.Microphone) ? CoreWebView2PermissionState.Allow : CoreWebView2PermissionState.Deny;
+                core.NewWindowRequested += (s, e) => e.Handled = true;
+                core.NavigationStarting += (s, e) => { if (!e.Uri.StartsWith("https://velivo-rozmowa/", StringComparison.OrdinalIgnoreCase)) e.Cancel = true; };
+                core.WebMessageReceived += (s, e) =>
+                {
+                    JsonObject o; try { o = JsonNode.Parse(e.TryGetWebMessageAsString()) as JsonObject; } catch (Exception) { return; }
+                    var k = (string)o?["k"];
+                    if (k == "video" && o["d"] is JsonNode d)
+                    {
+                        try
+                        {
+                            Directory.CreateDirectory(KomMediaDir);
+                            var p = Path.Combine(KomMediaDir, "Wideo-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".webm");
+                            File.WriteAllBytes(p, Convert.FromBase64String((string)d)); send(p);
+                        }
+                        catch (Exception ex) { App.LogError(ex); }
+                    }
+                    if (k == "video" || k == "close") w.Close();
+                };
+                core.Navigate("https://velivo-rozmowa/nagraj.html?pl=" + (L.En ? "0" : "1"));
+            }
+            catch (Exception ex) { App.LogError(ex); w.Close(); }
+        }
     }
 }

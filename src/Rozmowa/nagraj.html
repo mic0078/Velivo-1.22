@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- 🎬 Wiadomość wideo Velivo (Windows): nagranie z kamery (MediaRecorder, webm), plik oddawany do komunikatora (chrome.webview.postMessage) -->
+<html><head><meta charset="utf-8">
+<style>
+html,body{margin:0;height:100%;background:#120f24;color:#fff;font-family:system-ui,sans-serif;overflow:hidden}
+video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:#120f24}
+#st{position:fixed;left:0;right:0;top:16px;text-align:center;font-size:18px;text-shadow:0 1px 4px #000}
+#bar{position:fixed;left:0;right:0;bottom:24px;display:flex;justify-content:center;gap:18px}
+button{width:64px;height:64px;border-radius:50%;border:0;font-size:26px;background:#3a2f6b;color:#fff}#rec{background:#e53935}
+</style></head><body>
+<video id="v" autoplay playsinline muted></video><div id="st"></div>
+<div id="bar"><button id="rec">⏺</button><button id="no">✖</button></div>
+<script>
+const pl = new URLSearchParams(location.search).get('pl') !== '0', T = (p, e) => pl ? p : e;
+const out = o => chrome.webview.postMessage(JSON.stringify(o));
+rec.title = T('Nagraj / zatrzymaj i wyślij', 'Record / stop and send'); no.title = T('Anuluj', 'Cancel');
+no.onclick = () => out({ k: 'close' });
+let mr = null, parts = [], t0 = 0, tick = null;
+navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { echoCancellation: true, noiseSuppression: true } })
+  .then(s => { v.srcObject = s; st.textContent = T('Kliknij ⏺, by nagrać', 'Click ⏺ to record'); window.stream = s; })
+  .catch(() => { st.textContent = T('Brak kamery lub mikrofonu', 'No camera or microphone'); rec.disabled = true; });
+rec.onclick = () => {
+  if (!window.stream) return;
+  if (mr) { mr.stop(); return; }
+  parts = []; mr = new MediaRecorder(window.stream, { mimeType: 'video/webm' });
+  mr.ondataavailable = e => { if (e.data.size) parts.push(e.data); };
+  mr.onstop = () => { clearInterval(tick); st.textContent = T('Wysyłam…', 'Sending…'); const r = new FileReader(); r.onload = () => out({ k: 'video', d: r.result.split(',')[1] }); r.readAsDataURL(new Blob(parts, { type: 'video/webm' })); };
+  mr.start(1000); t0 = Date.now(); rec.textContent = '⏹';
+  // najwyżej 3 minuty - plik zostaje lekki
+  tick = setInterval(() => { const s = Math.round((Date.now() - t0) / 1000); st.textContent = '⏺ ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); if (s >= 180) mr.stop(); }, 500);
+};
+</script></body></html>

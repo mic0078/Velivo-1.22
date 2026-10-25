@@ -953,6 +953,8 @@ namespace Velivo
             { "Nie udało się włączyć mikrofonu", "Could not start the microphone" },
             { "Nagrywam… kliknij ⏹, by wysłać", "Recording… click ⏹ to send" },
             { "Wiadomość głosowa", "Voice message" },
+            { "Wiadomość wideo", "Video message" },
+            { "Nagraj wiadomość wideo", "Record a video message" },
             { " pisze:", " writes:" },
             { "pisze…", "typing…" },
             { "Usunięto tę wiadomość", "You deleted this message" },

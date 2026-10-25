@@ -233,7 +233,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (t == "p2p-here" && rl.isNotEmpty() && rl.length < 200 && ':' in rl && rl != c.relay) { c.relay = rl; saveContacts() }
             if (!was) main.post { onChange() }
         }
-        if (t != "p2p-ack" && t != "p2p-msg" && t != "p2p-typing") contact(from)?.let { c -> Thread { resend(c) }.start() }
+        if (t != "p2p-ack" && t != "p2p-msg" && t != "p2p-typing") contact(from)?.let { c -> Thread { resend(c); sendPhoto(c) }.start() }   // 🖼 zdjęcie profilowe - gdy tylko kontakt się pojawi
         when (t) {
             "p2p-who" -> sendUdp(packet("p2p-here"), sender)
             "p2p-typing" -> if (p.optString("to") == myId && contact(from) != null) { typingAt[from] = System.currentTimeMillis(); main.post { onTyping(from) } }   // ✍ „pisze…”
@@ -2191,7 +2191,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }
             title.setTextColor(ink)
         }
-        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back); addView(title)
+        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back)
+            if (k.photo(c.id) != null) addView(avatar(c, k.online(c.id)))   // 🖼 zdjęcie profilowe rozmówcy
+            addView(title)
             addView(icon("🖼", t("Zdjęcia, filmy i pliki z rozmowy", "Photos, videos and files in this chat")) { gallery(c) })
             if (!c.isGroup) { addView(icon("📞", t("Rozmowa głosowa", "Voice call")) { openCall(c, true, true) }); addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) } }
         fill(); status(); ringPending(c)

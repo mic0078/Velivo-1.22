@@ -335,7 +335,7 @@ namespace Velivo
                         return;
                     }
             }
-            if (c != null) KomResendPending(c);   // odezwal sie - dosylamy niedoreczone
+            if (c != null) { KomResendPending(c); KomSendPhoto(c); }   // odezwal sie - dosylamy niedoreczone i 🖼 zdjęcie profilowe
         }
 
         static byte[] KomMsgAd(string from, string to, string mid, long ts) => Encoding.UTF8.GetBytes("p2p-msg\n" + from + "\n" + to + "\n" + mid + "\n" + ts.ToString(CultureInfo.InvariantCulture));
@@ -690,7 +690,7 @@ namespace Velivo
         static string KomQuote(KomMsg m) { var l = m.Text.Split('\n').FirstOrDefault(x => !x.StartsWith("› ", StringComparison.Ordinal)) ?? ""; if (l.EndsWith(" ✏", StringComparison.Ordinal)) l = l.Substring(0, l.Length - 2); return "› " + (l.Length > 70 ? l.Substring(0, 70) : l) + "\n"; }
 
         // 🖼 moje zdjęcie profilowe (małe) - u kontaktów zamiast kropki; nowe dostaje każdy, kto się odezwie
-        bool _komLock; long _komPhotoV; readonly Dictionary<string, long> _komPhotoSent = new Dictionary<string, long>();
+        bool _komLock; long _komPhotoV; readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> _komPhotoSent = new System.Collections.Concurrent.ConcurrentDictionary<string, long>();
         string KomPhoto(string id) { var p = Path.Combine(KomMediaDir, "profil-" + id + ".jpg"); return File.Exists(p) ? p : null; }
         void KomSetPhoto(byte[] jpg)
         {
@@ -1354,7 +1354,9 @@ namespace Velivo
                 else
                 {
                     bool on = KomOnline(c.Id);
-                    header.Inlines.Add(new System.Windows.Documents.Run("💬 " + c.Name + "  "));
+                    if (KomPhoto(c.Id) is string hp && KomAvatar(hp) is ImageSource hav)   // 🖼 zdjęcie profilowe rozmówcy zamiast 💬
+                        header.Inlines.Add(new System.Windows.Documents.InlineUIContainer(new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 0, 8, -6), Background = new ImageBrush(hav) { Stretch = Stretch.UniformToFill } }));
+                    header.Inlines.Add(new System.Windows.Documents.Run((KomPhoto(c.Id) != null ? "" : "💬 ") + c.Name + "  "));
                     if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) header.Inlines.Add(new System.Windows.Documents.Run("(" + c.Device + ")  ") { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
                     if (_komTypingAt.TryGetValue(c.Id, out var ty) && DateTime.UtcNow - ty < TimeSpan.FromSeconds(6)) { header.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) }); goto headerDone; }
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";

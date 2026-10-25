@@ -59,6 +59,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-24: Windows: po dodaniu grup pole wiadomości było wyłączone także w zwykłych rozmowach? – nie, ale w grupach tak (IsEnabled pola zależało od !IsGroup) – poprawione: tekst w grupie działa.
 * 2026-10-25: poprawka komunikatora telefonu nie trafiła do kopii w klawiaturze – teraz jeden plik `android/komunikator/.../Komunikator.kt` (pakiet `pl.velivo.komunikator`) dla przeglądarki i klawiatury; po zmianie kompiluj obie.
 * 2026-10-25: NUCBOX ma pośrednika ręcznie na 41921, a Velivo co godzinę mogło samo wrócić na 41920 (UPnP) – teraz port zatwierdzony w oknie 🌍 (inny niż 41920) zostaje.
+* 2026-10-25: zdjęcie profilowe szło do kontaktu dopiero, gdy ten napisał – nowy kontakt (telefon po reinstalacji) go nie dostawał; teraz przy pojawieniu się kontaktu; w nagłówku rozmowy go nie było.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

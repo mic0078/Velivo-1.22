@@ -254,11 +254,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val t = p.optString("t"); if (!t.startsWith("p2p-")) return false
         val from = p.optString("id")
         if (from == myId || from.length != 32 || sender == null) return true
-        if (viaRelay) viaNet[from] = true else { lanSeen[from] = System.currentTimeMillis(); viaNet.remove(from) }
+        // przez pośrednika: od niego wprost albo przekazany przez niego do domowego Wi-Fi („fwd”) - kontakt poza domem (🌍)
+        val net = viaRelay || p.optBoolean("fwd")
+        if (net) viaNet[from] = true else { lanSeen[from] = System.currentTimeMillis(); viaNet.remove(from) }
         // stara wiadomość (czekała u nadawcy albo na pośredniku) - przyjęta, bez zmiany obecności; inne stare pakiety - pominięte
         if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) { if (t == "p2p-msg") message(p, sender); return true }
         if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
-        if (!viaRelay && (t == "p2p-here" || t == "p2p-who") && contact(from) == null) notifyNewDevice(from, clean(p.optString("device")))
+        if (!net && (t == "p2p-here" || t == "p2p-who") && contact(from) == null) notifyNewDevice(from, clean(p.optString("device")))
         contact(from)?.let { c ->
             val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); seenAt[c.id] = System.currentTimeMillis()
             if (t == "p2p-here" && !viaRelay && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres

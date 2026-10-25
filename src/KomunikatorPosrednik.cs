@@ -250,6 +250,7 @@ namespace Velivo
             var from = (string)p["id"]; var t = (string)p["t"];
             if (from == null || from.Length != 32 || IPAddress.IsLoopback(addr)) return;
             if (_komRemote.ContainsKey(from)) return;   // echo pakietu urzadzenia poza domem, ktory sami przekazalismy - nie jest w domu
+            if ((bool?)p["fwd"] == true) { _komViaNet[from] = true; return; }   // przekazany przez pośrednika - kontakt jest poza domem (🌍)
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
             if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) return;
@@ -302,6 +303,8 @@ namespace Velivo
             catch (Exception) { }
         }
 
+        // pakiet urządzenia poza domem przekazany do domowego Wi-Fi - ze znakiem, żeby w domu było widać 🌍, a nie 🏠
+        static JsonNode KomFwd(JsonNode p) { var c = p.DeepClone(); c["fwd"] = true; return c; }
         void KomLanRaw(JsonNode p, IPAddress to)
         {
             var d = Encoding.UTF8.GetBytes(p.ToJsonString());
@@ -424,14 +427,14 @@ namespace Velivo
                     }
                     if (t == null || !t.StartsWith("p2p-", StringComparison.Ordinal) || (string)p["id"] != id) continue;   // tylko pakiety tego urzadzenia
                     var pto = (string)p["to"];
-                    if (t == "p2p-who") { KomSendFrame(me, KomRelayHere()); KomLanRaw(p, null); foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p); continue; }
+                    if (t == "p2p-who") { KomSendFrame(me, KomRelayHere()); KomLanRaw(KomFwd(p), null); foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p); continue; }
                     // do pośrednika (albo do wszystkich) - obsluga tutaj; odpowiedzi ida do urzadzenia przez "to"
                     if (pto == null || pto == _komId) { var pp = p; _ = Dispatcher.BeginInvoke(new Action(() => { try { KomHandle(pp, IPAddress.Loopback); } catch (Exception ex) { App.LogError(ex); } })); }
                     if (pto == _komId) continue;
                     if (pto != null && _komRemote.TryGetValue(pto, out var rc)) { KomSendFrame(rc, p); continue; }   // oba urzadzenia poza domem
                     // do sieci domowej: znany adres albo do wszystkich
                     if (pto != null && KomStoreKeep(p, pto)) continue;   // odbiorca niedostępny - pośrednik przechowuje
-                    KomLanRaw(p, pto != null && _komLanAddr.TryGetValue(pto, out var a) ? a : null);
+                    KomLanRaw(KomFwd(p), pto != null && _komLanAddr.TryGetValue(pto, out var a) ? a : null);
                     if (pto == null) foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p);
                 }
             }

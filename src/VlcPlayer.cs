@@ -1211,6 +1211,57 @@ namespace Velivo
         static LibVLCSharp.Shared.MediaPlayer _playerMp;
         static bool PlayerBusy { get { try { return _playerMp != null && _playerMp.IsPlaying; } catch (Exception) { return false; } } }
 
+        // 🕘 historia: 20 ostatnio oglądanych filmów alfabetycznie (ten sam film pod kilkoma ścieżkami - jedna pozycja); plakat, kiedy, ile obejrzano;
+        // klik - odtwórz (z pytaniem o wznowienie); prawy przycisk - od początku, folder, usuń z historii, usuń z biblioteki
+        void ShowHistory(FrameworkElement anchor)
+        {
+            var lib = LoadLibrary();
+            var groups = lib.Where(v => v.Last > 0 && v.Peer == null).GroupBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase)
+                .Select(g => (Title: g.Key, Main: g.OrderByDescending(v => v.Last).First(), All: g.ToList())).OrderByDescending(x => x.Main.Last).Take(20)
+                .OrderBy(x => x.Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+            var rows = new StackPanel();
+            var pop = new System.Windows.Controls.Primitives.Popup { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Top, StaysOpen = false, AllowsTransparency = true };
+            var head = new TextBlock { Text = "🕘 " + L.T("Ostatnio oglądane") + (groups.Count > 0 ? "  (" + groups.Count + ")" : ""), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(12, 10, 12, 6) };
+            var tip = new TextBlock { Text = L.T("Klik – odtwórz · prawy przycisk – więcej"), Foreground = Brushes.Gray, FontSize = 11.5, Margin = new Thickness(12, 0, 12, 6) };
+            pop.Child = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x18, 0x1B, 0x24)), BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Width = 430,
+                Child = new DockPanel { Children = { head, tip, new ScrollViewer { Content = rows, MaxHeight = 520, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(4, 0, 4, 6) } } } };
+            DockPanel.SetDock(head, Dock.Top); DockPanel.SetDock(tip, Dock.Top);
+            if (groups.Count == 0) rows.Children.Add(new TextBlock { Text = L.T("Historia jest pusta – obejrzyj jakiś film"), Foreground = Brushes.Silver, Margin = new Thickness(12) });
+            var now = DateTime.Now;
+            foreach (var g in groups)
+            {
+                var v = g.Main; var m = MetaFor(v.Path); var path = v.Path;
+                var img = new Image { Width = 34, Height = 50, Stretch = Stretch.UniformToFill, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+                if (m?.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) img.Source = LoadLogo(pf, 150); }
+                var seen = v.Done ? L.T("✓ obejrzany") : v.Len > 0 && v.Pos > 0 ? L.T("obejrzano ") + Math.Min(99, v.Pos * 100 / v.Len) + "%  (" + FormatTime(v.Pos) + " / " + FormatTime(v.Len) + ")" : "";
+                var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                txt.Children.Add(new TextBlock { Text = g.Title, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+                txt.Children.Add(new TextBlock { Text = "🕘 " + LastPlayedText(v.Last, now) + (seen.Length > 0 ? "   ·   " + seen : ""), Foreground = Brushes.Silver, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+                var dp = new DockPanel(); DockPanel.SetDock(img, Dock.Left); dp.Children.Add(img); dp.Children.Add(txt);
+                var row = new Border { Child = dp, Padding = new Thickness(8, 5, 8, 5), CornerRadius = new CornerRadius(6), Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = path };
+                row.MouseEnter += (q, w2) => row.Background = new SolidColorBrush(Color.FromArgb(0x40, 0x3B, 0x82, 0xF6));
+                row.MouseLeave += (q, w2) => row.Background = Brushes.Transparent;
+                row.MouseLeftButtonUp += (q, w2) => { pop.IsOpen = false; PlayVideos(new[] { path }, 0); };
+                var keys = new HashSet<string>(g.All.Select(x => x.Path), StringComparer.OrdinalIgnoreCase);
+                void Change(Action<List<LibraryVideo>> act) { var l2 = LoadLibrary(); act(l2); SaveLibrary(l2); _libRefresh?.Invoke(); pop.IsOpen = false; ShowHistory(anchor); }
+                var cm = new ContextMenu();
+                void Item(string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (q, w2) => a(); cm.Items.Add(mi); }
+                Item("▶ " + L.T("Odtwórz"), () => { pop.IsOpen = false; PlayVideos(new[] { path }, 0); });
+                Item("⏮ " + L.T("Odtwórz od początku"), () => { var l2 = LoadLibrary(); foreach (var x in l2.Where(x => keys.Contains(x.Path))) x.Pos = 0; SaveLibrary(l2); pop.IsOpen = false; PlayVideos(new[] { path }, 0); });
+                Item("📂 " + L.T("Pokaż w folderze"), () => { try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + path + "\""); } catch (Exception) { } });
+                cm.Items.Add(new Separator());
+                Item("🕘 " + L.T("Usuń z historii oglądania"), () => Change(l2 => { foreach (var x in l2.Where(x => keys.Contains(x.Path))) { x.Last = 0; x.Pos = 0; x.Done = false; } }));
+                Item("🗑 " + L.T("Usuń z biblioteki (plik na dysku zostaje)"), () =>
+                {
+                    if (MessageBox.Show(Window.GetWindow(anchor) ?? this, L.T("Usunąć z biblioteki Velivo: ") + g.Title + "?\n\n" + L.T("Plik na dysku zostaje."), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                    Change(l2 => l2.RemoveAll(x => keys.Contains(x.Path)));
+                });
+                row.ContextMenu = cm;
+                rows.Children.Add(row);
+            }
+            pop.IsOpen = true;
+        }
+
         void BuildVlcWindow()
         {
             LibraryVideo current = null;   // film, ktory teraz gra (jego wpis w bibliotece)
@@ -3147,15 +3198,7 @@ namespace Velivo
                 saveLector();
             };
             win.Topmost = _settings.VlcTopmost; showTop();
-            hist.Click += (s, e) =>
-            {   // 🕘 ostatnio oglądane (20 najnowszych) alfabetycznie; klik - odtwórz od miejsca przerwania
-                var films = LoadLibrary().Where(v => v.Last > 0 && v.Peer == null).OrderByDescending(v => v.Last).Take(20)
-                    .Select(v => (v, t: ShownTitle(v, MetaFor(v.Path)))).OrderBy(x => x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
-                var cm = new ContextMenu { PlacementTarget = hist, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
-                foreach (var (v, t) in films) { var p = v.Path; var mi = new MenuItem { Header = t + "   ·   " + LastPlayedText(v.Last, DateTime.Now) }; mi.Click += (q, w2) => PlayVideos(new[] { p }, 0); cm.Items.Add(mi); }
-                if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("Historia jest pusta – obejrzyj jakiś film"), IsEnabled = false });
-                cm.IsOpen = true;
-            };
+            hist.Click += (s, e) => ShowHistory(hist);
             mute.Click += (s, e) => toggleMute();
             // nad filmem: wlascicielem jest przezroczysta warstwa na obrazie (osobne okno nad odtwarzaczem),
             // inaczej warstwa przykrywa biblioteke i jej X / przyciski nad filmem nie reaguja na klik

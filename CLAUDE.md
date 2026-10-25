@@ -61,6 +61,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-25: NUCBOX ma pośrednika ręcznie na 41921, a Velivo co godzinę mogło samo wrócić na 41920 (UPnP) – teraz port zatwierdzony w oknie 🌍 (inny niż 41920) zostaje.
 * 2026-10-25: zdjęcie profilowe szło do kontaktu dopiero, gdy ten napisał – nowy kontakt (telefon po reinstalacji) go nie dostawał; teraz przy pojawieniu się kontaktu; w nagłówku rozmowy go nie było.
 * 2026-10-25: 📍 lokalizacja z telefonu „nie udało się” – brałem najpierw GPS (w domu bez wyniku; przy „przybliżonej” zgodzie niedostępny); teraz fused → sieć → GPS, na końcu ostatnie znane z każdego źródła.
+* 2026-10-25: duży plik z Windows doszedł 2 razy – w trakcie wysyłki „dosyłanie niedoręczonych” (co minutę / gdy kontakt się odezwie) startowało drugą wysyłkę; teraz wysyłany plik jest w `_komInFlight`.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

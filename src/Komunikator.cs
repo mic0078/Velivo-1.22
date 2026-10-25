@@ -2014,8 +2014,15 @@ namespace Velivo
                 // wpis w rozmowie od razu („…”): potwierdzenie przeczytania od odbiorcy moze przyjsc, zanim tu skonczymy
                 KomMsg pend = null;
                 if (to != null) { pend = new KomMsg { Mine = true, Text = KomFileLabel(fn, fsize), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = false, Mid = fmid, File = true, Path = f }; KomChat(to.Id).Add(pend); KomSave(); _komRefresh?.Invoke(); }
-                var r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
-                    (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))), fmid);
+                // w trakcie wysyłania - bez drugiej, równoległej wysyłki z „dosyłania niedoręczonych” (duży plik szedł dwa razy)
+                _komInFlight.Add(fmid);
+                string r;
+                try
+                {
+                    r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
+                        (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))), fmid);
+                }
+                finally { _komInFlight.Remove(fmid); }
                 codeWin?.Close();
                 if (pend != null)
                 {

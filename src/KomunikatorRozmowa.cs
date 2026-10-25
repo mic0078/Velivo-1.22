@@ -82,7 +82,7 @@ namespace Velivo
             w.Closed += (s, e) =>
             {
                 if (!ended) KomSendCall(c, new JsonObject { ["k"] = "end" });
-                _komCallWin = null; _komCallView = null; _komCallWith = null;
+                _komCallWin = null; _komCallView = null; _komCallWith = null; KomCtlOff();
                 try { view.Dispose(); } catch (Exception) { }
             };
             w.Show();
@@ -107,6 +107,9 @@ namespace Velivo
                     JsonObject o; try { o = JsonNode.Parse(msg) as JsonObject; } catch (Exception) { return; }
                     var k = (string)o?["k"]; if (k == null) return;
                     if (k == "close") { w.Close(); return; }
+                    if (k == "in") { KomCtlInput(o); return; }   // 🖱 pomoc zdalna - tylko u siebie, nie do rozmówcy
+                    if (k == "ctl-on") { KomCtlOn(c, (int?)o["w"] ?? 0, (int?)o["h"] ?? 0, j => { try { core.PostWebMessageAsString(j); } catch (Exception) { } }); return; }
+                    if (k == "ctl-off") { KomCtlOff(); return; }
                     if (k == "end") ended = true;
                     KomSendCall(c, o);
                 };

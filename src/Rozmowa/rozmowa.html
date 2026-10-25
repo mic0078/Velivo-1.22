@@ -9,11 +9,13 @@ html,body{margin:0;height:100%;background:#120f24;color:#fff;font-family:system-
 #st{position:fixed;left:0;right:0;top:40%;text-align:center;font-size:20px;text-shadow:0 1px 4px #000}
 #bar{position:fixed;left:0;right:0;bottom:24px;display:flex;justify-content:center;gap:18px}
 button{width:60px;height:60px;border-radius:50%;border:0;font-size:24px;background:#3a2f6b;color:#fff}
-button.off{background:#6b6b80}#end{background:#e53935}
+button.off{background:#6b6b80}#end{background:#e53935}button.on{background:#22c55e}
+#you.scr{object-fit:contain;background:#000}#you.steer{touch-action:none;cursor:crosshair}
+#scr,#help{display:none}
 </style></head><body>
 <video id="you" autoplay playsinline></video><video id="me" autoplay playsinline muted></video>
 <div id="st"></div>
-<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="end">⏹</button></div>
+<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="scr">🖥</button><button id="help">🖱</button><button id="end">⏹</button></div>
 <script>
 const q = new URLSearchParams(location.search), caller = q.get('rola') === 'dzwoni', pl = q.get('pl') !== '0', audio = q.get('audio') === '1';   // 📞 audio - rozmowa głosowa (bez kamery)
 const T = (p, e) => pl ? p : e;
@@ -21,10 +23,33 @@ const you = document.getElementById('you'), me = document.getElementById('me'), 
 function status(s) { st.textContent = s; }
 function out(o) { const s = JSON.stringify(o); if (window.velivo) velivo.send(s); else if (window.chrome && chrome.webview) chrome.webview.postMessage(s); }
 mic.title = T('Mikrofon wł./wył.', 'Microphone on/off'); cam.title = T('Kamera wł./wył.', 'Camera on/off');
-flip.title = T('Przełącz kamerę', 'Switch camera'); spk.title = T('Głośnik / słuchawka', 'Speaker / earpiece'); end.title = T('Zakończ rozmowę', 'End call');
+flip.title = T('Przełącz kamerę', 'Switch camera'); scr.title = T('Pokaż swój ekran', 'Share your screen'); help.title = T('Pomoc zdalna: poproś o sterowanie', 'Remote help: ask for control'); spk.title = T('Głośnik / słuchawka', 'Speaker / earpiece'); end.title = T('Zakończ rozmowę', 'End call');
 // poza domem - prywatny przekaźnik na domowym komputerze (TURN), bez serwerów firm trzecich; w domu - prosto w sieci domowej
 let ice = []; try { ice = JSON.parse(q.get('ice') || '[]'); } catch (e) { }
 let pc = null, local = null, facing = 'user', connected = false, done = false;
+// 🖥 pomoc zdalna: ekran zamiast kamery; sterowanie myszą i klawiaturą tylko po zgodzie pokazującego (kanał danych WebRTC, prosto między urządzeniami)
+let dc = null, sharing = null, mon = null, ctl = false, steer = false;
+const host = o => { if (window.chrome && chrome.webview) chrome.webview.postMessage(JSON.stringify(o)); };   // tylko do własnego Velivo (Windows), nie do rozmówcy
+function dsend(o) { if (dc && dc.readyState === 'open') dc.send(JSON.stringify(o)); }
+function useDc(ch) {
+  dc = ch;
+  ch.onmessage = e => {
+    let o; try { o = JSON.parse(e.data); } catch (x) { return; }
+    if (o.k === 'in') { if (ctl) host(o); }
+    else if (o.k === 'scr') { you.classList.toggle('scr', o.on); help.style.display = o.on && o.ctl ? 'inline-block' : 'none'; if (!o.on) setSteer(false); }
+    else if (o.k === 'ctl-ask') ask();
+    else if (o.k === 'ctl-ok') { setSteer(true); status(''); }
+    else if (o.k === 'ctl-no') status(T('Nie zgodzono się na sterowanie', 'Control was not allowed'));
+    else if (o.k === 'ctl-off') { ctlOff(); setSteer(false); }
+  };
+}
+function setSteer(on) { steer = on; you.classList.toggle('steer', on); help.classList.toggle('on', on); }
+function ask() {
+  if (!sharing || !mon) { dsend({ k: 'ctl-no' }); return; }
+  if (!confirm(T('Pozwolić rozmówcy sterować Twoim komputerem (mysz i klawiatura)?\nZakończysz w każdej chwili przyciskiem „Zakończ sterowanie”.', 'Let the other person control your computer (mouse and keyboard)?\nYou can end it at any time with “End control”.'))) { dsend({ k: 'ctl-no' }); return; }
+  ctl = true; host({ k: 'ctl-on', w: mon.w, h: mon.h }); dsend({ k: 'ctl-ok' });
+}
+function ctlOff() { if (!ctl) return; ctl = false; host({ k: 'ctl-off' }); dsend({ k: 'ctl-off' }); }
 const pend = [];
 async function media() {
   if (audio) return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
@@ -38,6 +63,8 @@ async function start() {
   if (!local.getVideoTracks().length) { cam.classList.add('off'); flip.style.display = 'none'; }
   pc = new RTCPeerConnection({ iceServers: ice });
   local.getTracks().forEach(t => pc.addTrack(t, local));
+  if (caller) useDc(pc.createDataChannel('pomoc')); else pc.ondatachannel = e => useDc(e.channel);
+  if (window.chrome && chrome.webview && navigator.mediaDevices.getDisplayMedia && local.getVideoTracks().length) scr.style.display = 'inline-block';
   pc.ontrack = e => { if (you.srcObject !== e.streams[0]) you.srcObject = e.streams[0]; };
   pc.onicecandidate = e => { if (e.candidate) out({ k: 'ice', c: e.candidate.toJSON() }); };
   pc.onconnectionstatechange = () => {
@@ -59,11 +86,12 @@ window.onSig = async function (o) {
     else if (o.k === 'answer' && pc) { await pc.setRemoteDescription({ type: 'answer', sdp: o.sdp }); flush(); }
     else if (o.k === 'ice') { if (pc && pc.remoteDescription) pc.addIceCandidate(o.c).catch(() => {}); else pend.push(o.c); }
     else if (o.k === 'reject' || o.k === 'busy') { status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
+    else if (o.k === 'ctl-stop') ctlOff();   // przycisk „Zakończ sterowanie” w Velivo
     else if (o.k === 'end') { status(T('Rozmowa zakończona', 'Call ended')); finish(); }
   } catch (e) { status(T('Błąd połączenia', 'Connection error')); hang(); }
 };
 if (window.chrome && chrome.webview) chrome.webview.addEventListener('message', e => onSig(e.data));
-function finish() { if (done) return; done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
+function finish() { if (done) return; ctlOff(); done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
 function hang() { if (done) return; out({ k: 'end' }); finish(); }
 window.hang = hang;
 end.onclick = () => { status(T('Rozmowa zakończona', 'Call ended')); hang(); };
@@ -80,6 +108,38 @@ flip.onclick = async () => {
     me.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none';
   } catch (e) { flip.style.display = 'none'; }
 };
+scr.onclick = async () => {
+  if (sharing) { stopShare(); return; }
+  const snd = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video'); if (!snd) return;
+  try {
+    const s = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'monitor' }, audio: false });
+    const nt = s.getVideoTracks()[0]; await snd.replaceTrack(nt); sharing = nt;
+    const g = nt.getSettings(); mon = g.displaySurface === 'monitor' ? { w: g.width, h: g.height } : null;   // sterowanie tylko przy całym ekranie
+    me.srcObject = s; me.style.transform = 'none'; scr.classList.add('on');
+    dsend({ k: 'scr', on: true, ctl: !!mon }); nt.onended = stopShare;
+  } catch (e) { }
+};
+async function stopShare() {
+  if (!sharing) return; const nt = sharing; sharing = null; mon = null; ctlOff(); nt.stop(); scr.classList.remove('on');
+  const snd = pc && pc.getSenders().find(x => x.track === nt);
+  const cam0 = local.getVideoTracks()[0]; if (snd && cam0) await snd.replaceTrack(cam0).catch(() => {});
+  me.srcObject = local; me.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none'; dsend({ k: 'scr', on: false });
+}
+help.onclick = () => { if (steer) { setSteer(false); dsend({ k: 'ctl-off' }); } else { dsend({ k: 'ctl-ask' }); status(T('Czekam na zgodę…', 'Waiting for permission…')); } };
+// miejsce na obrazie ekranu (bez czarnych pasów) jako ułamek 0..1
+function pos(e) {
+  const r = you.getBoundingClientRect(), vw = you.videoWidth, vh = you.videoHeight; if (!vw || !vh) return null;
+  const k = Math.min(r.width / vw, r.height / vh), w = vw * k, h = vh * k;
+  const x = (e.clientX - r.left - (r.width - w) / 2) / w, y = (e.clientY - r.top - (r.height - h) / 2) / h;
+  return x < 0 || y < 0 || x > 1 || y > 1 ? null : { x, y };
+}
+let mv = null;
+you.addEventListener('pointerdown', e => { if (!steer) return; const p = pos(e); if (!p) return; e.preventDefault(); you.setPointerCapture(e.pointerId); dsend({ k: 'in', t: 'd', b: e.button, x: p.x, y: p.y }); });
+you.addEventListener('pointerup', e => { if (!steer) return; const p = pos(e) || mv; if (!p) return; e.preventDefault(); dsend({ k: 'in', t: 'u', b: e.button, x: p.x, y: p.y }); });
+you.addEventListener('pointermove', e => { if (!steer) return; const p = pos(e); if (!p) return; if (!mv) requestAnimationFrame(() => { if (mv) dsend({ k: 'in', t: 'm', x: mv.x, y: mv.y }); mv = null; }); mv = p; });
+you.addEventListener('wheel', e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'w', d: e.deltaY > 0 ? -120 : 120 }); }, { passive: false });
+you.addEventListener('contextmenu', e => { if (steer) e.preventDefault(); });
+['keydown', 'keyup'].forEach(n => document.addEventListener(n, e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'k', v: e.keyCode, up: n === 'keyup' }); }));
 // telefon: głośnik albo słuchawka przy uchu (słuchawki przewodowe / Bluetooth - same)
 if (window.velivo && velivo.speakerOn) { if (!velivo.speakerOn()) spk.classList.add('off'); spk.onclick = () => spk.classList.toggle('off', !velivo.speaker()); }
 else spk.style.display = 'none';

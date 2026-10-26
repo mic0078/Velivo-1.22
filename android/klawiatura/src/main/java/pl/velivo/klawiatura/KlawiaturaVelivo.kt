@@ -365,7 +365,8 @@ class KlawiaturaVelivo : InputMethodService() {
     private fun komNew() = if (Rozmowy.hasBrowser(this)) null else Komunikator.get(this) { (android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL).trim() }.takeIf { it.contacts.isEmpty() }
 
     // ➤ w komunikatorze Velivo: popraw ostatnie słowo przed wysłaniem
-    override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord("") }
+    // ⠿ z komunikatora: „Pisz brajlem” - klawiatura przechodzi w brajla
+    override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord(""); if (action == "pl.velivo.brajl") brailleOn() }
     override fun onFinishInputView(finishingInput: Boolean) {   // klawiatura chowa się - zaległy zapis od razu
         super.onFinishInputView(finishingInput); stopListening(); Dzwiek.stop(); komNew()?.close(); saveNow(this)
         if (taps > 0 && !noLearn) prefs(this).edit().putFloat("rytm-nacisk", dwell).putFloat("rytm-tempo", tempo).putInt("rytm-n", taps).apply()

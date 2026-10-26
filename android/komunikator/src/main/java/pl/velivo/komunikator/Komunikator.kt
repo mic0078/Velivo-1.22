@@ -1819,11 +1819,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // ♿ ułatwienia - dla słabowidzących (duże litery, czytanie na głos, motyw „Wysoki kontrast”) i słabosłyszących (błysk lampy, mocna wibracja)
     // ♿ dwa działy jednym stuknięciem: 👁 niewidomi (czytanie na głos, wibracje, duże litery) i 👂 niesłyszący (błysk + wibracja, duże litery, 🤟 na palcach); niżej pojedyncze ustawienia
+    private var chatInput: EditText? = null   // pole wiadomości otwartej rozmowy (⠿ pisanie brajlem)
     private fun accessibility() {
         Dlg().setTitle("♿ " + t("Ułatwienia", "Accessibility")).setItems(arrayOf(
             "👁 " + t("Dla niewidomych i słabowidzących: nowe wiadomości czytane na głos (kto i co), wibracje – wiadomość: 2 krótkie, dzwonek: długie, duże litery, 🎤 szukanie osoby głosem", "For blind and low-vision people: new messages read aloud (who and what), vibration – message: 2 short, call: long, big text, 🎤 find a person by voice") + if (k.readNew && k.blindVibe) " ✓" else "",
             "👂 " + t("Dla niesłyszących i słabosłyszących: błysk lampy i mocna wibracja przy wiadomości i dzwonku, duże litery, 🤟 wiadomość na palcach (przytrzymaj wiadomość)", "For deaf and hard-of-hearing people: camera flash and strong vibration on messages and calls, big text, 🤟 message in fingerspelling (hold a message)") + if (k.flashAlert) " ✓" else "",
-            "⚙ " + t("Pojedyncze ustawienia…", "Single settings…"))) { _, i ->
+            "⚙ " + t("Pojedyncze ustawienia…", "Single settings…")) + (if (chatInput != null) arrayOf("⠿ " + t("Pisz brajlem (klawiatura Velivo)", "Type in Braille (Velivo keyboard)")) else emptyArray())) { _, i ->
+            if (i == 3) { chatInput?.let { e -> val imm = a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager   // ⠿ klawiatura Velivo przechodzi w brajla
+                e.requestFocus(); imm.showSoftInput(e, 0); e.postDelayed({ imm.sendAppPrivateCommand(e, "pl.velivo.brajl", null) }, 500) }; return@setItems }
             when (i) {
                 0 -> { val on = !(k.readNew && k.blindVibe); k.readNew = on; k.blindVibe = on; if (on) k.big = true; Toast.makeText(a, "👁 " + (if (on) t("włączone", "on") else t("wyłączone", "off")), Toast.LENGTH_SHORT).show(); if (on) k.alertFlash(null, false) }
                 1 -> { val on = !k.flashAlert; k.flashAlert = on; if (on) { k.big = true; k.alertFlash(null, false) }; Toast.makeText(a, "👂 " + (if (on) t("włączone", "on") else t("wyłączone", "off")), Toast.LENGTH_SHORT).show() }
@@ -2140,7 +2143,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     fun show() {
         if (locked { show() }) return
         val root = page()
-        chatWith = null; k.chatOpen = null; chatRefresh = null
+        chatWith = null; k.chatOpen = null; chatRefresh = null; chatInput = null
         val rows = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(10), px(4), px(10), px(8)) }
         // 🔍 szukanie osoby: wpisz albo 🎤 powiedz imię (także dla niewidomych z TalkBack) - jedna pasująca osoba = rozmowa od razu
         var who = ""
@@ -2362,8 +2365,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val items = arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"),
             if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
             if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
-            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off"))
+            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off")) + arrayOf("♿ " + t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille"))
         Dlg().setTitle(c.name).setItems(items) { _, i ->
+            if (items[i].startsWith("♿")) { accessibility(); return@setItems }
             if (i == 2) { k.setPinned(c.id, !k.pinned(c.id)); return@setItems }
             if (i == 7) { k.setClip(c.id, !k.clipOn(c.id))
                 Toast.makeText(a, "📋 " + (if (k.clipOn(c.id)) t("Wspólny schowek z „${c.name}” włączony – włącz go też tam. Kopie z telefonu wysyła klawiatura Velivo.", "Shared clipboard with “${c.name}” on – turn it on there too. Copies from the phone are sent by the Velivo keyboard.") else t("Wspólny schowek wyłączony", "Shared clipboard off")), Toast.LENGTH_LONG).show(); return@setItems }
@@ -2621,7 +2625,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }
             scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
         }
-        val input = EditText(a).apply {
+        val input = EditText(a).also { chatInput = it }.apply {
             hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND; setHorizontallyScrolling(false); maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             setTextColor(ink); setHintTextColor(dim); textSize = 16f * fs
@@ -2766,11 +2770,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (m.mine && !m.text.startsWith("🚫")) items.add("🚫 " + t("Usuń u wszystkich", "Delete for everyone"))
         items.add("🗑 " + t("Usuń u mnie", "Delete for me"))
         items.add("☑ " + t("Zaznacz kilka…", "Select several…"))
+        items.add("♿ " + t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille"))
         Dlg().setItems(items.toTypedArray()) { _, i ->
             if (items[i].startsWith("⏩")) { k.voiceSpeed = nextSpeed(); Toast.makeText(a, "⏩ " + speedText(k.voiceSpeed), Toast.LENGTH_SHORT).show(); return@setItems }
             when (items[i].substringAfter(' ')) {
                 t("Odpowiedz", "Reply") -> onReply?.invoke(m)
                 t("Pokaż na palcach", "Show in fingerspelling") -> fingers(m.text)
+                t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille") -> accessibility()
                 t("Reakcja", "React") -> { val e = arrayOf("👍", "❤️", "😂", "😮", "😢", "🙏"); Dlg().setItems(e) { _, j -> Thread { k.react(c, m, e[j]) }.start() }.show() }
                 t("Przekaż…", "Forward…") -> forward(c, m)
                 t("Zaznacz kilka…", "Select several…") -> select(c, m)

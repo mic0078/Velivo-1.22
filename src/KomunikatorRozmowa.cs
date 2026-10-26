@@ -114,9 +114,10 @@ namespace Velivo
                         {
                             var top = new Window { Topmost = true, WindowStyle = WindowStyle.None, ShowInTaskbar = false, Width = 0, Height = 0, AllowsTransparency = true, Background = Brushes.Transparent };
                             top.Show();
-                            bool yes = MessageBox.Show(top, "🖱 " + c.Name + L.T(" chce sterować Twoim komputerem (mysz i klawiatura).\n\nPozwolić? Zakończysz w każdej chwili przyciskiem „Zakończ sterowanie” na górze ekranu."), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                            var q = (string)o["q"]; var id = (string)o["id"];   // ⇄ zamiana stron - pytanie ze strony rozmowy
+                            bool yes = MessageBox.Show(top, q != null ? "⇄ " + c.Name + ": " + q : "🖱 " + c.Name + L.T(" chce sterować Twoim komputerem (mysz i klawiatura).\n\nPozwolić? Zakończysz w każdej chwili przyciskiem „Zakończ sterowanie” na górze ekranu."), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
                             top.Close();
-                            try { core.PostWebMessageAsString(new JsonObject { ["k"] = "ctl-answer", ["yes"] = yes }.ToJsonString()); } catch (Exception) { }
+                            try { core.PostWebMessageAsString(new JsonObject { ["k"] = "ctl-answer", ["yes"] = yes, ["id"] = id }.ToJsonString()); } catch (Exception) { }
                         }));
                         return;
                     }

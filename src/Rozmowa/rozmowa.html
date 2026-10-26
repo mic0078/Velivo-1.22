@@ -11,14 +11,14 @@ html,body{margin:0;height:100%;background:#120f24;color:#fff;font-family:system-
 button{width:60px;height:60px;border-radius:50%;border:0;font-size:24px;background:#3a2f6b;color:#fff}
 button.off{background:#6b6b80}#end{background:#e53935}button.on{background:#22c55e}
 #you.scr{object-fit:contain;background:#000}#you.steer,#shot.steer{touch-action:none;cursor:crosshair}
-#scr,#help{display:none}
+#scr,#help,#swap{display:none}button.pulse{outline:3px solid #facc15}
 #shot{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:none;z-index:1}#shot.pt{cursor:pointer}
 #bar,#st,#me{z-index:3}
 body.view #you,body.view #shot{height:calc(100% - 100px)}body.view #me{display:none}#dot{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #e53935;background:#e5393566;display:none;z-index:2;pointer-events:none}
 </style></head><body>
 <video id="you" autoplay playsinline></video><img id="shot" alt=""><div id="dot"></div><video id="me" autoplay playsinline muted></video>
 <div id="st"></div>
-<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="scr">🖥</button><button id="help">🖱</button><button id="end">⏹</button></div>
+<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="scr">🖥</button><button id="help">🖱</button><button id="swap">⇄</button><button id="end">⏹</button></div>
 <script>
 const q = new URLSearchParams(location.search), caller = q.get('rola') === 'dzwoni', pl = q.get('pl') !== '0', audio = q.get('audio') === '1';   // 📞 audio - rozmowa głosowa (bez kamery)
 const T = (p, e) => pl ? p : e;
@@ -26,7 +26,7 @@ const you = document.getElementById('you'), me = document.getElementById('me'), 
 function status(s) { st.textContent = s; }
 function out(o) { const s = JSON.stringify(o); if (window.velivo) velivo.send(s); else if (window.chrome && chrome.webview) chrome.webview.postMessage(s); }
 mic.title = T('Mikrofon wł./wył.', 'Microphone on/off'); cam.title = T('Kamera wł./wył.', 'Camera on/off');
-flip.title = T('Przełącz kamerę', 'Switch camera'); scr.title = T('Pokaż swój ekran', 'Share your screen'); help.title = T('Pomoc zdalna: poproś o sterowanie', 'Remote help: ask for control'); spk.title = T('Głośnik / słuchawka', 'Speaker / earpiece'); end.title = T('Zakończ rozmowę', 'End call');
+flip.title = T('Przełącz kamerę', 'Switch camera'); scr.title = T('Pokaż swój ekran', 'Share your screen'); help.title = T('Pomoc zdalna: poproś o sterowanie', 'Remote help: ask for control'); spk.title = T('Głośnik / słuchawka', 'Speaker / earpiece'); swap.title = T('Zamień strony: teraz rozmówca pokazuje ekran (za zgodą)', 'Swap sides: now the other person shares the screen (with consent)'); end.title = T('Zakończ rozmowę', 'End call');
 // poza domem - prywatny przekaźnik na domowym komputerze (TURN), bez serwerów firm trzecich; w domu - prosto w sieci domowej
 let ice = []; try { ice = JSON.parse(q.get('ice') || '[]'); } catch (e) { }
 let pc = null, local = null, facing = 'user', connected = false, done = false;
@@ -65,6 +65,9 @@ function useDc(ch) {
     else if (o.k === 'f') frame(o);
     else if (o.k === 'pt') { if (phoneScr && window.velivo && velivo.point) velivo.point(o.x, o.y); }
     else if (o.k === 'ctl-ask') ask();
+    else if (o.k === 'swap-ask') askUser(T('Rozmówca chce zamienić strony pomocy zdalnej (kto pokazuje ekran). Zgadzasz się?', 'The other person wants to swap remote-help sides (who shares the screen). Do you agree?'), 'swap');
+    else if (o.k === 'swap-ok') doSwap();
+    else if (o.k === 'swap-no') status(T('Nie zgodzono się na zamianę stron', 'Swapping sides was not allowed'));
     else if (o.k === 'ctl-ok') { setSteer(true); status(''); }
     else if (o.k === 'ctl-no') status(o.why === 'setup' ? T('Rozmówca musi raz włączyć „Velivo – pomoc zdalna” w Ułatwieniach dostępu – właśnie mu to pokazałem', 'The other person must turn on “Velivo – remote help” in Accessibility once – they were just shown how') : T('Nie zgodzono się na sterowanie', 'Control was not allowed'));
     else if (o.k === 'ctl-off') { ctlOff(); setSteer(false); }
@@ -74,13 +77,24 @@ function setSteer(on) { steer = on; you.classList.toggle('steer', on); shot.clas
 function ask() {
   if (phoneScr) {   // 📱 telefon: stuknięcia przez ułatwienia dostępu Velivo, pytanie także nad inną aplikacją
     if (!velivo.ctlReady()) { velivo.ctlSetup(); dsend({ k: 'ctl-no', why: 'setup' }); return; }
-    velivo.ask(T('Pozwolić rozmówcy stukać i przesuwać na Twoim telefonie?', 'Let the other person tap and swipe on your phone?')); return;
+    askFor = 'ctl'; velivo.ask(T('Pozwolić rozmówcy stukać i przesuwać na Twoim telefonie?', 'Let the other person tap and swipe on your phone?')); return;
   }
   if (!sharing || !mon) { dsend({ k: 'ctl-no' }); return; }
   host({ k: 'ctl-ask' });   // pytanie w okienku Velivo nad wszystkimi oknami (okno rozmowy bywa schowane, gdy pokazujesz ekran)
 }
+// ⇄ zamiana stron w jednej rozmowie: pokazujący przestaje, drugi zaczyna pokazywać (Windows - jedno kliknięcie 🖥, przeglądarka wymaga kliknięcia)
+let askFor = null;
+function askUser(q, id) { if (window.chrome && chrome.webview) host({ k: 'ctl-ask', id, q }); else if (window.velivo && velivo.ask) { askFor = id; velivo.ask(q); } }
+function swapYes(yes) { if (!yes) { dsend({ k: 'swap-no' }); return; } dsend({ k: 'swap-ok' }); doSwap(); }
+function doSwap() {
+  if (sharing || phoneScr) { if (phoneScr) velivo.screen(false); else stopShare(); status(T('Teraz rozmówca pokazuje swój ekran', 'Now the other person shares their screen')); return; }
+  if (window.velivo && velivo.screen) velivo.screen(true);
+  else { status(T('Kliknij 🖥, aby pokazać swój ekran', 'Click 🖥 to share your screen')); scr.classList.add('pulse'); }
+}
+swap.onclick = () => { dsend({ k: 'swap-ask' }); status(T('Czekam na zgodę…', 'Waiting for permission…')); };
+setInterval(() => { swap.style.display = connected && (sharing || phoneScr || document.body.classList.contains('view')) ? 'inline-block' : 'none'; }, 1000);
 function ctlYes(yes) { if (!yes || !sharing || !mon) { dsend({ k: 'ctl-no' }); return; } ctl = true; host({ k: 'ctl-on', w: mon.w, h: mon.h }); dsend({ k: 'ctl-ok' }); }
-window.ctlAnswer = yes => { if (!phoneScr) return; if (!yes) { dsend({ k: 'ctl-no' }); return; } ctl = true; velivo.ctl(true); dsend({ k: 'ctl-ok' }); status(T('🖱 Rozmówca steruje – zakończysz przyciskiem 🖥', '🖱 They are in control – stop with 🖥')); };
+window.ctlAnswer = yes => { const id = askFor; askFor = null; if (id === 'swap') { swapYes(yes); return; } if (!phoneScr) return; if (!yes) { dsend({ k: 'ctl-no' }); return; } ctl = true; velivo.ctl(true); dsend({ k: 'ctl-ok' }); status(T('🖱 Rozmówca steruje – zakończysz przyciskiem 🖥', '🖱 They are in control – stop with 🖥')); };
 function ctlOff() { if (!ctl) return; ctl = false; host({ k: 'ctl-off' }); if (window.velivo && velivo.ctl) velivo.ctl(false); dsend({ k: 'ctl-off' }); }
 const pend = [];
 async function media() {
@@ -128,7 +142,7 @@ window.onSig = async function (o) {
     else if (o.k === 'answer' && pc) { await pc.setRemoteDescription({ type: 'answer', sdp: o.sdp }); flush(); }
     else if (o.k === 'ice') { if (pc && pc.remoteDescription) pc.addIceCandidate(o.c).catch(() => {}); else pend.push(o.c); }
     else if (o.k === 'reject' || o.k === 'busy') { status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
-    else if (o.k === 'ctl-answer') ctlYes(o.yes);
+    else if (o.k === 'ctl-answer') { if (o.id === 'swap') swapYes(o.yes); else ctlYes(o.yes); }
     else if (o.k === 'ctl-stop') ctlOff();   // przycisk „Zakończ sterowanie” w Velivo
     else if (o.k === 'end') { status(T('Rozmowa zakończona', 'Call ended')); finish(); }
   } catch (e) { status(T('Błąd połączenia', 'Connection error')); hang(); }
@@ -152,6 +166,7 @@ flip.onclick = async () => {
   } catch (e) { flip.style.display = 'none'; }
 };
 scr.onclick = async () => {
+  scr.classList.remove('pulse');
   if (window.velivo && velivo.screen) { velivo.screen(!phoneScr); return; }   // telefon: Android pyta o zgodę
   if (sharing) { stopShare(); return; }
   const tv = pc && pc.getTransceivers().find(t => t.receiver.track && t.receiver.track.kind === 'video'), snd = tv && tv.sender; if (!snd) return;

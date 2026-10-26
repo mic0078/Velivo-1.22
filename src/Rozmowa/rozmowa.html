@@ -69,6 +69,7 @@ function useDc(ch) {
     else if (o.k === 'swap-ask') { ctlOff(); setSteer(false); } if (o.k === 'swap-ask') askUser(T('Rozmówca chce zamienić strony pomocy zdalnej (kto pokazuje ekran). Zgadzasz się?', 'The other person wants to swap remote-help sides (who shares the screen). Do you agree?'), 'swap');
     else if (o.k === 'swap-ok') doSwap();
     else if (o.k === 'swap-no') status(T('Nie zgodzono się na zamianę stron', 'Swapping sides was not allowed'));
+    else if (o.k === 'ctl-blocked') status(T('Na wierzchu u rozmówcy jest okno administratora – Windows nie pozwala go klikać zdalnie. Niech rozmówca je zamknie albo uruchomi Velivo jako administrator.', 'An administrator window is on top for the other person – Windows does not allow clicking it remotely. Ask them to close it or run Velivo as administrator.'));
     else if (o.k === 'ctl-ok') { setSteer(true); status(''); }
     else if (o.k === 'ctl-no') status(o.why === 'setup' ? T('Rozmówca musi raz włączyć „Velivo – pomoc zdalna” w Ułatwieniach dostępu – właśnie mu to pokazałem', 'The other person must turn on “Velivo – remote help” in Accessibility once – they were just shown how') : T('Nie zgodzono się na sterowanie', 'Control was not allowed'));
     else if (o.k === 'ctl-off') { ctlOff(); setSteer(false); }
@@ -144,6 +145,7 @@ window.onSig = async function (o) {
     else if (o.k === 'answer' && pc) { await pc.setRemoteDescription({ type: 'answer', sdp: o.sdp }); flush(); }
     else if (o.k === 'ice') { if (pc && pc.remoteDescription) pc.addIceCandidate(o.c).catch(() => {}); else pend.push(o.c); }
     else if (o.k === 'reject' || o.k === 'busy') { status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
+    else if (o.k === 'ctl-blocked') dsend({ k: 'ctl-blocked' });   // Windows nie pozwala klikać okna administratora - powiedz pomagającemu
     else if (o.k === 'ctl-answer') { if (o.id === 'swap') swapYes(o.yes); else ctlYes(o.yes); }
     else if (o.k === 'ctl-stop') ctlOff();   // przycisk „Zakończ sterowanie” w Velivo
     else if (o.k === 'end') { status(T('Rozmowa zakończona', 'Call ended')); finish(); }

@@ -22,7 +22,18 @@ namespace Velivo
         [StructLayout(LayoutKind.Sequential)] struct KomInput { public int type; public KomInUnion u; }
         [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint n, KomInput[] inputs, int size);
 
-        static void KomSend(KomInput i) => SendInput(1, new[] { i }, Marshal.SizeOf<KomInput>());
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int n);
+        static DateTime _komCtlBlockedAt;
+        // Windows blokuje ruchy, gdy na wierzchu jest okno administratora (UIPI) - pomagający dostaje komunikat, dziennik nazwę okna
+        static void KomSend(KomInput i)
+        {
+            if (SendInput(1, new[] { i }, Marshal.SizeOf<KomInput>()) != 0 || DateTime.UtcNow - _komCtlBlockedAt < TimeSpan.FromSeconds(5)) return;
+            _komCtlBlockedAt = DateTime.UtcNow; int err = Marshal.GetLastWin32Error();
+            var t = new System.Text.StringBuilder(200); try { GetWindowText(GetForegroundWindow(), t, 200); } catch (Exception) { }
+            App.LogInfo("Pomoc zdalna: Windows zablokował ruch myszy/klawiatury (błąd " + err + "), okno na wierzchu: " + t);
+            _komCtlBlockedPost?.Invoke("{\"k\":\"ctl-blocked\"}");
+        }
+        static Action<string> _komCtlBlockedPost;
         static void KomMouse(uint flags, int dx = 0, int dy = 0, int data = 0) =>
             KomSend(new KomInput { type = 0, u = new KomInUnion { m = new KomMouseIn { dx = dx, dy = dy, flags = flags, data = unchecked((uint)data) } } });
         static void KomKey(ushort vk, bool up)
@@ -37,7 +48,7 @@ namespace Velivo
             System.Drawing.Rectangle? pick = null;
             foreach (var s in System.Windows.Forms.Screen.AllScreens)
                 if (s.Bounds.Width == w && s.Bounds.Height == h && (pick == null || s.Primary)) pick = s.Bounds;
-            _komCtlScreen = pick ?? System.Windows.Forms.Screen.PrimaryScreen.Bounds;
+            _komCtlScreen = pick ?? System.Windows.Forms.Screen.PrimaryScreen.Bounds; _komCtlBlockedPost = post;
             if (_komCtlBar != null) return;
             var bar = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Topmost = true, ShowActivated = false,
                 SizeToContent = SizeToContent.WidthAndHeight, Background = new SolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35)), WindowStartupLocation = WindowStartupLocation.Manual, Top = 0 };

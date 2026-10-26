@@ -29,7 +29,7 @@ namespace Velivo
     {
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
         sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; public bool IsGroup => Key.Length == 0; }   // 👥 grupa: bez klucza, członkowie w Addr („grupa:id,id”)   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
-        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; public string Re = ""; }   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
+        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; public string Re = ""; public string Lp; }   // Lp: 🔗 podgląd linku (JSON: u, t, d, s)   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
         static string KomFile => Path.Combine(DataDir, "komunikator.dat");
@@ -87,7 +87,7 @@ namespace Velivo
                         {
                             var l = new List<KomMsg>();
                             foreach (var m in kv.Value.AsArray())
-                                try { l.Add(new KomMsg { Mine = (bool?)m["me"] ?? false, Text = (string)m["t"] ?? "", Ts = (long?)m["ts"] ?? 0, Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"], Re = (string)m["re"] ?? "" }); }
+                                try { l.Add(new KomMsg { Mine = (bool?)m["me"] ?? false, Text = (string)m["t"] ?? "", Ts = (long?)m["ts"] ?? 0, Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"], Re = (string)m["re"] ?? "", Lp = (string)m["lp"] }); }
                                 catch (Exception) { }
                             _komChats[kv.Key] = l;
                         }
@@ -128,7 +128,7 @@ namespace Velivo
                 foreach (var kv in _komChats)
                 {
                     var a = new JsonArray();
-                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File, ["p"] = m.Path, ["re"] = m.Re });
+                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File, ["p"] = m.Path, ["re"] = m.Re, ["lp"] = m.Lp });
                     chats[kv.Key] = a;
                 }
                 var unread = new JsonObject(); foreach (var kv in _komUnread) unread[kv.Key] = kv.Value;
@@ -451,6 +451,11 @@ namespace Velivo
                 text = Encoding.UTF8.GetString(plain);
             }
             catch (CryptographicException) { return; }
+            string lp = null;   // 🔗 podgląd linku od nadawcy
+            var ln = KomB64((string)p["ln"]); var lct = KomB64((string)p["lp"]);
+            if (ln.Length == 12 && lct.Length > 16 && lct.Length < 4096)
+                try { var lpl = new byte[lct.Length - 16]; using (var g = new AesGcm(c.Key, 16)) g.Decrypt(ln, lct.AsSpan(0, lct.Length - 16), lct.AsSpan(lct.Length - 16), lpl, KomMsgAd(c.Id, _komId, mid, ts).Concat(Encoding.UTF8.GetBytes("\nlp")).ToArray()); lp = Encoding.UTF8.GetString(lpl); }
+                catch (CryptographicException) { }
             var ack = KomPacket("p2p-ack"); ack["to"] = c.Id; ack["mid"] = mid; ack["mac"] = Convert.ToBase64String(KomHmac(c.Key, "ack\n" + mid));
             KomSendUdp(ack, sender);
             if (!_komSeen.Add(mid) || KomChat(c.Id).Any(x => x.Mid == mid)) return;   // powtorka (takze po ponownym uruchomieniu) - tylko ponowne potwierdzenie
@@ -474,7 +479,7 @@ namespace Velivo
                 text = c.Name + ": " + text.Substring(text.IndexOf('\n', KomGroupTag.Length) + 1); c = g;
             }   // 👥 wiadomość w grupie - do rozmowy grupy
             if (text.Length > 4000) text = text.Substring(0, 4000);
-            KomChat(c.Id).Add(new KomMsg { Mine = false, Text = text, Ts = ts, Ok = true, Mid = mid });
+            KomChat(c.Id).Add(new KomMsg { Mine = false, Text = text, Ts = ts, Ok = true, Mid = mid, Lp = c.IsGroup ? null : lp });
             bool visible = _komWindow != null && _komWindow.IsVisible && _komWindow.IsActive && _komOpenId == c.Id;
             if (!visible) _komUnread[c.Id] = (_komUnread.TryGetValue(c.Id, out var u) ? u : 0) + 1;
             KomSave();
@@ -615,7 +620,45 @@ namespace Velivo
             KomChat(c.Id).Add(m);
             if (c.IsGroup) { m.Ok = true; KomGroupOut(c, m.Text, m.Mid); }   // 👥 do każdego z grupy osobno (jego kluczem)
             KomSave();
-            if (!c.IsGroup) KomDeliver(c, m);
+            if (c.IsGroup) return;
+            if (KomFirstUrl(m.Text) is string url) _ = KomPreviewThenDeliver(c, m, url); else KomDeliver(c, m);
+        }
+
+        // 🔗 podgląd linku jak w Signal: tytuł i opis strony pobiera nadawca i wysyła zaszyfrowane razem z wiadomością (odbiorca i pośrednik nie łączą się ze stroną)
+        static readonly System.Text.RegularExpressions.Regex KomUrlRx = new System.Text.RegularExpressions.Regex(@"(https?://|www\.)[^\s<>""]+[^\s<>"".,;:!?)\]]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        static string KomFirstUrl(string text) { var m = KomUrlRx.Match(text ?? ""); return !m.Success ? null : m.Value.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + m.Value : m.Value; }
+        async Task KomPreviewThenDeliver(KomContact c, KomMsg m, string url)
+        {
+            m.Lp = await KomLinkPreview(url);
+            if (m.Lp != null) { KomSave(); _komRefresh?.Invoke(); }
+            KomDeliver(c, m);
+        }
+        static readonly System.Net.Http.HttpClient KomHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        static async Task<string> KomLinkPreview(string url)
+        {
+            try
+            {
+                using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
+                req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Velivo");
+                using var res = await KomHttp.SendAsync(req, System.Net.Http.HttpCompletionOption.ResponseHeadersRead);
+                if (!res.IsSuccessStatusCode || res.Content.Headers.ContentType?.MediaType?.Contains("html") == false) return null;
+                var buf = new byte[300000]; int n = 0;
+                using (var s = await res.Content.ReadAsStreamAsync()) { int r; while (n < buf.Length && (r = await s.ReadAsync(buf, n, buf.Length - n)) > 0) n += r; }   // tylko początek strony (nagłówek z tytułem)
+                var html = Encoding.UTF8.GetString(buf, 0, n);
+                const System.Text.RegularExpressions.RegexOptions I = System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+                string Meta(string k)
+                {
+                    var tag = System.Text.RegularExpressions.Regex.Match(html, "<meta[^>]+(?:property|name)=[\"']" + k + "[\"'][^>]*>", I); if (!tag.Success) return null;
+                    var v = System.Text.RegularExpressions.Regex.Match(tag.Value, "content=(?:\"([^\"]*)\"|'([^']*)')", I); if (!v.Success) return null;
+                    var t = WebUtility.HtmlDecode(v.Groups[1].Success ? v.Groups[1].Value : v.Groups[2].Value).Trim(); return t.Length > 0 ? t : null;
+                }
+                var tt = System.Text.RegularExpressions.Regex.Match(html, "<title[^>]*>([^<]*)</title>", I);
+                var title = Meta("og:title") ?? Meta("twitter:title") ?? (tt.Success ? WebUtility.HtmlDecode(tt.Groups[1].Value).Trim() : "");
+                if (title.Length == 0) return null;
+                string Cut(string x, int l) => x.Length > l ? x.Substring(0, l) + "…" : x;
+                return new JsonObject { ["u"] = url, ["t"] = Cut(title, 150), ["d"] = Cut(Meta("og:description") ?? Meta("description") ?? "", 300), ["s"] = Cut(Meta("og:site_name") ?? new Uri(url).Host, 60) }.ToJsonString();
+            }
+            catch (Exception) { return null; }
         }
 
         // 👥 grupy (jak w Signal: bez serwera grup) - wiadomość do każdego członka osobno, z nazwą i składem grupy; u odbiorcy grupa tworzy się sama
@@ -871,6 +914,12 @@ namespace Velivo
                 var plain = Encoding.UTF8.GetBytes(m.Text); var ct = new byte[plain.Length]; var tag = new byte[16];
                 using (var g = new AesGcm(c.Key, 16)) g.Encrypt(n, plain, ct, tag, KomMsgAd(_komId, c.Id, m.Mid, m.Ts));
                 p["c"] = Convert.ToBase64String(ct.Concat(tag).ToArray());
+                if (m.Lp != null)
+                {   // 🔗 podgląd linku - zaszyfrowany jak wiadomość (osobne pole: starsze Velivo go pomija)
+                    var ln = RandomNumberGenerator.GetBytes(12); var lpl = Encoding.UTF8.GetBytes(m.Lp); var lct = new byte[lpl.Length]; var ltag = new byte[16];
+                    using (var g = new AesGcm(c.Key, 16)) g.Encrypt(ln, lpl, lct, ltag, KomMsgAd(_komId, c.Id, m.Mid, m.Ts).Concat(Encoding.UTF8.GetBytes("\nlp")).ToArray());
+                    p["ln"] = Convert.ToBase64String(ln); p["lp"] = Convert.ToBase64String(lct.Concat(ltag).ToArray());
+                }
                 var tcs = new TaskCompletionSource<bool>(); _komAcks[m.Mid] = tcs;
                 IPAddress.TryParse(c.Addr ?? "", out var known);
                 for (int i = 0; i < 4 && !m.Ok; i++)
@@ -1588,7 +1637,7 @@ namespace Velivo
                 input.IsEnabled = sendBtn.IsEnabled = c != null;
                 fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = camBtn.IsEnabled = locBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
                 var cs = new StringBuilder(pal.Key ?? "").Append(_komAutoImages).Append(c?.Id).Append('|').Append(searchBox.Text).Append('|').Append(selMode).Append(picked.Count).Append('|');
-                if (c != null) foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300))) cs.Append(m.Mid).Append(m.Ok ? '1' : '0').Append(m.Read ? '1' : '0').Append(m.Text?.GetHashCode()).Append(m.Path).Append(KomReactions(m)).Append(';');
+                if (c != null) foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300))) cs.Append(m.Mid).Append(m.Ok ? '1' : '0').Append(m.Read ? '1' : '0').Append(m.Text?.GetHashCode()).Append(m.Path).Append(KomReactions(m)).Append(m.Lp?.Length).Append(';');
                 if (cs.ToString() == chatSig) return;   // nagłówek (w sieci, pisze…) odświeżony wyżej; dymki bez zmian - bez przebudowy
                 chatSig = cs.ToString();
                 msgs.Children.Clear();
@@ -1618,6 +1667,18 @@ namespace Velivo
                         KomDragOut(img, ip);
                         body.Children.Add(img);
                     }
+                    if (!hasFile && m.Lp != null) try
+                    {   // 🔗 podgląd linku (jak w WhatsApp): serwis, tytuł, opis - kliknięcie otwiera stronę
+                        var lj = JsonNode.Parse(m.Lp); var lu = (string)lj["u"] ?? "";
+                        var card = new StackPanel();
+                        card.Children.Add(new TextBlock { Text = (string)lj["s"] ?? "", FontSize = 11, Foreground = fg, Opacity = 0.75, TextTrimming = TextTrimming.CharacterEllipsis });
+                        card.Children.Add(new TextBlock { Text = (string)lj["t"] ?? "", FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = fg, TextWrapping = TextWrapping.Wrap, MaxHeight = 40, TextTrimming = TextTrimming.CharacterEllipsis });
+                        if (((string)lj["d"] ?? "").Length > 0) card.Children.Add(new TextBlock { Text = (string)lj["d"], FontSize = 12, Foreground = fg, Opacity = 0.85, TextWrapping = TextWrapping.Wrap, MaxHeight = 50, TextTrimming = TextTrimming.CharacterEllipsis });
+                        var lb = new Border { Child = card, Background = new SolidColorBrush(Color.FromArgb(0x30, 0, 0, 0)), BorderBrush = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Mine), BorderThickness = new Thickness(3, 0, 0, 0), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 5, 8, 6), Margin = new Thickness(0, 2, 0, 6), MaxWidth = 340, Cursor = Cursors.Hand, ToolTip = lu };
+                        if (lu.StartsWith("http", StringComparison.OrdinalIgnoreCase)) lb.MouseLeftButtonUp += (s2, e2) => { if (!selMode) { AddTab(lu); Activate(); } };
+                        body.Children.Add(lb);
+                    }
+                    catch (Exception) { }
                     var txt = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14 };
                     // 🔗 adresy w wiadomości - kliknięcie otwiera kartę w Velivo
                     int at = 0;

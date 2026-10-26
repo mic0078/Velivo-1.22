@@ -74,7 +74,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // read: moja - odbiorca przeczytał (✓✓); odebrana - wysłaliśmy „przeczytane”
     // file: wpis o pliku (nie wysyłany ponownie jako tekst)
-    class Msg(val mine: Boolean, var text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false, var file: Boolean = false, var path: String? = null, var re: String = "")   // re: reakcje „id:emoji,…”
+    class Msg(val mine: Boolean, var text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false, var file: Boolean = false, var path: String? = null, var re: String = "", var lp: String = "")   // re: reakcje „id:emoji,…”
 
     private val prefs = ctx.getSharedPreferences("komunikator", Context.MODE_PRIVATE)
     private val random = SecureRandom()
@@ -135,7 +135,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     @Synchronized fun chat(id: String): MutableList<Msg> = chats.getOrPut(id) {
         runCatching {
             val a = JSONArray(open(prefs.getString("rozmowa-$id", null)) ?: "[]")
-            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid"), it.optBoolean("rd"), it.optBoolean("f"), it.optString("p").ifEmpty { null }, it.optString("re")) }.toMutableList()
+            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid"), it.optBoolean("rd"), it.optBoolean("f"), it.optString("p").ifEmpty { null }, it.optString("re"), it.optString("lp")) }.toMutableList()
         }.getOrDefault(mutableListOf())
     }
     @Synchronized private fun saveChat(id: String) {
@@ -144,13 +144,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val old = System.currentTimeMillis() - h * 3600000L
             l.removeAll { m -> (m.ts < old).also { gone -> if (gone) m.path?.let { p -> if (p.startsWith(mediaDir.path)) java.io.File(p).delete() } } }
         }
-        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid).put("rd", it.read).put("f", it.file).put("p", it.path ?: "").put("re", it.re)) }
+        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid).put("rd", it.read).put("f", it.file).put("p", it.path ?: "").put("re", it.re).put("lp", it.lp)) }
         prefs.edit().putString("rozmowa-$id", seal(a.toString())).apply()
     }
     // --- przeniesienie klawiatura -> przeglądarka (telefon z obiema aplikacjami: jeden komunikator, bez dublowania) ---
     @Synchronized fun export(): String = JSONObject().put("cid", myId)
         .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own).put("relay", it.relay ?: "")) } })
-        .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read).put("f", m.file).put("p", m.path ?: "").put("re", m.re)) } }) } })
+        .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read).put("f", m.file).put("p", m.path ?: "").put("re", m.re).put("lp", m.lp)) } }) } })
         .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).put("opt", optExport()).toString()
 
     // ustawienia rozmów i profilu (przypięte, wyciszone, znikające, szkice, motyw, blokada, „Mój adres”, zdjęcie) - przy przenosinach i w kopii
@@ -200,7 +200,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val list = chat(id); val have = list.map { it.mid }.toHashSet()
                 val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
                 for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
-                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid"), m.optBoolean("rd"), m.optBoolean("f"), m.optString("p").ifEmpty { null }, m.optString("re")))
+                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid"), m.optBoolean("rd"), m.optBoolean("f"), m.optString("p").ifEmpty { null }, m.optString("re"), m.optString("lp")))
                 }
                 list.sortBy { it.ts }
                 val un = o.optJSONObject("unread")?.optInt(id) ?: 0
@@ -493,7 +493,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (text.startsWith(TIMER)) { timerIn(c, text.substring(TIMER.length)); return }   // ⏳ znikające wiadomości
         if (text.startsWith(ASK)) { askIn(c, text.substring(ASK.length)); return }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
         if (text.startsWith(ADDR) || text.startsWith(ASKOK)) return   // dla pośrednika (Windows)
-        val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid)
+        val ln = unb64(p.optString("ln")); val lct = unb64(p.optString("lp"))
+        val lp = if (ln.size == 12 && lct.size in 17..4095) runCatching {   // 🔗 podgląd linku od nadawcy
+            val lc = Cipher.getInstance("AES/GCM/NoPadding"); lc.init(Cipher.DECRYPT_MODE, SecretKeySpec(c.key, "AES"), GCMParameterSpec(128, ln)); lc.updateAAD(msgAd(c.id, myId, mid, p.optLong("ts")) + "\nlp".toByteArray())
+            String(lc.doFinal(lct), Charsets.UTF_8)
+        }.getOrDefault("") else ""
+        val m = Msg(false, text.take(MAX_TEXT), p.optLong("ts"), true, mid, lp = lp)
         synchronized(this) { chat(c.id).add(m) }
         saveChat(c.id)
         prefs.edit().putInt("nowe-${c.id}", unread(c.id) + 1).apply()
@@ -509,9 +514,34 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         synchronized(this) { chat(c.id).add(m) }
         if (c.isGroup) { groupOut(c, m.text, m.mid); m.ok = true }   // 👥 do każdego z grupy osobno (szyfrowane jego kluczem)
         saveChat(c.id)
-        if (!c.isGroup) deliver(c, m)
+        if (c.isGroup) return m
+        val url = firstUrl(m.text)
+        if (url == null) deliver(c, m)
+        else Thread { linkPreview(url)?.let { m.lp = it; saveChat(c.id); main.post { onChange() } }; deliver(c, m) }.start()   // 🔗 najpierw podgląd (najwyżej kilka sekund)
         return m
     }
+
+    // 🔗 podgląd linku jak w Signal: tytuł i opis strony pobiera nadawca i wysyła zaszyfrowane razem z wiadomością (odbiorca i pośrednik nie łączą się ze stroną)
+    private val urlRx = Regex("(https?://|www\\.)[^\\s<>\"]+[^\\s<>\".,;:!?)\\]]", RegexOption.IGNORE_CASE)
+    private fun firstUrl(text: String) = urlRx.find(text)?.value?.let { if (it.startsWith("www.", true)) "https://$it" else it }
+    private fun linkPreview(url: String): String? = runCatching {
+        val cn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        try {
+            cn.connectTimeout = 4000; cn.readTimeout = 4000; cn.instanceFollowRedirects = true
+            cn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) Velivo")
+            if (cn.responseCode !in 200..299 || cn.contentType?.contains("html", true) == false) return@runCatching null
+            val html = cn.inputStream.use { s -> val o = java.io.ByteArrayOutputStream(); val b = ByteArray(16384); while (o.size() < 300000) { val r = s.read(b); if (r < 0) break; o.write(b, 0, r) }; String(o.toByteArray(), Charsets.UTF_8) }   // tylko początek strony
+            fun clean(x: String) = android.text.Html.fromHtml(x, 0).toString().trim().ifEmpty { null }
+            fun meta(k: String): String? {
+                val tag = Regex("<meta[^>]+(?:property|name)=[\"']$k[\"'][^>]*>", RegexOption.IGNORE_CASE).find(html) ?: return null
+                val v = Regex("content=(?:\"([^\"]*)\"|'([^']*)')", RegexOption.IGNORE_CASE).find(tag.value) ?: return null
+                return clean(v.groupValues[1].ifEmpty { v.groupValues[2] })
+            }
+            val title = meta("og:title") ?: meta("twitter:title") ?: Regex("<title[^>]*>([^<]*)</title>", RegexOption.IGNORE_CASE).find(html)?.groupValues?.get(1)?.let { clean(it) } ?: return@runCatching null
+            fun cut(x: String, l: Int) = if (x.length > l) x.take(l) + "…" else x
+            JSONObject().put("u", url).put("t", cut(title, 150)).put("d", cut(meta("og:description") ?: meta("description") ?: "", 300)).put("s", cut(meta("og:site_name") ?: (java.net.URL(url).host ?: ""), 60)).toString()
+        } finally { cn.disconnect() }
+    }.getOrNull()
 
     // 👥 grupy (jak w Signal: bez serwera grup) - wiadomość idzie do każdego członka osobno, z nazwą i składem grupy;
     // u odbiorcy grupa tworzy się sama; członkowie, których ktoś nie ma w kontaktach, dostają ją od innych
@@ -742,6 +772,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             ci.init(Cipher.ENCRYPT_MODE, SecretKeySpec(c.key, "AES"), GCMParameterSpec(128, n))
             ci.updateAAD(msgAd(myId, c.id, mid, m.ts))
             p.put("c", b64(ci.doFinal(m.text.toByteArray(Charsets.UTF_8))))
+            if (m.lp.isNotEmpty()) {   // 🔗 podgląd linku - zaszyfrowany jak wiadomość (osobne pole: starsze Velivo go pomija)
+                val ln = ByteArray(12).also { random.nextBytes(it) }
+                val lc = Cipher.getInstance("AES/GCM/NoPadding"); lc.init(Cipher.ENCRYPT_MODE, SecretKeySpec(c.key, "AES"), GCMParameterSpec(128, ln)); lc.updateAAD(msgAd(myId, c.id, mid, m.ts) + "\nlp".toByteArray())
+                p.put("ln", b64(ln)).put("lp", b64(lc.doFinal(m.lp.toByteArray(Charsets.UTF_8))))
+            }
             val latch = java.util.concurrent.CountDownLatch(1); acks[mid] = latch
             val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { !it.isLoopbackAddress }
             for (i in 0 until 4) {
@@ -2405,6 +2440,21 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     setOnClickListener { showPhoto(m.path!!, photos(c)) }
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
+                if (m.lp.isNotEmpty() && m.path == null) runCatching {   // 🔗 podgląd linku (jak w WhatsApp): serwis, tytuł, opis - stuknięcie otwiera stronę
+                    val lj = JSONObject(m.lp); val lu = lj.optString("u")
+                    msgs.addView(TextView(a).apply {
+                        text = android.text.SpannableStringBuilder(lj.optString("s")).apply {
+                            setSpan(android.text.style.RelativeSizeSpan(0.8f), 0, length, 0)
+                            append("\n"); val st = length; append(lj.optString("t")); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), st, length, 0)
+                            lj.optString("d").takeIf { it.isNotEmpty() }?.let { append("\n"); val s2 = length; append(it); setSpan(android.text.style.RelativeSizeSpan(0.85f), s2, length, 0) }
+                        }
+                        textSize = 14f; maxLines = 6; ellipsize = android.text.TextUtils.TruncateAt.END; setTextColor(if (m.mine) pal().mineFg else ink); setPadding(px(12), px(7), px(12), px(8))
+                        background = GradientDrawable().apply { setColor(if (m.mine) violet else pal().theirs); cornerRadius = px(12).toFloat(); setStroke(px(2), if (m.mine) pal().mineFg else violet) }
+                        layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(6); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
+                        contentDescription = t("Podgląd linku: ", "Link preview: ") + lj.optString("t")
+                        if (lu.startsWith("http", true)) setOnClickListener { openLink(lu) }
+                    })
+                }
                 msgs.addView(TextView(a).apply {
                     val tick = if (m.mine) (if (m.read || (m.ok && !m.text.contains("📬"))) "  ✓✓" else "  ✓") else ""   // 📬 w skrzynce pośrednika - jeszcze nie u odbiorcy   // jak WhatsApp: ✓ wysłana, ✓✓ szare doręczona, ✓✓ niebieskie przeczytana
                     text = android.text.SpannableStringBuilder(m.text).apply {

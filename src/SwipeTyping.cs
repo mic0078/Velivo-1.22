@@ -586,12 +586,20 @@ namespace Velivo
         }
         static IEnumerable<string> FixLines() { lock (_myFix) return _myFix.Select(kv => ">" + kv.Key + "\t" + kv.Value).ToList(); }
 
-        // cale zdania: czesto powtarzane (co najmniej 2 razy) podsuwane na pasku nad propozycjami, Ctrl+Spacja wstawia reszte
+        // cale zdania: czesto powtarzane (co najmniej 2 razy) podsuwane na pasku nad propozycjami, Ctrl+Spacja wstawia reszte.
+        // Za pierwszym razem tylko skrot zdania (bez tresci) - jednorazowe wiadomosci nie zostaja w pliku nauki (jak w telefonie)
         static readonly Dictionary<string, int> _sentences = new Dictionary<string, int>();
+        static readonly HashSet<int> _seenOnce = new HashSet<int>();
+        static int SentHash(string t) { unchecked { int h = 0; foreach (var c in t.ToLowerInvariant()) h = h * 31 + c; return h; } }
         internal static void LearnSentence(string text)
         {
             text = text?.Trim(); if (string.IsNullOrEmpty(text) || text.Length < 8 || text.Length > 200 || text.Count(c => c == ' ') < 2) return;
-            lock (_sentences) { _sentences[text] = (_sentences.TryGetValue(text, out var n) ? n : 0) + 1; if (_sentences.Count > 500) _sentences.Remove(_sentences.OrderBy(x => x.Value).First().Key); }
+            lock (_sentences)
+            {
+                if (_sentences.TryGetValue(text, out var n)) { _sentences[text] = Math.Min(n + 1, 1000); return; }
+                if (_seenOnce.Add(SentHash(text))) { if (_seenOnce.Count > 1000) _seenOnce.Clear(); return; }
+                _sentences[text] = 2; if (_sentences.Count > 500) _sentences.Remove(_sentences.OrderBy(x => x.Value).First().Key);
+            }
         }
         internal static string SentenceRest(string prefix)
         {
@@ -602,7 +610,7 @@ namespace Velivo
                 return best.Key?.Substring(prefix.Length);
             }
         }
-        static IEnumerable<string> SentenceLines() { lock (_sentences) return _sentences.Select(kv => "*" + kv.Value + "\t" + kv.Key).ToList(); }
+        static IEnumerable<string> SentenceLines() { lock (_sentences) return _sentences.Where(kv => kv.Value >= 2).Select(kv => "*" + kv.Value + "\t" + kv.Key).Concat(_seenOnce.Select(h => "#" + h)).ToList(); }
         // biezace zdanie (slowa juz w tekscie, z przecinkami) - do nauki i podpowiedzi zdan
         internal sealed class SentenceBuf
         {
@@ -748,7 +756,8 @@ namespace Velivo
                     {
                         if (line.StartsWith("+")) { if (line.Length > 2) own?.Add(line.Substring(1)); continue; }
                         if (line.StartsWith("~")) { ReadShape(line); continue; }
-                        if (line.StartsWith("*")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[0], out var sc) && q[1].Length > 0) lock (_sentences) _sentences[q[1]] = sc; continue; }
+                        if (line.StartsWith("*")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[0], out var sc) && sc >= 2 && q[1].Length > 0) lock (_sentences) _sentences[q[1]] = sc; continue; }   // zdania uzyte raz (dawny zapis) - pominiete
+                        if (line.StartsWith("#")) { if (int.TryParse(line.Substring(1), out var sh)) lock (_sentences) _seenOnce.Add(sh); continue; }
                         if (line.StartsWith(">")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && q[0].Length > 0 && q[1].Length > 0) lock (_myFix) _myFix[q[0]] = q[1]; continue; }
                         if (line.StartsWith("=")) { var q = line.Substring(1).Split('\t'); if (q.Length == 2 && int.TryParse(q[1], out var pc)) lock (_pairs) _pairs[q[0]] = pc; continue; }
                         var p = line.Split('\t');

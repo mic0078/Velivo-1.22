@@ -48,6 +48,8 @@ open class Ustawienia : Activity() {
         button(R.string.kb_theme, R.string.kb_theme_tip) { chooseTheme() }
         button(R.string.kb_height, R.string.kb_height_tip) { chooseHeight() }
         button(R.string.kb_words, R.string.kb_words) { showWords() }
+        button(R.string.kb_phrases, R.string.kb_phrases_help) { showPhrases() }
+        button(R.string.kb_privacy, R.string.kb_privacy_tip) { privacy() }
         // 🧹 wyuczone dane (częstość, pary słów, poprawki) - za zgodą; Moje słowa zostają
         button(R.string.kb_clear_learned, R.string.kb_clear_learned_tip) {
             AlertDialog.Builder(this).setTitle(R.string.kb_clear_learned).setMessage(R.string.kb_clear_learned_tip)
@@ -125,6 +127,30 @@ open class Ustawienia : Activity() {
         AlertDialog.Builder(this).setTitle(R.string.kb_height).setSingleChoiceItems(names, sizes.indexOf(pr.getInt("wysokosc", 120)).coerceAtLeast(0)) { d, i ->
             pr.edit().putInt("wysokosc", sizes[i]).apply(); d.dismiss()
         }.setOnDismissListener { done() }.show()
+    }
+
+    // 💬 Moje frazy: wyuczone (napisane co najmniej 2 razy) i własne - przegląd, edycja, usuwanie; „skrót = fraza”
+    private fun showPhrases() {
+        KlawiaturaVelivo.load(this) {
+            val box = EditText(this).apply { setText(KlawiaturaVelivo.phrases().joinToString("\n")); minLines = 8; gravity = Gravity.TOP
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS }
+            AlertDialog.Builder(this).setTitle(R.string.kb_phrases).setMessage(R.string.kb_phrases_help)
+                .setView(ScrollView(this).apply { addView(box) })
+                .setPositiveButton(android.R.string.ok) { _, _ -> KlawiaturaVelivo.setPhrases(this, box.text.split('\n')) }
+                .setNegativeButton(android.R.string.cancel, null).setOnDismissListener { done() }.show()
+        }
+    }
+
+    // 🔒 co klawiatura zapamiętuje (wszystko tylko w telefonie, zaszyfrowane): nauka, frazy, dopasowanie do tempa, nauka tylko w Velivo; profil pisania od nowa
+    private fun privacy() {
+        val pr = KlawiaturaVelivo.prefs(this)
+        val keys = arrayOf("klaw-nauka", "klaw-frazy", "klaw-rytm", "klaw-nauka-velivo"); val defs = booleanArrayOf(true, true, true, false)
+        val on = BooleanArray(keys.size) { pr.getBoolean(keys[it], defs[it]) }
+        AlertDialog.Builder(this).setTitle(R.string.kb_privacy)
+            .setMultiChoiceItems(arrayOf(getString(R.string.kb_p_learn), getString(R.string.kb_p_phrases), getString(R.string.kb_p_rhythm), getString(R.string.kb_p_velivo)), on) { _, i, v -> on[i] = v }
+            .setPositiveButton(android.R.string.ok) { _, _ -> val e = pr.edit(); keys.forEachIndexed { i, k -> e.putBoolean(k, on[i]) }; e.apply(); if (!on[2]) KlawiaturaVelivo.resetRhythm(this) }
+            .setNeutralButton(R.string.kb_p_reset) { _, _ -> KlawiaturaVelivo.resetRhythm(this); Toast.makeText(this, R.string.kb_p_reset_done, Toast.LENGTH_LONG).show() }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)

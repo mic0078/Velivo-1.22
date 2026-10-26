@@ -99,4 +99,14 @@
     <string name="kb_clear_learned_tip">Removes what the keyboard learned from your typing (frequent words and word pairs, your corrections, swipe shapes). My words stay.</string>
     <string name="kb_clear_yes">Clear</string>
     <string name="kb_clear_done">Learned data cleared – My words kept</string>
+    <string name="kb_phrases">💬 My phrases</string>
+    <string name="kb_phrases_help">One phrase per line. Shortcut: “adr = 5 Long St, Glasgow” – type adr and the phrase shows on the bar. Sentences typed at least twice are added by the keyboard itself (the first time it keeps only a fingerprint, no text). Delete a line to forget a phrase.</string>
+    <string name="kb_privacy">🔒 Learning and privacy</string>
+    <string name="kb_privacy_tip">What the keyboard may remember – only on this phone, encrypted. Never in password fields or incognito mode.</string>
+    <string name="kb_p_learn">Learn from my typing (words, pairs, corrections)</string>
+    <string name="kb_p_phrases">Phrases: remember and suggest</string>
+    <string name="kb_p_rhythm">Adapt key hold time to my typing pace</string>
+    <string name="kb_p_velivo">Learn only in Velivo apps</string>
+    <string name="kb_p_reset">↺ Typing profile</string>
+    <string name="kb_p_reset_done">Typing profile (pace and press) reset</string>
 </resources>

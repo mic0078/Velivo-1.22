@@ -104,6 +104,7 @@ class KlawiaturaVelivo : InputMethodService() {
                         val f = file(ctx)
                         if (f.exists()) Szyfr.open(f.readBytes())?.let { Slownik.loadText(String(it, Charsets.UTF_8), learned, own) }
                         own.forEach { Slownik.addUserWord(it) }
+                        Slownik.decayPhrases()
                     }
                     Slownik.useCount = { w -> synchronized(learned) { learned[w] ?: 0 } }
                     Slownik.learnedEach = { f -> synchronized(learned) { learned.forEach { (k, v) -> f(k, v) } } }
@@ -135,6 +136,11 @@ class KlawiaturaVelivo : InputMethodService() {
             synchronized(learned) { learned.clear(); Slownik.clearLearned() }
             prefs(ctx).edit().remove("bez-korekty").apply(); clearedAt = System.currentTimeMillis(); save(ctx)
         }
+        // 💬 Moje frazy: przegląd, edycja, usuwanie (jedna w linii, „skrót = fraza”)
+        fun phrases(): List<String> = Slownik.phraseLines()
+        fun setPhrases(ctx: Context, list: List<String>) { Slownik.setPhrases(list); save(ctx) }
+        // ↺ profil pisania (tempo i czas nacisku) od nowa - same liczby, bez treści
+        fun resetRhythm(ctx: Context) = prefs(ctx).edit().remove("rytm-nacisk").remove("rytm-tempo").remove("rytm-n").apply()
         // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)
         fun setOwnWords(ctx: Context, list: List<String>) {
             synchronized(learned) {
@@ -153,6 +159,9 @@ class KlawiaturaVelivo : InputMethodService() {
 
     // stan pisania
     private var secret = false          // pole hasła: nic do nauki ani propozycji
+    private var noLearn = false         // bez nauki: hasło, tryb incognito (aplikacja prosi), nauka wyłączona albo tylko w Velivo
+    private var sentOk = true           // zdanie napisane teraz na klawiszach (nie wklejone, nie podyktowane, bez frazy) - tylko takie do fraz
+    private var retype: String? = null  // poprzednie słowo cofnięte ⌫ i pisane od nowa (pzdrawiam -> pozdrawiam) - nauka typowego błędu
     private var cur = ""                // bieżące słowo z klawiszy
     private var prevWord: String? = null; private var prevWord2: String? = null
     private var fixFrom: String? = null; private var fixTo: String? = null; private var fixSep = ""
@@ -162,6 +171,19 @@ class KlawiaturaVelivo : InputMethodService() {
     private var prevAlts: Pair<String, List<String>>? = null   // ostatnie słowo niepewne (bez poprawki): propozycje do wyboru w pasku
     private val SUG = 6   // propozycji w pasku (3 widoczne, reszta po przesunięciu palcem)
     private var sentence = StringBuilder()
+    private fun newSentence() { sentence.clear(); sentOk = true }
+    // ⏱ rytm pisania - tylko stukanie w litery (bez dyktowania, wklejania, brajla, fraz, przeciągania): czas nacisku i odstęp między literami.
+    // Przytrzymanie (ą, znaki) dopiero wyraźnie dłużej niż zwykły nacisk tej osoby, ⇧⇧ - okno dopasowane do tempa. Same liczby, bez treści.
+    private var dwell = 0f; private var tempo = 0f; private var taps = 0; private var lastTap = 0L
+    private fun rhythm(press: Long, at: Long) {
+        if (noLearn || !pref("klaw-rytm")) return
+        if (press in 20..600) dwell = if (dwell == 0f) press.toFloat() else dwell * 0.95f + press * 0.05f
+        if (lastTap > 0 && at - lastTap in 60..1500) tempo = if (tempo == 0f) (at - lastTap).toFloat() else tempo * 0.95f + (at - lastTap) * 0.05f
+        lastTap = at; if (taps < 1000) taps++
+    }
+    private fun adapted() = pref("klaw-rytm") && taps >= 30 && dwell > 0f
+    private fun longDelay(): Long = if (pref("klaw-senior", false)) 700L else if (!adapted()) 420L else (dwell * 2.5f + 150).toLong().coerceIn(380L, 700L)
+    private fun capsWindow(): Long = if (!adapted() || tempo == 0f) 400L else (tempo * 1.6f).toLong().coerceIn(400L, 700L)
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
     private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
     private var sym = 0   // 0 - litery, 1 - znaki (?123), 2 - więcej znaków (=\<), 3 - emoji (😀), 4 - 📋 schowek i edycja, 5 - GIF-y z telefonu - jak w Gboard
@@ -277,11 +299,15 @@ class KlawiaturaVelivo : InputMethodService() {
         val v = info.inputType and InputType.TYPE_MASK_VARIATION
         email = cls == InputType.TYPE_CLASS_TEXT && (v == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS || v == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS)
         secret = cls == InputType.TYPE_CLASS_TEXT && (v == InputType.TYPE_TEXT_VARIATION_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) ||
-            cls == InputType.TYPE_CLASS_NUMBER && v == InputType.TYPE_NUMBER_VARIATION_PASSWORD ||
-            info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
+            cls == InputType.TYPE_CLASS_NUMBER && v == InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        // 🔒 tryb incognito (przeglądarki, komunikatory): podpowiedzi zostają, ale nic nie jest zapamiętywane; zakres nauki z ustawień klawiatury
+        noLearn = secret || info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0 || !pref("klaw-nauka") ||
+            pref("klaw-nauka-velivo", false) && !(info.packageName ?: "").startsWith("pl.velivo.")
+        Slownik.phrasesOn = pref("klaw-frazy")
+        val pr = prefs(this); dwell = pr.getFloat("rytm-nacisk", 0f); tempo = pr.getFloat("rytm-tempo", 0f); taps = pr.getInt("rytm-n", 0); lastTap = 0L
         // ponowne uruchomienie tego samego pola (WhatsApp, przeglądarki robią to często w trakcie pisania) - stan pisania zostaje
         if (!restarting) { cur = ""; fixFrom = null; addAsk = null; lastSwipe = null; alt = false; caps = false; afterPunct = false
-            prevWord = null; prevWord2 = null; sentence.clear() }
+            prevWord = null; prevWord2 = null; newSentence(); retype = null }
         autoShift()
         view.theme(); view.refresh(); if (pref("brajl", false)) brajlPole().invalidate()   // ⠿ ustawienia brajla z aplikacji klawiatury
         komNew()?.listen()   // telefon tylko z klawiaturą Velivo: widoczny w domowym Wi-Fi do dodania, póki klawiatura na ekranie
@@ -292,7 +318,10 @@ class KlawiaturaVelivo : InputMethodService() {
 
     // ➤ w komunikatorze Velivo: popraw ostatnie słowo przed wysłaniem
     override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord("") }
-    override fun onFinishInputView(finishingInput: Boolean) { super.onFinishInputView(finishingInput); stopListening(); komNew()?.close(); saveNow(this) }   // klawiatura chowa się - zaległy zapis od razu
+    override fun onFinishInputView(finishingInput: Boolean) {   // klawiatura chowa się - zaległy zapis od razu
+        super.onFinishInputView(finishingInput); stopListening(); komNew()?.close(); saveNow(this)
+        if (taps > 0 && !noLearn) prefs(this).edit().putFloat("rytm-nacisk", dwell).putFloat("rytm-tempo", tempo).putInt("rytm-n", taps).apply()
+    }
     override fun onDestroy() { getSystemService(android.content.ClipboardManager::class.java)?.removePrimaryClipChangedListener(clipListener); tts?.shutdown(); rec?.destroy(); super.onDestroy() }
 
     private fun pref(k: String, def: Boolean = true) = prefs(this).getBoolean(k, def)
@@ -341,7 +370,7 @@ class KlawiaturaVelivo : InputMethodService() {
             val b = before(2)
             if (b.length == 2 && b[1] == ' ' && b[0].isLetterOrDigit()) {
                 ic.beginBatchEdit(); ic.deleteSurroundingText(1, 0); ic.commitText(". ", 1); ic.endBatchEdit()
-                if (sentence.isNotEmpty()) { Slownik.learnSentence(sentence.toString() + "."); sentence.clear() }
+                typedSentence()?.let { Slownik.learnSentence(it) }; newSentence()
                 prevWord = null; prevWord2 = null; afterPunct = false; autoShift(); return
             }
         }
@@ -349,6 +378,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val w = before(48).takeLastWhile { it.isLetter() }.ifEmpty { cur }.takeIf { it.isNotEmpty() && before(it.length) == it } ?: ""; cur = ""
         if (prevWord == null && w.isNotEmpty()) before(120).dropLast(w.length).trimEnd().split(' ', '\n').lastOrNull { it.isNotEmpty() }?.trim(',', '.', '!', '?', ';', ':')?.takeIf { it.all(Char::isLetter) }?.let { prevWord = it.lowercase() }
         var out = w
+        val rt = retype; retype = null
         // wielka litera w środku zdania (nazwisko, miejsce, firma) - bez samej poprawki, tylko propozycje
         val name = w.isNotEmpty() && w[0].isUpperCase() && before(w.length + 3).dropLast(w.length).trimEnd().let { it.isNotEmpty() && it.last() !in ".!?\n" }
         if (w.isNotEmpty() && !secret) {
@@ -358,6 +388,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 ic.beginBatchEdit(); ic.deleteSurroundingText(w.length, 0); ic.commitText(out, 1); ic.endBatchEdit()
                 fixFrom = w; fixTo = out; fixSep = sep
             }
+            if (rt != null && !noLearn && !rt.equals(out, true)) Slownik.learnFix(rt, out)   // słowo cofnięte ⌫ i napisane od nowa - następnym razem poprawi samo
             afterWord(out)
             if (out == w && sep == " ") Slownik.suggest(w, keep, SUG).takeIf { it.isNotEmpty() }?.let { prevAlts = w to it }   // niepewne - wybór w pasku
             if (name && out == w && !Slownik.isKnown(w.lowercase()) && synchronized(learned) { w.lowercase() !in own }) addAsk = w   // ➕ zapamiętać nazwisko / nazwę
@@ -370,7 +401,14 @@ class KlawiaturaVelivo : InputMethodService() {
         }
         if (sep.isNotEmpty()) ic.commitText(sep, 1)
         afterPunct = sep.length == 1 && sep[0] in ",;:!?"
-        if (sep == "\n" || sep in listOf(".", "!", "?")) { if (!secret) Slownik.learnSentence(sentence.toString() + sep.trim()); sentence.clear(); prevWord = null; prevWord2 = null }
+        if (sep == "\n" || sep in listOf(".", "!", "?")) { typedSentence()?.let { Slownik.learnSentence(it) }; newSentence(); prevWord = null; prevWord2 = null }
+    }
+
+    // zdanie przed kursorem (z przecinkami i poprawkami) - do fraz, tylko gdy całe napisane teraz na klawiszach (słowa jak w pamięci pisania)
+    private fun typedSentence(): String? {
+        if (noLearn || !sentOk || sentence.isEmpty()) return null
+        val b = before(220).trimEnd(); val t = b.substring(b.dropLastWhile { it in ".!?" }.indexOfLast { it in ".!?\n" } + 1).trim()
+        return t.takeIf { it.filter(Char::isLetter).equals(sentence.filter(Char::isLetter).toString(), true) }
     }
 
     // poprawki zależne od poprzedniego słowa (ze -> że, przecinek, na prawde -> naprawdę) i nauka
@@ -398,10 +436,10 @@ class KlawiaturaVelivo : InputMethodService() {
 
     private fun learn(wd: String) {
         if (wd.contains(' ')) { wd.split(' ').forEach { learn(it) }; return }
-        if (wd.length < 2 || secret || !Slownik.loaded) { prevWord2 = prevWord; prevWord = wd.lowercase(); return }
+        if (!noLearn && wd.isNotEmpty()) { if (sentence.isNotEmpty()) sentence.append(' '); sentence.append(wd) }
+        if (wd.length < 2 || noLearn || !Slownik.loaded) { prevWord2 = prevWord; prevWord = wd.lowercase(); return }
         val lw = wd.lowercase()
         Slownik.learnPair(prevWord, lw); Slownik.learnTriple(prevWord2, prevWord, lw); prevWord2 = prevWord; prevWord = lw
-        if (sentence.isNotEmpty()) sentence.append(' '); sentence.append(wd)
         synchronized(learned) { learned[lw] = (learned[lw] ?: 0) + 1 }; Slownik.noteRecent(lw)
         if (lw != "ze" && !Slownik.isKnown(lw) && !Slownik.isTypo(lw) && lw !in own) addAsk = wd
         saveSoon(this)
@@ -413,7 +451,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val f = fixFrom; val t = fixTo
         if (f != null && t != null && before(t.length + fixSep.length) == t + fixSep) {
             ic.beginBatchEdit(); ic.deleteSurroundingText(t.length + fixSep.length, 0); ic.commitText(f + fixSep, 1); ic.endBatchEdit()
-            keep.add(f.lowercase()); prefs(this).edit().putStringSet("bez-korekty", HashSet(keep.toList().takeLast(500))).apply()
+            keep.add(f.lowercase()); if (!noLearn) prefs(this).edit().putStringSet("bez-korekty", HashSet(keep.toList().takeLast(500))).apply()
             fixFrom = null; addAsk = f; view.refresh(); return
         }
         fixFrom = null
@@ -422,6 +460,7 @@ class KlawiaturaVelivo : InputMethodService() {
             val n = if (before(s.length + 1) == "$s ") s.length + 1 else s.length
             ic.deleteSurroundingText(n, 0); Slownik.forgetShape(s); lastSwipe = null; cur = ""; autoShift(); view.refresh(); return } }
         val sel = ic.getSelectedText(0)
+        val into = cur.isEmpty() && sel.isNullOrEmpty() && before(2).let { it.length == 2 && it[1] == ' ' && it[0].isLetter() }   // ⌫ wraca do poprzedniego słowa
         if (!sel.isNullOrEmpty()) ic.commitText("", 1)
         else {
             val b = before(2)
@@ -429,6 +468,11 @@ class KlawiaturaVelivo : InputMethodService() {
             ic.deleteSurroundingText(if (b.length == 2 && Character.isSurrogatePair(b[0], b[1])) 2 else 1, 0)
         }
         cur = if (cur.isNotEmpty()) cur.dropLast(1) else before(30).takeLastWhile { it.isLetter() }
+        if (into && retype == null && cur.length >= 3) {
+            retype = cur; prevAlts = null; prevWord = prevWord2; prevWord2 = null
+            if (sentence.endsWith(cur)) sentence.setLength(maxOf(0, sentence.length - cur.length - 1))
+            if (!noLearn) synchronized(learned) { val lw = cur.lowercase(); learned[lw]?.let { if (it <= 1) learned.remove(lw) else learned[lw] = it - 1 } }
+        }
         autoShift(); view.refresh()
     }
 
@@ -438,7 +482,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val b = before(60)
         val trimmed = b.trimEnd(); val n = b.length - trimmed.length + trimmed.takeLastWhile { !it.isWhitespace() }.length
         if (n > 0) ic.deleteSurroundingText(n, 0)
-        cur = ""; fixFrom = null; autoShift(); view.refresh()
+        cur = ""; fixFrom = null; retype = null; sentOk = false; autoShift(); view.refresh()
     }
 
     private fun enter() {
@@ -446,7 +490,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val info = currentInputEditorInfo
         val action = (info?.imeOptions ?: 0) and EditorInfo.IME_MASK_ACTION
         if (!secret) finishWord("")   // ostatnie słowo przed Enter też poprawione (zolw⏎ -> żółw)
-        if (!secret && sentence.isNotEmpty()) { Slownik.learnSentence(sentence.toString()); sentence.clear() }
+        typedSentence()?.let { Slownik.learnSentence(it) }; newSentence()
         prevWord = null; prevWord2 = null
         if (info != null && action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED && info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION == 0) ic.performEditorAction(action)
         else ic.commitText("\n", 1)
@@ -456,23 +500,42 @@ class KlawiaturaVelivo : InputMethodService() {
     // propozycja z paska: podmienia bieżące (albo przeciągnięte) słowo
     private fun pick(s: String) {
         val ic = currentInputConnection ?: return
+        if (s.startsWith(PHRASE)) { phrase(s); return }
         val swipe = lastSwipe
         if (swipe != null && before(swipe.length + 1) == "$swipe ") {
             ic.beginBatchEdit(); ic.deleteSurroundingText(swipe.length + 1, 0); ic.commitText("$s ", 1); ic.endBatchEdit()
-            Slownik.forgetShape(swipe); Slownik.learnShape(s, lastTrace, lastKeyW); lastSwipe = s
+            Slownik.forgetShape(swipe); if (!noLearn) Slownik.learnShape(s, lastTrace, lastKeyW); lastSwipe = s
         } else if (cur.isNotEmpty()) {
-            if (!Slownik.isKnown(cur.lowercase())) Slownik.learnFix(cur, s)   // wybrane zamiast wpisanego - następnym razem poprawi samo (typowe błędy użytkownika)
+            if (!noLearn && !Slownik.isKnown(cur.lowercase())) Slownik.learnFix(cur, s)   // wybrane zamiast wpisanego - następnym razem poprawi samo (typowe błędy użytkownika)
             ic.beginBatchEdit(); ic.deleteSurroundingText(cur.length, 0); ic.commitText("$s ", 1); ic.endBatchEdit(); cur = ""
         } else if (prevAlts != null && before(prevAlts!!.first.length + 1) == prevAlts!!.first + " ") {
             val w = prevAlts!!.first; prevAlts = null   // niepewne słowo zamienione na wybrane
-            Slownik.learnFix(w, s); synchronized(learned) { learned[w.lowercase()]?.let { if (it <= 1) learned.remove(w.lowercase()) else learned[w.lowercase()] = it - 1 } }
+            if (!noLearn) { Slownik.learnFix(w, s); synchronized(learned) { learned[w.lowercase()]?.let { if (it <= 1) learned.remove(w.lowercase()) else learned[w.lowercase()] = it - 1 }; learned[s.lowercase()] = (learned[s.lowercase()] ?: 0) + 1 }; saveSoon(this) }
             ic.beginBatchEdit(); ic.deleteSurroundingText(w.length + 1, 0); ic.commitText("$s ", 1); ic.endBatchEdit()
-            synchronized(learned) { learned[s.lowercase()] = (learned[s.lowercase()] ?: 0) + 1 }; prevWord = s.lowercase(); saveSoon(this); autoShift(); view.refresh(); return
+            if (sentence.endsWith(w)) { sentence.setLength(sentence.length - w.length); sentence.append(s) }
+            prevWord = s.lowercase(); autoShift(); view.refresh(); return
         } else {
             val b = before(1)
             ic.commitText((if (b.isNotEmpty() && !b.endsWith(" ") && !b.endsWith("\n")) " " else "") + s + " ", 1)
         }
         learn(s); autoShift(); view.refresh()
+    }
+
+    // 💬 fraza z paska: reszta zaczętego zdania albo cała fraza ze skrótu (adr -> adres) - wstawiona, bez nauki słów i tempa
+    private val PHRASE = "💬"
+    private fun phraseChip(): String? {
+        Slownik.phraseFor(cur)?.let { return "$PHRASE=$it" }
+        val b = before(220); val typed = b.substring(b.indexOfLast { it in ".!?\n" } + 1).trimStart()
+        return Slownik.sentenceRest(typed)?.let { "$PHRASE+$it" }
+    }
+    private fun phrase(s: String) {
+        val ic = currentInputConnection ?: return
+        val body = s.substring(PHRASE.length + 1); val whole = s[PHRASE.length] == '='
+        ic.beginBatchEdit(); if (whole && cur.isNotEmpty()) ic.deleteSurroundingText(cur.length, 0); ic.commitText(body + " ", 1); ic.endBatchEdit()
+        val b = before(240).trimEnd(); Slownik.usedPhrase(b.substring(b.dropLast(1).indexOfLast { it in ".!?\n" } + 1).trim())
+        cur = ""; fixFrom = null; prevAlts = null; addAsk = null; retype = null; lastSwipe = null
+        if (body.trimEnd().lastOrNull() in listOf('.', '!', '?')) { newSentence(); prevWord = null; prevWord2 = null } else sentOk = false
+        autoShift(); view.refresh()
     }
 
     // pisanie przeciągnięciem: rozpoznane słowo + spacja (przed słowem spacja, gdy jej brak)
@@ -489,7 +552,8 @@ class KlawiaturaVelivo : InputMethodService() {
         ic.commitText((if (b.isNotEmpty() && !b.endsWith(" ") && !b.endsWith("\n")) " " else "") + w + " ", 1)
         if (!caps) shift = false
         lastSwipe = w; lastTrace = trace; lastKeyW = keyW; swipeAlts = r.drop(1)
-        if (!secret) { Slownik.learnShape(w, trace, keyW); learn(w) }
+        if (!noLearn) Slownik.learnShape(w, trace, keyW)
+        learn(w)
         autoShift(); view.refresh()
     }
     private var swipeAlts: List<String> = emptyList()
@@ -497,15 +561,16 @@ class KlawiaturaVelivo : InputMethodService() {
     private fun suggestions(): List<String> {
         if (secret || !Slownik.loaded) return emptyList()
         lastSwipe?.let { if (swipeAlts.isNotEmpty()) return swipeAlts.take(SUG) }
+        val ph = phraseChip()?.let { listOf(it) } ?: emptyList()
         if (cur.isNotEmpty()) {
             // dokończenia i inne formy, wyuczone słowa użytkownika, poprawki literówek - do 6 (pasek przewijany palcem)
             val p = Slownik.predict(cur, false, SUG).toMutableList()
             Slownik.suggest(cur, keep, SUG).forEach { if (p.size < SUG && it !in p) p.add(it) }
             Slownik.joinNie(prevWord, cur)?.let { p.add(0, it) }
-            return p.take(SUG)
+            return ph + p.take(SUG)
         }
         prevAlts?.let { return it.second }   // niepewne słowo zostało - kilka propozycji zamiast narzuconej poprawki
-        return Slownik.nextWords(prevWord, prevWord2, SUG)
+        return ph + Slownik.nextWords(prevWord, prevWord2, SUG)
     }
 
     // --- mowa: czytanie na głos i dyktowanie ---
@@ -536,7 +601,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     var text = t
                     if (shift) text = text[0].uppercaseChar() + text.substring(1)
                     ic?.commitText((if (before.isNotEmpty() && !before.endsWith(" ") && !before.endsWith("\n")) " " else "") + text + " ", 1)
-                    if (!secret) text.split(' ').forEach { learn(it) }
+                    text.split(' ').forEach { learn(it) }; sentOk = false   // podyktowane: słowa się liczą, do fraz i tempa nie
                     shift = false; autoShift()
                 }
                 view.refresh()
@@ -729,7 +794,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     val r = RectF(r0.left - sugX, r0.top, r0.right - sugX, r0.bottom)
                     if (i > 0) { p.color = dim; p.alpha = 70; cv.drawRect(r.left, r.top + 10 * dp, r.left + dp, r.bottom - 10 * dp, p); p.alpha = 255 }
                     tp.color = text
-                    val t = if (s.startsWith("➕")) "➕ " + getString(R.string.kb_add, s.substring(1)) else s
+                    val t = if (s.startsWith("➕")) "➕ " + getString(R.string.kb_add, s.substring(1)) else if (s.startsWith(PHRASE)) PHRASE + " " + (if (s[PHRASE.length] == '+') "…" else "") + s.substring(PHRASE.length + 1) else s
                     cv.drawText(fit(t, r.width() - 8 * dp), r.centerX(), r.centerY() + 6 * dp, tp)
                 }
                 cv.restore()
@@ -851,7 +916,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     pressed = keyAt(x, y); trace.add(Slownik.P(x.toDouble(), y.toDouble()))
                     click(); performHapticFeedback(HAPTIC_FEEDBACK_ENABLED)
                     waveX = pressed?.r?.centerX() ?: x; waveY = pressed?.r?.centerY() ?: y; waveAt = SystemClock.uptimeMillis()
-                    postDelayed(longPress, if (pref("klaw-senior", false)) 700L else 420L)
+                    postDelayed(longPress, longDelay())
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -898,7 +963,7 @@ class KlawiaturaVelivo : InputMethodService() {
                         val kw = (keys.first { it.code == "w" }.r.centerX() - keys.first { it.code == "q" }.r.centerX()).toDouble()
                         swiped(ArrayList(trace), centers, kw); trace.clear(); invalidate(); return true
                     }
-                    if (k != null && !longDone) keyAction(k)
+                    if (k != null && !longDone) { if (k.code.length == 1 && k.code[0].isLetter()) rhythm(SystemClock.uptimeMillis() - downAt, downAt); keyAction(k) }
                     invalidate()
                 }
                 MotionEvent.ACTION_CANCEL -> { removeCallbacks(longPress); removeCallbacks(repeat); removeCallbacks(toolTip); pressed = null; toolPressed = null; swiping = false; trace.clear(); invalidate() }
@@ -983,7 +1048,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private fun keyAction(k: K) {
             when (k.code) {
                 // ⇧ dwa razy szybko - stałe wielkie litery (zamiast osobnego ⇪)
-                "shift" -> { val now = System.currentTimeMillis(); if (caps) { caps = false; shift = false } else if (shift && now - shiftAt < 400) { caps = true; shift = true } else shift = !shift; shiftAt = now; shiftAuto = false; refresh() }
+                "shift" -> { val now = System.currentTimeMillis(); if (caps) { caps = false; shift = false } else if (shift && now - shiftAt < capsWindow()) { caps = true; shift = true } else shift = !shift; shiftAt = now; shiftAuto = false; refresh() }
                 "caps" -> { caps = !caps; shift = caps; shiftAuto = false; refresh() }
                 "alt" -> { alt = !alt; refresh() }
                 "bs" -> backspace()
@@ -999,11 +1064,11 @@ class KlawiaturaVelivo : InputMethodService() {
                 // ✂ edycja jak w Gboard: strzałki, początek / koniec, zaznacz wszystko, wytnij, kopiuj, wklej, cofnij
                 "left", "right", "home", "end" -> { sendDownUpKeyEvents(when (k.code) { "left" -> KeyEvent.KEYCODE_DPAD_LEFT; "right" -> KeyEvent.KEYCODE_DPAD_RIGHT; "home" -> KeyEvent.KEYCODE_MOVE_HOME; else -> KeyEvent.KEYCODE_MOVE_END }); cur = ""; fixFrom = null }
                 "selall" -> currentInputConnection?.performContextMenuAction(android.R.id.selectAll)
-                "cut", "copy", "paste" -> { currentInputConnection?.performContextMenuAction(when (k.code) { "cut" -> android.R.id.cut; "copy" -> android.R.id.copy; else -> android.R.id.paste }); cur = ""; fixFrom = null; ui.postDelayed({ grabClip(); refresh() }, 300) }
+                "cut", "copy", "paste" -> { if (k.code == "paste") sentOk = false; currentInputConnection?.performContextMenuAction(when (k.code) { "cut" -> android.R.id.cut; "copy" -> android.R.id.copy; else -> android.R.id.paste }); cur = ""; fixFrom = null; ui.postDelayed({ grabClip(); refresh() }, 300) }
                 "undo" -> currentInputConnection?.let { ic -> val t = SystemClock.uptimeMillis(); ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, 0, KeyEvent.META_CTRL_ON)); ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_Z, 0, KeyEvent.META_CTRL_ON)); cur = ""; fixFrom = null }
                 else -> when {
                     k.code.startsWith("ecat:") -> { ecat = k.code.substring(5).toInt(); refresh() }
-                    k.code.startsWith("clip:") -> { recentClips().getOrNull(k.code.substring(5).toInt())?.let { currentInputConnection?.commitText(it, 1) }; cur = ""; fixFrom = null }
+                    k.code.startsWith("clip:") -> { recentClips().getOrNull(k.code.substring(5).toInt())?.let { currentInputConnection?.commitText(it, 1) }; cur = ""; fixFrom = null; sentOk = false }
                     k.code.startsWith("gif:") -> gifs.getOrNull(k.code.substring(4).toInt())?.let { sendGif(it.first) }
                     else -> { if (sym == 3 && isEmoji(k.code)) useEmoji(k.code)   // 🕘 ostatnio używane
                         if (k.code.length == 1) type(k.code[0]) else currentInputConnection?.commitText(k.code, 1) }   // emoji (kilka znaków)

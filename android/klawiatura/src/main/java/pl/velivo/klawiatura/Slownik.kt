@@ -487,19 +487,54 @@ object Slownik {
         return d[a.length][b.length]
     }
 
-    // całe zdania: często powtarzane (co najmniej 2 razy) podsuwane nad propozycjami
+    // 💬 frazy: zdanie napisane co najmniej 2 razy - za pierwszym razem tylko skrót (bez treści), więc jednorazowe wiadomości nie zostają w telefonie;
+    // nieużywane słabną (co 60 dni o połowę) i znikają; Moje frazy (dodane ręcznie, także „skrót = fraza”) zostają zawsze
     private val sentences = HashMap<String, Int>()
+    private val sentDay = HashMap<String, Int>()
+    private val seenOnce = LinkedHashMap<Int, Int>()
+    private val ownPhrases = LinkedHashMap<String, String>()   // fraza -> skrót („” bez skrótu)
+    @Volatile var phrasesOn = true
+    var today: () -> Int = { (System.currentTimeMillis() / 86_400_000L).toInt() }
     fun learnSentence(text0: String?) {
         val text = text0?.trim() ?: return
-        if (text.length < 8 || text.length > 200 || text.count { it == ' ' } < 2) return
-        synchronized(sentences) { sentences[text] = (sentences[text] ?: 0) + 1; if (sentences.size > 500) sentences.remove(sentences.minByOrNull { it.value }!!.key) }
+        if (!phrasesOn || text.length < 8 || text.length > 120 || text.count { it == ' ' } < 2) return
+        val d = today(); val h = text.lowercase().hashCode()
+        synchronized(sentences) {
+            sentences[text]?.let { sentences[text] = min(it + 1, 1000); sentDay[text] = d; return }
+            if (seenOnce.remove(h) == null) { seenOnce[h] = d; if (seenOnce.size > 1000) seenOnce.remove(seenOnce.keys.first()); return }
+            sentences[text] = 2; sentDay[text] = d
+            if (sentences.size > 500) sentences.minByOrNull { it.value }!!.key.let { sentences.remove(it); sentDay.remove(it) }
+        }
     }
+    // reszta frazy do zaczętego zdania (od 4 znaków): Moje frazy przed wyuczonymi, częstsze wyżej
     fun sentenceRest(prefix0: String?): String? {
         val prefix = prefix0?.trimStart() ?: return null
-        if (prefix.length < 4) return null
-        return synchronized(sentences) {
-            sentences.filter { it.value >= 2 && it.key.length > prefix.length + 2 && it.key.startsWith(prefix, true) }.maxByOrNull { it.value }?.key?.substring(prefix.length)
+        if (!phrasesOn || prefix.length < 4) return null
+        synchronized(sentences) {
+            ownPhrases.keys.firstOrNull { it.length > prefix.length + 2 && it.startsWith(prefix, true) }?.let { return it.substring(prefix.length) }
+            return sentences.filter { it.value >= 2 && it.key.length > prefix.length + 2 && it.key.startsWith(prefix, true) }.maxByOrNull { it.value }?.key?.substring(prefix.length)
         }
+    }
+    // wstawiona z paska: wyuczona fraza odświeżona (nie wygasa, póki używana)
+    fun usedPhrase(t: String) = synchronized(sentences) { sentences[t]?.let { sentences[t] = min(it + 1, 1000); sentDay[t] = today() } }
+    // skrót z Moich fraz (adr -> cały adres)
+    fun phraseFor(short: String): String? = if (!phrasesOn || short.length < 2) null else synchronized(sentences) { ownPhrases.entries.firstOrNull { it.value.equals(short, true) }?.key }
+    // przegląd i edycja: jedna fraza w linii, „skrót = fraza” dla skrótu; skasowana linia - fraza zapomniana, nowa - Moja fraza
+    fun phraseLines(): List<String> = synchronized(sentences) { ownPhrases.map { (f, k) -> if (k.isEmpty()) f else "$k = $f" } + sentences.entries.sortedByDescending { it.value }.map { it.key }.filter { it !in ownPhrases } }
+    fun setPhrases(lines: List<String>) = synchronized(sentences) {
+        val keepL = HashSet<String>(); val own = LinkedHashMap<String, String>()
+        for (l0 in lines) { val l = l0.trim(); if (l.isEmpty()) continue
+            val i = l.indexOf(" = "); val k = if (i in 1..15 && !l.substring(0, i).contains(' ')) l.substring(0, i) else ""; val f = if (k.isEmpty()) l else l.substring(i + 3).trim()
+            if (f.length < 2 || f.length > 500 || f.contains('\t')) continue
+            if (k.isEmpty() && f in sentences) keepL.add(f) else own[f] = k }
+        sentences.keys.retainAll(keepL); sentDay.keys.retainAll(keepL); ownPhrases.clear(); ownPhrases.putAll(own)
+    }
+    // wygasanie: nieużywana fraza co 60 dni traci połowę, poniżej 2 - zapomniana; skróty jednorazowych zdań po 30 dniach
+    fun decayPhrases() = synchronized(sentences) {
+        val d = today()
+        for (k in sentences.keys.toList()) { val age = d - (sentDay[k] ?: d.also { sentDay[k] = it }); if (age < 60) continue
+            val n = sentences[k]!! shr (age / 60); if (n < 2) { sentences.remove(k); sentDay.remove(k) } else { sentences[k] = n; sentDay[k] = d - age % 60 } }
+        seenOnce.entries.removeAll { d - it.value > 30 }
     }
 
     private fun pairCount(k: String) = synchronized(pairs) { pairs[k] ?: 0 }
@@ -574,7 +609,7 @@ object Slownik {
         synchronized(mine) { mine.forEach { (w, l) -> l.forEach { sh -> lines.add("~" + w + "\t" + sh.joinToString(" ") { String.format(java.util.Locale.ROOT, "%.1f,%.1f", it.x, it.y) }) } } }
         synchronized(pairs) { pairs.forEach { lines.add("=" + it.key + "\t" + it.value) } }
         synchronized(myFix) { myFix.forEach { lines.add(">" + it.key + "\t" + it.value) } }
-        synchronized(sentences) { sentences.forEach { lines.add("*" + it.value + "\t" + it.key) } }
+        synchronized(sentences) { sentences.forEach { lines.add("*" + it.value + "\t" + it.key + "\t" + (sentDay[it.key] ?: today())) }; ownPhrases.forEach { lines.add("&" + it.value + "\t" + it.key) }; seenOnce.forEach { lines.add("#" + it.key + "\t" + it.value) } }
         return lines.joinToString("\n")
     }
 
@@ -588,7 +623,10 @@ object Slownik {
                     if (pts.size != 32) continue
                     synchronized(mine) { val l = mine.getOrPut(t[0]) { ArrayList() }; if (l.size < 3) l.add(pts.toTypedArray()) }
                 }
-                line.startsWith("*") -> { val q = line.substring(1).split('\t'); val sc = q.getOrNull(0)?.toIntOrNull(); if (q.size == 2 && sc != null && q[1].isNotEmpty()) synchronized(sentences) { sentences[q[1]] = sc } }
+                // dawne zapisy: zdania użyte raz nie są wczytywane (bez treści jednorazowych wiadomości)
+                line.startsWith("*") -> { val q = line.substring(1).split('\t'); val sc = q.getOrNull(0)?.toIntOrNull(); if (q.size in 2..3 && sc != null && sc >= 2 && q[1].length in 8..200) synchronized(sentences) { sentences[q[1]] = sc; sentDay[q[1]] = q.getOrNull(2)?.toIntOrNull() ?: today() } }
+                line.startsWith("&") -> { val q = line.substring(1).split('\t'); if (q.size == 2 && q[1].isNotEmpty()) synchronized(sentences) { ownPhrases[q[1]] = q[0] } }
+                line.startsWith("#") -> { val q = line.substring(1).split('\t'); val h = q.getOrNull(0)?.toIntOrNull(); val d = q.getOrNull(1)?.toIntOrNull(); if (h != null && d != null) synchronized(sentences) { seenOnce[h] = d } }
                 line.startsWith(">") -> { val q = line.substring(1).split('\t'); if (q.size == 2 && q[0].isNotEmpty() && q[1].isNotEmpty()) synchronized(myFix) { myFix[q[0]] = q[1] } }
                 line.startsWith("=") -> { val q = line.substring(1).split('\t'); val pc = q.getOrNull(1)?.toIntOrNull(); if (q.size == 2 && pc != null) synchronized(pairs) { pairs[q[0]] = pc } }
                 else -> { val p = line.split('\t'); val n = p.getOrNull(1)?.toIntOrNull(); if (p.size == 2 && n != null && p[0].isNotEmpty()) learned[p[0]] = n }
@@ -597,5 +635,5 @@ object Slownik {
     }
 
     // nowy język: nauka zostaje (słowa, pary), słownik główny od nowa
-    fun clearLearned() { synchronized(mine) { mine.clear() }; synchronized(pairs) { pairs.clear() }; synchronized(myFix) { myFix.clear() }; synchronized(sentences) { sentences.clear() }; synchronized(recent) { recent.clear() } }
+    fun clearLearned() { synchronized(mine) { mine.clear() }; synchronized(pairs) { pairs.clear() }; synchronized(myFix) { myFix.clear() }; synchronized(sentences) { sentences.clear(); sentDay.clear(); seenOnce.clear() }; synchronized(recent) { recent.clear() } }
 }

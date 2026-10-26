@@ -99,4 +99,14 @@
     <string name="kb_clear_learned_tip">Usuwa to, czego klawiatura nauczyła się z Twojego pisania (częste słowa i pary słów, Twoje poprawki, kształty pisania przeciągnięciem). Moje słowa zostają.</string>
     <string name="kb_clear_yes">Wyczyść</string>
     <string name="kb_clear_done">Wyuczone dane wyczyszczone – Moje słowa zostały</string>
+    <string name="kb_phrases">💬 Moje frazy</string>
+    <string name="kb_phrases_help">Jedna fraza w linii. Skrót: „adr = ul. Długa 5, Glasgow” – napisz adr, a fraza pojawi się na pasku. Zdania napisane co najmniej 2 razy klawiatura dopisuje sama (za pierwszym razem zapamiętuje tylko skrót, bez treści). Skasuj linię, by zapomnieć frazę.</string>
+    <string name="kb_privacy">🔒 Nauka i prywatność</string>
+    <string name="kb_privacy_tip">Co klawiatura może zapamiętywać – wszystko tylko w tym telefonie, zaszyfrowane. Nigdy w polach haseł i w trybie incognito.</string>
+    <string name="kb_p_learn">Ucz się z mojego pisania (słowa, pary, poprawki)</string>
+    <string name="kb_p_phrases">Frazy: zapamiętuj i podpowiadaj</string>
+    <string name="kb_p_rhythm">Dopasuj przytrzymanie klawiszy do mojego tempa</string>
+    <string name="kb_p_velivo">Ucz się tylko w aplikacjach Velivo</string>
+    <string name="kb_p_reset">↺ Profil pisania</string>
+    <string name="kb_p_reset_done">Profil pisania (tempo i nacisk) od nowa</string>
 </resources>

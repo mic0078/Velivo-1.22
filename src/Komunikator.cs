@@ -386,11 +386,12 @@ namespace Velivo
             // stara wiadomość (czekała u nadawcy albo na pośredniku) - przyjęta, bez zmiany obecności; inne stare pakiety - pominięte
             if (Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 600000) { if (t == "p2p-msg") KomReceive(p, c, sender, ts); return; }
             if (t == "p2p-bye") { if (c != null && _komLastSeen.Remove(c.Id)) _komRefresh?.Invoke(); return; }   // zamknal Velivo - od razu poza siecia
-            if (c == null && !IPAddress.IsLoopback(sender) && (t == "p2p-here" || t == "p2p-who")) KomNotifyNew(from, KomClean((string)p["device"]));
+            if (c == null && (bool?)p["fwd"] != true && !IPAddress.IsLoopback(sender) && (t == "p2p-here" || t == "p2p-who")) KomNotifyNew(from, KomClean((string)p["device"]));
             if (c != null)
             {
                 bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; _komSeenAt[c.Id] = DateTime.Now;
                 if (t == "p2p-here" && (bool?)p["fwd"] != true && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
+                if ((bool?)p["fwd"] == true && c.Addr == sender.ToString()) { c.Addr = ""; KomSave(); }   // zapisany adres to pośrednik (NUCBOX), nie kontakt - kasowany
                 // 🌍 adres pośrednika kontaktu (np. NUCBOX z No-IP) - poza domem rozmowy ida przez niego
                 var relayAddr = (string)p["relay"];
                 if (t == "p2p-here" && relayAddr != null && relayAddr.Length < 200 && relayAddr.Contains(':') && relayAddr != c.Relay) { c.Relay = relayAddr; KomSave(); }
@@ -403,7 +404,7 @@ namespace Velivo
             {
                 case "p2p-who": KomSendUdp(KomPacket("p2p-here"), sender); break;
                 case "p2p-typing": if (c != null && (string)p["to"] == _komId) { _komTypingAt[c.Id] = DateTime.UtcNow; _komRefresh?.Invoke(); _ = Task.Delay(6500).ContinueWith(_ => _komRefresh?.Invoke()); } return;   // ✍ „pisze…”
-                case "p2p-here": _komFound[from] = (KomClean((string)p["device"]), sender); break;
+                case "p2p-here": if ((bool?)p["fwd"] != true) _komFound[from] = (KomClean((string)p["device"]), sender); break;
                 case "p2p-ack":
                     {
                         if (c == null) return;

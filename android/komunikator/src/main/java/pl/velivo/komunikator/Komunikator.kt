@@ -264,6 +264,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         contact(from)?.let { c ->
             val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); markSeen(c.id)
             if (t == "p2p-here" && !net && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
+            if (net && !sender.isLoopbackAddress && c.addr == sender.hostAddress) { c.addr = ""; saveContacts() }   // zapisany adres to pośrednik (NUCBOX), nie kontakt - kasowany
             // prawdziwa nazwa urządzenia (zmieniona na tamtym telefonie / komputerze); własna nazwa kontaktu zostaje
             val real = clean(p.optString("device"))
             if (real.isNotEmpty() && real != c.device) { c.device = real; if (!c.own) c.name = real; saveContacts(); main.post { onChange() } }
@@ -276,7 +277,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         when (t) {
             "p2p-who" -> sendUdp(packet("p2p-here"), sender)
             "p2p-typing" -> if (p.optString("to") == myId && contact(from) != null) { typingAt[from] = System.currentTimeMillis(); main.post { onTyping(from) } }   // ✍ „pisze…”
-            "p2p-here" -> found[from] = Peer(from, clean(p.optString("device")), sender)
+            "p2p-here" -> if (!net) found[from] = Peer(from, clean(p.optString("device")), sender)
             "p2p-msg" -> message(p, sender)
             "p2p-ack" -> {
                 val c = contact(from) ?: return true; val mid = p.optString("mid")

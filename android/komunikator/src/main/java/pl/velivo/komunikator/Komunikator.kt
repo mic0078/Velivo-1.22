@@ -2421,6 +2421,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (uris.isEmpty()) return
         if (pickingPhoto) { pickingPhoto = false; setPhotoFrom(uris[0]); return }
         if (pickingBackup) { pickingBackup = false; restoreFrom(uris[0]); return }
+        signFor?.let { key -> signFor = null; Thread { val ok = runCatching {   // 🤟 własne zdjęcie znaku (litera / słowo) zamiast rysunku
+            val b = upright(a.contentResolver.openInputStream(uris[0])!!.use { android.graphics.BitmapFactory.decodeStream(it) }!!, runCatching { a.contentResolver.openInputStream(uris[0])!!.use { android.media.ExifInterface(it) } }.getOrNull())
+            val sc = minOf(1f, 900f / maxOf(b.width, b.height)); Palce.savePhoto(a, key).outputStream().use { android.graphics.Bitmap.createScaledBitmap(b, (b.width * sc).toInt(), (b.height * sc).toInt(), true).compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
+        }.isSuccess; a.runOnUiThread { Toast.makeText(a, if (ok) "🤟 " + t("Zapisane: ", "Saved: ") + key else t("To nie jest zdjęcie", "This is not a photo"), Toast.LENGTH_SHORT).show(); signDone?.invoke() } }.start(); return }
         val c = attachTo; attachTo = null
         if (c != null && !confirmed) { preview(c, uris); return }   // 👁 najpierw podgląd i „Wyślij” (jak w WhatsApp)
         if (c != null && c.isGroup) {   // 👥 do każdego w grupie osobno
@@ -2738,6 +2742,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val photo = m.path?.takeIf { k.isImage(it) && java.io.File(it).exists() }
         val file = m.path?.takeIf { !k.isImage(it) && java.io.File(it).exists() && !it.substringAfterLast('/').startsWith("wyslane-") }
         val items = mutableListOf("↩ " + t("Odpowiedz", "Reply"), "📋 " + t("Kopiuj", "Copy"), "↪ " + t("Przekaż…", "Forward…"), "😀 " + t("Reakcja", "React"))
+        if (!m.file && m.text.any { Palce.has(it) }) items.add(1, "🤟 " + t("Pokaż na palcach", "Show in fingerspelling"))
         if (m.mine && !m.file && !m.text.startsWith("🚫") && System.currentTimeMillis() - m.ts < 15 * 60000) items.add("✏ " + t("Edytuj", "Edit"))   // jak w WhatsApp: do 15 min
         if (m.path?.contains("Glosowa-") == true) items.add("⏩ " + t("Szybkość głosówek: ", "Voice speed: ") + speedText(k.voiceSpeed) + " → " + speedText(nextSpeed()))
         if (photo != null) items.add("💾 " + t("Zapisz w Galerii", "Save to Gallery"))
@@ -2749,6 +2754,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (items[i].startsWith("⏩")) { k.voiceSpeed = nextSpeed(); Toast.makeText(a, "⏩ " + speedText(k.voiceSpeed), Toast.LENGTH_SHORT).show(); return@setItems }
             when (items[i].substringAfter(' ')) {
                 t("Odpowiedz", "Reply") -> onReply?.invoke(m)
+                t("Pokaż na palcach", "Show in fingerspelling") -> fingers(m.text)
                 t("Reakcja", "React") -> { val e = arrayOf("👍", "❤️", "😂", "😮", "😢", "🙏"); Dlg().setItems(e) { _, j -> Thread { k.react(c, m, e[j]) }.start() }.show() }
                 t("Przekaż…", "Forward…") -> forward(c, m)
                 t("Zaznacz kilka…", "Select several…") -> select(c, m)
@@ -2763,6 +2769,43 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 else -> k.deleteLocal(c, m)
             }
         }.show()
+    }
+
+    // 🤟 wiadomość na palcach: litera po literze (rysunek dłoni albo własne zdjęcie), słowo ze zdjęciem - całe naraz; ◀ ⏯ ▶, 📷 własne zdjęcie
+    private var signFor: String? = null; private var signDone: (() -> Unit)? = null
+    private fun fingers(text: String) {
+        val words = Regex("[\\p{L}\\p{N}]+").findAll(text).map { it.value }.toList(); if (words.isEmpty()) return
+        val steps = ArrayList<Pair<Int, String>>()   // (słowo, litera albo całe słowo)
+        fun build() { steps.clear(); words.forEachIndexed { i, w -> if (Palce.photo(a, w) != null) steps.add(i to w) else w.filter { Palce.has(it) }.forEach { steps.add(i to it.toString()) } } }
+        build(); if (steps.isEmpty()) return
+        var pos = 0; var play = true
+        val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val top = TextView(a).apply { textSize = 22f; setTextColor(Color.WHITE); setPadding(px(16), px(16), px(16), px(8)) }
+        val hand = Palce.Dlon(a).apply { layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }
+        fun btn(l: String, tip: String, act: () -> Unit) = Button(a).apply { setText(l); textSize = 22f; isAllCaps = false; contentDescription = tip; tooltipText = tip; setTextColor(Color.WHITE)
+            background = bg(Color.rgb(0x3A, 0x2F, 0x6B), 14); layoutParams = LinearLayout.LayoutParams(0, px(60), 1f).apply { setMargins(px(4), px(4), px(4), px(4)) }; setOnClickListener { act() } }
+        lateinit var pp: Button; lateinit var camL: Button; lateinit var camW: Button
+        fun show() {
+            val (wi, s) = steps[pos]; val w = words[wi]
+            top.text = android.text.SpannableStringBuilder().apply { words.forEachIndexed { i, x -> if (i > 0) append(' '); val st = length; append(x); if (i == wi) { setSpan(android.text.style.ForegroundColorSpan(Color.rgb(0x22, 0xD3, 0xEE)), st, length, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), st, length, 0) } } }
+            hand.set(if (s.length == 1) s[0] else 'a', Palce.photo(a, s), if (s.length == 1) s.uppercase() else "")
+            pp.text = if (play) "⏸" else "▶"; camL.visibility = if (s.length == 1) View.VISIBLE else View.GONE
+            camL.text = "📷 " + t("litera ", "letter ") + Palce.base(s[0]).uppercase(); camW.text = "📷 " + t("słowo ", "word ") + w
+            camL.setOnClickListener { signFor = Palce.base(s[0]).toString(); pickFiles() }; camW.setOnClickListener { signFor = w; pickFiles() }
+        }
+        val tick = object : Runnable { override fun run() { if (play && d.isShowing) { pos = (pos + 1) % steps.size; show(); hand.postDelayed(this, 1300) } } }
+        pp = btn("⏸", t("Odtwarzaj / zatrzymaj", "Play / pause")) { play = !play; show(); if (play) hand.postDelayed(tick, 1300) }
+        camL = btn("📷", t("Moje zdjęcie tej litery (zamiast rysunku)", "My photo of this letter (instead of the drawing)")) {}
+        camW = btn("📷", t("Moje zdjęcie znaku całego słowa (słowniczek)", "My photo of the sign for the whole word (glossary)")) {}
+        camL.textSize = 15f; camW.textSize = 15f
+        signDone = { build(); pos = pos.coerceAtMost(steps.size - 1); if (d.isShowing) show() }
+        d.setContentView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(0x13, 0x10, 0x26))
+            addView(top); addView(hand)
+            addView(LinearLayout(a).apply { addView(btn("◀", t("Poprzednia", "Previous")) { play = false; pos = (pos - 1 + steps.size) % steps.size; show() }); addView(pp)
+                addView(btn("▶▶", t("Następna", "Next")) { play = false; pos = (pos + 1) % steps.size; show() }); addView(btn("✕", t("Zamknij", "Close")) { d.dismiss() }) })
+            addView(LinearLayout(a).apply { addView(camL); addView(camW) }) })
+        d.setOnDismissListener { play = false; signDone = null }
+        d.show(); show(); hand.postDelayed(tick, 1300)
     }
 
     // ☑ kilka wiadomości naraz: przekaż, kopiuj, usuń u mnie

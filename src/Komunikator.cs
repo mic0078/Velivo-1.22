@@ -2108,7 +2108,20 @@ namespace Velivo
             {
                 var p = items[i]; d.Title = "🖼 " + Path.GetFileName(p) + "  (" + (i + 1) + "/" + items.Count + ")"; paused = false;
                 vid.Stop(); vid.Source = null;
-                if (KomIsVideo(p) || KomIsGif(p)) { img.Source = null; img.Visibility = Visibility.Collapsed; vid.Visibility = Visibility.Visible; vid.Source = new Uri(p); vid.Play(); }
+                if (KomIsVideo(p) || KomIsGif(p))
+                {
+                    img.Source = null; img.Visibility = Visibility.Collapsed; vid.Visibility = Visibility.Visible; vid.LayoutTransform = Transform.Identity; vid.Source = new Uri(p); vid.Play();
+                    // 📹 nagranie z telefonu w pionie: obrót zapisany w pliku - odtwarzacz WPF go nie stosuje
+                    if (KomIsVideo(p)) _ = Dispatcher.InvokeAsync(async () =>
+                    {
+                        try
+                        {
+                            var vp = await (await Windows.Storage.StorageFile.GetFileFromPathAsync(p)).Properties.GetVideoPropertiesAsync();
+                            if (items[i] == p && vp.Orientation != Windows.Storage.FileProperties.VideoOrientation.Normal) vid.LayoutTransform = new RotateTransform((int)vp.Orientation);
+                        }
+                        catch (Exception) { }
+                    });
+                }
                 else
                 {
                     vid.Visibility = Visibility.Collapsed; img.Visibility = Visibility.Visible;

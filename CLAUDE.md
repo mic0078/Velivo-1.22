@@ -75,6 +75,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-26: sterowanie Windows ↔ Windows nie działało – pytanie o zgodę (confirm) było w oknie rozmowy, schowanym pod pokazywanym pulpitem; teraz okienko Velivo nad wszystkimi oknami. Pytania do osoby, która pokazuje ekran: zawsze na wierzchu.
 * 2026-10-26: laptop dzwonił do NUCBOX (bez kamery), NUCBOX pokazał ekran → czarny obraz: nadajnik bez strumienia, a ontrack brał tylko e.streams[0]; teraz strumień tworzony z samej ścieżki i nadajnik ze strumieniem. Po poprawce sprawdzaj obie role (dzwoni/odbiera).
 * 2026-10-26: zamiana stron w pomocy zdalnej psuła pulpit – koniec sterowania w trakcie przeciągania zostawiał wciśnięty przycisk/klawisz, a sterowanie trwało przy prośbie o zamianę; teraz puszczane wszystko (także gdy okno pomagającego zminimalizowane / Alt+Tab – „rel”), zamiana kończy sterowanie. Przyciski rozmowy nachodziły na siebie w wąskim oknie (flex bez zawijania). Dodając przycisk, sprawdź wąskie okno.
+* 2026-10-26: przy sterowaniu kursor stawał na minimalizuj/zamknij – puszczenie myszy tuż za krawędzią obrazu (róg ekranu) nie było wysyłane, przycisk zostawał wciśnięty na pasku tytułu; teraz ruch i puszczenie przycinane do krawędzi. Zdarzenia „puść” wysyłaj zawsze.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

@@ -190,10 +190,12 @@ async function stopShare() {
 help.onclick = () => {
   if (steer) { setSteer(false); dsend({ k: 'ctl-off' }); } else { dsend({ k: 'ctl-ask' }); status(T('Czekam na zgodę…', 'Waiting for permission…')); } };
 // miejsce na obrazie ekranu (bez czarnych pasów) jako ułamek 0..1
-function pos(e, el = you) {
+// clamp: ruch i puszczenie poza obrazem = na jego krawędzi (minimalizuj / zamknij są w samym rogu ekranu - inaczej przycisk zostawał wciśnięty)
+function pos(e, el = you, clamp = false) {
   const r = el.getBoundingClientRect(), vw = el.videoWidth || el.naturalWidth, vh = el.videoHeight || el.naturalHeight; if (!vw || !vh) return null;
   const k = Math.min(r.width / vw, r.height / vh), w = vw * k, h = vh * k;
   const x = (e.clientX - r.left - (r.width - w) / 2) / w, y = (e.clientY - r.top - (r.height - h) / 2) / h;
+  if (clamp) return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
   return x < 0 || y < 0 || x > 1 || y > 1 ? null : { x, y };
 }
 shot.addEventListener('click', e => {
@@ -204,8 +206,8 @@ shot.addEventListener('click', e => {
 let mv = null;
 [you, shot].forEach(el => {
 el.addEventListener('pointerdown', e => { if (!steer) return; const p = pos(e, el); if (!p) return; e.preventDefault(); el.setPointerCapture(e.pointerId); dsend({ k: 'in', t: 'd', b: e.button, x: p.x, y: p.y }); });
-el.addEventListener('pointerup', e => { if (!steer) return; const p = pos(e, el) || mv; if (!p) return; e.preventDefault(); dsend({ k: 'in', t: 'u', b: e.button, x: p.x, y: p.y }); });
-el.addEventListener('pointermove', e => { if (!steer) return; const p = pos(e, el); if (!p) return; if (!mv) requestAnimationFrame(() => { if (mv) dsend({ k: 'in', t: 'm', x: mv.x, y: mv.y }); mv = null; }); mv = p; });
+el.addEventListener('pointerup', e => { if (!steer) return; const p = pos(e, el, true); if (!p) return; e.preventDefault(); dsend({ k: 'in', t: 'u', b: e.button, x: p.x, y: p.y }); });
+el.addEventListener('pointermove', e => { if (!steer) return; const p = pos(e, el, e.buttons > 0); if (!p) return; if (!mv) requestAnimationFrame(() => { if (mv) dsend({ k: 'in', t: 'm', x: mv.x, y: mv.y }); mv = null; }); mv = p; });
 el.addEventListener('wheel', e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'w', d: e.deltaY > 0 ? -120 : 120 }); }, { passive: false });
 el.addEventListener('contextmenu', e => { if (steer) e.preventDefault(); });
 });

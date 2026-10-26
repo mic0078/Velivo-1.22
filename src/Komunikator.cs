@@ -63,6 +63,7 @@ namespace Velivo
                     _komNotifyNew = (bool?)o["notifynew"] ?? true; _komSound = (string)o["sound"] ?? "";
                     _komLock = (bool?)o["lock"] ?? false; _komPhotoV = (long?)o["photov"] ?? 0;
                     if (o["opt"] is JsonObject op) _komOpt = (JsonObject)op.DeepClone();
+                    if (o["seen"] is JsonObject se) foreach (var kv in se) if (DateTime.TryParse((string)kv.Value, null, System.Globalization.DateTimeStyles.RoundtripKind, out var sd)) _komSeenAt[kv.Key] = sd;
                     if (o["photosent"] is JsonObject ps) foreach (var kv in ps) _komPhotoSent[kv.Key] = (long?)kv.Value ?? 0;
                     if (o["asks"] is JsonObject ak) foreach (var kv in ak) if (kv.Value != null) _komAskKeys[kv.Key] = (string)kv.Value;
                     if (o["askReq"] is JsonObject aq) foreach (var kv in aq) if (kv.Value is JsonObject v) _komAskReq[kv.Key] = (JsonObject)v.DeepClone();
@@ -127,7 +128,7 @@ namespace Velivo
                     ["id"] = _komId,
                     ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
                     ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["sound"] = _komSound, ["lock"] = _komLock, ["photov"] = _komPhotoV, ["photosent"] = new JsonObject(_komPhotoSent.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value))), ["asks"] = new JsonObject(_komAskKeys.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value))),
-                    ["askReq"] = new JsonObject(_komAskReq.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["askRes"] = new JsonObject(_komAskRes.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort, ["relayPortFixed"] = _komRelayPortFixed, ["opt"] = _komOpt.DeepClone()
+                    ["askReq"] = new JsonObject(_komAskReq.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["askRes"] = new JsonObject(_komAskRes.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort, ["relayPortFixed"] = _komRelayPortFixed, ["opt"] = _komOpt.DeepClone(), ["seen"] = new JsonObject(_komSeenAt.ToArray().Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value.ToString("o"))))   // „ostatnio w sieci” zostaje po ponownym uruchomieniu
                 };
                 return o;
         }
@@ -1257,6 +1258,20 @@ namespace Velivo
         static bool KomIsImage(string name) => new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp" }.Contains(System.IO.Path.GetExtension(name ?? "").ToLowerInvariant());
         readonly Dictionary<string, ImageSource> _komThumbs = new Dictionary<string, ImageSource>();
         // miniatura do rozmowy (raz na plik - lista odswieza sie czesto)
+        // 📷 zdjęcie z aparatu telefonu: piksele „na boku” + znacznik obrotu (EXIF) - WPF go nie czyta, obracamy sami
+        static System.Windows.Media.Imaging.BitmapSource KomUpright(System.Windows.Media.Imaging.BitmapSource b, string path)
+        {
+            try
+            {
+                using var fs = File.OpenRead(path);
+                var meta = System.Windows.Media.Imaging.BitmapFrame.Create(fs, System.Windows.Media.Imaging.BitmapCreateOptions.DelayCreation, System.Windows.Media.Imaging.BitmapCacheOption.None).Metadata as System.Windows.Media.Imaging.BitmapMetadata;
+                int deg = (meta?.GetQuery("System.Photo.Orientation") as ushort?) switch { 3 => 180, 6 => 90, 8 => 270, _ => 0 };
+                if (deg == 0) return b;
+                var r = new System.Windows.Media.Imaging.TransformedBitmap(b, new RotateTransform(deg)); r.Freeze(); return r;
+            }
+            catch (Exception) { return b; }
+        }
+
         ImageSource KomThumb(string path)
         {
             if (_komThumbs.TryGetValue(path, out var t)) return t;
@@ -1264,7 +1279,7 @@ namespace Velivo
             {
                 var b = new System.Windows.Media.Imaging.BitmapImage();
                 b.BeginInit(); b.UriSource = new Uri(path); b.DecodePixelWidth = 260; b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); b.Freeze();
-                t = b;
+                t = KomUpright(b, path);
             }
             catch (Exception) { t = null; }
             _komThumbs[path] = t; return t;
@@ -1521,7 +1536,7 @@ namespace Velivo
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)).Where(x => q.Length == 0 || x.Text.Contains(q, StringComparison.CurrentCultureIgnoreCase)))
                 {
                     var time = DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime;
-                    var stamp = (KomReactions(m) is { Length: > 0 } rx ? rx + "  " : "") + (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read ? " ✓✓" : m.Ok ? " ✓" : " …") : "");
+                    var stamp = (KomReactions(m) is { Length: > 0 } rx ? rx + "  " : "") + (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read || m.Ok ? " ✓✓" : " ✓") : "");
                     var body = new StackPanel();
                     // kolory dymkow z motywu komunikatora (bez ramek pola tekstowego)
                     var fg = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg);
@@ -2097,7 +2112,7 @@ namespace Velivo
                 else
                 {
                     vid.Visibility = Visibility.Collapsed; img.Visibility = Visibility.Visible;
-                    try { var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.UriSource = new Uri(p); b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); img.Source = b; } catch (Exception) { img.Source = null; }
+                    try { var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.UriSource = new Uri(p); b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); img.Source = KomUpright(b, p); } catch (Exception) { img.Source = null; }
                 }
                 hint.Text = "← →  " + L.T("poprzednie / następne") + "   ·   Enter – " + L.T("otwórz w programie Windows") + (KomIsVideo(p) ? "   ·   " + L.T("spacja – pauza") : "") + "   ·   Esc – " + L.T("zamknij");
             }
@@ -2176,7 +2191,7 @@ namespace Velivo
                 msgs.Children.Clear();
                 foreach (var m in l.Skip(Math.Max(0, l.Count - 60)))
                     msgs.Children.Add(new Border { Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs), CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(m.Mine ? 40 : 0, 2, m.Mine ? 0 : 40, 2), HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read ? " ✓✓" : m.Ok ? " ✓" : " …") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } });
+                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read || m.Ok ? " ✓✓" : " ✓") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } });
                 sv.ScrollToEnd();
                 if (d.IsActive) { if (_komUnread.Remove(c.Id)) { KomSave(); KomTrayUpdate(); _komRefresh?.Invoke(); } KomSendRead(c); }
             }

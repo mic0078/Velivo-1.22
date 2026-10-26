@@ -262,7 +262,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
         if (!net && (t == "p2p-here" || t == "p2p-who") && contact(from) == null) notifyNewDevice(from, clean(p.optString("device")))
         contact(from)?.let { c ->
-            val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); seenAt[c.id] = System.currentTimeMillis()
+            val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); markSeen(c.id)
             if (t == "p2p-here" && !viaRelay && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
             // prawdziwa nazwa urządzenia (zmieniona na tamtym telefonie / komputerze); własna nazwa kontaktu zostaje
             val real = clean(p.optString("device"))
@@ -960,7 +960,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
             open().use { android.graphics.BitmapFactory.decodeStream(it, null, o) }
             var smp = 1; while (maxOf(o.outWidth, o.outHeight) / smp > 1280) smp *= 2
-            val bmp = open().use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp }) }!!
+            val bmp = upright(open().use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp }) }!!,
+                runCatching { open().use { android.media.ExifInterface(it) } }.getOrNull())
             val f = java.io.File(mediaDir, "wyslane-$mid.jpg"); f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }; f.path
         }.getOrNull() else null
         // 🎤 własna głosówka / 🎬 wideo - kopia w Velivo, żeby można ją było odsłuchać u siebie (jak w WhatsApp)
@@ -1166,7 +1167,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val raw = ff.readFrame(); val p = runCatching { JSONObject(String(raw, Charsets.UTF_8)) }.getOrNull() ?: continue; val t = p.optString("t")
                 upRx[ff] = System.currentTimeMillis()
                 // odpowiedź pośrednika na sygnał - pośrednik nadal w sieci (inaczej po chwili „poza siecią”, choć połączone)
-                if (t == "relay-pong") { val was = online(rl.id); lastSeen[rl.id] = System.currentTimeMillis(); seenAt[rl.id] = System.currentTimeMillis(); viaNet[rl.id] = true; if (!was) main.post { onChange() }; continue }
+                if (t == "relay-pong") { val was = online(rl.id); lastSeen[rl.id] = System.currentTimeMillis(); markSeen(rl.id); viaNet[rl.id] = true; if (!was) main.post { onChange() }; continue }
                 if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(rl, tid) }.start(); continue }
                 // błąd przy jednym pakiecie nie może zrywać połączenia z pośrednikiem (zamykało je po kilku sekundach)
                 if (t.startsWith("p2p-")) runCatching { handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true) }
@@ -1468,7 +1469,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun online(id: String) = System.currentTimeMillis() - (lastSeen[id] ?: 0L) < 95000
     // „ostatnio w sieci” (jak w innych komunikatorach) - zostaje także po pożegnaniu
     private val seenAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
-    fun lastSeenAt(id: String): Long? = seenAt[id]
+    fun lastSeenAt(id: String): Long? = seenAt[id] ?: prefs.getLong("seen-$id", 0L).takeIf { it > 0L }   // zapisane - zostaje po ponownym uruchomieniu
+    private fun markSeen(id: String) { val now = System.currentTimeMillis(); val old = seenAt.put(id, now); if (old == null || now - old > 60000L) prefs.edit().putLong("seen-$id", now).apply() }
 
     // wychodzimy z sieci (Velivo zamknięte bez odbioru w tle) - kontakty od razu widzą „poza siecią”
     fun bye() = Thread { repeat(2) { sendUdp(packet("p2p-bye"), null); Thread.sleep(150) } }.start()
@@ -1941,7 +1943,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
     private fun setPhotoFrom(u: Uri) = Thread {
         val jpg = runCatching {
-            val b = a.contentResolver.openInputStream(u)!!.use { android.graphics.BitmapFactory.decodeStream(it) }!!
+            val b = upright(a.contentResolver.openInputStream(u)!!.use { android.graphics.BitmapFactory.decodeStream(it) }!!, runCatching { a.contentResolver.openInputStream(u)!!.use { android.media.ExifInterface(it) } }.getOrNull())
             val n = minOf(b.width, b.height); val sq = android.graphics.Bitmap.createBitmap(b, (b.width - n) / 2, (b.height - n) / 2, n, n)
             java.io.ByteArrayOutputStream().also { android.graphics.Bitmap.createScaledBitmap(sq, 128, 128, true).compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, it) }.toByteArray()
         }.getOrNull()
@@ -2321,7 +2323,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
                 msgs.addView(TextView(a).apply {
-                    val tick = if (m.mine) (if (m.read) "  ✓✓" else if (m.ok) "  ✓" else "  …") else ""
+                    val tick = if (m.mine) (if (m.read || m.ok) "  ✓✓" else "  ✓") else ""   // jak WhatsApp: ✓ wysłana, ✓✓ szare doręczona, ✓✓ niebieskie przeczytana
                     text = android.text.SpannableStringBuilder(m.text).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
                         voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
@@ -2680,7 +2682,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         android.graphics.BitmapFactory.decodeFile(path, o)
         if (o.outWidth <= 0) return null
         var smp = 1; while (maxOf(o.outWidth, o.outHeight) / (smp * 2) >= maxSide) smp *= 2
-        android.graphics.BitmapFactory.decodeFile(path, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp })
+        upright(android.graphics.BitmapFactory.decodeFile(path, android.graphics.BitmapFactory.Options().apply { inSampleSize = smp }), runCatching { android.media.ExifInterface(path) }.getOrNull())
     }.getOrNull()
 
     // zdjęcie na cały ekran (stuknięcie zamyka)
@@ -2876,6 +2878,13 @@ class SterowanieUsluga : android.accessibilityservice.AccessibilityService() {
             }
         }
     }
+}
+
+// 📷 zdjęcie z aparatu: piksele „na boku” + znacznik obrotu (EXIF) - BitmapFactory go nie czyta, obracamy sami
+internal fun upright(b: android.graphics.Bitmap, e: android.media.ExifInterface?): android.graphics.Bitmap {
+    val deg = when (e?.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) { 3 -> 180f; 6 -> 90f; 8 -> 270f; else -> 0f }
+    if (deg == 0f) return b
+    return android.graphics.Bitmap.createBitmap(b, 0, 0, b.width, b.height, android.graphics.Matrix().apply { postRotate(deg) }, true)
 }
 
 // usługa w tle: gdy aplikacja zamknięta, komunikator czeka na wiadomości (stałe ciche powiadomienie, jak w innych komunikatorach)

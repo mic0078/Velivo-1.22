@@ -255,7 +255,7 @@ class KlawiaturaVelivo : InputMethodService() {
         load(this) { if (::view.isInitialized) view.refresh() }
     }
 
-    override fun onCreateInputView(): View { view = Klawisze(this); return if (pref("brajl", false)) brajlPole() else view }
+    override fun onCreateInputView(): View { view = Klawisze(this); return if (pref("brajl", false)) brajlPole() else if (pref("morse", false)) morsePole() else view }
 
     // ⠿ pisanie brajlem: osobne pole 6 punktów (własny dotyk - zwykłe klawisze i gesty bez zmian); znaki idą przez zwykłe pisanie
     // (autokorekta, słownik, podpowiedzi, nauka słów, czytanie słów 🔊). Przy TalkBack system przejmuje dotyk - zamiast konfliktu gestów: komunikat
@@ -264,14 +264,43 @@ class KlawiaturaVelivo : InputMethodService() {
     private fun brajlPole() = (brajlView ?: BrajlPole(this, ::brailleCell, ::brailleGesture).also { brajlView = it }).apply {
         hints = pref("brajl-podpowiedzi"); vibrate = pref("brajl-wibracje"); mirror = pref("brajl-odwrocone", false)
     }
+    private fun talkback() = (getSystemService(ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager).isTouchExplorationEnabled.also {
+        if (it) { val t = getString(R.string.kb_braille_talkback); speak(t, true); Toast.makeText(this, t, Toast.LENGTH_LONG).show() }
+    }
     fun brailleOn() {
-        if ((getSystemService(ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager).isTouchExplorationEnabled) {
-            val t = getString(R.string.kb_braille_talkback); speak(t, true); Toast.makeText(this, t, Toast.LENGTH_LONG).show(); return
-        }
-        prefs(this).edit().putBoolean("brajl", true).apply(); brajlStan.reset()
+        if (talkback()) return
+        prefs(this).edit().putBoolean("brajl", true).putBoolean("morse", false).apply(); brajlStan.reset()
         setInputView(brajlPole()); speak(getString(R.string.kb_braille_on), true)
     }
-    private fun brailleOff() { prefs(this).edit().putBoolean("brajl", false).apply(); setInputView(view); view.refresh(); speak(getString(R.string.kb_braille_off), true) }
+    private fun brailleOff() { prefs(this).edit().putBoolean("brajl", false).putBoolean("morse", false).apply(); setInputView(view); view.refresh(); speak(getString(R.string.kb_braille_off), true) }
+
+    // ·− pisanie Morse'em: pole • / — (ustawienia mowy, wibracji i podpowiedzi wspólne z brajlem), litera po chwili przerwy, gesty jak w brajlu
+    private var morseView: MorsePole? = null
+    private fun morsePole() = (morseView ?: MorsePole(this, ::morseLetter, ::brailleGesture).also { morseView = it }).apply {
+        hints = pref("brajl-podpowiedzi"); vibrate = pref("brajl-wibracje"); pl = lang(this@KlawiaturaVelivo) == "pl"; gap = if (pref("klaw-senior", false)) 1600L else 1000L
+    }
+    private fun morseOn() {
+        if (talkback()) return
+        prefs(this).edit().putBoolean("morse", true).putBoolean("brajl", false).apply()
+        setInputView(morsePole()); speak(getString(R.string.kb_morse_on), true)
+    }
+    // 🗣 dźwięki zamiast słów: długie „aaaa” - zatwierdź (Enter / Wyślij), długie „uuuu” - usuń słowo; mikrofon tylko z klawiaturą na ekranie
+    private fun soundOn() {
+        if (!pref("klaw-dzwiek", false) || listening || checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
+        val pr = prefs(this)
+        Dzwiek.start(pr.getFloat("dzwiek-a", Dzwiek.A.toFloat()).toDouble(), pr.getFloat("dzwiek-u", Dzwiek.U.toFloat()).toDouble()) { k ->
+            if (k == 'a') enter() else deleteWord()
+            (morseView?.takeIf { pref("morse", false) } ?: brajlView?.takeIf { pref("brajl", false) } ?: view).performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            Toast.makeText(this, if (k == 'a') R.string.kb_sound_enter else R.string.kb_sound_del, Toast.LENGTH_SHORT).show()
+        }
+    }
+    private fun morseLetter(code: String) {
+        val pl = lang(this) == "pl"
+        val out = Morse.decode(code, pl)
+        if (out == null) { if (pref("brajl-mowa")) speak(getString(R.string.kb_morse_unknown, Morse.show(code)), true); return }
+        out.forEach { type(it) }
+        if (pref("brajl-mowa")) speak(Brajl.spoken(out, pl), true)
+    }
     private fun brailleCell(cell: Int) {
         val pl = lang(this) == "pl"
         val out = Brajl.decode(cell, pl, brajlStan)
@@ -309,7 +338,8 @@ class KlawiaturaVelivo : InputMethodService() {
         if (!restarting) { cur = ""; fixFrom = null; addAsk = null; lastSwipe = null; alt = false; caps = false; afterPunct = false
             prevWord = null; prevWord2 = null; newSentence(); retype = null }
         autoShift()
-        view.theme(); view.refresh(); if (pref("brajl", false)) brajlPole().invalidate()   // ⠿ ustawienia brajla z aplikacji klawiatury
+        view.theme(); view.refresh(); if (pref("brajl", false)) brajlPole().invalidate(); if (pref("morse", false)) morsePole().invalidate()   // ⠿ ustawienia brajla z aplikacji klawiatury
+        soundOn()
         komNew()?.listen()   // telefon tylko z klawiaturą Velivo: widoczny w domowym Wi-Fi do dodania, póki klawiatura na ekranie
     }
 
@@ -319,7 +349,7 @@ class KlawiaturaVelivo : InputMethodService() {
     // ➤ w komunikatorze Velivo: popraw ostatnie słowo przed wysłaniem
     override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord("") }
     override fun onFinishInputView(finishingInput: Boolean) {   // klawiatura chowa się - zaległy zapis od razu
-        super.onFinishInputView(finishingInput); stopListening(); komNew()?.close(); saveNow(this)
+        super.onFinishInputView(finishingInput); stopListening(); Dzwiek.stop(); komNew()?.close(); saveNow(this)
         if (taps > 0 && !noLearn) prefs(this).edit().putFloat("rytm-nacisk", dwell).putFloat("rytm-tempo", tempo).putInt("rytm-n", taps).apply()
     }
     override fun onDestroy() { getSystemService(android.content.ClipboardManager::class.java)?.removePrimaryClipChangedListener(clipListener); tts?.shutdown(); rec?.destroy(); super.onDestroy() }
@@ -589,6 +619,7 @@ class KlawiaturaVelivo : InputMethodService() {
             startActivity(Intent(this, SzybkieUstawienia::class.java).setAction(ACTION_MIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
         }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { Toast.makeText(this, R.string.kb_mic_none, Toast.LENGTH_LONG).show(); return }
+        Dzwiek.stop()   // mikrofon dla dyktowania
         val r = rec ?: SpeechRecognizer.createSpeechRecognizer(this).also { rec = it }
         r.setRecognitionListener(object : RecognitionListener {
             override fun onResults(b: Bundle) {
@@ -604,9 +635,9 @@ class KlawiaturaVelivo : InputMethodService() {
                     text.split(' ').forEach { learn(it) }; sentOk = false   // podyktowane: słowa się liczą, do fraz i tempa nie
                     shift = false; autoShift()
                 }
-                view.refresh()
+                view.refresh(); soundOn()
             }
-            override fun onError(error: Int) { listening = false; view.refresh() }
+            override fun onError(error: Int) { listening = false; view.refresh(); soundOn() }
             override fun onReadyForSpeech(p: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(v: Float) {}
@@ -621,6 +652,14 @@ class KlawiaturaVelivo : InputMethodService() {
         listening = true; view.refresh()
     }
     private fun stopListening() { if (listening) { rec?.stopListening(); listening = false; if (::view.isInitialized) view.refresh() } }
+    private fun soundToggle() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            startActivity(Intent(this, SzybkieUstawienia::class.java).setAction(ACTION_MIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
+        }
+        val on = !pref("klaw-dzwiek", false); prefs(this).edit().putBoolean("klaw-dzwiek", on).apply()
+        if (on) soundOn() else Dzwiek.stop()
+        Toast.makeText(this, getString(R.string.kb_sound) + ": " + getString(if (on) R.string.kb_on else R.string.kb_off), Toast.LENGTH_SHORT).show()
+    }
 
     private fun tip(pl: Int) { Toast.makeText(this, pl, Toast.LENGTH_SHORT).show() }
 
@@ -976,7 +1015,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private val menu = ArrayList<K>()
         private val menuItems = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt", "📤" to "sendpc", "💬" to "chat", "📲" to "sendphone",
             "✓" to "fix", "🔈" to "klik", "🔊" to "read", "🎤" to "mic",
-            "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height", "👵" to "senior", "⠿" to "brajl",
+            "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height", "👵" to "senior", "⠿" to "brajl", "·−" to "morse", "🗣" to "sound",
             "⌨" to "switch", "⚙" to "settings", "⌄" to "hide", "⌨︎" to "back")
         private fun layoutMenu() {
             menu.clear()
@@ -989,11 +1028,11 @@ class KlawiaturaVelivo : InputMethodService() {
                 menu.add(k)
             }
         }
-        private fun isOn(c: String) = when (c) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; "senior" -> pref("klaw-senior", false); else -> false }
+        private fun isOn(c: String) = when (c) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; "senior" -> pref("klaw-senior", false); "sound" -> pref("klaw-dzwiek", false); else -> false }
         private fun menuName(c: String) = when (c) {
             "sendpc" -> R.string.kb_m_send; "chat" -> R.string.kb_m_chat; "sendphone" -> R.string.kb_m_phone; "note" -> R.string.kb_m_note; "notes" -> R.string.kb_m_notes; "search" -> R.string.kb_m_search; "yt" -> R.string.kb_m_yt
             "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "read" -> R.string.kb_read; "mic" -> R.string.kb_mic
-            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height; "senior" -> R.string.kb_senior; "brajl" -> R.string.kb_braille
+            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height; "senior" -> R.string.kb_senior; "brajl" -> R.string.kb_braille; "morse" -> R.string.kb_morse; "sound" -> R.string.kb_sound
             "switch" -> R.string.kb_m_switch; "settings" -> R.string.kb_m_settings; "hide" -> R.string.kb_hide; else -> R.string.kb_m_back
         }
         // funkcje Velivo (karteczki, szukanie, YouTube) - otwierane w przeglądarce Velivo
@@ -1016,6 +1055,8 @@ class KlawiaturaVelivo : InputMethodService() {
                 "switch" -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
                 "back" -> { menuOpen = false; refresh(); return }
                 "brajl" -> { menuOpen = false; brailleOn(); return }
+                "morse" -> { menuOpen = false; morseOn(); return }
+                "sound" -> { soundToggle(); menuOpen = false; refresh(); return }
                 "senior" -> { senior(context, !pref("klaw-senior", false)); Toast.makeText(context, getString(R.string.kb_senior) + ": " + getString(if (pref("klaw-senior", false)) R.string.kb_on else R.string.kb_off), Toast.LENGTH_SHORT).show(); theme(); refresh(); return }
                 else -> { headAction(c); if (c == "lang" || c == "hide") menuOpen = false; refresh(); return }
             }

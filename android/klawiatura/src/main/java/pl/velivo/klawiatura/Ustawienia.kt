@@ -50,6 +50,7 @@ open class Ustawienia : Activity() {
         button(R.string.kb_words, R.string.kb_words) { showWords() }
         button(R.string.kb_phrases, R.string.kb_phrases_help) { showPhrases() }
         button(R.string.kb_privacy, R.string.kb_privacy_tip) { privacy() }
+        button(R.string.kb_sound, R.string.kb_sound_tip) { sounds() }
         // 🧹 wyuczone dane (częstość, pary słów, poprawki) - za zgodą; Moje słowa zostają
         button(R.string.kb_clear_learned, R.string.kb_clear_learned_tip) {
             AlertDialog.Builder(this).setTitle(R.string.kb_clear_learned).setMessage(R.string.kb_clear_learned_tip)
@@ -151,6 +152,29 @@ open class Ustawienia : Activity() {
             .setPositiveButton(android.R.string.ok) { _, _ -> val e = pr.edit(); keys.forEachIndexed { i, k -> e.putBoolean(k, on[i]) }; e.apply(); if (!on[2]) KlawiaturaVelivo.resetRhythm(this) }
             .setNeutralButton(R.string.kb_p_reset) { _, _ -> KlawiaturaVelivo.resetRhythm(this); Toast.makeText(this, R.string.kb_p_reset_done, Toast.LENGTH_LONG).show() }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    // 🗣 dźwięki zamiast słów: włączenie i nauka własnego „aaaa” (zatwierdź) i „uuuu” (usuń słowo) - 3 s każde
+    private fun sounds() {
+        val pr = KlawiaturaVelivo.prefs(this)
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) { requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC); return }
+        val on = pr.getBoolean("klaw-dzwiek", false)
+        fun teach(key: String, say: String) {
+            Toast.makeText(this, getString(R.string.kb_sound_say, say), Toast.LENGTH_LONG).show()
+            Dzwiek.measure { t ->
+                val other = if (key == "dzwiek-a") pr.getFloat("dzwiek-u", Dzwiek.U.toFloat()) else pr.getFloat("dzwiek-a", Dzwiek.A.toFloat())
+                val msg = when {
+                    t == null -> R.string.kb_sound_quiet
+                    if (key == "dzwiek-a") t - other < 150 else other - t < 150 -> R.string.kb_sound_same
+                    else -> { pr.edit().putFloat(key, t.toFloat()).apply(); R.string.kb_sound_ok }
+                }
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            }
+        }
+        AlertDialog.Builder(this).setTitle(R.string.kb_sound).setMessage(R.string.kb_sound_tip)
+            .setPositiveButton(if (on) R.string.kb_sound_off else R.string.kb_sound_on) { _, _ -> pr.edit().putBoolean("klaw-dzwiek", !on).apply() }
+            .setNeutralButton(R.string.kb_sound_teach_a) { _, _ -> teach("dzwiek-a", "aaaa") }
+            .setNegativeButton(R.string.kb_sound_teach_u) { _, _ -> teach("dzwiek-u", "uuuu") }.show()
     }
 
     // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 🎤 dyktowanie - tylko po stuknięciu mikrofonu -->
+    <!-- 🎤 dyktowanie (po stuknięciu mikrofonu) i 🗣 dźwięki zamiast słów (po włączeniu) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- 🎞 GIF-y z telefonu w klawiaturze - tylko po zgodzie w ustawieniach klawiatury -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

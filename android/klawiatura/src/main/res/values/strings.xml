@@ -76,7 +76,7 @@
     <string name="kb_braille_empty">Empty</string>
     <string name="kb_braille_learn">⠿ Learn braille</string>
     <string name="kb_braille_learn_tip">Braille letters with speech and exercises on the 6-dot field; progress stays on the phone</string>
-    <string name="kb_braille_settings">⠿ Braille typing – settings</string>
+    <string name="kb_braille_settings">⠿ Braille and ·− Morse – settings</string>
     <string name="kb_braille_opt_speech">Speak characters</string>
     <string name="kb_braille_opt_vibe">Vibrate on dots</string>
     <string name="kb_braille_opt_hints">On-screen hints</string>
@@ -109,4 +109,21 @@
     <string name="kb_p_velivo">Learn only in Velivo apps</string>
     <string name="kb_p_reset">↺ Typing profile</string>
     <string name="kb_p_reset_done">Typing profile (pace and press) reset</string>
+    <string name="kb_morse">·− Morse typing</string>
+    <string name="kb_morse_field">Morse field: left half – dot, right half – dash</string>
+    <string name="kb_morse_hint">• left · — right · letter after a pause · → space ← delete ↓ Enter ↑ read · 2 fingers ↓ keyboard</string>
+    <string name="kb_morse_on">Morse typing. Left half – dot, right half – dash. Two fingers down – normal keyboard.</string>
+    <string name="kb_morse_unknown">Unknown character %1$s</string>
+    <string name="kb_sound">🗣 Sounds instead of words</string>
+    <string name="kb_sound_tip">Long “aaaa” – confirm (Enter, Send), long “uuuu” – delete a word. For people who cannot speak clearly. The microphone listens only while the keyboard is on screen; nothing is recorded or sent. Best teach the keyboard your own “aaaa” and “uuuu” first.</string>
+    <string name="kb_sound_on">Turn on</string>
+    <string name="kb_sound_off">Turn off</string>
+    <string name="kb_sound_teach_a">Teach “aaaa”</string>
+    <string name="kb_sound_teach_u">Teach “uuuu”</string>
+    <string name="kb_sound_say">Now say long and steady: %1$s (3 seconds)</string>
+    <string name="kb_sound_ok">Remembered ✓</string>
+    <string name="kb_sound_quiet">No sound heard – louder and longer</string>
+    <string name="kb_sound_same">“aaaa” and “uuuu” sound too similar – try more clearly</string>
+    <string name="kb_sound_del">🗣 word deleted</string>
+    <string name="kb_sound_enter">🗣 confirmed</string>
 </resources>

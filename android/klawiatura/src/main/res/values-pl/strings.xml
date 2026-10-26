@@ -76,7 +76,7 @@
     <string name="kb_braille_empty">Pusto</string>
     <string name="kb_braille_learn">⠿ Nauka brajla</string>
     <string name="kb_braille_learn_tip">Litery brajla z wymową i ćwiczenia na polu 6 punktów; postępy tylko w telefonie</string>
-    <string name="kb_braille_settings">⠿ Pisanie brajlem – ustawienia</string>
+    <string name="kb_braille_settings">⠿ Brajl i ·− Morse – ustawienia</string>
     <string name="kb_braille_opt_speech">Mów znaki</string>
     <string name="kb_braille_opt_vibe">Wibracje przy punktach</string>
     <string name="kb_braille_opt_hints">Podpowiedzi na ekranie</string>
@@ -109,4 +109,21 @@
     <string name="kb_p_velivo">Ucz się tylko w aplikacjach Velivo</string>
     <string name="kb_p_reset">↺ Profil pisania</string>
     <string name="kb_p_reset_done">Profil pisania (tempo i nacisk) od nowa</string>
+    <string name="kb_morse">·− Pisanie Morse\'em</string>
+    <string name="kb_morse_field">Pole Morse\'a: lewa połowa – kropka, prawa – kreska</string>
+    <string name="kb_morse_hint">• lewa · — prawa · litera po chwili · → spacja ← usuń ↓ Enter ↑ czytaj · 2 palce ↓ klawiatura</string>
+    <string name="kb_morse_on">Pisanie Morse\'em. Lewa połowa – kropka, prawa – kreska. Dwoma palcami w dół – zwykła klawiatura.</string>
+    <string name="kb_morse_unknown">Nieznany znak %1$s</string>
+    <string name="kb_sound">🗣 Dźwięki zamiast słów</string>
+    <string name="kb_sound_tip">Długie „aaaa” – zatwierdź (Enter, Wyślij), długie „uuuu” – usuń słowo. Dla osób, które nie mówią wyraźnie. Mikrofon słucha tylko, gdy klawiatura jest na ekranie; nic nie jest nagrywane ani wysyłane. Najlepiej najpierw naucz klawiaturę swojego „aaaa” i „uuuu”.</string>
+    <string name="kb_sound_on">Włącz</string>
+    <string name="kb_sound_off">Wyłącz</string>
+    <string name="kb_sound_teach_a">Naucz „aaaa”</string>
+    <string name="kb_sound_teach_u">Naucz „uuuu”</string>
+    <string name="kb_sound_say">Teraz mów długo i równo: %1$s (3 sekundy)</string>
+    <string name="kb_sound_ok">Zapamiętane ✓</string>
+    <string name="kb_sound_quiet">Nie słychać dźwięku – mów głośniej i dłużej</string>
+    <string name="kb_sound_same">„aaaa” i „uuuu” brzmią zbyt podobnie – spróbuj wyraźniej</string>
+    <string name="kb_sound_del">🗣 usunięto słowo</string>
+    <string name="kb_sound_enter">🗣 zatwierdzono</string>
 </resources>

@@ -2224,11 +2224,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     // 📎 w rozmowie: pliki dla tego kontaktu (wybór w aplikacji, potem sendFiles)
     var attachTo: Komunikator.Contact? = null
 
-    fun sendFiles(uris: List<Uri>) {
+    fun sendFiles(uris: List<Uri>, confirmed: Boolean = false) {
         if (uris.isEmpty()) return
         if (pickingPhoto) { pickingPhoto = false; setPhotoFrom(uris[0]); return }
         if (pickingBackup) { pickingBackup = false; restoreFrom(uris[0]); return }
         val c = attachTo; attachTo = null
+        if (c != null && !confirmed) { preview(c, uris); return }   // 👁 najpierw podgląd i „Wyślij” (jak w WhatsApp)
         if (c != null && c.isGroup) {   // 👥 do każdego w grupie osobno
             Thread {
                 for (u in uris) {
@@ -2261,6 +2262,31 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             .setItems((cs.map { (if (k.online(it.id)) "🟢 " else "⚪ ") + it.name } + ("📶 " + t("Inne urządzenie w tej sieci…", "Other device on this network…"))).toTypedArray()) { _, i ->
                 if (i < cs.size) { attachTo = cs[i]; sendFiles(uris) } else choosePeer("📤 " + t("Wyślij pliki do…", "Send files to…")) { p -> sendFilesTo(uris, p, k.contact(p.id)) }
             }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    // 👁 przed wysłaniem: zdjęcie / ▶ odsłuchaj głosówkę / obejrzyj film; Wyślij albo Anuluj (nagranie z Velivo - usuwane)
+    private fun preview(c: Komunikator.Contact, uris: List<Uri>) {
+        fun name(u: Uri) = runCatching { a.contentResolver.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { q -> if (q.moveToFirst()) q.getString(0) else null } }.getOrNull() ?: u.lastPathSegment ?: "plik"
+        val names = uris.map { name(it) }
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(18), px(8), px(18), 0) }
+        if (uris.size == 1 && k.isImage(names[0])) runCatching {
+            val bmp = upright(a.contentResolver.openInputStream(uris[0])!!.use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }) }!!,
+                runCatching { a.contentResolver.openInputStream(uris[0])!!.use { android.media.ExifInterface(it) } }.getOrNull())
+            box.addView(android.widget.ImageView(a).apply { setImageBitmap(bmp); adjustViewBounds = true; maxHeight = px(360) })
+        }
+        box.addView(TextView(a).apply { text = names.joinToString("\n") { (if (k.isImage(it)) "🖼 " else if (it.startsWith("Glosowa-")) "🎤 " else "📎 ") + it }; setTextColor(ink); textSize = 15f; setPadding(0, px(8), 0, 0) })
+        fun look(u: Uri, n: String) {
+            if (u.scheme == "file") { if (n.startsWith("Glosowa-")) play(u.path!!) else openFile(u.path!!); return }
+            runCatching { a.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(u, a.contentResolver.getType(u) ?: "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
+                .onFailure { Toast.makeText(a, t("Brak programu do podglądu", "No app to preview"), Toast.LENGTH_SHORT).show() }
+        }
+        val d = AlertDialog.Builder(a).setTitle("📤 " + c.name).setView(ScrollView(a).apply { addView(box) })
+            .setPositiveButton("➤ " + t("Wyślij", "Send")) { _, _ -> attachTo = c; sendFiles(uris, true) }
+            .setNegativeButton(t("Anuluj", "Cancel")) { _, _ -> uris.filter { it.scheme == "file" && it.path?.startsWith(a.cacheDir.path) == true }.forEach { java.io.File(it.path!!).delete() } }
+        if (uris.size == 1) d.setNeutralButton(if (names[0].startsWith("Glosowa-")) "▶ " + t("Odsłuchaj", "Listen") else "👁 " + t("Podgląd", "Preview"), null)
+        val dlg = d.show()
+        // podgląd nie zamyka okienka - po odsłuchaniu dalej Wyślij / Anuluj
+        dlg.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener { look(uris[0], names[0]) }
     }
 
     private fun sendFilesTo(uris: List<Uri>, p: Komunikator.Peer, c: Komunikator.Contact?) {
@@ -2534,7 +2560,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             .setPositiveButton(t("Wyślij", "Send")) { _, _ ->
                 for (to in cs.filterIndexed { i, _ -> pick[i] }) {
                     val fs = ms.mapNotNull { m -> m.path?.let { java.io.File(it) }?.takeIf { m.file && it.exists() } }
-                    if (fs.isNotEmpty()) { attachTo = to; sendFiles(fs.map { Uri.fromFile(it) }) }
+                    if (fs.isNotEmpty()) { attachTo = to; sendFiles(fs.map { Uri.fromFile(it) }, true) }   // przekazanie - bez drugiego pytania
                     val txt = ms.filter { m -> !(m.file && m.path?.let { java.io.File(it).exists() } == true) }.map { it.text }
                     if (txt.isNotEmpty()) Thread { txt.forEach { k.send(to, "↪ " + it) } }.start()
                 }

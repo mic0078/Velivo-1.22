@@ -1597,7 +1597,7 @@ namespace Velivo
                     var fwd = new MenuItem { Header = "↪ " + L.T("Przekaż…") }; fwd.Click += async (s2, e2) =>
                     {
                         foreach (var to in KomPickContacts(w, "↪ " + L.T("Przekaż do…"), rc.Id))
-                            if (rm.File && File.Exists(rm.Path ?? "")) await AttachTo(to, new[] { rm.Path }); else KomSend(to, "↪ " + rm.Text);
+                            if (rm.File && File.Exists(rm.Path ?? "")) await AttachTo(to, new[] { rm.Path }, true); else KomSend(to, "↪ " + rm.Text);
                         FillList(); FillChat();
                     };
                     var selIt = new MenuItem { Header = "☑ " + L.T("Zaznacz…") }; selIt.Click += (s2, e2) => { selMode = true; picked.Add(rm); FillChat(); };
@@ -1697,7 +1697,7 @@ namespace Velivo
                 var c = Current(); if (c == null || picked.Count == 0) return;
                 var chosen = KomChat(c.Id).Where(picked.Contains).ToList();
                 foreach (var to in KomPickContacts(w, "↪ " + L.T("Przekaż do…"), c.Id))
-                    foreach (var x in chosen) if (x.File && File.Exists(x.Path ?? "")) await AttachTo(to, new[] { x.Path }); else KomSend(to, "↪ " + x.Text);
+                    foreach (var x in chosen) if (x.File && File.Exists(x.Path ?? "")) await AttachTo(to, new[] { x.Path }, true); else KomSend(to, "↪ " + x.Text);
                 selMode = false; picked.Clear(); FillList(); FillChat();
             };
             // ⌨ skróty: Ctrl+F szukaj, Ctrl+K przejdź do rozmowy, Alt+↑/↓ poprzednia / następna, Ctrl+Shift+M wycisz, Esc - zamknij odpowiedź / szukanie / zaznaczanie
@@ -1727,8 +1727,10 @@ namespace Velivo
             };
             input.PreviewKeyDown += (s, e) => { if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0) { e.Handled = true; DoSend(); } };
             // 📎 do zaznaczonego kontaktu: 🟢 w sieci - od razu na znany adres; szukanie tylko, gdy adresu nie znamy
-            async Task AttachTo(KomContact c, string[] files = null)
+            async Task AttachTo(KomContact c, string[] files = null, bool confirmed = false)
             {
+                if (files == null) { var dlg = new Microsoft.Win32.OpenFileDialog { Title = "📎 " + c.Name, Multiselect = true }; if (dlg.ShowDialog(w) != true) return; files = dlg.FileNames; }
+                if (!confirmed && !KomPreview(w, c, files)) return;   // 👁 najpierw podgląd i „Wyślij” (jak w WhatsApp)
                 if (c.IsGroup) { await KomSendGroupFiles(w, c, files); return; }   // 👥 do każdego w grupie osobno
                 IPAddress addr = null;
                 if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) { addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr; }
@@ -2386,6 +2388,40 @@ namespace Velivo
         static int KomMci(string cmd) { try { return KomMciSend(cmd, null, 0, IntPtr.Zero); } catch (Exception) { return -1; } }
 
         // files - gotowe pliki (np. 🎤 nagranie); bez - okno wyboru
+        // 👁 przed wysłaniem: zdjęcie, ▶ odsłuchaj / obejrzyj; Wyślij albo Anuluj (nagranie, zrzut z Velivo - usuwane)
+        bool KomPreview(Window owner, KomContact c, string[] files)
+        {
+            var pal = KomCurrentPal(); bool send = false;
+            var panel = new StackPanel { Margin = new Thickness(16) };
+            if (files.Length == 1 && KomIsImage(files[0]))
+                try
+                {
+                    var bi = new System.Windows.Media.Imaging.BitmapImage(); bi.BeginInit(); bi.UriSource = new Uri(files[0]); bi.DecodePixelWidth = 1040; bi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; bi.EndInit();   // OnLoad - plik nie zostaje zablokowany
+                    panel.Children.Add(new Image { Source = KomUpright(bi, files[0]), MaxWidth = 520, MaxHeight = 380, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 0, 10) });
+                }
+                catch (Exception) { }
+            foreach (var f in files) panel.Children.Add(new TextBlock { Text = (KomIsImage(f) ? "🖼 " : Path.GetFileName(f).StartsWith("Glosowa-") ? "🎤 " : KomIsVideo(f) ? "🎬 " : "📎 ") + Path.GetFileName(f), Foreground = new SolidColorBrush(pal.Fg), TextWrapping = TextWrapping.Wrap });
+            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            var d = new Window { Title = "📤 " + c.Name, Owner = owner, SizeToContent = SizeToContent.WidthAndHeight, MinWidth = 340, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel };
+            Button B(string t, string tip, Action a) { var b = new Button { Content = t, ToolTip = tip, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(6, 0, 0, 0) }; b.Click += (s, e) => a(); row.Children.Add(b); return b; }
+            if (files.Length == 1)
+            {
+                var f0 = files[0]; bool voice = Path.GetFileName(f0).StartsWith("Glosowa-");
+                B(voice ? "▶ " + L.T("Odsłuchaj") : "👁 " + L.T("Podgląd"), L.T("Sprawdź przed wysłaniem"), () =>
+                {
+                    if (voice) KomPlayVoice(f0);
+                    else try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(f0) { UseShellExecute = true }); } catch (Exception) { }
+                });
+            }
+            B(L.T("Anuluj"), L.T("Nie wysyłaj"), () => d.Close());
+            var ok = B("➤ " + L.T("Wyślij"), L.T("Wyślij do ") + c.Name, () => { send = true; d.Close(); }); ok.IsDefault = true;
+            panel.Children.Add(row);
+            KomStyle(d); d.ShowDialog();
+            if (!send)   // nagrane / wycięte w Velivo - nie zostaje; pliki użytkownika nietknięte
+                foreach (var f in files) if (f.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase) || (f.StartsWith(KomMediaDir, StringComparison.OrdinalIgnoreCase) && System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(f), "^(Glosowa|Wideo|Zdjecie)-"))) try { File.Delete(f); } catch (Exception) { }
+            return send;
+        }
+
         async Task KomSendFilesTo(Window owner, string name, IPAddress addr, KomContact to = null, string[] files = null)
         {
             if (files == null)

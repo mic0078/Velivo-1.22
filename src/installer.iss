@@ -37,6 +37,8 @@ Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
+pl.VelivoRunning=Velivo nadal działa (prawdopodobnie uruchomione jako administrator) i instalator nie może go zamknąć. Zamknij Velivo: ikona przy zegarze → Zakończ (albo Menedżer zadań → Velivo → Zakończ zadanie), potem uruchom instalację ponownie.
+en.VelivoRunning=Velivo is still running (probably started as administrator) and the installer cannot close it. Close Velivo: tray icon → Exit (or Task Manager → Velivo → End task), then run the installation again.
 pl.DesktopIcon=Skrót na pulpicie
 pl.MessengerIcon=Komunikator Velivo na pulpicie (rozmowy w sieci domowej)
 pl.Addons=Dodatki (opcjonalne):
@@ -410,12 +412,20 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var Code: Integer;
+var Code, I: Integer;
 begin
   Result := InstallPrereqs;
   if Result <> '' then exit;
   // ukryte procesy Velivo (np. sprzatanie przy zamykaniu) razem z ich procesami WebView2
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Velivo.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  // czekamy, aż Velivo naprawdę zniknie (pliki zwolnione) - do 10 s; nie da się zamknąć (Velivo jako administrator) - jasny komunikat zamiast „Odmowa dostępu”
+  for I := 1 to 20 do
+  begin
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Velivo.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Sleep(500);
+    Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq Velivo.exe" | find /I "Velivo.exe"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    if Code <> 0 then break;
+  end;
+  if Code = 0 then begin Result := CustomMessage('VelivoRunning'); exit; end;
   Sleep(500);
   MoveAsideUninstallFiles;
 end;

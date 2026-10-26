@@ -275,6 +275,10 @@
     <string name="media_conf_saved">Films and TV settings saved</string>
     <string name="jf_searching">Looking for a Jellyfin server on your home network…</string>
     <string name="jf_manual">Enter the server address…</string>
+    <string name="jf_key_file">📂 Load API key from file (api.txt)…</string>
+    <string name="jf_key_none">This file has no Jellyfin API key (32 characters 0–9, a–f)</string>
+    <string name="jf_key_no_url">Add the server address to the file (http://…:8096) or enter it first</string>
+    <string name="jf_key_loaded">🔑 Jellyfin key loaded from file</string>
     <string name="jf_none_found">No server found – enter its address</string>
     <string name="jf_password">Password (empty if none)</string>
     <string name="jf_login">Sign in</string>

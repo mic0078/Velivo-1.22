@@ -275,6 +275,10 @@
     <string name="media_conf_saved">Zapisano ustawienia Filmów i TV</string>
     <string name="jf_searching">Szukam serwera Jellyfin w sieci domowej…</string>
     <string name="jf_manual">Wpisz adres serwera…</string>
+    <string name="jf_key_file">📂 Wczytaj klucz API z pliku (api.txt)…</string>
+    <string name="jf_key_none">W tym pliku nie ma klucza API Jellyfin (32 znaki 0–9, a–f)</string>
+    <string name="jf_key_no_url">Dopisz do pliku adres serwera (http://…:8096) albo najpierw go wpisz</string>
+    <string name="jf_key_loaded">🔑 Klucz Jellyfin wczytany z pliku</string>
     <string name="jf_none_found">Nie znaleziono serwera – wpisz adres</string>
     <string name="jf_password">Hasło (puste, jeśli nie ma)</string>
     <string name="jf_login">Zaloguj</string>

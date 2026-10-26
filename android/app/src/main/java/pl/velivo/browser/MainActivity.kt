@@ -2495,7 +2495,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             val found = Jelly.discover()
             runOnUiThread {
                 val cur = Jelly.conf(passwords)
-                val labels = found.map { "🎬 " + it.second + "\n" + it.first } + getString(R.string.jf_manual) +
+                val labels = found.map { "🎬 " + it.second + "\n" + it.first } + getString(R.string.jf_manual) + getString(R.string.jf_key_file) +
                     (if (cur != null) listOf("🌍 " + getString(R.string.jf_net_addr) + (if (cur.net.isNotEmpty()) "\n" + cur.net else ""), getString(R.string.jf_forget)) else emptyList())
                 AlertDialog.Builder(this).setTitle(if (found.isEmpty()) getString(R.string.jf_none_found) else getString(R.string.jf_settings))
                     .setItems(labels.toTypedArray()) { _, i ->
@@ -2511,7 +2511,17 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                                         jellyfinUser(u, done)
                                     }.setNegativeButton(android.R.string.cancel, null).show()
                             }
-                            cur != null && i == found.size + 1 -> {   // adres poza domem (internet), np. http://mojdom.ddns.net:8097
+                            i == found.size + 1 -> pickDocuments(arrayOf("text/plain"), false) { uris ->   // 📂 klucz API z pliku api.txt (jak na Windows) - bez przepisywania
+                                val text = uris.firstOrNull()?.let { u -> runCatching { contentResolver.openInputStream(u)!!.use { s -> String(s.readBytes().take(65536).toByteArray(), Charsets.UTF_8) } }.getOrNull() } ?: return@pickDocuments
+                                val key = Regex("\\b[0-9a-fA-F]{32}\\b").find(text)?.value?.lowercase()   // klucz Jellyfin: 32 znaki szesnastkowe
+                                if (key == null) { toast(getString(R.string.jf_key_none)); return@pickDocuments }
+                                // adres: z pliku, inaczej obecny, inaczej serwer znaleziony w sieci domowej
+                                val url = (Regex("https?://[^\\s\"'<>]+").find(text)?.value?.trimEnd('/', ',', ';') ?: cur?.url ?: found.firstOrNull()?.first)?.trimEnd('/')
+                                if (url == null) { toast(getString(R.string.jf_key_no_url)); return@pickDocuments }
+                                Jelly.save(passwords, Jelly.Conf(url, key, "", cur?.net.orEmpty())); toast(getString(R.string.jf_key_loaded))
+                                setupJellyfinUser(); done()
+                            }
+                            cur != null && i == found.size + 2 -> {   // adres poza domem (internet), np. http://mojdom.ddns.net:8097
                                 val net = EditText(this).apply { setSingleLine(); setText(cur.net); hint = "http://mojdom.ddns.net:8097"; inputType = EditorInfo.TYPE_TEXT_VARIATION_URI }
                                 AlertDialog.Builder(this).setTitle("🌍 " + getString(R.string.jf_net_addr)).setMessage(R.string.jf_net_info)
                                     .setView(LinearLayout(this).apply { setPadding(dp(20), dp(8), dp(20), 0); addView(net, LinearLayout.LayoutParams(-1, -2)) })

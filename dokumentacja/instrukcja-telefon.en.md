@@ -217,6 +217,7 @@ Velivo plays everything with the VLC library – the same as Velivo for Windows:
 ### 🎬 Library (Jellyfin)
 
 - **No API keys:** Velivo finds the Jellyfin server on your home network → pick a user → password. The server gives the phone its own token (visible in Jellyfin → Devices, can be revoked). Or the settings come from the computer.
+- **📂 API key from a file:** Jellyfin settings → **📂 Load API key from file (api.txt)…** – pick a .txt file with the key (32 characters 0–9, a–f). Server address: from the file (http://…:8096), otherwise the current one or the one found on the home network.
 - **Views:** continue watching, films, series (☰); sort A–Z / newest / year / 🕘 last watched / watched longest ago (only watched ones; a tap resumes where you stopped – also when watched on the computer). Series → episodes.
 - The library opens at once from the phone's copy and refreshes from the server – films deleted on the server disappear, new ones appear.
 

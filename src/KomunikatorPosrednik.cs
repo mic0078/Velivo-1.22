@@ -709,6 +709,7 @@ namespace Velivo
             try
             {
                 var s = link.Trim(); var at = s.IndexOf("VELIVO-KONTAKT:", StringComparison.Ordinal); if (at >= 0) s = s.Substring(at + 15).Trim();
+                s = s.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";   // adres w środku wiadomości - tylko on
                 s = s.Replace('-', '+').Replace('_', '/'); s = s.PadRight(s.Length + (4 - s.Length % 4) % 4, '=');
                 var j = JsonNode.Parse(Convert.FromBase64String(s)) as JsonObject;
                 var o = (string)j?["o"]; var a = (string)j?["a"];

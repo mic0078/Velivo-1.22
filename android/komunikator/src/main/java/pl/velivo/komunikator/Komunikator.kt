@@ -614,7 +614,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // ja proszę: link od kogoś - prośba przez jego pośrednika; odpowiedź odbieram co minutę (on może być poza siecią)
     fun requestByLink(link: String): Boolean {
-        val j = runCatching { JSONObject(String(Base64.decode(link.trim().substringAfter("VELIVO-KONTAKT:").trim(), Base64.URL_SAFE), Charsets.UTF_8)) }.getOrNull() ?: return false
+        val code = link.trim().substringAfter("VELIVO-KONTAKT:").trim().split(Regex("\\s+")).firstOrNull() ?: ""   // adres w środku wiadomości - tylko on
+        val j = runCatching { JSONObject(String(Base64.decode(code, Base64.URL_SAFE), Charsets.UTF_8)) }.getOrNull() ?: return false
         if (j.optString("o").length != 32 || j.optString("o") == myId || !j.optString("a").contains(':') || j.optString("s").isEmpty()) return false
         val pair = ecPair()
         j.put("priv", b64(pair.private.encoded)).put("pub", b64(pair.public.encoded))
@@ -2146,7 +2147,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             .setNegativeButton(android.R.string.cancel, null).show()
     }
     private fun haveAddress() {
-        val e = EditText(a).apply { hint = "VELIVO-KONTAKT:…"; minLines = 2 }
+        val e = EditText(a).apply { hint = "VELIVO-KONTAKT:…"; minLines = 2
+            runCatching { a.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(a)?.toString()?.takeIf { it.contains("VELIVO-KONTAKT:") }?.let { setText(it.trim()) } } }   // skopiowany adres - już wpisany
         Dlg().setTitle("🔗 " + t("Wklej adres Velivo", "Paste a Velivo address")).setView(e)
             .setPositiveButton(t("Wyślij prośbę", "Send request")) { _, _ ->
                 val ok = k.requestByLink(e.text.toString().substringAfter("VELIVO-KONTAKT:", "").let { if (it.isEmpty()) e.text.toString() else "VELIVO-KONTAKT:$it" }.trim())
@@ -2486,6 +2488,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
+                if (!m.mine && m.path == null && m.text.contains("VELIVO-KONTAKT:")) msgs.addView(pill("👤 " + t("Wyślij prośbę o kontakt", "Send a contact request"), t("Ta osoba dostanie prośbę i zdecyduje: Dodaj / Odrzuć", "This person gets the request and decides: Add / Decline")) {   // 🔗 czyjś „Mój adres Velivo” w rozmowie - jedno stuknięcie
+                    Toast.makeText(a, if (k.requestByLink(m.text)) "👤 " + t("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie", "Request sent – the contact appears when they accept") else t("To nie jest adres Velivo", "This is not a Velivo address"), Toast.LENGTH_LONG).show()
+                }.apply { layoutParams = LinearLayout.LayoutParams(-2, px(40)).apply { gravity = Gravity.START; topMargin = px(4) } })
                 prevMine = m.mine
             }
             scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }

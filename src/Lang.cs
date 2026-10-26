@@ -1075,6 +1075,8 @@ namespace Velivo
             { "Pomoc zdalna", "Remote help" },
             { "{0} z zaznaczonych filmów jest na serwerze Jellyfin.\n\nTak – usuń też z Jellyfin (serwer skasuje plik filmu ze swojego dysku, na stałe).\nNie – usuń tylko z biblioteki Velivo (nie wróci przy 🔄 Odśwież).\nAnuluj – nic nie usuwaj.", "{0} of the selected films are on the Jellyfin server.\n\nYes – also delete from Jellyfin (the server permanently deletes the film file from its disk).\nNo – remove from the Velivo library only (it won't come back on 🔄 Refresh).\nCancel – delete nothing." },
             { "Usunięto z Jellyfin: ", "Deleted from Jellyfin: " },
+            { "Wyślij prośbę o kontakt", "Send a contact request" },
+            { "Ta osoba dostanie prośbę i zdecyduje: Dodaj / Odrzuć", "This person gets the request and decides: Add / Decline" },
             { "serwer odpowiedział: ", "server replied: " },
             { " (klucz API bez prawa usuwania)", " (API key without delete permission)" },
             { "Pomoc zdalna: pokaż swój ekran albo zobacz ekran rozmówcy; sterowanie myszą tylko za zgodą", "Remote help: share your screen or see the other person's screen; mouse control only with consent" },

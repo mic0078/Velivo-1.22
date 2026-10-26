@@ -1766,6 +1766,12 @@ namespace Velivo
                         foreach (var ch in body.Children.OfType<FrameworkElement>().Where(x => x is Image or MediaElement)) ch.ContextMenu = txt.ContextMenu;
                     }
                     body.Children.Add(txt);
+                    if (!m.Mine && !hasFile && m.Text.Contains("VELIVO-KONTAKT:"))
+                    {   // 🔗 czyjś „Mój adres Velivo” w rozmowie - jedno kliknięcie zamiast kopiowania
+                        var ask = new Button { Content = "👤 " + L.T("Wyślij prośbę o kontakt"), Margin = new Thickness(0, 6, 0, 2), Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Hand, ToolTip = L.T("Ta osoba dostanie prośbę i zdecyduje: Dodaj / Odrzuć") };
+                        var at0 = m.Text; ask.Click += (s2, e2) => KomInfo(KomRequestByLink(at0) ? "👤 " + L.T("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie") : L.T("To nie jest adres Velivo"));
+                        body.Children.Add(ask);
+                    }
                     var stampTb = new TextBlock { FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine && !m.Ok ? L.T("Jeszcze nie doręczono – Velivo wyśle, gdy odbiorca będzie w sieci") : m.Mine && m.Read ? L.T("Przeczytane") : null };
                     // przeczytane (✓✓) na niebiesko - jak w telefonie
                     if (m.Mine && m.Read) { stampTb.Inlines.Add(new System.Windows.Documents.Run(stamp.Substring(0, stamp.Length - 3)) { Foreground = new SolidColorBrush(Color.FromArgb(0xB3, fg.Color.R, fg.Color.G, fg.Color.B)) }); stampTb.Inlines.Add(new System.Windows.Documents.Run(" ✓✓") { Foreground = new SolidColorBrush(pal.Key == "kontrast" ? Color.FromRgb(0, 0, 0xCC) : Color.FromRgb(0x7D, 0xF9, 0xFF)), FontWeight = FontWeights.Bold }); }
@@ -2023,7 +2029,8 @@ namespace Velivo
                 var have = new MenuItem { Header = L.T("🔗 Mam czyjś adres Velivo…") };
                 have.Click += (a, b) =>
                 {
-                    var link = KomAsk(w, "🔗 " + L.T("Wklej adres Velivo"), ""); if (string.IsNullOrWhiteSpace(link)) return;
+                    string clip = ""; try { if (Clipboard.ContainsText() && Clipboard.GetText().Contains("VELIVO-KONTAKT:")) clip = Clipboard.GetText().Trim(); } catch (Exception) { }   // skopiowany adres - już wpisany
+                    var link = KomAsk(w, "🔗 " + L.T("Wklej adres Velivo"), clip); if (string.IsNullOrWhiteSpace(link)) return;
                     KomInfo(KomRequestByLink(link) ? "👤 " + L.T("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie") : L.T("To nie jest adres Velivo"));
                 };
                 cm.Items.Add(addr); cm.Items.Add(have); cm.Items.Add(intro); cm.Items.Add(grp); cm.Items.Add(lan); cm.Items.Add(inv); cm.Items.Add(join);

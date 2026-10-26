@@ -1995,11 +1995,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (jpg != null) k.setPhoto(jpg)
     }.start()
 
-    private fun when_(ts: Long): String {
-        val d = java.util.Calendar.getInstance().apply { timeInMillis = ts }; val now = java.util.Calendar.getInstance()
-        return if (d.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR) && d.get(java.util.Calendar.DAY_OF_YEAR) == now.get(java.util.Calendar.DAY_OF_YEAR))
-            java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date(ts))
-        else java.text.SimpleDateFormat("d MMM", Locale.getDefault()).format(java.util.Date(ts))
+    // ⏱ jak w WhatsApp: dziś - godzina, wczoraj, w tym tygodniu - dzień tygodnia, starsze - data
+    private fun daysAgo(ts: Long): Long {
+        fun day(ms: Long) = java.util.Calendar.getInstance().apply { timeInMillis = ms; set(java.util.Calendar.HOUR_OF_DAY, 12); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }.timeInMillis
+        return Math.round((day(System.currentTimeMillis()) - day(ts)) / 86400000.0)
+    }
+    private fun when_(ts: Long): String = when (daysAgo(ts)) {
+        0L -> java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date(ts))
+        1L -> t("wczoraj", "yesterday")
+        in 2L..6L -> java.text.SimpleDateFormat("EEEE", Locale.getDefault()).format(java.util.Date(ts))
+        else -> java.text.SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(java.util.Date(ts))
     }
 
     // 🔒 blokada: przy otwarciu komunikatora odcisk palca / twarz / PIN telefonu (jak w WhatsApp)
@@ -2043,7 +2048,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 val top = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(name); addView(time) }
                 val snippet = TextView(a).apply {
                     val dr = k.draft(c.id)   // ✏ niedokończona wiadomość - jak w WhatsApp
-                    text = if (dr.isNotEmpty()) "✏ " + t("Szkic: ", "Draft: ") + dr.replace('\n', ' ') else last?.let { (if (it.mine) (if (it.read) "✓✓ " else if (it.ok) "✓ " else "… ") else "") + it.text.replace('\n', ' ') } ?: (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
+                    text = if (k.typing(c.id)) android.text.SpannableString("✍ " + t("pisze…", "typing…")).apply { setSpan(android.text.style.ForegroundColorSpan(green), 0, length, 0) }   // jak w WhatsApp - „pisze…” na liście
+                        else if (dr.isNotEmpty()) android.text.SpannableString("✏ " + t("Szkic: ", "Draft: ") + dr.replace('\n', ' ')).apply { setSpan(android.text.style.ForegroundColorSpan(green), 0, length, 0) }
+                        else last?.let { m -> android.text.SpannableStringBuilder().apply {
+                            // ✓ wysłana, ✓✓ doręczona, ✓✓ niebieskie przeczytana
+                            if (m.mine) { append(if (m.read || (m.ok && !m.text.contains("📬"))) "✓✓ " else "✓ "); if (m.read) setSpan(android.text.style.ForegroundColorSpan(Color.rgb(0x38, 0xBD, 0xF8)), 0, length, 0) }
+                            append(m.text.replace('\n', ' '))
+                        } } ?: (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
                     textSize = 14f; setTextColor(dim); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
                 }
                 val badge = TextView(a).apply { text = n.toString(); textSize = 12f; setTextColor(Color.BLACK); gravity = Gravity.CENTER; minWidth = px(22); setPadding(px(6), px(1), px(6), px(1)); background = bg(green, 11); visibility = if (n > 0) View.VISIBLE else View.GONE }
@@ -2372,13 +2383,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val dayFmt = java.text.SimpleDateFormat("EEEE, d MMMM", Locale.getDefault())
         fun fill() {
             msgs.removeAllViews()
-            var lastDay = ""
+            var lastDay = ""; var prevMine: Boolean? = null
             for (m in k.chat(c.id).takeLast(300).filter { query.isEmpty() || it.text.contains(query, true) }) {
                 val day = dayFmt.format(java.util.Date(m.ts))
                 if (day != lastDay) {
-                    lastDay = day
+                    lastDay = day; prevMine = null
                     msgs.addView(TextView(a).apply {
-                        text = if (when_(m.ts).contains(':')) t("Dzisiaj", "Today") else day; textSize = 12f; setTextColor(dim)
+                        text = when (daysAgo(m.ts)) { 0L -> t("Dzisiaj", "Today"); 1L -> t("Wczoraj", "Yesterday"); else -> day }; textSize = 12f; setTextColor(dim)
                         setPadding(px(10), px(3), px(10), px(3)); background = bg(Color.argb(60, 0, 0, 0), 10)
                         layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = px(10); bottomMargin = px(4) }
                     })
@@ -2406,8 +2417,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     }
                     textSize = 16f; setTextColor(if (m.mine) pal().mineFg else ink)
                     setPadding(px(12), px(7), px(12), px(7))
-                    background = bg(if (m.mine) violet else pal().theirs, 16)
-                    layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(3); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
+                    // pierwszy dymek z serii - „ogonek” (ostry róg od strony nadawcy); kolejne od tej samej osoby bliżej siebie
+                    val series = prevMine == m.mine; val r = px(16).toFloat(); val s = if (series) r else px(4).toFloat()
+                    background = GradientDrawable().apply { setColor(if (m.mine) violet else pal().theirs); cornerRadii = if (m.mine) floatArrayOf(r, r, s, s, r, r, r, r) else floatArrayOf(s, s, r, r, r, r, r, r) }
+                    layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = if (series) px(2) else px(8); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
                     contentDescription = (if (m.mine) t("Ty: ", "You: ") else c.name + ": ") + m.text + ", " + fmt.format(java.util.Date(m.ts)) +
                         if (m.mine) ", " + (if (m.read) t("przeczytane", "read") else if (m.ok) t("doręczone", "delivered") else t("czeka na doręczenie", "waiting")) else ""
                     // 🔗 adresy w wiadomości - stuknięcie otwiera przeglądarkę
@@ -2423,6 +2436,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
+                prevMine = m.mine
             }
             scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
         }

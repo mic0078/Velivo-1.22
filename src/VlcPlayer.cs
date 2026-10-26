@@ -161,21 +161,50 @@ namespace Velivo
             catch (Exception) { return new List<LibraryVideo>(); }
         }
 
+        // odczyt i zapis biblioteki po kolei (wątek okna i zapis w tle): odczyt w trakcie zapisu widział pół pliku - pusta lista zapisana z powrotem skasowałaby bibliotekę
+        static readonly object LibraryLock = new object();
         List<LibraryVideo> LoadLibrary()
         {
-            // plik zapisywany wlasnie przez odtwarzacz (co 10 s) - ponow odczyt; pusta lista zapisana z powrotem skasowalaby biblioteke
-            for (int i = 0; ; i++)
-            {
-                try { return File.Exists(LibraryFile) ? ParseLibrary(File.ReadAllText(LibraryFile)) : new List<LibraryVideo>(); }
-                catch (IOException) when (i < 40) { System.Threading.Thread.Sleep(25); }
-            }
+            // plik zapisywany wlasnie przez inny program (np. synchronizacja) - ponow odczyt
+            lock (LibraryLock)
+                for (int i = 0; ; i++)
+                {
+                    try { return File.Exists(LibraryFile) ? ParseLibrary(File.ReadAllText(LibraryFile)) : new List<LibraryVideo>(); }
+                    catch (IOException) when (i < 40) { System.Threading.Thread.Sleep(25); }
+                }
         }
 
         void SaveLibrary(List<LibraryVideo> lib)
         {
-            try { Directory.CreateDirectory(DataDir); File.WriteAllText(LibraryFile, JsonSerializer.Serialize(lib, new JsonSerializerOptions { WriteIndented = true })); }
-            catch (IOException ex) { App.LogError(ex); }
+            lock (LibraryLock)
+                try { Directory.CreateDirectory(DataDir); File.WriteAllText(LibraryFile, JsonSerializer.Serialize(lib, new JsonSerializerOptions { WriteIndented = true })); }
+                catch (IOException ex) { App.LogError(ex); }
         }
+
+        // ⏱ miejsce w filmie zapisywane w tle, po kolei (kolejność zapisów zachowana - starsze miejsce nie nadpisze nowszego); odtwarzacz nie stoi przy zapisie
+        readonly System.Collections.Concurrent.BlockingCollection<Action> _libQ = new System.Collections.Concurrent.BlockingCollection<Action>();
+        System.Threading.Thread _libThread;
+        void LibWrite(Action job, bool wait = false)
+        {
+            if (_libThread == null)
+            {
+                _libThread = new System.Threading.Thread(() => { foreach (var a in _libQ.GetConsumingEnumerable()) try { a(); } catch (Exception ex) { App.LogError(ex); } }) { IsBackground = true, Name = "Velivo biblioteka" };
+                _libThread.Start();
+            }
+            if (!wait) { _libQ.Add(job); return; }
+            using var done = new System.Threading.ManualResetEventSlim();   // zamykanie Velivo - czekamy (do 5 s), żeby postęp nie zginął razem z procesem
+            _libQ.Add(() => { try { job(); } finally { done.Set(); } });
+            done.Wait(5000);
+        }
+        void SaveProgress(string path, bool shared, long t, long len, bool wait = false) => LibWrite(() =>
+        {
+            lock (LibraryLock)
+            {
+                var l = LoadLibrary(); var v = FindEntry(l, path, shared); if (v == null) return;
+                RecordProgress(v, t, len, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                SaveLibrary(l);
+            }
+        }, wait);
 
         // dodaje pliki (i filmy z podanych folderow, z podfolderami); zwraca liczbe nowych
         internal static int AddToLibrary(List<LibraryVideo> lib, IEnumerable<string> paths, bool? shared = null)
@@ -775,7 +804,10 @@ namespace Velivo
                 }
                 _peerFilms = peerItems.ToList(); fill();   // lista filmow w odtwarzaczu (film z innego komputera)
             };
-            _libRefresh = fill;
+            // schowana biblioteka (film gra) - bez przebudowy listy w wątku okna przy każdym zapisie miejsca (przycięcia obrazu); raz po pokazaniu
+            bool libStale = false;
+            _libRefresh = () => { if (win.IsVisible) fill(); else libStale = true; };
+            win.IsVisibleChanged += (s, a) => { if (win.IsVisible && libStale) { libStale = false; fill(); } };
             list.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler((s, a) =>
             {
                 if (!(a.OriginalSource is GridViewColumnHeader h) || !(h.Tag is string k)) return;
@@ -1628,37 +1660,20 @@ namespace Velivo
                         SendRemoteProgress(rfs, t, len, false);
                         return;
                     }
-                    var l = LoadLibrary();
-                    var v = FindEntry(l, current.Path, IsShared(current));
-                    if (v == null) return;
-                    RecordProgress(v, t, len, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                    SaveLibrary(l);
-                    _libRefresh?.Invoke();
+                    // w tle, po kolei (pauza, zmiana filmu, zamknięcie nie przycinają obrazu); zamykanie Velivo - czekamy na zapis
+                    SaveProgress(current.Path, IsShared(current), t, len, _mainClosing);
+                    LibWrite(() => Dispatcher.BeginInvoke(new Action(() => _libRefresh?.Invoke())));   // lista biblioteki - po zapisie (schowana: raz po pokazaniu)
                 }
                 catch (Exception ex) { App.LogError(ex); }
             };
             var saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
             // co 10 s miejsce w filmie zapisywane w tle (wczytanie i zapis calej biblioteki w watku okna przycinaly obraz);
             // przy pauzie, zmianie filmu i zamknieciu - jak dotad, od razu
-            bool saveBusy = false;
-            saveTimer.Tick += async (s, e) =>
+            saveTimer.Tick += (s, e) =>
             {
-                if (!mp.IsPlaying || current == null || saveBusy || _remoteFilms.ContainsKey(current.Path)) { if (mp.IsPlaying && current != null && !saveBusy) savePos(); return; }
-                long t = mp.Time, len = mp.Length; var cur = current; bool sh = IsShared(cur);
-                saveBusy = true;
-                try
-                {
-                    await System.Threading.Tasks.Task.Run(() =>
-                    {
-                        var l = LoadLibrary();
-                        var v = FindEntry(l, cur.Path, sh);
-                        if (v == null) return;
-                        RecordProgress(v, t, len, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                        SaveLibrary(l);
-                    });
-                }
-                catch (Exception ex) { App.LogError(ex); }
-                finally { saveBusy = false; }
+                if (!mp.IsPlaying || current == null) return;
+                if (_remoteFilms.ContainsKey(current.Path)) { savePos(); return; }   // film z innego komputera - postęp do jego biblioteki
+                SaveProgress(current.Path, IsShared(current), mp.Time, mp.Length);   // w tle, bez przebudowy listy co 10 s
             };
             saveTimer.Start();
 
@@ -1862,6 +1877,9 @@ namespace Velivo
             };
             // straznik kanalu na zywo: obraz stoi (czas sie nie przesuwa) albo strumien sie urwal - ponowne polaczenie
             string curRecFile = null; long recResume = -1; DateTime pausedAt = DateTime.Now;
+            // zatrzymanie VLC poza wątkiem okna, po kolei: zatrzymanie zawieszonego strumienia TV trwało nawet kilka sekund (okno stało przy zmianie kanału i ⏹)
+            var vlcTail = System.Threading.Tasks.Task.CompletedTask; int loadSeq = 0;
+            Func<Action, System.Threading.Tasks.Task> vlcRun = a => vlcTail = vlcTail.ContinueWith(_ => { try { a(); } catch (Exception ex) { App.LogError(ex); } }, System.Threading.Tasks.TaskScheduler.Default);
             bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
             long aPlayed = -1, aVideo = -1; int aSilent = 0; DateTime aReload = DateTime.MinValue;   // straznik dzwieku
             var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -1873,7 +1891,7 @@ namespace Velivo
                 { recResume = -1; _vlcLoad(_playIndex); return; }
                 // opcja: dluga pauza na zywo - polaczenie z dostawca zwolnione (▶ laczy ponownie)
                 if (pth != null && _iptvPlaying.ContainsKey(pth) && mp.State == VLCState.Paused && curRecFile == null && IptvSt.PauseRelease && (DateTime.Now - pausedAt).TotalMinutes >= 5)
-                { userStopped = true; mp.Stop(); showOsd(L.T("⏸ Połączenie z dostawcą zwolnione po 5 min pauzy – ▶ wznawia")); return; }
+                { userStopped = true; vlcRun(() => mp.Stop()); showOsd(L.T("⏸ Połączenie z dostawcą zwolnione po 5 min pauzy – ▶ wznawia")); return; }
                 if (pth == null || !_iptvPlaying.ContainsKey(pth) || userStopped || mp.State == VLCState.Paused) { lastTvProgress = DateTime.Now; return; }
                 // straznik dzwieku: obraz idzie, a dzwiek przestal grac (po dluzszym ogladaniu wyjscie dzwieku VLC potrafi sie
                 // zawiesic - wczesniej pomagalo tylko 🔄 Odswiez). Najpierw ponowne wlaczenie sciezki dzwieku (bez przerwy w obrazie),
@@ -2380,7 +2398,7 @@ namespace Velivo
                 if (idx >= 0) _vlcLoad(idx); else { _iptvPlaying[c.Url] = c; PlayVideos(new[] { c.Url }, 0); }
             };
             Func<int, bool> chJump = to => { var c = chOf(chHist[to]); if (c == null) { showOsd(L.T("Tego kanału nie ma już na liście")); return false; } chPos = to; chNav = true; chGo(c); return true; };
-            _vlcLoad = i =>
+            _vlcLoad = async i =>
             {
                 userStopped = false; lastTvProgress = DateTime.Now;
                 savePos();
@@ -2430,6 +2448,13 @@ namespace Velivo
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
                     if (tv == null && !stream && IsAviFile(path)) media.AddOption(":demux=avformat,any");
                     _aoutFailed = false;
+                    // poprzedni strumień zatrzymany w tle; w międzyczasie kolejny kanał albo zamknięte okno - gra tylko ostatnio wybrany
+                    int seq = ++loadSeq; var ps = mp.State;
+                    if (ps == VLCState.Playing || ps == VLCState.Paused || ps == VLCState.Buffering || ps == VLCState.Opening)
+                    {
+                        await vlcRun(() => mp.Stop());
+                        if (seq != loadSeq || vlcClosed) return;
+                    }
                     try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }
@@ -2723,7 +2748,7 @@ namespace Velivo
                 {
                     var pz = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                     sleepAt = null; savePos();
-                    if (pz != null && _iptvPlaying.ContainsKey(pz)) mp.Stop(); else mp.SetPause(true);   // TV na zywo - pauza nie ma sensu, zatrzymaj
+                    if (pz != null && _iptvPlaying.ContainsKey(pz)) vlcRun(() => mp.Stop()); else mp.SetPause(true);   // TV na zywo - pauza nie ma sensu, zatrzymaj
                     mp.Volume = muted ? 0 : (int)vol.Value;
                     showOsd(L.T("⏾ Wyłącznik czasowy – zatrzymano")); pcOff();
                 }
@@ -3188,7 +3213,7 @@ namespace Velivo
             win.Closed += (s, e) => pipClose();
             // po Stop zamiast czarnego ekranu: film - biblioteka filmow, telewizja - lista kanalow
             Action afterStop = () => { var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p0 != null && _iptvPlaying.ContainsKey(p0)) showChannels(true); else ShowVideoLibrary(win); };
-            stop.Click += (s, e) => { userStopped = true; savePos(); mp.Stop(); LeaveTogether(); afterStop(); };   // Stop konczy wspolne ogladanie tylko tutaj
+            stop.Click += (s, e) => { userStopped = true; savePos(); vlcRun(() => mp.Stop()); LeaveTogether(); afterStop(); };   // Stop konczy wspolne ogladanie tylko tutaj
             prev.Click += (s, e) => step(-1);
             next.Click += (s, e) => step(1);
             back10.Click += (s, e) => jump(-10000);
@@ -3534,7 +3559,7 @@ namespace Velivo
                     case Key.P: step(-1); break;
                     case Key.OemOpenBrackets: setSpeed(-1); break;
                     case Key.OemCloseBrackets: setSpeed(1); break;
-                    case Key.S: userStopped = true; mp.Stop(); afterStop(); break;
+                    case Key.S: userStopped = true; vlcRun(() => mp.Stop()); afterStop(); break;
                     default: h = false; break;
                 }
                 if (h) e.Handled = true;
@@ -3552,7 +3577,7 @@ namespace Velivo
                 if (_playerMp == mp) _playerMp = null;   // zwolniony za 10 s - zegar synchronizacji nie może już pytać „czy gra” (awaria Velivo)
                 vlcClosed = true;
                 // Stop VLC moze chwile trwac - nie w watku okna; zwolnienie pozniej, gdy kolejka okna i jednorazowe zegary (do 1,5 s) juz minely
-                System.Threading.Tasks.Task.Run(async () => { try { mp.Stop(); await System.Threading.Tasks.Task.Delay(10000); mp.Dispose(); } catch (Exception) { } });
+                vlcRun(() => mp.Stop()).ContinueWith(async _ => { try { await System.Threading.Tasks.Task.Delay(10000); mp.Dispose(); } catch (Exception) { } });   // po kolejnych zatrzymaniach (nie w trakcie)
             };
             _vlcWin = win;
             win.Show();

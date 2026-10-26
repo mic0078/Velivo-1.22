@@ -506,6 +506,8 @@ namespace Velivo
         }
 
         static readonly string VlcLogFile = System.IO.Path.Combine(DataDir, "vlc.log");
+        // 🔒 do dziennika tylko serwer - bez ścieżki i zapytania (token IPTV, login i hasło w adresie listy kanałów nigdy nie trafiają do pliku)
+        static string VlcLogSafe(string s) => s == null ? "" : System.Text.RegularExpressions.Regex.Replace(s, @"((?:https?|rtsp|rtmp|udp|mms)://)(?:[^@/\s]*@)?([^/\s?#]+)[^\s]*", "$1$2/…", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         // wznowic od zapisanego miejsca? true = wznow, false = od poczatku; "zapamietaj" - ustawienie na stale (bez pytania)
         bool? AskResume(Window owner, long at)
         {
@@ -1103,7 +1105,7 @@ namespace Velivo
                     if (e.Message != null && e.Message.Contains("failed to create audio output")) _aoutFailed = true;
                     bool audio = e.Module != null && (e.Module.Contains("mmdevice") || e.Module.Contains("wasapi") || e.Module.Contains("directsound") || e.Module.Contains("a52") || e.Module == "main" && (e.Message ?? "").Contains("output"));
                     if (e.Level < LogLevel.Warning && !audio) return;   // szczegoly wyjscia dzwieku zawsze
-                    try { lock (VlcLogFile) { var f = new FileInfo(VlcLogFile); if (!f.Exists || f.Length < 512 * 1024) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + e.Message + "\n"); } } catch (Exception) { }
+                    try { lock (VlcLogFile) { var f = new FileInfo(VlcLogFile); if (!f.Exists || f.Length < 512 * 1024) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " " + e.Level + " " + e.Module + ": " + VlcLogSafe(e.Message) + "\n"); } } catch (Exception) { }
                 };
                 return true;
             }
@@ -1470,7 +1472,7 @@ namespace Velivo
                         foreach (var a in at) full.AppendLine(L.T("Dźwięk: ") + CodecName(a.Codec) + "  " + ChannelsName(a.Data.Audio.Channels) + "  " + (a.Data.Audio.Rate / 1000.0).ToString("0.#") + " kHz" + (string.IsNullOrEmpty(a.Language) ? "" : "  [" + a.Language + "]") + (string.IsNullOrEmpty(a.Description) ? "" : "  " + a.Description));
                         int subsN = tr.Count(x => x.TrackType == TrackType.Text); if (subsN > 0) full.AppendLine(L.T("Napisy w pliku: ") + subsN);
                         techFull = full.ToString().TrimEnd();
-                        try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, "--- dane filmu ---\n" + techFull.Replace("\r", "") + "\n------------------\n"); } catch (Exception) { }   // przy zgloszeniu problemu od razu widac, co to za plik
+                        try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, "--- dane filmu ---\n" + VlcLogSafe(techFull.Replace("\r", "")) + "\n------------------\n"); } catch (Exception) { }   // przy zgloszeniu problemu od razu widac, co to za plik
                     }
                     if (md != null && (mp.IsPlaying || mp.State == VLCState.Paused))
                     {
@@ -2423,7 +2425,7 @@ namespace Velivo
                     // AVI: naglowek kontenera bywa sprzeczny ze sciezka AC3 (2 kanaly zamiast 5.1) - czytnik VLC daje cisze albo dziwne dzwieki; czytnik ffmpeg czyta naglowek AC3
                     if (tv == null && !stream && IsAviFile(path)) media.AddOption(":demux=avformat,any");
                     _aoutFailed = false;
-                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + path + "\nVLC: " + _libVlcKey + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
+                    try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }
                 long resume = current != null ? ResumeAt(current.Pos, current.Len) : 0;

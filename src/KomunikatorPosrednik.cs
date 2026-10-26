@@ -465,7 +465,7 @@ namespace Velivo
                 {
                     _komRemote.TryRemove(id, out _);
                     var bye = new JsonObject { ["t"] = "p2p-bye", ["id"] = id, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };   // w domu od razu "poza siecia"
-                    KomLanRaw(bye, null);
+                    KomLanRaw(KomFwd(bye), null);   // przekazane (fwd) - inaczej echo u pośrednika = „w domu” pod jego własnym adresem (pliki do tego urządzenia trafiały do pośrednika)
                     _ = Dispatcher.BeginInvoke(new Action(() => { _komLastSeen.Remove(id); KomRelayStatus(); _komRefresh?.Invoke(); }));
                 }
                 try { fs?.Dispose(); } catch (Exception) { }

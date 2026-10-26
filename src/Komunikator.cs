@@ -848,6 +848,11 @@ namespace Velivo
             try
             {
                 IPAddress.TryParse(c.Addr ?? "", out var addr);
+                if (_komUp == null && _komViaNet.ContainsKey(c.Id) && !_komRemote.ContainsKey(c.Id))
+                {   // odbiorca poza domem (🌍), ten komputer w domu - przez skrzynkę pośrednika (stary adres z sieci domowej nie działa)
+                    if (await KomSendViaBox(c, m.Path, m.Mid) == "ok") { m.Ok = true; m.Text += L.T(" – 📬 czeka na serwerze"); KomSave(); _komRefresh?.Invoke(); }
+                    return;
+                }
                 var r = await KomSendFile(addr ?? IPAddress.Loopback, m.Path, _ => { }, c, null, m.Mid);
                 if (r == "ok") { m.Ok = true; m.Text += L.T(" – odebrano"); KomSave(); _komRefresh?.Invoke(); }
                 else if (r == L.T("odrzucono")) { KomChat(c.Id).Remove(m); KomSave(); _komRefresh?.Invoke(); }
@@ -987,6 +992,7 @@ namespace Velivo
                 return true;
             }
             if (type == "p2p-file" && toId != null && toId != _komId && _komRemote.ContainsKey(toId)) { await KomRelayToRemote(toId, headerBytes, stream, token); return true; }
+            if (type == "p2p-file" && !string.IsNullOrEmpty(toId) && toId != _komId) return true;   // plik dla kogoś innego (np. odbiorca poza domem chwilowo bez połączenia) - bez pytania o kod; nadawca odda go do 📬
             try { if (type == "p2p-pair") await KomReceivePair(h, stream, remote, token); else await KomReceiveFile(h, stream, token); }
             catch (Exception ex) { if (!token.IsCancellationRequested) App.LogError(ex); }
             return true;

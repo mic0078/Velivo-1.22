@@ -760,7 +760,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun handleTcp(h: JSONObject, inp: DataInputStream, sock: java.net.Socket): Boolean = handleTcp(h, Conn(inp, sock.getOutputStream(), sock.inetAddress, sock))
     fun handleTcp(h: JSONObject, c: Conn): Boolean = when (h.optString("Type")) {
         "p2p-pair" -> { runCatching { receivePair(h, c) }; true }
-        "p2p-file", "p2p-box" -> { runCatching { receiveFile(h, c) }; true }
+        "p2p-file", "p2p-box" -> { if (h.optString("To").let { it.isEmpty() || it == myId }) runCatching { receiveFile(h, c) }; true }   // plik dla kogoś innego - bez pytania o kod
         else -> false
     }
 
@@ -1510,7 +1510,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (!inFlight.add(m.mid)) return@forEach
             Thread {
                 runCatching {
-                    val f = java.io.File(m.path!!); val target = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull() ?: InetAddress.getLoopbackAddress()
+                    val f = java.io.File(m.path!!); val target = if (viaInternet(c.id)) InetAddress.getLoopbackAddress() else runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull() ?: InetAddress.getLoopbackAddress()
                     sendFile(target, f.name.removePrefix("wyslane-${m.mid}-"), f.length(), { f.inputStream() }, {}, c, m)
                 }
                 inFlight.remove(m.mid)

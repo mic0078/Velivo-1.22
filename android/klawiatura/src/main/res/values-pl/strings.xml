@@ -95,4 +95,8 @@
     <string name="kb_bl_score">Opanowane: %1$d z %2$d</string>
     <string name="kb_bl_help">Połóż palce na punktach litery i podnieś · → następna · ← poprzednia · ↓ tryb · 2 palce ↓ wyjście</string>
     <string name="kb_m_more">⋯ Wszystkie funkcje</string>
+    <string name="kb_clear_learned">🧹 Wyczyść wyuczone dane</string>
+    <string name="kb_clear_learned_tip">Usuwa to, czego klawiatura nauczyła się z Twojego pisania (częste słowa i pary słów, Twoje poprawki, kształty pisania przeciągnięciem). Moje słowa zostają.</string>
+    <string name="kb_clear_yes">Wyczyść</string>
+    <string name="kb_clear_done">Wyuczone dane wyczyszczone – Moje słowa zostały</string>
 </resources>

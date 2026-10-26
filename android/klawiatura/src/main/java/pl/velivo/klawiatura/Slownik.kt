@@ -82,7 +82,13 @@ object Slownik {
     private val ownFold = HashMap<String, String>()
     // nauka wyborów: ile razy użytkownik napisał / wybrał słowo - częściej używane wyżej
     var useCount: ((String) -> Int)? = null
-    private fun score(e: Entry): Double { val n = runCatching { useCount?.invoke(e.word) ?: 0 }.getOrDefault(0); return e.rank / (1.0 + 3.0 * min(n, 50)) }
+    // wyuczone słowa (także spoza słownika: nazwiska, miejsca, słowa użytkownika) - przegląd w podpowiedziach; tylko w telefonie
+    var learnedEach: (((String, Int) -> Unit) -> Unit)? = null
+    // 🕘 ostatnio używane słowa - nieco wyżej (nie tylko one)
+    private val recent = LinkedHashSet<String>()
+    fun noteRecent(w: String) = synchronized(recent) { recent.remove(w); recent.add(w); if (recent.size > 150) recent.remove(recent.first()) }
+    private fun isRecent(w: String) = synchronized(recent) { w in recent }
+    private fun score(e: Entry): Double { val n = runCatching { useCount?.invoke(e.word) ?: 0 }.getOrDefault(0); return e.rank / (1.0 + 3.0 * min(n, 50)) * (if (isRecent(e.word)) 0.6 else 1.0) }
     private fun fold(w: String) = w.lowercase().map(::baseKey).joinToString("")
     // sąsiednie klawisze (QWERTY) - typowa pomyłka palca
     private val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
@@ -158,6 +164,7 @@ object Slownik {
         if (keep != null && w in keep) return null
         val f = fold!!; val m = main!!
         synchronized(myFix) { myFix[w] }?.let { return cap(typed, it) }
+        if (w !in m && runCatching { useCount?.invoke(w) ?: 0 }.getOrDefault(0) >= 3) return null   // często pisane przez użytkownika (nazwisko, miejsce, termin) - zostaje
         if (w == "ze") return null
         if (w in polite) return if (typed[0] == typed[0].uppercaseChar()) null else polite(w)
         phraseFix[fold(w)]?.let { if (it != w) return cap(typed, it) }
@@ -184,7 +191,9 @@ object Slownik {
         var best: Entry? = foldAll?.get(fw)?.minByOrNull(::score) ?: f[fw]
         val ownSame = synchronized(ownFold) { ownFold[fw] }
         if (best == null && ownSame != null && ownSame != w) best = Entry(ownSame, "", 3000)
-        else if (best == null && w.length >= 4) {
+        // podwójna litera wciśnięta przypadkiem (kottek -> kotek) - przed zamianą litery na sąsiednią (nie „kostek”)
+        if (best == null && w.length >= 4) for (i in 0 until fw.length - 1) if (fw[i] == fw[i + 1]) f[fw.removeRange(i, i + 1)]?.let { e -> if (e.rank < 60000 && (best == null || score(e) < score(best!!))) best = e }
+        if (best == null && w.length >= 4) {
             // ostatnia litera zwykle wpisana dobrze: dzialc -> działać (nie działce)
             var bk = Double.MAX_VALUE
             variants(fw) { v -> val e = f[v]; if (e != null && (anyRank || e.rank < 15000)) { val key = score(e) * (if (v.last() == fw.last()) 1.0 else 50.0); if (key < bk) { bk = key; best = e } } }
@@ -294,6 +303,11 @@ object Slownik {
         all[fw]?.sortedBy(::score)?.forEach { add(it.word) }
         synchronized(ownFold) { ownFold[fw] }?.let { add(it) }
         if (!done && fw.length >= 2 && res.size < count) {
+            val mm = main
+            val userWords = ArrayList<Pair<String, Int>>()
+            learnedEach?.invoke { k, n -> if (n >= 2 && k.length > fw.length && k[0].let(::baseKey) == fw[0] && (mm == null || k !in mm) && fold(k).startsWith(fw)) userWords.add(k to n) }
+            userWords.sortedByDescending { it.second }.take(3).forEach { add(it.first) }
+            synchronized(recent) { recent.toList().asReversed().filter { it.length > fw.length && fold(it).startsWith(fw) }.take(2) }.forEach { add(it) }   // 🕘 ostatnio użyte (najnowsze najpierw)
             var lo = 0; var hi = sf.size
             while (lo < hi) { val mid = (lo + hi) / 2; if (sf[mid] < fw) lo = mid + 1 else hi = mid }
             val comp = ArrayList<Entry>()
@@ -583,5 +597,5 @@ object Slownik {
     }
 
     // nowy język: nauka zostaje (słowa, pary), słownik główny od nowa
-    fun clearLearned() { synchronized(mine) { mine.clear() }; synchronized(pairs) { pairs.clear() }; synchronized(myFix) { myFix.clear() }; synchronized(sentences) { sentences.clear() } }
+    fun clearLearned() { synchronized(mine) { mine.clear() }; synchronized(pairs) { pairs.clear() }; synchronized(myFix) { myFix.clear() }; synchronized(sentences) { sentences.clear() }; synchronized(recent) { recent.clear() } }
 }

@@ -241,7 +241,8 @@ The same keyboard as on the computer, in Velivo colours (dark, light or black-an
 * **Swipe typing (flow):** slide your finger across the letters. Wrong word: ⌫ removes it, or pick another from the suggestion bar.
 * **Polish letters:** hold a letter (a → ą) or turn on the **ą** key.
 * **Autocorrect ✓**; ⌫ right after a correction restores what you typed.
-* **Suggestion bar:** completions, next word, ➕ adds a new word to My dictionary.
+* **Suggestion bar:** up to 6 words (slide the bar with a finger, “›” – there are more): completions, next word, ➕ adds a new word to My dictionary. Words you use often (also names and places outside the dictionary) and recently typed ones come first. When a word was uncertain, after space the bar shows other options – a tap replaces the previous word. The keyboard remembers a correction you picked (next time it fixes it by itself). A capitalised word mid-sentence (name) is not corrected.
+* **🧹 Clear learned data** (keyboard app): deletes frequent words, pairs, remembered corrections and undone corrections – My dictionary stays.
 * **📖 My dictionary:** one word per line – add or delete.
 * **😀 Emoji** – the key next to space (an @ in e-mail fields): categories on top (🕘 recently used, smileys, feelings, gestures, hearts, animals, food, travel, things) and **GIF**.
 * **🎞 GIFs from the phone** (Downloads and Pictures) – no third-party servers (Gboard searches Tenor by Google). First time: **🎞 Allow GIFs from the phone** in the keyboard app. The GIF goes to apps that accept them (WhatsApp, Messages, Velivo messenger…).

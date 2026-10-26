@@ -96,6 +96,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-26: biblioteka i lista TV otwarte z odtwarzacza znikały razem z nim (Owner = odtwarzacz), a biblioteka zamykała się przy włączeniu filmu; teraz Owner = okno Velivo, biblioteka chowana i wraca po zamknięciu odtwarzacza. Okna podrzędne zamykają się z właścicielem – sprawdzaj Owner.
 * 2026-10-26: pomoc zdalna zawieszała okna Velivo (minimalizuj/zamknij) – SendInput w wątku okna, a pętla Windows przy przycisku paska tytułu czekała na „puść” stojące w kolejce tego wątku; teraz osobny wątek sterowania.
 * 2026-10-26: przycięcia odtwarzacza/TV – Stop VLC (zmiana kanału, ⏹) w wątku okna czekał na zawieszony strumień, zapis postępu czytał i zapisywał całą bibliotekę w wątku okna, schowana biblioteka się przebudowywała; teraz kolejka VLC w tle (`vlcRun`, `loadSeq`), zapis postępu w tle po kolei (`LibraryLock`). PiP bez zmian.
+* 2026-10-26: klawiatura dawała mało podpowiedzi przy dużym słowniku – 3 miejsca w pasku, słowa użytkownika spoza słownika nigdy nie podpowiadane, wybrana poprawka niezapamiętana (learnFix nieużywane), imiona poprawiane; teraz 6 (przewijane), słowa użytkownika i ostatnie wyżej, inne możliwości po niepewnym słowie. Czyszczenie z ustawień musi też czyścić kopię w działającej klawiaturze (keep).
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

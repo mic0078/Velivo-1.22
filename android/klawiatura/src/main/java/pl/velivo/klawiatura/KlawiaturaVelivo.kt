@@ -106,6 +106,7 @@ class KlawiaturaVelivo : InputMethodService() {
                         own.forEach { Slownik.addUserWord(it) }
                     }
                     Slownik.useCount = { w -> synchronized(learned) { learned[w] ?: 0 } }
+                    Slownik.learnedEach = { f -> synchronized(learned) { learned.forEach { (k, v) -> f(k, v) } } }
                 }
                 Handler(Looper.getMainLooper()).post { done?.invoke() }
             }.start()
@@ -128,6 +129,12 @@ class KlawiaturaVelivo : InputMethodService() {
         fun saveNow(ctx: Context) { if (saveDue) { saveDue = false; val c = ctx.applicationContext; saver.execute { save(c) } } }
 
         fun ownWords(): List<String> = synchronized(learned) { own.sorted() }
+        // 🧹 wyuczone dane (częstość, pary słów, poprawki, kształty pisania przeciągnięciem, cofnięte poprawki) - Moje słowa zostają
+        @Volatile private var clearedAt = 0L   // działająca klawiatura czyści swoje cofnięte poprawki przy następnym polu
+        fun clearLearned(ctx: Context) {
+            synchronized(learned) { learned.clear(); Slownik.clearLearned() }
+            prefs(ctx).edit().remove("bez-korekty").apply(); clearedAt = System.currentTimeMillis(); save(ctx)
+        }
         // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)
         fun setOwnWords(ctx: Context, list: List<String>) {
             synchronized(learned) {
@@ -150,7 +157,10 @@ class KlawiaturaVelivo : InputMethodService() {
     private var prevWord: String? = null; private var prevWord2: String? = null
     private var fixFrom: String? = null; private var fixTo: String? = null; private var fixSep = ""
     private val keep by lazy { HashSet(prefs(this).getStringSet("bez-korekty", emptySet()) ?: emptySet()) }   // cofnięte poprawki (⌫) - zapamiętane na stałe, tych słów już nie poprawiamy
+    private var keepAt = 0L
     private var addAsk: String? = null    // „Dodać do słownika?”
+    private var prevAlts: Pair<String, List<String>>? = null   // ostatnie słowo niepewne (bez poprawki): propozycje do wyboru w pasku
+    private val SUG = 6   // propozycji w pasku (3 widoczne, reszta po przesunięciu palcem)
     private var sentence = StringBuilder()
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
     private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
@@ -261,6 +271,7 @@ class KlawiaturaVelivo : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        if (keepAt != clearedAt) { keep.clear(); keepAt = clearedAt }
         load(this) { view.refresh() }
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
         val v = info.inputType and InputType.TYPE_MASK_VARIATION
@@ -305,7 +316,7 @@ class KlawiaturaVelivo : InputMethodService() {
     // --- pisanie ---
     private fun type(c: Char) {
         val ic = currentInputConnection ?: return
-        fixFrom = null; addAsk = null; lastSwipe = null
+        fixFrom = null; addAsk = null; lastSwipe = null; prevAlts = null
         var ch = c
         if (alt) { val i = "acelnoszx".indexOf(ch.lowercaseChar()); if (i >= 0) ch = "ąćęłńóśżź"[i]; if (!caps) alt = false }
         val up = shift xor caps
@@ -338,14 +349,18 @@ class KlawiaturaVelivo : InputMethodService() {
         val w = before(48).takeLastWhile { it.isLetter() }.ifEmpty { cur }.takeIf { it.isNotEmpty() && before(it.length) == it } ?: ""; cur = ""
         if (prevWord == null && w.isNotEmpty()) before(120).dropLast(w.length).trimEnd().split(' ', '\n').lastOrNull { it.isNotEmpty() }?.trim(',', '.', '!', '?', ';', ':')?.takeIf { it.all(Char::isLetter) }?.let { prevWord = it.lowercase() }
         var out = w
+        // wielka litera w środku zdania (nazwisko, miejsce, firma) - bez samej poprawki, tylko propozycje
+        val name = w.isNotEmpty() && w[0].isUpperCase() && before(w.length + 3).dropLast(w.length).trimEnd().let { it.isNotEmpty() && it.last() !in ".!?\n" }
         if (w.isNotEmpty() && !secret) {
-            val fix = if (pref("klaw-korekta")) Slownik.complete(w, keep) ?: Slownik.contextFix(prevWord, w, keep) else null
+            val fix = if (pref("klaw-korekta") && !name) Slownik.complete(w, keep) ?: Slownik.contextFix(prevWord, w, keep) else null
             Slownik.zeNow(fix ?: w, prevWord)?.let { out = it } ?: run { if (fix != null) out = fix }
             if (out != w) {
                 ic.beginBatchEdit(); ic.deleteSurroundingText(w.length, 0); ic.commitText(out, 1); ic.endBatchEdit()
                 fixFrom = w; fixTo = out; fixSep = sep
             }
             afterWord(out)
+            if (out == w && sep == " ") Slownik.suggest(w, keep, SUG).takeIf { it.isNotEmpty() }?.let { prevAlts = w to it }   // niepewne - wybór w pasku
+            if (name && out == w && !Slownik.isKnown(w.lowercase()) && synchronized(learned) { w.lowercase() !in own }) addAsk = w   // ➕ zapamiętać nazwisko / nazwę
         }
  
         // interpunkcja jak w Velivo na Windows: znak przylega do słowa ("kot ." -> "kot."), po , ; : ! ? spacja przed następnym słowem
@@ -387,7 +402,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val lw = wd.lowercase()
         Slownik.learnPair(prevWord, lw); Slownik.learnTriple(prevWord2, prevWord, lw); prevWord2 = prevWord; prevWord = lw
         if (sentence.isNotEmpty()) sentence.append(' '); sentence.append(wd)
-        synchronized(learned) { learned[lw] = (learned[lw] ?: 0) + 1 }
+        synchronized(learned) { learned[lw] = (learned[lw] ?: 0) + 1 }; Slownik.noteRecent(lw)
         if (lw != "ze" && !Slownik.isKnown(lw) && !Slownik.isTypo(lw) && lw !in own) addAsk = wd
         saveSoon(this)
     }
@@ -446,7 +461,13 @@ class KlawiaturaVelivo : InputMethodService() {
             ic.beginBatchEdit(); ic.deleteSurroundingText(swipe.length + 1, 0); ic.commitText("$s ", 1); ic.endBatchEdit()
             Slownik.forgetShape(swipe); Slownik.learnShape(s, lastTrace, lastKeyW); lastSwipe = s
         } else if (cur.isNotEmpty()) {
+            if (!Slownik.isKnown(cur.lowercase())) Slownik.learnFix(cur, s)   // wybrane zamiast wpisanego - następnym razem poprawi samo (typowe błędy użytkownika)
             ic.beginBatchEdit(); ic.deleteSurroundingText(cur.length, 0); ic.commitText("$s ", 1); ic.endBatchEdit(); cur = ""
+        } else if (prevAlts != null && before(prevAlts!!.first.length + 1) == prevAlts!!.first + " ") {
+            val w = prevAlts!!.first; prevAlts = null   // niepewne słowo zamienione na wybrane
+            Slownik.learnFix(w, s); synchronized(learned) { learned[w.lowercase()]?.let { if (it <= 1) learned.remove(w.lowercase()) else learned[w.lowercase()] = it - 1 } }
+            ic.beginBatchEdit(); ic.deleteSurroundingText(w.length + 1, 0); ic.commitText("$s ", 1); ic.endBatchEdit()
+            synchronized(learned) { learned[s.lowercase()] = (learned[s.lowercase()] ?: 0) + 1 }; prevWord = s.lowercase(); saveSoon(this); autoShift(); view.refresh(); return
         } else {
             val b = before(1)
             ic.commitText((if (b.isNotEmpty() && !b.endsWith(" ") && !b.endsWith("\n")) " " else "") + s + " ", 1)
@@ -475,14 +496,16 @@ class KlawiaturaVelivo : InputMethodService() {
 
     private fun suggestions(): List<String> {
         if (secret || !Slownik.loaded) return emptyList()
-        lastSwipe?.let { if (swipeAlts.isNotEmpty()) return swipeAlts.take(3) }
+        lastSwipe?.let { if (swipeAlts.isNotEmpty()) return swipeAlts.take(SUG) }
         if (cur.isNotEmpty()) {
-            val p = Slownik.predict(cur, false, 3).toMutableList()
-            Slownik.suggest(cur, keep, 3).forEach { if (p.size < 3 && it !in p) p.add(it) }
+            // dokończenia i inne formy, wyuczone słowa użytkownika, poprawki literówek - do 6 (pasek przewijany palcem)
+            val p = Slownik.predict(cur, false, SUG).toMutableList()
+            Slownik.suggest(cur, keep, SUG).forEach { if (p.size < SUG && it !in p) p.add(it) }
             Slownik.joinNie(prevWord, cur)?.let { p.add(0, it) }
-            return p.take(3)
+            return p.take(SUG)
         }
-        return Slownik.nextWords(prevWord, prevWord2, 3)
+        prevAlts?.let { return it.second }   // niepewne słowo zostało - kilka propozycji zamiast narzuconej poprawki
+        return Slownik.nextWords(prevWord, prevWord2, SUG)
     }
 
     // --- mowa: czytanie na głos i dyktowanie ---
@@ -643,10 +666,10 @@ class KlawiaturaVelivo : InputMethodService() {
                 for (k in row) { k.r.set(kx + 2 * dp, y + 3 * dp, kx + u * k.w - 2 * dp, y + keyH - 3 * dp); kx += u * k.w; keys.add(k) }
                 y += keyH
             }
-            sugR.clear()
+            sugR.clear(); sugX = 0f
             val sw = (width - pad * 2) / 3
-            sugList.take(3).forEachIndexed { i, s -> sugR.add(RectF(pad + sw * i, headH, pad + sw * (i + 1), headH + sugH) to s) }
-            addAsk?.let { a -> if (sugList.size < 3) sugR.add(RectF(pad + sw * sugList.size.coerceAtMost(2), headH, width - pad, headH + sugH) to "➕$a") }
+            // ➕ „zapamiętać słowo?” na początku (widoczne), potem do 6 propozycji - 3 na ekranie, reszta po przesunięciu paska palcem
+            ((addAsk?.let { listOf("➕$it") } ?: emptyList()) + sugList).forEachIndexed { i, s -> sugR.add(RectF(pad + sw * i, headH, pad + sw * (i + 1), headH + sugH) to s) }
         }
 
         private fun label(k: K): String {
@@ -700,11 +723,17 @@ class KlawiaturaVelivo : InputMethodService() {
             }
             // pasek propozycji
             tp.typeface = Typeface.DEFAULT; tp.textSize = 17 * dp
-            if (!tools || menuOpen) sugR.forEachIndexed { i, (r, s) ->
-                if (i > 0) { p.color = dim; p.alpha = 70; cv.drawRect(r.left, r.top + 10 * dp, r.left + dp, r.bottom - 10 * dp, p); p.alpha = 255 }
-                tp.color = text
-                val t = if (s.startsWith("➕")) "➕ " + getString(R.string.kb_add, s.substring(1)) else s
-                cv.drawText(fit(t, r.width() - 8 * dp), r.centerX(), r.centerY() + 6 * dp, tp)
+            if (!tools || menuOpen) {
+                cv.save(); cv.clipRect(0f, headH, w, headH + sugH)
+                sugR.forEachIndexed { i, (r0, s) ->
+                    val r = RectF(r0.left - sugX, r0.top, r0.right - sugX, r0.bottom)
+                    if (i > 0) { p.color = dim; p.alpha = 70; cv.drawRect(r.left, r.top + 10 * dp, r.left + dp, r.bottom - 10 * dp, p); p.alpha = 255 }
+                    tp.color = text
+                    val t = if (s.startsWith("➕")) "➕ " + getString(R.string.kb_add, s.substring(1)) else s
+                    cv.drawText(fit(t, r.width() - 8 * dp), r.centerX(), r.centerY() + 6 * dp, tp)
+                }
+                cv.restore()
+                if ((sugR.lastOrNull()?.first?.right ?: 0f) - sugX > w + 1) { tp.color = dim; cv.drawText("›", w - 6 * dp, headH + sugH / 2 + 6 * dp, tp) }   // więcej propozycji - przesuń palcem
             }
             // menu pod logo V: wszystkie funkcje i opcje w kafelkach (zamiast klawiszy)
             if (menuOpen) {
@@ -764,6 +793,7 @@ class KlawiaturaVelivo : InputMethodService() {
             }
         }
 
+        private var sugX = 0f; private var sugStart = 0f   // przesunięcie paska propozycji palcem
         private var tools = false; private var toolX = 0f; private var toolStart = 0f; private var toolPressed: String? = null
         private val toolW get() = 52 * dp
         private fun toolList() = menuItems.filter { it.second != "back" }.sortedByDescending { prefs(context).getInt("narz-" + it.second, 0) } + ("⋯" to "more")
@@ -817,7 +847,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     if (y < headH && x < (head.minOfOrNull { it.r.left } ?: width.toFloat())) { if (menuOpen) menuOpen = false else { tools = !tools; toolX = 0f }; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED); invalidate(); return true }   // logo V: pasek narzędzi (klawisze zostają)
                     if (menuOpen && y >= headH) { pressed = menu.firstOrNull { it.r.contains(x, y) }; pressed?.let { k -> postDelayed({ if (pressed === k) { longDone = true; tip(menuName(k.code)) } }, 500) }; invalidate(); return true }
                     if (y < headH) { pressed = head.firstOrNull { it.r.contains(x, y) }; pressed?.let { k -> postDelayed({ if (pressed === k) { longDone = true; tip(headTip(k.code)) } }, 500) }; invalidate(); return true }
-                    if (y < headH + sugH) { pressed = null; if (tools) { toolStart = toolX; toolPressed = toolAt(x)?.second; postDelayed(toolTip, 500); invalidate() }; return true }
+                    if (y < headH + sugH) { pressed = null; sugStart = sugX; if (tools) { toolStart = toolX; toolPressed = toolAt(x)?.second; postDelayed(toolTip, 500); invalidate() }; return true }
                     pressed = keyAt(x, y); trace.add(Slownik.P(x.toDouble(), y.toDouble()))
                     click(); performHapticFeedback(HAPTIC_FEEDBACK_ENABLED)
                     waveX = pressed?.r?.centerX() ?: x; waveY = pressed?.r?.centerY() ?: y; waveAt = SystemClock.uptimeMillis()
@@ -829,6 +859,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     if (downY < headH + sugH) {   // pasek narzędzi przewijany palcem
                         if (tools && kotlin.math.abs(x - downX) > 10 * dp) { removeCallbacks(toolTip); toolPressed = null
                             toolX = (toolStart - (x - downX)).coerceIn(0f, max(0f, toolList().size * toolW + 8 * dp - width)); invalidate() }
+                        else if (!tools && kotlin.math.abs(x - downX) > 10 * dp) { sugX = (sugStart - (x - downX)).coerceIn(0f, max(0f, (sugR.lastOrNull()?.first?.right ?: 0f) + 4 * dp - width)); invalidate() }   // więcej propozycji
                         return true
                     }
                     if (k.code == "space" && !longDone) {   // ⇔ palec po spacji - kursor w lewo / w prawo
@@ -858,7 +889,8 @@ class KlawiaturaVelivo : InputMethodService() {
                         }
                         invalidate(); return true
                     }
-                    if (downY < headH + sugH) { sugR.firstOrNull { it.first.contains(x, y) }?.second?.let { s -> if (s.startsWith("➕")) addWord(s.substring(1)) else pick(s) }; return true }
+                    if (downY < headH + sugH) { if (kotlin.math.abs(x - downX) > 10 * dp) return true   // przesunięty pasek - bez wyboru
+                        sugR.firstOrNull { it.first.contains(x + sugX, y) }?.second?.let { s -> if (s.startsWith("➕")) addWord(s.substring(1)) else pick(s) }; return true }
                     if (swiping) {
                         swiping = false
                         val centers = HashMap<Char, Slownik.P>()

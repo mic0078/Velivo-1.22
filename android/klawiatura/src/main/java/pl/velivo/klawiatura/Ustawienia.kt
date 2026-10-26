@@ -48,6 +48,12 @@ open class Ustawienia : Activity() {
         button(R.string.kb_theme, R.string.kb_theme_tip) { chooseTheme() }
         button(R.string.kb_height, R.string.kb_height_tip) { chooseHeight() }
         button(R.string.kb_words, R.string.kb_words) { showWords() }
+        // 🧹 wyuczone dane (częstość, pary słów, poprawki) - za zgodą; Moje słowa zostają
+        button(R.string.kb_clear_learned, R.string.kb_clear_learned_tip) {
+            AlertDialog.Builder(this).setTitle(R.string.kb_clear_learned).setMessage(R.string.kb_clear_learned_tip)
+                .setPositiveButton(R.string.kb_clear_yes) { _, _ -> KlawiaturaVelivo.load(this) { KlawiaturaVelivo.clearLearned(this); Toast.makeText(this, R.string.kb_clear_done, Toast.LENGTH_LONG).show() } }
+                .setNegativeButton(android.R.string.cancel, null).show()
+        }
         button(R.string.kb_gif_allow, R.string.kb_gif_tip) { askGif() }
         // 🔍 powiększona litera nad palcem - wł./wył. (domyślnie wł.)
         val pr = KlawiaturaVelivo.prefs(this)

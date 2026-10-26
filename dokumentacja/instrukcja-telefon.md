@@ -241,7 +241,8 @@ Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub 
 * **Pisanie przeciągnięciem (flow):** przeciągnij palcem po literach słowa. Zły wynik: ⌫ usuwa całe słowo albo wybierz inne z paska propozycji.
 * **Polskie litery:** przytrzymaj literę (a → ą) albo włącz klawisz **ą**.
 * **Autokorekta ✓** (np. zolw → żółw, napewno → na pewno, ze → że), przecinek przed „że”, „który”; ⌫ zaraz po poprawce przywraca wpisane słowo.
-* **Pasek propozycji:** dokończenia, następne słowo, ➕ dodaje nowe słowo do Mojego słownika.
+* **Pasek propozycji:** do 6 słów (przesuń pasek palcem, „›” – jest więcej): dokończenia, następne słowo, ➕ dodaje nowe słowo do Mojego słownika. Słowa, których często używasz (także nazwiska i miejsca spoza słownika), i ostatnio pisane są wyżej. Gdy słowo było niepewne, po spacji pasek pokazuje inne możliwości – stuknięcie podmienia poprzednie słowo. Wybraną poprawkę klawiatura zapamiętuje (następnym razem poprawi sama). Słowo z wielkiej litery w środku zdania (imię, nazwa) nie jest poprawiane.
+* **🧹 Wyczyść wyuczone dane** (aplikacja klawiatury): kasuje częste słowa, pary, zapamiętane poprawki i cofnięte poprawki – Mój słownik zostaje.
 * **📖 Mój słownik:** jedno słowo w linii – dopisz lub skasuj.
 * **😀 Emotki** – klawisz obok spacji (w polu e-mail jest tam @): kategorie u góry (🕘 ostatnio używane, buźki, uczucia, gesty, serca, zwierzęta, jedzenie, podróże, rzeczy) i **GIF**.
 * **🎞 GIF-y z telefonu** (z Pobranych i Obrazów) – bez cudzych serwerów (Gboard szuka w Tenor Google). Za pierwszym razem: **🎞 Pozwól na GIF-y z telefonu** w aplikacji klawiatury. GIF trafia do aplikacji, która je przyjmuje (WhatsApp, Wiadomości, Komunikator Velivo…).

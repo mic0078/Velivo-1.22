@@ -217,7 +217,8 @@ Velivo odtwarza wszystko biblioteką VLC – tą samą co Velivo na Windows: kan
 ### 🎬 Biblioteka (Jellyfin)
 
 - **Bez kluczy API:** Velivo samo znajduje serwer Jellyfin w sieci domowej → wybierz użytkownika → hasło. Serwer daje telefonowi własny token (widoczny w Jellyfin → Urządzenia, można go odwołać). Albo ustawienia przychodzą z komputera.
-- **📂 Klucz API z pliku:** ustawienia Jellyfin → **📂 Wczytaj klucz API z pliku (api.txt)…** – wybierz plik .txt z kluczem (32 znaki 0–9, a–f). Adres serwera: z pliku (http://…:8096), inaczej obecny albo znaleziony w sieci domowej.
+- **📂 Klucz API z pliku:** ustawienia Jellyfin → **📂 Wczytaj klucz API z pliku (api.txt)…** – wybierz plik .txt z kluczem (32 znaki 0–9, a–f). Adresy z pliku: 🏠 domowy (np. http://192.168.8.117:8096) i 🌍 internetowy na wyjście z domu (np. http://mojdom.ddns.net:8097) – oba naraz; brak w pliku – obecny albo serwer znaleziony w sieci domowej.
+- **Filmy i TV z komputera – okno wyboru:** każda lista TV i biblioteka filmów (Jellyfin) osobno, z rodzajem adresu: 🏠 sieć domowa, 🌍 internet, 💻 lista z komputera (bez pokazywania adresu z tokenem). Zapisuje się tylko zaznaczone. Prośba z ekranu Telewizji ma Jellyfin domyślnie odznaczony. Adres domowy i internetowy tego samego serwera Jellyfin łączą się same.
 - **Widoki:** oglądane dalej, filmy, seriale (☰); sortowanie A–Z / najnowsze / rok / 🕘 ostatnio oglądane / najdawniej oglądane (tylko obejrzane; stuknięcie wznawia od miejsca przerwania – także oglądanego na komputerze). Serial → odcinki.
 - Biblioteka otwiera się od razu z zapisu w telefonie i odświeża z serwera – filmy usunięte z serwera znikają, nowe się pojawiają.
 

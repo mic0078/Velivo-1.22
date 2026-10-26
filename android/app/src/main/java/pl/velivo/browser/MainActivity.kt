@@ -2344,7 +2344,12 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     }
 
     // 📲 Filmy i TV z komputera bez parowania: komputer pyta właściciela i pokazuje kod; telefon potem pyta o zapis
+    // 🏠 adres w sieci domowej (prywatny IP, .local) - inaczej 🌍 internet
+    private fun homeAddr(u: String) = runCatching { android.net.Uri.parse(u).host.orEmpty() }.getOrDefault("").let { h ->
+        h.startsWith("192.168.") || h.startsWith("10.") || Regex("^172\\.(1[6-9]|2\\d|3[01])\\.").containsMatchIn(h) || h.startsWith("169.254.") || h.endsWith(".local") || h == "localhost" }
+    private var mediaAskTvAt = 0L   // 📲 prośba o Filmy i TV z ekranu Telewizji - przy odbiorze Jellyfin domyślnie odznaczony
     private fun askComputerMedia() {
+        mediaAskTvAt = System.currentTimeMillis()
         val temp = !prefs.getBoolean("lan", false)
         startLan(force = true)   // telefon bez synchronizacji (np. mamy) - sieć tylko na czas prośby
         lan.askMedia()
@@ -2515,10 +2520,13 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                                 val text = uris.firstOrNull()?.let { u -> runCatching { contentResolver.openInputStream(u)!!.use { s -> String(s.readBytes().take(65536).toByteArray(), Charsets.UTF_8) } }.getOrNull() } ?: return@pickDocuments
                                 val key = Regex("\\b[0-9a-fA-F]{32}\\b").find(text)?.value?.lowercase()   // klucz Jellyfin: 32 znaki szesnastkowe
                                 if (key == null) { toast(getString(R.string.jf_key_none)); return@pickDocuments }
-                                // adres: z pliku, inaczej obecny, inaczej serwer znaleziony w sieci domowej
-                                val url = (Regex("https?://[^\\s\"'<>]+").find(text)?.value?.trimEnd('/', ',', ';') ?: cur?.url ?: found.firstOrNull()?.first)?.trimEnd('/')
+                                // adresy z pliku: 🏠 domowy (192.168…) i 🌍 internetowy (poza domem, np. http://mojdom.ddns.net:8097) - oba naraz;
+                                // brak w pliku - obecny albo serwer znaleziony w sieci domowej
+                                val urls = Regex("https?://[^\\s\"'<>]+").findAll(text).map { it.value.trimEnd('/', ',', ';') }.toList()
+                                val fHome = urls.firstOrNull { homeAddr(it) }; val fNet = urls.firstOrNull { !homeAddr(it) }
+                                val url = (fHome ?: fNet ?: cur?.url ?: found.firstOrNull()?.first)?.trimEnd('/')
                                 if (url == null) { toast(getString(R.string.jf_key_no_url)); return@pickDocuments }
-                                Jelly.save(passwords, Jelly.Conf(url, key, "", cur?.net.orEmpty())); toast(getString(R.string.jf_key_loaded))
+                                Jelly.save(passwords, Jelly.Conf(url, key, "", if (fNet != null && fNet != url) fNet else cur?.net.orEmpty())); toast(getString(R.string.jf_key_loaded))
                                 setupJellyfinUser(); done()
                             }
                             cur != null && i == found.size + 2 -> {   // adres poza domem (internet), np. http://mojdom.ddns.net:8097
@@ -2723,15 +2731,36 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     // ustawienia z Velivo na komputerze (Jellyfin, listy TV) - zawsze z pytaniem
     // code: Filmy i TV bez parowania - ten sam kod musi być na komputerze; Jellyfin bez klucza - logowanie swoim użytkownikiem
     // ask = false - z komunikatora w sieci domowej (zaufanie jak w domu); przez internet i bez parowania - zawsze z pytaniem
-    private fun receiveMediaConf(dev: String, jf: org.json.JSONObject?, tv: org.json.JSONArray?, code: String? = null, ask: Boolean = true) {
-        val n = tv?.length() ?: 0
-        val text = getString(R.string.media_conf_ask, dev, if (jf != null) "Jellyfin" else "—", n) + if (code != null) "\n\n" + getString(R.string.media_share_code, code) else ""
+    private fun receiveMediaConf(dev: String, jf: org.json.JSONObject?, tv: org.json.JSONArray?, code: String? = null) {
+        // jedno okno: każda lista TV i Jellyfin osobno, z rodzajem adresu (🏠 sieć domowa / 🌍 internet / 💻 z komputera) - zapisane tylko zaznaczone
+        // (wcześniej prośba z ekranu Telewizji zapisywała też Jellyfin i od razu się z nim łączyła); pokazujemy tylko serwer, nigdy adres listy z tokenem
+        fun home(u: String) = homeAddr(u)
+        fun where(u: String) = if (u.startsWith("velivo-pc:")) getString(R.string.media_pc_file)
+            else (if (home(u)) getString(R.string.media_home) else getString(R.string.media_net)) + ": " + runCatching { android.net.Uri.parse(u).host }.getOrNull().orEmpty()
+        val cur = Jelly.conf(passwords)
+        val jUrl = jf?.optString("url")?.trimEnd('/').orEmpty(); val jfKey = jf?.optString("key").orEmpty()
+        // Jellyfin: adres domowy i internetowy tego samego serwera łączone same (🏠 + 🌍), bez pytania
+        val jHome = home(jUrl)
+        val homeUrl = if (jHome || cur == null || !home(cur.url)) jUrl else cur.url
+        val netUrl = if (jHome) cur?.net.orEmpty() else if (homeUrl != jUrl) jUrl else ""
+        val items = mutableListOf<Pair<String, Boolean>>()   // napis, domyślnie zaznaczone
+        val fromTv = System.currentTimeMillis() - mediaAskTvAt < 10 * 60 * 1000L   // prośba z ekranu Telewizji - Jellyfin domyślnie odznaczony
+        val tvN = tv?.length() ?: 0
+        for (i in 0 until tvN) tv!!.getJSONObject(i).let { o -> items.add("📺 " + o.optString("name").ifEmpty { "TV" } + "\n" + where(o.optString("url")) to true) }
+        if (jUrl.isNotEmpty()) items.add(getString(R.string.media_jf) + "\n" + where(homeUrl) + (if (netUrl.isNotEmpty() && netUrl != homeUrl) "\n+ " + where(netUrl) else "") to !fromTv)
+        if (items.isEmpty()) return
+        val pick = BooleanArray(items.size) { items[it].second }
         fun apply() {
-                val jfKey = jf?.optString("key").orEmpty()
-                if (jf != null && jfKey.isNotEmpty()) Jelly.save(passwords, Jelly.Conf(jf.optString("url"), jfKey, "", jf.optString("net").ifEmpty { Jelly.conf(passwords)?.net.orEmpty() }))
-                if (tv != null) {
+                val jfOn = jUrl.isNotEmpty() && pick[items.size - 1]
+                if (jfOn) {
+                    if (jfKey.isNotEmpty()) { Jelly.save(passwords, Jelly.Conf(homeUrl, jfKey, "", netUrl)); setupJellyfinUser() }
+                    else if (cur != null && homeUrl == cur.url) Jelly.save(passwords, Jelly.Conf(cur.url, cur.key, cur.user, netUrl.ifEmpty { cur.net }))   // ten sam serwer - tylko dołączony adres internetowy
+                    else jellyfinUser(jUrl) {}   // bez klucza - logowanie swoim użytkownikiem
+                }
+                if (tvN > 0 && (0 until tvN).any { pick[it] }) {
                     val list = Tv.sources(passwords)
-                    for (i in 0 until tv.length()) { val o = tv.getJSONObject(i); val u = o.optString("url"); val m3u = o.optString("m3u")
+                    for (i in 0 until tvN) { if (!pick[i]) continue
+                        val o = tv!!.getJSONObject(i); val u = o.optString("url"); val m3u = o.optString("m3u")
                         if (u.startsWith("velivo-pc:") && m3u.isNotEmpty()) {   // lista z pliku na komputerze - treść zapisana zaszyfrowana
                             val src = list.firstOrNull { it.url == u } ?: Tv.Source(java.util.UUID.randomUUID().toString().replace("-", "").take(12), o.optString("name").ifEmpty { "TV" }, u, o.optString("epg")).also { list.add(it) }
                             Tv.importText(this, passwords, src, m3u)
@@ -2739,11 +2768,12 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                             list.add(Tv.Source(java.util.UUID.randomUUID().toString().replace("-", "").take(12), o.optString("name").ifEmpty { "TV" }, u, o.optString("epg"))) }
                     Tv.saveSources(passwords, list)
                 }
-                toast(getString(R.string.media_conf_saved))
-                if (jf != null) { if (jfKey.isNotEmpty()) setupJellyfinUser() else jellyfinUser(jf.optString("url").trimEnd('/')) {} }
+                if (pick.any { it }) toast(getString(R.string.media_conf_saved))
         }
-        if (!ask) { apply(); return }
-        AlertDialog.Builder(this).setTitle(R.string.media_conf_title).setMessage(text)
+        // tytuł w kilku wierszach - kod do porównania z komputerem zawsze widoczny w całości
+        val title = TextView(this).apply { text = getString(R.string.media_pick_title, dev) + if (code != null) "\n" + getString(R.string.media_share_code, code) else ""; textSize = 18f; setPadding(dp(24), dp(20), dp(24), dp(4)) }
+        AlertDialog.Builder(this).setCustomTitle(title)
+            .setMultiChoiceItems(items.map { it.first }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
             .setPositiveButton(R.string.file_accept) { _, _ -> apply() }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
@@ -2998,7 +3028,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             Thread { runCatching { Jelly.conf(passwords)?.net?.let { n -> java.net.URI(n).host }?.let { h -> if (java.net.InetAddress.getAllByName(h).isNotEmpty()) k.homeName = h } } }.start()   // nazwa domu (No-IP) z adresu Jellyfin poza domem
             k.saveFile = { name, tmp, dev -> saveToDownloads(name, null, dev, tmp) }
             // 🎬 Filmy i TV z komunikatora: w domu od razu, przez internet - z pytaniem
-            k.onMedia = { dev, j, viaNet -> runCatching { receiveMediaConf(dev, j.optJSONObject("jellyfin"), j.optJSONArray("tv"), ask = viaNet) } }
+            k.onMedia = { dev, j, _ -> runCatching { receiveMediaConf(dev, j.optJSONObject("jellyfin"), j.optJSONArray("tv")) } }
             // klawiatura Velivo miała własny komunikator: przejmujemy kontakty i rozmowy (jeden komunikator w telefonie, bez dublowania)
             Thread {
                 runCatching {

@@ -646,8 +646,10 @@ namespace Velivo
                 var k = System.Text.RegularExpressions.Regex.Match(text, @"\b[0-9a-fA-F]{32}\b");   // klucz Jellyfin: 32 znaki szesnastkowe
                 if (!k.Success) { info.Foreground = Brushes.IndianRed; info.Text = L.T("W tym pliku nie ma klucza API Jellyfin (32 znaki 0–9, a–f)."); return; }
                 key.Text = k.Value.ToLowerInvariant();
-                var u = System.Text.RegularExpressions.Regex.Match(text, @"https?://[^\s""'<>]+");   // adres serwera w tym samym pliku - też wpisany
-                if (u.Success && (url.Text.Trim().Length == 0 || url.Text.Trim() == "http://")) url.Text = u.Value.TrimEnd('/', ',', ';');
+                // adres serwera w tym samym pliku - też wpisany; najpierw domowy (192.168…, 10.…) - komputer jest w domu, internetowy jest dla telefonu poza domem
+                var us = System.Text.RegularExpressions.Regex.Matches(text, @"https?://[^\s""'<>]+").Select(m => m.Value.TrimEnd('/', ',', ';')).ToList();
+                var u = us.FirstOrDefault(x => System.Text.RegularExpressions.Regex.IsMatch(x, @"^https?://(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|[^/:]+\.local\b|localhost\b)")) ?? us.FirstOrDefault();
+                if (u != null && (url.Text.Trim().Length == 0 || url.Text.Trim() == "http://")) url.Text = u;
                 info.Foreground = Brushes.SeaGreen; info.Text = L.T("🔑 Klucz wczytany z pliku – kliknij „Pobierz / uzupełnij teraz”.");
             });
             fromFile.HorizontalAlignment = HorizontalAlignment.Left; fromFile.Margin = new Thickness(0, 4, 0, 0);

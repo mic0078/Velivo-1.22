@@ -271,7 +271,11 @@
     <string name="my_films_empty">Stuknij ＋ i wybierz filmy z telefonu – Velivo ma dostęp tylko do tego, co wybierzesz</string>
     <string name="my_films_remove">Usunąć z listy „%1$s”? (Plik zostaje w telefonie)</string>
     <string name="media_conf_title">Filmy i TV z komputera</string>
-    <string name="media_conf_ask">Komputer „%1$s” przysyła ustawienia: %2$s, listy kanałów TV: %3$d. Zapisać je w telefonie (zaszyfrowane)?</string>
+    <string name="media_pick_title">Co zapisać z „%1$s”?</string>
+    <string name="media_home">🏠 sieć domowa</string>
+    <string name="media_net">🌍 internet</string>
+    <string name="media_pc_file">💻 lista z komputera</string>
+    <string name="media_jf">🎬 Biblioteka filmów (Jellyfin)</string>
     <string name="media_conf_saved">Zapisano ustawienia Filmów i TV</string>
     <string name="jf_searching">Szukam serwera Jellyfin w sieci domowej…</string>
     <string name="jf_manual">Wpisz adres serwera…</string>

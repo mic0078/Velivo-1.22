@@ -90,13 +90,16 @@ async function media() {
 }
 async function start() {
   status(caller ? T('Dzwonię…', 'Calling…') : T('Łączę…', 'Connecting…'));
-  try { local = await media(); } catch (e) { status(T('Brak dostępu do mikrofonu i kamery', 'No microphone or camera access')); out({ k: 'end' }); setTimeout(() => out({ k: 'close' }), 2500); return; }
+  // bez kamery i mikrofonu (np. komputer stacjonarny) - rozmowa tylko w odbiorze; ekran 🖥 nadal można pokazać
+  try { local = await media(); } catch (e) { local = new MediaStream(); status(T('Bez kamery i mikrofonu – tylko odbiór (ekran możesz pokazać 🖥)', 'No camera or microphone – receive only (you can still share the screen 🖥)')); }
   me.srcObject = local;
   if (!local.getVideoTracks().length) { cam.classList.add('off'); flip.style.display = 'none'; }
   pc = new RTCPeerConnection({ iceServers: ice });
   local.getTracks().forEach(t => pc.addTrack(t, local));
+  if (caller && !audio && !local.getVideoTracks().length) pc.addTransceiver('video', { direction: 'sendrecv' });   // miejsce na obraz ekranu
+  if (caller && !local.getAudioTracks().length) pc.addTransceiver('audio', { direction: 'recvonly' });   // głos rozmówcy i tak słychać
   if (caller) useDc(pc.createDataChannel('pomoc')); else pc.ondatachannel = e => useDc(e.channel);
-  if ((window.chrome && chrome.webview && navigator.mediaDevices.getDisplayMedia && local.getVideoTracks().length) || (window.velivo && velivo.screen && !audio)) scr.style.display = 'inline-block';
+  if ((window.chrome && chrome.webview && navigator.mediaDevices.getDisplayMedia && !audio) || (window.velivo && velivo.screen && !audio)) scr.style.display = 'inline-block';
   pc.ontrack = e => { if (you.srcObject !== e.streams[0]) you.srcObject = e.streams[0]; };
   pc.onicecandidate = e => { if (e.candidate) out({ k: 'ice', c: e.candidate.toJSON() }); };
   pc.onconnectionstatechange = () => {
@@ -114,7 +117,9 @@ window.onSig = async function (o) {
   if (done) return;
   try {
     if (o.k === 'accept' && caller && pc) { status(T('Łączę…', 'Connecting…')); const of = await pc.createOffer(); await pc.setLocalDescription(of); out({ k: 'offer', sdp: of.sdp }); }
-    else if (o.k === 'offer' && pc) { await pc.setRemoteDescription({ type: 'offer', sdp: o.sdp }); flush(); const an = await pc.createAnswer(); await pc.setLocalDescription(an); out({ k: 'answer', sdp: an.sdp }); }
+    else if (o.k === 'offer' && pc) { await pc.setRemoteDescription({ type: 'offer', sdp: o.sdp }); flush();
+      pc.getTransceivers().forEach(t => { if (t.receiver.track && t.receiver.track.kind === 'video' && !t.sender.track && t.direction === 'recvonly') t.direction = 'sendrecv'; });   // bez kamery - miejsce na obraz ekranu
+      const an = await pc.createAnswer(); await pc.setLocalDescription(an); out({ k: 'answer', sdp: an.sdp }); }
     else if (o.k === 'answer' && pc) { await pc.setRemoteDescription({ type: 'answer', sdp: o.sdp }); flush(); }
     else if (o.k === 'ice') { if (pc && pc.remoteDescription) pc.addIceCandidate(o.c).catch(() => {}); else pend.push(o.c); }
     else if (o.k === 'reject' || o.k === 'busy') { status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
@@ -143,7 +148,7 @@ flip.onclick = async () => {
 scr.onclick = async () => {
   if (window.velivo && velivo.screen) { velivo.screen(!phoneScr); return; }   // telefon: Android pyta o zgodę
   if (sharing) { stopShare(); return; }
-  const snd = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video'); if (!snd) return;
+  const tv = pc && pc.getTransceivers().find(t => t.receiver.track && t.receiver.track.kind === 'video'), snd = tv && tv.sender; if (!snd) return;
   try {
     const s = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'monitor' }, audio: false });
     const nt = s.getVideoTracks()[0]; await snd.replaceTrack(nt); sharing = nt;
@@ -155,7 +160,7 @@ scr.onclick = async () => {
 async function stopShare() {
   if (!sharing) return; const nt = sharing; sharing = null; mon = null; ctlOff(); nt.stop(); scr.classList.remove('on');
   const snd = pc && pc.getSenders().find(x => x.track === nt);
-  const cam0 = local.getVideoTracks()[0]; if (snd && cam0) await snd.replaceTrack(cam0).catch(() => {});
+  const cam0 = local.getVideoTracks()[0]; if (snd) await snd.replaceTrack(cam0 || null).catch(() => {});
   me.srcObject = local; me.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none'; dsend({ k: 'scr', on: false });
 }
 help.onclick = () => {

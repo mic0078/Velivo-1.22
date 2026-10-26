@@ -260,13 +260,24 @@ begin
 end;
 
 procedure InstallVlc;
-var Code: Integer; Tmp: String;
+var Code: Integer; Tmp, Zip: String; Ok: Boolean;
 begin
   Tmp := ExpandConstant('{app}\vlc-rozpakowanie');
   DelTree(Tmp, True, True, True);
   ForceDirectories(Tmp);
-  if Exec(ExpandConstant('{sys}\tar.exe'), '-xf "' + ExpandConstant('{tmp}\libvlc.nupkg') + '" -C "' + Tmp + '" ' + VlcTarArgs, '', SW_HIDE, ewWaitUntilTerminated, Code)
-     and (Code = 0) and FileExists(Tmp + '\build\x64\libvlc.dll') then
+  Ok := Exec(ExpandConstant('{sys}\tar.exe'), '-xf "' + ExpandConstant('{tmp}\libvlc.nupkg') + '" -C "' + Tmp + '" ' + VlcTarArgs, '', SW_HIDE, ewWaitUntilTerminated, Code)
+     and (Code = 0) and FileExists(Tmp + '\build\x64\libvlc.dll');
+  // starszy Windows 10 (przed 1803, np. tablety CHUWI) nie ma tar.exe - rozpakowanie przez PowerShell (paczka to zwykly ZIP)
+  if not Ok then
+  begin
+    Zip := ExpandConstant('{tmp}\libvlc.zip');
+    if FileCopy(ExpandConstant('{tmp}\libvlc.nupkg'), Zip, False) then
+      Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), '-NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath ''' + Zip + ''' -DestinationPath ''' + Tmp + ''' -Force"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Ok := FileExists(Tmp + '\build\x64\libvlc.dll');
+    DelTree(Tmp + '\build\x64\plugins\video_splitter', True, True, True);   // jak przy tar - bez pominiętych wtyczek
+    DelTree(Tmp + '\build\x64\plugins\keystore', True, True, True);
+  end;
+  if Ok then
   begin
     DelTree(ExpandConstant('{app}\vlc'), True, True, True);
     if not RenameFile(Tmp + '\build\x64', ExpandConstant('{app}\vlc')) then MsgBox(CustomMessage('VideoPlayerUnpack'), mbError, MB_OK);

@@ -2449,12 +2449,10 @@ namespace Velivo
                     if (tv == null && !stream && IsAviFile(path)) media.AddOption(":demux=avformat,any");
                     _aoutFailed = false;
                     // poprzedni strumień zatrzymany w tle; w międzyczasie kolejny kanał albo zamknięte okno - gra tylko ostatnio wybrany
-                    int seq = ++loadSeq; var ps = mp.State;
-                    if (ps == VLCState.Playing || ps == VLCState.Paused || ps == VLCState.Buffering || ps == VLCState.Opening)
-                    {
-                        await vlcRun(() => mp.Stop());
-                        if (seq != loadSeq || vlcClosed) return;
-                    }
+                    // zawsze przez tę samą kolejkę: wcześniejsze ⏹ (np. tuż po końcu filmu) nie zatrzyma nowego materiału
+                    int seq = ++loadSeq;
+                    await vlcRun(() => { var ps = mp.State; if (ps == VLCState.Playing || ps == VLCState.Paused || ps == VLCState.Buffering || ps == VLCState.Opening) mp.Stop(); });
+                    if (seq != loadSeq || vlcClosed) return;
                     try { lock (VlcLogFile) File.WriteAllText(VlcLogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + VlcLogSafe(path) + "\nVLC: " + _libVlcKey + "\n"); } catch (Exception) { }   // dziennik od nowa dla tego filmu
                     mp.Play(media);
                 }
@@ -2495,7 +2493,7 @@ namespace Velivo
                     if (_aoutFailed && !aoutDs)
                     {
                         aoutDs = true; _aoutFailed = false;
-                        long t = mp.Time; mp.SetAudioOutput("directsound"); mp.Stop(); mp.Play();
+                        long t = mp.Time; vlcRun(() => { mp.SetAudioOutput("directsound"); mp.Stop(); mp.Play(); });   // w tej samej kolejce co inne zatrzymania
                         var back = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
                         back.Tick += (q, w) => { back.Stop(); if (!vlcClosed && t > 0) mp.Time = t; };
                         back.Start();

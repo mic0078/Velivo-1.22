@@ -890,6 +890,16 @@ namespace Velivo
         // 🟢 w sieci: kontakt odezwal sie w ostatnich 95 s (kazde Velivo z komunikatorem oglasza sie co minute, okno pyta co 30 s)
         readonly Dictionary<string, DateTime> _komLastSeen = new Dictionary<string, DateTime>();
         readonly Dictionary<string, DateTime> _komSeenAt = new Dictionary<string, DateTime>();   // "ostatnio w sieci" - zostaje po pozegnaniu
+        // ⏱ czas na liście rozmów: dziś - godzina, wczoraj, w tym tygodniu - dzień, starsze - data
+        static string KomWhen(long ts)
+        {
+            var t = DateTimeOffset.FromUnixTimeMilliseconds(ts).LocalDateTime;
+            if (t.Date == DateTime.Today) return t.ToString("HH:mm");
+            if (t.Date == DateTime.Today.AddDays(-1)) return L.T("wczoraj");
+            return t.Date > DateTime.Today.AddDays(-7) ? t.ToString("dddd", KomCulture) : t.ToString("dd.MM.yy");
+        }
+        static string KomDay(DateTime d) => d == DateTime.Today ? L.T("Dzisiaj") : d == DateTime.Today.AddDays(-1) ? L.T("Wczoraj") : d.ToString(d.Year == DateTime.Today.Year ? "d MMMM, dddd" : "d MMMM yyyy", KomCulture);
+        static System.Globalization.CultureInfo KomCulture => System.Globalization.CultureInfo.GetCultureInfo(L.En ? "en-GB" : "pl-PL");
         bool KomViaNet(string id) => _komUp != null || _komViaNet.ContainsKey(id);   // 🌍 kontakt osiagalny przez internet (nie w sieci domowej)
         bool KomOnline(string id) => _komLastSeen.TryGetValue(id, out var t) && DateTime.UtcNow - t < TimeSpan.FromSeconds(95);
 
@@ -1493,13 +1503,25 @@ namespace Velivo
                     var tb = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, Opacity = on ? 1 : 0.7 };
                     tb.Inlines.Add(new System.Windows.Documents.Run("● ") { Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim), FontSize = 14 });
                     if (on) tb.Inlines.Add(new System.Windows.Documents.Run(KomViaNet(c.Id) ? "🌍 " : "🏠 ") { ToolTip = KomViaNet(c.Id) ? L.T("przez internet") : L.T("sieć domowa") });
-                    tb.Inlines.Add(new System.Windows.Documents.Run((KomPinned(c.Id) ? "📌 " : "") + c.Name + (KomMuted(c.Id) ? " 🔕" : "") + (un > 0 ? "  (" + un + ")" : "")) { FontWeight = un > 0 ? FontWeights.Bold : FontWeights.Normal });
+                    tb.Inlines.Add(new System.Windows.Documents.Run((KomPinned(c.Id) ? "📌 " : "") + c.Name + (KomMuted(c.Id) ? " 🔕" : "")) { FontWeight = un > 0 ? FontWeights.Bold : FontWeights.SemiBold });
                     if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) tb.Inlines.Add(new System.Windows.Documents.Run("  " + c.Device) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) });   // prawdziwe urzadzenie
                     var dr = KomDraft(c.Id);   // ✏ niedokończona wiadomość - jak w WhatsApp
-                    if (dr.Length > 0) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run("✏ " + L.T("Szkic: ") + dr.Replace('\n', ' ')) { FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) }); }
-                    else if (last != null) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run((last.Mine ? "➜ " : "") + last.Text.Replace('\n', ' ')) { FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) }); }
-                    var pic = KomAvatarEl(c, on, 40, pal); pic.Margin = new Thickness(0, 0, 8, 0);   // 🖼 zdjęcie albo litera (zielona obwódka - w sieci)
-                    var dp = new DockPanel(); DockPanel.SetDock(pic, Dock.Left); dp.Children.Add(pic); dp.Children.Add(tb); object row = dp;
+                    var green = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                    if (_komTypingAt.TryGetValue(c.Id, out var ty1) && DateTime.UtcNow - ty1 < TimeSpan.FromSeconds(6)) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { FontSize = 12, Foreground = green }); }   // jak w WhatsApp - „pisze…” na liście
+                    else if (dr.Length > 0) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run("✏ " + L.T("Szkic: ") + dr.Replace('\n', ' ')) { FontSize = 12, Foreground = green }); }
+                    else if (last != null)
+                    {   // ostatnia wiadomość; moja - z ptaszkami (✓ wysłana, ✓✓ doręczona, niebieskie - przeczytana)
+                        tb.Inlines.Add(new System.Windows.Documents.LineBreak());
+                        if (last.Mine) tb.Inlines.Add(new System.Windows.Documents.Run(last.Read || (last.Ok && !last.Text.Contains("📬")) ? "✓✓ " : "✓ ") { FontSize = 12, FontWeight = FontWeights.Bold, Foreground = last.Read ? new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)) : new SolidColorBrush(pal.Dim) });
+                        tb.Inlines.Add(new System.Windows.Documents.Run(last.Text.Replace('\n', ' ')) { FontSize = 12, Foreground = new SolidColorBrush(pal.Dim) });
+                    }
+                    var pic = KomAvatarEl(c, on, 44, pal); pic.Margin = new Thickness(0, 0, 10, 0);   // 🖼 zdjęcie albo litera (zielona obwódka - w sieci)
+                    // po prawej: czas ostatniej wiadomości i zielone kółko z liczbą nieprzeczytanych (jak w WhatsApp)
+                    var side = new StackPanel { Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                    if (last != null) side.Children.Add(new TextBlock { Text = KomWhen(last.Ts), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Right, Foreground = un > 0 ? green : new SolidColorBrush(pal.Dim) });
+                    if (un > 0) side.Children.Add(new Border { Background = green, CornerRadius = new CornerRadius(10), MinWidth = 20, Height = 20, Padding = new Thickness(6, 0, 6, 0), Margin = new Thickness(0, 3, 0, 0), HorizontalAlignment = HorizontalAlignment.Right,
+                        Child = new TextBlock { Text = un > 99 ? "99+" : un.ToString(), FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } });
+                    var dp = new DockPanel(); DockPanel.SetDock(pic, Dock.Left); DockPanel.SetDock(side, Dock.Right); dp.Children.Add(pic); dp.Children.Add(side); dp.Children.Add(tb); object row = dp;
                     var item = new ListBoxItem { Content = row, Tag = c.Id, Padding = new Thickness(6), ToolTip = L.T("Rozmowa z ") + c.Name + " – " + (on ? L.T("w sieci") : L.T("poza siecią")) };
                     var cm = new ContextMenu();
                     var ren = new MenuItem { Header = L.T("✏ Zmień nazwę") }; ren.Click += (s, e) => KomRename(c);
@@ -1572,10 +1594,17 @@ namespace Velivo
                 msgs.Children.Clear();
                 if (c == null) return;
                 var q = searchBox.Text.Trim();   // 🔍 szukanie w rozmowie
+                DateTime day = default; bool? prevMine = null;
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)).Where(x => q.Length == 0 || x.Text.Contains(q, StringComparison.CurrentCultureIgnoreCase)))
                 {
                     var time = DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime;
-                    var stamp = (KomReactions(m) is { Length: > 0 } rx ? rx + "  " : "") + (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : "");
+                    if (time.Date != day)
+                    {   // 📅 dzień nad wiadomościami (Dzisiaj, Wczoraj, data) - jak w WhatsApp
+                        day = time.Date; prevMine = null;
+                        msgs.Children.Add(new Border { Background = new SolidColorBrush(pal.Theirs), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 10, 0, 6), HorizontalAlignment = HorizontalAlignment.Center,
+                            Child = new TextBlock { Text = KomDay(day), FontSize = 11, Foreground = new SolidColorBrush(pal.Dim) } });
+                    }
+                    var stamp = (KomReactions(m) is { Length: > 0 } rx ? rx + "  " : "") + time.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : "");
                     var body = new StackPanel();
                     // kolory dymkow z motywu komunikatora (bez ramek pola tekstowego)
                     var fg = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg);
@@ -1680,7 +1709,9 @@ namespace Velivo
                     body.Children.Add(stampTb);
                     var bubble = new Border
                     {
-                        Child = body, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(m.Mine ? 60 : 0, 3, m.Mine ? 0 : 60, 3),
+                        // pierwszy dymek z serii - „ogonek” (ostry róg od strony nadawcy); kolejne od tej samej osoby bliżej siebie
+                        Child = body, CornerRadius = prevMine == m.Mine ? new CornerRadius(12) : m.Mine ? new CornerRadius(12, 3, 12, 12) : new CornerRadius(3, 12, 12, 12),
+                        Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(m.Mine ? 60 : 0, prevMine == m.Mine ? 1 : 6, m.Mine ? 0 : 60, 1),
                         HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
                         Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs)
                     };
@@ -1691,7 +1722,7 @@ namespace Velivo
                         body.Children.Insert(0, new TextBlock { Text = on ? "☑" : "☐", Foreground = fg, FontSize = 14 });
                         bubble.PreviewMouseLeftButtonUp += (s2, e2) => { if (!picked.Remove(sm)) picked.Add(sm); e2.Handled = true; FillChat(); };
                     }
-                    msgs.Children.Add(bubble);
+                    msgs.Children.Add(bubble); prevMine = m.Mine;
                 }
                 if (!selMode) scroll.ScrollToEnd();
                 selBar.Visibility = selMode ? Visibility.Visible : Visibility.Collapsed; bottom.Visibility = selMode ? Visibility.Collapsed : Visibility.Visible;

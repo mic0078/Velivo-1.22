@@ -1848,6 +1848,15 @@ namespace Velivo
                         body.Children.Insert(0, new TextBlock { Text = on ? "☑" : "☐", Foreground = fg, FontSize = 14 });
                         bubble.PreviewMouseLeftButtonUp += (s2, e2) => { if (!picked.Remove(sm)) picked.Add(sm); e2.Handled = true; FillChat(); };
                     }
+                    else
+                    {   // menu wiadomości w całym dymku: prawy przycisk albo przytrzymanie (mysz / palec - jak w telefonie)
+                        bubble.ContextMenu = txt.ContextMenu;
+                        var holdT = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(550) }; var hb = bubble;
+                        holdT.Tick += (s2, e2) => { holdT.Stop(); if (hb.ContextMenu is ContextMenu cm0) { cm0.PlacementTarget = hb; cm0.IsOpen = true; } };
+                        bubble.PreviewMouseLeftButtonDown += (s2, e2) => holdT.Start();
+                        bubble.PreviewMouseLeftButtonUp += (s2, e2) => holdT.Stop();
+                        bubble.MouseLeave += (s2, e2) => holdT.Stop();
+                    }
                     msgs.Children.Add(bubble); prevMine = m.Mine;
                 }
                 if (!selMode) scroll.ScrollToEnd();

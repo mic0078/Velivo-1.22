@@ -45,7 +45,7 @@ namespace Velivo
             readonly TcpClient _cl; readonly NetworkStream _raw; readonly AesGcm _gcm;
             readonly MemoryStream _w = new MemoryStream(); byte[] _r = Array.Empty<byte>(); int _rp;
             readonly object _wl = new object();
-            public KomFrameStream(TcpClient cl, byte[] key) { _cl = cl; _raw = cl.GetStream(); _gcm = new AesGcm(key, 16); _raw.ReadTimeout = 150000; _raw.WriteTimeout = 60000; }
+            public KomFrameStream(TcpClient cl, byte[] key) { _cl = cl; cl.NoDelay = true; _raw = cl.GetStream(); _gcm = new AesGcm(key, 16); _raw.ReadTimeout = 150000; _raw.WriteTimeout = 60000; }
             public byte[] ReadFrame()
             {
                 var lb = new byte[4]; if (!Fill(lb, 4)) throw new EndOfStreamException();
@@ -57,10 +57,12 @@ namespace Velivo
             }
             public void WriteFrame(byte[] data, int off, int len)
             {
-                var n = RandomNumberGenerator.GetBytes(12); var f = new byte[len + 28];
-                lock (_gcm) _gcm.Encrypt(n, data.AsSpan(off, len), f.AsSpan(12, len), f.AsSpan(12 + len, 16));
-                n.CopyTo(f, 0);
-                lock (_wl) { _raw.Write(BitConverter.GetBytes(f.Length), 0, 4); _raw.Write(f, 0, f.Length); _raw.Flush(); }
+                // jedna ramka = jeden zapis (długość + treść razem) i bez Nagle'a - małe pakiety bez czekania do 200 ms
+                var n = RandomNumberGenerator.GetBytes(12); var f = new byte[4 + len + 28];
+                BitConverter.TryWriteBytes(f.AsSpan(0, 4), len + 28);
+                lock (_gcm) _gcm.Encrypt(n, data.AsSpan(off, len), f.AsSpan(16, len), f.AsSpan(16 + len, 16));
+                n.CopyTo(f, 4);
+                lock (_wl) { _raw.Write(f, 0, f.Length); _raw.Flush(); }
             }
             bool Fill(byte[] b, int n) { int o = 0; while (o < n) { int r = _raw.Read(b, o, n - o); if (r <= 0) return false; o += r; } return true; }
             public override int Read(byte[] buffer, int offset, int count)
@@ -338,7 +340,7 @@ namespace Velivo
                 {
                     while (!token.IsCancellationRequested)
                     {
-                        try { var c = await l.AcceptTcpClientAsync(token); _ = Task.Run(() => KomRelayServe(c, token)); }
+                        try { var c = await l.AcceptTcpClientAsync(token); c.NoDelay = true; _ = Task.Run(() => KomRelayServe(c, token)); }   // TURN (dźwięk rozmów) i ramki bez opóźnienia Nagle'a
                         catch (OperationCanceledException) { break; } catch (ObjectDisposedException) { break; } catch (Exception) { await Task.Delay(300); }
                     }
                 });

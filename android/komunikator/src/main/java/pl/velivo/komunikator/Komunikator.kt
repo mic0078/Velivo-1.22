@@ -1070,6 +1070,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // [4 bajty długości][nonce 12][dane][tag 16] - AES-GCM kluczem sesji
     class Frames(val sock: java.net.Socket, key: ByteArray) : java.io.Closeable {
         private val k = SecretKeySpec(key, "AES"); private val rnd = SecureRandom()
+        init { runCatching { sock.tcpNoDelay = true } }   // małe pakiety (wiadomości, obecność) od razu, bez czekania Nagle'a
         private val rawIn = DataInputStream(java.io.BufferedInputStream(sock.getInputStream(), 1 shl 16)); private val rawOut = sock.getOutputStream()
         fun readFrame(): ByteArray {
             val l = readInt4(rawIn); if (l < 28 || l > (2 shl 20)) throw java.io.IOException("ramka")
@@ -1081,7 +1082,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val n = ByteArray(12).also { rnd.nextBytes(it) }
             val c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, k, GCMParameterSpec(128, n))
             val e = c.doFinal(d, off, len)
-            rawOut.write(int4(12 + e.size)); rawOut.write(n); rawOut.write(e); rawOut.flush()
+            rawOut.write(int4(12 + e.size) + n + e); rawOut.flush()   // jedna ramka = jeden zapis
         }
         val input = object : java.io.InputStream() {
             private var b = ByteArray(0); private var p = 0

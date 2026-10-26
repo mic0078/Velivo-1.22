@@ -103,8 +103,17 @@ namespace Velivo
             if (string.IsNullOrEmpty(_komId) || _komId.Length != 32) _komId = Guid.NewGuid().ToString("N");
         }
 
+        // zapis zbiorczy: seria pakietów (np. 100 zaległych wiadomości od pośrednika) = jeden zapis, a nie 100 pełnych zapisów w wątku okna
+        volatile bool _komSavePending;
         void KomSave()
         {
+            if (_komSavePending) return;
+            _komSavePending = true;
+            Dispatcher.BeginInvoke(new Action(() => { if (_komSavePending) KomSaveNow(); }), System.Windows.Threading.DispatcherPriority.Background);
+        }
+        void KomSaveNow()
+        {
+            _komSavePending = false;
             try
             {
                 Directory.CreateDirectory(DataDir);
@@ -879,6 +888,7 @@ namespace Velivo
         // zamkniecie Velivo: kontakty od razu widza "poza siecia"
         internal void KomBye()
         {
+            if (_komSavePending) KomSaveNow();   // zamknięcie - zaległy zapis od razu
             if (!_komLoaded || _komContacts.Count == 0) return;
             for (int i = 0; i < 2; i++) KomSendUdp(KomPacket("p2p-bye"), null);
         }
@@ -905,7 +915,7 @@ namespace Velivo
         async Task<List<(string Id, string Name, IPAddress Addr)>> KomFind()
         {
             _komFound.Clear();
-            KomSweep(KomPacket("p2p-who"));
+            var sweep = KomPacket("p2p-who"); _ = Task.Run(() => KomSweep(sweep));   // 508 wysyłek i lista kart sieciowych - poza wątkiem okna
             for (int i = 0; i < 3; i++) { KomSendUdp(KomPacket("p2p-who"), null); await Task.Delay(800); }
             return _komFound.Select(kv => (kv.Key, kv.Value.Name, kv.Value.Addr)).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         }
@@ -1663,9 +1673,13 @@ namespace Velivo
                 if (w.IsActive) KomSendRead(c);
             }
             // odswiezanie okna najwyzej co 0,4 s - seria pakietow (obecnosc, potwierdzenia) nie przebudowuje rozmowy setki razy
-            bool refreshQueued = false;
+            // okno schowane (zasobnik) albo zminimalizowane - nic nie przebudowujemy (to samo wątek co całe Velivo: przeglądarka, filmy); po pokazaniu raz
+            bool refreshQueued = false, stale = false;
+            bool Shown() => w.IsVisible && w.WindowState != WindowState.Minimized;
+            void ShownAgain() { if (stale && Shown() && _komWindow == w) { stale = false; FillList(); FillChat(); } }
+            w.IsVisibleChanged += (s, e) => ShownAgain(); w.StateChanged += (s, e) => ShownAgain();
             var refreshTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
-            refreshTimer.Tick += (s, e) => { refreshTimer.Stop(); refreshQueued = false; if (_komWindow == w) { FillList(); FillChat(); } };
+            refreshTimer.Tick += (s, e) => { refreshTimer.Stop(); refreshQueued = false; if (_komWindow == w) { if (!Shown()) { stale = true; return; } FillList(); FillChat(); } };
             _komRefresh = () => Dispatcher.BeginInvoke(new Action(() => { if (refreshQueued) return; refreshQueued = true; refreshTimer.Start(); }));
             // ✏ szkic: tekst w polu zostaje przy rozmowie (zmiana rozmowy, zamknięcie okna)
             void Open(string id) { KomSetDraft(_komOpenId, input.Text); _komOpenId = id; selMode = false; picked.Clear(); searchBox.Clear(); input.Text = KomDraft(id); input.CaretIndex = input.Text.Length; }
@@ -1902,7 +1916,7 @@ namespace Velivo
             // realny stan kontaktow: pytanie "kto jest w sieci" od razu po otwarciu i co 30 s, dopoki okno otwarte
             void Ping() { var who = KomPacket("p2p-who"); var here = KomPacket("p2p-here"); _ = Task.Run(async () => { KomSendUdp(here, null); for (int i = 0; i < 2; i++) { KomSendUdp(who, null); await Task.Delay(700); } }); }
             var presence = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-            presence.Tick += (s, e) => { Ping(); FillList(); FillChat(); };
+            presence.Tick += (s, e) => { Ping(); if (Shown()) { FillList(); FillChat(); } else stale = true; };
             presence.Start();
             Ping();
             _ = Task.Delay(2500).ContinueWith(_ => Dispatcher.BeginInvoke(new Action(() => { if (_komWindow == w) { FillList(); FillChat(); } })));

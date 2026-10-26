@@ -7,7 +7,8 @@ html,body{margin:0;height:100%;background:#120f24;color:#fff;font-family:system-
 #you{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#120f24}
 #me{position:fixed;right:12px;top:12px;width:28vw;max-width:220px;border-radius:12px;border:2px solid #7c4dff;transform:scaleX(-1);background:#000}
 #st{position:fixed;left:0;right:0;top:40%;text-align:center;font-size:20px;text-shadow:0 1px 4px #000}
-#bar{position:fixed;left:0;right:0;bottom:24px;display:flex;justify-content:center;gap:18px}
+#bar{position:fixed;left:0;right:0;bottom:24px;display:flex;flex-wrap:wrap;justify-content:center;gap:12px;padding:0 8px}#bar button{flex:0 0 auto}
+@media (max-width:640px){#bar{gap:8px}#bar button{width:48px;height:48px;font-size:20px}}
 button{width:60px;height:60px;border-radius:50%;border:0;font-size:24px;background:#3a2f6b;color:#fff}
 button.off{background:#6b6b80}#end{background:#e53935}button.on{background:#22c55e}
 #you.scr{object-fit:contain;background:#000}#you.steer,#shot.steer{touch-action:none;cursor:crosshair}
@@ -65,7 +66,7 @@ function useDc(ch) {
     else if (o.k === 'f') frame(o);
     else if (o.k === 'pt') { if (phoneScr && window.velivo && velivo.point) velivo.point(o.x, o.y); }
     else if (o.k === 'ctl-ask') ask();
-    else if (o.k === 'swap-ask') askUser(T('Rozmówca chce zamienić strony pomocy zdalnej (kto pokazuje ekran). Zgadzasz się?', 'The other person wants to swap remote-help sides (who shares the screen). Do you agree?'), 'swap');
+    else if (o.k === 'swap-ask') { ctlOff(); setSteer(false); } if (o.k === 'swap-ask') askUser(T('Rozmówca chce zamienić strony pomocy zdalnej (kto pokazuje ekran). Zgadzasz się?', 'The other person wants to swap remote-help sides (who shares the screen). Do you agree?'), 'swap');
     else if (o.k === 'swap-ok') doSwap();
     else if (o.k === 'swap-no') status(T('Nie zgodzono się na zamianę stron', 'Swapping sides was not allowed'));
     else if (o.k === 'ctl-ok') { setSteer(true); status(''); }
@@ -91,7 +92,8 @@ function doSwap() {
   if (window.velivo && velivo.screen) velivo.screen(true);
   else { status(T('Kliknij 🖥, aby pokazać swój ekran', 'Click 🖥 to share your screen')); scr.classList.add('pulse'); }
 }
-swap.onclick = () => { dsend({ k: 'swap-ask' }); status(T('Czekam na zgodę…', 'Waiting for permission…')); };
+swap.onclick = () => { if (steer) { setSteer(false); dsend({ k: 'ctl-off' }); } ctlOff(); dsend({ k: 'swap-ask' });   // zamiana zawsze kończy sterowanie
+  status(T('Czekam na zgodę…', 'Waiting for permission…')); };
 setInterval(() => { swap.style.display = connected && (sharing || phoneScr || document.body.classList.contains('view')) ? 'inline-block' : 'none'; }, 1000);
 function ctlYes(yes) { if (!yes || !sharing || !mon) { dsend({ k: 'ctl-no' }); return; } ctl = true; host({ k: 'ctl-on', w: mon.w, h: mon.h }); dsend({ k: 'ctl-ok' }); }
 window.ctlAnswer = yes => { const id = askFor; askFor = null; if (id === 'swap') { swapYes(yes); return; } if (!phoneScr) return; if (!yes) { dsend({ k: 'ctl-no' }); return; } ctl = true; velivo.ctl(true); dsend({ k: 'ctl-ok' }); status(T('🖱 Rozmówca steruje – zakończysz przyciskiem 🖥', '🖱 They are in control – stop with 🖥')); };

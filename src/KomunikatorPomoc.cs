@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using System.Windows;
@@ -13,6 +14,7 @@ namespace Velivo
     public partial class MainWindow
     {
         System.Drawing.Rectangle? _komCtlScreen; Window _komCtlBar;
+        readonly HashSet<ushort> _komCtlKeys = new HashSet<ushort>(); readonly HashSet<uint> _komCtlButtons = new HashSet<uint>();   // wciśnięte przez rozmówcę - puszczane na końcu sterowania
 
         [StructLayout(LayoutKind.Sequential)] struct KomMouseIn { public int dx, dy; public uint data, flags, time; public IntPtr extra; }
         [StructLayout(LayoutKind.Sequential)] struct KomKeyIn { public ushort vk, scan; public uint flags, time; public IntPtr extra; }
@@ -53,7 +55,10 @@ namespace Velivo
         {
             if (_komCtlScreen == null && _komCtlBar == null) return;
             _komCtlScreen = null;
-            foreach (ushort vk in new ushort[] { 0x10, 0x11, 0x12, 0x5B }) KomKey(vk, true);   // nic nie zostaje wciśnięte
+            // nic nie zostaje wciśnięte (koniec sterowania w trakcie przeciągania albo skrótu)
+            foreach (var f in _komCtlButtons) KomMouse(f << 1); _komCtlButtons.Clear();
+            foreach (var vk in _komCtlKeys) KomKey(vk, true); _komCtlKeys.Clear();
+            foreach (ushort vk in new ushort[] { 0x10, 0x11, 0x12, 0x5B }) KomKey(vk, true);
             try { _komCtlBar?.Close(); } catch (Exception) { }
             _komCtlBar = null;
         }
@@ -65,7 +70,7 @@ namespace Velivo
             try
             {
                 var t = (string)o["t"];
-                if (t == "k") { KomKey((ushort)(int)o["v"], (bool?)o["up"] == true); return; }
+                if (t == "k") { var vk = (ushort)(int)o["v"]; bool up = (bool?)o["up"] == true; if (up) _komCtlKeys.Remove(vk); else _komCtlKeys.Add(vk); KomKey(vk, up); return; }
                 if (t == "w") { KomMouse(0x0800, data: (int)o["d"]); return; }
                 var vs = System.Windows.Forms.SystemInformation.VirtualScreen;
                 double x = Math.Clamp((double)o["x"], 0, 1), y = Math.Clamp((double)o["y"], 0, 1);
@@ -76,6 +81,7 @@ namespace Velivo
                 {
                     int b = (int?)o["b"] ?? 0;
                     uint f = b == 2 ? 0x0008u : b == 1 ? 0x0020u : 0x0002u;
+                    if (t == "u") _komCtlButtons.Remove(f); else _komCtlButtons.Add(f);
                     KomMouse(t == "u" ? f << 1 : f);
                 }
             }

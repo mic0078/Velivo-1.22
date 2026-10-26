@@ -208,6 +208,23 @@ class KlawiaturaVelivo : InputMethodService() {
         "🐶🐱🐭🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐦🦋🐝🐟🌸🌹🌻🌳☀️", "🍎🍐🍊🍋🍌🍉🍇🍓🍒🍑🥝🍅🥕🌽🍞🧀🍕🍔🍟🍰🎂🍫☕🍷",
         "🚗🚕🚌🚑🚒🚓🚲✈️🚆🚢🏠🏡🏥🏫⛪🏖️⛰️🌍🌙⛅🌧️❄️🌈⏰", "🎉🎁🎈🎄⚽🏀🎾🎮🎵🎶📱💻📷📺📞✉️📅📌✏️📖💊💡🔑💰")
         .map { s -> Regex("\\X").findAll(s).map { it.value }.toList() }
+    // 😀 emotka do słowa na pasku podpowiedzi: PL - krótka lista skojarzeń, EN - nazwy znaków Unicode (bez list w aplikacji)
+    private val emojiPl = mapOf("serc" to "❤️", "kocha" to "❤️", "miło" to "🥰", "haha" to "😂", "hehe" to "😄", "śmiech" to "😂", "śmiej" to "😂", "uśmie" to "🙂", "dzięk" to "🙏", "super" to "👍",
+        "brawo" to "👏", "cześć" to "👋", "hej" to "👋", "kot" to "🐱", "pies" to "🐶", "psa" to "🐶", "kawa" to "☕", "kawy" to "☕", "wino" to "🍷", "tort" to "🎂", "urodzin" to "🎂",
+        "prezent" to "🎁", "impre" to "🎉", "słońc" to "☀️", "deszcz" to "🌧️", "śnieg" to "❄️", "ogień" to "🔥", "dom" to "🏠", "samoch" to "🚗", "auto" to "🚗",
+        "samolot" to "✈️", "pizz" to "🍕", "telefon" to "📱", "pieni" to "💰", "buzi" to "😘", "całuj" to "😘", "smut" to "😢", "płacz" to "😭", "zły" to "😡",
+        "dobranoc" to "😴", "śpi" to "😴", "kwiat" to "🌸", "róża" to "🌹", "róże" to "🌹", "piłk" to "⚽", "muzyk" to "🎵", "chor" to "🤒", "gwiazd" to "⭐", "święt" to "🎄",
+        "książk" to "📖", "lekar" to "💊", "klucz" to "🔑", "zegar" to "⏰", "jabł" to "🍎", "piwo" to "🍺", "ok" to "👌", "pomocy" to "🆘", "szczęś" to "😊")
+    private val emojiEn by lazy {
+        val m = HashMap<String, String>(); val skip = setOf("face", "with", "sign", "symbol", "and", "the", "smiling", "eyes", "mark", "selector")
+        emojiCats.flatten().forEach { e -> runCatching { android.icu.lang.UCharacter.getName(e.codePointAt(0)) }.getOrNull()?.lowercase()?.split(' ', '-')?.filter { it.length >= 3 && it !in skip }?.forEach { m.putIfAbsent(it, e) } }
+        m
+    }
+    private fun emojiFor(w0: String): String? {
+        val w = w0.lowercase(); if (w.length < 3) return null
+        return if (lang(this) == "pl") emojiPl.entries.firstOrNull { (k, _) -> w == k || k.length >= 4 && w.startsWith(k) || k.length > w.length && k.startsWith(w) && w.length >= 4 }?.value
+        else emojiEn[w] ?: emojiEn[w.removeSuffix("s")]
+    }
     private fun recentEmoji(): List<String> = prefs(this).getString("emoji-ostatnie", "").orEmpty().split(' ').filter { it.isNotEmpty() }
     private fun useEmoji(e: String) = prefs(this).edit().putString("emoji-ostatnie", (listOf(e) + recentEmoji().filter { it != e }).take(24).joinToString(" ")).apply()
 
@@ -412,7 +429,10 @@ class KlawiaturaVelivo : InputMethodService() {
         // wielka litera w środku zdania (nazwisko, miejsce, firma) - bez samej poprawki, tylko propozycje
         val name = w.isNotEmpty() && w[0].isUpperCase() && before(w.length + 3).dropLast(w.length).trimEnd().let { it.isNotEmpty() && it.last() !in ".!?\n" }
         if (w.isNotEmpty() && !secret) {
-            val fix = if (pref("klaw-korekta") && !name) Slownik.complete(w, keep) ?: Slownik.contextFix(prevWord, w, keep) else null
+            val fix0 = if (pref("klaw-korekta") && !name) Slownik.complete(w, keep) ?: Slownik.contextFix(prevWord, w, keep) else null
+            // 🇬🇧/🇺🇸 wybrana pisownia angielska (colour / color)
+            val en = prefs(this).getString("klaw-en", "").orEmpty()
+            val fix = (if (en.isNotEmpty() && lang(this) == "en" && pref("klaw-korekta") && !name && (fix0 ?: w).lowercase() !in keep) Slownik.enVariant(fix0 ?: w, en == "uk") else null) ?: fix0
             Slownik.zeNow(fix ?: w, prevWord)?.let { out = it } ?: run { if (fix != null) out = fix }
             if (out != w) {
                 ic.beginBatchEdit(); ic.deleteSurroundingText(w.length, 0); ic.commitText(out, 1); ic.endBatchEdit()
@@ -531,6 +551,10 @@ class KlawiaturaVelivo : InputMethodService() {
     private fun pick(s: String) {
         val ic = currentInputConnection ?: return
         if (s.startsWith(PHRASE)) { phrase(s); return }
+        if (Character.getType(s.codePointAt(0)) == Character.OTHER_SYMBOL.toInt()) {   // 😀 emotka z paska - po słowie
+            if (cur.isNotEmpty()) finishWord(" ")
+            ic.commitText(s + " ", 1); useEmoji(s); sentOk = false; view.refresh(); return
+        }
         val swipe = lastSwipe
         if (swipe != null && before(swipe.length + 1) == "$swipe ") {
             ic.beginBatchEdit(); ic.deleteSurroundingText(swipe.length + 1, 0); ic.commitText("$s ", 1); ic.endBatchEdit()
@@ -597,7 +621,7 @@ class KlawiaturaVelivo : InputMethodService() {
             val p = Slownik.predict(cur, false, SUG).toMutableList()
             Slownik.suggest(cur, keep, SUG).forEach { if (p.size < SUG && it !in p) p.add(it) }
             Slownik.joinNie(prevWord, cur)?.let { p.add(0, it) }
-            return ph + p.take(SUG)
+            return (ph + p.take(SUG)).toMutableList().apply { emojiFor(cur)?.let { add(minOf(2, size), it) } }   // emotka widoczna bez przewijania
         }
         prevAlts?.let { return it.second }   // niepewne słowo zostało - kilka propozycji zamiast narzuconej poprawki
         return ph + Slownik.nextWords(prevWord, prevWord2, SUG)
@@ -652,6 +676,17 @@ class KlawiaturaVelivo : InputMethodService() {
         listening = true; view.refresh()
     }
     private fun stopListening() { if (listening) { rec?.stopListening(); listening = false; if (::view.isInitialized) view.refresh() } }
+    // 🌍 tłumaczenie zaznaczenia albo całego tekstu przed kursorem - wynik zastępuje tekst (źródło: tłumaczenie - bez nauki)
+    private fun translate() {
+        val ic = currentInputConnection ?: return
+        if (secret) return
+        val sel = ic.getSelectedText(0)?.toString().orEmpty(); val src = sel.ifEmpty { before(2000) }
+        if (src.isBlank()) return
+        Tlumacz.done = { t -> currentInputConnection?.let { c ->
+            if (sel.isEmpty() && before(src.length) == src) c.deleteSurroundingText(src.length, 0)
+            c.commitText(t, 1); cur = ""; sentOk = false; fixFrom = null; view.refresh() } }
+        startActivity(Intent(this, Tlumacz::class.java).putExtra("t", src).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
     private fun soundToggle() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             startActivity(Intent(this, SzybkieUstawienia::class.java).setAction(ACTION_MIC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
@@ -1015,7 +1050,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private val menu = ArrayList<K>()
         private val menuItems = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt", "📤" to "sendpc", "💬" to "chat", "📲" to "sendphone",
             "✓" to "fix", "🔈" to "klik", "🔊" to "read", "🎤" to "mic",
-            "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height", "👵" to "senior", "⠿" to "brajl", "·−" to "morse", "🗣" to "sound",
+            "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height", "👵" to "senior", "⠿" to "brajl", "·−" to "morse", "🗣" to "sound", "🌍" to "translate",
             "⌨" to "switch", "⚙" to "settings", "⌄" to "hide", "⌨︎" to "back")
         private fun layoutMenu() {
             menu.clear()
@@ -1032,7 +1067,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private fun menuName(c: String) = when (c) {
             "sendpc" -> R.string.kb_m_send; "chat" -> R.string.kb_m_chat; "sendphone" -> R.string.kb_m_phone; "note" -> R.string.kb_m_note; "notes" -> R.string.kb_m_notes; "search" -> R.string.kb_m_search; "yt" -> R.string.kb_m_yt
             "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "read" -> R.string.kb_read; "mic" -> R.string.kb_mic
-            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height; "senior" -> R.string.kb_senior; "brajl" -> R.string.kb_braille; "morse" -> R.string.kb_morse; "sound" -> R.string.kb_sound
+            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height; "senior" -> R.string.kb_senior; "brajl" -> R.string.kb_braille; "morse" -> R.string.kb_morse; "sound" -> R.string.kb_sound; "translate" -> R.string.kb_tr_title
             "switch" -> R.string.kb_m_switch; "settings" -> R.string.kb_m_settings; "hide" -> R.string.kb_hide; else -> R.string.kb_m_back
         }
         // funkcje Velivo (karteczki, szukanie, YouTube) - otwierane w przeglądarce Velivo
@@ -1057,6 +1092,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 "brajl" -> { menuOpen = false; brailleOn(); return }
                 "morse" -> { menuOpen = false; morseOn(); return }
                 "sound" -> { soundToggle(); menuOpen = false; refresh(); return }
+                "translate" -> translate()
                 "senior" -> { senior(context, !pref("klaw-senior", false)); Toast.makeText(context, getString(R.string.kb_senior) + ": " + getString(if (pref("klaw-senior", false)) R.string.kb_on else R.string.kb_off), Toast.LENGTH_SHORT).show(); theme(); refresh(); return }
                 else -> { headAction(c); if (c == "lang" || c == "hide") menuOpen = false; refresh(); return }
             }

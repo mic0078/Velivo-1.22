@@ -126,4 +126,10 @@
     <string name="kb_sound_same">„aaaa” i „uuuu” brzmią zbyt podobnie – spróbuj wyraźniej</string>
     <string name="kb_sound_del">🗣 usunięto słowo</string>
     <string name="kb_sound_enter">🗣 zatwierdzono</string>
+    <string name="kb_en_variant">🇬🇧/🇺🇸 Pisownia angielska</string>
+    <string name="kb_en_variant_tip">Gdy piszesz po angielsku: brytyjska (colour, realise, centre) albo amerykańska (color, realize, center) – klawiatura poprawia na wybraną.</string>
+    <string name="kb_en_any">Obie (bez zmian)</string>
+    <string name="kb_tr_title">🌍 Tłumacz</string>
+    <string name="kb_tr_where">Zaznaczony tekst (albo cały napisany) trafi do wybranej aplikacji tłumacza w tym telefonie. Velivo go nie zapisuje ani nie wysyła nigdzie indziej.</string>
+    <string name="kb_tr_none">Brak tekstu albo aplikacji tłumacza (np. Tłumacz Google – z pobranymi językami działa bez internetu)</string>
 </resources>

@@ -241,6 +241,18 @@ object Slownik {
         return cap(typed, r)
     }
 
+    // 🇬🇧/🇺🇸 angielski: pisownia brytyjska albo amerykańska regułami (colour/color, realise/realize, centre/center, catalogue/catalog) -
+    // tylko gdy druga forma jest w słowniku; bez list słów
+    fun enVariant(word: String, uk: Boolean): String? {
+        val w = word.lowercase(); if (w.length < 5 || !inMain(w)) return null
+        val rules = if (uk) listOf("or" to "our", "ors" to "ours", "ize" to "ise", "izes" to "ises", "ized" to "ised", "izing" to "ising", "ization" to "isation", "yze" to "yse", "ter" to "tre", "ters" to "tres", "og" to "ogue")
+            else listOf("our" to "or", "ours" to "ors", "ise" to "ize", "ises" to "izes", "ised" to "ized", "ising" to "izing", "isation" to "ization", "yse" to "yze", "tre" to "ter", "tres" to "ters", "ogue" to "og")
+        for ((from, to) in rules) if (w.endsWith(from) && (w.length >= 7 || !(from.contains('z') || from.startsWith("is")))) {   // krótkie (prize, seize) bez zmian
+            val v = w.dropLast(from.length) + to; if (v != w && inMain(v)) return cap(word, v)
+        }
+        return null
+    }
+
     // spacja: poprawka, a gdy jej nie ma - dokończenie widoczne w pasku propozycji (klawi -> klawiatura)
     fun complete(typed: String, keep: Collection<String>? = null): String? {
         val fix = correct(typed, keep)

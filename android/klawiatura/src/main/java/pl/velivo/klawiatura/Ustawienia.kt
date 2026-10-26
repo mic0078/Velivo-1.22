@@ -51,6 +51,10 @@ open class Ustawienia : Activity() {
         button(R.string.kb_phrases, R.string.kb_phrases_help) { showPhrases() }
         button(R.string.kb_privacy, R.string.kb_privacy_tip) { privacy() }
         button(R.string.kb_sound, R.string.kb_sound_tip) { sounds() }
+        button(R.string.kb_en_variant, R.string.kb_en_variant_tip) {
+            val vals = arrayOf("", "uk", "us"); val pr = KlawiaturaVelivo.prefs(this)
+            AlertDialog.Builder(this).setTitle(R.string.kb_en_variant).setSingleChoiceItems(arrayOf(getString(R.string.kb_en_any), "🇬🇧 UK (colour, realise)", "🇺🇸 US (color, realize)"), vals.indexOf(pr.getString("klaw-en", "")).coerceAtLeast(0)) { d, i -> pr.edit().putString("klaw-en", vals[i]).apply(); d.dismiss() }.show()
+        }
         // 🧹 wyuczone dane (częstość, pary słów, poprawki) - za zgodą; Moje słowa zostają
         button(R.string.kb_clear_learned, R.string.kb_clear_learned_tip) {
             AlertDialog.Builder(this).setTitle(R.string.kb_clear_learned).setMessage(R.string.kb_clear_learned_tip)

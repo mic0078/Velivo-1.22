@@ -32,6 +32,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- dyktowanie: usługa rozpoznawania mowy w telefonie -->
     <queries><intent><action android:name="android.speech.RecognitionService" /></intent>
+        <!-- 🌍 aplikacje tłumacza (Przetwórz tekst) -->
+        <intent><action android:name="android.intent.action.PROCESS_TEXT" /><data android:mimeType="text/plain" /></intent>
         <!-- karteczki, szukanie i YouTube otwierane w przeglądarce Velivo -->
         <package android:name="pl.velivo.browser" /><package android:name="pl.velivo.komunikator" /></queries>
     <application android:label="@string/kb_name" android:icon="@mipmap/ic_launcher" android:allowBackup="false" android:supportsRtl="true"
@@ -47,6 +49,8 @@
         <!-- okienka z klawiatury (motyw, wysokość, słownik, mikrofon) - przezroczyste, bez ekranu ustawień pod spodem -->
         <activity android:name=".SzybkieUstawienia" android:exported="false" android:theme="@style/Okienko"
             android:excludeFromRecents="true" android:taskAffinity="" android:noHistory="true" />
+        <!-- 🌍 tłumaczenie przez wybraną aplikację tłumacza w telefonie -->
+        <activity android:name=".Tlumacz" android:exported="false" android:theme="@style/Okienko" android:excludeFromRecents="true" android:taskAffinity="" />
         <!-- 💬 komunikator i pliki telefon <-> telefon (gdy nie ma przeglądarki Velivo) - ciemne okienka Velivo -->
         <activity android:name=".Rozmowy" android:exported="false" android:theme="@style/Okienko" android:excludeFromRecents="true" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
         <!-- 💬 osobna ikona komunikatora - tylko gdy nie ma przeglądarki Velivo (wtedy ikona jest w niej; klawiatura ją wyłącza, bez dublowania) -->

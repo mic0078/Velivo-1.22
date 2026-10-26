@@ -45,4 +45,20 @@
     <string name="kb_p2p_failed">Could not save %1$s (from %2$s)</string>
     <string name="kb_m_send">Send to computer</string>
     <string name="kb_m_send_tip">Send files or a tab to the paired computer (through the Velivo browser)</string>
+    <string name="kb_clip">Clipboard and editing: recently copied, paste, copy, select, undo</string>
+    <string name="kb_clip_empty">📋 Clipboard empty – copy some text and it shows up here</string>
+    <string name="kb_selall">Select all</string>
+    <string name="kb_cut">✂ Cut</string>
+    <string name="kb_copy">📄 Copy</string>
+    <string name="kb_paste">📋 Paste</string>
+    <string name="kb_undo">↶ Undo</string>
+    <string name="kb_gif_allow">🎞 Allow GIFs from the phone</string>
+    <string name="kb_gif_tip">GIFs from Downloads and Pictures in the keyboard (😀 → GIF) – no third-party servers</string>
+    <string name="kb_gif_none">No GIFs on the phone (Downloads, Pictures)</string>
+    <string name="kb_gif_no">This app does not accept GIFs</string>
+    <string name="kb_gif_ok">Phone GIFs enabled: 😀 → GIF</string>
+    <string name="kb_preview">🔍 Big letter above the finger</string>
+    <string name="kb_preview_tip">Shows a big letter above the key you press – you can see what you type</string>
+    <string name="kb_on">on</string>
+    <string name="kb_off">off</string>
 </resources>

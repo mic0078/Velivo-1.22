@@ -45,4 +45,20 @@
     <string name="kb_p2p_failed">Nie udało się zapisać %1$s (od: %2$s)</string>
     <string name="kb_m_send">Wyślij na komputer</string>
     <string name="kb_m_send_tip">Wyślij pliki albo kartę na sparowany komputer (przez przeglądarkę Velivo)</string>
+    <string name="kb_clip">Schowek i edycja: ostatnio skopiowane, wklej, kopiuj, zaznacz, cofnij</string>
+    <string name="kb_clip_empty">📋 Schowek pusty – skopiuj tekst, pojawi się tutaj</string>
+    <string name="kb_selall">Zaznacz wszystko</string>
+    <string name="kb_cut">✂ Wytnij</string>
+    <string name="kb_copy">📄 Kopiuj</string>
+    <string name="kb_paste">📋 Wklej</string>
+    <string name="kb_undo">↶ Cofnij</string>
+    <string name="kb_gif_allow">🎞 Pozwól na GIF-y z telefonu</string>
+    <string name="kb_gif_tip">GIF-y z Pobranych i Obrazów w klawiaturze (😀 → GIF) – bez cudzych serwerów</string>
+    <string name="kb_gif_none">Brak GIF-ów w telefonie (Pobrane, Obrazy)</string>
+    <string name="kb_gif_no">Ta aplikacja nie przyjmuje GIF-ów</string>
+    <string name="kb_gif_ok">GIF-y z telefonu włączone: 😀 → GIF</string>
+    <string name="kb_preview">🔍 Powiększona litera nad palcem</string>
+    <string name="kb_preview_tip">Przy naciśnięciu nad klawiszem pokazuje dużą literę – widać, co się wciska</string>
+    <string name="kb_on">wł.</string>
+    <string name="kb_off">wył.</string>
 </resources>

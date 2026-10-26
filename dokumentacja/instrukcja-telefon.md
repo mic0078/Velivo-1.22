@@ -243,6 +243,11 @@ Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub 
 * **Autokorekta ✓** (np. zolw → żółw, napewno → na pewno, ze → że), przecinek przed „że”, „który”; ⌫ zaraz po poprawce przywraca wpisane słowo.
 * **Pasek propozycji:** dokończenia, następne słowo, ➕ dodaje nowe słowo do Mojego słownika.
 * **📖 Mój słownik:** jedno słowo w linii – dopisz lub skasuj.
+* **😀 Emotki** – klawisz obok spacji (w polu e-mail jest tam @): kategorie u góry (🕘 ostatnio używane, buźki, uczucia, gesty, serca, zwierzęta, jedzenie, podróże, rzeczy) i **GIF**.
+* **🎞 GIF-y z telefonu** (z Pobranych i Obrazów) – bez cudzych serwerów (Gboard szuka w Tenor Google). Za pierwszym razem: **🎞 Pozwól na GIF-y z telefonu** w aplikacji klawiatury. GIF trafia do aplikacji, która je przyjmuje (WhatsApp, Wiadomości, Komunikator Velivo…).
+* **📋 Schowek i edycja** (przycisk u góry): ostatnio skopiowane teksty (tylko w pamięci, najwyżej godzinę, bez haseł z menedżerów haseł), strzałki ◀ ▶, początek ⇤ / koniec ⇥, Zaznacz wszystko, Wytnij, Kopiuj, Wklej, Cofnij.
+* **🔍 Powiększona litera nad palcem** – przy naciśnięciu widać dużą literę (wyłączysz w aplikacji klawiatury). Większa wysokość klawiszy (↕) to też większe litery.
+* **Kursor palcem po spacji:** przesuń palec po spacji w lewo lub w prawo – kursor idzie za palcem (łatwiej poprawić literę w środku słowa).
 * **🎤 Dyktowanie:** za pierwszym razem aplikacja klawiatury zapyta o zgodę na mikrofon. **🔊** czyta na głos to, co piszesz. **PL / EN** – język słownika.
 * W polach haseł klawiatura niczego nie zapamiętuje. Nauka słów jest zaszyfrowana w telefonie.
 

@@ -27,6 +27,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.text.InputType
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -144,12 +145,70 @@ class KlawiaturaVelivo : InputMethodService() {
     private var sentence = StringBuilder()
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
     private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
-    private var sym = 0   // 0 - litery, 1 - znaki (?123), 2 - więcej znaków (=\<), 3 - emoji (przytrzymanie @) - jak w Gboard
+    private var sym = 0   // 0 - litery, 1 - znaki (?123), 2 - więcej znaków (=\<), 3 - emoji (😀), 4 - 📋 schowek i edycja, 5 - GIF-y z telefonu - jak w Gboard
+    private var ecat = -1   // emoji: kategoria (0 - ostatnio używane)
+    private var email = false   // pole adresu e-mail - przy spacji @ zamiast 😀
+    // 📋 ostatnio skopiowane teksty (jak w Gboard): tylko w pamięci, najwyżej 8 i godzinę; bez tekstów oznaczonych jako poufne (hasła z menedżerów haseł)
+    private val clips = ArrayList<Pair<String, Long>>()
+    private val clipListener = android.content.ClipboardManager.OnPrimaryClipChangedListener { grabClip() }
+    private fun grabClip() {
+        val cm = getSystemService(android.content.ClipboardManager::class.java) ?: return
+        if (cm.primaryClipDescription?.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true) return
+        val t = runCatching { cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull()?.trim().orEmpty()
+        if (t.isEmpty() || t.length > 5000) return
+        clips.removeAll { it.first == t }; clips.add(0, t to System.currentTimeMillis()); while (clips.size > 8) clips.removeAt(clips.size - 1)
+    }
+    private fun recentClips(): List<String> { val old = System.currentTimeMillis() - 3600000L; clips.removeAll { it.second < old }; return clips.map { it.first } }
+
+    // 😀 emoji w kategoriach (jak w Gboard / SwiftKey) i ostatnio używane (zapamiętane)
+    private val emojiCats = listOf("😀😃😄😁😆😅🤣😂🙂😉😊😇🥰😍🤩😘😋😜🤪🤗🤔🤭😎🥳", "😐😏😒🙄😔😴😷🤒🤕🤢🤧🥵🥶🤯😕😟😮😳🥺😢😭😱😤😡",
+        "👍👎👌✌️🤞🤟🤘👋🤙👏🙌🙏🤝💪👆👇👈👉✋🖐️🤲👶👵👴", "❤️🧡💛💚💙💜🖤🤍💔💕💞💓💗💖💘💝✨⭐🌟💫🔥💯✅❌",
+        "🐶🐱🐭🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐦🦋🐝🐟🌸🌹🌻🌳☀️", "🍎🍐🍊🍋🍌🍉🍇🍓🍒🍑🥝🍅🥕🌽🍞🧀🍕🍔🍟🍰🎂🍫☕🍷",
+        "🚗🚕🚌🚑🚒🚓🚲✈️🚆🚢🏠🏡🏥🏫⛪🏖️⛰️🌍🌙⛅🌧️❄️🌈⏰", "🎉🎁🎈🎄⚽🏀🎾🎮🎵🎶📱💻📷📺📞✉️📅📌✏️📖💊💡🔑💰")
+        .map { s -> Regex("\\X").findAll(s).map { it.value }.toList() }
+    private fun recentEmoji(): List<String> = prefs(this).getString("emoji-ostatnie", "").orEmpty().split(' ').filter { it.isNotEmpty() }
+    private fun useEmoji(e: String) = prefs(this).edit().putString("emoji-ostatnie", (listOf(e) + recentEmoji().filter { it != e }).take(24).joinToString(" ")).apply()
+
+    // 🎞 GIF-y z telefonu (Pobrane, Obrazy) - bez cudzych serwerów (Gboard szuka w Tenor Google); wysyłane do aplikacji, która je przyjmuje (WhatsApp, Wiadomości…)
+    private var gifs: List<Pair<android.net.Uri, android.graphics.Bitmap?>> = emptyList()
+    private fun gifAllowed() = checkSelfPermission(if (android.os.Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+    private fun loadGifs() {
+        if (!gifAllowed()) return
+        Thread {
+            val out = ArrayList<Pair<android.net.Uri, android.graphics.Bitmap?>>()
+            runCatching {
+                val base = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                contentResolver.query(base, arrayOf(android.provider.MediaStore.Images.Media._ID), android.provider.MediaStore.Images.Media.MIME_TYPE + "=?", arrayOf("image/gif"),
+                    android.provider.MediaStore.Images.Media.DATE_ADDED + " DESC")?.use { c ->
+                    while (c.moveToNext() && out.size < 16) {
+                        val u = android.content.ContentUris.withAppendedId(base, c.getLong(0))
+                        out.add(u to runCatching { contentResolver.loadThumbnail(u, android.util.Size(240, 240), null) }.getOrNull())
+                    }
+                }
+            }
+            ui.post { gifs = out; if (::view.isInitialized && sym == 5) view.refresh() }
+        }.start()
+    }
+    private fun sendGif(src: android.net.Uri) {
+        val types = currentInputEditorInfo?.contentMimeTypes ?: emptyArray()
+        if (types.none { android.content.ClipDescription.compareMimeTypes("image/gif", it) }) { tip(R.string.kb_gif_no); return }
+        Thread {
+            val dir = File(cacheDir, "gif").apply { mkdirs() }
+            dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86400000L }?.forEach { it.delete() }   // kopie starsze niż dzień - usuwane
+            val f = File(dir, "velivo-" + System.currentTimeMillis() + ".gif")
+            if (runCatching { contentResolver.openInputStream(src)!!.use { i -> f.outputStream().use { i.copyTo(it) } } }.isFailure) return@Thread
+            ui.post {
+                currentInputConnection?.commitContent(android.view.inputmethod.InputContentInfo(android.net.Uri.parse("content://" + GifDane.AUTH + "/" + f.name), android.content.ClipDescription("GIF", arrayOf("image/gif"))),
+                    android.view.inputmethod.InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null)
+            }
+        }.start()
+    }
     private var listening = false
     private var afterPunct = false   // po , ; : ! ? następna litera dostaje spację przed sobą (kot,pies -> kot, pies)
 
     override fun onCreate() {
         super.onCreate()
+        getSystemService(android.content.ClipboardManager::class.java)?.addPrimaryClipChangedListener(clipListener)
         Rozmowy.syncIcon(this)   // ikona komunikatora: w klawiaturze tylko bez przeglądarki Velivo
         load(this) { if (::view.isInitialized) view.refresh() }
     }
@@ -161,6 +220,7 @@ class KlawiaturaVelivo : InputMethodService() {
         load(this) { view.refresh() }
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
         val v = info.inputType and InputType.TYPE_MASK_VARIATION
+        email = cls == InputType.TYPE_CLASS_TEXT && (v == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS || v == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS)
         secret = cls == InputType.TYPE_CLASS_TEXT && (v == InputType.TYPE_TEXT_VARIATION_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) ||
             cls == InputType.TYPE_CLASS_NUMBER && v == InputType.TYPE_NUMBER_VARIATION_PASSWORD ||
             info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
@@ -178,7 +238,7 @@ class KlawiaturaVelivo : InputMethodService() {
     // ➤ w komunikatorze Velivo: popraw ostatnie słowo przed wysłaniem
     override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord("") }
     override fun onFinishInputView(finishingInput: Boolean) { super.onFinishInputView(finishingInput); stopListening(); komNew()?.close(); saveNow(this) }   // klawiatura chowa się - zaległy zapis od razu
-    override fun onDestroy() { tts?.shutdown(); rec?.destroy(); super.onDestroy() }
+    override fun onDestroy() { getSystemService(android.content.ClipboardManager::class.java)?.removePrimaryClipChangedListener(clipListener); tts?.shutdown(); rec?.destroy(); super.onDestroy() }
 
     private fun pref(k: String, def: Boolean = true) = prefs(this).getBoolean(k, def)
     private fun before(n: Int = 64): String = currentInputConnection?.getTextBeforeCursor(n, 0)?.toString() ?: ""
@@ -491,7 +551,7 @@ class KlawiaturaVelivo : InputMethodService() {
             keys.clear(); head.clear()
             val pad = 4 * dp
             // nagłówek: ✓ autokorekta, 🔈 klik, 📖 Mój słownik, 🎤 dyktowanie, 🔊 czytanie, PL/EN, ⌄ schowaj
-            val hs = listOf("✓" to "fix", "🔈" to "klik", "📖" to "words", (if (listening) "⏺" else "🎤") to "mic", "🔊" to "read", lang(context).uppercase() to "lang", "⌄" to "hide")
+            val hs = listOf("📋" to "clip", "✓" to "fix", "🔈" to "klik", "📖" to "words", (if (listening) "⏺" else "🎤") to "mic", "🔊" to "read", lang(context).uppercase() to "lang", "⌄" to "hide")
             var x = width - pad
             val bw = min(40 * dp, (width - 44 * dp) / hs.size - 2 * dp)   // przyciski mieszczą się obok logo na każdym telefonie
             for ((l, c) in hs.reversed()) { val k = K(l, c, bw); k.r.set(x - k.w, 4 * dp, x, headH - 2 * dp); head.add(k); x -= k.w + 2 * dp }
@@ -506,12 +566,30 @@ class KlawiaturaVelivo : InputMethodService() {
                 2 -> listOf(chars("1234567890"), chars("~`|•√π÷×§∆"), chars("£€¥°©®™✓¶\\"),
                     listOf(K("?123", "sym", 1.5f)) + chars("«»„”–—·") + listOf(K("⌫", "bs", 1.5f)),
                     listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
-                3 -> listOf("😀😂😊😍😘😉😎🤔😅😭", "😢😡😴🤗🙄😬🥰😇🤣😱", "👍👎👌👏🙏💪🤝✌👋🙌", "❤💔🔥🎉✨⭐✅❌☕🎁")
-                    .map { r -> Regex("\\X").findAll(r).map { K(it.value, it.value, 1f) }.toList() } +
-                    listOf(listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⌫", "bs", 1.5f)))
+                3 -> {   // 😀 kategorie u góry (🕘 ostatnio używane), 3 rzędy po 8, GIF z telefonu
+                    if (ecat < 0) ecat = if (recentEmoji().isNotEmpty()) 0 else 1
+                    val list = if (ecat == 0) recentEmoji() else emojiCats[ecat - 1]
+                    listOf(listOf(K("🕘", "ecat:0", 1f)) + emojiCats.mapIndexed { i, c -> K(c[0], "ecat:${i + 1}", 1f) } + listOf(K("GIF", "gifs", 1f))) +
+                        (0 until 3).map { r -> list.drop(r * 8).take(8).map { K(it, it, 1.25f) } } +
+                        listOf(listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⌫", "bs", 1.5f)))
+                }
+                4 -> {   // 📋 schowek i edycja (jak w Gboard): ostatnio skopiowane, strzałki, zaznacz, wytnij, kopiuj, wklej, cofnij
+                    val cl = recentClips()
+                    val clipRows = if (cl.isEmpty()) listOf(listOf(K(getString(R.string.kb_clip_empty), "noop", 10f)), emptyList())
+                        else listOf(cl.take(2), cl.drop(2).take(2)).map { r -> r.map { t -> K(t.replace('\n', ' '), "clip:" + cl.indexOf(t), 5f) } }
+                    clipRows + listOf(listOf(K("◀", "left", 1.5f), K("▶", "right", 1.5f), K("⇤", "home", 1.5f), K("⇥", "end", 1.5f), K(getString(R.string.kb_selall), "selall", 4f)),
+                        listOf(K(getString(R.string.kb_cut), "cut", 2.5f), K(getString(R.string.kb_copy), "copy", 2.5f), K(getString(R.string.kb_paste), "paste", 2.5f), K(getString(R.string.kb_undo), "undo", 2.5f)),
+                        listOf(K("ABC", "abc", 1.5f), K(space.label, "space", 5.5f), K("⌫", "bs", 1.5f), K("⏎", "enter", 1.5f)))
+                }
+                5 -> {   // 🎞 GIF-y z telefonu - 4 rzędy po 4
+                    val g = if (!gifAllowed()) listOf(listOf(K(getString(R.string.kb_gif_allow), "gifperm", 10f)))
+                        else if (gifs.isEmpty()) listOf(listOf(K(getString(R.string.kb_gif_none), "noop", 10f)))
+                        else (0 until 4).map { r -> gifs.indices.drop(r * 4).take(4).map { K("", "gif:$it", 2.5f) } }
+                    g + List(4 - g.size) { emptyList<K>() } + listOf(listOf(K("😀", "emoji", 1.5f), K(space.label, "space", 5.5f), K("⌫", "bs", 1.5f), K("ABC", "abc", 1.5f)))
+                }
                 else -> listOf(chars(rows[0]), chars(rows[1]), chars(rows[2]),
                     listOf(K("⇧", "shift", 1.5f)) + chars(rows[3]) + listOf(K("⌫", "bs", 1.5f)),
-                    listOf(K("?123", "sym", 1.5f), K(",", ",", 1f), K("@", "@", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
+                    listOf(K("?123", "sym", 1.5f), K(",", ",", 1f), if (email) K("@", "@", 1f) else K("😀", "emoji", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
             }
             for (row in lay) {
                 val units = row.sumOf { it.w.toDouble() }.toFloat()
@@ -558,7 +636,7 @@ class KlawiaturaVelivo : InputMethodService() {
             if (lg.right + 8 * dp + vw + tp.measureText(" by Michael") < room) cv.drawText(" by Michael", lg.right + 8 * dp + vw, lg.centerY() + 5 * dp, tp)
             tp.textAlign = Paint.Align.CENTER
             for (k in head) {
-                val on = when (k.code) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; else -> false }
+                val on = when (k.code) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; "clip" -> sym == 4; else -> false }
                 key(cv, k.r, on || k === pressed, fn = true)
                 tp.textSize = (if (k.code == "lang") 12 else 15) * dp; tp.color = if (on) Color.WHITE else text; tp.typeface = Typeface.DEFAULT_BOLD
                 cv.drawText(k.label, k.r.centerX(), k.r.centerY() + 5 * dp, tp)
@@ -585,14 +663,31 @@ class KlawiaturaVelivo : InputMethodService() {
             }
             // klawisze
             if (!menuOpen) for (k in keys) {
-                val on = k === pressed && !swiping || k.code == "shift" && (shift || caps) || k.code == "caps" && caps || k.code == "alt" && alt
-                key(cv, k.r, on, fn = k.code.length > 1 || k.code in setOf("?", ",", "."))
+                val on = k === pressed && !swiping && !cursorMode || k.code == "shift" && (shift || caps) || k.code == "caps" && caps || k.code == "alt" && alt || k.code == "ecat:$ecat" && sym == 3
+                val emo = isEmoji(k.code) && k.code != "emoji"
+                key(cv, k.r, on, fn = !emo && (k.code.length > 1 || k.code in setOf("?", ",", ".")))
+                if (k.code.startsWith("gif:")) {   // 🎞 miniatura GIF-a
+                    gifs.getOrNull(k.code.substring(4).toInt())?.second?.let { b -> val s = min((k.r.width() - 6 * dp) / b.width, (k.r.height() - 6 * dp) / b.height)
+                        val dw = b.width * s; val dh = b.height * s; cv.drawBitmap(b, null, RectF(k.r.centerX() - dw / 2, k.r.centerY() - dh / 2, k.r.centerX() + dw / 2, k.r.centerY() + dh / 2), null) }
+                    continue
+                }
                 val l = label(k)
                 val hint = if (k.code.length == 1 && sym == 0) { val i = "acelnoszx".indexOf(k.code[0]); if (i >= 0 && !alt) "ąćęłńóśżź"[i].toString() else longSym[k.code[0]]?.toString() ?: "" } else ""
-                // jak zwykłe klawiatury telefonu: znak z przytrzymania mały nad literą, litera większa poniżej
-                tp.textSize = (if (l.length > 2) 14 else 22) * dp; tp.color = if (on) Color.WHITE else text
-                cv.drawText(l, k.r.centerX(), k.r.centerY() + (if (hint.isNotEmpty()) 12 else 8) * dp, tp)
-                if (hint.isNotEmpty()) { tp.textSize = 12 * dp; tp.color = dim; cv.drawText(hint, k.r.centerX(), k.r.top + 15 * dp, tp) }
+                // jak zwykłe klawiatury telefonu: znak z przytrzymania mały nad literą, litera większa poniżej; wyższe klawisze (ustawienie) - większe litery
+                tp.textSize = (if (emo) (if (k.code.startsWith("ecat")) 20 else 26) * ks else if (l.length > 2) 14f else 22 * ks) * dp; tp.color = if (on) Color.WHITE else text
+                cv.drawText(if (l.length > 2) fit(l, k.r.width() - 8 * dp) else l, k.r.centerX(), k.r.centerY() + (if (hint.isNotEmpty()) 12 else 8) * dp * (if (emo || l.length > 2) 1f else ks), tp)
+                if (hint.isNotEmpty()) { tp.textSize = 12 * ks * dp; tp.color = dim; cv.drawText(hint, k.r.centerX(), k.r.top + 15 * dp, tp) }
+            }
+            // 🔍 powiększona litera nad palcem (jak w Gboard) - widać, co się naciska; dla słabszego wzroku
+            pressed?.takeIf { !swiping && !menuOpen && !cursorMode && downY >= headH + sugH && pref("klaw-podglad") && (it.code.length == 1 && it.code[0].isLetterOrDigit() || isEmoji(it.code) && it.code != "emoji") }?.let { k ->
+                val bw = k.r.width() * 1.6f; val bh = keyH * 1.15f
+                val left = (k.r.centerX() - bw / 2).coerceIn(2 * dp, w - bw - 2 * dp); val top = max(0f, k.r.top - bh - 2 * dp)
+                val b = RectF(left, top, left + bw, top + bh)
+                p.color = Color.argb(0x50, 0, 0, 0); cv.drawRoundRect(RectF(b.left + 2 * dp, b.top + 3 * dp, b.right + 2 * dp, b.bottom + 3 * dp), 12 * dp, 12 * dp, p)
+                p.color = if (contrast) Color.BLACK else if (text == Color.WHITE) Color.rgb(0x2E, 0x25, 0x60) else Color.WHITE; cv.drawRoundRect(b, 12 * dp, 12 * dp, p)
+                if (contrast) { p.style = Paint.Style.STROKE; p.strokeWidth = 2 * dp; p.color = Color.WHITE; cv.drawRoundRect(b, 12 * dp, 12 * dp, p); p.style = Paint.Style.FILL }
+                tp.textSize = 38 * ks * dp; tp.color = text; tp.typeface = Typeface.DEFAULT_BOLD
+                cv.drawText(label(k), b.centerX(), b.centerY() + 13 * ks * dp, tp); tp.typeface = Typeface.DEFAULT
             }
             // ślad przeciągania w gradiencie logo
             if (swiping && trace.size > 1) {
@@ -612,6 +707,9 @@ class KlawiaturaVelivo : InputMethodService() {
             }
         }
 
+        private val ks get() = (prefs(context).getInt("wysokosc", 120) / 120f).coerceIn(0.85f, 1.35f)   // wielkość liter rośnie z wysokością klawiszy
+        private fun isEmoji(c: String) = c.isNotEmpty() && Character.getType(c.codePointAt(0)) == Character.OTHER_SYMBOL.toInt()
+        private var cursorMode = false; private var curX = 0f   // ⇔ przesuwanie kursora palcem po spacji (jak w Gboard)
         private fun fit(s: String, maxW: Float): String { var t = s; while (t.length > 2 && tp.measureText(t) > maxW) t = t.dropLast(2) + "…"; return t }
 
         // klawisz ze szkła; włączony / wciśnięty - gradient logo (fiolet -> turkus)
@@ -653,7 +751,7 @@ class KlawiaturaVelivo : InputMethodService() {
             val x = e.x; val y = e.y
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    downX = x; downY = y; downAt = SystemClock.uptimeMillis(); longDone = false; swiping = false; trace.clear()
+                    downX = x; downY = y; downAt = SystemClock.uptimeMillis(); longDone = false; swiping = false; cursorMode = false; trace.clear()
                     if (y < headH && x < (head.minOfOrNull { it.r.left } ?: width.toFloat())) { menuOpen = !menuOpen; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED); invalidate(); return true }   // logo V: menu
                     if (menuOpen && y >= headH) { pressed = menu.firstOrNull { it.r.contains(x, y) }; pressed?.let { k -> postDelayed({ if (pressed === k) { longDone = true; tip(menuName(k.code)) } }, 500) }; invalidate(); return true }
                     if (y < headH) { pressed = head.firstOrNull { it.r.contains(x, y) }; pressed?.let { k -> postDelayed({ if (pressed === k) { longDone = true; tip(headTip(k.code)) } }, 500) }; invalidate(); return true }
@@ -667,6 +765,13 @@ class KlawiaturaVelivo : InputMethodService() {
                 MotionEvent.ACTION_MOVE -> {
                     val k = pressed ?: return true
                     if (downY < headH + sugH) return true
+                    if (k.code == "space" && !longDone) {   // ⇔ palec po spacji - kursor w lewo / w prawo
+                        if (!cursorMode && kotlin.math.abs(x - downX) > 16 * dp) { cursorMode = true; removeCallbacks(longPress); curX = x; invalidate() }
+                        if (cursorMode) { val st = 14 * dp
+                            while (x - curX > st) { sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_RIGHT); curX += st }
+                            while (curX - x > st) { sendDownUpKeyEvents(KeyEvent.KEYCODE_DPAD_LEFT); curX -= st } }
+                        return true
+                    }
                     trace.add(Slownik.P(x.toDouble(), y.toDouble()))
                     val kw = (keys.firstOrNull { it.code == "q" }?.r?.width() ?: 40f).toDouble()
                     // przeciąganie od litery: palec odjechał dalej niż pół klawisza
@@ -676,6 +781,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 MotionEvent.ACTION_UP -> {
                     removeCallbacks(longPress); removeCallbacks(repeat)
                     val k = pressed; pressed = null
+                    if (cursorMode) { cursorMode = false; cur = ""; fixFrom = null; lastSwipe = null; autoShift(); refresh(); return true }   // kursor przesunięty - bez spacji
                     if (downY < headH) { if (k != null && !longDone && k.r.contains(x, y)) headAction(k.code); invalidate(); return true }
                     if (menuOpen) { if (k != null && !longDone && k.r.contains(x, y)) menuAction(k.code); invalidate(); return true }
                     if (downY < headH + sugH) { sugR.firstOrNull { it.first.contains(x, y) }?.second?.let { s -> if (s.startsWith("➕")) addWord(s.substring(1)) else pick(s) }; return true }
@@ -743,7 +849,7 @@ class KlawiaturaVelivo : InputMethodService() {
             menuOpen = false; refresh()
         }
 
-        private fun headTip(c: String) = when (c) { "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "words" -> R.string.kb_words; "mic" -> R.string.kb_mic; "read" -> R.string.kb_read; "lang" -> R.string.kb_lang; else -> R.string.kb_hide }
+        private fun headTip(c: String) = when (c) { "clip" -> R.string.kb_clip; "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "words" -> R.string.kb_words; "mic" -> R.string.kb_mic; "read" -> R.string.kb_read; "lang" -> R.string.kb_lang; else -> R.string.kb_hide }
 
         private fun headAction(c: String) {
             val pr = prefs(context)
@@ -755,6 +861,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 "mic" -> toggleMic()
                 "lang" -> { pr.edit().putString("klaw-jezyk", if (lang(context) == "pl") "en" else "pl").apply(); load(context) { refresh() } }
                 "hide" -> requestHideSelf(0)
+                "clip" -> { sym = if (sym == 4) 0 else 4; if (sym == 4) grabClip() }   // 📋 schowek i edycja
             }
             refresh()
         }
@@ -777,7 +884,22 @@ class KlawiaturaVelivo : InputMethodService() {
                 "abc" -> { sym = 0; refresh() }
                 "enter" -> enter()
                 "space" -> { lastSwipe?.let { if (before(1) == " ") { lastSwipe = null; refresh(); return } }; type(' ') }
-                else -> if (k.code.length == 1) type(k.code[0]) else currentInputConnection?.commitText(k.code, 1)   // emoji (kilka znaków)
+                "emoji" -> { sym = 3; shift = false; caps = false; alt = false; refresh() }
+                "gifs" -> { sym = 5; loadGifs(); refresh() }
+                "gifperm" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_GIF).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "noop" -> {}
+                // ✂ edycja jak w Gboard: strzałki, początek / koniec, zaznacz wszystko, wytnij, kopiuj, wklej, cofnij
+                "left", "right", "home", "end" -> { sendDownUpKeyEvents(when (k.code) { "left" -> KeyEvent.KEYCODE_DPAD_LEFT; "right" -> KeyEvent.KEYCODE_DPAD_RIGHT; "home" -> KeyEvent.KEYCODE_MOVE_HOME; else -> KeyEvent.KEYCODE_MOVE_END }); cur = ""; fixFrom = null }
+                "selall" -> currentInputConnection?.performContextMenuAction(android.R.id.selectAll)
+                "cut", "copy", "paste" -> { currentInputConnection?.performContextMenuAction(when (k.code) { "cut" -> android.R.id.cut; "copy" -> android.R.id.copy; else -> android.R.id.paste }); cur = ""; fixFrom = null; ui.postDelayed({ grabClip(); refresh() }, 300) }
+                "undo" -> currentInputConnection?.let { ic -> val t = SystemClock.uptimeMillis(); ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, 0, KeyEvent.META_CTRL_ON)); ic.sendKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_Z, 0, KeyEvent.META_CTRL_ON)); cur = ""; fixFrom = null }
+                else -> when {
+                    k.code.startsWith("ecat:") -> { ecat = k.code.substring(5).toInt(); refresh() }
+                    k.code.startsWith("clip:") -> { recentClips().getOrNull(k.code.substring(5).toInt())?.let { currentInputConnection?.commitText(it, 1) }; cur = ""; fixFrom = null }
+                    k.code.startsWith("gif:") -> gifs.getOrNull(k.code.substring(4).toInt())?.let { sendGif(it.first) }
+                    else -> { if (sym == 3 && isEmoji(k.code)) useEmoji(k.code)   // 🕘 ostatnio używane
+                        if (k.code.length == 1) type(k.code[0]) else currentInputConnection?.commitText(k.code, 1) }   // emoji (kilka znaków)
+                }
             }
         }
     }

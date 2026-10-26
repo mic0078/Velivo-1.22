@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 🎤 dyktowanie - tylko po stuknięciu mikrofonu -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 🎞 GIF-y z telefonu w klawiaturze - tylko po zgodzie w ustawieniach klawiatury -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- 💬 przeniesienie komunikatora klawiatura -> przeglądarka: tylko między aplikacjami Velivo (ten sam podpis) -->
     <permission android:name="pl.velivo.permission.KOMUNIKATOR" android:protectionLevel="signature" />
     <uses-permission android:name="pl.velivo.permission.KOMUNIKATOR" />
@@ -61,6 +64,8 @@
         <service android:name="pl.velivo.komunikator.KomunikatorUsluga" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Local network messenger: receives messages from devices on the home Wi-Fi without internet" />
         </service>
+        <!-- 🎞 GIF wysyłany z klawiatury - tylko do aplikacji, w której piszesz (jednorazowe prawo odczytu) -->
+        <provider android:name=".GifDane" android:authorities="pl.velivo.klawiatura.gif" android:exported="false" android:grantUriPermissions="true" />
         <provider android:name=".KomunikatorDane" android:authorities="pl.velivo.klawiatura.komunikator" android:exported="true"
             android:permission="pl.velivo.permission.KOMUNIKATOR" />
         <!-- ⌨ klawiatura (włączana w ustawieniach Androida, działa we wszystkich aplikacjach) -->

@@ -243,6 +243,11 @@ The same keyboard as on the computer, in Velivo colours (dark, light or black-an
 * **Autocorrect ✓**; ⌫ right after a correction restores what you typed.
 * **Suggestion bar:** completions, next word, ➕ adds a new word to My dictionary.
 * **📖 My dictionary:** one word per line – add or delete.
+* **😀 Emoji** – the key next to space (an @ in e-mail fields): categories on top (🕘 recently used, smileys, feelings, gestures, hearts, animals, food, travel, things) and **GIF**.
+* **🎞 GIFs from the phone** (Downloads and Pictures) – no third-party servers (Gboard searches Tenor by Google). First time: **🎞 Allow GIFs from the phone** in the keyboard app. The GIF goes to apps that accept them (WhatsApp, Messages, Velivo messenger…).
+* **📋 Clipboard and editing** (button on top): recently copied texts (memory only, up to an hour, no passwords from password managers), arrows ◀ ▶, start ⇤ / end ⇥, Select all, Cut, Copy, Paste, Undo.
+* **🔍 Big letter above the finger** – a big letter shows when you press a key (can be turned off in the keyboard app). Taller keys (↕) also mean bigger letters.
+* **Cursor with a finger on the space bar:** slide your finger left or right on space – the cursor follows (easier to fix a letter inside a word).
 * **🎤 Dictation:** the first time the keyboard app asks for microphone access. **🔊** reads aloud what you type. **PL / EN** – dictionary language.
 * Nothing is learned in password fields. Learned words are encrypted on the phone.
 

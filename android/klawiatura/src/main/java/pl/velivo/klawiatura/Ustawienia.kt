@@ -19,8 +19,9 @@ import android.widget.Toast
 
 // Ustawienia klawiatury Velivo: włączenie, wybór, mikrofon do dyktowania, motyw, Mój słownik.
 open class Ustawienia : Activity() {
-    companion object { const val ACTION_THEME = "pl.velivo.klawiatura.MOTYW"; const val ACTION_HEIGHT = "pl.velivo.klawiatura.WYSOKOSC" }
-    private val REQ_MIC = 1
+    companion object { const val ACTION_THEME = "pl.velivo.klawiatura.MOTYW"; const val ACTION_HEIGHT = "pl.velivo.klawiatura.WYSOKOSC"; const val ACTION_GIF = "pl.velivo.klawiatura.GIF" }
+    private val REQ_MIC = 1; private val REQ_GIF = 2
+    private fun askGif() = requestPermissions(arrayOf(if (android.os.Build.VERSION.SDK_INT >= 33) android.Manifest.permission.READ_MEDIA_IMAGES else android.Manifest.permission.READ_EXTERNAL_STORAGE), REQ_GIF)
     // z klawiatury (motyw, wysokość, słownik, mikrofon): samo okienko nad pisaniem, bez ekranu ustawień pod spodem; po wyborze powrót do pisania
     protected open val quick = false
 
@@ -47,6 +48,13 @@ open class Ustawienia : Activity() {
         button(R.string.kb_theme, R.string.kb_theme_tip) { chooseTheme() }
         button(R.string.kb_height, R.string.kb_height_tip) { chooseHeight() }
         button(R.string.kb_words, R.string.kb_words) { showWords() }
+        button(R.string.kb_gif_allow, R.string.kb_gif_tip) { askGif() }
+        // 🔍 powiększona litera nad palcem - wł./wył. (domyślnie wł.)
+        val pr = KlawiaturaVelivo.prefs(this)
+        fun previewLabel() = getString(R.string.kb_preview) + ": " + getString(if (pr.getBoolean("klaw-podglad", true)) R.string.kb_on else R.string.kb_off)
+        lateinit var prevBtn: Button
+        button(R.string.kb_preview, R.string.kb_preview_tip) { pr.edit().putBoolean("klaw-podglad", !pr.getBoolean("klaw-podglad", true)).apply(); prevBtn.text = previewLabel() }
+        prevBtn = box.getChildAt(box.childCount - 1) as Button; prevBtn.text = previewLabel()
         // 📤 pliki na komputer - przez przeglądarkę Velivo (parowanie i szyfrowanie są tam)
         button(R.string.kb_m_send, R.string.kb_m_send_tip) { runCatching { startActivity(Intent("pl.velivo.browser.WYSLIJ_NA_KOMPUTER").setClassName("pl.velivo.browser", "pl.velivo.browser.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             .onFailure { Toast.makeText(this, R.string.kb_m_no_velivo, Toast.LENGTH_LONG).show() } }
@@ -62,6 +70,7 @@ open class Ustawienia : Activity() {
             KlawiaturaVelivo.ACTION_WORDS -> showWords()
             ACTION_THEME -> chooseTheme()
             ACTION_HEIGHT -> chooseHeight()
+            ACTION_GIF -> askGif()
             else -> return false
         }
         return true
@@ -77,6 +86,7 @@ open class Ustawienia : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_MIC && grantResults.any { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) Toast.makeText(this, R.string.kb_mic_ok, Toast.LENGTH_LONG).show()
+        if (requestCode == REQ_GIF && grantResults.any { it == android.content.pm.PackageManager.PERMISSION_GRANTED }) Toast.makeText(this, R.string.kb_gif_ok, Toast.LENGTH_LONG).show()
         done()
     }
 

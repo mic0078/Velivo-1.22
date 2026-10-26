@@ -209,6 +209,10 @@ el.addEventListener('pointermove', e => { if (!steer) return; const p = pos(e, e
 el.addEventListener('wheel', e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'w', d: e.deltaY > 0 ? -120 : 120 }); }, { passive: false });
 el.addEventListener('contextmenu', e => { if (steer) e.preventDefault(); });
 });
+// okno rozmowy schowane / Alt+Tab / utracone przechwycenie - u rozmówcy nic nie zostaje wciśnięte
+const rel = () => { if (steer) { mv = null; dsend({ k: 'in', t: 'rel' }); } };
+window.addEventListener('blur', rel); document.addEventListener('visibilitychange', rel);
+[you, shot].forEach(el => { el.addEventListener('pointercancel', rel); el.addEventListener('lostpointercapture', e => { if (e.buttons) rel(); }); });
 ['keydown', 'keyup'].forEach(n => document.addEventListener(n, e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'k', v: e.keyCode, up: n === 'keyup' }); }));
 // telefon: głośnik albo słuchawka przy uchu (słuchawki przewodowe / Bluetooth - same)
 if (window.velivo && velivo.speakerOn) { if (!velivo.speakerOn()) spk.classList.add('off'); spk.onclick = () => spk.classList.toggle('off', !velivo.speaker()); }

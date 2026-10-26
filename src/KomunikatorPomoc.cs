@@ -55,12 +55,17 @@ namespace Velivo
         {
             if (_komCtlScreen == null && _komCtlBar == null) return;
             _komCtlScreen = null;
-            // nic nie zostaje wciśnięte (koniec sterowania w trakcie przeciągania albo skrótu)
+            KomCtlRelease();
+            try { _komCtlBar?.Close(); } catch (Exception) { }
+            _komCtlBar = null;
+        }
+
+        // nic nie zostaje wciśnięte (koniec sterowania, okno pomagającego zminimalizowane, Alt+Tab u niego)
+        void KomCtlRelease()
+        {
             foreach (var f in _komCtlButtons) KomMouse(f << 1); _komCtlButtons.Clear();
             foreach (var vk in _komCtlKeys) KomKey(vk, true); _komCtlKeys.Clear();
             foreach (ushort vk in new ushort[] { 0x10, 0x11, 0x12, 0x5B }) KomKey(vk, true);
-            try { _komCtlBar?.Close(); } catch (Exception) { }
-            _komCtlBar = null;
         }
 
         // ruch od rozmówcy: x, y - ułamek pokazywanego ekranu
@@ -71,6 +76,7 @@ namespace Velivo
             {
                 var t = (string)o["t"];
                 if (t == "k") { var vk = (ushort)(int)o["v"]; bool up = (bool?)o["up"] == true; if (up) _komCtlKeys.Remove(vk); else _komCtlKeys.Add(vk); KomKey(vk, up); return; }
+                if (t == "rel") { KomCtlRelease(); return; }
                 if (t == "w") { KomMouse(0x0800, data: (int)o["d"]); return; }
                 var vs = System.Windows.Forms.SystemInformation.VirtualScreen;
                 double x = Math.Clamp((double)o["x"], 0, 1), y = Math.Clamp((double)o["y"], 0, 1);

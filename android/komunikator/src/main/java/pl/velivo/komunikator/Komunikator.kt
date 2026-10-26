@@ -2488,6 +2488,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
+                if (!m.mine && m.path == null) Ochrona.messageWarning(m.text, pl)?.let { w -> msgs.addView(TextView(a).apply {   // 🛡 podejrzany link / prośba o kod lub dane karty
+                    text = w; textSize = 14f; setTextColor(if (w.startsWith("⚠")) Color.WHITE else ink); setPadding(px(12), px(6), px(12), px(7))
+                    background = bg(if (w.startsWith("⚠")) Color.rgb(0xDC, 0x26, 0x26) else Color.argb(0x40, 0xF5, 0x9E, 0x0B), 12)
+                    layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.START; topMargin = px(3); rightMargin = px(48) }
+                }) }
                 if (!m.mine && m.path == null && m.text.contains("VELIVO-KONTAKT:")) msgs.addView(pill("👤 " + t("Wyślij prośbę o kontakt", "Send a contact request"), t("Ta osoba dostanie prośbę i zdecyduje: Dodaj / Odrzuć", "This person gets the request and decides: Add / Decline")) {   // 🔗 czyjś „Mój adres Velivo” w rozmowie - jedno stuknięcie
                     Toast.makeText(a, if (k.requestByLink(m.text)) "👤 " + t("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie", "Request sent – the contact appears when they accept") else t("To nie jest adres Velivo", "This is not a Velivo address"), Toast.LENGTH_LONG).show()
                 }.apply { layoutParams = LinearLayout.LayoutParams(-2, px(40)).apply { gravity = Gravity.START; topMargin = px(4) } })
@@ -2790,7 +2795,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
 
     // link: najpierw aplikacja przypisana do takich linków (np. YouTube), inaczej domyślna przeglądarka
-    private fun openLink(url: String) {
+    private fun openLink(url: String, sure: Boolean = false) {
+        if (!sure) Ochrona.linkFake(url)?.let { d ->   // 🛡 podróbka znanej firmy - najpierw ostrzeżenie (inne przeglądarki tego nie sprawdzają)
+            Dlg().setTitle("⚠ " + t("Uwaga – możliwe oszustwo", "Warning – possible scam"))
+                .setMessage(t("Ten link udaje ", "This link imitates ") + (if (d == "xn") t("znaną stronę (podmienione litery)", "a known site (look-alike letters)") else d) + t(".\n\nNie podawaj tam haseł, kodów BLIK ani danych karty.", ".\n\nDon't enter passwords, codes or card details there."))
+                .setPositiveButton(t("Nie otwieraj", "Don't open"), null).setNegativeButton(t("Otwórz mimo to", "Open anyway")) { _, _ -> openLink(url, true) }.show()
+            return
+        }
         val i = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)).addCategory(android.content.Intent.CATEGORY_BROWSABLE)
         if (Build.VERSION.SDK_INT >= 30 && runCatching { a.startActivity(android.content.Intent(i).addFlags(android.content.Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER)) }.isSuccess) return
         // przeglądarką jest samo Velivo - komunikator się zamyka, żeby strona była widoczna (inaczej otwierała się pod nim)

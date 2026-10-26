@@ -1,8 +1,8 @@
-package pl.velivo.browser
+package pl.velivo.komunikator
 
 // Ochrona przed oszustwami (offline, jak Ochrona.cs w Velivo na Windows): strony-podróbki znanych firm i banków -
 // marka w adresie na obcej domenie, literówki i podmienione znaki, adresy xn-- (znaki udające litery)
-// oraz podróbki stron, do których masz zapisane hasła.
+// oraz podróbki stron, do których masz zapisane hasła. Wspólna dla przeglądarki i komunikatora (🛡 linki w wiadomościach).
 object Ochrona {
     // marka -> prawdziwe domeny (domena rejestrowana)
     private val brands = linkedMapOf(
@@ -100,6 +100,19 @@ object Ochrona {
             if (deconfuse(l) == deconfuse(o)) return d
             if (o.length >= 6 && l.length >= 5 && editDistance(l, o) == 1) return d
         }
+        return null
+    }
+
+    // 🛡 wiadomość w komunikatorze: link podrabiający znaną firmę albo prośba o kod BLIK, dane karty, kod z SMS-a
+    // (najczęstsze oszustwa na starszych osobach - WhatsApp i Signal tego nie sprawdzają); null - nic podejrzanego
+    private val asks = listOf("blik", "kod sms", "kod z sms", "numer karty", "dane karty", "cvv", "dopłat", "hasło do banku", "logowania do banku",
+        "card number", "card details", "verification code", "bank details", "sort code")
+    fun linkFake(text: String): String? = Regex("(?:https?://|www\\.)([^/\\s:?#]+)", RegexOption.IGNORE_CASE).findAll(text).firstNotNullOfOrNull { checkLookalike(it.groupValues[1], emptyList()) }
+    fun messageWarning(text: String, pl: Boolean): String? {
+        linkFake(text)?.let { d -> val what = if (d == "xn") (if (pl) "znaną stronę (podmienione litery)" else "a known site (look-alike letters)") else d
+            return if (pl) "⚠ Ten link udaje $what – to może być oszustwo. Nie podawaj haseł ani danych karty." else "⚠ This link imitates $what – it may be a scam. Don't enter passwords or card details." }
+        val t = text.lowercase()
+        if (asks.any { t.contains(it) }) return if (pl) "💡 Prośba o kod, dane karty albo dopłatę? Zanim cokolwiek zrobisz, zadzwoń do tej osoby i upewnij się." else "💡 Asked for a code, card details or a payment? Call the person to make sure before you do anything."
         return null
     }
 }

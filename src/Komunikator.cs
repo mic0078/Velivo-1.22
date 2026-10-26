@@ -625,6 +625,17 @@ namespace Velivo
             if (KomFirstUrl(m.Text) is string url) _ = KomPreviewThenDeliver(c, m, url); else KomDeliver(c, m);
         }
 
+        // 🛡 jak na telefonie (Ochrona.kt): link podrabiający znaną firmę albo prośba o kod BLIK, dane karty, kod z SMS-a - najczęstsze oszustwa na starszych osobach
+        static readonly string[] KomScamAsks = { "blik", "kod sms", "kod z sms", "numer karty", "dane karty", "cvv", "dopłat", "hasło do banku", "logowania do banku",
+            "card number", "card details", "verification code", "bank details", "sort code" };
+        static string KomScamWarning(string text)
+        {
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text ?? "", @"(?:https?://|www\.)([^/\s:?#]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                if (CheckLookalike(m.Groups[1].Value, null) is string d) return "⚠ " + L.T("Ten link udaje ") + (d == "xn" ? L.T("znaną stronę (podmienione litery)") : d) + L.T(" – to może być oszustwo. Nie podawaj haseł ani danych karty.");
+            var t = (text ?? "").ToLowerInvariant();
+            return KomScamAsks.Any(t.Contains) ? "💡 " + L.T("Prośba o kod, dane karty albo dopłatę? Zanim cokolwiek zrobisz, zadzwoń do tej osoby i upewnij się.") : null;
+        }
+
         // 🔗 podgląd linku jak w Signal: tytuł i opis strony pobiera nadawca i wysyła zaszyfrowane razem z wiadomością (odbiorca i pośrednik nie łączą się ze stroną)
         static readonly System.Text.RegularExpressions.Regex KomUrlRx = new System.Text.RegularExpressions.Regex(@"(https?://|www\.)[^\s<>""]+[^\s<>"".,;:!?)\]]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         static string KomFirstUrl(string text) { var m = KomUrlRx.Match(text ?? ""); return !m.Success ? null : m.Value.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + m.Value : m.Value; }
@@ -1766,6 +1777,9 @@ namespace Velivo
                         foreach (var ch in body.Children.OfType<FrameworkElement>().Where(x => x is Image or MediaElement)) ch.ContextMenu = txt.ContextMenu;
                     }
                     body.Children.Add(txt);
+                    if (!m.Mine && !hasFile && KomScamWarning(m.Text) is string scam)   // 🛡 podejrzany link / prośba o kod lub dane karty
+                        body.Children.Add(new Border { Background = new SolidColorBrush(scam.StartsWith("⚠") ? Color.FromRgb(0xDC, 0x26, 0x26) : Color.FromArgb(0x50, 0xF5, 0x9E, 0x0B)), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 4, 8, 5), Margin = new Thickness(0, 6, 0, 2),
+                            Child = new TextBlock { Text = scam, TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = scam.StartsWith("⚠") ? Brushes.White : fg } });
                     if (!m.Mine && !hasFile && m.Text.Contains("VELIVO-KONTAKT:"))
                     {   // 🔗 czyjś „Mój adres Velivo” w rozmowie - jedno kliknięcie zamiast kopiowania
                         var ask = new Button { Content = "👤 " + L.T("Wyślij prośbę o kontakt"), Margin = new Thickness(0, 6, 0, 2), Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Left, Cursor = Cursors.Hand, ToolTip = L.T("Ta osoba dostanie prośbę i zdecyduje: Dodaj / Odrzuć") };

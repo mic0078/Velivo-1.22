@@ -263,7 +263,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (!net && (t == "p2p-here" || t == "p2p-who") && contact(from) == null) notifyNewDevice(from, clean(p.optString("device")))
         contact(from)?.let { c ->
             val was = online(c.id); lastSeen[c.id] = System.currentTimeMillis(); markSeen(c.id)
-            if (t == "p2p-here" && !viaRelay && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
+            if (t == "p2p-here" && !net && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }   // aktualny adres
             // prawdziwa nazwa urządzenia (zmieniona na tamtym telefonie / komputerze); własna nazwa kontaktu zostaje
             val real = clean(p.optString("device"))
             if (real.isNotEmpty() && real != c.device) { c.device = real; if (!c.own) c.name = real; saveContacts(); main.post { onChange() } }
@@ -281,7 +281,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             "p2p-ack" -> {
                 val c = contact(from) ?: return true; val mid = p.optString("mid")
                 if (!MessageDigest.isEqual(unb64(p.optString("mac")), hmac(c.key, "ack\n$mid".toByteArray()))) return true
-                if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
+                if (!net && !sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
                 acks[mid]?.countDown()
                 // ✓✓ szare: plik ze skrzynki 📬 dotarł do odbiorcy (potwierdza po odebraniu)
                 var any = false
@@ -477,7 +477,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         sendUdp(packet("p2p-ack").put("to", c.id).put("mid", mid).put("mac", b64(hmac(c.key, "ack\n$mid".toByteArray()))), sender)
         if (!seen.add(mid) || synchronized(this) { chat(c.id).any { it.mid == mid } }) return   // powtórzenie (także po ponownym uruchomieniu) (np. potwierdzenie nie doszło) - tylko ponowne ack
         if (seen.size > 2000) synchronized(seen) { seen.iterator().let { it.next(); it.remove() } }
-        if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
+        if (!p.optBoolean("fwd") && !sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
         if (text.startsWith(CALL)) { val o = runCatching { JSONObject(text.substring(CALL.length)) }.getOrNull() ?: return; onCallSignal(c, o); return }
         typingAt.remove(c.id)
         if (text.startsWith(GROUP)) { groupIn(c, text.substring(GROUP.length), p.optLong("ts"), mid); return }   // 👥 wiadomość w grupie

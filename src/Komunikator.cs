@@ -390,7 +390,7 @@ namespace Velivo
             if (c != null)
             {
                 bool was = KomOnline(c.Id); _komLastSeen[c.Id] = DateTime.UtcNow; _komSeenAt[c.Id] = DateTime.Now;
-                if (t == "p2p-here" && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
+                if (t == "p2p-here" && (bool?)p["fwd"] != true && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
                 // 🌍 adres pośrednika kontaktu (np. NUCBOX z No-IP) - poza domem rozmowy ida przez niego
                 var relayAddr = (string)p["relay"];
                 if (t == "p2p-here" && relayAddr != null && relayAddr.Length < 200 && relayAddr.Contains(':') && relayAddr != c.Relay) { c.Relay = relayAddr; KomSave(); }
@@ -410,7 +410,7 @@ namespace Velivo
                         var mid = (string)p["mid"] ?? "";
                         var mac = KomB64((string)p["mac"]); var exp = KomHmac(c.Key, "ack\n" + mid);
                         if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) return;
-                        if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }
+                        if ((bool?)p["fwd"] != true && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }
                         if (_komAcks.TryGetValue(mid, out var tcs)) tcs.TrySetResult(true);
                         // ✓✓ szare: plik ze skrzynki 📬 dotarł do odbiorcy
                         foreach (var m in KomChat(c.Id)) if (m.Mine && m.Mid == mid && m.Text.Contains("📬")) { m.Ok = true; m.Text = m.Text.Replace(L.T(" – 📬 czeka na serwerze"), L.T(" – odebrano")); KomSave(); _komRefresh?.Invoke(); }
@@ -453,7 +453,7 @@ namespace Velivo
             var ack = KomPacket("p2p-ack"); ack["to"] = c.Id; ack["mid"] = mid; ack["mac"] = Convert.ToBase64String(KomHmac(c.Key, "ack\n" + mid));
             KomSendUdp(ack, sender);
             if (!_komSeen.Add(mid) || KomChat(c.Id).Any(x => x.Mid == mid)) return;   // powtorka (takze po ponownym uruchomieniu) - tylko ponowne potwierdzenie
-            if (!IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
+            if ((bool?)p["fwd"] != true && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) c.Addr = sender.ToString();
             _komTypingAt.Remove(c.Id);
             if (text.StartsWith(KomCallTag, StringComparison.Ordinal)) { KomOnCall(c, text.Substring(KomCallTag.Length)); return; }   // 📹 sygnał rozmowy wideo - poza czatem
             if (text.StartsWith(KomAddrTag, StringComparison.Ordinal)) { var sk = text.Substring(KomAddrTag.Length).Trim(); if (sk.Length == 0) _komAskKeys.TryRemove(c.Id, out _); else _komAskKeys[c.Id] = sk; KomSave(); return; }   // 🔗 sekret „Mój adres” od właściciela

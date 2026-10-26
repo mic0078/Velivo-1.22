@@ -280,7 +280,7 @@ namespace Velivo
                 using (var ms = new MemoryStream())
                 {
                     await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Jpeg, ms);
-                    jpg = ScaleJpeg(ms.ToArray(), 480);
+                    var raw = ms.ToArray(); jpg = await System.Threading.Tasks.Task.Run(() => ScaleJpeg(raw, 480));   // zmniejszanie w tle - bez przycięcia po wczytaniu strony
                 }
                 if (jpg == null || jpg.Length < 2000) return;   // pusty/czarny zrzut
                 Directory.CreateDirectory(PageThumbsDir);
@@ -347,7 +347,7 @@ namespace Velivo
                         using (var ms = new MemoryStream())
                         {
                             await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Jpeg, ms);
-                            var jpg = ScaleJpeg(ms.ToArray(), 480);
+                            var raw = ms.ToArray(); var jpg = await System.Threading.Tasks.Task.Run(() => ScaleJpeg(raw, 480));
                             if (jpg != null && jpg.Length > 2000)
                             {
                                 Directory.CreateDirectory(PageThumbsDir);

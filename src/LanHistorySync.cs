@@ -76,7 +76,9 @@ namespace Velivo
         string _lastHistoryFp = "";
         DateTime _lastHistorySent = DateTime.MinValue;
 
-        void LanBroadcastHistory(bool force)
+        // cała historia: odczyt, kompresja, szyfrowanie - w tle (w wątku okna przycinało Velivo co kilkanaście sekund przy przeglądaniu)
+        void LanBroadcastHistory(bool force) => System.Threading.Tasks.Task.Run(() => { lock (HistoryLock) LanBroadcastHistoryNow(force); });
+        void LanBroadcastHistoryNow(bool force)
         {
             try
             {
@@ -137,7 +139,8 @@ namespace Velivo
             return System.Text.Json.JsonSerializer.Deserialize<LanHistoryPayload>(json);
         }
 
-        void ApplyLanHistory(LanHistoryPayload incoming)
+        void ApplyLanHistory(LanHistoryPayload incoming) => System.Threading.Tasks.Task.Run(() => { lock (HistoryLock) ApplyLanHistoryNow(incoming); });
+        void ApplyLanHistoryNow(LanHistoryPayload incoming)
         {
             if (incoming == null || _settings == null || !_settings.SaveHistory || _settings.ClearOnExit) return;
             try

@@ -424,6 +424,7 @@ namespace Velivo
 
         void LanLog(string line)
         {
+            if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(new Action(() => LanLog(line))); return; }   // wpis z tła (historia w tle)
             string msg = DateTime.Now.ToString("HH:mm:ss") + "  " + line;
             _lanLog.Add(msg);
             if (_lanLog.Count > 250) _lanLog.RemoveRange(0, _lanLog.Count - 250);

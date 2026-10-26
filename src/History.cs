@@ -17,11 +17,13 @@ namespace Velivo
         static readonly string SessionId = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         static readonly CultureInfo Pl = new CultureInfo("pl-PL");
 
+        static readonly object HistoryLock = new object();   // historia zapisywana też w tle (synchronizacja) - jeden zapis naraz
         static void AppendHistory(string url, string title)
         {
             if (string.IsNullOrEmpty(url) || url.StartsWith("about:")) return;
             try
             {
+                lock (HistoryLock)
                 File.AppendAllText(HistoryFile,
                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + "\t" + url + "\t" +
                     (title ?? "").Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ') + "\t" + SessionId + Environment.NewLine);
@@ -66,9 +68,12 @@ namespace Velivo
         {
             if (lines.Count == 0) return;
             var keep = new HashSet<int>(lines);
-            var all = File.ReadAllLines(HistoryFile);
-            RememberDeletedHistory(all.Where((l, i) => keep.Contains(i)));   // drugi komputer w sieci tez je usunie
-            File.WriteAllLines(HistoryFile, all.Where((l, i) => !keep.Contains(i)));
+            lock (HistoryLock)
+            {
+                var all = File.ReadAllLines(HistoryFile);
+                RememberDeletedHistory(all.Where((l, i) => keep.Contains(i)));   // drugi komputer w sieci tez je usunie
+                File.WriteAllLines(HistoryFile, all.Where((l, i) => !keep.Contains(i)));
+            }
         }
 
         static string DayLabel(DateTime d)

@@ -1662,9 +1662,19 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 // pickFiles - wybór plików przez aplikację (wynik w onActivityResult); open/size - odczyt wybranego pliku.
 class KomunikatorOkno(private val a: Activity, private val k: Komunikator, private val pickFiles: () -> Unit) {
     // okienka zawsze z pełnym, ciemnym tłem Velivo - na części telefonów (nakładki producenta) tło z motywu wychodziło przezroczyste i tekst nakładał się na rozmowę
-    private inner class Dlg : AlertDialog.Builder(a) {
+    // Napisy zawsze jawnie białe i duże: nakładki producentów (Xiaomi, Oppo) i jasny motyw przeglądarki dawały czarny tekst na ciemnym tle - opcji nie było widać
+    private inner class Dlg : AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert) {
         override fun show(): AlertDialog = super.show().also { d ->
             d.window?.setBackgroundDrawable(android.graphics.drawable.InsetDrawable(GradientDrawable().apply { setColor(Color.rgb(0x1E, 0x18, 0x38)); cornerRadius = px(18).toFloat(); setStroke(px(1), Color.argb(0x90, 0x8B, 0x5C, 0xF6)) }, px(16)))
+            fun white(v: View?) { (v as? TextView)?.let { it.setTextColor(Color.WHITE); if (it is android.widget.CheckedTextView) it.checkMarkTintList = android.content.res.ColorStateList.valueOf(Color.rgb(0x06, 0xB6, 0xD4)) } }
+            white(d.findViewById(a.resources.getIdentifier("alertTitle", "id", "android")))
+            d.findViewById<TextView>(android.R.id.message)?.apply { setTextColor(Color.WHITE); textSize = 17f }
+            for (b in listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL)) d.getButton(b)?.apply { setTextColor(Color.rgb(0x22, 0xD3, 0xEE)); textSize = 16f }
+            d.listView?.let { lv ->   // pozycje listy: biały tekst, większe, łatwe do trafienia palcem
+                fun row(v: View?) { white(v); (v as? TextView)?.apply { textSize = 18f; minHeight = px(52) } }
+                for (i in 0 until lv.childCount) row(lv.getChildAt(i))
+                lv.setOnHierarchyChangeListener(object : android.view.ViewGroup.OnHierarchyChangeListener { override fun onChildViewAdded(p: View?, c: View?) = row(c); override fun onChildViewRemoved(p: View?, c: View?) {} })
+            }
         }
     }
     private val pl = Locale.getDefault().language == "pl"
@@ -2116,6 +2126,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val root = page()
         chatWith = null; k.chatOpen = null; chatRefresh = null
         val rows = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(10), px(4), px(10), px(8)) }
+        // 🔍 szukanie osoby: wpisz albo 🎤 powiedz imię (także dla niewidomych z TalkBack) - jedna pasująca osoba = rozmowa od razu
+        var who = ""
+        fun fold(x: String) = java.text.Normalizer.normalize(x.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}"), "").replace('ł', 'l')
+        fun found() = k.contacts.filter { who.isBlank() || fold(it.name).contains(fold(who.trim())) || fold(it.device).contains(fold(who.trim())) }
         // 🏠 / 🌍 jak połączony jest ten telefon - zawsze widoczne u góry
         val netBar = TextView(a).apply { textSize = 14f; setTextColor(Color.WHITE); setPadding(px(14), px(8), px(14), px(8)); layoutParams = LinearLayout.LayoutParams(-1, -2).apply { leftMargin = px(10); rightMargin = px(10); bottomMargin = px(6) } }
         fun fill() {
@@ -2127,7 +2141,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     "No contacts yet.\n\nTap “➕ Add” while the other device has Velivo messenger open (phone: Velivo browser or keyboard, computer: Velivo for Windows) on the same Wi-Fi.")
                 setTextColor(dim); textSize = 15f; setPadding(px(10), px(24), px(10), px(8))
             })
-            for (c in k.contacts.sortedWith(compareByDescending<Komunikator.Contact> { k.pinned(it.id) }.thenByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0L })) {   // 0L - ten sam typ co czas (Int z Long = awaria sortowania)   // 📌 przypięte na górze
+            if (who.isNotBlank() && found().isEmpty()) rows.addView(TextView(a).apply { text = t("Nie ma osoby: ", "No contact: ") + who; setTextColor(dim); textSize = 16f; setPadding(px(10), px(16), px(10), px(8)) })
+            for (c in found().sortedWith(compareByDescending<Komunikator.Contact> { k.pinned(it.id) }.thenByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0L })) {   // 0L - ten sam typ co czas (Int z Long = awaria sortowania)   // 📌 przypięte na górze
                 val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull(); val on = k.online(c.id)
                 val dot = avatar(c, on)
                 val name = TextView(a).apply {
@@ -2177,6 +2192,35 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val access = icon("♿", t("Ułatwienia: duże litery, czytanie na głos, błysk przy dzwonku", "Accessibility: big text, read aloud, flash on ring")) { accessibility() }
         val me = icon("👤", t("Mój profil: zdjęcie i blokada", "My profile: photo and lock")) { profile() }
         val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(8), px(8), px(8)); addView(title); addView(me); addView(access); addView(palette); addView(bell); addView(close) }
+        lateinit var search: EditText
+        fun openFound(say: Boolean) {
+            val f = found()
+            if (f.size == 1) { if (say) speak(t("Rozmowa z ", "Chat with ") + f[0].name); openChat(f[0]) }
+            else if (say) speak(if (f.isEmpty()) t("Nie ma osoby ", "No contact ") + who else t("Pasuje ", "Matching ") + f.size + ": " + f.joinToString(", ") { it.name })
+        }
+        search = EditText(a).apply {
+            hint = "🔍 " + t("Szukaj osoby", "Find a person"); contentDescription = t("Szukaj osoby – wpisz imię", "Find a person – type a name"); setSingleLine(true)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH; textSize = 17f * fs; setTextColor(ink); setHintTextColor(dim)
+            background = GradientDrawable().apply { setColor(pal().input); cornerRadius = px(22).toFloat(); setStroke(px(1), pal().border) }; setPadding(px(16), px(10), px(16), px(10))
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            addTextChangedListener(object : android.text.TextWatcher { override fun beforeTextChanged(x: CharSequence?, s: Int, c: Int, n: Int) {}; override fun onTextChanged(x: CharSequence?, s: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(e: android.text.Editable?) { who = e?.toString().orEmpty(); fill() } })
+            setOnEditorActionListener { _, _, _ -> openFound(true); true }
+        }
+        val voice = icon("🎤", t("Powiedz imię osoby, do której chcesz pisać", "Say the name of the person you want to message"), 24f) {
+            if (a.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) { a.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 4715); return@icon }
+            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(a)) { Toast.makeText(a, t("Brak rozpoznawania mowy w telefonie", "No speech recognition on this phone"), Toast.LENGTH_LONG).show(); return@icon }
+            val r = android.speech.SpeechRecognizer.createSpeechRecognizer(a)
+            r.setRecognitionListener(object : android.speech.RecognitionListener {
+                override fun onResults(b: android.os.Bundle) { r.destroy(); b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let { search.setText(it); openFound(true) } }
+                override fun onError(e: Int) { r.destroy(); speak(t("Nie usłyszałem. Stuknij mikrofon i powiedz imię.", "I did not hear. Tap the microphone and say the name.")) }
+                override fun onReadyForSpeech(p: android.os.Bundle?) { Toast.makeText(a, "🎤 " + t("Powiedz imię…", "Say the name…"), Toast.LENGTH_SHORT).show() }
+                override fun onBeginningOfSpeech() {}; override fun onRmsChanged(v: Float) {}; override fun onBufferReceived(b: ByteArray?) {}; override fun onEndOfSpeech() {}
+                override fun onPartialResults(b: android.os.Bundle?) {}; override fun onEvent(t0: Int, b: android.os.Bundle?) {}
+            })
+            r.startListening(android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))
+        }
+        val find = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(10), 0, px(10), px(6)); addView(search); addView(voice) }
         val actions = LinearLayout(a).apply {
             gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
             addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)", "Add a contact: on this network or via internet (invitation)")) { addChoice() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
@@ -2185,7 +2229,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         root.removeAllViews()
         root.addView(LinearLayout(a).apply {
             orientation = LinearLayout.VERTICAL
-            addView(head); addView(netBar); addView(ScrollView(a).apply { addView(rows); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }); addView(actions)
+            addView(head); addView(netBar); if (k.contacts.size > 1) addView(find); addView(ScrollView(a).apply { addView(rows); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }); addView(actions)
         })
     }
 
@@ -2693,7 +2737,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun msgMenu(c: Komunikator.Contact, m: Komunikator.Msg) {
         val photo = m.path?.takeIf { k.isImage(it) && java.io.File(it).exists() }
         val file = m.path?.takeIf { !k.isImage(it) && java.io.File(it).exists() && !it.substringAfterLast('/').startsWith("wyslane-") }
-        val items = mutableListOf("↩ " + t("Odpowiedz", "Reply"), "😀 " + t("Reakcja", "React"), "↪ " + t("Przekaż…", "Forward…"), "📋 " + t("Kopiuj", "Copy"))
+        val items = mutableListOf("↩ " + t("Odpowiedz", "Reply"), "📋 " + t("Kopiuj", "Copy"), "↪ " + t("Przekaż…", "Forward…"), "😀 " + t("Reakcja", "React"))
         if (m.mine && !m.file && !m.text.startsWith("🚫") && System.currentTimeMillis() - m.ts < 15 * 60000) items.add("✏ " + t("Edytuj", "Edit"))   // jak w WhatsApp: do 15 min
         if (m.path?.contains("Glosowa-") == true) items.add("⏩ " + t("Szybkość głosówek: ", "Voice speed: ") + speedText(k.voiceSpeed) + " → " + speedText(nextSpeed()))
         if (photo != null) items.add("💾 " + t("Zapisz w Galerii", "Save to Gallery"))

@@ -31,7 +31,6 @@
     <string name="kb_m_notes">Karteczki</string>
     <string name="kb_m_search">Szukaj w Velivo</string>
     <string name="kb_m_yt">YouTube</string>
-    <string name="kb_m_switch">Zmień klawiaturę</string>
     <string name="kb_m_settings">Ustawienia</string>
     <string name="kb_m_back">Wróć do klawiszy</string>
     <string name="kb_m_no_velivo">Zainstaluj przeglądarkę Velivo, by używać karteczek, szukania i YouTube</string>
@@ -94,7 +93,6 @@
     <string name="kb_bl_nothing">nieznany znak</string>
     <string name="kb_bl_score">Opanowane: %1$d z %2$d</string>
     <string name="kb_bl_help">Połóż palce na punktach litery i podnieś · → następna · ← poprzednia · ↓ tryb · 2 palce ↓ wyjście</string>
-    <string name="kb_m_more">⋯ Wszystkie funkcje</string>
     <string name="kb_clear_learned">🧹 Wyczyść wyuczone dane</string>
     <string name="kb_clear_learned_tip">Usuwa to, czego klawiatura nauczyła się z Twojego pisania (częste słowa i pary słów, Twoje poprawki, kształty pisania przeciągnięciem). Moje słowa zostają.</string>
     <string name="kb_clear_yes">Wyczyść</string>
@@ -132,4 +130,9 @@
     <string name="kb_tr_title">🌍 Tłumacz</string>
     <string name="kb_tr_where">Zaznaczony tekst (albo cały napisany) trafi do wybranej aplikacji tłumacza w tym telefonie. Velivo go nie zapisuje ani nie wysyła nigdzie indziej.</string>
     <string name="kb_tr_none">Brak tekstu albo aplikacji tłumacza (np. Tłumacz Google – z pobranymi językami działa bez internetu)</string>
+    <string name="kb_m_access">♿ Dostępność</string>
+    <string name="kb_braille_exit_again">Aby wyjść, przesuń jeszcze raz dwoma palcami w dół</string>
+    <string name="kb_dict_learn">📖 Słownik i nauka</string>
+    <string name="kb_dict_learn_tip">Mój słownik, Moje frazy, co klawiatura zapamiętuje, pisownia angielska, czyszczenie nauki</string>
+    <string name="kb_access_tip">Tryb Senior, powiększona litera, brajl (nauka i ustawienia), Morse, dźwięki zamiast słów</string>
 </resources>

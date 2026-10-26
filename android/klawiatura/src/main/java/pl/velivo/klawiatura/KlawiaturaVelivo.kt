@@ -333,9 +333,10 @@ class KlawiaturaVelivo : InputMethodService() {
             "bsword" -> deleteWord()
             "enter" -> enter()
             "read" -> speak(before(400).ifBlank { getString(R.string.kb_braille_empty) }, true)
-            "exit" -> brailleOff()
+            "exit" -> if (SystemClock.uptimeMillis() - exitAsk < 4000) brailleOff() else { exitAsk = SystemClock.uptimeMillis(); speak(getString(R.string.kb_braille_exit_again), true) }   // przypadkowe wyjście przy kładzeniu palców - tylko po powtórzeniu
         }
     }
+    private var exitAsk = 0L
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
@@ -353,7 +354,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val pr = prefs(this); dwell = pr.getFloat("rytm-nacisk", 0f); tempo = pr.getFloat("rytm-tempo", 0f); taps = pr.getInt("rytm-n", 0); lastTap = 0L
         // ponowne uruchomienie tego samego pola (WhatsApp, przeglądarki robią to często w trakcie pisania) - stan pisania zostaje
         if (!restarting) { cur = ""; fixFrom = null; addAsk = null; lastSwipe = null; alt = false; caps = false; afterPunct = false
-            prevWord = null; prevWord2 = null; newSentence(); retype = null }
+            prevWord = null; prevWord2 = null; newSentence(); retype = null; ecat = -1; Slownik.clearRecent() }   // nowe pole (inna rozmowa) - bez słów i emotek z poprzedniej
         autoShift()
         view.theme(); view.refresh(); if (pref("brajl", false)) brajlPole().invalidate(); if (pref("morse", false)) morsePole().invalidate()   // ⠿ ustawienia brajla z aplikacji klawiatury
         soundOn()
@@ -774,7 +775,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     listOf(K("?123", "sym", 1.5f)) + chars("«»„”–—·") + listOf(K("⌫", "bs", 1.5f)),
                     listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))
                 3 -> {   // 😀 kategorie u góry (🕘 ostatnio używane), 3 rzędy po 8, GIF z telefonu
-                    if (ecat < 0) ecat = if (recentEmoji().isNotEmpty()) 0 else 1
+                    if (ecat < 0) ecat = 1   // zawsze od buziek - ostatnio używane (także z innych rozmów) tylko po stuknięciu 🕘
                     val list = if (ecat == 0) recentEmoji() else emojiCats[ecat - 1]
                     listOf(listOf(K("🕘", "ecat:0", 1f)) + emojiCats.mapIndexed { i, c -> K(c[0], "ecat:${i + 1}", 1f) } + listOf(K("GIF", "gifs", 1f))) +
                         (0 until 3).map { r -> list.drop(r * 8).take(8).map { K(it, it, 1.25f) } } +
@@ -848,21 +849,9 @@ class KlawiaturaVelivo : InputMethodService() {
                 tp.textSize = (if (k.code == "lang") 12 else 15) * dp; tp.color = if (on) Color.WHITE else text; tp.typeface = Typeface.DEFAULT_BOLD
                 cv.drawText(k.label, k.r.centerX(), k.r.centerY() + 5 * dp, tp)
             }
-            // 🧰 pasek narzędzi (logo V): klawisze zostają na ekranie; przewijany palcem, najczęściej używane na początku, ⋯ - pełne menu
-            if (tools && !menuOpen) {
-                cv.save(); cv.clipRect(0f, headH, w, headH + sugH)
-                toolList().forEachIndexed { i, (l, c) ->
-                    val r = RectF(4 * dp + i * toolW - toolX, headH + 2 * dp, 4 * dp + (i + 1) * toolW - toolX - 4 * dp, headH + sugH - 2 * dp)
-                    if (r.right < 0 || r.left > w) return@forEachIndexed
-                    key(cv, r, isOn(c) || c == toolPressed, fn = true)
-                    tp.textSize = (if (c == "lang") 13 else 20) * dp; tp.color = if (isOn(c) || c == toolPressed) Color.WHITE else text
-                    cv.drawText(if (c == "lang") lang(context).uppercase() else l, r.centerX(), r.centerY() + 7 * dp, tp)
-                }
-                cv.restore()
-            }
             // pasek propozycji
             tp.typeface = Typeface.DEFAULT; tp.textSize = 17 * dp
-            if (!tools || menuOpen) {
+            if (!menuOpen) {
                 cv.save(); cv.clipRect(0f, headH, w, headH + sugH)
                 sugR.forEachIndexed { i, (r0, s) ->
                     val r = RectF(r0.left - sugX, r0.top, r0.right - sugX, r0.bottom)
@@ -880,10 +869,11 @@ class KlawiaturaVelivo : InputMethodService() {
                 for (k in menu) {
                     val on = k === pressed || isOn(k.code)
                     key(cv, k.r, on, fn = true)
-                    tp.color = if (on) Color.WHITE else text; tp.textSize = 22 * dp
-                    cv.drawText(k.label, k.r.centerX(), k.r.centerY() - 2 * dp, tp)
-                    tp.textSize = 11.5f * dp; tp.color = if (on) Color.WHITE else dim
-                    cv.drawText(fit(getString(menuName(k.code)), k.r.width() - 6 * dp), k.r.centerX(), k.r.bottom - 8 * dp, tp)
+                    // ikona w górnej połowie, podpis pod nią - bez nachodzenia
+                    tp.color = if (on) Color.WHITE else text; tp.textSize = min(26 * dp, k.r.height() * 0.38f)
+                    cv.drawText(k.label, k.r.centerX(), k.r.top + k.r.height() * 0.48f, tp)
+                    tp.textSize = min(13.5f * dp, k.r.height() * 0.22f); tp.color = if (on) Color.WHITE else text
+                    cv.drawText(fit(getString(menuName(k.code)), k.r.width() - 6 * dp), k.r.centerX(), k.r.bottom - k.r.height() * 0.14f, tp)
                 }
             }
             // klawisze
@@ -933,11 +923,6 @@ class KlawiaturaVelivo : InputMethodService() {
         }
 
         private var sugX = 0f; private var sugStart = 0f   // przesunięcie paska propozycji palcem
-        private var tools = false; private var toolX = 0f; private var toolStart = 0f; private var toolPressed: String? = null
-        private val toolW get() = 52 * dp
-        private fun toolList() = menuItems.filter { it.second != "back" }.sortedByDescending { prefs(context).getInt("narz-" + it.second, 0) } + ("⋯" to "more")
-        private fun toolAt(x: Float) = toolList().getOrNull(((x + toolX - 4 * dp) / toolW).toInt())
-        private val toolTip = Runnable { toolPressed?.let { c -> longDone = true; tip(if (c == "more") R.string.kb_m_more else menuName(c)) } }   // przytrzymanie - nazwa narzędzia
         private val ks get() = (prefs(context).getInt("wysokosc", 120) / 120f).coerceIn(0.85f, 1.35f)   // wielkość liter rośnie z wysokością klawiszy
         private fun isEmoji(c: String) = c.isNotEmpty() && Character.getType(c.codePointAt(0)) == Character.OTHER_SYMBOL.toInt()
         private var cursorMode = false; private var curX = 0f   // ⇔ przesuwanie kursora palcem po spacji (jak w Gboard)
@@ -983,10 +968,10 @@ class KlawiaturaVelivo : InputMethodService() {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = x; downY = y; downAt = SystemClock.uptimeMillis(); longDone = false; swiping = false; cursorMode = false; trace.clear()
-                    if (y < headH && x < (head.minOfOrNull { it.r.left } ?: width.toFloat())) { if (menuOpen) menuOpen = false else { tools = !tools; toolX = 0f }; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED); invalidate(); return true }   // logo V: pasek narzędzi (klawisze zostają)
+                    if (y < headH && x < (head.minOfOrNull { it.r.left } ?: width.toFloat())) { menuOpen = !menuOpen; menuPage = 0; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED); invalidate(); return true }   // logo V: menu (duże kafelki z podpisami)
                     if (menuOpen && y >= headH) { pressed = menu.firstOrNull { it.r.contains(x, y) }; pressed?.let { k -> postDelayed({ if (pressed === k) { longDone = true; tip(menuName(k.code)) } }, 500) }; invalidate(); return true }
                     if (y < headH) { pressed = head.firstOrNull { it.r.contains(x, y) }; pressed?.let { k -> postDelayed({ if (pressed === k) { longDone = true; tip(headTip(k.code)) } }, 500) }; invalidate(); return true }
-                    if (y < headH + sugH) { pressed = null; sugStart = sugX; if (tools) { toolStart = toolX; toolPressed = toolAt(x)?.second; postDelayed(toolTip, 500); invalidate() }; return true }
+                    if (y < headH + sugH) { pressed = null; sugStart = sugX; return true }
                     pressed = keyAt(x, y); trace.add(Slownik.P(x.toDouble(), y.toDouble()))
                     click(); performHapticFeedback(HAPTIC_FEEDBACK_ENABLED)
                     waveX = pressed?.r?.centerX() ?: x; waveY = pressed?.r?.centerY() ?: y; waveAt = SystemClock.uptimeMillis()
@@ -995,10 +980,8 @@ class KlawiaturaVelivo : InputMethodService() {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val k = pressed ?: return true
-                    if (downY < headH + sugH) {   // pasek narzędzi przewijany palcem
-                        if (tools && kotlin.math.abs(x - downX) > 10 * dp) { removeCallbacks(toolTip); toolPressed = null
-                            toolX = (toolStart - (x - downX)).coerceIn(0f, max(0f, toolList().size * toolW + 8 * dp - width)); invalidate() }
-                        else if (!tools && kotlin.math.abs(x - downX) > 10 * dp) { sugX = (sugStart - (x - downX)).coerceIn(0f, max(0f, (sugR.lastOrNull()?.first?.right ?: 0f) + 4 * dp - width)); invalidate() }   // więcej propozycji
+                    if (downY < headH + sugH) {
+                        if (kotlin.math.abs(x - downX) > 10 * dp) { sugX = (sugStart - (x - downX)).coerceIn(0f, max(0f, (sugR.lastOrNull()?.first?.right ?: 0f) + 4 * dp - width)); invalidate() }   // więcej propozycji
                         return true
                     }
                     if (k.code == "space" && !longDone) {   // ⇔ palec po spacji - kursor w lewo / w prawo
@@ -1020,14 +1003,6 @@ class KlawiaturaVelivo : InputMethodService() {
                     if (cursorMode) { cursorMode = false; cur = ""; fixFrom = null; lastSwipe = null; autoShift(); refresh(); return true }   // kursor przesunięty - bez spacji
                     if (downY < headH) { if (k != null && !longDone && k.r.contains(x, y)) headAction(k.code); invalidate(); return true }
                     if (menuOpen) { if (k != null && !longDone && k.r.contains(x, y)) menuAction(k.code); invalidate(); return true }
-                    if (downY < headH + sugH && tools) {
-                        removeCallbacks(toolTip); val c = toolPressed; toolPressed = null
-                        if (c != null && !longDone && kotlin.math.abs(x - downX) < 10 * dp) {
-                            if (c == "more") { tools = false; menuOpen = true }   // ⋯ - pełne menu jak dotąd
-                            else { prefs(context).edit().putInt("narz-$c", prefs(context).getInt("narz-$c", 0) + 1).apply(); tools = false; menuAction(c) }
-                        }
-                        invalidate(); return true
-                    }
                     if (downY < headH + sugH) { if (kotlin.math.abs(x - downX) > 10 * dp) return true   // przesunięty pasek - bez wyboru
                         sugR.firstOrNull { it.first.contains(x + sugX, y) }?.second?.let { s -> if (s.startsWith("➕")) addWord(s.substring(1)) else pick(s) }; return true }
                     if (swiping) {
@@ -1040,18 +1015,18 @@ class KlawiaturaVelivo : InputMethodService() {
                     if (k != null && !longDone) { if (k.code.length == 1 && k.code[0].isLetter()) rhythm(SystemClock.uptimeMillis() - downAt, downAt); keyAction(k) }
                     invalidate()
                 }
-                MotionEvent.ACTION_CANCEL -> { removeCallbacks(longPress); removeCallbacks(repeat); removeCallbacks(toolTip); pressed = null; toolPressed = null; swiping = false; trace.clear(); invalidate() }
+                MotionEvent.ACTION_CANCEL -> { removeCallbacks(longPress); removeCallbacks(repeat); pressed = null; swiping = false; trace.clear(); invalidate() }
             }
             return true
         }
 
         // --- menu pod logo V ---
-        private var menuOpen = false
+        private var menuOpen = false; private var menuPage = 0   // 0 - menu, 1 - ♿ dostępność
         private val menu = ArrayList<K>()
-        private val menuItems = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt", "📤" to "sendpc", "💬" to "chat", "📲" to "sendphone",
-            "✓" to "fix", "🔈" to "klik", "🔊" to "read", "🎤" to "mic",
-            "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height", "👵" to "senior", "⠿" to "brajl", "·−" to "morse", "🗣" to "sound", "🌍" to "translate",
-            "⌨" to "switch", "⚙" to "settings", "⌄" to "hide", "⌨︎" to "back")
+        private val menuMain = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt", "💬" to "chat", "📤" to "sendpc", "📲" to "sendphone", "🌍" to "translate",
+            "✓" to "fix", "🎤" to "mic", "📖" to "words", "🌐" to "lang", "♿" to "access", "🎨" to "theme", "⚙" to "settings", "⌨︎" to "back")
+        private val menuAccess = listOf("👵" to "senior", "⠿" to "brajl", "·−" to "morse", "🗣" to "sound", "🔊" to "read", "🔈" to "klik", "↕" to "height", "←" to "back")
+        private val menuItems get() = if (menuPage == 1) menuAccess else menuMain
         private fun layoutMenu() {
             menu.clear()
             val cols = 4; val pad = 4 * dp
@@ -1068,7 +1043,7 @@ class KlawiaturaVelivo : InputMethodService() {
             "sendpc" -> R.string.kb_m_send; "chat" -> R.string.kb_m_chat; "sendphone" -> R.string.kb_m_phone; "note" -> R.string.kb_m_note; "notes" -> R.string.kb_m_notes; "search" -> R.string.kb_m_search; "yt" -> R.string.kb_m_yt
             "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "read" -> R.string.kb_read; "mic" -> R.string.kb_mic
             "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height; "senior" -> R.string.kb_senior; "brajl" -> R.string.kb_braille; "morse" -> R.string.kb_morse; "sound" -> R.string.kb_sound; "translate" -> R.string.kb_tr_title
-            "switch" -> R.string.kb_m_switch; "settings" -> R.string.kb_m_settings; "hide" -> R.string.kb_hide; else -> R.string.kb_m_back
+            "settings" -> R.string.kb_m_settings; "hide" -> R.string.kb_hide; "access" -> R.string.kb_m_access; else -> R.string.kb_m_back
         }
         // funkcje Velivo (karteczki, szukanie, YouTube) - otwierane w przeglądarce Velivo
         private fun velivo(action: String) {
@@ -1087,8 +1062,8 @@ class KlawiaturaVelivo : InputMethodService() {
                 "theme" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_THEME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 "height" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_HEIGHT).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 "settings" -> startActivity(Intent(context, Ustawienia::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                "switch" -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
-                "back" -> { menuOpen = false; refresh(); return }
+                "back" -> { if (menuPage == 1) menuPage = 0 else menuOpen = false; refresh(); return }
+                "access" -> { menuPage = 1; refresh(); return }
                 "brajl" -> { menuOpen = false; brailleOn(); return }
                 "morse" -> { menuOpen = false; morseOn(); return }
                 "sound" -> { soundToggle(); menuOpen = false; refresh(); return }

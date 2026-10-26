@@ -38,7 +38,7 @@ class NaukaBrajla : Activity() {
             addView(btn("🔊 " + getString(R.string.kb_bl_repeat)) { show() }, LinearLayout.LayoutParams(0, -2, 1f))
             addView(btn(getString(R.string.kb_bl_next) + " ▶") { step(1) }, LinearLayout.LayoutParams(0, -2, 1f))
         }
-        val pole = BrajlPole(this, ::onCell) { g -> when (g) { "space" -> step(1); "bs" -> step(-1); "read" -> show(); "enter" -> { test = !test; show() }; "exit" -> finish() } }.apply {
+        val pole = BrajlPole(this, ::onCell) { g -> when (g) { "space" -> step(1); "bs" -> step(-1); "read" -> show(); "enter" -> { test = !test; show() }; "exit" -> exit() } }.apply {
             hints = pr.getBoolean("brajl-podpowiedzi", true); vibrate = pr.getBoolean("brajl-wibracje", true); mirror = pr.getBoolean("brajl-odwrocone", false)
             title = getString(R.string.kb_bl_help)
         }
@@ -53,6 +53,9 @@ class NaukaBrajla : Activity() {
     }
     override fun onDestroy() { tts?.shutdown(); super.onDestroy() }
 
+    // wyjście dwoma palcami w dół - dopiero po powtórzeniu (przy kładzeniu palców na literę łatwo o przypadkowe przesunięcie)
+    private var exitAsk = 0L
+    private fun exit() { if (android.os.SystemClock.uptimeMillis() - exitAsk < 4000) finish() else { exitAsk = android.os.SystemClock.uptimeMillis(); say(getString(R.string.kb_braille_exit_again)) } }
     private fun say(t: String) { tts?.speak(t, TextToSpeech.QUEUE_FLUSH, null, "nauka") }
     private fun dots(c: Char) = Brajl.dotsOf(c, pl) ?: 0
 

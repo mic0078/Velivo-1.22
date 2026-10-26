@@ -44,44 +44,17 @@ open class Ustawienia : Activity() {
         }, LinearLayout.LayoutParams(-1, (52 * dp).toInt()).apply { bottomMargin = (10 * dp).toInt() })
         button(R.string.kb_enable, R.string.kb_enable_tip) { runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) } }
         button(R.string.kb_choose, R.string.kb_choose_tip) { (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker() }
+        // 📖 słownik i nauka - jedno miejsce (zamiast wielu przycisków)
+        button(R.string.kb_dict_learn, R.string.kb_dict_learn_tip) {
+            list(R.string.kb_dict_learn, listOf(getString(R.string.kb_words) to { showWords() }, getString(R.string.kb_phrases) to { showPhrases() }, getString(R.string.kb_privacy) to { privacy() },
+                getString(R.string.kb_en_variant) to { enVariant() }, getString(R.string.kb_clear_learned) to { clearLearned() }))
+        }
+        // ♿ dostępność - jedno miejsce: Senior, powiększona litera, brajl, Morse, dźwięki zamiast słów
+        button(R.string.kb_m_access, R.string.kb_access_tip) { access() }
         button(R.string.kb_mic_allow, R.string.kb_mic) { requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC) }
         button(R.string.kb_theme, R.string.kb_theme_tip) { chooseTheme() }
         button(R.string.kb_height, R.string.kb_height_tip) { chooseHeight() }
-        button(R.string.kb_words, R.string.kb_words) { showWords() }
-        button(R.string.kb_phrases, R.string.kb_phrases_help) { showPhrases() }
-        button(R.string.kb_privacy, R.string.kb_privacy_tip) { privacy() }
-        button(R.string.kb_sound, R.string.kb_sound_tip) { sounds() }
-        button(R.string.kb_en_variant, R.string.kb_en_variant_tip) {
-            val vals = arrayOf("", "uk", "us"); val pr = KlawiaturaVelivo.prefs(this)
-            AlertDialog.Builder(this).setTitle(R.string.kb_en_variant).setSingleChoiceItems(arrayOf(getString(R.string.kb_en_any), "🇬🇧 UK (colour, realise)", "🇺🇸 US (color, realize)"), vals.indexOf(pr.getString("klaw-en", "")).coerceAtLeast(0)) { d, i -> pr.edit().putString("klaw-en", vals[i]).apply(); d.dismiss() }.show()
-        }
-        // 🧹 wyuczone dane (częstość, pary słów, poprawki) - za zgodą; Moje słowa zostają
-        button(R.string.kb_clear_learned, R.string.kb_clear_learned_tip) {
-            AlertDialog.Builder(this).setTitle(R.string.kb_clear_learned).setMessage(R.string.kb_clear_learned_tip)
-                .setPositiveButton(R.string.kb_clear_yes) { _, _ -> KlawiaturaVelivo.load(this) { KlawiaturaVelivo.clearLearned(this); Toast.makeText(this, R.string.kb_clear_done, Toast.LENGTH_LONG).show() } }
-                .setNegativeButton(android.R.string.cancel, null).show()
-        }
         button(R.string.kb_gif_allow, R.string.kb_gif_tip) { askGif() }
-        // 🔍 powiększona litera nad palcem - wł./wył. (domyślnie wł.)
-        val pr = KlawiaturaVelivo.prefs(this)
-        fun previewLabel() = getString(R.string.kb_preview) + ": " + getString(if (pr.getBoolean("klaw-podglad", true)) R.string.kb_on else R.string.kb_off)
-        // ⠿ brajl: nauka i ustawienia pisania (zwykłe okienko Androida - działa też z TalkBack i czytaniem na głos)
-        button(R.string.kb_braille_learn, R.string.kb_braille_learn_tip) { startActivity(Intent(this, NaukaBrajla::class.java)) }
-        button(R.string.kb_braille_settings, R.string.kb_braille_settings) {
-            val keys = arrayOf("brajl-mowa", "brajl-wibracje", "brajl-podpowiedzi", "brajl-odwrocone", "brajl-postepy"); val defs = booleanArrayOf(true, true, true, false, true)
-            val on = BooleanArray(keys.size) { pr.getBoolean(keys[it], defs[it]) }
-            AlertDialog.Builder(this).setTitle(R.string.kb_braille_settings)
-                .setMultiChoiceItems(arrayOf(getString(R.string.kb_braille_opt_speech), getString(R.string.kb_braille_opt_vibe), getString(R.string.kb_braille_opt_hints), getString(R.string.kb_braille_opt_mirror), getString(R.string.kb_braille_opt_progress)), on) { _, i, v -> on[i] = v }
-                .setPositiveButton(android.R.string.ok) { _, _ -> val e = pr.edit(); keys.forEachIndexed { i, k -> e.putBoolean(k, on[i]) }; if (!on[4]) e.remove("brajl-nauka"); e.apply() }
-                .setNegativeButton(android.R.string.cancel, null).show()
-        }
-        lateinit var senBtn: Button
-        fun senLabel() = getString(R.string.kb_senior) + ": " + getString(if (pr.getBoolean("klaw-senior", false)) R.string.kb_on else R.string.kb_off)
-        button(R.string.kb_senior, R.string.kb_senior_tip) { KlawiaturaVelivo.senior(this, !pr.getBoolean("klaw-senior", false)); senBtn.text = senLabel() }
-        senBtn = box.getChildAt(box.childCount - 1) as Button; senBtn.text = senLabel()
-        lateinit var prevBtn: Button
-        button(R.string.kb_preview, R.string.kb_preview_tip) { pr.edit().putBoolean("klaw-podglad", !pr.getBoolean("klaw-podglad", true)).apply(); prevBtn.text = previewLabel() }
-        prevBtn = box.getChildAt(box.childCount - 1) as Button; prevBtn.text = previewLabel()
         // 📤 pliki na komputer - przez przeglądarkę Velivo (parowanie i szyfrowanie są tam)
         button(R.string.kb_m_send, R.string.kb_m_send_tip) { runCatching { startActivity(Intent("pl.velivo.browser.WYSLIJ_NA_KOMPUTER").setClassName("pl.velivo.browser", "pl.velivo.browser.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             .onFailure { Toast.makeText(this, R.string.kb_m_no_velivo, Toast.LENGTH_LONG).show() } }
@@ -179,6 +152,39 @@ open class Ustawienia : Activity() {
             .setPositiveButton(if (on) R.string.kb_sound_off else R.string.kb_sound_on) { _, _ -> pr.edit().putBoolean("klaw-dzwiek", !on).apply() }
             .setNeutralButton(R.string.kb_sound_teach_a) { _, _ -> teach("dzwiek-a", "aaaa") }
             .setNegativeButton(R.string.kb_sound_teach_u) { _, _ -> teach("dzwiek-u", "uuuu") }.show()
+    }
+
+    // lista do wyboru: duże, czytelne pozycje
+    private fun list(title: Int, items: List<Pair<String, () -> Unit>>) =
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(title).setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.setNegativeButton(android.R.string.cancel, null).show()
+    private fun onOff(label: Int, key: String, def: Boolean) = getString(label) + ": " + getString(if (KlawiaturaVelivo.prefs(this).getBoolean(key, def)) R.string.kb_on else R.string.kb_off)
+    private fun access() {
+        val pr = KlawiaturaVelivo.prefs(this)
+        list(R.string.kb_m_access, listOf(
+            onOff(R.string.kb_senior, "klaw-senior", false) to { KlawiaturaVelivo.senior(this, !pr.getBoolean("klaw-senior", false)); access() },
+            onOff(R.string.kb_preview, "klaw-podglad", true) to { pr.edit().putBoolean("klaw-podglad", !pr.getBoolean("klaw-podglad", true)).apply(); access() },
+            getString(R.string.kb_braille_learn) to { startActivity(Intent(this, NaukaBrajla::class.java)) },
+            getString(R.string.kb_braille_settings) to { brailleSettings() },
+            getString(R.string.kb_sound) to { sounds() }))
+    }
+    private fun brailleSettings() {
+        val pr = KlawiaturaVelivo.prefs(this)
+        val keys = arrayOf("brajl-mowa", "brajl-wibracje", "brajl-podpowiedzi", "brajl-odwrocone", "brajl-postepy"); val defs = booleanArrayOf(true, true, true, false, true)
+        val on = BooleanArray(keys.size) { pr.getBoolean(keys[it], defs[it]) }
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.kb_braille_settings)
+            .setMultiChoiceItems(arrayOf(getString(R.string.kb_braille_opt_speech), getString(R.string.kb_braille_opt_vibe), getString(R.string.kb_braille_opt_hints), getString(R.string.kb_braille_opt_mirror), getString(R.string.kb_braille_opt_progress)), on) { _, i, v -> on[i] = v }
+            .setPositiveButton(android.R.string.ok) { _, _ -> val e = pr.edit(); keys.forEachIndexed { i, k -> e.putBoolean(k, on[i]) }; if (!on[4]) e.remove("brajl-nauka"); e.apply() }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+    private fun enVariant() {
+        val vals = arrayOf("", "uk", "us"); val pr = KlawiaturaVelivo.prefs(this)
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.kb_en_variant).setSingleChoiceItems(arrayOf(getString(R.string.kb_en_any), "🇬🇧 UK (colour, realise)", "🇺🇸 US (color, realize)"), vals.indexOf(pr.getString("klaw-en", "")).coerceAtLeast(0)) { d, i -> pr.edit().putString("klaw-en", vals[i]).apply(); d.dismiss() }.show()
+    }
+    // 🧹 wyuczone dane (częstość, pary słów, poprawki) - za zgodą; Moje słowa zostają
+    private fun clearLearned() {
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.kb_clear_learned).setMessage(R.string.kb_clear_learned_tip)
+            .setPositiveButton(R.string.kb_clear_yes) { _, _ -> KlawiaturaVelivo.load(this) { KlawiaturaVelivo.clearLearned(this); Toast.makeText(this, R.string.kb_clear_done, Toast.LENGTH_LONG).show() } }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)

@@ -15,22 +15,30 @@ button.off{background:#6b6b80}#end{background:#e53935}button.on{background:#22c5
 #scr,#help,#swap{display:none}button.pulse{outline:3px solid #facc15}
 #shot{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:none;z-index:1}#shot.pt{cursor:pointer}
 #bar,#st,#me{z-index:3}
+#chat{display:none;position:fixed;left:12px;bottom:100px;width:min(380px,70vw);z-index:3}body.pomoc #chat{display:block}
+#log div{background:#000b;border-radius:10px;padding:6px 10px;margin-top:4px;font-size:15px;overflow-wrap:anywhere}#log .me{background:#6d3fdbdd;text-align:right}
+#say{width:100%;box-sizing:border-box;border-radius:20px;border:0;padding:10px 14px;font-size:15px;margin-top:6px;background:#2e2768;color:#fff}
 body.pomoc #scr,body.pomoc #help,body.pomoc #swap{width:auto;border-radius:30px;padding:0 18px;font-size:16px}body.pomoc #cam,body.pomoc #flip{display:none}
 body.view #you,body.view #shot{height:calc(100% - 100px)}body.view #me{display:none}#dot{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #e53935;background:#e5393566;display:none;z-index:2;pointer-events:none}
 </style></head><body>
 <video id="you" autoplay playsinline></video><img id="shot" alt=""><div id="dot"></div><video id="me" autoplay playsinline muted></video>
 <div id="st"></div>
+<div id="chat"><div id="log"></div><input id="say" autocomplete="off"></div>
 <div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="scr">🖥</button><button id="help">🖱</button><button id="swap">⇄</button><button id="end">⏹</button></div>
 <script>
 const q = new URLSearchParams(location.search), caller = q.get('rola') === 'dzwoni', pl = q.get('pl') !== '0', audio = q.get('audio') === '1', pomoc = q.get('pomoc') === '1';   // 📞 audio - rozmowa głosowa (bez kamery); 🖥 pomoc - pomoc zdalna (bez kamery, przyciski z opisem)
 const T = (p, e) => pl ? p : e;
 const you = document.getElementById('you'), me = document.getElementById('me'), st = document.getElementById('st');
 function status(s) { st.textContent = s; }
+function chatLine(t, mine) { const d = document.createElement('div'); d.textContent = t; if (mine) d.className = 'me'; log.appendChild(d); while (log.children.length > 6) log.firstChild.remove(); }
 function out(o) { const s = JSON.stringify(o); if (window.velivo) velivo.send(s); else if (window.chrome && chrome.webview) chrome.webview.postMessage(s); }
 mic.title = T('Mikrofon wł./wył.', 'Microphone on/off'); cam.title = T('Kamera wł./wył.', 'Camera on/off');
 flip.title = T('Przełącz kamerę', 'Switch camera'); scr.title = T('Pokaż swój ekran', 'Share your screen'); help.title = T('Pomoc zdalna: poproś o sterowanie', 'Remote help: ask for control'); spk.title = T('Głośnik / słuchawka', 'Speaker / earpiece'); swap.title = T('Zamień strony: teraz rozmówca pokazuje ekran (za zgodą)', 'Swap sides: now the other person shares the screen (with consent)'); end.title = T('Zakończ rozmowę', 'End call');
 if (pomoc) {   // 🖥 pomoc zdalna - osobny tryb: przyciski z opisem, nie do pomylenia z rozmową wideo
   document.body.classList.add('pomoc');
+  // 💬 pisanie w czasie pomocy (obok głosu): idzie zwykłym, szyfrowanym komunikatorem - zostaje w rozmowie, dociera też do telefonu
+  say.placeholder = T('💬 Napisz do rozmówcy (Enter – wyślij)', '💬 Message the other person (Enter – send)');
+  say.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && say.value.trim()) { out({ k: 'txt', t: say.value.trim() }); chatLine(say.value.trim(), true); say.value = ''; } });
   scr.textContent = T('🖥 Pokaż mój ekran', '🖥 Share my screen'); help.textContent = T('🖱 Poproś o sterowanie', '🖱 Ask for control'); swap.textContent = T('⇄ Zamień strony', '⇄ Swap sides');
 }
 // poza domem - prywatny przekaźnik na domowym komputerze (TURN), bez serwerów firm trzecich; w domu - prosto w sieci domowej
@@ -152,7 +160,8 @@ window.onSig = async function (o) {
     else if (o.k === 'reject' || o.k === 'busy') { status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
     else if (o.k === 'ctl-blocked') dsend({ k: 'ctl-blocked' });   // Windows nie pozwala klikać okna administratora - powiedz pomagającemu
     else if (o.k === 'ctl-answer') { if (o.id === 'swap') swapYes(o.yes); else ctlYes(o.yes); }
-    else if (o.k === 'ctl-stop') ctlOff();   // przycisk „Zakończ sterowanie” w Velivo
+    else if (o.k === 'ctl-stop') ctlOff();
+    else if (o.k === 'txt-in') chatLine(o.t, false);   // 💬 wiadomość od rozmówcy w czasie pomocy   // przycisk „Zakończ sterowanie” w Velivo
     else if (o.k === 'end') { status(T('Rozmowa zakończona', 'Call ended')); finish(); }
   } catch (e) { status(T('Błąd połączenia', 'Connection error')); hang(); }
 };
@@ -222,7 +231,7 @@ el.addEventListener('contextmenu', e => { if (steer) e.preventDefault(); });
 const rel = () => { if (steer) { mv = null; dsend({ k: 'in', t: 'rel' }); } };
 window.addEventListener('blur', rel); document.addEventListener('visibilitychange', rel);
 [you, shot].forEach(el => { el.addEventListener('pointercancel', rel); el.addEventListener('lostpointercapture', e => { if (e.buttons) rel(); }); });
-['keydown', 'keyup'].forEach(n => document.addEventListener(n, e => { if (!steer) return; e.preventDefault(); dsend({ k: 'in', t: 'k', v: e.keyCode, up: n === 'keyup' }); }));
+['keydown', 'keyup'].forEach(n => document.addEventListener(n, e => { if (!steer || e.target === say) return; e.preventDefault(); dsend({ k: 'in', t: 'k', v: e.keyCode, up: n === 'keyup' }); }));
 // telefon: głośnik albo słuchawka przy uchu (słuchawki przewodowe / Bluetooth - same)
 if (window.velivo && velivo.speakerOn) { if (!velivo.speakerOn()) spk.classList.add('off'); spk.onclick = () => spk.classList.toggle('off', !velivo.speaker()); }
 else spk.style.display = 'none';

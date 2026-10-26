@@ -123,6 +123,7 @@ namespace Velivo
                     }
                     if (k == "ctl-on") { KomCtlOn(c, (int?)o["w"] ?? 0, (int?)o["h"] ?? 0, j => Dispatcher.BeginInvoke(new Action(() => { try { core.PostWebMessageAsString(j); } catch (Exception) { } }))); return; }   // komunikat z wątku sterowania - do okna przez jego wątek
                     if (k == "ctl-off") { KomCtlOff(); return; }
+                    if (k == "txt") { var t = ((string)o["t"] ?? "").Trim(); if (t.Length > 0) { KomSend(c, t); _komRefresh?.Invoke(); } return; }   // 💬 pisanie w czasie pomocy - zwykła wiadomość komunikatora
                     if (k == "end") ended = true;
                     KomSendCall(c, o);
                 };

@@ -486,6 +486,7 @@ namespace Velivo
             _komRefresh?.Invoke();
             KomTrayUpdate();
             if (!visible) KomNotify(c, text); else KomSendRead(c);
+            if (_komCallWith == c.Id) try { _komCallView?.CoreWebView2?.PostWebMessageAsString(new JsonObject { ["k"] = "txt-in", ["t"] = text }.ToJsonString()); } catch (Exception) { }   // 💬 widać też w oknie pomocy zdalnej
             KomResendPending(c); KomSendPhoto(c);
         }
 

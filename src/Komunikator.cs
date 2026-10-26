@@ -902,6 +902,8 @@ namespace Velivo
             _komResend.Tick += (s, e) =>
             {
                 _ = KomPollAsks();   // 🔗 odpowiedzi na moje prośby z czyjegoś adresu
+                // 📬 skrzynka pośrednika: nieudana próba oddania pliku (słaby zasięg odbiorcy) - ponawiana co minutę, póki odbiorca w sieci, a nie dopiero przy jego ponownym połączeniu
+                if (_komRelayListener != null) foreach (var id in _komRemote.Keys.Concat(_komLanSeen.Where(kv => DateTime.UtcNow - kv.Value < TimeSpan.FromSeconds(100)).Select(kv => kv.Key)).Distinct().ToList()) _ = KomBoxFlush(id);
                 if (_komContacts.Count == 0) return;
                 KomSendUdp(KomPacket("p2p-here"), null);
                 foreach (var c in _komContacts.ToList()) KomResendPending(c);
@@ -1563,7 +1565,7 @@ namespace Velivo
                 foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300)).Where(x => q.Length == 0 || x.Text.Contains(q, StringComparison.CurrentCultureIgnoreCase)))
                 {
                     var time = DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime;
-                    var stamp = (KomReactions(m) is { Length: > 0 } rx ? rx + "  " : "") + (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read || m.Ok ? " ✓✓" : " ✓") : "");
+                    var stamp = (KomReactions(m) is { Length: > 0 } rx ? rx + "  " : "") + (time.Date == DateTime.Today ? time.ToString("HH:mm") : time.ToString("g")) + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : "");
                     var body = new StackPanel();
                     // kolory dymkow z motywu komunikatora (bez ramek pola tekstowego)
                     var fg = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg);
@@ -2248,7 +2250,7 @@ namespace Velivo
                 msgs.Children.Clear();
                 foreach (var m in l.Skip(Math.Max(0, l.Count - 60)))
                     msgs.Children.Add(new Border { Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs), CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(m.Mine ? 40 : 0, 2, m.Mine ? 0 : 40, 2), HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read || m.Ok ? " ✓✓" : " ✓") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } });
+                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } });
                 sv.ScrollToEnd();
                 if (d.IsActive) { if (_komUnread.Remove(c.Id)) { KomSave(); KomTrayUpdate(); _komRefresh?.Invoke(); } KomSendRead(c); }
             }

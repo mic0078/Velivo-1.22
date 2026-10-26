@@ -1564,6 +1564,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
 // Okna komunikatora (wspólne dla przeglądarki i klawiatury): kontakty, rozmowa, dodawanie kontaktu, pliki.
 // pickFiles - wybór plików przez aplikację (wynik w onActivityResult); open/size - odczyt wybranego pliku.
 class KomunikatorOkno(private val a: Activity, private val k: Komunikator, private val pickFiles: () -> Unit) {
+    // okienka zawsze z pełnym, ciemnym tłem Velivo - na części telefonów (nakładki producenta) tło z motywu wychodziło przezroczyste i tekst nakładał się na rozmowę
+    private inner class Dlg : AlertDialog.Builder(a) {
+        override fun show(): AlertDialog = super.show().also { d ->
+            d.window?.setBackgroundDrawable(android.graphics.drawable.InsetDrawable(GradientDrawable().apply { setColor(Color.rgb(0x1E, 0x18, 0x38)); cornerRadius = px(18).toFloat(); setStroke(px(1), Color.argb(0x90, 0x8B, 0x5C, 0xF6)) }, px(16)))
+        }
+    }
     private val pl = Locale.getDefault().language == "pl"
     private fun t(p: String, e: String) = if (pl) p else e
     private val dp = a.resources.displayMetrics.density
@@ -1575,7 +1581,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (cardOpen || a.isFinishing) return
         k.nextAsk()?.let { name ->   // 🔗 prośba z mojego adresu
             cardOpen = true
-            AlertDialog.Builder(a).setTitle("👤 " + t("Prośba o kontakt", "Contact request"))
+            Dlg().setTitle("👤 " + t("Prośba o kontakt", "Contact request"))
                 .setMessage(t("$name chce się z Tobą kontaktować przez Velivo (z Twojego adresu).\n\nDodać? Dostanie tylko komunikator – bez Twojej sieci domowej.", "$name wants to contact you via Velivo (from your address).\n\nAdd? They get the messenger only – not your home network."))
                 .setPositiveButton(t("Dodaj", "Add")) { _, _ -> Thread { k.answerAsk(true) }.start() }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> Thread { k.answerAsk(false) }.start() }
                 .setOnDismissListener { cardOpen = false; a.window.decorView.postDelayed({ cards() }, 300) }.show()
@@ -1583,7 +1589,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }
         val (who, name) = k.nextCard() ?: return
         cardOpen = true
-        AlertDialog.Builder(a).setTitle("👤 " + t("Prośba o kontakt", "Contact request"))
+        Dlg().setTitle("👤 " + t("Prośba o kontakt", "Contact request"))
             .setMessage(t("$who poleca Ci: $name.\n\nDodać do komunikatora? Będziecie mogli pisać i dzwonić także przez internet.", "$who recommends: $name.\n\nAdd to the messenger? You will be able to message and call also over the internet."))
             .setPositiveButton(t("Dodaj", "Add")) { _, _ -> k.answerCard(true) }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> k.answerCard(false) }
             .setOnDismissListener { cardOpen = false; a.window.decorView.post { cards() } }.show()
@@ -1592,7 +1598,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     init {
         k.onCall = { c, o -> onCall(c, o) }
         k.askPair = { dev, code, accept ->
-            AlertDialog.Builder(a).setTitle("💬 " + t("Nowy kontakt", "New contact"))
+            Dlg().setTitle("💬 " + t("Nowy kontakt", "New contact"))
                 .setMessage(t("„$dev” chce dodać Cię do komunikatora Velivo.\n\nKod: $code\n\nPrzyjmij tylko, gdy na drugim urządzeniu jest ten sam kod.",
                     "“$dev” wants to add you to Velivo messenger.\n\nCode: $code\n\nAccept only if the other device shows the same code."))
                 .setPositiveButton(t("Przyjmij", "Accept")) { _, _ -> accept(true) }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> accept(false) }
@@ -1602,7 +1608,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         k.onCards = { cards() }; a.window.decorView.post { cards() }
         k.onAskResult = { name, ok -> Toast.makeText(a, if (ok) "👤 " + t("$name przyjął(a) Twoją prośbę – jest w kontaktach", "$name accepted your request – now in contacts") else t("$name odrzucił(a) prośbę", "$name declined the request"), Toast.LENGTH_LONG).show() }   // 👤 prośby o kontakt od znajomych (także z czasu, gdy Velivo było w tle)
         k.askFile = { dev, name, size, code, accept ->
-            AlertDialog.Builder(a).setTitle("📥 " + t("Plik z: ", "File from: ") + dev)
+            Dlg().setTitle("📥 " + t("Plik z: ", "File from: ") + dev)
                 .setMessage("$name (${sizeText(size)})" + if (code.isEmpty()) "" else "\n\n" + t("Kod: $code\n\nPrzyjmij tylko, gdy telefon nadawcy pokazuje ten sam kod.",
                     "Code: $code\n\nAccept only if the sender's phone shows the same code."))
                 .setPositiveButton(t("Przyjmij", "Accept")) { _, _ -> accept(true) }.setNegativeButton(t("Odrzuć", "Decline")) { _, _ -> accept(false) }
@@ -1706,7 +1712,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun chooseTheme() {
         val keys = listOf("auto") + palettes.map { it.key }
         val names = listOf(t("📱 Automatyczny (jak telefon)", "📱 Automatic (like the phone)")) + palettes.map { if (pl) it.pl else it.en }
-        AlertDialog.Builder(a).setTitle("🎨 " + t("Motyw komunikatora", "Messenger theme"))
+        Dlg().setTitle("🎨 " + t("Motyw komunikatora", "Messenger theme"))
             .setSingleChoiceItems(names.toTypedArray(), keys.indexOf(k.theme).coerceAtLeast(0)) { d, i ->
                 k.theme = keys[i]; d.dismiss()
                 page?.let { paint(screen, it) }
@@ -1807,7 +1813,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             // 🖱 sterowanie telefonem: usługa ułatwień dostępu Velivo; działa tylko, gdy osoba zgodziła się w rozmowie
             @android.webkit.JavascriptInterface fun ctlReady(): Boolean = SterowanieUsluga.on != null
             @android.webkit.JavascriptInterface fun ctlSetup() { a.runOnUiThread {
-                AlertDialog.Builder(a).setTitle("🖱 " + t("Pomoc zdalna", "Remote help"))
+                Dlg().setTitle("🖱 " + t("Pomoc zdalna", "Remote help"))
                     .setMessage(t("Aby rozmówca mógł stukać na Twoim telefonie, włącz raz „Velivo – pomoc zdalna” w Ustawieniach → Ułatwienia dostępu (Pobrane aplikacje).\n\n" +
                         "Gdy Android pisze „Ustawienia z ograniczonym dostępem” (Velivo nie jest ze Sklepu Play): 1) „Informacje o aplikacji” → ⋮ w prawym górnym rogu → „Zezwól na ustawienia z ograniczeniami”, 2) wróć i włącz w Ułatwieniach dostępu.\n\nVelivo steruje tylko po Twojej zgodzie w rozmowie i nie czyta ekranu.",
                         "To let the other person tap on your phone, turn on “Velivo – remote help” once in Settings → Accessibility (Downloaded apps).\n\n" +
@@ -1904,7 +1910,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             "🔒 " + t("Blokada odciskiem palca / PIN-em: ", "Fingerprint / PIN lock: ") + if (k.lock) t("wł.", "on") else t("wył.", "off"),
             "💾 " + t("Kopia zapasowa (telefon, Google Drive, NUCBOX)…", "Backup (phone, Google Drive, NUCBOX)…"), "📥 " + t("Przywróć z kopii (nowy telefon)…", "Restore from backup (new phone)…"),
             "🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"))
-        AlertDialog.Builder(a).setTitle("👤 " + t("Mój profil", "My profile")).setItems(items) { _, i ->
+        Dlg().setTitle("👤 " + t("Mój profil", "My profile")).setItems(items) { _, i ->
             when (i) {
                 0 -> { pickingPhoto = true; pickFiles() }
                 1 -> Thread { k.setPhoto(null) }.start()
@@ -1912,7 +1918,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 3 -> password(true) { p -> backupPass = p
                     runCatching { a.startActivityForResult(android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("application/octet-stream")
                         .putExtra(android.content.Intent.EXTRA_TITLE, "Velivo-kopia-" + java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(java.util.Date()) + ".velivo"), Komunikator.REQ_BACKUP) } }
-                4 -> AlertDialog.Builder(a).setMessage(t("Kopia zastąpi kontakty i rozmowy w tym telefonie (telefon dostanie identyfikator z kopii – kontakty dalej Cię znają). Dalej?",
+                4 -> Dlg().setMessage(t("Kopia zastąpi kontakty i rozmowy w tym telefonie (telefon dostanie identyfikator z kopii – kontakty dalej Cię znają). Dalej?",
                         "The backup replaces contacts and chats on this phone (it gets the identity from the backup – contacts still know you). Continue?"))
                     .setPositiveButton(t("Wybierz plik", "Choose file")) { _, _ -> pickingBackup = true; pickFiles() }.setNegativeButton(android.R.string.cancel, null).show()
                 else -> myAddress()
@@ -1930,7 +1936,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val eye = android.widget.CheckBox(a).apply { text = "👁 " + t("Pokaż hasło", "Show password"); setTextColor(ink)
             setOnCheckedChangeListener { _, on -> for (x in listOf(e, e2)) { x.inputType = if (on) shown else hidden; x.setSelection(x.text.length) } } }
         val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(4), px(20), 0); addView(e); addView(e2); addView(eye) }
-        AlertDialog.Builder(a).setTitle("🔑 " + t("Hasło kopii", "Backup password"))
+        Dlg().setTitle("🔑 " + t("Hasło kopii", "Backup password"))
             .setMessage(if (create) t("Zapamiętaj je – bez hasła kopii nie da się przywrócić (min. 6 znaków).", "Remember it – the backup cannot be restored without it (min. 6 characters).") else null).setView(box)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val p = e.text.toString()
@@ -2063,7 +2069,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun myAddress(reset: Boolean = false) {
         val link = k.myAddress(reset) ?: run { Toast.makeText(a, t("Potrzebny pośrednik (np. NUCBOX) w kontaktach – połącz się z nim raz w domu", "A relay (e.g. NUCBOX) is needed in contacts – connect to it once at home"), Toast.LENGTH_LONG).show(); return }
         val tv = TextView(a).apply { text = link; setTextIsSelectable(true); textSize = 13f; setPadding(px(20), px(10), px(20), px(4)); setTextColor(ink) }
-        AlertDialog.Builder(a).setTitle("🔗 " + t("Mój adres Velivo", "My Velivo address"))
+        Dlg().setTitle("🔗 " + t("Mój adres Velivo", "My Velivo address"))
             .setMessage(t("Daj go każdemu, kto ma Velivo – wyśle Ci prośbę, a Ty zdecydujesz: Dodaj / Odrzuć. Dostanie tylko komunikator (bez Twojej sieci domowej).",
                 "Give it to anyone with Velivo – they send you a request and you decide: Add / Decline. They get the messenger only (not your home network)."))
             .setView(tv)
@@ -2073,7 +2079,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
     private fun haveAddress() {
         val e = EditText(a).apply { hint = "VELIVO-KONTAKT:…"; minLines = 2 }
-        AlertDialog.Builder(a).setTitle("🔗 " + t("Wklej adres Velivo", "Paste a Velivo address")).setView(e)
+        Dlg().setTitle("🔗 " + t("Wklej adres Velivo", "Paste a Velivo address")).setView(e)
             .setPositiveButton(t("Wyślij prośbę", "Send request")) { _, _ ->
                 val ok = k.requestByLink(e.text.toString().substringAfter("VELIVO-KONTAKT:", "").let { if (it.isEmpty()) e.text.toString() else "VELIVO-KONTAKT:$it" }.trim())
                 Toast.makeText(a, if (ok) "👤 " + t("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie", "Request sent – the contact appears when they accept") else t("To nie jest adres Velivo", "This is not a Velivo address"), Toast.LENGTH_LONG).show()
@@ -2085,7 +2091,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val cs = k.contacts.filter { !it.isGroup }
         if (cs.size < 2) { Toast.makeText(a, t("Potrzeba co najmniej 2 kontaktów", "At least 2 contacts are needed"), Toast.LENGTH_LONG).show(); return }
         val pick = BooleanArray(cs.size)
-        AlertDialog.Builder(a).setTitle("👤 " + t("Kogo połączyć ze sobą?", "Who should be connected?"))
+        Dlg().setTitle("👤 " + t("Kogo połączyć ze sobą?", "Who should be connected?"))
             .setMultiChoiceItems(cs.map { it.name }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
             .setPositiveButton(t("Połącz", "Connect")) { _, _ ->
                 val ids = cs.filterIndexed { i, _ -> pick[i] }.map { it.id }
@@ -2100,20 +2106,20 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val cs = k.contacts.filter { !it.isGroup }
         if (cs.size < 2) { Toast.makeText(a, t("Do grupy potrzeba co najmniej 2 kontaktów", "A group needs at least 2 contacts"), Toast.LENGTH_LONG).show(); return }
         val pick = BooleanArray(cs.size)
-        AlertDialog.Builder(a).setTitle("👥 " + t("Kto w grupie?", "Who is in the group?"))
+        Dlg().setTitle("👥 " + t("Kto w grupie?", "Who is in the group?"))
             .setMultiChoiceItems(cs.map { it.name }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
             .setPositiveButton(t("Dalej", "Next")) { _, _ ->
                 val ids = cs.filterIndexed { i, _ -> pick[i] }.map { it.id }
                 if (ids.isEmpty()) return@setPositiveButton
                 val e = EditText(a).apply { setSingleLine(); hint = t("np. Rodzina", "e.g. Family") }
-                AlertDialog.Builder(a).setTitle("👥 " + t("Nazwa grupy", "Group name")).setView(e)
+                Dlg().setTitle("👥 " + t("Nazwa grupy", "Group name")).setView(e)
                     .setPositiveButton(t("Utwórz", "Create")) { _, _ -> openChat(k.newGroup(e.text.toString().trim().ifEmpty { t("Grupa", "Group") }.take(64), ids)) }
                     .setNegativeButton(android.R.string.cancel, null).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun addChoice() {
-        AlertDialog.Builder(a).setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
+        Dlg().setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
             .setItems(arrayOf("🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"), "🔗 " + t("Mam czyjś adres Velivo…", "I have someone's Velivo address…"), "👤 " + t("Połącz moich znajomych ze sobą…", "Connect my contacts with each other…"), "👥 " + t("Nowa grupa…", "New group…"), "📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
                 "📶 " + (if (k.newDeviceNotifications) t("Powiadomienia o nowych urządzeniach: wł.", "New device notifications: on") else t("Powiadomienia o nowych urządzeniach: wył.", "New device notifications: off")))) { _, i ->
                 when (i) { 0 -> myAddress(); 1 -> haveAddress(); 2 -> introduce(); 3 -> newGroup(); 4 -> addContact(); 5 -> invite(); 6 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
@@ -2124,7 +2130,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun sendInvite(code: String) {
         val text = t("Zaproszenie do komunikatora Velivo:\n", "Velivo messenger invitation:\n") + code
         val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
-        AlertDialog.Builder(a).setTitle("📤 " + t("Wyślij zaproszenie", "Send invitation"))
+        Dlg().setTitle("📤 " + t("Wyślij zaproszenie", "Send invitation"))
             .setItems(arrayOf("💬 WhatsApp", "✉ SMS", "📤 " + t("Inna aplikacja…", "Other app…"))) { _, i ->
                 runCatching {
                     when (i) {
@@ -2138,10 +2144,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     private fun invite() {
         val code = k.createInvite()
-        if (code == null) { AlertDialog.Builder(a).setTitle("✉ " + t("Zaproś przez internet", "Invite via internet"))
+        if (code == null) { Dlg().setTitle("✉ " + t("Zaproś przez internet", "Invite via internet"))
             .setMessage(t("Najpierw włącz pośrednika (Velivo na komputerze zawsze włączonym: 🎨 → 🌍 Rozmowy poza domem) i otwórz tu komunikator w domu.", "First turn on the relay (Velivo on the always-on computer: 🎨 → 🌍 Chats away from home) and open the messenger here while at home."))
             .setPositiveButton(android.R.string.ok, null).show(); return }
-        AlertDialog.Builder(a).setTitle("✉ " + t("Zaproś przez internet", "Invite via internet"))
+        Dlg().setTitle("✉ " + t("Zaproś przez internet", "Invite via internet"))
             .setMessage(t("Wyślij ten kod osobie, która ma Velivo. Ona wkleja go w komunikatorze: ➕ → 🔑 Mam zaproszenie. U Ciebie pojawi się prośba z kodem – przyjmij, gdy kod się zgadza. Działa raz, przez 7 dni.\n\n", "Send this code to a person who has Velivo. They paste it in the messenger: ➕ → 🔑 I have an invitation. You will get a request with a code – accept if it matches. Works once, for 7 days.\n\n") + code)
             .setPositiveButton("📤 " + t("Wyślij…", "Send…")) { _, _ -> sendInvite(code) }
             .setNeutralButton("📋 " + t("Kopiuj", "Copy")) { _, _ -> (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", code)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
@@ -2151,10 +2157,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun joinDialog() {
         val clip = runCatching { (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).primaryClip?.getItemAt(0)?.text?.toString() }.getOrNull()
         val e = EditText(a).apply { hint = "VELIVO1:…"; minLines = 2; if (clip?.contains("VELIVO1:") == true) setText(clip.trim()) }
-        AlertDialog.Builder(a).setTitle("🔑 " + t("Mam zaproszenie", "I have an invitation")).setMessage(t("Wklej kod zaproszenia:", "Paste the invitation code:")).setView(e)
+        Dlg().setTitle("🔑 " + t("Mam zaproszenie", "I have an invitation")).setMessage(t("Wklej kod zaproszenia:", "Paste the invitation code:")).setView(e)
             .setPositiveButton(t("Połącz", "Connect")) { _, _ ->
                 val code = e.text.toString()
-                val wait = AlertDialog.Builder(a).setTitle("✉ " + t("Zaproszenie", "Invitation")).setMessage(t("Łączę z zapraszającym…", "Connecting to the inviter…")).show()
+                val wait = Dlg().setTitle("✉ " + t("Zaproszenie", "Invitation")).setMessage(t("Łączę z zapraszającym…", "Connecting to the inviter…")).show()
                 Thread {
                     val r = k.join(code) { c -> a.runOnUiThread { wait.setMessage(t("Kod: $c\n\nZapraszający widzi ten sam kod – czekam, aż przyjmie.", "Code: $c\n\nThe inviter sees the same code – waiting for them to accept.")) } }
                     if (r == "ok") { k.upForce = true }
@@ -2172,23 +2178,23 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
             if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
             "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"))
-        AlertDialog.Builder(a).setTitle(c.name).setItems(items) { _, i ->
+        Dlg().setTitle(c.name).setItems(items) { _, i ->
             if (i == 2) { k.setPinned(c.id, !k.pinned(c.id)); return@setItems }
             if (i == 3) {
                 if (k.muted(c.id)) k.mute(c.id, 0)
                 else { val ms = longArrayOf(8 * 3600000L, 7 * 86400000L, Long.MAX_VALUE)
-                    AlertDialog.Builder(a).setTitle("🔕 " + c.name).setItems(arrayOf(t("8 godzin", "8 hours"), t("Tydzień", "A week"), t("Zawsze", "Always"))) { _, j -> k.mute(c.id, ms[j]) }.show() }
+                    Dlg().setTitle("🔕 " + c.name).setItems(arrayOf(t("8 godzin", "8 hours"), t("Tydzień", "A week"), t("Zawsze", "Always"))) { _, j -> k.mute(c.id, ms[j]) }.show() }
                 return@setItems
             }
             if (i == 4) {
                 val hs = intArrayOf(0, 24, 7 * 24, 90 * 24)
-                AlertDialog.Builder(a).setTitle("⏳ " + t("Znikające wiadomości – u obu stron", "Disappearing messages – for both sides"))
+                Dlg().setTitle("⏳ " + t("Znikające wiadomości – u obu stron", "Disappearing messages – for both sides"))
                     .setSingleChoiceItems(arrayOf(t("Wyłączone", "Off"), "24 h", t("7 dni", "7 days"), t("90 dni", "90 days")), hs.indexOf(k.ttl(c.id)).coerceAtLeast(0)) { d, j -> d.dismiss(); Thread { k.setTtl(c, hs[j]) }.start() }.show()
                 return@setItems
             }
             if (i == 5) { exportChat(c); return@setItems }
             if (i == 6) {
-                AlertDialog.Builder(a).setTitle("🛡 " + t("Kod bezpieczeństwa", "Safety code") + " – " + c.name)
+                Dlg().setTitle("🛡 " + t("Kod bezpieczeństwa", "Safety code") + " – " + c.name)
                     .setMessage(k.safety(c) + "\n\n" + t("Porównajcie ten kod (u ${c.name}: menu rozmowy z Tobą). Ten sam = rozmowa szyfrowana tylko między Wami, nikt się nie podszywa.",
                         "Compare this code (on ${c.name}'s device: your chat menu). The same = the chat is encrypted only between you, no one is impersonating."))
                     .setPositiveButton(android.R.string.ok, null).show()
@@ -2196,32 +2202,32 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }
             if (i == 0) {
                 val e = EditText(a).apply { setText(c.name); setSingleLine(); hint = c.device }
-                AlertDialog.Builder(a).setTitle(t("Nazwa", "Name")).setMessage(t("Urządzenie: ", "Device: ") + c.device + t("\nPuste pole – nazwa urządzenia", "\nEmpty field – device name")).setView(e)
+                Dlg().setTitle(t("Nazwa", "Name")).setMessage(t("Urządzenie: ", "Device: ") + c.device + t("\nPuste pole – nazwa urządzenia", "\nEmpty field – device name")).setView(e)
                     .setPositiveButton(android.R.string.ok) { _, _ -> k.rename(c, e.text.toString()) }
                     .setNegativeButton(android.R.string.cancel, null).show()
-            } else AlertDialog.Builder(a).setMessage(t("Usunąć „${c.name}” i całą rozmowę?", "Delete “${c.name}” and the whole chat?"))
+            } else Dlg().setMessage(t("Usunąć „${c.name}” i całą rozmowę?", "Delete “${c.name}” and the whole chat?"))
                 .setPositiveButton(t("Usuń", "Delete")) { _, _ -> k.remove(c) }.setNegativeButton(android.R.string.cancel, null).show()
         }.show()
     }
 
     // szukanie urządzeń w sieci i wybór jednego
     private fun choosePeer(title: String, then: (Komunikator.Peer) -> Unit) {
-        val wait = AlertDialog.Builder(a).setTitle(title).setMessage(t("Szukam urządzeń z Velivo w tej sieci…", "Looking for Velivo devices on this network…")).show()
+        val wait = Dlg().setTitle(title).setMessage(t("Szukam urządzeń z Velivo w tej sieci…", "Looking for Velivo devices on this network…")).show()
         Thread {
             val peers = k.find()
             a.runOnUiThread {
                 wait.dismiss()
-                if (peers.isEmpty()) AlertDialog.Builder(a).setTitle(title)
+                if (peers.isEmpty()) Dlg().setTitle(title)
                     .setMessage(t("Nie znaleziono. Na drugim urządzeniu otwórz komunikator Velivo (albo przeglądarkę Velivo) w tej samej sieci Wi-Fi i spróbuj ponownie.",
                         "Nothing found. Open Velivo messenger (or the Velivo browser) on the other device on the same Wi-Fi and try again."))
                     .setPositiveButton(t("Ponów", "Retry")) { _, _ -> choosePeer(title, then) }.setNegativeButton(android.R.string.cancel, null).show()
-                else AlertDialog.Builder(a).setTitle(title).setItems(peers.map { (if (k.contact(it.id) != null) "👤 " else "📱 ") + it.name }.toTypedArray()) { _, i -> then(peers[i]) }
+                else Dlg().setTitle(title).setItems(peers.map { (if (k.contact(it.id) != null) "👤 " else "📱 ") + it.name }.toTypedArray()) { _, i -> then(peers[i]) }
                     .setNegativeButton(android.R.string.cancel, null).show()
             }
         }.start()
     }
 
-    private fun codeDialog(title: String, code: String) = AlertDialog.Builder(a).setTitle(title)
+    private fun codeDialog(title: String, code: String) = Dlg().setTitle(title)
         .setMessage(t("Kod: $code\n\nSprawdź, czy drugie urządzenie pokazuje ten sam kod, i przyjmij tam.", "Code: $code\n\nCheck that the other device shows the same code and accept there.")).show()
 
     private fun addContact() = choosePeer("➕ " + t("Dodaj kontakt", "Add contact")) { p ->
@@ -2274,7 +2280,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         // kontakty (w domu i poza domem) - jak 📎 w rozmowie; inne urządzenie w tej sieci - wyszukanie z kodem
         val cs = k.contacts.sortedByDescending { k.online(it.id) }
         if (cs.isEmpty()) { choosePeer("📤 " + t("Wyślij pliki do…", "Send files to…")) { p -> sendFilesTo(uris, p, k.contact(p.id)) }; return }
-        AlertDialog.Builder(a).setTitle("📤 " + t("Wyślij pliki do…", "Send files to…"))
+        Dlg().setTitle("📤 " + t("Wyślij pliki do…", "Send files to…"))
             .setItems((cs.map { (if (k.online(it.id)) "🟢 " else "⚪ ") + it.name } + ("📶 " + t("Inne urządzenie w tej sieci…", "Other device on this network…"))).toTypedArray()) { _, i ->
                 if (i < cs.size) { attachTo = cs[i]; sendFiles(uris) } else choosePeer("📤 " + t("Wyślij pliki do…", "Send files to…")) { p -> sendFilesTo(uris, p, k.contact(p.id)) }
             }.setNegativeButton(android.R.string.cancel, null).show()
@@ -2296,7 +2302,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             runCatching { a.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(u, a.contentResolver.getType(u) ?: "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
                 .onFailure { Toast.makeText(a, t("Brak programu do podglądu", "No app to preview"), Toast.LENGTH_SHORT).show() }
         }
-        val d = AlertDialog.Builder(a).setTitle("📤 " + c.name).setView(ScrollView(a).apply { addView(box) })
+        val d = Dlg().setTitle("📤 " + c.name).setView(ScrollView(a).apply { addView(box) })
             .setPositiveButton("➤ " + t("Wyślij", "Send")) { _, _ -> attachTo = c; sendFiles(uris, true) }
             .setNegativeButton(t("Anuluj", "Cancel")) { _, _ -> uris.filter { it.scheme == "file" && it.path?.startsWith(a.cacheDir.path) == true }.forEach { java.io.File(it.path!!).delete() } }
         if (uris.size == 1) d.setNeutralButton(if (names[0].startsWith("Glosowa-")) "▶ " + t("Odsłuchaj", "Listen") else "👁 " + t("Podgląd", "Preview"), null)
@@ -2365,7 +2371,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
                 msgs.addView(TextView(a).apply {
-                    val tick = if (m.mine) (if (m.read || m.ok) "  ✓✓" else "  ✓") else ""   // jak WhatsApp: ✓ wysłana, ✓✓ szare doręczona, ✓✓ niebieskie przeczytana
+                    val tick = if (m.mine) (if (m.read || (m.ok && !m.text.contains("📬"))) "  ✓✓" else "  ✓") else ""   // 📬 w skrzynce pośrednika - jeszcze nie u odbiorcy   // jak WhatsApp: ✓ wysłana, ✓✓ szare doręczona, ✓✓ niebieskie przeczytana
                     text = android.text.SpannableStringBuilder(m.text).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
                         voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
@@ -2421,7 +2427,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, (replyTo?.let { k.quote(it) } ?: "") + s); replyTo = null; replyBar.visibility = View.GONE; fill() }
         // 📎 plik albo 🎬 wiadomość wideo (aparat telefonu; nagranie idzie jak plik - także do skrzynki 📬)
         val clip = round("📎", t("Załącz plik albo nagraj wiadomość wideo", "Attach a file or record a video message"), pal().button) {
-            AlertDialog.Builder(a).setItems(arrayOf("📎 " + t("Plik / zdjęcie", "File / photo"), "🎬 " + t("Nagraj wiadomość wideo", "Record a video message"), "📍 " + t("Moja lokalizacja", "My location"))) { _, i ->
+            Dlg().setItems(arrayOf("📎 " + t("Plik / zdjęcie", "File / photo"), "🎬 " + t("Nagraj wiadomość wideo", "Record a video message"), "📍 " + t("Moja lokalizacja", "My location"))) { _, i ->
                 if (i == 2) { sendLocation(c) { fill() }; return@setItems }
                 attachTo = c
                 if (i == 0) pickFiles()
@@ -2508,7 +2514,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             addView(icon("🔍", t("Szukaj w rozmowie", "Search in chat")) {
                 if (query.isNotEmpty()) { query = ""; fill(); return@icon }   // ponownie - wszystkie wiadomości
                 val e = EditText(a).apply { setSingleLine(); hint = t("Słowo…", "Word…") }
-                AlertDialog.Builder(a).setTitle("🔍 " + t("Szukaj w rozmowie", "Search in chat")).setView(e).setPositiveButton(android.R.string.ok) { _, _ ->
+                Dlg().setTitle("🔍 " + t("Szukaj w rozmowie", "Search in chat")).setView(e).setPositiveButton(android.R.string.ok) { _, _ ->
                     query = e.text.toString().trim(); fill()
                     Toast.makeText(a, t("Znaleziono: ", "Found: ") + k.chat(c.id).count { query.isNotEmpty() && it.text.contains(query, true) } + t(" (🔍 ponownie – wszystkie)", " (🔍 again – all)"), Toast.LENGTH_LONG).show()
                 }.setNegativeButton(android.R.string.cancel, null).show()
@@ -2540,20 +2546,20 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (m.mine && !m.text.startsWith("🚫")) items.add("🚫 " + t("Usuń u wszystkich", "Delete for everyone"))
         items.add("🗑 " + t("Usuń u mnie", "Delete for me"))
         items.add("☑ " + t("Zaznacz kilka…", "Select several…"))
-        AlertDialog.Builder(a).setItems(items.toTypedArray()) { _, i ->
+        Dlg().setItems(items.toTypedArray()) { _, i ->
             if (items[i].startsWith("⏩")) { k.voiceSpeed = nextSpeed(); Toast.makeText(a, "⏩ " + speedText(k.voiceSpeed), Toast.LENGTH_SHORT).show(); return@setItems }
             when (items[i].substringAfter(' ')) {
                 t("Odpowiedz", "Reply") -> onReply?.invoke(m)
-                t("Reakcja", "React") -> { val e = arrayOf("👍", "❤️", "😂", "😮", "😢", "🙏"); AlertDialog.Builder(a).setItems(e) { _, j -> Thread { k.react(c, m, e[j]) }.start() }.show() }
+                t("Reakcja", "React") -> { val e = arrayOf("👍", "❤️", "😂", "😮", "😢", "🙏"); Dlg().setItems(e) { _, j -> Thread { k.react(c, m, e[j]) }.start() }.show() }
                 t("Przekaż…", "Forward…") -> forward(c, m)
                 t("Zaznacz kilka…", "Select several…") -> select(c, m)
                 t("Edytuj", "Edit") -> { val e = EditText(a).apply { setText(m.text.removeSuffix(" ✏")); setSelection(text.length) }
-                    AlertDialog.Builder(a).setTitle("✏ " + t("Edytuj wiadomość", "Edit message")).setView(e)
+                    Dlg().setTitle("✏ " + t("Edytuj wiadomość", "Edit message")).setView(e)
                         .setPositiveButton(t("Zapisz", "Save")) { _, _ -> val s2 = e.text.toString().trim(); if (s2.isNotEmpty()) Thread { k.edit(c, m, s2) }.start() }.setNegativeButton(android.R.string.cancel, null).show() }
                 t("Kopiuj", "Copy") -> { (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", m.text)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
                 t("Zapisz w Galerii", "Save to Gallery") -> saveToGallery(photo!!)
                 t("Zapisz w Pobranych", "Save to Downloads") -> Toast.makeText(a, if (toDownloads(file!!) != null) t("Zapisano w Pobranych", "Saved to Downloads") else t("Nie udało się zapisać", "Could not save"), Toast.LENGTH_SHORT).show()
-                t("Usuń u wszystkich", "Delete for everyone") -> AlertDialog.Builder(a).setMessage(t("Usunąć tę wiadomość u wszystkich?", "Delete this message for everyone?"))
+                t("Usuń u wszystkich", "Delete for everyone") -> Dlg().setMessage(t("Usunąć tę wiadomość u wszystkich?", "Delete this message for everyone?"))
                     .setPositiveButton(t("Usuń", "Delete")) { _, _ -> Thread { k.deleteForAll(c, m) }.start() }.setNegativeButton(android.R.string.cancel, null).show()
                 else -> k.deleteLocal(c, m)
             }
@@ -2564,13 +2570,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun select(c: Komunikator.Contact, first: Komunikator.Msg) {
         val ms = k.chat(c.id).takeLast(100).reversed(); val pick = BooleanArray(ms.size) { ms[it] === first }
         val fmt = java.text.SimpleDateFormat("d.MM HH:mm", Locale.getDefault())
-        AlertDialog.Builder(a).setTitle("☑ " + c.name).setMultiChoiceItems(ms.map { (if (it.mine) "› " else "") + it.text.take(80) + " · " + fmt.format(java.util.Date(it.ts)) }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
+        Dlg().setTitle("☑ " + c.name).setMultiChoiceItems(ms.map { (if (it.mine) "› " else "") + it.text.take(80) + " · " + fmt.format(java.util.Date(it.ts)) }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
             .setPositiveButton("↪ " + t("Przekaż", "Forward")) { _, _ -> ms.filterIndexed { i, _ -> pick[i] }.reversed().let { sel -> forwardAll(c, sel) } }
             .setNeutralButton("📋 " + t("Kopiuj", "Copy")) { _, _ ->
                 val txt = ms.filterIndexed { i, _ -> pick[i] }.reversed().joinToString("\n") { "[" + fmt.format(java.util.Date(it.ts)) + "] " + (if (it.mine) t("Ja", "Me") else c.name) + ": " + it.text }
                 (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", txt)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
             .setNegativeButton("🗑 " + t("Usuń u mnie", "Delete for me")) { _, _ -> val sel = ms.filterIndexed { i, _ -> pick[i] }
-                if (sel.isNotEmpty()) AlertDialog.Builder(a).setMessage(t("Usunąć zaznaczone u mnie: ", "Delete selected for me: ") + sel.size + "?")
+                if (sel.isNotEmpty()) Dlg().setMessage(t("Usunąć zaznaczone u mnie: ", "Delete selected for me: ") + sel.size + "?")
                     .setPositiveButton(t("Usuń", "Delete")) { _, _ -> sel.forEach { k.deleteLocal(c, it) } }.setNegativeButton(android.R.string.cancel, null).show() }
             .show()
     }
@@ -2581,7 +2587,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun forwardAll(from: Komunikator.Contact, ms: List<Komunikator.Msg>) {
         val cs = k.contacts.filter { it.id != from.id }; if (cs.isEmpty() || ms.isEmpty()) return
         val pick = BooleanArray(cs.size)
-        AlertDialog.Builder(a).setTitle("↪ " + t("Przekaż do…", "Forward to…")).setMultiChoiceItems(cs.map { (if (it.isGroup) "👥 " else "") + it.name }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
+        Dlg().setTitle("↪ " + t("Przekaż do…", "Forward to…")).setMultiChoiceItems(cs.map { (if (it.isGroup) "👥 " else "") + it.name }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
             .setPositiveButton(t("Wyślij", "Send")) { _, _ ->
                 for (to in cs.filterIndexed { i, _ -> pick[i] }) {
                     val fs = ms.mapNotNull { m -> m.path?.let { java.io.File(it) }?.takeIf { m.file && it.exists() } }
@@ -2595,7 +2601,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun gallery(c: Komunikator.Contact) {
         val ms = k.chat(c.id).filter { m -> m.path?.let { java.io.File(it).exists() } == true }.reversed()
         if (ms.isEmpty()) { Toast.makeText(a, t("Brak plików w tej rozmowie", "No files in this chat"), Toast.LENGTH_SHORT).show(); return }
-        AlertDialog.Builder(a).setTitle("🖼 " + c.name).setItems(ms.map { (if (k.isImage(it.path!!)) "🖼 " else "") + it.text + " · " + when_(it.ts) }.toTypedArray()) { _, i ->
+        Dlg().setTitle("🖼 " + c.name).setItems(ms.map { (if (k.isImage(it.path!!)) "🖼 " else "") + it.text + " · " + when_(it.ts) }.toTypedArray()) { _, i ->
             val p = ms[i].path!!
             if (k.isImage(p)) showPhoto(p, photos(c)) else if (p.contains("Glosowa-")) play(p) else openFile(p)
         }.show()

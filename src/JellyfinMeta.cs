@@ -640,7 +640,7 @@ namespace Velivo
             // 📂 klucz (i adres serwera) z pliku - bez przepisywania i bez pokazywania klucza na ekranie przy wklejaniu
             var fromFile = SmallButton(L.T("📂 Wczytaj klucz z pliku…"), () =>
             {
-                var f = new Microsoft.Win32.OpenFileDialog { Title = L.T("Plik z kluczem API Jellyfin"), Filter = L.T("Pliki tekstowe") + "|*.txt" };
+                var f = new Microsoft.Win32.OpenFileDialog { Title = L.T("Plik z kluczem API Jellyfin"), Filter = L.T("Pliki tekstowe") + "|*.txt", FileName = "api.txt" };
                 if (f.ShowDialog(d) != true) return;
                 string text; try { text = new FileInfo(f.FileName).Length > 65536 ? "" : File.ReadAllText(f.FileName); } catch (Exception ex) { info.Foreground = Brushes.IndianRed; info.Text = L.T("⚠ Nie udało się: ") + ex.Message; return; }
                 var k = System.Text.RegularExpressions.Regex.Match(text, @"\b[0-9a-fA-F]{32}\b");   // klucz Jellyfin: 32 znaki szesnastkowe

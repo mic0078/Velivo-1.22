@@ -61,4 +61,6 @@
     <string name="kb_preview_tip">Shows a big letter above the key you press – you can see what you type</string>
     <string name="kb_on">on</string>
     <string name="kb_off">off</string>
+    <string name="kb_senior">👵 Senior mode</string>
+    <string name="kb_senior_tip">Tall keys and big letters, letter above the finger, words read aloud, no swipe typing, longer press</string>
 </resources>

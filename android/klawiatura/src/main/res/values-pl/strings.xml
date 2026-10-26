@@ -61,4 +61,6 @@
     <string name="kb_preview_tip">Przy naciśnięciu nad klawiszem pokazuje dużą literę – widać, co się wciska</string>
     <string name="kb_on">wł.</string>
     <string name="kb_off">wył.</string>
+    <string name="kb_senior">👵 Tryb Senior</string>
+    <string name="kb_senior_tip">Wysokie klawisze i duże litery, litera nad palcem, słowa czytane na głos, bez pisania przeciągnięciem, dłuższe przytrzymanie</string>
 </resources>

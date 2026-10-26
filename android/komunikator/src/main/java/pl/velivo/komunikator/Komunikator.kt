@@ -732,7 +732,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun onCallSignal(c: Contact, o: JSONObject) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         when (o.optString("k")) {
-            "ring" -> { ringing = c.id to System.currentTimeMillis(); ringAudio = o.optBoolean("a"); if (nm != null) notifyCall(nm, c) }
+            "ring" -> { ringing = c.id to System.currentTimeMillis(); ringAudio = o.optBoolean("a"); if (nm != null) notifyCall(nm, c); alertFlash(c, true) }
             "end" -> { if (ringing?.first == c.id) ringing = null; nm?.cancel("rozmowa".hashCode()) }
         }
         main.post { onCall?.invoke(c, o) }
@@ -1407,6 +1407,32 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     val mediaDir get() = java.io.File(ctx.filesDir, "komunikator").also { it.mkdirs() }
     fun isImage(name: String) = name.substringAfterLast('.', "").lowercase() in setOf("jpg", "jpeg", "png", "gif", "bmp", "webp")
 
+    // ♿ ułatwienia (wzrok i słuch): duże litery, nowe wiadomości czytane na głos, błysk lampy i mocna wibracja przy wiadomości i dzwonku
+    var big: Boolean get() = prefs.getBoolean("duze", false); set(v) { prefs.edit().putBoolean("duze", v).apply() }
+    var readNew: Boolean get() = prefs.getBoolean("czytaj-nowe", false); set(v) { prefs.edit().putBoolean("czytaj-nowe", v).apply() }
+    var flashAlert: Boolean get() = prefs.getBoolean("blysk", false); set(v) { prefs.edit().putBoolean("blysk", v).apply() }
+    private var ttsNew: android.speech.tts.TextToSpeech? = null
+    private fun sayNew(c: Contact) {
+        if (!readNew) return
+        val m = synchronized(this) { chat(c.id).lastOrNull { !it.mine } } ?: return
+        val t = c.name + ": " + m.text
+        main.post { ttsNew?.speak(t, android.speech.tts.TextToSpeech.QUEUE_ADD, null, "nowa") ?: run { ttsNew = android.speech.tts.TextToSpeech(ctx) { st -> if (st == android.speech.tts.TextToSpeech.SUCCESS) ttsNew?.let { it.language = Locale.getDefault(); it.speak(t, android.speech.tts.TextToSpeech.QUEUE_ADD, null, "nowa") } } } }
+    }
+    // 💡 błysk lampy aparatu i mocna wibracja (dla słabosłyszących) - dzwonek: dopóki dzwoni (najwyżej 40 s), wiadomość: 2 błyski
+    fun alertFlash(c: Contact?, call: Boolean) {
+        if (!flashAlert) return
+        Thread {
+            runCatching { val v = ctx.getSystemService(android.os.Vibrator::class.java); v?.vibrate(android.os.VibrationEffect.createWaveform(if (call) longArrayOf(0, 600, 300, 600, 300, 600) else longArrayOf(0, 400, 200, 400), -1)) }
+            runCatching {
+                val cm = ctx.getSystemService(android.hardware.camera2.CameraManager::class.java) ?: return@runCatching
+                val id = cm.cameraIdList.firstOrNull { cm.getCameraCharacteristics(it).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true } ?: return@runCatching
+                val until = System.currentTimeMillis() + 40000
+                do { repeat(if (call) 3 else 2) { cm.setTorchMode(id, true); Thread.sleep(150); cm.setTorchMode(id, false); Thread.sleep(200) }; if (call) Thread.sleep(900) }
+                while (call && c != null && ringing?.first == c.id && System.currentTimeMillis() < until)
+            }
+        }.start()
+    }
+
     var theme: String
         get() = prefs.getString("motyw", "auto") ?: "auto"
         set(v) { prefs.edit().putString("motyw", v).apply() }
@@ -1445,6 +1471,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     fun notifyMessage(c: Contact, quiet: Boolean = false) {
+        if (!quiet && !muted(c.id)) { sayNew(c); alertFlash(c, false) }   // ♿ czytanie na głos / błysk - gdy włączone
         if (chatOpen == c.id) { if (!quiet) chatSound(); sendRead(c); return }
         if (muted(c.id)) return   // 🔕 wyciszona rozmowa - tylko licznik w rozmowie
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
@@ -1767,6 +1794,21 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }
     }
 
+    // ♿ ułatwienia - dla słabowidzących (duże litery, czytanie na głos, motyw „Wysoki kontrast”) i słabosłyszących (błysk lampy, mocna wibracja)
+    private fun accessibility() {
+        val names = arrayOf("🔠 " + t("Duże litery w rozmowach", "Big text in chats"), "🔊 " + t("Czytaj nowe wiadomości na głos", "Read new messages aloud"),
+            "💡 " + t("Błysk lampy i mocna wibracja przy wiadomości i dzwonku", "Flash and strong vibration on messages and calls"), "◐ " + t("Wysoki kontrast (motyw)", "High contrast (theme)"))
+        val on = booleanArrayOf(k.big, k.readNew, k.flashAlert, k.theme == "kontrast")
+        Dlg().setTitle("♿ " + t("Ułatwienia", "Accessibility")).setMultiChoiceItems(names, on) { _, i, v -> on[i] = v }
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                k.big = on[0]; k.readNew = on[1]; k.flashAlert = on[2]
+                if (on[3] != (k.theme == "kontrast")) { k.theme = if (on[3]) "kontrast" else "auto"; page?.let { paint(screen, it) } }
+                if (on[2]) k.alertFlash(null, false)   // pokaz: błysk od razu
+                val c = chatWith?.let { k.contact(it) }; if (c != null) openChat(c) else show()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+    private val fs get() = if (k.big) 1.3f else 1f   // 🔠 duże litery
+
     private fun chooseTheme() {
         val keys = listOf("auto") + palettes.map { it.key }
         val names = listOf(t("📱 Automatyczny (jak telefon)", "📱 Automatic (like the phone)")) + palettes.map { if (pl) it.pl else it.en }
@@ -2079,7 +2121,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 val name = TextView(a).apply {
                     text = android.text.SpannableStringBuilder((if (k.pinned(c.id)) "📌 " else "") + c.name + if (k.muted(c.id)) " 🔕" else "").apply {
                         if (c.own && c.device.isNotEmpty() && c.device != c.name) { val st = length; append("  " + c.device); setSpan(android.text.style.ForegroundColorSpan(dim), st, length, 0); setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0) }   // prawdziwe urządzenie
-                    }; textSize = 17f; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+                    }; textSize = 17f * fs; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
                 val time = TextView(a).apply { text = last?.let { when_(it.ts) } ?: ""; textSize = 12f; setTextColor(if (n > 0) green else dim) }
                 val top = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(name); addView(time) }
                 val snippet = TextView(a).apply {
@@ -2091,7 +2133,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                             if (m.mine) { append(if (m.read || (m.ok && !m.text.contains("📬"))) "✓✓ " else "✓ "); if (m.read) setSpan(android.text.style.ForegroundColorSpan(Color.rgb(0x38, 0xBD, 0xF8)), 0, length, 0) }
                             append(m.text.replace('\n', ' '))
                         } } ?: (if (on) t("w sieci", "online") else t("poza siecią", "offline"))
-                    textSize = 14f; setTextColor(dim); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                    textSize = 14f * fs; setTextColor(dim); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
                 }
                 val badge = TextView(a).apply { text = n.toString(); textSize = 12f; setTextColor(Color.BLACK); gravity = Gravity.CENTER; minWidth = px(22); setPadding(px(6), px(1), px(6), px(1)); background = bg(green, 11); visibility = if (n > 0) View.VISIBLE else View.GONE }
                 val bottom = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(snippet); addView(badge) }
@@ -2120,8 +2162,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         bell = icon("🔔", "") { k.background = !k.background; bellLabel(); Toast.makeText(a, bell.contentDescription, Toast.LENGTH_SHORT).show() }
         bellLabel()
         val palette = icon("🎨", t("Motyw komunikatora", "Messenger theme")) { chooseTheme() }
+        val access = icon("♿", t("Ułatwienia: duże litery, czytanie na głos, błysk przy dzwonku", "Accessibility: big text, read aloud, flash on ring")) { accessibility() }
         val me = icon("👤", t("Mój profil: zdjęcie i blokada", "My profile: photo and lock")) { profile() }
-        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(8), px(8), px(8)); addView(title); addView(me); addView(palette); addView(bell); addView(close) }
+        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(8), px(8), px(8)); addView(title); addView(me); addView(access); addView(palette); addView(bell); addView(close) }
         val actions = LinearLayout(a).apply {
             gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
             addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)", "Add a contact: on this network or via internet (invitation)")) { addChoice() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
@@ -2450,7 +2493,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                             append("\n"); val st = length; append(lj.optString("t")); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), st, length, 0)
                             lj.optString("d").takeIf { it.isNotEmpty() }?.let { append("\n"); val s2 = length; append(it); setSpan(android.text.style.RelativeSizeSpan(0.85f), s2, length, 0) }
                         }
-                        textSize = 14f; maxLines = 6; ellipsize = android.text.TextUtils.TruncateAt.END; setTextColor(if (m.mine) pal().mineFg else ink); setPadding(px(12), px(7), px(12), px(8))
+                        textSize = 14f * fs; maxLines = 6; ellipsize = android.text.TextUtils.TruncateAt.END; setTextColor(if (m.mine) pal().mineFg else ink); setPadding(px(12), px(7), px(12), px(8))
                         background = GradientDrawable().apply { setColor(if (m.mine) violet else pal().theirs); cornerRadius = px(12).toFloat(); setStroke(px(2), if (m.mine) pal().mineFg else violet) }
                         layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(6); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
                         contentDescription = t("Podgląd linku: ", "Link preview: ") + lj.optString("t")
@@ -2467,7 +2510,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                         val p = pal(); val base = if (m.mine) p.mineFg else p.dim
                         setSpan(android.text.style.ForegroundColorSpan(if (m.mine && m.read) (if (p.key == "kontrast") Color.rgb(0, 0, 0xCC) else Color.rgb(0x7D, 0xF9, 0xFF)) else Color.argb(0xC0, Color.red(base), Color.green(base), Color.blue(base))), st, length, 0)
                     }
-                    textSize = 16f; setTextColor(if (m.mine) pal().mineFg else ink)
+                    textSize = 16f * fs; setTextColor(if (m.mine) pal().mineFg else ink)
                     setPadding(px(12), px(7), px(12), px(7))
                     // pierwszy dymek z serii - „ogonek” (ostry róg od strony nadawcy); kolejne od tej samej osoby bliżej siebie
                     val series = prevMine == m.mine; val r = px(16).toFloat(); val s = if (series) r else px(4).toFloat()
@@ -2489,7 +2532,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     setOnLongClickListener { msgMenu(c, m); true }
                 })
                 if (!m.mine && m.path == null) Ochrona.messageWarning(m.text, pl)?.let { w -> msgs.addView(TextView(a).apply {   // 🛡 podejrzany link / prośba o kod lub dane karty
-                    text = w; textSize = 14f; setTextColor(if (w.startsWith("⚠")) Color.WHITE else ink); setPadding(px(12), px(6), px(12), px(7))
+                    text = w; textSize = 14f * fs; setTextColor(if (w.startsWith("⚠")) Color.WHITE else ink); setPadding(px(12), px(6), px(12), px(7))
                     background = bg(if (w.startsWith("⚠")) Color.rgb(0xDC, 0x26, 0x26) else Color.argb(0x40, 0xF5, 0x9E, 0x0B), 12)
                     layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.START; topMargin = px(3); rightMargin = px(48) }
                 }) }
@@ -2503,7 +2546,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val input = EditText(a).apply {
             hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND; setHorizontallyScrolling(false); maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            setTextColor(ink); setHintTextColor(dim); textSize = 16f
+            setTextColor(ink); setHintTextColor(dim); textSize = 16f * fs
             background = GradientDrawable().apply { setColor(pal().input); cornerRadius = px(22).toFloat(); setStroke(px(1), pal().border) }; setPadding(px(16), px(11), px(16), px(11))
         }
         // 🎞 GIF-y i naklejki z klawiatury (Gboard i inne) - wysyłane jak plik

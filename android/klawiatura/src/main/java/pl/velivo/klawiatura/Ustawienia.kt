@@ -52,6 +52,10 @@ open class Ustawienia : Activity() {
         // 🔍 powiększona litera nad palcem - wł./wył. (domyślnie wł.)
         val pr = KlawiaturaVelivo.prefs(this)
         fun previewLabel() = getString(R.string.kb_preview) + ": " + getString(if (pr.getBoolean("klaw-podglad", true)) R.string.kb_on else R.string.kb_off)
+        lateinit var senBtn: Button
+        fun senLabel() = getString(R.string.kb_senior) + ": " + getString(if (pr.getBoolean("klaw-senior", false)) R.string.kb_on else R.string.kb_off)
+        button(R.string.kb_senior, R.string.kb_senior_tip) { KlawiaturaVelivo.senior(this, !pr.getBoolean("klaw-senior", false)); senBtn.text = senLabel() }
+        senBtn = box.getChildAt(box.childCount - 1) as Button; senBtn.text = senLabel()
         lateinit var prevBtn: Button
         button(R.string.kb_preview, R.string.kb_preview_tip) { pr.edit().putBoolean("klaw-podglad", !pr.getBoolean("klaw-podglad", true)).apply(); prevBtn.text = previewLabel() }
         prevBtn = box.getChildAt(box.childCount - 1) as Button; prevBtn.text = previewLabel()

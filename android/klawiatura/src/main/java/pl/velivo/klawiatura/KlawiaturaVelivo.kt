@@ -75,6 +75,14 @@ class KlawiaturaVelivo : InputMethodService() {
 
         fun lang(ctx: Context): String = prefs(ctx).getString("klaw-jezyk", null) ?: if (Locale.getDefault().language == "pl") "pl" else "en"
         fun prefs(ctx: Context) = ctx.getSharedPreferences("klawiatura", Context.MODE_PRIVATE)
+        // 👵 tryb Senior jednym przełącznikiem: wysokie klawisze i duże litery, powiększona litera nad palcem, słowa czytane na głos,
+        // bez pisania przeciągnięciem i z dłuższym przytrzymaniem (drżący palec nie robi przypadkowych słów i znaków); wyłączenie - klawisze jak dawniej
+        fun senior(ctx: Context, on: Boolean) {
+            val e = prefs(ctx).edit().putBoolean("klaw-senior", on)
+            if (on) e.putInt("wysokosc", maxOf(prefs(ctx).getInt("wysokosc", 120), 150)).putBoolean("klaw-podglad", true).putBoolean("klaw-czytaj", true)
+            else e.putInt("wysokosc", minOf(prefs(ctx).getInt("wysokosc", 120), 120)).putBoolean("klaw-czytaj", false)
+            e.apply()
+        }
         private fun file(ctx: Context) = File(ctx.filesDir, "klawiatura.bin")
 
         // słownik wbudowany + Moje słowa i nauka (zaszyfrowane kluczem z Android Keystore) - w tle
@@ -759,7 +767,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     pressed = keyAt(x, y); trace.add(Slownik.P(x.toDouble(), y.toDouble()))
                     click(); performHapticFeedback(HAPTIC_FEEDBACK_ENABLED)
                     waveX = pressed?.r?.centerX() ?: x; waveY = pressed?.r?.centerY() ?: y; waveAt = SystemClock.uptimeMillis()
-                    postDelayed(longPress, 420)
+                    postDelayed(longPress, if (pref("klaw-senior", false)) 700L else 420L)
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -775,7 +783,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     trace.add(Slownik.P(x.toDouble(), y.toDouble()))
                     val kw = (keys.firstOrNull { it.code == "q" }?.r?.width() ?: 40f).toDouble()
                     // przeciąganie od litery: palec odjechał dalej niż pół klawisza
-                    if (!swiping && !longDone && k.code.length == 1 && k.code[0] in 'a'..'z' && !secret && hypot(x - downX, y - downY) > kw * 0.6) { swiping = true; removeCallbacks(longPress) }
+                    if (!swiping && !longDone && k.code.length == 1 && k.code[0] in 'a'..'z' && !secret && !pref("klaw-senior", false) && hypot(x - downX, y - downY) > kw * 0.6) { swiping = true; removeCallbacks(longPress) }
                     if (swiping) invalidate()
                 }
                 MotionEvent.ACTION_UP -> {
@@ -805,7 +813,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private val menu = ArrayList<K>()
         private val menuItems = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt", "📤" to "sendpc", "💬" to "chat", "📲" to "sendphone",
             "✓" to "fix", "🔈" to "klik", "🔊" to "read", "🎤" to "mic",
-            "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height",
+            "📖" to "words", "🌐" to "lang", "🎨" to "theme", "↕" to "height", "👵" to "senior",
             "⌨" to "switch", "⚙" to "settings", "⌄" to "hide", "⌨︎" to "back")
         private fun layoutMenu() {
             menu.clear()
@@ -818,11 +826,11 @@ class KlawiaturaVelivo : InputMethodService() {
                 menu.add(k)
             }
         }
-        private fun isOn(c: String) = when (c) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; else -> false }
+        private fun isOn(c: String) = when (c) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; "senior" -> pref("klaw-senior", false); else -> false }
         private fun menuName(c: String) = when (c) {
             "sendpc" -> R.string.kb_m_send; "chat" -> R.string.kb_m_chat; "sendphone" -> R.string.kb_m_phone; "note" -> R.string.kb_m_note; "notes" -> R.string.kb_m_notes; "search" -> R.string.kb_m_search; "yt" -> R.string.kb_m_yt
             "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "read" -> R.string.kb_read; "mic" -> R.string.kb_mic
-            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height
+            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height; "senior" -> R.string.kb_senior
             "switch" -> R.string.kb_m_switch; "settings" -> R.string.kb_m_settings; "hide" -> R.string.kb_hide; else -> R.string.kb_m_back
         }
         // funkcje Velivo (karteczki, szukanie, YouTube) - otwierane w przeglądarce Velivo
@@ -844,6 +852,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 "settings" -> startActivity(Intent(context, Ustawienia::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 "switch" -> (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
                 "back" -> { menuOpen = false; refresh(); return }
+                "senior" -> { senior(context, !pref("klaw-senior", false)); Toast.makeText(context, getString(R.string.kb_senior) + ": " + getString(if (pref("klaw-senior", false)) R.string.kb_on else R.string.kb_off), Toast.LENGTH_SHORT).show(); theme(); refresh(); return }
                 else -> { headAction(c); if (c == "lang" || c == "hide") menuOpen = false; refresh(); return }
             }
             menuOpen = false; refresh()

@@ -2431,7 +2431,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }.show()
         }
         // 📷 zdjęcie aparatem - jak w WhatsApp, ale w pełnej jakości (oryginał z aparatu, bez zmniejszania); kopia w Galerii (Obrazy/Velivo)
-        val cam = round("📷", t("Zrób zdjęcie i wyślij (pełna jakość)", "Take a photo and send it (full quality)"), pal().button) {
+        val cam = round("📷", t("Stuknij – zdjęcie (pełna jakość), przytrzymaj – film", "Tap – photo (full quality), hold – video"), pal().button) {
             if (a.checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { a.requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 4714); return@round }
             val u = runCatching { a.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, android.content.ContentValues().apply {
                 put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "Velivo-" + java.text.SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.ROOT).format(java.util.Date()) + ".jpg")
@@ -2440,6 +2440,15 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     .addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION), Komunikator.REQ_PHOTO) }.isFailure) {
                 u?.let { runCatching { a.contentResolver.delete(it, null, null) } }; Toast.makeText(a, t("Brak aplikacji aparatu", "No camera app"), Toast.LENGTH_SHORT).show()
             } else { attachTo = c; photoUri = u }
+        }
+        // 🎬 przytrzymanie 📷 - nagranie filmu (jak w WhatsApp); potem okienko podglądu i „Wyślij”
+        cam.setOnLongClickListener {
+            if (a.checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED || a.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                a.requestPermissions(arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.RECORD_AUDIO), 4713); return@setOnLongClickListener true }
+            attachTo = c
+            runCatching { a.startActivityForResult(android.content.Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_DURATION_LIMIT, 180), 32) }
+                .onFailure { attachTo = null; Toast.makeText(a, t("Brak aplikacji aparatu", "No camera app"), Toast.LENGTH_SHORT).show() }
+            true
         }
         // 🎤 wiadomość głosowa: stuknij - nagrywanie, stuknij ponownie - wysyłka (jak plik: w domu, przez internet, do skrzynki)
         var rec: android.media.MediaRecorder? = null; var recFile: java.io.File? = null; var recAt = 0L

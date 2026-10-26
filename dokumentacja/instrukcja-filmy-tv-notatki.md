@@ -122,3 +122,5 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-10-25: przycisk 📌 na pasku odtwarzacza → 🕘 Historia (20 ostatnich, A–Z, `LoadLibrary().Last`); pełny ekran bez Topmost (okna Velivo nad filmem); 📌 tylko w menu.
 * 2026-10-25: usunięte z Jellyfin – trwały dymek (`ShowJellyfinRemoved`, timer co 10 min) z przyciskami Usuń z Velivo / Zostaw (`JellyfinRemovedDecide`); wcześniej dymek 7 s i decyzja tylko przy 🔄 Odśwież.
 * 2026-10-25: historia jako Popup (`ShowHistory`), grupowanie po `ShownTitle` (duplikaty ścieżek), menu: od początku (Pos=0), usuń z historii (Last=0, Pos=0, Done=false), usuń z biblioteki.
+* 2026-10-26: biblioteka i lista TV otwarte z odtwarzacza miały go za właściciela (Owner) – znikały razem z nim; teraz właściciel = okno Velivo. Odtworzenie z biblioteki: `LibAway` (Hide) zamiast Close, `LibBack` w Closed odtwarzacza.
+* 2026-10-26: okna z adresem (🌍 pośrednik, Jellyfin, lista TV) zapisują zmiany przy zamknięciu (✕), nie tylko przyciskiem.

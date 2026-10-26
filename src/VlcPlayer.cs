@@ -647,10 +647,15 @@ namespace Velivo
             PlayVideos(new[] { v.Path }, 0);   // od zapisanego miejsca
         }
 
+        // film gra - biblioteka schowana (nie zamknięta); po zamknięciu odtwarzacza wraca z tą samą listą, od razu do wyboru następnego
+        void LibAway(Window w) { if (w == _libWin) w.Hide(); else w.Close(); }
+        void LibBack() { if (_libWin != null && _libWin.IsLoaded && !_libWin.IsVisible && !_mainClosing) { _libWin.Show(); _libWin.Activate(); } }
+
         void ShowVideoLibrary(Window owner)
         {
-            if (_libWin != null && _libWin.IsLoaded) { if (_libWin.WindowState == WindowState.Minimized) _libWin.WindowState = WindowState.Normal; _libWin.Topmost = owner.Topmost; _libWin.Activate(); return; }
-            var win = new Window { Title = L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            if (_libWin != null && _libWin.IsLoaded) { if (!_libWin.IsVisible) _libWin.Show(); if (_libWin.WindowState == WindowState.Minimized) _libWin.WindowState = WindowState.Normal; _libWin.Topmost = owner.Topmost; _libWin.Activate(); return; }
+            // właściciel - okno Velivo, nie odtwarzacz: okna podrzędne zamykają się razem z właścicielem (biblioteka znikała po zamknięciu filmu)
+            var win = new Window { Title = L.T("🎬 Biblioteka filmów"), Width = 860, Height = 540, Owner = owner == _vlcWin ? this : owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale
             var search = new TextBox { Margin = new Thickness(8, 8, 8, 4), Padding = new Thickness(4) };
             var hint = new TextBlock { Text = L.T("🔍 Szukaj filmu…"), Foreground = Brushes.Gray, Margin = new Thickness(14, 13, 0, 0), IsHitTestVisible = false };
@@ -818,18 +823,18 @@ namespace Velivo
             Action play = () =>
             {
                 var r = list.SelectedItem as LibRow; if (r == null) return;
-                if (remoteOf.TryGetValue(r.Item, out var rem)) { WantRemoteFilm(rem.Key, rem.Value, false); win.Close(); return; }   // film z drugiego komputera - ogladasz tutaj; biblioteka znika (wraca z listy filmow lub 🎬)
+                if (remoteOf.TryGetValue(r.Item, out var rem)) { WantRemoteFilm(rem.Key, rem.Value, false); LibAway(win); return; }   // film z drugiego komputera - ogladasz tutaj; biblioteka schowana, wraca po zamknięciu odtwarzacza
                 if (r.Item.Peer != null)   // skopiowany z innego komputera - przez siec
                 {
                     var pr = PeerById(r.Item.Peer);
                     if (pr == null) { InfoBox(win, L.T("Komputer, na którym jest ten film, jest teraz wyłączony albo niedostępny.")); return; }
-                    WantRemoteFilm(pr, new LanFilmItem { i = r.Item.RemoteId, t = r.Item.Title, l = r.Item.Len }, false); win.Close(); return;
+                    WantRemoteFilm(pr, new LanFilmItem { i = r.Item.RemoteId, t = r.Item.Title, l = r.Item.Len }, false); LibAway(win); return;
                 }
                 if (r.Missing) { InfoBox(win, L.T("Nie ma już tego pliku na dysku (przeniesiony albo usunięty).")); return; }
                 var playable = rows.Where(x => !x.Missing && !remoteOf.ContainsKey(x.Item) && x.Item.Peer == null).Select(x => x.Item.Path).ToList();   // lista odtwarzania = widoczna lista
                 _playShared = _libSharedView;
                 PlayVideos(playable.ToArray(), playable.IndexOf(r.Item.Path));
-                win.Close();   // film gra - biblioteka nie zostaje otwarta
+                LibAway(win);   // film gra - biblioteka schowana, wraca po zamknięciu odtwarzacza
             };
             Action remove = () =>
             {
@@ -915,11 +920,11 @@ namespace Velivo
                 if (_pipShowFilm != null) addItem(L.T("⧉ Pokaż w PiP (podgląd w odtwarzaczu)"), () => { var ps = selPaths(); if (ps.Length > 0) _pipShowFilm(ps[0]); });
                 int nSel = list.SelectedItems.Count;
                 Action<List<string>> rememberMine = q => { var p0 = LoadPlaylists(); p0.Mine = q.ToList(); SavePlaylists(p0); };   // moja kolejka zostaje (takze po wlaczeniu innego filmu i po zamknieciu)
-                if (nSel > 1) addItem(L.T("▶ Odtwórz zaznaczone jako kolejkę (") + nSel + ")", () => { var ps = selPaths(); if (ps.Length == 0) return; rememberMine(ps.ToList()); _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); });
+                if (nSel > 1) addItem(L.T("▶ Odtwórz zaznaczone jako kolejkę (") + nSel + ")", () => { var ps = selPaths(); if (ps.Length == 0) return; rememberMine(ps.ToList()); _playShared = _libSharedView; PlayVideos(ps, 0); LibAway(win); });
                 addItem(L.T("➕ Dodaj do kolejki") + (nSel > 1 ? " (" + nSel + ")" : ""), () =>
                 {
                     var ps = selPaths(); if (ps.Length == 0) return;
-                    if (_vlcWin == null) { rememberMine(ps.ToList()); _playShared = _libSharedView; PlayVideos(ps, 0); win.Close(); return; }   // nic nie gra - kolejka od tych filmow
+                    if (_vlcWin == null) { rememberMine(ps.ToList()); _playShared = _libSharedView; PlayVideos(ps, 0); LibAway(win); return; }   // nic nie gra - kolejka od tych filmow
                     int added = 0; foreach (var p0 in ps) if (!_playlist.Contains(p0, StringComparer.OrdinalIgnoreCase)) { _playlist.Add(p0); added++; }
                     rememberMine(_playlist.Where(u => !_iptvPlaying.ContainsKey(u) && !_remoteFilms.ContainsKey(u)).ToList());
                     ShowToast(L.T("➕ Dodano do kolejki: ") + added, null);
@@ -938,7 +943,7 @@ namespace Velivo
                 plAdd(L.T("💾 Zapisz zaznaczone jako playlistę…"), () => saveAs(selPaths().ToList()));
                 if (plsM.Mine.Count > 0)
                 {
-                    plAdd(L.T("▶ Odtwórz moją kolejkę (") + plsM.Mine.Count + ")", () => { _playShared = _libSharedView; PlayVideos(plsM.Mine.ToArray(), 0); win.Close(); });
+                    plAdd(L.T("▶ Odtwórz moją kolejkę (") + plsM.Mine.Count + ")", () => { _playShared = _libSharedView; PlayVideos(plsM.Mine.ToArray(), 0); LibAway(win); });
                     plAdd(L.T("💾 Zapisz moją kolejkę jako playlistę…"), () => saveAs(plsM.Mine.ToList()));
                     plAdd(L.T("🗑 Wyczyść moją kolejkę"), () => { var p0 = LoadPlaylists(); p0.Mine.Clear(); SavePlaylists(p0); });
                 }
@@ -946,7 +951,7 @@ namespace Velivo
                 foreach (var name0 in plsM.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase))
                 {
                     var name = name0; var one = new MenuItem { Header = "🎞 " + name + " (" + plsM.Named[name].Count + ")" };
-                    var pPlay = new MenuItem { Header = L.T("▶ Odtwórz") }; pPlay.Click += (q, w2) => { _playShared = _libSharedView; PlayVideos(plsM.Named[name].ToArray(), 0); win.Close(); };
+                    var pPlay = new MenuItem { Header = L.T("▶ Odtwórz") }; pPlay.Click += (q, w2) => { _playShared = _libSharedView; PlayVideos(plsM.Named[name].ToArray(), 0); LibAway(win); };
                     var pAdd = new MenuItem { Header = L.T("➕ Dodaj zaznaczone") }; pAdd.Click += (q, w2) => { var p0 = LoadPlaylists(); if (!p0.Named.TryGetValue(name, out var l0)) return; foreach (var x in selPaths()) if (!l0.Contains(x, StringComparer.OrdinalIgnoreCase)) l0.Add(x); SavePlaylists(p0); };
                     var pDel = new MenuItem { Header = L.T("🗑 Usuń playlistę") }; pDel.Click += (q, w2) => { if (!AskYes(win, string.Format(L.T("Usunąć playlistę „{0}”? Filmy zostają w bibliotece."), name))) return; var p0 = LoadPlaylists(); p0.Named.Remove(name); SavePlaylists(p0); };
                     one.Items.Add(pPlay); one.Items.Add(pAdd); one.Items.Add(pDel); plRoot.Items.Add(one);
@@ -956,7 +961,7 @@ namespace Velivo
                 {
                     var pool = rows.Where(x => !x.Missing && !remoteOf.ContainsKey(x.Item) && x.Item.Peer == null).Select(x => x.Item).ToList();
                     win.Topmost = false;
-                    ShowRandomPicker(win, pool, (list.SelectedItem as LibRow)?.Item, ps => { _playShared = _libSharedView; PlayVideos(ps.ToArray(), 0); win.Close(); });
+                    ShowRandomPicker(win, pool, (list.SelectedItem as LibRow)?.Item, ps => { _playShared = _libSharedView; PlayVideos(ps.ToArray(), 0); LibAway(win); });
                     win.Topmost = owner.Topmost;
                 });
                 menu.Items.Add(peersMenu(L.T("📺 Odtwórz na…"), false));
@@ -3541,7 +3546,8 @@ namespace Velivo
                 _vlcWin = null; _vlcLoad = null; _vlcRemoteCtl = null; _vlcAsk = null; _playShared = null;
                 LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
                 if (!_mainClosing) SaveTvResume(-1);
-                if (_hiddenForPlayer && !_mainClosing) { _hiddenForPlayer = false; ShowFromTray(); }   // przegladarka wraca z zasobnika   // odtwarzacz zamkniety recznie - bez wznawiania; przy zamykaniu Velivo zostaje
+                if (_hiddenForPlayer && !_mainClosing) { _hiddenForPlayer = false; ShowFromTray(); }
+                LibBack();   // 🎬 biblioteka, z której włączono film, wraca   // przegladarka wraca z zasobnika   // odtwarzacz zamkniety recznie - bez wznawiania; przy zamykaniu Velivo zostaje
                 view.MediaPlayer = null;
                 if (_playerMp == mp) _playerMp = null;   // zwolniony za 10 s - zegar synchronizacji nie może już pytać „czy gra” (awaria Velivo)
                 vlcClosed = true;

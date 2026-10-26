@@ -696,7 +696,8 @@ namespace Velivo
                 return;
             }
             var st = IptvSt;
-            var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, Owner = owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "own-bounds" };   // miejsce zapamietuje sam (i omija odtwarzacz)
+            // właściciel - okno Velivo, nie odtwarzacz: okna podrzędne zamykają się razem z właścicielem (lista kanałów znikała po zamknięciu odtwarzacza)
+            var win = new Window { Title = L.T("📺 Telewizja"), Width = 980, Height = 600, Owner = owner == _vlcWin ? this : owner, Topmost = owner.Topmost, WindowStartupLocation = WindowStartupLocation.CenterOwner, Tag = "own-bounds" };   // miejsce zapamietuje sam (i omija odtwarzacz)
             PlaceIptvWindow(win, st.Win);
             var source = new ComboBox { Width = 200, Margin = new Thickness(8, 8, 0, 4), VerticalContentAlignment = VerticalAlignment.Center };
             Independent(win);   // zwykle okno Windows - nie przykrywa innych na stale

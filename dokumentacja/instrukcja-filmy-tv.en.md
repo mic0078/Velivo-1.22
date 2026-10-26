@@ -132,6 +132,7 @@ Open it with **L** or move the cursor to the left edge of the picture.
 
 ## 5. Video library
 
+- Starting a film hides the library; when you close the player it comes back with the same list, so you can pick the next film right away. A TV channel list opened from the player also stays open after the player closes.
 - Columns: title, year, rating, genre, length, watched, last watched, added. Click a header to sort – Velivo remembers the sorting and column widths.
 - Select several videos by dragging with the mouse and choose from the right-click menu: play as a queue, add to the queue, add to a playlist.
 - **🎲 Pick random videos** – when you don't know what to watch.

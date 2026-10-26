@@ -1563,7 +1563,18 @@ namespace Velivo
                             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { }
                         };
                     }
-                    var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; copy.Click += (s2, e2) => { try { Clipboard.SetText(copyText); } catch (Exception) { } };
+                    var copy = new MenuItem { Header = L.T("Kopiuj") }; var copyText = m.Text; var copyFile = hasFile ? m.Path : null;
+                    copy.Click += (s2, e2) =>   // 📋 obraz - sam obraz (do wklejenia w programy) i plik (do folderu); inny plik - plik; tekst - tekst
+                    {
+                        try
+                        {
+                            if (copyFile == null) { Clipboard.SetText(copyText); return; }
+                            var d = new DataObject(); d.SetFileDropList(new System.Collections.Specialized.StringCollection { copyFile });
+                            if (KomIsImage(copyFile)) try { var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.UriSource = new Uri(copyFile); b.EndInit(); d.SetImage(b); } catch (Exception) { }
+                            Clipboard.SetDataObject(d, true);
+                        }
+                        catch (Exception) { }
+                    };
                     var rm = m; var rc = c;
                     var rep = new MenuItem { Header = "↩ " + L.T("Odpowiedz") }; rep.Click += (s2, e2) => { replyTo = rm; replyBar.Text = "↩ " + KomQuote(rm).Trim() + "   ✕"; replyBar.Visibility = Visibility.Visible; input.Focus(); };
                     var react = new MenuItem { Header = "😀 " + L.T("Reakcja") };

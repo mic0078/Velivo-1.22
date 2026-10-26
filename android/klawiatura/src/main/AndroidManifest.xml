@@ -42,7 +42,7 @@
         <activity android:name=".SzybkieUstawienia" android:exported="false" android:theme="@style/Okienko"
             android:excludeFromRecents="true" android:taskAffinity="" android:noHistory="true" />
         <!-- 💬 komunikator i pliki telefon <-> telefon (gdy nie ma przeglądarki Velivo) - ciemne okienka Velivo -->
-        <activity android:name=".Rozmowy" android:exported="false" android:theme="@style/Okienko" android:excludeFromRecents="true" />
+        <activity android:name=".Rozmowy" android:exported="false" android:theme="@style/Okienko" android:excludeFromRecents="true" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
         <!-- 💬 osobna ikona komunikatora - tylko gdy nie ma przeglądarki Velivo (wtedy ikona jest w niej; klawiatura ją wyłącza, bez dublowania) -->
         <activity-alias android:name=".KomunikatorStart" android:targetActivity=".Rozmowy" android:exported="true"
             android:label="@string/kb_messenger_app" android:icon="@mipmap/ic_komunikator">

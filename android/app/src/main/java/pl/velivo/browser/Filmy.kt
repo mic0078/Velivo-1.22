@@ -300,7 +300,7 @@ object Jelly {
         val h = URL(base(c) + "/System/Info/Public").openConnection() as HttpURLConnection
         h.connectTimeout = 1500; h.readTimeout = 2500; h.responseCode in 200..299
     }.getOrDefault(false)
-    class Item(val id: String, val name: String, val type: String, val year: Int, val overview: String, val series: String, val ticks: Long, val posTicks: Long, val added: String)
+    class Item(val id: String, val name: String, val type: String, val year: Int, val overview: String, val series: String, val ticks: Long, val posTicks: Long, val added: String, val last: String = "")
 
     fun conf(pw: Passwords): Conf? = runCatching {
         val j = JSONObject(pw.secret("jellyfin") ?: return null)
@@ -408,7 +408,8 @@ object Jelly {
         val a = JSONObject(json).optJSONArray("Items") ?: JSONArray(json)
         return (0 until a.length()).map { a.getJSONObject(it) }.map {
             Item(it.getString("Id"), it.optString("Name"), it.optString("Type"), it.optInt("ProductionYear"), it.optString("Overview"),
-                it.optString("SeriesName"), it.optLong("RunTimeTicks"), it.optJSONObject("UserData")?.optLong("PlaybackPositionTicks") ?: 0L, it.optString("DateCreated"))
+                it.optString("SeriesName"), it.optLong("RunTimeTicks"), it.optJSONObject("UserData")?.optLong("PlaybackPositionTicks") ?: 0L, it.optString("DateCreated"),
+                it.optJSONObject("UserData")?.optString("LastPlayedDate") ?: "")
         }
     }
 

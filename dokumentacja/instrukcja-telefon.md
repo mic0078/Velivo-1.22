@@ -217,7 +217,7 @@ Velivo odtwarza wszystko biblioteką VLC – tą samą co Velivo na Windows: kan
 ### 🎬 Biblioteka (Jellyfin)
 
 - **Bez kluczy API:** Velivo samo znajduje serwer Jellyfin w sieci domowej → wybierz użytkownika → hasło. Serwer daje telefonowi własny token (widoczny w Jellyfin → Urządzenia, można go odwołać). Albo ustawienia przychodzą z komputera.
-- **Widoki:** oglądane dalej, filmy, seriale (☰); sortowanie A–Z / najnowsze / rok. Serial → odcinki.
+- **Widoki:** oglądane dalej, filmy, seriale (☰); sortowanie A–Z / najnowsze / rok / 🕘 ostatnio oglądane / najdawniej oglądane (tylko obejrzane; stuknięcie wznawia od miejsca przerwania – także oglądanego na komputerze). Serial → odcinki.
 - Biblioteka otwiera się od razu z zapisu w telefonie i odświeża z serwera – filmy usunięte z serwera znikają, nowe się pojawiają.
 
 ### 🎞 Moje filmy i 📱 filmy i muzyka z telefonu

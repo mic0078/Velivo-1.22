@@ -2425,9 +2425,17 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val names = listOf(getString(R.string.jf_resume), getString(R.string.jf_movies), getString(R.string.jf_series))
         fun count(m: Int) = when (m) { 0 -> resume.size; 1 -> lib.count { it.type != "Series" }; else -> lib.count { it.type == "Series" } }
         val titles = object : AbstractList<String>() { override val size = 3; override fun get(index: Int) = names[index] + " (" + count(index) + ")" }
-        fun item(it: Jelly.Item) = PlayerActivity.Item(if (it.series.isNotEmpty()) it.series + " – " + it.name else it.name, Jelly.stream(c, it.id), "jf-" + it.id, hdr, it.id)
-        scr = MediaScreen("🎬 " + getString(R.string.jf_library), "jf", listOf(getString(R.string.sort_az), getString(R.string.sort_newest), getString(R.string.jf_sort_year)),
-            sorter = { l, s -> when (s) { 0 -> l.sortedBy { it.title.lowercase() }; 1 -> l.sortedByDescending { (it.tag as Jelly.Item).added }; else -> l.sortedByDescending { (it.tag as Jelly.Item).year } } },
+        // ▶ kontynuacja: miejsce z Jellyfin (np. oglądane na komputerze), gdy telefon nie pamięta własnego
+        fun item(it: Jelly.Item): PlayerActivity.Item {
+            val pp = getSharedPreferences("filmy", MODE_PRIVATE)
+            if (it.posTicks > 0 && !pp.contains("jf-" + it.id)) pp.edit().putFloat("jf-" + it.id, it.posTicks / 10_000_000f).apply()
+            return PlayerActivity.Item(if (it.series.isNotEmpty()) it.series + " – " + it.name else it.name, Jelly.stream(c, it.id), "jf-" + it.id, hdr, it.id)
+        }
+        scr = MediaScreen("🎬 " + getString(R.string.jf_library), "jf", listOf(getString(R.string.sort_az), getString(R.string.sort_newest), getString(R.string.jf_sort_year), getString(R.string.jf_sort_last), getString(R.string.jf_sort_oldest)),
+            sorter = { l, s -> when (s) { 0 -> l.sortedBy { it.title.lowercase() }; 1 -> l.sortedByDescending { (it.tag as Jelly.Item).added }; 2 -> l.sortedByDescending { (it.tag as Jelly.Item).year }
+                // 🕘 ostatnio oglądane: tylko filmy już oglądane (najnowszy / najstarszy seans na górze)
+                3 -> l.filter { (it.tag as Jelly.Item).last.isNotEmpty() }.sortedByDescending { (it.tag as Jelly.Item).last }
+                else -> l.filter { (it.tag as Jelly.Item).last.isNotEmpty() }.sortedBy { (it.tag as Jelly.Item).last } } },
             onOpen = { r, shownRows ->
                 val it = r.tag as Jelly.Item
                 if (it.type == "Series") showEpisodes(c, it)

@@ -70,6 +70,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-25: komentarz `// 🎞 …` wstawiony przed kodem w tej samej linii wyłączył rozmiar miniatury zdjęć (adjustViewBounds, maxWidth) – po wstawieniu komentarza sprawdź, czy za nim nie ma kodu.
 * 2026-10-25: ekran telefonu w rozmowie – na Windows tylko kamera (🖥 zielone): bez kanału danych sygnał „pokazuję ekran” po cichu przepadał, ostatni wiersz obrazu bywa krótszy (copyPixelsFromBuffer), a nieruchomy ekran nie dochodził; teraz komunikat zamiast zielonej ikony, kamera wyłączana na czas pokazywania, „czekam na obraz…” u rozmówcy. Funkcje wymagające obu stron: mów, że trzeba zaktualizować obie.
 * 2026-10-25: „Ustawienia z ograniczonym dostępem” przy włączaniu ułatwień dostępu – Android 13+ blokuje je w aplikacjach z APK; odblokowanie: Informacje o aplikacji → ⋮ → „Zezwól na ustawienia z ograniczeniami”. Przy uprawnieniach specjalnych sprawdzaj ograniczenia dla aplikacji spoza Sklepu.
+* 2026-10-26: obrócenie telefonu w rozmowie (pomoc zdalna) zamykało Komunikator – Start i Rozmowy bez configChanges (Activity tworzona od nowa, rozmowa znika); przeglądarka miała. Okna z rozmową: zawsze configChanges. Windows: „Kopiuj” na obrazie w czacie kopiował tylko tekst – teraz obraz i plik.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

@@ -258,6 +258,8 @@
     <string name="jf_movies">Filmy</string>
     <string name="jf_series">Seriale</string>
     <string name="jf_sort_year">Rok</string>
+    <string name="jf_sort_last">Ostatnio oglądane</string>
+    <string name="jf_sort_oldest">Najdawniej oglądane</string>
     <string name="jf_settings">Serwer Jellyfin</string>
     <string name="jf_key">Klucz API</string>
     <string name="jf_help">Klucz API utworzysz w Jellyfin: Panel → Klucze API → +. Adres i klucz są zapisane zaszyfrowane w telefonie.</string>

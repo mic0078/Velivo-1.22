@@ -258,6 +258,8 @@
     <string name="jf_movies">Films</string>
     <string name="jf_series">Series</string>
     <string name="jf_sort_year">Year</string>
+    <string name="jf_sort_last">Last watched</string>
+    <string name="jf_sort_oldest">Watched longest ago</string>
     <string name="jf_settings">Jellyfin server</string>
     <string name="jf_key">API key</string>
     <string name="jf_help">Create an API key in Jellyfin: Dashboard → API Keys → +. The address and key are stored encrypted on the phone.</string>

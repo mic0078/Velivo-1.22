@@ -420,7 +420,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun announce() = Thread { repeat(3) { sendUdp(packet("p2p-here"), null); Thread.sleep(1500) }; contacts.toList().forEach { resend(it) } }.start()
 
     // „kto jest w sieci?” - kontakty odpowiadają, status 🟢 od razu prawdziwy
-    fun ping() = Thread { sendUdp(packet("p2p-here"), null); sweep(packet("p2p-who")); repeat(2) { sendUdp(packet("p2p-who"), null); Thread.sleep(700) } }.start()
+    // 🔋 pytanie każdego adresu (/24, ~500 pakietów) najwyżej co 2 min i tylko, gdy ktoś z kontaktów jest poza siecią - Wi-Fi nie budzi się co 30 s
+    @Volatile private var sweptAt = 0L
+    fun ping() = Thread {
+        sendUdp(packet("p2p-here"), null)
+        if (System.currentTimeMillis() - sweptAt > 120000L && runCatching { contacts.toList().any { !it.isGroup && !online(it.id) } }.getOrDefault(true)) { sweptAt = System.currentTimeMillis(); sweep(packet("p2p-who")) }
+        repeat(2) { sendUdp(packet("p2p-who"), null); Thread.sleep(700) }
+    }.start()
     // 🔎 pytanie do każdego adresu domowej sieci (/24) osobno - działa też tam, gdzie telefon lub router gubi rozgłoszenia (Oppo / ColorOS)
     private fun sweep(p: JSONObject) {
         val own = udp ?: return
@@ -1604,15 +1610,24 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }
         // rozmowa „na ekranie” tylko, gdy aplikacja jest na wierzchu - w tle / przy wygaszonym ekranie zwykłe powiadomienia
         a.application.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(x: Activity) { if (x === a) k.chatOpen = chatWith }
-            override fun onActivityPaused(x: Activity) { if (x === a) k.chatOpen = null }
+            override fun onActivityResumed(x: Activity) { if (x === a) { k.chatOpen = chatWith; onTop = true; if (stale) { stale = false; refresh() } } }
+            override fun onActivityPaused(x: Activity) { if (x === a) { k.chatOpen = null; onTop = false } }
             override fun onActivityDestroyed(x: Activity) { if (x === a) { k.chatOpen = null; k.askPair = k.noUiPair; a.application.unregisterActivityLifecycleCallbacks(this) } }
             override fun onActivityCreated(x: Activity, b: android.os.Bundle?) {}
             override fun onActivityStarted(x: Activity) {}
             override fun onActivityStopped(x: Activity) {}
             override fun onActivitySaveInstanceState(x: Activity, b: android.os.Bundle) {}
         })
-        k.onChange = { chatRefresh?.invoke() ?: listRefresh?.invoke() }
+        k.onChange = { refresh() }
+    }
+    // 🔋 odświeżanie okna: seria pakietów (obecność, potwierdzenia) = jedno odświeżenie na 0,4 s; w tle / przy wygaszonym ekranie - wcale (raz po powrocie)
+    private var onTop = true; private var stale = false; private var refreshQueued = false
+    private val ui = Handler(Looper.getMainLooper())
+    private fun refresh() {
+        if (!onTop) { stale = true; return }
+        if (refreshQueued) return
+        refreshQueued = true
+        ui.postDelayed({ refreshQueued = false; if (onTop) (chatRefresh ?: listRefresh)?.invoke() else stale = true }, 400)
     }
 
     fun sizeText(n: Long) = when { n >= 1L shl 30 -> String.format(Locale.ROOT, "%.1f GB", n / 1073741824.0); n >= 1L shl 20 -> String.format(Locale.ROOT, "%.1f MB", n / 1048576.0); else -> "${maxOf(1, n / 1024)} KB" }
@@ -1668,7 +1683,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         d.setOnKeyListener { _, code, e -> if (code == android.view.KeyEvent.KEYCODE_BACK && e.action == android.view.KeyEvent.ACTION_UP && chatWith != null) { show(); true } else false }
         // realny stan kontaktów: pytanie od razu i co 30 s, dopóki komunikator otwarty
         val h = Handler(Looper.getMainLooper())
-        val tick = object : Runnable { override fun run() { k.ping(); h.postDelayed({ (chatRefresh ?: listRefresh)?.invoke() }, 2000); h.postDelayed(this, 30000) } }
+        val tick = object : Runnable { override fun run() { if (onTop) { k.ping(); h.postDelayed({ refresh() }, 2000) }; h.postDelayed(this, 30000) } }   // 🔋 w tle bez pytania „kto w sieci” co 30 s (usługa i tak odbiera)
         h.post(tick)
         d.setOnDismissListener { h.removeCallbacksAndMessages(null); onClose?.invoke(); screen = null; page = null; chatWith = null; chatRefresh = null; listRefresh = null; k.chatOpen = null }
         screen = d; page = root
@@ -2714,9 +2729,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // zdjęcie na cały ekran (stuknięcie zamyka)
     // 🎞 ruchomy GIF (Android 9+: AnimatedImageDrawable); inne obrazy - bez zmian
+    private val gifs = android.util.LruCache<String, android.graphics.drawable.AnimatedImageDrawable>(12)   // ruchome GIF-y - dekodowane raz, nie przy każdym odświeżeniu
     private fun gif(v: android.widget.ImageView, path: String) {
         if (!path.endsWith(".gif", true)) return
-        runCatching { (android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(java.io.File(path))) as? android.graphics.drawable.AnimatedImageDrawable)?.let { v.setImageDrawable(it); it.start() } }
+        runCatching {
+            val d = gifs.get(path) ?: (android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(java.io.File(path))) as? android.graphics.drawable.AnimatedImageDrawable)?.also { gifs.put(path, it) } ?: return
+            v.setImageDrawable(d); d.start()
+        }
     }
     private fun photos(c: Komunikator.Contact) = k.chat(c.id).mapNotNull { m -> m.path?.takeIf { k.isImage(it) && java.io.File(it).exists() } }
     // przesunięcie palcem ←/→ - poprzednie/następne zdjęcie z rozmowy

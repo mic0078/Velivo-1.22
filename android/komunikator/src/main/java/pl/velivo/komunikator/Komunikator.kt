@@ -392,6 +392,16 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     // 📌 przypięte, 🔕 wyciszone (do kiedy), ✏ szkic - ustawienia rozmowy w tym urządzeniu
+    // 📋 wspólny schowek z wybranymi urządzeniami (np. mój komputer): tekst skopiowany tam trafia do schowka telefonu i odwrotnie
+    // (kopie z telefonu podaje klawiatura Velivo - tylko ona może czytać schowek w tle); szyfrowanym komunikatorem, w domu i przez internet
+    fun clipOn(id: String) = prefs.getBoolean("schowek-$id", false)
+    fun setClip(id: String, on: Boolean) = prefs.edit().putBoolean("schowek-$id", on).apply()
+    @Volatile private var lastClip = ""
+    fun shareClip(text: String) {
+        val t = text.take(20000); if (t.isBlank() || t == lastClip) return
+        lastClip = t
+        synchronized(this) { contacts.filter { !it.isGroup && clipOn(it.id) } }.forEach { deliver(it, Msg(true, CLIP + t, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", ""))) }   // poza rozmową
+    }
     fun pinned(id: String) = prefs.getBoolean("pin-$id", false)
     fun setPinned(id: String, on: Boolean) { prefs.edit().putBoolean("pin-$id", on).apply(); main.post { onChange() } }
     fun muted(id: String) = prefs.getLong("cisza-$id", 0) > System.currentTimeMillis()
@@ -490,6 +500,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (text.startsWith(EDIT)) { editIn(c, text.substring(EDIT.length)); return }   // ✏ nadawca poprawił wiadomość
         if (text.startsWith(REACT)) { reactIn(c, text.substring(REACT.length)); return }   // 😀 reakcja na wiadomość
         if (text.startsWith(PHOTO)) { photoIn(c, text.substring(PHOTO.length)); return }   // 🖼 zdjęcie profilowe kontaktu
+        if (text.startsWith(CLIP)) { if (clipOn(c.id)) { val t = text.substring(CLIP.length); lastClip = t   // 📋 wspólny schowek - tylko z urządzeniem, dla którego jest włączony
+            main.post { runCatching { ctx.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText("Velivo", t)) } } }; return }
         if (text.startsWith(TIMER)) { timerIn(c, text.substring(TIMER.length)); return }   // ⏳ znikające wiadomości
         if (text.startsWith(ASK)) { askIn(c, text.substring(ASK.length)); return }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
         if (text.startsWith(ADDR) || text.startsWith(ASKOK)) return   // dla pośrednika (Windows)
@@ -1628,7 +1640,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val GROUP = "\u0001velivo-grupa\n"
         const val CARD = "\u0001velivo-kontakt\n"
         const val DEL = "\u0001velivo-usun\n"
-        const val EDIT = "\u0001velivo-edycja\n"; const val REACT = "\u0001velivo-reakcja\n"; const val PHOTO = "\u0001velivo-zdjecie\n"; const val TIMER = "\u0001velivo-znikanie\n"
+        const val CLIP = "\u0001velivo-schowek\n"; const val EDIT = "\u0001velivo-edycja\n"; const val REACT = "\u0001velivo-reakcja\n"; const val PHOTO = "\u0001velivo-zdjecie\n"; const val TIMER = "\u0001velivo-znikanie\n"
         const val ADDR = "\u0001velivo-adres\n"; const val ASK = "\u0001velivo-prosba\n"; const val ASKOK = "\u0001velivo-prosba-ok\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
@@ -2290,9 +2302,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val items = arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"),
             if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
             if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
-            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"))
+            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off"))
         Dlg().setTitle(c.name).setItems(items) { _, i ->
             if (i == 2) { k.setPinned(c.id, !k.pinned(c.id)); return@setItems }
+            if (i == 7) { k.setClip(c.id, !k.clipOn(c.id))
+                Toast.makeText(a, "📋 " + (if (k.clipOn(c.id)) t("Wspólny schowek z „${c.name}” włączony – włącz go też tam. Kopie z telefonu wysyła klawiatura Velivo.", "Shared clipboard with “${c.name}” on – turn it on there too. Copies from the phone are sent by the Velivo keyboard.") else t("Wspólny schowek wyłączony", "Shared clipboard off")), Toast.LENGTH_LONG).show(); return@setItems }
             if (i == 3) {
                 if (k.muted(c.id)) k.mute(c.id, 0)
                 else { val ms = longArrayOf(8 * 3600000L, 7 * 86400000L, Long.MAX_VALUE)
@@ -3146,6 +3160,11 @@ class KomunikatorUsluga : Service() {
 }
 
 // przyciski w powiadomieniu: „Odpowiedz” (pisane w powiadomieniu) i „Przeczytane” - Velivo się nie otwiera
+// 📋 wspólny schowek: klawiatura Velivo (tylko ona czyta schowek w tle) podaje skopiowany tekst komunikatorowi (tylko aplikacje Velivo - uprawnienie „signature”)
+class KomunikatorSchowek : android.content.BroadcastReceiver() {
+    override fun onReceive(ctx: Context, i: android.content.Intent) { val t = i.getStringExtra("t") ?: return; Komunikator.get(ctx) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }.shareClip(t) }
+}
+
 class KomunikatorAkcja : android.content.BroadcastReceiver() {
     override fun onReceive(ctx: Context, i: Intent) {
         val k = Komunikator.get(ctx) { (Build.MANUFACTURER + " " + Build.MODEL).trim() }

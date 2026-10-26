@@ -57,6 +57,10 @@
             </intent-filter>
         </activity-alias>
         <receiver android:name="pl.velivo.komunikator.KomunikatorAkcja" android:exported="false" />
+        <!-- 📋 wspólny schowek: tekst skopiowany na telefonie od klawiatury Velivo (tylko aplikacje Velivo) -->
+        <receiver android:name="pl.velivo.komunikator.KomunikatorSchowek" android:exported="true" android:permission="pl.velivo.permission.KOMUNIKATOR">
+            <intent-filter><action android:name="pl.velivo.komunikator.SCHOWEK" /></intent-filter>
+        </receiver>
         <!-- 💬 komunikator w domowym Wi-Fi: czeka na wiadomości, gdy aplikacja zamknięta (powiadomienia jak w innych komunikatorach) -->
         <service android:name="pl.velivo.komunikator.SterowanieUsluga" android:exported="true" android:label="@string/ster_nazwa" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>

@@ -44,6 +44,7 @@ class KlawiaturaVelivo : InputMethodService() {
     companion object {
         const val ACTION_MIC = "pl.velivo.browser.KLAWIATURA_MIKROFON"
         const val ACTION_WORDS = "pl.velivo.browser.KLAWIATURA_SLOWNIK"
+        const val ACTION_CLIP = "pl.velivo.komunikator.SCHOWEK"   // 📋 wspólny schowek - do komunikatora (KomunikatorSchowek)
         private var loadedLang: String? = null
         private val learned = HashMap<String, Int>()
         private val own = HashSet<String>()
@@ -164,6 +165,7 @@ class KlawiaturaVelivo : InputMethodService() {
         if (cm.primaryClipDescription?.extras?.getBoolean("android.content.extra.IS_SENSITIVE") == true) return
         val t = runCatching { cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull()?.trim().orEmpty()
         if (t.isEmpty() || t.length > 5000) return
+        if (clips.firstOrNull()?.first != t) runCatching { sendBroadcast(Intent(ACTION_CLIP).setPackage(Komunikator.owner(this)).putExtra("t", t), "pl.velivo.permission.KOMUNIKATOR") }   // 📋 wspólny schowek (komunikator wyśle tylko do urządzeń z włączonym schowkiem)
         clips.removeAll { it.first == t }; clips.add(0, t to System.currentTimeMillis()); while (clips.size > 8) clips.removeAt(clips.size - 1)
     }
     private fun recentClips(): List<String> { val old = System.currentTimeMillis() - 3600000L; clips.removeAll { it.second < old }; return clips.map { it.first } }

@@ -1648,6 +1648,7 @@ namespace Velivo
                 if (row == null) return;
                 var e = row.Entry as SavedPasswordEntry;
                 if (e == null || string.IsNullOrEmpty(e.Password)) return;
+                ClipSecret = e.Password;   // 📋 wspólny schowek: hasło nie idzie do innych urządzeń
                 try { Clipboard.SetText(e.Password); } catch (Exception) { }
             });
 

@@ -2712,6 +2712,7 @@ Without the key and the password the data cannot be recovered. “Forgot passwor
 
         void ClearClipboardLater(string t)
         {
+            ClipSecret = t;   // 📋 wspólny schowek: hasło nie idzie do innych urządzeń
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
             timer.Tick += (a, b) => { timer.Stop(); try { if (Clipboard.ContainsText() && Clipboard.GetText() == t) Clipboard.Clear(); } catch (Exception) { } };
             timer.Start();

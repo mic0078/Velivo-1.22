@@ -52,6 +52,7 @@ namespace Velivo
         {
             if (_komLoaded) return;
             _komLoaded = true;
+            Dispatcher.BeginInvoke(new Action(KomClipWatch), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 📋 wspólny schowek - gdy włączony
             try
             {
                 if (File.Exists(KomFile))
@@ -145,6 +146,37 @@ namespace Velivo
         // 📌 przypięte, 🔕 wyciszone (do kiedy), ⏳ znikające (godziny), ✏ szkice, „Mój adres”, ⏩ głosówki - ustawienia (jak w telefonie)
         JsonObject _komOpt = new JsonObject();
         bool KomPinned(string id) => (bool?)_komOpt["pin-" + id] == true;
+        // 📋 wspólny schowek z wybranymi urządzeniami (np. mój telefon): skopiowany tekst idzie szyfrowanym komunikatorem (w domu i przez internet),
+        // tekst od nich trafia do schowka Windows; bez haseł (menedżery haseł, sejf i bank Velivo)
+        const string KomClipTag = "\u0001velivo-schowek\n";
+        bool KomClipOn(string id) => (bool?)_komOpt["schowek-" + id] == true;
+        internal static string ClipSecret;   // hasło skopiowane w Velivo (sejf, bank) - nie idzie do innych urządzeń
+        string _komClipLast; bool _komClipHooked; System.Windows.Threading.DispatcherTimer _komClipTimer;
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool AddClipboardFormatListener(IntPtr hwnd);
+        void KomClipWatch()
+        {
+            if (_komClipHooked || !_komContacts.Any(c => KomClipOn(c.Id))) return;
+            var h = new System.Windows.Interop.WindowInteropHelper(this).Handle; if (h == IntPtr.Zero) return;
+            _komClipHooked = true;
+            _komClipTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };   // seria zmian schowka - jedna wysyłka
+            _komClipTimer.Tick += (s, e) => { _komClipTimer.Stop(); KomClipSend(); };
+            System.Windows.Interop.HwndSource.FromHwnd(h).AddHook((IntPtr hw, int msg, IntPtr wp, IntPtr lp, ref bool handled) => { if (msg == 0x031D) { _komClipTimer.Stop(); _komClipTimer.Start(); } return IntPtr.Zero; });   // WM_CLIPBOARDUPDATE
+            AddClipboardFormatListener(h);
+        }
+        void KomClipSend()
+        {
+            var to = _komContacts.Where(c => !c.IsGroup && KomClipOn(c.Id)).ToList(); if (to.Count == 0) return;
+            string t;
+            try
+            {
+                if (!Clipboard.ContainsText() || Clipboard.ContainsData("ExcludeClipboardContentFromMonitorProcessing") || Clipboard.ContainsData("Clipboard Viewer Ignore")) return;   // menedżery haseł oznaczają hasła
+                t = Clipboard.GetText();
+            }
+            catch (Exception) { return; }
+            if (string.IsNullOrWhiteSpace(t) || t.Length > 20000 || t == _komClipLast || t == ClipSecret) return;
+            _komClipLast = t;
+            foreach (var c in to) KomDeliver(c, new KomMsg { Mine = true, Text = KomClipTag + t, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });   // poza rozmową
+        }
         void KomSetPinned(string id, bool on) { _komOpt["pin-" + id] = on; KomSave(); _komRefresh?.Invoke(); }
         bool KomMuted(string id) => ((long?)_komOpt["cisza-" + id] ?? 0) > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         void KomMute(string id, long ms) { _komOpt["cisza-" + id] = ms <= 0 ? 0 : ms == long.MaxValue ? ms : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + ms; KomSave(); _komRefresh?.Invoke(); }
@@ -471,6 +503,13 @@ namespace Velivo
             if (text.StartsWith(KomEditTag, StringComparison.Ordinal)) { KomEditIn(c, text.Substring(KomEditTag.Length)); return; }   // ✏ nadawca poprawił wiadomość
             if (text.StartsWith(KomReactTag, StringComparison.Ordinal)) { KomReactIn(c, text.Substring(KomReactTag.Length)); return; }   // 😀 reakcja na wiadomość
             if (text.StartsWith(KomPhotoTag, StringComparison.Ordinal)) { KomPhotoIn(c, text.Substring(KomPhotoTag.Length)); return; }   // 🖼 zdjęcie profilowe kontaktu
+            if (text.StartsWith(KomClipTag, StringComparison.Ordinal))
+            {   // 📋 wspólny schowek - tylko z urządzeniem, dla którego jest włączony
+                if (!KomClipOn(c.Id)) return;
+                var clipText = text.Substring(KomClipTag.Length); _komClipLast = clipText;
+                try { Clipboard.SetText(clipText); ShowToast("📋 " + L.T("Schowek z: ") + c.Name, null); } catch (Exception) { }
+                return;
+            }
             if (text.StartsWith(KomGroupTag, StringComparison.Ordinal))
             {
                 var g = KomGroupIn(c, text.Substring(KomGroupTag.Length)); if (g == null) return;
@@ -1609,6 +1648,9 @@ namespace Velivo
                         var safe = new MenuItem { Header = "🛡 " + L.T("Kod bezpieczeństwa") };
                         safe.Click += (s, e) => MessageBox.Show(w, KomSafety(c) + "\n\n" + L.T("Porównajcie ten kod (u drugiej osoby: menu rozmowy z Tobą). Ten sam = rozmowa szyfrowana tylko między Wami, nikt się nie podszywa."), "🛡 " + c.Name);
                         cm.Items.Add(safe);
+                        var clip = new MenuItem { Header = "📋 " + L.T("Wspólny schowek z tym urządzeniem"), IsCheckable = true, IsChecked = KomClipOn(c.Id), ToolTip = L.T("Tekst skopiowany tutaj pojawia się w schowku tamtego urządzenia i odwrotnie – szyfrowane, bez haseł") };
+                        clip.Click += (s, e) => { _komOpt["schowek-" + c.Id] = clip.IsChecked; KomSave(); KomClipWatch(); KomInfo("📋 " + L.T("Wspólny schowek: ") + c.Name + " – " + (clip.IsChecked ? L.T("wł. (włącz też na tamtym urządzeniu)") : L.T("wył."))); };
+                        cm.Items.Add(clip);
                         var upd = new MenuItem { Header = "📲 " + L.T("Wyślij aktualizację aplikacji (APK)…"), ToolTip = L.T("Nowa wersja Velivo na telefon tej osoby – tam jedno stuknięcie „Zainstaluj”") }; upd.Click += async (s, e) => await KomSendUpdate(w, c);
                         cm.Items.Add(upd);
                     }

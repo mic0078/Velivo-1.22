@@ -929,7 +929,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (from != null) {
                 val grp = h.optJSONObject("Group")?.let { groupOf(from, it) }   // 👥 plik w grupie - do rozmowy grupy
                 if (grp != null) { note(grp, false, from.name + ": " + fileLabel(name, size, isImage(name)), h.optString("Mid"), saved); if (chatOpen != grp.id) prefs.edit().putInt("nowe-${grp.id}", unread(grp.id) + 1).apply(); notifyMessage(grp) }
-                else note(from, false, fileLabel(name, size, isImage(name)), h.optString("Mid"), saved)
+                else note(from, false, if (name.endsWith(".apk", true)) "📲 " + (if (pl) "Nowa wersja aplikacji – stuknij, aby zainstalować: " else "New app version – tap to install: ") + name else fileLabel(name, size, isImage(name)), h.optString("Mid"), saved)   // 📲 aktualizacja od właściciela
                 // plik / zdjęcie jak wiadomość: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)
                 if (grp == null) { if (chatOpen != from.id) prefs.edit().putInt("nowe-${from.id}", unread(from.id) + 1).apply(); notifyMessage(from) }
             }

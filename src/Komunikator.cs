@@ -1491,6 +1491,8 @@ namespace Velivo
                         var safe = new MenuItem { Header = "🛡 " + L.T("Kod bezpieczeństwa") };
                         safe.Click += (s, e) => MessageBox.Show(w, KomSafety(c) + "\n\n" + L.T("Porównajcie ten kod (u drugiej osoby: menu rozmowy z Tobą). Ten sam = rozmowa szyfrowana tylko między Wami, nikt się nie podszywa."), "🛡 " + c.Name);
                         cm.Items.Add(safe);
+                        var upd = new MenuItem { Header = "📲 " + L.T("Wyślij aktualizację aplikacji (APK)…"), ToolTip = L.T("Nowa wersja Velivo na telefon tej osoby – tam jedno stuknięcie „Zainstaluj”") }; upd.Click += async (s, e) => await KomSendUpdate(w, c);
+                        cm.Items.Add(upd);
                     }
                     cm.Items.Add(med); cm.Items.Add(del); item.ContextMenu = cm;
                     list.Items.Add(item);
@@ -1928,6 +1930,17 @@ namespace Velivo
         }
 
         // 🎬 Jellyfin i listy TV do kontaktu przez komunikator (w domu i przez internet); telefon w domu zapisuje od razu, przez internet pyta
+        // 📲 nowa wersja aplikacji na telefon kontaktu: wybór APK (zapamiętany folder, np. build\android), wysyłka jak plik; telefon pokazuje „stuknij, aby zainstalować”
+        async Task KomSendUpdate(Window owner, KomContact c)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog { Title = "📲 " + c.Name, Filter = "APK (*.apk)|*.apk", InitialDirectory = (string)_komOpt["apk-dir"] ?? "" };
+            if (dlg.ShowDialog(owner) != true) return;
+            _komOpt["apk-dir"] = Path.GetDirectoryName(dlg.FileName); KomSave();
+            IPAddress addr = null;
+            if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr;
+            await KomSendFilesTo(owner, c.Name, addr ?? IPAddress.Loopback, c, new[] { dlg.FileName });
+        }
+
         async Task KomSendMedia(Window owner, KomContact c)
         {
             var jc = LoadJellyfinConf(); var tv = MediaTvLists();

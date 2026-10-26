@@ -1194,6 +1194,8 @@ namespace Velivo
             { "Odrzuć", "Decline" },
             { "Odrzuć rozmowę", "Decline the call" },
             { "dzwoni…", "is calling…" },
+            { "Wyślij aktualizację aplikacji (APK)…", "Send app update (APK)…" },
+            { "Nowa wersja Velivo na telefon tej osoby – tam jedno stuknięcie „Zainstaluj”", "New Velivo version to this person's phone – one tap “Install” there" },
             { "Odsłuchaj", "Listen" },
             { "Podgląd", "Preview" },
             { "Sprawdź przed wysłaniem", "Check before sending" },

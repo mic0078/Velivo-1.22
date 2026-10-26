@@ -1459,6 +1459,8 @@ namespace Velivo
             var voiceBtn = new Button { Content = "📞", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa głosowa") };
             var galBtn = new Button { Content = "🖼", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Zdjęcia, filmy i pliki z rozmowy") };
             var callBtn = new Button { Content = "📹", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa wideo") };
+            // 🖥 pomoc zdalna - osobny przycisk z napisem (wcześniej tylko w rozmowie wideo - łatwo pomylić)
+            var helpBtn = new Button { Content = "🖥 " + L.T("Pomoc zdalna"), FontSize = 13, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Pomoc zdalna: pokaż swój ekran albo zobacz ekran rozmówcy; sterowanie myszą tylko za zgodą") };
             var bottom = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             DockPanel.SetDock(bottom, Dock.Bottom);
             // pasek stanu: wysylanie / odbior pliku z postepem, wyniki - okno zostaje otwarte
@@ -1490,7 +1492,7 @@ namespace Velivo
             var selFwd = SelBtn("↪ " + L.T("Przekaż"), L.T("Przekaż zaznaczone")); var selCopy = SelBtn("📋 " + L.T("Kopiuj"), L.T("Kopiuj zaznaczone")); var selDel = SelBtn("🗑 " + L.T("Usuń u mnie"), L.T("Usuń zaznaczone tylko na tym komputerze")); var selEnd = SelBtn("✕", L.T("Zakończ zaznaczanie"));
             selBar.Children.Add(selText); DockPanel.SetDock(selBar, Dock.Bottom);
             var tools = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(6, 0, 0, 6) };
-            foreach (var b in new[] { galBtn, voiceBtn, callBtn }) { b.Height = 34; b.Margin = new Thickness(0, 0, 6, 0); tools.Children.Add(b); }
+            foreach (var b in new[] { galBtn, voiceBtn, callBtn, helpBtn }) { b.Height = 34; b.Margin = new Thickness(0, 0, 6, 0); tools.Children.Add(b); }
             tools.Children.Add(searchBox); searchBox.Margin = new Thickness(0); searchBox.Height = 34;
             DockPanel.SetDock(tools, Dock.Right); top.Children.Add(tools); top.Children.Add(header);
             void SendOrMic() { bool t = input.Text.Trim().Length > 0 && (string)micBtn.Content != "⏹"; sendBtn.Visibility = t ? Visibility.Visible : Visibility.Collapsed; micBtn.Visibility = t ? Visibility.Collapsed : Visibility.Visible; }
@@ -1505,7 +1507,7 @@ namespace Velivo
             right.Children.Add(top); right.Children.Add(bottom); right.Children.Add(selBar); right.Children.Add(replyBar); right.Children.Add(status); right.Children.Add(scroll);
             root.Children.Add(right);
             w.Content = root;
-            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(vidBtn); buttons.Add(camBtn); buttons.Add(locBtn); buttons.Add(callBtn); buttons.Add(voiceBtn); buttons.Add(galBtn);
+            buttons.Add(sendBtn); buttons.Add(fileBtn); buttons.Add(micBtn); buttons.Add(vidBtn); buttons.Add(camBtn); buttons.Add(locBtn); buttons.Add(callBtn); buttons.Add(voiceBtn); buttons.Add(galBtn); buttons.Add(helpBtn);
             root.Margin = new Thickness(0);
             left.Margin = new Thickness(8, 8, 0, 8); right.Margin = new Thickness(0, 8, 8, 8);
             KomPal pal = null;
@@ -1635,7 +1637,7 @@ namespace Velivo
                     headerDone:;
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;
-                fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = camBtn.IsEnabled = locBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
+                fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = camBtn.IsEnabled = locBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = helpBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
                 var cs = new StringBuilder(pal.Key ?? "").Append(_komAutoImages).Append(c?.Id).Append('|').Append(searchBox.Text).Append('|').Append(selMode).Append(picked.Count).Append('|');
                 if (c != null) foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300))) cs.Append(m.Mid).Append(m.Ok ? '1' : '0').Append(m.Read ? '1' : '0').Append(m.Text?.GetHashCode()).Append(m.Path).Append(KomReactions(m)).Append(m.Lp?.Length).Append(';');
                 if (cs.ToString() == chatSig) return;   // nagłówek (w sieci, pisze…) odświeżony wyżej; dymki bez zmian - bez przebudowy
@@ -1951,6 +1953,7 @@ namespace Velivo
             });
             callBtn.Click += (s, e) => KomOpenCall(Current(), true);
             voiceBtn.Click += (s, e) => KomOpenCall(Current(), true, true);
+            helpBtn.Click += (s, e) => KomOpenCall(Current(), true, false, true);
             galBtn.Click += (s, e) => { var c = Current(); if (c != null) KomGallery(w, c); };
             leftButtons.Children.Add(Btn("🎨", L.T("Motyw komunikatora – kolory okna i wiadomości"), (s, e) =>
             {

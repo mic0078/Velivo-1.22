@@ -1072,6 +1072,8 @@ namespace Velivo
             { "wczoraj", "yesterday" },
             { "Dzisiaj", "Today" },
             { "Wczoraj", "Yesterday" },
+            { "Pomoc zdalna", "Remote help" },
+            { "Pomoc zdalna: pokaż swój ekran albo zobacz ekran rozmówcy; sterowanie myszą tylko za zgodą", "Remote help: share your screen or see the other person's screen; mouse control only with consent" },
             { "Usunięto tę wiadomość", "You deleted this message" },
             { "Wiadomość usunięta", "This message was deleted" },
             { "Usuń u wszystkich", "Delete for everyone" },

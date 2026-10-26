@@ -1456,9 +1456,20 @@ namespace Velivo
             ApplyTheme();
 
             KomContact Current() => KomContactById(_komOpenId ?? "");
+            // bez migania: lista i rozmowa przebudowywane tylko, gdy coś naprawdę się zmieniło (obecność innych, potwierdzenia, zegar 30 s - zwykle nic)
+            string listSig = null, chatSig = null;
             void FillList()
             {
                 var sel = _komOpenId;
+                var ls = new StringBuilder(pal.Key ?? "").Append(sel).Append('|');
+                foreach (var x in _komContacts.ToList())
+                {
+                    var lm = KomChat(x.Id).LastOrDefault(); _komUnread.TryGetValue(x.Id, out var un0);
+                    ls.Append(x.Id).Append(x.Name).Append(KomOnline(x.Id) ? '1' : '0').Append(KomViaNet(x.Id) ? '1' : '0').Append(un0).Append(KomPinned(x.Id) ? 'p' : '-').Append(KomMuted(x.Id) ? 'm' : '-')
+                      .Append(_komTypingAt.TryGetValue(x.Id, out var ty0) && DateTime.UtcNow - ty0 < TimeSpan.FromSeconds(6) ? 't' : '-').Append(lm?.Mid).Append(lm?.Ok).Append(lm?.Read).Append(lm?.Text?.GetHashCode()).Append(KomPhoto(x.Id) is string pp && File.Exists(pp) ? File.GetLastWriteTimeUtc(pp).Ticks : 0).Append('|');   // nowe zdjęcie profilowe też odświeża
+                }
+                if (ls.ToString() == listSig) return;
+                listSig = ls.ToString();
                 list.Items.Clear();
                 if (_komContacts.Count == 0)
                     list.Items.Add(new ListBoxItem { IsEnabled = false, Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = L.T("Brak kontaktów. Kliknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo w tej samej sieci.") } });
@@ -1542,6 +1553,10 @@ namespace Velivo
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;
                 fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = camBtn.IsEnabled = locBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
+                var cs = new StringBuilder(pal.Key ?? "").Append(_komAutoImages).Append(c?.Id).Append('|').Append(searchBox.Text).Append('|').Append(selMode).Append(picked.Count).Append('|');
+                if (c != null) foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300))) cs.Append(m.Mid).Append(m.Ok ? '1' : '0').Append(m.Read ? '1' : '0').Append(m.Text?.GetHashCode()).Append(m.Path).Append(KomReactions(m)).Append(';');
+                if (cs.ToString() == chatSig) return;   // nagłówek (w sieci, pisze…) odświeżony wyżej; dymki bez zmian - bez przebudowy
+                chatSig = cs.ToString();
                 msgs.Children.Clear();
                 if (c == null) return;
                 var q = searchBox.Text.Trim();   // 🔍 szukanie w rozmowie

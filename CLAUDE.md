@@ -82,6 +82,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-26: przycięcia przy przeglądaniu – synchronizacja historii (odczyt całego pliku, kompresja, szyfrowanie, zapis) w wątku okna przy każdym „hello” (co ~12 s); teraz w tle z blokadą HistoryLock; miniatury stron zmniejszane w tle.
 * 2026-10-26: telefon: każdy pakiet (obecność, potwierdzenie) od razu przebudowywał rozmowę, dekodował GIF-y i wysyłał „przeczytane” – także w tle; teraz najwyżej co 0,4 s, w tle wcale (raz po powrocie), GIF-y z pamięci, szukanie /24 najwyżej co 2 min i tylko, gdy ktoś poza siecią.
 * 2026-10-26: klawiatura (telefon i Windows) przycinała po spacji – po każdym słowie szyfrowany zapis całego słownika w wątku klawiatury/okna; teraz w tle, najwyżej co 3 s (telefon: od razu przy schowaniu klawiatury); pełna lista par (20 000) sortowana przy każdym słowie – teraz usuwa 1000 naraz.
+* 2026-10-26: okno komunikatora Windows mrugało co chwilę – każda obecność / potwierdzenie / zegar 30 s przebudowywały listę i rozmowę, choć nic się nie zmieniło; teraz podpis zawartości (listSig/chatSig) – przebudowa tylko przy zmianie. Odświeżanie zawsze tylko przy rzeczywistej zmianie.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

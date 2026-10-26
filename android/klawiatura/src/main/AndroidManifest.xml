@@ -41,6 +41,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- ⠿ nauka brajla (poznawanie i ćwiczenia) -->
+        <activity android:name=".NaukaBrajla" android:exported="false" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
         <!-- okienka z klawiatury (motyw, wysokość, słownik, mikrofon) - przezroczyste, bez ekranu ustawień pod spodem -->
         <activity android:name=".SzybkieUstawienia" android:exported="false" android:theme="@style/Okienko"
             android:excludeFromRecents="true" android:taskAffinity="" android:noHistory="true" />

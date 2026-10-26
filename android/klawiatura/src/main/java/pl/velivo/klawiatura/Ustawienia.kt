@@ -52,6 +52,16 @@ open class Ustawienia : Activity() {
         // 🔍 powiększona litera nad palcem - wł./wył. (domyślnie wł.)
         val pr = KlawiaturaVelivo.prefs(this)
         fun previewLabel() = getString(R.string.kb_preview) + ": " + getString(if (pr.getBoolean("klaw-podglad", true)) R.string.kb_on else R.string.kb_off)
+        // ⠿ brajl: nauka i ustawienia pisania (zwykłe okienko Androida - działa też z TalkBack i czytaniem na głos)
+        button(R.string.kb_braille_learn, R.string.kb_braille_learn_tip) { startActivity(Intent(this, NaukaBrajla::class.java)) }
+        button(R.string.kb_braille_settings, R.string.kb_braille_settings) {
+            val keys = arrayOf("brajl-mowa", "brajl-wibracje", "brajl-podpowiedzi", "brajl-odwrocone", "brajl-postepy"); val defs = booleanArrayOf(true, true, true, false, true)
+            val on = BooleanArray(keys.size) { pr.getBoolean(keys[it], defs[it]) }
+            AlertDialog.Builder(this).setTitle(R.string.kb_braille_settings)
+                .setMultiChoiceItems(arrayOf(getString(R.string.kb_braille_opt_speech), getString(R.string.kb_braille_opt_vibe), getString(R.string.kb_braille_opt_hints), getString(R.string.kb_braille_opt_mirror), getString(R.string.kb_braille_opt_progress)), on) { _, i, v -> on[i] = v }
+                .setPositiveButton(android.R.string.ok) { _, _ -> val e = pr.edit(); keys.forEachIndexed { i, k -> e.putBoolean(k, on[i]) }; if (!on[4]) e.remove("brajl-nauka"); e.apply() }
+                .setNegativeButton(android.R.string.cancel, null).show()
+        }
         lateinit var senBtn: Button
         fun senLabel() = getString(R.string.kb_senior) + ": " + getString(if (pr.getBoolean("klaw-senior", false)) R.string.kb_on else R.string.kb_off)
         button(R.string.kb_senior, R.string.kb_senior_tip) { KlawiaturaVelivo.senior(this, !pr.getBoolean("klaw-senior", false)); senBtn.text = senLabel() }

@@ -248,6 +248,10 @@ The same keyboard as on the computer, in Velivo colours (dark, light or black-an
 * **📋 Clipboard and editing** (button on top): recently copied texts (memory only, up to an hour, no passwords from password managers), arrows ◀ ▶, start ⇤ / end ⇥, Select all, Cut, Copy, Paste, Undo.
 * **🔍 Big letter above the finger** – a big letter shows when you press a key (can be turned off in the keyboard app). Taller keys (↕) also mean bigger letters.
 * **👵 Senior mode** (menu under V or the keyboard app): one switch for tall keys and big letters, the letter above the finger, words read aloud, no swipe typing and a longer press (a shaky finger does not make accidental words).
+* **⠿ Braille typing** (menu under V → ⠿): the screen becomes 6 dots – left hand 1, 2, 3, right hand 4, 5, 6. Put fingers on the dots of a letter together and lift. One-finger swipe: right space, left delete, down new line, up read the text; two fingers down – back to the normal keyboard. Polish braille with ą ć ę ł ń ó ś ź ż, digits after the number sign ⠼ (a–j = 1–0), capital ⠨, punctuation (EN: English braille). Characters go through normal typing – autocorrect, dictionary, suggestions and reading words 🔊 work.
+  * **With TalkBack on** the system takes over touch – Velivo does not fight it and says to use the TalkBack braille keyboard or pause TalkBack.
+  * **⠿ Learn braille** (keyboard app): *Explore* – the sign, letter and speech; *Exercise* – Velivo says a letter, you write it on the 6-dot field; “Learned: x of y”. Progress stays on the phone (can be turned off).
+  * **⠿ Braille typing – settings:** speak characters, vibration, on-screen hints, phone screen facing away (columns swapped), save progress – a normal Android window (works with TalkBack).
 * **Cursor with a finger on the space bar:** slide your finger left or right on space – the cursor follows (easier to fix a letter inside a word).
 * **🎤 Dictation:** the first time the keyboard app asks for microphone access. **🔊** reads aloud what you type. **PL / EN** – dictionary language.
 * Nothing is learned in password fields. Learned words are encrypted on the phone.

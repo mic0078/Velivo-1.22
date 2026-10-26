@@ -355,7 +355,7 @@ namespace Velivo
                 {
                     while (!token.IsCancellationRequested)
                     {
-                        try { var c = await l.AcceptTcpClientAsync(token); c.NoDelay = true; _ = Task.Run(() => KomRelayServe(c, token)); }   // TURN (dźwięk rozmów) i ramki bez opóźnienia Nagle'a
+                        try { var c = await l.AcceptTcpClientAsync(token); _komRelayAcceptAt = DateTime.UtcNow; c.NoDelay = true; _ = Task.Run(() => KomRelayServe(c, token)); }   // TURN (dźwięk rozmów) i ramki bez opóźnienia Nagle'a
                         catch (OperationCanceledException) { break; } catch (ObjectDisposedException) { break; } catch (Exception) { await Task.Delay(300); }
                     }
                 });
@@ -910,7 +910,9 @@ namespace Velivo
             if (ext != null && !IPAddress.TryParse(ext, out _)) ext = null;
             // 🌍 zapasowe wejście przez port 443 (sieci blokujące nietypowe porty) - w routerze 443 -> port pośrednika na tym komputerze
             var alt = await Task.Run(() => KomUpnpAsync(KomRelayAltPort, port));
-            _komRelayAlt = alt.mapped;
+            // router bez UPnP (przekierowanie ręczne): prawdziwy test - połączenie z adresem domu na 443 i odpowiedź naszego pośrednika
+            if (!alt.mapped && _komRelayHost.Length > 0) alt.mapped = await KomRelayProbe(_komRelayHost, KomRelayAltPort);
+            _komRelayAlt = alt.mapped; _komRelayUpnp = ext != null || mapped || note == "taken";   // router odpowiada na UPnP - umiemy sprawdzić przekierowanie
             _komRelayRouter = mapped ? L.T("Router: port otwarty automatycznie") : (note == "taken" ? L.T("Router: port już przekierowany (ręcznie)") : L.T("Router nie otworzył portu sam – przekieruj go w routerze na ten komputer"));
             if (_komRelayAuto && ext != null && ext != _komRelayHost) { _komRelayHost = ext; KomSave(); KomAnnounce(); }   // nowy adres - urzadzenia w domu dostaja go od razu
             KomRelayStatus();
@@ -977,14 +979,32 @@ namespace Velivo
             catch (Exception) { return (null, false, ""); }
         }
 
+        // test przekierowania: połączenie z adresem domu na podanym porcie liczy się tylko wtedy, gdy przyjął je NASZ pośrednik
+        // (nie np. panel routera na 443); router bez „pętli” do własnego adresu - wynik „nie wiadomo” (false), napis mówi, jak sprawdzić
+        DateTime _komRelayAcceptAt;
+        async Task<bool> KomRelayProbe(string host, int port)
+        {
+            var t0 = DateTime.UtcNow;
+            try
+            {
+                using var cl = new TcpClient(); using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await cl.ConnectAsync(host, port, cts.Token);
+                await Task.Delay(700);
+                return _komRelayAcceptAt > t0;
+            }
+            catch (Exception) { return false; }
+        }
+
         // ---------- okno ustawien ----------
-        TextBlock _komRelayStatusText; bool _komRelayAlt;
+        TextBlock _komRelayStatusText; bool _komRelayAlt, _komRelayUpnp;
         void KomRelayStatus()
         {
             if (_komRelayStatusText == null) return;
             _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port")) +
-                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + _komRelayRouter : "") +
-                (_komRelayOn && _komRelayListener != null ? "\n" + (_komRelayAlt ? L.T("Zapasowo port 443: otwarty (działa też w sieciach blokujących porty)") : L.T("Zapasowo port 443: nieotwarty – w routerze przekieruj 443 na ten komputer, port ") + _komRelayPort) : "");
+                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + (_komRemote.IsEmpty ? _komRelayRouter : L.T("Router: port działa – są połączenia z internetu")) : "") +
+                (_komRelayOn && _komRelayListener != null ? "\n" + (_komRelayAlt ? L.T("Zapasowo port 443: otwarty (działa też w sieciach blokujących porty)")
+                    : _komRelayUpnp ? L.T("Zapasowo port 443: nieotwarty – w routerze przekieruj 443 na ten komputer, port ") + _komRelayPort
+                    : L.T("Zapasowo port 443: router nie pozwala tego sprawdzić – jeśli przekierowałeś w routerze 443 na ten komputer, port ") + _komRelayPort + L.T(", działa")) : "");
         }
 
         // komputer z kontaktami: rozmowy poza domem wlaczaja sie same (zgoda - polaczenie w domu); adres i port ustawiane same.

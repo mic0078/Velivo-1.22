@@ -49,6 +49,30 @@ namespace Velivo
         static string JellyfinRemovedFile { get { return Path.Combine(MetaDir, "usuniete-z-jellyfin.txt"); } }
 
         // nowe filmy z Jellyfin, ktorych plik jest dostepny na tym komputerze, a nie ma ich w bibliotece (ten sam plik z dwoch bibliotek Jellyfin - raz)
+        // 🎞 filmy usunięte w Velivo „tylko z biblioteki” - nie wracają przy 🔄 Odśwież (pliki dalej na serwerze Jellyfin)
+        static string JellyfinSkipFile { get { return Path.Combine(MetaDir, "pominiete.txt"); } }
+        static IEnumerable<string> JellyfinSkipped() { try { return File.Exists(JellyfinSkipFile) ? File.ReadAllLines(JellyfinSkipFile) : Array.Empty<string>(); } catch (Exception) { return Array.Empty<string>(); } }
+        static void JellyfinSkipAdd(IEnumerable<string> paths)
+        {
+            try { Directory.CreateDirectory(MetaDir); File.WriteAllLines(JellyfinSkipFile, JellyfinSkipped().Concat(paths).Distinct(StringComparer.OrdinalIgnoreCase)); } catch (Exception ex) { App.LogError(ex); }
+        }
+        // usunięcie filmów na serwerze Jellyfin (DELETE /Items/{id}; klucz API administratora) - wynik do dymka
+        static async Task<string> JellyfinDeleteAsync(JellyfinConf c, List<string> ids)
+        {
+            int ok = 0; string err = null;
+            try
+            {
+                using var http = JellyfinClient(c);
+                foreach (var id in ids)
+                {
+                    var r = await http.DeleteAsync("Items/" + Uri.EscapeDataString(id));
+                    if (r.IsSuccessStatusCode) ok++; else err ??= (int)r.StatusCode + " " + r.ReasonPhrase;
+                }
+            }
+            catch (Exception ex) { err ??= ex.Message; }
+            return "🎞 " + L.T("Usunięto z Jellyfin: ") + ok + "/" + ids.Count + (err != null ? " – " + L.T("serwer odpowiedział: ") + err + (err.StartsWith("401") || err.StartsWith("403") ? L.T(" (klucz API bez prawa usuwania)") : "") : "");
+        }
+
         internal static List<string> NewJellyfinFiles(List<string> jellyfinPaths, IEnumerable<string> libraryPaths, Func<string, bool> exists)
         {
             var have = new HashSet<string>(libraryPaths.Select(MetaKey));

@@ -459,7 +459,7 @@ namespace Velivo
         {
             if (!File.Exists(JellyfinFilesFile)) return "";
             var jfFiles = File.ReadAllLines(JellyfinFilesFile).ToList();
-            var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), File.Exists));
+            var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path).Concat(JellyfinSkipped()), File.Exists));   // usunięte „tylko z Velivo” nie wracają
             int n = 0;
             if (add.Count > 0) { var l = LoadLibrary(); n = AddToLibrary(l, add, shared); SaveLibrary(l); }
             // brakujace pliki (Jellyfin zna, tu niedostepne) - do raportu, zeby bylo widac dlaczego
@@ -868,11 +868,23 @@ namespace Velivo
                 PlayVideos(playable.ToArray(), playable.IndexOf(r.Item.Path));
                 LibAway(win);   // film gra - biblioteka schowana, wraca po zamknięciu odtwarzacza
             };
-            Action remove = () =>
+            Action remove = async () =>
             {
                 var rs = sel().Where(r => !remoteOf.ContainsKey(r.Item)).ToList(); if (rs.Count == 0) return;
+                // 🎞 filmy z Jellyfin: usunięcie także na serwerze (Jellyfin kasuje plik z dysku serwera) albo tylko w Velivo (nie wraca przy 🔄 Odśwież)
+                var jc = _libTvView ? null : LoadJellyfinConf();
+                var jf = jc == null || string.IsNullOrEmpty(jc.Key) ? new List<(string Path, string Id)>() : rs.Select(r => (r.Item.Path, MetaFor(r.Item.Path)?.Id)).Where(x => !string.IsNullOrEmpty(x.Id)).ToList();
+                bool jfDelete = false;
+                if (jf.Count > 0)
+                {
+                    var ans = MessageBox.Show(win, string.Format(L.T("{0} z zaznaczonych filmów jest na serwerze Jellyfin.\n\nTak – usuń też z Jellyfin (serwer skasuje plik filmu ze swojego dysku, na stałe).\nNie – usuń tylko z biblioteki Velivo (nie wróci przy 🔄 Odśwież).\nAnuluj – nic nie usuwaj."), jf.Count), "🎞 Jellyfin", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.No);
+                    if (ans == MessageBoxResult.Cancel || ans == MessageBoxResult.None) return;
+                    jfDelete = ans == MessageBoxResult.Yes;
+                    if (!jfDelete) JellyfinSkipAdd(jf.Select(x => x.Path));
+                }
                 var l = LoadLibrary(); bool sh = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs(); l.RemoveAll(v => (tv ? UnderAny(v.Path, recDirs) : IsShared(v) == sh) && rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
                 SaveLibrary(l); fill();
+                if (jfDelete) ShowToast(await JellyfinDeleteAsync(jc, jf.Select(x => x.Id).Distinct().ToList()), null);
             };
             // usun z biblioteki i plik z dysku (do Kosza; dysk sieciowy nie ma Kosza - wtedy na stale)
             Action removeFiles = () =>

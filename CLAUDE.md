@@ -135,5 +135,5 @@ git pull origin rozwoj
 <przełączniki: -TylkoWindows / -Przegladarka / -Klawiatura / -Komunikator>
 ```
 
-* Podawaj **tylko niezbędne** (4 niezależne aplikacje, właściciel nie chce budować niepotrzebnie): Tylko Windows: `-TylkoWindows`. Pojedyncze APK: `-Przegladarka`, `-Klawiatura`, `-Komunikator` (można łączyć). Wspólny kod: `android/komunikator/src/main/...` (Komunikator.kt, zasoby wspolne) → wszystkie 3 APK; `src/Rozmowa/*.html` → Windows + 3 APK; `android/klawiatura` → tylko klawiatura; `android/app` → tylko przeglądarka. Do Google Play: `-TylkoAndroid -Sklep`.
+* Podawaj **tylko niezbędne** (4 niezależne aplikacje, właściciel nie chce budować niepotrzebnie): Tylko Windows: `-TylkoWindows`. Pojedyncze APK: `-Przegladarka`, `-Klawiatura`, `-Komunikator` (można łączyć). Komunikator to samowystarczalna aplikacja (prowadzi rozmowy, kopie w przeglądarce i klawiaturze śpią): zmiana `android/komunikator/...` → domyślnie tylko `-Komunikator` (`-Przegladarka` tylko dla telefonów bez aplikacji Komunikator); `src/Rozmowa/*.html` → Windows + 3 APK; `android/klawiatura` → tylko klawiatura; `android/app` → tylko przeglądarka. Do Google Play: `-TylkoAndroid -Sklep`.
 * Gotowe pliki: `build\` (instalator), `build\android\` (`Velivo-pelna.apk`, `Velivo-klawiatura.apk`, `Velivo-komunikator.apk`).

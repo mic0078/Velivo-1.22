@@ -126,7 +126,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 ## Budowa u właściciela (Windows, PowerShell, nie jako administrator)
 
-Claude zawsze podaje kod kompilacji do PowerShell (cały blok poniżej). Na końcu odpowiedzi napisz, co zbudować (Windows, Android, oba):
+Claude zawsze podaje kod kompilacji do PowerShell (cały blok poniżej, ostatnia linia z przełącznikami tylko dla zmienionych aplikacji). Na końcu odpowiedzi napisz, co zbudować:
 
 ```
 cd "C:\Users\andro\Desktop\Velivo 1.22 z github"
@@ -135,5 +135,5 @@ git pull origin rozwoj
 .\zbuduj-wszystko.ps1 -Wszystko
 ```
 
-* Tylko Windows: `.\zbuduj-wszystko.ps1`. Tylko Android: `-TylkoAndroid`. Do Google Play: `-TylkoAndroid -Sklep`.
+* Podawaj **tylko niezbędne** (4 niezależne aplikacje, właściciel nie chce budować niepotrzebnie): Windows: `.\zbuduj-wszystko.ps1` bez przełącznika (sam pomija to, co bez zmian od ostatniej budowy). Pojedyncze APK: `-Przegladarka`, `-Klawiatura`, `-Komunikator` (można łączyć). Wspólny kod: `android/komunikator/src/main/...` (Komunikator.kt, zasoby wspolne) → wszystkie 3 APK; `src/Rozmowa/*.html` → Windows + 3 APK; `android/klawiatura` → tylko klawiatura; `android/app` → tylko przeglądarka. Do Google Play: `-TylkoAndroid -Sklep`.
 * Gotowe pliki: `build\` (instalator), `build\android\` (`Velivo-pelna.apk`, `Velivo-klawiatura.apk`, `Velivo-komunikator.apk`).

@@ -77,9 +77,9 @@ function ask() {
     velivo.ask(T('Pozwolić rozmówcy stukać i przesuwać na Twoim telefonie?', 'Let the other person tap and swipe on your phone?')); return;
   }
   if (!sharing || !mon) { dsend({ k: 'ctl-no' }); return; }
-  if (!confirm(T('Pozwolić rozmówcy sterować Twoim komputerem (mysz i klawiatura)?\nZakończysz w każdej chwili przyciskiem „Zakończ sterowanie”.', 'Let the other person control your computer (mouse and keyboard)?\nYou can end it at any time with “End control”.'))) { dsend({ k: 'ctl-no' }); return; }
-  ctl = true; host({ k: 'ctl-on', w: mon.w, h: mon.h }); dsend({ k: 'ctl-ok' });
+  host({ k: 'ctl-ask' });   // pytanie w okienku Velivo nad wszystkimi oknami (okno rozmowy bywa schowane, gdy pokazujesz ekran)
 }
+function ctlYes(yes) { if (!yes || !sharing || !mon) { dsend({ k: 'ctl-no' }); return; } ctl = true; host({ k: 'ctl-on', w: mon.w, h: mon.h }); dsend({ k: 'ctl-ok' }); }
 window.ctlAnswer = yes => { if (!phoneScr) return; if (!yes) { dsend({ k: 'ctl-no' }); return; } ctl = true; velivo.ctl(true); dsend({ k: 'ctl-ok' }); status(T('🖱 Rozmówca steruje – zakończysz przyciskiem 🖥', '🖱 They are in control – stop with 🖥')); };
 function ctlOff() { if (!ctl) return; ctl = false; host({ k: 'ctl-off' }); if (window.velivo && velivo.ctl) velivo.ctl(false); dsend({ k: 'ctl-off' }); }
 const pend = [];
@@ -123,6 +123,7 @@ window.onSig = async function (o) {
     else if (o.k === 'answer' && pc) { await pc.setRemoteDescription({ type: 'answer', sdp: o.sdp }); flush(); }
     else if (o.k === 'ice') { if (pc && pc.remoteDescription) pc.addIceCandidate(o.c).catch(() => {}); else pend.push(o.c); }
     else if (o.k === 'reject' || o.k === 'busy') { status(o.k === 'busy' ? T('Rozmawia z kimś innym', 'Busy') : T('Odrzucono', 'Declined')); finish(); }
+    else if (o.k === 'ctl-answer') ctlYes(o.yes);
     else if (o.k === 'ctl-stop') ctlOff();   // przycisk „Zakończ sterowanie” w Velivo
     else if (o.k === 'end') { status(T('Rozmowa zakończona', 'Call ended')); finish(); }
   } catch (e) { status(T('Błąd połączenia', 'Connection error')); hang(); }
@@ -152,9 +153,10 @@ scr.onclick = async () => {
   try {
     const s = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'monitor' }, audio: false });
     const nt = s.getVideoTracks()[0]; await snd.replaceTrack(nt); sharing = nt;
-    const g = nt.getSettings(); mon = g.displaySurface === 'monitor' ? { w: g.width, h: g.height } : null;   // sterowanie tylko przy całym ekranie
+    const g = nt.getSettings(); mon = g.displaySurface === 'monitor' || !g.displaySurface ? { w: g.width, h: g.height } : null;   // sterowanie tylko przy całym ekranie
     me.srcObject = s; me.style.transform = 'none'; scr.classList.add('on');
     dsend({ k: 'scr', on: true, ctl: !!mon }); nt.onended = stopShare;
+    if (!mon) status(T('Pokazujesz okno – sterowanie działa tylko przy całym ekranie', 'Sharing a window – control works only with the entire screen'));
   } catch (e) { }
 };
 async function stopShare() {

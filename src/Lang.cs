@@ -1194,6 +1194,7 @@ namespace Velivo
             { "Odrzuć", "Decline" },
             { "Odrzuć rozmowę", "Decline the call" },
             { "dzwoni…", "is calling…" },
+            { " chce sterować Twoim komputerem (mysz i klawiatura).\n\nPozwolić? Zakończysz w każdej chwili przyciskiem „Zakończ sterowanie” na górze ekranu.", " wants to control your computer (mouse and keyboard).\n\nAllow? You can end it at any time with “End control” at the top of the screen." },
             { "Sortuj: A–Z", "Sort: A–Z" },
             { "Sortuj: ostatnio oglądany na górze", "Sort: last watched first" },
             { "Sortuj: najstarszy na górze", "Sort: oldest first" },

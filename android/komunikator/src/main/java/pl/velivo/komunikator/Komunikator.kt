@@ -283,6 +283,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 if (!MessageDigest.isEqual(unb64(p.optString("mac")), hmac(c.key, "ack\n$mid".toByteArray()))) return true
                 if (!sender.isLoopbackAddress && c.addr != sender.hostAddress) { c.addr = sender.hostAddress ?: c.addr; saveContacts() }
                 acks[mid]?.countDown()
+                // ✓✓ szare: plik ze skrzynki 📬 dotarł do odbiorcy (potwierdza po odebraniu)
+                var any = false
+                synchronized(this) { chat(c.id).forEach { if (it.mine && it.mid == mid && it.text.contains("📬")) { it.ok = true; it.text = it.text.replace(" – 📬 czeka na serwerze", " – odebrano").replace(" – 📬 waiting on the server", " – received"); any = true } } }
+                if (any) { saveChat(c.id); main.post { onChange() } }
             }
             // ✓✓ odbiorca przeczytał nasze wiadomości
             "p2p-read" -> {
@@ -935,7 +939,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (from != null) {
                 val grp = h.optJSONObject("Group")?.let { groupOf(from, it) }   // 👥 plik w grupie - do rozmowy grupy
                 if (grp != null) { note(grp, false, from.name + ": " + fileLabel(name, size, isImage(name)), h.optString("Mid"), saved); if (chatOpen != grp.id) prefs.edit().putInt("nowe-${grp.id}", unread(grp.id) + 1).apply(); notifyMessage(grp) }
-                else note(from, false, if (name.endsWith(".apk", true)) "📲 " + (if (pl) "Nowa wersja aplikacji – stuknij, aby zainstalować: " else "New app version – tap to install: ") + name else fileLabel(name, size, isImage(name)), h.optString("Mid"), saved)   // 📲 aktualizacja od właściciela
+                else { val fm = h.optString("Mid"); if (fm.length == 32) sendUdp(packet("p2p-ack").put("to", from.id).put("mid", fm).put("mac", b64(hmac(from.key, "ack\n$fm".toByteArray()))), null) }   // ✓✓ szare u nadawcy
+                if (grp == null) note(from, false, if (name.endsWith(".apk", true)) "📲 " + (if (pl) "Nowa wersja aplikacji – stuknij, aby zainstalować: " else "New app version – tap to install: ") + name else fileLabel(name, size, isImage(name)), h.optString("Mid"), saved)   // 📲 aktualizacja od właściciela
                 // plik / zdjęcie jak wiadomość: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)
                 if (grp == null) { if (chatOpen != from.id) prefs.edit().putInt("nowe-${from.id}", unread(from.id) + 1).apply(); notifyMessage(from) }
             }

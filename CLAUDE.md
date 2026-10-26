@@ -116,6 +116,8 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * Do zrobienia (2026-10-24, właściciel): Filmy z Jellyfin – gdy serwer niedostępny, pokazywać zapamiętaną bibliotekę i odświeżać w tle. (2026-10-25 zrobione: kopia zapasowa z Google Drive, przypięte, wyciszenie, znikające, kod bezpieczeństwa, szukanie, szkic, lokalizacja, głosówki 1,5×, litery zamiast kropek, „Mój adres” na Windows.)
 
 * Sieć pośredników znajomych: telefon poza domem łączy się już ze wszystkimi pośrednikami z kontaktów naraz (2026-10-22); dalej na potem: pośrednicy przekazujący między sobą (gdy rozmówcy mają różnych pośredników) i pliki/wideo przez dodatkowych pośredników.
+* ⠿ Wibrobrajl dla głuchoniewidomych (2026-10-26, właściciel: później) – dopiero po teście zwykłego Brajla na prawdziwym telefonie; najpierw ustalić czytelny kod wibracji, przewijanie wiadomości i zatrzymanie odczytu.
+* 🤟 Alfabet palcowy w komunikatorze (PL / BSL / ASL) – czeka na decyzję: który alfabet i skąd legalne obrazki (Commons z licencją / zdjęcia właściciela); obrazek z czatu ma autora – nie wklejać. Nauka alfabetu ≠ tłumaczenie języka migowego.
 * Prywatny serwer właściciela zamiast domowego komputera (właściciel zakłada go sam; Claude daje wymagania i pośrednika dla serwera).
 
 ## Gałęzie

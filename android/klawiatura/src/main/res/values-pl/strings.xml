@@ -94,4 +94,5 @@
     <string name="kb_bl_nothing">nieznany znak</string>
     <string name="kb_bl_score">Opanowane: %1$d z %2$d</string>
     <string name="kb_bl_help">Połóż palce na punktach litery i podnieś · → następna · ← poprzednia · ↓ tryb · 2 palce ↓ wyjście</string>
+    <string name="kb_m_more">⋯ Wszystkie funkcje</string>
 </resources>

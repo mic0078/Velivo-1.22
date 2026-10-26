@@ -237,7 +237,7 @@ The same keyboard as on the computer, in Velivo colours (dark, light or black-an
 
 * **Layout like a regular phone keyboard:** 10 keys per row (wider, easier to hit). Extra characters – **long-press** a key with the small character above the letter (e.g. D → -, J → ;, M → /, digits → ! @ # …, comma → !, full stop → …); Polish letters as before (long-press A → ą). **Double-tap ⇧** – caps lock.
 * **Separate app** “Velivo keyboard” (file `Velivo-klawiatura.apk`). **Turn on:** open the Velivo keyboard app → *Turn on* (Android settings), then *Choose*. Hold the space bar to switch keyboards.
-* **Menu under the V logo:** tap the Velivo logo in the top-left corner of the keyboard – all functions replace the keys: 🗒 new sticky note, 📋 notes, 🔍 search in Velivo, ▶ YouTube, autocorrect, sound, read aloud, dictation, My dictionary, language, theme, key height, change keyboard and settings. Tap the logo again to return to the keys.
+* **🧰 Toolbar under the V logo:** tap the Velivo logo – a toolbar replaces the word suggestions and the keys stay on screen. Slide the toolbar with a finger; the most used tools move to the front by themselves; holding an icon says its name. **⋯** at the end opens the full menu – all functions replace the keys: 🗒 new sticky note, 📋 notes, 🔍 search in Velivo, ▶ YouTube, autocorrect, sound, read aloud, dictation, My dictionary, language, theme, key height, change keyboard and settings. Tap the logo again to return to the keys.
 * **Swipe typing (flow):** slide your finger across the letters. Wrong word: ⌫ removes it, or pick another from the suggestion bar.
 * **Polish letters:** hold a letter (a → ą) or turn on the **ą** key.
 * **Autocorrect ✓**; ⌫ right after a correction restores what you typed.

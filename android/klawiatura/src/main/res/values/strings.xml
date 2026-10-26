@@ -94,4 +94,5 @@
     <string name="kb_bl_nothing">unknown sign</string>
     <string name="kb_bl_score">Learned: %1$d of %2$d</string>
     <string name="kb_bl_help">Put fingers on the dots of a letter and lift · → next · ← previous · ↓ mode · 2 fingers ↓ exit</string>
+    <string name="kb_m_more">⋯ All functions</string>
 </resources>

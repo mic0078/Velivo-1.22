@@ -7,7 +7,7 @@
 #   Windows - zmiany w src\, testy\ albo zbuduj.ps1
 #   Android - zmiany w android\ i we wspolnym Szybkim Dostepie (src\QuickAccessExtension\kod)
 #   -Wszystko  - zbuduj obie wersje mimo braku zmian
-param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
+param([switch]$TylkoAndroid, [switch]$Wszystko, [switch]$Sklep, [switch]$Przegladarka, [switch]$Klawiatura, [switch]$Komunikator, [switch]$TylkoWindows)   # -Sklep - takze 2 wersje AAB do Google Play; -Przegladarka / -Klawiatura / -Komunikator - tylko te APK
 $tylkoApk = $Przegladarka -or $Klawiatura -or $Komunikator
 if ($tylkoApk) { $TylkoAndroid = $true; $Wszystko = $true }
 $ErrorActionPreference = 'Stop'
@@ -32,7 +32,7 @@ function Changed($name, $patterns) {
     return [bool]($files | Where-Object { $p = $_; $patterns | Where-Object { $p -like $_ } })
 }
 $needWin = (-not $TylkoAndroid) -and (Changed 'windows' @('src/*', 'testy/*', 'zbuduj.ps1'))
-$needAnd = Changed 'android' @('android/*', 'src/QuickAccessExtension/kod/*')
+$needAnd = (-not $TylkoWindows) -and (Changed 'android' @('android/*', 'src/QuickAccessExtension/kod/*', 'src/Rozmowa/*'))
 if (-not $needWin -and -not $needAnd) { Write-Host "Brak zmian w programie od ostatniej budowy - nic do budowania (dokumentacja nie wymaga nowej wersji). Wymuszenie: .\zbuduj-wszystko.ps1 -Wszystko" -ForegroundColor Green; exit 0 }
 Write-Host ("Do zbudowania: " + (@(if ($needWin) { 'Windows' }; if ($needAnd) { 'Android' }) -join ' + ')) -ForegroundColor Cyan
 

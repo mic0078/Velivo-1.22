@@ -132,8 +132,8 @@ Claude zawsze podaje kod kompilacji do PowerShell (cały blok poniżej, ostatnia
 cd "C:\Users\andro\Desktop\Velivo 1.22 z github"
 git checkout rozwoj
 git pull origin rozwoj
-.\zbuduj-wszystko.ps1 -Wszystko
+<przełączniki: -TylkoWindows / -Przegladarka / -Klawiatura / -Komunikator>
 ```
 
-* Podawaj **tylko niezbędne** (4 niezależne aplikacje, właściciel nie chce budować niepotrzebnie): Windows: `.\zbuduj-wszystko.ps1` bez przełącznika (sam pomija to, co bez zmian od ostatniej budowy). Pojedyncze APK: `-Przegladarka`, `-Klawiatura`, `-Komunikator` (można łączyć). Wspólny kod: `android/komunikator/src/main/...` (Komunikator.kt, zasoby wspolne) → wszystkie 3 APK; `src/Rozmowa/*.html` → Windows + 3 APK; `android/klawiatura` → tylko klawiatura; `android/app` → tylko przeglądarka. Do Google Play: `-TylkoAndroid -Sklep`.
+* Podawaj **tylko niezbędne** (4 niezależne aplikacje, właściciel nie chce budować niepotrzebnie): Tylko Windows: `-TylkoWindows`. Pojedyncze APK: `-Przegladarka`, `-Klawiatura`, `-Komunikator` (można łączyć). Wspólny kod: `android/komunikator/src/main/...` (Komunikator.kt, zasoby wspolne) → wszystkie 3 APK; `src/Rozmowa/*.html` → Windows + 3 APK; `android/klawiatura` → tylko klawiatura; `android/app` → tylko przeglądarka. Do Google Play: `-TylkoAndroid -Sklep`.
 * Gotowe pliki: `build\` (instalator), `build\android\` (`Velivo-pelna.apk`, `Velivo-klawiatura.apk`, `Velivo-komunikator.apk`).

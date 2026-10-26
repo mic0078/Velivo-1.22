@@ -13,7 +13,8 @@ button.off{background:#6b6b80}#end{background:#e53935}button.on{background:#22c5
 #you.scr{object-fit:contain;background:#000}#you.steer,#shot.steer{touch-action:none;cursor:crosshair}
 #scr,#help{display:none}
 #shot{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:none;z-index:1}#shot.pt{cursor:pointer}
-#bar,#st,#me{z-index:3}#dot{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #e53935;background:#e5393566;display:none;z-index:2;pointer-events:none}
+#bar,#st,#me{z-index:3}
+body.view #you,body.view #shot{height:calc(100% - 100px)}body.view #me{display:none}#dot{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #e53935;background:#e5393566;display:none;z-index:2;pointer-events:none}
 </style></head><body>
 <video id="you" autoplay playsinline></video><img id="shot" alt=""><div id="dot"></div><video id="me" autoplay playsinline muted></video>
 <div id="st"></div>
@@ -58,6 +59,7 @@ function useDc(ch) {
     let o; try { o = JSON.parse(e.data); } catch (x) { return; }
     if (o.k === 'in') { if (ctl && phoneScr) velivo.input(e.data); else if (ctl) host(o); }
     else if (o.k === 'scr') { you.classList.toggle('scr', o.on); help.style.display = o.on && (o.ctl || o.img) ? 'inline-block' : 'none'; if (!o.on) setSteer(false)
+      document.body.classList.toggle('view', !!o.on);   // ekran rozmówcy nad paskiem przycisków, bez mojego podglądu
       remoteImg = o.on && !!o.img; shot.style.display = remoteImg ? 'block' : 'none'; status(remoteImg ? T('📱 Ekran rozmówcy – czekam na obraz…', '📱 Their screen – waiting for the picture…') : ''); shot.classList.toggle('pt', remoteImg); if (!remoteImg) shot.removeAttribute('src');
     }
     else if (o.k === 'f') frame(o);

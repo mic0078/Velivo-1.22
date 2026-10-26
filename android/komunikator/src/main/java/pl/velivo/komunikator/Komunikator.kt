@@ -1119,11 +1119,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun macOf(key: ByteArray, label: String, data: ByteArray) = hmac(key, label.toByteArray(Charsets.US_ASCII) + data)
 
     // mode: "main" (pakiety), "tunnel" (plik do `to`), "tunnel-in" (plik do nas, `tunnel` = id)
-    private fun relayConnect(relay: Contact, mode: String, tunnel: String? = null, to: String? = null): Frames? = runCatching {
+    private fun relayConnect(relay: Contact, mode: String, tunnel: String? = null, to: String? = null, lanHost: String? = null): Frames? = runCatching {
         val hp = (relay.relay ?: return null).split(':'); if (hp.size != 2) return null
         val sock = java.net.Socket()
         try {
-            sock.connect(InetSocketAddress(hp[0], hp[1].toInt()), 12000)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
+            sock.connect(InetSocketAddress(lanHost ?: hp[0], hp[1].toInt()), if (lanHost != null) 4000 else 12000)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
             sock.soTimeout = 15000; sock.keepAlive = true
             val out = sock.getOutputStream(); val inp = DataInputStream(sock.getInputStream())
             val nc = ByteArray(16).also { random.nextBytes(it) }
@@ -1200,6 +1200,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun connect(target: InetAddress, toId: String?): Conn {
         // poza domem - tunel przez pośrednika; bez gotowego połączenia (adres 127.0.0.1 = „nie wiem gdzie”) - pierwszy pośrednik z kontaktów
         val relay = upRelay ?: myRelay().takeIf { target.isLoopbackAddress }
+        // ten telefon w domu, odbiorca poza domem: tunel przez pośrednika pod jego adresem w sieci domowej (router często nie wpuszcza „z domu do domu” przez adres publiczny)
+        if (up == null && target.isLoopbackAddress && relay != null && toId != null && relay.addr.isNotEmpty())
+            relayConnect(relay, "tunnel", to = toId, lanHost = relay.addr)?.let { f -> return Conn(DataInputStream(f.input), f.output, null, f.sock) }
         if ((up != null || target.isLoopbackAddress) && relay != null && toId != null) relayConnect(relay, "tunnel", to = toId)?.let { f -> return Conn(DataInputStream(f.input), f.output, null, f.sock) }
         val s = lanSocket(target)
         return Conn(DataInputStream(s.getInputStream()), s.getOutputStream(), target, s)
@@ -2274,7 +2277,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             Thread {
                 val known = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { !it.isLoopbackAddress }
                 // 🟢 w sieci i znany adres - od razu, bez szukania
-                val addr = (if (k.online(c.id)) known else null) ?: k.find().firstOrNull { it.id == c.id }?.addr ?: known ?: if (k.viaInternet(c.id)) InetAddress.getLoopbackAddress() else null   // poza domem: tunel przez pośrednika
+                // odbiorca poza domem (🌍) - tunel przez pośrednika; stary adres z sieci domowej już nie działa (plik szedł do skrzynki, choć odbiorca był w sieci)
+                val addr = if (k.online(c.id) && k.viaInternet(c.id)) InetAddress.getLoopbackAddress()
+                    else (if (k.online(c.id)) known else null) ?: k.find().firstOrNull { it.id == c.id }?.addr ?: known ?: if (k.viaInternet(c.id)) InetAddress.getLoopbackAddress() else null
                 a.runOnUiThread {
                     // nie ma w sieci - i tak wysyłka: 📬 do skrzynki pośrednika albo czeka u nas i idzie sama
                     sendFilesTo(uris, Komunikator.Peer(c.id, c.name, addr ?: InetAddress.getLoopbackAddress()), c)

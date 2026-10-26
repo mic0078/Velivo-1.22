@@ -2490,7 +2490,9 @@ namespace Velivo
                 string r;
                 try
                 {
-                    r = await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
+                    // ten komputer w domu, odbiorca poza domem (🌍): od razu przez pośrednika (skrzynka oddaje od razu, gdy odbiorca połączony) -
+                    // stary adres odbiorcy z sieci domowej już nie działa (wcześniej czekanie na błąd i dopiero wtedy pośrednik)
+                    r = to != null && _komUp == null && _komViaNet.ContainsKey(to.Id) && !_komRemote.ContainsKey(to.Id) ? "" : await KomSendFile(addr, f, code => Dispatcher.Invoke(() => codeWin = KomCodeWindow(owner, "📎 " + fn + " → " + name, code)), to,
                         (done, all) => Dispatcher.BeginInvoke(new Action(() => KomInfo("📎 " + fn + " → " + name + "  " + (all > 0 ? (int)(done * 100 / all) : 100) + " %  (" + KomSize(done) + L.T(" z ") + KomSize(all) + ")", all > 0 ? (double)done / all : 1))), fmid);
                 }
                 finally { _komInFlight.Remove(fmid); }

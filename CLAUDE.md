@@ -86,6 +86,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-26: na CHUWI (starszy Windows 10) nie instalował się odtwarzacz filmów i TV – instalator rozpakowywał paczkę VLC przez tar.exe, którego nie ma przed Windows 10 1803; teraz zapasowo PowerShell Expand-Archive. Narzędzia systemowe sprawdzaj pod kątem starszych wersji Windows.
 * 2026-10-26: vlc.log zapisywał pełny adres kanału TV z tokenem (naruszenie zasady „nigdy nie logować tokenu IPTV”); teraz VlcLogSafe – w dzienniku tylko serwer. Każdy nowy zapis adresu do pliku przepuszczaj przez wycinanie tokenu.
 * 2026-10-26: głosówka i film do mamy utknęły w 📬 skrzynce, choć była w sieci – skrzynka oddawała pliki tylko raz, przy połączeniu (nieudana próba = czekanie do kolejnego połączenia); teraz ponawia co minutę; plik w skrzynce pokazywał ✓✓ – teraz ✓ do przeczytania. Każda dostawa musi mieć ponawianie.
+* 2026-10-26: mama w Polsce (dom w Glasgow): z telefonu/laptopa w domowym Wi-Fi pliki szły na jej stary adres z sieci domowej (czekanie na błąd) i dopiero potem do skrzynki; przez dane komórkowe działało. Teraz odbiorca 🌍 + nadawca w domu: telefon – tunel przez pośrednika pod jego adresem w sieci domowej, Windows – od razu przez pośrednika. Testuj też: nadawca w domu, odbiorca za granicą.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

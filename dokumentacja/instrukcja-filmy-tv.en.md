@@ -132,6 +132,7 @@ Open it with **L** or move the cursor to the left edge of the picture.
 
 ## 5. Video library
 
+- **🎞 Jellyfin… → 📂 Load key from file…** – the API key (32 characters 0–9, a–f) from a text file, no retyping; if the file also has the server address (http://…) and the address field is empty, Velivo fills it in too.
 - **Remove from library** for a Jellyfin film asks: **Yes** – also delete it from the Jellyfin server (the server deletes the file permanently; an administrator API key is needed), **No** – remove from the Velivo library only (it won't come back on 🔄 Refresh), **Cancel**.
 - Starting a film hides the library; when you close the player it comes back with the same list, so you can pick the next film right away. A TV channel list opened from the player also stays open after the player closes.
 - Columns: title, year, rating, genre, length, watched, last watched, added. Click a header to sort – Velivo remembers the sorting and column widths.

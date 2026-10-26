@@ -637,6 +637,21 @@ namespace Velivo
             p.Children.Add(auto);
             var info = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), Text = c.Synced > 0 ? L.T("Ostatnio pobrano: ") + DateTimeOffset.FromUnixTimeMilliseconds(c.Synced).LocalDateTime.ToString("dd.MM.yyyy HH:mm") + L.T(" · filmów w bazie: ") + Meta.Count : "" };
             p.Children.Add(info);
+            // 📂 klucz (i adres serwera) z pliku - bez przepisywania i bez pokazywania klucza na ekranie przy wklejaniu
+            var fromFile = SmallButton(L.T("📂 Wczytaj klucz z pliku…"), () =>
+            {
+                var f = new Microsoft.Win32.OpenFileDialog { Title = L.T("Plik z kluczem API Jellyfin"), Filter = L.T("Pliki tekstowe") + "|*.txt;*.key;*.json;*.ini;*.conf|" + L.T("Wszystkie pliki") + "|*.*" };
+                if (f.ShowDialog(d) != true) return;
+                string text; try { text = new FileInfo(f.FileName).Length > 65536 ? "" : File.ReadAllText(f.FileName); } catch (Exception ex) { info.Foreground = Brushes.IndianRed; info.Text = L.T("⚠ Nie udało się: ") + ex.Message; return; }
+                var k = System.Text.RegularExpressions.Regex.Match(text, @"\b[0-9a-fA-F]{32}\b");   // klucz Jellyfin: 32 znaki szesnastkowe
+                if (!k.Success) { info.Foreground = Brushes.IndianRed; info.Text = L.T("W tym pliku nie ma klucza API Jellyfin (32 znaki 0–9, a–f)."); return; }
+                key.Text = k.Value.ToLowerInvariant();
+                var u = System.Text.RegularExpressions.Regex.Match(text, @"https?://[^\s""'<>]+");   // adres serwera w tym samym pliku - też wpisany
+                if (u.Success && (url.Text.Trim().Length == 0 || url.Text.Trim() == "http://")) url.Text = u.Value.TrimEnd('/', ',', ';');
+                info.Foreground = Brushes.SeaGreen; info.Text = L.T("🔑 Klucz wczytany z pliku – kliknij „Pobierz / uzupełnij teraz”.");
+            });
+            fromFile.HorizontalAlignment = HorizontalAlignment.Left; fromFile.Margin = new Thickness(0, 4, 0, 0);
+            p.Children.Insert(p.Children.IndexOf(key) + 1, fromFile);   // pod polem klucza
             var ok = new Button { Content = L.T("⬇ Pobierz / uzupełnij teraz"), Height = 30, Padding = new Thickness(12, 0, 12, 0), IsDefault = true, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
             ok.Click += async (s, e) =>
             {

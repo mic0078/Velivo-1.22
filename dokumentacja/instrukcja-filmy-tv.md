@@ -135,6 +135,7 @@ Otwórz klawiszem **L** albo przesuń kursor do lewej krawędzi obrazu.
 - Kolumny: tytuł, rok, ocena, gatunek, długość, obejrzane, ostatnio oglądano, dodano. Kliknij nagłówek, aby sortować – Velivo zapamięta sortowanie i szerokość kolumn.
 - Zaznacz kilka filmów, przeciągając myszką, i pod prawym przyciskiem wybierz: odtwórz jako kolejkę, dodaj do kolejki, dodaj do playlisty.
 - **🎲 Wylosuj filmy** – gdy nie wiesz, co obejrzeć.
+- **🎞 Jellyfin… → 📂 Wczytaj klucz z pliku…** – klucz API (32 znaki 0–9, a–f) z pliku tekstowego, bez przepisywania; gdy w pliku jest też adres serwera (http://…), a pole adresu jest puste, Velivo wpisze i jego.
 - **Usuń z biblioteki** filmu z Jellyfin pyta: **Tak** – usuń też z serwera Jellyfin (serwer kasuje plik na stałe; potrzebny klucz API administratora), **Nie** – tylko z biblioteki Velivo (nie wróci przy 🔄 Odśwież), **Anuluj**.
 - Włączony film chowa bibliotekę, a po zamknięciu odtwarzacza wraca ona z tą samą listą – od razu wybierzesz następny film. Tak samo lista kanałów TV otwarta z odtwarzacza zostaje po jego zamknięciu.
 - **✏ Zmień tytuł**, **🔎 Wyszukaj informacje w sieci**, **📝 Uzupełnij informacje ręcznie**.

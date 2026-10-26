@@ -1423,6 +1423,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     var big: Boolean get() = prefs.getBoolean("duze", false); set(v) { prefs.edit().putBoolean("duze", v).apply() }
     var readNew: Boolean get() = prefs.getBoolean("czytaj-nowe", false); set(v) { prefs.edit().putBoolean("czytaj-nowe", v).apply() }
     var flashAlert: Boolean get() = prefs.getBoolean("blysk", false); set(v) { prefs.edit().putBoolean("blysk", v).apply() }
+    var blindVibe: Boolean get() = prefs.getBoolean("wibracje-niewidomy", false); set(v) { prefs.edit().putBoolean("wibracje-niewidomy", v).apply() }   // 👁 wibracje bez błysku
     private var ttsNew: android.speech.tts.TextToSpeech? = null
     private fun sayNew(c: Contact) {
         if (!readNew) return
@@ -1432,10 +1433,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // 💡 błysk lampy aparatu i mocna wibracja (dla słabosłyszących) - dzwonek: dopóki dzwoni (najwyżej 40 s), wiadomość: 2 błyski
     fun alertFlash(c: Contact?, call: Boolean) {
-        if (!flashAlert) return
+        if (!flashAlert && !blindVibe) return
         Thread {
-            runCatching { val v = ctx.getSystemService(android.os.Vibrator::class.java); v?.vibrate(android.os.VibrationEffect.createWaveform(if (call) longArrayOf(0, 600, 300, 600, 300, 600) else longArrayOf(0, 400, 200, 400), -1)) }
-            runCatching {
+            runCatching { val v = ctx.getSystemService(android.os.Vibrator::class.java); v?.vibrate(android.os.VibrationEffect.createWaveform(if (call) longArrayOf(0, 600, 300, 600, 300, 600) else longArrayOf(0, 250, 200, 250), -1)) }   // wiadomość: 2 krótkie, dzwonek: 3 długie
+            if (flashAlert) runCatching {
                 val cm = ctx.getSystemService(android.hardware.camera2.CameraManager::class.java) ?: return@runCatching
                 val id = cm.cameraIdList.firstOrNull { cm.getCameraCharacteristics(it).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true } ?: return@runCatching
                 val until = System.currentTimeMillis() + 40000
@@ -1817,13 +1818,28 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
 
     // ♿ ułatwienia - dla słabowidzących (duże litery, czytanie na głos, motyw „Wysoki kontrast”) i słabosłyszących (błysk lampy, mocna wibracja)
+    // ♿ dwa działy jednym stuknięciem: 👁 niewidomi (czytanie na głos, wibracje, duże litery) i 👂 niesłyszący (błysk + wibracja, duże litery, 🤟 na palcach); niżej pojedyncze ustawienia
     private fun accessibility() {
+        Dlg().setTitle("♿ " + t("Ułatwienia", "Accessibility")).setItems(arrayOf(
+            "👁 " + t("Dla niewidomych i słabowidzących: nowe wiadomości czytane na głos (kto i co), wibracje – wiadomość: 2 krótkie, dzwonek: długie, duże litery, 🎤 szukanie osoby głosem", "For blind and low-vision people: new messages read aloud (who and what), vibration – message: 2 short, call: long, big text, 🎤 find a person by voice") + if (k.readNew && k.blindVibe) " ✓" else "",
+            "👂 " + t("Dla niesłyszących i słabosłyszących: błysk lampy i mocna wibracja przy wiadomości i dzwonku, duże litery, 🤟 wiadomość na palcach (przytrzymaj wiadomość)", "For deaf and hard-of-hearing people: camera flash and strong vibration on messages and calls, big text, 🤟 message in fingerspelling (hold a message)") + if (k.flashAlert) " ✓" else "",
+            "⚙ " + t("Pojedyncze ustawienia…", "Single settings…"))) { _, i ->
+            when (i) {
+                0 -> { val on = !(k.readNew && k.blindVibe); k.readNew = on; k.blindVibe = on; if (on) k.big = true; Toast.makeText(a, "👁 " + (if (on) t("włączone", "on") else t("wyłączone", "off")), Toast.LENGTH_SHORT).show(); if (on) k.alertFlash(null, false) }
+                1 -> { val on = !k.flashAlert; k.flashAlert = on; if (on) { k.big = true; k.alertFlash(null, false) }; Toast.makeText(a, "👂 " + (if (on) t("włączone", "on") else t("wyłączone", "off")), Toast.LENGTH_SHORT).show() }
+                else -> { accessibilityMore(); return@setItems }
+            }
+            val c = chatWith?.let { k.contact(it) }; if (c != null) openChat(c) else show()
+        }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+    private fun accessibilityMore() {
         val names = arrayOf("🔠 " + t("Duże litery w rozmowach", "Big text in chats"), "🔊 " + t("Czytaj nowe wiadomości na głos", "Read new messages aloud"),
-            "💡 " + t("Błysk lampy i mocna wibracja przy wiadomości i dzwonku", "Flash and strong vibration on messages and calls"), "◐ " + t("Wysoki kontrast (motyw)", "High contrast (theme)"))
-        val on = booleanArrayOf(k.big, k.readNew, k.flashAlert, k.theme == "kontrast")
+            "💡 " + t("Błysk lampy i mocna wibracja przy wiadomości i dzwonku", "Flash and strong vibration on messages and calls"), "◐ " + t("Wysoki kontrast (motyw)", "High contrast (theme)"),
+            "📳 " + t("Wibracje bez błysku (wiadomość: 2 krótkie, dzwonek: długie)", "Vibration without flash (message: 2 short, call: long)"))
+        val on = booleanArrayOf(k.big, k.readNew, k.flashAlert, k.theme == "kontrast", k.blindVibe)
         Dlg().setTitle("♿ " + t("Ułatwienia", "Accessibility")).setMultiChoiceItems(names, on) { _, i, v -> on[i] = v }
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                k.big = on[0]; k.readNew = on[1]; k.flashAlert = on[2]
+                k.big = on[0]; k.readNew = on[1]; k.flashAlert = on[2]; k.blindVibe = on[4]
                 if (on[3] != (k.theme == "kontrast")) { k.theme = if (on[3]) "kontrast" else "auto"; page?.let { paint(screen, it) } }
                 if (on[2]) k.alertFlash(null, false)   // pokaz: błysk od razu
                 val c = chatWith?.let { k.contact(it) }; if (c != null) openChat(c) else show()

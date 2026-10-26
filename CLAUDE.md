@@ -7,6 +7,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Jesteś inżynierem informatykiem: skuteczność, działanie, a odpowiedzialność przede wszystkim. Kochasz i szanujesz użytkownika, myślisz jego tokiem rozumowania i proponujesz rozwiązania.
 * Wszystko ma działać: kod czysty, solidny, bez błędów, także w kompilacjach. Nie psujesz kodu, nie robisz zbędnych symulacji.
 * Podział pracy: Claude buduje kod, użytkownik testuje (ufa, więc testy robi sam). Jak coś jest źle, użytkownik mówi, a Claude poprawia i zapisuje błąd w „Wnioskach”.
+* Testów nie robi Claude (2026-10-26, właściciel: „testy robię ja”) – bez testów JVM i symulacji; Claude tylko kompiluje zmienioną część i sprawdza tłumaczenia, potem wysyła.
 * Sam szukasz przyczyny błędu i kompilujesz tylko poprawioną część. Pytasz (w pytaniach) tylko, gdy nie wiesz, czego chce użytkownik.
 * Poprawiasz istniejący kod, nie dopisujesz nowego i nie zwiększasz plików bez potrzeby – aplikacje mają być lekkie i nie rosnąć w nieskończoność.
 * Klawiatura bez zbędnego słownika: nie dodawaj dużych list słów – poprawiaj reguły i istniejący słownik.
@@ -120,7 +121,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * Sieć pośredników znajomych: telefon poza domem łączy się już ze wszystkimi pośrednikami z kontaktów naraz (2026-10-22); dalej na potem: pośrednicy przekazujący między sobą (gdy rozmówcy mają różnych pośredników) i pliki/wideo przez dodatkowych pośredników.
 * ⠿ Wibrobrajl dla głuchoniewidomych (2026-10-26, właściciel: później) – dopiero po teście zwykłego Brajla na prawdziwym telefonie; najpierw ustalić czytelny kod wibracji, przewijanie wiadomości i zatrzymanie odczytu.
-* 🤟 Alfabet palcowy w komunikatorze (PL / BSL / ASL) – czeka na decyzję: który alfabet i skąd legalne obrazki (Commons z licencją / zdjęcia właściciela); obrazek z czatu ma autora – nie wklejać. Nauka alfabetu ≠ tłumaczenie języka migowego.
+* 🤟 Dla niesłyszących (decyzja właściciela 2026-10-26, do zrobienia po jego testach): (1) napisy na żywo w rozmowie wideo – mowa → tekst na urządzeniu mówiącego, kanałem danych do rozmówcy; (2) alfabet palcowy tylko międzynarodowy (jednoręczny, „uniwersalny”) – rysunki dłoni w kodzie + własne zdjęcia (📷 przy literze) je zastępują; (3) graficzny słowniczek znaków (najczęstsze słowa, zdjęcia/nagrania od osoby migającej). Obrazek z czatu ma autora – nie wklejać; Wikimedia z tego środowiska zablokowana. Nauka alfabetu ≠ tłumaczenie języka migowego.
 * Prywatny serwer właściciela zamiast domowego komputera (właściciel zakłada go sam; Claude daje wymagania i pośrednika dla serwera).
 
 ## Gałęzie

@@ -32,6 +32,8 @@ namespace Velivo
         readonly ConcurrentDictionary<string, TaskCompletionSource<KomFrameStream>> _komTunnels = new ConcurrentDictionary<string, TaskCompletionSource<KomFrameStream>>();
         readonly ConcurrentDictionary<string, IPAddress> _komLanAddr = new ConcurrentDictionary<string, IPAddress>();   // ostatni adres w sieci domowej (kazde urzadzenie)
         readonly ConcurrentDictionary<string, DateTime> _komLanSeen = new ConcurrentDictionary<string, DateTime>();
+        readonly ConcurrentDictionary<string, IPAddress> _komViaRelay = new ConcurrentDictionary<string, IPAddress>();   // 🌍 urządzenie poza domem - przez którego pośrednika w domu (adres w sieci domowej; kilka pośredników bez konfliktów)
+        IPAddress KomLanFresh(string id) => _komLanAddr.TryGetValue(id, out var a) && _komLanSeen.TryGetValue(id, out var s) && DateTime.UtcNow - s < TimeSpan.FromSeconds(100) ? a : null;   // adres w domu - tylko świeży (stary mógł dostać inny komputer)
         readonly ConcurrentDictionary<string, bool> _komViaNet = new ConcurrentDictionary<string, bool>();   // kontakt widziany przez internet (nie w domu)
 
         // ten komputer poza domem: polaczenie z pośrednikiem
@@ -218,10 +220,13 @@ namespace Velivo
         async Task<string> KomSendViaBox(KomContact to, string path, string mid, KomContact group = null)
         {
             IPAddress addr = IPAddress.Loopback;
-            if (_komRelayListener == null && _komUp == null)
-            {   // w domu: pośrednik w sieci domowej
-                var rc = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay) && _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100));
-                if (rc == null || !IPAddress.TryParse(rc.Addr ?? "", out addr)) return "brak";
+            if (_komUp == null)
+            {   // w domu: pośrednik w sieci domowej - najpierw ten, z którym odbiorca jest połączony (kilka pośredników: nie do skrzynki, do której odbiorca nie zagląda)
+                var via = _komViaRelay.TryGetValue(to.Id, out var v) ? v.ToString() : "";
+                var rc = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && _komLanSeen.TryGetValue(c.Id, out var seen) && DateTime.UtcNow - seen < TimeSpan.FromSeconds(100))
+                    .OrderByDescending(c => c.Addr == via).FirstOrDefault(c => _komRelayListener == null || c.Addr == via);   // sam pośrednik: własna skrzynka, chyba że odbiorca jest u innego
+                if (rc != null && IPAddress.TryParse(rc.Addr ?? "", out var ra)) addr = ra;
+                else if (_komRelayListener == null) return "brak";
             }
             return await KomSendFile(addr, path, _ => { }, to, null, mid, box: true, group: group);
         }
@@ -267,7 +272,12 @@ namespace Velivo
             var from = (string)p["id"]; var t = (string)p["t"];
             if (from == null || from.Length != 32 || IPAddress.IsLoopback(addr)) return;
             if (_komRemote.ContainsKey(from)) return;   // echo pakietu urzadzenia poza domem, ktory sami przekazalismy - nie jest w domu
-            if ((bool?)p["fwd"] == true) { _komViaNet[from] = true; return; }   // przekazany przez pośrednika - kontakt jest poza domem (🌍)
+            if ((bool?)p["fwd"] == true)
+            {   // przekazany przez pośrednika - kontakt jest poza domem (🌍), połączony z pośrednikiem pod tym adresem
+                _komViaNet[from] = true;
+                if (t == "p2p-bye") _komViaRelay.TryRemove(new KeyValuePair<string, IPAddress>(from, addr)); else _komViaRelay[from] = addr;
+                return;
+            }
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
             if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) return;
@@ -486,11 +496,12 @@ namespace Velivo
             if (_komRemote.ContainsKey(to)) { await KomRelayToRemote(to, null, fs, token); return; }
             var hb0 = await KomReadBlock(fs, 4096, token); if (hb0 == null) return;
             if (Encoding.UTF8.GetString(hb0).Contains("\"p2p-box\"")) { await KomTcpAsync(hb0, fs, IPAddress.Loopback, token); return; }   // 📬 odbiorcy nie ma - skrzynka pośrednika
-            IPAddress addr = null;
-            if (!_komLanAddr.TryGetValue(to, out addr))
+            // odbiorca w domu (świeży adres) albo połączony z innym pośrednikiem w domu - ten przekaże dalej (KomTcpAsync -> KomRelayToRemote)
+            var addr = KomLanFresh(to);
+            if (addr == null && !_komViaRelay.TryGetValue(to, out addr))
             {   // adresu jeszcze nie znamy - pytanie w sieci domowej
                 KomLanRaw(KomPacket("p2p-who"), null);
-                for (int i = 0; i < 15 && !_komLanAddr.TryGetValue(to, out addr); i++) await Task.Delay(200, token);
+                for (int i = 0; i < 15 && (addr = KomLanFresh(to)) == null; i++) await Task.Delay(200, token);
             }
             if (addr == null) return;
             using (var lan = await KomTcpConnect(addr, token))

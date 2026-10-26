@@ -245,6 +245,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     private val found = java.util.concurrent.ConcurrentHashMap<String, Peer>()
+    private val relayOf = java.util.concurrent.ConcurrentHashMap<String, String>()   // kontakt poza domem -> pośrednik, przez którego ostatnio się odezwał
     private val acks = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.CountDownLatch>()
     private val seen = java.util.Collections.synchronizedSet(LinkedHashSet<String>())
 
@@ -257,6 +258,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         // przez pośrednika: od niego wprost albo przekazany przez niego do domowego Wi-Fi („fwd”) - kontakt poza domem (🌍)
         val net = viaRelay || p.optBoolean("fwd")
         if (net) viaNet[from] = true else { lanSeen[from] = System.currentTimeMillis(); viaNet.remove(from) }
+        // 🌍 przez którego pośrednika w domu jest kontakt (kilka pośredników - pliki idą przez właściwego)
+        if (p.optBoolean("fwd")) synchronized(this) { contacts.firstOrNull { it.relay != null && it.addr == sender.hostAddress } }?.let { r -> if (t == "p2p-bye") relayOf.remove(from, r.id) else relayOf[from] = r.id }
         // stara wiadomość (czekała u nadawcy albo na pośredniku) - przyjęta, bez zmiany obecności; inne stare pakiety - pominięte
         if (Math.abs(p.optLong("ts") - System.currentTimeMillis()) > 600000) { if (t == "p2p-msg") message(p, sender); return true }
         if (t == "p2p-bye") { contact(from)?.let { c -> if (lastSeen.remove(c.id) != null) main.post { onChange() } }; return true }   // zamknął Velivo - od razu poza siecią
@@ -1031,7 +1034,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 📬 odbiorcy nie ma - plik do skrzynki pośrednika (poza domem tunelem, w domu do pośrednika w Wi-Fi); oddany, gdy odbiorca się pojawi
     private fun sendBox(to: Contact, name: String, size: Long, open: () -> java.io.InputStream, pend: Msg, group: Contact? = null): String {
         val now = System.currentTimeMillis()
-        val home = synchronized(this) { contacts.firstOrNull { it.relay != null && now - (lanSeen[it.id] ?: 0L) < HOME_MS } }
+        val home = synchronized(this) { contacts.filter { it.relay != null && now - (lanSeen[it.id] ?: 0L) < HOME_MS }.sortedByDescending { it.id == relayOf[to.id] }.firstOrNull() }   // najpierw pośrednik odbiorcy
         // w domu - do pośrednika w Wi-Fi; poza domem - tunelem przez pośrednika (także gdy połączenie jeszcze nie wstało)
         val target = home?.takeIf { up == null }?.addr?.let { a -> runCatching { InetAddress.getByName(a) }.getOrNull() } ?: InetAddress.getLoopbackAddress()
         return sendFile(target, name, size, open, {}, to, pend, box = true, group = group)
@@ -1192,7 +1195,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 if (t == "relay-pong") { val was = online(rl.id); lastSeen[rl.id] = System.currentTimeMillis(); markSeen(rl.id); viaNet[rl.id] = true; if (!was) main.post { onChange() }; continue }
                 if (t == "relay-open") { val tid = p.optString("tid"); Thread { tunnelIn(rl, tid) }.start(); continue }
                 // błąd przy jednym pakiecie nie może zrywać połączenia z pośrednikiem (zamykało je po kilku sekundach)
-                if (t.startsWith("p2p-")) runCatching { handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true) }
+                if (t.startsWith("p2p-")) { p.optString("id").let { if (it.length == 32 && it != rl.id) relayOf[it] = rl.id }; runCatching { handleUdp(p, InetAddress.getLoopbackAddress(), viaRelay = true) } }
             }
             closeUp(ff, "połączenie zastąpione innym")
         }.onFailure { if (lastWhy.isEmpty()) lastWhy = (it.javaClass.simpleName + " " + (it.message ?: "")).take(160) }
@@ -1209,7 +1212,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // połączenie do urządzenia: poza domem - tunel przez pośrednika; w domu - TCP w sieci domowej
     private fun connect(target: InetAddress, toId: String?): Conn {
         // poza domem - tunel przez pośrednika; bez gotowego połączenia (adres 127.0.0.1 = „nie wiem gdzie”) - pierwszy pośrednik z kontaktów
-        val relay = upRelay ?: myRelay().takeIf { target.isLoopbackAddress }
+        // kilka pośredników: ten, przez którego odbiorca się odezwał (inny go nie zna albo odbiorca nie jest z nim połączony)
+        val relay = toId?.let { relayOf[it] }?.let { contact(it) }?.takeIf { it.relay != null && (up != null || target.isLoopbackAddress) } ?: upRelay ?: myRelay().takeIf { target.isLoopbackAddress }
         // ten telefon w domu, odbiorca poza domem: tunel przez pośrednika pod jego adresem w sieci domowej (router często nie wpuszcza „z domu do domu” przez adres publiczny)
         if (up == null && target.isLoopbackAddress && relay != null && toId != null && relay.addr.isNotEmpty())
             relayConnect(relay, "tunnel", to = toId, lanHost = relay.addr)?.let { f -> return Conn(DataInputStream(f.input), f.output, null, f.sock) }

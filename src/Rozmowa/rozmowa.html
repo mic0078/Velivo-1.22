@@ -96,11 +96,16 @@ async function start() {
   if (!local.getVideoTracks().length) { cam.classList.add('off'); flip.style.display = 'none'; }
   pc = new RTCPeerConnection({ iceServers: ice });
   local.getTracks().forEach(t => pc.addTrack(t, local));
-  if (caller && !audio && !local.getVideoTracks().length) pc.addTransceiver('video', { direction: 'sendrecv' });   // miejsce na obraz ekranu
+  if (caller && !audio && !local.getVideoTracks().length) pc.addTransceiver('video', { direction: 'sendrecv', streams: [local] });   // miejsce na obraz ekranu
   if (caller && !local.getAudioTracks().length) pc.addTransceiver('audio', { direction: 'recvonly' });   // głos rozmówcy i tak słychać
   if (caller) useDc(pc.createDataChannel('pomoc')); else pc.ondatachannel = e => useDc(e.channel);
   if ((window.chrome && chrome.webview && navigator.mediaDevices.getDisplayMedia && !audio) || (window.velivo && velivo.screen && !audio)) scr.style.display = 'inline-block';
-  pc.ontrack = e => { if (you.srcObject !== e.streams[0]) you.srcObject = e.streams[0]; };
+  // obraz bez strumienia (rozmówca bez kamery pokazuje ekran) - własny strumień, inaczej czarny ekran
+  pc.ontrack = e => {
+    let st = e.streams[0];
+    if (!st) { st = you.srcObject instanceof MediaStream ? you.srcObject : new MediaStream(); st.getTracks().filter(t => t.kind === e.track.kind).forEach(t => st.removeTrack(t)); st.addTrack(e.track); }
+    if (you.srcObject !== st) you.srcObject = st;
+  };
   pc.onicecandidate = e => { if (e.candidate) out({ k: 'ice', c: e.candidate.toJSON() }); };
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState;
@@ -118,7 +123,7 @@ window.onSig = async function (o) {
   try {
     if (o.k === 'accept' && caller && pc) { status(T('Łączę…', 'Connecting…')); const of = await pc.createOffer(); await pc.setLocalDescription(of); out({ k: 'offer', sdp: of.sdp }); }
     else if (o.k === 'offer' && pc) { await pc.setRemoteDescription({ type: 'offer', sdp: o.sdp }); flush();
-      pc.getTransceivers().forEach(t => { if (t.receiver.track && t.receiver.track.kind === 'video' && !t.sender.track && t.direction === 'recvonly') t.direction = 'sendrecv'; });   // bez kamery - miejsce na obraz ekranu
+      pc.getTransceivers().forEach(t => { if (t.receiver.track && t.receiver.track.kind === 'video' && !t.sender.track && t.direction === 'recvonly') { t.direction = 'sendrecv'; if (t.sender.setStreams) t.sender.setStreams(local); } });   // bez kamery - miejsce na obraz ekranu
       const an = await pc.createAnswer(); await pc.setLocalDescription(an); out({ k: 'answer', sdp: an.sdp }); }
     else if (o.k === 'answer' && pc) { await pc.setRemoteDescription({ type: 'answer', sdp: o.sdp }); flush(); }
     else if (o.k === 'ice') { if (pc && pc.remoteDescription) pc.addIceCandidate(o.c).catch(() => {}); else pend.push(o.c); }

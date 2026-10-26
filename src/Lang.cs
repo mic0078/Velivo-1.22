@@ -1194,6 +1194,8 @@ namespace Velivo
             { "Odrzuć", "Decline" },
             { "Odrzuć rozmowę", "Decline the call" },
             { "dzwoni…", "is calling…" },
+            { "Zapasowo port 443: otwarty (działa też w sieciach blokujących porty)", "Backup port 443: open (works in networks that block ports too)" },
+            { "Zapasowo port 443: nieotwarty – w routerze przekieruj 443 na ten komputer, port ", "Backup port 443: not open – in the router forward 443 to this computer, port " },
             { "Wyślij aktualizację aplikacji (APK)…", "Send app update (APK)…" },
             { "Nowa wersja Velivo na telefon tej osoby – tam jedno stuknięcie „Zainstaluj”", "New Velivo version to this person's phone – one tap “Install” there" },
             { "Odsłuchaj", "Listen" },

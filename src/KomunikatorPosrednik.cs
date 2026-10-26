@@ -89,16 +89,31 @@ namespace Velivo
 
         // ---------- polaczenie z pośrednikiem (urzadzenie poza domem) ----------
         // mode: "main" (pakiety), "tunnel" (plik do To), "tunnel-in" (plik do nas, Tunnel = id)
+        // 🌍 zapasowo port 443 (jak WhatsApp i strony WWW): sieci hoteli, firm i część operatorów w roamingu blokują nietypowe porty;
+        // port, który ostatnio zadziałał, próbowany jako pierwszy
+        const int KomRelayAltPort = 443;
+        readonly ConcurrentDictionary<string, int> _komRelayGoodPort = new ConcurrentDictionary<string, int>();
         async Task<KomFrameStream> KomRelayConnect(KomContact relay, string mode, string tunnel, string to, CancellationToken token)
         {
             var hp = (relay.Relay ?? "").Split(':'); if (hp.Length != 2 || !int.TryParse(hp[1], out var port)) return null;
+            var ports = _komRelayGoodPort.TryGetValue(relay.Id, out var good) && good == KomRelayAltPort ? new[] { KomRelayAltPort, port } : new[] { port, KomRelayAltPort };
+            foreach (var pt in ports)
+            {
+                var fs = await KomRelayConnectPort(relay, hp[0], pt, pt == ports[0] ? 7 : 12, mode, tunnel, to, token);
+                if (fs != null) { _komRelayGoodPort[relay.Id] = pt; return fs; }
+                if (token.IsCancellationRequested) return null;
+            }
+            return null;
+        }
+        async Task<KomFrameStream> KomRelayConnectPort(KomContact relay, string host, int port, int timeoutSec, string mode, string tunnel, string to, CancellationToken token)
+        {
             var cl = new TcpClient();
             try
             {
                 using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
-                    cts.CancelAfter(TimeSpan.FromSeconds(12));
-                    await cl.ConnectAsync(hp[0], port, cts.Token);   // nazwa No-IP sprawdzana przy kazdym polaczeniu - zmiana IP domu nie przeszkadza
+                    cts.CancelAfter(TimeSpan.FromSeconds(timeoutSec));
+                    await cl.ConnectAsync(host, port, cts.Token);   // nazwa No-IP sprawdzana przy kazdym polaczeniu - zmiana IP domu nie przeszkadza
                     var s = cl.GetStream();
                     var nc = RandomNumberGenerator.GetBytes(16);
                     var hello = Encoding.UTF8.GetBytes(new JsonObject { ["Type"] = "relay-hello", ["Id"] = _komId, ["Relay"] = relay.Id, ["Nonce"] = Convert.ToBase64String(nc),
@@ -893,13 +908,16 @@ namespace Velivo
                 try { using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(6) }) ext = (await http.GetStringAsync("https://api.ipify.org")).Trim(); }
                 catch (Exception) { }
             if (ext != null && !IPAddress.TryParse(ext, out _)) ext = null;
+            // 🌍 zapasowe wejście przez port 443 (sieci blokujące nietypowe porty) - w routerze 443 -> port pośrednika na tym komputerze
+            var alt = await Task.Run(() => KomUpnpAsync(KomRelayAltPort, port));
+            _komRelayAlt = alt.mapped;
             _komRelayRouter = mapped ? L.T("Router: port otwarty automatycznie") : (note == "taken" ? L.T("Router: port już przekierowany (ręcznie)") : L.T("Router nie otworzył portu sam – przekieruj go w routerze na ten komputer"));
             if (_komRelayAuto && ext != null && ext != _komRelayHost) { _komRelayHost = ext; KomSave(); KomAnnounce(); }   // nowy adres - urzadzenia w domu dostaja go od razu
             KomRelayStatus();
         }
 
         // UPnP (IGD): adres zewnetrzny routera i przekierowanie portu TCP na ten komputer; note: "taken" - port juz zajety (np. recznie)
-        static async Task<(string ext, bool mapped, string note)> KomUpnpAsync(int port)
+        static async Task<(string ext, bool mapped, string note)> KomUpnpAsync(int port, int intPort = 0)
         {
             try
             {
@@ -942,14 +960,16 @@ namespace Velivo
                     // adres tego komputera w sieci domowej (ta karta, ktora widzi router)
                     string local;
                     using (var probe = new UdpClient(AddressFamily.InterNetwork)) { probe.Connect(url.Host, url.Port); local = ((IPEndPoint)probe.Client.LocalEndPoint).Address.ToString(); }
-                    var (c2, b2) = await Soap("AddPortMapping", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol><NewInternalPort>" + port +
+                    var (c2, b2) = await Soap("AddPortMapping", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol><NewInternalPort>" + (intPort > 0 ? intPort : port) +
                         "</NewInternalPort><NewInternalClient>" + local + "</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>Velivo</NewPortMappingDescription><NewLeaseDuration>0</NewLeaseDuration>");
                     if (c2 != 200 && b2.Contains("718"))
                     {
                         // juz przekierowany (np. recznie w routerze) - jesli na ten komputer, to dziala
                         var (c3, b3) = await Soap("GetSpecificPortMappingEntry", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol>");
                         var who = c3 == 200 ? System.Text.RegularExpressions.Regex.Match(b3, @"<NewInternalClient>(.*?)</NewInternalClient>").Groups[1].Value.Trim() : "";
-                        return (ext, who == local, who == local ? "" : "taken");
+                        var toPort = c3 == 200 ? System.Text.RegularExpressions.Regex.Match(b3, @"<NewInternalPort>(.*?)</NewInternalPort>").Groups[1].Value.Trim() : "";
+                        bool ours = who == local && (intPort <= 0 || toPort == intPort.ToString());
+                        return (ext, ours, ours ? "" : "taken");
                     }
                     return (ext, c2 == 200, "");
                 }
@@ -958,12 +978,13 @@ namespace Velivo
         }
 
         // ---------- okno ustawien ----------
-        TextBlock _komRelayStatusText;
+        TextBlock _komRelayStatusText; bool _komRelayAlt;
         void KomRelayStatus()
         {
             if (_komRelayStatusText == null) return;
             _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port")) +
-                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + _komRelayRouter : "");
+                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + _komRelayRouter : "") +
+                (_komRelayOn && _komRelayListener != null ? "\n" + (_komRelayAlt ? L.T("Zapasowo port 443: otwarty (działa też w sieciach blokujących porty)") : L.T("Zapasowo port 443: nieotwarty – w routerze przekieruj 443 na ten komputer, port ") + _komRelayPort) : "");
         }
 
         // komputer z kontaktami: rozmowy poza domem wlaczaja sie same (zgoda - polaczenie w domu); adres i port ustawiane same.

@@ -1119,11 +1119,20 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun macOf(key: ByteArray, label: String, data: ByteArray) = hmac(key, label.toByteArray(Charsets.US_ASCII) + data)
 
     // mode: "main" (pakiety), "tunnel" (plik do `to`), "tunnel-in" (plik do nas, `tunnel` = id)
-    private fun relayConnect(relay: Contact, mode: String, tunnel: String? = null, to: String? = null, lanHost: String? = null): Frames? = runCatching {
+    // 🌍 zapasowo port 443 (jak WhatsApp): sieci hoteli, firm i część operatorów w roamingu blokują nietypowe porty; port, który zadziałał - najpierw
+    private val goodPort = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private fun relayConnect(relay: Contact, mode: String, tunnel: String? = null, to: String? = null, lanHost: String? = null): Frames? {
         val hp = (relay.relay ?: return null).split(':'); if (hp.size != 2) return null
+        val main = hp[1].toIntOrNull() ?: return null
+        if (lanHost != null) return relayConnectPort(relay, lanHost, main, 4000, mode, tunnel, to)   // w domu - zwykły port pośrednika
+        val ports = if (goodPort[relay.id] == 443) listOf(443, main) else listOf(main, 443)
+        for ((i, pt) in ports.withIndex()) relayConnectPort(relay, hp[0], pt, if (i == 0) 7000 else 12000, mode, tunnel, to)?.let { goodPort[relay.id] = pt; return it }
+        return null
+    }
+    private fun relayConnectPort(relay: Contact, host: String, port: Int, timeout: Int, mode: String, tunnel: String?, to: String?): Frames? = runCatching {
         val sock = java.net.Socket()
         try {
-            sock.connect(InetSocketAddress(lanHost ?: hp[0], hp[1].toInt()), if (lanHost != null) 4000 else 12000)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
+            sock.connect(InetSocketAddress(host, port), timeout)   // nazwa No-IP sprawdzana przy każdym połączeniu - zmiana IP domu nie przeszkadza
             sock.soTimeout = 15000; sock.keepAlive = true
             val out = sock.getOutputStream(); val inp = DataInputStream(sock.getInputStream())
             val nc = ByteArray(16).also { random.nextBytes(it) }

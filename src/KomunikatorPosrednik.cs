@@ -1046,7 +1046,7 @@ namespace Velivo
             KomRelayStatus();
             ok.Click += (s, e) => d.DialogResult = true;
             d.Closed += (s, e) => _komRelayStatusText = null;
-            if (d.ShowDialog() != true) return;
+            d.ShowDialog();   // zamknięcie okna (✕ albo OK) zapisuje zmiany - wcześniej bez OK zostawał stary adres i port
             if (_komRelayOn && on.IsChecked != true) _komRelayAsked = true;   // wylaczone recznie - zostaje wylaczone
             _komRelayOn = on.IsChecked == true;
             var typed = host.Text.Trim();

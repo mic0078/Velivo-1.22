@@ -924,9 +924,11 @@ namespace Velivo
                 p.Children.Add(ok);
                 d.Content = p;
                 d.Loaded += (s, a) => name.Focus();
-                if (d.ShowDialog() != true || url.Text.Trim().Length == 0) return false;
-                src.Url = url.Text.Trim(); src.Epg = epg.Text.Trim(); src.Hours = hoursOpts[Math.Max(0, hours.SelectedIndex)];
-                src.Name = name.Text.Trim().Length > 0 ? name.Text.Trim() : L.T("Lista ") + (st.Sources.Count + 1);
+                d.ShowDialog();   // zamknięcie okna (✕ albo OK) zapisuje zmiany - wcześniej bez OK zostawał stary adres
+                var nu = url.Text.Trim(); var ne = epg.Text.Trim(); var nh = hoursOpts[Math.Max(0, hours.SelectedIndex)];
+                var nn = name.Text.Trim().Length > 0 ? name.Text.Trim() : L.T("Lista ") + (st.Sources.Count + 1);
+                if (nu.Length == 0 || (nu == src.Url && ne == (src.Epg ?? "") && nh == src.Hours && nn == src.Name)) return false;   // pusty adres albo bez zmian - nic do zapisania
+                src.Url = nu; src.Epg = ne; src.Hours = nh; src.Name = nn;
                 src.Updated = 0;
                 return true;
             };

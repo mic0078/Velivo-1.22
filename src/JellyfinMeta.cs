@@ -633,6 +633,13 @@ namespace Velivo
                 ok.IsEnabled = true;
             };
             p.Children.Add(ok);
+            // zmieniony adres / klucz zapisany także przy zamknięciu okna (wcześniej tylko przyciskiem „Pobierz” - zostawał stary adres)
+            d.Closed += (s, e) =>
+            {
+                var nu = url.Text.Trim(); var nk = key.Text.Trim();
+                if (Uri.TryCreate(nu, UriKind.Absolute, out var u2) && (u2.Scheme == "http" || u2.Scheme == "https") && nk.Length > 0 && (nu != c.Url || nk != c.Key))
+                { var cur = LoadJellyfinConf() ?? c; cur.Url = nu; cur.Key = nk; SaveJellyfinConf(cur); }
+            };
             d.Content = p;
             d.Show();
         }

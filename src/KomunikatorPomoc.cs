@@ -62,11 +62,25 @@ namespace Velivo
             _komCtlBar = bar; bar.Show();
         }
 
+        // ruchy rozmówcy w osobnym wątku, nie w wątku okien Velivo: kliknięcie „minimalizuj / zamknij / przesuń” na oknie Velivo uruchamia w wątku tego okna pętlę Windows,
+        // która czeka na puszczenie przycisku - a puszczenie stało w kolejce tego samego wątku (okna Velivo zacinały się przy pomocy zdalnej)
+        readonly System.Collections.Concurrent.BlockingCollection<Action> _komCtlQ = new System.Collections.Concurrent.BlockingCollection<Action>();
+        System.Threading.Thread _komCtlThread;
+        void KomCtlDo(Action a)
+        {
+            if (_komCtlThread == null)
+            {
+                _komCtlThread = new System.Threading.Thread(() => { foreach (var x in _komCtlQ.GetConsumingEnumerable()) try { x(); } catch (Exception) { } }) { IsBackground = true, Name = "Velivo pomoc zdalna" };
+                _komCtlThread.Start();
+            }
+            _komCtlQ.Add(a);
+        }
+
         void KomCtlOff()
         {
             if (_komCtlScreen == null && _komCtlBar == null) return;
             _komCtlScreen = null;
-            KomCtlRelease();
+            KomCtlDo(KomCtlRelease);
             try { _komCtlBar?.Close(); } catch (Exception) { }
             _komCtlBar = null;
         }

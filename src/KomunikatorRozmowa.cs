@@ -107,7 +107,7 @@ namespace Velivo
                     JsonObject o; try { o = JsonNode.Parse(msg) as JsonObject; } catch (Exception) { return; }
                     var k = (string)o?["k"]; if (k == null) return;
                     if (k == "close") { w.Close(); return; }
-                    if (k == "in") { KomCtlInput(o); return; }   // 🖱 pomoc zdalna - tylko u siebie, nie do rozmówcy
+                    if (k == "in") { KomCtlDo(() => KomCtlInput(o)); return; }   // 🖱 pomoc zdalna - tylko u siebie, nie do rozmówcy (osobny wątek - okna Velivo się nie zacinają)
                     if (k == "ctl-ask")   // zgoda na sterowanie - okienko nad wszystkimi oknami
                     {
                         Dispatcher.BeginInvoke(new Action(() =>
@@ -121,7 +121,7 @@ namespace Velivo
                         }));
                         return;
                     }
-                    if (k == "ctl-on") { KomCtlOn(c, (int?)o["w"] ?? 0, (int?)o["h"] ?? 0, j => { try { core.PostWebMessageAsString(j); } catch (Exception) { } }); return; }
+                    if (k == "ctl-on") { KomCtlOn(c, (int?)o["w"] ?? 0, (int?)o["h"] ?? 0, j => Dispatcher.BeginInvoke(new Action(() => { try { core.PostWebMessageAsString(j); } catch (Exception) { } }))); return; }   // komunikat z wątku sterowania - do okna przez jego wątek
                     if (k == "ctl-off") { KomCtlOff(); return; }
                     if (k == "end") ended = true;
                     KomSendCall(c, o);

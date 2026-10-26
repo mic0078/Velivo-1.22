@@ -15,6 +15,18 @@ namespace Velivo
     // Wlasne okno w stylu Velivo, ktore nie zabiera fokusu - znaki ida do pola, w ktorym sie pisze (SendInput).
     public partial class MainWindow
     {
+        // ⌨ nauka po slowie: caly slownik (szyfrowany) zapisywany w tle i najwyzej raz na 3 s - wczesniej po kazdej spacji w watku okna (przyciecia)
+        static System.Windows.Threading.DispatcherTimer _swSaveTimer;
+        static void SwSaveSoon()
+        {
+            if (_swSaveTimer == null)
+            {
+                _swSaveTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+                _swSaveTimer.Tick += (s, e) => { _swSaveTimer.Stop(); System.Threading.Tasks.Task.Run(() => { lock (_swLearned) SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn); }); };
+            }
+            if (!_swSaveTimer.IsEnabled) _swSaveTimer.Start();
+        }
+
         [StructLayout(LayoutKind.Sequential)] struct KeybdData { public ushort Vk, Scan; public uint Flags, Time; public IntPtr Extra; }
         [StructLayout(LayoutKind.Sequential)] struct MouseData { public int X, Y; public uint Data, Flags, Time; public IntPtr Extra; }   // tylko na rozmiar unii
         [StructLayout(LayoutKind.Explicit)] struct InputUnion { [FieldOffset(0)] public KeybdData Kb; [FieldOffset(0)] public MouseData Ms; }
@@ -702,7 +714,7 @@ namespace Velivo
                 {
                     _swLearned[lw] = (_swLearned.TryGetValue(lw, out var n) ? n : 0) + 1;
                     if (lw != "ze" && !SwipeTyping.IsKnown(lw) && !SwipeTyping.IsTypo(lw)) askAdd(wd);   // nowe slowo - najpierw pytamy (literowki znanego slowa wcale)
-                    SwipeTyping.SaveLearned(SwipeFile, _swLearned, _swOwn);
+                    SwSaveSoon();
                 }
             };
             // autokorekta (przycisk w naglowku, domyslnie wlaczona): po spacji / Enterze / znaku slowo spoza slownika -> poprawione,

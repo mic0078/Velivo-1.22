@@ -547,7 +547,7 @@ namespace Velivo
         {
             if (string.IsNullOrEmpty(prev) || string.IsNullOrEmpty(word)) return;
             var k = prev.ToLowerInvariant() + " " + word.ToLowerInvariant();
-            lock (_pairs) { _pairs[k] = (_pairs.TryGetValue(k, out var n) ? n : 0) + 1; if (_pairs.Count > 20000) _pairs.Remove(_pairs.OrderBy(x => x.Value).First().Key); }
+            lock (_pairs) { _pairs[k] = (_pairs.TryGetValue(k, out var n) ? n : 0) + 1; if (_pairs.Count > 21000) foreach (var old in _pairs.OrderBy(x => x.Value).Take(1000).Select(x => x.Key).ToList()) _pairs.Remove(old); }   // pelne - 1000 najrzadszych naraz (nie sortowanie przy kazdym slowie)
         }
 
         // trojki slow (zwroty): "daj znać" -> "jak"; ten sam zapis co pary (klucz z dwiema spacjami)

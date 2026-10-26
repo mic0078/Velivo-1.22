@@ -438,7 +438,7 @@ object Slownik {
     fun learnPair(prev: String?, word: String?) {
         if (prev.isNullOrEmpty() || word.isNullOrEmpty()) return
         val k = prev.lowercase() + " " + word.lowercase()
-        synchronized(pairs) { pairs[k] = (pairs[k] ?: 0) + 1; if (pairs.size > 20000) pairs.remove(pairs.minByOrNull { it.value }!!.key) }
+        synchronized(pairs) { pairs[k] = (pairs[k] ?: 0) + 1; if (pairs.size > 21000) pairs.entries.sortedBy { it.value }.take(1000).map { it.key }.forEach { pairs.remove(it) } }   // pełne - 1000 najrzadszych naraz
     }
     fun learnTriple(prev2: String?, prev: String?, word: String?) {
         if (prev2.isNullOrEmpty() || prev.isNullOrEmpty() || word.isNullOrEmpty()) return

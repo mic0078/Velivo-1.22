@@ -102,9 +102,20 @@ class KlawiaturaVelivo : InputMethodService() {
         }
 
         fun save(ctx: Context) {
-            val text = synchronized(learned) { Slownik.saveText(learned, own) }
-            runCatching { file(ctx).writeBytes(Szyfr.seal(text.toByteArray(Charsets.UTF_8))) }
+            runCatching {
+                val text = synchronized(learned) { Slownik.saveText(learned, own) }
+                file(ctx).writeBytes(Szyfr.seal(text.toByteArray(Charsets.UTF_8)))
+            }
         }
+        // ⌨ po słowie: zapis (cały słownik, szyfrowany) w tle i najwyżej raz na 3 s - wcześniej po każdej spacji w wątku klawiatury (przycięcia)
+        private val saver = java.util.concurrent.Executors.newSingleThreadExecutor()
+        @Volatile private var saveDue = false
+        fun saveSoon(ctx: Context) {
+            if (saveDue) return
+            saveDue = true; val c = ctx.applicationContext
+            Handler(Looper.getMainLooper()).postDelayed({ saver.execute { saveDue = false; save(c) } }, 3000)
+        }
+        fun saveNow(ctx: Context) { if (saveDue) { saveDue = false; val c = ctx.applicationContext; saver.execute { save(c) } } }
 
         fun ownWords(): List<String> = synchronized(learned) { own.sorted() }
         // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)
@@ -166,7 +177,7 @@ class KlawiaturaVelivo : InputMethodService() {
 
     // ➤ w komunikatorze Velivo: popraw ostatnie słowo przed wysłaniem
     override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord("") }
-    override fun onFinishInputView(finishingInput: Boolean) { super.onFinishInputView(finishingInput); stopListening(); komNew()?.close() }
+    override fun onFinishInputView(finishingInput: Boolean) { super.onFinishInputView(finishingInput); stopListening(); komNew()?.close(); saveNow(this) }   // klawiatura chowa się - zaległy zapis od razu
     override fun onDestroy() { tts?.shutdown(); rec?.destroy(); super.onDestroy() }
 
     private fun pref(k: String, def: Boolean = true) = prefs(this).getBoolean(k, def)
@@ -274,7 +285,7 @@ class KlawiaturaVelivo : InputMethodService() {
         if (sentence.isNotEmpty()) sentence.append(' '); sentence.append(wd)
         synchronized(learned) { learned[lw] = (learned[lw] ?: 0) + 1 }
         if (lw != "ze" && !Slownik.isKnown(lw) && !Slownik.isTypo(lw) && lw !in own) addAsk = wd
-        save(this)
+        saveSoon(this)
     }
 
     private fun backspace() {

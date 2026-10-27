@@ -1343,14 +1343,15 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (udpOut == null && udp == null) return@runCatching   // komunikator nie działa (aplikacja zamknięta bez odbioru w tle)
             var f: Frames? = null
             for (cand in relays) { f = relayConnect(cand, "main"); if (f != null) { relay = cand; break } }   // pierwszy, który odpowie
-            // adres domu się zmienił (nowe IP od operatora) - przez nazwę domu, port zapamiętany i domyślny
-            val hn = homeName
-            if (f == null && hn.isNotEmpty()) for (cand in relays) {
+            // adres domu się zmienił (nowe IP od operatora) albo serwer ogłosił zły adres - przez nazwę domu i adresy innych serwerów
+            // z tego samego domu (NUCBOX i CHUWI mają ten sam adres w internecie, różne porty); port zapamiętany i domyślny
+            val hosts = (listOf(homeName) + relays.mapNotNull { it.relay?.substringBeforeLast(':') }).filter { it.isNotEmpty() }.distinct()
+            if (f == null && hosts.isNotEmpty()) for (cand in relays) {
                 val old = cand.relay ?: continue
-                for (port in listOf(old.substringAfterLast(':'), "41920").distinct()) {
+                ports@ for (port in listOf(old.substringAfterLast(':'), "41920").distinct()) for (hn in hosts) {
                     val alt = "$hn:$port"; if (alt == old) continue
                     cand.relay = alt; f = relayConnect(cand, "main")
-                    if (f != null) { relay = cand; saveContacts(); break } else cand.relay = old
+                    if (f != null) { relay = cand; saveContacts(); break@ports } else cand.relay = old
                 }
                 if (f != null) break
             }

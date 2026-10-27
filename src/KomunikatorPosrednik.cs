@@ -1009,6 +1009,7 @@ namespace Velivo
             bool canMove = DateTime.UtcNow - _komRelayMoved > TimeSpan.FromHours(1);   // poza domem (laptop) - nie ustalamy adresu obcej sieci
             var port = _komRelayPort;
             var (ext, mapped, note) = await Task.Run(() => KomUpnpAsync(port));
+            if (ext != null && KomPrivateIp(ext)) ext = null;   // router za routerem operatora podaje swój adres wewnętrzny (np. 192.168.1.x) - z internetu nieosiągalny; prawdziwy z ipify
             // wczesniej przeniesiony na inny port, a 41920 znow prowadzi tu (np. reczne przekierowanie) - wracamy na 41920
             if (port != 41920 && _komRelayAuto && !_komRelayPortFixed && canMove && (await Task.Run(() => KomUpnpAsync(41920))).mapped) { _komRelayMoved = DateTime.UtcNow; _komRelayPort = 41920; KomSave(); KomRelayStart(); KomAnnounce(); return; }
             // port zajety w routerze (np. inny komputer w domu) - nastepny wolny 41920-41929, sam
@@ -1039,6 +1040,8 @@ namespace Velivo
             KomRelayStatus();
         }
 
+        static bool KomPrivateIp(string ip) => IPAddress.TryParse(ip, out var a) && a.GetAddressBytes() is var b && b.Length == 4 &&
+            (b[0] == 10 || b[0] == 127 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168) || (b[0] == 100 && b[1] >= 64 && b[1] < 128) || (b[0] == 169 && b[1] == 254));
         // UPnP (IGD): adres zewnetrzny routera i przekierowanie portu TCP na ten komputer; note: "taken" - port juz zajety (np. recznie)
         static async Task<(string ext, bool mapped, string note)> KomUpnpAsync(int port, int intPort = 0)
         {

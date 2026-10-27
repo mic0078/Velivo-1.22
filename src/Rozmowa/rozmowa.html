@@ -15,6 +15,7 @@ button.off{background:#6b6b80}#end{background:#e53935}button.on{background:#22c5
 #scr,#help,#swap{display:none}button.pulse{outline:3px solid #facc15}
 #shot{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:none;z-index:1}#shot.pt{cursor:pointer}
 #bar,#st,#me{z-index:3}
+#cap{display:none;position:fixed;left:8px;right:8px;bottom:100px;z-index:3;text-align:center;font-size:24px;line-height:1.3;color:#fff;background:#000c;border-radius:12px;padding:8px 12px;overflow-wrap:anywhere}
 #chat{display:none;position:fixed;left:12px;bottom:100px;width:min(380px,70vw);z-index:3}body.pomoc #chat{display:block}
 #log div{background:#000b;border-radius:10px;padding:6px 10px;margin-top:4px;font-size:15px;overflow-wrap:anywhere}#log .me{background:#6d3fdbdd;text-align:right}
 #say{width:100%;box-sizing:border-box;border-radius:20px;border:0;padding:10px 14px;font-size:15px;margin-top:6px;background:#2e2768;color:#fff}
@@ -22,9 +23,9 @@ body.pomoc #scr,body.pomoc #help,body.pomoc #swap{width:auto;border-radius:30px;
 body.view #you,body.view #shot{height:calc(100% - 100px)}body.view #me{display:none}#dot{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #e53935;background:#e5393566;display:none;z-index:2;pointer-events:none}
 </style></head><body>
 <video id="you" autoplay playsinline></video><img id="shot" alt=""><div id="dot"></div><video id="me" autoplay playsinline muted></video>
-<div id="st"></div>
+<div id="st"></div><div id="cap" aria-live="polite"></div>
 <div id="chat"><div id="log"></div><input id="say" autocomplete="off"></div>
-<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="scr">🖥</button><button id="help">🖱</button><button id="swap">⇄</button><button id="end">⏹</button></div>
+<div id="bar"><button id="mic">🎤</button><button id="cam">📷</button><button id="flip">🔄</button><button id="spk">🔊</button><button id="cc">💬</button><button id="scr">🖥</button><button id="help">🖱</button><button id="swap">⇄</button><button id="end">⏹</button></div>
 <script>
 const q = new URLSearchParams(location.search), caller = q.get('rola') === 'dzwoni', pl = q.get('pl') !== '0', audio = q.get('audio') === '1', pomoc = q.get('pomoc') === '1';   // 📞 audio - rozmowa głosowa (bez kamery); 🖥 pomoc - pomoc zdalna (bez kamery, przyciski z opisem)
 const T = (p, e) => pl ? p : e;
@@ -33,7 +34,7 @@ function status(s) { st.textContent = s; }
 function chatLine(t, mine) { const d = document.createElement('div'); d.textContent = t; if (mine) d.className = 'me'; log.appendChild(d); while (log.children.length > 6) log.firstChild.remove(); }
 function out(o) { const s = JSON.stringify(o); if (window.velivo) velivo.send(s); else if (window.chrome && chrome.webview) chrome.webview.postMessage(s); }
 mic.title = T('Mikrofon wł./wył.', 'Microphone on/off'); cam.title = T('Kamera wł./wył.', 'Camera on/off');
-flip.title = T('Przełącz kamerę', 'Switch camera'); scr.title = T('Pokaż swój ekran', 'Share your screen'); help.title = T('Pomoc zdalna: poproś o sterowanie', 'Remote help: ask for control'); spk.title = T('Głośnik / słuchawka', 'Speaker / earpiece'); swap.title = T('Zamień strony: teraz rozmówca pokazuje ekran (za zgodą)', 'Swap sides: now the other person shares the screen (with consent)'); end.title = T('Zakończ rozmowę', 'End call');
+flip.title = T('Przełącz kamerę', 'Switch camera'); scr.title = T('Pokaż swój ekran', 'Share your screen'); help.title = T('Pomoc zdalna: poproś o sterowanie', 'Remote help: ask for control'); spk.title = T('Głośnik / słuchawka', 'Speaker / earpiece'); swap.title = T('Zamień strony: teraz rozmówca pokazuje ekran (za zgodą)', 'Swap sides: now the other person shares the screen (with consent)'); end.title = T('Zakończ rozmowę', 'End call'); cc.title = T('Napisy dla mnie: mowa rozmówcy jako tekst (dla niesłyszących)', 'Captions for me: the other person’s speech as text (for deaf people)');
 if (pomoc) {   // 🖥 pomoc zdalna - osobny tryb: przyciski z opisem, nie do pomylenia z rozmową wideo
   document.body.classList.add('pomoc');
   // 💬 pisanie w czasie pomocy (obok głosu): idzie zwykłym, szyfrowanym komunikatorem - zostaje w rozmowie, dociera też do telefonu
@@ -77,6 +78,10 @@ function useDc(ch) {
       remoteImg = o.on && !!o.img; shot.style.display = remoteImg ? 'block' : 'none'; status(remoteImg ? T('📱 Ekran rozmówcy – czekam na obraz…', '📱 Their screen – waiting for the picture…') : ''); shot.classList.toggle('pt', remoteImg); if (!remoteImg) shot.removeAttribute('src');
     }
     else if (o.k === 'f') frame(o);
+    // 💬 napisy: mowa zamieniana na tekst na urządzeniu mówiącego (telefon), tekst kanałem danych do rozmówcy
+    else if (o.k === 'cap-ask') { if (window.velivo && velivo.captions) { velivo.captions(!!o.on); if (o.on) status(T('📝 Twoja mowa jest zamieniana na napisy dla rozmówcy', '📝 Your speech is shown as captions for the other person')); else status(''); } else if (o.on) dsend({ k: 'cap-no' }); }
+    else if (o.k === 'cap') { if (capMe) { capBox.textContent = o.t; clearTimeout(capBox.t); if (o.f) capBox.t = setTimeout(() => { capBox.textContent = ''; }, 6000); } }
+    else if (o.k === 'cap-no') { capMe = false; cc.classList.remove('on'); capBox.style.display = 'none'; status(T('Napisy niedostępne: rozmówca ma komputer albo jego telefon nie pozwala rozpoznawać mowy w czasie rozmowy', 'Captions unavailable: the other person uses a computer or their phone cannot recognise speech during a call')); }
     else if (o.k === 'pt') { if (phoneScr && window.velivo && velivo.point) velivo.point(o.x, o.y); }
     else if (o.k === 'ctl-ask') ask();
     else if (o.k === 'swap-ask') { ctlOff(); setSteer(false); } if (o.k === 'swap-ask') askUser(T('Rozmówca chce zamienić strony pomocy zdalnej (kto pokazuje ekran). Zgadzasz się?', 'The other person wants to swap remote-help sides (who shares the screen). Do you agree?'), 'swap');
@@ -166,7 +171,16 @@ window.onSig = async function (o) {
   } catch (e) { status(T('Błąd połączenia', 'Connection error')); hang(); }
 };
 if (window.chrome && chrome.webview) chrome.webview.addEventListener('message', e => onSig(e.data));
-function finish() { if (done) return; ctlOff(); if (phoneScr) velivo.screen(false); done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
+// 💬 napisy dla mnie - prośba do rozmówcy; jego telefon rozpoznaje jego mowę (capText) i wysyła tekst
+let capMe = false; const capBox = document.getElementById('cap');
+cc.onclick = () => {
+  if (!dc || dc.readyState !== 'open') { status(T('Brak kanału danych z rozmówcą – zaktualizuj Velivo u obu osób', 'No data channel with the other person – update Velivo on both devices')); return; }
+  capMe = !capMe; cc.classList.toggle('on', capMe); dsend({ k: 'cap-ask', on: capMe });
+  capBox.style.display = capMe ? 'block' : 'none'; capBox.textContent = capMe ? T('Czekam na napisy…', 'Waiting for captions…') : '';
+};
+window.capText = (t, fin) => dsend({ k: 'cap', t, f: fin });
+window.capFail = () => dsend({ k: 'cap-no' });
+function finish() { if (done) return; if (window.velivo && velivo.captions) velivo.captions(false); ctlOff(); if (phoneScr) velivo.screen(false); done = true; if (local) local.getTracks().forEach(t => t.stop()); if (pc) pc.close(); setTimeout(() => out({ k: 'close' }), 1500); }
 function hang() { if (done) return; out({ k: 'end' }); finish(); }
 window.hang = hang;
 end.onclick = () => { status(T('Rozmowa zakończona', 'Call ended')); hang(); };

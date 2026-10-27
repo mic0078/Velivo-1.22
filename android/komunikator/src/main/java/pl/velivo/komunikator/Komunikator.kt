@@ -1939,7 +1939,30 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         runCatching { am?.mode = android.media.AudioManager.MODE_IN_COMMUNICATION }; route()
         w.settings.javaScriptEnabled = true; w.settings.mediaPlaybackRequiresUserGesture = false
         w.setBackgroundColor(Color.rgb(18, 15, 36)); w.setRendererPriorityPolicy(android.webkit.WebView.RENDERER_PRIORITY_IMPORTANT, false)   // rozmowa działa też w tle (🖥 pokazywanie ekranu)
+        // 💬 napisy dla rozmówcy: moja mowa → tekst (rozpoznawanie w telefonie, gdy jest - bez sieci), wyniki do strony rozmowy
+        var capRec: android.speech.SpeechRecognizer? = null; var capOn = false; var capErr = 0
+        fun js(f: String) = w.post { w.evaluateJavascript(f, null) }
+        fun capStop() { capOn = false; capRec?.destroy(); capRec = null }
+        fun capStart() {
+            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(a)) { js("capFail()"); return }
+            capOn = true; capRec?.destroy()
+            val r = if (Build.VERSION.SDK_INT >= 31 && android.speech.SpeechRecognizer.isOnDeviceRecognitionAvailable(a)) android.speech.SpeechRecognizer.createOnDeviceSpeechRecognizer(a) else android.speech.SpeechRecognizer.createSpeechRecognizer(a)
+            capRec = r
+            fun again() { if (capOn) w.postDelayed({ if (capOn && capRec === r) runCatching { r.startListening(capIntent()) } }, 250) }
+            r.setRecognitionListener(object : android.speech.RecognitionListener {
+                override fun onPartialResults(b: android.os.Bundle?) { b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { js("capText(" + JSONObject.quote(it) + ",false)") } }
+                override fun onResults(b: android.os.Bundle) { capErr = 0; b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { js("capText(" + JSONObject.quote(it) + ",true)") }; again() }
+                override fun onError(e: Int) {   // cisza / nic nie rozpoznano - dalej; mikrofon zajęty przez rozmowę - po kilku razach komunikat u rozmówcy
+                    if (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) { again(); return }
+                    if (++capErr >= 4) { capStop(); js("capFail()") } else again()
+                }
+                override fun onReadyForSpeech(p: android.os.Bundle?) {}; override fun onBeginningOfSpeech() {}; override fun onRmsChanged(v: Float) {}
+                override fun onBufferReceived(b: ByteArray?) {}; override fun onEndOfSpeech() {}; override fun onEvent(t0: Int, b: android.os.Bundle?) {}
+            })
+            runCatching { r.startListening(capIntent()) }.onFailure { capStop(); js("capFail()") }
+        }
         w.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface fun captions(on: Boolean) { a.runOnUiThread { if (on) capStart() else capStop() } }
             @android.webkit.JavascriptInterface fun send(s: String) {
                 val o = runCatching { JSONObject(s) }.getOrNull() ?: return
                 if (o.optString("k") == "close") { a.runOnUiThread { d.dismiss() }; return }
@@ -1975,6 +1998,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         d.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         d.setContentView(w)
         d.setOnDismissListener {
+            capStop()
             if (!ended) k.sendCall(c, JSONObject().put("k", "end"))
             callView = null; callWith = null
             a.stopService(Intent(a, EkranUsluga::class.java)); EkranUsluga.onFrame = null; EkranUsluga.onStop = null; SterowanieUsluga.allowed = false
@@ -2792,6 +2816,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }
         }.show()
     }
+
+    private fun capIntent() = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true).putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
 
     // 🤟 wiadomość na palcach: litera po literze (rysunek dłoni albo własne zdjęcie), słowo ze zdjęciem - całe naraz; ◀ ⏯ ▶, 📷 własne zdjęcie
     private var signFor: String? = null; private var signDone: (() -> Unit)? = null

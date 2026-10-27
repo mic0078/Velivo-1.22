@@ -980,6 +980,10 @@ namespace Velivo
                     // adres tego komputera w sieci domowej (ta karta, ktora widzi router)
                     string local;
                     using (var probe = new UdpClient(AddressFamily.InterNetwork)) { probe.Connect(url.Host, url.Port); local = ((IPEndPoint)probe.Client.LocalEndPoint).Address.ToString(); }
+                    // port już przekierowany na INNY komputer w domu (np. NUCBOX) - nie nadpisujemy (część routerów nadpisuje bez błędu 718 i drugi pośrednik zabierał porty pierwszemu)
+                    var (c0, b0) = await Soap("GetSpecificPortMappingEntry", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol>");
+                    var who0 = c0 == 200 ? System.Text.RegularExpressions.Regex.Match(b0, @"<NewInternalClient>(.*?)</NewInternalClient>").Groups[1].Value.Trim() : "";
+                    if (who0.Length > 0 && who0 != local) return (ext, false, "taken");
                     var (c2, b2) = await Soap("AddPortMapping", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port + "</NewExternalPort><NewProtocol>TCP</NewProtocol><NewInternalPort>" + (intPort > 0 ? intPort : port) +
                         "</NewInternalPort><NewInternalClient>" + local + "</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>Velivo</NewPortMappingDescription><NewLeaseDuration>0</NewLeaseDuration>");
                     if (c2 != 200 && b2.Contains("718"))

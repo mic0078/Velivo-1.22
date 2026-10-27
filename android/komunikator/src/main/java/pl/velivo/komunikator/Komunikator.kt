@@ -627,7 +627,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 🔗 „Mój adres Velivo” (jak numer w WhatsApp): link, który można dać każdemu; prośba idzie przez mojego pośrednika (NUCBOX),
     // ja decyduję Dodaj / Odrzuć. Nowa osoba dostaje tylko komunikator (sieć domowa, filmy, synchronizacja - nie).
     private fun hidden(c: Contact, text: String) = deliver(c, Msg(true, text, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
-    private fun myRelay() = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup }.sortedByDescending { it.dom }.firstOrNull() }   // najpierw mój domowy
+    // mój serwer, który DZIAŁA (połączony albo widoczny w Wi-Fi) - wcześniej zawsze pierwszy z listy (NUCBOX), także wyłączony; potem mój domowy
+    private fun relayLive(c: Contact) = c.id == upRelay?.id || upMore.containsKey(c.id) || System.currentTimeMillis() - (lanSeen[c.id] ?: 0L) < 100000
+    private fun myRelay() = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup }.sortedByDescending { (if (it.dom) 2 else 0) + (if (relayLive(it)) 1 else 0) }.firstOrNull() }
     fun myAddress(reset: Boolean = false): String? {
         val r = myRelay() ?: return null
         var sk = prefs.getString("moj-adres", null)
@@ -925,7 +927,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // --- ✉ zaproszenia przez internet (ten sam kod VELIVO1 co Velivo na Windows) ---
     // Pośrednikiem jest komputer z Velivo; telefon zgłasza mu zaproszenie (klucz zaszyfrowany kluczem kontaktu z pośrednikiem).
     fun createInvite(): String? {
-        val relay = synchronized(this) { contacts.firstOrNull { it.relay != null } } ?: return null
+        val relay = myRelay() ?: return null   // serwer, który działa (nie zawsze pierwszy - NUCBOX)
         val token = ByteArray(16).also { random.nextBytes(it) }; val k = MessageDigest.getInstance("SHA-256").digest(token)
         val exp = System.currentTimeMillis() + 7L * 86400000
         val n = ByteArray(12).also { random.nextBytes(it) }

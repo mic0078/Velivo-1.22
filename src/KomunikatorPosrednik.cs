@@ -421,6 +421,9 @@ namespace Velivo
             var ids = string.CompareOrdinal(a, b) < 0 ? a + "|" + b : b + "|" + a;
             return Convert.ToBase64String(HMACSHA256.HashData(Convert.FromBase64String(sec), Encoding.UTF8.GetBytes(ids)));
         }
+        // mój serwer, który DZIAŁA (połączony albo widoczny w sieci domowej), najpierw domowy - wcześniej zawsze pierwszy z listy (NUCBOX), także wyłączony
+        KomContact KomLiveRelay() => _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup)
+            .OrderByDescending(c => (c.Dom ? 2 : 0) + ((_komUp != null && _komUpRelay?.Id == c.Id) || (_komLanSeen.TryGetValue(c.Id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100)) ? 1 : 0)).FirstOrDefault();
         // mój serwer: domowy albo ten, przez który to urządzenie jest teraz połączone z internetu (obcy kontakt nim nie jest)
         bool KomTrustedRelay(KomContact c) => c != null && (c.Dom || (_komUp != null && _komUpRelay?.Id == c.Id));
         bool KomFromRelay(IPAddress addr) => _komLanRelays.Keys.Any(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
@@ -813,7 +816,7 @@ namespace Velivo
         // 🔗 mój adres na Windows (jak w telefonie): link dla każdego; prośba idzie przez mojego pośrednika albo ten komputer nim jest
         string KomMyAddress(bool reset)
         {
-            var r = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup).OrderByDescending(c => c.Dom).FirstOrDefault();   // najpierw mój domowy
+            var r = KomLiveRelay();   // mój domowy, który działa
             bool self = _komRelayListener != null && _komRelayHost.Length > 0;
             var addr = self ? _komRelayHost + ":" + _komRelayPort : r?.Relay;
             if (addr == null) return null;
@@ -956,7 +959,7 @@ namespace Velivo
             if (_komRelayOn && _komRelayHost.Length > 0) { host = _komRelayHost + ":" + _komRelayPort; relayId = _komId; }
             else
             {
-                relay = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay));
+                relay = KomLiveRelay();   // serwer, który działa (nie zawsze pierwszy - NUCBOX)
                 if (relay == null) { error = L.T("Najpierw włącz pośrednika (🎨 → 🌍 Rozmowy poza domem) na komputerze, który jest zawsze włączony, i otwórz tu komunikator w domu."); return null; }
                 host = relay.Relay; relayId = relay.Id;
             }

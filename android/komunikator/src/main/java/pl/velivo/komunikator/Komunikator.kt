@@ -1428,7 +1428,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun sayNew(c: Contact) {
         if (!readNew) return
         val m = synchronized(this) { chat(c.id).lastOrNull { !it.mine } } ?: return
-        val t = c.name + ": " + m.text
+        val t = spokenName(c.name) + ": " + m.text
         main.post { ttsNew?.speak(t, android.speech.tts.TextToSpeech.QUEUE_ADD, null, "nowa") ?: run { ttsNew = android.speech.tts.TextToSpeech(ctx) { st -> if (st == android.speech.tts.TextToSpeech.SUCCESS) ttsNew?.let { it.language = Locale.getDefault(); it.speak(t, android.speech.tts.TextToSpeech.QUEUE_ADD, null, "nowa") } } } }
     }
     // 💡 błysk lampy aparatu i mocna wibracja (dla słabosłyszących) - dzwonek: dopóki dzwoni (najwyżej 40 s), wiadomość: 2 błyski
@@ -2238,7 +2238,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         lateinit var search: EditText
         fun openFound(say: Boolean) {
             val f = found()
-            if (f.size == 1) { if (say) speak(t("Rozmowa z ", "Chat with ") + f[0].name); openChat(f[0]) }
+            if (f.size == 1) { if (say) speak(t("Rozmowa z ", "Chat with ") + spokenName(f[0].name)); openChat(f[0]) }
             else if (say) speak(if (f.isEmpty()) t("Nie ma osoby ", "No contact ") + who else t("Pasuje ", "Matching ") + f.size + ": " + f.joinToString(", ") { it.name })
         }
         search = EditText(a).apply {
@@ -3240,6 +3240,10 @@ class SterowanieUsluga : android.accessibilityservice.AccessibilityService() {
 }
 
 // 📷 zdjęcie z aparatu: piksele „na boku” + znacznik obrotu (EXIF) - BitmapFactory go nie czyta, obracamy sami
+// 🔊 nazwa do czytania na głos: NUCBOX → Nucbox (syntezator literował wielkie litery), bez emotek, „_” i „-” jako odstęp
+internal fun spokenName(n: String): String = n.replace(Regex("[_\\-]+"), " ").split(' ').joinToString(" ") { w ->
+    val l = w.filter { it.isLetterOrDigit() || it == '.' }; if (l.length > 1 && l.all { !it.isLetter() || it.isUpperCase() }) l.lowercase().replaceFirstChar { it.uppercase() } else l }.trim().ifEmpty { n }
+
 internal fun upright(b: android.graphics.Bitmap, e: android.media.ExifInterface?): android.graphics.Bitmap {
     val deg = when (e?.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) { 3 -> 180f; 6 -> 90f; 8 -> 270f; else -> 0f }
     if (deg == 0f) return b

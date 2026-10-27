@@ -763,7 +763,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             // jasno dla każdego: kto dzwoni i duże przyciski Odbierz (zielony) / Odrzuć (czerwony)
             val rej = PendingIntent.getBroadcast(ctx, "odrzuc".hashCode(), Intent(ctx, KomunikatorAkcja::class.java).setAction(KomunikatorAkcja.REJECT).putExtra("id", c.id).setPackage(ctx.packageName),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            val b = Notification.Builder(ctx, "rozmowy").setSmallIcon(android.R.drawable.stat_notify_chat).brand()
+            val b = Notification.Builder(ctx, "rozmowy").setSmallIcon(statIcon).brand()
                 .setContentTitle("📹 " + c.name + (if (pl) " dzwoni do Ciebie" else " is calling you"))
                 .setContentText(if (pl) "Stuknij zielony przycisk „Odbierz”" else "Tap the green “Answer” button")
             if (Build.VERSION.SDK_INT >= 31) b.setStyle(Notification.CallStyle.forIncomingCall(android.app.Person.Builder().setName(c.name).setImportant(true).build(), rej, pi))
@@ -1464,6 +1464,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         set(v) { prefs.edit().putBoolean("tlo", v).apply() }
 
     // 💬 powiadomienie wyraźnie z komunikatora: ikona Komunikatora Velivo, podpis „Komunikator Velivo”, fioletowy kolor
+    // ikona „V” Velivo na pasku (zamiast ogólnego dymka) - od razu widać, że to komunikator Velivo
+    private val statIcon get() = ctx.resources.getIdentifier("ic_stat_velivo", "drawable", ctx.packageName).takeIf { it != 0 } ?: android.R.drawable.stat_notify_chat
     private fun Notification.Builder.brand(): Notification.Builder = apply {
         val ic = ctx.resources.getIdentifier("ic_komunikator", "mipmap", ctx.packageName)
         if (ic != 0) setLargeIcon(android.graphics.drawable.Icon.createWithResource(ctx, ic))
@@ -1497,9 +1499,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val pl = Locale.getDefault().language == "pl"
         val last = synchronized(this) { chat(c.id).takeLast(6) }
         val me = android.app.Person.Builder().setName(if (pl) "Ty" else "You").build()
-        val them = android.app.Person.Builder().setName(c.name).setKey(c.id).build()
+        // zdjęcie profilowe nadawcy przy wiadomości (jak w WhatsApp)
+        val face = runCatching { photo(c.id)?.let { android.graphics.BitmapFactory.decodeFile(it.path) }?.let { android.graphics.drawable.Icon.createWithBitmap(it) } }.getOrNull()
+        val them = android.app.Person.Builder().setName(c.name).setKey(c.id).apply { if (face != null) setIcon(face) }.build()
         // jasno: „💬 Nowa wiadomość od …” nad treścią
-        val st = Notification.MessagingStyle(me).setConversationTitle("💬 " + c.name + (if (pl) " pisze:" else " writes:")).setGroupConversation(true)
+        val st = Notification.MessagingStyle(me).setConversationTitle("Velivo · " + c.name).setGroupConversation(true)
         last.forEach { st.addMessage(Notification.MessagingStyle.Message(it.text, it.ts, if (it.mine) null else them)) }
         val n = unread(c.id)
         val pi = PendingIntent.getActivity(ctx, c.id.hashCode(), openIntent(c.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -1512,8 +1516,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val read = Notification.Action.Builder(android.graphics.drawable.Icon.createWithResource(ctx, android.R.drawable.ic_menu_view), if (pl) "Przeczytane" else "Mark as read", readPi)
             .setSemanticAction(Notification.Action.SEMANTIC_ACTION_MARK_AS_READ).build()
         runCatching {
-            nm.notify(c.id.hashCode(), Notification.Builder(ctx, MSG_CH).setSmallIcon(android.R.drawable.stat_notify_chat).brand()
-                .setContentTitle("💬 " + c.name + (if (pl) " pisze:" else " writes:")).setContentText(last.lastOrNull()?.text ?: "")
+            nm.notify(c.id.hashCode(), Notification.Builder(ctx, MSG_CH).setSmallIcon(statIcon).brand()
+                .setContentTitle("Velivo · " + c.name).setContentText(last.lastOrNull()?.text ?: "")
                 .setStyle(st).setNumber(n).setCategory(Notification.CATEGORY_MESSAGE).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setAutoCancel(true)
                 .setOnlyAlertOnce(quiet).addAction(Notification.Action.Builder(null, if (pl) "📖 Otwórz" else "📖 Open", pi).build()).addAction(reply).addAction(read).setShowWhen(true).build())
         }
@@ -1538,7 +1542,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val pi = PendingIntent.getActivity(ctx, 78, openIntent(null), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val off = PendingIntent.getBroadcast(ctx, 79, Intent(ctx, KomunikatorAkcja::class.java).setAction(KomunikatorAkcja.NEW_OFF).setPackage(ctx.packageName), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         runCatching {
-            nm.notify("nowe-urz".hashCode(), Notification.Builder(ctx, "informacje")   // cichy kanał - bez dźwięku i budzenia ekranu.setSmallIcon(android.R.drawable.stat_notify_chat)
+            nm.notify("nowe-urz".hashCode(), Notification.Builder(ctx, "informacje")   // cichy kanał - bez dźwięku i budzenia ekranu.setSmallIcon(statIcon)
                 .setContentTitle(if (pl) "📶 Velivo w tej sieci" else "📶 Velivo on this network")
                 .setContentText(if (pl) "„${dev.ifEmpty { "Urządzenie" }}” – stuknij, by dodać do komunikatora" else "“${dev.ifEmpty { "Device" }}” – tap to add to the messenger")
                 .setContentIntent(pi).setAutoCancel(true).setOnlyAlertOnce(true)
@@ -1555,7 +1559,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val pl = Locale.getDefault().language == "pl"
         val pi = PendingIntent.getActivity(ctx, 77, openIntent(null), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         runCatching {
-            nm.notify("para".hashCode(), Notification.Builder(ctx, MSG_CH).setSmallIcon(android.R.drawable.stat_notify_chat)
+            nm.notify("para".hashCode(), Notification.Builder(ctx, MSG_CH).setSmallIcon(statIcon)
                 .setContentTitle(if (pl) "💬 Prośba o kontakt" else "💬 Contact request").setContentText(if (pl) "„$dev” chce dodać Cię do komunikatora – stuknij, by przyjąć" else "“$dev” wants to add you – tap to accept")
                 .setCategory(Notification.CATEGORY_MESSAGE).setContentIntent(pi).setAutoCancel(true).build())
         }
@@ -1567,7 +1571,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val nm = ctx.getSystemService(NotificationManager::class.java); if (nm != null) channels(nm)
         val pl = Locale.getDefault().language == "pl"
         val pi = PendingIntent.getActivity(ctx, 1, openIntent(null), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return Notification.Builder(ctx, "nasluch").setSmallIcon(android.R.drawable.stat_notify_chat)
+        return Notification.Builder(ctx, "nasluch").setSmallIcon(statIcon)
             .setContentTitle(if (pl) "Komunikator Velivo" else "Velivo messenger")
             .setContentText(if (pl) "Czeka na wiadomości" else "Waiting for messages")
             .setContentIntent(pi).setOngoing(true).build()

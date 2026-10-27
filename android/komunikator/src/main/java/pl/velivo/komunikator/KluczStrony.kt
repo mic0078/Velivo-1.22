@@ -187,8 +187,9 @@ C.create=function(o){return o&&o.publicKey?ask('create',o):oC(o);};
         val cd = clientData("webauthn.create", pk, origin); val cdh = sha(cd)
         val algs = pk.optJSONArray("alg")?.let { a -> (0 until a.length()).map { a.optLong(it) } }.orEmpty().filter { it == -7L || it == -8L }.ifEmpty { listOf(-7L) }
         val u = pk.optJSONObject("user") ?: JSONObject()
-        val rk = pk.optString("rk") in setOf("required", "preferred")
-        val auth = pinAuth(tx, pin, if (rk && pk.optString("userVerification") != "discouraged") "required" else pk.optString("userVerification"), cdh)
+        // klucz dostępu na kluczu (rk): wymagany - zawsze; „preferowany” - tylko z PIN-em (bez PIN-u zwykły klucz, jak w Chrome)
+        val rk = pk.optString("rk") == "required" || (pk.optString("rk") == "preferred" && pin.isNotEmpty())
+        val auth = pinAuth(tx, pin, if (pk.optString("rk") == "required") "required" else pk.optString("userVerification"), cdh)
         val p = linkedMapOf<Any, Any>(1L to cdh, 2L to linkedMapOf<Any, Any>("id" to rpId, "name" to (pk.optJSONObject("rp")?.optString("name")?.ifEmpty { null } ?: rpId)),
             3L to linkedMapOf<Any, Any>("id" to unb64u(u.optString("id")), "name" to u.optString("name"), "displayName" to u.optString("displayName").ifEmpty { u.optString("name") }),
             4L to algs.map { linkedMapOf<Any, Any>("alg" to it, "type" to "public-key") })

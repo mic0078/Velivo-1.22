@@ -3391,7 +3391,10 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         if (pl.velivo.komunikator.Klucz.keys(kp).isEmpty()) unlockPin(onOk) else pl.velivo.komunikator.Klucz.unlock(this, kp) { ok -> if (ok) onOk() else unlockPin(onOk) }
     }
     private fun unlockPin(onOk: () -> Unit) {
-        if (!getSystemService(KeyguardManager::class.java).isDeviceSecure) { toast(getString(R.string.no_lock)); onOk(); return }
+        if (!getSystemService(KeyguardManager::class.java).isDeviceSecure) {
+            // dodany klucz sprzętowy, a telefon bez blokady ekranu: anulowanie klucza nie otwiera
+            if (pl.velivo.komunikator.Klucz.keys(getSharedPreferences("komunikator", MODE_PRIVATE)).isNotEmpty()) { toast(getString(R.string.no_lock)); return }
+            toast(getString(R.string.no_lock)); onOk(); return }
         val b = BiometricPrompt.Builder(this).setTitle(getString(R.string.unlock))
         if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
         else setCredentialAllowed(b)

@@ -28,7 +28,7 @@ namespace Velivo
     public partial class MainWindow
     {
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
-        sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; public bool IsGroup => Key.Length == 0; }   // 👥 grupa: bez klucza, członkowie w Addr („grupa:id,id”)   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
+        sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; public bool Dom; public bool IsGroup => Key.Length == 0; }   // Dom: moje urządzenie z domu (sparowane kodem w sieci domowej albo przedstawione jako domowe przez mój serwer) - tylko takim serwerom ufa wymiana kontaktów   // 👥 grupa: bez klucza, członkowie w Addr („grupa:id,id”)   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
         sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; public string Re = ""; public string Lp; }   // Lp: 🔗 podgląd linku (JSON: u, t, d, s)   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
 
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
@@ -80,7 +80,7 @@ namespace Velivo
                         try
                         {
                             var k = Convert.FromBase64String((string)c["key"] ?? "");
-                            if (k.Length == 32 || k.Length == 0 && ((string)c["addr"] ?? "").StartsWith("grupa:", StringComparison.Ordinal)) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false, Relay = (string)c["relay"] });
+                            if (k.Length == 32 || k.Length == 0 && ((string)c["addr"] ?? "").StartsWith("grupa:", StringComparison.Ordinal)) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false, Relay = (string)c["relay"], Dom = (bool?)c["dom"] ?? (!string.IsNullOrEmpty((string)c["addr"]) && !((string)c["addr"]).StartsWith("grupa:", StringComparison.Ordinal)) });   // starsze dane: urządzenie znane z sieci domowej
                         }
                         catch (Exception ex) { App.LogError(ex); }
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
@@ -136,7 +136,7 @@ namespace Velivo
                 var o = new JsonObject
                 {
                     ["id"] = _komId,
-                    ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay }).ToArray()),
+                    ["contacts"] = new JsonArray(_komContacts.Select(c => (JsonNode)new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["key"] = Convert.ToBase64String(c.Key), ["addr"] = c.Addr, ["dev"] = c.Device, ["own"] = c.Own, ["relay"] = c.Relay, ["dom"] = c.Dom }).ToArray()),
                     ["chats"] = chats, ["unread"] = unread, ["theme"] = _komTheme, ["autoimg"] = _komAutoImages, ["notifynew"] = _komNotifyNew, ["sound"] = _komSound, ["lock"] = _komLock, ["photov"] = _komPhotoV, ["photosent"] = new JsonObject(_komPhotoSent.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value))), ["asks"] = new JsonObject(_komAskKeys.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value))),
                     ["askReq"] = new JsonObject(_komAskReq.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["askRes"] = new JsonObject(_komAskRes.Select(kv => KeyValuePair.Create(kv.Key, kv.Value.DeepClone()))), ["relayOn"] = _komRelayOn, ["relayAuto"] = _komRelayAuto, ["relayAsked"] = _komRelayAsked, ["invites"] = new JsonArray(_komInvites.Values.Where(v => v.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Select(v => (JsonNode)new JsonObject { ["k"] = Convert.ToBase64String(v.K), ["by"] = v.By, ["exp"] = v.Exp }).ToArray()), ["relayHost"] = _komRelayHost, ["relayPort"] = _komRelayPort, ["relayPortFixed"] = _komRelayPortFixed, ["opt"] = _komOpt.DeepClone(), ["seen"] = new JsonObject(_komSeenAt.ToArray().Select(kv => KeyValuePair.Create(kv.Key, (JsonNode)kv.Value.ToString("o"))))   // „ostatnio w sieci” zostaje po ponownym uruchomieniu
                 };
@@ -812,26 +812,27 @@ namespace Velivo
             JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
             var id = (string)j?["id"]; byte[] key; try { key = Convert.FromBase64String((string)j["key"] ?? ""); } catch (Exception) { return; }
             // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
-            if (KomContactById(id ?? "") is { } kc) { var ra = (string)j["relay"] ?? ""; if (!string.IsNullOrEmpty(from.Relay) && string.IsNullOrEmpty(kc.Relay) && ra.Contains(':') && ra.Length < 200) { kc.Relay = ra; KomSave(); } return; }
+            if (KomContactById(id ?? "") is { } kc) { var ra = (string)j["relay"] ?? ""; if (from.Dom && string.IsNullOrEmpty(kc.Relay) && ra.Contains(':') && ra.Length < 200) { kc.Relay = ra; KomSave(); } return; }
             if (id == null || id.Length != 32 || id == _komId || key.Length != 32) return;
             var name = KomClean((string)j["name"]); if (name.Length == 0) name = "Velivo";
             var relay = (string)j["relay"];
             // pośrednik (np. NUCBOX, zwykle bez nikogo przy ekranie) - od zaufanego kontaktu od razu, żeby nowy znajomy mógł się łączyć przez internet
             // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika - też od razu: wiadomości idą przez którykolwiek
-            if (_komRelayListener != null || (!string.IsNullOrEmpty(from.Relay) && (relay ?? "").Contains(':'))) { KomCardAdd(from, id, name, key, (string)j["dev"], relay); return; }
+            bool dom = from.Dom && (bool?)j["dom"] == true;   // „domowy” tylko od mojego domowego serwera - obcy nie zrobi z siebie mojego serwera
+            if (_komRelayListener != null || (dom && (relay ?? "").Contains(':'))) { KomCardAdd(from, id, name, key, (string)j["dev"], relay, dom); return; }
             // prośba o kontakt od znajomego - zgoda (okno nad innymi; nie blokuje odbioru)
             _ = Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (KomContactById(id) != null) return;
                 if (MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), from.Name + L.T(" poleca Ci: ") + name + L.T(".\n\nDodać do komunikatora? Będziecie mogli pisać i dzwonić także przez internet."),
                     "👤 " + L.T("Prośba o kontakt"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                KomCardAdd(from, id, name, key, (string)j["dev"], relay);
+                KomCardAdd(from, id, name, key, (string)j["dev"], relay, false);
             }));
             KomPlaySound();
         }
-        void KomCardAdd(KomContact from, string id, string name, byte[] key, string dev, string relay)
+        void KomCardAdd(KomContact from, string id, string name, byte[] key, string dev, string relay, bool dom)
         {
-            _komContacts.Add(new KomContact { Id = id, Name = name, Key = key, Addr = "", Device = KomClean(dev) is { Length: > 0 } dv ? dv : name, Own = false, Relay = string.IsNullOrEmpty(relay) ? null : relay });
+            _komContacts.Add(new KomContact { Id = id, Name = name, Key = key, Addr = "", Device = KomClean(dev) is { Length: > 0 } dv ? dv : name, Own = false, Relay = string.IsNullOrEmpty(relay) ? null : relay, Dom = dom });
             KomChat(from.Id).Add(new KomMsg { Mine = false, Text = "👤 " + L.T("Nowy kontakt: ") + name + " (" + L.T("od: ") + from.Name + ")", Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Ok = true, Mid = Guid.NewGuid().ToString("N") });
             KomSave(); _komRefresh?.Invoke(); KomAnnounce();
         }
@@ -1067,6 +1068,7 @@ namespace Velivo
             {
                 _ = KomPollAsks();   // 🔗 odpowiedzi na moje prośby z czyjegoś adresu
                 // 📬 skrzynka pośrednika: nieudana próba oddania pliku (słaby zasięg odbiorcy) - ponawiana co minutę, póki odbiorca w sieci, a nie dopiero przy jego ponownym połączeniu
+                if (_komRelayListener != null) KomBoxDoneRepeat();
                 if (_komRelayListener != null) foreach (var id in _komRemote.Keys.Concat(_komLanSeen.Where(kv => DateTime.UtcNow - kv.Value < TimeSpan.FromSeconds(100)).Select(kv => kv.Key)).Distinct().ToList()) _ = KomBoxFlush(id);
                 if (_komContacts.Count == 0) return;
                 KomSendUdp(KomPacket("p2p-here"), null);
@@ -1145,7 +1147,7 @@ namespace Velivo
             if (type == "p2p-box" && toId != _komId)
             {   // 📬 pośrednik: plik do kontaktu, którego może nie być - przechowanie i oddanie, gdy się pojawi
                 if (_komRelayListener == null) return true;
-                try { await KomBoxStore(h, headerBytes, stream, KomPeerAt(remote) is string pr && pr != (string)h["Id"], token); } catch (Exception ex) { if (!token.IsCancellationRequested && ex is not IOException) App.LogError(ex); }
+                try { await KomBoxStore(h, headerBytes, stream, KomPeerAt(remote) is string pr && pr != (string)h["Id"] ? pr : null, token); } catch (Exception ex) { if (!token.IsCancellationRequested && ex is not IOException) App.LogError(ex); }
                 return true;
             }
             if (type == "p2p-file" && toId != null && toId != _komId && _komRemote.ContainsKey(toId)) { await KomRelayToRemote(toId, headerBytes, stream, token); return true; }
@@ -1179,7 +1181,7 @@ namespace Velivo
                 await s.WriteAsync(new[] { (byte)(ok ? 1 : 0) }, 0, 1, token); await s.FlushAsync(token);
                 if (!ok) return;
                 await KomWriteBlock(s, Encoding.UTF8.GetBytes(new JsonObject { ["Id"] = _komId, ["Device"] = _lanDeviceName }.ToJsonString()), token);
-                await Dispatcher.InvokeAsync(() => KomAddContact(new KomContact { Id = other, Name = dev, Device = dev, Key = key, Addr = remote?.ToString() ?? "" }));
+                await Dispatcher.InvokeAsync(() => KomAddContact(new KomContact { Id = other, Name = dev, Device = dev, Key = key, Addr = remote?.ToString() ?? "", Dom = !auto && !invited }));
             }
         }
 
@@ -1223,7 +1225,7 @@ namespace Velivo
                     var info = await KomReadBlock(s, 4096, cts.Token); if (info == null) return "błąd";
                     var o = JsonNode.Parse(info); if (id != null && (string)o["Id"] != id) return "błąd";
                     var dev = KomClean((string)o["Device"]); var cid = (string)o["Id"]; if (cid == null || cid.Length != 32) return "błąd";
-                    var nc = new KomContact { Id = cid, Name = dev.Length > 0 ? dev : name, Device = dev.Length > 0 ? dev : name, Key = key, Addr = addr ?? "", Relay = relay };
+                    var nc = new KomContact { Id = cid, Name = dev.Length > 0 ? dev : name, Device = dev.Length > 0 ? dev : name, Key = key, Addr = addr ?? "", Relay = relay, Dom = !invited };
                     await Dispatcher.InvokeAsync(() => KomAddContact(nc));
                     return "ok";
                 }
@@ -2648,9 +2650,11 @@ namespace Velivo
         {
             var keys = KomHwKeys(); var hwnd = new System.Windows.Interop.WindowInteropHelper(owner).Handle;
             try
-            {   // najpierw PIN / Windows Hello tego komputera - nikt przy odblokowanym komputerze nie doda swojego klucza
-                if (await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync() == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available
-                    && await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Najpierw PIN tego komputera (Windows Hello) – potem dotkniesz klucza")) != Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified) return;
+            {   // najpierw PIN / Windows Hello tego komputera - nikt przy odblokowanym komputerze nie doda swojego klucza; bez Windows Hello klucza nie dodajemy
+                // (zgubiony klucz bez zapasu zamknąłby komunikator na zawsze)
+                if (await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync() != Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available)
+                { MessageBox.Show(owner, L.T("Najpierw ustaw PIN Windows (Ustawienia → Konta → Opcje logowania). To zapas, gdy klucz się zepsuje albo zginie."), "🔑", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+                if (await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Najpierw PIN tego komputera (Windows Hello) – potem dotkniesz klucza")) != Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified) return;
                 KomInfo("🔑 " + L.T("Teraz dotknij klucza. Jeśli Windows zapyta o PIN klucza – to PIN Twojego YubiKey / Titana, nie komputera."));
                 var k = await Task.Run(() => WebAuthn.Register(hwnd, BankRpId, keys.Select(x => Convert.FromBase64String(x.Id)).ToList()));
                 // nazwa (np. YubiKey, Titan) - przy wymianie widać, który usunąć; zamknięcie okna zapisuje

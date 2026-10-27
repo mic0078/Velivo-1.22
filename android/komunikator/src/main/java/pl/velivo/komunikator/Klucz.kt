@@ -34,7 +34,9 @@ object Klucz {
 
     // najpierw hasło / PIN telefonu - nikt przy odblokowanym telefonie nie doda swojego klucza ani nie usunie Twojego
     fun confirm(a: Activity, then: () -> Unit) {
-        if (a.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure != true) { then(); return }
+        // bez blokady ekranu nie ma zapasu (zgubiony klucz zamknąłby rozmowy) i nikt nie sprawdzi, kto dodaje klucz - najpierw PIN telefonu
+        if (a.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure != true) {
+            android.widget.Toast.makeText(a, t("Najpierw ustaw blokadę ekranu (PIN) w ustawieniach telefonu – to zapas, gdy klucz się zepsuje albo zginie.", "First set a screen lock (PIN) in phone settings – it is the backup if the key breaks or gets lost."), android.widget.Toast.LENGTH_LONG).show(); return }
         val b = android.hardware.biometrics.BiometricPrompt.Builder(a).setTitle("🔑 " + t("Podaj hasło / PIN telefonu", "Enter the phone password / PIN"))
         if (android.os.Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
         else @Suppress("DEPRECATION") b.setDeviceCredentialAllowed(true)
@@ -74,21 +76,21 @@ object Klucz {
     fun unlock(a: Activity, p: android.content.SharedPreferences, done: (Boolean) -> Unit) = verify(a, keys(p)) { ok -> done(ok); if (ok) due(a, p) }
     private const val TEST_MS = 90L * 86400000
     fun due(a: Activity, p: android.content.SharedPreferences) {
-        val now = System.currentTimeMillis(); val last = p.getLong("klucze-test", 0L)
+        val now = System.currentTimeMillis(); val last = p.getLong("test-kluczy", 0L)
         if (keys(p).isEmpty() || now - last < TEST_MS) return
-        if (last == 0L) { p.edit().putLong("klucze-test", now).apply(); return }   // pierwszy raz - liczenie od dziś
+        if (last == 0L) { p.edit().putLong("test-kluczy", now).apply(); return }   // pierwszy raz - liczenie od dziś
         android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🧪 " + t("Sprawdź klucze", "Check your keys"))
             .setMessage(t("Minęły 3 miesiące. Dotknij po kolei każdego klucza (także zapasowego) – awarię wykryjesz teraz, nie w dniu, gdy klucz będzie potrzebny.",
                 "3 months have passed. Touch each key in turn (the backup too) – you find a fault now, not on the day you need the key."))
             .setPositiveButton(t("Sprawdź", "Check")) { _, _ -> test(a, p) }
-            .setNegativeButton(t("Za tydzień", "In a week")) { _, _ -> p.edit().putLong("klucze-test", now - TEST_MS + 7L * 86400000).apply() }.show()
+            .setNegativeButton(t("Za tydzień", "In a week")) { _, _ -> p.edit().putLong("test-kluczy", now - TEST_MS + 7L * 86400000).apply() }.show()
     }
     // test każdego klucza osobno (po nazwie); wynik ✓ / ✗ i data ostatniego udanego testu przy kluczu
     fun test(a: Activity, p: android.content.SharedPreferences) {
         val l = keys(p); val res = ArrayList<String>()
         fun next(i: Int) {
             if (i >= l.size) {
-                p.edit().putLong("klucze-test", System.currentTimeMillis()).apply()
+                p.edit().putLong("test-kluczy", System.currentTimeMillis()).apply()
                 android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🧪 " + t("Wynik", "Result")).setMessage(res.joinToString("\n") +
                     if (res.any { it.startsWith("✗") }) "\n\n" + t("Nie działający klucz usuń (🗑) i dodaj nowy zapasowy.", "Remove the failing key (🗑) and add a new backup.") else "")
                     .setPositiveButton(android.R.string.ok, null).show(); return }

@@ -69,7 +69,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     class Peer(val id: String, val name: String, val addr: InetAddress)
     // name - nazwa wyświetlana (własna albo urządzenia); device - prawdziwa nazwa urządzenia (aktualizowana z sieci); own - nazwa nadana przez użytkownika
     // relay - adres pośrednika tego kontaktu (No-IP:port, np. NUCBOX) - rozmowy poza domem
-    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String, var device: String = name, var own: Boolean = false, var relay: String? = null) {
+    class Contact(val id: String, var name: String, val key: ByteArray, var addr: String, var device: String = name, var own: Boolean = false, var relay: String? = null, var dom: Boolean = false) {   // dom: moje urządzenie z domu (sparowane kodem w sieci domowej albo przedstawione jako domowe przez mój serwer)
         val isGroup get() = key.isEmpty()   // 👥 grupa: bez klucza, członkowie w addr („grupa:id,id”)
     }
     // read: moja - odbiorca przeczytał (✓✓); odebrana - wysłaliśmy „przeczytane”
@@ -121,13 +121,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     val contacts: MutableList<Contact> = runCatching {
         val a = JSONArray(open(prefs.getString("kontakty", null)) ?: "[]")
-        (0 until a.length()).mapNotNull { i -> runCatching { a.getJSONObject(i) }.getOrNull() }.mapNotNull { runCatching { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own"), it.optString("relay").ifEmpty { null }) }.getOrNull() }
+        (0 until a.length()).mapNotNull { i -> runCatching { a.getJSONObject(i) }.getOrNull() }.mapNotNull { runCatching { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own"), it.optString("relay").ifEmpty { null }, if (it.has("dom")) it.optBoolean("dom") else it.optString("addr").let { a -> a.isNotEmpty() && !a.startsWith("grupa:") }) }.getOrNull() }   // starsze dane: znane z sieci domowej
             .filter { it.key.size == 32 }.toMutableList()
     }.getOrDefault(mutableListOf())
 
     @Synchronized private fun saveContacts() {
         val a = JSONArray()
-        contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own).put("relay", it.relay ?: "")) }
+        contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own).put("relay", it.relay ?: "").put("dom", it.dom)) }
         prefs.edit().putString("kontakty", seal(a.toString())).apply()
     }
 
@@ -149,7 +149,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // --- przeniesienie klawiatura -> przeglądarka (telefon z obiema aplikacjami: jeden komunikator, bez dublowania) ---
     @Synchronized fun export(): String = JSONObject().put("cid", myId)
-        .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own).put("relay", it.relay ?: "")) } })
+        .put("contacts", JSONArray().also { a -> contacts.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("key", b64(it.key)).put("addr", it.addr).put("dev", it.device).put("own", it.own).put("relay", it.relay ?: "").put("dom", it.dom)) } })
         .put("chats", JSONObject().also { o -> contacts.forEach { c -> o.put(c.id, JSONArray().also { a -> chat(c.id).forEach { m -> a.put(JSONObject().put("me", m.mine).put("t", m.text).put("ts", m.ts).put("ok", m.ok).put("mid", m.mid).put("rd", m.read).put("f", m.file).put("p", m.path ?: "").put("re", m.re).put("lp", m.lp)) } }) } })
         .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).put("opt", optExport()).toString()
 
@@ -218,7 +218,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             for (i in 0 until a.length()) {
                 val j = a.getJSONObject(i); val key = unb64(j.optString("key")); val id = j.optString("id")
                 if (key.size != 32 || id.length != 32) continue
-                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr"), j.optString("dev", j.optString("name")), j.optBoolean("own"), j.optString("relay").ifEmpty { null }))
+                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr"), j.optString("dev", j.optString("name")), j.optBoolean("own"), j.optString("relay").ifEmpty { null }, j.optBoolean("dom")))
                 val list = chat(id); val have = list.map { it.mid }.toHashSet()
                 val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
                 for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
@@ -238,7 +238,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun wipe() {
         close()
         synchronized(this) { contacts.clear(); chats.clear() }
-        prefs.edit().clear().putBoolean("przeniesione", true).apply()
+        // 🔐 klucze sprzętowe i blokada należą też do Velivo (przeglądarka) - przekazanie rozmów ich nie kasuje
+        val keep = listOf("klucze", "test-kluczy", "blokada").filter { prefs.contains(it) }.associateWith { prefs.all[it] }
+        prefs.edit().clear().putBoolean("przeniesione", true).apply { keep.forEach { (n, v) -> when (v) { is Boolean -> putBoolean(n, v); is Long -> putLong(n, v); is String -> putString(n, v) } } }.apply()
         myId = UUID.randomUUID().toString().replace("-", "")
         prefs.edit().putString("cid", myId).putBoolean("przeniesione", true).apply()
     }
@@ -603,11 +605,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val j = runCatching { JSONObject(body) }.getOrNull() ?: return
         val id = j.optString("id"); val key = unb64(j.optString("key"))
         // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
-        contact(id)?.let { c -> val ra = j.optString("relay"); if (from.relay != null && c.relay == null && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }
+        contact(id)?.let { c -> val ra = j.optString("relay"); if (from.dom && c.relay == null && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }
         if (id.length != 32 || id == myId || key.size != 32) return
         // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika (NUCBOX) - od razu, bez pytania: wiadomości idą przez którykolwiek
         val rl = j.optString("relay")
-        if (from.relay != null && ':' in rl) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl)) }
+        if (from.dom && j.optBoolean("dom") && ':' in rl) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl, dom = true)) }
             saveContacts(); main.post { onChange() }; return }
         val list = cardList(); if ((0 until list.length()).any { JSONObject(list.getString(it)).optJSONObject("c")?.optString("id") == id }) return
         list.put(JSONObject().put("f", from.id).put("c", j).toString()); prefs.edit().putString("prosby-kontakt", list.toString()).apply()
@@ -624,7 +626,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val r = myRelay() ?: return null
         var sk = prefs.getString("moj-adres", null)
         if (sk == null || reset) { sk = b64(ByteArray(24).also { random.nextBytes(it) }); prefs.edit().putString("moj-adres", sk).apply() }
-        val all = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup } }
+        val all = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup && it.dom } }.ifEmpty { listOf(r) }
         all.forEach { hidden(it, ADDR + sk) }   // każdy pośrednik (NUCBOX, CHUWI) zna sekret - wpuszcza tylko prośby z tym linkiem, prośba dojdzie, gdy jeden nie działa
         val j = JSONObject().put("a", r.relay).put("o", myId).put("s", sk).put("n", deviceName())
             .put("r", JSONArray(all.mapNotNull { it.relay }.filter { it != r.relay }.distinct().take(4)))   // zapasowe adresy pośredników
@@ -880,7 +882,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         out.write(if (ok) 1 else 0); out.flush()
         if (!ok) return
         writeBlock(out, JSONObject().put("Id", myId).put("Device", deviceName()).toString().toByteArray(Charsets.UTF_8))
-        addContact(Contact(other, dev, key, cn.addr?.hostAddress ?: ""))
+        addContact(Contact(other, dev, key, cn.addr?.hostAddress ?: "", dom = !invited && !auto && cn.addr?.isLoopbackAddress == false))
     }
 
     private fun addContact(c: Contact) {
@@ -910,7 +912,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (s.inp.read() != 1) return@use "odrzucono"
         val info = JSONObject(String(readBlock(s.inp, 4096) ?: return@use "błąd", Charsets.UTF_8))
         if (info.optString("Id") != id) return@use "błąd"
-        addContact(Contact(id, clean(info.optString("Device")).ifEmpty { name }, key, s.addr?.hostAddress ?: "", relay = relay))
+        addContact(Contact(id, clean(info.optString("Device")).ifEmpty { name }, key, s.addr?.hostAddress ?: "", relay = relay, dom = !invited))
         "ok"
     }
 
@@ -1154,6 +1156,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun viaInternet(id: String) = up != null || viaNet.containsKey(id)
     val away get() = up != null              // 🌍 ten telefon poza domem (połączony przez pośrednika)
     val awayVia get() = upRelay?.name
+    @Volatile private var altAt = 0L   // ostatnia próba zapasowych adresów serwerów
     @Volatile var noRelay: String? = null   // ⚠ poza domem i żaden serwer nie odpowiada - które i pod jakim adresem próbowano (stan ze sprawdzenia)
     @Volatile private var up: Frames? = null
     @Volatile private var upRelay: Contact? = null
@@ -1349,17 +1352,20 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (udpOut == null && udp == null) return@runCatching   // komunikator nie działa (aplikacja zamknięta bez odbioru w tle)
             var f: Frames? = null
             for (cand in relays) { f = relayConnect(cand, "main"); if (f != null) { relay = cand; break } }   // pierwszy, który odpowie
-            // adres domu się zmienił (nowe IP od operatora) albo serwer ogłosił zły adres - przez nazwę domu i adresy innych serwerów
-            // z tego samego domu (NUCBOX i CHUWI mają ten sam adres w internecie, różne porty); port zapamiętany i domyślny
-            val hosts = (listOf(homeName) + relays.mapNotNull { it.relay?.substringBeforeLast(':') }).filter { it.isNotEmpty() }.distinct()
-            if (f == null && hosts.isNotEmpty()) for (cand in relays) {
-                val old = cand.relay ?: continue
-                ports@ for (port in listOf(old.substringAfterLast(':'), "41920").distinct()) for (hn in hosts) {
-                    val alt = "$hn:$port"; if (alt == old) continue
-                    cand.relay = alt; f = relayConnect(cand, "main")
-                    if (f != null) { relay = cand; saveContacts(); break@ports } else cand.relay = old
+            // adres domu się zmienił (nowe IP od operatora) albo serwer ogłosił zły adres - przez nazwę domu i adresy MOICH serwerów z domu
+            // (NUCBOX i CHUWI: ten sam adres w internecie, różne porty); najwyżej raz na 2 min, próby na kopii - adres zmienia się dopiero po udanym połączeniu
+            if (f == null && now - altAt > 120000) {
+                altAt = now
+                val home = relays.filter { it.dom && it.relay?.contains(':') == true }
+                val hosts = (listOf(homeName) + home.map { it.relay!!.substringBeforeLast(':') }).filter { it.isNotEmpty() }.distinct()
+                fallback@ for (cand in relays) {
+                    val old = cand.relay ?: continue
+                    for (port in listOf(old.substringAfterLast(':'), "41920").distinct()) for (hn in hosts) {
+                        val alt = "$hn:$port"; if (alt == old) continue
+                        f = relayConnect(Contact(cand.id, cand.name, cand.key, "", relay = alt), "main")
+                        if (f != null) { cand.relay = alt; relay = cand; saveContacts(); break@fallback }
+                    }
                 }
-                if (f != null) break
             }
             val ff = f ?: run { val nr = relays.joinToString(", ") { it.name + " " + it.relay + " ✗" }; if (nr != noRelay) { noRelay = nr; main.post { onChange() } }; return@runCatching }
             val rl = relay!!; noRelay = null
@@ -2282,7 +2288,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             1 -> return true
         }
         keyStep = 0
-        if (a.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure != true) return false
+        if (a.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure != true) {
+            if (k.hwKeys.isEmpty()) return false
+            // klucz anulowany, a telefon bez blokady ekranu - zapasu nie ma, rozmowy zostają zamknięte (anulowanie nie może otwierać)
+            Toast.makeText(a, t("Bez klucza nie otworzysz – telefon nie ma blokady ekranu (PIN). Przyłóż albo włóż klucz.", "You cannot open it without the key – the phone has no screen lock (PIN). Hold or plug in the key."), Toast.LENGTH_LONG).show()
+            return true
+        }
         val b = android.hardware.biometrics.BiometricPrompt.Builder(a).setTitle("🔒 " + t("Komunikator Velivo", "Velivo messenger"))
         if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK or android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
         else @Suppress("DEPRECATION") b.setDeviceCredentialAllowed(true)

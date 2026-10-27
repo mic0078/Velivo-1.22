@@ -1085,6 +1085,7 @@ namespace Velivo
             { "Dodaj zapasowy klucz – gdy jeden się zepsuje albo zginie, drugi działa.", "Add a backup key – if one breaks or gets lost, the other works." },
             { "Usuń ten klucz (zepsuty albo zgubiony) – pozostałe działają dalej", "Remove this key (broken or lost) – the others keep working" },
             { "Dotknij teraz: ", "Touch now: " },
+            { "Najpierw ustaw PIN Windows (Ustawienia → Konta → Opcje logowania). To zapas, gdy klucz się zepsuje albo zginie.", "First set a Windows PIN (Settings → Accounts → Sign-in options). It is the backup if the key breaks or gets lost." },
             { "Najpierw PIN tego komputera (Windows Hello) – potem dotkniesz klucza", "First this computer's PIN (Windows Hello) – then you touch the key" },
             { "Teraz dotknij klucza. Jeśli Windows zapyta o PIN klucza – to PIN Twojego YubiKey / Titana, nie komputera.", "Now touch the key. If Windows asks for the key PIN – it is the PIN of your YubiKey / Titan, not the computer." },
             { "Kopię otworzysz hasłem albo kluczem sprzętowym (YubiKey, Titan). Dodać klucz? Dotkniesz go 2 razy.", "You open the backup with the password or a security key (YubiKey, Titan). Add a key? You touch it twice." },

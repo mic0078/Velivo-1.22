@@ -78,7 +78,7 @@ class MorsePole(ctx: Context, private val onLetter: (String) -> Unit, private va
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { if (sheet || e.y < 34 * dp && e.x > width - 50 * dp) { sheet = !sheet; sheetTap = true; invalidate(); return true }; sheetTap = false; removeCallbacks(done); sx = e.x; sy = e.y; maxPtr = 1; t0 = SystemClock.uptimeMillis(); lit = if (e.x < width / 2f) 1 else 2; invalidate() }
+            MotionEvent.ACTION_DOWN -> { if (sheet || e.y < 34 * dp && e.x > width - 50 * dp) { sheet = !sheet; sheetTap = true; invalidate(); return true }; sheetTap = false; if (vibrate) tick(context); removeCallbacks(done); sx = e.x; sy = e.y; maxPtr = 1; t0 = SystemClock.uptimeMillis(); lit = if (e.x < width / 2f) 1 else 2; invalidate() }
             MotionEvent.ACTION_POINTER_DOWN -> { maxPtr = maxOf(maxPtr, e.pointerCount); lit = 0; invalidate() }
             MotionEvent.ACTION_UP -> {
                 if (sheetTap) { sheetTap = false; return true }

@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.os.SystemClock
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
@@ -69,6 +68,9 @@ object Brajl {
     }
 }
 
+// delikatne stuknięcie wibracją (25 ms, słabo) - pod palcem w brajlu i Morsie
+fun tick(ctx: Context) { runCatching { ctx.getSystemService(android.os.Vibrator::class.java)?.vibrate(android.os.VibrationEffect.createOneShot(25, 70)) } }
+
 // pole 6 punktów (pisanie brajlem i nauka): punkty z palców położonych razem - znak po podniesieniu wszystkich palców;
 // jednym palcem przesunięcie: w prawo spacja, w lewo usuń, w dół nowa linia; dwoma palcami: w górę przeczytaj, w dół wyjście
 @SuppressLint("ViewConstructor")
@@ -127,7 +129,7 @@ class BrajlPole(ctx: Context, private val onCell: (Int) -> Unit, private val onG
                 sx[id] = e.getX(i); sy[id] = e.getY(i); ex[id] = e.getX(i); ey[id] = e.getY(i)
                 val z = zoneAt(e.getX(i), e.getY(i)); if (z >= 0) mask = mask or (1 shl z)
                 maxPtr = maxOf(maxPtr, e.pointerCount); lit = mask
-                if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+                if (vibrate) tick(context)   // delikatna wibracja pod palcem (także gdy wibracje systemu wyłączone)
                 invalidate()
             }
             MotionEvent.ACTION_MOVE -> for (i in 0 until e.pointerCount) { val id = e.getPointerId(i); ex[id] = e.getX(i); ey[id] = e.getY(i) }

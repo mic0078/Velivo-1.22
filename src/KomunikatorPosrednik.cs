@@ -188,9 +188,9 @@ namespace Velivo
         void KomBoxDoneRepeat()
         {
             foreach (var kv in _komBoxDoneOut) if (DateTime.UtcNow - kv.Value.At > TimeSpan.FromDays(2)) _komBoxDoneOut.TryRemove(kv.Key, out _);
-            foreach (var kv in _komBoxDoneOut.OrderByDescending(kv => kv.Value.At).Skip(200)) _komBoxDoneOut.TryRemove(kv.Key, out _);   // najwyżej 200 najnowszych (mały pakiet)
             foreach (var g in _komBoxDoneOut.GroupBy(kv => kv.Value.To))
-                KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = g.Key, ["files"] = new JsonArray(g.Select(kv => (JsonNode)kv.Key).ToArray()), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+                foreach (var part in g.Select(kv => kv.Key).Chunk(200))   // paczki po 200 (pakiet UDP ~7 KB)
+                    KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = g.Key, ["files"] = new JsonArray(part.Select(h => (JsonNode)h).ToArray()), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
         }
         // 📬 kopia pliku ze skrzynki u innych pośredników w domu (NUCBOX, CHUWI) - gdy ten padnie, inny go odda
         readonly ConcurrentDictionary<string, DateTime> _komBoxGone = new ConcurrentDictionary<string, DateTime>();   // doręczone przez innego pośrednika - spóźniona kopia odrzucana
@@ -218,10 +218,11 @@ namespace Velivo
             {
                 foreach (var hdr in Directory.GetFiles(dir, "*.hdr").OrderBy(x => x))
                 {
-                    // kopia - najpierw oddaje serwer z oryginałem (bez podwójnej wysyłki 77 MB przez dane komórkowe); kopia idzie, gdy tamten nie działa
-                    // albo przez 10 min nie oddał (odbiorca połączony tylko z tym serwerem)
-                    if (Path.GetFileName(hdr).StartsWith('k') && DateTime.UtcNow - File.GetCreationTimeUtc(hdr) < TimeSpan.FromMinutes(10) && File.Exists(Path.ChangeExtension(hdr, ".src"))
-                        && File.ReadAllText(Path.ChangeExtension(hdr, ".src")) is var src && _komLanSeen.TryGetValue(src, out var srcSeen) && DateTime.UtcNow - srcSeen < TimeSpan.FromSeconds(100)) continue;
+                    // kopia - oddaje serwer z oryginałem, jeśli działa i odbiorca jest z nim połączony albo w domu (bez podwójnej wysyłki 77 MB);
+                    // kopia idzie, gdy oryginał nie działa albo odbiorca jest połączony tylko ze mną
+                    if (Path.GetFileName(hdr).StartsWith('k') && File.Exists(Path.ChangeExtension(hdr, ".src")) && File.ReadAllText(Path.ChangeExtension(hdr, ".src")) is var src
+                        && _komLanSeen.TryGetValue(src, out var srcSeen) && DateTime.UtcNow - srcSeen < TimeSpan.FromSeconds(100)
+                        && ((_komViaRelay.TryGetValue(id, out var vr) && _komLanAddr.TryGetValue(src, out var sa) && vr.Equals(sa)) || (_komLanSeen.TryGetValue(id, out var rs) && DateTime.UtcNow - rs < TimeSpan.FromSeconds(100)))) continue;
                     var bin = Path.ChangeExtension(hdr, ".bin");
                     if (!File.Exists(bin)) { File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { } continue; }
                     using var cts = new CancellationTokenSource(TimeSpan.FromHours(2));
@@ -684,7 +685,7 @@ namespace Velivo
                     {
                         _komAltAt = DateTime.UtcNow;
                         var hosts = home.Select(c => c.Relay.Substring(0, c.Relay.LastIndexOf(':'))).Distinct().ToList();
-                        foreach (var cand in relays.Where(c => c.Relay.LastIndexOf(':') > 0))
+                        foreach (var cand in home)
                         {
                             var port = cand.Relay.Substring(cand.Relay.LastIndexOf(':') + 1);
                             foreach (var hst in hosts)

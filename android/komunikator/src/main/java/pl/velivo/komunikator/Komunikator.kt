@@ -235,14 +235,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         main.post { onChange() }
     }
 
-    // starsze dane (bez „dom”): domowe = znane z sieci domowej i pod tym samym adresem w internecie co większość moich serwerów (serwer znajomego ma inny)
-    private fun domMigrate(list: List<Contact>, nd: Set<String>) {
-        if (nd.isEmpty()) return
-        fun host(c: Contact) = c.relay?.takeIf { ':' in it }?.substringBeforeLast(':') ?: ""
-        val lan = list.filter { it.id in nd && it.addr.isNotEmpty() && !it.addr.startsWith("grupa:") }
-        val home = lan.map { host(it) }.filter { it.isNotEmpty() }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: ""
-        lan.forEach { it.dom = home.isNotEmpty() && (host(it) == home || host(it).isEmpty()) }
-    }
+    // starsze dane (bez „dom”): domowe = poznane w mojej sieci domowej (ma adres w Wi-Fi)
+    private fun domMigrate(list: List<Contact>, nd: Set<String>) { list.forEach { if (it.id in nd) it.dom = it.addr.isNotEmpty() && !it.addr.startsWith("grupa:") } }
 
     // po przeniesieniu do przeglądarki: klawiatura nic nie trzyma i nie nasłuchuje
     fun wipe() {
@@ -615,12 +609,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val j = runCatching { JSONObject(body) }.getOrNull() ?: return
         val id = j.optString("id"); val key = unb64(j.optString("key"))
         // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
-        val trusted = from.dom || from.id == upRelay?.id || upMore.containsKey(from.id)   // mój domowy albo serwer, przez który jestem teraz połączony (mama z zaproszenia)
-        contact(id)?.let { c -> val ra = j.optString("relay"); if (trusted && c.relay == null && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }
+        val trusted = from.dom || (up != null && from.id == upRelay?.id) || upMore.containsKey(from.id)   // mój domowy albo serwer, przez który jestem teraz połączony (mama z zaproszenia)
+        contact(id)?.let { c -> val ra = j.optString("relay"); if (from.dom && c.relay == null && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }
         if (id.length != 32 || id == myId || key.size != 32) return
         // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika (NUCBOX) - od razu, bez pytania: wiadomości idą przez którykolwiek
         val rl = j.optString("relay")
-        if (trusted && j.optBoolean("dom") && ':' in rl) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl, dom = true)) }
+        if (trusted && j.optBoolean("dom") && ':' in rl) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl, dom = from.dom)) }
             saveContacts(); main.post { onChange() }; return }
         val list = cardList(); if ((0 until list.length()).any { JSONObject(list.getString(it)).optJSONObject("c")?.optString("id") == id }) return
         list.put(JSONObject().put("f", from.id).put("c", j).toString()); prefs.edit().putString("prosby-kontakt", list.toString()).apply()
@@ -1369,7 +1363,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 altAt = now
                 val home = relays.filter { it.dom && it.relay?.contains(':') == true }
                 val hosts = (listOf(homeName) + home.map { it.relay!!.substringBeforeLast(':') }).filter { it.isNotEmpty() }.distinct()
-                fallback@ for (cand in relays) {
+                fallback@ for (cand in home) {
                     val old = cand.relay ?: continue
                     for (port in listOf(old.substringAfterLast(':'), "41920").distinct()) for (hn in hosts) {
                         val alt = "$hn:$port"; if (alt == old) continue

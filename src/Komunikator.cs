@@ -84,14 +84,8 @@ namespace Velivo
                             if (k.Length == 32 || k.Length == 0 && ((string)c["addr"] ?? "").StartsWith("grupa:", StringComparison.Ordinal)) _komContacts.Add(new KomContact { Id = (string)c["id"], Name = (string)c["name"], Key = k, Addr = (string)c["addr"] ?? "", Device = (string)c["dev"] ?? (string)c["name"], Own = (bool?)c["own"] ?? false, Relay = (string)c["relay"], Dom = (bool?)c["dom"] ?? false }); if (c["dom"] == null) noDom.Add((string)c["id"]);
                         }
                         catch (Exception ex) { App.LogError(ex); }
-                    // starsze dane (bez „dom”): domowe = znane z sieci domowej i pod tym samym adresem w internecie co mój dom (serwer znajomego ma inny)
-                    if (noDom.Count > 0)
-                    {
-                        static string Host(KomContact c) => c.Relay is string r && r.LastIndexOf(':') > 0 ? r.Substring(0, r.LastIndexOf(':')) : "";
-                        var lan = _komContacts.Where(c => noDom.Contains(c.Id) && !string.IsNullOrEmpty(c.Addr) && !c.Addr.StartsWith("grupa:", StringComparison.Ordinal)).ToList();
-                        var home = _komRelayOn && _komRelayHost.Length > 0 ? _komRelayHost : lan.Select(Host).Where(h => h.Length > 0).GroupBy(h => h).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault() ?? "";
-                        foreach (var c in lan) c.Dom = home.Length > 0 && (Host(c) == home || Host(c).Length == 0);
-                    }
+                    // starsze dane (bez „dom”): domowe = poznane w mojej sieci domowej (ma adres w Wi-Fi)
+                    foreach (var c in _komContacts) if (noDom.Contains(c.Id)) c.Dom = !string.IsNullOrEmpty(c.Addr) && !c.Addr.StartsWith("grupa:", StringComparison.Ordinal);
                     foreach (var kv in o["chats"]?.AsObject() ?? new JsonObject())
                         try
                         {
@@ -821,14 +815,15 @@ namespace Velivo
             JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
             var id = (string)j?["id"]; byte[] key; try { key = Convert.FromBase64String((string)j["key"] ?? ""); } catch (Exception) { return; }
             // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
-            if (KomContactById(id ?? "") is { } kc) { var ra = (string)j["relay"] ?? ""; if (KomTrustedRelay(from) && string.IsNullOrEmpty(kc.Relay) && ra.Contains(':') && ra.Length < 200) { kc.Relay = ra; KomSave(); } return; }
+            if (KomContactById(id ?? "") is { } kc) { var ra = (string)j["relay"] ?? ""; if (from.Dom && string.IsNullOrEmpty(kc.Relay) && ra.Contains(':') && ra.Length < 200) { kc.Relay = ra; KomSave(); } return; }   // adres istniejącego kontaktu - tylko od domowego
             if (id == null || id.Length != 32 || id == _komId || key.Length != 32) return;
             var name = KomClean((string)j["name"]); if (name.Length == 0) name = "Velivo";
             var relay = (string)j["relay"];
             // pośrednik (np. NUCBOX, zwykle bez nikogo przy ekranie) - od zaufanego kontaktu od razu, żeby nowy znajomy mógł się łączyć przez internet
             // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika - też od razu: wiadomości idą przez którykolwiek
-            bool dom = KomTrustedRelay(from) && (bool?)j["dom"] == true;   // serwer od mojego serwera (domowego albo tego, przez który się łączę) - obcy nie zrobi z siebie mojego serwera
-            if (_komRelayListener != null || (dom && (relay ?? "").Contains(':'))) { KomCardAdd(from, id, name, key, (string)j["dev"], relay, dom); return; }
+            bool dom = from.Dom && (bool?)j["dom"] == true;   // „domowy” tylko od domowego - serwer znajomego nie zrobi z nikogo mojego urządzenia
+            // zapasowy serwer od domowego albo od serwera, przez który teraz się łączę (np. mama z zaproszenia) - bez pytania
+            if (_komRelayListener != null || ((dom || KomTrustedRelay(from)) && (bool?)j["dom"] == true && (relay ?? "").Contains(':'))) { KomCardAdd(from, id, name, key, (string)j["dev"], relay, dom); return; }
             // prośba o kontakt od znajomego - zgoda (okno nad innymi; nie blokuje odbioru)
             _ = Dispatcher.BeginInvoke(new Action(() =>
             {

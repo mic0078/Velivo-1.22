@@ -154,7 +154,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         .put("unread", JSONObject().also { o -> contacts.forEach { o.put(it.id, unread(it.id)) } }).put("opt", optExport()).toString()
 
     // ustawienia rozmów i profilu (przypięte, wyciszone, znikające, szkice, motyw, blokada, „Mój adres”, zdjęcie) - przy przenosinach i w kopii
-    private val optKeys = listOf("motyw", "tlo", "blokada", "autoimg", "pin-", "cisza-", "znikaj-", "szkic-", "moj-adres", "glos-x")
+    private val optKeys = listOf("motyw", "tlo", "blokada", "klucze", "autoimg", "pin-", "cisza-", "znikaj-", "szkic-", "moj-adres", "glos-x")
     private fun optExport() = JSONObject().also { o ->
         prefs.all.forEach { (n, v) -> if (v != null && optKeys.any { n.startsWith(it) }) o.put(n, v) }
         photo(myId)?.let { o.put("foto", b64(it.readBytes())) }
@@ -1464,6 +1464,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     var lock: Boolean   // 🔒 komunikator otwierany odciskiem palca / PIN-em telefonu
         get() = prefs.getBoolean("blokada", false)
         set(v) { prefs.edit().putBoolean("blokada", v).apply() }
+    var hwKeys: List<JSONObject>   // 🔑 klucze sprzętowe (klucz publiczny i uchwyt - bez tajemnic)
+        get() = runCatching { JSONArray(prefs.getString("klucze", "[]")).let { a -> (0 until a.length()).map { a.getJSONObject(it) } } }.getOrDefault(emptyList())
+        set(v) { prefs.edit().putString("klucze", JSONArray(v).toString()).apply() }
     var background: Boolean
         get() = prefs.getBoolean("tlo", true)
         set(v) { prefs.edit().putBoolean("tlo", v).apply() }
@@ -2102,8 +2105,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             "🔒 " + t("Blokada odciskiem palca / PIN-em: ", "Fingerprint / PIN lock: ") + if (k.lock) t("wł.", "on") else t("wył.", "off"),
             "💾 " + t("Kopia zapasowa (telefon, Google Drive, NUCBOX)…", "Backup (phone, Google Drive, NUCBOX)…"), "📥 " + t("Przywróć z kopii (nowy telefon)…", "Restore from backup (new phone)…"),
             "🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"),
+            "🔑 " + t("Klucz sprzętowy (YubiKey, USB/NFC)", "Security key (YubiKey, USB/NFC)") + if (k.hwKeys.isNotEmpty()) "  ✓ " + k.hwKeys.size else "",
             "🙈 " + t("Ukryj stałe powiadomienie „Czeka na wiadomości”: wyłącz kategorię „Komunikator w tle” – wiadomości i dzwonki dalej się pokazują", "Hide the permanent “Waiting for messages” notification: turn off the “Messenger in background” category – messages and calls still show"))
         Dlg().setTitle("👤 " + t("Mój profil", "My profile")).setItems(items) { _, i ->
+            if (items[i].startsWith("🔑")) { hwKeySetup(); return@setItems }
             if (items[i].startsWith("🙈")) { runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName).putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, "nasluch")) }; return@setItems }
             when (i) {
@@ -2193,8 +2198,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // 🔒 blokada: przy otwarciu komunikatora odcisk palca / twarz / PIN telefonu (jak w WhatsApp)
     private var pass = false
+    private var keyStep = 0   // 🔑 0 - zapytaj o klucz, 1 - okienko klucza otwarte, 2 - klucz anulowany: zapas
     private fun locked(then: () -> Unit): Boolean {
-        if (pass || screen != null || !k.lock || a.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure != true) return false
+        if (pass || screen != null || !k.lock) return false
+        // 🔑 najpierw klucz sprzętowy; anulowanie - zapas: odcisk palca / PIN telefonu (zgubiony klucz nie zamyka rozmów na zawsze)
+        if (k.hwKeys.isNotEmpty()) when (keyStep) {
+            0 -> { keyStep = 1; Klucz.verify(a, k.hwKeys) { ok -> if (ok) { keyStep = 0; pass = true; then(); pass = false } else { keyStep = 2; then() } }; return true }
+            1 -> return true
+        }
+        keyStep = 0
+        if (a.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure != true) return false
         val b = android.hardware.biometrics.BiometricPrompt.Builder(a).setTitle("🔒 " + t("Komunikator Velivo", "Velivo messenger"))
         if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK or android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
         else @Suppress("DEPRECATION") b.setDeviceCredentialAllowed(true)
@@ -2202,6 +2215,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             override fun onAuthenticationSucceeded(r: android.hardware.biometrics.BiometricPrompt.AuthenticationResult?) { pass = true; then(); pass = false }
         }) }.onFailure { return false }
         return true
+    }
+
+    // 🔑 dodanie klucza (pierwszy włącza blokadę), kolejny jako zapasowy; usunięcie dopiero po dotknięciu jednego z kluczy
+    private fun hwKeySetup() {
+        fun add() = Klucz.register(a) { j -> if (j == null) { Toast.makeText(a, t("Nie udało się odczytać klucza", "Could not read the key"), Toast.LENGTH_LONG).show(); return@register }
+            val first = k.hwKeys.isEmpty(); k.hwKeys = k.hwKeys + j.put("n", java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(java.util.Date())); k.lock = true
+            Toast.makeText(a, if (first) t("Klucz dodany – komunikator otwierasz kluczem. Dodaj też zapasowy klucz.", "Key added – open the messenger with the key. Add a backup key too.") else t("Zapasowy klucz dodany", "Backup key added"), Toast.LENGTH_LONG).show() }
+        if (k.hwKeys.isEmpty()) { add(); return }
+        Dlg().setTitle("🔑 " + t("Klucze sprzętowe: ", "Security keys: ") + k.hwKeys.size).setItems(arrayOf("➕ " + t("Dodaj zapasowy klucz", "Add a backup key"), "🗑 " + t("Usuń wszystkie klucze", "Remove all keys"))) { _, i ->
+            if (i == 0) add() else Klucz.verify(a, k.hwKeys) { ok -> if (ok) { k.hwKeys = emptyList(); Toast.makeText(a, t("Klucze usunięte", "Keys removed"), Toast.LENGTH_SHORT).show() } }
+        }.show()
     }
 
     // lista rozmów

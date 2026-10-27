@@ -2076,7 +2076,9 @@ namespace Velivo
                 var phDel = new MenuItem { Header = L.T("🗑 Usuń moje zdjęcie") }; phDel.Click += (a, b) => KomSetPhoto(null);
                 var lk = new MenuItem { Header = L.T("🔒 Blokada komunikatora (Windows Hello)"), IsCheckable = true, IsChecked = _komLock };
                 lk.Click += (a, b) => { _komLock = lk.IsChecked; KomSave(); };
-                cm.Items.Add(ph); cm.Items.Add(phDel); cm.Items.Add(lk);
+                var hk = new MenuItem { Header = L.T("🔑 Klucz sprzętowy (YubiKey)…") + (KomHwKeys().Count > 0 ? "  ✓ " + KomHwKeys().Count : ""), ToolTip = L.T("Komunikator otwierany dotknięciem klucza USB/NFC; zapas: drugi klucz albo Windows Hello") };
+                hk.Click += (a, b) => KomHwKeySetup(w);
+                cm.Items.Add(ph); cm.Items.Add(phDel); cm.Items.Add(lk); cm.Items.Add(hk);
                 var bk = new MenuItem { Header = L.T("💾 Kopia zapasowa (folder, Dysk Google, NUCBOX)…") };
                 bk.Click += (a, b) =>
                 {
@@ -2552,8 +2554,42 @@ namespace Velivo
         }
         // 🔒 blokada: przy otwarciu komunikatora Windows Hello (odcisk palca, twarz albo PIN Windows)
         bool _komUnlocked;
+        // 🔑 klucze sprzętowe komunikatora (WebAuthn, jak w trybie bankowym): tylko klucz publiczny w ustawieniach, podpis sprawdzany przy otwarciu
+        List<BankKey> KomHwKeys() => (_komOpt["klucze"] as JsonArray)?.Select(x => new BankKey { Id = (string)x["id"], X = (string)x["x"], Y = (string)x["y"], Name = (string)x["n"] }).Where(k => k.Id != null).ToList() ?? new List<BankKey>();
+        async void KomHwKeySetup(Window owner)
+        {
+            var keys = KomHwKeys(); var hwnd = new System.Windows.Interop.WindowInteropHelper(owner).Handle;
+            if (keys.Count > 0)
+            {
+                var r = MessageBox.Show(owner, L.T("Zarejestrowane klucze: ") + keys.Count + L.T("\n\nTak – dodaj kolejny (zapasowy) klucz\nNie – usuń wszystkie klucze"), "🔑 " + L.T("Klucz sprzętowy"), MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                if (r == MessageBoxResult.Cancel) return;
+                if (r == MessageBoxResult.No)
+                {   // usunięcie tylko po dotknięciu jednego z kluczy (albo Windows Hello) - obcy przy komputerze nie wyłączy blokady
+                    if (!await KomUnlock()) return;
+                    _komOpt.Remove("klucze"); KomSave(); KomInfo("🔑 " + L.T("Klucze usunięte")); return;
+                }
+            }
+            try
+            {
+                var k = await Task.Run(() => WebAuthn.Register(hwnd, BankRpId, keys.Select(x => Convert.FromBase64String(x.Id)).ToList()));
+                if (_komOpt["klucze"] is not JsonArray l) _komOpt["klucze"] = l = new JsonArray();
+                l.Add(new JsonObject { ["id"] = k.Id, ["x"] = k.X, ["y"] = k.Y, ["n"] = DateTime.Now.ToString("yyyy-MM-dd") });
+                _komLock = true; KomSave();
+                KomInfo("🔑 " + (keys.Count == 0 ? L.T("Klucz dodany – komunikator otwierasz dotknięciem klucza. Dodaj też zapasowy klucz.") : L.T("Zapasowy klucz dodany")));
+            }
+            catch (Exception ex) { KomInfo("🔑 " + ex.Message); }
+        }
+
         async Task<bool> KomUnlock()
         {
+            var keys = KomHwKeys();
+            if (keys.Count > 0)
+            {   // najpierw klucz; anulowanie / brak klucza - zapas: Windows Hello (PIN tego komputera), żeby zgubiony klucz nie zamknął rozmów na zawsze
+                var hwnd = new System.Windows.Interop.WindowInteropHelper((Window)_komWindow ?? this).Handle;
+                try { if ((await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, keys, null)))?.Key != null) return true; } catch (Exception) { }
+                try { return await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Komunikator Velivo")) == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified; }
+                catch (Exception) { return false; }
+            }
             try
             {
                 if (await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync() != Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available) return true;   // bez Windows Hello - bez blokady

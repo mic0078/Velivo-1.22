@@ -3,6 +3,9 @@
     <!-- 🎤 dyktowanie (po stuknięciu mikrofonu) i 🗣 dźwięki zamiast słów (po włączeniu) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.NFC" />   <!-- 🔑 klucz sprzętowy przyłożony do telefonu -->
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <!-- 🎞 GIF-y z telefonu w klawiaturze - tylko po zgodzie w ustawieniach klawiatury -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

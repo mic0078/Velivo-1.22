@@ -32,6 +32,7 @@ namespace Velivo
         readonly ConcurrentDictionary<string, TaskCompletionSource<KomFrameStream>> _komTunnels = new ConcurrentDictionary<string, TaskCompletionSource<KomFrameStream>>();
         readonly ConcurrentDictionary<string, IPAddress> _komLanAddr = new ConcurrentDictionary<string, IPAddress>();   // ostatni adres w sieci domowej (kazde urzadzenie)
         readonly ConcurrentDictionary<string, DateTime> _komLanSeen = new ConcurrentDictionary<string, DateTime>();
+        readonly ConcurrentDictionary<string, JsonNode> _komLanRelays = new ConcurrentDictionary<string, JsonNode>();   // ostatnie „jestem” innych pośredników w domu - dla telefonu, który łączy się z internetu
         readonly ConcurrentDictionary<string, IPAddress> _komViaRelay = new ConcurrentDictionary<string, IPAddress>();   // 🌍 urządzenie poza domem - przez którego pośrednika w domu (adres w sieci domowej; kilka pośredników bez konfliktów)
         IPAddress KomLanFresh(string id) => _komLanAddr.TryGetValue(id, out var a) && _komLanSeen.TryGetValue(id, out var s) && DateTime.UtcNow - s < TimeSpan.FromSeconds(100) ? a : null;   // adres w domu - tylko świeży (stary mógł dostać inny komputer)
         readonly ConcurrentDictionary<string, bool> _komViaNet = new ConcurrentDictionary<string, bool>();   // kontakt widziany przez internet (nie w domu)
@@ -279,6 +280,7 @@ namespace Velivo
                 return;
             }
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
+            if (t == "p2p-here" && p["relay"] != null && from != _komId) _komLanRelays[from] = p.DeepClone();
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
             if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) return;
             if (from == _komId || _komRemote.IsEmpty) return;   // nasze - bez echa
@@ -439,6 +441,7 @@ namespace Velivo
                 _komRemote[id] = me;
                 _komViaNet[id] = true;
                 KomSendFrame(me, KomRelayHere());   // pośrednik jest w sieci
+                foreach (var kv in _komLanRelays) if (_komLanSeen.TryGetValue(kv.Key, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(10)) { var rh = kv.Value.DeepClone(); rh["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); rh["fwd"] = true; KomSendFrame(me, rh); }   // adresy innych pośredników w domu (np. CHUWI) - telefon zna je, gdy ten zgaśnie
                 KomStoreFlush(id, me, null);   // 📬 wiadomości, które czekały, aż się pojawi
                 await Dispatcher.InvokeAsync(() => { KomRelayStatus(); _komRefresh?.Invoke(); });
                 while (!token.IsCancellationRequested)

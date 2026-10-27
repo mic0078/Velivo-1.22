@@ -673,6 +673,12 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
             WebViewCompat.addDocumentStartJavaScript(w, youtubeJs, YOUTUBE_ORIGINS)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
             runCatching { WebViewCompat.addDocumentStartJavaScript(w, noAppPromoJs, setOf("*")) }
+        // 🔑 logowanie kluczem sprzętowym na stronach (Google, Microsoft, bank) - Velivo samo rozmawia z kluczem; adres strony od WebView, nie od strony
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT) && WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) runCatching {
+            WebViewCompat.addWebMessageListener(w, "VelivoKlucz", setOf("*")) { _, msg, origin, main, reply ->
+                pl.velivo.komunikator.KluczStrony.request(this, msg.data ?: "", origin.toString(), main) { reply.postMessage(it) } }
+            WebViewCompat.addDocumentStartJavaScript(w, pl.velivo.komunikator.KluczStrony.JS, setOf("*"))
+        }
         val quiet = priv || bank
         if (!quiet) w.addJavascriptInterface(PasswordBridge(w), "VelivoHasla")
         if (!quiet) quickAccess.attach(w)

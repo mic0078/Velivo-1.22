@@ -102,9 +102,9 @@ object Klucz {
     }
 
     // rejestracja: {kh, pub} albo null
-    fun register(a: Activity, done: (JSONObject?) -> Unit) = run(a, { tx ->
+    fun register(a: Activity, done: (JSONObject?) -> Unit) = run(a, null, { tx ->
         val ch = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        val r = apdu(tx, 0x01, 0x00, ch + app)
+        val r = apdu(tx.u2f, 0x01, 0x00, ch + app)
         if (r.size < 67 || r[0] != 5.toByte()) null else {
             val khLen = r[66].toInt() and 0xff
             JSONObject().put("pub", b64(r.copyOfRange(1, 66))).put("kh", b64(r.copyOfRange(67, 67 + khLen)))
@@ -112,11 +112,11 @@ object Klucz {
     }, done)
 
     // sprawdzenie: true, gdy któryś z zapisanych kluczy podpisał wyzwanie
-    fun verify(a: Activity, keys: List<JSONObject>, done: (Boolean) -> Unit) = run(a, { tx ->
+    fun verify(a: Activity, keys: List<JSONObject>, done: (Boolean) -> Unit) = run(a, null, { tx ->
         var ok = false
         for (k in keys) {
             val kh = unb64(k.optString("kh")); val ch = ByteArray(32).also { SecureRandom().nextBytes(it) }
-            val r = try { apdu(tx, 0x02, 0x03, ch + app + byteArrayOf(kh.size.toByte()) + kh) } catch (e: Brak) { continue }
+            val r = try { apdu(tx.u2f, 0x02, 0x03, ch + app + byteArrayOf(kh.size.toByte()) + kh) } catch (e: Brak) { continue }
             if (r.size < 6 || (r[0].toInt() and 1) == 0) continue
             val s = Signature.getInstance("SHA256withECDSA"); s.initVerify(pub(unb64(k.optString("pub"))))
             s.update(app + r.copyOfRange(0, 5) + ch)
@@ -148,13 +148,16 @@ object Klucz {
     private fun b64(b: ByteArray) = android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP)
     private fun unb64(s: String) = runCatching { android.util.Base64.decode(s, android.util.Base64.NO_WRAP) }.getOrDefault(ByteArray(0))
 
-    // okienko „przyłóż / włóż klucz”: NFC (tryb czytnika) i USB naraz, pierwszy klucz wygrywa; najwyżej 60 s
-    private fun <T> run(a: Activity, work: ((Int, Int, ByteArray) -> ByteArray) -> T?, done: (T?) -> Unit) {
+    // kanał do klucza: u2f - APDU (ins, p1, dane), cbor - polecenie FIDO2 (bajt polecenia + CBOR; odpowiedź: status + CBOR)
+    class Tx(val u2f: (Int, Int, ByteArray) -> ByteArray, val cbor: (ByteArray) -> ByteArray)
+
+    // okienko „przyłóż / włóż klucz”: NFC (tryb czytnika) i USB naraz, pierwszy klucz wygrywa; najwyżej 60 s; msg - np. która strona prosi
+    internal fun <T> run(a: Activity, msg: String?, work: (Tx) -> T?, done: (T?) -> Unit) {
         val pl = java.util.Locale.getDefault().language == "pl"
         val nfc = NfcAdapter.getDefaultAdapter(a)
         var finished = false
         val dlg = android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🔑 " + if (pl) "Klucz sprzętowy" else "Security key")
-            .setMessage(if (pl) "Przyłóż klucz do tyłu telefonu (NFC) albo włóż go do USB i dotknij." else "Hold the key to the back of the phone (NFC) or plug it into USB and touch it.")
+            .setMessage((msg?.let { it + "\n\n" } ?: "") + if (pl) "Przyłóż klucz do tyłu telefonu (NFC) albo włóż go do USB i dotknij." else "Hold the key to the back of the phone (NFC) or plug it into USB and touch it.")
             .setNegativeButton(android.R.string.cancel, null).create()
         fun finish(v: T?) = a.runOnUiThread {
             if (finished) return@runOnUiThread; finished = true
@@ -167,7 +170,7 @@ object Klucz {
                 val d = IsoDep.get(tag) ?: return@enableReaderMode
                 val v = runCatching { d.connect(); d.timeout = 5000
                     nfcTx(d, byteArrayOf(0, 0xA4.toByte(), 4, 0, 8, 0xA0.toByte(), 0, 0, 6, 0x47, 0x2F, 0, 1))   // wybór aplikacji FIDO U2F
-                    work { ins, p1, data -> nfcTx(d, byteArrayOf(0, ins.toByte(), p1.toByte(), 0, data.size.toByte()) + data + byteArrayOf(0)) }
+                    work(Tx({ ins, p1, data -> nfcTx(d, byteArrayOf(0, ins.toByte(), p1.toByte(), 0, data.size.toByte()) + data + byteArrayOf(0)) }, { nfcCbor(d, it) }))
                 }.getOrNull()
                 runCatching { d.close() }; finish(v)
             }, NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK, null)
@@ -184,6 +187,22 @@ object Klucz {
         }.start()
     }
 
+    // FIDO2 przez NFC: polecenie w łańcuchu APDU (po 255 bajtów), 9100 - klucz pracuje (pytanie o wynik)
+    private fun nfcCbor(d: IsoDep, data: ByteArray): ByteArray {
+        var off = 0; var r: ByteArray
+        while (true) {
+            val n = minOf(255, data.size - off); val last = off + n >= data.size
+            r = nfcTx(d, byteArrayOf(if (last) 0x80.toByte() else 0x90.toByte(), 0x10, 0, 0, n.toByte()) + data.copyOfRange(off, off + n) + if (last) byteArrayOf(0) else ByteArray(0))
+            off += n; if (last) break
+            if (sw(r) != 0x9000) throw Exception()
+        }
+        val end = System.currentTimeMillis() + 30000
+        while (sw(r) == 0x9100 && System.currentTimeMillis() < end) { Thread.sleep(100); r = nfcTx(d, byteArrayOf(0x80.toByte(), 0x11, 0, 0, 0)) }
+        if (sw(r) != 0x9000) throw Exception()
+        return r.copyOf(r.size - 2)
+    }
+    private fun sw(r: ByteArray) = if (r.size < 2) -1 else ((r[r.size - 2].toInt() and 0xff) shl 8) or (r[r.size - 1].toInt() and 0xff)
+
     private fun nfcTx(d: IsoDep, cmd: ByteArray): ByteArray {
         var r = d.transceive(cmd); var out = ByteArray(0)
         while (r.size >= 2 && r[r.size - 2] == 0x61.toByte()) { out += r.copyOf(r.size - 2); r = d.transceive(byteArrayOf(0, 0xC0.toByte(), 0, 0, r[r.size - 1])) }   // dalsza część odpowiedzi
@@ -195,7 +214,7 @@ object Klucz {
         i.interfaceClass == UsbConstants.USB_CLASS_HID && (0 until i.endpointCount).map { i.getEndpoint(it) }.let { e -> e.any { it.direction == UsbConstants.USB_DIR_IN } && e.any { it.direction == UsbConstants.USB_DIR_OUT } } }
 
     // CTAPHID: kanał (INIT), potem MSG z APDU w ramkach po 64 bajty; KEEPALIVE pomijane
-    private fun <T> usb(um: UsbManager, dev: UsbDevice, work: ((Int, Int, ByteArray) -> ByteArray) -> T?): T? {
+    private fun <T> usb(um: UsbManager, dev: UsbDevice, work: (Tx) -> T?): T? {
         val itf = fido(dev) ?: return null; val c = um.openDevice(dev) ?: return null
         try {
             c.claimInterface(itf, true)
@@ -213,6 +232,7 @@ object Klucz {
                     if (System.currentTimeMillis() > end) throw Exception()
                     if (c.bulkTransfer(inp, p, 64, 1000) < 7 || !p.copyOf(4).contentEquals(cid)) continue
                     if (p[4] == 0xBB.toByte()) continue   // klucz czeka na dotknięcie
+                    if (p[4] == 0xBF.toByte()) throw Exception()   // błąd kanału
                     val n = ((p[5].toInt() and 0xff) shl 8) or (p[6].toInt() and 0xff); val r = ByteArray(n)
                     p.copyInto(r, 0, 7, 7 + minOf(57, n)); var off = 57
                     while (off < n) { if (c.bulkTransfer(inp, p, 64, 3000) < 5) throw Exception(); p.copyInto(r, off, 5, 5 + minOf(59, n - off)); off += 59 }
@@ -223,7 +243,8 @@ object Klucz {
             send(all, 0x06, nonce)
             var r: ByteArray; do { r = recv(all) } while (r.size < 12 || !r.copyOf(8).contentEquals(nonce))
             val cid = r.copyOfRange(8, 12)
-            return work { ins, p1, data -> send(cid, 0x03, byteArrayOf(0, ins.toByte(), p1.toByte(), 0, 0, (data.size shr 8).toByte(), data.size.toByte()) + data + byteArrayOf(0, 0)); recv(cid) }
+            return work(Tx({ ins, p1, data -> send(cid, 0x03, byteArrayOf(0, ins.toByte(), p1.toByte(), 0, 0, (data.size shr 8).toByte(), data.size.toByte()) + data + byteArrayOf(0, 0)); recv(cid) },
+                { send(cid, 0x10, it); recv(cid) }))
         } finally { runCatching { c.releaseInterface(itf) }; c.close() }
     }
 }

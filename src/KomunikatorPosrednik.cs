@@ -701,8 +701,11 @@ namespace Velivo
                     {
                         _komAltAt = DateTime.UtcNow;
                         var hosts = relays.Where(c => c.Dom && c.Relay.LastIndexOf(':') > 0).Select(c => c.Relay.Substring(0, c.Relay.LastIndexOf(':'))).Distinct().ToList();
-                        var alts = relays.Where(c => c.Relay.LastIndexOf(':') > 0).SelectMany(c => hosts.Select(h => (c, alt: h + c.Relay.Substring(c.Relay.LastIndexOf(':'))))).Where(x => x.alt != x.c.Relay).Take(40).ToList();
-                        var at = alts.Select(x => (x.c, x.alt, t: KomRelayConnect(new KomContact { Id = x.c.Id, Name = x.c.Name, Key = x.c.Key, Addr = "", Device = x.c.Device, Relay = x.alt }, "main", null, null, CancellationToken.None))).ToList();
+                        // każdy port serwerów 41920–41929: serwer przeniesiony na inny port (np. CHUWI 41922 -> 41929) znajduje się sam
+                        var alts = relays.Where(c => c.Relay.LastIndexOf(':') > 0).SelectMany(c => hosts.Append(c.Relay.Substring(0, c.Relay.LastIndexOf(':'))).Distinct()
+                            .SelectMany(h => new[] { c.Relay.Substring(c.Relay.LastIndexOf(':') + 1) }.Concat(Enumerable.Range(41920, 10).Select(p => p.ToString())).Distinct().Select(p => (c, alt: h + ":" + p))))
+                            .Where(x => x.alt != x.c.Relay && int.TryParse(x.alt.Substring(x.alt.LastIndexOf(':') + 1), out _)).Take(90).ToList();
+                        var at = alts.Select(x => (x.c, x.alt, t: KomRelayConnectPort(x.c, x.alt.Substring(0, x.alt.LastIndexOf(':')), int.Parse(x.alt.Substring(x.alt.LastIndexOf(':') + 1)), 7, "main", null, null, CancellationToken.None))).ToList();
                         var left = at.Select(x => x.t).ToList();
                         while (left.Count > 0 && fs == null)
                         {

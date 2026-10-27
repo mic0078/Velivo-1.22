@@ -1366,14 +1366,16 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             }
             // adres domu się zmienił (nowe IP od operatora) albo serwer ogłosił zły adres (np. wewnętrzny routera): KAŻDY serwer pod nazwą domu
             // i adresami moich domowych serwerów (ten sam dom = ten sam adres, różne porty) - wszystkie próby naraz, co 30 s; zapis dopiero po udanym połączeniu
+            // każdy port serwerów 41920–41929: serwer przeniesiony na inny port (np. CHUWI 41922 -> 41929) znajduje się sam, bez wizyty telefonu w domu
             if (f == null && now - altAt > 30000) {
                 altAt = now
                 val hosts = (listOf(homeName) + relays.filter { it.dom }.mapNotNull { it.relay?.takeIf { r -> ':' in r }?.substringBeforeLast(':') }).filter { it.isNotEmpty() }.distinct()
                 val tries = relays.flatMap { cand -> val old = cand.relay ?: return@flatMap emptyList<Pair<Contact, String>>()
-                    listOf(old.substringAfterLast(':'), "41920").distinct().flatMap { port -> hosts.map { cand to "$it:$port" } }.filter { it.second != old } }.take(40)
+                    val hs = (hosts + listOfNotNull(old.substringBeforeLast(':').takeIf { ':' in old && it.isNotEmpty() })).distinct()
+                    (listOf(old.substringAfterLast(':')) + (41920..41929).map { it.toString() }).distinct().flatMap { port -> hs.map { cand to "$it:$port" } }.filter { it.second != old } }.take(90)
                 if (tries.isNotEmpty()) {
                     val win = java.util.concurrent.atomic.AtomicReference<Triple<Contact, String, Frames>?>(null); val left = java.util.concurrent.CountDownLatch(tries.size)
-                    tries.forEach { (cand, alt) -> Thread { try { relayConnect(Contact(cand.id, cand.name, cand.key, "", relay = alt), "main")?.let { fr -> if (!win.compareAndSet(null, Triple(cand, alt, fr))) runCatching { fr.close() } } } finally { left.countDown() } }.start() }
+                    tries.forEach { (cand, alt) -> Thread { try { runCatching { relayConnectPort(cand, alt.substringBeforeLast(':'), alt.substringAfterLast(':').toInt(), 7000, "main", null, null) }.getOrNull()?.let { fr -> if (!win.compareAndSet(null, Triple(cand, alt, fr))) runCatching { fr.close() } } } finally { left.countDown() } }.start() }
                     val end = System.currentTimeMillis() + 25000
                     while (win.get() == null && left.count > 0 && System.currentTimeMillis() < end) left.await(200, java.util.concurrent.TimeUnit.MILLISECONDS)
                     win.get()?.let { (c, alt, fr) -> c.relay = alt; saveContacts(); f = fr; relay = c }

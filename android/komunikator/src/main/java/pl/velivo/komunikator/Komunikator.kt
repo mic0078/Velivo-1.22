@@ -1673,7 +1673,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             d.findViewById<TextView>(android.R.id.message)?.apply { setTextColor(Color.WHITE); textSize = 17f }
             for (b in listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL)) d.getButton(b)?.apply { setTextColor(Color.rgb(0x22, 0xD3, 0xEE)); textSize = 16f }
             d.listView?.let { lv ->   // pozycje listy: biały tekst, większe, łatwe do trafienia palcem
-                fun row(v: View?) { white(v); (v as? TextView)?.apply { textSize = 18f; minHeight = px(52) } }
+                // każda opcja osobnym kafelkiem; „Tytuł: opis” - tytuł pogrubiony, opis niżej, mniejszy (długie opcje były jednym ciągiem tekstu)
+                lv.divider = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT); lv.dividerHeight = px(8); lv.setPadding(px(12), px(4), px(12), px(4)); lv.clipToPadding = false
+                fun row(v: View?) { white(v); (v as? TextView)?.apply {
+                    textSize = 18f; minHeight = px(56); setPadding(px(14), px(10), px(14), px(10))
+                    background = GradientDrawable().apply { setColor(Color.argb(0x40, 0x8B, 0x5C, 0xF6)); cornerRadius = px(12).toFloat() }
+                    val s0 = text?.toString().orEmpty(); val c = s0.indexOf(": ")
+                    if (c in 2..60 && s0.length > c + 12 && text !is android.text.Spanned) text = android.text.SpannableStringBuilder(s0.substring(0, c)).apply {
+                        setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, length, 0); append("\n"); val st = length; append(s0.substring(c + 2))
+                        setSpan(android.text.style.RelativeSizeSpan(0.8f), st, length, 0); setSpan(android.text.style.ForegroundColorSpan(Color.argb(0xC8, 255, 255, 255)), st, length, 0) }
+                } }
                 for (i in 0 until lv.childCount) row(lv.getChildAt(i))
                 lv.setOnHierarchyChangeListener(object : android.view.ViewGroup.OnHierarchyChangeListener { override fun onChildViewAdded(p: View?, c: View?) = row(c); override fun onChildViewRemoved(p: View?, c: View?) {} })
             }
@@ -1823,8 +1832,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private var chatInput: EditText? = null   // pole wiadomości otwartej rozmowy (⠿ pisanie brajlem)
     private fun accessibility() {
         Dlg().setTitle("♿ " + t("Ułatwienia", "Accessibility")).setItems(arrayOf(
-            "👁 " + t("Dla niewidomych i słabowidzących: nowe wiadomości czytane na głos (kto i co), wibracje – wiadomość: 2 krótkie, dzwonek: długie, duże litery, 🎤 szukanie osoby głosem", "For blind and low-vision people: new messages read aloud (who and what), vibration – message: 2 short, call: long, big text, 🎤 find a person by voice") + if (k.readNew && k.blindVibe) " ✓" else "",
-            "👂 " + t("Dla niesłyszących i słabosłyszących: błysk lampy i mocna wibracja przy wiadomości i dzwonku, duże litery, 🤟 wiadomość na palcach (przytrzymaj wiadomość)", "For deaf and hard-of-hearing people: camera flash and strong vibration on messages and calls, big text, 🤟 message in fingerspelling (hold a message)") + if (k.flashAlert) " ✓" else "",
+            (if (k.readNew && k.blindVibe) "✅ " else "") + "👁 " + t("Niewidomi i słabowidzący: czytanie wiadomości na głos, wibracje (wiadomość – 2 krótkie, dzwonek – długie), duże litery", "Blind and low vision: messages read aloud, vibration (message – 2 short, call – long), big text"),
+            (if (k.flashAlert) "✅ " else "") + "👂 " + t("Niesłyszący i słabosłyszący: błysk lampy i wibracja, duże litery, 🤟 wiadomość na palcach", "Deaf and hard of hearing: camera flash and vibration, big text, 🤟 fingerspelling"),
             "⚙ " + t("Pojedyncze ustawienia…", "Single settings…")) + (if (chatInput != null) arrayOf("⠿ " + t("Pisz brajlem (klawiatura Velivo)", "Type in Braille (Velivo keyboard)")) else emptyArray())) { _, i ->
             if (i == 3) { chatInput?.let { e -> val imm = a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager   // ⠿ klawiatura Velivo przechodzi w brajla
                 e.requestFocus(); imm.showSoftInput(e, 0); e.postDelayed({ imm.sendAppPrivateCommand(e, "pl.velivo.brajl", null) }, 500) }; return@setItems }

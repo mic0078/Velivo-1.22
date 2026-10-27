@@ -19,7 +19,7 @@ button.off{background:#6b6b80}#end{background:#e53935}button.on{background:#22c5
 #chat{display:none;position:fixed;left:12px;bottom:100px;width:min(380px,70vw);z-index:3}body.pomoc #chat{display:block}
 #log div{background:#000b;border-radius:10px;padding:6px 10px;margin-top:4px;font-size:15px;overflow-wrap:anywhere}#log .me{background:#6d3fdbdd;text-align:right}
 #say{width:100%;box-sizing:border-box;border-radius:20px;border:0;padding:10px 14px;font-size:15px;margin-top:6px;background:#2e2768;color:#fff}
-body.pomoc #scr,body.pomoc #help,body.pomoc #swap{width:auto;border-radius:30px;padding:0 18px;font-size:16px}body.pomoc #cam,body.pomoc #flip{display:none}
+body.audio #cam.off{width:auto;border-radius:30px;padding:0 18px;font-size:16px}body.pomoc #scr,body.pomoc #help,body.pomoc #swap{width:auto;border-radius:30px;padding:0 18px;font-size:16px}body.pomoc #cam,body.pomoc #flip{display:none}
 body.view #you,body.view #shot{height:calc(100% - 100px)}body.view #me{display:none}#dot{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #e53935;background:#e5393566;display:none;z-index:2;pointer-events:none}
 </style></head><body>
 <video id="you" autoplay playsinline></video><img id="shot" alt=""><div id="dot"></div><video id="me" autoplay playsinline muted></video>
@@ -73,6 +73,7 @@ function useDc(ch) {
   ch.onmessage = e => {
     let o; try { o = JSON.parse(e.data); } catch (x) { return; }
     if (o.k === 'in') { if (ctl && phoneScr) velivo.input(e.data); else if (ctl) host(o); }
+    else if (o.k === 'cam-on') { if (cam.classList.contains('off') && !pomoc) { cam.classList.add('pulse'); status(T('📷 Rozmówca włączył kamerę – stuknij „Włącz wideo”, żeby też było Cię widać', '📷 The other person turned on the camera – tap “Turn on video” to be seen too')); } }
     else if (o.k === 'scr') { you.classList.toggle('scr', o.on); help.style.display = o.on && (o.ctl || o.img) ? 'inline-block' : 'none'; if (!o.on) setSteer(false)
       document.body.classList.toggle('view', !!o.on);   // ekran rozmówcy nad paskiem przycisków, bez mojego podglądu
       remoteImg = o.on && !!o.img; shot.style.display = remoteImg ? 'block' : 'none'; status(remoteImg ? T('📱 Ekran rozmówcy – czekam na obraz…', '📱 Their screen – waiting for the picture…') : ''); shot.classList.toggle('pt', remoteImg); if (!remoteImg) shot.removeAttribute('src');
@@ -129,9 +130,10 @@ async function start() {
   try { local = await media(); } catch (e) { local = new MediaStream(); status(T('Bez kamery i mikrofonu – tylko odbiór (ekran możesz pokazać 🖥)', 'No camera or microphone – receive only (you can still share the screen 🖥)')); }
   me.srcObject = local;
   if (!local.getVideoTracks().length) { cam.classList.add('off'); flip.style.display = 'none'; }
+  if (audio && !pomoc && !local.getVideoTracks().length) { document.body.classList.add('audio'); cam.textContent = T('📷 Włącz wideo', '📷 Turn on video'); }   // rozmowa głosowa: wyraźny przycisk przejścia na wideo
   pc = new RTCPeerConnection({ iceServers: ice });
   local.getTracks().forEach(t => pc.addTrack(t, local));
-  if (caller && !audio && !local.getVideoTracks().length) pc.addTransceiver('video', { direction: 'sendrecv', streams: [local] });   // miejsce na obraz ekranu
+  if (caller && !local.getVideoTracks().length) pc.addTransceiver('video', { direction: 'sendrecv', streams: [local] });   // miejsce na obraz ekranu albo kamerę włączoną w trakcie (rozmowa głosowa → wideo)
   if (caller && !local.getAudioTracks().length) pc.addTransceiver('audio', { direction: 'recvonly' });   // głos rozmówcy i tak słychać
   if (caller) useDc(pc.createDataChannel('pomoc')); else pc.ondatachannel = e => useDc(e.channel);
   if ((window.chrome && chrome.webview && navigator.mediaDevices.getDisplayMedia && !audio) || (window.velivo && velivo.screen && !audio)) scr.style.display = 'inline-block';
@@ -185,7 +187,20 @@ function hang() { if (done) return; out({ k: 'end' }); finish(); }
 window.hang = hang;
 end.onclick = () => { status(T('Rozmowa zakończona', 'Call ended')); hang(); };
 mic.onclick = () => { if (!local) return; local.getAudioTracks().forEach(t => t.enabled = !t.enabled); mic.classList.toggle('off'); };
-cam.onclick = () => { if (!local) return; local.getVideoTracks().forEach(t => t.enabled = !t.enabled); cam.classList.toggle('off'); me.style.visibility = cam.classList.contains('off') ? 'hidden' : 'visible'; };
+cam.onclick = async () => {
+  if (!local) return;
+  if (!local.getVideoTracks().length) {   // 📷 rozmowa bez kamery (głosowa) → wideo: kamera dołączana w trakcie, bez nowego połączenia
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const nt = s.getVideoTracks()[0]; local.addTrack(nt);
+      const tv = pc && pc.getTransceivers().find(t => t.receiver.track && t.receiver.track.kind === 'video');
+      if (tv && !sharing) await tv.sender.replaceTrack(nt); else if (!tv) status(T('Rozmówca ma starszą wersję Velivo – obraz po aktualizacji', 'The other person has an older Velivo – video after updating'));
+      me.srcObject = local; me.style.visibility = 'visible'; me.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none';
+      cam.classList.remove('off', 'pulse'); cam.textContent = '📷'; flip.style.display = ''; dsend({ k: 'cam-on' });
+    } catch (e) { status(T('Brak dostępu do kamery', 'No camera access')); }
+    return;
+  }
+  local.getVideoTracks().forEach(t => t.enabled = !t.enabled); cam.classList.toggle('off'); me.style.visibility = cam.classList.contains('off') ? 'hidden' : 'visible'; };
 flip.onclick = async () => {
   if (!local || !local.getVideoTracks().length) return;
   try {

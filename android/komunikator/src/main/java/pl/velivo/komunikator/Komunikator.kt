@@ -2049,8 +2049,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         }, "velivo")
         w.webChromeClient = object : android.webkit.WebChromeClient() {
             override fun onPermissionRequest(r: android.webkit.PermissionRequest) {
-                fun tryGrant(n: Int) { if (granted()) r.grant(r.resources) else if (n < 120) w.postDelayed({ tryGrant(n + 1) }, 500) else r.deny() }
-                a.runOnUiThread { tryGrant(0) }
+                // 📷 kamera włączona w trakcie rozmowy głosowej - zgoda Androida na kamerę dopiero wtedy
+                val need = listOfNotNull(android.Manifest.permission.CAMERA.takeIf { android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE in r.resources },
+                    android.Manifest.permission.RECORD_AUDIO.takeIf { android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE in r.resources })
+                fun ok() = need.all { a.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+                fun tryGrant(n: Int) { if (ok()) r.grant(r.resources) else if (n < 120) w.postDelayed({ tryGrant(n + 1) }, 500) else r.deny() }
+                a.runOnUiThread { if (!ok()) a.requestPermissions(need.toTypedArray(), 4711); tryGrant(0) }
             }
         }
         d.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

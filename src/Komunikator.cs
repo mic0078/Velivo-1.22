@@ -2556,26 +2556,45 @@ namespace Velivo
         bool _komUnlocked;
         // 🔑 klucze sprzętowe komunikatora (WebAuthn, jak w trybie bankowym): tylko klucz publiczny w ustawieniach, podpis sprawdzany przy otwarciu
         List<BankKey> KomHwKeys() => (_komOpt["klucze"] as JsonArray)?.Select(x => new BankKey { Id = (string)x["id"], X = (string)x["x"], Y = (string)x["y"], Name = (string)x["n"] }).Where(k => k.Id != null).ToList() ?? new List<BankKey>();
-        async void KomHwKeySetup(Window owner)
+        // 🔑 menu kluczy: dodaj (pierwszy / zapasowy), usuń jeden (wymiana zepsutego albo zgubionego) - zawsze po Windows Hello / PIN-ie
+        void KomHwKeySetup(Window owner)
+        {
+            var keys = KomHwKeys();
+            var cm = new ContextMenu { PlacementTarget = owner, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
+            var add = new MenuItem { Header = keys.Count == 0 ? L.T("➕ Dodaj klucz") : L.T("➕ Dodaj zapasowy klucz"), ToolTip = L.T("Gdy jeden klucz się zepsuje albo zginie, drugi działa") };
+            add.Click += (a, b) => KomHwKeyAdd(owner);
+            cm.Items.Add(add);
+            if (keys.Count == 1) cm.Items.Add(new MenuItem { Header = "⚠ " + L.T("Dodaj zapasowy klucz"), IsEnabled = false });
+            if (keys.Count > 0) cm.Items.Add(new Separator());
+            foreach (var k in keys)
+            {
+                var rm = new MenuItem { Header = L.T("🗑 Usuń: ") + (k.Name ?? "?"), ToolTip = L.T("Wymiana zepsutego albo zgubionego klucza – pozostałe działają dalej") };
+                rm.Click += async (a, b) =>
+                {   // po dotknięciu innego klucza albo Windows Hello - obcy przy komputerze nie usunie Twojego klucza
+                    if (!await KomUnlock()) return;
+                    if (_komOpt["klucze"] is JsonArray l) foreach (var x in l.ToList()) if ((string)x["id"] == k.Id) l.Remove(x);
+                    KomSave(); KomInfo("🔑 " + L.T("Klucz usunięty: ") + k.Name);
+                };
+                cm.Items.Add(rm);
+            }
+            cm.IsOpen = true;
+        }
+        async void KomHwKeyAdd(Window owner)
         {
             var keys = KomHwKeys(); var hwnd = new System.Windows.Interop.WindowInteropHelper(owner).Handle;
-            if (keys.Count > 0)
-            {
-                var r = MessageBox.Show(owner, L.T("Zarejestrowane klucze: ") + keys.Count + L.T("\n\nTak – dodaj kolejny (zapasowy) klucz\nNie – usuń wszystkie klucze"), "🔑 " + L.T("Klucz sprzętowy"), MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-                if (r == MessageBoxResult.Cancel) return;
-                if (r == MessageBoxResult.No)
-                {   // usunięcie tylko po dotknięciu jednego z kluczy (albo Windows Hello) - obcy przy komputerze nie wyłączy blokady
-                    if (!await KomUnlock()) return;
-                    _komOpt.Remove("klucze"); KomSave(); KomInfo("🔑 " + L.T("Klucze usunięte")); return;
-                }
-            }
             try
             {   // najpierw PIN / Windows Hello tego komputera - nikt przy odblokowanym komputerze nie doda swojego klucza
                 if (await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync() == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available
                     && await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Klucz sprzętowy")) != Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified) return;
                 var k = await Task.Run(() => WebAuthn.Register(hwnd, BankRpId, keys.Select(x => Convert.FromBase64String(x.Id)).ToList()));
+                // nazwa (np. YubiKey, Titan) - przy wymianie widać, który usunąć; zamknięcie okna zapisuje
+                var box = new TextBox { Text = L.T("Klucz ") + (keys.Count + 1), Margin = new Thickness(10, 0, 10, 10), MinWidth = 260 };
+                var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(10, 0, 10, 10), HorizontalAlignment = HorizontalAlignment.Right };
+                var d = new Window { Title = "🔑 " + L.T("Nazwa klucza (np. YubiKey, Titan)"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new StackPanel { Children = { new TextBlock { Text = L.T("Nazwa klucza (np. YubiKey, Titan)"), Margin = new Thickness(10, 10, 10, 6) }, box, ok } } };
+                KomStyle(d); ok.Click += (s, e) => d.Close(); box.SelectAll(); box.Focus(); d.ShowDialog();
+                var nm = box.Text.Trim(); if (nm.Length == 0) nm = L.T("Klucz"); if (nm.Length > 30) nm = nm.Substring(0, 30);
                 if (_komOpt["klucze"] is not JsonArray l) _komOpt["klucze"] = l = new JsonArray();
-                l.Add(new JsonObject { ["id"] = k.Id, ["x"] = k.X, ["y"] = k.Y, ["n"] = DateTime.Now.ToString("yyyy-MM-dd") });
+                l.Add(new JsonObject { ["id"] = k.Id, ["x"] = k.X, ["y"] = k.Y, ["n"] = nm + " · " + DateTime.Now.ToString("yyyy-MM-dd") });
                 _komLock = true; KomSave();
                 KomInfo("🔑 " + (keys.Count == 0 ? L.T("Klucz dodany – komunikator otwierasz dotknięciem klucza. Dodaj też zapasowy klucz.") : L.T("Zapasowy klucz dodany")));
             }

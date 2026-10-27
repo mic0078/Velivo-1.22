@@ -45,16 +45,28 @@ object Klucz {
 
     // ustawienia klucza (opcja, nie przymus): dodaj pierwszy / zapasowy, usuń wszystkie - zawsze po haśle telefonu
     fun setup(a: Activity, p: android.content.SharedPreferences, added: () -> Unit = {}) {
+        val toast = { m: String -> android.widget.Toast.makeText(a, m, android.widget.Toast.LENGTH_LONG).show() }
+        // nazwa klucza (np. YubiKey, Titan) - przy wymianie widać, który usunąć
         fun add() = confirm(a) { register(a) { j ->
-            if (j == null) { android.widget.Toast.makeText(a, t("Nie udało się odczytać klucza", "Could not read the key"), android.widget.Toast.LENGTH_LONG).show(); return@register }
-            val first = keys(p).isEmpty(); save(p, keys(p) + j.put("n", java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(java.util.Date()))); added()
-            android.widget.Toast.makeText(a, if (first) t("Klucz dodany. Dodaj też zapasowy klucz.", "Key added. Add a backup key too.") else t("Zapasowy klucz dodany", "Backup key added"), android.widget.Toast.LENGTH_LONG).show() } }
-        val n = keys(p).size
-        android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🔑 " + t("Klucz sprzętowy (YubiKey)", "Security key (YubiKey)") + if (n > 0) "  ✓ $n" else "")
+            if (j == null) { toast(t("Nie udało się odczytać klucza", "Could not read the key")); return@register }
+            val first = keys(p).isEmpty()
+            val name = android.widget.EditText(a).apply { setText(t("Klucz ", "Key ") + (keys(p).size + 1)); setSelectAllOnFocus(true); setTextColor(android.graphics.Color.WHITE) }
+            android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🔑 " + t("Nazwa klucza (np. YubiKey, Titan)", "Key name (e.g. YubiKey, Titan)")).setView(name)
+                .setPositiveButton(android.R.string.ok) { _, _ -> }.setOnDismissListener {
+                    save(p, keys(p) + j.put("n", name.text.toString().trim().take(30).ifEmpty { t("Klucz", "Key") } + " · " + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(java.util.Date()))); added()
+                    toast(if (first) t("Klucz dodany. Dodaj też zapasowy klucz – gdy jeden się zepsuje albo zginie, drugi działa.", "Key added. Add a backup key too – if one breaks or gets lost, the other works.") else t("Zapasowy klucz dodany", "Backup key added")) }.show() } }
+        // wymiana: usunięcie jednego klucza (zepsuty / zgubiony) po haśle telefonu - pozostałe działają dalej
+        fun remove() { val l = keys(p)
+            android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🗑 " + t("Który klucz usunąć?", "Which key to remove?"))
+                .setItems(l.map { it.optString("n", "?") }.toTypedArray()) { _, i -> confirm(a) { save(p, keys(p).filter { it.optString("kh") != l[i].optString("kh") }); toast(t("Klucz usunięty: ", "Key removed: ") + l[i].optString("n")) } }
+                .setNegativeButton(android.R.string.cancel, null).show() }
+        val l = keys(p)
+        android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🔑 " + t("Klucz sprzętowy (YubiKey, Titan)", "Security key (YubiKey, Titan)"))
             .setMessage(t("Opcjonalnie: Velivo i komunikator odblokujesz dotknięciem klucza (USB albo NFC). Odcisk palca / PIN telefonu dalej działa jako zapas.",
-                "Optional: unlock Velivo and the messenger by touching the key (USB or NFC). Phone fingerprint / PIN still works as a backup."))
-            .setPositiveButton(if (n == 0) "➕ " + t("Dodaj klucz", "Add key") else "➕ " + t("Dodaj zapasowy", "Add backup")) { _, _ -> add() }
-            .apply { if (n > 0) setNeutralButton("🗑 " + t("Usuń wszystkie", "Remove all")) { _, _ -> confirm(a) { save(p, emptyList()); android.widget.Toast.makeText(a, t("Klucze usunięte", "Keys removed"), android.widget.Toast.LENGTH_SHORT).show() } } }
+                "Optional: unlock Velivo and the messenger by touching the key (USB or NFC). Phone fingerprint / PIN still works as a backup.") +
+                if (l.isEmpty()) "" else "\n\n" + l.joinToString("\n") { "✓ " + it.optString("n", "?") } + if (l.size == 1) "\n\n⚠ " + t("Dodaj zapasowy klucz.", "Add a backup key.") else "")
+            .setPositiveButton(if (l.isEmpty()) "➕ " + t("Dodaj klucz", "Add key") else "➕ " + t("Dodaj zapasowy", "Add backup")) { _, _ -> add() }
+            .apply { if (l.isNotEmpty()) setNeutralButton("🗑 " + t("Usuń klucz…", "Remove key…")) { _, _ -> remove() } }
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 

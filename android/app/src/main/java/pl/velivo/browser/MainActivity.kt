@@ -1468,7 +1468,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             38 -> showPhoneVideos()
             39 -> openKeyboardApp()
             40 -> showWallpaper()
-            43 -> pl.velivo.komunikator.Klucz.setup(this, getSharedPreferences("komunikator", MODE_PRIVATE))   // 🔐 klucz sprzętowy (wspólny z komunikatorem)
+            43 -> getSharedPreferences("komunikator", MODE_PRIVATE).let { p -> pl.velivo.komunikator.Klucz.setup(this, p) { p.edit().putBoolean("blokada", true).apply() } }   // 🔐 klucz sprzętowy (wspólny z komunikatorem - klucz włącza też jego blokadę)
             23 -> showNotes()
             24 -> newNote()
             25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }

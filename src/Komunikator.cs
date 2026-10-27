@@ -1802,7 +1802,8 @@ namespace Velivo
                         {
                             if (selMode) return;
                             if (Path.GetFileName(fp).Contains("Glosowa-")) { KomPlayVoice(fp); return; }
-                            if (KomIsImage(fp) || KomIsVideo(fp)) { KomViewer(w, c, fp); return; }
+                            if (KomIsVideo(fp)) { PlayVideos(new[] { fp }, 0, false); return; }   // 🎬 film - odtwarzacz Velivo (VLC, wszystkie kodeki), bez dopisywania do biblioteki
+                            if (KomIsImage(fp)) { KomViewer(w, c, fp); return; }
                             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { }
                         };
                     }
@@ -2385,9 +2386,9 @@ namespace Velivo
         // 🖼 podgląd zdjęć i filmów z rozmowy w Velivo: ← → po kolei, spacja - pauza, Enter - program Windows, Esc - zamknij
         void KomViewer(Window owner, KomContact c, string path)
         {
-            var items = KomChat(c.Id).Select(m => m.Path).Where(p => !string.IsNullOrEmpty(p) && File.Exists(p) && (KomIsImage(p) || KomIsVideo(p))).Distinct().ToList();
+            var items = KomChat(c.Id).Select(m => m.Path).Where(p => !string.IsNullOrEmpty(p) && File.Exists(p) && KomIsImage(p)).Distinct().ToList();   // zdjęcia i GIF-y; filmy - odtwarzacz Velivo
             if (items.Count == 0) return;
-            int i = Math.Max(0, items.IndexOf(path)); bool paused = false;
+            int i = Math.Max(0, items.IndexOf(path));
             var img = new Image { Stretch = Stretch.Uniform };
             var vid = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, Stretch = Stretch.Uniform };
             var hint = new TextBlock { Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(10), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center };
@@ -2395,41 +2396,26 @@ namespace Velivo
             var d = new Window { Uid = "own-theme", Owner = owner, Width = 1000, Height = 700, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid, Background = Brushes.Black, Icon = KomWindowIcon() };
             void Show()
             {
-                var p = items[i]; d.Title = "🖼 " + Path.GetFileName(p) + "  (" + (i + 1) + "/" + items.Count + ")"; paused = false;
+                var p = items[i]; d.Title = "🖼 " + Path.GetFileName(p) + "  (" + (i + 1) + "/" + items.Count + ")";
                 vid.Stop(); vid.Source = null;
-                if (KomIsVideo(p) || KomIsGif(p))
+                if (KomIsGif(p))
                 {
-                    img.Source = null; img.Visibility = Visibility.Collapsed; vid.Visibility = Visibility.Visible; vid.LayoutTransform = Transform.Identity; vid.Source = new Uri(p); vid.Play();
-                    // 📹 nagranie z telefonu w pionie: obrót zapisany w pliku - odtwarzacz WPF go nie stosuje
-                    if (KomIsVideo(p)) _ = Dispatcher.InvokeAsync(async () =>
-                    {
-                        try
-                        {
-                            var vp = await (await Windows.Storage.StorageFile.GetFileFromPathAsync(p)).Properties.GetVideoPropertiesAsync();
-                            if (items[i] == p && vp.Orientation != Windows.Storage.FileProperties.VideoOrientation.Normal) vid.LayoutTransform = new RotateTransform((int)vp.Orientation);
-                        }
-                        catch (Exception) { }
-                    });
+                    img.Source = null; img.Visibility = Visibility.Collapsed; vid.Visibility = Visibility.Visible; vid.Source = new Uri(p); vid.Play();
                 }
                 else
                 {
                     vid.Visibility = Visibility.Collapsed; img.Visibility = Visibility.Visible;
                     try { var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.UriSource = new Uri(p); b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); img.Source = KomUpright(b, p); } catch (Exception) { img.Source = null; }
                 }
-                hint.Text = "← →  " + L.T("poprzednie / następne") + "   ·   Enter – " + L.T("otwórz w programie Windows") + (KomIsVideo(p) ? "   ·   " + L.T("spacja – pauza") : "") + "   ·   Esc – " + L.T("zamknij");
+                hint.Text = "← →  " + L.T("poprzednie / następne") + "   ·   Enter – " + L.T("otwórz w programie Windows") + "   ·   Esc – " + L.T("zamknij");
             }
             vid.MediaEnded += (s, e) => { if (KomIsGif(items[i])) { vid.Position = TimeSpan.FromMilliseconds(1); vid.Play(); } };   // 🎞 GIF w kółko
-            // 🎬 film, którego Windows nie odtworzy (np. H.265/HEVC z telefonu bez rozszerzenia, sam dźwięk bez obrazu) - odtwarzacz Velivo (VLC)
-            void ToVlc() { var p = items[i]; if (!KomIsVideo(p)) return; d.Close(); PlayVideos(new[] { p }, 0, false); }
-            vid.MediaFailed += (s, e) => { if (KomIsVideo(items[i])) ToVlc(); else hint.Text = L.T("Tego filmu nie da się odtworzyć tutaj – Enter otwiera go w programie Windows"); };
-            vid.MediaOpened += (s, e) => { if (KomIsVideo(items[i]) && !vid.HasVideo) ToVlc(); };
             d.PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Right && i < items.Count - 1) { i++; Show(); }
                 else if (e.Key == Key.Left && i > 0) { i--; Show(); }
                 else if (e.Key == Key.Escape) d.Close();
                 else if (e.Key == Key.Enter) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(items[i]) { UseShellExecute = true }); } catch (Exception) { } }
-                else if (e.Key == Key.Space && vid.Visibility == Visibility.Visible) { if (paused) vid.Play(); else vid.Pause(); paused = !paused; }
                 else return;
                 e.Handled = true;
             };

@@ -160,6 +160,7 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
 
 - **Filmy i TV:** adresy list kanałów (często z tokenem) i dane logowania Jellyfin są zaszyfrowane w telefonie (Android Keystore) i nie trafiają do logów ani komunikatów o błędach. Lista kanałów i program są zapisane zaszyfrowane. Zaplanowane audycje pamiętają tylko nazwę kanału.
 - **Filmy i muzyka z telefonu:** Velivo czyta je tylko na Twoje żądanie (po zgodzie Androida) i niczego nie wysyła.
+- **🔑 Klucze sprzętowe i klucze dostępu** (YubiKey przez USB lub NFC, passkey): strony mogą prosić o klucz przy logowaniu (od Androida 14 i nowego WebView). Google może ich nie proponować w aplikacjach spoza swojej listy przeglądarek – wtedy zaloguj się inną metodą (np. „Spróbuj inaczej” → potwierdzenie na telefonie).
 - **Brak kont i telemetrii:** Velivo nie wysyła statystyk ani danych do autora. Raport błędu powstaje tylko w telefonie i trafia gdzieś dopiero, gdy sam go skopiujesz.
 
 ## 7. Velivo dla osób ze słabszym wzrokiem – ustawienie krok po kroku

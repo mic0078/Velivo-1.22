@@ -160,6 +160,7 @@ With several computers use the **recovery file** (computer: Save recovery file�
 
 - **Films and TV:** channel list addresses (often with a token) and Jellyfin sign-in data are encrypted on the phone (Android Keystore) and never go to logs or error messages. The channel list and guide are stored encrypted. Scheduled programmes remember only the channel name.
 - **Videos and music on the phone:** Velivo reads them only when you ask (after Android's permission) and sends nothing.
+- **🔑 Security keys and passkeys** (YubiKey via USB or NFC, passkey): sites can ask for a key when you sign in (Android 14 and a recent WebView). Google may not offer them in apps outside its list of browsers – then sign in another way (e.g. "Try another way" → confirm on your phone).
 - **No accounts, no telemetry:** Velivo sends no statistics or data to the author. A crash report is made only on the phone and goes anywhere only if you copy it yourself.
 
 ## 7. Velivo for people with weaker eyesight – step-by-step setup

@@ -663,6 +663,9 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
         // Strony bez własnego ciemnego wyglądu przyciemniane automatycznie w trybie ciemnym.
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING))
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(w.settings, true)
+        // 🔑 klucze sprzętowe (YubiKey USB/NFC) i klucze dostępu na stronach (WebAuthn) - jak w przeglądarce; bez tego strony nie dają wyboru klucza
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION))
+            WebSettingsCompat.setWebAuthenticationSupport(w.settings, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_BROWSER)
         CookieManager.getInstance().setAcceptThirdPartyCookies(w, false)
         // Reklamy na YouTube: skrypt uruchamiany przed stroną (tylko na domenach YouTube).
         // wersje "pelna" i "sklepyt" - w ostrożnej wersji sklepowej bez skryptu YouTube

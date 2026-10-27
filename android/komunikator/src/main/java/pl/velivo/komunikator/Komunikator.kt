@@ -3011,6 +3011,20 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.packageName))) }
             return
         }
+        // 📦 ta sama aplikacja podpisana innym kluczem (zbudowana na innym komputerze) - Android jej nie zainstaluje; powiedz wprost zamiast cichej porażki
+        if (path.endsWith(".apk", true)) runCatching {
+            val pm = a.packageManager; val f = android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+            val apk = pm.getPackageArchiveInfo(path, f); val pkg = apk?.packageName
+            val have = pkg?.let { runCatching { pm.getPackageInfo(it, f) }.getOrNull() }
+            fun sig(i: android.content.pm.PackageInfo?) = i?.signingInfo?.apkContentsSigners?.map { it.toCharsString() }?.toSet()
+            if (have != null && sig(apk) != null && sig(apk) != sig(have)) {
+                Dlg().setTitle("📦 " + t("Inny podpis aplikacji", "Different app signature"))
+                    .setMessage(t("Ta wersja została zbudowana na innym komputerze (innym kluczem). Android nie zainstaluje jej na obecną.\n\nPoproś o plik z komputera, na którym zbudowano Twoją obecną wersję – albo odinstaluj aplikację i zainstaluj tę (wcześniej zrób kopię zapasową rozmów).",
+                        "This version was built on another computer (another key). Android will not install it over the current one.\n\nAsk for the file from the computer that built your current version – or uninstall the app and install this one (back up your chats first)."))
+                    .setPositiveButton(android.R.string.ok, null).show()
+                return
+            }
+        }
         val uri = toDownloads(path) ?: run { Toast.makeText(a, t("Nie udało się otworzyć", "Could not open"), Toast.LENGTH_SHORT).show(); return }
         val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(path.substringAfterLast('.', "").lowercase()) ?: if (path.endsWith(".apk", true)) "application/vnd.android.package-archive" else "*/*"
         runCatching { a.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)) }

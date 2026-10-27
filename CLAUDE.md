@@ -124,6 +124,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * Sieć pośredników znajomych: telefon poza domem łączy się już ze wszystkimi pośrednikami z kontaktów naraz (2026-10-22); dalej na potem: pośrednicy przekazujący między sobą (gdy rozmówcy mają różnych pośredników) i pliki/wideo przez dodatkowych pośredników.
 * ⠿ Wibrobrajl dla głuchoniewidomych (2026-10-26, właściciel: później) – dopiero po teście zwykłego Brajla na prawdziwym telefonie; najpierw ustalić czytelny kod wibracji, przewijanie wiadomości i zatrzymanie odczytu.
 * 🤟 Dla niesłyszących (decyzja właściciela 2026-10-26, do zrobienia po jego testach): (1) napisy na żywo – zrobione 2026-10-27 (💬 w rozmowie, telefon mówiącego rozpoznaje, Windows tylko wyświetla); (2) alfabet palcowy tylko międzynarodowy (jednoręczny, „uniwersalny”) – rysunki dłoni w kodzie + własne zdjęcia (📷 przy literze) je zastępują; (3) graficzny słowniczek znaków (najczęstsze słowa, zdjęcia/nagrania od osoby migającej). Obrazek z czatu ma autora – nie wklejać; Wikimedia z tego środowiska zablokowana. Nauka alfabetu ≠ tłumaczenie języka migowego.
+* GIF-y z internetu (2026-10-27, właściciel: na razie nie) – gdyby kiedyś: GIPHY, wyłączone domyślnie, klucz z pliku, wyszukiwanie przez NUCBOX.
 * Prywatny serwer właściciela zamiast domowego komputera (właściciel zakłada go sam; Claude daje wymagania i pośrednika dla serwera).
 
 ## Gałęzie

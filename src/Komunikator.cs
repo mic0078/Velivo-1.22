@@ -218,22 +218,49 @@ namespace Velivo
         // 💾 kopia zapasowa (jak w telefonie): kontakty z kluczami, rozmowy, identyfikator i ustawienia - zaszyfrowane hasłem (PBKDF2 + AES-GCM),
         // bez plików; zapis w dowolnym folderze (także Dysk Google, NUCBOX). Przywrócenie na nowym komputerze - kontakty dalej nas znają.
         static byte[] KomPassKey(string p, byte[] salt) => Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(p), salt, 200000, HashAlgorithmName.SHA256, 32);
-        byte[] KomBackup(string pass)
+        // 🔑 kopia 2: dane zaszyfrowane losowym kluczem, a ten zamknięty osobno hasłem i każdym kluczem sprzętowym (sekret hmac-secret) -
+        // otwiera hasło ALBO dowolny z kluczy (zgubiony klucz - zostaje hasło i zapasowy klucz)
+        static byte[] KomGcm(byte[] k, byte[] p) { var n = RandomNumberGenerator.GetBytes(12); var ct = new byte[p.Length]; var tag = new byte[16]; using (var g = new AesGcm(k, 16)) g.Encrypt(n, p, ct, tag); return n.Concat(ct).Concat(tag).ToArray(); }
+        static byte[] KomUngcm(byte[] k, byte[] b) { var p = new byte[b.Length - 28]; using (var g = new AesGcm(k, 16)) g.Decrypt(b.AsSpan(0, 12), b.AsSpan(12, p.Length), b.AsSpan(b.Length - 16), p); return p; }
+        static byte[] KomKeyKek(byte[] secret) => SHA256.HashData(Encoding.UTF8.GetBytes("velivo-kopia\n").Concat(secret).ToArray());
+        byte[] KomBackup(string pass, byte[] hsalt = null, List<(BankKey Key, byte[] Secret)> keys = null)
         {
             var st = KomState(); if (KomPhoto(_komId) is string ph) st["foto"] = Convert.ToBase64String(File.ReadAllBytes(ph));
-            var plain = Encoding.UTF8.GetBytes(st.ToJsonString());
-            var salt = RandomNumberGenerator.GetBytes(16); var n = RandomNumberGenerator.GetBytes(12); var ct = new byte[plain.Length]; var tag = new byte[16];
-            using (var g = new AesGcm(KomPassKey(pass, salt), 16)) g.Encrypt(n, plain, ct, tag);
-            return Encoding.UTF8.GetBytes("VELIVO-KOPIA1\n" + Convert.ToBase64String(salt.Concat(n).Concat(ct).Concat(tag).ToArray()));
+            var dk = RandomNumberGenerator.GetBytes(32); var salt = RandomNumberGenerator.GetBytes(16);
+            var h = new JsonObject { ["s"] = Convert.ToBase64String(salt), ["p"] = Convert.ToBase64String(KomGcm(KomPassKey(pass, salt), dk)) };
+            if (hsalt != null && keys?.Count > 0) { h["hs"] = Convert.ToBase64String(hsalt); h["k"] = new JsonArray(keys.Select(k => (JsonNode)new JsonObject { ["c"] = k.Key.Id, ["x"] = k.Key.X, ["y"] = k.Key.Y, ["w"] = Convert.ToBase64String(KomGcm(KomKeyKek(k.Secret), dk)) }).ToArray()); }
+            return Encoding.UTF8.GetBytes("VELIVO-KOPIA2\n" + h.ToJsonString() + "\n" + Convert.ToBase64String(KomGcm(dk, Encoding.UTF8.GetBytes(st.ToJsonString()))));
         }
-        bool KomRestore(byte[] data, string pass)
+        // klucze w kopii (sól i klucze publiczne) - null, gdy kopia tylko na hasło
+        static (byte[] Salt, List<BankKey> Keys)? KomBackupKeys(byte[] data)
         {
             try
             {
-                var txt = Encoding.UTF8.GetString(data); if (!txt.StartsWith("VELIVO-KOPIA1\n", StringComparison.Ordinal)) return false;
-                var b = Convert.FromBase64String(txt.Substring(14).Trim()); if (b.Length <= 44) return false;
-                var plain = new byte[b.Length - 44];
-                using (var g = new AesGcm(KomPassKey(pass, b[..16]), 16)) g.Decrypt(b.AsSpan(16, 12), b.AsSpan(28, plain.Length), b.AsSpan(b.Length - 16), plain);
+                var l = Encoding.UTF8.GetString(data).Split('\n'); if (l[0] != "VELIVO-KOPIA2" || JsonNode.Parse(l[1]) is not JsonObject h || h["k"] is not JsonArray k) return null;
+                return (Convert.FromBase64String((string)h["hs"]), k.Select(x => new BankKey { Id = (string)x["c"], X = (string)x["x"], Y = (string)x["y"] }).ToList());
+            }
+            catch (Exception) { return null; }
+        }
+        // przywrócenie hasłem albo kluczem (key - który klucz i jego sekret)
+        bool KomRestore(byte[] data, string pass, (BankKey Key, byte[] Secret)? key = null)
+        {
+            try
+            {
+                var txt = Encoding.UTF8.GetString(data); byte[] plain;
+                if (txt.StartsWith("VELIVO-KOPIA2\n", StringComparison.Ordinal))
+                {
+                    var l = txt.Split('\n'); var h = (JsonObject)JsonNode.Parse(l[1]);
+                    var dk = key is { } kk ? KomUngcm(KomKeyKek(kk.Secret), Convert.FromBase64String((string)((JsonArray)h["k"]).First(x => (string)x["c"] == kk.Key.Id)["w"]))
+                        : KomUngcm(KomPassKey(pass, Convert.FromBase64String((string)h["s"])), Convert.FromBase64String((string)h["p"]));
+                    plain = KomUngcm(dk, Convert.FromBase64String(l[2].Trim()));
+                }
+                else
+                {
+                    if (!txt.StartsWith("VELIVO-KOPIA1\n", StringComparison.Ordinal) || pass == null) return false;
+                    var b = Convert.FromBase64String(txt.Substring(14).Trim()); if (b.Length <= 44) return false;
+                    plain = new byte[b.Length - 44];
+                    using (var g = new AesGcm(KomPassKey(pass, b[..16]), 16)) g.Decrypt(b.AsSpan(16, 12), b.AsSpan(28, plain.Length), b.AsSpan(b.Length - 16), plain);
+                }
                 var o = JsonNode.Parse(plain) as JsonObject; if (((string)o?["id"])?.Length != 32) return false;   // kopia z Windows
                 if (File.Exists(KomFile)) File.Copy(KomFile, KomFile + ".przed-kopia-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"), true);
                 File.WriteAllBytes(KomFile, ProtectedData.Protect(plain, KomEntropy, DataProtectionScope.CurrentUser));
@@ -2080,21 +2107,41 @@ namespace Velivo
                 hk.Click += (a, b) => KomHwKeySetup(w);
                 cm.Items.Add(ph); cm.Items.Add(phDel); cm.Items.Add(lk); cm.Items.Add(hk);
                 var bk = new MenuItem { Header = L.T("💾 Kopia zapasowa (folder, Dysk Google, NUCBOX)…") };
-                bk.Click += (a, b) =>
+                bk.Click += async (a, b) =>
                 {
                     var pw = KomPassword(w, true); if (pw == null) return;
                     var dlg = new Microsoft.Win32.SaveFileDialog { FileName = "Velivo-kopia-" + DateTime.Now.ToString("yyyy-MM-dd") + ".velivo", Filter = L.T("Kopia Velivo") + " (*.velivo)|*.velivo" };
                     if (dlg.ShowDialog(w) != true) return;
-                    try { File.WriteAllBytes(dlg.FileName, KomBackup(pw)); KomInfo("💾 " + L.T("Kopia zapisana")); } catch (Exception ex) { KomInfo(L.T("Nie udało się zapisać kopii") + ": " + ex.Message); }
+                    // 🔑 opcjonalnie: kopię otworzy też klucz sprzętowy (główny i zapasowy); hasło zostaje zapasem
+                    var hs = RandomNumberGenerator.GetBytes(32); var keys = new List<(BankKey, byte[])>(); var hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+                    while (MessageBox.Show(w, keys.Count == 0 ? L.T("Kopię otworzysz hasłem albo kluczem sprzętowym (YubiKey, Titan). Dodać klucz? Dotkniesz go 2 razy.") : L.T("Dodano kluczy: ") + keys.Count + L.T(". Dodać zapasowy klucz?"), "🔑 " + L.T("Klucz sprzętowy do kopii"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                        try
+                        {
+                            var ex0 = keys.Select(x => Convert.FromBase64String(x.Item1.Id)).ToList();
+                            var k = await Task.Run(() => WebAuthn.Register(hwnd, BankRpId, ex0));
+                            var r = await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, new List<BankKey> { k }, hs));
+                            if (r.Key == null || r.Hmac == null) { KomInfo("🔑 " + L.T("Ten klucz nie umie szyfrować (hmac-secret)")); continue; }
+                            keys.Add((k, r.Hmac));
+                        }
+                        catch (Exception ex) { KomInfo("🔑 " + ex.Message); }
+                    try { File.WriteAllBytes(dlg.FileName, KomBackup(pw, hs, keys)); KomInfo("💾 " + L.T("Kopia zapisana") + (keys.Count > 0 ? " 🔑×" + keys.Count : "")); } catch (Exception ex) { KomInfo(L.T("Nie udało się zapisać kopii") + ": " + ex.Message); }
                 };
                 var rs = new MenuItem { Header = L.T("📥 Przywróć z kopii (nowy komputer)…") };
-                rs.Click += (a, b) =>
+                rs.Click += async (a, b) =>
                 {
                     if (MessageBox.Show(w, L.T("Kopia zastąpi kontakty i rozmowy na tym komputerze (dostanie identyfikator z kopii – kontakty dalej Cię znają). Dalej?"), "📥", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                     var dlg = new Microsoft.Win32.OpenFileDialog { Filter = L.T("Kopia Velivo") + " (*.velivo)|*.velivo|" + L.T("Wszystkie pliki") + "|*.*" };
                     if (dlg.ShowDialog(w) != true) return;
+                    var data = File.ReadAllBytes(dlg.FileName);
+                    if (KomBackupKeys(data) is { } ks && MessageBox.Show(w, L.T("Ta kopia otwiera się kluczem sprzętowym albo hasłem.\n\nTak – klucz\nNie – hasło"), "📥", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    {
+                        WebAuthn.VerifyResult r = null; var hw = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+                        try { r = await Task.Run(() => WebAuthn.Verify(hw, BankRpId, ks.Keys, ks.Salt)); } catch (Exception ex) { KomInfo("🔑 " + ex.Message); }
+                        if (r?.Key != null && r.Hmac != null) { KomInfo(KomRestore(data, null, (r.Key, r.Hmac)) ? "📥 " + L.T("Przywrócono kontakty i rozmowy") : L.T("Klucz nie pasuje do tej kopii – użyj innego klucza albo hasła")); FillList(); FillChat(); return; }
+                        KomInfo(L.T("Klucz nie pasuje do tej kopii – użyj innego klucza albo hasła"));
+                    }
                     var pw = KomPassword(w, false); if (pw == null) return;
-                    KomInfo(KomRestore(File.ReadAllBytes(dlg.FileName), pw) ? "📥 " + L.T("Przywrócono kontakty i rozmowy") : L.T("Złe hasło albo to nie jest kopia Velivo z Windows"));
+                    KomInfo(KomRestore(data, pw) ? "📥 " + L.T("Przywrócono kontakty i rozmowy") : L.T("Złe hasło albo to nie jest kopia Velivo z Windows"));
                     FillList(); FillChat();
                 };
                 cm.Items.Add(new Separator()); cm.Items.Add(bk); cm.Items.Add(rs);

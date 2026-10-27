@@ -172,16 +172,38 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 💾 kopia zapasowa (jak w WhatsApp, ale u Ciebie): kontakty z kluczami, rozmowy, identyfikator i ustawienia - zaszyfrowane hasłem
     // (PBKDF2 + AES-GCM); bez plików z rozmów. Przywrócenie na nowym telefonie - kontakty dalej nas znają (ten sam identyfikator).
     private fun passKey(p: String, salt: ByteArray) = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(javax.crypto.spec.PBEKeySpec(p.toCharArray(), salt, 200000, 256)).encoded
-    fun backup(pass: String): ByteArray {
-        val salt = ByteArray(16).also { random.nextBytes(it) }; val n = ByteArray(12).also { random.nextBytes(it) }
-        val ci = Cipher.getInstance("AES/GCM/NoPadding"); ci.init(Cipher.ENCRYPT_MODE, SecretKeySpec(passKey(pass, salt), "AES"), GCMParameterSpec(128, n))
-        return ("VELIVO-KOPIA1\n" + b64(salt + n + ci.doFinal(export().toByteArray(Charsets.UTF_8)))).toByteArray(Charsets.UTF_8)
+    // 🔑 kopia 2: dane zaszyfrowane losowym kluczem, a ten zamknięty osobno hasłem i każdym kluczem sprzętowym (sekret hmac-secret) -
+    // otwiera hasło ALBO dowolny z kluczy (zgubiony klucz - zostaje hasło i zapasowy klucz)
+    private fun gcm(k: ByteArray, b: ByteArray) = ByteArray(12).also { random.nextBytes(it) }.let { n -> n + Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, n)) }.doFinal(b) }
+    private fun ungcm(k: ByteArray, b: ByteArray) = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, SecretKeySpec(k, "AES"), GCMParameterSpec(128, b, 0, 12)) }.doFinal(b, 12, b.size - 12)
+    private fun keyKek(secret: ByteArray) = java.security.MessageDigest.getInstance("SHA-256").digest("velivo-kopia\n".toByteArray() + secret)
+    fun backup(pass: String, hsalt: ByteArray? = null, keys: List<Pair<ByteArray, ByteArray>> = emptyList()): ByteArray {
+        val dk = ByteArray(32).also { random.nextBytes(it) }; val salt = ByteArray(16).also { random.nextBytes(it) }
+        val h = JSONObject().put("s", b64(salt)).put("p", b64(gcm(passKey(pass, salt), dk)))
+        if (hsalt != null && keys.isNotEmpty()) h.put("hs", b64(hsalt)).put("k", JSONArray(keys.map { (c, sec) -> JSONObject().put("c", b64(c)).put("w", b64(gcm(keyKek(sec), dk))) }))
+        return ("VELIVO-KOPIA2\n" + h + "\n" + b64(gcm(dk, export().toByteArray(Charsets.UTF_8)))).toByteArray(Charsets.UTF_8)
     }
-    fun restore(data: ByteArray, pass: String): Boolean = runCatching {
-        val txt = String(data, Charsets.UTF_8); require(txt.startsWith("VELIVO-KOPIA1\n"))
-        val b = unb64(txt.substringAfter('\n').trim()); require(b.size > 44)
-        val ci = Cipher.getInstance("AES/GCM/NoPadding"); ci.init(Cipher.DECRYPT_MODE, SecretKeySpec(passKey(pass, b.copyOfRange(0, 16)), "AES"), GCMParameterSpec(128, b, 16, 12))
-        val json = String(ci.doFinal(b, 28, b.size - 28), Charsets.UTF_8); require(JSONObject(json).optString("cid").length == 32)   // kopia z telefonu
+    // klucze w kopii: (sól, poświadczenia) - null, gdy kopia tylko na hasło
+    fun backupKeys(data: ByteArray): Pair<ByteArray, List<ByteArray>>? = runCatching {
+        val l = String(data, Charsets.UTF_8).split('\n'); require(l[0] == "VELIVO-KOPIA2")
+        val h = JSONObject(l[1]); val k = h.optJSONArray("k") ?: return null
+        unb64(h.getString("hs")) to (0 until k.length()).map { unb64(k.getJSONObject(it).getString("c")) }
+    }.getOrNull()
+    // przywrócenie hasłem (pass) albo kluczem (key = poświadczenie i sekret z klucza)
+    fun restore(data: ByteArray, pass: String?, key: Pair<ByteArray, ByteArray>? = null): Boolean = runCatching {
+        val txt = String(data, Charsets.UTF_8)
+        val json = if (txt.startsWith("VELIVO-KOPIA2\n")) {
+            val l = txt.split('\n'); val h = JSONObject(l[1])
+            val dk = if (key != null) { val k = h.getJSONArray("k"); val slot = (0 until k.length()).map { k.getJSONObject(it) }.first { unb64(it.getString("c")).contentEquals(key.first) }
+                ungcm(keyKek(key.second), unb64(slot.getString("w"))) } else ungcm(passKey(pass!!, unb64(h.getString("s"))), unb64(h.getString("p")))
+            String(ungcm(dk, unb64(l[2].trim())), Charsets.UTF_8)
+        } else {
+            require(txt.startsWith("VELIVO-KOPIA1\n") && pass != null)
+            val b = unb64(txt.substringAfter('\n').trim()); require(b.size > 44)
+            val ci = Cipher.getInstance("AES/GCM/NoPadding"); ci.init(Cipher.DECRYPT_MODE, SecretKeySpec(passKey(pass, b.copyOfRange(0, 16)), "AES"), GCMParameterSpec(128, b, 16, 12))
+            String(ci.doFinal(b, 28, b.size - 28), Charsets.UTF_8)
+        }
+        require(JSONObject(json).optString("cid").length == 32)   // kopia z telefonu
         wipe(); import(json); listen(); announce(); true
     }.getOrDefault(false)
 
@@ -2161,17 +2183,48 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     fun backupResult(u: Uri?) {
         val p = backupPass; backupPass = null
         if (u == null || p == null) return
-        Toast.makeText(a, "💾 " + t("Zapisuję kopię…", "Saving backup…"), Toast.LENGTH_SHORT).show()
-        Thread {
-            val ok = runCatching { a.contentResolver.openOutputStream(u, "wt")!!.use { it.write(k.backup(p)) } }.isSuccess
-            a.runOnUiThread { Toast.makeText(a, if (ok) "💾 " + t("Kopia zapisana", "Backup saved") else t("Nie udało się zapisać kopii", "Could not save the backup"), Toast.LENGTH_LONG).show() }
-        }.start()
+        // 🔑 opcjonalnie: kopię otworzy też klucz sprzętowy (można kilka - główny i zapasowy); hasło zostaje zapasem
+        val hs = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }; val keys = ArrayList<Pair<ByteArray, ByteArray>>()
+        fun write() {
+            Toast.makeText(a, "💾 " + t("Zapisuję kopię…", "Saving backup…"), Toast.LENGTH_SHORT).show()
+            Thread {
+                val ok = runCatching { a.contentResolver.openOutputStream(u, "wt")!!.use { it.write(k.backup(p, hs, keys)) } }.isSuccess
+                a.runOnUiThread { Toast.makeText(a, if (ok) "💾 " + t("Kopia zapisana", "Backup saved") + if (keys.isNotEmpty()) " 🔑×" + keys.size else "" else t("Nie udało się zapisać kopii", "Could not save the backup"), Toast.LENGTH_LONG).show() }
+            }.start()
+        }
+        fun askKey() {
+            var touching = false   // zamknięcie okienka (✕, wstecz, „Zapisz”) zapisuje kopię; „Dodaj klucz” - najpierw klucz
+            Dlg().setTitle("🔑 " + t("Klucz sprzętowy do kopii", "Security key for the backup"))
+                .setMessage(if (keys.isEmpty()) t("Kopię otworzysz hasłem albo kluczem (YubiKey, Titan). Dodać klucz? Klucz dotkniesz 2 razy.", "Open the backup with the password or a key (YubiKey, Titan). Add a key? You touch it twice.")
+                    else t("Dodano kluczy: ", "Keys added: ") + keys.size + t(". Dodać zapasowy klucz?", ". Add a backup key?"))
+                .setPositiveButton(if (keys.isEmpty()) t("🔑 Dodaj klucz", "🔑 Add key") else t("🔑 Dodaj zapasowy", "🔑 Add backup")) { _, _ -> touching = true
+                    Klucz.run(a, "💾 " + t("Kopia zapasowa", "Backup"), { tx -> runCatching { KluczStrony.newBackupCred(tx).let { c -> KluczStrony.backupSecret(tx, listOf(c), hs) } }.getOrElse { e -> a.runOnUiThread { Toast.makeText(a, "🔑 " + (e.message ?: ""), Toast.LENGTH_LONG).show() }; null } }) { r ->
+                        if (r != null) keys += r; askKey() } }
+                .setNegativeButton(if (keys.isEmpty()) t("Tylko hasło", "Password only") else t("Zapisz kopię", "Save backup"), null)
+                .setOnDismissListener { if (!touching) write() }.show()
+        }
+        askKey()
     }
-    private fun restoreFrom(u: Uri) = password(false) { p ->
+    // kopia z kluczem: 🔑 dotknięcie dowolnego z dodanych kluczy albo hasło (zapas)
+    private fun restoreFrom(u: Uri): Unit = Thread {
+        val data = runCatching { a.contentResolver.openInputStream(u)!!.use { it.readBytes() } }.getOrNull()
+        val ks = data?.let { k.backupKeys(it) }
+        a.runOnUiThread { if (data == null || ks == null) restorePass(u) else restoreAsk(u, data, ks) }
+    }.start()
+    private fun restoreAsk(u: Uri, data: ByteArray, ks: Pair<ByteArray, List<ByteArray>>) {
+        Dlg().setTitle("📥 " + t("Przywróć z kopii", "Restore from backup")).setMessage(t("Ta kopia otwiera się kluczem sprzętowym albo hasłem.", "This backup opens with a security key or the password."))
+            .setPositiveButton(t("🔑 Klucz", "🔑 Key")) { _, _ ->
+                Klucz.run(a, "📥 " + t("Kopia zapasowa", "Backup"), { tx -> runCatching { KluczStrony.backupSecret(tx, ks.second, ks.first) }.getOrNull() }) { r ->
+                    if (r == null) { Toast.makeText(a, t("Klucz nie pasuje do tej kopii – użyj innego klucza albo hasła", "The key does not match this backup – use another key or the password"), Toast.LENGTH_LONG).show(); return@run }
+                    Thread { val ok = k.restore(data, null, r); a.runOnUiThread { restored(ok) } }.start() } }
+            .setNegativeButton(t("Hasło", "Password")) { _, _ -> restorePass(u) }.show()
+    }
+    private fun restored(ok: Boolean) = Toast.makeText(a, if (ok) "📥 " + t("Przywrócono kontakty i rozmowy", "Contacts and chats restored") else t("Złe hasło albo to nie jest kopia Velivo z telefonu", "Wrong password or not a Velivo phone backup"), Toast.LENGTH_LONG).show()
+    private fun restorePass(u: Uri) = password(false) { p ->
         Toast.makeText(a, "📥 " + t("Przywracam…", "Restoring…"), Toast.LENGTH_SHORT).show()
         Thread {
             val ok = runCatching { a.contentResolver.openInputStream(u)!!.use { it.readBytes() } }.getOrNull()?.let { k.restore(it, p) } ?: false
-            a.runOnUiThread { Toast.makeText(a, if (ok) "📥 " + t("Przywrócono kontakty i rozmowy", "Contacts and chats restored") else t("Złe hasło albo to nie jest kopia Velivo z telefonu", "Wrong password or not a Velivo phone backup"), Toast.LENGTH_LONG).show(); if (ok) show() }
+            a.runOnUiThread { restored(ok) }
         }.start()
     }
     private fun setPhotoFrom(u: Uri) = Thread {

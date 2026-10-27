@@ -113,6 +113,15 @@ C.create=function(o){return o&&o.publicKey?ask('create',o):oC(o);};
         val hasPin = opts?.get("clientPin") == true
         if (!hasPin) { if (uv == "required") throw err(0x35); return null }
         if (pin.isEmpty()) { if (uv == "required") throw err(0x36); return null }
+        val (cose, shared) = agree(tx)
+        fun aes(mode: Int, b: ByteArray) = cbc(shared, mode, b)
+        val enc = aes(Cipher.ENCRYPT_MODE, sha(pin.toByteArray()).copyOf(16))
+        val tok = aes(Cipher.DECRYPT_MODE, ctap(tx, 0x06, linkedMapOf<Any, Any>(1L to 1L, 2L to 5L, 3L to cose, 6L to enc))[2L] as? ByteArray ?: throw err(0x31))
+        return Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(tok, "HmacSHA256")) }.doFinal(cdh).copyOf(16)
+    }
+
+    // wspólny sekret z kluczem (protokół 1): nasz klucz publiczny COSE i SHA-256(ECDH)
+    private fun agree(tx: Klucz.Tx): Pair<Map<Any, Any>, ByteArray> {
         val ka = ctap(tx, 0x06, linkedMapOf<Any, Any>(1L to 1L, 2L to 2L))[1L] as? Map<*, *> ?: throw err(0x01)
         val ap = java.security.AlgorithmParameters.getInstance("EC"); ap.init(ECGenParameterSpec("secp256r1"))
         val spec = ap.getParameterSpec(java.security.spec.ECParameterSpec::class.java)
@@ -121,11 +130,34 @@ C.create=function(o){return o&&o.publicKey?ask('create',o):oC(o);};
         val shared = sha(KeyAgreement.getInstance("ECDH").apply { init(kp.private); doPhase(their, true) }.generateSecret())
         fun p32(b: BigInteger) = b.toByteArray().let { if (it.size > 32) it.copyOfRange(it.size - 32, it.size) else ByteArray(32 - it.size) + it }
         val w = (kp.public as ECPublicKey).w
-        val cose = linkedMapOf<Any, Any>(1L to 2L, 3L to -25L, -1L to 1L, -2L to p32(w.affineX), -3L to p32(w.affineY))
-        fun aes(mode: Int, b: ByteArray) = Cipher.getInstance("AES/CBC/NoPadding").apply { init(mode, SecretKeySpec(shared, "AES"), IvParameterSpec(ByteArray(16))) }.doFinal(b)
-        val enc = aes(Cipher.ENCRYPT_MODE, sha(pin.toByteArray()).copyOf(16))
-        val tok = aes(Cipher.DECRYPT_MODE, ctap(tx, 0x06, linkedMapOf<Any, Any>(1L to 1L, 2L to 5L, 3L to cose, 6L to enc))[2L] as? ByteArray ?: throw err(0x31))
-        return Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(tok, "HmacSHA256")) }.doFinal(cdh).copyOf(16)
+        return linkedMapOf<Any, Any>(1L to 2L, 3L to -25L, -1L to 1L, -2L to p32(w.affineX), -3L to p32(w.affineY)) to shared
+    }
+    private fun cbc(k: ByteArray, mode: Int, b: ByteArray) = Cipher.getInstance("AES/CBC/NoPadding").apply { init(mode, SecretKeySpec(k, "AES"), IvParameterSpec(ByteArray(16))) }.doFinal(b)
+
+    // 💾 kopia zapasowa na klucz: sekret hmac-secret (32 bajty) z klucza - ten sam klucz i sól zawsze dają ten sam sekret, nigdzie niezapisany
+    private const val KOPIA = "velivo-kopia"
+    fun newBackupCred(tx: Klucz.Tx): ByteArray {   // nowe poświadczenie na kluczu (nie zajmuje miejsca - bez rk)
+        val p = linkedMapOf<Any, Any>(1L to sha(java.util.UUID.randomUUID().toString().toByteArray()), 2L to linkedMapOf<Any, Any>("id" to KOPIA, "name" to "Velivo"),
+            3L to linkedMapOf<Any, Any>("id" to ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }, "name" to "kopia", "displayName" to "Velivo"),
+            4L to listOf(linkedMapOf<Any, Any>("alg" to -7L, "type" to "public-key")), 6L to linkedMapOf<Any, Any>("hmac-secret" to true))
+        val ad = ctap(tx, 0x01, p)[2L] as ByteArray
+        if (ad.size < 55 || (ad[32].toInt() and 0x40) == 0) throw err(0x01)
+        val n = ((ad[53].toInt() and 0xff) shl 8) or (ad[54].toInt() and 0xff)
+        return ad.copyOfRange(55, 55 + n)
+    }
+    // sekret dla soli z którymkolwiek z podanych poświadczeń; wynik: (poświadczenie, sekret)
+    fun backupSecret(tx: Klucz.Tx, creds: List<ByteArray>, salt: ByteArray): Pair<ByteArray, ByteArray> {
+        val (cose, shared) = agree(tx)
+        val se = cbc(shared, Cipher.ENCRYPT_MODE, salt)
+        val sa = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(shared, "HmacSHA256")) }.doFinal(se).copyOf(16)
+        val p = linkedMapOf<Any, Any>(1L to KOPIA, 2L to sha(salt + "velivo".toByteArray()), 3L to creds.map { linkedMapOf<Any, Any>("id" to it, "type" to "public-key") },
+            4L to linkedMapOf<Any, Any>("hmac-secret" to linkedMapOf<Any, Any>(1L to cose, 2L to se, 3L to sa)), 5L to linkedMapOf<Any, Any>("up" to true))
+        val r = ctap(tx, 0x02, p)
+        val cid = (r[1L] as? Map<*, *>)?.get("id") as? ByteArray ?: creds.singleOrNull() ?: throw err(0x2E)
+        val ad = r[2L] as ByteArray
+        if (ad.size < 38 || (ad[32].toInt() and 0x80) == 0) throw Fido(-2, t("Ten klucz nie umie szyfrować (hmac-secret)", "This key cannot encrypt (hmac-secret)"))
+        val out = (Cbor.dec(ad, 37) as? Map<*, *>)?.get("hmac-secret") as? ByteArray ?: throw Fido(-2, t("Ten klucz nie umie szyfrować (hmac-secret)", "This key cannot encrypt (hmac-secret)"))
+        return cid to cbc(shared, Cipher.DECRYPT_MODE, out).copyOf(32)
     }
 
     private fun allow(l: JSONArray?) = (0 until (l?.length() ?: 0)).map { linkedMapOf<Any, Any>("id" to unb64u(l!!.getJSONObject(it).optString("id")), "type" to "public-key") }

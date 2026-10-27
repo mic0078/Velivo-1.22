@@ -677,25 +677,30 @@ namespace Velivo
                 try
                 {
                     KomFrameStream fs = null;
-                    foreach (var cand in relays) { fs = await KomRelayConnect(cand, "main", null, null, CancellationToken.None); if (fs != null) { relay = cand; break; } }   // pierwszy, ktory odpowie
-                    // serwer ogłosił zły adres (np. wewnętrzny routera) - adres domu innych MOICH serwerów z domu, port tego serwera;
-                    // najwyżej raz na 2 min (każda próba trwa sekundy), próby na kopii kontaktu - zapisany adres zmienia się dopiero po udanym połączeniu
-                    var home = relays.Where(c => c.Dom && c.Relay.LastIndexOf(':') > 0).ToList();
-                    if (fs == null && home.Count > 0 && DateTime.UtcNow - _komAltAt > TimeSpan.FromMinutes(2))
+                    // wszystkie serwery naraz, pierwszy, który odpowie (po kolei każdy nieosiągalny kosztował kilkanaście sekund)
+                    var tries = relays.Select(c => (c, t: KomRelayConnect(c, "main", null, null, CancellationToken.None))).ToList();
+                    var pending = tries.Select(x => x.t).ToList();
+                    while (pending.Count > 0 && fs == null)
+                    {
+                        var done = await Task.WhenAny(pending); pending.Remove(done);
+                        var got = await done; if (got != null) { fs = got; relay = tries.First(x => x.t == done).c; }
+                    }
+                    _ = Task.WhenAll(pending).ContinueWith(t => { foreach (var x in pending) if (x.Status == TaskStatus.RanToCompletion) x.Result?.Dispose(); });   // spóźnione połączenia - zamknięte
+                    // serwer ogłosił zły adres (np. wewnętrzny routera): KAŻDY serwer pod adresami moich domowych serwerów (ten sam dom = ten sam adres,
+                    // różne porty) - wszystkie próby naraz, co 30 s; próby na kopii kontaktu, zapisany adres zmienia się dopiero po udanym połączeniu
+                    if (fs == null && DateTime.UtcNow - _komAltAt > TimeSpan.FromSeconds(30))
                     {
                         _komAltAt = DateTime.UtcNow;
-                        var hosts = home.Select(c => c.Relay.Substring(0, c.Relay.LastIndexOf(':'))).Distinct().ToList();
-                        foreach (var cand in home)
+                        var hosts = relays.Where(c => c.Dom && c.Relay.LastIndexOf(':') > 0).Select(c => c.Relay.Substring(0, c.Relay.LastIndexOf(':'))).Distinct().ToList();
+                        var alts = relays.Where(c => c.Relay.LastIndexOf(':') > 0).SelectMany(c => hosts.Select(h => (c, alt: h + c.Relay.Substring(c.Relay.LastIndexOf(':'))))).Where(x => x.alt != x.c.Relay).Take(40).ToList();
+                        var at = alts.Select(x => (x.c, x.alt, t: KomRelayConnect(new KomContact { Id = x.c.Id, Name = x.c.Name, Key = x.c.Key, Addr = "", Device = x.c.Device, Relay = x.alt }, "main", null, null, CancellationToken.None))).ToList();
+                        var left = at.Select(x => x.t).ToList();
+                        while (left.Count > 0 && fs == null)
                         {
-                            var port = cand.Relay.Substring(cand.Relay.LastIndexOf(':') + 1);
-                            foreach (var hst in hosts)
-                            {
-                                var alt = hst + ":" + port; if (alt == cand.Relay) continue;
-                                fs = await KomRelayConnect(new KomContact { Id = cand.Id, Name = cand.Name, Key = cand.Key, Addr = "", Device = cand.Device, Relay = alt, Dom = true }, "main", null, null, CancellationToken.None);
-                                if (fs != null) { relay = cand; await Dispatcher.InvokeAsync(() => { cand.Relay = alt; KomSave(); }); break; }
-                            }
-                            if (fs != null) break;
+                            var d = await Task.WhenAny(left); left.Remove(d);
+                            var got = await d; if (got != null) { fs = got; var w = at.First(x => x.t == d); relay = w.c; await Dispatcher.InvokeAsync(() => { w.c.Relay = w.alt; KomSave(); }); }
                         }
+                        _ = Task.WhenAll(left).ContinueWith(t => { foreach (var x in left) if (x.Status == TaskStatus.RanToCompletion) x.Result?.Dispose(); });
                     }
                     if (fs == null) return;
                     var me = new KomRemoteConn { Fs = fs };
@@ -1043,7 +1048,8 @@ namespace Velivo
         }
         async Task KomRelayAutoOnce()
         {
-            bool canMove = DateTime.UtcNow - _komRelayMoved > TimeSpan.FromHours(1);   // poza domem (laptop) - nie ustalamy adresu obcej sieci
+            // port, na który ktoś już się łączył (przekierowanie w routerze, telefony go znają), zostaje na zawsze - zmiana odcinała zapasowy serwer
+            bool canMove = DateTime.UtcNow - _komRelayMoved > TimeSpan.FromHours(1) && _komRelayAcceptAt == default;   // poza domem (laptop) - nie ustalamy adresu obcej sieci
             var port = _komRelayPort;
             var (ext, mapped, note) = await Task.Run(() => KomUpnpAsync(port));
             if (ext != null && KomPrivateIp(ext)) ext = null;   // router za routerem operatora podaje swój adres wewnętrzny (np. 192.168.1.x) - z internetu nieosiągalny; prawdziwy z ipify

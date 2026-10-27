@@ -1356,20 +1356,27 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             }
             if (udpOut == null && udp == null) return@runCatching   // komunikator nie działa (aplikacja zamknięta bez odbioru w tle)
             var f: Frames? = null
-            for (cand in relays) { f = relayConnect(cand, "main"); if (f != null) { relay = cand; break } }   // pierwszy, który odpowie
-            // adres domu się zmienił (nowe IP od operatora) albo serwer ogłosił zły adres - przez nazwę domu i adresy MOICH serwerów z domu
-            // (NUCBOX i CHUWI: ten sam adres w internecie, różne porty); najwyżej raz na 2 min, próby na kopii - adres zmienia się dopiero po udanym połączeniu
-            if (f == null && now - altAt > 120000) {
+            // wszystkie serwery naraz, pierwszy, który odpowie (po kolei każdy nieosiągalny - np. wyłączony NUCBOX - kosztował do 19 s i CHUWI czekał minutami)
+            run {
+                val win = java.util.concurrent.atomic.AtomicReference<Pair<Contact, Frames>?>(null); val left = java.util.concurrent.CountDownLatch(relays.size)
+                relays.forEach { cand -> Thread { try { relayConnect(cand, "main")?.let { fr -> if (!win.compareAndSet(null, cand to fr)) runCatching { fr.close() } } } finally { left.countDown() } }.start() }
+                val end = System.currentTimeMillis() + 25000
+                while (win.get() == null && left.count > 0 && System.currentTimeMillis() < end) left.await(200, java.util.concurrent.TimeUnit.MILLISECONDS)
+                win.get()?.let { (c, fr) -> f = fr; relay = c }
+            }
+            // adres domu się zmienił (nowe IP od operatora) albo serwer ogłosił zły adres (np. wewnętrzny routera): KAŻDY serwer pod nazwą domu
+            // i adresami moich domowych serwerów (ten sam dom = ten sam adres, różne porty) - wszystkie próby naraz, co 30 s; zapis dopiero po udanym połączeniu
+            if (f == null && now - altAt > 30000) {
                 altAt = now
-                val home = relays.filter { it.dom && it.relay?.contains(':') == true }
-                val hosts = (listOf(homeName) + home.map { it.relay!!.substringBeforeLast(':') }).filter { it.isNotEmpty() }.distinct()
-                fallback@ for (cand in home) {
-                    val old = cand.relay ?: continue
-                    for (port in listOf(old.substringAfterLast(':'), "41920").distinct()) for (hn in hosts) {
-                        val alt = "$hn:$port"; if (alt == old) continue
-                        f = relayConnect(Contact(cand.id, cand.name, cand.key, "", relay = alt), "main")
-                        if (f != null) { cand.relay = alt; relay = cand; saveContacts(); break@fallback }
-                    }
+                val hosts = (listOf(homeName) + relays.filter { it.dom }.mapNotNull { it.relay?.takeIf { r -> ':' in r }?.substringBeforeLast(':') }).filter { it.isNotEmpty() }.distinct()
+                val tries = relays.flatMap { cand -> val old = cand.relay ?: return@flatMap emptyList<Pair<Contact, String>>()
+                    listOf(old.substringAfterLast(':'), "41920").distinct().flatMap { port -> hosts.map { cand to "$it:$port" } }.filter { it.second != old } }.take(40)
+                if (tries.isNotEmpty()) {
+                    val win = java.util.concurrent.atomic.AtomicReference<Triple<Contact, String, Frames>?>(null); val left = java.util.concurrent.CountDownLatch(tries.size)
+                    tries.forEach { (cand, alt) -> Thread { try { relayConnect(Contact(cand.id, cand.name, cand.key, "", relay = alt), "main")?.let { fr -> if (!win.compareAndSet(null, Triple(cand, alt, fr))) runCatching { fr.close() } } } finally { left.countDown() } }.start() }
+                    val end = System.currentTimeMillis() + 25000
+                    while (win.get() == null && left.count > 0 && System.currentTimeMillis() < end) left.await(200, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    win.get()?.let { (c, alt, fr) -> c.relay = alt; saveContacts(); f = fr; relay = c }
                 }
             }
             val ff = f ?: run { val nr = relays.joinToString(", ") { it.name + " " + it.relay + " ✗" }; if (nr != noRelay) { noRelay = nr; main.post { onChange() } }; return@runCatching }

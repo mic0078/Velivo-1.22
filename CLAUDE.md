@@ -151,6 +151,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 * Przyciski, ikony i menu mają podpowiedzi PL i EN.
 * Wygląd Velivo (bez szarych okien Androida), czytelny w jasnym i ciemnym motywie.
+* Menu czytelne i łatwe (2026-10-27, właściciel): pogrupowane (kilka grup z podmenu zamiast długiej listy), krótkie nazwy (opis w podpowiedzi albo po stuknięciu), okienka dopasowane do zawartości – bez przewijania, gdy się mieści.
 * Zmiany Filmów i TV opisz w `dokumentacja/instrukcja-filmy-tv.md` i `instrukcja-filmy-tv-notatki.md`; telefonu – w `instrukcja-telefon.md` (PL i EN).
 
 ## Budowa u właściciela (Windows, PowerShell, nie jako administrator)

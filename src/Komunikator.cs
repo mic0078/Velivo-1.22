@@ -2071,20 +2071,23 @@ namespace Velivo
             voiceBtn.Click += (s, e) => KomOpenCall(Current(), true, true);
             helpBtn.Click += (s, e) => KomOpenCall(Current(), true, false, true);
             galBtn.Click += (s, e) => { var c = Current(); if (c != null) KomGallery(w, c); };
-            leftButtons.Children.Add(Btn("🎨", L.T("Motyw komunikatora – kolory okna i wiadomości"), (s, e) =>
+            leftButtons.Children.Add(Btn("🎨", L.T("Ustawienia komunikatora: wygląd, profil, bezpieczeństwo, kopia zapasowa"), (s, e) =>
             {
+                // 6 grup zamiast jednej długiej listy - każda rzecz tam, gdzie się jej szuka
                 var cm = new ContextMenu { PlacementTarget = (UIElement)s, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
-                void Add(string key, string label) { var it = new MenuItem { Header = label, IsCheckable = true, IsChecked = _komTheme == key }; it.Click += (a, b) => { _komTheme = key; KomSave(); ApplyTheme(); FillList(); FillChat(); }; cm.Items.Add(it); }
+                var gLook = new MenuItem { Header = L.T("🎨 Wygląd (motyw)") }; var gProf = new MenuItem { Header = L.T("👤 Mój profil") };
+                var gSafe = new MenuItem { Header = L.T("🔒 Bezpieczeństwo") }; var gCopy = new MenuItem { Header = L.T("💾 Kopia zapasowa") };
+                var gNote = new MenuItem { Header = L.T("🔔 Powiadomienia i pliki") };
+                void Add(string key, string label) { var it = new MenuItem { Header = label, IsCheckable = true, IsChecked = _komTheme == key }; gLook.Items.Add(it); it.Click += (a, b) => { _komTheme = key; KomSave(); ApplyTheme(); FillList(); FillChat(); }; }
                 Add("auto", L.T("🖥 Automatyczny (jak Velivo)"));
                 foreach (var p in KomPalettes) Add(p.Key, L.En ? p.En : p.Pl);
-                cm.Items.Add(new Separator());
-                var net = new MenuItem { Header = L.T("🌍 Rozmowy poza domem…") }; net.Click += (a, b) => KomRelayDialog(w); cm.Items.Add(net);
+                var net = new MenuItem { Header = L.T("🌍 Rozmowy poza domem…") }; net.Click += (a, b) => KomRelayDialog(w);
                 var ai = new MenuItem { Header = L.T("🖼 Zdjęcia i pliki od kontaktów od razu w rozmowie (bez pytania)"), IsCheckable = true, IsChecked = _komAutoImages };
                 ai.Click += (a, b) => { _komAutoImages = ai.IsChecked; KomSave(); };
-                cm.Items.Add(ai);
+                gNote.Items.Add(ai);
                 var nn = new MenuItem { Header = L.T("📶 Powiadamiaj o urządzeniach Velivo w sieci spoza kontaktów"), IsCheckable = true, IsChecked = _komNotifyNew };
                 nn.Click += (a, b) => { _komNotifyNew = nn.IsChecked; KomSave(); };
-                cm.Items.Add(nn);
+                gNote.Items.Add(nn);
                 var snd = new MenuItem { Header = L.T("🔔 Dźwięk wiadomości…") };
                 snd.Click += (a, b) =>
                 {   // wybór z dźwięków Windows (albo dowolny .wav); Anuluj - dźwięk domyślny
@@ -2092,8 +2095,7 @@ namespace Velivo
                         InitialDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Media") };
                     _komSound = dlg.ShowDialog(w) == true ? dlg.FileName : ""; KomSave(); KomPlaySound();
                 };
-                cm.Items.Add(snd);
-                cm.Items.Add(new Separator());
+                gNote.Items.Insert(0, snd);
                 var ph = new MenuItem { Header = L.T("👤 Moje zdjęcie profilowe…") };
                 ph.Click += (a, b) =>
                 {
@@ -2106,7 +2108,7 @@ namespace Velivo
                 lk.Click += (a, b) => { _komLock = lk.IsChecked; KomSave(); };
                 var hk = new MenuItem { Header = L.T("🔑 Klucz sprzętowy (YubiKey)…") + (KomHwKeys().Count > 0 ? "  ✓ " + KomHwKeys().Count : ""), ToolTip = L.T("Komunikator otwierany dotknięciem klucza USB/NFC; zapas: drugi klucz albo Windows Hello") };
                 hk.Click += (a, b) => KomHwKeySetup(w);
-                cm.Items.Add(ph); cm.Items.Add(phDel); cm.Items.Add(lk); cm.Items.Add(hk);
+                gProf.Items.Add(ph); gProf.Items.Add(phDel); gSafe.Items.Add(lk); gSafe.Items.Add(hk);
                 var bk = new MenuItem { Header = L.T("💾 Kopia zapasowa (folder, Dysk Google, NUCBOX)…") };
                 bk.Click += async (a, b) =>
                 {
@@ -2145,7 +2147,8 @@ namespace Velivo
                     KomInfo(KomRestore(data, pw) ? "📥 " + L.T("Przywrócono kontakty i rozmowy") : L.T("Złe hasło albo to nie jest kopia Velivo z Windows"));
                     FillList(); FillChat();
                 };
-                cm.Items.Add(new Separator()); cm.Items.Add(bk); cm.Items.Add(rs);
+                gCopy.Items.Add(bk); gCopy.Items.Add(rs);
+                foreach (var g in new[] { gLook, gProf, gSafe, gCopy, gNote, net }) cm.Items.Add(g);
                 cm.IsOpen = true;
             }));
             leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)"), (s, e) =>
@@ -2635,7 +2638,7 @@ namespace Velivo
             if (last == 0) { _komOpt["klucze-test"] = now; KomSave(); return; }
             if (now - last < 90L * 86400000) return;
             _komOpt["klucze-test"] = now - 83L * 86400000;   // następne przypomnienie za tydzień, jeśli nie sprawdzisz
-            KomSave(); KomInfo(L.T("🧪 Minęły 3 miesiące – sprawdź klucze sprzętowe (także zapasowy): 🎨 → 🔑 → 🧪 Sprawdź klucze"));
+            KomSave(); KomInfo(L.T("🧪 Minęły 3 miesiące – sprawdź klucze sprzętowe (także zapasowy): 🎨 → 🔒 Bezpieczeństwo → 🔑 → 🧪 Sprawdź klucze"));
         }
         async void KomHwKeyAdd(Window owner)
         {

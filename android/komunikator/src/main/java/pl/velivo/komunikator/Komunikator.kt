@@ -1714,11 +1714,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             white(d.findViewById(a.resources.getIdentifier("alertTitle", "id", "android")))
             d.findViewById<TextView>(android.R.id.message)?.apply { setTextColor(Color.WHITE); textSize = 17f }
             for (b in listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL)) d.getButton(b)?.apply { setTextColor(Color.rgb(0x22, 0xD3, 0xEE)); textSize = 16f }
+            // okienko na szerokość ekranu (mniej zawijania), wysokość według zawartości
+            val dm = a.resources.displayMetrics
+            d.window?.setLayout(minOf(dm.widthPixels - px(16), px(560)), android.view.WindowManager.LayoutParams.WRAP_CONTENT)
             d.listView?.let { lv ->   // pozycje listy: biały tekst, większe, łatwe do trafienia palcem
                 // każda opcja osobnym kafelkiem; „Tytuł: opis” - tytuł pogrubiony, opis niżej, mniejszy (długie opcje były jednym ciągiem tekstu)
-                lv.divider = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT); lv.dividerHeight = px(8); lv.setPadding(px(12), px(4), px(12), px(4)); lv.clipToPadding = false
+                // rząd dopasowany tak, by cała lista mieściła się bez przewijania (najmniej 44 dp - wygodne trafienie palcem)
+                val n = maxOf(1, lv.adapter?.count ?: 1)
+                val rowDp = ((dm.heightPixels / dm.density * 0.85f - 150f) / n - 6f).coerceIn(44f, 56f); val tight = rowDp < 52f
+                lv.divider = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT); lv.dividerHeight = px(if (tight) 4 else 8); lv.setPadding(px(12), px(4), px(12), px(4)); lv.clipToPadding = false
                 fun row(v: View?) { white(v); (v as? TextView)?.apply {
-                    textSize = 18f; minHeight = px(56); setPadding(px(14), px(10), px(14), px(10))
+                    textSize = if (tight) 16f else 18f; minHeight = (rowDp * dm.density).toInt(); setPadding(px(14), px(if (tight) 6 else 10), px(14), px(if (tight) 6 else 10))
                     background = GradientDrawable().apply { setColor(Color.argb(0x40, 0x8B, 0x5C, 0xF6)); cornerRadius = px(12).toFloat() }
                     val s0 = text?.toString().orEmpty(); val c = s0.indexOf(": ")
                     if (c in 2..60 && s0.length > c + 12 && text !is android.text.Spanned) text = android.text.SpannableStringBuilder(s0.substring(0, c)).apply {
@@ -2128,10 +2134,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             "💾 " + t("Kopia zapasowa (telefon, Google Drive, NUCBOX)…", "Backup (phone, Google Drive, NUCBOX)…"), "📥 " + t("Przywróć z kopii (nowy telefon)…", "Restore from backup (new phone)…"),
             "🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"),
             "🔑 " + t("Klucz sprzętowy (YubiKey, USB/NFC)", "Security key (YubiKey, USB/NFC)") + if (k.hwKeys.isNotEmpty()) "  ✓ " + k.hwKeys.size else "",
-            "🙈 " + t("Ukryj stałe powiadomienie „Czeka na wiadomości”: wyłącz kategorię „Komunikator w tle” – wiadomości i dzwonki dalej się pokazują", "Hide the permanent “Waiting for messages” notification: turn off the “Messenger in background” category – messages and calls still show"))
+            "🙈 " + t("Ukryj stałe powiadomienie „Czeka na wiadomości”", "Hide the permanent “Waiting for messages” notification"))
         Dlg().setTitle("👤 " + t("Mój profil", "My profile")).setItems(items) { _, i ->
             if (items[i].startsWith("🔑")) { k.hwKeySetup(a); return@setItems }
-            if (items[i].startsWith("🙈")) { runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+            if (items[i].startsWith("🙈")) { Toast.makeText(a, t("Wyłącz kategorię „Komunikator w tle” – wiadomości i dzwonki dalej się pokazują", "Turn off the “Messenger in background” category – messages and calls still show"), Toast.LENGTH_LONG).show(); runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName).putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, "nasluch")) }; return@setItems }
             when (i) {
                 0 -> Dlg().setTitle("🖼 " + t("Moje zdjęcie profilowe", "My profile photo")).setItems(arrayOf("🖼 " + t("Z galerii", "From gallery"), "🤳 " + t("Zrób zdjęcie – przednia kamera", "Take a photo – front camera"), "📷 " + t("Zrób zdjęcie – tylna kamera", "Take a photo – back camera"))) { _, j ->

@@ -3219,7 +3219,9 @@ namespace Velivo
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();
             win.SizeChanged += (s, e) => pipPlace();
-            win.StateChanged += (s, e) => { if (pipWin != null) { if (win.WindowState == WindowState.Minimized) pipWin.Hide(); else { pipWin.Show(); Dispatcher.BeginInvoke(pipPlace, DispatcherPriority.Background); } } };
+            // zminimalizowany odtwarzacz: PiP zostaje z obrazem na pulpicie (bez właściciela, zawsze na wierzchu) - wcześniej chowany, a jego przyciski zostawały na czarnym tle
+            win.StateChanged += (s, e) => { if (pipWin != null) { if (win.WindowState == WindowState.Minimized) { pipWin.Owner = null; pipWin.Topmost = true; pipWin.Show(); }
+                else { pipWin.Topmost = win.Topmost; pipWin.Show(); Dispatcher.BeginInvoke(pipPlace, DispatcherPriority.Background); } } };
             win.Closed += (s, e) => pipClose();
             // po Stop zamiast czarnego ekranu: film - biblioteka filmow, telewizja - lista kanalow
             Action afterStop = () => { var p0 = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (p0 != null && _iptvPlaying.ContainsKey(p0)) showChannels(true); else ShowVideoLibrary(win); };

@@ -2092,8 +2092,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val items = arrayOf("🖼 " + t("Moje zdjęcie profilowe…", "My profile photo…"), "🗑 " + t("Usuń moje zdjęcie", "Remove my photo"),
             "🔒 " + t("Blokada odciskiem palca / PIN-em: ", "Fingerprint / PIN lock: ") + if (k.lock) t("wł.", "on") else t("wył.", "off"),
             "💾 " + t("Kopia zapasowa (telefon, Google Drive, NUCBOX)…", "Backup (phone, Google Drive, NUCBOX)…"), "📥 " + t("Przywróć z kopii (nowy telefon)…", "Restore from backup (new phone)…"),
-            "🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"))
+            "🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"),
+            "🙈 " + t("Ukryj stałe powiadomienie „Czeka na wiadomości”: wyłącz kategorię „Komunikator w tle” – wiadomości i dzwonki dalej się pokazują", "Hide the permanent “Waiting for messages” notification: turn off the “Messenger in background” category – messages and calls still show"))
         Dlg().setTitle("👤 " + t("Mój profil", "My profile")).setItems(items) { _, i ->
+            if (items[i].startsWith("🙈")) { runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName).putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, "nasluch")) }; return@setItems }
             when (i) {
                 0 -> Dlg().setTitle("🖼 " + t("Moje zdjęcie profilowe", "My profile photo")).setItems(arrayOf("🖼 " + t("Z galerii", "From gallery"), "🤳 " + t("Zrób zdjęcie – przednia kamera", "Take a photo – front camera"), "📷 " + t("Zrób zdjęcie – tylna kamera", "Take a photo – back camera"))) { _, j ->
                     if (j == 0) { pickingPhoto = true; pickFiles(); return@setItems }

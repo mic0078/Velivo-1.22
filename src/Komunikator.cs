@@ -1069,6 +1069,7 @@ namespace Velivo
                 if (_komContacts.Count == 0) return;
                 KomSendUdp(KomPacket("p2p-here"), null);
                 foreach (var c in _komContacts.ToList()) KomResendPending(c);
+                KomRelayPair();   // 🔁 dwa serwery w domu, które się nie znają - przedstawione sobie
                 _komRefresh?.Invoke();   // kropki w sieci / poza siecia
             };
             _komResend.Start();

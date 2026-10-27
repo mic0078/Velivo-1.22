@@ -376,6 +376,27 @@ namespace Velivo
             }
             if (any) KomSave();
         }
+        // 🔁 to urządzenie zna dwa serwery w tym samym domu (np. NUCBOX i CHUWI), a one mogą nie znać siebie - przedstawia je sobie raz;
+        // tylko serwery widoczne teraz w sieci domowej (moje), nigdy serwer znajomego - kontakty nie wychodzą z domu
+        void KomRelayPair()
+        {
+            var rs = _komContacts.Where(c => !c.IsGroup && !string.IsNullOrEmpty(c.Relay) && c.Key != null && _komLanSeen.TryGetValue(c.Id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100)).ToList();
+            if (rs.Count < 2) return;
+            if (_komOpt["intro"] is not JsonArray done) _komOpt["intro"] = done = new JsonArray();
+            var have = done.Select(x => (string)x).ToHashSet(); bool any = false;
+            for (int i = 0; i < rs.Count; i++)
+                for (int j = i + 1; j < rs.Count; j++)
+                {
+                    var (a, b) = string.CompareOrdinal(rs[i].Id, rs[j].Id) < 0 ? (rs[i], rs[j]) : (rs[j], rs[i]);
+                    if (have.Contains(a.Id + "|" + b.Id)) continue;
+                    var key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+                    string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "" }.ToJsonString();
+                    KomDeliver(a, new KomMsg { Mine = true, Text = Card(b), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                    KomDeliver(b, new KomMsg { Mine = true, Text = Card(a), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                    done.Add(a.Id + "|" + b.Id); any = true;
+                }
+            if (any) KomSave();
+        }
         bool KomFromRelay(IPAddress addr) => _komLanRelays.Keys.Any(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         string KomPeerAt(IPAddress addr) => addr == null ? null : _komLanRelays.Keys.FirstOrDefault(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         static string KomStoreFile => Path.Combine(DataDir, "komunikator-skrzynka.json");

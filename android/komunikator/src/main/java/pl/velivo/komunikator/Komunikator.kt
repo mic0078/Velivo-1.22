@@ -602,7 +602,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun cardIn(from: Contact, body: String) {
         val j = runCatching { JSONObject(body) }.getOrNull() ?: return
         val id = j.optString("id"); val key = unb64(j.optString("key"))
-        if (id.length != 32 || id == myId || key.size != 32 || contact(id) != null) return
+        // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
+        contact(id)?.let { c -> val ra = j.optString("relay"); if (from.relay != null && c.relay == null && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }
+        if (id.length != 32 || id == myId || key.size != 32) return
         // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika (NUCBOX) - od razu, bez pytania: wiadomości idą przez którykolwiek
         val rl = j.optString("relay")
         if (from.relay != null && ':' in rl) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl)) }

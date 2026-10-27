@@ -811,7 +811,9 @@ namespace Velivo
         {
             JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
             var id = (string)j?["id"]; byte[] key; try { key = Convert.FromBase64String((string)j["key"] ?? ""); } catch (Exception) { return; }
-            if (id == null || id.Length != 32 || id == _komId || key.Length != 32 || KomContactById(id) != null) return;
+            // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
+            if (KomContactById(id ?? "") is { } kc) { var ra = (string)j["relay"] ?? ""; if (!string.IsNullOrEmpty(from.Relay) && string.IsNullOrEmpty(kc.Relay) && ra.Contains(':') && ra.Length < 200) { kc.Relay = ra; KomSave(); } return; }
+            if (id == null || id.Length != 32 || id == _komId || key.Length != 32) return;
             var name = KomClean((string)j["name"]); if (name.Length == 0) name = "Velivo";
             var relay = (string)j["relay"];
             // pośrednik (np. NUCBOX, zwykle bez nikogo przy ekranie) - od zaufanego kontaktu od razu, żeby nowy znajomy mógł się łączyć przez internet

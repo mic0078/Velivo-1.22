@@ -313,8 +313,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             for (part in mids.chunked(60)) {
                 val j = part.joinToString(",")
                 val p = packet("p2p-read").put("to", c.id).put("mids", j).put("mac", b64(hmac(c.key, "read\n$j".toByteArray())))
-                val to = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()
-                sendUdp(p, to)
+                // jak wiadomość: znany adres i cała sieć domowa (pośrednik przekazuje do telefonu poza domem), z powtórką - wcześniej raz na stary adres i „przeczytane” przepadało
+                val to = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { !it.isLoopbackAddress }
+                for (i in 0 until 2) { if (to != null) sendUdp(p, to); sendUdp(p, null); Thread.sleep(1500) }
             }
         }.start()
     }

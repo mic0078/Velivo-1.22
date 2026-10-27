@@ -2419,7 +2419,10 @@ namespace Velivo
                 hint.Text = "← →  " + L.T("poprzednie / następne") + "   ·   Enter – " + L.T("otwórz w programie Windows") + (KomIsVideo(p) ? "   ·   " + L.T("spacja – pauza") : "") + "   ·   Esc – " + L.T("zamknij");
             }
             vid.MediaEnded += (s, e) => { if (KomIsGif(items[i])) { vid.Position = TimeSpan.FromMilliseconds(1); vid.Play(); } };   // 🎞 GIF w kółko
-            vid.MediaFailed += (s, e) => hint.Text = L.T("Tego filmu nie da się odtworzyć tutaj – Enter otwiera go w programie Windows");
+            // 🎬 film, którego Windows nie odtworzy (np. H.265/HEVC z telefonu bez rozszerzenia, sam dźwięk bez obrazu) - odtwarzacz Velivo (VLC)
+            void ToVlc() { var p = items[i]; if (!KomIsVideo(p)) return; d.Close(); PlayVideos(new[] { p }, 0, false); }
+            vid.MediaFailed += (s, e) => { if (KomIsVideo(items[i])) ToVlc(); else hint.Text = L.T("Tego filmu nie da się odtworzyć tutaj – Enter otwiera go w programie Windows"); };
+            vid.MediaOpened += (s, e) => { if (KomIsVideo(items[i]) && !vid.HasVideo) ToVlc(); };
             d.PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Right && i < items.Count - 1) { i++; Show(); }

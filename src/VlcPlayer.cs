@@ -1166,14 +1166,14 @@ namespace Velivo
             }
         }
 
-        void PlayVideos(string[] files, int index)
+        void PlayVideos(string[] files, int index, bool library = true)
         {
             if (files == null || files.Length == 0 || !EnsureLibVlc()) return;
             _playlist = files.ToList();
             _playIndex = Math.Max(0, Math.Min(index, files.Length - 1));
-            // film otwarty z dysku trafia do biblioteki (jak "ostatnio odtwarzane" w VLC)
+            // film otwarty z dysku trafia do biblioteki (jak "ostatnio odtwarzane" w VLC); film z rozmowy komunikatora - nie
             var lib = LoadLibrary();
-            if (AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f) && !_iptvPlaying.ContainsKey(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
+            if (library && AddToLibrary(lib, files.Where(f => !_remoteFilms.ContainsKey(f) && !_iptvPlaying.ContainsKey(f))) > 0) { SaveLibrary(lib); _libRefresh?.Invoke(); }   // filmy z innego komputera zostaja w jego bibliotece
             if (_vlcWin == null) BuildVlcWindow();
             _vlcLoad(_playIndex);
             if (_vlcWin.WindowState == WindowState.Minimized) _vlcWin.WindowState = WindowState.Normal;

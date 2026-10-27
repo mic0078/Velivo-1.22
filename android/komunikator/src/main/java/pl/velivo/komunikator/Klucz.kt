@@ -67,7 +67,38 @@ object Klucz {
                 if (l.isEmpty()) "" else "\n\n" + l.joinToString("\n") { "✓ " + it.optString("n", "?") } + if (l.size == 1) "\n\n⚠ " + t("Dodaj zapasowy klucz.", "Add a backup key.") else "")
             .setPositiveButton(if (l.isEmpty()) "➕ " + t("Dodaj klucz", "Add key") else "➕ " + t("Dodaj zapasowy", "Add backup")) { _, _ -> add() }
             .apply { if (l.isNotEmpty()) setNeutralButton("🗑 " + t("Usuń klucz…", "Remove key…")) { _, _ -> remove() } }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .apply { if (l.isNotEmpty()) setNegativeButton("🧪 " + t("Sprawdź", "Check")) { _, _ -> test(a, p) } else setNegativeButton(android.R.string.cancel, null) }.show()   // zamknięcie: ✕ / wstecz
+    }
+
+    // odblokowanie zapisanymi kluczami; po udanym - raz na 3 miesiące przypomnienie „sprawdź klucze”
+    fun unlock(a: Activity, p: android.content.SharedPreferences, done: (Boolean) -> Unit) = verify(a, keys(p)) { ok -> done(ok); if (ok) due(a, p) }
+    private const val TEST_MS = 90L * 86400000
+    fun due(a: Activity, p: android.content.SharedPreferences) {
+        val now = System.currentTimeMillis(); val last = p.getLong("klucze-test", 0L)
+        if (keys(p).isEmpty() || now - last < TEST_MS) return
+        if (last == 0L) { p.edit().putLong("klucze-test", now).apply(); return }   // pierwszy raz - liczenie od dziś
+        android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🧪 " + t("Sprawdź klucze", "Check your keys"))
+            .setMessage(t("Minęły 3 miesiące. Dotknij po kolei każdego klucza (także zapasowego) – awarię wykryjesz teraz, nie w dniu, gdy klucz będzie potrzebny.",
+                "3 months have passed. Touch each key in turn (the backup too) – you find a fault now, not on the day you need the key."))
+            .setPositiveButton(t("Sprawdź", "Check")) { _, _ -> test(a, p) }
+            .setNegativeButton(t("Za tydzień", "In a week")) { _, _ -> p.edit().putLong("klucze-test", now - TEST_MS + 7L * 86400000).apply() }.show()
+    }
+    // test każdego klucza osobno (po nazwie); wynik ✓ / ✗ i data ostatniego udanego testu przy kluczu
+    fun test(a: Activity, p: android.content.SharedPreferences) {
+        val l = keys(p); val res = ArrayList<String>()
+        fun next(i: Int) {
+            if (i >= l.size) {
+                p.edit().putLong("klucze-test", System.currentTimeMillis()).apply()
+                android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🧪 " + t("Wynik", "Result")).setMessage(res.joinToString("\n") +
+                    if (res.any { it.startsWith("✗") }) "\n\n" + t("Nie działający klucz usuń (🗑) i dodaj nowy zapasowy.", "Remove the failing key (🗑) and add a new backup.") else "")
+                    .setPositiveButton(android.R.string.ok, null).show(); return }
+            android.widget.Toast.makeText(a, t("Teraz: ", "Now: ") + l[i].optString("n", "?"), android.widget.Toast.LENGTH_LONG).show()
+            verify(a, listOf(l[i])) { ok ->
+                res += (if (ok) "✓ " else "✗ ") + l[i].optString("n", "?")
+                if (ok) save(p, keys(p).map { if (it.optString("kh") == l[i].optString("kh")) it.put("t", System.currentTimeMillis()) else it })
+                next(i + 1) }
+        }
+        next(0)
     }
 
     // rejestracja: {kh, pub} albo null

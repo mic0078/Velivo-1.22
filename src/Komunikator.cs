@@ -2565,6 +2565,7 @@ namespace Velivo
             add.Click += (a, b) => KomHwKeyAdd(owner);
             cm.Items.Add(add);
             if (keys.Count == 1) cm.Items.Add(new MenuItem { Header = "⚠ " + L.T("Dodaj zapasowy klucz"), IsEnabled = false });
+            if (keys.Count > 0) { var tst = new MenuItem { Header = L.T("🧪 Sprawdź klucze"), ToolTip = L.T("Dotknij po kolei każdego klucza – Velivo pokaże, który działa") }; tst.Click += (a, b) => KomHwKeyTest(owner); cm.Items.Add(tst); }
             if (keys.Count > 0) cm.Items.Add(new Separator());
             foreach (var k in keys)
             {
@@ -2578,6 +2579,27 @@ namespace Velivo
                 cm.Items.Add(rm);
             }
             cm.IsOpen = true;
+        }
+        // 🧪 test każdego klucza osobno; przypomnienie co 3 miesiące po otwarciu kluczem
+        async void KomHwKeyTest(Window owner)
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(owner).Handle; var res = new List<string>();
+            foreach (var k in KomHwKeys())
+            {
+                KomInfo("🔑 " + L.T("Dotknij teraz: ") + k.Name);
+                bool good; try { good = (await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, new List<BankKey> { k }, null)))?.Key != null; } catch (Exception) { good = false; }
+                res.Add((good ? "✓ " : "✗ ") + k.Name);
+            }
+            _komOpt["klucze-test"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); KomSave();
+            MessageBox.Show(owner, string.Join("\n", res) + (res.Any(x => x.StartsWith("✗")) ? "\n\n" + L.T("Nie działający klucz usuń (🗑) i dodaj nowy zapasowy.") : ""), "🧪 " + L.T("Sprawdź klucze"));
+        }
+        void KomHwKeyDue()
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), last = (long?)_komOpt["klucze-test"] ?? 0;
+            if (last == 0) { _komOpt["klucze-test"] = now; KomSave(); return; }
+            if (now - last < 90L * 86400000) return;
+            _komOpt["klucze-test"] = now - 83L * 86400000;   // następne przypomnienie za tydzień, jeśli nie sprawdzisz
+            KomSave(); KomInfo(L.T("🧪 Minęły 3 miesiące – sprawdź klucze sprzętowe (także zapasowy): 🎨 → 🔑 → 🧪 Sprawdź klucze"));
         }
         async void KomHwKeyAdd(Window owner)
         {
@@ -2607,7 +2629,7 @@ namespace Velivo
             if (keys.Count > 0)
             {   // najpierw klucz; anulowanie / brak klucza - zapas: Windows Hello (PIN tego komputera), żeby zgubiony klucz nie zamknął rozmów na zawsze
                 var hwnd = new System.Windows.Interop.WindowInteropHelper((Window)_komWindow ?? this).Handle;
-                try { if ((await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, keys, null)))?.Key != null) return true; } catch (Exception) { }
+                try { if ((await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, keys, null)))?.Key != null) { KomHwKeyDue(); return true; } } catch (Exception) { }
                 try { return await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Komunikator Velivo")) == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified; }
                 catch (Exception) { return false; }
             }

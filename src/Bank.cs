@@ -109,6 +109,7 @@ namespace Velivo
             public string WrapP { get; set; }      // czesc hasla klucza kart (Kp) zaszyfrowana kluczem z hasla
             public string WrapPK { get; set; }     // czesc z kluczy (Kk) zaszyfrowana Kp - samo haslo (zapasowo, bez klucza) tez otwiera
             public string HmacSalt { get; set; }   // sol dla sekretu z klucza sprzetowego (hmac-secret)
+            public long KeyTest { get; set; }      // 🧪 ostatni test kluczy (ms UTC) - przypomnienie co 3 miesiace
             public long Changed { get; set; }      // ostatnia zmiana DANYCH (ms UTC) - przy synchronizacji LAN wygrywa nowsza; dziennik sie nie liczy
             [System.Text.Json.Serialization.JsonIgnore] public string LoadedDataKey { get; set; }   // dane z chwili wczytania (LoadBank); null = nowy profil
         }
@@ -557,6 +558,12 @@ namespace Velivo
             {
                 if (string.IsNullOrEmpty(c.HmacSalt)) c.HmacSalt = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
                 AddBankLog(c, how, true);
+                if (c.UseKey && c.Keys?.Count > 0)
+                {   // 🧪 co 3 miesiace: sprawdz kazdy klucz (tez zapasowy) - awaria wychodzi teraz, nie w dniu, gdy klucz bedzie potrzebny
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    if (c.KeyTest == 0) c.KeyTest = now;
+                    else if (now - c.KeyTest > 90L * 86400000) ShowToast(L.T("🧪 Minęły 3 miesiące – sprawdź klucze sprzętowe (także zapasowy): prawy klik na 🏦 → Ustawienia → 🧪 Sprawdź klucze"), null);
+                }
                 // lista rozpoznawanych stron przeliczona na nowo (starsze wpisy znaly tylko dokladny adres)
                 if (_bankKey != null) try { c.SiteHosts = SiteHostsFor(LoadSealed<BankSite>(c.Sites)); } catch (Exception) { }
                 if (!SaveBank(c))
@@ -776,20 +783,29 @@ namespace Velivo
             var keyPanel = new StackPanel { Margin = new Thickness(20, 0, 0, 0) };
             var presence = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 360, Margin = new Thickness(0, 2, 0, 4) };
             var list = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 360, Margin = new Thickness(0, 2, 0, 4) };
+            var rows = new StackPanel();   // każdy klucz osobno: 🗑 - wymiana zepsutego albo zgubionego (pozostałe działają dalej)
+            var keyName = new TextBox { Text = "", MinWidth = 140, Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Nazwa nowego klucza (np. YubiKey, Titan) – przy wymianie widać, który usunąć") };
             var add = new Button { Content = L.T("➕ Dodaj klucz (włóż go i dotknij)"), Padding = new Thickness(10, 4, 10, 4), HorizontalAlignment = HorizontalAlignment.Left };
-            var clear = new Button { Content = L.T("Usuń wszystkie klucze"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0) };
+            var test = new Button { Content = L.T("🧪 Sprawdź klucze"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0), ToolTip = L.T("Dotknij po kolei każdego klucza – Velivo pokaże, który działa") };
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            row.Children.Add(add); row.Children.Add(clear);
-            keyPanel.Children.Add(presence); keyPanel.Children.Add(list); keyPanel.Children.Add(row);
+            row.Children.Add(keyName); row.Children.Add(add); row.Children.Add(test);
+            keyPanel.Children.Add(presence); keyPanel.Children.Add(list); keyPanel.Children.Add(rows); keyPanel.Children.Add(row);
             sp.Children.Add(keyPanel);
-            Action refresh = () =>
+            Action refresh = null;
+            refresh = () =>
             {
                 keyPanel.IsEnabled = useKey.IsChecked == true;
                 keyPanel.Opacity = keyPanel.IsEnabled ? 1 : .5;
                 list.Text = keys.Count == 0 ? L.T("Nie dodano jeszcze żadnego klucza.")
-                    : (L.En ? "Registered keys: " : "Dodane klucze: ") + string.Join(", ", keys.Select(k => k.Name + (k.WrapK != null ? " 🔐" : ""))) +
-                      L.T("\n🔐 = klucz sam otwiera tryb i szyfruje bazę (hasło działa zapasowo)");
-                clear.IsEnabled = keys.Count > 0;
+                    : L.T("🔐 = klucz sam otwiera tryb i szyfruje bazę (hasło działa zapasowo)") + (keys.Count == 1 ? "\n⚠ " + L.T("Dodaj zapasowy klucz – gdy jeden się zepsuje albo zginie, drugi działa.") : "");
+                rows.Children.Clear();
+                foreach (var k in keys.ToList())
+                {
+                    var del = new Button { Content = "🗑", Padding = new Thickness(6, 0, 6, 0), Margin = new Thickness(0, 0, 8, 0), ToolTip = L.T("Usuń ten klucz (zepsuty albo zgubiony) – pozostałe działają dalej") };
+                    del.Click += (s2, e2) => { keys.Remove(k); if (keys.Count == 0) kk = null; refresh(); };
+                    rows.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1), Children = { del, new TextBlock { Text = (k.Name ?? "?") + (k.WrapK != null ? " 🔐" : ""), VerticalAlignment = VerticalAlignment.Center } } });
+                }
+                test.IsEnabled = keys.Count > 0;
             };
             useKey.Checked += (s, e) => refresh(); useKey.Unchecked += (s, e) => refresh();
             UpdateKeyPresence(presence, false);
@@ -802,7 +818,7 @@ namespace Velivo
                 {
                     var hwnd = new WindowInteropHelper(w).Handle;
                     var k = await Task.Run(() => WebAuthn.Register(hwnd, BankRpId, keys.Select(x => Convert.FromBase64String(x.Id)).ToList()));
-                    k.Name = (L.En ? "Key " : "Klucz ") + (keys.Count + 1);
+                    k.Name = (keyName.Text.Trim().Length > 0 ? keyName.Text.Trim() : (L.En ? "Key " : "Klucz ") + (keys.Count + 1)) + " · " + DateTime.Now.ToString("yyyy-MM-dd"); keyName.Text = "";
                     // drugie dotkniecie: sekret z klucza (hmac-secret) - z niego powstaje szyfr kart
                     err.Text = L.T("Dotknij klucza jeszcze raz – przygotowanie szyfrowania kart…");
                     byte[] hmac = null;
@@ -823,7 +839,19 @@ namespace Velivo
                 catch (Exception ex) { err.Text = ex.Message; }
                 finally { add.IsEnabled = true; }
             };
-            clear.Click += (s, e) => { keys.Clear(); kk = null; refresh(); };
+            test.Click += async (s, e) =>
+            {   // 🧪 każdy klucz osobno - wynik ✓ / ✗ przy nazwie
+                test.IsEnabled = false; var res = new List<string>(); var hwnd = new WindowInteropHelper(w).Handle;
+                foreach (var k in keys.ToList())
+                {
+                    err.Text = L.T("Dotknij teraz: ") + k.Name;
+                    bool good; try { good = (await Task.Run(() => WebAuthn.Verify(hwnd, BankRpId, new List<BankKey> { k }, null))).Key != null; } catch (Exception) { good = false; }
+                    res.Add((good ? "✓ " : "✗ ") + k.Name);
+                }
+                c.KeyTest = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                err.Text = string.Join("\n", res) + (res.Any(x => x.StartsWith("✗")) ? "\n" + L.T("Nie działający klucz usuń (🗑) i dodaj nowy zapasowy.") : "");
+                test.IsEnabled = true;
+            };
             refresh();
 
             var ok = BankButtons(sp, w, L.T("Zapisz"));

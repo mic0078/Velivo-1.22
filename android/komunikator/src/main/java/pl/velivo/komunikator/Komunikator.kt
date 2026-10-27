@@ -1466,6 +1466,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         set(v) { prefs.edit().putBoolean("blokada", v).apply() }
     val hwKeys: List<JSONObject> get() = Klucz.keys(prefs)   // 🔑 klucze sprzętowe (wspólne z Velivo w tej aplikacji)
     fun hwKeySetup(a: Activity) = Klucz.setup(a, prefs) { lock = true }
+    fun hwUnlock(a: Activity, done: (Boolean) -> Unit) = Klucz.unlock(a, prefs, done)
     var background: Boolean
         get() = prefs.getBoolean("tlo", true)
         set(v) { prefs.edit().putBoolean("tlo", v).apply() }
@@ -2202,7 +2203,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (pass || screen != null || !k.lock) return false
         // 🔑 najpierw klucz sprzętowy; anulowanie - zapas: odcisk palca / PIN telefonu (zgubiony klucz nie zamyka rozmów na zawsze)
         if (k.hwKeys.isNotEmpty()) when (keyStep) {
-            0 -> { keyStep = 1; Klucz.verify(a, k.hwKeys) { ok -> if (ok) { keyStep = 0; pass = true; then(); pass = false } else { keyStep = 2; then() } }; return true }
+            0 -> { keyStep = 1; k.hwUnlock(a) { ok -> if (ok) { keyStep = 0; pass = true; then(); pass = false } else { keyStep = 2; then() } }; return true }
             1 -> return true
         }
         keyStep = 0

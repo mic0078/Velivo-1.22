@@ -160,7 +160,7 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
 
 - **Filmy i TV:** adresy list kanałów (często z tokenem) i dane logowania Jellyfin są zaszyfrowane w telefonie (Android Keystore) i nie trafiają do logów ani komunikatów o błędach. Lista kanałów i program są zapisane zaszyfrowane. Zaplanowane audycje pamiętają tylko nazwę kanału.
 - **Filmy i muzyka z telefonu:** Velivo czyta je tylko na Twoje żądanie (po zgodzie Androida) i niczego nie wysyła.
-- **🔐 Odblokowanie kluczem sprzętowym (opcja):** menu → Ustawienia → 🔐 Klucz sprzętowy. Dodanie i usunięcie klucza – po haśle / PIN-ie telefonu. Potem hasła, tryb bankowy, synchronizacja i komunikator otwierasz dotknięciem klucza (USB albo NFC); anulowanie = odcisk palca / PIN jak dotąd. Dodaj zapasowy klucz.
+- **🔐 Odblokowanie kluczem sprzętowym (opcja):** menu → Ustawienia → 🔐 Klucz sprzętowy. Dodanie i usunięcie klucza – po haśle / PIN-ie telefonu. Potem hasła, tryb bankowy, synchronizacja i komunikator otwierasz dotknięciem klucza (USB albo NFC); anulowanie = odcisk palca / PIN jak dotąd. Dodaj zapasowy klucz; zepsuty lub zgubiony usuwasz pojedynczo (🗑). Co 3 miesiące Velivo przypomni: **🧪 Sprawdź** – dotykasz po kolei każdego klucza i widzisz, który działa.
 - **🔑 Klucze sprzętowe i klucze dostępu** (YubiKey przez USB lub NFC, passkey): strony mogą prosić o klucz przy logowaniu (od Androida 14 i nowego WebView). Google może ich nie proponować w aplikacjach spoza swojej listy przeglądarek – wtedy zaloguj się inną metodą (np. „Spróbuj inaczej” → potwierdzenie na telefonie).
 - **Brak kont i telemetrii:** Velivo nie wysyła statystyk ani danych do autora. Raport błędu powstaje tylko w telefonie i trafia gdzieś dopiero, gdy sam go skopiujesz.
 

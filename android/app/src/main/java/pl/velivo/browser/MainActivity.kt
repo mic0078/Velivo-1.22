@@ -3381,8 +3381,8 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
     // --- Blokada odciskiem palca / PIN-em telefonu -----------------------------
     private fun unlock(onOk: () -> Unit) {
         // 🔐 klucz sprzętowy (gdy dodany): najpierw klucz; anulowanie - odcisk palca / PIN jak dotąd
-        val keys = pl.velivo.komunikator.Klucz.keys(getSharedPreferences("komunikator", MODE_PRIVATE))
-        if (keys.isEmpty()) unlockPin(onOk) else pl.velivo.komunikator.Klucz.verify(this, keys) { ok -> if (ok) onOk() else unlockPin(onOk) }
+        val kp = getSharedPreferences("komunikator", MODE_PRIVATE)
+        if (pl.velivo.komunikator.Klucz.keys(kp).isEmpty()) unlockPin(onOk) else pl.velivo.komunikator.Klucz.unlock(this, kp) { ok -> if (ok) onOk() else unlockPin(onOk) }
     }
     private fun unlockPin(onOk: () -> Unit) {
         if (!getSystemService(KeyguardManager::class.java).isDeviceSecure) { toast(getString(R.string.no_lock)); onOk(); return }

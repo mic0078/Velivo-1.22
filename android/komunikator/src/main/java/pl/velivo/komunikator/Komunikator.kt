@@ -610,11 +610,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val id = j.optString("id"); val key = unb64(j.optString("key"))
         // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
         val trusted = from.dom || (up != null && from.id == upRelay?.id) || upMore.containsKey(from.id)   // mój domowy albo serwer, przez który jestem teraz połączony (mama z zaproszenia)
-        contact(id)?.let { c -> val ra = j.optString("relay"); if (from.dom && c.relay == null && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }
+        contact(id)?.let { c -> val ra = j.optString("relay"); if (from.dom && ra != c.relay && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }   // także nowy port serwera
         if (id.length != 32 || id == myId || key.size != 32) return
         // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika (NUCBOX) - od razu, bez pytania: wiadomości idą przez którykolwiek
         val rl = j.optString("relay")
-        if (trusted && j.optBoolean("dom") && ':' in rl) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl, dom = from.dom)) }
+        // moje domowe urządzenie od mojego domowego - od razu, także bez adresu serwera (np. Ryzen, który pośrednikiem został później)
+        if (j.optBoolean("dom") && (from.dom || (trusted && ':' in rl))) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl.takeIf { ':' in it }, dom = from.dom)) }
             saveContacts(); main.post { onChange() }; return }
         val list = cardList(); if ((0 until list.length()).any { JSONObject(list.getString(it)).optJSONObject("c")?.optString("id") == id }) return
         list.put(JSONObject().put("f", from.id).put("c", j).toString()); prefs.edit().putString("prosby-kontakt", list.toString()).apply()

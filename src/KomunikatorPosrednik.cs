@@ -381,13 +381,14 @@ namespace Velivo
             var have = done.Select(x => (string)x).ToHashSet(); bool any = false;
             foreach (var x in _komContacts.ToList())
             {
-                if (x.IsGroup || x.Id == peerId || x.Id == _komId || x.Key == null || have.Contains(x.Id + "|" + peerId)) continue;
+                var tag = x.Id + "|" + peerId + "|" + peer.Relay + "|" + x.Relay;   // nowy adres serwera (włączony później, zmiana portu) - przedstawienie od nowa
+                if (x.IsGroup || x.Id == peerId || x.Id == _komId || x.Key == null || have.Contains(tag)) continue;
                 if (!KomOnline(x.Id)) continue;   // przedstawienie tylko, gdy kontakt jest w sieci (dojdzie od razu); nieobecny - przy następnym sprawdzeniu (co 10 min)
-                var key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+                var key = KomIntroKey(x.Id, peerId);
                 string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "", ["dom"] = c.Dom }.ToJsonString();
                 KomDeliver(peer, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
                 KomDeliver(x, new KomMsg { Mine = true, Text = Card(peer), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
-                done.Add(x.Id + "|" + peerId); any = true;
+                done.Add(tag); any = true;
             }
             if (any) KomSave();
         }
@@ -403,14 +404,22 @@ namespace Velivo
                 for (int j = i + 1; j < rs.Count; j++)
                 {
                     var (a, b) = string.CompareOrdinal(rs[i].Id, rs[j].Id) < 0 ? (rs[i], rs[j]) : (rs[j], rs[i]);
-                    if (have.Contains(a.Id + "|" + b.Id)) continue;
-                    var key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+                    var tag = a.Id + "|" + b.Id + "|" + a.Relay + "|" + b.Relay;
+                    if (have.Contains(tag)) continue;
+                    var key = KomIntroKey(a.Id, b.Id);
                     string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "", ["dom"] = true }.ToJsonString();
                     KomDeliver(a, new KomMsg { Mine = true, Text = Card(b), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
                     KomDeliver(b, new KomMsg { Mine = true, Text = Card(a), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
-                    done.Add(a.Id + "|" + b.Id); any = true;
+                    done.Add(tag); any = true;
                 }
             if (any) KomSave();
+        }
+        // klucz pary przy przedstawianiu: zawsze ten sam dla tej pary (powtórka nie daje stronom różnych kluczy)
+        string KomIntroKey(string a, string b)
+        {
+            if ((string)_komOpt["introSec"] is not { Length: 44 } sec) _komOpt["introSec"] = sec = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+            var ids = string.CompareOrdinal(a, b) < 0 ? a + "|" + b : b + "|" + a;
+            return Convert.ToBase64String(HMACSHA256.HashData(Convert.FromBase64String(sec), Encoding.UTF8.GetBytes(ids)));
         }
         // mój serwer: domowy albo ten, przez który to urządzenie jest teraz połączone z internetu (obcy kontakt nim nie jest)
         bool KomTrustedRelay(KomContact c) => c != null && (c.Dom || (_komUp != null && _komUpRelay?.Id == c.Id));

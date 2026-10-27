@@ -2614,8 +2614,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                         voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
                         append("\n"); val st = length; append(k.reactions(m).let { if (it.isEmpty()) "" else "$it  " } + fmt.format(java.util.Date(m.ts)) + tick)
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
+                        if (m.mine && m.read) setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), length - tick.length, length, 0)   // ✓✓ przeczytane - wyraźne (na zielonym dymku jasnoniebieskie zlewało się z białym)
                         val p = pal(); val base = if (m.mine) p.mineFg else p.dim
-                        setSpan(android.text.style.ForegroundColorSpan(if (m.mine && m.read) (if (p.key == "kontrast") Color.rgb(0, 0, 0xCC) else Color.rgb(0x7D, 0xF9, 0xFF)) else Color.argb(0xC0, Color.red(base), Color.green(base), Color.blue(base))), st, length, 0)
+                        setSpan(android.text.style.ForegroundColorSpan(if (m.mine && m.read) (if (p.key == "kontrast" || android.graphics.Color.luminance(violet) > 0.2f) Color.rgb(0x0A, 0x2A, 0xC8) else Color.rgb(0x7D, 0xF9, 0xFF)) else Color.argb(0xC0, Color.red(base), Color.green(base), Color.blue(base))), st, length, 0)
                     }
                     textSize = 16f * fs; setTextColor(if (m.mine) pal().mineFg else ink)
                     setPadding(px(12), px(7), px(12), px(7))

@@ -645,13 +645,10 @@ namespace Velivo
             if (mids.Count == 0) return;
             foreach (var m in mids) m.Read = true;
             KomSave();
-            IPAddress.TryParse(c.Addr ?? "", out var to);
-            foreach (var part in mids.Select(m => m.Mid).Chunk(60))
-            {
-                var j = string.Join(",", part);
-                var p = KomPacket("p2p-read"); p["to"] = c.Id; p["mids"] = j; p["mac"] = Convert.ToBase64String(KomHmac(c.Key, "read\n" + j));
-                KomSendUdp(p, to);
-            }
+            IPAddress.TryParse(c.Addr ?? "", out var to); if (to != null && IPAddress.IsLoopback(to)) to = null;
+            var parts = mids.Select(m => m.Mid).Chunk(60).Select(part => { var j = string.Join(",", part); var p = KomPacket("p2p-read"); p["to"] = c.Id; p["mids"] = j; p["mac"] = Convert.ToBase64String(KomHmac(c.Key, "read\n" + j)); return p; }).ToList();
+            // jak wiadomość: znany adres i cała sieć domowa (pośrednik przekazuje do telefonu poza domem), z powtórką - wcześniej raz na stary adres i ✓✓ nie robiły się niebieskie
+            _ = Task.Run(async () => { for (int i = 0; i < 2; i++) { foreach (var p in parts) { if (to != null) KomSendUdp(p, to); KomSendUdp(p, null); } await Task.Delay(1500); } });
         }
 
         void KomSend(KomContact c, string text)

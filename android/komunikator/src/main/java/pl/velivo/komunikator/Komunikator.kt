@@ -1429,8 +1429,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun sayNew(c: Contact) {
         if (!readNew) return
         val m = synchronized(this) { chat(c.id).lastOrNull { !it.mine } } ?: return
-        val t = spokenName(c.name) + ": " + m.text
-        main.post { ttsNew?.speak(t, android.speech.tts.TextToSpeech.QUEUE_ADD, null, "nowa") ?: run { ttsNew = android.speech.tts.TextToSpeech(ctx) { st -> if (st == android.speech.tts.TextToSpeech.SUCCESS) ttsNew?.let { it.language = Locale.getDefault(); it.speak(t, android.speech.tts.TextToSpeech.QUEUE_ADD, null, "nowa") } } } }
+        // „Michał przesyła wiadomość.” – krótka przerwa – treść (plik: „przesyła plik”)
+        val who = spokenName(c.name) + if (m.file) (if (pl) " przesyła plik." else " sends a file.") else (if (pl) " przesyła wiadomość." else " sends a message.")
+        val say = { e: android.speech.tts.TextToSpeech -> val q = android.speech.tts.TextToSpeech.QUEUE_ADD
+            e.speak(who, q, null, "nowa-kto"); e.playSilentUtterance(700, q, "nowa-przerwa"); e.speak(m.text, q, null, "nowa") }
+        main.post { ttsNew?.let(say) ?: run { ttsNew = android.speech.tts.TextToSpeech(ctx) { st -> if (st == android.speech.tts.TextToSpeech.SUCCESS) ttsNew?.let { it.language = Locale.getDefault(); say(it) } } } }
     }
     // 💡 błysk lampy aparatu i mocna wibracja (dla słabosłyszących) - dzwonek: dopóki dzwoni (najwyżej 40 s), wiadomość: 2 błyski
     fun alertFlash(c: Contact?, call: Boolean) {

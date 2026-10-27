@@ -207,7 +207,11 @@ namespace Velivo
                     if (le == null || re == null) continue;
                     if (le.Rank + re.Rank < sk) { sk = le.Rank + re.Rank; sp = le.Word + " " + re.Word; }
                 }
-                if (sp != null) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(sp[0]) + sp.Substring(1) : sp;
+                // jedna literowka w czestym slowie wygrywa z rozdzieleniem (wlanie -> właśnie, nie "w lanie")
+                var fw1 = new string(w.Select(BaseKey).ToArray()); bool one = false;
+                for (int i = 0; i < fw1.Length && !one; i++) foreach (var c in "abcdefghijklmnopqrstuvwxyz")
+                    if (fold.TryGetValue(fw1.Insert(i, c.ToString()), out var e1) && e1.Rank < 20000 || fold.TryGetValue(fw1.Substring(0, i) + c + fw1.Substring(i + 1), out var e2) && e2.Rank < 20000) { one = true; break; }
+                if (sp != null && !one) return char.IsUpper(typed[0]) ? char.ToUpperInvariant(sp[0]) + sp.Substring(1) : sp;
             }
             lock (_ownFold) if (_ownFold.ContainsValue(w)) return null;   // Moje slowo - bez zmian   // slowo ze slownika - bez zmian (wyuczone z pisania nie blokuje poprawki: dawniej uczyly sie tez literowki, np. zolw)
             var fw = new string(w.Select(BaseKey).ToArray());
@@ -235,6 +239,8 @@ namespace Velivo
                 var idx = _byLen;
                 if (idx == null) { idx = new Dictionary<int, List<KeyValuePair<string, Entry>>>(); foreach (var kv in fold) { if (!idx.TryGetValue(kv.Key.Length, out var l)) idx[kv.Key.Length] = l = new List<KeyValuePair<string, Entry>>(); l.Add(kv); } _byLen = idx; }
                 int bd = 5, bl = 0;   // w polowkach: do 2 pomylek (4), pomylka o sasiedni klawisz = pol
+                // odmiana znanego slowa spoza slownika (pulpicie od "pulpit") - przy dwoch pomylkach bez samej poprawki
+                var stem = fw.Substring(0, Math.Min(fw.Length, Math.Max(5, fw.Length - 3))); bool stemKnown = fw.Length >= 7 && fold.Keys.Any(k => k.StartsWith(stem, StringComparison.Ordinal));
                 for (int len = fw.Length - 1; len <= fw.Length + 1; len++)
                     if (idx.TryGetValue(len, out var group))
                         foreach (var kv in group)
@@ -244,6 +250,7 @@ namespace Velivo
                             // dwie pomylki "nie obok" (kompiluje / kombinuje) - tylko przy zgodnym poczatku albo koncowce (idelelnie -> idealnie)
                             if (d > 2 && d - Dist(fw, kv.Key, 9, false) / 2 >= 2) { int p = 0, q = 0; while (p < fw.Length && p < kv.Key.Length && fw[p] == kv.Key[p]) p++; while (q < fw.Length && q < kv.Key.Length && fw[fw.Length - 1 - q] == kv.Key[kv.Key.Length - 1 - q]) q++; if (p * 2 < fw.Length && q < 4) continue; }   // idelelnie -> idealnie, kompiluje zostaje
                             // remis: ta sama dlugosc (zamiana litery) przed brakiem / nadmiarem, potem czestsze
+                            if (d > 2 && stemKnown) continue;
                             bool same = kv.Key.Length == fw.Length, bsame = bl == fw.Length;
                             if (d < 5 && (d < bd || d == bd && (same && !bsame || same == bsame && Score(kv.Value) < Score(best)))) { bd = d; best = kv.Value; bl = kv.Key.Length; }
                         }

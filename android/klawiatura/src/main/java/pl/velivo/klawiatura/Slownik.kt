@@ -185,7 +185,9 @@ object Slownik {
                 val r = all[fold(w.substring(i))]?.filter { it.rank < (if (w.length - i < 3) 300 else 120000) }?.minByOrNull(::score) ?: continue   // robiac - nie „robi ac”
                 if (l.rank + r.rank < sk) { sk = l.rank + r.rank; sp = l.word + " " + r.word }
             }
-            if (sp != null) return cap(typed, sp)
+            // jedna literówka w częstym słowie wygrywa z rozdzieleniem (wlanie -> właśnie, nie „w lanie”)
+            var one: Entry? = null; variants(w.map(::baseKey).joinToString("")) { v -> f[v]?.let { e -> if (e.rank < 20000 && (one == null || e.rank < one!!.rank)) one = e } }
+            if (sp != null && one == null) return cap(typed, sp)
         }
         synchronized(ownFold) { if (ownFold.containsValue(w)) return null }
         val fw = w.map(::baseKey).joinToString("")
@@ -204,12 +206,15 @@ object Slownik {
             // (literokem -> literówek; dobre słowo spoza słownika, np. kompiluje, zostaje)
             val idx = byLen ?: HashMap<Int, ArrayList<Pair<String, Entry>>>().also { m -> f.forEach { (k, e) -> m.getOrPut(k.length) { ArrayList() }.add(k to e) }; byLen = m }
             var bd = 5; var bl = 0   // w połówkach: do 2 pomyłek (4), pomyłka o sąsiedni klawisz = pół
+            // odmiana znanego słowa spoza słownika (pulpicie od „pulpit”) - przy dwóch pomyłkach bez samej poprawki
+            val stem = fw.take(maxOf(5, fw.length - 3)); val stemKnown = fw.length >= 7 && f.keys.any { it.startsWith(stem) }
             for (len in fw.length - 1..fw.length + 1) for ((k, e) in idx[len] ?: continue) {
                 if (k[0] != fw[0] && !adj(k[0], fw[0]) || e.rank >= 120000) continue
                 val d = dist(fw, k, minOf(bd + 1, 5))
                 // dwie pomyłki „nie obok” (kompiluje / kombinuje) - tylko przy zgodnym początku albo końcówce (idelelnie -> idealnie)
                 if (d > 2 && d - dist(fw, k, 9, false) / 2 >= 2 && fw.commonPrefixWith(k).length * 2 < fw.length && fw.commonSuffixWith(k).length < 4) continue
                 // remis: ta sama długość (zamiana litery) przed brakiem / nadmiarem, potem częstsze
+                if (d > 2 && stemKnown) continue
                 if (d < 5 && (d < bd || (d == bd && (k.length == fw.length) > (bl == fw.length) || d == bd && (k.length == fw.length) == (bl == fw.length) && score(e) < score(best!!)))) { bd = d; best = e; bl = k.length }
             }
         }

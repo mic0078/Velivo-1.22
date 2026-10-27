@@ -120,9 +120,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (bad) prefs.edit().putString("kontakty-kopia-" + System.currentTimeMillis(), prefs.getString("kontakty", null)).apply()
     }
     val contacts: MutableList<Contact> = runCatching {
-        val a = JSONArray(open(prefs.getString("kontakty", null)) ?: "[]")
-        (0 until a.length()).mapNotNull { i -> runCatching { a.getJSONObject(i) }.getOrNull() }.mapNotNull { runCatching { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own"), it.optString("relay").ifEmpty { null }, if (it.has("dom")) it.optBoolean("dom") else it.optString("addr").let { a -> a.isNotEmpty() && !a.startsWith("grupa:") }) }.getOrNull() }   // starsze dane: znane z sieci domowej
-            .filter { it.key.size == 32 }.toMutableList()
+        val a = JSONArray(open(prefs.getString("kontakty", null)) ?: "[]"); val nd = HashSet<String>()
+        (0 until a.length()).mapNotNull { i -> runCatching { a.getJSONObject(i) }.getOrNull() }.mapNotNull { runCatching { Contact(it.getString("id"), it.optString("name"), unb64(it.getString("key")), it.optString("addr"), it.optString("dev", it.optString("name")), it.optBoolean("own"), it.optString("relay").ifEmpty { null }, it.optBoolean("dom")).also { c -> if (!it.has("dom")) nd.add(c.id) } }.getOrNull() }
+            .filter { it.key.size == 32 }.toMutableList().also { domMigrate(it, nd) }
     }.getOrDefault(mutableListOf())
 
     @Synchronized private fun saveContacts() {
@@ -214,11 +214,11 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         synchronized(this) {
             val cid = o.optString("cid")
             if (contacts.isEmpty() && cid.length == 32) { myId = cid; prefs.edit().putString("cid", cid).apply() }
-            val a = o.optJSONArray("contacts") ?: JSONArray()
+            val a = o.optJSONArray("contacts") ?: JSONArray(); val nd = HashSet<String>()
             for (i in 0 until a.length()) {
                 val j = a.getJSONObject(i); val key = unb64(j.optString("key")); val id = j.optString("id")
                 if (key.size != 32 || id.length != 32) continue
-                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr"), j.optString("dev", j.optString("name")), j.optBoolean("own"), j.optString("relay").ifEmpty { null }, j.optBoolean("dom")))
+                if (contact(id) == null) contacts.add(Contact(id, j.optString("name"), key, j.optString("addr"), j.optString("dev", j.optString("name")), j.optBoolean("own"), j.optString("relay").ifEmpty { null }, j.optBoolean("dom")).also { if (!j.has("dom")) nd.add(id) })
                 val list = chat(id); val have = list.map { it.mid }.toHashSet()
                 val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
                 for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
@@ -228,10 +228,20 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val un = o.optJSONObject("unread")?.optInt(id) ?: 0
                 if (un > 0) prefs.edit().putInt("nowe-$id", unread(id) + un).apply()
             }
+            domMigrate(contacts, nd)   // dane ze starszej wersji (bez „dom”)
         }
         optImport(o.optJSONObject("opt"))
         saveContacts(); synchronized(this) { contacts.toList() }.forEach { saveChat(it.id) }
         main.post { onChange() }
+    }
+
+    // starsze dane (bez „dom”): domowe = znane z sieci domowej i pod tym samym adresem w internecie co większość moich serwerów (serwer znajomego ma inny)
+    private fun domMigrate(list: List<Contact>, nd: Set<String>) {
+        if (nd.isEmpty()) return
+        fun host(c: Contact) = c.relay?.takeIf { ':' in it }?.substringBeforeLast(':') ?: ""
+        val lan = list.filter { it.id in nd && it.addr.isNotEmpty() && !it.addr.startsWith("grupa:") }
+        val home = lan.map { host(it) }.filter { it.isNotEmpty() }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: ""
+        lan.forEach { it.dom = home.isNotEmpty() && (host(it) == home || host(it).isEmpty()) }
     }
 
     // po przeniesieniu do przeglądarki: klawiatura nic nie trzyma i nie nasłuchuje
@@ -605,11 +615,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val j = runCatching { JSONObject(body) }.getOrNull() ?: return
         val id = j.optString("id"); val key = unb64(j.optString("key"))
         // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
-        contact(id)?.let { c -> val ra = j.optString("relay"); if (from.dom && c.relay == null && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }
+        val trusted = from.dom || from.id == upRelay?.id || upMore.containsKey(from.id)   // mój domowy albo serwer, przez który jestem teraz połączony (mama z zaproszenia)
+        contact(id)?.let { c -> val ra = j.optString("relay"); if (trusted && c.relay == null && ':' in ra && ra.length < 200) { c.relay = ra; saveContacts() }; return }
         if (id.length != 32 || id == myId || key.size != 32) return
         // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika (NUCBOX) - od razu, bez pytania: wiadomości idą przez którykolwiek
         val rl = j.optString("relay")
-        if (from.dom && j.optBoolean("dom") && ':' in rl) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl, dom = true)) }
+        if (trusted && j.optBoolean("dom") && ':' in rl) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl, dom = true)) }
             saveContacts(); main.post { onChange() }; return }
         val list = cardList(); if ((0 until list.length()).any { JSONObject(list.getString(it)).optJSONObject("c")?.optString("id") == id }) return
         list.put(JSONObject().put("f", from.id).put("c", j).toString()); prefs.edit().putString("prosby-kontakt", list.toString()).apply()
@@ -621,12 +632,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     // 🔗 „Mój adres Velivo” (jak numer w WhatsApp): link, który można dać każdemu; prośba idzie przez mojego pośrednika (NUCBOX),
     // ja decyduję Dodaj / Odrzuć. Nowa osoba dostaje tylko komunikator (sieć domowa, filmy, synchronizacja - nie).
     private fun hidden(c: Contact, text: String) = deliver(c, Msg(true, text, System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
-    private fun myRelay() = synchronized(this) { contacts.firstOrNull { it.relay != null && !it.isGroup } }
+    private fun myRelay() = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup }.sortedByDescending { it.dom }.firstOrNull() }   // najpierw mój domowy
     fun myAddress(reset: Boolean = false): String? {
         val r = myRelay() ?: return null
         var sk = prefs.getString("moj-adres", null)
         if (sk == null || reset) { sk = b64(ByteArray(24).also { random.nextBytes(it) }); prefs.edit().putString("moj-adres", sk).apply() }
-        val all = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup && it.dom } }.ifEmpty { listOf(r) }
+        val all = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup && (it.dom || it.id == r.id) } }   // główny z linku i każdy mój domowy - każdy zna sekret
         all.forEach { hidden(it, ADDR + sk) }   // każdy pośrednik (NUCBOX, CHUWI) zna sekret - wpuszcza tylko prośby z tym linkiem, prośba dojdzie, gdy jeden nie działa
         val j = JSONObject().put("a", r.relay).put("o", myId).put("s", sk).put("n", deviceName())
             .put("r", JSONArray(all.mapNotNull { it.relay }.filter { it != r.relay }.distinct().take(4)))   // zapasowe adresy pośredników

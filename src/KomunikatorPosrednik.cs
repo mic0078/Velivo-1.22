@@ -188,6 +188,7 @@ namespace Velivo
         void KomBoxDoneRepeat()
         {
             foreach (var kv in _komBoxDoneOut) if (DateTime.UtcNow - kv.Value.At > TimeSpan.FromDays(2)) _komBoxDoneOut.TryRemove(kv.Key, out _);
+            foreach (var kv in _komBoxDoneOut.OrderByDescending(kv => kv.Value.At).Skip(200)) _komBoxDoneOut.TryRemove(kv.Key, out _);   // najwyżej 200 najnowszych (mały pakiet)
             foreach (var g in _komBoxDoneOut.GroupBy(kv => kv.Value.To))
                 KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = g.Key, ["files"] = new JsonArray(g.Select(kv => (JsonNode)kv.Key).ToArray()), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
         }
@@ -217,9 +218,10 @@ namespace Velivo
             {
                 foreach (var hdr in Directory.GetFiles(dir, "*.hdr").OrderBy(x => x))
                 {
-                    // kopia - oddaje ją tylko wtedy, gdy serwer z oryginałem nie działa (bez podwójnej wysyłki 77 MB przez dane komórkowe)
-                    if (Path.GetFileName(hdr).StartsWith('k') && File.Exists(Path.ChangeExtension(hdr, ".src")) && File.ReadAllText(Path.ChangeExtension(hdr, ".src")) is var src
-                        && _komLanSeen.TryGetValue(src, out var srcSeen) && DateTime.UtcNow - srcSeen < TimeSpan.FromSeconds(100)) continue;
+                    // kopia - najpierw oddaje serwer z oryginałem (bez podwójnej wysyłki 77 MB przez dane komórkowe); kopia idzie, gdy tamten nie działa
+                    // albo przez 10 min nie oddał (odbiorca połączony tylko z tym serwerem)
+                    if (Path.GetFileName(hdr).StartsWith('k') && DateTime.UtcNow - File.GetCreationTimeUtc(hdr) < TimeSpan.FromMinutes(10) && File.Exists(Path.ChangeExtension(hdr, ".src"))
+                        && File.ReadAllText(Path.ChangeExtension(hdr, ".src")) is var src && _komLanSeen.TryGetValue(src, out var srcSeen) && DateTime.UtcNow - srcSeen < TimeSpan.FromSeconds(100)) continue;
                     var bin = Path.ChangeExtension(hdr, ".bin");
                     if (!File.Exists(bin)) { File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { } continue; }
                     using var cts = new CancellationTokenSource(TimeSpan.FromHours(2));
@@ -408,6 +410,8 @@ namespace Velivo
                 }
             if (any) KomSave();
         }
+        // mój serwer: domowy albo ten, przez który to urządzenie jest teraz połączone z internetu (obcy kontakt nim nie jest)
+        bool KomTrustedRelay(KomContact c) => c != null && (c.Dom || (_komUp != null && _komUpRelay?.Id == c.Id));
         bool KomFromRelay(IPAddress addr) => _komLanRelays.Keys.Any(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         string KomPeerAt(IPAddress addr) => addr == null ? null : _komLanRelays.Keys.FirstOrDefault(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         static string KomStoreFile => Path.Combine(DataDir, "komunikator-skrzynka.json");
@@ -676,11 +680,11 @@ namespace Velivo
                     // serwer ogłosił zły adres (np. wewnętrzny routera) - adres domu innych MOICH serwerów z domu, port tego serwera;
                     // najwyżej raz na 2 min (każda próba trwa sekundy), próby na kopii kontaktu - zapisany adres zmienia się dopiero po udanym połączeniu
                     var home = relays.Where(c => c.Dom && c.Relay.LastIndexOf(':') > 0).ToList();
-                    if (fs == null && home.Count > 1 && DateTime.UtcNow - _komAltAt > TimeSpan.FromMinutes(2))
+                    if (fs == null && home.Count > 0 && DateTime.UtcNow - _komAltAt > TimeSpan.FromMinutes(2))
                     {
                         _komAltAt = DateTime.UtcNow;
                         var hosts = home.Select(c => c.Relay.Substring(0, c.Relay.LastIndexOf(':'))).Distinct().ToList();
-                        foreach (var cand in home)
+                        foreach (var cand in relays.Where(c => c.Relay.LastIndexOf(':') > 0))
                         {
                             var port = cand.Relay.Substring(cand.Relay.LastIndexOf(':') + 1);
                             foreach (var hst in hosts)
@@ -782,14 +786,14 @@ namespace Velivo
         // 🔗 mój adres na Windows (jak w telefonie): link dla każdego; prośba idzie przez mojego pośrednika albo ten komputer nim jest
         string KomMyAddress(bool reset)
         {
-            var r = _komContacts.FirstOrDefault(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup);
+            var r = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup).OrderByDescending(c => c.Dom).FirstOrDefault();   // najpierw mój domowy
             bool self = _komRelayListener != null && _komRelayHost.Length > 0;
             var addr = self ? _komRelayHost + ":" + _komRelayPort : r?.Relay;
             if (addr == null) return null;
             var sk = (string)_komOpt["moj-adres"];
             if (sk == null || reset) { sk = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)); _komOpt["moj-adres"] = sk; }
             if (self) _komAskKeys[_komId] = sk;   // pośrednik zna sekret - wpuszcza tylko prośby z tym linkiem
-            var all = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup && c.Dom).ToList();   // każdy mój pośrednik z domu (NUCBOX, CHUWI) zna sekret - prośba dojdzie, gdy jeden nie działa
+            var all = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup && (c.Dom || (!self && c == r))).ToList();   // główny z linku i każdy mój pośrednik z domu - każdy zna sekret (NUCBOX, CHUWI) zna sekret - prośba dojdzie, gdy jeden nie działa
             foreach (var rr in all) KomDeliver(rr, new KomMsg { Mine = true, Text = KomAddrTag + sk, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
             KomSave();
             var j = new JsonObject { ["a"] = addr, ["o"] = _komId, ["s"] = sk, ["n"] = _lanDeviceName,

@@ -662,6 +662,19 @@ namespace Velivo
                 {
                     KomFrameStream fs = null;
                     foreach (var cand in relays) { fs = await KomRelayConnect(cand, "main", null, null, CancellationToken.None); if (fs != null) { relay = cand; break; } }   // pierwszy, ktory odpowie
+                    // serwer ogłosił zły adres (np. wewnętrzny routera) - adres domu innych serwerów z tego domu, port tego serwera
+                    var hosts = relays.Select(c => c.Relay.Substring(0, Math.Max(0, c.Relay.LastIndexOf(':')))).Where(h => h.Length > 0).Distinct().ToList();
+                    for (int ci = 0; fs == null && ci < relays.Count; ci++)
+                    {
+                        var cand = relays[ci]; var old = cand.Relay; var port = old.Substring(old.LastIndexOf(':') + 1);
+                        foreach (var hst in hosts)
+                        {
+                            if (hst + ":" + port == old) continue;
+                            cand.Relay = hst + ":" + port; fs = await KomRelayConnect(cand, "main", null, null, CancellationToken.None);
+                            if (fs != null) { relay = cand; await Dispatcher.InvokeAsync(KomSave); break; }
+                            cand.Relay = old;
+                        }
+                    }
                     if (fs == null) return;
                     var me = new KomRemoteConn { Fs = fs };
                     _komUpRelay = relay; _komUp = me;

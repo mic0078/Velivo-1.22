@@ -1062,7 +1062,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 "yt" -> velivo("pl.velivo.browser.WIDZET_YT")
                 "theme" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_THEME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 "height" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_HEIGHT).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                "settings" -> startActivity(Intent(context, Ustawienia::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "settings" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_ALL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))   // ⚙ okienko nad pisaniem - po wyborze od razu z powrotem
                 "back" -> { if (menuPage == 1) menuPage = 0 else menuOpen = false; refresh(); return }
                 "access" -> { menuPage = 1; refresh(); return }
                 "brajl" -> { menuOpen = false; brailleOn(); return }

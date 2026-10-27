@@ -1671,6 +1671,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private inner class Dlg : AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert) {
         override fun show(): AlertDialog = super.show().also { d ->
             d.window?.setBackgroundDrawable(android.graphics.drawable.InsetDrawable(GradientDrawable().apply { setColor(Color.rgb(0x1E, 0x18, 0x38)); cornerRadius = px(18).toFloat(); setStroke(px(1), Color.argb(0x90, 0x8B, 0x5C, 0xF6)) }, px(16)))
+            // ✕ w prawym górnym rogu każdego okienka (jak w Windows)
+            (d.window?.decorView as? android.widget.FrameLayout)?.addView(TextView(a).apply {
+                text = "✕"; textSize = 22f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; contentDescription = t("Zamknij", "Close"); tooltipText = contentDescription
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.argb(0x50, 0x8B, 0x5C, 0xF6)) }; setOnClickListener { d.dismiss() }
+            }, android.widget.FrameLayout.LayoutParams(px(40), px(40), Gravity.TOP or Gravity.END).apply { topMargin = px(24); rightMargin = px(24) })
             fun white(v: View?) { (v as? TextView)?.let { it.setTextColor(Color.WHITE); if (it is android.widget.CheckedTextView) it.checkMarkTintList = android.content.res.ColorStateList.valueOf(Color.rgb(0x06, 0xB6, 0xD4)) } }
             white(d.findViewById(a.resources.getIdentifier("alertTitle", "id", "android")))
             d.findViewById<TextView>(android.R.id.message)?.apply { setTextColor(Color.WHITE); textSize = 17f }

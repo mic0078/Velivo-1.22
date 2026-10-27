@@ -19,7 +19,7 @@ import android.widget.Toast
 
 // Ustawienia klawiatury Velivo: włączenie, wybór, mikrofon do dyktowania, motyw, Mój słownik.
 open class Ustawienia : Activity() {
-    companion object { const val ACTION_THEME = "pl.velivo.klawiatura.MOTYW"; const val ACTION_HEIGHT = "pl.velivo.klawiatura.WYSOKOSC"; const val ACTION_GIF = "pl.velivo.klawiatura.GIF" }
+    companion object { const val ACTION_ALL = "pl.velivo.klawiatura.WSZYSTKIE"; const val ACTION_THEME = "pl.velivo.klawiatura.MOTYW"; const val ACTION_HEIGHT = "pl.velivo.klawiatura.WYSOKOSC"; const val ACTION_GIF = "pl.velivo.klawiatura.GIF" }
     private val REQ_MIC = 1; private val REQ_GIF = 2
     private fun askGif() = requestPermissions(arrayOf(if (android.os.Build.VERSION.SDK_INT >= 33) android.Manifest.permission.READ_MEDIA_IMAGES else android.Manifest.permission.READ_EXTERNAL_STORAGE), REQ_GIF)
     // z klawiatury (motyw, wysokość, słownik, mikrofon): samo okienko nad pisaniem, bez ekranu ustawień pod spodem; po wyborze powrót do pisania
@@ -71,6 +71,7 @@ open class Ustawienia : Activity() {
             ACTION_THEME -> chooseTheme()
             ACTION_HEIGHT -> chooseHeight()
             ACTION_GIF -> askGif()
+            ACTION_ALL -> all()
             else -> return false
         }
         return true
@@ -94,7 +95,7 @@ open class Ustawienia : Activity() {
     private fun chooseTheme() {
         val pr = KlawiaturaVelivo.prefs(this)
         val names = arrayOf(getString(R.string.kb_theme_system), getString(R.string.kb_theme_light), getString(R.string.kb_theme_dark), getString(R.string.kb_theme_contrast))
-        AlertDialog.Builder(this).setTitle(R.string.kb_theme).setSingleChoiceItems(names, pr.getInt("motyw", 2)) { d, i -> pr.edit().putInt("motyw", i).apply(); d.dismiss() }.setOnDismissListener { done() }.show()
+        AlertDialog.Builder(this).setTitle(R.string.kb_theme).setSingleChoiceItems(names, pr.getInt("motyw", 2)) { d, i -> pr.edit().putInt("motyw", i).apply(); d.dismiss() }.setOnDismissListener { done() }.show().also { x(it) }
     }
 
     // wysokość klawiszy (procent) - na grubsze palce wyższa
@@ -104,7 +105,7 @@ open class Ustawienia : Activity() {
         val names = sizes.map { "$it %" }.toTypedArray()
         AlertDialog.Builder(this).setTitle(R.string.kb_height).setSingleChoiceItems(names, sizes.indexOf(pr.getInt("wysokosc", 120)).coerceAtLeast(0)) { d, i ->
             pr.edit().putInt("wysokosc", sizes[i]).apply(); d.dismiss()
-        }.setOnDismissListener { done() }.show()
+        }.setOnDismissListener { done() }.show().also { x(it) }
     }
 
     // 💬 Moje frazy: wyuczone (napisane co najmniej 2 razy) i własne - przegląd, edycja, usuwanie; „skrót = fraza”
@@ -115,7 +116,7 @@ open class Ustawienia : Activity() {
             AlertDialog.Builder(this).setTitle(R.string.kb_phrases).setMessage(R.string.kb_phrases_help)
                 .setView(ScrollView(this).apply { addView(box) })
                 .setPositiveButton(android.R.string.ok) { _, _ -> KlawiaturaVelivo.setPhrases(this, box.text.split('\n')) }
-                .setNegativeButton(android.R.string.cancel, null).setOnDismissListener { done() }.show()
+                .setNegativeButton(android.R.string.cancel, null).setOnDismissListener { done() }.show().also { x(it) }
         }
     }
 
@@ -128,7 +129,7 @@ open class Ustawienia : Activity() {
             .setMultiChoiceItems(arrayOf(getString(R.string.kb_p_learn), getString(R.string.kb_p_phrases), getString(R.string.kb_p_rhythm), getString(R.string.kb_p_velivo)), on) { _, i, v -> on[i] = v }
             .setPositiveButton(android.R.string.ok) { _, _ -> val e = pr.edit(); keys.forEachIndexed { i, k -> e.putBoolean(k, on[i]) }; e.apply(); if (!on[2]) KlawiaturaVelivo.resetRhythm(this) }
             .setNeutralButton(R.string.kb_p_reset) { _, _ -> KlawiaturaVelivo.resetRhythm(this); Toast.makeText(this, R.string.kb_p_reset_done, Toast.LENGTH_LONG).show() }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(android.R.string.cancel, null).show().also { x(it) }
     }
 
     // 🗣 dźwięki zamiast słów: włączenie i nauka własnego „aaaa” (zatwierdź) i „uuuu” (usuń słowo) - 3 s każde
@@ -151,12 +152,27 @@ open class Ustawienia : Activity() {
         AlertDialog.Builder(this).setTitle(R.string.kb_sound).setMessage(R.string.kb_sound_tip)
             .setPositiveButton(if (on) R.string.kb_sound_off else R.string.kb_sound_on) { _, _ -> pr.edit().putBoolean("klaw-dzwiek", !on).apply() }
             .setNeutralButton(R.string.kb_sound_teach_a) { _, _ -> teach("dzwiek-a", "aaaa") }
-            .setNegativeButton(R.string.kb_sound_teach_u) { _, _ -> teach("dzwiek-u", "uuuu") }.show()
+            .setNegativeButton(R.string.kb_sound_teach_u) { _, _ -> teach("dzwiek-u", "uuuu") }.show().also { x(it) }
     }
 
+    // ⚙ z klawiatury: wszystkie ustawienia w jednym okienku nad pisaniem; po wyborze powrót prosto do pisania
+    private fun all() = list(R.string.kb_m_settings, listOf(getString(R.string.kb_dict_learn) to { list(R.string.kb_dict_learn, listOf(getString(R.string.kb_words) to { showWords() }, getString(R.string.kb_phrases) to { showPhrases() },
+            getString(R.string.kb_privacy) to { privacy() }, getString(R.string.kb_en_variant) to { enVariant() }, getString(R.string.kb_clear_learned) to { clearLearned() })) },
+        getString(R.string.kb_m_access) to { access() }, getString(R.string.kb_theme) to { chooseTheme() }, getString(R.string.kb_height) to { chooseHeight() },
+        getString(R.string.kb_mic_allow) to { requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQ_MIC) }, getString(R.string.kb_gif_allow) to { askGif() }))
+    // okienko nad pisaniem: gdy zamknie się ostatnie okienko (nic już nie jest otwarte) - od razu z powrotem do klawiatury
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (quick && hasFocus) window.decorView.postDelayed({ if (hasWindowFocus() && !isFinishing) finish() }, 600)
+    }
+
+    // ✕ w prawym górnym rogu okienka (jak w Windows)
+    private fun x(d: AlertDialog) { val dp = resources.displayMetrics.density
+        (d.window?.decorView as? android.widget.FrameLayout)?.addView(TextView(this).apply { text = "✕"; textSize = 22f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+            contentDescription = getString(android.R.string.cancel); setOnClickListener { d.dismiss() } }, android.widget.FrameLayout.LayoutParams((40 * dp).toInt(), (40 * dp).toInt(), Gravity.TOP or Gravity.END).apply { topMargin = (8 * dp).toInt(); rightMargin = (8 * dp).toInt() }) }
     // lista do wyboru: duże, czytelne pozycje
     private fun list(title: Int, items: List<Pair<String, () -> Unit>>) =
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(title).setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.setNegativeButton(android.R.string.cancel, null).show()
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(title).setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.setNegativeButton(android.R.string.cancel, null).show().also { x(it) }
     private fun onOff(label: Int, key: String, def: Boolean) = getString(label) + ": " + getString(if (KlawiaturaVelivo.prefs(this).getBoolean(key, def)) R.string.kb_on else R.string.kb_off)
     private fun access() {
         val pr = KlawiaturaVelivo.prefs(this)
@@ -174,17 +190,17 @@ open class Ustawienia : Activity() {
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.kb_braille_settings)
             .setMultiChoiceItems(arrayOf(getString(R.string.kb_braille_opt_speech), getString(R.string.kb_braille_opt_vibe), getString(R.string.kb_braille_opt_hints), getString(R.string.kb_braille_opt_mirror), getString(R.string.kb_braille_opt_progress)), on) { _, i, v -> on[i] = v }
             .setPositiveButton(android.R.string.ok) { _, _ -> val e = pr.edit(); keys.forEachIndexed { i, k -> e.putBoolean(k, on[i]) }; if (!on[4]) e.remove("brajl-nauka"); e.apply() }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(android.R.string.cancel, null).show().also { x(it) }
     }
     private fun enVariant() {
         val vals = arrayOf("", "uk", "us"); val pr = KlawiaturaVelivo.prefs(this)
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.kb_en_variant).setSingleChoiceItems(arrayOf(getString(R.string.kb_en_any), "🇬🇧 UK (colour, realise)", "🇺🇸 US (color, realize)"), vals.indexOf(pr.getString("klaw-en", "")).coerceAtLeast(0)) { d, i -> pr.edit().putString("klaw-en", vals[i]).apply(); d.dismiss() }.show()
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.kb_en_variant).setSingleChoiceItems(arrayOf(getString(R.string.kb_en_any), "🇬🇧 UK (colour, realise)", "🇺🇸 US (color, realize)"), vals.indexOf(pr.getString("klaw-en", "")).coerceAtLeast(0)) { d, i -> pr.edit().putString("klaw-en", vals[i]).apply(); d.dismiss() }.show().also { x(it) }
     }
     // 🧹 wyuczone dane (częstość, pary słów, poprawki) - za zgodą; Moje słowa zostają
     private fun clearLearned() {
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.kb_clear_learned).setMessage(R.string.kb_clear_learned_tip)
             .setPositiveButton(R.string.kb_clear_yes) { _, _ -> KlawiaturaVelivo.load(this) { KlawiaturaVelivo.clearLearned(this); Toast.makeText(this, R.string.kb_clear_done, Toast.LENGTH_LONG).show() } }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(android.R.string.cancel, null).show().also { x(it) }
     }
 
     // Mój słownik: jedno słowo w linii (dopisywanie hurtem, usuwanie przez skasowanie linii)
@@ -195,7 +211,7 @@ open class Ustawienia : Activity() {
             AlertDialog.Builder(this).setTitle("📖 " + getString(R.string.kb_words)).setMessage(R.string.kb_words_help)
                 .setView(ScrollView(this).apply { addView(box) })
                 .setPositiveButton(android.R.string.ok) { _, _ -> KlawiaturaVelivo.setOwnWords(this, box.text.split('\n')) }
-                .setNegativeButton(android.R.string.cancel, null).setOnDismissListener { done() }.show()
+                .setNegativeButton(android.R.string.cancel, null).setOnDismissListener { done() }.show().also { x(it) }
         }
     }
 }

@@ -2086,7 +2086,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
     fun cameraResult(ok: Boolean) {
         val u = photoUri ?: return; photoUri = null
-        if (ok) sendFiles(listOf(u)) else { attachTo = null; runCatching { a.contentResolver.delete(u, null, null) } }
+        if (ok) sendFiles(listOf(u)) else { attachTo = null; pickingPhoto = false; runCatching { a.contentResolver.delete(u, null, null) } }
     }
     private fun profile() {
         val items = arrayOf("🖼 " + t("Moje zdjęcie profilowe…", "My profile photo…"), "🗑 " + t("Usuń moje zdjęcie", "Remove my photo"),
@@ -2095,7 +2095,18 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             "🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"))
         Dlg().setTitle("👤 " + t("Mój profil", "My profile")).setItems(items) { _, i ->
             when (i) {
-                0 -> { pickingPhoto = true; pickFiles() }
+                0 -> Dlg().setTitle("🖼 " + t("Moje zdjęcie profilowe", "My profile photo")).setItems(arrayOf("🖼 " + t("Z galerii", "From gallery"), "🤳 " + t("Zrób zdjęcie – przednia kamera", "Take a photo – front camera"), "📷 " + t("Zrób zdjęcie – tylna kamera", "Take a photo – back camera"))) { _, j ->
+                    if (j == 0) { pickingPhoto = true; pickFiles(); return@setItems }
+                    if (a.checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) { a.requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 4714); return@setItems }
+                    val u = runCatching { a.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "Velivo-profil-" + System.currentTimeMillis() + ".jpg"); put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Velivo") }) }.getOrNull() ?: return@setItems
+                    // przednia / tylna kamera - podpowiedź dla aplikacji aparatu (większość jej słucha)
+                    val front = j == 1
+                    val cam = android.content.Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).putExtra(android.provider.MediaStore.EXTRA_OUTPUT, u).addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        .putExtra("android.intent.extras.CAMERA_FACING", if (front) 1 else 0).putExtra("android.intent.extras.LENS_FACING_FRONT", if (front) 1 else 0).putExtra("android.intent.extra.USE_FRONT_CAMERA", front)
+                    if (runCatching { a.startActivityForResult(cam, Komunikator.REQ_PHOTO) }.isSuccess) { pickingPhoto = true; photoUri = u }
+                    else { runCatching { a.contentResolver.delete(u, null, null) }; Toast.makeText(a, t("Brak aplikacji aparatu", "No camera app"), Toast.LENGTH_SHORT).show() }
+                }.show()
                 1 -> Thread { k.setPhoto(null) }.start()
                 2 -> { k.lock = !k.lock; Toast.makeText(a, items[2].substringBefore(':') + ": " + if (k.lock) t("wł.", "on") else t("wył.", "off"), Toast.LENGTH_SHORT).show() }
                 3 -> password(true) { p -> backupPass = p

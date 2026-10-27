@@ -888,6 +888,11 @@ class KlawiaturaVelivo : InputMethodService() {
                     continue
                 }
                 val l = label(k)
+                // 🤟 alfabet palcowy: na klawiszach liter rysunek dłoni, mała litera w rogu
+                if (palce && sym == 0 && k.code.length == 1 && k.code[0] in 'a'..'z') {
+                    pl.velivo.komunikator.Palce.draw(cv, k.code[0], k.r.centerX(), k.r.centerY() + k.r.height() * 0.05f, minOf(k.r.width(), k.r.height()) / 9.5f)
+                    tp.textSize = 11 * dp; tp.color = if (on) Color.WHITE else text; cv.drawText(l, k.r.right - 8 * dp, k.r.top + 13 * dp, tp); continue
+                }
                 val hint = if (k.code.length == 1 && sym == 0) { val i = "acelnoszx".indexOf(k.code[0]); if (i >= 0 && !alt) "ąćęłńóśżź"[i].toString() else longSym[k.code[0]]?.toString() ?: "" } else ""
                 // jak zwykłe klawiatury telefonu: znak z przytrzymania mały nad literą, litera większa poniżej; wyższe klawisze (ustawienie) - większe litery
                 tp.textSize = (if (emo) (if (k.code.startsWith("ecat")) 20 else 26) * ks else if (l.length > 2) 14f else 22 * ks) * dp; tp.color = if (on) Color.WHITE else text
@@ -1026,7 +1031,8 @@ class KlawiaturaVelivo : InputMethodService() {
         private val menu = ArrayList<K>()
         private val menuMain = listOf("🗒" to "note", "📋" to "notes", "🔍" to "search", "▶" to "yt", "💬" to "chat", "📤" to "sendpc", "📲" to "sendphone", "🌍" to "translate",
             "✓" to "fix", "🎤" to "mic", "📖" to "words", "🌐" to "lang", "♿" to "access", "🎨" to "theme", "⚙" to "settings", "⌨︎" to "back")
-        private val menuAccess = listOf("👵" to "senior", "⠿" to "brajl", "·−" to "morse", "🗣" to "sound", "🔊" to "read", "🔈" to "klik", "↕" to "height", "←" to "back")
+        private val menuAccess = listOf("👵" to "senior", "⠿" to "brajl", "·−" to "morse", "🤟" to "palce", "🗣" to "sound", "🔊" to "read", "🔈" to "klik", "↕" to "height", "←" to "back")
+        private val palce get() = pref("klaw-palce", false)
         private val menuItems get() = if (menuPage == 1) menuAccess else menuMain
         private fun layoutMenu() {
             menu.clear()
@@ -1039,11 +1045,11 @@ class KlawiaturaVelivo : InputMethodService() {
                 menu.add(k)
             }
         }
-        private fun isOn(c: String) = when (c) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; "senior" -> pref("klaw-senior", false); "sound" -> pref("klaw-dzwiek", false); else -> false }
+        private fun isOn(c: String) = when (c) { "fix" -> pref("klaw-korekta"); "klik" -> pref("klaw-klik"); "read" -> pref("klaw-czytaj", false); "mic" -> listening; "senior" -> pref("klaw-senior", false); "sound" -> pref("klaw-dzwiek", false); "palce" -> palce; else -> false }
         private fun menuName(c: String) = when (c) {
             "sendpc" -> R.string.kb_m_send; "chat" -> R.string.kb_m_chat; "sendphone" -> R.string.kb_m_phone; "note" -> R.string.kb_m_note; "notes" -> R.string.kb_m_notes; "search" -> R.string.kb_m_search; "yt" -> R.string.kb_m_yt
             "fix" -> R.string.kb_fix; "klik" -> R.string.kb_click; "read" -> R.string.kb_read; "mic" -> R.string.kb_mic
-            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height; "senior" -> R.string.kb_senior; "brajl" -> R.string.kb_braille; "morse" -> R.string.kb_morse; "sound" -> R.string.kb_sound; "translate" -> R.string.kb_tr_title
+            "words" -> R.string.kb_words; "lang" -> R.string.kb_lang; "theme" -> R.string.kb_theme; "height" -> R.string.kb_height; "senior" -> R.string.kb_senior; "brajl" -> R.string.kb_braille; "morse" -> R.string.kb_morse; "palce" -> R.string.kb_fingers; "sound" -> R.string.kb_sound; "translate" -> R.string.kb_tr_title
             "settings" -> R.string.kb_m_settings; "hide" -> R.string.kb_hide; "access" -> R.string.kb_m_access; else -> R.string.kb_m_back
         }
         // funkcje Velivo (karteczki, szukanie, YouTube) - otwierane w przeglądarce Velivo
@@ -1065,6 +1071,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 "settings" -> startActivity(Intent(context, SzybkieUstawienia::class.java).setAction(Ustawienia.ACTION_ALL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))   // ⚙ okienko nad pisaniem - po wyborze od razu z powrotem
                 "back" -> { if (menuPage == 1) menuPage = 0 else menuOpen = false; refresh(); return }
                 "access" -> { menuPage = 1; refresh(); return }
+                "palce" -> { prefs(context).edit().putBoolean("klaw-palce", !palce).apply(); menuOpen = false; refresh(); return }
                 "brajl" -> { menuOpen = false; brailleOn(); return }
                 "morse" -> { menuOpen = false; morseOn(); return }
                 "sound" -> { soundToggle(); menuOpen = false; refresh(); return }

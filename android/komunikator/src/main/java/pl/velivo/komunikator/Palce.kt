@@ -31,11 +31,27 @@ object Palce {
     fun photo(ctx: Context, key: String) = File(File(ctx.filesDir, "znaki"), key.lowercase().filter { it.isLetterOrDigit() } + ".jpg").takeIf { it.exists() }
     fun savePhoto(ctx: Context, key: String) = File(File(ctx.filesDir, "znaki").apply { mkdirs() }, key.lowercase().filter { it.isLetterOrDigit() } + ".jpg")
 
+    private val skin = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0xFF, 0xD9, 0xB8) }
+    private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x3B, 0x2A, 0x1A); style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private val arrow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x22, 0xD3, 0xEE); style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+    // rysunek znaku litery: środek (cx, cy), u - jednostka (ok. 1/10 wysokości rysunku); także w klawiszach klawiatury (🤟 tryb alfabetu palcowego)
+    fun draw(cv: Canvas, ch: Char, cx: Float, cy: Float, u: Float) {
+        val sp = signs[base(ch)] ?: return
+        line.strokeWidth = u * 0.16f; arrow.strokeWidth = u * 0.22f
+        cv.save(); cv.rotate(sp.rot, cx, cy)
+        when (sp.shape) {
+            'C' -> { skin.style = Paint.Style.STROKE; skin.strokeWidth = u * 1.5f; val r = RectF(cx - 3 * u, cy - 3.2f * u, cx + 3 * u, cy + 3.2f * u)
+                cv.drawArc(r, 40f, 280f, false, skin); line.strokeWidth = u * 0.12f; cv.drawArc(RectF(r.left - .75f * u, r.top - .75f * u, r.right + .75f * u, r.bottom + .75f * u), 40f, 280f, false, line)
+                cv.drawArc(RectF(r.left + .75f * u, r.top + .75f * u, r.right - .75f * u, r.bottom - .75f * u), 40f, 280f, false, line); skin.style = Paint.Style.FILL }
+            'O' -> { skin.style = Paint.Style.STROKE; skin.strokeWidth = u * 1.5f; cv.drawCircle(cx, cy, 2.6f * u, skin); line.strokeWidth = u * 0.12f
+                cv.drawCircle(cx, cy, 3.35f * u, line); cv.drawCircle(cx, cy, 1.85f * u, line); skin.style = Paint.Style.FILL }
+            else -> hand(cv, sp, cx, cy, u)
+        }
+        cv.restore()
+    }
+
     class Dlon(ctx: Context) : View(ctx) {
         private var ch = 'a'; private var pic: android.graphics.Bitmap? = null; private var caption = ""
-        private val skin = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0xFF, 0xD9, 0xB8) }
-        private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x3B, 0x2A, 0x1A); style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
-        private val arrow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x22, 0xD3, 0xEE); style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
         private val big = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textAlign = Paint.Align.CENTER; isFakeBoldText = true }
         fun set(c: Char, photoFile: File?, cap: String) {
             ch = c; caption = cap; pic = photoFile?.let { runCatching { BitmapFactory.decodeFile(it.path) }.getOrNull() }
@@ -48,21 +64,10 @@ object Palce {
             cv.drawText(caption.ifEmpty { ch.uppercase() }, handW + (width - handW) / 2, height / 2f + big.textSize / 3, big)
             pic?.let { b -> val s = minOf(handW / b.width, height.toFloat() / b.height); val w = b.width * s; val h = b.height * s
                 cv.drawBitmap(b, null, RectF((handW - w) / 2, (height - h) / 2, (handW + w) / 2, (height + h) / 2), null); return }
-            val sp = signs[base(ch)] ?: return
-            line.strokeWidth = u * 0.16f; arrow.strokeWidth = u * 0.22f
-            val cx = handW / 2; val cy = height / 2f
-            cv.save(); cv.rotate(sp.rot, cx, cy)
-            when (sp.shape) {
-                'C' -> { skin.style = Paint.Style.STROKE; skin.strokeWidth = u * 1.5f; val r = RectF(cx - 3 * u, cy - 3.2f * u, cx + 3 * u, cy + 3.2f * u)
-                    cv.drawArc(r, 40f, 280f, false, skin); line.strokeWidth = u * 0.12f; cv.drawArc(RectF(r.left - .75f * u, r.top - .75f * u, r.right + .75f * u, r.bottom + .75f * u), 40f, 280f, false, line)
-                    cv.drawArc(RectF(r.left + .75f * u, r.top + .75f * u, r.right - .75f * u, r.bottom - .75f * u), 40f, 280f, false, line); skin.style = Paint.Style.FILL }
-                'O' -> { skin.style = Paint.Style.STROKE; skin.strokeWidth = u * 1.5f; cv.drawCircle(cx, cy, 2.6f * u, skin); line.strokeWidth = u * 0.12f
-                    cv.drawCircle(cx, cy, 3.35f * u, line); cv.drawCircle(cx, cy, 1.85f * u, line); skin.style = Paint.Style.FILL }
-                else -> hand(cv, sp, cx, cy, u)
-            }
-            cv.restore()
+            Palce.draw(cv, ch, handW / 2, height / 2f, u)
         }
-        private fun capsule(cv: Canvas, x: Float, y: Float, len: Float, w: Float, deg: Float) {
+    }
+    private fun capsule(cv: Canvas, x: Float, y: Float, len: Float, w: Float, deg: Float) {
             cv.save(); cv.rotate(deg, x, y); val r = RectF(x - w / 2, y - len, x + w / 2, y + w / 3)
             cv.drawRoundRect(r, w / 2, w / 2, skin); cv.drawRoundRect(r, w / 2, w / 2, line); cv.restore()
         }
@@ -97,5 +102,4 @@ object Palce {
                 cv.drawPath(p, arrow)
             }
         }
-    }
 }

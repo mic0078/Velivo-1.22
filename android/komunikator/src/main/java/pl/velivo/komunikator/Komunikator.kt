@@ -3090,19 +3090,41 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val max = maxOf(a.resources.displayMetrics.widthPixels, a.resources.displayMetrics.heightPixels)
         val d = android.app.Dialog(a, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         val v = android.widget.ImageView(a).apply { scaleType = android.widget.ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.BLACK)
-            contentDescription = t("Zdjęcie – stuknij, aby zamknąć; przesuń, aby zobaczyć następne", "Photo – tap to close; swipe for the next one") }
-        fun show() { v.setImageBitmap(decode(list[i], max)); gif(v, list[i]) }
+            contentDescription = t("Zdjęcie – dwa palce: powiększ i obróć, dwa stuknięcia: powiększ, przesuń: następne", "Photo – two fingers: zoom and rotate, double tap: zoom, swipe: next") }
+        // 🔍 powiększanie (dwa palce / dwa stuknięcia), przesuwanie powiększonego, ↻ obrót dwoma palcami i ⟳ co 90°
+        fun reset() { v.animate().scaleX(1f).scaleY(1f).translationX(0f).translationY(0f).rotation(0f).setDuration(150).start() }
+        fun show() { v.scaleX = 1f; v.scaleY = 1f; v.translationX = 0f; v.translationY = 0f; v.rotation = 0f; v.setImageBitmap(decode(list[i], max)); gif(v, list[i]) }
+        val sg = android.view.ScaleGestureDetector(a, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(det: android.view.ScaleGestureDetector): Boolean { val z = (v.scaleX * det.scaleFactor).coerceIn(1f, 6f); v.scaleX = z; v.scaleY = z; return true }
+        })
         val g = android.view.GestureDetector(a, object : android.view.GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: android.view.MotionEvent) = true
-            override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { d.dismiss(); return true }
-            override fun onLongPress(e: android.view.MotionEvent) { saveToGallery(list[i]) }
+            override fun onSingleTapConfirmed(e: android.view.MotionEvent): Boolean { if (v.scaleX <= 1.01f && v.rotation % 360f == 0f) d.dismiss(); return true }
+            override fun onDoubleTap(e: android.view.MotionEvent): Boolean { if (v.scaleX > 1.01f) reset() else v.animate().scaleX(2.5f).scaleY(2.5f).setDuration(150).start(); return true }
+            override fun onLongPress(e: android.view.MotionEvent) { if (v.scaleX <= 1.01f) saveToGallery(list[i]) }
+            override fun onScroll(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, dx: Float, dy: Float): Boolean {
+                if (v.scaleX <= 1.01f || e2.pointerCount > 1) return false; v.translationX -= dx; v.translationY -= dy; return true }
             override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
-                if (Math.abs(vx) < Math.abs(vy)) return false
+                if (v.scaleX > 1.01f || Math.abs(vx) < Math.abs(vy)) return false
                 val n = if (vx < 0) i + 1 else i - 1; if (n in list.indices) { i = n; show() }; return true
             }
         })
-        v.setOnTouchListener { _, e -> g.onTouchEvent(e) }
-        show(); d.setContentView(v); d.show()
+        var a0 = 0f; var r0 = 0f
+        fun ang(e: android.view.MotionEvent) = Math.toDegrees(Math.atan2((e.getY(1) - e.getY(0)).toDouble(), (e.getX(1) - e.getX(0)).toDouble())).toFloat()
+        v.setOnTouchListener { _, e ->
+            if (e.pointerCount == 2) when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_POINTER_DOWN -> { a0 = ang(e); r0 = v.rotation }
+                android.view.MotionEvent.ACTION_MOVE -> v.rotation = r0 + ang(e) - a0
+            }
+            sg.onTouchEvent(e); g.onTouchEvent(e); true
+        }
+        fun btn(l: String, tip: String, act: () -> Unit) = TextView(a).apply { text = l; textSize = 24f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; contentDescription = tip; tooltipText = tip
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.argb(0x90, 0x30, 0x30, 0x30)) }; setOnClickListener { act() } }
+        val bar = LinearLayout(a).apply { setPadding(px(12), px(12), px(12), px(12))
+            addView(btn("⟳", t("Obróć o 90°", "Rotate 90°")) { v.animate().rotation(Math.round(v.rotation / 90f) * 90f + 90f).setDuration(150).start() }, LinearLayout.LayoutParams(px(52), px(52)).apply { rightMargin = px(10) })
+            addView(btn("1:1", t("Pierwotny wygląd", "Reset")) { reset() }, LinearLayout.LayoutParams(px(52), px(52)).apply { rightMargin = px(10) })
+            addView(btn("✕", t("Zamknij", "Close")) { d.dismiss() }, LinearLayout.LayoutParams(px(52), px(52))) }
+        show(); d.setContentView(android.widget.FrameLayout(a).apply { setBackgroundColor(Color.BLACK); clipChildren = true; addView(v); addView(bar, android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END)) }); d.show()
     }
 
     private fun ColorDrawableCompat(c: Int) = android.graphics.drawable.ColorDrawable(c)

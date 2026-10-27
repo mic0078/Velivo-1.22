@@ -651,6 +651,25 @@ namespace Velivo
             _ = Task.Run(async () => { for (int i = 0; i < 2; i++) { foreach (var p in parts) { if (to != null) KomSendUdp(p, to); KomSendUdp(p, null); } await Task.Delay(1500); } });
         }
 
+        // 🎨 kolorowe ikony przycisków (WPF pokazuje emotki tylko szare) - kształty z Material Icons (Apache 2.0)
+        static FrameworkElement KomIcon(string k, double size = 20)
+        {
+            var c = new Canvas { Width = 24, Height = 24 };
+            void P(string d, string col) => c.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(d), Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(col)) });
+            switch (k)
+            {
+                case "phone": P("M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z", "#22C55E"); break;
+                case "video": P("M17 10.5V7c0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1v10c0 .6.4 1 1 1h12c.6 0 1-.4 1-1v-3.5l4 4v-11l-4 4z", "#3B82F6"); break;
+                case "attach": P("M16.5 6v11.5c0 2.2-1.8 4-4 4s-4-1.8-4-4V5c0-1.4 1.1-2.5 2.5-2.5s2.5 1.1 2.5 2.5v10.5c0 .6-.4 1-1 1s-1-.4-1-1V6H10v9.5c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V5c0-2.2-1.8-4-4-4S7 2.8 7 5v12.5c0 3 2.5 5.5 5.5 5.5s5.5-2.5 5.5-5.5V6h-1.5z", "#CBD5E1"); break;
+                case "mic": P("M12 14c1.7 0 3-1.3 3-3V5c0-1.7-1.3-3-3-3S9 3.3 9 5v6c0 1.7 1.3 3 3 3zm5.3-3c0 3-2.5 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.4 2.7 6.2 6 6.7V21h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z", "#EF4444"); break;
+                case "stop": P("M6 6h12v12H6z", "#EF4444"); break;
+                case "gallery": P("M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2z", "#38BDF8"); P("M8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z", "#15803D"); P("M16 6.5a1.5 1.5 0 1 0 .01 0z", "#FACC15"); break;
+                case "emoji": P("M12 2a10 10 0 1 0 .01 0z", "#FACC15"); P("M8.5 8.3a1.3 1.3 0 1 0 .01 0zM15.5 8.3a1.3 1.3 0 1 0 .01 0z", "#3B2A1A"); P("M7.2 13.5c1 2 2.7 3.2 4.8 3.2s3.8-1.2 4.8-3.2h-1.9c-.7 1-1.7 1.6-2.9 1.6s-2.2-.6-2.9-1.6z", "#3B2A1A"); break;
+                case "screen": P("M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z", "#06B6D4"); break;
+            }
+            return new Viewbox { Width = size, Height = size, Child = c };
+        }
+
         void KomSend(KomContact c, string text)
         {
             var m = new KomMsg { Mine = true, Text = text.Length > 4000 ? text.Substring(0, 4000) : text, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") };
@@ -1499,16 +1518,16 @@ namespace Velivo
                 typedAt = DateTime.UtcNow; var tp = KomPacket("p2p-typing"); tp["to"] = tc.Id; IPAddress.TryParse(tc.Addr ?? "", out var ta); KomSendUdp(tp, ta);
             };
             var sendBtn = new Button { Content = "➤", FontSize = 16, Width = 44, Margin = new Thickness(6, 0, 0, 0), ToolTip = L.T("Wyślij") };
-            var fileBtn = new Button { Content = "📎", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
-            var micBtn = new Button { Content = "🎤", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Wiadomość głosowa: kliknij, mów, kliknij ponownie, by wysłać") };
+            var fileBtn = new Button { Content = KomIcon("attach"), FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Załącz plik") };
+            var micBtn = new Button { Content = KomIcon("mic"), FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Wiadomość głosowa: kliknij, mów, kliknij ponownie, by wysłać") };
             var locBtn = new Button { Content = "📍", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Wyślij moją lokalizację (link do mapy)") };
             var camBtn = new Button { Content = "📷", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Zrób zdjęcie kamerą i wyślij (pełna jakość)") };
             var vidBtn = new Button { Content = "🎬", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Nagraj wiadomość wideo") };
-            var voiceBtn = new Button { Content = "📞", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa głosowa") };
-            var galBtn = new Button { Content = "🖼", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Zdjęcia, filmy i pliki z rozmowy") };
-            var callBtn = new Button { Content = "📹", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa wideo") };
+            var voiceBtn = new Button { Content = KomIcon("phone"), FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa głosowa") };
+            var galBtn = new Button { Content = KomIcon("gallery"), FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Zdjęcia, filmy i pliki z rozmowy") };
+            var callBtn = new Button { Content = KomIcon("video"), FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Rozmowa wideo") };
             // 🖥 pomoc zdalna - osobny przycisk z napisem (wcześniej tylko w rozmowie wideo - łatwo pomylić)
-            var helpBtn = new Button { Content = "🖥 " + L.T("Pomoc zdalna"), FontSize = 13, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Pomoc zdalna: pokaż swój ekran albo zobacz ekran rozmówcy; sterowanie myszą tylko za zgodą") };
+            var helpBtn = new Button { Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { KomIcon("screen", 18), new TextBlock { Text = " " + L.T("Pomoc zdalna"), VerticalAlignment = VerticalAlignment.Center } } }, FontSize = 13, Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Pomoc zdalna: pokaż swój ekran albo zobacz ekran rozmówcy; sterowanie myszą tylko za zgodą") };
             var bottom = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             DockPanel.SetDock(bottom, Dock.Bottom);
             // pasek stanu: wysylanie / odbior pliku z postepem, wyniki - okno zostaje otwarte
@@ -1528,7 +1547,7 @@ namespace Velivo
             micBtn.Margin = sendBtn.Margin = new Thickness(6, 0, 0, 0);
             DockPanel.SetDock(fileBtn, Dock.Left); DockPanel.SetDock(micBtn, Dock.Right); DockPanel.SetDock(sendBtn, Dock.Right);
             // 😀 panel emoji Windows (to samo co Win+.) - przy polu wiadomości
-            var emojiBtn = new Button { Content = "😀", FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Emotki (Win+.)") };
+            var emojiBtn = new Button { Content = KomIcon("emoji"), FontSize = 16, Width = 44, Margin = new Thickness(0, 0, 6, 0), ToolTip = L.T("Emotki (Win+.)") };
             emojiBtn.Click += (s0, e0) => { input.Focus(); keybd_event(0x5B, 0, 0, 0); keybd_event(0xBE, 0, 0, 0); keybd_event(0xBE, 0, 2, 0); keybd_event(0x5B, 0, 2, 0); };
             DockPanel.SetDock(emojiBtn, Dock.Left); buttons.Add(emojiBtn);
             bottom.Children.Add(fileBtn); bottom.Children.Add(emojiBtn); bottom.Children.Add(sendBtn); bottom.Children.Add(micBtn); bottom.Children.Add(input);
@@ -1543,7 +1562,7 @@ namespace Velivo
             foreach (var b in new[] { galBtn, voiceBtn, callBtn, helpBtn }) { b.Height = 34; b.Margin = new Thickness(0, 0, 6, 0); tools.Children.Add(b); }
             tools.Children.Add(searchBox); searchBox.Margin = new Thickness(0); searchBox.Height = 34;
             DockPanel.SetDock(tools, Dock.Right); top.Children.Add(tools); top.Children.Add(header);
-            void SendOrMic() { bool t = input.Text.Trim().Length > 0 && (string)micBtn.Content != "⏹"; sendBtn.Visibility = t ? Visibility.Visible : Visibility.Collapsed; micBtn.Visibility = t ? Visibility.Collapsed : Visibility.Visible; }
+            void SendOrMic() { bool t = input.Text.Trim().Length > 0 && !Equals(micBtn.Tag, "rec"); sendBtn.Visibility = t ? Visibility.Visible : Visibility.Collapsed; micBtn.Visibility = t ? Visibility.Collapsed : Visibility.Visible; }
             input.TextChanged += (s0, e0) => SendOrMic(); SendOrMic();
             // ↩ odpowiedź na wiadomość: cytat nad polem (kliknięcie - anuluj), idzie przed tekstem
             KomMsg replyTo = null;
@@ -1953,10 +1972,10 @@ namespace Velivo
                     KomMci("close velivorec"); 
                     if (KomMci("open new type waveaudio alias velivorec") != 0 || KomMci("set velivorec bitspersample 16 channels 1 samplespersec 22050") != 0 || KomMci("record velivorec") != 0)
                     { KomMci("close velivorec"); KomInfo(L.T("Nie udało się włączyć mikrofonu")); return; }
-                    recording = true; recAt = DateTime.UtcNow; micBtn.Content = "⏹"; KomInfo("🎤 " + L.T("Nagrywam… kliknij ⏹, by wysłać"));
+                    recording = true; recAt = DateTime.UtcNow; micBtn.Content = KomIcon("stop"); micBtn.Tag = "rec"; KomInfo("🎤 " + L.T("Nagrywam… kliknij ⏹, by wysłać"));
                     return;
                 }
-                recording = false; micBtn.Content = "🎤";
+                recording = false; micBtn.Content = KomIcon("mic"); micBtn.Tag = null;
                 KomMci("stop velivorec"); bool ok = KomMci("save velivorec \"" + recPath + "\"") == 0; KomMci("close velivorec");
                 if (ok && DateTime.UtcNow - recAt > TimeSpan.FromMilliseconds(700) && File.Exists(recPath)) await AttachTo(c, new[] { recPath });
                 else try { File.Delete(recPath); } catch (Exception) { }

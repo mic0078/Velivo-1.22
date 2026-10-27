@@ -889,7 +889,7 @@ namespace Velivo
         // UPnP: router podaje swoj adres w internecie i otwiera port na ten komputer. Gdy router tego nie umie - adres
         // z publicznej uslugi (api.ipify.org), port trzeba wtedy otworzyc recznie. Adres sprawdzany co godzine (zmiana IP).
         bool _komRelayPortFixed;   // port wpisany recznie (inny niz 41920) - Velivo go nie zmienia
-        bool _komRelayAuto = true;   // adres ustalany automatycznie (pusty albo nie wpisany recznie)
+        bool _komRelayAuto = true; string _komRelayDns = "";   // ostrzeżenie: wpisana nazwa nie wskazuje na dom   // adres ustalany automatycznie (pusty albo nie wpisany recznie)
         string _komRelayRouter = "";  // co zrobil router (do okna)
         System.Windows.Threading.DispatcherTimer _komRelayAutoTimer;
 
@@ -916,10 +916,16 @@ namespace Velivo
                     var res = await Task.Run(() => KomUpnpAsync(p2));
                     if (res.mapped) { _komRelayMoved = DateTime.UtcNow; mapped = true; note = ""; ext = res.ext ?? ext; _komRelayPort = p2; KomSave(); KomRelayStart(); KomAnnounce(); return; }
                 }
-            if (ext == null && _komRelayAuto)
+            if (ext == null)
                 try { using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(6) }) ext = (await http.GetStringAsync("https://api.ipify.org")).Trim(); }
                 catch (Exception) { }
             if (ext != null && !IPAddress.TryParse(ext, out _)) ext = null;
+            if (_komRelayAuto && !IPAddress.TryParse(_komRelayHost, out _)) _komRelayHost = ext ?? "";
+            // wpisana nazwa (No-IP itp.) - czy naprawdę wskazuje na obecny adres domu
+            _komRelayDns = "";
+            if (!_komRelayAuto && _komRelayHost.Length > 0 && !IPAddress.TryParse(_komRelayHost, out _) && ext != null)
+                try { var ips = await System.Net.Dns.GetHostAddressesAsync(_komRelayHost); if (!ips.Any(a => a.ToString() == ext)) _komRelayDns = "⚠ " + _komRelayHost + L.T(" wskazuje na ") + (ips.Length > 0 ? ips[0].ToString() : "?") + L.T(", a adres domu to ") + ext + L.T(" – popraw nazwę u dostawcy (np. No-IP) albo zostaw pole puste"); }
+                catch (Exception) { _komRelayDns = "⚠ " + _komRelayHost + L.T(" – ta nazwa nie istnieje (sprawdź u dostawcy, np. No-IP) albo zostaw pole puste"); }   // pamiętana stara nazwa z ręcznego wpisu - nie pokazuj jej jako adresu domu
             // 🌍 zapasowe wejście przez port 443 (sieci blokujące nietypowe porty) - w routerze 443 -> port pośrednika na tym komputerze
             var alt = await Task.Run(() => KomUpnpAsync(KomRelayAltPort, port));
             // router bez UPnP (przekierowanie ręczne): prawdziwy test - połączenie z adresem domu na 443 i odpowiedź naszego pośrednika
@@ -1013,7 +1019,7 @@ namespace Velivo
         {
             if (_komRelayStatusText == null) return;
             _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port")) +
-                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + (_komRemote.IsEmpty ? _komRelayRouter : L.T("Router: port działa – są połączenia z internetu")) : "") +
+                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayDns.Length > 0 ? "\n" + _komRelayDns : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + (_komRemote.IsEmpty ? _komRelayRouter : L.T("Router: port działa – są połączenia z internetu")) : "") +
                 (_komRelayOn && _komRelayListener != null ? "\n" + (_komRelayAlt ? L.T("Zapasowo port 443: otwarty (działa też w sieciach blokujących porty)")
                     : _komRelayUpnp ? L.T("Zapasowo port 443: nieotwarty – w routerze przekieruj 443 na ten komputer, port ") + _komRelayPort
                     : L.T("Zapasowo port 443: router nie pozwala tego sprawdzić – jeśli przekierowałeś w routerze 443 na ten komputer, port ") + _komRelayPort + L.T(", działa")) : "");
@@ -1053,6 +1059,7 @@ namespace Velivo
             var typed = host.Text.Trim();
             _komRelayAuto = typed.Length == 0;   // puste - adres ustala Velivo (i pilnuje zmian IP)
             if (!_komRelayAuto) _komRelayHost = typed;
+            else if (!IPAddress.TryParse(_komRelayHost, out _)) _komRelayHost = "";   // automatycznie - stara, kiedyś wpisana nazwa (np. No-IP) nie zostaje; adres ustali sprawdzenie
             if (int.TryParse(port.Text.Trim(), out var pt) && pt > 0 && pt < 65536) { _komRelayPortFixed = pt != 41920; _komRelayPort = pt; }   // OK w oknie - port zatwierdzony przez właściciela
             KomSave();
             KomRelayStart();

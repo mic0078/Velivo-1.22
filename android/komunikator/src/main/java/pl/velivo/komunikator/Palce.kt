@@ -60,7 +60,7 @@ object Palce {
         override fun onDraw(cv: Canvas) {
             cv.drawColor(Color.rgb(0x13, 0x10, 0x26))
             val handW = width * 0.66f; val u = minOf(handW, height.toFloat()) / 10f
-            big.textSize = minOf(width * 0.3f, height * 0.5f)
+            val cap = caption.ifEmpty { ch.uppercase() }; big.textSize = minOf(width * 0.3f, height * 0.5f, (width - handW) * 0.9f / maxOf(1f, cap.length * 0.65f))   // podpis zawsze w swoim miejscu, obok dłoni
             cv.drawText(caption.ifEmpty { ch.uppercase() }, handW + (width - handW) / 2, height / 2f + big.textSize / 3, big)
             pic?.let { b -> val s = minOf(handW / b.width, height.toFloat() / b.height); val w = b.width * s; val h = b.height * s
                 cv.drawBitmap(b, null, RectF((handW - w) / 2, (height - h) / 2, (handW + w) / 2, (height + h) / 2), null); return }

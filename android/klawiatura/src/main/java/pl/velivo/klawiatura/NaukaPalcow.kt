@@ -77,7 +77,7 @@ class NaukaPalcow : Activity() {
                         hand.set(want, null, want.uppercase()); hand.postDelayed({ pick(); show() }, if (ok) 900L else 1800L)
                     } }, LinearLayout.LayoutParams(0, -2, 1f)) }
             }
-            else -> { row.word = word; row.mark = -1; row.requestLayout(); row.invalidate(); if (word.isNotEmpty()) hand.set(word[0], null, word.uppercase()) else hand.set('a', null, ""); info.text = word.uppercase() }
+            else -> { row.word = word; row.mark = -1; row.requestLayout(); row.invalidate(); if (word.isNotEmpty()) hand.set(word[0], null, word[0].uppercase()) else hand.set('a', null, ""); info.text = word.uppercase() }
         }
     }
 

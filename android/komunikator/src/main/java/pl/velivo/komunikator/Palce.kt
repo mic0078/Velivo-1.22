@@ -28,7 +28,7 @@ object Palce {
     fun base(c: Char): Char { val i = "ąćęłńóśźż".indexOf(c.lowercaseChar()); return if (i >= 0) "acelnoszz"[i] else c.lowercaseChar() }
     fun has(c: Char) = base(c) in signs
     // własne zdjęcia: litera (a.jpg) albo słowo (dom.jpg)
-    fun photo(ctx: Context, key: String) = File(File(ctx.filesDir, "znaki"), key.lowercase().filter { it.isLetterOrDigit() } + ".jpg").takeIf { it.exists() }
+    fun photo(ctx: Context, key: String) = listOf(".gif", ".jpg").map { File(File(ctx.filesDir, "znaki"), key.lowercase().filter { it.isLetterOrDigit() } + it) }.firstOrNull { it.exists() }   // 🎞 GIF - znak z ruchem
     fun savePhoto(ctx: Context, key: String) = File(File(ctx.filesDir, "znaki").apply { mkdirs() }, key.lowercase().filter { it.isLetterOrDigit() } + ".jpg")
 
     private val skin = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0xFF, 0xD9, 0xB8) }
@@ -51,10 +51,14 @@ object Palce {
     }
 
     class Dlon(ctx: Context) : View(ctx) {
-        private var ch = 'a'; private var pic: android.graphics.Bitmap? = null; private var caption = ""
+        private var ch = 'a'; private var pic: android.graphics.Bitmap? = null; private var caption = ""; private var anim: android.graphics.drawable.Drawable? = null
+        override fun verifyDrawable(who: android.graphics.drawable.Drawable) = who === anim || super.verifyDrawable(who)
         private val big = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textAlign = Paint.Align.CENTER; isFakeBoldText = true }
         fun set(c: Char, photoFile: File?, cap: String) {
-            ch = c; caption = cap; pic = photoFile?.let { runCatching { BitmapFactory.decodeFile(it.path) }.getOrNull() }
+            ch = c; caption = cap; (anim as? android.graphics.drawable.AnimatedImageDrawable)?.stop(); anim = null
+            pic = photoFile?.takeIf { !it.name.endsWith(".gif") }?.let { runCatching { BitmapFactory.decodeFile(it.path) }.getOrNull() }
+            anim = photoFile?.takeIf { it.name.endsWith(".gif") }?.let { f -> runCatching { android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(f)) }.getOrNull() }
+                ?.also { d -> d.callback = this; (d as? android.graphics.drawable.AnimatedImageDrawable)?.start() }
             contentDescription = cap; invalidate()
         }
         override fun onDraw(cv: Canvas) {
@@ -62,6 +66,8 @@ object Palce {
             val handW = width * 0.66f; val u = minOf(handW, height.toFloat()) / 10f
             val cap = caption.ifEmpty { ch.uppercase() }; big.textSize = minOf(width * 0.3f, height * 0.5f, (width - handW) * 0.9f / maxOf(1f, cap.length * 0.65f))   // podpis zawsze w swoim miejscu, obok dłoni
             cv.drawText(caption.ifEmpty { ch.uppercase() }, handW + (width - handW) / 2, height / 2f + big.textSize / 3, big)
+            anim?.let { d -> val s = minOf(handW / d.intrinsicWidth, height.toFloat() / d.intrinsicHeight); val w = (d.intrinsicWidth * s).toInt(); val h = (d.intrinsicHeight * s).toInt()
+                d.setBounds(((handW - w) / 2).toInt(), (height - h) / 2, ((handW + w) / 2).toInt(), (height + h) / 2); d.draw(cv); return }
             pic?.let { b -> val s = minOf(handW / b.width, height.toFloat() / b.height); val w = b.width * s; val h = b.height * s
                 cv.drawBitmap(b, null, RectF((handW - w) / 2, (height - h) / 2, (handW + w) / 2, (height + h) / 2), null); return }
             Palce.draw(cv, ch, handW / 2, height / 2f, u)

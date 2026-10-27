@@ -44,7 +44,10 @@ class NaukaPalcow : Activity() {
             addView(LinearLayout(this@NaukaPalcow).apply { addView(input, LinearLayout.LayoutParams(0, -2, 1f))
                 addView(btn("🤟 " + t("Pokaż", "Show")) { word = input.text.toString().filter { Palce.has(it) }; wi = 0; show() }) })
             addView(HorizontalScrollView(this@NaukaPalcow).apply { addView(row, LinearLayout.LayoutParams(-2, px(150))) }, LinearLayout.LayoutParams(-1, px(150)))
-            addView(btn("▶ " + t("Litera po literze", "Letter by letter")) { if (word.isNotEmpty()) { wi = 0; play() } }) }
+            addView(LinearLayout(this@NaukaPalcow).apply {
+                addView(btn("▶ " + t("Litera po literze", "Letter by letter")) { if (word.isNotEmpty()) { wi = 0; play() } }, LinearLayout.LayoutParams(0, -2, 1f))
+                // 📷 znak całego słowa (jak w języku migowym): własne zdjęcie, np. od osoby migającej - potem pokazywane zamiast liter
+                addView(btn("📷 " + t("Znak słowa", "Word sign")) { if (word.isNotEmpty()) runCatching { startActivityForResult(android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).setType("image/*"), 7) } }, LinearLayout.LayoutParams(0, -2, 1f)) }) }
         val tabs = LinearLayout(this).apply {
             listOf(t("Poznawanie", "Explore"), t("Ćwiczenie", "Practice"), t("Słowo", "Word")).forEachIndexed { k, l -> addView(btn(l) { mode = k; if (k == 1) pick(); show() }, LinearLayout.LayoutParams(0, -2, 1f)) } }
         setContentView(LinearLayout(this).apply {
@@ -77,8 +80,23 @@ class NaukaPalcow : Activity() {
                         hand.set(want, null, want.uppercase()); hand.postDelayed({ pick(); show() }, if (ok) 900L else 1800L)
                     } }, LinearLayout.LayoutParams(0, -2, 1f)) }
             }
-            else -> { row.word = word; row.mark = -1; row.requestLayout(); row.invalidate(); if (word.isNotEmpty()) hand.set(word[0], null, word[0].uppercase()) else hand.set('a', null, ""); info.text = word.uppercase() }
+            else -> { row.word = word; row.mark = -1; row.requestLayout(); row.invalidate()
+                val sign = if (word.isNotEmpty()) Palce.photo(this, word) else null   // własny znak całego słowa
+                if (word.isNotEmpty()) hand.set(word[0], sign, if (sign != null) word.uppercase() else word[0].uppercase()) else hand.set('a', null, "")
+                info.text = word.uppercase() + if (word.isNotEmpty() && sign == null) (if (pl) "  ·  📷 Znak słowa – dodaj zdjęcie znaku całego słowa" else "  ·  📷 Word sign – add a photo of the whole-word sign") else "" }
         }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        val u = data?.data ?: return; if (requestCode != 7 || resultCode != RESULT_OK || word.isEmpty()) return
+        val w = word; Thread { runCatching {
+            if (contentResolver.getType(u) == "image/gif") {   // 🎞 GIF - zachowany ruch (znak z animacją)
+                Palce.savePhoto(this, w).delete(); java.io.File(Palce.savePhoto(this, w).path.removeSuffix(".jpg") + ".gif").outputStream().use { o -> contentResolver.openInputStream(u)!!.use { it.copyTo(o) } }; return@runCatching }
+            java.io.File(Palce.savePhoto(this, w).path.removeSuffix(".jpg") + ".gif").delete()
+            val b = contentResolver.openInputStream(u)!!.use { android.graphics.BitmapFactory.decodeStream(it) }!!
+            val sc = minOf(1f, 900f / maxOf(b.width, b.height)); Palce.savePhoto(this, w).outputStream().use { android.graphics.Bitmap.createScaledBitmap(b, (b.width * sc).toInt(), (b.height * sc).toInt(), true).compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
+        }; runOnUiThread { show() } }.start()
     }
 
     // całe słowo: dłonie obok siebie, litery pod spodem; podświetlona litera przy odtwarzaniu
@@ -87,9 +105,13 @@ class NaukaPalcow : Activity() {
         private val dp = resources.displayMetrics.density
         private val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textAlign = Paint.Align.CENTER; textSize = 18 * dp }
         private val hi = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(0x60, 0x22, 0xD3, 0xEE) }
-        override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(maxOf(MeasureSpec.getSize(w), (word.length * 110 * dp).toInt()), (150 * dp).toInt())
+        // krótkie słowo mieści się całe na ekranie (dłonie mniejsze), długie - przewijane palcem
+        private var cw = 110 * dp
+        override fun onMeasure(w: Int, h: Int) {
+            val room = resources.displayMetrics.widthPixels - 16 * dp; cw = (room / maxOf(1, word.length)).coerceIn(56 * dp, 110 * dp)
+            setMeasuredDimension(maxOf(room.toInt(), (word.length * cw).toInt()), (150 * dp).toInt())
+        }
         override fun onDraw(c: Canvas) {
-            val cw = 110 * dp
             word.forEachIndexed { k, ch -> val cx = k * cw + cw / 2
                 if (k == mark) c.drawRoundRect(k * cw + 4 * dp, 0f, (k + 1) * cw - 4 * dp, height.toFloat(), 12 * dp, 12 * dp, hi)
                 Palce.draw(c, ch, cx, height * 0.42f, cw / 11f); c.drawText(ch.uppercase(), cx, height - 8 * dp, tp) }

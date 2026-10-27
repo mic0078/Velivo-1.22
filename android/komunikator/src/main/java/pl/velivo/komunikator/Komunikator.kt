@@ -596,8 +596,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val r = myRelay() ?: return null
         var sk = prefs.getString("moj-adres", null)
         if (sk == null || reset) { sk = b64(ByteArray(24).also { random.nextBytes(it) }); prefs.edit().putString("moj-adres", sk).apply() }
-        hidden(r, ADDR + sk)   // pośrednik zna sekret - wpuszcza tylko prośby z tym linkiem
+        val all = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup } }
+        all.forEach { hidden(it, ADDR + sk) }   // każdy pośrednik (NUCBOX, CHUWI) zna sekret - wpuszcza tylko prośby z tym linkiem, prośba dojdzie, gdy jeden nie działa
         val j = JSONObject().put("a", r.relay).put("o", myId).put("s", sk).put("n", deviceName())
+            .put("r", JSONArray(all.mapNotNull { it.relay }.filter { it != r.relay }.distinct().take(4)))   // zapasowe adresy pośredników
         return "VELIVO-KONTAKT:" + Base64.encodeToString(j.toString().toByteArray(Charsets.UTF_8), Base64.NO_WRAP or Base64.URL_SAFE)
     }
     // prośba od kogoś z moim linkiem - czeka na zgodę (okno przy otwarciu komunikatora)
@@ -643,9 +645,12 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         for (i in 0 until l.length()) {
             val j = JSONObject(l.getString(i)); var done = false
             runCatching {
-                val hp = j.optString("a"); val sk = unb64(j.optString("s")); val ts = System.currentTimeMillis()
-                java.net.Socket().use { so ->
-                    so.connect(InetSocketAddress(hp.substringBeforeLast(':'), hp.substringAfterLast(':').toInt()), 12000); so.soTimeout = 15000
+                var hp = j.optString("a"); val sk = unb64(j.optString("s")); val ts = System.currentTimeMillis()
+                // pierwszy działający pośrednik z linku (zapasowe „r”, gdy główny nie działa) - zapamiętany jako główny
+                val alt = j.optJSONArray("r")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { ':' in it } }.orEmpty()
+                val so = (listOf(hp) + alt).firstNotNullOfOrNull { cand -> java.net.Socket().let { x -> runCatching { x.connect(InetSocketAddress(cand.substringBeforeLast(':'), cand.substringAfterLast(':').toInt()), 8000); if (cand != hp) { j.put("a", cand); hp = cand }; x }.getOrElse { x.close(); null } } }
+                so?.use { so ->
+                    so.soTimeout = 15000
                     val out = so.getOutputStream(); val inp = DataInputStream(so.getInputStream())
                     val hello = JSONObject().put("Type", "relay-ask").put("Id", myId).put("To", j.optString("o")).put("Pub", j.optString("pub")).put("Name", deviceName()).put("Ts", ts)
                     writeBlock(out, hello.toString().toByteArray(Charsets.UTF_8))

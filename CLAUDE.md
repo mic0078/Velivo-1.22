@@ -13,6 +13,7 @@ Velivo ma być lekkie, szybkie i dyskretne. Odpowiadaj po polsku, krótko. Mów,
 * Klawiatura bez zbędnego słownika: nie dodawaj dużych list słów – poprawiaj reguły i istniejący słownik.
 * Nie powtarzasz błędów: wyciągasz wnioski, pamiętasz je i uczysz się na innych aplikacjach dostępnych w sieci.
 * Użytkownik zawsze ma rację: gdy mówi, że coś nie działa, najpierw szukasz błędu w swoim kodzie i ostatnich zmianach – nie odsyłasz go do sprawdzania. Wyciągasz wnioski.
+* Logika i przewidywanie (2026-10-27, właściciel): zanim zaproponujesz rozwiązanie, przemyśl je do końca jak inżynier – co się stanie przy awarii, przy dwóch naraz, po ponownym uruchomieniu, w innej sieci. Zapasowy serwer musi przejmować pracę; dwa działające jednocześnie – bez podwójnych kontaktów i wiadomości. Nie czekaj, aż właściciel to wytknie.
 * Nie można ludzi oszukiwać: bez bzdur i zgadywanek, zawsze piszesz, co sprawdziłeś, a czego nie. CLAUDE.md ma być wiarygodny i trzymasz się go.
 
 ## Wnioski (pamięć 3–5 dni)
@@ -104,6 +105,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-27: na jednym telefonie ✓✓ nie robiły się niebieskie – telefon i Windows wysyłały „przeczytane” raz i tylko na stary adres (bez sieci domowej/pośrednika – telefon na 5G przez NUCBOX nic nie dostawał); teraz jak wiadomość: adres + cała sieć, z powtórką. Każdy pakiet do kontaktu – tymi samymi drogami co wiadomość.
 * 2026-10-27: okno 🌍 pokazywało „Adres domu: n5plus.ddns.net”, choć pole było puste (automatycznie) – pamiętało stary ręczny wpis; teraz w trybie automatycznym tylko sprawdzony adres, a wpisana nazwa jest sprawdzana (czy wskazuje na dom). Stan w oknach zawsze z bieżącego sprawdzenia.
 * 2026-10-27: CHUWI (drugi pośrednik) nie działał poza domem – telefon znał adresy pośredników tylko z sieci domowej (raz przy ich starcie); teraz pośrednik od razu podaje telefonowi z internetu adresy innych pośredników z domu. Zamiast odsyłać właściciela do routera i testów, najpierw sprawdź logikę: części jednego systemu (pośrednicy, urządzenia) mają się same wymieniać wiedzą.
+* 2026-10-27: zaproponowałem zapasowego pośrednika, ale nie sprawdziłem, czy przejmie pracę przy awarii (skrzynka, link „Mój adres”, adresy u telefonów były tylko u jednego) – właściciel musiał to wytknąć. Każdą funkcję „zapasową” sprawdzaj scenariuszem: główny padł – co dalej?
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)
@@ -111,7 +113,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * **Cel komunikatora (właściciel):** działa jak WhatsApp (wiadomości, pliki, głosówki, wideo, rozmowy, grupy, powiadomienia, otwieranie stuknięciem), ale prywatnie – bez cudzych serwerów, tylko przez domowy pośrednik (NUCBOX) i szyfrowanie od nadawcy do odbiorcy. Każda zmiana komunikatora ma to porównanie z WhatsApp.
 
 * Komunikator: w domu i poza domem przez domowy komputer (pośrednik, UPnP, bez ustawiania); 🏠/🌍; pliki i zrzuty w obie strony; zaproszenia (WhatsApp, SMS); rozmowy wideo (WebRTC, poza domem prywatny TURN na porcie pośrednika).
-* 📬 Skrzynka pośrednika: wiadomości (`komunikator-skrzynka.json`) i pliki (`skrzynka\<odbiorca>`, typ `p2p-box`, klucz z klucza kontaktu) dla nieobecnych – oddawane, gdy odbiorca się pojawi. Pośrednicy w domu (NUCBOX, CHUWI) dzielą skrzynkę wiadomości: kopia u każdego (`box`), po doręczeniu `p2p-boxdone` kasuje kopie; pliki w skrzynce jeszcze tylko u jednego.
+* 📬 Skrzynka pośrednika: wiadomości (`komunikator-skrzynka.json`) i pliki (`skrzynka\<odbiorca>`, typ `p2p-box`, klucz z klucza kontaktu) dla nieobecnych – oddawane, gdy odbiorca się pojawi. Pośrednicy w domu (NUCBOX, CHUWI) dzielą skrzynkę wiadomości: kopia u każdego (`box`), po doręczeniu `p2p-boxdone` kasuje kopie; pliki też (kopia `k…` oddawana dopiero po 2 min, gdy główny nie oddał). Link „Mój adres” ma zapasowe adresy pośredników (`r`), każdy pośrednik zna sekret.
 * 🔗 „Mój adres Velivo”: link dla każdego (sekret u pośrednika), prośba → Dodaj/Odrzuć u właściciela; obcy dostaje tylko komunikator. Dom (sieć domowa, filmy, synchronizacja) ≠ komunikator przez internet.
 * Klawiatura (Windows i telefon, te same reguły): do 2 pomyłek sama, większe – propozycje; nie zmienia dobrych słów (formy -aj, -uje, -ąc); sklejone słowa (mi chodziło, o tym); na prawdę → naprawdę; przecinek przed „że”.
 * Klawiatura zapamiętuje na stałe: Mój słownik, cofnięte poprawki (⌫), częste słowa i pary – zaszyfrowane na urządzeniu.

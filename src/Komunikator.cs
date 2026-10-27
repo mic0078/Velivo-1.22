@@ -1114,7 +1114,7 @@ namespace Velivo
             if (type == "p2p-box" && toId != _komId)
             {   // 📬 pośrednik: plik do kontaktu, którego może nie być - przechowanie i oddanie, gdy się pojawi
                 if (_komRelayListener == null) return true;
-                try { await KomBoxStore(h, headerBytes, stream, token); } catch (Exception ex) { if (!token.IsCancellationRequested && ex is not IOException) App.LogError(ex); }
+                try { await KomBoxStore(h, headerBytes, stream, KomPeerAt(remote) is string pr && pr != (string)h["Id"], token); } catch (Exception ex) { if (!token.IsCancellationRequested && ex is not IOException) App.LogError(ex); }
                 return true;
             }
             if (type == "p2p-file" && toId != null && toId != _komId && _komRemote.ContainsKey(toId)) { await KomRelayToRemote(toId, headerBytes, stream, token); return true; }

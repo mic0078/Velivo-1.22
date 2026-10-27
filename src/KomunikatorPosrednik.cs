@@ -153,13 +153,15 @@ namespace Velivo
         // 📬 skrzynka na pliki: plik do kontaktu, którego nie ma - zaszyfrowany kluczem nadawcy i odbiorcy (pośrednik go nie odczyta),
         // na dysku pośrednika do odebrania (DataDir\skrzynka\<odbiorca>); oddawany, gdy odbiorca się pojawi (internet albo sieć domowa)
         static string KomBoxDir(string id) => Path.Combine(DataDir, "skrzynka", id);
-        async Task KomBoxStore(JsonNode h, byte[] hb, Stream s, CancellationToken token)
+        async Task KomBoxStore(JsonNode h, byte[] hb, Stream s, bool fromPeer, CancellationToken token)
         {
             var to = (string)h["To"] ?? ""; long size = (long?)h["Size"] ?? -1;
             if (to.Length != 32 || size < 0 || size > LanFile2Limit) return;
             if (!await Dispatcher.InvokeAsync(() => KomContactById(to) != null && KomContactById((string)h["Id"] ?? "") != null)) return;   // tylko między kontaktami tego komputera
             var dir = KomBoxDir(to); Directory.CreateDirectory(dir);
-            var f = Path.Combine(dir, DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "-" + Guid.NewGuid().ToString("N"));
+            var hid = Convert.ToHexString(SHA256.HashData(hb), 0, 16);   // ten sam plik u każdego pośrednika ma tę samą nazwę - kopia kasowana po doręczeniu
+            if (fromPeer && (_komBoxGone.ContainsKey(hid) || Directory.GetFiles(dir, "*-" + hid + ".hdr").Length > 0)) { await s.WriteAsync(new byte[] { 0 }, 0, 1, token); return; }   // już doręczony albo już jest
+            var f = Path.Combine(dir, (fromPeer ? "k" : "") + DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "-" + hid);   // k - kopia od innego pośrednika
             await s.WriteAsync(new byte[] { 1 }, 0, 1, token); await s.FlushAsync(token);
             try
             {
@@ -179,17 +181,35 @@ namespace Velivo
                 await s.WriteAsync(new byte[32], 0, 32, token); await s.FlushAsync(token);   // przechowane
             }
             finally { try { File.Delete(f + ".part"); } catch (Exception) { } }
-            _ = KomBoxFlush(to);
+            _ = Task.Run(async () => { await KomBoxFlush(to); if (!fromPeer && File.Exists(f + ".hdr")) await KomBoxCopy(f); });   // nie doręczony od razu - kopia u innych pośredników w domu
+        }
+        // 📬 kopia pliku ze skrzynki u innych pośredników w domu (NUCBOX, CHUWI) - gdy ten padnie, inny go odda
+        readonly ConcurrentDictionary<string, DateTime> _komBoxGone = new ConcurrentDictionary<string, DateTime>();   // doręczone przez innego pośrednika - spóźniona kopia odrzucana
+        async Task KomBoxCopy(string f)
+        {
+            foreach (var a in KomPeerAddrs())
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromHours(2));
+                    using var cl = await KomTcpConnect(a, cts.Token); var st = cl.GetStream();
+                    await KomWriteBlock(st, File.ReadAllBytes(f + ".hdr"), cts.Token);
+                    var b = new byte[1]; if (!await ReadExactAsync(st, b, 1, cts.Token) || b[0] != 1) continue;
+                    using (var fi = File.OpenRead(f + ".bin")) await fi.CopyToAsync(st, 1 << 16, cts.Token);
+                    await st.FlushAsync(cts.Token); await ReadExactAsync(st, new byte[32], 32, cts.Token);
+                }
+                catch (Exception) { }
         }
         readonly ConcurrentDictionary<string, bool> _komBoxBusy = new ConcurrentDictionary<string, bool>();
         async Task KomBoxFlush(string id)
         {
             var dir = KomBoxDir(id);
             if (!Directory.Exists(dir) || !_komBoxBusy.TryAdd(id, true)) return;
+            var gone = new JsonArray();
             try
             {
                 foreach (var hdr in Directory.GetFiles(dir, "*.hdr").OrderBy(x => x))
                 {
+                    if (Path.GetFileName(hdr).StartsWith('k') && DateTime.UtcNow - File.GetCreationTimeUtc(hdr) < TimeSpan.FromMinutes(2)) continue;   // kopia - najpierw oddaje pośrednik, który plik przyjął (bez podwójnej wysyłki)
                     var bin = Path.ChangeExtension(hdr, ".bin");
                     if (!File.Exists(bin)) { File.Delete(hdr); continue; }
                     using var cts = new CancellationTokenSource(TimeSpan.FromHours(2));
@@ -209,13 +229,14 @@ namespace Velivo
                             if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) return;
                         }
                         File.Delete(bin); File.Delete(hdr);   // odebrany (albo odrzucony przez odbiorcę)
+                        gone.Add(Path.GetFileNameWithoutExtension(hdr).Split('-').Last());
                     }
                     catch (Exception) { return; }
                     finally { st?.Dispose(); cl?.Dispose(); }
                 }
                 if (Directory.GetFiles(dir).Length == 0) Directory.Delete(dir);
             }
-            finally { _komBoxBusy.TryRemove(id, out _); }
+            finally { _komBoxBusy.TryRemove(id, out _); if (gone.Count > 0) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = id, ["files"] = gone, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); }
         }
         // nadawca: odbiorcy nie ma - plik do skrzynki pośrednika (sam pośrednik: do własnej)
         async Task<string> KomSendViaBox(KomContact to, string path, string mid, KomContact group = null)
@@ -281,9 +302,19 @@ namespace Velivo
                 return;
             }
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
-            if (t == "p2p-boxdone" && (string)p["to"] is string dto && p["mids"] is JsonArray dm && KomFromRelay(addr) && _komStore.TryGetValue(dto, out var dl))
+            if (t == "p2p-boxdone" && (string)p["to"] is string dto && KomFromRelay(addr))
             {   // 📬 inny pośrednik doręczył - kopie tutaj usuwane (bez podwójnej wysyłki)
-                var ms = dm.Select(x => (string)x).ToHashSet(); lock (dl) dl.RemoveAll(x => ms.Contains((string)x["mid"])); KomStoreSave(); return;
+                if (p["mids"] is JsonArray dm && _komStore.TryGetValue(dto, out var dl)) { var ms = dm.Select(x => (string)x).ToHashSet(); lock (dl) dl.RemoveAll(x => ms.Contains((string)x["mid"])); KomStoreSave(); }
+                if (p["files"] is JsonArray df && dto.Length == 32 && dto.All(Uri.IsHexDigit))
+                {
+                    if (_komBoxGone.Count > 1000) foreach (var g in _komBoxGone) if (DateTime.UtcNow - g.Value > TimeSpan.FromDays(1)) _komBoxGone.TryRemove(g.Key, out _);
+                    foreach (var x in df) if ((string)x is { Length: 32 } fh && fh.All(Uri.IsHexDigit))
+                    {
+                        _komBoxGone[fh] = DateTime.UtcNow;
+                        try { if (Directory.Exists(KomBoxDir(dto))) foreach (var bf in Directory.GetFiles(KomBoxDir(dto), "*-" + fh + ".*")) File.Delete(bf); } catch (Exception) { }
+                    }
+                }
+                return;
             }
             if (t == "p2p-here" && p["relay"] != null && from != _komId) _komLanRelays[from] = p.DeepClone();
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
@@ -321,9 +352,12 @@ namespace Velivo
         void KomBoxPeers(JsonNode p)
         {
             if (p["t"]?.GetValue<string>() == "p2p-msg") { p = p.DeepClone(); p["box"] = true; }
-            foreach (var k in _komLanRelays.Keys) if (k != _komId && _komLanAddr.TryGetValue(k, out var a) && _komLanSeen.TryGetValue(k, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(10)) KomLanRaw(p, a);
+            foreach (var a in KomPeerAddrs()) KomLanRaw(p, a);
         }
+        List<IPAddress> KomPeerAddrs() => _komLanRelays.Keys.Where(k => k != _komId && _komLanSeen.TryGetValue(k, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(10))
+            .Select(k => _komLanAddr.TryGetValue(k, out var a) ? a : null).Where(a => a != null).ToList();
         bool KomFromRelay(IPAddress addr) => _komLanRelays.Keys.Any(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
+        string KomPeerAt(IPAddress addr) => addr == null ? null : _komLanRelays.Keys.FirstOrDefault(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         static string KomStoreFile => Path.Combine(DataDir, "komunikator-skrzynka.json");
         void KomStoreSave()
         {
@@ -682,12 +716,15 @@ namespace Velivo
             var sk = (string)_komOpt["moj-adres"];
             if (sk == null || reset) { sk = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)); _komOpt["moj-adres"] = sk; }
             if (self) _komAskKeys[_komId] = sk;   // pośrednik zna sekret - wpuszcza tylko prośby z tym linkiem
-            else KomDeliver(r, new KomMsg { Mine = true, Text = KomAddrTag + sk, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+            var all = _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup).ToList();   // każdy pośrednik (NUCBOX, CHUWI) zna sekret - prośba dojdzie, gdy jeden nie działa
+            foreach (var rr in all) KomDeliver(rr, new KomMsg { Mine = true, Text = KomAddrTag + sk, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
             KomSave();
-            var j = new JsonObject { ["a"] = addr, ["o"] = _komId, ["s"] = sk, ["n"] = _lanDeviceName };
+            var j = new JsonObject { ["a"] = addr, ["o"] = _komId, ["s"] = sk, ["n"] = _lanDeviceName,
+                ["r"] = new JsonArray(all.Select(c => c.Relay).Where(x => x != addr).Distinct().Take(4).Select(x => (JsonNode)x).ToArray()) };   // zapasowe adresy pośredników
             return "VELIVO-KONTAKT:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(j.ToJsonString())).Replace('+', '-').Replace('/', '_');
         }
         // prośba od kogoś z moim linkiem (relay == null - ten komputer jest pośrednikiem): zgoda właściciela
+        readonly HashSet<string> _komAskOpen = new HashSet<string>();   // pytania na ekranie (wątek okna)
         void KomAskIn(KomContact relay, string body)
         {
             JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
@@ -696,9 +733,10 @@ namespace Velivo
             KomPlaySound();
             _ = Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (KomContactById(id) != null) return;
-                bool yes = MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), name + L.T(" prosi o kontakt (przez Twój adres Velivo).\n\nDodać? Dostanie tylko komunikator – bez sieci domowej."),
-                    "🔗 " + L.T("Prośba o kontakt"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                if (KomContactById(id) != null || !_komAskOpen.Add(id)) return;   // ta sama prośba przez drugiego pośrednika - jedno pytanie
+                bool yes; try { yes = MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), name + L.T(" prosi o kontakt (przez Twój adres Velivo).\n\nDodać? Dostanie tylko komunikator – bez sieci domowej."),
+                    "🔗 " + L.T("Prośba o kontakt"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes; }
+                finally { _komAskOpen.Remove(id); }
                 KomAskReply(relay, id, name, pub, yes);
             }));
         }
@@ -753,8 +791,15 @@ namespace Velivo
                     {
                         string hp = (string)j["a"], o = (string)j["o"], pub = (string)j["pub"]; var sk = Convert.FromBase64String((string)j["s"]); long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                        using var cl = new TcpClient();
-                        await cl.ConnectAsync(hp.Substring(0, hp.LastIndexOf(':')), int.Parse(hp.Substring(hp.LastIndexOf(':') + 1)), cts.Token);
+                        TcpClient cl = null;   // pierwszy działający pośrednik z linku (zapasowe „r”, gdy główny nie działa) - zapamiętany jako główny
+                        foreach (var cand in new[] { hp }.Concat((j["r"] as JsonArray)?.Select(x => (string)x).Where(x => x != null && x.Contains(':')) ?? Enumerable.Empty<string>()))
+                        {
+                            var c1 = new TcpClient();
+                            try { using var ct = CancellationTokenSource.CreateLinkedTokenSource(cts.Token); ct.CancelAfter(6000); await c1.ConnectAsync(cand.Substring(0, cand.LastIndexOf(':')), int.Parse(cand.Substring(cand.LastIndexOf(':') + 1)), ct.Token); cl = c1; if (cand != hp) { j["a"] = cand; hp = cand; } break; }
+                            catch (Exception) { c1.Dispose(); }
+                        }
+                        if (cl == null) continue;
+                        using var _cl = cl;
                         var st = cl.GetStream();
                         var hello = new JsonObject { ["Type"] = "relay-ask", ["Id"] = _komId, ["To"] = o, ["Pub"] = pub, ["Name"] = _lanDeviceName, ["Ts"] = ts };
                         await KomWriteBlock(st, Encoding.UTF8.GetBytes(hello.ToJsonString()), cts.Token);

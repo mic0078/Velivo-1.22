@@ -2654,7 +2654,8 @@ namespace Velivo
             try
             {   // najpierw PIN / Windows Hello tego komputera - nikt przy odblokowanym komputerze nie doda swojego klucza
                 if (await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync() == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available
-                    && await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Klucz sprzętowy")) != Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified) return;
+                    && await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Najpierw PIN tego komputera (Windows Hello) – potem dotkniesz klucza")) != Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified) return;
+                KomInfo("🔑 " + L.T("Teraz dotknij klucza. Jeśli Windows zapyta o PIN klucza – to PIN Twojego YubiKey / Titana, nie komputera."));
                 var k = await Task.Run(() => WebAuthn.Register(hwnd, BankRpId, keys.Select(x => Convert.FromBase64String(x.Id)).ToList()));
                 // nazwa (np. YubiKey, Titan) - przy wymianie widać, który usunąć; zamknięcie okna zapisuje
                 var box = new TextBox { Text = L.T("Klucz ") + (keys.Count + 1), Margin = new Thickness(10, 0, 10, 10), MinWidth = 260 };

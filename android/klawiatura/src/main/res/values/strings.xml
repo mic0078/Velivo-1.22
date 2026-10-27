@@ -136,4 +136,5 @@
     <string name="kb_dict_learn_tip">My dictionary, My phrases, what the keyboard remembers, English spelling, clearing learning</string>
     <string name="kb_access_tip">Senior mode, enlarged letter, Braille (learning and settings), Morse, sounds instead of words</string>
     <string name="kb_fingers">🤟 Fingerspelling</string>
+    <string name="kb_fingers_learn">🤟 Learn fingerspelling</string>
 </resources>

@@ -136,4 +136,5 @@
     <string name="kb_dict_learn_tip">Mój słownik, Moje frazy, co klawiatura zapamiętuje, pisownia angielska, czyszczenie nauki</string>
     <string name="kb_access_tip">Tryb Senior, powiększona litera, brajl (nauka i ustawienia), Morse, dźwięki zamiast słów</string>
     <string name="kb_fingers">🤟 Alfabet palcowy</string>
+    <string name="kb_fingers_learn">🤟 Nauka alfabetu palcowego</string>
 </resources>

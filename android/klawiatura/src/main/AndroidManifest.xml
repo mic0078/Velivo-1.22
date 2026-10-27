@@ -50,6 +50,7 @@
         <activity android:name=".SzybkieUstawienia" android:exported="false" android:theme="@style/Okienko"
             android:excludeFromRecents="true" android:taskAffinity="" android:noHistory="true" />
         <!-- 🌍 tłumaczenie przez wybraną aplikację tłumacza w telefonie -->
+        <activity android:name=".NaukaPalcow" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name=".Tlumacz" android:exported="false" android:theme="@style/Okienko" android:excludeFromRecents="true" android:taskAffinity="" />
         <!-- 💬 komunikator i pliki telefon <-> telefon (gdy nie ma przeglądarki Velivo) - ciemne okienka Velivo -->
         <activity android:name=".Rozmowy" android:exported="false" android:theme="@style/Okienko" android:excludeFromRecents="true" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />

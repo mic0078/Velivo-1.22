@@ -180,6 +180,7 @@ open class Ustawienia : Activity() {
             onOff(R.string.kb_senior, "klaw-senior", false) to { KlawiaturaVelivo.senior(this, !pr.getBoolean("klaw-senior", false)); access() },
             onOff(R.string.kb_preview, "klaw-podglad", true) to { pr.edit().putBoolean("klaw-podglad", !pr.getBoolean("klaw-podglad", true)).apply(); access() },
             getString(R.string.kb_braille_learn) to { startActivity(Intent(this, NaukaBrajla::class.java)) },
+            getString(R.string.kb_fingers_learn) to { startActivity(Intent(this, NaukaPalcow::class.java)) },
             getString(R.string.kb_braille_settings) to { brailleSettings() },
             getString(R.string.kb_sound) to { sounds() }))
     }

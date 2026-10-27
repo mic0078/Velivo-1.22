@@ -61,6 +61,9 @@ class MorsePole(ctx: Context, private val onLetter: (String) -> Unit, private va
         // bieżący znak: kropki i kreski oraz litera, jeśli już taka jest
         tp.color = Color.WHITE; tp.textSize = 34 * dp
         c.drawText(Morse.show(code) + (Morse.decode(code, pl)?.let { "  $it" } ?: ""), width / 2f, 70 * dp, tp)
+        // podpowiedź na żywo: litery zaczynające się tym kodem (z resztą kodu) - bez otwierania ściągi
+        if (code.isNotEmpty()) { tp.textSize = 15 * dp; tp.color = Color.rgb(0x22, 0xD3, 0xEE)
+            val sc = Morse.show(code); c.drawText(Morse.table(pl).filter { it.second.startsWith(sc) && it.second != sc }.take(6).joinToString("   ") { it.first.uppercase() + " " + it.second }, width / 2f, 86 * dp, tp) }
         for ((i, z) in listOf(left, right).withIndex()) {
             val on = lit == i + 1
             p.color = if (on) Color.rgb(0x22, 0xC5, 0x5E) else Color.rgb(0x2E, 0x25, 0x60)

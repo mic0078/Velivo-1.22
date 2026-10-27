@@ -107,7 +107,9 @@ class BrajlPole(ctx: Context, private val onCell: (Int) -> Unit, private val onG
         c.drawColor(Color.rgb(0x13, 0x10, 0x26))
         tp.textSize = 18 * dp; tp.color = Color.WHITE; c.drawText("📖", width - 22 * dp, 22 * dp, tp)
         tp.color = Color.argb(0xD0, 255, 255, 255); tp.textSize = 13 * dp
-        if (title.isNotEmpty() || hints) c.drawText(title.ifEmpty { context.getString(R.string.kb_braille_hint) }, width / 2f, 20 * dp, tp)
+        // podpowiedź na żywo: palce na punktach - od razu widać, jaka to litera
+        if (lit != 0) { tp.textSize = 20 * dp; tp.color = Color.rgb(0x22, 0xD3, 0xEE); c.drawText(Brajl.glyph(lit) + "  =  " + (Brajl.decode(lit, pl, Brajl.Stan())?.ifEmpty { "⠼/⠨" } ?: "?") + "   (" + Brajl.dotsText(lit) + ")", width / 2f, 22 * dp, tp) }
+        else if (title.isNotEmpty() || hints) c.drawText(title.ifEmpty { context.getString(R.string.kb_braille_hint) }, width / 2f, 20 * dp, tp)
         for (i in 0 until 6) {
             val z = zones[i]; val on = lit and (1 shl i) != 0
             p.color = if (on) Color.rgb(0x22, 0xC5, 0x5E) else Color.rgb(0x2E, 0x25, 0x60)

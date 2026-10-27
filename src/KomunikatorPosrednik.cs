@@ -372,7 +372,8 @@ namespace Velivo
         // 🔁 pośrednicy w domu uczą się od siebie: każdy mój kontakt poznaje drugiego pośrednika (i on jego) - wiadomości i skrzynka działają
         // przez którykolwiek, nawet gdy kontakt dodano tylko na jednym; raz na parę (zapisane w „intro”), klucz pary losowy
         readonly ConcurrentDictionary<string, DateTime> _komSyncAt = new ConcurrentDictionary<string, DateTime>();
-        DateTime _komAltAt;   // ostatnia próba zapasowych adresów serwerów
+        DateTime _komAltAt;
+        DateTime _komForeignLog;   // ostatni zapis połączenia spoza Velivo   // ostatnia próba zapasowych adresów serwerów
         void KomRelaySync(string peerId)
         {
             var peer = KomContactById(peerId); if (peer == null || peer.IsGroup || string.IsNullOrEmpty(peer.Relay) || !peer.Dom) return;   // tylko mój serwer z domu - nigdy serwer znajomego
@@ -505,7 +506,11 @@ namespace Velivo
                     cts.CancelAfter(TimeSpan.FromSeconds(15));
                     hello = await KomReadBlock(s, 4096, cts.Token); mac = await KomReadBlock(s, 64, cts.Token);
                 }
-                if (hello == null || mac == null) { cl.Dispose(); return; }
+                if (hello == null || mac == null)
+                {   // 🔎 połączenie, które nie jest Velivo (np. test z przeglądarki telefonu) - dowód, że port z internetu dochodzi do tego komputera; najwyżej raz na minutę
+                    if (DateTime.UtcNow - _komForeignLog > TimeSpan.FromMinutes(1)) { _komForeignLog = DateTime.UtcNow; App.LogInfo("Pośrednik: połączenie spoza Velivo z " + ((cl.Client.RemoteEndPoint as IPEndPoint)?.Address?.ToString() ?? "?") + " na port " + _komRelayPort + " – port z zewnątrz dochodzi do tego komputera"); }
+                    cl.Dispose(); return;
+                }
                 var h = JsonNode.Parse(hello);
                 if ((string)h?["Type"] == "relay-ask") { await KomAskServe(h, mac, s, token); return; }   // 🔗 prośba o kontakt z linku „Mój adres Velivo” (ktoś spoza kontaktów)
                 id = (string)h["Id"];

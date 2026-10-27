@@ -99,7 +99,11 @@ object Palce {
                 val p = Path()
                 if (sp.mot == 'J') { val x = xs[3]; val y = palm.top - 2.9f * u; p.moveTo(x + 0.8f * u, y); p.lineTo(x + 0.8f * u, y + 2.2f * u); p.quadTo(x + 0.8f * u, y + 3.4f * u, x - 0.6f * u, y + 3.0f * u) }
                 else { val x = xs[0]; val y = palm.top - 4.0f * u; p.moveTo(x - 1.2f * u, y); p.lineTo(x + 1.2f * u, y); p.lineTo(x - 1.2f * u, y + 1.4f * u); p.lineTo(x + 1.2f * u, y + 1.4f * u) }
-                cv.drawPath(p, arrow)
+                // tor ruchu: przerywana linia i grot strzałki na końcu (wcześniej ciągły zygzak wyglądał jak druga litera „Z”)
+                arrow.pathEffect = android.graphics.DashPathEffect(floatArrayOf(u * 0.5f, u * 0.4f), 0f); cv.drawPath(p, arrow); arrow.pathEffect = null
+                val pm = android.graphics.PathMeasure(p, false); val end = FloatArray(2); val tan = FloatArray(2); pm.getPosTan(pm.length, end, tan)
+                val ang = Math.atan2(tan[1].toDouble(), tan[0].toDouble()); fun tip(da: Double) = Pair(end[0] - (u * 0.9f * Math.cos(ang + da)).toFloat(), end[1] - (u * 0.9f * Math.sin(ang + da)).toFloat())
+                val (x1, y1) = tip(0.5); val (x2, y2) = tip(-0.5); cv.drawLine(end[0], end[1], x1, y1, arrow); cv.drawLine(end[0], end[1], x2, y2, arrow)
             }
         }
 }

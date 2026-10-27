@@ -1154,6 +1154,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun viaInternet(id: String) = up != null || viaNet.containsKey(id)
     val away get() = up != null              // 🌍 ten telefon poza domem (połączony przez pośrednika)
     val awayVia get() = upRelay?.name
+    @Volatile var noRelay: String? = null   // ⚠ poza domem i żaden serwer nie odpowiada - które i pod jakim adresem próbowano (stan ze sprawdzenia)
     @Volatile private var up: Frames? = null
     @Volatile private var upRelay: Contact? = null
     private val started = System.currentTimeMillis()
@@ -1283,6 +1284,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }.onFailure { if (lastWhy.isEmpty()) lastWhy = (it.javaClass.simpleName + " " + (it.message ?: "")).take(160) }
         if (up === ff) up = null
         upMore.remove(rl.id, ff); upRx.remove(ff); runCatching { ff.close() }
+        if (up == null || upRelay?.id != rl.id) relayOf.entries.removeIf { it.value == rl.id && !upMore.containsKey(rl.id) }   // martwy serwer - kontakty nie są już „przez niego”
         main.post { onChange() }
     }.start()
 
@@ -1295,7 +1297,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun connect(target: InetAddress, toId: String?): Conn {
         // poza domem - tunel przez pośrednika; bez gotowego połączenia (adres 127.0.0.1 = „nie wiem gdzie”) - pierwszy pośrednik z kontaktów
         // kilka pośredników: ten, przez którego odbiorca się odezwał (inny go nie zna albo odbiorca nie jest z nim połączony)
-        val relay = toId?.let { relayOf[it] }?.let { contact(it) }?.takeIf { it.relay != null && (up != null || target.isLoopbackAddress) } ?: upRelay ?: myRelay().takeIf { target.isLoopbackAddress }
+        // tylko serwer, z którym jest teraz połączenie (martwy NUCBOX nie może przejmować wysyłki, gdy działa zapasowy CHUWI)
+        val relay = toId?.let { relayOf[it] }?.let { contact(it) }?.takeIf { it.relay != null && (it.id == upRelay?.id || upMore.containsKey(it.id) || (up == null && target.isLoopbackAddress)) } ?: upRelay ?: myRelay().takeIf { target.isLoopbackAddress }
         // ten telefon w domu, odbiorca poza domem: tunel przez pośrednika pod jego adresem w sieci domowej (router często nie wpuszcza „z domu do domu” przez adres publiczny)
         if (up == null && target.isLoopbackAddress && relay != null && toId != null && relay.addr.isNotEmpty())
             relayConnect(relay, "tunnel", to = toId, lanHost = relay.addr)?.let { f -> return Conn(DataInputStream(f.input), f.output, null, f.sock) }
@@ -1328,6 +1331,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             if (up == null && now - whoAt > 30000 && relays.any { now - (lanSeen[it.id] ?: 0L) in 40000L..HOME_MS }) { whoAt = now; runCatching { sendUdp(packet("p2p-who"), null) } }
             val home = relay == null || (now - started < 30000 && !upForce) || relays.any { now - (lanSeen[it.id] ?: 0L) < HOME_MS }   // w domu = widać pośrednika (np. NUCBOX); inny telefon w tej samej sieci (hotspot) to nie dom
             if (home) {
+                if (noRelay != null) { noRelay = null; main.post { onChange() } }
                 up?.let { up = null; closeUp(it, "w domu (widać kontakt w Wi-Fi)"); announce() }
                 upMore.values.forEach { closeUp(it, "w domu") }; upMore.clear()
                 return@runCatching
@@ -1357,7 +1361,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 }
                 if (f != null) break
             }
-            val ff = f ?: return@runCatching; val rl = relay!!
+            val ff = f ?: run { val nr = relays.joinToString(", ") { it.name + " " + it.relay + " ✗" }; if (nr != noRelay) { noRelay = nr; main.post { onChange() } }; return@runCatching }
+            val rl = relay!!; noRelay = null
             upRelay = rl; up = ff
             announce()   // jestem (przez internet) + zaległe wiadomości
             upReader(ff, rl)
@@ -2300,8 +2305,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         // 🏠 / 🌍 jak połączony jest ten telefon - zawsze widoczne u góry
         val netBar = TextView(a).apply { textSize = 14f; setTextColor(Color.WHITE); setPadding(px(14), px(8), px(14), px(8)); layoutParams = LinearLayout.LayoutParams(-1, -2).apply { leftMargin = px(10); rightMargin = px(10); bottomMargin = px(6) } }
         fun fill() {
-            netBar.text = if (k.away) t("🌍 Poza domem – przez internet", "🌍 Away from home – via internet") + (k.awayVia?.let { t(" (przez $it)", " (through $it)") } ?: "") else t("🏠 W domu – sieć domowa", "🏠 At home – home network")
-            netBar.background = bg(if (k.away) Color.rgb(0x25, 0x63, 0xEB) else Color.rgb(0x16, 0xA3, 0x4A), 10)
+            val nr = k.noRelay
+            netBar.text = if (k.away) t("🌍 Poza domem – przez internet", "🌍 Away from home – via internet") + (k.awayVia?.let { t(" (przez $it)", " (through $it)") } ?: "")
+                else if (nr != null) t("⚠ Poza domem – żaden serwer nie odpowiada: ", "⚠ Away from home – no server answers: ") + nr
+                else t("🏠 W domu – sieć domowa", "🏠 At home – home network")
+            netBar.background = bg(if (k.away) Color.rgb(0x25, 0x63, 0xEB) else if (nr != null) Color.rgb(0xDC, 0x26, 0x26) else Color.rgb(0x16, 0xA3, 0x4A), 10)
             rows.removeAllViews()
             if (k.contacts.isEmpty()) rows.addView(TextView(a).apply {
                 text = t("Brak kontaktów.\n\nStuknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo (telefon: przeglądarka albo klawiatura Velivo, komputer: Velivo na Windows) w tej samej sieci Wi-Fi.",

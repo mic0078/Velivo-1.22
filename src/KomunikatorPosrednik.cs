@@ -590,7 +590,9 @@ namespace Velivo
             if (Encoding.UTF8.GetString(hb0).Contains("\"p2p-box\"")) { await KomTcpAsync(hb0, fs, IPAddress.Loopback, token); return; }   // 📬 odbiorcy nie ma - skrzynka pośrednika
             // odbiorca w domu (świeży adres) albo połączony z innym pośrednikiem w domu - ten przekaże dalej (KomTcpAsync -> KomRelayToRemote)
             var addr = KomLanFresh(to);
-            if (addr == null && !_komViaRelay.TryGetValue(to, out addr))
+            // przez innego pośrednika w domu - tylko gdy ten teraz działa (wyłączony NUCBOX nie może zatrzymać dostawy przez CHUWI)
+            if (addr == null && _komViaRelay.TryGetValue(to, out var va) && _komLanAddr.Any(kv => kv.Value.Equals(va) && _komLanSeen.TryGetValue(kv.Key, out var vs) && DateTime.UtcNow - vs < TimeSpan.FromSeconds(100))) addr = va;
+            if (addr == null)
             {   // adresu jeszcze nie znamy - pytanie w sieci domowej
                 KomLanRaw(KomPacket("p2p-who"), null);
                 for (int i = 0; i < 15 && (addr = KomLanFresh(to)) == null; i++) await Task.Delay(200, token);

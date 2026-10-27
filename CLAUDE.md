@@ -134,7 +134,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 
 ## Na potem (pomysły właściciela)
 
-* ⚠ OTWARTE (2026-10-27): zapasowy serwer CHUWI przy wyłączonym NUCBOX nadal nie działa z internetu (właściciel: „na CHUWI nie działa”); rano przed zmianami działał. Następnym razem najpierw dane, nie zgadywanie: czerwony pasek telefonu (⚠ żaden serwer nie odpowiada: nazwy + adresy) i dziennik CHUWI `bledy.log` (wpisy „Pośrednik: …”), potem poprawka. Przy wątpliwości – porównać z kodem sprzed 2eacf02.
+* ⚠ OTWARTE (2026-10-27): zapasowy serwer CHUWI przy wyłączonym NUCBOX nadal nie działa z internetu (właściciel: „na CHUWI nie działa”); rano przed zmianami działał. Następnym razem najpierw dane, nie zgadywanie: czerwony pasek telefonu (⚠ żaden serwer nie odpowiada: nazwy + adresy) i dziennik CHUWI `bledy.log` (wpisy „Pośrednik: …”), potem poprawka. Przy wątpliwości – porównać z kodem sprzed 2eacf02. Stan wieczorem: nadal tylko NUCBOX działa z internetu (Ryzen 41923, CHUWI 41929 nie). Hipoteza niesprawdzona: sieć komórkowa przepuszcza tylko 443, a 443 w routerze prowadzi tylko do NUCBOX – sprawdzić dziennikiem Ryzena (brak „połączono/odrzucono” = telefon nie dociera).
 
 * Do zrobienia (2026-10-24, właściciel): Filmy z Jellyfin – gdy serwer niedostępny, pokazywać zapamiętaną bibliotekę i odświeżać w tle. (2026-10-25 zrobione: kopia zapasowa z Google Drive, przypięte, wyciszenie, znikające, kod bezpieczeństwa, szukanie, szkic, lokalizacja, głosówki 1,5×, litery zamiast kropek, „Mój adres” na Windows.)
 

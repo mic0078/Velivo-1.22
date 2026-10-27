@@ -515,10 +515,14 @@ namespace Velivo
                 if ((string)h["Mode"] == "invite" && _komInvites.TryGetValue((string)h["Tunnel"] ?? "", out inv) && inv.Exp > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() && id?.Length == 32 && id != _komId)
                     c = new KomContact { Id = id, Key = inv.K };
                 long ts = (long?)h["Ts"] ?? 0;
-                // tylko kontakty tego komputera, swiezy podpis kluczem kontaktu
-                if (c == null || (string)h["Type"] != "relay-hello" || (string)h["Relay"] != _komId || Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000) { cl.Dispose(); return; }
+                // tylko kontakty tego komputera, swiezy podpis kluczem kontaktu; 🔎 każda odrzucona próba w dzienniku (wcześniej po cichu - nie było widać, czemu zapas nie działa)
+                var who = (c?.Name ?? "?") + " [" + (id ?? "").Substring(0, Math.Min(6, (id ?? "").Length)) + "] z " + ((cl.Client.RemoteEndPoint as IPEndPoint)?.Address?.ToString() ?? "?");
+                string why = c == null ? "nieznane urządzenie (nie ma go w kontaktach tego serwera)" : (string)h["Type"] != "relay-hello" ? "zły typ" : (string)h["Relay"] != _komId ? "połączenie do innego serwera (adres wskazuje ten komputer)"
+                    : Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000 ? "zły czas zegara (różnica ponad 5 min)" : null;
+                if (why != null) { App.LogInfo("Pośrednik: odrzucono " + who + " – " + why); cl.Dispose(); return; }
                 var exp = KomMacBytes(c.Key, "relay-hello\n", hello);
-                if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) { cl.Dispose(); return; }
+                if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) { App.LogInfo("Pośrednik: odrzucono " + who + " – inny klucz (kontakt dodany na nowo tylko po jednej stronie)"); cl.Dispose(); return; }
+                if ((string)h["Mode"] == "main") App.LogInfo("Pośrednik: połączono " + who);
                 var nc = KomB64((string)h["Nonce"]); if (nc.Length != 16) { cl.Dispose(); return; }
                 var ns = RandomNumberGenerator.GetBytes(16);
                 var rep = Encoding.UTF8.GetBytes(new JsonObject { ["Nonce"] = Convert.ToBase64String(ns) }.ToJsonString());

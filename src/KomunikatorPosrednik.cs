@@ -1213,7 +1213,11 @@ namespace Velivo
             _komRelayAuto = typed.Length == 0;   // puste - adres ustala Velivo (i pilnuje zmian IP)
             if (!_komRelayAuto) _komRelayHost = typed;
             else if (!IPAddress.TryParse(_komRelayHost, out _)) _komRelayHost = "";   // automatycznie - stara, kiedyś wpisana nazwa (np. No-IP) nie zostaje; adres ustali sprawdzenie
-            if (int.TryParse(port.Text.Trim(), out var pt) && pt > 0 && pt < 65536) { _komRelayPortFixed = pt != 41920; _komRelayPort = pt; }   // OK w oknie - port zatwierdzony przez właściciela
+            if (int.TryParse(port.Text.Trim(), out var pt) && pt > 0 && pt < 65536)
+            {   // 41917–41919 zajmuje samo Velivo (filmy, sieć domowa, komunikator w domu) - serwer na nich nie ruszy; zostaje poprzedni port
+                if (pt >= 41917 && pt <= 41919) MessageBox.Show(L.T("Port ") + pt + L.T(" używa samo Velivo w sieci domowej – serwer na nim nie zadziała. Wybierz 41920–41929 (ten sam co w routerze)."), "🌍", MessageBoxButton.OK, MessageBoxImage.Warning);
+                else { _komRelayPortFixed = pt != 41920; _komRelayPort = pt; }   // OK w oknie - port zatwierdzony przez właściciela
+            }
             KomSave();
             KomRelayStart();
             if (_komRelayOn) { KomAnnounce(); KomInfo(L.T("🌍 Pośrednik włączony – ustalam adres domu i port w routerze…")); }   // urzadzenia w domu od razu dostaja adres pośrednika

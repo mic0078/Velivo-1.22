@@ -276,10 +276,15 @@ namespace Velivo
             if ((bool?)p["fwd"] == true)
             {   // przekazany przez pośrednika - kontakt jest poza domem (🌍), połączony z pośrednikiem pod tym adresem
                 _komViaNet[from] = true;
+                if ((bool?)p["box"] == true && t == "p2p-msg" && (string)p["to"] is string bto && KomFromRelay(addr)) { var cp = p.DeepClone().AsObject(); cp.Remove("fwd"); cp.Remove("box"); if (_komRemote.TryGetValue(bto, out var brc)) KomSendFrame(brc, cp); else KomStoreKeep(cp, bto); }   // 📬 kopia od innego pośrednika w domu - gdy tamten padnie, ten doręczy
                 if (t == "p2p-bye") _komViaRelay.TryRemove(new KeyValuePair<string, IPAddress>(from, addr)); else _komViaRelay[from] = addr;
                 return;
             }
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
+            if (t == "p2p-boxdone" && (string)p["to"] is string dto && p["mids"] is JsonArray dm && KomFromRelay(addr) && _komStore.TryGetValue(dto, out var dl))
+            {   // 📬 inny pośrednik doręczył - kopie tutaj usuwane (bez podwójnej wysyłki)
+                var ms = dm.Select(x => (string)x).ToHashSet(); lock (dl) dl.RemoveAll(x => ms.Contains((string)x["mid"])); KomStoreSave(); return;
+            }
             if (t == "p2p-here" && p["relay"] != null && from != _komId) _komLanRelays[from] = p.DeepClone();
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
             if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) return;
@@ -307,9 +312,18 @@ namespace Velivo
         {
             if (_komRelayListener != null) _ = KomBoxFlush(id);   // 📬 pliki ze skrzynki
             if (!_komStore.TryRemove(id, out var l)) return;
-            lock (l) foreach (var p in l) { if (rc != null) KomSendFrame(rc, p); else KomLanRaw(p, addr); }
+            JsonArray mids;
+            lock (l) { foreach (var p in l) { if (rc != null) KomSendFrame(rc, p); else KomLanRaw(p, addr); } mids = new JsonArray(l.Select(x => (JsonNode)(string)x["mid"]).ToArray()); }
             KomStoreSave();
+            if (mids.Count > 0) KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = id, ["mids"] = mids, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });   // inni pośrednicy kasują swoje kopie
         }
+        // 📬 pośrednicy w domu (NUCBOX, CHUWI, …) dzielą skrzynkę: kopia wiadomości u każdego, po doręczeniu kasowana
+        void KomBoxPeers(JsonNode p)
+        {
+            if (p["t"]?.GetValue<string>() == "p2p-msg") { p = p.DeepClone(); p["box"] = true; }
+            foreach (var k in _komLanRelays.Keys) if (k != _komId && _komLanAddr.TryGetValue(k, out var a) && _komLanSeen.TryGetValue(k, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(10)) KomLanRaw(p, a);
+        }
+        bool KomFromRelay(IPAddress addr) => _komLanRelays.Keys.Any(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         static string KomStoreFile => Path.Combine(DataDir, "komunikator-skrzynka.json");
         void KomStoreSave()
         {
@@ -463,7 +477,7 @@ namespace Velivo
                     if (pto == _komId) continue;
                     if (pto != null && _komRemote.TryGetValue(pto, out var rc)) { KomSendFrame(rc, p); continue; }   // oba urzadzenia poza domem
                     // do sieci domowej: znany adres albo do wszystkich
-                    if (pto != null && KomStoreKeep(p, pto)) continue;   // odbiorca niedostępny - pośrednik przechowuje
+                    if (pto != null && KomStoreKeep(p, pto)) { KomBoxPeers(KomFwd(p)); continue; }   // odbiorca niedostępny - pośrednik przechowuje (kopia u innych pośredników w domu)
                     KomLanRaw(KomFwd(p), pto != null && _komLanAddr.TryGetValue(pto, out var a) ? a : null);
                     if (pto == null) foreach (var o in _komRemote) if (o.Key != id) KomSendFrame(o.Value, p);
                 }

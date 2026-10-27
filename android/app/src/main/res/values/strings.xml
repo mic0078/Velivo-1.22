@@ -36,6 +36,7 @@
     <string name="bank_mode">Banking mode</string>
     <string name="bank_locked">Banking mode locked after 10 minutes of inactivity</string>
     <string name="bank_unavailable">Banking mode needs a newer Android System WebView</string>
+    <string name="hw_key">Security key (YubiKey)</string>
     <string name="unlock">Unlock Velivo</string>
     <string name="no_lock">This phone has no screen lock – set a PIN to protect passwords and banking mode</string>
     <string name="background_play">Play in background</string>

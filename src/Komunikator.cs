@@ -2570,7 +2570,9 @@ namespace Velivo
                 }
             }
             try
-            {
+            {   // najpierw PIN / Windows Hello tego komputera - nikt przy odblokowanym komputerze nie doda swojego klucza
+                if (await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync() == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available
+                    && await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync(L.T("Klucz sprzętowy")) != Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified) return;
                 var k = await Task.Run(() => WebAuthn.Register(hwnd, BankRpId, keys.Select(x => Convert.FromBase64String(x.Id)).ToList()));
                 if (_komOpt["klucze"] is not JsonArray l) _komOpt["klucze"] = l = new JsonArray();
                 l.Add(new JsonObject { ["id"] = k.Id, ["x"] = k.X, ["y"] = k.Y, ["n"] = DateTime.Now.ToString("yyyy-MM-dd") });

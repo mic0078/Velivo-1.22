@@ -36,6 +36,7 @@
     <string name="bank_mode">Tryb bankowy</string>
     <string name="bank_locked">Tryb bankowy zablokowany po 10 minutach bezczynności</string>
     <string name="bank_unavailable">Tryb bankowy wymaga nowszego Android System WebView</string>
+    <string name="hw_key">Klucz sprzętowy (YubiKey)</string>
     <string name="unlock">Odblokuj Velivo</string>
     <string name="no_lock">Telefon nie ma blokady ekranu – ustaw PIN, aby chronić hasła i tryb bankowy</string>
     <string name="background_play">Odtwarzanie w tle</string>

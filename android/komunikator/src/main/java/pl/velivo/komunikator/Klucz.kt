@@ -26,6 +26,37 @@ import java.security.spec.ECPublicKeySpec
 object Klucz {
     private val app = MessageDigest.getInstance("SHA-256").digest("velivo-komunikator".toByteArray())
     private class Brak : Exception()   // ten klucz nie zna uchwytu (inny klucz) - 6A80
+    private fun t(p: String, e: String) = if (java.util.Locale.getDefault().language == "pl") p else e
+
+    // zapisane klucze (wspólne dla Velivo i komunikatora w tej aplikacji): klucz publiczny i uchwyt - bez tajemnic
+    fun keys(p: android.content.SharedPreferences): List<JSONObject> = runCatching { org.json.JSONArray(p.getString("klucze", "[]")).let { a -> (0 until a.length()).map { a.getJSONObject(it) } } }.getOrDefault(emptyList())
+    private fun save(p: android.content.SharedPreferences, l: List<JSONObject>) = p.edit().putString("klucze", org.json.JSONArray(l).toString()).apply()
+
+    // najpierw hasło / PIN telefonu - nikt przy odblokowanym telefonie nie doda swojego klucza ani nie usunie Twojego
+    fun confirm(a: Activity, then: () -> Unit) {
+        if (a.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure != true) { then(); return }
+        val b = android.hardware.biometrics.BiometricPrompt.Builder(a).setTitle("🔑 " + t("Podaj hasło / PIN telefonu", "Enter the phone password / PIN"))
+        if (android.os.Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+        else @Suppress("DEPRECATION") b.setDeviceCredentialAllowed(true)
+        runCatching { b.build().authenticate(android.os.CancellationSignal(), a.mainExecutor, object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(r: android.hardware.biometrics.BiometricPrompt.AuthenticationResult?) = then()
+        }) }
+    }
+
+    // ustawienia klucza (opcja, nie przymus): dodaj pierwszy / zapasowy, usuń wszystkie - zawsze po haśle telefonu
+    fun setup(a: Activity, p: android.content.SharedPreferences, added: () -> Unit = {}) {
+        fun add() = confirm(a) { register(a) { j ->
+            if (j == null) { android.widget.Toast.makeText(a, t("Nie udało się odczytać klucza", "Could not read the key"), android.widget.Toast.LENGTH_LONG).show(); return@register }
+            val first = keys(p).isEmpty(); save(p, keys(p) + j.put("n", java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(java.util.Date()))); added()
+            android.widget.Toast.makeText(a, if (first) t("Klucz dodany. Dodaj też zapasowy klucz.", "Key added. Add a backup key too.") else t("Zapasowy klucz dodany", "Backup key added"), android.widget.Toast.LENGTH_LONG).show() } }
+        val n = keys(p).size
+        android.app.AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert).setTitle("🔑 " + t("Klucz sprzętowy (YubiKey)", "Security key (YubiKey)") + if (n > 0) "  ✓ $n" else "")
+            .setMessage(t("Opcjonalnie: Velivo i komunikator odblokujesz dotknięciem klucza (USB albo NFC). Odcisk palca / PIN telefonu dalej działa jako zapas.",
+                "Optional: unlock Velivo and the messenger by touching the key (USB or NFC). Phone fingerprint / PIN still works as a backup."))
+            .setPositiveButton(if (n == 0) "➕ " + t("Dodaj klucz", "Add key") else "➕ " + t("Dodaj zapasowy", "Add backup")) { _, _ -> add() }
+            .apply { if (n > 0) setNeutralButton("🗑 " + t("Usuń wszystkie", "Remove all")) { _, _ -> confirm(a) { save(p, emptyList()); android.widget.Toast.makeText(a, t("Klucze usunięte", "Keys removed"), android.widget.Toast.LENGTH_SHORT).show() } } }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
 
     // rejestracja: {kh, pub} albo null
     fun register(a: Activity, done: (JSONObject?) -> Unit) = run(a, { tx ->

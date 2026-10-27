@@ -1468,6 +1468,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             38 -> showPhoneVideos()
             39 -> openKeyboardApp()
             40 -> showWallpaper()
+            43 -> pl.velivo.komunikator.Klucz.setup(this, getSharedPreferences("komunikator", MODE_PRIVATE))   // 🔐 klucz sprzętowy (wspólny z komunikatorem)
             23 -> showNotes()
             24 -> newNote()
             25 -> runCatching { startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)) }
@@ -1592,7 +1593,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         section(R.string.menu_settings, listOf(
             Triple("🛡", R.string.adblock, 7), Triple("🎵", R.string.background_play, 12), Triple("🌓", R.string.theme, 11),
             Triple("💻", R.string.lan_sync, 13), Triple("🌐", R.string.language, 22), Triple("🧹", R.string.clear_history, 6),
-            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38), Triple("⌨", R.string.kb_menu, 39), Triple("🎨", R.string.wallpaper, 40)),
+            Triple("🧭", R.string.default_browser, 36), Triple("▶", R.string.default_player, 37), Triple("📱", R.string.phone_videos, 38), Triple("⌨", R.string.kb_menu, 39), Triple("🎨", R.string.wallpaper, 40), Triple("🔐", R.string.hw_key, 43)),
             mapOf(7 to prefs.getBoolean("adblock", true), 12 to prefs.getBoolean("tlo", true)))
         // na samym dole menu też płaski pasek YouTube (przytrzymanie: wyłącznik czasowy i pobudka)
         box.addView(TextView(this).apply {
@@ -3379,6 +3380,11 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // --- Blokada odciskiem palca / PIN-em telefonu -----------------------------
     private fun unlock(onOk: () -> Unit) {
+        // 🔐 klucz sprzętowy (gdy dodany): najpierw klucz; anulowanie - odcisk palca / PIN jak dotąd
+        val keys = pl.velivo.komunikator.Klucz.keys(getSharedPreferences("komunikator", MODE_PRIVATE))
+        if (keys.isEmpty()) unlockPin(onOk) else pl.velivo.komunikator.Klucz.verify(this, keys) { ok -> if (ok) onOk() else unlockPin(onOk) }
+    }
+    private fun unlockPin(onOk: () -> Unit) {
         if (!getSystemService(KeyguardManager::class.java).isDeviceSecure) { toast(getString(R.string.no_lock)); onOk(); return }
         val b = BiometricPrompt.Builder(this).setTitle(getString(R.string.unlock))
         if (Build.VERSION.SDK_INT >= 30) b.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)

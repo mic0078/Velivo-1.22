@@ -815,7 +815,8 @@ namespace Velivo
             var name = KomClean((string)j["name"]); if (name.Length == 0) name = "Velivo";
             var relay = (string)j["relay"];
             // pośrednik (np. NUCBOX, zwykle bez nikogo przy ekranie) - od zaufanego kontaktu od razu, żeby nowy znajomy mógł się łączyć przez internet
-            if (_komRelayListener != null) { KomCardAdd(from, id, name, key, (string)j["dev"], relay); return; }
+            // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika - też od razu: wiadomości idą przez którykolwiek
+            if (_komRelayListener != null || (!string.IsNullOrEmpty(from.Relay) && (relay ?? "").Contains(':'))) { KomCardAdd(from, id, name, key, (string)j["dev"], relay); return; }
             // prośba o kontakt od znajomego - zgoda (okno nad innymi; nie blokuje odbioru)
             _ = Dispatcher.BeginInvoke(new Action(() =>
             {

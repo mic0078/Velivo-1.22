@@ -316,7 +316,7 @@ namespace Velivo
                 }
                 return;
             }
-            if (t == "p2p-here" && p["relay"] != null && from != _komId) _komLanRelays[from] = p.DeepClone();
+            if (t == "p2p-here" && p["relay"] != null && from != _komId) { _komLanRelays[from] = p.DeepClone(); if (_komRelayListener != null && (!_komSyncAt.TryGetValue(from, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(10))) { _komSyncAt[from] = DateTime.UtcNow; var pf = from; Dispatcher.BeginInvoke(new Action(() => KomRelaySync(pf))); } }
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
             if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) return;
             if (from == _komId || _komRemote.IsEmpty) return;   // nasze - bez echa
@@ -356,6 +356,26 @@ namespace Velivo
         }
         List<IPAddress> KomPeerAddrs() => _komLanRelays.Keys.Where(k => k != _komId && _komLanSeen.TryGetValue(k, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromMinutes(10))
             .Select(k => _komLanAddr.TryGetValue(k, out var a) ? a : null).Where(a => a != null).ToList();
+        // 🔁 pośrednicy w domu uczą się od siebie: każdy mój kontakt poznaje drugiego pośrednika (i on jego) - wiadomości i skrzynka działają
+        // przez którykolwiek, nawet gdy kontakt dodano tylko na jednym; raz na parę (zapisane w „intro”), klucz pary losowy
+        readonly ConcurrentDictionary<string, DateTime> _komSyncAt = new ConcurrentDictionary<string, DateTime>();
+        void KomRelaySync(string peerId)
+        {
+            var peer = KomContactById(peerId); if (peer == null || peer.IsGroup || string.IsNullOrEmpty(peer.Relay)) return;   // tylko pośrednik, którego znam (moje urządzenie)
+            if (_komOpt["intro"] is not JsonArray done) _komOpt["intro"] = done = new JsonArray();
+            var have = done.Select(x => (string)x).ToHashSet(); bool any = false;
+            foreach (var x in _komContacts.ToList())
+            {
+                if (x.IsGroup || x.Id == peerId || x.Id == _komId || x.Key == null || have.Contains(x.Id + "|" + peerId)) continue;
+                if (!KomOnline(x.Id)) continue;   // przedstawienie tylko, gdy kontakt jest w sieci (dojdzie od razu); nieobecny - przy następnym sprawdzeniu (co 10 min)
+                var key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+                string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "" }.ToJsonString();
+                KomDeliver(peer, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                KomDeliver(x, new KomMsg { Mine = true, Text = Card(peer), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                done.Add(x.Id + "|" + peerId); any = true;
+            }
+            if (any) KomSave();
+        }
         bool KomFromRelay(IPAddress addr) => _komLanRelays.Keys.Any(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         string KomPeerAt(IPAddress addr) => addr == null ? null : _komLanRelays.Keys.FirstOrDefault(k => _komLanAddr.TryGetValue(k, out var a) && a.Equals(addr));
         static string KomStoreFile => Path.Combine(DataDir, "komunikator-skrzynka.json");

@@ -187,6 +187,7 @@ function hang() { if (done) return; out({ k: 'end' }); finish(); }
 window.hang = hang;
 end.onclick = () => { status(T('Rozmowa zakończona', 'Call ended')); hang(); };
 mic.onclick = () => { if (!local) return; local.getAudioTracks().forEach(t => t.enabled = !t.enabled); mic.classList.toggle('off'); };
+async function renego() { const of = await pc.createOffer(); await pc.setLocalDescription(of); out({ k: 'offer', sdp: of.sdp }); }
 cam.onclick = async () => {
   if (!local) return;
   if (!local.getVideoTracks().length) {   // 📷 rozmowa bez kamery (głosowa) → wideo: kamera dołączana w trakcie, bez nowego połączenia
@@ -194,7 +195,9 @@ cam.onclick = async () => {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } } });
       const nt = s.getVideoTracks()[0]; local.addTrack(nt);
       const tv = pc && pc.getTransceivers().find(t => t.receiver.track && t.receiver.track.kind === 'video');
-      if (tv && !sharing) await tv.sender.replaceTrack(nt); else if (!tv) status(T('Rozmówca ma starszą wersję Velivo – obraz po aktualizacji', 'The other person has an older Velivo – video after updating'));
+      // brak miejsca na obraz (rozmówca ze starszą wersją dzwonił) albo miejsce tylko do odbioru - nowa wymiana opisu połączenia (offer/answer), bez rozłączania
+      if (tv && !sharing) { await tv.sender.replaceTrack(nt); if (!/send/.test(tv.currentDirection || '')) { tv.direction = 'sendrecv'; await renego(); } }
+      else if (!tv) { pc.addTrack(nt, local); await renego(); }
       me.srcObject = local; me.style.visibility = 'visible'; me.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none';
       cam.classList.remove('off', 'pulse'); cam.textContent = '📷'; flip.style.display = ''; dsend({ k: 'cam-on' });
     } catch (e) { status(T('Brak dostępu do kamery', 'No camera access')); }

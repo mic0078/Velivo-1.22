@@ -24,6 +24,7 @@ object Morse {
         "-.-.-." to ";", "-...-" to "=", ".-.-." to "+", "-....-" to "-", ".-..-." to "\"", ".--.-." to "@")
     private val polish = mapOf(".-.-" to "ą", "-.-.." to "ć", "..-.." to "ę", ".-..-" to "ł", "--.--" to "ń", "---." to "ó", "...-..." to "ś", "--..-." to "ź", "--..-" to "ż")
     fun decode(code: String, pl: Boolean): String? = base[code] ?: if (pl) polish[code] else null
+    fun table(pl: Boolean) = (base.entries.filter { it.value[0].isLetter() } + if (pl) polish.entries else emptySet()).sortedBy { it.value }.map { it.value to show(it.key) }
     fun show(code: String) = code.replace('.', '•').replace('-', '—')
 }
 
@@ -50,8 +51,11 @@ class MorsePole(ctx: Context, private val onLetter: (String) -> Unit, private va
         left.set(6 * dp, top, w / 2f - 4 * dp, h - 6 * dp); right.set(w / 2f + 4 * dp, top, w - 6 * dp, h - 6 * dp)
     }
 
+    private var sheet = false; private var sheetTap = false
     override fun onDraw(c: Canvas) {
+        if (sheet) { Brajl.sheet(c, width.toFloat(), height.toFloat(), dp, Morse.table(pl)); return }
         c.drawColor(Color.rgb(0x13, 0x10, 0x26))
+        tp.textSize = 18 * dp; tp.color = Color.WHITE; c.drawText("📖", width - 22 * dp, 22 * dp, tp)
         tp.color = Color.argb(0xD0, 255, 255, 255); tp.textSize = 13 * dp
         if (hints) c.drawText(context.getString(R.string.kb_morse_hint), width / 2f, 20 * dp, tp)
         // bieżący znak: kropki i kreski oraz litera, jeśli już taka jest
@@ -74,9 +78,10 @@ class MorsePole(ctx: Context, private val onLetter: (String) -> Unit, private va
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { removeCallbacks(done); sx = e.x; sy = e.y; maxPtr = 1; t0 = SystemClock.uptimeMillis(); lit = if (e.x < width / 2f) 1 else 2; invalidate() }
+            MotionEvent.ACTION_DOWN -> { if (sheet || e.y < 34 * dp && e.x > width - 50 * dp) { sheet = !sheet; sheetTap = true; invalidate(); return true }; sheetTap = false; removeCallbacks(done); sx = e.x; sy = e.y; maxPtr = 1; t0 = SystemClock.uptimeMillis(); lit = if (e.x < width / 2f) 1 else 2; invalidate() }
             MotionEvent.ACTION_POINTER_DOWN -> { maxPtr = maxOf(maxPtr, e.pointerCount); lit = 0; invalidate() }
             MotionEvent.ACTION_UP -> {
+                if (sheetTap) { sheetTap = false; return true }
                 lit = 0
                 val dx = e.x - sx; val dy = e.y - sy; val far = 70 * dp
                 val g = when {

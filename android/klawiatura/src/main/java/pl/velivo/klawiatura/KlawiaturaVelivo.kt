@@ -279,7 +279,7 @@ class KlawiaturaVelivo : InputMethodService() {
     private var brajlView: BrajlPole? = null
     private val brajlStan = Brajl.Stan()
     private fun brajlPole() = (brajlView ?: BrajlPole(this, ::brailleCell, ::brailleGesture).also { brajlView = it }).apply {
-        hints = pref("brajl-podpowiedzi"); vibrate = pref("brajl-wibracje"); mirror = pref("brajl-odwrocone", false)
+        hints = pref("brajl-podpowiedzi"); vibrate = pref("brajl-wibracje"); mirror = pref("brajl-odwrocone", false); pl = lang(this@KlawiaturaVelivo) == "pl"
     }
     private fun talkback() = (getSystemService(ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager).isTouchExplorationEnabled.also {
         if (it) { val t = getString(R.string.kb_braille_talkback); speak(t, true); Toast.makeText(this, t, Toast.LENGTH_LONG).show() }

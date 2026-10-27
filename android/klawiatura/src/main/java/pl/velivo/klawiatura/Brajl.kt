@@ -49,6 +49,16 @@ object Brajl {
     fun dotsOf(ch: Char, pl: Boolean): Int? = (letters + (if (pl) polish else emptyMap())).entries.firstOrNull { it.value == ch.lowercaseChar() }?.key
     fun dotsText(cell: Int) = (1..6).filter { cell and (1 shl (it - 1)) != 0 }.joinToString(", ")
     fun glyph(cell: Int) = (0x2800 + cell).toChar().toString()   // znak Unicode ⠁…⠿ (bity 0-5 = punkty 1-6)
+    // 📖 ściąga: siatka „znak – litera” (brajl i Morse), stuknięcie w 📖 w prawym górnym rogu pola
+    fun sheet(c: Canvas, w: Float, h: Float, dp: Float, items: List<Pair<String, String>>) {
+        c.drawColor(Color.rgb(0x13, 0x10, 0x26)); val cols = 4; val rows = (items.size + cols - 1) / cols
+        val cw = w / cols; val rh = (h - 30 * dp) / rows
+        val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = minOf(rh * 0.55f, 18 * dp) }
+        val g = Paint(t).apply { color = Color.rgb(0x22, 0xD3, 0xEE) }
+        t.textAlign = Paint.Align.CENTER; c.drawText("📖 ✕", w / 2, 20 * dp, t); t.textAlign = Paint.Align.LEFT
+        items.forEachIndexed { i, (l, k) -> val x = (i % cols) * cw + 6 * dp; val y = 30 * dp + (i / cols) * rh + rh * 0.7f
+            c.drawText(l.uppercase(), x, y, t); c.drawText(k, x + t.textSize * 1.2f, y, g) }
+    }
     // nazwy znaków do czytania na głos (syntezator mowy pomija same znaki interpunkcyjne)
     fun spoken(t: String, pl: Boolean) = when (t) {
         "." -> if (pl) "kropka" else "full stop"; "," -> if (pl) "przecinek" else "comma"; "?" -> if (pl) "pytajnik" else "question mark"
@@ -89,8 +99,11 @@ class BrajlPole(ctx: Context, private val onCell: (Int) -> Unit, private val onG
     }
     private fun zoneAt(x: Float, y: Float) = zones.indices.minByOrNull { val z = zones[it]; if (z.contains(x, y)) -1f else hypot(z.centerX() - x, z.centerY() - y) } ?: -1
 
+    var pl = true; private var sheet = false; private var sheetTap = false
     override fun onDraw(c: Canvas) {
+        if (sheet) { Brajl.sheet(c, width.toFloat(), height.toFloat(), dp, Brajl.alphabet(pl).map { it.toString() to Brajl.glyph(Brajl.dotsOf(it, pl) ?: 0) }); return }
         c.drawColor(Color.rgb(0x13, 0x10, 0x26))
+        tp.textSize = 18 * dp; tp.color = Color.WHITE; c.drawText("📖", width - 22 * dp, 22 * dp, tp)
         tp.color = Color.argb(0xD0, 255, 255, 255); tp.textSize = 13 * dp
         if (title.isNotEmpty() || hints) c.drawText(title.ifEmpty { context.getString(R.string.kb_braille_hint) }, width / 2f, 20 * dp, tp)
         for (i in 0 until 6) {
@@ -107,6 +120,8 @@ class BrajlPole(ctx: Context, private val onCell: (Int) -> Unit, private val onG
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                if (e.actionMasked == MotionEvent.ACTION_DOWN && (sheet || e.y < 34 * dp && e.x > width - 50 * dp)) { sheet = !sheet; sheetTap = true; invalidate(); return true }   // 📖 ściąga
+                if (sheetTap) return true
                 if (e.actionMasked == MotionEvent.ACTION_DOWN) { mask = 0; maxPtr = 0; t0 = SystemClock.uptimeMillis(); sx.clear(); sy.clear(); ex.clear(); ey.clear() }
                 val i = e.actionIndex; val id = e.getPointerId(i)
                 sx[id] = e.getX(i); sy[id] = e.getY(i); ex[id] = e.getX(i); ey[id] = e.getY(i)
@@ -118,6 +133,7 @@ class BrajlPole(ctx: Context, private val onCell: (Int) -> Unit, private val onG
             MotionEvent.ACTION_MOVE -> for (i in 0 until e.pointerCount) { val id = e.getPointerId(i); ex[id] = e.getX(i); ey[id] = e.getY(i) }
             MotionEvent.ACTION_POINTER_UP -> { val i = e.actionIndex; val id = e.getPointerId(i); ex[id] = e.getX(i); ey[id] = e.getY(i) }
             MotionEvent.ACTION_UP -> {
+                if (sheetTap) { sheetTap = false; return true }
                 val i = e.actionIndex; val id = e.getPointerId(i); ex[id] = e.getX(i); ey[id] = e.getY(i)
                 val g = swipe()
                 lit = 0; invalidate()

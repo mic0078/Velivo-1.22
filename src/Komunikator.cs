@@ -1516,6 +1516,17 @@ namespace Velivo
         KomPal KomCurrentPal() => KomPalettes.FirstOrDefault(p => p.Key == _komTheme) ?? (DarkWindows ? KomPalettes[0] : KomPalettes[1]);
 
         // ---------- okno ----------
+        // przycisk w kolorach motywu: zwykły wygląd Windows zmieniał wyłączony przycisk (bez wybranej rozmowy) w biały prostokąt - tu tylko przygaszony
+        static ControlTemplate _komBtnTemplate;
+        static ControlTemplate KomBtnTemplate => _komBtnTemplate ??= (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+            "<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+            "<Border x:Name='bd' Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}' CornerRadius='6' Padding='{TemplateBinding Padding}'>" +
+            "<ContentPresenter HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' VerticalAlignment='{TemplateBinding VerticalContentAlignment}' RecognizesAccessKey='True'/></Border>" +
+            "<ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='bd' Property='Opacity' Value='0.85'/></Trigger>" +
+            "<Trigger Property='IsPressed' Value='True'><Setter TargetName='bd' Property='Opacity' Value='0.7'/></Trigger>" +
+            "<Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='bd' Property='BorderThickness' Value='2'/></Trigger>" +
+            "<Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.35'/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+
         internal void ShowMessenger(string openId = null)
         {
             if (KomOddany) { KomAppRun(false); return; }
@@ -1631,7 +1642,9 @@ namespace Velivo
                 input.Background = B(pal.Input); input.BorderBrush = B(pal.Border); input.Foreground = B(pal.Fg); input.CaretBrush = B(pal.Fg);
                 searchBox.Background = B(pal.Input); searchBox.BorderBrush = B(pal.Border); searchBox.Foreground = B(pal.Fg); searchBox.CaretBrush = B(pal.Fg);
                 header.Foreground = B(pal.Fg); replyBar.Foreground = B(pal.Dim); statusText.Foreground = B(pal.Dim); statusBar.Foreground = B(pal.Mine); statusBar.Background = B(pal.Input); statusBar.BorderBrush = B(pal.Border);
-                foreach (var b in buttons) { b.Background = B(pal.Button); b.Foreground = B(pal.Fg); b.BorderBrush = B(pal.Border); }
+                w.Resources[typeof(Button)] = new Style(typeof(Button)) { Setters = { new Setter(Control.TemplateProperty, KomBtnTemplate), new Setter(Control.PaddingProperty, new Thickness(8, 2, 8, 2)),   // każdy przycisk okna (także dodany później) w kolorach motywu
+                    new Setter(Control.BackgroundProperty, B(pal.Button)), new Setter(Control.ForegroundProperty, B(pal.Fg)), new Setter(Control.BorderBrushProperty, B(pal.Border)), new Setter(Control.BorderThicknessProperty, new Thickness(1)) } };
+                foreach (var b in buttons) { b.Template = KomBtnTemplate; b.Background = B(pal.Button); b.Foreground = B(pal.Fg); b.BorderBrush = B(pal.Border); }
                 sendBtn.Background = B(pal.Mine); sendBtn.Foreground = B(pal.MineFg);
                 try { var h = new System.Windows.Interop.WindowInteropHelper(w).Handle; if (h != IntPtr.Zero) { int on = pal.Dark ? 1 : 0; DwmSetWindowAttribute(h, 20, ref on, 4); } } catch (Exception) { }
             }

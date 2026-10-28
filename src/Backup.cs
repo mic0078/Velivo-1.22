@@ -79,7 +79,7 @@ namespace Velivo
 
         // już skompresowane (filmy, zdjęcia, głosówki, archiwa - np. skrzynka serwera z filmami) - bez ponownej kompresji: tyle samo miejsca, wielokrotnie szybciej
         static readonly HashSet<string> BackupPackedExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".m4a", ".mp3", ".ogg", ".opus", ".aac", ".zip", ".7z", ".rar", ".gz", ".apk", ".exe", ".bin", ".pdf" };
-        static bool BackupPacked(string f) => BackupPackedExt.Contains(Path.GetExtension(f)) || (new FileInfo(f) is var fi && fi.Exists && fi.Length > 50L << 20);   // > 50 MB - bez kompresji (inaczej kopia trwa bez końca)
+        internal static bool BackupPacked(string f) => BackupPackedExt.Contains(Path.GetExtension(f)) || (new FileInfo(f) is var fi && fi.Exists && fi.Length > 50L << 20);   // > 50 MB - bez kompresji (inaczej kopia trwa bez końca)
 
         static int CreateBackup(string zipPath, bool full, Dictionary<string, string> prev = null, Action<int> progress = null)
         {

@@ -88,7 +88,7 @@ namespace Velivo
             protected override void Dispose(bool d) { if (d) { try { Flush(); } catch (Exception) { } try { _cl.Dispose(); } catch (Exception) { } _gcm.Dispose(); } base.Dispose(d); }
         }
 
-        static byte[] KomSessionKey(byte[] key, byte[] nc, byte[] ns) => SHA256.HashData(key.Concat(Encoding.ASCII.GetBytes("velivo-relay")).Concat(nc).Concat(ns).ToArray());
+        internal static byte[] KomSessionKey(byte[] key, byte[] nc, byte[] ns) => SHA256.HashData(key.Concat(Encoding.ASCII.GetBytes("velivo-relay")).Concat(nc).Concat(ns).ToArray());
 
         // ---------- polaczenie z pośrednikiem (urzadzenie poza domem) ----------
         // mode: "main" (pakiety), "tunnel" (plik do To), "tunnel-in" (plik do nas, Tunnel = id)
@@ -134,7 +134,7 @@ namespace Velivo
             catch (Exception) { cl.Dispose(); return null; }
         }
 
-        static byte[] KomMacBytes(byte[] key, string label, byte[] data) { using (var h = new HMACSHA256(key)) return h.ComputeHash(Encoding.ASCII.GetBytes(label).Concat(data).ToArray()); }
+        internal static byte[] KomMacBytes(byte[] key, string label, byte[] data) { using (var h = new HMACSHA256(key)) return h.ComputeHash(Encoding.ASCII.GetBytes(label).Concat(data).ToArray()); }
 
         // strumien do urzadzenia: poza domem - tunel przez pośrednika; w domu - TCP w sieci domowej
         // tunel do urządzenia poza domem: prośba „relay-open”, urządzenie łączy się z powrotem (do 20 s)
@@ -418,8 +418,20 @@ namespace Velivo
         string KomIntroKey(string a, string b)
         {
             if ((string)_komOpt["introSec"] is not { Length: 44 } sec) _komOpt["introSec"] = sec = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-            var ids = string.CompareOrdinal(a, b) < 0 ? a + "|" + b : b + "|" + a;
-            return Convert.ToBase64String(HMACSHA256.HashData(Convert.FromBase64String(sec), Encoding.UTF8.GetBytes(ids)));
+            return KomIntroKeyFrom(Convert.FromBase64String(sec), a, b);
+        }
+        // zapasowe adresy jednego serwera: jego host i hosty moich domowych serwerów, port zapamiętany i każdy 41920–41929 (bez obecnego adresu)
+        internal static List<string> KomAltAddrs(string relay, IEnumerable<string> homeHosts)
+        {
+            int i = (relay ?? "").LastIndexOf(':'); if (i <= 0) return new List<string>();
+            var ports = new[] { relay.Substring(i + 1) }.Concat(Enumerable.Range(41920, 10).Select(p => p.ToString())).Distinct();
+            return homeHosts.Append(relay.Substring(0, i)).Distinct().SelectMany(h => ports.Select(p => h + ":" + p))
+                .Where(a => a != relay && int.TryParse(a.Substring(a.LastIndexOf(':') + 1), out _)).ToList();
+        }
+        internal static string KomIntroKeyFrom(byte[] sec, string a, string b)
+        {
+            var ids = string.CompareOrdinal(a, b) < 0 ? a + "|" + b : b + "|" + a;   // ta sama para w dowolnej kolejności - ten sam klucz
+            return Convert.ToBase64String(HMACSHA256.HashData(sec, Encoding.UTF8.GetBytes(ids)));
         }
         // mój serwer, który DZIAŁA (połączony albo widoczny w sieci domowej), najpierw domowy - wcześniej zawsze pierwszy z listy (NUCBOX), także wyłączony
         KomContact KomLiveRelay() => _komContacts.Where(c => !string.IsNullOrEmpty(c.Relay) && !c.IsGroup)
@@ -714,9 +726,7 @@ namespace Velivo
                         _komAltAt = DateTime.UtcNow;
                         var hosts = relays.Where(c => c.Dom && c.Relay.LastIndexOf(':') > 0).Select(c => c.Relay.Substring(0, c.Relay.LastIndexOf(':'))).Distinct().ToList();
                         // każdy port serwerów 41920–41929: serwer przeniesiony na inny port (np. CHUWI 41922 -> 41929) znajduje się sam
-                        var alts = relays.Where(c => c.Relay.LastIndexOf(':') > 0).SelectMany(c => hosts.Append(c.Relay.Substring(0, c.Relay.LastIndexOf(':'))).Distinct()
-                            .SelectMany(h => new[] { c.Relay.Substring(c.Relay.LastIndexOf(':') + 1) }.Concat(Enumerable.Range(41920, 10).Select(p => p.ToString())).Distinct().Select(p => (c, alt: h + ":" + p))))
-                            .Where(x => x.alt != x.c.Relay && int.TryParse(x.alt.Substring(x.alt.LastIndexOf(':') + 1), out _)).Take(90).ToList();
+                        var alts = relays.SelectMany(c => KomAltAddrs(c.Relay, hosts).Select(alt => (c, alt))).Take(90).ToList();
                         var at = alts.Select(x => (x.c, x.alt, t: KomRelayConnectPort(x.c, x.alt.Substring(0, x.alt.LastIndexOf(':')), int.Parse(x.alt.Substring(x.alt.LastIndexOf(':') + 1)), 7, "main", null, null, CancellationToken.None))).ToList();
                         var left = at.Select(x => x.t).ToList();
                         while (left.Count > 0 && fs == null)
@@ -1169,12 +1179,15 @@ namespace Velivo
                     if (mine && act == 0) return false;   // blokada tego programu
                     if (act != 1 || (prof & 7) != 7 || (proto != 6 && proto != 256)) continue;   // zezwolenie we wszystkich sieciach, TCP
                     string lp = r.LocalPorts ?? "*";
-                    if (lp == "*" ? mine : lp.Split(',').Any(x => x.Split('-') is var ab && int.TryParse(ab[0], out var a) && int.TryParse(ab[^1], out var b) && port >= a && port <= b)) allow = true;
+                    if (lp == "*" ? mine : KomPortsCover(lp, port)) allow = true;
                 }
                 return allow;
             }
             catch (Exception) { return true; }   // nie da się sprawdzić - nie pytamy
         }
+        // „41920-41929,443” obejmuje port? (porty reguły zapory)
+        internal static bool KomPortsCover(string localPorts, int port) =>
+            (localPorts ?? "").Split(',').Any(x => x.Trim().Split('-') is var ab && int.TryParse(ab[0], out var a) && int.TryParse(ab[^1], out var b) && port >= a && port <= b);
         DateTime _komFwAsked;
         void KomFirewallCheck()
         {

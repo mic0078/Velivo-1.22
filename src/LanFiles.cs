@@ -28,23 +28,6 @@ namespace Velivo
                 h.Timestamp.ToString(CultureInfo.InvariantCulture), h.Hash ?? "", h.Length.ToString(CultureInfo.InvariantCulture), h.Name ?? ""));
         }
 
-        static string SafeFileName(string name)
-        {
-            var n = Path.GetFileName((name ?? "").Replace('\\', '/').Split('/').Last());
-            n = new string(n.Where(c => !char.IsControl(c) && Array.IndexOf(Path.GetInvalidFileNameChars(), c) < 0).ToArray()).Trim().TrimStart('.');
-            if (n.Length == 0) n = "plik";
-            return n.Length > 120 ? n.Substring(n.Length - 120) : n;
-        }
-
-        static string FreeDownloadPath(string name)
-        {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-            Directory.CreateDirectory(dir);
-            var path = Path.Combine(dir, name);
-            for (int i = 2; File.Exists(path); i++)
-                path = Path.Combine(dir, Path.GetFileNameWithoutExtension(name) + " (" + i + ")" + Path.GetExtension(name));
-            return path;
-        }
 
         async Task ReceiveLanFileAsync(NetworkStream stream, QuickAccessLanHeader header, IPEndPoint remote, CancellationToken token)
         {
@@ -176,17 +159,12 @@ namespace Velivo
 
         // ---------- file2: duze pliki po kawalkach 1 MB (jak w telefonie, LanSync.kt) ----------
         // AES-GCM osobno dla kazdego kawalka: nonce = bazowy XOR numer (ostatnie 4 bajty), AAD = naglowek + numer + znacznik konca
-        const int LanChunk = 1 << 20;
-        const long LanFile2Limit = 1L << 40;   // bez praktycznego limitu (1 TB - ochrona przed blednym naglowkiem)
 
         static byte[] LanFile2Ad(QuickAccessLanHeader h)
         {
             return Encoding.UTF8.GetBytes(string.Join("\n", h.Type ?? "", h.Id ?? "", h.Device ?? "", h.Profile ?? "",
                 h.Timestamp.ToString(CultureInfo.InvariantCulture), h.Hash ?? "", h.Size.ToString(CultureInfo.InvariantCulture), h.Name ?? ""));
         }
-        static byte[] ChunkNonce(byte[] b, int i) { var n = (byte[])b.Clone(); for (int k = 0; k < 4; k++) n[8 + k] ^= (byte)(i >> (24 - 8 * k)); return n; }
-        static byte[] ChunkAad(byte[] ad, int i, bool last) { return ad.Concat(Encoding.UTF8.GetBytes("\n" + i.ToString(CultureInfo.InvariantCulture) + "\n" + (last ? "1" : "0"))).ToArray(); }
-        static int ChunkCount(long size) { return (int)Math.Max(1, (size + LanChunk - 1) / LanChunk); }
 
         async Task ReceiveLanFile2Async(NetworkStream stream, QuickAccessLanHeader header, IPEndPoint remote, CancellationToken token)
         {

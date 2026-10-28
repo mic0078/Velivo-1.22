@@ -114,17 +114,6 @@ namespace Velivo
             using (var hmac = new HMACSHA256(key)) return hmac.ComputeHash(data);
         }
 
-        static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, int count, CancellationToken token)
-        {
-            int offset = 0;
-            while (offset < count)
-            {
-                int read = await stream.ReadAsync(buffer, offset, count - offset, token);
-                if (read <= 0) return false;
-                offset += read;
-            }
-            return true;
-        }
 
         static string QuickAccessFilesStamp()
         {

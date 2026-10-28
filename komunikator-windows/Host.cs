@@ -50,7 +50,8 @@ namespace Velivo
     public partial class MainWindow : Window
     {
         const bool KomSamodzielny = true;
-        static bool KomOddany => false;   // to jest Komunikator - prowadzi rozmowy sam
+        static bool KomOddany => false;
+        static bool KomOldPortFree => KomVelivoExe == null;   // 41919 to synchronizacja Velivo - gdy Velivo jest na tym komputerze, Komunikator go nie zajmuje (inaczej synchronizacja między komputerami nie startowała)   // to jest Komunikator - prowadzi rozmowy sam
         static void KomAppRun(bool silent) { }
         static readonly string DataDir = Environment.GetEnvironmentVariable("VELIVO_DANE") ?? VelivoData.Root;
         internal static string DataFolder => DataDir;

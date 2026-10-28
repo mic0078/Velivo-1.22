@@ -303,7 +303,7 @@ namespace Velivo
             {
                 _komCts ??= new CancellationTokenSource();
                 if (_komUdp == null) { (_komUdp, _komTcp) = KomListen(KomPort, _komCts.Token); if (_komContacts.Count > 0) KomAnnounce(); }
-                if (old && _lanRx == null && _komUdpOld == null) (_komUdpOld, _komTcpOld) = KomListen(LanPort, _komCts.Token);
+                if (old && _lanRx == null && _komUdpOld == null && KomOldPortFree) (_komUdpOld, _komTcpOld) = KomListen(LanPort, _komCts.Token);
             }
             catch (Exception ex) { App.LogError(ex); }
         }

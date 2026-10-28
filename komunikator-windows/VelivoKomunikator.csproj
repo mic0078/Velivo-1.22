@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Velivo Komunikator na Windows: samodzielny program (rozmowy, pliki, wideo i serwer – pośrednik), bez przeglądarki Velivo.
+       Ten sam kod komunikatora co w Velivo (pliki z ..\src), osobne okno, zasobnik i instalator. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>VelivoKomunikator</AssemblyName>
+    <Product>Velivo Komunikator</Product>
+    <AssemblyTitle>Velivo Komunikator</AssemblyTitle>
+    <Company>andro</Company>
+    <RootNamespace>Velivo</RootNamespace>
+    <ApplicationIcon>..\src\komunikator.ico</ApplicationIcon>
+    <Version>1.22</Version>
+    <SatelliteResourceLanguages>pl</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Host.cs" />
+    <Compile Include="..\src\Komunikator*.cs" />
+    <Compile Include="..\src\Lang.cs" />
+    <Compile Include="..\src\WindowTheme.cs" />
+    <Compile Include="..\src\VelivoData.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\src\komunikator.ico" Link="komunikator.ico" />
+    <Content Include="..\src\komunikator.ico" Link="komunikator.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\src\Rozmowa\*.html" Link="Rozmowa\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

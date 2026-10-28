@@ -1270,6 +1270,7 @@ namespace Velivo
             { " (był ", " (was " },
             { "). W routerze przestaw przekierowanie portów ", "). In the router, point the forwarding of ports " },
             { " i 443 na ", " and 443 to " },
+            { "Zamknij komunikator", "Close messenger" },
             { "Ten komputer w sieci domowej: ", "This computer on the home network: " },
             { " – na ten adres przekierowanie w routerze (port ", " – forward to this address in the router (port " },
             { " i 443)", " and 443)" },

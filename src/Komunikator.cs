@@ -295,6 +295,7 @@ namespace Velivo
         // 41918 zawsze; 41919 też, gdy synchronizacja LAN go nie zajmuje (starsze Velivo i zapora przepuszczająca tylko 41919 - NUCBOX)
         void KomStartOwn(bool old = true)
         {
+            if (KomOddany) { KomAppRun(true); return; }   // osobny Komunikator prowadzi rozmowy na tym komputerze - Velivo tylko go uruchamia
             KomLoad();
             KomStartResend();
             if (_komContacts.Count > 0) KomEnsureTray();
@@ -417,6 +418,7 @@ namespace Velivo
             if (buf.Length < 8 || Encoding.UTF8.GetString(buf, 0, Math.Min(buf.Length, 200)).IndexOf("\"p2p-", StringComparison.Ordinal) < 0) return false;
             JsonNode p; try { p = JsonNode.Parse(buf); } catch (Exception) { return false; }
             var t = (string)p?["t"]; if (t == null || !t.StartsWith("p2p-", StringComparison.Ordinal)) return false;
+            if (KomOddany) return true;   // odbiera osobny Komunikator (port 41918)
             KomRelayFromLan(p, remote.Address);   // pośrednik: do urzadzen poza domem
             Dispatcher.BeginInvoke(new Action(() => { try { KomHandle(p, remote.Address); } catch (Exception ex) { App.LogError(ex); } }));
             return true;
@@ -1065,7 +1067,7 @@ namespace Velivo
 
         void KomStartResend()
         {
-            if (_komResend != null) return;
+            if (_komResend != null || KomOddany) return;
             KomRelayStart(); KomUpStart();   // 🌍 pośrednik (gdy wlaczony) i laczenie z pośrednikiem poza domem
             Dispatcher.BeginInvoke(new Action(KomRelayAskOnce), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // kontakty sprzed tej wersji - takze poza domem
             _komResend = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -1144,6 +1146,7 @@ namespace Velivo
         // strumien: polaczenie w sieci domowej albo zaszyfrowany tunel przez pośrednika (KomunikatorPosrednik.cs)
         internal async Task<bool> KomTcpAsync(byte[] headerBytes, Stream stream, IPAddress remote, CancellationToken token)
         {
+            if (KomOddany) return false;   // rozmowy prowadzi osobny Komunikator
             JsonNode h; try { h = JsonNode.Parse(headerBytes); } catch (Exception) { return false; }
             var type = (string)h?["Type"];
             if (type != "p2p-pair" && type != "p2p-file" && type != "p2p-box") return false;
@@ -1515,6 +1518,7 @@ namespace Velivo
         // ---------- okno ----------
         internal void ShowMessenger(string openId = null)
         {
+            if (KomOddany) { KomAppRun(false); return; }
             KomLoad();
             KomStartOwn();
             KomEnsureTray();
@@ -2858,8 +2862,8 @@ namespace Velivo
             menu.Items.Add(L.T("💬 Otwórz komunikator"), null, (s, e) => Dispatcher.Invoke(() => ShowMessenger()));
             menu.Items.Add(L.T("➕ Dodaj kontakt"), null, (s, e) => Dispatcher.Invoke(async () => { ShowMessenger(); if (_komWindow != null) await KomAddDialog(_komWindow); }));
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));
-            menu.Items.Add(L.T("Zamknij Velivo"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
+            if (!KomSamodzielny || KomVelivoExe != null) menu.Items.Add(L.T("🌐 Uruchom przeglądarkę"), null, (s, e) => Dispatcher.Invoke(ShowFromTray));   // osobny Komunikator: tylko gdy Velivo jest zainstalowane
+            menu.Items.Add(KomSamodzielny ? L.T("Zamknij komunikator") : L.T("Zamknij Velivo"), null, (s, e) => Dispatcher.Invoke(ExitFromTray));
             _komTray.ContextMenuStrip = menu;
             _komTray.MouseClick += (s, e) => { if (e.Button == System.Windows.Forms.MouseButtons.Left) Dispatcher.Invoke(() => ShowMessenger()); };
             KomTrayUpdate();
@@ -2878,24 +2882,6 @@ namespace Velivo
         void KomTrayRemove()
         {
             try { if (_komTray != null) { _komTray.Visible = false; _komTray.Dispose(); _komTray = null; } } catch (Exception) { }
-        }
-
-        // menu zasobnika: 💬 Komunikator
-        System.Windows.Forms.ToolStripMenuItem TrayMessengerItem()
-        {
-            var it = new System.Windows.Forms.ToolStripMenuItem(L.T("💬 Komunikator"));
-            it.Click += (s, e) => Dispatcher.Invoke(() => ShowMessenger());
-            return it;
-        }
-
-        // 💬 na pasku Velivo obok 📎
-        void InitMessengerButton()
-        {
-            var b = new Button { Content = "💬", FontSize = 16, Width = 40, Height = 36, Margin = new Thickness(2, 3, 2, 0), ToolTip = L.T("Komunikator Velivo – rozmowy w sieci domowej, bez internetu") };
-            DockPanel.SetDock(b, Dock.Right);
-            b.Click += (s, e) => ShowMessenger();
-            int at = _sendFileBtn != null ? TabBarPanel.Children.IndexOf(_sendFileBtn) : -1;
-            TabBarPanel.Children.Insert(at >= 0 ? at : 1, b);
         }
     }
 }

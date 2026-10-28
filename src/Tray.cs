@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
@@ -166,6 +167,40 @@ namespace Velivo
         void UpdateTrayFromSettings()
         {
             if (_settings != null && !_settings.StayInTray && _tray != null && !_inTray) { _tray.Visible = false; }
+        }
+
+        const bool KomSamodzielny = false;   // pełne Velivo (osobny Komunikator ma true)
+        static string KomVelivoExe => Environment.ProcessPath;
+        // 💬 osobny program „Velivo Komunikator” zainstalowany na tym komputerze: on prowadzi rozmowy i serwer (jeden komunikator na komputer -
+        // bez podwójnych wiadomości i dwóch programów piszących do tych samych danych); Velivo tylko go uruchamia
+        static string KomAppExe { get { var p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Velivo Komunikator", "VelivoKomunikator.exe"); return File.Exists(p) ? p : null; } }
+        static bool KomOddany => KomAppExe != null;
+        static void KomAppRun(bool silent)
+        {
+            try
+            {
+                if (silent && System.Diagnostics.Process.GetProcessesByName("VelivoKomunikator").Length > 0) return;   // już działa
+                System.Diagnostics.Process.Start(KomAppExe, silent ? "--autostart" : "");   // działający - pokaże swoje okno
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // menu zasobnika: 💬 Komunikator
+        System.Windows.Forms.ToolStripMenuItem TrayMessengerItem()
+        {
+            var it = new System.Windows.Forms.ToolStripMenuItem(L.T("💬 Komunikator"));
+            it.Click += (s, e) => Dispatcher.Invoke(() => ShowMessenger());
+            return it;
+        }
+
+        // 💬 na pasku Velivo obok 📎
+        void InitMessengerButton()
+        {
+            var b = new System.Windows.Controls.Button { Content = "💬", FontSize = 16, Width = 40, Height = 36, Margin = new Thickness(2, 3, 2, 0), ToolTip = L.T("Komunikator Velivo – rozmowy w sieci domowej, bez internetu") };
+            System.Windows.Controls.DockPanel.SetDock(b, System.Windows.Controls.Dock.Right);
+            b.Click += (s, e) => ShowMessenger();
+            int at = _sendFileBtn != null ? TabBarPanel.Children.IndexOf(_sendFileBtn) : -1;
+            TabBarPanel.Children.Insert(at >= 0 ? at : 1, b);
         }
     }
 }

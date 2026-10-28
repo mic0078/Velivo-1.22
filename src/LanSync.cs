@@ -451,7 +451,7 @@ namespace Velivo
                 _lanTx.EnableBroadcast = true;
                 StartQuickAccessLanListener(_lanCts.Token);
                 _ = Task.Run(() => LanListenLoop(_lanCts.Token));
-                KomLoad(); KomStartResend(); if (_komContacts.Count > 0) { KomAnnounce(); KomEnsureTray(); }
+                if (!KomOddany) { KomLoad(); KomStartResend(); if (_komContacts.Count > 0) { KomAnnounce(); KomEnsureTray(); } }
                 _lanStartedUtc = DateTime.UtcNow;
 
                 // dane wysylane po zmianie plikow (obserwator), a nie skanowanie co 2 s; zegar tylko przypomina "jestem"

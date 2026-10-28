@@ -937,20 +937,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
 
     // --- ✉ zaproszenia przez internet (ten sam kod VELIVO1 co Velivo na Windows) ---
-    // Pośrednikiem jest komputer z Velivo; telefon zgłasza mu zaproszenie (klucz zaszyfrowany kluczem kontaktu z pośrednikiem).
-    fun createInvite(): String? {
-        val relay = myRelay() ?: return null   // serwer, który działa (nie zawsze pierwszy - NUCBOX)
-        val token = ByteArray(16).also { random.nextBytes(it) }; val k = MessageDigest.getInstance("SHA-256").digest(token)
-        val exp = System.currentTimeMillis() + 7L * 86400000
-        val n = ByteArray(12).also { random.nextBytes(it) }
-        val c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, SecretKeySpec(relay.key, "AES"), GCMParameterSpec(128, n))
-        c.updateAAD("velivo-invite\n$exp".toByteArray(Charsets.US_ASCII))
-        val p = packet("p2p-invite").put("to", relay.id).put("n", b64(n)).put("ek", b64(c.doFinal(k))).put("exp", exp)
-        val known = runCatching { InetAddress.getByName(relay.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()
-        Thread { repeat(3) { i -> sendUdp(p, if (i == 0) known else null); Thread.sleep(300) } }.start()
-        val code = JSONObject().put("h", relay.relay).put("r", relay.id).put("t", b64(token)).put("i", myId).put("n", deviceName()).toString()
-        return "VELIVO1:" + Base64.encodeToString(code.toByteArray(Charsets.UTF_8), Base64.NO_WRAP or Base64.NO_PADDING or Base64.URL_SAFE)
-    }
+    // tworzy je starsze Velivo; tutaj tylko dołączenie z kodem (nowe zaproszenia - „Mój adres”)
 
     // dołączenie z kodem: do pośrednika (bez pytania - zaproszenie), potem prośba o kontakt do zapraszającego; wynik "ok" albo opis
     fun join(code: String, showCode: (String) -> Unit): String {
@@ -2438,7 +2425,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val find = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(10), 0, px(10), px(6)); addView(search); addView(voice) }
         val actions = LinearLayout(a).apply {
             gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
-            addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)", "Add a contact: on this network or via internet (invitation)")) { addChoice() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
+            addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj kontakt – obok Ciebie albo gdziekolwiek przez internet", "Add a contact – next to you or anywhere via internet")) { addChoice() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
             addView(pill("📤 " + t("Wyślij pliki", "Send files"), t("Pliki do osoby z komunikatora (w domu i poza domem)", "Files to a messenger contact (at home and away)")) { attachTo = null; pickFiles() }, LinearLayout.LayoutParams(0, px(46), 1f))
         }
         root.removeAllViews()
@@ -2456,15 +2443,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             .setMessage(t("Daj go każdemu, kto ma Velivo – wyśle Ci prośbę, a Ty zdecydujesz: Dodaj / Odrzuć. Dostanie tylko komunikator (bez Twojej sieci domowej).",
                 "Give it to anyone with Velivo – they send you a request and you decide: Add / Decline. They get the messenger only (not your home network)."))
             .setView(tv)
-            .setPositiveButton("📤 " + t("Udostępnij", "Share")) { _, _ -> runCatching { a.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, t("Dodaj mnie w Velivo (Dodaj kontakt → 🔗 Mam czyjś adres): ", "Add me in Velivo (Add contact → 🔗 I have someone's address): ") + link), null)) } }
+            .setPositiveButton("📤 " + t("Udostępnij", "Share")) { _, _ -> runCatching { a.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, t("Dodaj mnie w Velivo (➕ Dodaj → 🔗 Mam od kogoś adres): ", "Add me in Velivo (➕ Add → 🔗 I have someone's address): ") + link), null)) } }
             .setNeutralButton("🔄 " + t("Zmień", "Change")) { _, _ -> myAddress(true) }
             .setNegativeButton(android.R.string.cancel, null).show()
     }
     private fun haveAddress() {
-        val e = EditText(a).apply { hint = "VELIVO-KONTAKT:…"; minLines = 2
-            runCatching { a.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(a)?.toString()?.takeIf { it.contains("VELIVO-KONTAKT:") }?.let { setText(it.trim()) } } }   // skopiowany adres - już wpisany
-        Dlg().setTitle("🔗 " + t("Wklej adres Velivo", "Paste a Velivo address")).setView(e)
-            .setPositiveButton(t("Wyślij prośbę", "Send request")) { _, _ ->
+        val e = EditText(a).apply { hint = "VELIVO-KONTAKT:… / VELIVO1:…"; minLines = 2
+            runCatching { a.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(a)?.toString()?.takeIf { it.contains("VELIVO-KONTAKT:") || it.contains("VELIVO1:") }?.let { setText(it.trim()) } } }   // skopiowany adres - już wpisany
+        Dlg().setTitle("🔗 " + t("Wklej adres albo zaproszenie", "Paste an address or invitation")).setView(e)
+            .setPositiveButton(t("Dodaj", "Add")) { _, _ ->
+                if (e.text.contains("VELIVO1:")) { joinWith(e.text.toString()); return@setPositiveButton }   // jednorazowe zaproszenie (starsze Velivo)
                 val ok = k.requestByLink(e.text.toString().substringAfter("VELIVO-KONTAKT:", "").let { if (it.isEmpty()) e.text.toString() else "VELIVO-KONTAKT:$it" }.trim())
                 Toast.makeText(a, if (ok) "👤 " + t("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie", "Request sent – the contact appears when they accept") else t("To nie jest adres Velivo", "This is not a Velivo address"), Toast.LENGTH_LONG).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
@@ -2504,57 +2492,25 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     private fun addChoice() {
         Dlg().setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
-            .setItems(arrayOf("🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"), "🔗 " + t("Mam czyjś adres Velivo…", "I have someone's Velivo address…"), "👤 " + t("Połącz moich znajomych ze sobą…", "Connect my contacts with each other…"), "👥 " + t("Nowa grupa…", "New group…"), "📶 " + t("W tej sieci (z kodem)", "On this network (with a code)"), "✉ " + t("Zaproś przez internet…", "Invite via internet…"), "🔑 " + t("Mam zaproszenie…", "I have an invitation…"),
+            .setItems(arrayOf("📱 " + t("Ktoś obok mnie (ta sama sieć Wi-Fi)", "Someone next to me (same Wi-Fi)"), "📤 " + t("Mój adres – wyślij komuś (działa wszędzie)", "My address – send to someone (works anywhere)"),
+                "🔗 " + t("Mam od kogoś adres albo zaproszenie…", "I have someone's address or invitation…"), "👥 " + t("Nowa grupa…", "New group…"), "👤 " + t("Połącz moich znajomych ze sobą…", "Connect my contacts with each other…"),
                 "📶 " + (if (k.newDeviceNotifications) t("Powiadomienia o nowych urządzeniach: wł.", "New device notifications: on") else t("Powiadomienia o nowych urządzeniach: wył.", "New device notifications: off")))) { _, i ->
-                when (i) { 0 -> myAddress(); 1 -> haveAddress(); 2 -> introduce(); 3 -> newGroup(); 4 -> addContact(); 5 -> invite(); 6 -> joinDialog(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
+                when (i) { 0 -> addContact(); 1 -> myAddress(); 2 -> haveAddress(); 3 -> newGroup(); 4 -> introduce(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; addChoice() } }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    // zaproszenie: WhatsApp / SMS (osobę wybierasz z kontaktów w tamtej aplikacji - Velivo nie czyta książki adresowej) albo inna aplikacja
-    private fun sendInvite(code: String) {
-        val text = t("Zaproszenie do komunikatora Velivo:\n", "Velivo messenger invitation:\n") + code
-        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
-        Dlg().setTitle("📤 " + t("Wyślij zaproszenie", "Send invitation"))
-            .setItems(arrayOf("💬 WhatsApp", "✉ SMS", "📤 " + t("Inna aplikacja…", "Other app…"))) { _, i ->
-                runCatching {
-                    when (i) {
-                        0 -> a.startActivity(android.content.Intent(send).setPackage("com.whatsapp"))
-                        1 -> a.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, Uri.parse("smsto:")).putExtra("sms_body", text))
-                        else -> a.startActivity(android.content.Intent.createChooser(send, null))
-                    }
-                }.onFailure { Toast.makeText(a, t("Nie ma tej aplikacji – wybierz inną", "App not installed – choose another"), Toast.LENGTH_LONG).show(); runCatching { a.startActivity(android.content.Intent.createChooser(send, null)) } }
-            }.setNegativeButton(android.R.string.cancel, null).show()
-    }
-
-    private fun invite() {
-        val code = k.createInvite()
-        if (code == null) { Dlg().setTitle("✉ " + t("Zaproś przez internet", "Invite via internet"))
-            .setMessage(t("Najpierw włącz pośrednika (Velivo na komputerze zawsze włączonym: 🎨 → 🌍 Rozmowy poza domem) i otwórz tu komunikator w domu.", "First turn on the relay (Velivo on the always-on computer: 🎨 → 🌍 Chats away from home) and open the messenger here while at home."))
-            .setPositiveButton(android.R.string.ok, null).show(); return }
-        Dlg().setTitle("✉ " + t("Zaproś przez internet", "Invite via internet"))
-            .setMessage(t("Wyślij ten kod osobie, która ma Velivo. Ona wkleja go w komunikatorze: ➕ → 🔑 Mam zaproszenie. U Ciebie pojawi się prośba z kodem – przyjmij, gdy kod się zgadza. Działa raz, przez 7 dni.\n\n", "Send this code to a person who has Velivo. They paste it in the messenger: ➕ → 🔑 I have an invitation. You will get a request with a code – accept if it matches. Works once, for 7 days.\n\n") + code)
-            .setPositiveButton("📤 " + t("Wyślij…", "Send…")) { _, _ -> sendInvite(code) }
-            .setNeutralButton("📋 " + t("Kopiuj", "Copy")) { _, _ -> (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", code)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
-            .setNegativeButton(t("Zamknij", "Close"), null).show()
-    }
-
-    private fun joinDialog() {
-        val clip = runCatching { (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).primaryClip?.getItemAt(0)?.text?.toString() }.getOrNull()
-        val e = EditText(a).apply { hint = "VELIVO1:…"; minLines = 2; if (clip?.contains("VELIVO1:") == true) setText(clip.trim()) }
-        Dlg().setTitle("🔑 " + t("Mam zaproszenie", "I have an invitation")).setMessage(t("Wklej kod zaproszenia:", "Paste the invitation code:")).setView(e)
-            .setPositiveButton(t("Połącz", "Connect")) { _, _ ->
-                val code = e.text.toString()
-                val wait = Dlg().setTitle("✉ " + t("Zaproszenie", "Invitation")).setMessage(t("Łączę z zapraszającym…", "Connecting to the inviter…")).show()
-                Thread {
-                    val r = k.join(code) { c -> a.runOnUiThread { wait.setMessage(t("Kod: $c\n\nZapraszający widzi ten sam kod – czekam, aż przyjmie.", "Code: $c\n\nThe inviter sees the same code – waiting for them to accept.")) } }
-                    if (r == "ok") { k.upForce = true }
-                    a.runOnUiThread {
-                        wait.dismiss()
-                        Toast.makeText(a, if (r == "ok") t("✉ Dodano kontakt – możecie rozmawiać przez internet", "✉ Contact added – you can chat over the internet") else t("✉ Nie dodano: ", "✉ Not added: ") + r, Toast.LENGTH_LONG).show()
-                        if (r == "ok") show()
-                    }
-                }.start()
-            }.setNegativeButton(android.R.string.cancel, null).show()
+    // ✉ kod zaproszenia (VELIVO1:…) od kogoś - połączenie z zapraszającym
+    private fun joinWith(code: String) {
+        val wait = Dlg().setTitle("✉ " + t("Zaproszenie", "Invitation")).setMessage(t("Łączę z zapraszającym…", "Connecting to the inviter…")).show()
+        Thread {
+            val r = k.join(code) { c -> a.runOnUiThread { wait.setMessage(t("Kod: $c\n\nZapraszający widzi ten sam kod – czekam, aż przyjmie.", "Code: $c\n\nThe inviter sees the same code – waiting for them to accept.")) } }
+            if (r == "ok") { k.upForce = true }
+            a.runOnUiThread {
+                wait.dismiss()
+                Toast.makeText(a, if (r == "ok") t("✉ Dodano kontakt – możecie rozmawiać przez internet", "✉ Contact added – you can chat over the internet") else t("✉ Nie dodano: ", "✉ Not added: ") + r, Toast.LENGTH_LONG).show()
+                if (r == "ok") show()
+            }
+        }.start()
     }
 
     private fun manage(c: Komunikator.Contact) {

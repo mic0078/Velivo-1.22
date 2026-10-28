@@ -951,32 +951,6 @@ namespace Velivo
             KomSave();
         }
 
-        // nowy kod zaproszenia; null - brak pośrednika (opis w tekscie bledu)
-        string KomCreateInvite(out string error)
-        {
-            error = null;
-            string host; string relayId; KomContact relay = null;
-            if (_komRelayOn && _komRelayHost.Length > 0) { host = _komRelayHost + ":" + _komRelayPort; relayId = _komId; }
-            else
-            {
-                relay = KomLiveRelay();   // serwer, który działa (nie zawsze pierwszy - NUCBOX)
-                if (relay == null) { error = L.T("Najpierw włącz pośrednika (🎨 → 🌍 Rozmowy poza domem) na komputerze, który jest zawsze włączony, i otwórz tu komunikator w domu."); return null; }
-                host = relay.Relay; relayId = relay.Id;
-            }
-            var token = RandomNumberGenerator.GetBytes(16); var k = SHA256.HashData(token);
-            long exp = DateTimeOffset.UtcNow.AddDays(7).ToUnixTimeMilliseconds();
-            if (relay == null) { _komInvites[KomInviteId(k)] = new KomInvite { K = k, By = _komId, Exp = exp }; KomSave(); }
-            else
-            {   // pośrednik musi znac zaproszenie - klucz zaszyfrowany kluczem kontaktu z pośrednikiem
-                var n = RandomNumberGenerator.GetBytes(12); var ct = new byte[32]; var tag = new byte[16];
-                using (var g = new AesGcm(relay.Key, 16)) g.Encrypt(n, k, ct, tag, Encoding.ASCII.GetBytes("velivo-invite\n" + exp));
-                var p = KomPacket("p2p-invite"); p["to"] = relay.Id; p["n"] = Convert.ToBase64String(n); p["ek"] = Convert.ToBase64String(ct.Concat(tag).ToArray()); p["exp"] = exp;
-                IPAddress.TryParse(relay.Addr ?? "", out var ra);
-                for (int i = 0; i < 3; i++) KomSendUdp(p, i == 0 ? ra : null);
-            }
-            var code = new JsonObject { ["h"] = host, ["r"] = relayId, ["t"] = Convert.ToBase64String(token), ["i"] = _komId, ["n"] = _lanDeviceName }.ToJsonString();
-            return "VELIVO1:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(code)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        }
 
         // dolaczenie z kodem: do pośrednika (bez pytania - zaproszenie), potem prośba o kontakt do zapraszajacego
         async Task<string> KomJoin(string code, Action<string> showCode)
@@ -1017,32 +991,18 @@ namespace Velivo
         void KomUpCheckNow() { Dispatcher.BeginInvoke(new Action(() => { _komUpForce = true; KomUpCheck(); })); }
         bool _komUpForce;
 
-        void KomInviteDialog(Window owner)
-        {
-            var code = KomCreateInvite(out var err);
-            if (code == null) { MessageBox.Show(owner, err, L.T("✉ Zaproś przez internet")); return; }
-            var box = new TextBox { Text = code, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Margin = new Thickness(0, 8, 0, 8), FontFamily = new System.Windows.Media.FontFamily("Consolas") };
-            var copy = new Button { Content = L.T("📋 Kopiuj"), Padding = new Thickness(14, 4, 14, 4), HorizontalAlignment = HorizontalAlignment.Left };
-            copy.Click += (s, e) => { try { Clipboard.SetText(code); copy.Content = L.T("✓ Skopiowano"); } catch (Exception) { } };
-            var d = new Window { Title = L.T("✉ Zaproś przez internet"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Content = new StackPanel { Margin = new Thickness(16), Children = {
-                    new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Text = L.T("Wyślij ten kod osobie, która ma Velivo (SMS, e-mail, komunikator). Ona wkleja go w komunikatorze: ➕ → 🔑 Mam zaproszenie. U Ciebie pojawi się prośba z kodem – przyjmij, gdy kod się zgadza. Zaproszenie działa raz, przez 7 dni.") },
-                    box, copy } } };
-            KomStyle(d);
-            d.ShowDialog();
-        }
-
         void KomJoinDialog(Window owner)
         {
             var box = new TextBox { MinWidth = 420, MaxWidth = 460, Height = 70, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, Margin = new Thickness(0, 8, 0, 8) };
-            try { if (Clipboard.ContainsText() && Clipboard.GetText().Contains("VELIVO1:")) box.Text = Clipboard.GetText().Trim(); } catch (Exception) { }
-            var ok = new Button { Content = L.T("Połącz"), IsDefault = true, Padding = new Thickness(18, 4, 18, 4), HorizontalAlignment = HorizontalAlignment.Right };
-            var d = new Window { Title = L.T("🔑 Mam zaproszenie"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Content = new StackPanel { Margin = new Thickness(16), Children = { new TextBlock { Text = L.T("Wklej kod zaproszenia (VELIVO1:…):") }, box, ok } } };
+            try { if (Clipboard.ContainsText() && (Clipboard.GetText().Contains("VELIVO1:") || Clipboard.GetText().Contains("VELIVO-KONTAKT:"))) box.Text = Clipboard.GetText().Trim(); } catch (Exception) { }
+            var ok = new Button { Content = L.T("Dodaj"), IsDefault = true, Padding = new Thickness(18, 4, 18, 4), HorizontalAlignment = HorizontalAlignment.Right };
+            var d = new Window { Title = "🔗 " + L.T("Mam od kogoś adres albo zaproszenie"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel { Margin = new Thickness(16), Children = { new TextBlock { Text = L.T("Wklej adres (VELIVO-KONTAKT:…) albo zaproszenie (VELIVO1:…):") }, box, ok } } };
             KomStyle(d);
             ok.Click += (s, e) => d.DialogResult = true;
             if (d.ShowDialog() != true || box.Text.Trim().Length == 0) return;
             var code = box.Text;
+            if (code.Contains("VELIVO-KONTAKT:")) { KomInfo(KomRequestByLink(code.Trim()) ? "👤 " + L.T("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie") : L.T("To nie jest adres Velivo")); return; }   // 🔗 czyjś adres
             KomInfo(L.T("✉ Łączę z zapraszającym…"), 0);
             _ = Dispatcher.InvokeAsync(async () =>
             {

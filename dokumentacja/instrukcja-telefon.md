@@ -324,9 +324,9 @@ Rozmowy, zdjęcia i pliki między Twoimi telefonami i komputerami z Velivo – b
 * **Linki i pliki w rozmowie:** stuknięcie adresu otwiera przeglądarkę, stuknięcie pliku otwiera go w aplikacji przypisanej do tego typu (bez wybierania folderu).
 * **Dźwięk wiadomości:** 🎨 → **🔔 Dźwięk** – wybór w ustawieniach powiadomień telefonu (Windows: 🎨 → **🔔 Dźwięk wiadomości…**).
 * **Otwieranie:** ikona „Komunikator Velivo” (telefon i pulpit Windows) albo menu Velivo → 💬.
-* **Dodanie kontaktu (raz, w domu):** ➕ Dodaj → wybierz urządzenie → oba ekrany pokazują ten sam 6-cyfrowy kod → przyjmij.
+* **Dodanie kontaktu:** obok Ciebie – ➕ Dodaj → 📱 **Ktoś obok mnie** → oba ekrany pokazują ten sam 6-cyfrowy kod → przyjmij; gdziekolwiek – 📤 **Mój adres** (niżej). Nowe Twoje urządzenie (np. laptop po ponownej instalacji) wystarczy dodać do jednego Twojego urządzenia – pozostałe Twoje urządzenia poznają je same, także przez internet.
 * **W domu i poza domem – samo:** urządzenia, które poznały się w domu, rozmawiają też przez internet. Nic nie trzeba ustawiać. U góry widać 🏠 **W domu** albo 🌍 **Poza domem – przez internet**. Komputer w domu powinien być włączony.
-* **Ktoś daleko (nigdy nie był u Ciebie):** ➕ → ✉ **Zaproś przez internet** → 📤 **Wyślij…** → WhatsApp, SMS albo inna aplikacja (osobę wybierasz z kontaktów w tamtej aplikacji). Druga osoba: ➕ → 🔑 **Mam zaproszenie**. Przyjmujesz, gdy kod się zgadza. Zaproszenie działa raz, 7 dni.
+* **Ktoś daleko (gdziekolwiek):** ➕ Dodaj → 📤 **Mój adres – wyślij komuś** → WhatsApp, SMS albo inna aplikacja. Druga osoba: ➕ Dodaj → 🔗 **Mam od kogoś adres albo zaproszenie** (wkleja się sam ze schowka), a Ty przyjmujesz prośbę. Dawne zaproszenia (VELIVO1:…) wkleja się w to samo okno.
 * **Znaczki:** 🟢 w sieci, ⚪ poza siecią; … wysyłanie, ✓ doręczone, ✓✓ przeczytane.
 * **Zdjęcia i pliki:** 📎 w rozmowie. Od kontaktów przychodzą od razu (zdjęcia jako miniatury). Zapis: przytrzymanie (telefon) albo prawy przycisk (Windows).
 * **Powiadomienia** także przy zamkniętym Velivo; odpowiedź prosto z powiadomienia.

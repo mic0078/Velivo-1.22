@@ -40,7 +40,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 pl.VelivoRunning=Velivo nadal działa (prawdopodobnie uruchomione jako administrator) i instalator nie może go zamknąć. Zamknij Velivo: ikona przy zegarze → Zakończ (albo Menedżer zadań → Velivo → Zakończ zadanie), potem uruchom instalację ponownie.
 en.VelivoRunning=Velivo is still running (probably started as administrator) and the installer cannot close it. Close Velivo: tray icon → Exit (or Task Manager → Velivo → End task), then run the installation again.
 pl.DesktopIcon=Skrót na pulpicie
-pl.MessengerIcon=Komunikator Velivo na pulpicie (rozmowy w sieci domowej)
+pl.MessengerIcon=Komunikator Velivo na pulpicie (rozmowy w domu i przez internet)
 pl.Addons=Dodatki (opcjonalne):
 en.Addons=Add-ons (optional):
 pl.VideoPlayer=Odtwarzacz filmów jak VLC – AVI, MKV, WMV i inne formaty, biblioteka filmów (pobiera ok. 145 MB z oficjalnej paczki VideoLAN; można go później odinstalować w Velivo)
@@ -52,7 +52,7 @@ en.VideoPlayerFailed=Could not download the video player:%n%1%n%nVelivo will be 
 pl.VideoPlayerUnpack=Nie udało się rozpakować odtwarzacza filmów – Velivo działa bez niego. Uruchom instalator ponownie, aby spróbować jeszcze raz.
 en.VideoPlayerUnpack=Could not unpack the video player – Velivo works without it. Run the installer again to retry.
 en.DesktopIcon=Desktop shortcut
-en.MessengerIcon=Velivo messenger on the desktop (chats on the home network)
+en.MessengerIcon=Velivo messenger on the desktop (chats at home and over the internet)
 pl.Shortcuts=Skróty:
 en.Shortcuts=Shortcuts:
 pl.RunApp=Uruchom %1

@@ -324,9 +324,9 @@ Chats, photos and files between your phones and computers with Velivo – no pho
 * **Links and files in a chat:** tapping an address opens the browser, tapping a file opens it in the app assigned to that type (no folder picking).
 * **Message sound:** 🎨 → **🔔 Sound** – pick it in the phone notification settings (Windows: 🎨 → **🔔 Message sound…**).
 * **Opening:** the “Velivo Messenger” icon (phone and Windows desktop) or the Velivo menu → 💬.
-* **Adding a contact (once, at home):** ➕ Add → pick the device → both screens show the same 6-digit code → accept.
+* **Adding a contact:** next to you – ➕ Add → 📱 **Someone next to me** → both screens show the same 6-digit code → accept; anywhere – 📤 **My address** (below). A new device of yours (e.g. a laptop after reinstalling) only needs adding to one of your devices – your other devices learn it by themselves, also over the internet.
 * **At home and away – automatic:** devices that met at home also talk over the internet. Nothing to set up. The top shows 🏠 **At home** or 🌍 **Away from home – via internet**. The computer at home should be on.
-* **Someone far away (never at your place):** ➕ → ✉ **Invite via internet** → 📤 **Send…** → WhatsApp, SMS or another app (you pick the person from contacts in that app). The other person: ➕ → 🔑 **I have an invitation**. Accept if the code matches. The invitation works once, 7 days.
+* **Someone far away (anywhere):** ➕ Add → 📤 **My address – send to someone** → WhatsApp, SMS or another app. The other person: ➕ Add → 🔗 **I have someone's address or invitation** (pasted from the clipboard by itself), and you accept the request. Old invitations (VELIVO1:…) go into the same window.
 * **Signs:** 🟢 online, ⚪ offline; … sending, ✓ delivered, ✓✓ read.
 * **Photos and files:** 📎 in a chat. From contacts they arrive at once (photos as thumbnails). Saving: long-press (phone) or right-click (Windows).
 * **Notifications** also when Velivo is closed; reply straight from the notification.

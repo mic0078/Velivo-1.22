@@ -2197,29 +2197,16 @@ namespace Velivo
                 foreach (var g in new[] { gLook, gProf, gSafe, gCopy, gNote, net }) cm.Items.Add(g);
                 cm.IsOpen = true;
             }));
-            leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt: w tej sieci albo przez internet (zaproszenie)"), (s, e) =>
+            leftButtons.Children.Add(Btn(L.T("➕ Dodaj"), L.T("Dodaj kontakt – obok Ciebie albo gdziekolwiek przez internet"), (s, e) =>
             {
                 var cm = new ContextMenu { PlacementTarget = (UIElement)s, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
-                var lan = new MenuItem { Header = L.T("📶 W tej sieci (z kodem)") }; lan.Click += async (a, b) => await KomAddDialog(w);
-                var inv = new MenuItem { Header = L.T("✉ Zaproś przez internet…") }; inv.Click += (a, b) => KomInviteDialog(w);
-                var join = new MenuItem { Header = L.T("🔑 Mam zaproszenie…") }; join.Click += (a, b) => KomJoinDialog(w);
+                var lan = new MenuItem { Header = L.T("📱 Ktoś obok mnie (ta sama sieć Wi-Fi)…") }; lan.Click += async (a, b) => await KomAddDialog(w);
+                var addr = new MenuItem { Header = L.T("📤 Mój adres – wyślij komuś (działa wszędzie)…") }; addr.Click += (a, b) => KomMyAddressDialog(w);
+                var have = new MenuItem { Header = L.T("🔗 Mam od kogoś adres albo zaproszenie…") }; have.Click += (a, b) => KomJoinDialog(w);
                 var grp = new MenuItem { Header = L.T("👥 Nowa grupa…") }; grp.Click += (a, b) => KomGroupDialog(w);
                 var intro = new MenuItem { Header = L.T("👤 Połącz moich znajomych ze sobą…") }; intro.Click += (a, b) => KomIntroduceDialog(w);
-                var addr = new MenuItem { Header = L.T("🔗 Mój adres Velivo (dla każdego)…") }; addr.Click += (a, b) => KomMyAddressDialog(w);
-                var have = new MenuItem { Header = L.T("🔗 Mam czyjś adres Velivo…") };
-                have.Click += (a, b) =>
-                {
-                    string clip = ""; try { if (Clipboard.ContainsText() && Clipboard.GetText().Contains("VELIVO-KONTAKT:")) clip = Clipboard.GetText().Trim(); } catch (Exception) { }   // skopiowany adres - już wpisany
-                    var link = KomAsk(w, "🔗 " + L.T("Wklej adres Velivo"), clip); if (string.IsNullOrWhiteSpace(link)) return;
-                    KomInfo(KomRequestByLink(link) ? "👤 " + L.T("Prośba wysłana – kontakt pojawi się, gdy ta osoba ją przyjmie") : L.T("To nie jest adres Velivo"));
-                };
-                cm.Items.Add(addr); cm.Items.Add(have); cm.Items.Add(intro); cm.Items.Add(grp); cm.Items.Add(lan); cm.Items.Add(inv); cm.Items.Add(join);
+                cm.Items.Add(lan); cm.Items.Add(addr); cm.Items.Add(have); cm.Items.Add(new Separator()); cm.Items.Add(grp); cm.Items.Add(intro);
                 cm.IsOpen = true;
-            }));
-            leftButtons.Children.Add(Btn(L.T("📎 Plik do…"), L.T("Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)"), async (s, e) =>
-            {
-                var c = Current(); if (c != null) { await AttachTo(c); return; }   // zaznaczony kontakt - bez szukania i bez kodu
-                var peer = await KomChoosePeer(w, L.T("📎 Wyślij pliki do…")); if (peer.Addr != null) await KomSendFilesTo(w, peer.Name, peer.Addr, KomContactById(peer.Id));
             }));
             // okno na wierzchu: rozmowa widoczna - "przeczytane" (✓✓) dla wszystkiego, co w niej czeka (takze plikow)
             w.Activated += (s, e) => { if (_komOpenId == null) return; if (_komUnread.ContainsKey(_komOpenId)) FillChat(); var oc = Current(); if (oc != null) KomSendRead(oc); };

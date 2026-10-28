@@ -207,7 +207,7 @@ namespace Velivo
         // 💬 na pasku Velivo obok 📎
         void InitMessengerButton()
         {
-            var b = new System.Windows.Controls.Button { Content = "💬", FontSize = 16, Width = 40, Height = 36, Margin = new Thickness(2, 3, 2, 0), ToolTip = L.T("Komunikator Velivo – rozmowy w sieci domowej, bez internetu") };
+            var b = new System.Windows.Controls.Button { Content = "💬", FontSize = 16, Width = 40, Height = 36, Margin = new Thickness(2, 3, 2, 0), ToolTip = L.T("Komunikator Velivo – rozmowy, pliki i wideo w domu i przez internet") };
             System.Windows.Controls.DockPanel.SetDock(b, System.Windows.Controls.Dock.Right);
             b.Click += (s, e) => ShowMessenger();
             int at = _sendFileBtn != null ? TabBarPanel.Children.IndexOf(_sendFileBtn) : -1;

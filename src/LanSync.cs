@@ -789,7 +789,7 @@ namespace Velivo
             _lanDeviceProfile[device] = normalizedProfile;
 
             p.Device = pkt.kind == "phone" && !device.StartsWith("📱", StringComparison.Ordinal) ? "📱 " + device : device;   // telefon widoczny jako 📱 (lista urzadzen, "Wyslij do")
-            p.Address = ep != null ? ep.Address + ":" + ep.Port : "?";
+            if (ep != null || p.Address == null) p.Address = ep != null ? ep.Address + ":" + ep.Port : "?";   // stan przez internet (bez adresu) nie zamazuje adresu w sieci domowej - inaczej Szybki Dostęp i pliki między komputerami stawały
             p.Profile = normalizedProfile;
             p.LastType = pkt.t ?? "?";
             p.LastStamp = pkt.ts;

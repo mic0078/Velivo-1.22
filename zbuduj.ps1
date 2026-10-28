@@ -24,6 +24,10 @@ Remove-Item -Recurse -Force src\bin\Release\net10.0-windows10.0.19041.0\win-x64 
 Remove-Item -Recurse -Force build\velivo -ErrorAction SilentlyContinue
 dotnet publish src\Velivo.csproj -c Release -r win-x64 --self-contained true -o build\velivo
 if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja nie powiodla sie." -ForegroundColor Red; exit 1 }
+# Velivo Komunikator - samodzielny program (rozmowy i serwer) z tego samego kodu komunikatora
+Remove-Item -Recurse -Force build\komunikator -ErrorAction SilentlyContinue
+dotnet publish komunikator-windows\VelivoKomunikator.csproj -c Release -r win-x64 --self-contained true -o build\komunikator
+if ($LASTEXITCODE -ne 0) { Write-Host "Kompilacja Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 
 Write-Host "4/4 Instalator..." -ForegroundColor Cyan
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -40,6 +44,11 @@ if (Test-Path $old) { Write-Host "Stary instalator jest w uzyciu - zamknij okno 
 # antywirus skanuje nowy plik w chwili wstawiania ikony (EndUpdateResource failed) - do 6 prob, coraz dluzsza przerwa (dziala bez wykluczen w antywirusie)
 for ($i = 1; $i -le 6; $i++) { & $iscc /DPelny "/O$outDir" src\installer.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
 if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora nie powiodla sie." -ForegroundColor Red; exit 1 }
+$oldK = Join-Path $outDir 'Velivo-Komunikator-Setup-1.22.exe'
+for ($i = 0; $i -lt 10 -and (Test-Path $oldK); $i++) { try { Remove-Item $oldK -Force -ErrorAction Stop } catch { Start-Sleep 2 } }
+for ($i = 1; $i -le 6; $i++) { & $iscc "/O$outDir" komunikator-windows\installer-komunikator.iss; if ($LASTEXITCODE -eq 0) { break }; if ($i -lt 6) { Write-Host "Antywirus sprawdza plik - ponawiam budowe instalatora Komunikatora ($i/6)..." -ForegroundColor Yellow; Start-Sleep (5 * $i) } }
+if ($LASTEXITCODE -ne 0) { Write-Host "Budowa instalatora Komunikatora nie powiodla sie." -ForegroundColor Red; exit 1 }
 
 Write-Host "Gotowe: build\instalator\Velivo-Setup-1.22.exe (zamknij Velivo calkowicie przed instalacja)" -ForegroundColor Green
+Write-Host "Gotowe: build\instalator\Velivo-Komunikator-Setup-1.22.exe (sam komunikator i serwer - bez przegladarki)" -ForegroundColor Green
 Start-Process $outDir

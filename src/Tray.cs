@@ -173,7 +173,16 @@ namespace Velivo
         static string KomVelivoExe => Environment.ProcessPath;
         // 💬 osobny program „Velivo Komunikator” zainstalowany na tym komputerze: on prowadzi rozmowy i serwer (jeden komunikator na komputer -
         // bez podwójnych wiadomości i dwóch programów piszących do tych samych danych); Velivo tylko go uruchamia
-        static string KomAppExe { get { var p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Velivo Komunikator", "VelivoKomunikator.exe"); return File.Exists(p) ? p : null; } }
+        static string _komAppExe; static DateTime _komAppAt;   // sprawdzane najwyżej co 30 s (pytane przy każdym pakiecie z sieci domowej)
+        static string KomAppExe
+        {
+            get
+            {
+                if (DateTime.UtcNow - _komAppAt < TimeSpan.FromSeconds(30)) return _komAppExe;
+                var p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Velivo Komunikator", "VelivoKomunikator.exe");
+                _komAppExe = File.Exists(p) ? p : null; _komAppAt = DateTime.UtcNow; return _komAppExe;
+            }
+        }
         static bool KomOddany => KomAppExe != null;
         static void KomAppRun(bool silent)
         {

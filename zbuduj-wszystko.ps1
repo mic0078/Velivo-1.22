@@ -31,7 +31,7 @@ function Changed($name, $patterns) {
     if ($LASTEXITCODE -ne 0) { return $true }   # nieznana zmiana (np. po przepisaniu historii) - budujemy
     return [bool]($files | Where-Object { $p = $_; $patterns | Where-Object { $p -like $_ } })
 }
-$needWin = (-not $TylkoAndroid) -and (Changed 'windows' @('src/*', 'testy/*', 'zbuduj.ps1'))
+$needWin = (-not $TylkoAndroid) -and (Changed 'windows' @('src/*', 'testy/*', 'zbuduj.ps1', 'komunikator-windows/*'))
 $needAnd = ((-not $TylkoWindows) -or $tylkoApk) -and (Changed 'android' @('android/*', 'src/QuickAccessExtension/kod/*', 'src/Rozmowa/*'))
 if (-not $needWin -and -not $needAnd) { Write-Host "Brak zmian w programie od ostatniej budowy - nic do budowania (dokumentacja nie wymaga nowej wersji). Wymuszenie: .\zbuduj-wszystko.ps1 -Wszystko" -ForegroundColor Green; exit 0 }
 Write-Host ("Do zbudowania: " + (@(if ($needWin) { 'Windows' }; if ($needAnd) { 'Android' }) -join ' + ')) -ForegroundColor Cyan

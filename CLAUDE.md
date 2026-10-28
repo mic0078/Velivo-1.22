@@ -130,6 +130,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-28: Szybki Dostęp między komputerami przestał się wymieniać – synchronizacja przez internet (bez adresu) zapisywała adres komputera „?”, a wymiana w domu omija urządzenia bez adresu; przy mieszanych wersjach Velivo i Komunikator oddawały sobie rozmowy nawzajem (nikt nie prowadził). Nowa droga danych nie może nadpisywać stanu starej.
 * 2026-10-28: „wszystko zniknęło z Velivo” na głównym laptopie – synchronizacja przez internet z pustego (świeżo zainstalowanego) komputera pytała o przełączenie profilu i przełączała na pusty „Domyślny” (dane zostają w dawnym profilu). Teraz stan z internetu nie przełącza profilu. Nowa droga do starego kodu – sprawdź, jakie pytania i zmiany on wywołuje.
 * 2026-10-28: serwer pytał o kod przy wiadomości do kogoś innego (okienko „wysyła plik… Kod”) – właściciel: „w ogóle ma nie pytać”. Teraz plik od nieznanego nadawcy odrzucany bez okienka (dziennik), od kontaktu – jak dotąd. Pytania tylko tam, gdzie właściciel sam coś zaczął.
+* 2026-10-28: sam CHUWI nie przekazywał wiadomości do mamy (dodanej przez NUCBOX) – serwery przedstawiały sobie kontakt tylko, gdy był akurat w sieci; teraz serwery wymieniają wszystkie kontakty od razu, gdy się widzą; kontakt dostaje adres drugiego serwera, gdy jest w sieci.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

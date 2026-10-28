@@ -382,13 +382,13 @@ namespace Velivo
             foreach (var x in _komContacts.ToList())
             {
                 var tag = x.Id + "|" + peerId + "|" + peer.Relay + "|" + x.Relay;   // nowy adres serwera (włączony później, zmiana portu) - przedstawienie od nowa
-                if (x.IsGroup || x.Id == peerId || x.Id == _komId || x.Key == null || have.Contains(tag)) continue;
-                if (!KomOnline(x.Id)) continue;   // przedstawienie tylko, gdy kontakt jest w sieci (dojdzie od razu); nieobecny - przy następnym sprawdzeniu (co 10 min)
+                if (x.IsGroup || x.Id == peerId || x.Id == _komId || x.Key == null) continue;
                 var key = KomIntroKey(x.Id, peerId);
                 string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "", ["dom"] = c.Dom }.ToJsonString();
-                KomDeliver(peer, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
-                KomDeliver(x, new KomMsg { Mine = true, Text = Card(peer), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
-                done.Add(tag); any = true;
+                // serwery wymieniają się WSZYSTKIMI kontaktami od razu (drugi serwer jest w sieci - słychać go): CHUWI zna mamę dodaną przez NUCBOX, także gdy mamy teraz nie ma
+                if (!have.Contains(tag + "|s")) { KomDeliver(peer, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag + "|s"); any = true; }
+                // kontakt poznaje drugi serwer, gdy jest w sieci (karta nie czeka w skrzynce) - nieobecny przy następnym sprawdzeniu (co 10 min)
+                if (!have.Contains(tag) && KomOnline(x.Id)) { KomDeliver(x, new KomMsg { Mine = true, Text = Card(peer), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag); any = true; }
             }
             if (any) KomSave();
         }

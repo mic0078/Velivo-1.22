@@ -1549,7 +1549,7 @@ namespace Velivo
             root.Children.Add(left);
 
             var right = new DockPanel(); Grid.SetColumn(right, 2);
-            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6) };
+            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis };
             var searchBox = new TextBox { Width = 160, Margin = new Thickness(6, 0, 0, 6), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("🔍 Szukaj w rozmowie") };
             var top = new DockPanel(); DockPanel.SetDock(top, Dock.Top);
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
@@ -1749,6 +1749,7 @@ namespace Velivo
                     headerDone:;
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;
+                tools.Visibility = c != null ? Visibility.Visible : Visibility.Collapsed;   // bez rozmowy - bez wyszarzonych przycisków, napis „Wybierz rozmowę” cały
                 fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = camBtn.IsEnabled = locBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = helpBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
                 var cs = new StringBuilder(pal.Key ?? "").Append(_komAutoImages).Append(c?.Id).Append('|').Append(searchBox.Text).Append('|').Append(selMode).Append(picked.Count).Append('|');
                 if (c != null) foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300))) cs.Append(m.Mid).Append(m.Ok ? '1' : '0').Append(m.Read ? '1' : '0').Append(m.Text?.GetHashCode()).Append(m.Path).Append(KomReactions(m)).Append(m.Lp?.Length).Append(';');

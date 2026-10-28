@@ -131,6 +131,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-28: „wszystko zniknęło z Velivo” na głównym laptopie – synchronizacja przez internet z pustego (świeżo zainstalowanego) komputera pytała o przełączenie profilu i przełączała na pusty „Domyślny” (dane zostają w dawnym profilu). Teraz stan z internetu nie przełącza profilu. Nowa droga do starego kodu – sprawdź, jakie pytania i zmiany on wywołuje.
 * 2026-10-28: serwer pytał o kod przy wiadomości do kogoś innego (okienko „wysyła plik… Kod”) – właściciel: „w ogóle ma nie pytać”. Teraz plik od nieznanego nadawcy odrzucany bez okienka (dziennik), od kontaktu – jak dotąd. Pytania tylko tam, gdzie właściciel sam coś zaczął.
 * 2026-10-28: sam CHUWI nie przekazywał wiadomości do mamy (dodanej przez NUCBOX) – serwery przedstawiały sobie kontakt tylko, gdy był akurat w sieci; teraz serwery wymieniają wszystkie kontakty od razu, gdy się widzą; kontakt dostaje adres drugiego serwera, gdy jest w sieci.
+* 2026-10-28: przy 3 serwerach każdy liczył klucz pary z własnego sekretu – ten sam kontakt mógł mieć różne klucze na różnych serwerach („inny klucz”); teraz moje serwery mają wspólny sekret (najmniejsze id), kontakty wymieniane dopiero po jego uzgodnieniu, nowy kontakt od razu do serwerów obok.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

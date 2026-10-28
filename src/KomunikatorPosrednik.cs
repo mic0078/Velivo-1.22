@@ -377,6 +377,8 @@ namespace Velivo
         void KomRelaySync(string peerId)
         {
             var peer = KomContactById(peerId); if (peer == null || peer.IsGroup || string.IsNullOrEmpty(peer.Relay) || !peer.Dom) return;   // tylko mój serwer z domu - nigdy serwer znajomego
+            KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+            if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;   // kontakty dopiero, gdy oba serwery mają ten sam sekret (następne sprawdzenie, co 10 min)
             if (_komOpt["intro"] is not JsonArray done) _komOpt["intro"] = done = new JsonArray();
             var have = done.Select(x => (string)x).ToHashSet(); bool any = false;
             foreach (var x in _komContacts.ToList())
@@ -415,10 +417,20 @@ namespace Velivo
             if (any) KomSave();
         }
         // klucz pary przy przedstawianiu: zawsze ten sam dla tej pary (powtórka nie daje stronom różnych kluczy)
-        string KomIntroKey(string a, string b)
+        string KomIntroKey(string a, string b) => KomIntroKeyFrom(Convert.FromBase64String(KomIntroSec()), a, b);
+        string KomIntroSec() { if ((string)_komOpt["introSec"] is not { Length: 44 } sec) _komOpt["introSec"] = sec = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)); return sec; }
+        // 🔑 moje serwery mają jeden wspólny sekret przedstawiania (serwera o najmniejszym id) - urządzenie przedstawione przez którykolwiek serwer
+        // dostaje ten sam klucz pary, co od pierwszego (wcześniej każdy serwer liczył inny i trzeci serwer odrzucał „inny klucz”)
+        const string KomSekTag = "\u0001velivo-sekret\n";
+        readonly Dictionary<string, string> _komSekPeer = new Dictionary<string, string>();   // czyj sekret ma mój serwer obok
+        string KomSekOrigin => (string)_komOpt["introBy"] ?? _komId;
+        void KomSekIn(KomContact from, string body)
         {
-            if ((string)_komOpt["introSec"] is not { Length: 44 } sec) _komOpt["introSec"] = sec = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-            return KomIntroKeyFrom(Convert.FromBase64String(sec), a, b);
+            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
+            var s = (string)j?["s"]; var o = (string)j?["o"];
+            if (s is not { Length: 44 } || o is not { Length: 32 }) return;
+            _komSekPeer[from.Id] = o;
+            if (string.CompareOrdinal(o, KomSekOrigin) < 0) { _komOpt["introSec"] = s; _komOpt["introBy"] = o; KomSave(); }
         }
         // zapasowe adresy jednego serwera: jego host i hosty moich domowych serwerów, port zapamiętany i każdy 41920–41929 (bez obecnego adresu)
         internal static List<string> KomAltAddrs(string relay, IEnumerable<string> homeHosts)

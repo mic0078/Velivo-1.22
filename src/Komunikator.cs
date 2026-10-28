@@ -552,6 +552,7 @@ namespace Velivo
             if (text.StartsWith(KomAskOkTag, StringComparison.Ordinal)) { KomAskAnswer(c, text.Substring(KomAskOkTag.Length)); return; }   // 🔗 odpowiedź na prośbę
             if (text.StartsWith(KomAskTag, StringComparison.Ordinal)) { KomAskIn(c, text.Substring(KomAskTag.Length)); return; }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
             if (text.StartsWith(KomTimerTag, StringComparison.Ordinal)) { KomTtlIn(c, text.Substring(KomTimerTag.Length)); return; }   // ⏳ znikające wiadomości
+            if (text.StartsWith(KomSekTag, StringComparison.Ordinal)) { if (c.Dom) KomSekIn(c, text.Substring(KomSekTag.Length)); return; }   // 🔑 wspólny sekret przedstawiania moich serwerów
             if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego
             if (text.StartsWith(KomDelTag, StringComparison.Ordinal)) { KomDelIn(c, text.Substring(KomDelTag.Length)); return; }   // 🚫 nadawca usunął wiadomość u wszystkich
             if (text.StartsWith(KomEditTag, StringComparison.Ordinal)) { KomEditIn(c, text.Substring(KomEditTag.Length)); return; }   // ✏ nadawca poprawił wiadomość
@@ -1222,6 +1223,7 @@ namespace Velivo
             _komContacts.RemoveAll(x => x.Id == c.Id); _komContacts.Add(c); KomSave(); _komRefresh?.Invoke();
             Dispatcher.BeginInvoke(new Action(KomRelayAskOnce), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🌍 jedno pytanie o rozmowy poza domem
             if (c.Dom && !c.IsGroup) KomFamilyIntro(c);
+            if (_komRelayListener != null) foreach (var r in _komLanRelays.Keys.ToList()) KomRelaySync(r);   // nowy kontakt na tym serwerze - od razu znają go moje serwery obok
         }
         // 👪 moje urządzenia znają się nawzajem: nowe (np. laptop po ponownej instalacji) sparowane z jednym moim urządzeniem poznają wszystkie
         // moje urządzenia - karta idzie jak wiadomość (w domu i przez serwer poza domem), bez parowania każdego z osobna; stały klucz pary

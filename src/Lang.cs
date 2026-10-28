@@ -1305,7 +1305,6 @@ namespace Velivo
             { "Rozmówca przestaje sterować; rozmowa trwa dalej", "The other person stops controlling; the call continues" },
             { "Załącz plik", "Attach file" },
             { "\n\nPrzyjmij tylko, gdy na drugim urządzeniu jest ten sam kod.", "\n\nAccept only if the other device shows the same code." },
-            { "\n\nPrzyjmij tylko, gdy telefon nadawcy pokazuje ten sam kod.", "\n\nAccept only if the sender's phone shows the same code." },
             { "odrzucono", "declined" },
             { "plik zmienił się w trakcie", "the file changed meanwhile" },
             { "poza siecią", "offline" },

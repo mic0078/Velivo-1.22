@@ -1305,8 +1305,9 @@ namespace Velivo
             {
                 var c = KomContactById(id); var mac = KomB64((string)h["Mac"]);
                 if (c != null) using (var hm = new HMACSHA256(c.Key)) { var exp = hm.ComputeHash(ad); if (mac.Length == 32 && CryptographicOperations.FixedTimeEquals(mac, exp)) from = c; }
-                if (from != null) dev = from.Name;
-                if (from != null && _komAutoImages && size <= KomAutoImageLimit)
+                if (from == null) { App.LogInfo("Komunikator: plik od nieznanego nadawcy (" + dev + ") – odrzucony bez pytania"); return; }   // nigdy okienka z kodem (serwer pytał o pliki idące do kogoś innego)
+                dev = from.Name;
+                if (_komAutoImages && size <= KomAutoImageLimit)
                 {   // zdjecie / plik od kontaktu - od razu do rozmowy (bez pytania i bez okna zapisu)
                     try
                     {
@@ -1317,8 +1318,7 @@ namespace Velivo
                     }
                     catch (Exception ex) { App.LogError(ex); }
                 }
-                var text = dev + (L.En ? " is sending a file:\n\n" : " wysyła plik:\n\n") + name + "\n" + KomSize(size) +
-                    (from != null ? "" : (L.En ? "\n\nCode: " : "\n\nKod: ") + KomCode(key) + L.T("\n\nPrzyjmij tylko, gdy telefon nadawcy pokazuje ten sam kod."));
+                var text = dev + (L.En ? " is sending a file:\n\n" : " wysyła plik:\n\n") + name + "\n" + KomSize(size);
                 accept = MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), text, L.En ? "Velivo – file" : "Velivo – plik", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
                 if (!accept) return;
                 var def = FreeDownloadPath(name);
@@ -1326,7 +1326,6 @@ namespace Velivo
                     Filter = (L.En ? "All files" : "Wszystkie pliki") + "|*.*", OverwritePrompt = true };
                 if (dlg.ShowDialog((Window)_komWindow ?? PairDialogOwner()) == true) target = dlg.FileName; else accept = false;
             });
-            if (box && from == null) accept = false;   // skrzynka - tylko od kontaktu
             await s.WriteAsync(new[] { (byte)(accept ? 1 : 0) }, 0, 1, token); await s.FlushAsync(token);
             if (!accept) return;
             string tmp = target + ".velivo-part";

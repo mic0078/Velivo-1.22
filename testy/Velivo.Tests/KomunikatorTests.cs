@@ -77,8 +77,9 @@ public class KomunikatorTests
             using var b = new MainWindow.KomFrameStream(await accept, session);
             var small = Encoding.UTF8.GetBytes("{\"t\":\"p2p-msg\",\"txt\":\"Cześć mamo\"}");
             var big = RandomNumberGenerator.GetBytes(1_500_000);
+            var read = Task.Run(() => new[] { b.ReadFrame(), b.ReadFrame(), b.ReadFrame() });   // odbiór równolegle z wysyłaniem (jak w programie) - inaczej duża ramka czeka na pełny bufor
             a.WriteFrame(small, 0, small.Length); a.WriteFrame(big, 0, big.Length); a.WriteFrame(small, 0, small.Length);
-            var r = await Task.Run(() => new[] { b.ReadFrame(), b.ReadFrame(), b.ReadFrame() });
+            var r = await read;
             Assert.Equal(small, r[0]); Assert.Equal(big, r[1]); Assert.Equal(small, r[2]);
         }
         finally { l.Stop(); }

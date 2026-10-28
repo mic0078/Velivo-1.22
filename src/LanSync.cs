@@ -717,7 +717,7 @@ namespace Velivo
             await Dispatcher.InvokeAsync(() =>
             {
                 isNewPeer = TouchLanPeer(pkt, remote, out profileChanged);
-                if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
+                if (remote != null && !string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))   // stan przez internet nigdy nie przełącza profilu (pytanie z pustego komputera przełączało na pusty „Domyślny”)
                     TryPromptProfileSwitch(pkt, isNewPeer, profileChanged);
             });
 

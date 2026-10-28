@@ -1374,13 +1374,15 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val hosts = (listOf(homeName) + relays.filter { it.dom }.mapNotNull { it.relay?.takeIf { r -> ':' in r }?.substringBeforeLast(':') }).filter { it.isNotEmpty() }.distinct()
                 val tries = relays.flatMap { cand -> val old = cand.relay ?: return@flatMap emptyList<Pair<Contact, String>>()
                     val hs = (hosts + listOfNotNull(old.substringBeforeLast(':').takeIf { ':' in old && it.isNotEmpty() })).distinct()
-                    (listOf(old.substringAfterLast(':')) + (41920..41929).map { it.toString() }).distinct().flatMap { port -> hs.map { cand to "$it:$port" } }.filter { it.second != old } }.take(90)
+                    (listOf(old.substringAfterLast(':')) + (41920..41929).map { it.toString() }).distinct().flatMap { port -> hs.map { cand to "$it:$port" } }.filter { it.second != old } }
+                    // telefon w domowym Wi-Fi, a serwera nie słychać (rozgłoszenia zablokowane) i router nie wpuszcza z domu na adres publiczny: serwer pod jego adresem w sieci domowej - najpierw
+                    .let { t -> relays.mapNotNull { c -> val p = c.relay?.substringAfterLast(':', "") ?: ""; if (c.addr.isNotEmpty() && !c.addr.startsWith("grupa:") && p.isNotEmpty()) c to "${c.addr}:$p" else null } + t }.take(90)
                 if (tries.isNotEmpty()) {
                     val win = java.util.concurrent.atomic.AtomicReference<Triple<Contact, String, Frames>?>(null); val left = java.util.concurrent.CountDownLatch(tries.size)
                     tries.forEach { (cand, alt) -> Thread { try { runCatching { relayConnectPort(cand, alt.substringBeforeLast(':'), alt.substringAfterLast(':').toInt(), 7000, "main", null, null) }.getOrNull()?.let { fr -> if (!win.compareAndSet(null, Triple(cand, alt, fr))) runCatching { fr.close() } } } finally { left.countDown() } }.start() }
                     val end = System.currentTimeMillis() + 25000
                     while (win.get() == null && left.count > 0 && System.currentTimeMillis() < end) left.await(200, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    win.get()?.let { (c, alt, fr) -> c.relay = alt; saveContacts(); f = fr; relay = c }
+                    win.get()?.let { (c, alt, fr) -> if (alt.substringBeforeLast(':') != c.addr) { c.relay = alt; saveContacts() }; f = fr; relay = c }   // adres w sieci domowej nie zastępuje adresu z internetu
                 }
             }
             val ff = f ?: run { val nr = relays.joinToString(", ") { it.name + " " + it.relay + " ✗" }; if (nr != noRelay) { noRelay = nr; main.post { onChange() } }; return@runCatching }

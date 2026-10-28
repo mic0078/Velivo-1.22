@@ -473,14 +473,14 @@ namespace Velivo
                 {   // 🔎 co godzinę: pamięć i wątki pośrednika (szukanie przyczyny zawieszania / zamykania Velivo na NUCBOX)
                     using (var me = System.Diagnostics.Process.GetCurrentProcess())
                         App.LogInfo("Pośrednik: pamięć " + me.PrivateMemorySize64 / 1048576 + " MB, wątki " + me.Threads.Count + ", uchwyty " + me.HandleCount + ", połączenia " + _komRemote.Count);
-                    await KomRelayAutoAsync();
+                    await KomRelayAutoAsync(); KomFirewallCheck();
                 };
             }
-            _komRelayAutoTimer.Start();
+            _komRelayAutoTimer.Start(); KomNetWatch();
             try
             {
                 _komRelayCts = new CancellationTokenSource(); var token = _komRelayCts.Token;
-                var l = new TcpListener(IPAddress.Any, _komRelayPort); l.Start(); _komRelayListener = l;
+                var l = new TcpListener(IPAddress.Any, _komRelayPort); l.Start(); _komRelayListener = l; KomFirewallCheck();
                 _ = Task.Run(async () =>
                 {
                     while (!token.IsCancellationRequested)
@@ -1192,10 +1192,98 @@ namespace Velivo
 
         // ---------- okno ustawien ----------
         TextBlock _komRelayStatusText; bool _komRelayAlt, _komRelayUpnp;
+        // 🛡 zapora Windows: serwer ma przyjmować połączenia w każdej sieci (kabel, Wi-Fi, także „publicznej”). Windows sam pyta tylko o jedną sieć,
+        // a „Anuluj” w jego okienku zostawia regułę blokującą, która wygrywa z każdą zezwalającą - router przekierowuje, a Windows odrzuca (NUCBOX na Wi-Fi)
+        static bool KomFirewallOk(int port)
+        {
+            try
+            {
+                var t = Type.GetTypeFromProgID("HNetCfg.FwPolicy2"); if (t == null) return true;
+                dynamic pol = Activator.CreateInstance(t); string me = Environment.ProcessPath; bool allow = false;
+                foreach (dynamic r in pol.Rules)
+                {
+                    if ((int)r.Direction != 1 || !(bool)r.Enabled) continue;   // tylko włączone reguły wejściowe
+                    string app = r.ApplicationName; bool mine = app != null && string.Equals(Environment.ExpandEnvironmentVariables(app), me, StringComparison.OrdinalIgnoreCase);
+                    if (!mine && app != null) continue;
+                    int act = r.Action, prof = r.Profiles, proto = r.Protocol;
+                    if (mine && act == 0) return false;   // blokada tego programu
+                    if (act != 1 || (prof & 7) != 7 || (proto != 6 && proto != 256)) continue;   // zezwolenie we wszystkich sieciach, TCP
+                    string lp = r.LocalPorts ?? "*";
+                    if (lp == "*" ? mine : lp.Split(',').Any(x => x.Split('-') is var ab && int.TryParse(ab[0], out var a) && int.TryParse(ab[^1], out var b) && port >= a && port <= b)) allow = true;
+                }
+                return allow;
+            }
+            catch (Exception) { return true; }   // nie da się sprawdzić - nie pytamy
+        }
+        DateTime _komFwAsked;
+        void KomFirewallCheck()
+        {
+            if (!_komRelayOn || DateTime.UtcNow - _komFwAsked < TimeSpan.FromHours(6)) return;
+            int port = _komRelayPort;
+            _ = Task.Run(() =>
+            {
+                if (KomFirewallOk(port)) return;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (DateTime.UtcNow - _komFwAsked < TimeSpan.FromHours(6)) return;
+                    _komFwAsked = DateTime.UtcNow;
+                    KomInfo(L.T("🛡 Otwieram serwer w zaporze Windows (kabel i Wi-Fi) – Windows zapyta o zgodę: kliknij „Tak”"));
+                    var me = Environment.ProcessPath.Replace("'", "''"); var name = "Velivo serwer – " + Path.GetFileNameWithoutExtension(me);
+                    // blokady tego programu precz, jedna reguła: ten program, TCP, porty serwera (41920–41929) i 443, każda sieć
+                    var ps = "$p='" + me + "'; Get-NetFirewallApplicationFilter -Program $p -ErrorAction SilentlyContinue | Get-NetFirewallRule | Where-Object { $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' } | Remove-NetFirewallRule; " +
+                             "Remove-NetFirewallRule -DisplayName '" + name + "' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName '" + name + "' -Direction Inbound -Program $p -Protocol TCP -LocalPort 41920-41929,443 -Action Allow -Profile Any";
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            using var pr = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("powershell.exe", "-NoProfile -WindowStyle Hidden -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(ps)))
+                                { UseShellExecute = true, Verb = "runas", WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden });
+                            pr?.WaitForExit(60000);
+                            bool ok = KomFirewallOk(port); App.LogInfo("Pośrednik: zapora Windows " + (ok ? "otwarta" : "nadal blokuje"));
+                            Dispatcher.BeginInvoke(new Action(() => { KomInfo(ok ? L.T("🛡 Zapora Windows przepuszcza serwer we wszystkich sieciach") : L.T("🛡 Zapora Windows nadal blokuje serwer – połączenia z internetu nie dojdą")); KomRelayStatus(); }));
+                        }
+                        catch (Exception) { Dispatcher.BeginInvoke(new Action(() => KomInfo(L.T("🛡 Bez zgody Windows zapora może blokować połączenia z internetu (zapytam ponownie za kilka godzin)")))); }
+                    });
+                }));
+            });
+        }
+        // adres tego komputera w sieci domowej (na niego przekierowanie w routerze); zmiana sieci (kabel ↔ Wi-Fi) - nowy adres
+        static string KomLanIp()
+        {
+            try
+            {
+                return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up && n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                    .Select(n => n.GetIPProperties()).Where(p => p.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any)))
+                    .SelectMany(p => p.UnicastAddresses).Select(u => u.Address).FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)?.ToString() ?? "";
+            }
+            catch (Exception) { return ""; }
+        }
+        // kabel ↔ Wi-Fi: nowy adres w domu - od razu od nowa router (UPnP) i zapora; router bez UPnP - komunikat, na jaki adres przestawić przekierowanie
+        bool _komNetWatch;
+        void KomNetWatch()
+        {
+            if (_komNetWatch) return; _komNetWatch = true;
+            System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (s, e) => Dispatcher.BeginInvoke(new Action(async () =>
+            {
+                await Task.Delay(5000);   // nowe połączenie dostaje adres po chwili
+                if (!_komRelayOn) return;
+                var ip = KomLanIp(); var old = (string)_komOpt["lanIp"] ?? "";
+                if (ip.Length == 0 || ip == old) return;
+                _komOpt["lanIp"] = ip; KomSave();
+                if (DateTime.UtcNow - _komFwAsked > TimeSpan.FromMinutes(10)) _komFwAsked = default;   // nowa sieć - zapora sprawdzana od razu
+                App.LogInfo("Pośrednik: nowy adres w sieci domowej " + ip + (old.Length > 0 ? " (był " + old + ")" : ""));
+                await KomRelayAutoAsync(); KomFirewallCheck(); KomRelayStatus();
+                if (old.Length > 0 && !_komRelayUpnp) KomInfo(L.T("⚠ Ten komputer ma nowy adres w sieci domowej: ") + ip + L.T(" (był ") + old + L.T("). W routerze przestaw przekierowanie portów ") + _komRelayPort + L.T(" i 443 na ") + ip);
+            }));
+        }
+
         void KomRelayStatus()
         {
             if (_komRelayStatusText == null) return;
+            var lan = _komRelayOn ? KomLanIp() : "";
             _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port")) +
+                (lan.Length > 0 ? "\n" + L.T("Ten komputer w sieci domowej: ") + lan + L.T(" – na ten adres przekierowanie w routerze (port ") + _komRelayPort + L.T(" i 443)") : "") +
                 (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayDns.Length > 0 ? "\n" + _komRelayDns : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + (_komRemote.IsEmpty ? _komRelayRouter : L.T("Router: port działa – są połączenia z internetu")) : "") +
                 (_komRelayOn && _komRelayListener != null ? "\n" + (_komRelayAlt ? L.T("Zapasowo port 443: otwarty (działa też w sieciach blokujących porty)")
                     : _komRelayUpnp ? L.T("Zapasowo port 443: nieotwarty – w routerze przekieruj 443 na ten komputer, port ") + _komRelayPort

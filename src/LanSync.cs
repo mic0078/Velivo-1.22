@@ -433,7 +433,7 @@ namespace Velivo
 
         void StartLanSync()
         {
-            StopLanSync();
+            StopLanSync(); KomVelivoProwadzi();
             if (_settings == null || !_settings.LanSync) { KomStartOwn(); return; }   // 💬 komunikator dziala i bez synchronizacji
             KomStopOld(); KomStartOwn(false);   // 💬 komunikator na własnym porcie; 41919 zajmie synchronizacja (pakiety komunikatora przekazuje dalej)
             bool hasKey = AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey);

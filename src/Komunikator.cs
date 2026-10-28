@@ -34,6 +34,7 @@ namespace Velivo
         static readonly byte[] KomEntropy = Encoding.UTF8.GetBytes("Velivo komunikator v1");
         static string KomFile => Path.Combine(DataDir, "komunikator.dat");
         string _komId;
+        static string KomVelivoMarkFile => Path.Combine(DataDir, "komunikator-w-velivo");   // Velivo prowadzi rozmowy na tym komputerze
         readonly List<KomContact> _komContacts = new List<KomContact>();
         readonly HashSet<string> _komPcs = new HashSet<string>();   // kontakty, które są komputerami z Velivo
         // 🌍 synchronizacja Velivo przez internet: zaszyfrowany stan (klucz z powiązania komputerów - serwer go nie odczyta) do moich komputerów poza domem,

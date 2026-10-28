@@ -51,7 +51,7 @@ namespace Velivo
     {
         const bool KomSamodzielny = true;
         // Velivo na tym komputerze: rozmowy i serwer prowadzi Velivo (jak przed Komunikatorem) - Komunikator tylko je uruchamia / otwiera okno rozmów i kończy się
-        static bool KomOddany => KomVelivoExe != null;
+        static bool KomOddany => KomVelivoExe != null && File.Exists(KomVelivoMarkFile);   // tylko nowe Velivo (starsze oddawało rozmowy Komunikatorowi - wtedy prowadzi on)
         static void KomAppRun(bool silent)
         {
             try

@@ -175,6 +175,15 @@ namespace Velivo
         // wcześniej Velivo oddawało wtedy wszystko Komunikatorowi i serwery przestały pośredniczyć
         static bool KomOddany => false;
         static void KomAppRun(bool silent) { }
+        // znak dla osobnego Komunikatora: to Velivo prowadzi rozmowy (starsze Velivo oddawało je Komunikatorowi - wtedy Komunikator prowadzi sam,
+        // inaczej oba oddawały sobie nawzajem i nikt nie prowadził); Komunikator, który już działa (starsza wersja), zamykany - jeden program na porty i dane
+        static bool _komVelivoMark;
+        static void KomVelivoProwadzi()
+        {
+            if (_komVelivoMark) return; _komVelivoMark = true;
+            try { File.WriteAllText(KomVelivoMarkFile, "1"); } catch (Exception ex) { App.LogError(ex); }
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName("VelivoKomunikator")) try { using (p) { p.Kill(); p.WaitForExit(3000); } } catch (Exception) { }
+        }
         void KomSyncIn(byte[] state) => _ = HandleLanPacketAsync(state, null, true);   // 🌍 stan synchronizacji z internetu - sprawdzany jak z sieci domowej (klucz powiązania)
 
         // menu zasobnika: 💬 Komunikator

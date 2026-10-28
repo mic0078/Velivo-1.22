@@ -81,7 +81,7 @@ namespace Velivo
         static readonly HashSet<string> BackupPackedExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".m4a", ".mp3", ".ogg", ".opus", ".aac", ".zip", ".7z", ".rar", ".gz", ".apk", ".exe", ".bin", ".pdf" };
         static bool BackupPacked(string f) => BackupPackedExt.Contains(Path.GetExtension(f)) || (new FileInfo(f) is var fi && fi.Exists && fi.Length > 50L << 20);   // > 50 MB - bez kompresji (inaczej kopia trwa bez końca)
 
-        static int CreateBackup(string zipPath, bool full, Dictionary<string, string> prev = null)
+        static int CreateBackup(string zipPath, bool full, Dictionary<string, string> prev = null, Action<int> progress = null)
         {
             int n = 0;
             Directory.CreateDirectory(Path.GetDirectoryName(zipPath));
@@ -90,8 +90,11 @@ namespace Velivo
             using (var fs = new FileStream(tmp, FileMode.Create))
             using (var zip = new ZipArchive(fs, ZipArchiveMode.Create))
             {
+                var own = Path.GetFullPath(Path.GetDirectoryName(zipPath)).TrimEnd('\\') + "\\";
                 foreach (var f in Directory.EnumerateFiles(DataRoot, "*", SearchOption.AllDirectories))
                 {
+                    // nigdy kopii w kopii: folder kopii w folderze danych (albo stara kopia w danych) - każda kopia zawierała poprzednie i rosła bez końca
+                    if (f.StartsWith(own, StringComparison.OrdinalIgnoreCase) || (Path.GetFileName(f).StartsWith(BackupPrefix, StringComparison.OrdinalIgnoreCase) && f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))) continue;
                     var rel = Path.GetRelativePath(DataRoot, f);
                     if (!BackupInclude(rel, full)) continue;
                     var key = rel.Replace('\\', '/'); string stamp;
@@ -103,7 +106,7 @@ namespace Velivo
                         using (var src = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                         using (var dst = zip.CreateEntry(rel.Replace('\\', '/'), BackupPacked(f) ? CompressionLevel.NoCompression : CompressionLevel.Optimal).Open())
                             src.CopyTo(dst);
-                        n++;
+                        n++; if (n % 25 == 0) progress?.Invoke(n);
                     }
                     catch (Exception) { }   // plik zablokowany na wylacznosc - pomijamy
                 }
@@ -142,7 +145,7 @@ namespace Velivo
 
         // jedna kopia: inc == null - wg ustawien (przyrostowa, gdy wlaczona i jest pelna z ostatnich 7 dni), true - przyrostowa na zyczenie
         // (gdy jest od czego - inaczej pelna), false - pelna na zyczenie; zwraca sciezke i liczbe plikow
-        (string Path, int Count) MakeBackupNow(bool? inc = null)
+        (string Path, int Count) MakeBackupNow(bool? inc = null, Action<int> progress = null)
         {
             bool full = GetPref("kopia-pelna") != "0", incOn = inc ?? GetPref("kopia-przyrost") != "0"; var dir = BackupDir;
             Dictionary<string, string> prev = null;
@@ -154,7 +157,7 @@ namespace Velivo
                 if (lastFull != null && (DateTime.Now - lastFull.LastWriteTime < TimeSpan.FromDays(7) || inc == true) && sameKind) prev = ReadManifest(all.Last().FullName);
             }
             var path = NewBackupPath(prev != null);
-            int n = CreateBackup(path, full, prev);
+            int n = CreateBackup(path, full, prev, progress);
             TrimBackups(dir, 5);
             SetPref("kopia-rodzaj-ostatniej", full ? "pelna" : "podstawowa");
             return (path, n);
@@ -334,7 +337,7 @@ namespace Velivo
                 make.IsEnabled = makeFull.IsEnabled = false; b.Content = L.T("Tworzę kopię…");
                 try
                 {
-                    var r = await Task.Run(() => MakeBackupNow(inc));
+                    var r = await Task.Run(() => MakeBackupNow(inc, k => Dispatcher.BeginInvoke(new Action(() => b.Content = L.T("Tworzę kopię…") + " " + k))));   // postęp - widać, że idzie
                     SetPref("kopia-ostatnia", DateTime.Now.ToString("s", System.Globalization.CultureInfo.InvariantCulture));
                     ShowToast((IsIncrement(r.Path) ? L.T("💾 Kopia przyrostowa gotowa: ") : L.T("💾 Kopia pełna gotowa: ")) + Path.GetFileName(r.Path) + " (" + r.Count + L.T(" plików, ") + Mb(new FileInfo(r.Path).Length) + ")", r.Path);
                 }

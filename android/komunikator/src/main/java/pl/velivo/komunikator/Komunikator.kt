@@ -899,7 +899,19 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             contacts.removeAll { it.id == c.id }; contacts.add(c)
         }
         saveContacts(); main.post { onChange() }
+        if (c.dom && !c.isGroup) familyIntro(c)
     }
+    // 👪 moje urządzenia znają się nawzajem: nowe (np. laptop po ponownej instalacji) sparowane z tym telefonem poznają wszystkie moje urządzenia -
+    // karta idzie jak wiadomość (w domu i przez serwer poza domem), bez parowania każdego z osobna; stały klucz pary (powtórka nie rozjeżdża kluczy)
+    private fun familyIntro(n: Contact) = Thread {
+        val sec = prefs.getString("intro-sek", null)?.let { unb64(it) }?.takeIf { it.size == 32 } ?: ByteArray(32).also { random.nextBytes(it); prefs.edit().putString("intro-sek", b64(it)).apply() }
+        for (x in synchronized(this) { contacts.filter { it.dom && !it.isGroup && it.id != n.id } }) {
+            val key = hmac(sec, listOf(n.id, x.id).sorted().joinToString("|").toByteArray(Charsets.UTF_8))
+            fun card(c: Contact) = JSONObject().put("id", c.id).put("name", c.name).put("dev", c.device).put("key", b64(key)).put("relay", c.relay ?: "").put("dom", true).toString()
+            deliver(x, Msg(true, CARD + card(n), System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
+            deliver(n, Msg(true, CARD + card(x), System.currentTimeMillis(), false, UUID.randomUUID().toString().replace("-", "")))
+        }
+    }.start()
 
     // dodanie kontaktu: showCode - kod do porównania z drugim ekranem; wynik "ok", "odrzucono" albo opis błędu
     fun pair(peer: Peer, showCode: (String) -> Unit): String = runCatching {

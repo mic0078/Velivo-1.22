@@ -1203,6 +1203,19 @@ namespace Velivo
             var old = KomContactById(c.Id); if (old != null && old.Own) { c.Own = true; c.Name = old.Name; }   // ponowne dodanie - wlasna nazwa zostaje
             _komContacts.RemoveAll(x => x.Id == c.Id); _komContacts.Add(c); KomSave(); _komRefresh?.Invoke();
             Dispatcher.BeginInvoke(new Action(KomRelayAskOnce), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🌍 jedno pytanie o rozmowy poza domem
+            if (c.Dom && !c.IsGroup) KomFamilyIntro(c);
+        }
+        // 👪 moje urządzenia znają się nawzajem: nowe (np. laptop po ponownej instalacji) sparowane z jednym moim urządzeniem poznają wszystkie
+        // moje urządzenia - karta idzie jak wiadomość (w domu i przez serwer poza domem), bez parowania każdego z osobna; stały klucz pary
+        void KomFamilyIntro(KomContact n)
+        {
+            foreach (var x in _komContacts.Where(x => x.Dom && !x.IsGroup && x.Id != n.Id && x.Key != null).ToList())
+            {
+                var key = KomIntroKey(n.Id, x.Id);
+                string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "", ["dom"] = true }.ToJsonString();
+                KomDeliver(x, new KomMsg { Mine = true, Text = Card(n), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                KomDeliver(n, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+            }
         }
 
         async Task<string> KomPair(string id, string name, IPAddress addr, Action<string> showCode)

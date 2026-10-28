@@ -35,6 +35,7 @@ namespace Velivo
         static string KomFile => Path.Combine(DataDir, "komunikator.dat");
         string _komId;
         readonly List<KomContact> _komContacts = new List<KomContact>();
+        readonly HashSet<string> _komPcs = new HashSet<string>();   // kontakty, które są komputerami z Velivo
         readonly Dictionary<string, List<KomMsg>> _komChats = new Dictionary<string, List<KomMsg>>();
         readonly Dictionary<string, int> _komUnread = new Dictionary<string, int>();
         readonly Dictionary<string, (string Name, IPAddress Addr)> _komFound = new Dictionary<string, (string, IPAddress)>();
@@ -447,6 +448,9 @@ namespace Velivo
             if (from == null || from == _komId || from.Length != 32) return;
             long ts = (long?)p["ts"] ?? 0;
             var c = KomContactById(from);
+            if ((string)p["kind"] == "pc") _komPcs.Add(from);   // komputer z Velivo (synchronizacja przez internet - tylko do komputerów)
+            // 🌍 synchronizacja Velivo przez internet: zaszyfrowany stan od mojego komputera poza domem (klucz z powiązania komputerów)
+            if (t == "p2p-sync") { if (c != null && c.Dom && p["d"] is JsonNode dn) try { KomSyncIn(Convert.FromBase64String((string)dn)); } catch (Exception ex) { App.LogError(ex); } return; }
             // stara wiadomość (czekała u nadawcy albo na pośredniku) - przyjęta, bez zmiany obecności; inne stare pakiety - pominięte
             if (Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 600000) { if (t == "p2p-msg") KomReceive(p, c, sender, ts); return; }
             if (t == "p2p-bye") { if (c != null && _komLastSeen.Remove(c.Id)) _komRefresh?.Invoke(); return; }   // zamknal Velivo - od razu poza siecia

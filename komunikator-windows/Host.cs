@@ -53,6 +53,7 @@ namespace Velivo
         static bool KomOddany => false;
         static bool KomOldPortFree => KomVelivoExe == null;   // 41919 to synchronizacja Velivo - gdy Velivo jest na tym komputerze, Komunikator go nie zajmuje (inaczej synchronizacja między komputerami nie startowała)   // to jest Komunikator - prowadzi rozmowy sam
         static void KomAppRun(bool silent) { }
+        void KomSyncIn(byte[] state) { }   // synchronizacja przeglądarki - tylko w pełnym Velivo
         static readonly string DataDir = Environment.GetEnvironmentVariable("VELIVO_DANE") ?? VelivoData.Root;
         internal static string DataFolder => DataDir;
         const int LanPort = 41919;   // port sieci domowej starszych Velivo - komunikator słucha też na nim

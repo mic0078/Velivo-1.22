@@ -184,7 +184,8 @@ namespace Velivo
             }
         }
         static bool KomOddany => KomAppExe != null;
-        static bool KomOldPortFree => true;   // 41919: Velivo bierze go samo (synchronizacja), gdy synchronizacja wyłączona - komunikator
+        static bool KomOldPortFree => true;
+        void KomSyncIn(byte[] state) => _ = HandleLanPacketAsync(state, null, true);   // 🌍 stan synchronizacji z internetu - sprawdzany jak z sieci domowej (klucz powiązania)   // 41919: Velivo bierze go samo (synchronizacja), gdy synchronizacja wyłączona - komunikator
         static void KomAppRun(bool silent)
         {
             try

@@ -685,7 +685,7 @@ window.__vSen=setInterval(function(){var c=document.querySelector('video');if(lo
         w.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): WebResourceResponse? {
                 if (req.url.host == QuickAccess.HOST) return if (quiet) null else quickAccess.serve(req.url)
-                if (prefs.getBoolean("adblock", true) && !siteAllowed(pageHost[view]) && isBlocked(req.url)) {
+                if (prefs.getBoolean("adblock", true) && !siteAllowed(pageHost[view]) && pageHost[view]?.endsWith("youtube.com") != true && isBlocked(req.url)) {   // YouTube: reklamy usuwa youtube.js; zablokowane adresy reklam/statystyk odtwarzacz czekał do upływu czasu - film startował długo
                     blockedCount++
                     req.url.host?.let { h -> pageBlocked[view]?.merge(Ochrona.regDomain(h), 1, Int::plus) }
                     return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))

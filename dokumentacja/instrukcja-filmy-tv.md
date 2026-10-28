@@ -39,6 +39,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - 🌙 **Wyłącznik czasowy** – zatrzymuje po 15–120 minutach, po końcu filmu albo (przy TV) po końcu programu. Możesz zaznaczyć „💻 Potem wyłącz komputer” – masz 60 sekund, żeby to anulować. W ostatnich 30 sekundach dźwięk łagodnie cichnie.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.
 - CC napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki, biblioteka, zawsze na wierzchu, tryb mini, pełny ekran, głośność.
+- Na małym ekranie (telewizor, starszy laptop, duże skalowanie) pasek przycisków sam się zmniejsza – nic nie jest obcięte.
 - Dwuklik w plik filmu w Windows otwiera od razu sam odtwarzacz Velivo – przeglądarka nie wyskakuje (czeka zminimalizowana na pasku zadań).
 - Gdy Velivo uruchamia się razem z Windows, po cichu przygotowuje telewizję (kanały, program TV) i odtwarzacz – po otwarciu wszystko działa od razu.
 

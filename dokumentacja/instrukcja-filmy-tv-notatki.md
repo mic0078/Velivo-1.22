@@ -126,3 +126,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-10-26: okna z adresem (🌍 pośrednik, Jellyfin, lista TV) zapisują zmiany przy zamknięciu (✕), nie tylko przyciskiem.
 * 2026-10-26: usuwanie z biblioteki filmu z Jellyfin: Tak = `JellyfinDeleteAsync` (DELETE Items/{id}, X-Emby-Token), Nie = `JellyfinSkipAdd` (`jellyfin\pominiete.txt`, pomijane w `JellyfinAddNewAsync`).
 * 2026-10-26: VLC: zatrzymanie i włączenie przez kolejkę `vlcRun` (poza wątkiem okna, po kolei), `loadSeq` – gra tylko ostatni wybór; zapis miejsca `SaveProgress`/`LibWrite` (wątek „Velivo biblioteka”, `LibraryLock`); PiP bez zmian.
+* 2026-10-28: pasek odtwarzacza obcięty z prawej na CHUWI/TV (mała rozdzielczość, duże skalowanie) – rząd przycisków (`ctlRow`) zmniejszany `LayoutTransform`, gdy szerszy niż okno (`fitBar`); pełny ekran z `ResizeMode.NoResize` (okno bez ramki z ramką zmiany rozmiaru wychodziło poza ekran).

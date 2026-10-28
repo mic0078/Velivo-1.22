@@ -39,6 +39,7 @@ The bar appears when you move the mouse and hides after a moment.
 - 🌙 **Sleep timer** – stops after 15–120 minutes, at the end of the video or (for TV) at the end of the programme. You can tick "💻 Then shut down the computer" – you have 60 seconds to cancel. In the last 30 seconds the sound fades gently.
 - ⧉ **Picture in picture (PiP)** – a second channel or video in a small window.
 - CC subtitles, narrator, audio track, aspect ratio, frame snapshot, library, always on top, mini mode, full screen, volume.
+- On a small screen (TV, older laptop, large scaling) the button bar shrinks by itself – nothing is cut off.
 - Double-clicking a video file in Windows opens just the Velivo player straight away – the browser doesn't pop up (it waits minimised on the taskbar).
 - When Velivo starts with Windows, it quietly prepares TV (channels, TV guide) and the player – after opening everything works at once.
 

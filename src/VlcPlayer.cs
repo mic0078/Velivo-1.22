@@ -1588,6 +1588,15 @@ namespace Velivo
             overlay.Children.Add(recOn);
             controls.Children.Add(ctlRow);
             overlay.Children.Add(controls);
+            // przyciski szersze niż ekran (TV, niska rozdzielczość, duże skalowanie - CHUWI) - cały rząd zmniejszany, żeby nic nie było obcięte z prawej
+            SizeChangedEventHandler fitBar = (s, e) =>
+            {
+                double need = mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right, have = overlay.ActualWidth;
+                double k = need > 0 && have > 0 && need > have ? have / need : 1;
+                var cur = ctlRow.LayoutTransform as ScaleTransform;
+                if (Math.Abs((cur?.ScaleX ?? 1) - k) > 0.01) ctlRow.LayoutTransform = k < 1 ? new ScaleTransform(k, k) : Transform.Identity;
+            };
+            overlay.SizeChanged += fitBar; mainCol.SizeChanged += fitBar; quick.SizeChanged += fitBar;
             // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
             var miniTitle = new TextBlock { Foreground = Brushes.White, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             var miniBack = glyphBtn("exitmini", L.T("Wróć do zwykłego okna"));
@@ -2697,8 +2706,9 @@ namespace Velivo
                 if (mini0) toggleMini();
                 full0 = !full0;
                 // pełny ekran bez „zawsze na wierzchu” - biblioteka, lista kanałów, program TV i inne okna Velivo pokazują się nad filmem
-                if (full0) { prevState = win.WindowState; win.WindowStyle = WindowStyle.None; win.WindowState = WindowState.Normal; win.WindowState = WindowState.Maximized; win.Topmost = false; }
-                else { win.Topmost = _settings.VlcTopmost; win.WindowStyle = WindowStyle.SingleBorderWindow; win.WindowState = prevState; }
+                // bez ramki do zmiany rozmiaru (NoResize): okno bez ramki z ramką zmiany rozmiaru po maksymalizacji wychodzi poza ekran o grubość ramki - pasek na dole obcięty (CHUWI, TV, skalowanie)
+                if (full0) { prevState = win.WindowState; win.WindowStyle = WindowStyle.None; win.ResizeMode = ResizeMode.NoResize; win.WindowState = WindowState.Normal; win.WindowState = WindowState.Maximized; win.Topmost = false; }
+                else { win.Topmost = _settings.VlcTopmost; win.WindowStyle = WindowStyle.SingleBorderWindow; win.ResizeMode = ResizeMode.CanResize; win.WindowState = prevState; }
                 showBar();
                 full.Content = PlayerIcon(full0 ? "exitfull" : "full");
             };

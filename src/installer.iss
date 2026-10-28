@@ -342,12 +342,22 @@ begin
       MsgBox(FmtMessage(CustomMessage('MoveFailed'), [Dir]), mbError, MB_OK);
 end;
 
+// 🛡 zapora Windows: ten program przyjmuje połączenia w każdej sieci (kabel, Wi-Fi) - jedno „Tak” przy instalacji, gdy właściciel jest przy komputerze;
+// wcześniej zgoda była proszona dopiero w tle (start z Windows) i bez niej zapora po cichu blokowała serwer z internetu; blokady tego programu usuwane
+procedure OpenFirewall(Exe: String);
+var Code: Integer;
+begin
+  ShellExec('runas', ExpandConstant('{cmd}'), '/c "netsh advfirewall firewall delete rule name=all program="' + Exe + '" & netsh advfirewall firewall add rule name="' + ExtractFileName(Exe) + ' - Velivo" dir=in action=allow program="' + Exe + '" enable=yes profile=any"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var Stamp: String;
 begin
   // jezyk wybrany w instalatorze = jezyk programu (Velivo czyta go, gdy w ustawieniach jest "automatycznie")
   if CurStep = ssPostInstall then
     SaveStringToFile(ExpandConstant('{app}\language.txt'), ActiveLanguage, False);
+  if (CurStep = ssPostInstall) and not WizardSilent then
+    OpenFirewall(ExpandConstant('{app}\Velivo.exe'));
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer') and FileExists(ExpandConstant('{tmp}\libvlc.nupkg')) then
     InstallVlc;
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('videoplayer\iptv') then

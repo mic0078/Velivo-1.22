@@ -11,7 +11,7 @@ namespace Velivo
 {
     // Velivo Komunikator na Windows - samodzielny program: rozmowy, pliki, rozmowy wideo i serwer (pośrednik) bez przeglądarki Velivo.
     // Kod komunikatora wspólny z Velivo (..\src\Komunikator*.cs); tutaj tylko to, co w Velivo daje przeglądarka: start, zasobnik,
-    // dziennik, autostart z Windows. Dane te same co w Velivo (folder Velivo\Dane) - gdy oba są zainstalowane, rozmowy prowadzi Komunikator.
+    // dziennik, autostart z Windows. Dane te same co w Velivo (folder Velivo\Dane) - gdy oba są zainstalowane, rozmowy i serwer prowadzi Velivo.
     public class App : Application
     {
         const string MutexName = "VelivoKomunikator-jeden", ShowEvent = "VelivoKomunikator-pokaz";
@@ -50,24 +50,18 @@ namespace Velivo
     public partial class MainWindow : Window
     {
         const bool KomSamodzielny = true;
-        static bool KomOddany => false;
-        static bool KomOldPortFree => KomVelivoExe == null;   // 41919 to synchronizacja Velivo - gdy Velivo jest na tym komputerze, Komunikator go nie zajmuje (inaczej synchronizacja między komputerami nie startowała)   // to jest Komunikator - prowadzi rozmowy sam
-        static void KomAppRun(bool silent) { }
-        // 🌍 synchronizacja Velivo przez internet: stan od moich komputerów - dla Velivo na tym komputerze (folder danych); stan od Velivo - wysłany przez serwer
-        void KomSyncIn(byte[] state)
+        // Velivo na tym komputerze: rozmowy i serwer prowadzi Velivo (jak przed Komunikatorem) - Komunikator tylko je uruchamia / otwiera okno rozmów i kończy się
+        static bool KomOddany => KomVelivoExe != null;
+        static void KomAppRun(bool silent)
         {
-            if (KomVelivoExe == null) return;   // bez Velivo nie ma czego synchronizować
-            try { Directory.CreateDirectory(KomSyncInDir); var f = Path.Combine(KomSyncInDir, DateTime.UtcNow.Ticks + ".tmp"); File.WriteAllBytes(f, state); File.Move(f, Path.ChangeExtension(f, ".json")); } catch (Exception ex) { App.LogError(ex); }
+            try
+            {
+                if (silent && Process.GetProcessesByName("Velivo").Length > 0) return;   // już działa
+                Process.Start(KomVelivoExe, silent ? "--autostart" : "--komunikator");
+            }
+            catch (Exception ex) { App.LogError(ex); }
         }
-        FileSystemWatcher _komSyncOutWatch;
-        void KomSyncOutWatch()
-        {
-            void Send() { try { if (!File.Exists(KomSyncOutFile)) return; var j = File.ReadAllText(KomSyncOutFile); File.Delete(KomSyncOutFile); if (KomSyncOut(j) is string r) App.LogInfo(r); } catch (Exception) { } }
-            _komSyncOutWatch = new FileSystemWatcher(DataDir, Path.GetFileName(KomSyncOutFile)) { EnableRaisingEvents = true };
-            _komSyncOutWatch.Created += (s, e) => Dispatcher.BeginInvoke(new Action(async () => { await System.Threading.Tasks.Task.Delay(500); Send(); }));
-            _komSyncOutWatch.Changed += (s, e) => Dispatcher.BeginInvoke(new Action(async () => { await System.Threading.Tasks.Task.Delay(500); Send(); }));
-            Send();
-        }
+        void KomSyncIn(byte[] state) { }   // synchronizacja dotyczy tylko Velivo
         static readonly string DataDir = Environment.GetEnvironmentVariable("VELIVO_DANE") ?? VelivoData.Root;
         internal static string DataFolder => DataDir;
         const int LanPort = 41919;   // port sieci domowej starszych Velivo - komunikator słucha też na nim
@@ -93,13 +87,13 @@ namespace Velivo
 
         internal void Start(bool silent)
         {
+            if (KomOddany) { KomAppRun(silent); Application.Current.Shutdown(); return; }
             Directory.CreateDirectory(DataDir);
             new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();   // uchwyt okna bez pokazywania (klucz sprzętowy, okienka Windows Hello)
             Autostart();
             KomLoad();
             KomStartOwn();   // sieć domowa (41918 i 41919), serwer, łączenie przez internet
             KomEnsureTray();
-            try { KomSyncOutWatch(); } catch (Exception ex) { App.LogError(ex); }   // zmiany z Velivo na tym komputerze - przez internet do moich komputerów
             _ = InitWebView();
             if (!silent) ShowMessenger();
         }

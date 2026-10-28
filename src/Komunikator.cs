@@ -38,8 +38,6 @@ namespace Velivo
         readonly HashSet<string> _komPcs = new HashSet<string>();   // kontakty, które są komputerami z Velivo
         // 🌍 synchronizacja Velivo przez internet: zaszyfrowany stan (klucz z powiązania komputerów - serwer go nie odczyta) do moich komputerów poza domem,
         // przez serwer, tymi samymi drogami co wiadomości; w domu wystarcza zwykła synchronizacja. Velivo i osobny Komunikator wymieniają paczki przez folder danych.
-        static string KomSyncOutFile => Path.Combine(DataDir, "komunikator-sync-wyjscie.json");
-        static string KomSyncInDir => Path.Combine(DataDir, "komunikator-sync-wejscie");
         string KomSyncOut(string pktJson)
         {
             var to = _komContacts.Where(c => c.Dom && !c.IsGroup && _komPcs.Contains(c.Id) && KomViaNet(c.Id)).ToList();
@@ -315,7 +313,7 @@ namespace Velivo
         // 41918 zawsze; 41919 też, gdy synchronizacja LAN go nie zajmuje (starsze Velivo i zapora przepuszczająca tylko 41919 - NUCBOX)
         void KomStartOwn(bool old = true)
         {
-            if (KomOddany) { KomAppRun(true); return; }   // osobny Komunikator prowadzi rozmowy na tym komputerze - Velivo tylko go uruchamia
+            if (KomOddany) { KomAppRun(true); return; }   // osobny Komunikator na komputerze z Velivo - rozmowy i serwer prowadzi Velivo
             KomLoad();
             KomStartResend();
             if (_komContacts.Count > 0) KomEnsureTray();
@@ -323,7 +321,7 @@ namespace Velivo
             {
                 _komCts ??= new CancellationTokenSource();
                 if (_komUdp == null) { (_komUdp, _komTcp) = KomListen(KomPort, _komCts.Token); if (_komContacts.Count > 0) KomAnnounce(); }
-                if (old && _lanRx == null && _komUdpOld == null && KomOldPortFree) (_komUdpOld, _komTcpOld) = KomListen(LanPort, _komCts.Token);
+                if (old && _lanRx == null && _komUdpOld == null) (_komUdpOld, _komTcpOld) = KomListen(LanPort, _komCts.Token);
             }
             catch (Exception ex) { App.LogError(ex); }
         }

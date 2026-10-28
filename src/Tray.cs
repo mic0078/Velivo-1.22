@@ -171,45 +171,11 @@ namespace Velivo
 
         const bool KomSamodzielny = false;   // pełne Velivo (osobny Komunikator ma true)
         static string KomVelivoExe => Environment.ProcessPath;
-        // 💬 osobny program „Velivo Komunikator” zainstalowany na tym komputerze: on prowadzi rozmowy i serwer (jeden komunikator na komputer -
-        // bez podwójnych wiadomości i dwóch programów piszących do tych samych danych); Velivo tylko go uruchamia
-        static string _komAppExe; static DateTime _komAppAt;   // sprawdzane najwyżej co 30 s (pytane przy każdym pakiecie z sieci domowej)
-        static string KomAppExe
-        {
-            get
-            {
-                if (DateTime.UtcNow - _komAppAt < TimeSpan.FromSeconds(30)) return _komAppExe;
-                var p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Velivo Komunikator", "VelivoKomunikator.exe");
-                _komAppExe = File.Exists(p) ? p : null; _komAppAt = DateTime.UtcNow; return _komAppExe;
-            }
-        }
-        static bool KomOddany => KomAppExe != null;
-        static bool KomOldPortFree => true;
+        // 💬 pełne Velivo samo prowadzi rozmowy i serwer - także gdy na komputerze jest osobny Komunikator (on wtedy tylko otwiera okno rozmów Velivo);
+        // wcześniej Velivo oddawało wtedy wszystko Komunikatorowi i serwery przestały pośredniczyć
+        static bool KomOddany => false;
+        static void KomAppRun(bool silent) { }
         void KomSyncIn(byte[] state) => _ = HandleLanPacketAsync(state, null, true);   // 🌍 stan synchronizacji z internetu - sprawdzany jak z sieci domowej (klucz powiązania)
-        // osobny Komunikator odebrał stan synchronizacji z internetu - zostawia go w folderze danych, Velivo przyjmuje (także zaległe po starcie)
-        System.IO.FileSystemWatcher _komSyncWatch;
-        void KomSyncInWatch()
-        {
-            if (_komSyncWatch != null) return;
-            try
-            {
-                Directory.CreateDirectory(KomSyncInDir);
-                void Take() { foreach (var f in Directory.GetFiles(KomSyncInDir, "*.json")) try { var b = File.ReadAllBytes(f); File.Delete(f); KomSyncIn(b); } catch (Exception) { } }
-                _komSyncWatch = new System.IO.FileSystemWatcher(KomSyncInDir, "*.json") { EnableRaisingEvents = true };
-                _komSyncWatch.Created += (s, e) => Dispatcher.BeginInvoke(new Action(async () => { await System.Threading.Tasks.Task.Delay(300); Take(); }));
-                Take();
-            }
-            catch (Exception ex) { App.LogError(ex); }
-        }   // 41919: Velivo bierze go samo (synchronizacja), gdy synchronizacja wyłączona - komunikator
-        static void KomAppRun(bool silent)
-        {
-            try
-            {
-                if (silent && System.Diagnostics.Process.GetProcessesByName("VelivoKomunikator").Length > 0) return;   // już działa
-                System.Diagnostics.Process.Start(KomAppExe, silent ? "--autostart" : "");   // działający - pokaże swoje okno
-            }
-            catch (Exception ex) { App.LogError(ex); }
-        }
 
         // menu zasobnika: 💬 Komunikator
         System.Windows.Forms.ToolStripMenuItem TrayMessengerItem()

@@ -65,8 +65,6 @@ Filename: "{app}\VelivoKomunikator.exe"; Description: "{cm:RunApp}"; Flags: nowa
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM VelivoKomunikator.exe"; Flags: runhidden; RunOnceId: "ZamknijKomunikator"
 
 [Code]
-var VelivoWasRunning: Boolean;
-
 function HasWebView2: Boolean;
 var v: String;
 begin
@@ -104,22 +102,21 @@ begin
     if not Running('VelivoKomunikator.exe') then break;
   end;
   if Running('VelivoKomunikator.exe') then begin Result := CustomMessage('StillRunning'); exit; end;
-  // pełne Velivo z własnym komunikatorem trzyma porty rozmów - zamykamy je i po instalacji uruchamiamy ponownie (rozmowy przejmie Komunikator)
-  VelivoWasRunning := Running('Velivo.exe');
-  if VelivoWasRunning then
-  begin
-    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Velivo.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
-    Sleep(1000);
-  end;
+end;
+
+// 🛡 zapora Windows: ten program przyjmuje połączenia w każdej sieci (kabel, Wi-Fi) - jedno „Tak” przy instalacji, gdy właściciel jest przy komputerze;
+// wcześniej zgoda była proszona dopiero w tle (start z Windows) i bez niej zapora po cichu blokowała serwer z internetu; blokady tego programu usuwane
+procedure OpenFirewall(Exe: String);
+var Code: Integer;
+begin
+  ShellExec('runas', ExpandConstant('{cmd}'), '/c "netsh advfirewall firewall delete rule name=all program="' + Exe + '" & netsh advfirewall firewall add rule name="' + ExtractFileName(Exe) + ' - Velivo" dir=in action=allow program="' + Exe + '" enable=yes profile=any"', '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var Code: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
     SaveStringToFile(ExpandConstant('{app}\language.txt'), ActiveLanguage, False);   // język wybrany w instalatorze
-    if VelivoWasRunning and FileExists(ExpandConstant('{localappdata}\Programs\Velivo\Velivo.exe')) then
-      Exec(ExpandConstant('{localappdata}\Programs\Velivo\Velivo.exe'), '--autostart', '', SW_SHOWMINNOACTIVE, ewNoWait, Code);
+    if not WizardSilent then OpenFirewall(ExpandConstant('{app}\VelivoKomunikator.exe'));
   end;
 end;

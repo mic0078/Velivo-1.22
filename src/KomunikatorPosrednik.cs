@@ -429,8 +429,10 @@ namespace Velivo
             JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
             var s = (string)j?["s"]; var o = (string)j?["o"];
             if (s is not { Length: 44 } || o is not { Length: 32 }) return;
+            bool changed = !_komSekPeer.TryGetValue(from.Id, out var was) || was != o;
             _komSekPeer[from.Id] = o;
-            if (string.CompareOrdinal(o, KomSekOrigin) < 0) { _komOpt["introSec"] = s; _komOpt["introBy"] = o; KomSave(); }
+            if (string.CompareOrdinal(o, KomSekOrigin) < 0) { _komOpt["introSec"] = s; _komOpt["introBy"] = o; KomSave(); changed = true; }
+            if (changed && _komRelayListener != null) { _komSyncAt[from.Id] = DateTime.UtcNow; KomRelaySync(from.Id); }   // od razu odpowiedź i kontakty (bez czekania 10 min); bez zmian - cisza, więc nie w kółko
         }
         // zapasowe adresy jednego serwera: jego host i hosty moich domowych serwerów, port zapamiętany i każdy 41920–41929 (bez obecnego adresu)
         internal static List<string> KomAltAddrs(string relay, IEnumerable<string> homeHosts)

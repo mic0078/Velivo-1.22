@@ -28,6 +28,7 @@ namespace Velivo
             var parts = r.Split('/');
             var name = parts[parts.Length - 1].ToLowerInvariant();
             if (name.EndsWith(".tmp") || name.EndsWith(".part") || name == "vlc.log" || name == "dziala.txt" || name == "przywroc-kopie.txt" || name.StartsWith("sesja.txt")) return false;
+            if (parts[0].Equals("Komunikator-WebView", StringComparison.OrdinalIgnoreCase)) return false;   // silnik rozmów wideo osobnego Komunikatora - setki plików bez wartości do odtworzenia
             if (full)
             {
                 foreach (var p in parts.Take(parts.Length - 1).Select(x => x.ToLowerInvariant()))
@@ -76,6 +77,10 @@ namespace Velivo
             return sorted.Skip(fi).Take(ci - fi + 1).ToList();
         }
 
+        // już skompresowane (filmy, zdjęcia, głosówki, archiwa - np. skrzynka serwera z filmami) - bez ponownej kompresji: tyle samo miejsca, wielokrotnie szybciej
+        static readonly HashSet<string> BackupPackedExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".m4a", ".mp3", ".ogg", ".opus", ".aac", ".zip", ".7z", ".rar", ".gz", ".apk", ".exe", ".bin", ".pdf" };
+        static bool BackupPacked(string f) => BackupPackedExt.Contains(Path.GetExtension(f)) || (new FileInfo(f) is var fi && fi.Exists && fi.Length > 50L << 20);   // > 50 MB - bez kompresji (inaczej kopia trwa bez końca)
+
         static int CreateBackup(string zipPath, bool full, Dictionary<string, string> prev = null)
         {
             int n = 0;
@@ -96,7 +101,7 @@ namespace Velivo
                     try
                     {
                         using (var src = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                        using (var dst = zip.CreateEntry(rel.Replace('\\', '/'), CompressionLevel.Optimal).Open())
+                        using (var dst = zip.CreateEntry(rel.Replace('\\', '/'), BackupPacked(f) ? CompressionLevel.NoCompression : CompressionLevel.Optimal).Open())
                             src.CopyTo(dst);
                         n++;
                     }

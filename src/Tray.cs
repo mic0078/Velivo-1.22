@@ -175,6 +175,7 @@ namespace Velivo
         // wcześniej Velivo oddawało wtedy wszystko Komunikatorowi i serwery przestały pośredniczyć
         static bool KomOddany => false;
         static void KomAppRun(bool silent) { }
+        void KomShowBrowser() => ShowFromTray();   // link z rozmowy: Velivo schowane w zasobniku też się pokazuje (samo Activate nic nie dawało - karta otwierała się niewidocznie)
         // znak dla osobnego Komunikatora: to Velivo prowadzi rozmowy (starsze Velivo oddawało je Komunikatorowi - wtedy Komunikator prowadzi sam,
         // inaczej oba oddawały sobie nawzajem i nikt nie prowadził); Komunikator, który już działa (starsza wersja), zamykany - jeden program na porty i dane
         static bool _komVelivoMark;

@@ -1839,7 +1839,7 @@ namespace Velivo
                         card.Children.Add(new TextBlock { Text = (string)lj["t"] ?? "", FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = fg, TextWrapping = TextWrapping.Wrap, MaxHeight = 40, TextTrimming = TextTrimming.CharacterEllipsis });
                         if (((string)lj["d"] ?? "").Length > 0) card.Children.Add(new TextBlock { Text = (string)lj["d"], FontSize = 12, Foreground = fg, Opacity = 0.85, TextWrapping = TextWrapping.Wrap, MaxHeight = 50, TextTrimming = TextTrimming.CharacterEllipsis });
                         var lb = new Border { Child = card, Background = new SolidColorBrush(Color.FromArgb(0x30, 0, 0, 0)), BorderBrush = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Mine), BorderThickness = new Thickness(3, 0, 0, 0), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 5, 8, 6), Margin = new Thickness(0, 2, 0, 6), MaxWidth = 340, Cursor = Cursors.Hand, ToolTip = lu };
-                        if (lu.StartsWith("http", StringComparison.OrdinalIgnoreCase)) lb.MouseLeftButtonUp += (s2, e2) => { if (!selMode) { AddTab(lu); Activate(); } };
+                        if (lu.StartsWith("http", StringComparison.OrdinalIgnoreCase)) lb.MouseLeftButtonUp += (s2, e2) => { if (!selMode) { AddTab(lu); KomShowBrowser(); } };
                         body.Children.Add(lb);
                     }
                     catch (Exception) { }
@@ -1851,7 +1851,7 @@ namespace Velivo
                         txt.Inlines.Add(new System.Windows.Documents.Run(m.Text.Substring(at, um.Index - at)));
                         var u = um.Value.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + um.Value : um.Value;
                         var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(um.Value)) { Foreground = fg, Cursor = Cursors.Hand, ToolTip = L.T("Otwórz w Velivo") };
-                        link.Click += (s2, e2) => { AddTab(u); Activate(); };
+                        link.Click += (s2, e2) => { AddTab(u); KomShowBrowser(); };
                         txt.Inlines.Add(link); at = um.Index + um.Length;
                     }
                     txt.Inlines.Add(new System.Windows.Documents.Run(m.Text.Substring(at)));

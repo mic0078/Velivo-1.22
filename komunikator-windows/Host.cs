@@ -61,7 +61,8 @@ namespace Velivo
             }
             catch (Exception ex) { App.LogError(ex); }
         }
-        void KomSyncIn(byte[] state) { }   // synchronizacja dotyczy tylko Velivo
+        void KomSyncIn(byte[] state) { }
+        void KomShowBrowser() { }   // link otwiera Velivo albo przeglądarka systemu - same się pokazują   // synchronizacja dotyczy tylko Velivo
         static readonly string DataDir = Environment.GetEnvironmentVariable("VELIVO_DANE") ?? VelivoData.Root;
         internal static string DataFolder => DataDir;
         const int LanPort = 41919;   // port sieci domowej starszych Velivo - komunikator słucha też na nim

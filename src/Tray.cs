@@ -185,7 +185,22 @@ namespace Velivo
         }
         static bool KomOddany => KomAppExe != null;
         static bool KomOldPortFree => true;
-        void KomSyncIn(byte[] state) => _ = HandleLanPacketAsync(state, null, true);   // 🌍 stan synchronizacji z internetu - sprawdzany jak z sieci domowej (klucz powiązania)   // 41919: Velivo bierze go samo (synchronizacja), gdy synchronizacja wyłączona - komunikator
+        void KomSyncIn(byte[] state) => _ = HandleLanPacketAsync(state, null, true);   // 🌍 stan synchronizacji z internetu - sprawdzany jak z sieci domowej (klucz powiązania)
+        // osobny Komunikator odebrał stan synchronizacji z internetu - zostawia go w folderze danych, Velivo przyjmuje (także zaległe po starcie)
+        System.IO.FileSystemWatcher _komSyncWatch;
+        void KomSyncInWatch()
+        {
+            if (_komSyncWatch != null) return;
+            try
+            {
+                Directory.CreateDirectory(KomSyncInDir);
+                void Take() { foreach (var f in Directory.GetFiles(KomSyncInDir, "*.json")) try { var b = File.ReadAllBytes(f); File.Delete(f); KomSyncIn(b); } catch (Exception) { } }
+                _komSyncWatch = new System.IO.FileSystemWatcher(KomSyncInDir, "*.json") { EnableRaisingEvents = true };
+                _komSyncWatch.Created += (s, e) => Dispatcher.BeginInvoke(new Action(async () => { await System.Threading.Tasks.Task.Delay(300); Take(); }));
+                Take();
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }   // 41919: Velivo bierze go samo (synchronizacja), gdy synchronizacja wyłączona - komunikator
         static void KomAppRun(bool silent)
         {
             try

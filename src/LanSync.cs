@@ -433,7 +433,7 @@ namespace Velivo
 
         void StartLanSync()
         {
-            StopLanSync();
+            StopLanSync(); KomSyncInWatch();
             if (_settings == null || !_settings.LanSync) { KomStartOwn(); return; }   // 💬 komunikator dziala i bez synchronizacji
             KomStopOld(); KomStartOwn(false);   // 💬 komunikator na własnym porcie; 41919 zajmie synchronizacja (pakiety komunikatora przekazuje dalej)
             bool hasKey = AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey);
@@ -929,18 +929,11 @@ namespace Velivo
         // poza domem, przez serwer (pośrednika), tymi samymi drogami co wiadomości; w domu wystarcza zwykła synchronizacja
         void LanSendNet(LanStatePacket pkt)
         {
-            if (KomOddany || !_komLoaded || pkt.t != "state") return;
-            var to = _komContacts.Where(c => c.Dom && !c.IsGroup && _komPcs.Contains(c.Id) && KomViaNet(c.Id)).ToList();
-            if (to.Count == 0) return;
-            var d = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(pkt)));
-            if (d.Length > 1500000) { LanLog(L.T("Synchronizacja przez internet: stan za duży (") + d.Length.ToString("N0") + " B)."); return; }
-            foreach (var c in to)
-            {
-                // w domu bez połączenia z serwerem paczka idzie do serwera przez sieć domową (UDP do ~60 KB); poza domem i na serwerze - ramką (do 1,5 MB)
-                if (_komUp == null && !_komRemote.ContainsKey(c.Id) && d.Length > 60000) { LanLog(L.T("Synchronizacja przez internet: stan za duży dla sieci domowej – dojdzie, gdy komputery będą w tej samej sieci.")); continue; }
-                var p = KomPacket("p2p-sync"); p["to"] = c.Id; p["d"] = d; KomSendUdp(p, null);
-            }
-            LanLog(L.T("Synchronizacja przez internet: wysłano do ") + string.Join(", ", to.Select(c => c.Name)));
+            if (pkt.t != "state") return;
+            var json = JsonSerializer.Serialize(pkt);
+            if (KomOddany) { try { File.WriteAllText(KomSyncOutFile, json); } catch (Exception ex) { App.LogError(ex); } return; }   // rozmowy prowadzi osobny Komunikator - on wyśle
+            if (!_komLoaded) return;
+            var r = KomSyncOut(json); if (r != null) LanLog(r);
         }
 
         void LanSend(LanStatePacket pkt)

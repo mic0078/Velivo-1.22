@@ -53,7 +53,21 @@ namespace Velivo
         static bool KomOddany => false;
         static bool KomOldPortFree => KomVelivoExe == null;   // 41919 to synchronizacja Velivo - gdy Velivo jest na tym komputerze, Komunikator go nie zajmuje (inaczej synchronizacja między komputerami nie startowała)   // to jest Komunikator - prowadzi rozmowy sam
         static void KomAppRun(bool silent) { }
-        void KomSyncIn(byte[] state) { }   // synchronizacja przeglądarki - tylko w pełnym Velivo
+        // 🌍 synchronizacja Velivo przez internet: stan od moich komputerów - dla Velivo na tym komputerze (folder danych); stan od Velivo - wysłany przez serwer
+        void KomSyncIn(byte[] state)
+        {
+            if (KomVelivoExe == null) return;   // bez Velivo nie ma czego synchronizować
+            try { Directory.CreateDirectory(KomSyncInDir); var f = Path.Combine(KomSyncInDir, DateTime.UtcNow.Ticks + ".tmp"); File.WriteAllBytes(f, state); File.Move(f, Path.ChangeExtension(f, ".json")); } catch (Exception ex) { App.LogError(ex); }
+        }
+        FileSystemWatcher _komSyncOutWatch;
+        void KomSyncOutWatch()
+        {
+            void Send() { try { if (!File.Exists(KomSyncOutFile)) return; var j = File.ReadAllText(KomSyncOutFile); File.Delete(KomSyncOutFile); if (KomSyncOut(j) is string r) App.LogInfo(r); } catch (Exception) { } }
+            _komSyncOutWatch = new FileSystemWatcher(DataDir, Path.GetFileName(KomSyncOutFile)) { EnableRaisingEvents = true };
+            _komSyncOutWatch.Created += (s, e) => Dispatcher.BeginInvoke(new Action(async () => { await System.Threading.Tasks.Task.Delay(500); Send(); }));
+            _komSyncOutWatch.Changed += (s, e) => Dispatcher.BeginInvoke(new Action(async () => { await System.Threading.Tasks.Task.Delay(500); Send(); }));
+            Send();
+        }
         static readonly string DataDir = Environment.GetEnvironmentVariable("VELIVO_DANE") ?? VelivoData.Root;
         internal static string DataFolder => DataDir;
         const int LanPort = 41919;   // port sieci domowej starszych Velivo - komunikator słucha też na nim
@@ -85,6 +99,7 @@ namespace Velivo
             KomLoad();
             KomStartOwn();   // sieć domowa (41918 i 41919), serwer, łączenie przez internet
             KomEnsureTray();
+            try { KomSyncOutWatch(); } catch (Exception ex) { App.LogError(ex); }   // zmiany z Velivo na tym komputerze - przez internet do moich komputerów
             _ = InitWebView();
             if (!silent) ShowMessenger();
         }

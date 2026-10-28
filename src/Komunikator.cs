@@ -36,6 +36,25 @@ namespace Velivo
         string _komId;
         readonly List<KomContact> _komContacts = new List<KomContact>();
         readonly HashSet<string> _komPcs = new HashSet<string>();   // kontakty, które są komputerami z Velivo
+        // 🌍 synchronizacja Velivo przez internet: zaszyfrowany stan (klucz z powiązania komputerów - serwer go nie odczyta) do moich komputerów poza domem,
+        // przez serwer, tymi samymi drogami co wiadomości; w domu wystarcza zwykła synchronizacja. Velivo i osobny Komunikator wymieniają paczki przez folder danych.
+        static string KomSyncOutFile => Path.Combine(DataDir, "komunikator-sync-wyjscie.json");
+        static string KomSyncInDir => Path.Combine(DataDir, "komunikator-sync-wejscie");
+        string KomSyncOut(string pktJson)
+        {
+            var to = _komContacts.Where(c => c.Dom && !c.IsGroup && _komPcs.Contains(c.Id) && KomViaNet(c.Id)).ToList();
+            if (to.Count == 0) return null;
+            var d = Convert.ToBase64String(Encoding.UTF8.GetBytes(pktJson));
+            if (d.Length > 1500000) return L.T("Synchronizacja przez internet: stan za duży (") + d.Length.ToString("N0") + " B).";
+            bool big = false;
+            foreach (var c in to)
+            {
+                // w domu bez połączenia z serwerem paczka idzie do serwera przez sieć domową (UDP do ~60 KB); poza domem i na serwerze - ramką (do 1,5 MB)
+                if (_komUp == null && !_komRemote.ContainsKey(c.Id) && d.Length > 60000) { big = true; continue; }
+                var p = KomPacket("p2p-sync"); p["to"] = c.Id; p["d"] = d; KomSendUdp(p, null);
+            }
+            return big ? L.T("Synchronizacja przez internet: stan za duży dla sieci domowej – dojdzie, gdy komputery będą w tej samej sieci.") : L.T("Synchronizacja przez internet: wysłano do ") + string.Join(", ", to.Select(c => c.Name));
+        }
         readonly Dictionary<string, List<KomMsg>> _komChats = new Dictionary<string, List<KomMsg>>();
         readonly Dictionary<string, int> _komUnread = new Dictionary<string, int>();
         readonly Dictionary<string, (string Name, IPAddress Addr)> _komFound = new Dictionary<string, (string, IPAddress)>();

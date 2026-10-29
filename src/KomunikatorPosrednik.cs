@@ -841,8 +841,11 @@ namespace Velivo
         string KomMyAddress(bool reset)
         {
             var r = KomLiveRelay();   // mój domowy, który działa
-            bool self = _komRelayListener != null && _komRelayHost.Length > 0;
-            var addr = self ? _komRelayHost + ":" + _komRelayPort : r?.Relay;
+            // ten komputer jest serwerem - link zawsze do niego (także bez sprawdzonego adresu domu: adres domu od mojego drugiego serwera, ten sam dom),
+            // wcześniej link z CHUWI prowadził do NUCBOX i prośby pokazywały się na NUCBOX
+            var host = _komRelayHost.Length > 0 ? _komRelayHost : r?.Relay is string rr0 && rr0.LastIndexOf(':') > 0 ? rr0.Substring(0, rr0.LastIndexOf(':')) : "";
+            bool self = _komRelayListener != null && host.Length > 0;
+            var addr = self ? host + ":" + _komRelayPort : r?.Relay;
             if (addr == null) return null;
             var sk = (string)_komOpt["moj-adres"];
             if (sk == null || reset) { sk = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)); _komOpt["moj-adres"] = sk; }

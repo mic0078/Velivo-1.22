@@ -135,6 +135,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-28: YouTube na telefonie wczytywał się długo – blokada adresów reklam/statystyk na stronie YouTube (odtwarzacz czekał na nie do upływu czasu); teraz na YouTube reklamy tylko przez youtube.js, bez blokady sieci.
 * 2026-10-28: link YouTube z komunikatora Windows „nic nie pokazywał”, a po kilku kliknięciach grało kilka filmów naraz – karta otwierała się w Velivo schowanym w zasobniku (Activate na ukrytym oknie nic nie robi); teraz okno Velivo się pokazuje.
 * 2026-10-29: lista rozmów Windows pokazywała całą długą wiadomość w wielu wierszach – zamieniane było tylko \n, a \r z Windows łamał wiersz; teraz jedna linijka, najwyżej 90 znaków. Przy tekście z Windows pamiętaj o \r\n.
+* 2026-10-29: „Mój adres” wysłany z CHUWI prowadził do NUCBOX (CHUWI bez sprawdzonego adresu domu brał adres pierwszego działającego serwera) – prośby szły przez NUCBOX; teraz serwer zawsze daje link do siebie (adres domu od drugiego serwera + własny port).
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

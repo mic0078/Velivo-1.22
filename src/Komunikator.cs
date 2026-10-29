@@ -813,7 +813,7 @@ namespace Velivo
             foreach (var c in cs) list.Children.Add(new CheckBox { Content = c.Name, Tag = c.Id, Margin = new Thickness(0, 3, 0, 3) });
             var ok = new Button { Content = L.T("Utwórz"), IsDefault = true, Padding = new Thickness(16, 4, 16, 4), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
             var d = new Window { Title = "👥 " + L.T("Nowa grupa"), Owner = owner, Width = 320, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
-                Content = new StackPanel { Margin = new Thickness(14), Children = { new TextBlock { Text = L.T("Nazwa grupy") }, name, new TextBlock { Text = L.T("Kto w grupie?") }, new ScrollViewer { Content = list, MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ok } } };
+                Content = new StackPanel { Margin = new Thickness(14), Children = { new TextBlock { Text = L.T("Wiadomość w grupie dostają wszyscy zaznaczeni. Grupa pojawi się u nich po pierwszej wiadomości."), TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8) }, new TextBlock { Text = L.T("Nazwa grupy") }, name, new TextBlock { Text = L.T("Kto w grupie?") }, new ScrollViewer { Content = list, MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ok } } };
             ok.Click += (a, b) =>
             {
                 var ids = list.Children.OfType<CheckBox>().Where(x => x.IsChecked == true).Select(x => (string)x.Tag).ToList();
@@ -875,7 +875,7 @@ namespace Velivo
             foreach (var c in cs) list.Children.Add(new CheckBox { Content = c.Name, Tag = c, Margin = new Thickness(0, 3, 0, 3) });
             var ok = new Button { Content = L.T("Połącz"), IsDefault = true, Padding = new Thickness(16, 4, 16, 4), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
             var d = new Window { Title = "👤 " + L.T("Kogo połączyć ze sobą?"), Owner = owner, Width = 320, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
-                Content = new StackPanel { Margin = new Thickness(14), Children = { new ScrollViewer { Content = list, MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ok } } };
+                Content = new StackPanel { Margin = new Thickness(14), Children = { new TextBlock { Text = L.T("Zaznacz co najmniej 2 osoby – dostaną siebie nawzajem w kontaktach i będą mogły pisać do siebie bez Ciebie."), TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8) }, new ScrollViewer { Content = list, MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, ok } } };
             ok.Click += (a, b) =>
             {
                 var sel = list.Children.OfType<CheckBox>().Where(x => x.IsChecked == true).Select(x => (KomContact)x.Tag).ToList();
@@ -2370,7 +2370,7 @@ namespace Velivo
         void KomMyAddressDialog(Window owner)
         {
             var link = KomMyAddress(false);
-            if (link == null) { KomInfo(L.T("Potrzebny pośrednik (np. NUCBOX) w kontaktach albo ten komputer jako pośrednik (🎨 → 🌍)")); return; }
+            if (link == null) { KomInfo(L.T("Twój adres działa przez Twój serwer, a żadnego jeszcze nie ma. Na komputerze, który jest zawsze włączony, zaznacz: 🎨 → 🌍 Rozmowy poza domem → „Ten komputer jest pośrednikiem”.")); return; }
             var box = new TextBox { Text = link, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Margin = new Thickness(10) };
             var info = new TextBlock { Text = L.T("Daj go każdemu, kto ma Velivo – wyśle Ci prośbę, a Ty zdecydujesz: Dodaj / Odrzuć. Dostanie tylko komunikator (bez Twojej sieci domowej)."), TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Margin = new Thickness(10, 10, 10, 0) };
             var copy = new Button { Content = "📋 " + L.T("Kopiuj"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(10, 0, 6, 10) };

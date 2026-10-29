@@ -140,6 +140,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-29: właściciel: serwer ma władzę nad kontaktami – 🌍 → 👥 Kontakty serwera: lista (w sieci / moje / serwer), usunięcie na wszystkich moich serwerach naraz; usunięty nie wraca przy wymianie kontaktów (`removed`).
 * 2026-10-29: okno 🌍 po mojej przeróbce – przycisk „Kontakty serwera” biały z niewidocznym napisem (zwykły szablon Windows po najechaniu), ✅ szare jak kratka, port na środku; teraz KomStyle daje każdemu przyciskowi okienek własny szablon, stan kolorem zamiast emoji. Nowe okno sprawdzaj też po najechaniu myszą.
 * 2026-10-29: opóźnienia plików z Windows – kawałek 1 MB wysyłany trzema zapisami bez NoDelay (czekanie na potwierdzenia TCP), stary adres kontaktu na drugim porcie czekał do 15 s przed 📬; teraz jeden zapis na kawałek, NoDelay, 3 s na port, tunel serwera 256 KB na ramkę.
+* 2026-10-29: mama (stara wersja) nie dostawała wiadomości przy 3 włączonych serwerach – zna tylko NUCBOX:41920, a w mojej tabeli przekierowań 41920 nie było; doradzając zmiany w routerze, zachowaj stare porty, które znają urządzenia. Teraz serwer pamięta swoje dawne porty i przez UPnP kieruje je na obecny.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

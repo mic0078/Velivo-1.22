@@ -1071,6 +1071,10 @@ namespace Velivo
             bool canMove = DateTime.UtcNow - _komRelayMoved > TimeSpan.FromHours(1) && _komRelayAcceptAt == default;   // poza domem (laptop) - nie ustalamy adresu obcej sieci
             var port = _komRelayPort;
             var (ext, mapped, note) = await Task.Run(() => KomUpnpAsync(port));
+            // dawne porty tego serwera (np. NUCBOX 41920 -> 41921): starsze telefony (mama) znają tylko stary - w routerze stary port też prowadzi tutaj
+            if (_komOpt["ports"] is not System.Text.Json.Nodes.JsonArray used) _komOpt["ports"] = used = new System.Text.Json.Nodes.JsonArray();
+            if (!used.Any(x => (int?)x == port)) { used.Add(port); KomSave(); }
+            foreach (var old in used.Select(x => (int?)x ?? 0).Where(x => x != port && x >= 41920 && x <= 41929).ToList()) await Task.Run(() => KomUpnpAsync(old, port));
             if (ext != null && KomPrivateIp(ext)) ext = null;   // router za routerem operatora podaje swój adres wewnętrzny (np. 192.168.1.x) - z internetu nieosiągalny; prawdziwy z ipify
             // wczesniej przeniesiony na inny port, a 41920 znow prowadzi tu (np. reczne przekierowanie) - wracamy na 41920
             if (port != 41920 && _komRelayAuto && !_komRelayPortFixed && canMove && (await Task.Run(() => KomUpnpAsync(41920))).mapped) { _komRelayMoved = DateTime.UtcNow; _komRelayPort = 41920; KomSave(); KomRelayStart(); KomAnnounce(); return; }

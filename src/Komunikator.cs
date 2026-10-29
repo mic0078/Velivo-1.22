@@ -1777,7 +1777,12 @@ namespace Velivo
                 var away = _komUp != null;
                 netText.Text = away ? L.T("🌍 Poza domem – przez internet") + (_komUpRelay != null ? L.T(" (przez ") + _komUpRelay.Name + ")" : "") : L.T("🏠 W domu – sieć domowa");
                 netState.Background = new SolidColorBrush(away ? Color.FromRgb(0x25, 0x63, 0xEB) : Color.FromRgb(0x16, 0xA3, 0x4A));
-                netState.ToolTip = away ? L.T("Wiadomości i pliki idą przez pośrednika w domu, zaszyfrowane") : L.T("Wiadomości i pliki idą prosto w sieci domowej");
+                // ile moich serwerów działa (ten komputer też, gdy jest serwerem) - od razu widać, czy zapas jest gotowy
+                var srv = _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay)).Select(x => (x.Name, on: KomOnline(x.Id))).ToList();
+                if (_komRelayListener != null) srv.Insert(0, (_lanDeviceName + L.T(" (ten komputer)"), true));
+                if (srv.Count > 0) netText.Text += "\n" + L.T("Serwery: ") + srv.Count(x => x.on) + L.T(" z ") + srv.Count + L.T(" działa");
+                netState.ToolTip = (away ? L.T("Wiadomości i pliki idą przez pośrednika w domu, zaszyfrowane") : L.T("Wiadomości i pliki idą prosto w sieci domowej"))
+                    + (srv.Count > 0 ? "\n\n" + string.Join("\n", srv.Select(x => (x.on ? "✓ " : "✗ ") + x.Name + " – " + (x.on ? L.T("działa") : L.T("wyłączony")))) : "");
             }
             void FillChat()
             {

@@ -570,9 +570,9 @@ namespace Velivo
                 var who = (c?.Name ?? "?") + " [" + (id ?? "").Substring(0, Math.Min(6, (id ?? "").Length)) + "] z " + ((cl.Client.RemoteEndPoint as IPEndPoint)?.Address?.ToString() ?? "?");
                 string why = c == null ? "nieznane urządzenie (nie ma go w kontaktach tego serwera)" : (string)h["Type"] != "relay-hello" ? "zły typ" : (string)h["Relay"] != _komId ? "połączenie do innego serwera (adres wskazuje ten komputer)"
                     : Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000 ? "zły czas zegara (różnica ponad 5 min)" : null;
-                if (why != null) { App.LogInfo("Pośrednik: odrzucono " + who + " – " + why); cl.Dispose(); return; }
+                if (why != null) { App.LogInfo("Pośrednik: odrzucono " + who + " – " + why); _komLastReject = (c?.Name ?? L.T("nieznane urządzenie")) + " – " + why; _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
                 var exp = KomMacBytes(c.Key, "relay-hello\n", hello);
-                if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) { App.LogInfo("Pośrednik: odrzucono " + who + " – inny klucz (kontakt dodany na nowo tylko po jednej stronie)"); cl.Dispose(); return; }
+                if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) { App.LogInfo("Pośrednik: odrzucono " + who + " – inny klucz (kontakt dodany na nowo tylko po jednej stronie)"); _komLastReject = c.Name + " – " + L.T("inny klucz (ten kontakt trzeba usunąć i dodać na nowo)"); _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
                 if ((string)h["Mode"] == "main") App.LogInfo("Pośrednik: połączono " + who);
                 var nc = KomB64((string)h["Nonce"]); if (nc.Length != 16) { cl.Dispose(); return; }
                 var ns = RandomNumberGenerator.GetBytes(16);
@@ -1280,7 +1280,7 @@ namespace Velivo
             }));
         }
 
-        TextBlock _komRelaySummary;
+        TextBlock _komRelaySummary; string _komLastReject;   // 🔎 kogo serwer ostatnio nie wpuścił i dlaczego - widać w oknie, bez szukania w dzienniku
         void KomRelayStatus()
         {
             if (_komRelaySummary != null)
@@ -1290,6 +1290,8 @@ namespace Velivo
                     : bad ? L.T("Serwer nie działa – port zajęty przez inny program. Rozwiń „Szczegóły” i wybierz inny port (41920–41929).")
                     : !_komRemote.IsEmpty ? L.T("Działa – przez internet połączonych urządzeń: ") + _komRemote.Count
                     : L.T("Działa w domu. Z internetu nikt się teraz nie łączy – to normalne, gdy wszyscy są w domu albo poza siecią.");
+                if (_komRelayOn && _komLastReject != null) _komRelaySummary.Text += "\n" + L.T("Ostatnio nie wpuszczono: ") + _komLastReject;
+                if (_komRelayOn && !_komRemote.IsEmpty) _komRelaySummary.Text += "\n" + L.T("Połączone teraz: ") + string.Join(", ", _komRemote.Keys.Select(id => KomContactById(id)?.Name ?? "?"));
                 _komRelaySummary.Foreground = new System.Windows.Media.SolidColorBrush(!_komRelayOn ? System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF) : bad ? System.Windows.Media.Color.FromRgb(0xF5, 0x9E, 0x0B) : System.Windows.Media.Color.FromRgb(0x22, 0xC5, 0x5E));
             }
             if (_komRelayStatusText == null) return;

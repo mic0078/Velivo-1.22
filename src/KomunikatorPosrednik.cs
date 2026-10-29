@@ -1315,16 +1315,33 @@ namespace Velivo
             b.Click += (s, e) =>
             {
                 var list = new ListBox { MinWidth = 380, MaxHeight = 420 };
-                void Fill() { list.Items.Clear(); foreach (var c in _komContacts.Where(x => !x.IsGroup).OrderBy(x => x.Name)) list.Items.Add(new ListBoxItem { Tag = c.Id, Content = (KomOnline(c.Id) ? "🟢 " : "⚪ ") + c.Name + (c.Dom ? "  🏠" : "") + (!string.IsNullOrEmpty(c.Relay) ? "  🖥 " + L.T("serwer") : "") }); }
+                // czytelnie: kolorowa kropka (emoji w okienkach Windows są szare), nazwa, a pod nią kto to i czy jest w sieci
+                void Fill()
+                {
+                    list.Items.Clear();
+                    foreach (var c in _komContacts.Where(x => !x.IsGroup).OrderByDescending(x => !string.IsNullOrEmpty(x.Relay)).ThenByDescending(x => x.Dom).ThenBy(x => x.Name))
+                    {
+                        bool on = KomOnline(c.Id);
+                        var kind = !string.IsNullOrEmpty(c.Relay) ? L.T("mój serwer") : c.Dom ? L.T("moje urządzenie") : L.T("znajomy");
+                        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 4, 2, 4) };
+                        row.Children.Add(new System.Windows.Shapes.Ellipse { Width = 12, Height = 12, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
+                            Fill = new System.Windows.Media.SolidColorBrush(on ? System.Windows.Media.Color.FromRgb(0x22, 0xC5, 0x5E) : System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF)) });
+                        row.Children.Add(new StackPanel { Children = {
+                            new TextBlock { Text = c.Name, FontWeight = FontWeights.SemiBold, FontSize = 14 },
+                            new TextBlock { Text = kind + " · " + (on ? L.T("w sieci") : L.T("poza siecią")), FontSize = 12, Opacity = 0.7 } } });
+                        list.Items.Add(new ListBoxItem { Tag = c.Id, Content = row });
+                    }
+                }
                 Fill();
+                var head = new TextBlock { Text = L.T("Zapisane na tym serwerze (każdy z listy): ") + _komContacts.Count(x => !x.IsGroup), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
                 var del = new Button { Content = "🗑 " + L.T("Usuń na wszystkich serwerach"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
                 var w = new Window { Title = "👥 " + L.T("Kontakty serwera"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                    Content = new StackPanel { Margin = new Thickness(16), Children = { new TextBlock { Text = L.T("🟢 w sieci   🏠 moje urządzenie   🖥 serwer"), Margin = new Thickness(0, 0, 0, 8) }, list, del } } };
+                    Content = new StackPanel { Margin = new Thickness(16), Children = { head, list, del } } };
                 del.Click += (s2, e2) =>
                 {
                     if (list.SelectedItem is not ListBoxItem it || KomContactById((string)it.Tag) is not { } c) return;
                     if (MessageBox.Show(w, L.T("Usunąć „") + c.Name + L.T("” na wszystkich moich serwerach? Nie będzie mógł pisać przez moje serwery."), "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                    KomForget(c.Id, true); Fill();
+                    KomForget(c.Id, true); Fill(); head.Text = L.T("Zapisane na tym serwerze (każdy z listy): ") + _komContacts.Count(x => !x.IsGroup);
                 };
                 KomStyle(w); w.ShowDialog();
             };

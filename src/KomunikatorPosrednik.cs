@@ -1279,10 +1279,15 @@ namespace Velivo
         TextBlock _komRelaySummary;
         void KomRelayStatus()
         {
-            if (_komRelaySummary != null) _komRelaySummary.Text = !_komRelayOn ? L.T("⏸ Wyłączony – ten komputer nie przekazuje rozmów.")
-                : _komRelayListener == null ? L.T("⚠ Serwer nie działa – port zajęty przez inny program. Rozwiń „Szczegóły” i wybierz inny port (41920–41929).")
-                : !_komRemote.IsEmpty ? L.T("✅ Działa – przez internet połączonych urządzeń: ") + _komRemote.Count
-                : L.T("✅ Działa w domu. Z internetu nikt się teraz nie łączy – to normalne, gdy wszyscy są w domu albo poza siecią.");
+            if (_komRelaySummary != null)
+            {   // jedno zdanie i kolor (zielony - działa, pomarańczowy - do zrobienia, szary - wyłączony); emoji w okienkach Windows są szare, więc kolor zamiast ikon
+                bool bad = _komRelayOn && _komRelayListener == null;
+                _komRelaySummary.Text = !_komRelayOn ? L.T("Wyłączony – ten komputer nie przekazuje rozmów.")
+                    : bad ? L.T("Serwer nie działa – port zajęty przez inny program. Rozwiń „Szczegóły” i wybierz inny port (41920–41929).")
+                    : !_komRemote.IsEmpty ? L.T("Działa – przez internet połączonych urządzeń: ") + _komRemote.Count
+                    : L.T("Działa w domu. Z internetu nikt się teraz nie łączy – to normalne, gdy wszyscy są w domu albo poza siecią.");
+                _komRelaySummary.Foreground = new System.Windows.Media.SolidColorBrush(!_komRelayOn ? System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF) : bad ? System.Windows.Media.Color.FromRgb(0xF5, 0x9E, 0x0B) : System.Windows.Media.Color.FromRgb(0x22, 0xC5, 0x5E));
+            }
             if (_komRelayStatusText == null) return;
             var lan = _komRelayOn ? KomLanIp() : "";
             _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port")) +
@@ -1357,7 +1362,7 @@ namespace Velivo
         {
             var on = new CheckBox { Content = L.T("Ten komputer jest pośrednikiem dla rozmów poza domem (musi być zawsze włączony)"), IsChecked = _komRelayOn, Margin = new Thickness(0, 0, 0, 10) };
             var host = new TextBox { Text = _komRelayAuto ? "" : _komRelayHost, MinWidth = 300, ToolTip = L.T("Puste – Velivo ustali adres domu samo. Możesz wpisać własny, np. z No-IP: mojdom.ddns.net") };
-            var port = new TextBox { Text = _komRelayPort.ToString(), Width = 90, ToolTip = L.T("Port TCP przekierowany w routerze na ten komputer") };
+            var port = new TextBox { Text = _komRelayPort.ToString(), Width = 90, HorizontalAlignment = HorizontalAlignment.Left, ToolTip = L.T("Port TCP przekierowany w routerze na ten komputer") };
             _komRelayStatusText = new TextBlock { Margin = new Thickness(0, 10, 0, 0), FontWeight = FontWeights.SemiBold };
             var info = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Margin = new Thickness(0, 10, 0, 0), Opacity = 0.85,
                 Text = L.T("Wystarczy zaznaczyć – Velivo samo ustali adres domu i spróbuje otworzyć port w routerze. Gdy router tego nie umie, przekieruj ten port TCP na ten komputer (jak dla Jellyfin). Pozostałe urządzenia dostaną adres same w sieci domowej. Korzystać mogą tylko Twoje kontakty; wiadomości i pliki są szyfrowane.") };

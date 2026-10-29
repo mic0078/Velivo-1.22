@@ -138,6 +138,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-29: „Mój adres” wysłany z CHUWI prowadził do NUCBOX (CHUWI bez sprawdzonego adresu domu brał adres pierwszego działającego serwera) – prośby szły przez NUCBOX; teraz serwer zawsze daje link do siebie (adres domu od drugiego serwera + własny port).
 * 2026-10-29: serwer znał kontakty, ale nie oddawał ich mojemu urządzeniu po reinstalacji (tylko moje urządzenia, bez znajomych); teraz serwer oddaje każdemu mojemu domowemu urządzeniu wszystkie kontakty (te same klucze), karta od mojego urządzenia dodawana bez pytania; znajomy na starej wersji dostaje „poleca Ci” do jednego stuknięcia.
 * 2026-10-29: właściciel: serwer ma władzę nad kontaktami – 🌍 → 👥 Kontakty serwera: lista (w sieci / moje / serwer), usunięcie na wszystkich moich serwerach naraz; usunięty nie wraca przy wymianie kontaktów (`removed`).
+* 2026-10-29: okno 🌍 po mojej przeróbce – przycisk „Kontakty serwera” biały z niewidocznym napisem (zwykły szablon Windows po najechaniu), ✅ szare jak kratka, port na środku; teraz KomStyle daje każdemu przyciskowi okienek własny szablon, stan kolorem zamiast emoji. Nowe okno sprawdzaj też po najechaniu myszą.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

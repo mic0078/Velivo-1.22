@@ -1577,7 +1577,7 @@ namespace Velivo
             KomEnsureTray();
             if (_komLock && !_komUnlocked) { _ = Dispatcher.InvokeAsync(async () => { if (await KomUnlock()) { _komUnlocked = true; ShowMessenger(openId); } }); return; }
             if (_komWindow != null) { if (!_komWindow.IsVisible) _komWindow.Show(); _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
-            var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo"), Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true, Uid = "own-theme",
+            var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo") + " By MichAel", Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true, Uid = "own-theme",
                 TaskbarItemInfo = new System.Windows.Shell.TaskbarItemInfo() };   // 🔢 licznik nieprzeczytanych na ikonie paska zadań
             if (IsVisible) w.Owner = null;
             var root = new Grid { Margin = new Thickness(8) };

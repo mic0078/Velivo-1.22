@@ -1522,7 +1522,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         head.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher) }, LinearLayout.LayoutParams(dp(40), dp(40)))
         head.addView(TextView(this).apply {
-            text = "Velivo"; textSize = 24f; setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
+            text = android.text.SpannableString("Velivo\nBy MichAel").apply { setSpan(android.text.style.RelativeSizeSpan(0.45f), 7, length, 0) }; textSize = 24f;   // autor pod nazwą setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(dp(10), 0, 0, 0)
             // napis w gradiencie Velivo (fiolet -> turkus), jak pod ikona
             val w = paint.measureText("Velivo")
             if (contrast) setTextColor(Color.WHITE)

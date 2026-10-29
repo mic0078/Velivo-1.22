@@ -10,8 +10,8 @@
 AppId={{9B1F7C2E-5A44-4E0B-8D6E-VELIVOKOMUN01}
 AppName={#AppName}
 AppVersion={#AppVer}
-AppVerName={#AppName} {#AppVer}
-AppPublisher=andro
+AppVerName={#AppName} {#AppVer} By MichAel
+AppPublisher=MichAel
 DefaultDirName={localappdata}\Programs\Velivo Komunikator
 UsePreviousAppDir=no
 DisableDirPage=yes

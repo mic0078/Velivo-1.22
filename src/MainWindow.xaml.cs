@@ -37,7 +37,7 @@ namespace Velivo
             System.Reflection.Assembly.GetExecutingAssembly().GetName().Version != null
                 ? System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(2)
                 : "1.122";
-        static readonly string AppTitleLabel = "Velivo " + AppVersionLabel;
+        static readonly string AppTitleLabel = "Velivo " + AppVersionLabel + " By MichAel";
 
         static string BuildWindowTitle(string pageTitle)
         {

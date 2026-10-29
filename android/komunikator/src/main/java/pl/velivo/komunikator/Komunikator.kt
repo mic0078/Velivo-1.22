@@ -2386,8 +2386,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         listRefresh = { if (chatWith == null) fill() }
         val close = icon("✕", t("Zamknij", "Close")) { screen?.dismiss() }
         val title = TextView(a).apply {
-            text = "💬 " + t("Komunikator Velivo", "Velivo messenger"); textSize = 20f; setTextColor(ink); setTypeface(typeface, android.graphics.Typeface.BOLD)
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(16), 0, px(4), 0)
+            val tt = "💬 " + t("Komunikator Velivo", "Velivo messenger")
+            text = android.text.SpannableString(tt + "\nBy MichAel").apply { setSpan(android.text.style.RelativeSizeSpan(0.55f), tt.length + 1, length, 0) }; textSize = 20f; setTextColor(ink); setTypeface(typeface, android.graphics.Typeface.BOLD)   // autor pod nazwą
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(16), 0, px(4), 0)
         }
         lateinit var bell: TextView
         fun bellLabel() { bell.text = if (k.background) "🔔" else "🔕"; bell.contentDescription = t("Wiadomości, gdy Velivo zamknięte: ", "Messages while Velivo is closed: ") + (if (k.background) t("wł.", "on") else t("wył.", "off")); bell.tooltipText = bell.contentDescription }

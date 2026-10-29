@@ -13,8 +13,8 @@
 AppId={{6E4C2B7A-3F1D-4C8E-9A51-PRZEGLADARKA01}
 AppName={#AppName}
 AppVersion={#AppVer}
-AppVerName={#AppName} {#AppVer}
-AppPublisher=andro
+AppVerName={#AppName} {#AppVer} By MichAel
+AppPublisher=MichAel
 DefaultDirName={localappdata}\Programs\Velivo
 UsePreviousAppDir=no
 DefaultGroupName={#AppName}

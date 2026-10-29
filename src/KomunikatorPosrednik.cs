@@ -692,7 +692,7 @@ namespace Velivo
         {
             async Task Copy(Stream x, Stream y)
             {
-                var buf = new byte[1 << 16];
+                var buf = new byte[1 << 18];   // 256 KB na ramkę - mniej ramek i potwierdzeń przy dużych plikach przez serwer (ramka do 2 MB)
                 try { while (true) { int r = await x.ReadAsync(buf, 0, buf.Length, token); if (r <= 0) break; await y.WriteAsync(buf, 0, r, token); await y.FlushAsync(token); } }
                 catch (Exception) { }
             }

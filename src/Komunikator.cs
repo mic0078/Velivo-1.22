@@ -305,11 +305,12 @@ namespace Velivo
         // TCP do urządzenia w domu: nowe Velivo - port komunikatora, starsze - 41919 (3 s, bo zapora może milczeć)
         static async Task<TcpClient> KomTcpConnect(IPAddress a, CancellationToken token)
         {
-            var c = new TcpClient();
+            var c = new TcpClient { NoDelay = true };   // kawałki pliku od razu (bez Nagle'a)
             try { using (var t = CancellationTokenSource.CreateLinkedTokenSource(token)) { t.CancelAfter(3000); await c.ConnectAsync(a, KomPort, t.Token); } return c; }
             catch (Exception) when (!token.IsCancellationRequested) { c.Dispose(); }
-            c = new TcpClient();
-            try { await c.ConnectAsync(a, LanPort, token); return c; } catch (Exception) { c.Dispose(); throw; }
+            c = new TcpClient { NoDelay = true };
+            // starszy port też najwyżej 3 s - stary adres (kontakt już poza domem) czekał do 15 s, zanim plik poszedł do 📬 skrzynki
+            try { using (var t = CancellationTokenSource.CreateLinkedTokenSource(token)) { t.CancelAfter(3000); await c.ConnectAsync(a, LanPort, t.Token); } return c; } catch (Exception) { c.Dispose(); throw; }
         }
         // 41918 zawsze; 41919 też, gdy synchronizacja LAN go nie zajmuje (starsze Velivo i zapora przepuszczająca tylko 41919 - NUCBOX)
         void KomStartOwn(bool old = true)
@@ -1431,7 +1432,7 @@ namespace Velivo
                         cts.CancelAfter(TimeSpan.FromMinutes(4));
                         var b = new byte[1]; if (!await ReadExactAsync(s, b, 1, cts.Token) || b[0] != 1) return L.T("odrzucono");
                         cts.CancelAfter(Timeout.InfiniteTimeSpan);
-                        int n = ChunkCount(size); long sent = 0; var buf = new byte[LanChunk]; var ct = new byte[LanChunk]; var tag = new byte[16];
+                        int n = ChunkCount(size); long sent = 0; var buf = new byte[LanChunk]; var ct = new byte[LanChunk]; var tag = new byte[16]; var pkt = new byte[LanChunk + 20];
                         using (var gcm = new AesGcm(key, 16))
                         using (var f = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16))
                         {
@@ -1441,7 +1442,9 @@ namespace Velivo
                                 sent += len;
                                 if (progress != null && (i % 4 == 3 || i == n - 1)) progress(sent, size);   // co ok. 4 MB
                                 gcm.Encrypt(ChunkNonce(baseNonce, i), buf.AsSpan(0, len), ct.AsSpan(0, len), tag, ChunkAad(ad, i, i == n - 1));
-                                await s.WriteAsync(BitConverter.GetBytes(len + 16), 0, 4); await s.WriteAsync(ct, 0, len); await s.WriteAsync(tag, 0, 16);
+                                // jeden zapis na kawałek (długość + dane + znacznik) - trzy osobne zapisy czekały na potwierdzenia TCP (do 200 ms na każdy 1 MB)
+                                BitConverter.TryWriteBytes(pkt.AsSpan(0, 4), len + 16); ct.AsSpan(0, len).CopyTo(pkt.AsSpan(4)); tag.CopyTo(pkt.AsSpan(4 + len));
+                                await s.WriteAsync(pkt, 0, len + 20);
                                 if (s is KomFrameStream) await s.FlushAsync();   // tunel: ramka na kawalek
                             }
                         }

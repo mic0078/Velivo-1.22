@@ -1281,6 +1281,8 @@ namespace Velivo
         static byte[] KomFileAd(JsonNode h) => Encoding.UTF8.GetBytes(string.Join("\n", (string)h["Type"] ?? "", (string)h["Id"] ?? "", (string)h["Device"] ?? "", (string)h["Hash"] ?? "",
             ((long?)h["Size"] ?? 0).ToString(CultureInfo.InvariantCulture), (string)h["Name"] ?? "", (string)h["Pub"] ?? "", (string)h["Nonce"] ?? ""));
 
+        // lista rozmów: jedna linijka (Windows ma \r\n - samo \n zostawiało \r i cała wiadomość szła w kilku wierszach)
+        static string KomOneLine(string t) { t = System.Text.RegularExpressions.Regex.Replace(t ?? "", @"\s+", " ").Trim(); return t.Length > 90 ? t.Substring(0, 90) + "…" : t; }
         static string KomSize(long size) => size >= 1073741824 ? (size / 1073741824.0).ToString("0.00", CultureInfo.CurrentCulture) + " GB" : size >= 1048576 ? (size / 1048576.0).ToString("0.0", CultureInfo.CurrentCulture) + " MB" : Math.Max(1, size / 1024) + " KB";
 
         async Task KomReceiveFile(JsonNode h, Stream s, CancellationToken token)
@@ -1717,12 +1719,12 @@ namespace Velivo
                     var dr = KomDraft(c.Id);   // ✏ niedokończona wiadomość - jak w WhatsApp
                     var green = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
                     if (_komTypingAt.TryGetValue(c.Id, out var ty1) && DateTime.UtcNow - ty1 < TimeSpan.FromSeconds(6)) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { FontSize = 12, Foreground = green }); }   // jak w WhatsApp - „pisze…” na liście
-                    else if (dr.Length > 0) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run("✏ " + L.T("Szkic: ") + dr.Replace('\n', ' ')) { FontSize = 12, Foreground = green }); }
+                    else if (dr.Length > 0) { tb.Inlines.Add(new System.Windows.Documents.LineBreak()); tb.Inlines.Add(new System.Windows.Documents.Run("✏ " + L.T("Szkic: ") + KomOneLine(dr)) { FontSize = 12, Foreground = green }); }
                     else if (last != null)
                     {   // ostatnia wiadomość; moja - z ptaszkami (✓ wysłana, ✓✓ doręczona, niebieskie - przeczytana)
                         tb.Inlines.Add(new System.Windows.Documents.LineBreak());
                         if (last.Mine) tb.Inlines.Add(new System.Windows.Documents.Run(last.Read || (last.Ok && !last.Text.Contains("📬")) ? "✓✓ " : "✓ ") { FontSize = 12, FontWeight = FontWeights.Bold, Foreground = last.Read ? new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)) : new SolidColorBrush(pal.Dim) });
-                        tb.Inlines.Add(new System.Windows.Documents.Run(last.Text.Replace('\n', ' ')) { FontSize = 12, Foreground = new SolidColorBrush(pal.Dim) });
+                        tb.Inlines.Add(new System.Windows.Documents.Run(KomOneLine(last.Text)) { FontSize = 12, Foreground = new SolidColorBrush(pal.Dim) });
                     }
                     var pic = KomAvatarEl(c, on, 44, pal); pic.Margin = new Thickness(0, 0, 10, 0);   // 🖼 zdjęcie albo litera (zielona obwódka - w sieci)
                     // po prawej: czas ostatniej wiadomości i zielone kółko z liczbą nieprzeczytanych (jak w WhatsApp)

@@ -1271,6 +1271,7 @@ namespace Velivo
             { "). W routerze przestaw przekierowanie portów ", "). In the router, point the forwarding of ports " },
             { " i 443 na ", " and 443 to " },
             { "Zapisane na tym serwerze (każdy z listy): ", "Saved on this server (everyone listed): " },
+            { "Twoje serwery pamiętają te osoby i urządzenia i przekazują je sobie nawzajem oraz Twoim urządzeniom – po wyłączeniu jednego serwera albo ponownej instalacji telefonu nikt nie musi się dodawać od nowa. Zielona kropka – w sieci teraz, szara – poza siecią. „Usuń na wszystkich serwerach” – ta osoba nie będzie mogła pisać przez Twoje serwery.", "Your servers remember these people and devices and pass them to each other and to your devices – when one server is off or a phone is reinstalled, nobody has to be added again. Green dot – online now, grey – offline. “Remove on all servers” – this person can no longer write through your servers." },
             { "mój serwer", "my server" },
             { "moje urządzenie", "my device" },
             { "znajomy", "contact" },

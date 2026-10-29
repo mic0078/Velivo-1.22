@@ -1308,6 +1308,7 @@ namespace Velivo
             if (spread) foreach (var r in _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay)).ToList())
                 KomDeliver(r, new KomMsg { Mine = true, Text = KomForgetTag + id, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
         }
+        static string KomServerContactsHelp => L.T("Twoje serwery pamiętają te osoby i urządzenia i przekazują je sobie nawzajem oraz Twoim urządzeniom – po wyłączeniu jednego serwera albo ponownej instalacji telefonu nikt nie musi się dodawać od nowa. Zielona kropka – w sieci teraz, szara – poza siecią. „Usuń na wszystkich serwerach” – ta osoba nie będzie mogła pisać przez Twoje serwery.");
         Button KomServerContactsButton(Window owner)
         {
             var b = new Button { Content = "👥 " + L.T("Kontakty serwera…"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
@@ -1336,7 +1337,7 @@ namespace Velivo
                 var head = new TextBlock { Text = L.T("Zapisane na tym serwerze (każdy z listy): ") + _komContacts.Count(x => !x.IsGroup), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
                 var del = new Button { Content = "🗑 " + L.T("Usuń na wszystkich serwerach"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
                 var w = new Window { Title = "👥 " + L.T("Kontakty serwera"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                    Content = new StackPanel { Margin = new Thickness(16), Children = { head, list, del } } };
+                    Content = new StackPanel { Margin = new Thickness(16), Children = { head, new TextBlock { Text = KomServerContactsHelp, TextWrapping = TextWrapping.Wrap, MaxWidth = 380, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8) }, list, del } } };
                 del.Click += (s2, e2) =>
                 {
                     if (list.SelectedItem is not ListBoxItem it || KomContactById((string)it.Tag) is not { } c) return;

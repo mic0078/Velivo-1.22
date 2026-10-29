@@ -849,7 +849,7 @@ namespace Velivo
             bool dom = from.Dom && (bool?)j["dom"] == true;   // „domowy” tylko od domowego - serwer znajomego nie zrobi z nikogo mojego urządzenia
             // zapasowy serwer od domowego albo od serwera, przez który teraz się łączę (np. mama z zaproszenia) - bez pytania
             // moje domowe urządzenie od mojego domowego - od razu, także bez adresu serwera (np. Ryzen, który pośrednikiem został później)
-            if (_komRelayListener != null || dom || (KomTrustedRelay(from) && (bool?)j["dom"] == true && (relay ?? "").Contains(':'))) { KomCardAdd(from, id, name, key, (string)j["dev"], relay, dom); return; }
+            if (_komRelayListener != null || from.Dom || (KomTrustedRelay(from) && (bool?)j["dom"] == true && (relay ?? "").Contains(':'))) { KomCardAdd(from, id, name, key, (string)j["dev"], relay, dom); return; }
             // prośba o kontakt od znajomego - zgoda (okno nad innymi; nie blokuje odbioru)
             _ = Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -1223,7 +1223,7 @@ namespace Velivo
             _komContacts.RemoveAll(x => x.Id == c.Id); _komContacts.Add(c); KomSave(); _komRefresh?.Invoke();
             Dispatcher.BeginInvoke(new Action(KomRelayAskOnce), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // 🌍 jedno pytanie o rozmowy poza domem
             if (c.Dom && !c.IsGroup) KomFamilyIntro(c);
-            if (_komRelayListener != null) foreach (var r in _komLanRelays.Keys.ToList()) KomRelaySync(r);   // nowy kontakt na tym serwerze - od razu znają go moje serwery obok
+            if (_komRelayListener != null) { foreach (var r in _komLanRelays.Keys.ToList()) KomRelaySync(r); if (c.Dom && !c.IsGroup) KomRelaySync(c.Id); }   // nowy kontakt - od razu znają go moje serwery obok; nowe moje urządzenie (telefon po reinstalacji) dostaje wszystkie kontakty
         }
         // 👪 moje urządzenia znają się nawzajem: nowe (np. laptop po ponownej instalacji) sparowane z jednym moim urządzeniem poznają wszystkie
         // moje urządzenia - karta idzie jak wiadomość (w domu i przez serwer poza domem), bez parowania każdego z osobna; stały klucz pary

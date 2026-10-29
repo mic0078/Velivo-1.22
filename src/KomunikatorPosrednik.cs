@@ -329,7 +329,11 @@ namespace Velivo
                 }
                 return;
             }
-            if (t == "p2p-here" && p["relay"] != null && from != _komId && _komContacts.ToArray().Any(c => c.Id == from && c.Dom)) { _komLanRelays[from] = p.DeepClone(); if (_komRelayListener != null && (!_komSyncAt.TryGetValue(from, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(10))) { _komSyncAt[from] = DateTime.UtcNow; var pf = from; Dispatcher.BeginInvoke(new Action(() => KomRelaySync(pf))); } }
+            if (t == "p2p-here" && from != _komId && _komContacts.ToArray().Any(c => c.Id == from && c.Dom))
+            {   // mój serwer albo moje urządzenie (telefon, laptop) - serwer oddaje mu kontakty, których nie ma (np. po ponownej instalacji)
+                if (p["relay"] != null) _komLanRelays[from] = p.DeepClone();
+                if (_komRelayListener != null && (!_komSyncAt.TryGetValue(from, out var sa) || DateTime.UtcNow - sa > TimeSpan.FromMinutes(10))) { _komSyncAt[from] = DateTime.UtcNow; var pf = from; Dispatcher.BeginInvoke(new Action(() => KomRelaySync(pf))); }
+            }
             KomStoreFlush(from, null, addr);   // 📬 wrócił do domu - wiadomości, które na niego czekały
             if ((string)p["to"] is string sto && KomStoreKeep(p, sto)) return;
             if (from == _komId || _komRemote.IsEmpty) return;   // nasze - bez echa
@@ -376,9 +380,12 @@ namespace Velivo
         DateTime _komForeignLog;   // ostatni zapis połączenia spoza Velivo   // ostatnia próba zapasowych adresów serwerów
         void KomRelaySync(string peerId)
         {
-            var peer = KomContactById(peerId); if (peer == null || peer.IsGroup || string.IsNullOrEmpty(peer.Relay) || !peer.Dom) return;   // tylko mój serwer z domu - nigdy serwer znajomego
-            KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
-            if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;   // kontakty dopiero, gdy oba serwery mają ten sam sekret (następne sprawdzenie, co 10 min)
+            var peer = KomContactById(peerId); if (peer == null || peer.IsGroup || !peer.Dom) return;   // tylko moje urządzenie z domu (serwer, telefon, laptop) - nigdy znajomego
+            if (!string.IsNullOrEmpty(peer.Relay))
+            {   // drugi serwer: najpierw wspólny sekret (te same klucze par na każdym serwerze)
+                KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+                if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;
+            }
             if (_komOpt["intro"] is not JsonArray done) _komOpt["intro"] = done = new JsonArray();
             var have = done.Select(x => (string)x).ToHashSet(); bool any = false;
             foreach (var x in _komContacts.ToList())
@@ -390,7 +397,8 @@ namespace Velivo
                 // serwery wymieniają się WSZYSTKIMI kontaktami od razu (drugi serwer jest w sieci - słychać go): CHUWI zna mamę dodaną przez NUCBOX, także gdy mamy teraz nie ma
                 if (!have.Contains(tag + "|s")) { KomDeliver(peer, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag + "|s"); any = true; }
                 // kontakt poznaje drugi serwer, gdy jest w sieci (karta nie czeka w skrzynce) - nieobecny przy następnym sprawdzeniu (co 10 min)
-                if (!have.Contains(tag) && KomOnline(x.Id)) { KomDeliver(x, new KomMsg { Mine = true, Text = Card(peer), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag); any = true; }
+                if (!have.Contains(tag) && KomOnline(x.Id) && (x.Dom || !string.IsNullOrEmpty(peer.Relay) || !_komPcs.Contains(peerId))) {   // znajomym (mama) tylko moje serwery i telefony - bez pytań o każdy mój komputer
+                    KomDeliver(x, new KomMsg { Mine = true, Text = Card(peer), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag); any = true; }
             }
             if (any) KomSave();
         }

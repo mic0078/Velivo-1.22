@@ -615,7 +615,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         // 🔁 drugi pośrednik w domu (np. CHUWI) przedstawiony przez mojego pośrednika (NUCBOX) - od razu, bez pytania: wiadomości idą przez którykolwiek
         val rl = j.optString("relay")
         // moje domowe urządzenie od mojego domowego - od razu, także bez adresu serwera (np. Ryzen, który pośrednikiem został później)
-        if (j.optBoolean("dom") && (from.dom || (trusted && ':' in rl))) { synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl.takeIf { ':' in it }, dom = from.dom)) }
+        if (from.dom || (j.optBoolean("dom") && trusted && ':' in rl)) {   // od mojego domowego urządzenia - każdy kontakt bez pytania (telefon po reinstalacji dostaje znajomych od serwera)
+            synchronized(this) { if (contact(id) == null) contacts.add(Contact(id, clean(j.optString("name")).ifEmpty { "Velivo" }, key, "", clean(j.optString("dev")).ifEmpty { clean(j.optString("name")) }, false, rl.takeIf { ':' in it }, dom = from.dom && j.optBoolean("dom"))) }
             saveContacts(); main.post { onChange() }; return }
         val list = cardList(); if ((0 until list.length()).any { JSONObject(list.getString(it)).optJSONObject("c")?.optString("id") == id }) return
         list.put(JSONObject().put("f", from.id).put("c", j).toString()); prefs.edit().putString("prosby-kontakt", list.toString()).apply()

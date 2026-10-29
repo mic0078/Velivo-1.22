@@ -1297,6 +1297,39 @@ namespace Velivo
             _komRelayOn = true; _komRelayAuto = true; KomSave(); KomRelayStart(); KomAnnounce();
         }
 
+        // 👥 kontakty serwera: kogo znają moje serwery; usunięcie - na wszystkich moich serwerach naraz (i nie wraca przy wymianie kontaktów)
+        const string KomForgetTag = "\u0001velivo-zapomnij\n";
+        bool KomForgotten(string id) => _komOpt["removed"] is JsonArray ra && ra.Any(x => (string)x == id);
+        void KomForget(string id, bool spread)
+        {
+            if (_komOpt["removed"] is not JsonArray ra) _komOpt["removed"] = ra = new JsonArray();
+            if (!KomForgotten(id)) ra.Add(id);
+            _komContacts.RemoveAll(x => x.Id == id); KomSave(); _komRefresh?.Invoke();
+            if (spread) foreach (var r in _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay)).ToList())
+                KomDeliver(r, new KomMsg { Mine = true, Text = KomForgetTag + id, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+        }
+        Button KomServerContactsButton(Window owner)
+        {
+            var b = new Button { Content = "👥 " + L.T("Kontakty serwera…"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
+                ToolTip = L.T("Kogo znają moje serwery – usunięcie działa na wszystkich serwerach naraz") };
+            b.Click += (s, e) =>
+            {
+                var list = new ListBox { MinWidth = 380, MaxHeight = 420 };
+                void Fill() { list.Items.Clear(); foreach (var c in _komContacts.Where(x => !x.IsGroup).OrderBy(x => x.Name)) list.Items.Add(new ListBoxItem { Tag = c.Id, Content = (KomOnline(c.Id) ? "🟢 " : "⚪ ") + c.Name + (c.Dom ? "  🏠" : "") + (!string.IsNullOrEmpty(c.Relay) ? "  🖥 " + L.T("serwer") : "") }); }
+                Fill();
+                var del = new Button { Content = "🗑 " + L.T("Usuń na wszystkich serwerach"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+                var w = new Window { Title = "👥 " + L.T("Kontakty serwera"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    Content = new StackPanel { Margin = new Thickness(16), Children = { new TextBlock { Text = L.T("🟢 w sieci   🏠 moje urządzenie   🖥 serwer"), Margin = new Thickness(0, 0, 0, 8) }, list, del } } };
+                del.Click += (s2, e2) =>
+                {
+                    if (list.SelectedItem is not ListBoxItem it || KomContactById((string)it.Tag) is not { } c) return;
+                    if (MessageBox.Show(w, L.T("Usunąć „") + c.Name + L.T("” na wszystkich moich serwerach? Nie będzie mógł pisać przez moje serwery."), "🗑", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                    KomForget(c.Id, true); Fill();
+                };
+                KomStyle(w); w.ShowDialog();
+            };
+            return b;
+        }
         void KomRelayDialog(Window owner)
         {
             var on = new CheckBox { Content = L.T("Ten komputer jest pośrednikiem dla rozmów poza domem (musi być zawsze włączony)"), IsChecked = _komRelayOn, Margin = new Thickness(0, 0, 0, 10) };
@@ -1310,7 +1343,7 @@ namespace Velivo
                 on,
                 new TextBlock { Text = L.T("Adres domu (puste – ustalany automatycznie):") }, host,
                 new TextBlock { Text = L.T("Port:"), Margin = new Thickness(0, 8, 0, 0) }, port,
-                _komRelayStatusText, info, ok } };
+                _komRelayStatusText, info, KomServerContactsButton(owner), ok } };
             var d = new Window { Title = L.T("🌍 Rozmowy poza domem"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid };
             KomStyle(d);
             KomRelayStatus();

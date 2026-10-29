@@ -552,6 +552,7 @@ namespace Velivo
             if (text.StartsWith(KomAskOkTag, StringComparison.Ordinal)) { KomAskAnswer(c, text.Substring(KomAskOkTag.Length)); return; }   // 🔗 odpowiedź na prośbę
             if (text.StartsWith(KomAskTag, StringComparison.Ordinal)) { KomAskIn(c, text.Substring(KomAskTag.Length)); return; }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
             if (text.StartsWith(KomTimerTag, StringComparison.Ordinal)) { KomTtlIn(c, text.Substring(KomTimerTag.Length)); return; }   // ⏳ znikające wiadomości
+            if (text.StartsWith(KomForgetTag, StringComparison.Ordinal)) { if (c.Dom && _komRelayListener != null) KomForget(text.Substring(KomForgetTag.Length).Trim(), false); return; }   // 🗑 kontakt usunięty na moim drugim serwerze
             if (text.StartsWith(KomSekTag, StringComparison.Ordinal)) { if (c.Dom) KomSekIn(c, text.Substring(KomSekTag.Length)); return; }   // 🔑 wspólny sekret przedstawiania moich serwerów
             if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego
             if (text.StartsWith(KomDelTag, StringComparison.Ordinal)) { KomDelIn(c, text.Substring(KomDelTag.Length)); return; }   // 🚫 nadawca usunął wiadomość u wszystkich
@@ -841,7 +842,7 @@ namespace Velivo
             var id = (string)j?["id"]; byte[] key; try { key = Convert.FromBase64String((string)j["key"] ?? ""); } catch (Exception) { return; }
             // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
             if (KomContactById(id ?? "") is { } kc) { var ra = (string)j["relay"] ?? ""; if (from.Dom && ra != kc.Relay && ra.Contains(':') && ra.Length < 200) { kc.Relay = ra; KomSave(); } return; }   // adres istniejącego kontaktu (także nowy port) - tylko od domowego
-            if (id == null || id.Length != 32 || id == _komId || key.Length != 32) return;
+            if (id == null || id.Length != 32 || id == _komId || key.Length != 32 || KomForgotten(id)) return;
             var name = KomClean((string)j["name"]); if (name.Length == 0) name = "Velivo";
             var relay = (string)j["relay"];
             // pośrednik (np. NUCBOX, zwykle bez nikogo przy ekranie) - od zaufanego kontaktu od razu, żeby nowy znajomy mógł się łączyć przez internet

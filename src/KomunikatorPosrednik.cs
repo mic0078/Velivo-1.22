@@ -1276,8 +1276,13 @@ namespace Velivo
             }));
         }
 
+        TextBlock _komRelaySummary;
         void KomRelayStatus()
         {
+            if (_komRelaySummary != null) _komRelaySummary.Text = !_komRelayOn ? L.T("⏸ Wyłączony – ten komputer nie przekazuje rozmów.")
+                : _komRelayListener == null ? L.T("⚠ Serwer nie działa – port zajęty przez inny program. Rozwiń „Szczegóły” i wybierz inny port (41920–41929).")
+                : !_komRemote.IsEmpty ? L.T("✅ Działa – przez internet połączonych urządzeń: ") + _komRemote.Count
+                : L.T("✅ Działa w domu. Z internetu nikt się teraz nie łączy – to normalne, gdy wszyscy są w domu albo poza siecią.");
             if (_komRelayStatusText == null) return;
             var lan = _komRelayOn ? KomLanIp() : "";
             _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port")) +
@@ -1357,16 +1362,21 @@ namespace Velivo
             var info = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Margin = new Thickness(0, 10, 0, 0), Opacity = 0.85,
                 Text = L.T("Wystarczy zaznaczyć – Velivo samo ustali adres domu i spróbuje otworzyć port w routerze. Gdy router tego nie umie, przekieruj ten port TCP na ten komputer (jak dla Jellyfin). Pozostałe urządzenia dostaną adres same w sieci domowej. Korzystać mogą tylko Twoje kontakty; wiadomości i pliki są szyfrowane.") };
             var ok = new Button { Content = "OK", IsDefault = true, Padding = new Thickness(18, 4, 18, 4), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
-            var grid = new StackPanel { Margin = new Thickness(16), Children = {
-                on,
+            // najpierw jedno zdanie, co się dzieje (dla każdego); adres, port i szczegóły techniczne - schowane dla zaawansowanych
+            _komRelaySummary = new TextBlock { FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Margin = new Thickness(0, 4, 0, 8) };
+            var more = new Expander { Header = L.T("Szczegóły i ustawienia (dla zaawansowanych)"), Margin = new Thickness(0, 10, 0, 0), Content = new StackPanel { Margin = new Thickness(0, 6, 0, 0), Children = {
                 new TextBlock { Text = L.T("Adres domu (puste – ustalany automatycznie):") }, host,
                 new TextBlock { Text = L.T("Port:"), Margin = new Thickness(0, 8, 0, 0) }, port,
-                _komRelayStatusText, info, KomServerContactsButton(owner), ok } };
+                _komRelayStatusText, info } } };
+            var grid = new StackPanel { Margin = new Thickness(16), Children = {
+                on, _komRelaySummary,
+                new TextBlock { Text = L.T("Serwer przekazuje Twoje rozmowy, gdy Ty albo Twoje kontakty jesteście poza domem (dane komórkowe, inny kraj). Działa sam – nic nie trzeba ustawiać."), TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Opacity = 0.8 },
+                KomServerContactsButton(owner), more, ok } };
             var d = new Window { Title = L.T("🌍 Rozmowy poza domem"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid };
             KomStyle(d);
             KomRelayStatus();
             ok.Click += (s, e) => d.DialogResult = true;
-            d.Closed += (s, e) => _komRelayStatusText = null;
+            d.Closed += (s, e) => { _komRelayStatusText = null; _komRelaySummary = null; };
             d.ShowDialog();   // zamknięcie okna (✕ albo OK) zapisuje zmiany - wcześniej bez OK zostawał stary adres i port
             if (_komRelayOn && on.IsChecked != true) _komRelayAsked = true;   // wylaczone recznie - zostaje wylaczone
             _komRelayOn = on.IsChecked == true;

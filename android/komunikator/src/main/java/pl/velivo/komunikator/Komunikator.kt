@@ -2223,11 +2223,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val items = arrayOf("🖼 " + t("Moje zdjęcie profilowe…", "My profile photo…"), "🗑 " + t("Usuń moje zdjęcie", "Remove my photo"),
             "🔒 " + t("Blokada odciskiem palca / PIN-em: ", "Fingerprint / PIN lock: ") + if (k.lock) t("wł.", "on") else t("wył.", "off"),
             "💾 " + t("Kopia zapasowa (telefon, Google Drive, NUCBOX)…", "Backup (phone, Google Drive, NUCBOX)…"), "📥 " + t("Przywróć z kopii (nowy telefon)…", "Restore from backup (new phone)…"),
+            "🔐 " + t("Kod odzyskiwania konta", "Account recovery code") + (if (k.hasRecovery) t(": ustawiony", ": set") else t(": nieustawiony", ": not set")),
+            "♻ " + t("Przywróć konto kodem (po wyczyszczeniu telefonu)…", "Restore account with the code (after resetting the phone)…"),
             "🔗 " + t("Mój adres Velivo (dla każdego)", "My Velivo address (for anyone)"),
             "🔑 " + t("Klucz sprzętowy (YubiKey, USB/NFC)", "Security key (YubiKey, USB/NFC)") + if (k.hwKeys.isNotEmpty()) "  ✓ " + k.hwKeys.size else "",
-            "🙈 " + t("Ukryj stałe powiadomienie „Czeka na wiadomości”", "Hide the permanent “Waiting for messages” notification"))
+            "🙈 " + t("Ukryj stałe powiadomienie „Czeka na wiadomości”", "Hide the permanent “Waiting for messages” notification"),
+            "📶 " + (if (k.newDeviceNotifications) t("Powiadomienia o nowych urządzeniach: wł.", "New device notifications: on") else t("Powiadomienia o nowych urządzeniach: wył.", "New device notifications: off")))
         Dlg().setTitle("👤 " + t("Mój profil", "My profile")).setItems(items) { _, i ->
             if (items[i].startsWith("🔑")) { k.hwKeySetup(a); return@setItems }
+            if (items[i].startsWith("🔐")) { recoveryCode(); return@setItems }
+            if (items[i].startsWith("♻")) { restoreAccount(); return@setItems }
+            if (items[i].startsWith("📶")) { k.newDeviceNotifications = !k.newDeviceNotifications; profile(); return@setItems }
             if (items[i].startsWith("🙈")) { Toast.makeText(a, t("Wyłącz kategorię „Komunikator w tle” – wiadomości i dzwonki dalej się pokazują", "Turn off the “Messenger in background” category – messages and calls still show"), Toast.LENGTH_LONG).show(); runCatching { a.startActivity(android.content.Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName).putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, "nasluch")) }; return@setItems }
             when (i) {
@@ -2480,8 +2486,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val actions = LinearLayout(a).apply {
             gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
             addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj kontakt – obok Ciebie albo gdziekolwiek przez internet", "Add a contact – next to you or anywhere via internet")) { addChoice() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
-            addView(pill("📤 " + t("Wyślij pliki", "Send files"), t("Pliki do osoby z komunikatora (w domu i poza domem)", "Files to a messenger contact (at home and away)")) { attachTo = null; pickFiles() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
-            addView(pill("⚙ " + t("Konto", "Account"), t("Moje konto: kod odzyskiwania, przywrócenie konta, powiadomienia", "My account: recovery code, restore account, notifications")) { accountChoice() }, LinearLayout.LayoutParams(-2, px(46)))
+            addView(pill("📤 " + t("Wyślij pliki", "Send files"), t("Pliki do osoby z komunikatora (w domu i poza domem)", "Files to a messenger contact (at home and away)")) { attachTo = null; pickFiles() }, LinearLayout.LayoutParams(0, px(46), 1f))
         }
         root.removeAllViews()
         root.addView(LinearLayout(a).apply {
@@ -2545,16 +2550,6 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    // ⚙ Moje konto: kod odzyskiwania, przywrócenie po wyczyszczeniu telefonu, powiadomienia o nowych urządzeniach (osobno od dodawania kontaktów)
-    private fun accountChoice() {
-        Dlg().setTitle("⚙ " + t("Moje konto", "My account"))
-            .setItems(arrayOf("🔑 " + t("Kod odzyskiwania konta", "Account recovery code") + (if (k.hasRecovery) t(" – ustawiony", " – set") else t(" – nieustawiony", " – not set")),
-                "♻ " + t("Przywróć konto (po wyczyszczeniu telefonu)…", "Restore account (after resetting the phone)…"),
-                "📶 " + (if (k.newDeviceNotifications) t("Powiadomienia o nowych urządzeniach: wł.", "New device notifications: on") else t("Powiadomienia o nowych urządzeniach: wył.", "New device notifications: off")))) { _, i ->
-                when (i) { 0 -> recoveryCode(); 1 -> restoreAccount(); else -> { k.newDeviceNotifications = !k.newDeviceNotifications; accountChoice() } }
-            }.setNegativeButton(android.R.string.cancel, null).show()
-    }
-
     private fun addChoice() {
         Dlg().setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
             .setItems(arrayOf("📱 " + t("Ktoś obok mnie (ta sama sieć Wi-Fi)", "Someone next to me (same Wi-Fi)"), "📤 " + t("Mój adres – wyślij komuś (działa wszędzie)", "My address – send to someone (works anywhere)"),
@@ -2570,8 +2565,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(e); addView(e2) }
         Dlg().setTitle("🔑 " + t("Kod odzyskiwania konta", "Account recovery code"))
             .setMessage((if (k.hasRecovery) t("Kod jest ustawiony. Możesz wpisać nowy.\n\n", "A code is set. You can enter a new one.\n\n") else "") +
-                t("Wymyśl własny kod – PIN albo słowa, co najmniej 4 znaki – i zapisz go w bezpiecznym miejscu. Po wyczyszczeniu albo zmianie telefonu: ⚙ Konto → ♻ Przywróć konto – wraca to samo konto i wszystkie kontakty, nikt nie musi Cię dodawać od nowa. Kopia leży zaszyfrowana na Twoich serwerach – bez tego kodu nikt jej nie odczyta. Dłuższy kod = bezpieczniejszy.",
-                  "Make up your own code – a PIN or words, at least 4 characters – and keep it safe. After resetting or changing the phone: ⚙ Account → ♻ Restore account – the same account and all contacts come back, nobody has to add you again. The backup is encrypted on your servers – nobody can read it without this code. Longer = safer."))
+                t("Wymyśl własny kod – PIN albo słowa, co najmniej 4 znaki – i zapisz go w bezpiecznym miejscu. Po wyczyszczeniu albo zmianie telefonu: 👤 Mój profil → ♻ Przywróć konto – wraca to samo konto i wszystkie kontakty, nikt nie musi Cię dodawać od nowa. Kopia leży zaszyfrowana na Twoich serwerach – bez tego kodu nikt jej nie odczyta. Dłuższy kod = bezpieczniejszy.",
+                  "Make up your own code – a PIN or words, at least 4 characters – and keep it safe. After resetting or changing the phone: 👤 My profile → ♻ Restore account – the same account and all contacts come back, nobody has to add you again. The backup is encrypted on your servers – nobody can read it without this code. Longer = safer."))
             .setView(box)
             .setPositiveButton(t("Zapisz", "Save")) { _, _ ->
                 if (e.text.toString().trim().lowercase(Locale.ROOT).split(Regex("\\s+")) != e2.text.toString().trim().lowercase(Locale.ROOT).split(Regex("\\s+"))) {

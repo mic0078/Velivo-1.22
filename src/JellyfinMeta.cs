@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -396,7 +397,8 @@ namespace Velivo
 
         static HttpClient JellyfinClient(JellyfinConf c)
         {
-            var http = new HttpClient { BaseAddress = new Uri(c.Url.TrimEnd('/') + "/"), Timeout = TimeSpan.FromMinutes(5) };   // duza baza (ponad 1000 filmow z obsada) - serwer odpowiada dlugo
+            // kompresja (gzip/brotli): lista 1000+ filmów z obsadą to dziesiątki MB - przez internet (wysyłanie z domu) szła bardzo długo
+            var http = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { BaseAddress = new Uri(c.Url.TrimEnd('/') + "/"), Timeout = TimeSpan.FromMinutes(5) };   // duza baza (ponad 1000 filmow z obsada) - serwer odpowiada dlugo
             http.DefaultRequestHeaders.TryAddWithoutValidation("X-Emby-Token", c.Key);
             http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
             return http;
@@ -452,6 +454,8 @@ namespace Velivo
                 int n = 0, total = items.GetArrayLength(), posters = 0;
                 Directory.CreateDirectory(PosterDir);
                 var jfAll = new List<(string Name, string Path)>();   // do raportu niedopasowanych
+                // plakaty po kilka naraz (wcześniej po jednym - przez internet każdy czekał na swoją kolej)
+                var posterJobs = new List<Task>(); var posterGate = new SemaphoreSlim(6);
                 foreach (var it in items.EnumerateArray())
                 {
                     n++;
@@ -465,15 +469,21 @@ namespace Velivo
                     m.Poster = old?.Poster;
                     if (m.ImageTag != null && (old == null || old.ImageTag != m.ImageTag || old.Poster != m.Id + "-720.jpg" || !File.Exists(Path.Combine(PosterDir, old.Poster))))
                     {
-                        try
+                        var mm = m; var oldPoster = old?.Poster;
+                        posterJobs.Add(Task.Run(async () =>
                         {
-                            var img = await http.GetByteArrayAsync("Items/" + m.Id + "/Images/Primary?maxHeight=720&quality=90");
-                            var file = m.Id + "-720.jpg";   // wyzsza jakosc - stare (360 px) pobierane od nowa
-                            File.WriteAllBytes(Path.Combine(PosterDir, file), img);
-                            if (old?.Poster != null && old.Poster != file) try { File.Delete(Path.Combine(PosterDir, old.Poster)); } catch (Exception) { }   // stary plakat (360 px)
-                            m.Poster = file; posters++;
-                        }
-                        catch (Exception) { }
+                            await posterGate.WaitAsync();
+                            try
+                            {
+                                var img = await http.GetByteArrayAsync("Items/" + mm.Id + "/Images/Primary?maxHeight=720&quality=90");
+                                var file = mm.Id + "-720.jpg";   // wyzsza jakosc - stare (360 px) pobierane od nowa
+                                File.WriteAllBytes(Path.Combine(PosterDir, file), img);
+                                if (oldPoster != null && oldPoster != file) try { File.Delete(Path.Combine(PosterDir, oldPoster)); } catch (Exception) { }   // stary plakat (360 px)
+                                mm.Poster = file; Interlocked.Increment(ref posters);
+                            }
+                            catch (Exception) { }
+                            finally { posterGate.Release(); }
+                        }));
                     }
                     meta[key] = m;
                     AddTitleKeys(meta, m);
@@ -483,6 +493,7 @@ namespace Velivo
                         meta[MetaDirKey(path + "\\x")] = m;   // Jellyfin podal folder filmu - dopasowanie po nazwie folderu
                     if (n % 25 == 0) progress(L.T("Filmy: ") + n + " / " + total + L.T(" · nowe plakaty: ") + posters);
                 }
+                if (posterJobs.Count > 0) { progress(L.T("Plakaty: ") + posterJobs.Count + "…"); await Task.WhenAll(posterJobs); }
                 Directory.CreateDirectory(MetaDir);
                 foreach (var k in meta.Keys.Where(k => k.StartsWith("ty:") || k.StartsWith("t:")).ToList()) meta.Remove(k);   // klucze tytulow liczone przy wczytaniu
                 File.WriteAllText(MetaFile, JsonSerializer.Serialize(meta));

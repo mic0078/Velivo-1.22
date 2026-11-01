@@ -2233,6 +2233,7 @@ namespace Velivo
             { " · nowe plakaty: ", " · new posters: " },
             { "✅ Filmów z Jellyfin: ", "✅ Films from Jellyfin: " },
             { " · dopasowanych w bibliotece: ", " · matched in the library: " },
+            { "Plakaty: ", "Posters: " },
             { "zły klucz API", "wrong API key" },
             { "🎞 Informacje o filmach z Jellyfin", "🎞 Film details from Jellyfin" },
             { "Velivo pobierze z Twojego serwera Jellyfin tytuły, opisy, oceny, obsadę i plakaty do własnej bazy na tym komputerze (działa też, gdy serwer jest wyłączony) i będzie ją uzupełniać.", "Velivo downloads titles, descriptions, ratings, cast and posters from your Jellyfin server into its own database on this computer (it also works when the server is off) and keeps it up to date." },

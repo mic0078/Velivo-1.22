@@ -1228,8 +1228,9 @@ namespace Velivo
 
         internal static System.Windows.Shapes.Path PlayerIcon(string name)
         {
-            return new System.Windows.Shapes.Path { Data = Geometry.Parse(PlayerIcons[name]), Fill = Brushes.White, Width = 20, Height = 20, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
+            return new System.Windows.Shapes.Path { Data = Geometry.Parse(PlayerIcons[name]), Fill = Brushes.White, Width = _barIcon, Height = _barIcon, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
         }
+        static double _barIcon = 20;   // wielkość ikon paska odtwarzacza (wysokość paska z ustawień 👁)
 
         // nowoczesny suwak (pasek postepu, glosnosc, PiP): cienka linia, niebieska czesc do uchwytu, okragly bialy uchwyt
         internal static Style ModernSliderStyle(string fill = "#3B82F6")   // fill: kolor wypełnienia (głośność - zielona)
@@ -1428,6 +1429,7 @@ namespace Velivo
 
         void BuildVlcWindow()
         {
+            _barIcon = 20;   // ikony nowego okna od zwykłej wielkości - wysokość paska nakładana po zbudowaniu
             LibraryVideo current = null;   // film, ktory teraz gra (jego wpis w bibliotece)
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
             _playerMp = mp;
@@ -1849,6 +1851,31 @@ namespace Velivo
                 if (Math.Abs((cur?.ScaleX ?? 1) - k) > 0.001) ctlRow.LayoutTransform = k < 1 ? new ScaleTransform(k, k) : Transform.Identity;
             };
             overlay.SizeChanged += fitBar; mainCol.SizeChanged += fitBar; quick.SizeChanged += fitBar; rightBox.SizeChanged += fitBar;
+            // ↕ wysokość paska (👁 → płynnie 100–160 %): wyższe przyciski, większe ikony, napisy i zegar - szerokość prawie bez zmian (ikony rosną w miejscu)
+            var barBase = new Dictionary<object, double>();
+            Action<double> applyBarHeight = null; double barF = 1;
+            applyBarHeight = f =>
+            {
+                double prevF = barF; barF = f; _barIcon = Math.Round(20 * f);
+                void walk(object o)
+                {
+                    switch (o)
+                    {
+                        case Button b: if (!barBase.ContainsKey(b)) barBase[b] = double.IsNaN(b.Height) ? 36 : b.Height; b.Height = Math.Round(barBase[b] * f);
+                            if (!barBase.ContainsKey((b, "fs"))) barBase[(b, "fs")] = b.FontSize; b.FontSize = barBase[(b, "fs")] * f; walk(b.Content); return;
+                        case System.Windows.Shapes.Path p: if (!barBase.ContainsKey(p)) barBase[p] = double.IsNaN(p.Width) ? 20 : p.Width / prevF; p.Width = p.Height = Math.Round(barBase[p] * f); return;   // ikona podmieniona później (⏸/▶) ma już bieżącą wielkość - podstawa = szerokość / poprzednia skala
+                        case TextBlock t: if (!barBase.ContainsKey(t)) barBase[t] = t.FontSize; t.FontSize = barBase[t] * f; return;
+                        case Image im: if (!barBase.ContainsKey(im)) barBase[im] = double.IsNaN(im.Height) ? 0 : im.Height; if (barBase[im] > 0) im.Height = Math.Round(barBase[im] * f); return;
+                        case Slider sl: if (!barBase.ContainsKey(sl)) barBase[sl] = double.IsNaN(sl.Width) ? 0 : sl.Width; if (barBase[sl] > 0) sl.Width = Math.Round(barBase[sl] * f); return;
+                        case Panel pn: foreach (var c in pn.Children) walk(c); return;
+                        case Decorator d: walk(d.Child); return;
+                        case ContentControl cc: walk(cc.Content); return;
+                    }
+                }
+                walk(ctlRow);
+            };
+            double barH0 = double.TryParse(GetPref("pasek-wysokosc"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bh0) ? Math.Max(1, Math.Min(1.6, bh0)) : 1;
+            if (barH0 > 1.001) win.Loaded += (s, e) => applyBarHeight(barH0);
             // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
             var miniTitle = new TextBlock { Foreground = Brushes.White, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             var miniBack = glyphBtn("exitmini", L.T("Wróć do zwykłego okna"));
@@ -3492,6 +3519,15 @@ namespace Velivo
                     cm.Items.Add(mi);
                 }
                 cm.Items.Add(new Separator());
+                {   // ↕ płynna wysokość paska
+                    double cur0 = double.TryParse(GetPref("pasek-wysokosc"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hv) ? hv : 1;
+                    var hl = new TextBlock { Text = L.T("↕ Wysokość paska: ") + Math.Round(cur0 * 100) + " %", Margin = new Thickness(0, 0, 0, 4) };
+                    var hs = new Slider { Minimum = 1, Maximum = 1.6, Value = Math.Max(1, Math.Min(1.6, cur0)), Width = 220, IsMoveToPointEnabled = true, SmallChange = 0.05, LargeChange = 0.1, TickFrequency = 0.05, IsSnapToTickEnabled = true };
+                    hs.ValueChanged += (q, w2) => { hl.Text = L.T("↕ Wysokość paska: ") + Math.Round(hs.Value * 100) + " %"; applyBarHeight(hs.Value); SetPref("pasek-wysokosc", hs.Value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)); };
+                    var hp = new StackPanel { Margin = new Thickness(0, 4, 0, 4) }; hp.Children.Add(hl); hp.Children.Add(hs);
+                    cm.Items.Add(new MenuItem { Header = hp, StaysOpenOnClick = true });
+                    cm.Items.Add(new Separator());
+                }
                 cm.Items.Add(new MenuItem { Header = L.T("Przezroczystość paska:"), IsEnabled = false });
                 int curA = int.TryParse(GetPref("pasek-alfa"), out var ca) ? ca : 15;
                 foreach (var a0 in new[] { 0, 15, 30, 45, 60 })

@@ -1361,6 +1361,7 @@ namespace Velivo
             { "🌐 Wspólna biblioteka", "🌐 Shared library" },
             { "ℹ O filmie w podglądzie", "ℹ About the film in preview" },
             { "ℹ Co teraz leci w podglądzie", "ℹ What’s on in the preview" },
+            { "↕ Wysokość paska: ", "↕ Bar height: " },
             { "Lektor", "Narrator" },
             { "Dźwięk", "Audio" },
             { "Proporcje", "Aspect" },

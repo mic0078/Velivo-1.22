@@ -1524,7 +1524,20 @@ namespace Velivo
             var tvNav = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed }; foreach (var b in new UIElement[] { chBack, chFirst, chHistBtn }) tvNav.Children.Add(b);
             foreach (var b in new UIElement[] { prev, play, stop, next, filmNav, tvNav }) left.Children.Add(b);
             var right = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var b in new UIElement[] { fav, sleep, pipBtn, subs, lector, audio, aspect, snap, lib, hist, mini, full, mute, vol, volText }) right.Children.Add(b);
+            bool narrow = false; Action updMode = null;
+            // ⚙ Obraz i dźwięk: napisy, lektor, ścieżka, proporcje, zrzut - w drugim rzędzie z podpisami (jedna ikona na pasku zamiast pięciu)
+            Action<Button, string> withLabel = (b, t) =>
+            {
+                var sp = new StackPanel { Orientation = Orientation.Horizontal }; sp.Children.Add(b.Content as UIElement);
+                sp.Children.Add(new TextBlock { Text = t, FontSize = 12, Foreground = Brushes.Gainsboro, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 2, 0) });
+                b.Content = sp; b.Width = double.NaN; b.Padding = new Thickness(8, 0, 8, 0);
+            };
+            withLabel(subs, L.T("Napisy")); withLabel(lector, L.T("Lektor")); withLabel(audio, L.T("Dźwięk")); withLabel(aspect, L.T("Proporcje")); withLabel(snap, L.T("Zrzut"));
+            var toolsRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 0), Visibility = GetPref("pasek-narzedzia") == "1" ? Visibility.Visible : Visibility.Collapsed };
+            foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap }) toolsRow.Children.Add(b);
+            var tools = glyphBtn("tune", L.T("Obraz i dźwięk – napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki (pokaż / schowaj rząd)"));
+            tools.Click += (s, e) => { bool on = toolsRow.Visibility != Visibility.Visible; toolsRow.Visibility = on ? Visibility.Visible : Visibility.Collapsed; SetPref("pasek-narzedzia", on ? "1" : "0"); };
+            foreach (var b in new UIElement[] { fav, sleep, pipBtn, tools, lib, hist, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 4) };
             btnRow.Children.Add(left); btnRow.Children.Add(right);
             // pasek nakladany na obraz (jak w "Na wierzchu"): chowa sie po chwili bez ruchu myszy, film nie zmienia rozmiaru
@@ -1533,7 +1546,7 @@ namespace Velivo
             var controls = new StackPanel { Background = barBg(int.TryParse(GetPref("pasek-alfa"), out var ba) ? ba : 15), VerticalAlignment = VerticalAlignment.Bottom };
             // pasek postepu tak szeroki jak przyciski (konczy sie za "100%"); miejsce z prawej - na szybkie ikony
             var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };   // do dolu - rzad przyciskow w jednej linii z szybkimi ikonami
-            mainCol.Children.Add(seekRow); mainCol.Children.Add(btnRow);
+            mainCol.Children.Add(seekRow); mainCol.Children.Add(toolsRow); mainCol.Children.Add(btnRow);
             // szybkie ikony z prawej (te same znaki co w menu pod prawym przyciskiem, rozmiar jak przyciski obok)
             // szybkie ikony z prawej - ten sam rysowany styl i wysokosc co przyciski obok
             Func<string, string, Button> qBtn = glyphBtn;
@@ -1750,7 +1763,7 @@ namespace Velivo
             win.SizeChanged += (s, e) =>
             {
                 double w = win.ActualWidth;
-                foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap, lib, hist }) b.Visibility = w >= 820 ? Visibility.Visible : Visibility.Collapsed;
+                narrow = w < 820; updMode?.Invoke();
                 foreach (var b in new UIElement[] { speed, stop }) b.Visibility = w >= 600 ? Visibility.Visible : Visibility.Collapsed;
                 foreach (var b in new UIElement[] { back10, fwd10, volText }) b.Visibility = w >= 480 ? Visibility.Visible : Visibility.Collapsed;
                 vol.Width = w >= 480 ? 110 : 70;
@@ -3286,7 +3299,17 @@ namespace Velivo
                 connText.Foreground = IptvSt.MaxConn > 0 && used >= IptvSt.MaxConn ? Brushes.Orange : Brushes.Silver;
                 connText.ToolTip = L.T("Połączenia z dostawcą IPTV teraz: ") + used + L.T(" (oglądanie, nagrania, podgląd PiP)") + (IptvSt.MaxConn > 0 ? L.T("\nLimit dostawcy: ") + IptvSt.MaxConn : L.T("\nKliknij, aby podać limit dostawcy"));
                 bool tvOn = IptvInstalled; qTv.IsEnabled = qGuide.IsEnabled = qFavTv.IsEnabled = qRecDir.IsEnabled = qRecSet.IsEnabled = tvOn;
+                // tryb: telewizja albo film - przyciski drugiego trybu i nieczynne schowane (zamiast szarych)
+                Func<bool, Visibility> vis = on => on ? Visibility.Visible : Visibility.Collapsed;
+                bool isTv = c != null;
+                qRec.Visibility = vis(qRec.IsEnabled); qRecStop.Visibility = vis(recAll.Count > 0); qRefresh.Visibility = vis(isTv);
+                qGuide.Visibility = qRecSet.Visibility = vis(isTv && tvOn); qRecDir.Visibility = vis(tvOn && (isTv || recAll.Count > 0));
+                qTv.Visibility = qFavTv.Visibility = pipBtn.Visibility = vis(tvOn);
+                qLists.Visibility = qFavFilm.Visibility = vis(!isTv);
+                lib.Visibility = hist.Visibility = vis(!isTv && !narrow);
+                tools.Visibility = vis(!narrow); toolsRow.Visibility = vis(!narrow && GetPref("pasek-narzedzia") == "1");
             };
+            updMode = updQuick;
             var qTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             qTimer.Tick += (s, e) => updQuick(); qTimer.Start(); win.Closed += (s, e) => qTimer.Stop();
             mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(updQuick));

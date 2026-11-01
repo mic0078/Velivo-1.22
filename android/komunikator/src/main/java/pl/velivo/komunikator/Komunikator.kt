@@ -3174,13 +3174,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 if (a.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) { a.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 4712); return@setOnClickListener }
                 audioNormal()
                 val f = java.io.File(a.cacheDir, "Glosowa-" + java.text.SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.ROOT).format(java.util.Date()) + ".m4a")
-                rec = runCatching {
+                // źródło „rozmowa” (VOICE_COMMUNICATION): telefon sam wyrównuje głośność mowy i tłumi szum - z gołego mikrofonu (MIC) nagrania były bardzo ciche
+                // (na telefonie +12 dB przy odtwarzaniu to ukrywało, na Windows było „strasznie cicho”); gdy telefon go nie ma - zwykły mikrofon
+                fun recorder(src: Int) = runCatching {
                     @Suppress("DEPRECATION") (if (Build.VERSION.SDK_INT >= 31) android.media.MediaRecorder(a) else android.media.MediaRecorder()).apply {
-                        setAudioSource(android.media.MediaRecorder.AudioSource.MIC); setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+                        setAudioSource(src); setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
                         setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC); setAudioEncodingBitRate(64000); setAudioSamplingRate(44100)
                         setOutputFile(f.path); prepare(); start()
                     }
                 }.getOrNull()
+                rec = recorder(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION) ?: recorder(android.media.MediaRecorder.AudioSource.MIC)
                 if (rec != null) { recFile = f; recAt = System.currentTimeMillis(); mic.text = "⏹"; (mic.background as? GradientDrawable)?.setColor(Color.rgb(229, 57, 53))
                     Toast.makeText(a, "🎤 " + t("Nagrywam… stuknij ⏹, by wysłać", "Recording… tap ⏹ to send"), Toast.LENGTH_SHORT).show() }
                 else Toast.makeText(a, t("Nie udało się włączyć mikrofonu", "Could not start the microphone"), Toast.LENGTH_SHORT).show()

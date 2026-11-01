@@ -163,6 +163,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-01: po mojej „poprawce” paska postępu przewijanie w ogóle nie działało – dodałem LostMouseCapture, który przed puszczeniem myszy kasował „przewijam” (suwak WPF zmienia przechwycenie myszy w trakcie kliknięcia), a puszczenie przewijało tylko przy „przewijam”. Nie dokładaj zdarzeń myszy do działającej obsługi bez pewności kolejności zdarzeń – zmieniaj tylko to, co znalazłeś.
 * 2026-11-01: głosówki z telefonu „bardzo cicho” – przyczyna niepotwierdzona; możliwe: tryb rozmowy (MODE_IN_COMMUNICATION) zostawiony po przerwanej rozmowie (nagrywanie i odtwarzanie przez słuchawkę rozmów) albo surowy mikrofon bez wzmocnienia. Teraz przed głosówką powrót do zwykłego trybu, odtwarzanie +12 dB (LoudnessEnhancer).
 * 2026-11-01: c.d. – telefon → telefon głośno, na Windows cicho: WPF MediaPlayer ma domyślnie Volume 0,5 (połowa); teraz 1,0. Przy odtwarzaczach systemowych sprawdzaj domyślną głośność.
+* 2026-11-01: c.d. – po Volume 1,0 na Windows dalej cicho: same nagrania z telefonu ciche (goły mikrofon MIC, bez wyrównania głośności); +12 dB na telefonie tylko to ukrywało. Teraz nagrywanie VOICE_COMMUNICATION (wyrównanie głośności, tłumienie szumu), zapasowo MIC. Cichy dźwięk: najpierw sprawdź źródło (nagranie), potem odtwarzacz.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

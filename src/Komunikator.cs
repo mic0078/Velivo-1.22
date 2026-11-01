@@ -62,7 +62,7 @@ namespace Velivo
         readonly HashSet<string> _komInFlight = new HashSet<string>();
         UdpClient _komUdp; TcpListener _komTcp; CancellationTokenSource _komCts;
         System.Windows.Threading.DispatcherTimer _komResend;
-        Window _komWindow; string _komOpenId;
+        Window _komWindow; string _komOpenId; bool _komThemeHook;
         Action _komRefresh;
         bool _komLoaded;
 
@@ -1639,6 +1639,15 @@ namespace Velivo
             KomEnsureTray();
             if (_komLock && !_komUnlocked) { _ = Dispatcher.InvokeAsync(async () => { if (await KomUnlock()) { _komUnlocked = true; ShowMessenger(openId); } }); return; }
             if (_komWindow != null) { if (!_komWindow.IsVisible) _komWindow.Show(); _komWindow.Activate(); if (_komWindow.WindowState == WindowState.Minimized) _komWindow.WindowState = WindowState.Normal; if (openId != null) _komSelect?.Invoke(openId); return; }
+            if (!_komThemeHook)
+            {   // 🎨 motyw komunikatora dla KAŻDEGO jego okienka (grupa, hasło kopii, kontakty serwera…), nie tylko głównego - przy otwarciu okienka
+                _komThemeHook = true;
+                EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s0, e0) =>
+                {
+                    if (s0 is Window kw && kw != _komWindow && kw.Uid != "own-theme" && kw.WindowStyle != WindowStyle.None && !kw.AllowsTransparency)
+                        for (var o = kw.Owner; o != null; o = o.Owner) if (o == _komWindow) { KomStyle(kw); break; }
+                }));
+            }
             var w = new Window { Icon = KomWindowIcon(), Title = L.T("Komunikator Velivo") + " By MichAel", Width = 760, Height = 560, MinWidth = 480, MinHeight = 320, WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = true, Uid = "own-theme",
                 TaskbarItemInfo = new System.Windows.Shell.TaskbarItemInfo() };   // 🔢 licznik nieprzeczytanych na ikonie paska zadań
             if (IsVisible) w.Owner = null;

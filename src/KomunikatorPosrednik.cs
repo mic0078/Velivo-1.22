@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace Velivo
 {
@@ -564,7 +565,7 @@ namespace Velivo
                 }
                 var h = JsonNode.Parse(hello);
                 if ((string)h?["Type"] == "relay-ask") { await KomAskServe(h, mac, s, token); return; }
-                if ((string)h?["Type"] == "relay-restore") { await KomRestoreServe(h, s, cl, token); return; }   // ♻ telefon po reinstalacji - zaszyfrowana kopia konta (kod 3 słów)   // 🔗 prośba o kontakt z linku „Mój adres Velivo” (ktoś spoza kontaktów)
+                if ((string)h?["Type"] == "relay-restore") { await KomRestoreServe(h, s, cl, token); return; }   // ♻ nowy telefon prosi o kopię konta - decyduje właściciel serwera   // 🔗 prośba o kontakt z linku „Mój adres Velivo” (ktoś spoza kontaktów)
                 id = (string)h["Id"];
                 KomContact c = null; await Dispatcher.InvokeAsync(() => { KomLoad(); c = KomContactById(id ?? ""); });
                 // ✉ nowe urzadzenie z zaproszeniem: klucz zaproszenia zamiast klucza kontaktu (jednorazowo, do dolaczenia)
@@ -599,6 +600,7 @@ namespace Velivo
                 }
                 if (mode == "tunnel-in") { if (_komTunnels.TryRemove(tid, out var w)) { w.TrySetResult(fs); fs = null; } return; }   // strumien odbiera czekajacy tunel
                 if (mode == "tunnel") { await KomRelayTunnel(fs, to, token); return; }
+                if (mode == "backup") { await Task.Run(() => KomBackupReceive(fs, c), token); return; }   // ☁ kopia kontaktów i rozmów urządzenia
                 if (mode != "main") return;
 
                 try { cl.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true); } catch (Exception) { }   // martwe połączenie z telefonem wykrywa też system
@@ -1319,37 +1321,101 @@ namespace Velivo
             _komRelayOn = true; _komRelayAuto = true; KomSave(); KomRelayStart(); KomAnnounce();
         }
 
-        // ♻ kod odzyskiwania konta (jak numer w WhatsApp): urządzenie przysyła zaszyfrowaną kluczem z 3 słów kopię swojej tożsamości i kontaktów;
-        // serwer jej nie odczyta, tylko przechowuje (plik wg skrótu L) i oddaje po reinstalacji temu, kto poda te same 3 słowa
-        const string KomRestoreTag = "\u0001velivo-odzysk\n";
+        // ☁ kopia urządzeń na serwerze (jak WhatsApp): telefon sam przysyła (co najwyżej co 30 min) skompresowane kontakty, rozmowy i ustawienia;
+        // nowy / wyczyszczony telefon prosi o nią (link „Mój adres”), a właściciel serwera wybiera, czyje to konto - bez kodów i haseł
+        const string KomRestoreTag = "\u0001velivo-odzysk\n";   // starsza wersja (kod odzyskiwania) - pomijane
         static string KomRestoreDir => Path.Combine(DataDir, "odzysk");
-        void KomRestoreStore(KomContact from, string body)
+        void KomBackupReceive(KomFrameStream fs, KomContact c)
         {
-            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
-            var l = (string)j?["l"]; var b = (string)j?["b"];
-            if (l is not { Length: 32 } || !l.All(Uri.IsHexDigit) || b == null || b.Length > 2_000_000) return;
             try
             {
+                var hd = JsonNode.Parse(fs.ReadFrame()); long size = (long?)hd?["Size"] ?? 0;
+                if (size <= 0 || size > 64L << 20) return;
                 Directory.CreateDirectory(KomRestoreDir);
-                var f = Path.Combine(KomRestoreDir, l + ".json");
-                if (File.Exists(f) && (string)JsonNode.Parse(File.ReadAllText(f))?["owner"] != from.Id) return;   // cudzej kopii nikt nie nadpisze
-                foreach (var old in Directory.GetFiles(KomRestoreDir, "*.json"))   // zmieniony kod - stara kopia tego urządzenia precz
-                    try { if (old != f && (string)JsonNode.Parse(File.ReadAllText(old))?["owner"] == from.Id) File.Delete(old); } catch (Exception) { }
-                File.WriteAllText(f, new JsonObject { ["owner"] = from.Id, ["b"] = b }.ToJsonString());
+                var f = Path.Combine(KomRestoreDir, c.Id + ".gz"); var tmp = f + ".tmp";
+                using (var o = File.Create(tmp))
+                {
+                    var buf = new byte[1 << 16]; long left = size;
+                    while (left > 0) { int n = fs.Read(buf, 0, (int)Math.Min(buf.Length, left)); if (n <= 0) return; o.Write(buf, 0, n); left -= n; }
+                }
+                File.Move(tmp, f, true);
+                File.WriteAllText(Path.Combine(KomRestoreDir, c.Id + ".json"), new JsonObject { ["name"] = c.Name, ["dev"] = KomClean((string)hd["Dev"]), ["at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["size"] = size }.ToJsonString());
+                var ok = Encoding.UTF8.GetBytes("ok"); fs.WriteFrame(ok, 0, ok.Length);
+                App.LogInfo("Pośrednik: kopia od " + c.Name + " (" + (size / 1024) + " KB)");
             }
-            catch (Exception ex) { App.LogError(ex); }
+            catch (Exception ex) { App.LogInfo("Pośrednik: kopia od " + c.Name + " nieudana – " + ex.Message); }
         }
+        // kopie na tym serwerze: (id, nazwa, czas) - najnowsze najpierw
+        static List<(string Id, string Name, long At)> KomBackups()
+        {
+            var l = new List<(string, string, long)>();
+            try { foreach (var m in Directory.GetFiles(KomRestoreDir, "*.json")) try { var id = Path.GetFileNameWithoutExtension(m); var j = JsonNode.Parse(File.ReadAllText(m));
+                if (id.Length == 32 && File.Exists(Path.Combine(KomRestoreDir, id + ".gz"))) l.Add((id, ((string)j?["name"] ?? "?") + ((string)j?["dev"] is { Length: > 0 } d ? " – " + d : ""), (long?)j?["at"] ?? 0)); } catch (Exception) { } }
+            catch (Exception) { }
+            return l.OrderByDescending(x => x.Item3).ToList();
+        }
+        sealed class KomRestoreReq { public string Dev, Ip; public DateTime At; public volatile string Choice; }
+        static readonly ConcurrentDictionary<string, KomRestoreReq> _komRestoreReq = new ConcurrentDictionary<string, KomRestoreReq>();
         static readonly ConcurrentDictionary<string, (DateTime at, int n)> _komRestoreTries = new ConcurrentDictionary<string, (DateTime, int)>();
         async Task KomRestoreServe(JsonNode h, Stream s, TcpClient cl, CancellationToken token)
         {
             var ip = (cl.Client.RemoteEndPoint as IPEndPoint)?.Address?.ToString() ?? "?";
-            var t = _komRestoreTries.AddOrUpdate(ip, (DateTime.UtcNow, 1), (_, o) => DateTime.UtcNow - o.at > TimeSpan.FromMinutes(10) ? (DateTime.UtcNow, 1) : (o.at, o.n + 1));
-            string b = "";
-            var l = (string)h["L"];
-            if (t.n <= 5 && l is { Length: 32 } && l.All(Uri.IsHexDigit))   // najwyżej 5 prób na 10 min z jednego adresu - zgadywanie słów bez szans
-                try { var f = Path.Combine(KomRestoreDir, l + ".json"); if (File.Exists(f)) b = (string)JsonNode.Parse(File.ReadAllText(f))?["b"] ?? ""; } catch (Exception) { }
-            App.LogInfo("Pośrednik: przywracanie konta z " + ip + (b.Length > 0 ? " – kopia oddana" : " – brak kopii albo za dużo prób"));
-            await KomWriteBlock(s, Encoding.UTF8.GetBytes(b), token);
+            var req = (string)h["Req"] ?? "";
+            foreach (var old in _komRestoreReq.Where(x => DateTime.UtcNow - x.Value.At > TimeSpan.FromMinutes(6)).ToList()) _komRestoreReq.TryRemove(old.Key, out _);
+            byte[] rep = Encoding.UTF8.GetBytes("wait");
+            if (req.Length != 32 || !req.All(Uri.IsHexDigit)) rep = Encoding.UTF8.GetBytes("no");
+            else if (_komRestoreReq.TryGetValue(req, out var r))
+            {
+                var ch = r.Choice;
+                if (ch == "no") { _komRestoreReq.TryRemove(req, out _); rep = Encoding.UTF8.GetBytes("no"); }
+                else if (ch != null)
+                {
+                    try { rep = File.ReadAllBytes(Path.Combine(KomRestoreDir, ch + ".gz")); _komRestoreReq.TryRemove(req, out _); App.LogInfo("Pośrednik: kopia konta oddana na nowy telefon (" + r.Dev + ", " + ip + ")"); }
+                    catch (Exception ex) { App.LogError(ex); rep = Encoding.UTF8.GetBytes("no"); }
+                }
+            }
+            else if (KomBackups().Count == 0) rep = Encoding.UTF8.GetBytes("none");
+            else
+            {   // nowa prośba: najwyżej 3 z jednego adresu na 10 min i 10 naraz - właściciel nie dostanie zalewu okienek
+                var t = _komRestoreTries.AddOrUpdate(ip, (DateTime.UtcNow, 1), (_, o) => DateTime.UtcNow - o.at > TimeSpan.FromMinutes(10) ? (DateTime.UtcNow, 1) : (o.at, o.n + 1));
+                if (t.n > 3 || _komRestoreReq.Count >= 10) rep = Encoding.UTF8.GetBytes("no");
+                else
+                {
+                    var nr = new KomRestoreReq { Dev = KomClean((string)h["Dev"]), Ip = ip, At = DateTime.UtcNow };
+                    if (_komRestoreReq.TryAdd(req, nr)) { App.LogInfo("Pośrednik: prośba o przywrócenie konta – " + nr.Dev + " z " + ip); _ = Dispatcher.BeginInvoke(new Action(() => KomRestoreAsk(nr))); }
+                }
+            }
+            await KomWriteBlock(s, rep, token);
+        }
+        // pytanie do właściciela serwera: czyje konto dostaje nowy telefon (okienko na wierzchu, samo znika po 5 min)
+        void KomRestoreAsk(KomRestoreReq r)
+        {
+            KomPlaySound();
+            var pal = KomCurrentPal();
+            var w = new Window { Uid = "own-theme", Title = "Velivo", Width = 420, SizeToContent = SizeToContent.Height, Topmost = true, ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen, Background = new SolidColorBrush(pal.Panel), ShowInTaskbar = true };
+            var panel = new StackPanel { Margin = new Thickness(20) };
+            panel.Children.Add(new TextBlock { Text = "♻ " + L.T("Nowy telefon chce przywrócić konto"), FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(pal.Fg), TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(new TextBlock { Text = L.T("Telefon") + ": " + (r.Dev.Length > 0 ? r.Dev : "?") + "\n" + L.T("Czyje to konto? Wybierz osobę tylko, gdy wiesz, że to jej nowy telefon – dostanie jej kontakty, rozmowy i ustawienia. Jeśli nikt nie zmieniał telefonu – kliknij „To nie moje”."),
+                FontSize = 14, Foreground = new SolidColorBrush(pal.Dim), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 12) });
+            Button Btn(string text, string tip, Color bg) => new Button { Content = text, ToolTip = tip, MinHeight = 38, Margin = new Thickness(0, 4, 0, 4), FontSize = 15, Padding = new Thickness(10, 4, 10, 4),
+                HorizontalContentAlignment = HorizontalAlignment.Left, Foreground = Brushes.White, Background = new SolidColorBrush(bg), BorderThickness = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand };
+            foreach (var b in KomBackups())
+            {
+                var id = b.Id;
+                var btn = Btn("👤 " + b.Name + "   (" + L.T("kopia z") + " " + DateTimeOffset.FromUnixTimeMilliseconds(b.At).LocalDateTime.ToString("d.MM HH:mm") + ")", L.T("Oddaj nowemu telefonowi konto tej osoby"), Color.FromRgb(0x25, 0x63, 0xEB));
+                btn.Click += (s, e) => { r.Choice = id; w.Close(); };
+                panel.Children.Add(btn);
+            }
+            var no = Btn("✕ " + L.T("To nie moje – odrzuć"), L.T("Nowy telefon nic nie dostanie"), Color.FromRgb(0xE5, 0x39, 0x35));
+            no.Click += (s, e) => { r.Choice = "no"; w.Close(); };
+            panel.Children.Add(no);
+            w.Content = panel; KomStyle(w);
+            no.Background = new SolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35)); no.Foreground = Brushes.White;   // odrzucenie na czerwono (KomStyle daje kolor motywu)
+            var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+            t.Tick += (s, e) => { t.Stop(); w.Close(); };
+            w.Closed += (s, e) => t.Stop();
+            w.Show(); w.Activate(); t.Start();
         }
         // 👥 kontakty serwera: kogo znają moje serwery; usunięcie - na wszystkich moich serwerach naraz (i nie wraca przy wymianie kontaktów)
         const string KomForgetTag = "\u0001velivo-zapomnij\n";

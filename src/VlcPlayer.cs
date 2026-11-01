@@ -2792,17 +2792,25 @@ namespace Velivo
                 if (resume > 0)
                 {
                     long r = resume;
+                    // wznowienie sprawdzane: VLC potrafi zignorować przewinięcie (w pauzie przy pytaniu, film z sieci, jeszcze się buforuje) - wtedy film szedł od początku
+                    Action seekResume = () =>
+                    {
+                        mp.Time = r; int tries = 0;
+                        var chk = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+                        chk.Tick += (q, w) => { if (vlcClosed || ++tries > 4 || mp.Time >= r - 10000) { chk.Stop(); return; } mp.Time = r; };
+                        chk.Start();
+                    };
                     var once = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
                     once.Tick += (s, e) =>
                     {
                         once.Stop(); if (mp.Length <= 0) return;
                         var how = forced ? "wznow" : GetPref("wznawianie") ?? "pytaj";   // po restarcie odtwarzacza - bez pytania   // pytaj / wznow / poczatek (Ustawienia -> Odtwarzacz filmow)
                         if (how == "poczatek" || _together != null) return;
-                        if (how == "wznow") { mp.Time = r; showOsd(L.T("Wznowiono od ") + FormatTime(r)); return; }
+                        if (how == "wznow") { seekResume(); showOsd(L.T("Wznowiono od ") + FormatTime(r)); return; }
                         mp.SetPause(true);
                         var ans = AskResume(win, r);
                         if (ans == null) { mp.SetPause(false); return; }
-                        if (ans.Value) { mp.Time = r; showOsd(L.T("Wznowiono od ") + FormatTime(r)); }
+                        if (ans.Value) { seekResume(); showOsd(L.T("Wznowiono od ") + FormatTime(r)); }
                         mp.SetPause(false);
                     };
                     once.Start();

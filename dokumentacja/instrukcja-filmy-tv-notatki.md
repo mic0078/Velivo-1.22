@@ -143,3 +143,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-01: pasek postępu – po kliknięciu suwak trzyma nowe miejsce do 4 s (VLC podaje jeszcze stary czas i suwak wracał – wyglądało, jakby klik nie zadziałał); puszczenie myszy poza paskiem nie zamraża suwaka.
 * 2026-11-01: lista filmów nad filmem: „🎬 Filmy na tym komputerze” i osobno „🌐 Wspólna biblioteka” (dyski sieciowe + filmy innych komputerów) – wcześniej razem, każdy film dwa razy; to samo w menu „📚 Wszystkie filmy”.
 * 2026-11-01: PiP – prawy przycisk: „ℹ Co teraz leci w podglądzie” (program TV z opisem) / „ℹ O filmie w podglądzie” – to samo okienko co klik w plakat (`showAbout`).
+* 2026-11-01: wznowienie filmu sprawdzane – gdy VLC zignoruje przewinięcie (pauza przy pytaniu, buforowanie, film z sieci), Velivo ponawia do 4 razy co 1,2 s (wcześniej film szedł od początku).

@@ -159,7 +159,7 @@ namespace Velivo
                         try
                         {
                             Directory.CreateDirectory(KomMediaDir);
-                            var p = Path.Combine(KomMediaDir, (k == "photo" ? "Zdjecie-" : "Wideo-") + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + (k == "photo" ? ".jpg" : ".webm"));
+                            var p = Path.Combine(KomMediaDir, (k == "photo" ? "Zdjecie-" : "Wideo-") + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + (k == "photo" ? ".jpg" : (string)o["e"] == "mp4" ? ".mp4" : ".webm"));   // mp4 - gdy nagrywarka umiała (miniatury i odtwarzanie wszędzie)
                             File.WriteAllBytes(p, Convert.FromBase64String((string)d)); send(p);
                         }
                         catch (Exception ex) { App.LogError(ex); }

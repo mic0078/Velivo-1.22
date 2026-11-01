@@ -347,7 +347,7 @@ end;
 procedure OpenFirewall(Exe: String);
 var Code: Integer;
 begin
-  ShellExec('runas', ExpandConstant('{cmd}'), '/c "netsh advfirewall firewall delete rule name="' + ExtractFileName(Exe) + ' - Velivo" & netsh advfirewall firewall add rule name="' + ExtractFileName(Exe) + ' - Velivo" dir=in action=allow program="' + Exe + '" enable=yes profile=any"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  ShellExec('runas', ExpandConstant('{cmd}'), '/c "netsh advfirewall firewall delete rule name="' + ExtractFileName(Exe) + ' - Velivo" & netsh advfirewall firewall add rule name="' + ExtractFileName(Exe) + ' - Velivo" dir=in action=allow program="' + Exe + '" enable=yes profile=any' + ' & netsh advfirewall firewall delete rule name="Velivo - porty TCP" & netsh advfirewall firewall add rule name="Velivo - porty TCP" dir=in action=allow protocol=TCP localport=41917-41929,443 enable=yes profile=any' + ' & netsh advfirewall firewall delete rule name="Velivo - porty UDP" & netsh advfirewall firewall add rule name="Velivo - porty UDP" dir=in action=allow protocol=UDP localport=41917-41919 enable=yes profile=any"', '', SW_HIDE, ewWaitUntilTerminated, Code);   // porty Velivo i komunikatora zawsze otwarte (każda sieć), także niezależnie od ścieżki programu
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

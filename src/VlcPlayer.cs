@@ -3474,12 +3474,16 @@ namespace Velivo
             qFavTv.Click += (s, e) => ShowFavChannels(qFavTv);   // ⭐ ulubione kanały - jak 🕘 historia: logo, klik gra, prawy przycisk: sortowanie, kolejność, usuwanie
             qFavFilm.Click += (s, e) => ShowFavFilms(qFavFilm);   // ⭐ ulubione filmy - plakat, obejrzano, prawy przycisk: sortowanie, kolejność, usuwanie
             // prawy przycisk na gwiazdkach: przewijana lista wszystkich filmów / kanałów grupy, która leci (albo ostatnio oglądanej)
-            qFavFilm.MouseRightButtonUp += (s, e) =>
+            // sortowanie jak w ulubionych (prawy przycisk na liście): A–Z / kolejność biblioteki albo listy dostawcy / ostatnio oglądany
+            var allPop = new System.Windows.Controls.Primitives.Popup[1];
+            Action showAllFilms = null; showAllFilms = () =>
             {
-                e.Handled = true;
-                var recDirs = TvRecDirs();
-                var films = LoadLibrary().Where(v => v.Peer == null && !IsTvRec(v.Path, recDirs) && File.Exists(v.Path))
-                    .Select(v => (v, m: MetaFor(v.Path))).Select(x => (x.v, x.m, t: ShownTitle(x.v, x.m))).OrderBy(x => x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
+                var recDirs = TvRecDirs(); int sort = FavSort("wszystkie-filmy");
+                var films = LoadLibrary().Where(v => v.Peer == null && !IsShared(v) && !IsTvRec(v.Path, recDirs) && File.Exists(v.Path))   // tylko filmy tego komputera, bez wspólnej grupy
+                    .GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First())   // bez powtórek
+                    .Select(v => (v, m: MetaFor(v.Path))).Select(x => (x.v, x.m, t: ShownTitle(x.v, x.m))).ToList();
+                if (sort == 0) films = films.OrderBy(x => x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
+                else if (sort == 2) films = films.OrderByDescending(x => x.v.Last).ToList();
                 var paths = films.Select(x => x.v.Path).ToArray();
                 var rows = films.Select((x, i) => { int i0 = i; var pf = x.m?.Poster != null ? System.IO.Path.Combine(PosterDir, x.m.Poster) : null; return new FavRow
                 {
@@ -3489,22 +3493,24 @@ namespace Velivo
                     Play = () => PlayVideos(paths, i0),
                     Menu = cm => FavItem(cm, "▶ " + L.T("Odtwórz"), () => PlayVideos(paths, i0))
                 }; }).ToList();
-                FavPopup(qFavFilm, "🎬 " + L.T("Wszystkie filmy"), L.T("Biblioteka filmów jest pusta"), rows, m => { }, 34, 50);
+                allPop[0] = FavPopup(qFavFilm, "🎬 " + L.T("Wszystkie filmy"), L.T("Biblioteka filmów jest pusta"), rows, m => FavSortItems(m, "wszystkie-filmy", true, allPop, showAllFilms), 34, 50);
             };
-            qFavTv.MouseRightButtonUp += (s, e) =>
+            Action showGroupCh = null; showGroupCh = () =>
             {
-                e.Handled = true;
                 var pl = KnownPlaylist(); var cur = qTvCh() ?? (chHist.Count > 0 ? chOf(chHist[chHist.Count - 1]) : null);
                 var grp = cur?.Group ?? "";
-                var chans = pl?.Channels.Where(c => (c.Group ?? "") == grp).ToList() ?? new List<IptvChannel>();
+                var chans = pl?.Channels.Where(c => (c.Group ?? "") == grp).GroupBy(c => c.Url).Select(g => g.First()).ToList() ?? new List<IptvChannel>();
+                if (FavSort("grupa-tv") == 0) chans = chans.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();   // 1 = kolejność z listy dostawcy
                 var rows = chans.Select(c => { var c0 = c; var logo = c.Logo; return new FavRow
                 {
                     Title = c.Name + (cur != null && c.Url == cur.Url ? "  ◀" : ""), Sub = "", Tip = c.Name, ImgAsync = () => GetLogo(logo),
                     Play = () => PlayChannelInGroup(c0, pl),
                     Menu = cm => FavItem(cm, "▶ " + L.T("Odtwórz"), () => PlayChannelInGroup(c0, pl))
                 }; }).ToList();
-                FavPopup(qFavTv, "📺 " + (grp.Length > 0 ? grp : L.T("Kanały")), L.T("Brak kanałów – włącz najpierw jakiś kanał TV"), rows, m => { }, 44, 32);
+                allPop[0] = FavPopup(qFavTv, "📺 " + (grp.Length > 0 ? grp : L.T("Kanały")), L.T("Brak kanałów – włącz najpierw jakiś kanał TV"), rows, m => FavSortItems(m, "grupa-tv", false, allPop, showGroupCh), 44, 32);
             };
+            qFavFilm.MouseRightButtonUp += (s, e) => { e.Handled = true; showAllFilms(); };
+            qFavTv.MouseRightButtonUp += (s, e) => { e.Handled = true; showGroupCh(); };
             updQuick();
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();

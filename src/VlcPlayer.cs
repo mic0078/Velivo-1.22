@@ -3309,7 +3309,7 @@ namespace Velivo
                 qRec.Visibility = vis(qRec.IsEnabled); qRecStop.Visibility = vis(recAll.Count > 0); qRefresh.Visibility = vis(isTv);
                 qGuide.Visibility = qRecSet.Visibility = vis(isTv && tvOn); qRecDir.Visibility = vis(tvOn && (isTv || recAll.Count > 0));
                 qTv.Visibility = qFavTv.Visibility = pipBtn.Visibility = vis(tvOn);
-                qLists.Visibility = qFavFilm.Visibility = vis(!isTv);
+                qLists.Visibility = vis(!isTv);   // ⭐ ulubione filmy i kanały w obu trybach - szybkie przejście na drugą stronę
                 lib.Visibility = hist.Visibility = vis(!isTv && !narrow);
                 swapTv = !isTv; swap.Visibility = vis(!isTv ? tvOn : true);
                 swap.Content = isTv ? "🎬 " + L.T("Filmy") : "📺 " + L.T("TV");

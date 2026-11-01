@@ -1566,7 +1566,8 @@ namespace Velivo
             var qRecDir = qBtn("folder", L.T("Folder z nagraniami")); var qTv = qBtn("tv", L.T("Kanały telewizji")); var qGuide = qBtn("guide", L.T("Pełny program TV"));
             var qInfo = qBtn("info", L.T("Pokaż pasek informacji (I)")); var qRefresh = qBtn("refresh", L.T("Odśwież kanał (F5)")); var qLists = qBtn("playlists", L.T("Playlisty i moja kolejka"));
             var qFavTv = qFavBtn("tv", L.T("Moje ulubione kanały TV")); var qFavFilm = qFavBtn("film", L.T("Moje ulubione filmy"));
-            withLabel(qFavTv, L.T("Kanały")); withLabel(qFavFilm, L.T("Filmy"));   // dwie gwiazdki z podpisem - od razu widać, która jest która
+            withLabel(qFavTv, L.T("Kanały")); withLabel(qFavFilm, L.T("Filmy"));
+            qFavTv.ToolTip = L.T("Moje ulubione kanały TV") + "\n" + L.T("Prawy przycisk: wszystkie kanały tej grupy"); qFavFilm.ToolTip = L.T("Moje ulubione filmy") + "\n" + L.T("Prawy przycisk: wszystkie filmy");   // dwie gwiazdki z podpisem - od razu widać, która jest która
             var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 2, 4, 4) };   // ta sama wysokosc co rzad przyciskow (btnRow: 2 u gory, 4 u dolu)
             var qBarTime = qBtn("eye", L.T("Pasek sterowania: jak długo zostaje widoczny i jak bardzo przezroczysty"));
             foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
@@ -3472,6 +3473,38 @@ namespace Velivo
             });
             qFavTv.Click += (s, e) => ShowFavChannels(qFavTv);   // ⭐ ulubione kanały - jak 🕘 historia: logo, klik gra, prawy przycisk: sortowanie, kolejność, usuwanie
             qFavFilm.Click += (s, e) => ShowFavFilms(qFavFilm);   // ⭐ ulubione filmy - plakat, obejrzano, prawy przycisk: sortowanie, kolejność, usuwanie
+            // prawy przycisk na gwiazdkach: przewijana lista wszystkich filmów / kanałów grupy, która leci (albo ostatnio oglądanej)
+            qFavFilm.MouseRightButtonUp += (s, e) =>
+            {
+                e.Handled = true;
+                var recDirs = TvRecDirs();
+                var films = LoadLibrary().Where(v => v.Peer == null && !IsTvRec(v.Path, recDirs) && File.Exists(v.Path))
+                    .Select(v => (v, m: MetaFor(v.Path))).Select(x => (x.v, x.m, t: ShownTitle(x.v, x.m))).OrderBy(x => x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
+                var paths = films.Select(x => x.v.Path).ToArray();
+                var rows = films.Select((x, i) => { int i0 = i; var pf = x.m?.Poster != null ? System.IO.Path.Combine(PosterDir, x.m.Poster) : null; return new FavRow
+                {
+                    Title = x.t, Tip = x.v.Path,
+                    Sub = string.Join("   ·   ", new[] { x.m?.Year > 0 ? x.m.Year.ToString() : null, x.m?.Rating > 0 ? "★ " + x.m.Rating.ToString("0.0") : null, x.m?.Genres.Count > 0 ? string.Join(", ", x.m.Genres.Take(2)) : null }.Where(t => t != null)),
+                    ImgAsync = pf == null ? null : () => System.Threading.Tasks.Task.Run(() => File.Exists(pf) ? LoadLogo(pf, 150) : null),   // plakaty w tle - lista otwiera się od razu
+                    Play = () => PlayVideos(paths, i0),
+                    Menu = cm => FavItem(cm, "▶ " + L.T("Odtwórz"), () => PlayVideos(paths, i0))
+                }; }).ToList();
+                FavPopup(qFavFilm, "🎬 " + L.T("Wszystkie filmy"), L.T("Biblioteka filmów jest pusta"), rows, m => { }, 34, 50);
+            };
+            qFavTv.MouseRightButtonUp += (s, e) =>
+            {
+                e.Handled = true;
+                var pl = KnownPlaylist(); var cur = qTvCh() ?? (chHist.Count > 0 ? chOf(chHist[chHist.Count - 1]) : null);
+                var grp = cur?.Group ?? "";
+                var chans = pl?.Channels.Where(c => (c.Group ?? "") == grp).ToList() ?? new List<IptvChannel>();
+                var rows = chans.Select(c => { var c0 = c; var logo = c.Logo; return new FavRow
+                {
+                    Title = c.Name + (cur != null && c.Url == cur.Url ? "  ◀" : ""), Sub = "", Tip = c.Name, ImgAsync = () => GetLogo(logo),
+                    Play = () => PlayChannelInGroup(c0, pl),
+                    Menu = cm => FavItem(cm, "▶ " + L.T("Odtwórz"), () => PlayChannelInGroup(c0, pl))
+                }; }).ToList();
+                FavPopup(qFavTv, "📺 " + (grp.Length > 0 ? grp : L.T("Kanały")), L.T("Brak kanałów – włącz najpierw jakiś kanał TV"), rows, m => { }, 44, 32);
+            };
             updQuick();
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();

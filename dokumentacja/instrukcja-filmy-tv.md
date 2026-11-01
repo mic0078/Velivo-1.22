@@ -40,6 +40,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - Pasek postępu filmu sięga aż do danych strumienia (FHD…), suwak głośności jest zielony.
 - ⏱ **Koniec i odbiór** (obok wykresu sieci): film – „⏱ koniec 15:52” i ile zostało; telewizja – do której trwa audycja z programu TV. Pod spodem ● odbiór: zielony „Dobry”, pomarańczowy „Słaby” (gubi klatki), czerwony „Przerywa” (strumień staje).
 - ⭐📺 / ⭐🎬 **Moje ulubione kanały / filmy** – lista z logo albo plakatem, klik odtwarza. Prawy przycisk: odtwórz, przesuń wyżej / niżej, usuń z ulubionych i sortowanie (A–Z, moja kolejność, filmy także: ostatnio oglądany).
+- **Prawy przycisk na ⭐ Filmy / ⭐ Kanały:** przewijana lista wszystkich filmów albo wszystkich kanałów grupy, która leci – klik odtwarza.
 - 🌙 **Wyłącznik czasowy** – zatrzymuje po 15–120 minutach, po końcu filmu albo (przy TV) po końcu programu. Możesz zaznaczyć „💻 Potem wyłącz komputer” – masz 60 sekund, żeby to anulować. W ostatnich 30 sekundach dźwięk łagodnie cichnie.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.
 - **🎬 Filmy / 📺 TV** – szybkie przełączanie: przy telewizji przycisk „🎬 Filmy” otwiera bibliotekę filmów, przy filmie „📺 TV” – listę kanałów. Prawy przycisk na nim: 20 ostatnio oglądanych z drugiej strony (przy filmie – kanały, przy TV – filmy), jeden klik i wracasz.

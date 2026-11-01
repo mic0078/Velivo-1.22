@@ -138,3 +138,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-01: ⭐ Kanały i ⭐ Filmy z podpisami w obu trybach; 📺 kanały po prawej tylko przy TV (przy filmie – przełącznik „📺 TV”).
 * 2026-11-01: laptopy z dwiema kartami graficznymi – Velivo przy starcie prosi Windows o mocną kartę (HKCU\Software\Microsoft\DirectX\UserGpuPreferences, GpuPreference=2), tylko gdy właściciel sam nic nie ustawił; działa od następnego uruchomienia. Wcześniej film/TV na słabszej karcie gubiły ~5 klatek/s.
 * 2026-11-01: pasek odtwarzacza jako Grid (`ctlRow`): pasek postępu w wierszu 0 przez obie kolumny (prawy margines do `streamInfo`, w `alignInfo`; przy REC / połączeniach tylko nad przyciskami), plakat/ocena/gatunek albo logo stacji za zegarem (`showBadge`), głośność zielona (`ModernSliderStyle(fill)`).
+* 2026-11-01: prawy przycisk na ⭐ Filmy – przewijana lista wszystkich filmów (plakaty w tle), na ⭐ Kanały – kanały grupy, która leci (albo ostatnio oglądanej).

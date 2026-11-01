@@ -1534,6 +1534,7 @@ namespace Velivo
                             var ms = new MemoryStream(); await th.AsStreamForRead().CopyToAsync(ms); ms.Position = 0;
                             var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.StreamSource = ms; b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); b.Freeze(); img = b;
                         }
+                    if (img == null && File.Exists(path + ".jpg")) try { var pb = new System.Windows.Media.Imaging.BitmapImage(); pb.BeginInit(); pb.UriSource = new Uri(path + ".jpg"); pb.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; pb.EndInit(); pb.Freeze(); img = pb; } catch (Exception) { }   // klatka zapisana przy nagrywaniu na tym komputerze
                     if (img == null) { var g = await KomGrabFrame(path); img = g.img; if (d.TotalSeconds < 1) d = g.len; }   // .webm z Windows - Eksplorator nie ma miniatury, klatka z odtwarzacza
                     v = (img, d.TotalSeconds >= 1 ? "🎥 " + (int)d.TotalMinutes + ":" + d.Seconds.ToString("00") : "🎥");   // długości nie zna (webm) - bez „0:00”
                     _komVThumbs[path] = v;
@@ -2981,7 +2982,7 @@ namespace Velivo
             panel.Children.Add(row);
             KomStyle(d); d.ShowDialog();
             if (!send)   // nagrane / wycięte w Velivo - nie zostaje; pliki użytkownika nietknięte
-                foreach (var f in files) if (f.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase) || (f.StartsWith(KomMediaDir, StringComparison.OrdinalIgnoreCase) && System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(f), "^(Glosowa|Wideo|Zdjecie)-"))) try { File.Delete(f); } catch (Exception) { }
+                foreach (var f in files) if (f.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase) || (f.StartsWith(KomMediaDir, StringComparison.OrdinalIgnoreCase) && System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(f), "^(Glosowa|Wideo|Zdjecie)-"))) try { File.Delete(f); File.Delete(f + ".jpg"); } catch (Exception) { }
             return send;
         }
 

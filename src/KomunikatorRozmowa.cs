@@ -160,7 +160,9 @@ namespace Velivo
                         {
                             Directory.CreateDirectory(KomMediaDir);
                             var p = Path.Combine(KomMediaDir, (k == "photo" ? "Zdjecie-" : "Wideo-") + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + (k == "photo" ? ".jpg" : (string)o["e"] == "mp4" ? ".mp4" : ".webm"));   // mp4 - gdy nagrywarka umiała (miniatury i odtwarzanie wszędzie)
-                            File.WriteAllBytes(p, Convert.FromBase64String((string)d)); send(p);
+                            File.WriteAllBytes(p, Convert.FromBase64String((string)d));
+                            if (o["p"] is JsonNode pj && ((string)pj ?? "").Length > 0) try { File.WriteAllBytes(p + ".jpg", Convert.FromBase64String((string)pj)); } catch (Exception) { }   // 🖼 miniatura nagrania (klatka z kamery)
+                            send(p);
                         }
                         catch (Exception ex) { App.LogError(ex); }
                     }

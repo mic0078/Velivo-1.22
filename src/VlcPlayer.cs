@@ -3401,15 +3401,36 @@ namespace Velivo
             back10.Click += (s, e) => jump(-10000);
             chBack.Click += (s, e) => { if (chPos <= 0 || chHist.Count < 2) { showOsd(L.T("Brak poprzedniego kanału")); return; } chJump(Math.Min(chPos, chHist.Count) - 1); };
             chFirst.Click += (s, e) => { if (chHist.Count < 2 || chPos == 0) { showOsd(L.T("To jest pierwszy kanał")); return; } chJump(0); };
-            chHistBtn.Click += (s, e) =>
+            // 🕘 historia kanałów - ten sam wygląd co ⭐ ulubione: logo, grupa, klik - przełącz; prawy przycisk: ulubione, usuń z historii, sortowanie
+            Action showChHist = null;
+            showChHist = () =>
             {
-                var cm = new ContextMenu { PlacementTarget = chHistBtn, Placement = PlacementMode.Top };
                 var cur = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
-                foreach (var c0 in chHist.Distinct().Where(u => u != cur).Select(chOf).Where(c => c != null).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase))
-                { var c = c0; var mi = new MenuItem { Header = c.Name }; mi.Click += (a, b) => chGo(c); cm.Items.Add(mi); }
-                if (cm.Items.Count == 0) cm.Items.Add(new MenuItem { Header = L.T("Historia jest pusta – przełącz kanał"), IsEnabled = false });
-                cm.IsOpen = true;
+                bool recent = FavSort("historia-tv") == 1;
+                var order = Enumerable.Reverse(chHist).Distinct().Where(u => u != cur).Select(chOf).Where(c => c != null).ToList();   // najpierw ostatnio oglądane
+                if (!recent) order = order.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                var pop = new System.Windows.Controls.Primitives.Popup[1];
+                void Sort(ItemsControl m)
+                {
+                    foreach (var (n0, h) in new[] { (0, L.T("Sortuj: A–Z")), (1, L.T("Sortuj: ostatnio oglądany na górze")) })
+                    { var n1 = n0; var mi = FavItem(m, h, () => { SetPref("sort-historia-tv", n1.ToString()); pop[0].IsOpen = false; showChHist(); }); mi.IsCheckable = true; mi.IsChecked = (recent ? 1 : 0) == n1; }
+                }
+                var rows = order.Select(c => { var ch = c; return new FavRow
+                {
+                    Title = ch.Name, Sub = (IptvSt.Fav.Contains(ch.Url) ? "⭐ " : "") + (string.IsNullOrEmpty(ch.Group) ? "" : "📺 " + ch.Group), Tip = ch.Name, ImgAsync = () => GetLogo(ch.Logo),
+                    Play = () => chGo(ch),
+                    Menu = cm =>
+                    {
+                        FavItem(cm, "▶ " + L.T("Odtwórz"), () => { pop[0].IsOpen = false; chGo(ch); });
+                        bool isF = IptvSt.Fav.Contains(ch.Url);
+                        FavItem(cm, isF ? "☆ " + L.T("Usuń z ulubionych") : "⭐ " + L.T("Dodaj do ulubionych"), () => { if (isF) IptvSt.Fav.Remove(ch.Url); else IptvSt.Fav.Add(ch.Url); SaveIptv(IptvSt); updQuick(); pop[0].IsOpen = false; showChHist(); });
+                        cm.Items.Add(new Separator());
+                        FavItem(cm, "🕘 " + L.T("Usuń z historii oglądania"), () => { chHist.RemoveAll(u => u == ch.Url); chPos = Math.Min(chPos, chHist.Count - 1); SaveIptv(IptvSt); pop[0].IsOpen = false; showChHist(); });
+                    }
+                }; }).ToList();
+                pop[0] = FavPopup(chHistBtn, "🕘 " + L.T("Ostatnio oglądane kanały"), L.T("Historia jest pusta – przełącz kanał"), rows, Sort, 44, 32);
             };
+            chHistBtn.Click += (s, e) => showChHist();
             fwd10.Click += (s, e) => jump(10000);
             speed.Click += (s, e) => setSpeed(speedIdx == speeds.Length - 1 ? -speedIdx : 1);
             speed.MouseRightButtonUp += (s, e) => { speedIdx = 3; setSpeed(0); e.Handled = true; };

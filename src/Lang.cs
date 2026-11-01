@@ -1342,6 +1342,8 @@ namespace Velivo
             { " chce sterować Twoim komputerem (mysz i klawiatura).\n\nPozwolić? Zakończysz w każdej chwili przyciskiem „Zakończ sterowanie” na górze ekranu.", " wants to control your computer (mouse and keyboard).\n\nAllow? You can end it at any time with “End control” at the top of the screen." },
             { "Sortuj: A–Z", "Sort: A–Z" },
             { "Sortuj: moja kolejność", "Sort: my order" },
+            { "Dodaj do ulubionych", "Add to favourites" },
+            { "Ostatnio oglądane kanały", "Recently watched channels" },
             { " g ", " h " },
             { "⏱ koniec ", "⏱ ends " },
             { "⏱ do ", "⏱ until " },

@@ -2265,7 +2265,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             runCatching { w.destroy() }
             runCatching {
                 if (Build.VERSION.SDK_INT >= 31) am?.clearCommunicationDevice() else { @Suppress("DEPRECATION") am?.stopBluetoothSco() }
-                oldMode?.let { am?.mode = it }; @Suppress("DEPRECATION") oldSpeaker?.let { am?.isSpeakerphoneOn = it }
+                am?.mode = if (oldMode == android.media.AudioManager.MODE_IN_COMMUNICATION) android.media.AudioManager.MODE_NORMAL else (oldMode ?: android.media.AudioManager.MODE_NORMAL);   // po przerwanej rozmowie nie zostawiamy trybu rozmowy (cichy mikrofon i dźwięk w słuchawce) @Suppress("DEPRECATION") oldSpeaker?.let { am?.isSpeakerphoneOn = it }
             }
             a.setShowWhenLocked(false); a.setTurnScreenOn(false)
         }
@@ -3172,6 +3172,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             val r = rec
             if (r == null) {
                 if (a.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) { a.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 4712); return@setOnClickListener }
+                audioNormal()
                 val f = java.io.File(a.cacheDir, "Glosowa-" + java.text.SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.ROOT).format(java.util.Date()) + ".m4a")
                 rec = runCatching {
                     @Suppress("DEPRECATION") (if (Build.VERSION.SDK_INT >= 31) android.media.MediaRecorder(a) else android.media.MediaRecorder()).apply {
@@ -3457,11 +3458,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         h.postDelayed({ send(provs.mapNotNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }.maxByOrNull { it.time }) }, 40000)
     }
 
+    private var voiceBoost: android.media.audiofx.LoudnessEnhancer? = null
+    // tryb rozmowy pozostały po przerwanej rozmowie (Velivo / inna aplikacja) - głosówki nagrywały i grały cicho, przez słuchawkę rozmów
+    private fun audioNormal() { if (callView == null) runCatching { (a.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager).let { if (it.mode == android.media.AudioManager.MODE_IN_COMMUNICATION) it.mode = android.media.AudioManager.MODE_NORMAL } } }
     private fun play(path: String) {
+        audioNormal()
         val was = playing; player?.let { runCatching { it.stop() }; it.release() }; player = null; playing = null
         if (was == path) return
         player = runCatching { android.media.MediaPlayer().apply { setDataSource(path); setOnCompletionListener { it.release(); if (player === it) { player = null; playing = null } }; prepare(); start()
-            if (k.voiceSpeed != 1f) playbackParams = playbackParams.setSpeed(k.voiceSpeed) } }.getOrNull()   // ⏩ 1,5× / 2×
+            if (k.voiceSpeed != 1f) playbackParams = playbackParams.setSpeed(k.voiceSpeed)
+            // 🔊 głosówki z mikrofonu telefonu bywają bardzo ciche (surowy mikrofon, bez wzmocnienia) - głośniej o 12 dB, ogranicznik nie przesteruje
+            runCatching { voiceBoost?.release(); voiceBoost = android.media.audiofx.LoudnessEnhancer(audioSessionId).apply { setTargetGain(1200); enabled = true } } } }.getOrNull()   // ⏩ 1,5× / 2×
         if (player != null) { playing = path; Toast.makeText(a, "▶ " + t("Wiadomość głosowa (stuknij, by zatrzymać)", "Voice message (tap to stop)"), Toast.LENGTH_SHORT).show() }
         else Toast.makeText(a, t("Nie udało się odtworzyć", "Could not play"), Toast.LENGTH_SHORT).show()
     }

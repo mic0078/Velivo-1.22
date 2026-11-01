@@ -3282,19 +3282,35 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         d.show(); show(); hand.postDelayed(tick, 1300)
     }
 
-    // ☑ kilka wiadomości naraz: przekaż, kopiuj, usuń u mnie
+    // ☑ kilka wiadomości naraz (jak w WhatsApp): krótkie pozycje, pod listą rząd dużych przycisków z podpisami – przekaż, kopiuj, usuń u mnie, usuń u wszystkich
     private fun select(c: Komunikator.Contact, first: Komunikator.Msg) {
         val ms = k.chat(c.id).takeLast(100).reversed(); val pick = BooleanArray(ms.size) { ms[it] === first }
         val fmt = java.text.SimpleDateFormat("d.MM HH:mm", Locale.getDefault())
-        Dlg().setTitle("☑ " + c.name).setMultiChoiceItems(ms.map { (if (it.mine) "› " else "") + it.text.take(80) + " · " + fmt.format(java.util.Date(it.ts)) }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
-            .setPositiveButton("↪ " + t("Przekaż", "Forward")) { _, _ -> ms.filterIndexed { i, _ -> pick[i] }.reversed().let { sel -> forwardAll(c, sel) } }
-            .setNeutralButton("📋 " + t("Kopiuj", "Copy")) { _, _ ->
-                val txt = ms.filterIndexed { i, _ -> pick[i] }.reversed().joinToString("\n") { "[" + fmt.format(java.util.Date(it.ts)) + "] " + (if (it.mine) t("Ja", "Me") else c.name) + ": " + it.text }
-                (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", txt)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() }
-            .setNegativeButton("🗑 " + t("Usuń u mnie", "Delete for me")) { _, _ -> val sel = ms.filterIndexed { i, _ -> pick[i] }
-                if (sel.isNotEmpty()) Dlg().setMessage(t("Usunąć zaznaczone u mnie: ", "Delete selected for me: ") + sel.size + "?")
-                    .setPositiveButton(t("Usuń", "Delete")) { _, _ -> sel.forEach { k.deleteLocal(c, it) } }.setNegativeButton(android.R.string.cancel, null).show() }
-            .show()
+        val sel = { ms.filterIndexed { i, _ -> pick[i] }.reversed() }
+        var dlg: AlertDialog? = null
+        fun act(icon: String, label: String, run: () -> Unit) = TextView(a).apply {
+            text = icon + "\n" + label; gravity = Gravity.CENTER; textSize = 13f; setTextColor(Color.WHITE); setPadding(px(2), px(8), px(2), px(8))
+            background = GradientDrawable().apply { setColor(Color.argb(0x50, 0x8B, 0x5C, 0xF6)); cornerRadius = px(12).toFloat() }
+            setOnClickListener { if (sel().isEmpty()) Toast.makeText(a, t("Zaznacz wiadomości", "Select messages"), Toast.LENGTH_SHORT).show() else { dlg?.dismiss(); run() } }
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(px(3), 0, px(3), 0) }
+        }
+        val bar = LinearLayout(a).apply {
+            setPadding(px(10), px(6), px(10), px(10))
+            addView(act("↪", t("Przekaż", "Forward")) { forwardAll(c, sel()) })
+            addView(act("📋", t("Kopiuj", "Copy")) {
+                val txt = sel().joinToString("\n") { "[" + fmt.format(java.util.Date(it.ts)) + "] " + (if (it.mine) t("Ja", "Me") else c.name) + ": " + it.text }
+                (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", txt)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show() })
+            addView(act("🗑", t("U mnie", "For me")) { val s0 = sel()
+                Dlg().setMessage(t("Usunąć zaznaczone u mnie: ", "Delete selected for me: ") + s0.size + "?")
+                    .setPositiveButton(t("Usuń", "Delete")) { _, _ -> s0.forEach { k.deleteLocal(c, it) } }.setNegativeButton(android.R.string.cancel, null).show() })
+            addView(act("🚫", t("U wszystkich", "For everyone")) { val s0 = sel(); val mine = s0.filter { it.mine && !it.text.startsWith("🚫") }; val other = s0.filter { !it.mine }
+                Dlg().setMessage(t("Usunąć u wszystkich Twoje zaznaczone wiadomości: ", "Delete for everyone your selected messages: ") + mine.size +
+                        (if (other.isNotEmpty()) t("\nWiadomości rozmówcy (${other.size}) znikną tylko u Ciebie.", "\nThe other person's messages (${other.size}) will disappear only for you.") else "") + "?")
+                    .setPositiveButton(t("Usuń", "Delete")) { _, _ -> other.forEach { k.deleteLocal(c, it) }; Thread { mine.forEach { k.deleteForAll(c, it) } }.start() }.setNegativeButton(android.R.string.cancel, null).show() })
+        }
+        // pozycja: godzina i początek wiadomości w jednej linii (pełne wiadomości były wysokie na pół ekranu)
+        dlg = Dlg().setTitle("☑ " + c.name).setMultiChoiceItems(ms.map { (if (it.mine) "› " else "") + fmt.format(java.util.Date(it.ts)) + "  " + it.text.replace('\n', ' ').let { x -> if (x.length > 48) x.take(46) + "…" else x } }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
+            .setView(bar).show()
     }
 
     private var onReply: ((Komunikator.Msg) -> Unit)? = null

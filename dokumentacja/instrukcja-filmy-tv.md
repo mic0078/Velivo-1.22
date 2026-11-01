@@ -36,6 +36,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 
 **W środku:**
 - ☆ **Ulubione** – dodaje kanał do Ulubionych albo film do playlisty „⭐ Ulubione”. Złota gwiazdka = już jest w ulubionych.
+- ⭐📺 / ⭐🎬 **Moje ulubione kanały / filmy** – lista z logo albo plakatem, klik odtwarza. Prawy przycisk: odtwórz, przesuń wyżej / niżej, usuń z ulubionych i sortowanie (A–Z, moja kolejność, filmy także: ostatnio oglądany).
 - 🌙 **Wyłącznik czasowy** – zatrzymuje po 15–120 minutach, po końcu filmu albo (przy TV) po końcu programu. Możesz zaznaczyć „💻 Potem wyłącz komputer” – masz 60 sekund, żeby to anulować. W ostatnich 30 sekundach dźwięk łagodnie cichnie.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.
 - CC napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki, biblioteka, zawsze na wierzchu, tryb mini, pełny ekran, głośność.

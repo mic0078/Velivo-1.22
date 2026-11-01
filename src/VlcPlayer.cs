@@ -1325,6 +1325,107 @@ namespace Velivo
             pop.IsOpen = true;
         }
 
+        // ⭐ ulubione (kanały i filmy) w wyglądzie 🕘 historii: wiersz z obrazkiem, tytułem i opisem; klik - odtwórz, prawy przycisk - menu wiersza + sortowanie
+        sealed class FavRow { public string Title, Sub, Tip; public ImageSource Img; public Func<System.Threading.Tasks.Task<ImageSource>> ImgAsync; public Action Play; public Action<ContextMenu> Menu; }
+        System.Windows.Controls.Primitives.Popup FavPopup(FrameworkElement anchor, string title, string empty, List<FavRow> list, Action<ItemsControl> sortItems, double imgW, double imgH)
+        {
+            var pop = new System.Windows.Controls.Primitives.Popup { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Top, StaysOpen = false, AllowsTransparency = true };
+            var rows = new StackPanel();
+            var head = new TextBlock { Text = title + (list.Count > 0 ? "  (" + list.Count + ")" : ""), Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(12, 10, 12, 6) };
+            var tip = new TextBlock { Text = L.T("Klik – odtwórz · prawy przycisk – więcej"), Foreground = Brushes.Gray, FontSize = 11.5, Margin = new Thickness(12, 0, 12, 6) };
+            pop.Child = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x18, 0x1B, 0x24)), BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Width = 430,
+                Child = new DockPanel { Children = { head, tip, new ScrollViewer { Content = rows, MaxHeight = 520, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(4, 0, 4, 6) } } } };
+            DockPanel.SetDock(head, Dock.Top); DockPanel.SetDock(tip, Dock.Top);
+            var hm = new ContextMenu(); sortItems(hm); ((Border)pop.Child).ContextMenu = hm;
+            if (list.Count == 0) rows.Children.Add(new TextBlock { Text = empty, Foreground = Brushes.Silver, Margin = new Thickness(12), TextWrapping = TextWrapping.Wrap });
+            foreach (var r in list)
+            {
+                var img = new Image { Width = imgW, Height = imgH, Stretch = imgW == imgH ? Stretch.Uniform : Stretch.UniformToFill, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center, Source = r.Img };
+                if (r.Img == null && r.ImgAsync != null) { var ia = r.ImgAsync; Dispatcher.BeginInvoke(new Action(async () => { try { img.Source = await ia(); } catch (Exception) { } })); }
+                var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                txt.Children.Add(new TextBlock { Text = r.Title, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+                if (!string.IsNullOrEmpty(r.Sub)) txt.Children.Add(new TextBlock { Text = r.Sub, Foreground = Brushes.Silver, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+                var dp = new DockPanel(); DockPanel.SetDock(img, Dock.Left); dp.Children.Add(img); dp.Children.Add(txt);
+                var row = new Border { Child = dp, Padding = new Thickness(8, 5, 8, 5), CornerRadius = new CornerRadius(6), Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = r.Tip };
+                row.MouseEnter += (q, w2) => row.Background = new SolidColorBrush(Color.FromArgb(0x40, 0x3B, 0x82, 0xF6));
+                row.MouseLeave += (q, w2) => row.Background = Brushes.Transparent;
+                var play = r.Play; row.MouseLeftButtonUp += (q, w2) => { pop.IsOpen = false; play(); };
+                var cm = new ContextMenu(); r.Menu(cm); cm.Items.Add(new Separator()); sortItems(cm); row.ContextMenu = cm;
+                rows.Children.Add(row);
+            }
+            pop.IsOpen = true;
+            return pop;
+        }
+        static MenuItem FavItem(ItemsControl m, string h, Action a) { var mi = new MenuItem { Header = h }; mi.Click += (q, w2) => a(); m.Items.Add(mi); return mi; }
+        // sortowanie zapamiętane: 0 - A–Z, 1 - moja kolejność (przesuwanie w górę / w dół), 2 - ostatnio oglądany (tylko filmy)
+        static int FavSort(string k) => int.TryParse(GetPref("sort-" + k), out var n) ? n : 0;
+        void FavSortItems(ItemsControl menu, string k, bool films, System.Windows.Controls.Primitives.Popup[] pop, Action reopen)
+        {
+            var opts = new List<(int, string)> { (0, L.T("Sortuj: A–Z")), (1, L.T("Sortuj: moja kolejność")) };
+            if (films) opts.Add((2, L.T("Sortuj: ostatnio oglądany na górze")));
+            foreach (var (n, h) in opts) { var mi = FavItem(menu, h, () => { SetPref("sort-" + k, n.ToString()); if (pop[0] != null) pop[0].IsOpen = false; reopen(); }); mi.IsCheckable = true; mi.IsChecked = FavSort(k) == n; }
+        }
+        // ⭐ ulubione kanały TV
+        void ShowFavChannels(FrameworkElement anchor)
+        {
+            var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
+            var favs = IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
+            bool own = FavSort("ulubione-tv") == 1;
+            if (!own) favs = favs.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            var pop = new System.Windows.Controls.Primitives.Popup[1];
+            void Reopen() => ShowFavChannels(anchor);
+            void Move(string url, int d) { var l = IptvSt.Fav; int i = l.IndexOf(url), j2 = i + d; if (i < 0 || j2 < 0 || j2 >= l.Count) return; (l[i], l[j2]) = (l[j2], l[i]); SaveIptv(IptvSt); pop[0].IsOpen = false; Reopen(); }
+            var rows = favs.Select((c, i) => { var url = c.Url; int i0 = i; var logo = c.Logo; return new FavRow
+            {
+                Title = c.Name, Sub = string.IsNullOrEmpty(c.Group) ? "" : "📺 " + c.Group, Tip = c.Name, ImgAsync = () => GetLogo(logo),
+                Play = () => { foreach (var x in favs) _iptvPlaying[x.Url] = x; PlayVideos(favs.Select(x => x.Url).ToArray(), i0); },
+                Menu = cm =>
+                {
+                    FavItem(cm, "▶ " + L.T("Odtwórz"), () => { pop[0].IsOpen = false; foreach (var x in favs) _iptvPlaying[x.Url] = x; PlayVideos(favs.Select(x => x.Url).ToArray(), i0); });
+                    if (own) { FavItem(cm, "⬆ " + L.T("Przesuń wyżej"), () => Move(url, -1)); FavItem(cm, "⬇ " + L.T("Przesuń niżej"), () => Move(url, 1)); }
+                    cm.Items.Add(new Separator());
+                    FavItem(cm, "☆ " + L.T("Usuń z ulubionych"), () => { IptvSt.Fav.Remove(url); SaveIptv(IptvSt); pop[0].IsOpen = false; Reopen(); });
+                }
+            }; }).ToList();
+            pop[0] = FavPopup(anchor, "⭐ " + L.T("Ulubione kanały"), L.T("Brak ulubionych kanałów – na kanale kliknij ⭐ albo prawy przycisk → Dodaj do ulubionych"), rows, m => FavSortItems(m, "ulubione-tv", false, pop, Reopen), 44, 32);
+        }
+        // ⭐ ulubione filmy (playlista „⭐ Ulubione”)
+        void ShowFavFilms(FrameworkElement anchor)
+        {
+            const string favList = "⭐ Ulubione";
+            var lib = LoadLibrary();
+            var pls = LoadPlaylists(); var list = pls.Named.TryGetValue(favList, out var fl) ? fl : new List<string>();
+            var favs = list.Where(File.Exists).ToList();
+            Func<string, LibraryVideo> entry = f => FindEntry(lib, f, null);
+            Func<string, string> title = f => { var v = entry(f); return v != null ? ShownTitle(v, MetaFor(v.Path)) : System.IO.Path.GetFileNameWithoutExtension(f); };
+            int sort = FavSort("ulubione-filmy");
+            if (sort == 0) favs = favs.OrderBy(title, StringComparer.CurrentCultureIgnoreCase).ToList();
+            else if (sort == 2) favs = favs.OrderByDescending(f => entry(f)?.Last ?? 0L).ToList();
+            var pop = new System.Windows.Controls.Primitives.Popup[1];
+            void Reopen() => ShowFavFilms(anchor);
+            void Save(Action<List<string>> act) { var p = LoadPlaylists(); if (!p.Named.TryGetValue(favList, out var l)) p.Named[favList] = l = new List<string>(); act(l); SavePlaylists(p); pop[0].IsOpen = false; Reopen(); }
+            var now = DateTime.Now;
+            var rows = favs.Select((f, i) => { int i0 = i; var v = entry(f); var m = MetaFor(f); ImageSource img = null;
+                if (m?.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) img = LoadLogo(pf, 150); }
+                var seen = v == null ? "" : v.Done ? L.T("✓ obejrzany") : v.Len > 0 && v.Pos > 0 ? L.T("obejrzano ") + Math.Min(99, v.Pos * 100 / v.Len) + "%" : L.T("nieobejrzany");
+                var sub = (m?.Year > 0 ? m.Year + "   ·   " : "") + seen + (v?.Last > 0 ? "   ·   🕘 " + LastPlayedText(v.Last, now) : "");
+                return new FavRow
+            {
+                Title = title(f), Sub = sub, Tip = f, Img = img,
+                Play = () => PlayVideos(favs.ToArray(), i0),
+                Menu = cm =>
+                {
+                    FavItem(cm, "▶ " + L.T("Odtwórz"), () => { pop[0].IsOpen = false; PlayVideos(favs.ToArray(), i0); });
+                    FavItem(cm, "⏮ " + L.T("Odtwórz od początku"), () => { var l2 = LoadLibrary(); var x = FindEntry(l2, f, null); if (x != null) { x.Pos = 0; SaveLibrary(l2); } pop[0].IsOpen = false; PlayVideos(favs.ToArray(), i0); });
+                    FavItem(cm, "📂 " + L.T("Pokaż w folderze"), () => { try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + f + "\""); } catch (Exception) { } });
+                    if (sort == 1) { FavItem(cm, "⬆ " + L.T("Przesuń wyżej"), () => Save(l => { int a = l.IndexOf(f), b = a - 1; if (a > 0) (l[a], l[b]) = (l[b], l[a]); })); FavItem(cm, "⬇ " + L.T("Przesuń niżej"), () => Save(l => { int a = l.IndexOf(f), b = a + 1; if (a >= 0 && b < l.Count) (l[a], l[b]) = (l[b], l[a]); })); }
+                    cm.Items.Add(new Separator());
+                    FavItem(cm, "☆ " + L.T("Usuń z ulubionych"), () => Save(l => l.RemoveAll(x => string.Equals(x, f, StringComparison.OrdinalIgnoreCase))));
+                }
+            }; }).ToList();
+            pop[0] = FavPopup(anchor, "⭐ " + L.T("Ulubione filmy"), L.T("Brak ulubionych filmów – podczas filmu kliknij ⭐"), rows, mn => FavSortItems(mn, "ulubione-filmy", true, pop, Reopen), 34, 50);
+        }
+
         void BuildVlcWindow()
         {
             LibraryVideo current = null;   // film, ktory teraz gra (jego wpis w bibliotece)
@@ -3245,24 +3346,8 @@ namespace Velivo
                 if (pls.Mine.Count > 0) one(L.T("📋 Moja kolejka (") + pls.Mine.Count + ")", pls.Mine);
                 foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) one("🎞 " + n + " (" + pls.Named[n].Count + ")", pls.Named[n]);
             });
-            qMenu(qFavTv, cm =>
-            {   // ulubione kanaly - klik: gra, a PgUp/PgDn po ulubionych
-                var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
-                var favs = IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();   // lista bez wyboru sortowania - alfabetycznie
-                for (int k = 0; k < favs.Count; k++) { int i0 = k; var mi = new MenuItem { Header = favs[k].Name }; mi.Click += (q, w2) => { foreach (var c in favs) _iptvPlaying[c.Url] = c; PlayVideos(favs.Select(c => c.Url).ToArray(), i0); }; cm.Items.Add(mi); }
-            });
-            qMenu(qFavFilm, cm =>
-            {   // ulubione filmy (playlista "⭐ Ulubione") - klik: gra, nastepny/poprzedni po ulubionych
-                var lib = LoadLibrary();
-                Func<string, string> title = f => { var v = FindEntry(lib, f, null); return v != null ? ShownTitle(v, MetaFor(v.Path)) : System.IO.Path.GetFileNameWithoutExtension(f); };
-                var favs = (LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>()).Where(File.Exists).OrderBy(title, StringComparer.CurrentCultureIgnoreCase).ToList();   // alfabetycznie
-                for (int k = 0; k < favs.Count; k++)
-                {
-                    int i0 = k;
-                    var mi = new MenuItem { Header = title(favs[k]) };
-                    mi.Click += (q, w2) => PlayVideos(favs.ToArray(), i0); cm.Items.Add(mi);
-                }
-            });
+            qFavTv.Click += (s, e) => ShowFavChannels(qFavTv);   // ⭐ ulubione kanały - jak 🕘 historia: logo, klik gra, prawy przycisk: sortowanie, kolejność, usuwanie
+            qFavFilm.Click += (s, e) => ShowFavFilms(qFavFilm);   // ⭐ ulubione filmy - plakat, obejrzano, prawy przycisk: sortowanie, kolejność, usuwanie
             updQuick();
             pipBtn.Click += (s, e) => { var cm = new ContextMenu { PlacementTarget = pipBtn, Placement = PlacementMode.Top }; pipItems(cm); cm.IsOpen = true; };
             win.LocationChanged += (s, e) => pipPlace();

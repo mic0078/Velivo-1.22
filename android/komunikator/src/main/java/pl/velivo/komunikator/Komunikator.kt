@@ -3125,9 +3125,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (uris.isEmpty()) p else { attachTo = c; sendFiles(uris); null }
         }
         fun round(text: String, tip: String, color: Int, act: () -> Unit) = Button(a).apply {
-            this.text = text; textSize = 18f; setTextColor(if (color == violet) pal().mineFg else ink); contentDescription = tip; tooltipText = tip; setPadding(0, 0, 0, 0)
+            this.text = text; textSize = 22f; setTextColor(if (color == violet) pal().mineFg else ink); contentDescription = tip; tooltipText = tip; setPadding(0, 0, 0, 0)
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
-            layoutParams = LinearLayout.LayoutParams(px(46), px(46)).apply { leftMargin = px(6); rightMargin = px(6) }
+            layoutParams = LinearLayout.LayoutParams(px(54), px(54)).apply { leftMargin = px(4); rightMargin = px(4) }   // większe - łatwiej trafić dużym palcem (było 46)
             setOnClickListener { act() }
         }
         // ↩ odpowiedź na wiadomość: cytat nad polem, idzie przed tekstem

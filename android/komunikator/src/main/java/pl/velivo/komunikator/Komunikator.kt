@@ -2270,10 +2270,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val items = arrayOf("☁ " + t("Kopia na moich serwerach: ", "Backup on my servers: ") + (if (at > 0) java.text.SimpleDateFormat("d.MM HH:mm", Locale.ROOT).format(java.util.Date(at)) + t(" (sama, co 30 min) – stuknij: teraz", " (automatic, every 30 min) – tap: now") else t("jeszcze nie – stuknij: teraz", "not yet – tap: now")),
             "♻ " + t("Przywróć z serwera (nowy albo wyczyszczony telefon)…", "Restore from the server (new or reset phone)…"),
             "💾 " + t("Zapisz kopię do pliku (telefon, Google Drive)…", "Save a backup file (phone, Google Drive)…"),
-            "📥 " + t("Przywróć z pliku kopii…", "Restore from a backup file…"))
+            "📥 " + t("Przywróć z pliku kopii…", "Restore from a backup file…"), "ℹ " + t("Jak to działa?", "How does it work?"))
+        // bez setMessage - Android przy tekście chowa listę (było puste okienko z samym opisem)
+        val info = t("Kontakty, rozmowy i ustawienia same idą na Twoje serwery. Nowy telefon: ♻ Przywróć z serwera – właściciel serwera klika „Tak” i wszystko wraca. Zdjęcia i filmy z rozmów nie wchodzą do kopii.",
+                "Contacts, chats and settings go to your servers automatically. New phone: ♻ Restore from the server – the server owner clicks “Yes” and everything comes back. Photos and videos from chats are not in the backup.")
         Dlg().setTitle("💾 " + t("Kopia i przywracanie", "Backup and restore"))
-            .setMessage(t("Kontakty, rozmowy i ustawienia same idą na Twoje serwery. Nowy telefon: ♻ Przywróć z serwera – właściciel serwera klika „Tak” i wszystko wraca. Zdjęcia i filmy z rozmów nie wchodzą do kopii.",
-                "Contacts, chats and settings go to your servers automatically. New phone: ♻ Restore from the server – the server owner clicks “Yes” and everything comes back. Photos and videos from chats are not in the backup."))
             .setItems(items) { _, i ->
             when (i) {
                 0 -> { Toast.makeText(a, t("☁ Wysyłam kopię…", "☁ Sending the backup…"), Toast.LENGTH_SHORT).show()
@@ -2282,6 +2283,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 2 -> password(true) { p -> backupPass = p
                     runCatching { a.startActivityForResult(android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("application/octet-stream")
                         .putExtra(android.content.Intent.EXTRA_TITLE, "Velivo-kopia-" + java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(java.util.Date()) + ".velivo"), Komunikator.REQ_BACKUP) } }
+                4 -> Dlg().setTitle("ℹ " + t("Kopia i przywracanie", "Backup and restore")).setMessage(info).setPositiveButton(android.R.string.ok) { _, _ -> backupMenu() }.show()
                 else -> Dlg().setMessage(t("Kopia zastąpi kontakty i rozmowy w tym telefonie (telefon dostanie identyfikator z kopii – kontakty dalej Cię znają). Dalej?",
                         "The backup replaces contacts and chats on this phone (it gets the identity from the backup – contacts still know you). Continue?"))
                     .setPositiveButton(t("Wybierz plik", "Choose file")) { _, _ -> pickingBackup = true; pickFiles() }.setNegativeButton(android.R.string.cancel, null).show()

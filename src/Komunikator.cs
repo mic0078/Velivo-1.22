@@ -844,6 +844,12 @@ namespace Velivo
         {
             JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
             var id = (string)j?["id"]; byte[] key; try { key = Convert.FromBase64String((string)j["key"] ?? ""); } catch (Exception) { return; }
+            // 🔁 klucz drugiego mojego serwera z tym kontaktem - tylko od mojego domowego serwera o sobie samym; gdy tamten jest wyłączony, obsługuję ten telefon w jego imieniu
+            if (from.Dom && !string.IsNullOrEmpty(from.Relay) && _komRelayListener != null && (string)j["rv"] == from.Id && (string)j["rk"] is { Length: 44 } rk && id is { Length: 32 })
+            {
+                if (_komOpt["alias"] is not JsonObject al) _komOpt["alias"] = al = new JsonObject();
+                if ((string)al[id + "|" + from.Id] != rk) { al[id + "|" + from.Id] = rk; KomSave(); }
+            }
             // znany już serwer bez adresu w internecie (np. CHUWI dodany wcześniej w domu) - mój serwer podaje jego adres; klucz bez zmian
             if (KomContactById(id ?? "") is { } kc) { var ra = (string)j["relay"] ?? ""; if (from.Dom && ra != kc.Relay && ra.Contains(':') && ra.Length < 200) { kc.Relay = ra; KomSave(); } return; }   // adres istniejącego kontaktu (także nowy port) - tylko od domowego
             if (id == null || id.Length != 32 || id == _komId || key.Length != 32 || KomForgotten(id)) return;

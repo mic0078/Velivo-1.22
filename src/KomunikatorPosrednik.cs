@@ -403,7 +403,9 @@ namespace Velivo
                 string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "", ["dom"] = c.Dom }.ToJsonString();
                 // serwery wymieniają się WSZYSTKIMI kontaktami od razu (drugi serwer jest w sieci - słychać go): CHUWI zna mamę dodaną przez NUCBOX, także gdy mamy teraz nie ma
                 // też co dzień: serwer, który kartę przegapił (starsza wersja, wyłączony), dostaje ją znowu - znany kontakt się nie zmienia
-                if (!have.Contains(tag + "|s" + today)) { KomDeliver(peer, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag + "|s" + today); any = true; }
+                // + mój klucz z tym kontaktem (rk): drugi mój serwer obsłuży jego telefon w moim imieniu, gdy jestem wyłączony
+                string PeerCard(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "", ["dom"] = c.Dom, ["rk"] = Convert.ToBase64String(c.Key), ["rv"] = _komId }.ToJsonString();
+                if (!have.Contains(tag + "|s" + today)) { KomDeliver(peer, new KomMsg { Mine = true, Text = PeerCard(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag + "|s" + today); any = true; }
                 // kontakt poznaje drugi serwer, gdy jest w sieci (karta nie czeka w skrzynce) - nieobecny przy następnym sprawdzeniu (co 10 min)
                 // co dzień od nowa: jednorazowa karta przepadała, gdy telefon miał starą wersję albo ją pominął - mama znała tylko NUCBOX i bez niego była poza siecią
                 var dtag = tag + "|" + DateTime.UtcNow.ToString("yyyyMMdd");
@@ -581,18 +583,21 @@ namespace Velivo
                 long ts = (long?)h["Ts"] ?? 0;
                 // tylko kontakty tego komputera, swiezy podpis kluczem kontaktu; 🔎 każda odrzucona próba w dzienniku (wcześniej po cichu - nie było widać, czemu zapas nie działa)
                 var who = (c?.Name ?? "?") + " [" + (id ?? "").Substring(0, Math.Min(6, (id ?? "").Length)) + "] z " + ((cl.Client.RemoteEndPoint as IPEndPoint)?.Address?.ToString() ?? "?");
-                string why = c == null ? "nieznane urządzenie (nie ma go w kontaktach tego serwera)" : (string)h["Type"] != "relay-hello" ? "zły typ" : (string)h["Relay"] != _komId ? "połączenie do innego serwera (adres wskazuje ten komputer)"
+                // 🔁 zastępstwo: telefon zna tylko inny mój serwer (np. mama - tylko NUCBOX), a trafił tutaj (443, adres domu) - mój serwer przekazał mi jego klucz z tym telefonem, więc obsługuję go w jego imieniu
+                var rk = c?.Key; var rel = (string)h["Relay"] ?? "";
+                if (c != null && rel != _komId && _komOpt["alias"] is JsonObject al && (string)al[c.Id + "|" + rel] is { } ak) { try { rk = Convert.FromBase64String(ak); } catch (Exception) { } if (rk?.Length == 32) { rel = _komId; who += " (zamiast " + (KomContactById((string)h["Relay"])?.Name ?? "innego serwera") + ")"; } }
+                string why = c == null ? "nieznane urządzenie (nie ma go w kontaktach tego serwera)" : (string)h["Type"] != "relay-hello" ? "zły typ" : rel != _komId ? "połączenie do innego serwera (adres wskazuje ten komputer)"
                     : Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000 ? "zły czas zegara (różnica ponad 5 min)" : null;
                 if (why != null) { App.LogInfo("Pośrednik: odrzucono " + who + " – " + why); _komLastReject = (c?.Name ?? L.T("nieznane urządzenie")) + " – " + why; _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
-                var exp = KomMacBytes(c.Key, "relay-hello\n", hello);
+                var exp = KomMacBytes(rk, "relay-hello\n", hello);
                 if (mac.Length != exp.Length || !CryptographicOperations.FixedTimeEquals(mac, exp)) { App.LogInfo("Pośrednik: odrzucono " + who + " – inny klucz (kontakt dodany na nowo tylko po jednej stronie)"); _komLastReject = c.Name + " – " + L.T("inny klucz (ten kontakt trzeba usunąć i dodać na nowo)"); _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
                 if ((string)h["Mode"] == "main") App.LogInfo("Pośrednik: połączono " + who);
                 var nc = KomB64((string)h["Nonce"]); if (nc.Length != 16) { cl.Dispose(); return; }
                 var ns = RandomNumberGenerator.GetBytes(16);
                 var rep = Encoding.UTF8.GetBytes(new JsonObject { ["Nonce"] = Convert.ToBase64String(ns) }.ToJsonString());
                 await KomWriteBlock(s, rep, token);
-                await KomWriteBlock(s, KomMacBytes(c.Key, "relay-ok\n", hello.Concat(rep).ToArray()), token);
-                fs = new KomFrameStream(cl, KomSessionKey(c.Key, nc, ns));
+                await KomWriteBlock(s, KomMacBytes(rk, "relay-ok\n", hello.Concat(rep).ToArray()), token);
+                fs = new KomFrameStream(cl, KomSessionKey(rk, nc, ns));
                 var mode = (string)h["Mode"]; var to = (string)h["To"] ?? ""; var tid = (string)h["Tunnel"] ?? "";
 
                 if (mode == "invite")

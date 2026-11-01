@@ -553,6 +553,7 @@ namespace Velivo
             if (text.StartsWith(KomAskOkTag, StringComparison.Ordinal)) { KomAskAnswer(c, text.Substring(KomAskOkTag.Length)); return; }   // 🔗 odpowiedź na prośbę
             if (text.StartsWith(KomAskTag, StringComparison.Ordinal)) { KomAskIn(c, text.Substring(KomAskTag.Length)); return; }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
             if (text.StartsWith(KomTimerTag, StringComparison.Ordinal)) { KomTtlIn(c, text.Substring(KomTimerTag.Length)); return; }   // ⏳ znikające wiadomości
+            if (text.StartsWith(KomRestoreTag, StringComparison.Ordinal)) { if (_komRelayListener != null) KomRestoreStore(c, text.Substring(KomRestoreTag.Length)); return; }   // ♻ kopia konta urządzenia (kod 3 słów)
             if (text.StartsWith(KomForgetTag, StringComparison.Ordinal)) { if (c.Dom && _komRelayListener != null) KomForget(text.Substring(KomForgetTag.Length).Trim(), false); return; }   // 🗑 kontakt usunięty na moim drugim serwerze
             if (text.StartsWith(KomSekTag, StringComparison.Ordinal)) { if (c.Dom) KomSekIn(c, text.Substring(KomSekTag.Length)); return; }   // 🔑 wspólny sekret przedstawiania moich serwerów
             if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego

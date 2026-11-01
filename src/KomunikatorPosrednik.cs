@@ -563,7 +563,8 @@ namespace Velivo
                     cl.Dispose(); return;
                 }
                 var h = JsonNode.Parse(hello);
-                if ((string)h?["Type"] == "relay-ask") { await KomAskServe(h, mac, s, token); return; }   // 🔗 prośba o kontakt z linku „Mój adres Velivo” (ktoś spoza kontaktów)
+                if ((string)h?["Type"] == "relay-ask") { await KomAskServe(h, mac, s, token); return; }
+                if ((string)h?["Type"] == "relay-restore") { await KomRestoreServe(h, s, cl, token); return; }   // ♻ telefon po reinstalacji - zaszyfrowana kopia konta (kod 3 słów)   // 🔗 prośba o kontakt z linku „Mój adres Velivo” (ktoś spoza kontaktów)
                 id = (string)h["Id"];
                 KomContact c = null; await Dispatcher.InvokeAsync(() => { KomLoad(); c = KomContactById(id ?? ""); });
                 // ✉ nowe urzadzenie z zaproszeniem: klucz zaproszenia zamiast klucza kontaktu (jednorazowo, do dolaczenia)
@@ -1318,6 +1319,38 @@ namespace Velivo
             _komRelayOn = true; _komRelayAuto = true; KomSave(); KomRelayStart(); KomAnnounce();
         }
 
+        // ♻ kod odzyskiwania konta (jak numer w WhatsApp): urządzenie przysyła zaszyfrowaną kluczem z 3 słów kopię swojej tożsamości i kontaktów;
+        // serwer jej nie odczyta, tylko przechowuje (plik wg skrótu L) i oddaje po reinstalacji temu, kto poda te same 3 słowa
+        const string KomRestoreTag = "\u0001velivo-odzysk\n";
+        static string KomRestoreDir => Path.Combine(DataDir, "odzysk");
+        void KomRestoreStore(KomContact from, string body)
+        {
+            JsonNode j; try { j = JsonNode.Parse(body); } catch (Exception) { return; }
+            var l = (string)j?["l"]; var b = (string)j?["b"];
+            if (l is not { Length: 32 } || !l.All(Uri.IsHexDigit) || b == null || b.Length > 2_000_000) return;
+            try
+            {
+                Directory.CreateDirectory(KomRestoreDir);
+                var f = Path.Combine(KomRestoreDir, l + ".json");
+                if (File.Exists(f) && (string)JsonNode.Parse(File.ReadAllText(f))?["owner"] != from.Id) return;   // cudzej kopii nikt nie nadpisze
+                foreach (var old in Directory.GetFiles(KomRestoreDir, "*.json"))   // zmieniony kod - stara kopia tego urządzenia precz
+                    try { if (old != f && (string)JsonNode.Parse(File.ReadAllText(old))?["owner"] == from.Id) File.Delete(old); } catch (Exception) { }
+                File.WriteAllText(f, new JsonObject { ["owner"] = from.Id, ["b"] = b }.ToJsonString());
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+        static readonly ConcurrentDictionary<string, (DateTime at, int n)> _komRestoreTries = new ConcurrentDictionary<string, (DateTime, int)>();
+        async Task KomRestoreServe(JsonNode h, Stream s, TcpClient cl, CancellationToken token)
+        {
+            var ip = (cl.Client.RemoteEndPoint as IPEndPoint)?.Address?.ToString() ?? "?";
+            var t = _komRestoreTries.AddOrUpdate(ip, (DateTime.UtcNow, 1), (_, o) => DateTime.UtcNow - o.at > TimeSpan.FromMinutes(10) ? (DateTime.UtcNow, 1) : (o.at, o.n + 1));
+            string b = "";
+            var l = (string)h["L"];
+            if (t.n <= 5 && l is { Length: 32 } && l.All(Uri.IsHexDigit))   // najwyżej 5 prób na 10 min z jednego adresu - zgadywanie słów bez szans
+                try { var f = Path.Combine(KomRestoreDir, l + ".json"); if (File.Exists(f)) b = (string)JsonNode.Parse(File.ReadAllText(f))?["b"] ?? ""; } catch (Exception) { }
+            App.LogInfo("Pośrednik: przywracanie konta z " + ip + (b.Length > 0 ? " – kopia oddana" : " – brak kopii albo za dużo prób"));
+            await KomWriteBlock(s, Encoding.UTF8.GetBytes(b), token);
+        }
         // 👥 kontakty serwera: kogo znają moje serwery; usunięcie - na wszystkich moich serwerach naraz (i nie wraca przy wymianie kontaktów)
         const string KomForgetTag = "\u0001velivo-zapomnij\n";
         bool KomForgotten(string id) => _komOpt["removed"] is JsonArray ra && ra.Any(x => (string)x == id);

@@ -1366,6 +1366,8 @@ namespace Velivo
             { "Usunąć u wszystkich Twoje zaznaczone wiadomości: ", "Delete for everyone your selected messages: " },
             { "\nWiadomości rozmówcy (", "\nThe other person's messages (" },
             { ") znikną tylko u Ciebie.", ") will disappear only for you." },
+            { "Klik / spacja – pauza", "Click / space – pause" },
+            { "odtwarzacz Velivo", "Velivo player" },
             { "Lektor", "Narrator" },
             { "Dźwięk", "Audio" },
             { "Proporcje", "Aspect" },

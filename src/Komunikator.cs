@@ -1892,7 +1892,7 @@ namespace Velivo
                         {
                             if (selMode) return;
                             if (Path.GetFileName(fp).Contains("Glosowa-")) { KomPlayVoice(fp); return; }
-                            if (KomIsVideo(fp)) { PlayVideos(new[] { fp }, 0, false); return; }   // 🎬 film - odtwarzacz Velivo (VLC, wszystkie kodeki), bez dopisywania do biblioteki
+                            if (KomIsVideo(fp)) { KomVideoViewer(w, fp); return; }   // 🎬 film - od razu w okienku komunikatora; kodek, którego Windows nie zna (HEVC) - odtwarzacz Velivo (VLC)
                             if (KomIsImage(fp)) { KomViewer(w, c, fp); return; }
                             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { }
                         };
@@ -2479,6 +2479,34 @@ namespace Velivo
         static bool KomIsGif(string p) => Path.GetExtension(p ?? "").Equals(".gif", StringComparison.OrdinalIgnoreCase);
         static bool KomIsVideo(string p) => new[] { ".mp4", ".webm", ".mkv", ".mov", ".3gp", ".avi", ".wmv", ".m4v" }.Contains(Path.GetExtension(p ?? "").ToLowerInvariant());
         // 🖼 podgląd zdjęć i filmów z rozmowy w Velivo: ← → po kolei, spacja - pauza, Enter - program Windows, Esc - zamknij
+        // 🎬 film z rozmowy w okienku komunikatora (jak WhatsApp): klik / spacja – pauza, ← → – 10 s, Esc – zamknij;
+        // gdy Windows nie umie go pokazać (błąd albo brak obrazu – HEVC z telefonu) – sam przechodzi do odtwarzacza Velivo (VLC, wszystkie kodeki)
+        void KomVideoViewer(Window owner, string path)
+        {
+            var vid = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, Stretch = Stretch.Uniform, Volume = 1.0, Source = new Uri(path) };   // MediaElement ma domyślnie połowę głośności
+            var hint = new TextBlock { Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(10), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center,
+                Text = L.T("Klik / spacja – pauza") + "   ·   ← →  10 s   ·   V – " + L.T("odtwarzacz Velivo") + "   ·   Esc – " + L.T("zamknij") };
+            var d = new Window { Uid = "own-theme", Owner = owner, Width = 960, Height = 600, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new Grid { Background = Brushes.Black, Children = { vid, hint } }, Background = Brushes.Black, Icon = KomWindowIcon(), Title = "🎬 " + Path.GetFileName(path) };
+            bool paused = false, gone = false;
+            void ToVlc() { if (gone) return; gone = true; vid.Stop(); d.Close(); PlayVideos(new[] { path }, 0, false); }
+            vid.MediaOpened += (s, e) => { if (!vid.HasVideo || vid.NaturalVideoWidth == 0) ToVlc(); };   // dźwięk bez obrazu = kodek nieznany Windows
+            vid.MediaFailed += (s, e) => ToVlc();
+            vid.MediaEnded += (s, e) => { vid.Position = TimeSpan.Zero; vid.Pause(); paused = true; };
+            void Toggle() { if (paused) vid.Play(); else vid.Pause(); paused = !paused; }
+            d.MouseLeftButtonUp += (s, e) => Toggle();
+            d.PreviewKeyDown += (s, e) =>
+            {
+                if (e.Key == Key.Space) Toggle();
+                else if (e.Key == Key.Right) vid.Position += TimeSpan.FromSeconds(10);
+                else if (e.Key == Key.Left) vid.Position -= TimeSpan.FromSeconds(10);
+                else if (e.Key == Key.V) ToVlc();
+                else if (e.Key == Key.Escape) d.Close();
+                else return;
+                e.Handled = true;
+            };
+            d.Closed += (s, e) => { try { vid.Stop(); vid.Close(); } catch (Exception) { } };
+            d.Show(); vid.Play();
+        }
         void KomViewer(Window owner, KomContact c, string path)
         {
             var items = KomChat(c.Id).Select(m => m.Path).Where(p => !string.IsNullOrEmpty(p) && File.Exists(p) && KomIsImage(p)).Distinct().ToList();   // zdjęcia i GIF-y; filmy - odtwarzacz Velivo

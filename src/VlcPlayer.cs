@@ -1605,10 +1605,10 @@ namespace Velivo
             var badgeTxt = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) }; badgeTxt.Children.Add(badgeRate); badgeTxt.Children.Add(badgeGenre);
             var badge = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 6, 0), Visibility = Visibility.Collapsed };
             badge.Children.Add(badgeImg); badge.Children.Add(badgeTxt);
-            int badgeSeq = 0;
+            int badgeSeq = 0; string badgeP = null; IptvChannel badgeCh = null;
             Func<string, IptvChannel, System.Threading.Tasks.Task> showBadge = async (p, ch) =>
             {
-                int my = ++badgeSeq; ImageSource img = null; string rate = "", gen = "";
+                int my = ++badgeSeq; badgeP = p; badgeCh = ch; ImageSource img = null; string rate = "", gen = "";
                 try
                 {
                     if (ch != null) img = string.IsNullOrEmpty(ch.Logo) ? null : await GetLogo(ch.Logo);
@@ -1626,8 +1626,47 @@ namespace Velivo
                 if (my != badgeSeq) return;   // w międzyczasie inny film/kanał
                 badgeImg.Source = img; badgeImg.Visibility = img != null ? Visibility.Visible : Visibility.Collapsed;
                 badgeRate.Text = rate; badgeGenre.Text = gen; badgeTxt.Visibility = rate.Length + gen.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-                badge.ToolTip = ch != null ? ch.Name : string.Join("\n", new[] { rate, gen }.Where(x => x.Length > 0));
+                badge.ToolTip = (ch != null ? ch.Name : string.Join("\n", new[] { rate, gen }.Where(x => x.Length > 0))) + "\n" + (ch != null ? L.T("Kliknij: pełny opis programu") : L.T("Kliknij: opis filmu"));
                 badge.Visibility = img != null || rate.Length + gen.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            };
+            // klik w plakat / logo: ładne okienko - film: opis z Jellyfin; TV: pełny opis programu, który leci, i co dalej
+            badge.Cursor = Cursors.Hand; badge.Background = Brushes.Transparent;
+            badge.MouseLeftButtonUp += (s, e) =>
+            {
+                e.Handled = true;
+                var pop = new System.Windows.Controls.Primitives.Popup { PlacementTarget = badge, Placement = PlacementMode.Top, StaysOpen = false, AllowsTransparency = true };
+                var txt = new StackPanel { Margin = new Thickness(16, 0, 0, 0) };
+                Action<string, double, Brush, FontWeight> line = (t, size, br, fw) => { if (!string.IsNullOrWhiteSpace(t)) txt.Children.Add(new TextBlock { Text = t.Trim(), FontSize = size, Foreground = br, FontWeight = fw, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) }); };
+                var big = new Image { Source = badgeImg.Source, Width = badgeCh != null ? 120 : 180, MaxHeight = 270, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Top };
+                if (badgeCh != null)
+                {
+                    var l = EpgFor(_iptvEpg, badgeCh); var now = DateTime.Now; var pr = EpgAt(l, now); var nx = pr == null ? null : l?.FirstOrDefault(x => x.Start >= pr.Stop);
+                    line(badgeCh.Name, 13, Brushes.Silver, FontWeights.Normal);
+                    if (pr == null) line(L.T("Brak programu TV dla tego kanału."), 15, Brushes.White, FontWeights.Normal);
+                    else
+                    {
+                        line(pr.Title, 20, Brushes.White, FontWeights.SemiBold);
+                        line(string.Join("   ·   ", new[] { pr.Start.ToString("HH:mm") + "–" + pr.Stop.ToString("HH:mm"), pr.Sub, pr.Year, pr.Cats.Count > 0 ? string.Join(", ", pr.Cats.Take(3)) : null }.Where(x => !string.IsNullOrWhiteSpace(x))), 13, Brushes.Gold, FontWeights.Normal);
+                        line(string.IsNullOrWhiteSpace(pr.Desc) ? L.T("Brak opisu tego programu.") : pr.Desc, 14, Brushes.Gainsboro, FontWeights.Normal);
+                        if (nx != null) line(L.T("Potem: ") + nx.Start.ToString("HH:mm") + "  " + nx.Title, 13, Brushes.Silver, FontWeights.Normal);
+                    }
+                }
+                else
+                {
+                    var m = MetaFor(badgeP ?? "");
+                    if (m == null) return;
+                    if (m.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) big.Source = LoadLogo(pf, 540); }
+                    line(m.Name, 20, Brushes.White, FontWeights.SemiBold);
+                    if (!string.IsNullOrEmpty(m.Original) && m.Original != m.Name) line(m.Original, 13, Brushes.Silver, FontWeights.Normal);
+                    line(string.Join("   ·   ", new[] { m.Year > 0 ? m.Year.ToString() : null, m.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null, m.Age, m.Genres.Count > 0 ? string.Join(", ", m.Genres) : null }.Where(x => !string.IsNullOrWhiteSpace(x))), 13, Brushes.Gold, FontWeights.Normal);
+                    line(string.IsNullOrWhiteSpace(m.Overview) ? L.T("Brak opisu tego filmu.") : m.Overview, 14, Brushes.Gainsboro, FontWeights.Normal);
+                    if (!string.IsNullOrEmpty(m.Director)) line(L.T("Reżyseria: ") + m.Director, 13, Brushes.Silver, FontWeights.Normal);
+                    if (m.People.Count > 0) line(L.T("Obsada: ") + string.Join(", ", m.People.Take(8)), 13, Brushes.Silver, FontWeights.Normal);
+                }
+                var dp = new DockPanel(); DockPanel.SetDock(big, Dock.Left); if (big.Source != null) dp.Children.Add(big);
+                dp.Children.Add(new ScrollViewer { Content = txt, MaxHeight = 360, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+                pop.Child = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x18, 0x1B, 0x24)), BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Width = 640, Padding = new Thickness(14), Child = dp };
+                pop.IsOpen = true;
             };
             quick.Children.Add(netBox); quick.Children.Add(endText); 
             netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;

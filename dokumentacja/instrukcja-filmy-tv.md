@@ -36,7 +36,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 
 **W środku:**
 - ☆ **Ulubione** – dodaje kanał do Ulubionych albo film do playlisty „⭐ Ulubione”. Złota gwiazdka = już jest w ulubionych.
-- **Za zegarem:** przy filmie – plakat, ocena ★ i gatunek (z Jellyfin), przy telewizji – logo stacji.
+- **Za zegarem:** przy filmie – plakat, ocena ★ i gatunek (z Jellyfin), przy telewizji – logo stacji. Klik w plakat / logo: okienko z opisem filmu albo pełnym opisem programu, który leci (i co potem).
 - Pasek postępu filmu sięga aż do danych strumienia (FHD…), suwak głośności jest zielony.
 - ⏱ **Koniec i odbiór** (obok wykresu sieci): film – „⏱ koniec 15:52” i ile zostało; telewizja – do której trwa audycja z programu TV. Pod spodem ● odbiór: zielony „Dobry”, pomarańczowy „Słaby” (gubi klatki), czerwony „Przerywa” (strumień staje).
 - ⭐📺 / ⭐🎬 **Moje ulubione kanały / filmy** – lista z logo albo plakatem, klik odtwarza. Prawy przycisk: odtwórz, przesuń wyżej / niżej, usuń z ulubionych i sortowanie (A–Z, moja kolejność, filmy także: ostatnio oglądany).

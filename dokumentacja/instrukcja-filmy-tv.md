@@ -36,6 +36,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 
 **W środku:**
 - ☆ **Ulubione** – dodaje kanał do Ulubionych albo film do playlisty „⭐ Ulubione”. Złota gwiazdka = już jest w ulubionych.
+- ⏱ **Koniec i odbiór** (obok wykresu sieci): film – „⏱ koniec 15:52” i ile zostało; telewizja – do której trwa audycja z programu TV. Pod spodem ● odbiór: zielony „Dobry”, pomarańczowy „Słaby” (gubi klatki), czerwony „Przerywa” (strumień staje).
 - ⭐📺 / ⭐🎬 **Moje ulubione kanały / filmy** – lista z logo albo plakatem, klik odtwarza. Prawy przycisk: odtwórz, przesuń wyżej / niżej, usuń z ulubionych i sortowanie (A–Z, moja kolejność, filmy także: ostatnio oglądany).
 - 🌙 **Wyłącznik czasowy** – zatrzymuje po 15–120 minutach, po końcu filmu albo (przy TV) po końcu programu. Możesz zaznaczyć „💻 Potem wyłącz komputer” – masz 60 sekund, żeby to anulować. W ostatnich 30 sekundach dźwięk łagodnie cichnie.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.

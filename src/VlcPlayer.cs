@@ -1569,7 +1569,15 @@ namespace Velivo
             var netUp = new System.Windows.Documents.Run { Foreground = netUpLine.Stroke };
             netText.Inlines.Add(netDown); netText.Inlines.Add(new System.Windows.Documents.LineBreak()); netText.Inlines.Add(netUp);
             netBox.Children.Add(netGraph); netBox.Children.Add(netText);
-            quick.Children.Add(netBox); quick.Children.Add(clockBox);
+            // ⏱ koniec filmu / audycji TV i ● stan odbioru (z utraconych klatek i przerw strumienia) - między wykresem a zegarem
+            var endRun = new System.Windows.Documents.Run { Foreground = Brushes.White }; var leftRun = new System.Windows.Documents.Run { Foreground = Brushes.Silver };
+            var dotRun = new System.Windows.Documents.Run("●") { Foreground = Brushes.Gray }; var stateRun = new System.Windows.Documents.Run { Foreground = Brushes.Silver };
+            var endText = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0), LineHeight = 14, MinWidth = 200, Visibility = Visibility.Collapsed,   // stała szerokość - zmiana tekstu co sekundę nie przesuwa i nie skaluje paska
+               
+                ToolTip = L.T("⏱ O której skończy się film (albo audycja TV według programu) i ile zostało.\n● Odbiór: Dobry – płynnie; Słaby – gubi klatki (przycina komputer albo łącze); Przerywa – strumień staje albo się buforuje.") };
+            endText.Inlines.Add(endRun); endText.Inlines.Add(new System.Windows.Documents.LineBreak()); endText.Inlines.Add(dotRun); endText.Inlines.Add(new System.Windows.Documents.Run(" ")); endText.Inlines.Add(stateRun); endText.Inlines.Add(leftRun);
+            var lostHist = new Queue<int>();   // utracone klatki z ostatnich 10 s
+            quick.Children.Add(netBox); quick.Children.Add(endText); quick.Children.Add(clockBox);
             netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
             // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
@@ -1641,6 +1649,35 @@ namespace Velivo
                         var col = lost > 0 ? Brushes.Orange : Brushes.Silver; if (streamInfo.Foreground != col) streamInfo.Foreground = col;
                     }
                     if (streamInfo.Text != info) streamInfo.Text = info;
+                    // ⏱ koniec i ● odbiór
+                    string endS = null, leftS = "";
+                    if (md != null && pNow != null && (mp.IsPlaying || mp.State == VLCState.Paused || mp.State == VLCState.Buffering))
+                    {
+                        Func<TimeSpan, string> dur = t => t.TotalMinutes >= 60 ? (int)t.TotalHours + L.T(" g ") + t.Minutes + L.T(" min") : Math.Max(1, (int)Math.Ceiling(t.TotalMinutes)) + L.T(" min");
+                        if (isFilm && mp.Length > 0)
+                        {
+                            var left = TimeSpan.FromMilliseconds(Math.Max(0, mp.Length - mp.Time) / Math.Max(0.25, (double)mp.Rate));
+                            endS = L.T("⏱ koniec ") + n.Add(left).ToString("HH:mm"); leftS = "  ·  " + L.T("zostało ") + dur(left);
+                        }
+                        else if (!isFilm && _iptvPlaying.TryGetValue(pNow, out var tch))
+                        {
+                            var at0 = tch.ArchiveStart.HasValue ? tch.ArchiveStart.Value.AddMilliseconds(Math.Max(0, mp.Time)) : n;
+                            var pr = EpgAt(EpgFor(_iptvEpg, tch), at0);
+                            if (pr != null) { var left = pr.Stop - at0; endS = L.T("⏱ do ") + n.Add(left).ToString("HH:mm"); leftS = "  ·  " + L.T("zostało ") + dur(left); }
+                        }
+                        int lostNow = md.Statistics.LostPictures; lostHist.Enqueue(lostNow); while (lostHist.Count > 10) lostHist.Dequeue();
+                        int lostD = lostNow - lostHist.Peek(); double kb = Math.Max(0, md.Statistics.DemuxBitrate);
+                        var (sTxt, sCol) = mp.State == VLCState.Buffering || (mp.IsPlaying && !isFilm && kb <= 0) ? (L.T("Przerywa"), Brushes.OrangeRed)
+                            : lostD > 5 ? (L.T("Słaby odbiór"), Brushes.Orange) : (L.T("Dobry odbiór"), Brushes.LightGreen);
+                        if (stateRun.Text != sTxt) { stateRun.Text = sTxt; dotRun.Foreground = sCol; }
+                        if (endS == null) { endS = ""; }
+                    }
+                    else lostHist.Clear();
+                    var vis = endS != null ? Visibility.Visible : Visibility.Collapsed;
+                    if (endText.Visibility != vis) endText.Visibility = vis;
+                    var endShow = endS == null ? null : endS.Length > 0 ? endS : L.T("⏱ na żywo");   // TV bez programu - sam stan odbioru
+                    if (endShow != null && endRun.Text != endShow) endRun.Text = endShow;
+                    if (leftRun.Text != leftS) leftRun.Text = leftS;
                     var tip = isFilm && techKey == pNow ? techFull + L.T("\n\nUtracone klatki (pomarańczowe) – przycina komputer.") : L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.");
                     if ((string)streamInfo.ToolTip != tip) streamInfo.ToolTip = tip;
                 }

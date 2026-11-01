@@ -1918,8 +1918,18 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                         setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, length, 0); append("\n"); val st = length; append(s0.substring(c + 2))
                         setSpan(android.text.style.RelativeSizeSpan(0.8f), st, length, 0); setSpan(android.text.style.ForegroundColorSpan(Color.argb(0xC8, 255, 255, 255)), st, length, 0) }
                 } }
+                // kafelki stylowane już przy mierzeniu listy (adapter-nakładka) - wcześniej lista mierzyła małe wiersze, a po powiększeniu przewijała się, choć wszystko mieściło się na ekranie
+                lv.adapter?.let { org -> if (org !is android.widget.BaseAdapter || org.javaClass.name.startsWith("android.")) {
+                    val chk = lv.checkedItemPositions?.clone()
+                    lv.adapter = object : android.widget.BaseAdapter() {
+                        override fun getCount() = org.count; override fun getItem(p: Int): Any? = org.getItem(p); override fun getItemId(p: Int) = org.getItemId(p)
+                        override fun hasStableIds() = org.hasStableIds(); override fun getViewTypeCount() = org.viewTypeCount; override fun getItemViewType(p: Int) = org.getItemViewType(p)
+                        override fun isEnabled(p: Int) = org.isEnabled(p); override fun areAllItemsEnabled() = org.areAllItemsEnabled()
+                        override fun getView(p: Int, v: View?, g: android.view.ViewGroup?): View = org.getView(p, v, g).also { row(it) }
+                    }
+                    chk?.let { for (i in 0 until it.size()) lv.setItemChecked(it.keyAt(i), it.valueAt(i)) }
+                } }
                 for (i in 0 until lv.childCount) row(lv.getChildAt(i))
-                lv.setOnHierarchyChangeListener(object : android.view.ViewGroup.OnHierarchyChangeListener { override fun onChildViewAdded(p: View?, c: View?) = row(c); override fun onChildViewRemoved(p: View?, c: View?) {} })
             }
         }
     }

@@ -2557,12 +2557,16 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     // 🔑 kod odzyskiwania: własny PIN albo słowa (min. 4 znaki) - z nimi po wyczyszczeniu telefonu wraca to samo konto i wszystkie kontakty
     private fun recoveryCode() {
         val e = EditText(a).apply { hint = t("np. 4821 albo kot morze", "e.g. 4821 or cat sea"); setSingleLine(true) }
+        val e2 = EditText(a).apply { hint = t("Wpisz kod jeszcze raz", "Enter the code again"); setSingleLine(true) }   // drugie pole - literówka przy tworzeniu kodu = konto nie do odzyskania
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(e); addView(e2) }
         Dlg().setTitle("🔑 " + t("Kod odzyskiwania konta", "Account recovery code"))
             .setMessage((if (k.hasRecovery) t("Kod jest ustawiony. Możesz wpisać nowy.\n\n", "A code is set. You can enter a new one.\n\n") else "") +
                 t("Wymyśl własny kod – PIN albo słowa, co najmniej 4 znaki – i zapisz go w bezpiecznym miejscu. Po wyczyszczeniu albo zmianie telefonu: ➕ → ♻ Przywróć konto – wraca to samo konto i wszystkie kontakty, nikt nie musi Cię dodawać od nowa. Kopia leży zaszyfrowana na Twoich serwerach – bez tego kodu nikt jej nie odczyta. Dłuższy kod = bezpieczniejszy.",
                   "Make up your own code – a PIN or words, at least 4 characters – and keep it safe. After resetting or changing the phone: ➕ → ♻ Restore account – the same account and all contacts come back, nobody has to add you again. The backup is encrypted on your servers – nobody can read it without this code. Longer = safer."))
-            .setView(e)
+            .setView(box)
             .setPositiveButton(t("Zapisz", "Save")) { _, _ ->
+                if (e.text.toString().trim().lowercase(Locale.ROOT).split(Regex("\\s+")) != e2.text.toString().trim().lowercase(Locale.ROOT).split(Regex("\\s+"))) {
+                    Toast.makeText(a, t("Kody się różnią – nic nie zapisano, wpisz jeszcze raz", "The codes differ – nothing saved, try again"), Toast.LENGTH_LONG).show(); return@setPositiveButton }
                 Toast.makeText(a, if (k.setRecovery(e.text.toString())) t("🔑 Zapisano – kopia idzie na Twoje serwery", "🔑 Saved – the backup goes to your servers") else t("Wpisz co najmniej 4 znaki", "Enter at least 4 characters"), Toast.LENGTH_LONG).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }

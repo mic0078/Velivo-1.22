@@ -3407,7 +3407,7 @@ namespace Velivo
             {
                 var cur = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 bool recent = FavSort("historia-tv") == 1;
-                var order = Enumerable.Reverse(chHist).Distinct().Where(u => u != cur).Select(chOf).Where(c => c != null).ToList();   // najpierw ostatnio oglądane
+                var order = Enumerable.Reverse(chHist).Distinct().Where(u => u != cur).Select(chOf).Where(c => c != null).Take(20).ToList();   // 20 ostatnio oglądanych (jak 🕘 historia filmów)
                 if (!recent) order = order.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
                 var pop = new System.Windows.Controls.Primitives.Popup[1];
                 void Sort(ItemsControl m)

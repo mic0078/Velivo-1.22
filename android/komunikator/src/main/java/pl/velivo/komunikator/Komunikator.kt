@@ -144,12 +144,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // 🔐 użytkownik, nie telefon (jak numer w WhatsApp): numer telefonu + własny PIN. Serwer dostaje tylko skrót numeru i sprawdzian PIN-u (PBKDF2),
     // a nowy telefon z tym numerem i PIN-em dostaje swoje konto od razu - bez klikania na serwerze
-    private fun loginOf(nr: String) = nr.filter { it.isDigit() }.takeLast(9).let { d -> MessageDigest.getInstance("SHA-256").digest("velivo-nr\n$d".toByteArray(Charsets.UTF_8)).take(16).joinToString("") { "%02x".format(it) } }
+    // numer zawsze z kierunkowym (+44…, +48…); „00” jak „+” - ten sam człowiek w każdym kraju to ten sam numer
+    private fun loginOf(nr: String) = nr.trim().let { if (it.startsWith("00")) it.substring(2) else it }.filter { it.isDigit() }.let { d -> MessageDigest.getInstance("SHA-256").digest("velivo-nr\n$d".toByteArray(Charsets.UTF_8)).take(16).joinToString("") { "%02x".format(it) } }
     private fun pinOf(login: String, pin: String) = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         .generateSecret(javax.crypto.spec.PBEKeySpec(pin.trim().toCharArray(), "velivo-pin\n$login".toByteArray(Charsets.UTF_8), 100000, 256)).encoded.joinToString("") { "%02x".format(it) }
     val loginNr get() = open(prefs.getString("login-nr", null)) ?: ""
     fun setLogin(nr: String, pin: String): Boolean {
-        if (nr.count { it.isDigit() } < 7 || pin.trim().length < 4) return false
+        if (nr.count { it.isDigit() } < 8 || pin.trim().length < 4) return false
         val l = loginOf(nr); prefs.edit().putString("login-nr", seal(nr.trim())).putString("login-l", l).putString("login-v", pinOf(l, pin)).apply()
         Thread { serverBackup() }.start(); return true
     }
@@ -192,7 +193,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // 📝 nowe konto na serwerze (jak w Signalu): imię, numer i PIN; serwer zakłada konto od razu albo po zgodzie właściciela; wynik "ok" albo opis
     fun register(link: String, name: String, nr: String, pin: String, wait: (String) -> Unit, cancel: () -> Boolean): String {
-        if (name.isBlank() || nr.count { it.isDigit() } < 7 || pin.trim().length < 4) return if (pl) "Wpisz imię, numer telefonu i PIN (min. 4 cyfry)" else "Enter a name, phone number and PIN (min. 4 digits)"
+        if (name.isBlank() || nr.count { it.isDigit() } < 8 || pin.trim().length < 4) return if (pl) "Wpisz imię, numer telefonu i PIN (min. 4 cyfry)" else "Enter a name, phone number and PIN (min. 4 digits)"
         val hosts = serverHosts(link, wait).getOrElse { return it.message ?: "" }
         val kp = ecPair(); val myPub = kp.public.encoded; val lg = loginOf(nr); val pv = pinOf(lg, pin)
         val end = System.currentTimeMillis() + 300000
@@ -226,7 +227,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // 🔎 znajomy po numerze: pytanie do moich serwerów; znaleziony - oboje dostajecie siebie nawzajem (prośba o kontakt), nie - odpowiedź serwera w rozmowie z nim
     fun findByNumber(nr: String): Int {
-        if (nr.count { it.isDigit() } < 7) return 0
+        if (nr.count { it.isDigit() } < 8) return 0
         val rs = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup } }
         rs.forEach { hidden(it, FIND + loginOf(nr)) }
         return rs.size
@@ -2679,11 +2680,11 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // ♻ nowy / wyczyszczony telefon: link „Mój adres” od kogoś z rodziny (prowadzi do serwera) → właściciel serwera potwierdza → konto, kontakty i rozmowy wracają
     fun restoreAccount() {
-        val nr = EditText(a).apply { hint = t("Twój numer telefonu", "Your phone number"); inputType = android.text.InputType.TYPE_CLASS_PHONE; setSingleLine(true) }
+        val nr = NrField(t("Twój numer telefonu", "Your phone number"))
         val pin = EditText(a).apply { hint = t("Twój PIN", "Your PIN"); inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD; setSingleLine(true) }
         val link = EditText(a).apply { hint = t("adres serwera – puste = szukaj w domowym Wi-Fi", "server address – empty = search the home Wi-Fi"); setSingleLine(true)
             runCatching { a.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(a)?.toString()?.takeIf { it.contains("VELIVO-KONTAKT:") }?.let { setText(it.trim()) } } }
-        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(nr); addView(pin); addView(link) }
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(nr.view); addView(pin); addView(link) }
         Dlg().setTitle("♻ " + t("Przywróć z serwera", "Restore from the server"))
             .setMessage(t("Wpisz swój numer telefonu i PIN (ustawione na starym telefonie) – serwer rozpozna Cię i odda kontakty i rozmowy. W domowym Wi-Fi adres zostaw pusty, poza domem wpisz adres domu (np. n5plus.ddns.net). Bez numeru i PIN-u – właściciel serwera potwierdza na komputerze.",
                 "Enter your phone number and PIN (set on the old phone) – the server recognises you and gives back contacts and chats. On the home Wi-Fi leave the address empty, away enter the home address (e.g. n5plus.ddns.net). Without number and PIN – the server owner confirms on the computer."))
@@ -2692,20 +2693,36 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 val stop = java.util.concurrent.atomic.AtomicBoolean()
                 val wait = Dlg().setTitle("♻").setMessage(t("Łączę z serwerem…", "Connecting to the server…")).setNegativeButton(android.R.string.cancel) { _, _ -> stop.set(true) }.setCancelable(false).show()
                 Thread {
-                    val r = k.serverRestore(link.text.toString(), nr.text.toString(), pin.text.toString(), { m -> a.runOnUiThread { wait.setMessage(m) } }, { stop.get() })
+                    val r = k.serverRestore(link.text.toString(), nr.full(), pin.text.toString(), { m -> a.runOnUiThread { wait.setMessage(m) } }, { stop.get() })
                     a.runOnUiThread { runCatching { wait.dismiss() }; Toast.makeText(a, if (r == "ok") t("♻ Konto przywrócone – kontakty i rozmowy wróciły", "♻ Account restored – contacts and chats are back") else r, Toast.LENGTH_LONG).show(); if (r == "ok") show() }
                 }.start()
             }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+    // ☎ numer z kierunkowym: pole kraju (+44, +48… - z karty SIM) i numer; numer zaczęty od + albo 00 - bez zmian, zero na początku numeru krajowego pomijane
+    private inner class NrField(hintText: String, init: String = "") {
+        private val cc = EditText(a).apply { setSingleLine(true); inputType = android.text.InputType.TYPE_CLASS_PHONE; hint = "+48"; setText(defaultCc()); contentDescription = t("Numer kierunkowy kraju", "Country code") }
+        private val nr = EditText(a).apply { setSingleLine(true); inputType = android.text.InputType.TYPE_CLASS_PHONE; hint = hintText; setText(init) }
+        val view = LinearLayout(a).apply { addView(cc, LinearLayout.LayoutParams(px(84), -2)); addView(nr, LinearLayout.LayoutParams(0, -2, 1f)) }
+        fun full(): String {
+            val n = nr.text.toString().trim(); if (n.startsWith("+") || n.startsWith("00")) return n
+            val d = n.filter { it.isDigit() }.trimStart('0'); val c = cc.text.toString().filter { it.isDigit() }
+            return if (d.isEmpty() || c.isEmpty()) "" else "+$c $d"
+        }
+    }
+    private fun defaultCc(): String {
+        val iso = runCatching { a.getSystemService(android.telephony.TelephonyManager::class.java)?.let { tm -> tm.simCountryIso.ifEmpty { tm.networkCountryIso } } }.getOrNull().orEmpty().ifEmpty { Locale.getDefault().country }.lowercase(Locale.ROOT)
+        return "+" + (mapOf("pl" to 48, "gb" to 44, "uk" to 44, "ie" to 353, "de" to 49, "nl" to 31, "be" to 32, "fr" to 33, "es" to 34, "it" to 39, "at" to 43, "ch" to 41, "cz" to 420, "sk" to 421,
+            "ua" to 380, "lt" to 370, "no" to 47, "se" to 46, "dk" to 45, "us" to 1, "ca" to 1)[iso] ?: 48)
     }
     // 📝 konto na serwerze (jak w Signalu): imię, numer, PIN (2 razy) i adres serwera (puste = domowe Wi-Fi)
     private fun registerAccount() {
         val pinType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
         val name = EditText(a).apply { hint = t("Twoje imię (widzą je znajomi)", "Your name (friends see it)"); setSingleLine(true) }
-        val nr = EditText(a).apply { hint = t("Twój numer telefonu", "Your phone number"); inputType = android.text.InputType.TYPE_CLASS_PHONE; setSingleLine(true) }
+        val nr = NrField(t("Twój numer telefonu", "Your phone number"))
         val p1 = EditText(a).apply { hint = t("Wymyśl PIN (min. 4 cyfry)", "Make up a PIN (min. 4 digits)"); inputType = pinType; setSingleLine(true) }
         val p2 = EditText(a).apply { hint = t("PIN jeszcze raz", "PIN again"); inputType = pinType; setSingleLine(true) }
         val addr = EditText(a).apply { hint = t("adres serwera, np. n5plus.ddns.net (puste = domowe Wi-Fi)", "server address, e.g. n5plus.ddns.net (empty = home Wi-Fi)"); setSingleLine(true) }
-        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); listOf(name, nr, p1, p2, addr).forEach { addView(it) } }
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); listOf(name, nr.view, p1, p2, addr).forEach { addView(it) } }
         Dlg().setTitle("📝 " + t("Załóż konto na serwerze", "Create an account on a server"))
             .setMessage(t("Jak w Signalu: konto na serwerze kogoś z rodziny. Znajomi znajdą Cię po numerze, a na nowym telefonie numer i PIN przywrócą konto i rozmowy. Zapamiętaj PIN.",
                 "Like Signal: an account on a family member's server. Friends find you by number, and on a new phone the number and PIN restore the account and chats. Remember the PIN."))
@@ -2715,30 +2732,30 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 val stop = java.util.concurrent.atomic.AtomicBoolean()
                 val wait = Dlg().setTitle("📝").setMessage(t("Łączę z serwerem…", "Connecting to the server…")).setNegativeButton(android.R.string.cancel) { _, _ -> stop.set(true) }.setCancelable(false).show()
                 Thread {
-                    val r = k.register(addr.text.toString(), name.text.toString(), nr.text.toString(), p1.text.toString(), { m -> a.runOnUiThread { wait.setMessage(m) } }, { stop.get() })
+                    val r = k.register(addr.text.toString(), name.text.toString(), nr.full(), p1.text.toString(), { m -> a.runOnUiThread { wait.setMessage(m) } }, { stop.get() })
                     a.runOnUiThread { runCatching { wait.dismiss() }; Toast.makeText(a, if (r == "ok") t("📝 Konto założone – znajomych dodasz: ➕ → 🔎 Znajdź po numerze", "📝 Account created – add friends: ➕ → 🔎 Find by number") else r, Toast.LENGTH_LONG).show(); if (r == "ok") show() }
                 }.start()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
     // 🔎 znajomy po numerze telefonu - serwer przedstawia was sobie (oboje dostajecie prośbę o kontakt)
     private fun findNumber() {
-        val nr = EditText(a).apply { hint = t("Numer telefonu znajomego", "Your friend's phone number"); inputType = android.text.InputType.TYPE_CLASS_PHONE; setSingleLine(true) }
-        val box = LinearLayout(a).apply { setPadding(px(20), px(8), px(20), 0); addView(nr, LinearLayout.LayoutParams(-1, -2)) }
+        val nr = NrField(t("Numer telefonu znajomego", "Your friend's phone number"))
+        val box = LinearLayout(a).apply { setPadding(px(20), px(8), px(20), 0); addView(nr.view, LinearLayout.LayoutParams(-1, -2)) }
         Dlg().setTitle("🔎 " + t("Znajdź po numerze telefonu", "Find by phone number"))
             .setMessage(t("Twoje serwery sprawdzą, czy ta osoba ma u nich konto. Jeśli tak – oboje dostaniecie prośbę o kontakt. Jeśli nie – serwer odpisze w rozmowie z nim.",
                 "Your servers check whether this person has an account there. If yes – you both get a contact request. If not – the server replies in your chat with it."))
             .setView(box)
             .setPositiveButton(t("Szukaj", "Search")) { _, _ ->
-                val n = k.findByNumber(nr.text.toString())
+                val n = k.findByNumber(nr.full())
                 Toast.makeText(a, if (n > 0) t("🔎 Pytam serwery: ", "🔎 Asking servers: ") + n else t("Wpisz numer (min. 7 cyfr) – i potrzebny jest serwer w kontaktach", "Enter a number (min. 7 digits) – and a server is needed in contacts"), Toast.LENGTH_LONG).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
     // 🔐 numer i PIN: po nich serwer rozpoznaje mnie na nowym telefonie; PIN dwa razy (literówka = konto nie do odzyskania)
     private fun loginSetup() {
-        val nr = EditText(a).apply { hint = t("Twój numer telefonu", "Your phone number"); inputType = android.text.InputType.TYPE_CLASS_PHONE; setSingleLine(true); setText(k.loginNr) }
+        val nr = NrField(t("Twój numer telefonu", "Your phone number"), k.loginNr)
         val p1 = EditText(a).apply { hint = t("Wymyśl PIN (min. 4 cyfry)", "Make up a PIN (min. 4 digits)"); inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD; setSingleLine(true) }
         val p2 = EditText(a).apply { hint = t("PIN jeszcze raz", "PIN again"); inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD; setSingleLine(true) }
-        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(nr); addView(p1); addView(p2) }
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(nr.view); addView(p1); addView(p2) }
         Dlg().setTitle("🔐 " + t("Numer i PIN do nowego telefonu", "Number and PIN for a new phone"))
             .setMessage(t("Po zmianie telefonu wpiszesz ten numer i PIN – serwer rozpozna, że to Ty, i odda Twoje kontakty i rozmowy. Zapamiętaj PIN.",
                 "After changing phones you enter this number and PIN – the server recognises you and gives back your contacts and chats. Remember the PIN."))
@@ -2746,7 +2763,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             .setPositiveButton(t("Zapisz", "Save")) { _, _ ->
                 val m = when {
                     p1.text.toString().trim() != p2.text.toString().trim() -> t("PIN-y się różnią – nic nie zapisano", "The PINs differ – nothing saved")
-                    k.setLogin(nr.text.toString(), p1.text.toString()) -> t("🔐 Zapisano – kopia idzie na serwery", "🔐 Saved – the backup goes to the servers")
+                    k.setLogin(nr.full(), p1.text.toString()) -> t("🔐 Zapisano – kopia idzie na serwery", "🔐 Saved – the backup goes to the servers")
                     else -> t("Wpisz numer telefonu i PIN (min. 4 cyfry)", "Enter the phone number and a PIN (min. 4 digits)")
                 }
                 Toast.makeText(a, m, Toast.LENGTH_LONG).show()

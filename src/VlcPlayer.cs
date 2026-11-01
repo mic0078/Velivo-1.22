@@ -1631,17 +1631,19 @@ namespace Velivo
             };
             // klik w plakat / logo: ładne okienko - film: opis z Jellyfin; TV: pełny opis programu, który leci, i co dalej
             badge.Cursor = Cursors.Hand; badge.Background = Brushes.Transparent;
-            badge.MouseLeftButtonUp += (s, e) =>
+            // okienko z opisem: film (Jellyfin) albo program TV, który leci - z plakatu za zegarem i z PiP
+            Func<FrameworkElement, string, IptvChannel, ImageSource, System.Threading.Tasks.Task> showAbout = null;
+            showAbout = async (anchor, infoP, infoCh, infoImg) =>
             {
-                e.Handled = true;
-                var pop = new System.Windows.Controls.Primitives.Popup { PlacementTarget = badge, Placement = PlacementMode.Top, StaysOpen = false, AllowsTransparency = true };
+                if (infoCh != null && infoImg == null && !string.IsNullOrEmpty(infoCh.Logo)) try { infoImg = await GetLogo(infoCh.Logo); } catch (Exception) { }
+                var pop = new System.Windows.Controls.Primitives.Popup { PlacementTarget = anchor, Placement = anchor != null ? PlacementMode.Top : PlacementMode.MousePoint, StaysOpen = false, AllowsTransparency = true };
                 var txt = new StackPanel { Margin = new Thickness(16, 0, 0, 0) };
                 Action<string, double, Brush, FontWeight> line = (t, size, br, fw) => { if (!string.IsNullOrWhiteSpace(t)) txt.Children.Add(new TextBlock { Text = t.Trim(), FontSize = size, Foreground = br, FontWeight = fw, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) }); };
-                var big = new Image { Source = badgeImg.Source, Width = badgeCh != null ? 120 : 180, MaxHeight = 270, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Top };
-                if (badgeCh != null)
+                var big = new Image { Source = infoImg, Width = infoCh != null ? 120 : 180, MaxHeight = 270, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Top };
+                if (infoCh != null)
                 {
-                    var l = EpgFor(_iptvEpg, badgeCh); var now = DateTime.Now; var pr = EpgAt(l, now); var nx = pr == null ? null : l?.FirstOrDefault(x => x.Start >= pr.Stop);
-                    line(badgeCh.Name, 13, Brushes.Silver, FontWeights.Normal);
+                    var l = EpgFor(_iptvEpg, infoCh); var now = DateTime.Now; var pr = EpgAt(l, now); var nx = pr == null ? null : l?.FirstOrDefault(x => x.Start >= pr.Stop);
+                    line(infoCh.Name, 13, Brushes.Silver, FontWeights.Normal);
                     if (pr == null) line(L.T("Brak programu TV dla tego kanału."), 15, Brushes.White, FontWeights.Normal);
                     else
                     {
@@ -1653,7 +1655,7 @@ namespace Velivo
                 }
                 else
                 {
-                    var m = MetaFor(badgeP ?? "");
+                    var m = MetaFor(infoP ?? "");
                     if (m == null) return;
                     if (m.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) big.Source = LoadLogo(pf, 540); }
                     line(m.Name, 20, Brushes.White, FontWeights.SemiBold);
@@ -1668,6 +1670,7 @@ namespace Velivo
                 pop.Child = new Border { Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x18, 0x1B, 0x24)), BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Width = 640, Padding = new Thickness(14), Child = dp };
                 pop.IsOpen = true;
             };
+            badge.MouseLeftButtonUp += (s, e) => { e.Handled = true; _ = showAbout(badge, badgeP, badgeCh, badgeImg.Source); };
             quick.Children.Add(netBox); quick.Children.Add(endText); 
             netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
@@ -3341,6 +3344,8 @@ namespace Velivo
                 Action<ItemsControl, string, Action, bool> pa = (to, h, a, en) => { var mi = new MenuItem { Header = h, IsEnabled = en }; mi.Click += (q, w2) => a(); to.Items.Add(mi); };
                 if (pipWin != null)
                 {
+                    { var pc0 = pipCh; bool pf0 = pc0?.Group == pipFilmGrp;   // co leci w PiP: opis filmu albo programu TV
+                      if (pc0 != null) pa(cm, pf0 ? L.T("ℹ O filmie w podglądzie") : L.T("ℹ Co teraz leci w podglądzie"), () => _ = showAbout(null, pf0 ? pc0.Url : null, pf0 ? null : pc0, null), true); }
                     pa(cm, L.T("⇄ Zamień z głównym (klik w podgląd)"), () => pipSwap(), true);
                     pa(cm, L.T("↘ Przywróć domyślne miejsce i wielkość"), () => { pipKeep.Stop(); pipX = pipY = pipW = null; SetPref("pip-x", null); SetPref("pip-y", null); SetPref("pip-w", null); pipPlace(); }, true);
                     pa(cm, L.T("✖ Zamknij PiP"), pipClose, true);

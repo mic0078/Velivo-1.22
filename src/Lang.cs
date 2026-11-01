@@ -1359,6 +1359,8 @@ namespace Velivo
             { "Kliknij: opis filmu", "Click: film description" },
             { "🎬 Filmy na tym komputerze", "🎬 Films on this computer" },
             { "🌐 Wspólna biblioteka", "🌐 Shared library" },
+            { "ℹ O filmie w podglądzie", "ℹ About the film in preview" },
+            { "ℹ Co teraz leci w podglądzie", "ℹ What’s on in the preview" },
             { "Lektor", "Narrator" },
             { "Dźwięk", "Audio" },
             { "Proporcje", "Aspect" },

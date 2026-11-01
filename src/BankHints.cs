@@ -30,6 +30,7 @@ if(/sort.?code/.test(a))return null;
 if(/iban|nrb|account.?(no|num)|accountnumber|numer.?(rachunku|konta)|rachun/.test(a)&&!/name|nazwa/.test(a))return 'transfer';
 if(t==='password')return 'login';
 if(/user|login|email|mail|klient|customer|ident|nik/.test(a))return 'login';
+if(/^(text|email|tel|)$/.test(t)&&el.form&&el.form.querySelector('input[type=password]'))return 'login';
 return null;}
 document.addEventListener('focusin',function(e){var el=e.target,k=kindOf(el);if(!k||el===last)return;last=el;var r=el.getBoundingClientRect();
 pm('velivo:__VT__:bfocus:'+JSON.stringify({k:k,x:r.left,y:r.top,w:r.width,h:r.height,filled:!!(el.value&&el.value.length)}));},true);
@@ -55,7 +56,7 @@ document.addEventListener('focusout',function(e){if(e.target===last){last=null;p
                 switch (m.k)
                 {
                     case "login":
-                        if (m.filled) break;   // pole juz wypelnione (np. samo przy wejsciu) - bez propozycji
+                        { var ls = LoginsFor(c, host); if (m.filled && ls.Count < 2) break; }   // wypełnione samo jednym kontem - bez propozycji; kilka kont - wybór innego
                         foreach (var l in LoginsFor(c, host).Take(5)) { var acc = l; acts.Add(new KeyValuePair<string, Action>("🔑 " + acc.Label, () => BankFillLogin(acc, host))); }
                         break;
                     case "partial":

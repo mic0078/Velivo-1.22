@@ -1287,6 +1287,7 @@ namespace Velivo
             { "inny klucz (ten kontakt trzeba usunąć i dodać na nowo)", "different key (remove this contact and add it again)" },
             { "Ostatnio nie wpuszczono: ", "Last refused: " },
             { "Połączone teraz: ", "Connected now: " },
+            { "🔄 Wyrównuję obraz z dźwiękiem…", "🔄 Re-syncing picture and sound…" },
             { "mój serwer", "my server" },
             { "moje urządzenie", "my device" },
             { "znajomy", "contact" },

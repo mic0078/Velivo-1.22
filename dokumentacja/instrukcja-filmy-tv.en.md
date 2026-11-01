@@ -64,7 +64,7 @@ The bar appears when you move the mouse and hides after a moment.
 | 📺 | TV channels |
 | 📅 | Full TV guide |
 | ℹ | Info bar |
-| 🔄 | Reload the channel. If the sound disappears while the picture keeps playing, Velivo restores it by itself after a few seconds (“🔊 Sound dropped – restoring…”) and reloads the channel if needed |
+| 🔄 | Reload the channel. If the sound disappears while the picture keeps playing, Velivo restores it by itself after a few seconds (“🔊 Sound dropped – restoring…”) and reloads the channel if needed. After a stream hiccup Velivo checks by itself whether picture and sound drifted apart and re-syncs them (first without interrupting the picture, as a last resort “🔄 Re-syncing picture and sound…”) |
 | 🎞 | Playlists and my queue |
 | ⭐📺 | My favourite channels (alphabetical) |
 | ⭐🎬 | My favourite videos (alphabetical) |

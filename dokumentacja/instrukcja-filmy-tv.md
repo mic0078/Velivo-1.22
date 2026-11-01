@@ -64,7 +64,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 | 📺 | Kanały telewizji |
 | 📅 | Pełny program TV |
 | ℹ | Pasek informacji |
-| 🔄 | Odśwież kanał. Gdy dźwięk sam zniknie, a obraz gra dalej, Velivo po kilku sekundach samo przywraca dźwięk („🔊 Dźwięk zniknął – przywracam…”), a w razie potrzeby odświeża kanał |
+| 🔄 | Odśwież kanał. Gdy dźwięk sam zniknie, a obraz gra dalej, Velivo po kilku sekundach samo przywraca dźwięk („🔊 Dźwięk zniknął – przywracam…”), a w razie potrzeby odświeża kanał. Po przycięciu transmisji Velivo samo sprawdza, czy obraz i dźwięk się nie rozjechały, i wyrównuje je (najpierw bez przerwy w obrazie, w ostateczności „🔄 Wyrównuję obraz z dźwiękiem…”) |
 | 🎞 | Playlisty i moja kolejka |
 | ⭐📺 | Moje ulubione kanały (alfabetycznie) |
 | ⭐🎬 | Moje ulubione filmy (alfabetycznie) |

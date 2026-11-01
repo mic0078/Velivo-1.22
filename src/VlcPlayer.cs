@@ -1903,6 +1903,12 @@ namespace Velivo
             Func<Action, System.Threading.Tasks.Task> vlcRun = a => vlcTail = vlcTail.ContinueWith(_ => { try { a(); } catch (Exception ex) { App.LogError(ex); } }, System.Threading.Tasks.TaskScheduler.Default);
             bool userStopped = false; long lastTvTime = -1; DateTime lastTvProgress = DateTime.Now; int tvRetries = 0;
             long aPlayed = -1, aVideo = -1; int aSilent = 0; DateTime aReload = DateTime.MinValue;   // straznik dzwieku
+            // 🔄 straznik synchronizacji po przycieciu: przycięcie = buforowanie VLC albo nieciaglosc / uszkodzone dane strumienia;
+            // po powrocie i ustabilizowaniu (6 s) - gdy VLC stale gubi spoznione klatki albo bufory dzwieku, obraz i dzwiek sie rozjechaly:
+            // najpierw ponowne wlaczenie sciezki dzwieku (dzwiek dopasowuje sie do zegara obrazu, bez przerwy), na koncu odswiezenie kanalu.
+            // Bez zmiany opoznienia dzwieku - VLC nie podaje roznicy PTS obrazu i dzwieku, wiec nie ma wiarygodnej wartosci do korekty
+            DateTime syncHiccup = DateTime.MinValue, syncFixed = DateTime.MinValue, syncReload = DateTime.MinValue; long sDisc = -1, sCorr = -1, sLostV = -1, sLostA = -1; int sBad = 0, sStep = 0; bool sSlow = false;   // sSlow: ten komputer gubi klatki także bez przycięć (słaby, np. CHUWI) - wtedy gubienie nie świadczy o rozjechaniu
+            mp.Buffering += (s, e) => { if (e.Cache < 100f) syncHiccup = DateTime.Now; };
             var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             tvWatch.Tick += (s, e) =>
             {
@@ -1939,6 +1945,38 @@ namespace Velivo
                             aSilent = 0; aReload = DateTime.Now; aPlayed = -1;
                             showOsd(L.T("🔊 Dźwięk zniknął – odświeżam kanał…"));
                             _vlcLoad(_playIndex); return;
+                        }
+                    }
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                try
+                {
+                    var ms = mp.State == VLCState.Playing && curRecFile == null ? mp.Media?.Statistics : null;
+                    if (ms == null) { sDisc = sCorr = sLostV = sLostA = -1; sBad = 0; }
+                    else
+                    {
+                        var q = ms.Value;
+                        if (sDisc >= 0 && (q.DemuxDiscontinuity > sDisc || q.DemuxCorrupted > sCorr)) syncHiccup = DateTime.Now;   // dziura albo uszkodzone dane w strumieniu
+                        long dV = sLostV < 0 ? 0 : q.LostPictures - sLostV, dA = sLostA < 0 ? 0 : q.LostAudioBuffers - sLostA;
+                        sDisc = q.DemuxDiscontinuity; sCorr = q.DemuxCorrupted; sLostV = q.LostPictures; sLostA = q.LostAudioBuffers;
+                        var since = (DateTime.Now - syncHiccup).TotalSeconds;
+                        if (since < 6 || since > 90) { sBad = 0; if (since > 90) { sStep = 0; if (dV >= 3) sSlow = true; } }   // czekamy na stabilizacje; dlugo po przycieciu - nie nasza sprawa
+                        else if (!sSlow)
+                        {
+                            sBad = dV >= 3 || dA >= 2 ? sBad + 1 : 0;   // co 2 s gubi klatki / dzwiek - rozjechane
+                            if (sBad >= 3 && sStep == 0 && (DateTime.Now - syncFixed).TotalSeconds > 20)
+                            {
+                                sStep = 1; sBad = 0; syncFixed = DateTime.Now;
+                                try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " po przycieciu obraz i dzwiek rozjechane (gubi klatki " + dV + ", dzwiek " + dA + ") - wyrownanie dzwieku\n"); } catch (Exception) { }
+                                var tr = mp.AudioTrack; mp.SetAudioTrack(-1); mp.SetAudioTrack(tr);
+                            }
+                            else if (sBad >= 5 && sStep == 1 && (DateTime.Now - syncReload).TotalSeconds > 120)
+                            {   // ostatecznosc - jedno odswiezenie kanalu, najwyzej co 2 min
+                                sStep = 2; sBad = 0; syncReload = DateTime.Now;
+                                try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " nadal rozjechane - odswiezenie kanalu\n"); } catch (Exception) { }
+                                showOsd(L.T("🔄 Wyrównuję obraz z dźwiękiem…"));
+                                _vlcLoad(_playIndex); return;
+                            }
                         }
                     }
                 }

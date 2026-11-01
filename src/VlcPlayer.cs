@@ -1539,7 +1539,7 @@ namespace Velivo
             var tools = glyphBtn("tune", L.T("Obraz i dźwięk – napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki (pokaż / schowaj rząd)"));
             tools.Click += (s, e) => { bool on = toolsRow.Visibility != Visibility.Visible; toolsRow.Visibility = on ? Visibility.Visible : Visibility.Collapsed; SetPref("pasek-narzedzia", on ? "1" : "0"); };
             // przełącznik TV ↔ Filmy: przy telewizji „🎬 Filmy” (biblioteka), przy filmie „📺 TV” (kanały) - zawsze w tym samym miejscu
-            var swap = textBtn("🎬 " + L.T("Filmy"), L.T("Przełącz na filmy – biblioteka filmów")); swap.FontSize = 13; swap.Margin = new Thickness(6, 0, 6, 0);
+            var swap = textBtn("🎬 " + L.T("Filmy"), L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy")); swap.FontSize = 13; swap.Margin = new Thickness(6, 0, 6, 0);
             bool swapTv = false;   // true = przycisk prowadzi do telewizji
             foreach (var b in new UIElement[] { swap, fav, sleep, pipBtn, tools, lib, hist, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 4) };
@@ -3313,7 +3313,7 @@ namespace Velivo
                 lib.Visibility = hist.Visibility = vis(!isTv && !narrow);
                 swapTv = !isTv; swap.Visibility = vis(!isTv ? tvOn : true);
                 swap.Content = isTv ? "🎬 " + L.T("Filmy") : "📺 " + L.T("TV");
-                swap.ToolTip = isTv ? L.T("Przełącz na filmy – biblioteka filmów") : L.T("Przełącz na telewizję – lista kanałów");
+                swap.ToolTip = isTv ? L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy") : L.T("Przełącz na telewizję – lista kanałów\nPrawy przycisk: ostatnio oglądane kanały");
                 tools.Visibility = vis(!narrow); toolsRow.Visibility = vis(!narrow && GetPref("pasek-narzedzia") == "1");
             };
             updMode = updQuick;
@@ -3433,7 +3433,7 @@ namespace Velivo
             chBack.Click += (s, e) => { if (chPos <= 0 || chHist.Count < 2) { showOsd(L.T("Brak poprzedniego kanału")); return; } chJump(Math.Min(chPos, chHist.Count) - 1); };
             chFirst.Click += (s, e) => { if (chHist.Count < 2 || chPos == 0) { showOsd(L.T("To jest pierwszy kanał")); return; } chJump(0); };
             // 🕘 historia kanałów - ten sam wygląd co ⭐ ulubione: logo, grupa, klik - przełącz; prawy przycisk: ulubione, usuń z historii, sortowanie
-            Action showChHist = null;
+            Action showChHist = null; FrameworkElement chAnchor = chHistBtn;   // 🕘 przy kanałach albo prawy przycisk na „📺 TV”
             showChHist = () =>
             {
                 var cur = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
@@ -3459,9 +3459,11 @@ namespace Velivo
                         FavItem(cm, "🕘 " + L.T("Usuń z historii oglądania"), () => { chHist.RemoveAll(u => u == ch.Url); chPos = Math.Min(chPos, chHist.Count - 1); SaveIptv(IptvSt); pop[0].IsOpen = false; showChHist(); });
                     }
                 }; }).ToList();
-                pop[0] = FavPopup(chHistBtn, "🕘 " + L.T("Ostatnio oglądane kanały"), L.T("Historia jest pusta – przełącz kanał"), rows, Sort, 44, 32);
+                pop[0] = FavPopup(chAnchor, "🕘 " + L.T("Ostatnio oglądane kanały"), L.T("Historia jest pusta – przełącz kanał"), rows, Sort, 44, 32);
             };
-            chHistBtn.Click += (s, e) => showChHist();
+            chHistBtn.Click += (s, e) => { chAnchor = chHistBtn; showChHist(); };
+            // prawy przycisk na przełączniku: 20 ostatnich z drugiej strony – przy filmie kanały, przy TV filmy (szybki powrót)
+            swap.MouseRightButtonUp += (s, e) => { e.Handled = true; if (swapTv) { chAnchor = swap; showChHist(); } else ShowHistory(swap); };
             fwd10.Click += (s, e) => jump(10000);
             speed.Click += (s, e) => setSpeed(speedIdx == speeds.Length - 1 ? -speedIdx : 1);
             speed.MouseRightButtonUp += (s, e) => { speedIdx = 3; setSpeed(0); e.Handled = true; };

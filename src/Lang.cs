@@ -1368,6 +1368,7 @@ namespace Velivo
             { ") znikną tylko u Ciebie.", ") will disappear only for you." },
             { "Klik / spacja – pauza", "Click / space – pause" },
             { "odtwarzacz Velivo", "Velivo player" },
+            { "dwuklik / F – pełny ekran", "double-click / F – full screen" },
             { "Lektor", "Narrator" },
             { "Dźwięk", "Audio" },
             { "Proporcje", "Aspect" },

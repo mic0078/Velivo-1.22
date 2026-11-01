@@ -2485,7 +2485,7 @@ namespace Velivo
         {
             var vid = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, Stretch = Stretch.Uniform, Volume = 1.0, Source = new Uri(path) };   // MediaElement ma domyślnie połowę głośności
             var hint = new TextBlock { Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(10), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center,
-                Text = L.T("Klik / spacja – pauza") + "   ·   ← →  10 s   ·   V – " + L.T("odtwarzacz Velivo") + "   ·   Esc – " + L.T("zamknij") };
+                Text = L.T("Klik / spacja – pauza") + "   ·   " + L.T("dwuklik / F – pełny ekran") + "   ·   ← →  10 s   ·   V – " + L.T("odtwarzacz Velivo") + "   ·   Esc – " + L.T("zamknij") };
             var d = new Window { Uid = "own-theme", Owner = owner, Width = 960, Height = 600, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new Grid { Background = Brushes.Black, Children = { vid, hint } }, Background = Brushes.Black, Icon = KomWindowIcon(), Title = "🎬 " + Path.GetFileName(path) };
             bool paused = false, gone = false;
             void ToVlc() { if (gone) return; gone = true; vid.Stop(); d.Close(); PlayVideos(new[] { path }, 0, false); }
@@ -2493,14 +2493,17 @@ namespace Velivo
             vid.MediaFailed += (s, e) => ToVlc();
             vid.MediaEnded += (s, e) => { vid.Position = TimeSpan.Zero; vid.Pause(); paused = true; };
             void Toggle() { if (paused) vid.Play(); else vid.Pause(); paused = !paused; }
+            void Full() { bool on = d.WindowStyle != WindowStyle.None; d.WindowStyle = on ? WindowStyle.None : WindowStyle.SingleBorderWindow; d.WindowState = on ? WindowState.Maximized : WindowState.Normal; hint.Visibility = on ? Visibility.Collapsed : Visibility.Visible; }   // ⛶ pełny ekran (Esc - wyjście)
             d.MouseLeftButtonUp += (s, e) => Toggle();
+            d.MouseDoubleClick += (s, e) => { Toggle(); Full(); };   // dwuklik: pełny ekran (pierwsze kliknięcie dwukliku nie pauzuje)
             d.PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Space) Toggle();
                 else if (e.Key == Key.Right) vid.Position += TimeSpan.FromSeconds(10);
                 else if (e.Key == Key.Left) vid.Position -= TimeSpan.FromSeconds(10);
                 else if (e.Key == Key.V) ToVlc();
-                else if (e.Key == Key.Escape) d.Close();
+                else if (e.Key == Key.F || e.Key == Key.F11) Full();
+                else if (e.Key == Key.Escape) { if (d.WindowStyle == WindowStyle.None) Full(); else d.Close(); }
                 else return;
                 e.Handled = true;
             };

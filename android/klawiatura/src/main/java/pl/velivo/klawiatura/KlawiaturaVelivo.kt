@@ -725,6 +725,11 @@ class KlawiaturaVelivo : InputMethodService() {
             'q' to '%', 'w' to '^', 'r' to '=', 't' to '[', 'y' to ']', 'u' to '{', 'i' to '}', 'p' to '_',
             'd' to '-', 'f' to '+', 'g' to '(', 'h' to ')', 'j' to ';', 'k' to ':',
             'v' to '\'', 'b' to '"', 'm' to '/', ',' to '!', '.' to '…')
+        // przytrzymanie litery - okienko z wariantami (jak Gboard): polska litera pierwsza, potem inne akcenty i znak z rogu; palec w bok - wybór, puszczenie - wpisanie
+        private val variants = mapOf('a' to "ąáàâäã", 'c' to "ćç", 'e' to "ęéèêë", 'l' to "ł", 'n' to "ńñ", 'o' to "óöôòõ", 's' to "śß", 'z' to "żź", 'x' to "ź",
+            'u' to "úüûù", 'i' to "íïîì", 'y' to "ýÿ")
+        private var popKeys: List<Char>? = null; private var popSel = 0; private var popR = RectF()
+        private fun popList(c: Char): List<Char> = (variants[c].orEmpty().toList() + listOfNotNull(longSym[c])).distinct()
 
         // motywy jak w Velivo: ciemny (logo), jasny, czarno-biały (wybór w ustawieniach klawiatury)
         private var bg1 = 0; private var bg2 = 0; private var bg3 = 0; private var keyBg = 0; private var keyFn = 0; private var text = 0; private var dim = 0; private var border = 0
@@ -901,7 +906,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 if (hint.isNotEmpty()) { tp.textSize = 12 * ks * dp; tp.color = dim; cv.drawText(hint, k.r.centerX(), k.r.top + 15 * dp, tp) }
             }
             // 🔍 powiększona litera nad palcem (jak w Gboard) - widać, co się naciska; dla słabszego wzroku
-            pressed?.takeIf { !swiping && !menuOpen && !cursorMode && downY >= headH + sugH && pref("klaw-podglad") && (it.code.length == 1 && it.code[0].isLetterOrDigit() || isEmoji(it.code) && it.code != "emoji") }?.let { k ->
+            pressed?.takeIf { popKeys == null && !swiping && !menuOpen && !cursorMode && downY >= headH + sugH && pref("klaw-podglad") && (it.code.length == 1 && it.code[0].isLetterOrDigit() || isEmoji(it.code) && it.code != "emoji") }?.let { k ->
                 val bw = k.r.width() * 1.6f; val bh = keyH * 1.15f
                 val left = (k.r.centerX() - bw / 2).coerceIn(2 * dp, w - bw - 2 * dp); val top = max(0f, k.r.top - bh - 2 * dp)
                 val b = RectF(left, top, left + bw, top + bh)
@@ -910,6 +915,19 @@ class KlawiaturaVelivo : InputMethodService() {
                 if (contrast) { p.style = Paint.Style.STROKE; p.strokeWidth = 2 * dp; p.color = Color.WHITE; cv.drawRoundRect(b, 12 * dp, 12 * dp, p); p.style = Paint.Style.FILL }
                 tp.textSize = 38 * ks * dp; tp.color = text; tp.typeface = Typeface.DEFAULT_BOLD
                 cv.drawText(label(k), b.centerX(), b.centerY() + 13 * ks * dp, tp); tp.typeface = Typeface.DEFAULT
+            }
+            // okienko wariantów litery (przytrzymanie) - wybrana podświetlona
+            popKeys?.let { l ->
+                val up = shift xor caps; val cw = popR.width() / l.size
+                p.color = Color.argb(0x50, 0, 0, 0); cv.drawRoundRect(RectF(popR.left + 2 * dp, popR.top + 3 * dp, popR.right + 2 * dp, popR.bottom + 3 * dp), 12 * dp, 12 * dp, p)
+                p.color = if (contrast) Color.BLACK else if (text == Color.WHITE) Color.rgb(0x2E, 0x25, 0x60) else Color.WHITE; cv.drawRoundRect(popR, 12 * dp, 12 * dp, p)
+                if (contrast) { p.style = Paint.Style.STROKE; p.strokeWidth = 2 * dp; p.color = Color.WHITE; cv.drawRoundRect(popR, 12 * dp, 12 * dp, p); p.style = Paint.Style.FILL }
+                l.forEachIndexed { i, c ->
+                    val r = RectF(popR.left + i * cw, popR.top, popR.left + (i + 1) * cw, popR.bottom)
+                    if (i == popSel) { p.color = violet; cv.drawRoundRect(RectF(r.left + 3 * dp, r.top + 3 * dp, r.right - 3 * dp, r.bottom - 3 * dp), 9 * dp, 9 * dp, p) }
+                    tp.textSize = 26 * dp; tp.color = if (i == popSel) Color.WHITE else text
+                    cv.drawText((if (up && c.isLetter()) c.uppercaseChar() else c).toString(), r.centerX(), r.centerY() + 9 * dp, tp)
+                }
             }
             // ślad przeciągania w gradiencie logo
             if (swiping && trace.size > 1) {
@@ -961,6 +979,11 @@ class KlawiaturaVelivo : InputMethodService() {
                 k.code == "bs" -> { longDone = true; reps = 0; post(repeat) }
                 // przytrzymanie @ - emoji
                 k.code == "@" && sym == 0 -> { longDone = true; sym = 3; refresh(); performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
+                // przytrzymanie litery z kilkoma możliwościami - okienko wyboru
+                k.code.length == 1 && sym == 0 && popList(k.code[0]).size > 1 -> { longDone = true; popKeys = popList(k.code[0]); popSel = 0
+                    val n = popKeys!!.size; val cw = k.r.width() * 0.95f; val pw = cw * n
+                    val left = (k.r.left - cw * 0.0f).coerceIn(2 * dp, width - pw - 2 * dp); val top = max(0f, k.r.top - keyH * 1.1f)
+                    popR = RectF(left, top, left + pw, top + keyH * 1.05f); performHapticFeedback(HAPTIC_FEEDBACK_ENABLED); invalidate() }
                 // przytrzymanie litery: polska litera (a -> ą), cyfry - znak z ⇧
                 k.code.length == 1 && sym == 0 && "acelnoszx".indexOf(k.code[0]) >= 0 -> { longDone = true; val was = alt; alt = true; type(k.code[0]); alt = was; performHapticFeedback(HAPTIC_FEEDBACK_ENABLED) }
                 // przytrzymanie cyfry / litery / , . - znak z podpowiedzi w rogu
@@ -986,6 +1009,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     invalidate()
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    popKeys?.let { l -> val i = ((x - popR.left) / (popR.width() / l.size)).toInt().coerceIn(0, l.size - 1); if (i != popSel) { popSel = i; invalidate() }; return true }
                     val k = pressed ?: return true
                     if (downY < headH + sugH) {
                         if (kotlin.math.abs(x - downX) > 10 * dp) { sugX = (sugStart - (x - downX)).coerceIn(0f, max(0f, (sugR.lastOrNull()?.first?.right ?: 0f) + 4 * dp - width)); invalidate() }   // więcej propozycji
@@ -1006,6 +1030,9 @@ class KlawiaturaVelivo : InputMethodService() {
                 }
                 MotionEvent.ACTION_UP -> {
                     removeCallbacks(longPress); removeCallbacks(repeat)
+                    popKeys?.let { l -> popKeys = null; pressed = null; val c = l[popSel]
+                        if (c.isLetter()) { val was = alt; alt = false; type(c); alt = was } else { val was = shift; val wa = shiftAuto; shift = false; type(c); shift = was && !wa; shiftAuto = wa }
+                        invalidate(); return true }
                     val k = pressed; pressed = null
                     if (cursorMode) { cursorMode = false; cur = ""; fixFrom = null; lastSwipe = null; autoShift(); refresh(); return true }   // kursor przesunięty - bez spacji
                     if (downY < headH) { if (k != null && !longDone && k.r.contains(x, y)) headAction(k.code); invalidate(); return true }
@@ -1022,7 +1049,7 @@ class KlawiaturaVelivo : InputMethodService() {
                     if (k != null && !longDone) { if (k.code.length == 1 && k.code[0].isLetter()) rhythm(SystemClock.uptimeMillis() - downAt, downAt); keyAction(k) }
                     invalidate()
                 }
-                MotionEvent.ACTION_CANCEL -> { removeCallbacks(longPress); removeCallbacks(repeat); pressed = null; swiping = false; trace.clear(); invalidate() }
+                MotionEvent.ACTION_CANCEL -> { popKeys = null; removeCallbacks(longPress); removeCallbacks(repeat); pressed = null; swiping = false; trace.clear(); invalidate() }
             }
             return true
         }

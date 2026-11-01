@@ -424,4 +424,5 @@
     <string name="kom_alerts_title">Messages and calls on screen</string>
     <string name="kom_alerts_msg">For messages and calls to always show on the screen (also when locked), allow Velivo to show notifications and full-screen calls, and turn off battery saving for Velivo (otherwise messages arrive only after opening it). Then open Velivo again – it will tell you what is still missing.</string>
     <string name="kom_alerts_on">Turn on</string>
+    <string-array name="theme_colors"><item>Graphite</item><item>Navy</item><item>Night violet</item><item>Forest</item><item>Ocean</item><item>Sunset</item><item>Black (OLED)</item><item>Paper</item><item>Mist</item></string-array>
 </resources>

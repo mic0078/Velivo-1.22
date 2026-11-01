@@ -212,10 +212,19 @@ class MainActivity : Activity() {
 
     // Kolory jak w Velivo na Windows; motyw: 0 = jak telefon, 1 = jasny, 2 = ciemny (domyślny), 3 = czarno-biały (wysoki kontrast).
     private val contrast by lazy { prefs.getInt("motyw", 2) == 3 }
+    // 4–12: kolorowe motywy jak w Velivo na Windows (Grafit, Granat, Nocny fiolet, Las, Ocean, Zachód słońca, Czerń OLED, Papier, Mgła): pasek, przyciski, tekst, pole
+    private val palettes = listOf(
+        arrayOf("#1F2328", "#2D333B", "#3B444F", "#E6EDF3", "#22272E"), arrayOf("#0B1A33", "#132A4D", "#1E3A66", "#E2E8F0", "#0E2140"),
+        arrayOf("#1E1033", "#2E1A4D", "#3E2766", "#EDE9FE", "#24143E"), arrayOf("#0F2A1D", "#17402C", "#215A3E", "#DCFCE7", "#123322"),
+        arrayOf("#062A33", "#0B3C48", "#145566", "#CFFAFE", "#08323D"), arrayOf("#3B1D2E", "#5A2A3D", "#7A3A50", "#FFE4E6", "#4A2333"),
+        arrayOf("#000000", "#0A0A0A", "#262626", "#F5F5F5", "#111111"), arrayOf("#EDE6D6", "#F8F3E7", "#E6DCC5", "#3B3326", "#FFFCF5"),
+        arrayOf("#D5DCE4", "#E8EDF2", "#CBD5E1", "#1E293B", "#FFFFFF"))
+    private val pal by lazy { palettes.getOrNull(prefs.getInt("motyw", 2) - 4) }
+    private fun pc(i: Int, def: Int) = pal?.let { Color.parseColor(it[i]) } ?: def
     private val dark by lazy {
         when (prefs.getInt("motyw", 2)) {   // domyślnie ciemny Velivo
-            1 -> false
-            2, 3 -> true
+            1, 11, 12 -> false
+            in 2..10 -> true
             else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         }
     }
@@ -228,12 +237,12 @@ class MainActivity : Activity() {
     // Kolory Velivo z ikony: fiolet -> turkus. Tła paskow i przyciskow w odcieniach fioletu Velivo (nie szare).
     private val BRAND1 by lazy { if (contrast) Color.BLACK else Color.parseColor("#6D3FDB") }
     private val BRAND2 by lazy { if (contrast) Color.WHITE else Color.parseColor("#2BA9D8") }
-    private val BAR by lazy { c("#EEE9FB", "#1B1733") }
-    private val TEXT by lazy { c("#2A2150", "#ECE8FF") }
-    private val FIELD by lazy { c("#FFFFFF", "#120F24") }
-    private val GRAY_BG by lazy { c("#E2DBF7", "#2A2450") }
+    private val BAR by lazy { pc(0, c("#EEE9FB", "#1B1733")) }
+    private val TEXT by lazy { pc(3, c("#2A2150", "#ECE8FF")) }
+    private val FIELD by lazy { pc(4, c("#FFFFFF", "#120F24")) }
+    private val GRAY_BG by lazy { pc(1, c("#E2DBF7", "#2A2450")) }
     private val BLUE by lazy { c("#4A2FB8", "#B3A6FF") }
-    private val BLUE_BG by lazy { c("#E4DDFB", "#2E2768") }
+    private val BLUE_BG by lazy { pc(2, c("#E4DDFB", "#2E2768")) }
     private val GREEN by lazy { c("#15803D", "#86EFAC") }
     private val GREEN_BG by lazy { c("#DCFCE7", "#14532D") }
     private val ORANGE by lazy { c("#C2410C", "#FDBA74") }
@@ -3374,7 +3383,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
 
     // --- Motyw ----------------------------------------------------------------
     private fun chooseTheme() {
-        val names = arrayOf(getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark), getString(R.string.theme_contrast))
+        val names = arrayOf(getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark), getString(R.string.theme_contrast)) + resources.getStringArray(R.array.theme_colors)
         AlertDialog.Builder(this)
             .setTitle(R.string.theme)
             .setSingleChoiceItems(names, prefs.getInt("motyw", 2)) { d, i ->

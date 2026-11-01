@@ -1357,6 +1357,8 @@ namespace Velivo
             { "Brak opisu tego filmu.", "No description for this film." },
             { "Kliknij: pełny opis programu", "Click: full programme description" },
             { "Kliknij: opis filmu", "Click: film description" },
+            { "🎬 Filmy na tym komputerze", "🎬 Films on this computer" },
+            { "🌐 Wspólna biblioteka", "🌐 Shared library" },
             { "Lektor", "Narrator" },
             { "Dźwięk", "Audio" },
             { "Proporcje", "Aspect" },

@@ -141,3 +141,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-01: prawy przycisk na ⭐ Filmy – przewijana lista wszystkich filmów (plakaty w tle), na ⭐ Kanały – kanały grupy, która leci (albo ostatnio oglądanej).
 * 2026-11-01: klik w plakat / logo za zegarem – okienko: film (plakat, tytuł, rok, ★, wiek, gatunki, opis, reżyseria, obsada z Jellyfin), TV (program, godziny, kategorie, pełny opis, co potem).
 * 2026-11-01: pasek postępu – po kliknięciu suwak trzyma nowe miejsce do 4 s (VLC podaje jeszcze stary czas i suwak wracał – wyglądało, jakby klik nie zadziałał); puszczenie myszy poza paskiem nie zamraża suwaka.
+* 2026-11-01: lista filmów nad filmem: „🎬 Filmy na tym komputerze” i osobno „🌐 Wspólna biblioteka” (dyski sieciowe + filmy innych komputerów) – wcześniej razem, każdy film dwa razy; to samo w menu „📚 Wszystkie filmy”.

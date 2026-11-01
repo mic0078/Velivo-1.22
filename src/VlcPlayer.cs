@@ -2426,13 +2426,13 @@ namespace Velivo
             chSort.SelectionChanged += (s, e) => { if (chSort.Tag is string pref && chSort.SelectedItem is ComboBoxItem si) { SetPref(pref, (string)si.Tag); showChannelsRefresh(); } };
             Action showFilms = () =>
             {
-                const string fCur = "\u0001cur", fRec = "\u0001rec", fAll = "\u0001all";
+                const string fCur = "\u0001cur", fRec = "\u0001rec", fAll = "\u0001all", fShr = "\u0001shr";
                 // grupy: kolejka, ostatnio ogladane, wszystkie, moja kolejka i zapisane playlisty (odswiezane, gdy sie zmienia)
                 var pls = LoadPlaylists();
                 // kolejka = cala biblioteka (film wlaczony z pelnej listy) - nie pokazujemy jej osobno, to "Wszystkie filmy"
                 var libLocal = LoadLibrary().Count(v => v.Peer == null);
                 bool realQueue = _playlist.Count > 1 && _playlist.Count < libLocal || _playlist.Count >= 1 && _remoteFilms.ContainsKey(_playlist[0]);
-                var want = new List<(string Text, string Tag)> { (L.T("🕘 Ostatnio oglądane"), fRec), (L.T("🎬 Wszystkie filmy"), fAll) };
+                var want = new List<(string Text, string Tag)> { (L.T("🕘 Ostatnio oglądane"), fRec), (L.T("🎬 Filmy na tym komputerze"), fAll), (L.T("🌐 Wspólna biblioteka"), fShr) };
                 want.Insert(0, (L.T("▶ Kolejka") + (!realQueue ? L.T(" (pusta)") : _remoteFilms.ContainsKey(_playlist[0]) ? "" : " (" + _playlist.Count + ")"), fCur));
                 if (pls.Mine.Count > 0) want.Add((L.T("📋 Moja kolejka") + " (" + pls.Mine.Count + ")", "\u0001mine"));
                 foreach (var n in pls.Named.Keys.OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)) want.Add(("🎞 " + n + " (" + pls.Named[n].Count + ")", "\u0001pl:" + n));
@@ -2469,7 +2469,8 @@ namespace Velivo
                     : fk == fRec ? libAll.Where(v => v.Last > 0 && v.Peer == null).ToList()
                     : fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? (fk.StartsWith("\u0001mine") ? pls.Mine : pls.Named.TryGetValue(fk.Substring(4), out var pl0) ? pl0 : new List<string>())
                         .Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList()   // kolejnosc playlisty
-                    : SortFilms(libAll.Where(v => v.Peer == null && !IsTvRec(v.Path, recDirs)), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
+                    : SortFilms(libAll.Where(v => v.Peer == null && IsShared(v) == (fk == fShr) && !IsTvRec(v.Path, recDirs))   // ten komputer albo wspólna biblioteka - osobno (były razem, każdy film dwa razy)
+                        .GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
                 // sortowanie nie dotyczy kolejnosci odtwarzania ani ostatnio ogladanych (zawsze od najnowszego)
                 chSort.Visibility = fk == fRec || fk == fCur && !remoteCur || fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? Visibility.Collapsed : Visibility.Visible;
                 chList.Items.Clear(); ListBoxItem cur = null;
@@ -2525,7 +2526,15 @@ namespace Velivo
                         .OrderByDescending(e => e.w).Take(60).ToList();
                     foreach (var e in order) { if (e.p.HasValue) addPeer(e.p.Value); else addLocal(e.k); }
                 }
-                else for (int k = 0; k < films.Count; k++) addLocal(k);
+                else
+                {
+                    for (int k = 0; k < films.Count; k++) addLocal(k);
+                    if (fk == fShr)   // wspólna biblioteka: dyski sieciowe i filmy z innych komputerów Velivo
+                    {
+                        foreach (var kv in PeerQueue(how)) addPeer(kv);
+                        if (chList.Items.Count == 0) chList.Items.Add(new ListBoxItem { Content = new TextBlock { Text = L.T("Otwórz wspólną bibliotekę, aby wczytać listę filmów z innych komputerów."), Foreground = Brushes.Silver, TextWrapping = TextWrapping.Wrap }, IsEnabled = false });
+                    }
+                }
                 chPanel.Visibility = Visibility.Visible;
                 if (cur != null) chList.ScrollIntoView(cur);
                 chHide.Stop(); if (!chPanel.IsMouseOver) chHide.Start();
@@ -3367,7 +3376,7 @@ namespace Velivo
                 fSub(L.T("🕘 Ostatnio oglądane"), libF.Where(v => v.Last > 0).OrderByDescending(v => v.Last).Take(20));
                 var favF = LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>();
                 fSub(L.T("⭐ Ulubione"), favF.Select(u => libF.FirstOrDefault(v => string.Equals(v.Path, u, StringComparison.OrdinalIgnoreCase))).Where(v => v != null).OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
-                var recD = TvRecDirs(); var allF = libF.Where(v => !IsTvRec(v.Path, recD)).ToList();   // nagrania TV - tylko w "Nagrane z TV"
+                var recD = TvRecDirs(); var allF = libF.Where(v => !IsShared(v) && !IsTvRec(v.Path, recD)).GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();   // tylko ten komputer, bez powtórek (wspólna - osobno)   // nagrania TV - tylko w "Nagrane z TV"
                 fSub(L.T("📚 Wszystkie filmy (") + allF.Count + ")", allF.OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
                 if (fm.Items.Count > 0) fm.Items.Add(new Separator());
                 pa(fm, L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(false, Window.GetWindow(overlay) ?? win); if (fs != null && fs.Length > 0) pipShow(pipFilm(fs[0])); }, true);

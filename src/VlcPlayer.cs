@@ -1232,15 +1232,15 @@ namespace Velivo
         }
 
         // nowoczesny suwak (pasek postepu, glosnosc, PiP): cienka linia, niebieska czesc do uchwytu, okragly bialy uchwyt
-        internal static Style ModernSliderStyle()
+        internal static Style ModernSliderStyle(string fill = "#3B82F6")   // fill: kolor wypełnienia (głośność - zielona)
         {
-            return (Style)System.Windows.Markup.XamlReader.Parse(@"<Style TargetType='Slider' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Slider'>
+            return (Style)System.Windows.Markup.XamlReader.Parse((@"<Style TargetType='Slider' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Slider'>
   <Grid Height='16' Background='Transparent'><Border Height='4' CornerRadius='2' Background='#55FFFFFF' VerticalAlignment='Center'/>
     <Track x:Name='PART_Track' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
-      <Track.DecreaseRepeatButton><RepeatButton Command='Slider.DecreaseLarge'><RepeatButton.Template><ControlTemplate><Border Height='4' CornerRadius='2' Background='#3B82F6' VerticalAlignment='Center'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+      <Track.DecreaseRepeatButton><RepeatButton Command='Slider.DecreaseLarge'><RepeatButton.Template><ControlTemplate><Border Height='4' CornerRadius='2' Background='"+fill+@"' VerticalAlignment='Center'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
       <Track.IncreaseRepeatButton><RepeatButton Command='Slider.IncreaseLarge'><RepeatButton.Template><ControlTemplate><Border Background='Transparent'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
       <Track.Thumb><Thumb><Thumb.Template><ControlTemplate><Ellipse Width='12' Height='12' Fill='White'/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
-    </Track></Grid></ControlTemplate></Setter.Value></Setter></Style>");
+    </Track></Grid></ControlTemplate></Setter.Value></Setter></Style>"));
         }
 
         // przyciski odtwarzacza: bez ramki, zaokraglone podswietlenie pod mysza, wylaczony = przygaszony
@@ -1513,7 +1513,7 @@ namespace Velivo
             var fav = glyphBtn("star", L.T("Ulubione – kanał do ⭐ Ulubionych, film do playlisty ⭐ Ulubione"));
             var sleep = glyphBtn("moon", L.T("Wyłącznik czasowy – zatrzymaj po czasie albo po końcu filmu")); sleep.Width = double.NaN; sleep.MinWidth = 40; sleep.Padding = new Thickness(8, 0, 8, 0);
             var pipBtn = glyphBtn("pip", L.T("Obraz w obrazie (PiP) – podgląd drugiego kanału TV"));
-            var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, Style = ModernSliderStyle(), Cursor = Cursors.Hand, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };
+            var vol = new Slider { Minimum = 0, Maximum = 125, Value = 100, Width = 110, VerticalAlignment = VerticalAlignment.Center, IsMoveToPointEnabled = true, Style = ModernSliderStyle("#22C55E"), Cursor = Cursors.Hand, ToolTip = L.T("Głośność (↑ ↓, kółko myszy)") };   // zielona - inna niż pasek postępu
             var volText = new TextBlock { Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Width = 44, Margin = new Thickness(6, 0, 8, 0), Text = "100%" };
             var left = new StackPanel { Orientation = Orientation.Horizontal };
             // telewizja na zywo: zamiast -10 s / +10 s / predkosci - powrot po ostatnio przelaczanych kanalach (pamiec 20)
@@ -1551,7 +1551,7 @@ namespace Velivo
             var controls = new StackPanel { Background = barBg(int.TryParse(GetPref("pasek-alfa"), out var ba) ? ba : 15), VerticalAlignment = VerticalAlignment.Bottom };
             // pasek postepu tak szeroki jak przyciski (konczy sie za "100%"); miejsce z prawej - na szybkie ikony
             var mainCol = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };   // do dolu - rzad przyciskow w jednej linii z szybkimi ikonami
-            mainCol.Children.Add(seekRow); mainCol.Children.Add(toolsRow); mainCol.Children.Add(btnRow);
+            mainCol.Children.Add(toolsRow); mainCol.Children.Add(btnRow);   // pasek postępu - osobno, nad całym paskiem (ctlRow)
             // szybkie ikony z prawej (te same znaki co w menu pod prawym przyciskiem, rozmiar jak przyciski obok)
             // szybkie ikony z prawej - ten sam rysowany styl i wysokosc co przyciski obok
             Func<string, string, Button> qBtn = glyphBtn;
@@ -1596,7 +1596,39 @@ namespace Velivo
                 ToolTip = L.T("⏱ O której skończy się film (albo audycja TV według programu) i ile zostało.\n● Odbiór: Dobry – płynnie; Słaby – gubi klatki (przycina komputer albo łącze); Przerywa – strumień staje albo się buforuje.") };
             endText.Inlines.Add(endRun); endText.Inlines.Add(new System.Windows.Documents.LineBreak()); endText.Inlines.Add(dotRun); endText.Inlines.Add(new System.Windows.Documents.Run(" ")); endText.Inlines.Add(stateRun); endText.Inlines.Add(leftRun);
             var lostHist = new Queue<int>();   // utracone klatki z ostatnich 10 s
-            quick.Children.Add(netBox); quick.Children.Add(endText); quick.Children.Add(clockBox);
+            // za zegarem: film – plakat, ocena i gatunek (z Jellyfin); telewizja – logo stacji
+            var badgeImg = new Image { Height = 40, MaxWidth = 72, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };
+            RenderOptions.SetBitmapScalingMode(badgeImg, BitmapScalingMode.HighQuality);
+            var badgeRate = new TextBlock { Foreground = Brushes.Gold, FontSize = 13, FontWeight = FontWeights.SemiBold };
+            var badgeGenre = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, MaxWidth = 170, TextTrimming = TextTrimming.CharacterEllipsis };
+            var badgeTxt = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) }; badgeTxt.Children.Add(badgeRate); badgeTxt.Children.Add(badgeGenre);
+            var badge = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 6, 0), Visibility = Visibility.Collapsed };
+            badge.Children.Add(badgeImg); badge.Children.Add(badgeTxt);
+            int badgeSeq = 0;
+            Func<string, IptvChannel, System.Threading.Tasks.Task> showBadge = async (p, ch) =>
+            {
+                int my = ++badgeSeq; ImageSource img = null; string rate = "", gen = "";
+                try
+                {
+                    if (ch != null) img = string.IsNullOrEmpty(ch.Logo) ? null : await GetLogo(ch.Logo);
+                    else
+                    {
+                        var m = MetaFor(p);
+                        if (m != null)
+                        {
+                            if (m.Poster != null) { var pf = System.IO.Path.Combine(PosterDir, m.Poster); if (File.Exists(pf)) img = LoadLogo(pf, 120); }
+                            rate = m.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : ""; gen = m.Genres.Count > 0 ? string.Join(", ", m.Genres.Take(3)) : "";
+                        }
+                    }
+                }
+                catch (Exception ex) { App.LogError(ex); }
+                if (my != badgeSeq) return;   // w międzyczasie inny film/kanał
+                badgeImg.Source = img; badgeImg.Visibility = img != null ? Visibility.Visible : Visibility.Collapsed;
+                badgeRate.Text = rate; badgeGenre.Text = gen; badgeTxt.Visibility = rate.Length + gen.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                badge.ToolTip = ch != null ? ch.Name : string.Join("\n", new[] { rate, gen }.Where(x => x.Length > 0));
+                badge.Visibility = img != null || rate.Length + gen.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            };
+            quick.Children.Add(netBox); quick.Children.Add(endText); quick.Children.Add(clockBox); quick.Children.Add(badge);
             netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
             // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
@@ -1727,14 +1759,29 @@ namespace Velivo
             var infoSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
             DockPanel.SetDock(recPill, Dock.Left); DockPanel.SetDock(connText, Dock.Left); DockPanel.SetDock(streamInfo, Dock.Right); DockPanel.SetDock(infoSep, Dock.Right);
             statusRow.Children.Add(recPill); statusRow.Children.Add(connText); statusRow.Children.Add(streamInfo); statusRow.Children.Add(infoSep);
-            var quickCol = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom }; quickCol.Children.Add(statusRow); quickCol.Children.Add(quick);
+            // układ: u góry pasek postępu (przez całą szerokość, do danych strumienia) i dane strumienia; pod spodem przyciski i szybkie ikony
+            quick.VerticalAlignment = VerticalAlignment.Bottom;
             // dane strumienia rowno od lewej z wykresem sieci (zaraz za separatorem)
             SizeChangedEventHandler alignInfo = (s, e) =>
             {
-                try { var x = netBox.TranslatePoint(new Point(0, 0), statusRow).X; if (x > 0 && statusRow.ActualWidth > x) streamInfo.Width = statusRow.ActualWidth - x; } catch (InvalidOperationException) { }
+                try
+                {
+                    var x = netBox.TranslatePoint(new Point(0, 0), statusRow).X; if (x > 0 && statusRow.ActualWidth > x) streamInfo.Width = statusRow.ActualWidth - x;
+                    // pasek postępu sięga do danych strumienia; przy nagrywaniu / połączeniach (napisy po lewej) - tylko nad przyciskami
+                    bool free = recPill.Visibility != Visibility.Visible && connText.Visibility != Visibility.Visible;
+                    double r = free && x > 0 ? statusRow.ActualWidth - x + 16 : statusRow.ActualWidth + statusRow.Margin.Left;
+                    r = Math.Max(0, Math.Round(r));
+                    if (Math.Abs(seekRow.Margin.Right - r) > 1) seekRow.Margin = new Thickness(0, 4, r, 0);
+                }
+                catch (InvalidOperationException) { }
             };
             statusRow.SizeChanged += alignInfo; quick.SizeChanged += alignInfo;
-            var ctlRow = new StackPanel { Orientation = Orientation.Horizontal }; ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quickCol);
+            recPill.IsVisibleChanged += (s, e) => alignInfo(s, null); connText.IsVisibleChanged += (s, e) => alignInfo(s, null);
+            var ctlRow = new Grid();
+            ctlRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); ctlRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            ctlRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); ctlRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            Grid.SetColumnSpan(seekRow, 2); Grid.SetColumn(statusRow, 1); Grid.SetRow(mainCol, 1); Grid.SetRow(quick, 1); Grid.SetColumn(quick, 1);
+            ctlRow.Children.Add(seekRow); ctlRow.Children.Add(statusRow); ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quick);
             // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
             var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
             recDot.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.35, TimeSpan.FromSeconds(1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
@@ -2630,6 +2677,7 @@ namespace Velivo
                 }
                 _iptvPlaying.TryGetValue(path, out var tv);   // kanal telewizji (IPTV) - bez biblioteki, napisow i wznawiania
                 bool liveTv = tv != null && tv.ArchiveStart == null;
+                _ = showBadge(path, tv);
                 filmNav.Visibility = liveTv ? Visibility.Collapsed : Visibility.Visible; tvNav.Visibility = liveTv ? Visibility.Visible : Visibility.Collapsed;
                 if (liveTv && !chNav && (chHist.Count == 0 || chHist[chHist.Count - 1] != tv.Url)) { chHist.Add(tv.Url); if (chHist.Count > 20) chHist.RemoveAt(0); SaveIptv(IptvSt); }
                 if (liveTv && !chNav) chPos = chHist.Count - 1;   // zwykle przelaczenie - jestesmy na koncu historii

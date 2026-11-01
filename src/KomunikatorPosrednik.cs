@@ -1433,6 +1433,23 @@ namespace Velivo
             w.Closed += (s, e) => t.Stop();
             w.Show(); w.Activate(); t.Start();
         }
+        // 🗑 dane osoby na tym serwerze: kopia rozmów, konto (numer + PIN), pliki i wiadomości w skrzynce 📬
+        void KomWipeUser(string id)
+        {
+            if (id is not { Length: 32 } || !id.All(Uri.IsHexDigit)) return;
+            foreach (var ext in new[] { ".gz", ".json" }) try { File.Delete(Path.Combine(KomRestoreDir, id + ext)); } catch (Exception) { }
+            try { if (Directory.Exists(KomBoxDir(id))) Directory.Delete(KomBoxDir(id), true); } catch (Exception) { }
+            KomAccounts().Remove(id);
+            App.LogInfo("Pośrednik: usunięto dane konta " + id.Substring(0, 6));
+        }
+        // 🗑 użytkownik sam usuwa swoje dane i konto z serwera (telefon: 💾 → Usuń moje dane z serwerów) - bez blokady, może założyć konto od nowa
+        const string KomWipeMeTag = "\u0001velivo-usun-mnie\n";
+        void KomWipeMe(KomContact c)
+        {
+            if (_komRelayListener == null || c.IsGroup) return;
+            KomWipeUser(c.Id);
+            _komContacts.RemoveAll(x => x.Id == c.Id); KomSave(); _komRefresh?.Invoke();
+        }
         // 📝 konta na serwerze (jak w Signalu): ktoś z internetu instaluje Komunikator, podaje adres serwera, imię, numer i PIN - serwer zakłada mu konto
         // (otwarta - od razu; za zgodą - właściciel klika; wyłączona - nikt). Numer bez SMS-a: tylko nazwa konta, chroni go PIN; pierwszy zajmuje numer.
         string KomRegMode => (string)_komOpt["rejestracja"] is "otwarta" or "wylaczona" ? (string)_komOpt["rejestracja"] : "zgoda";
@@ -1523,6 +1540,7 @@ namespace Velivo
         {
             if (_komOpt["removed"] is not JsonArray ra) _komOpt["removed"] = ra = new JsonArray();
             if (!KomForgotten(id)) ra.Add(id);
+            KomWipeUser(id);
             _komContacts.RemoveAll(x => x.Id == id); KomSave(); _komRefresh?.Invoke();
             if (spread) foreach (var r in _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay)).ToList())
                 KomDeliver(r, new KomMsg { Mine = true, Text = KomForgetTag + id, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });

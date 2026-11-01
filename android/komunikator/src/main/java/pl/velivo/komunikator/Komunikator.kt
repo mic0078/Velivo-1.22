@@ -225,6 +225,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         }
         return if (cancel()) (if (pl) "Przerwano" else "Cancelled") else (if (pl) "Nikt nie potwierdził na serwerze (5 min) – spróbuj jeszcze raz" else "Nobody confirmed on the server (5 min) – try again")
     }
+    // 🗑 moje dane z serwerów: kopia, konto, skrzynka - serwery je kasują i usuwają mnie z kontaktów (bez blokady); u mnie znika numer i PIN
+    fun wipeServerData(): Int {
+        val rs = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup } }
+        rs.forEach { hidden(it, WIPE) }
+        prefs.edit().remove("login-nr").remove("login-l").remove("login-v").remove("kopia-serwer").apply()
+        return rs.size
+    }
     // 🔎 znajomy po numerze: pytanie do moich serwerów; znaleziony - oboje dostajecie siebie nawzajem (prośba o kontakt), nie - odpowiedź serwera w rozmowie z nim
     fun findByNumber(nr: String): Int {
         if (nr.count { it.isDigit() } < 8) return 0
@@ -1858,6 +1865,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val CARD = "\u0001velivo-kontakt\n"
         const val DEL = "\u0001velivo-usun\n"
         const val CLIP = "\u0001velivo-schowek\n"; const val EDIT = "\u0001velivo-edycja\n"; const val REACT = "\u0001velivo-reakcja\n"; const val PHOTO = "\u0001velivo-zdjecie\n"; const val TIMER = "\u0001velivo-znikanie\n"
+        const val WIPE = "\u0001velivo-usun-mnie\n"   // 🗑 usuń moje dane z serwera
         const val FIND = "\u0001velivo-szukaj\n"   // 🔎 szukanie konta po numerze na moich serwerach
         const val ADDR = "\u0001velivo-adres\n"; const val ASK = "\u0001velivo-prosba\n"; const val ASKOK = "\u0001velivo-prosba-ok\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
@@ -2348,7 +2356,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             "☁ " + t("Kopia na moich serwerach: ", "Backup on my servers: ") + (if (at > 0) java.text.SimpleDateFormat("d.MM HH:mm", Locale.ROOT).format(java.util.Date(at)) + t(" (sama, co 30 min) – stuknij: teraz", " (automatic, every 30 min) – tap: now") else t("jeszcze nie – stuknij: teraz", "not yet – tap: now")),
             "♻ " + t("Przywróć z serwera (nowy albo wyczyszczony telefon)…", "Restore from the server (new or reset phone)…"),
             "💾 " + t("Zapisz kopię do pliku (telefon, Google Drive)…", "Save a backup file (phone, Google Drive)…"),
-            "📥 " + t("Przywróć z pliku kopii…", "Restore from a backup file…"), "ℹ " + t("Jak to działa?", "How does it work?"))
+            "📥 " + t("Przywróć z pliku kopii…", "Restore from a backup file…"), "🗑 " + t("Usuń moje dane z serwerów…", "Delete my data from the servers…"), "ℹ " + t("Jak to działa?", "How does it work?"))
         // bez setMessage - Android przy tekście chowa listę (było puste okienko z samym opisem)
         val info = t("Kontakty, rozmowy i ustawienia same idą na Twoje serwery. Nowy telefon: ♻ Przywróć z serwera – wpisz swój numer i PIN i wszystko wraca (bez numeru – właściciel serwera klika „Tak”). Zdjęcia i filmy z rozmów nie wchodzą do kopii.",
                 "Contacts, chats and settings go to your servers automatically. New phone: ♻ Restore from the server – enter your number and PIN and everything comes back (without a number – the server owner clicks “Yes”). Photos and videos from chats are not in the backup.")
@@ -2362,7 +2370,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 3 -> password(true) { p -> backupPass = p
                     runCatching { a.startActivityForResult(android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("application/octet-stream")
                         .putExtra(android.content.Intent.EXTRA_TITLE, "Velivo-kopia-" + java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(java.util.Date()) + ".velivo"), Komunikator.REQ_BACKUP) } }
-                5 -> Dlg().setTitle("ℹ " + t("Kopia i przywracanie", "Backup and restore")).setMessage(info).setPositiveButton(android.R.string.ok) { _, _ -> backupMenu() }.show()
+                5 -> Dlg().setTitle("🗑 " + t("Usuń moje dane z serwerów", "Delete my data from the servers"))
+                    .setMessage(t("Twoje serwery usuną: kopię Twoich kontaktów i rozmów, konto (numer i PIN) oraz czekające w skrzynce wiadomości i pliki. Przestaną też przekazywać Twoje wiadomości, dopóki nie dodasz serwera od nowa. Rozmowy w tym telefonie zostają.",
+                        "Your servers delete: the backup of your contacts and chats, the account (number and PIN) and messages and files waiting in the mailbox. They also stop passing your messages until you add the server again. Chats on this phone stay."))
+                    .setPositiveButton(t("Usuń", "Delete")) { _, _ -> val n = k.wipeServerData(); Toast.makeText(a, if (n > 0) t("🗑 Usunięto z serwerów: ", "🗑 Deleted from servers: ") + n else t("Brak serwerów w kontaktach", "No servers in contacts"), Toast.LENGTH_LONG).show() }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+                6 -> Dlg().setTitle("ℹ " + t("Kopia i przywracanie", "Backup and restore")).setMessage(info).setPositiveButton(android.R.string.ok) { _, _ -> backupMenu() }.show()
                 else -> Dlg().setMessage(t("Kopia zastąpi kontakty i rozmowy w tym telefonie (telefon dostanie identyfikator z kopii – kontakty dalej Cię znają). Dalej?",
                         "The backup replaces contacts and chats on this phone (it gets the identity from the backup – contacts still know you). Continue?"))
                     .setPositiveButton(t("Wybierz plik", "Choose file")) { _, _ -> pickingBackup = true; pickFiles() }.setNegativeButton(android.R.string.cancel, null).show()

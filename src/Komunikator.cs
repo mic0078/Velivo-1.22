@@ -553,6 +553,7 @@ namespace Velivo
             if (text.StartsWith(KomAskOkTag, StringComparison.Ordinal)) { KomAskAnswer(c, text.Substring(KomAskOkTag.Length)); return; }   // 🔗 odpowiedź na prośbę
             if (text.StartsWith(KomAskTag, StringComparison.Ordinal)) { KomAskIn(c, text.Substring(KomAskTag.Length)); return; }   // 🔗 prośba z „Mojego adresu” (przez pośrednika)
             if (text.StartsWith(KomTimerTag, StringComparison.Ordinal)) { KomTtlIn(c, text.Substring(KomTimerTag.Length)); return; }   // ⏳ znikające wiadomości
+            if (text.StartsWith(KomWipeMeTag, StringComparison.Ordinal)) { KomWipeMe(c); return; }   // 🗑 osoba usuwa swoje dane z serwera
             if (text.StartsWith(KomFindTag, StringComparison.Ordinal)) { KomFindIn(c, text.Substring(KomFindTag.Length)); return; }   // 🔎 szukanie konta po numerze
             if (text.StartsWith(KomRestoreTag, StringComparison.Ordinal)) return;   // ♻ starsza wersja (kod odzyskiwania) - kopia idzie teraz osobnym połączeniem
             if (text.StartsWith(KomForgetTag, StringComparison.Ordinal)) { if (c.Dom && _komRelayListener != null) KomForget(text.Substring(KomForgetTag.Length).Trim(), false); return; }   // 🗑 kontakt usunięty na moim drugim serwerze

@@ -1534,12 +1534,35 @@ namespace Velivo
                             var ms = new MemoryStream(); await th.AsStreamForRead().CopyToAsync(ms); ms.Position = 0;
                             var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.StreamSource = ms; b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); b.Freeze(); img = b;
                         }
+                    if (img == null) { var g = await KomGrabFrame(path); img = g.img; if (d.TotalSeconds < 1) d = g.len; }   // .webm z Windows - Eksplorator nie ma miniatury, klatka z odtwarzacza
                     v = (img, d.TotalSeconds >= 1 ? "🎥 " + (int)d.TotalMinutes + ":" + d.Seconds.ToString("00") : "🎥");   // długości nie zna (webm) - bez „0:00”
                     _komVThumbs[path] = v;
                 }
                 target.Source = v.img; lenText.Text = v.len;
             }
             catch (Exception) { lenText.Text = "🎥"; }   // brak miniatury (np. kodek nieznany Windows) - czarny kafelek z ▶ i tak pokazuje, że to film
+        }
+
+        // klatka filmu przez niewidoczny odtwarzacz Windows (gdy Eksplorator nie daje miniatury); 6 s na próbę
+        static async Task<(ImageSource img, TimeSpan len)> KomGrabFrame(string path)
+        {
+            var p = new MediaPlayer { IsMuted = true, ScrubbingEnabled = true };
+            try
+            {
+                var opened = new TaskCompletionSource<bool>();
+                p.MediaOpened += (s, e) => opened.TrySetResult(true); p.MediaFailed += (s, e) => opened.TrySetResult(false);
+                p.Open(new Uri(path));
+                if (await Task.WhenAny(opened.Task, Task.Delay(6000)) != opened.Task || !opened.Task.Result || p.NaturalVideoWidth == 0) return (null, TimeSpan.Zero);
+                var len = p.NaturalDuration.HasTimeSpan ? p.NaturalDuration.TimeSpan : TimeSpan.Zero;
+                p.Position = TimeSpan.FromMilliseconds(Math.Min(500, Math.Max(0, len.TotalMilliseconds / 2))); p.Pause();
+                await Task.Delay(700);   // klatka musi się zdekodować
+                int w = 260, h = Math.Max(1, (int)(260.0 * p.NaturalVideoHeight / p.NaturalVideoWidth));
+                var dv = new DrawingVisual(); using (var dc = dv.RenderOpen()) dc.DrawVideo(p, new Rect(0, 0, w, h));
+                var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32); bmp.Render(dv); bmp.Freeze();
+                return (bmp, len);
+            }
+            catch (Exception) { return (null, TimeSpan.Zero); }
+            finally { try { p.Close(); } catch (Exception) { } }
         }
 
         ImageSource KomThumb(string path)

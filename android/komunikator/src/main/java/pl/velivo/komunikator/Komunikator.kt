@@ -2989,7 +2989,44 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val scroll = ScrollView(a).apply { addView(msgs); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }
         val fmt = java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
         val dayFmt = java.text.SimpleDateFormat("EEEE, d MMMM", Locale.getDefault())
+        // ☑ zaznaczanie jak w WhatsApp: przytrzymanie zaznacza wiadomość, stuknięcia dodają / odznaczają, u góry pasek akcji z podpisami
+        val picked = mutableListOf<Komunikator.Msg>()
+        val selBar = LinearLayout(a).apply { visibility = View.GONE; setPadding(px(6), px(6), px(6), px(6)); setBackgroundColor(Color.argb(0x60, 0x8B, 0x5C, 0xF6)); gravity = Gravity.CENTER_VERTICAL }
+        lateinit var fillRef: () -> Unit
+        fun selEnd() { picked.clear(); fillRef() }
+        fun selAct(icon: String, label: String, run: () -> Unit) = TextView(a).apply {
+            text = icon + "\n" + label; gravity = Gravity.CENTER; textSize = 12f; setTextColor(Color.WHITE); setPadding(px(2), px(4), px(2), px(4))
+            background = GradientDrawable().apply { setColor(Color.argb(0x40, 0, 0, 0)); cornerRadius = px(10).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(px(2), 0, px(2), 0) }
+            setOnClickListener { run() }
+        }
+        fun selUpdate() {
+            selBar.removeAllViews(); if (picked.isEmpty()) { selBar.visibility = View.GONE; return }
+            selBar.visibility = View.VISIBLE
+            val one = picked.singleOrNull(); val list = picked.sortedBy { it.ts }
+            selBar.addView(selAct("✕", picked.size.toString()) { selEnd() })
+            if (one != null) selBar.addView(selAct("↩", t("Odpowiedz", "Reply")) { selEnd(); onReply?.invoke(one) })
+            selBar.addView(selAct("📋", t("Kopiuj", "Copy")) {
+                val txt = if (one != null) one.text else list.joinToString("\n") { (if (it.mine) t("Ja", "Me") else c.name) + ": " + it.text }
+                (a.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Velivo", txt)); Toast.makeText(a, t("Skopiowano", "Copied"), Toast.LENGTH_SHORT).show(); selEnd() })
+            selBar.addView(selAct("↪", t("Przekaż", "Forward")) { selEnd(); forwardAll(c, list) })
+            selBar.addView(selAct("🗑", t("U mnie", "For me")) { Dlg().setMessage(t("Usunąć zaznaczone u mnie: ", "Delete selected for me: ") + list.size + "?")
+                .setPositiveButton(t("Usuń", "Delete")) { _, _ -> list.forEach { k.deleteLocal(c, it) }; selEnd() }.setNegativeButton(android.R.string.cancel, null).show() })
+            val mine = list.filter { it.mine && !it.text.startsWith("🚫") }; val other = list.filter { !it.mine }
+            if (mine.isNotEmpty()) selBar.addView(selAct("🚫", t("U wszystkich", "For all")) {
+                Dlg().setMessage(t("Usunąć u wszystkich Twoje zaznaczone wiadomości: ", "Delete for everyone your selected messages: ") + mine.size +
+                        (if (other.isNotEmpty()) t("\nWiadomości rozmówcy (${other.size}) znikną tylko u Ciebie.", "\nThe other person's messages (${other.size}) will disappear only for you.") else "") + "?")
+                    .setPositiveButton(t("Usuń", "Delete")) { _, _ -> other.forEach { k.deleteLocal(c, it) }; Thread { mine.forEach { k.deleteForAll(c, it) } }.start(); selEnd() }.setNegativeButton(android.R.string.cancel, null).show() })
+            if (one != null) selBar.addView(selAct("⋯", t("Więcej", "More")) { selEnd(); msgMenu(c, one) })
+        }
+        // każdy dymek / zdjęcie: przytrzymanie zaznacza; w trybie zaznaczania stuknięcie zaznacza / odznacza zamiast otwierać
+        fun selectable(v: View, m: Komunikator.Msg) {
+            v.setOnLongClickListener { if (picked.none { it === m }) picked.add(m); fillRef(); true }
+            if (picked.isNotEmpty()) v.setOnClickListener { if (picked.removeAll { it === m }) Unit else picked.add(m); fillRef() }
+            if (picked.any { it === m }) v.foreground = android.graphics.drawable.ColorDrawable(Color.argb(0x70, 0x22, 0xD3, 0xEE))
+        }
         fun fill() {
+            selUpdate()
             msgs.removeAllViews()
             var lastDay = ""; var prevMine: Boolean? = null
             for (m in k.chat(c.id).takeLast(300).filter { query.isEmpty() || it.text.contains(query, true) }) {
@@ -3011,7 +3048,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(6) }
                     contentDescription = t("Zdjęcie: ", "Photo: ") + m.text
                     setOnClickListener { showPhoto(m.path!!, photos(c)) }
-                    setOnLongClickListener { msgMenu(c, m); true }
+                    selectable(this, m)
                 })
                 if (m.lp.isNotEmpty() && m.path == null) runCatching {   // 🔗 podgląd linku (jak w WhatsApp): serwis, tytuł, opis - stuknięcie otwiera stronę
                     val lj = JSONObject(m.lp); val lu = lj.optString("u")
@@ -3059,7 +3096,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     else if (m.path != null && java.io.File(m.path!!).exists() && java.io.File(m.path!!).name.contains("Glosowa-")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
-                    setOnLongClickListener { msgMenu(c, m); true }
+                    selectable(this, m)
                 })
                 if (!m.mine && m.path == null) Ochrona.messageWarning(m.text, pl)?.let { w -> msgs.addView(TextView(a).apply {   // 🛡 podejrzany link / prośba o kod lub dane karty
                     text = w; textSize = 14f * fs; setTextColor(if (w.startsWith("⚠")) Color.WHITE else ink); setPadding(px(12), px(6), px(12), px(7))
@@ -3071,8 +3108,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 }.apply { layoutParams = LinearLayout.LayoutParams(-2, px(40)).apply { gravity = Gravity.START; topMargin = px(4) } })
                 prevMine = m.mine
             }
-            scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+            if (picked.isEmpty()) scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }   // przy zaznaczaniu rozmowa stoi w miejscu
         }
+        fillRef = { fill() }
         val input = EditText(a).also { chatInput = it }.apply {
             hint = t("Wiadomość", "Message"); inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND; setHorizontallyScrolling(false); maxLines = 5; layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
@@ -3202,7 +3240,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         k.onTyping = { id -> if (id == c.id && chatWith == c.id) { status(); input.postDelayed({ if (chatWith == c.id) status() }, 6500) } }
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }
         root.removeAllViews()
-        root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(head); addView(scroll); addView(replyBar); addView(row) })
+        root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(head); addView(selBar); addView(scroll); addView(replyBar); addView(row) })
     }
 
     // przytrzymanie wiadomości: kopiuj, (zdjęcie) zapisz w Galerii, usuń u mnie

@@ -233,6 +233,8 @@ Velivo odtwarza wszystko biblioteką VLC – tą samą co Velivo na Windows: kan
 
 Menu → **⭐ Dodaj ten utwór** na otwartym filmie YouTube (kategoria, playlisty) → **🎵 Moje utwory**: A–Z / kategorie / najnowsze, ☰ kategoria lub playlista, odtwarzanie po kolei. Zapis tylko w telefonie.
 
+**Zaznaczanie wiadomości (komunikator):** przytrzymaj palec na wiadomości – zostaje zaznaczona, kolejne stuknięcia dodają lub odznaczają inne. U góry pasek: ✕ (liczba zaznaczonych), ↩ Odpowiedz, 📋 Kopiuj, ↪ Przekaż, 🗑 U mnie, 🚫 U wszystkich, ⋯ Więcej.
+
 ## 8b. Klawiatura Velivo
 
 Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub czarno-biały – wybór w aplikacji klawiatury). Działa we wszystkich aplikacjach.

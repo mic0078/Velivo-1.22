@@ -233,6 +233,8 @@ Velivo plays everything with the VLC library – the same as Velivo for Windows:
 
 Menu → **⭐ Add this song** on an open YouTube video (category, playlists) → **🎵 My songs**: A–Z / categories / newest, ☰ category or playlist, plays in order. Stored only on the phone.
 
+**Selecting messages (messenger):** press and hold a message – it is selected, further taps add or remove others. Bar at the top: ✕ (number selected), ↩ Reply, 📋 Copy, ↪ Forward, 🗑 For me, 🚫 For all, ⋯ More.
+
 ## 8b. Velivo keyboard
 
 The same keyboard as on the computer, in Velivo colours (dark, light or black-and-white theme – chosen in the keyboard app). Works in every app.

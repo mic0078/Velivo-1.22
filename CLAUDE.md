@@ -151,6 +151,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-01: przywracanie na nowym telefonie wymagało linku „Mój adres”, którego nowy telefon nie ma skąd wziąć – właściciel: „skąd mam znać swój link?!”; teraz puste pole = szukanie serwera w Wi-Fi, albo sama nazwa domu. Przejdź każdą funkcję oczami osoby z pustym, nowym telefonem.
 * 2026-11-01: właściciel: „serwer ma wiedzieć, że to ten konkretny użytkownik, pomimo że ma nowy telefon” – konto było związane z telefonem, a przywrócenie wymagało klikania na serwerze; teraz numer telefonu + PIN (jak WhatsApp) rozpoznaje użytkownika, klikanie tylko bez PIN-u. Tożsamość = człowiek, nie urządzenie.
 * 2026-11-01: numer telefonu bez numeru kierunkowego (brane 9 ostatnich cyfr, brak pola kraju) – właściciel w UK, mama w PL; teraz pole kraju (+44/+48 z karty SIM) i pełny numer międzynarodowy. Numery telefonów zawsze z kierunkowym.
+* 2026-11-01: mama (instalacja z czasów jednego serwera) znała tylko NUCBOX – przy samym CHUWI była poza siecią; serwery wysyłały kartę drugiego serwera i swoje kontakty tylko RAZ (znacznik „intro”), a telefon na starej wersji jej nie dodawał. Teraz co dzień od nowa (kontakt i serwer). Wymiana wiedzy między urządzeniami nie może być jednorazowa – ktoś mógł mieć starą wersję albo być wyłączony.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

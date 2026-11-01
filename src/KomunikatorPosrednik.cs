@@ -392,6 +392,8 @@ namespace Velivo
                 if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;
             }
             if (_komOpt["intro"] is not JsonArray done) _komOpt["intro"] = done = new JsonArray();
+            var today = "|" + DateTime.UtcNow.ToString("yyyyMMdd");
+            foreach (var old in done.Where(n => (string)n is { } t && t.Length > 9 && t[^9] == '|' && t[^8..].All(char.IsDigit) && !t.EndsWith(today)).ToList()) done.Remove(old);   // wczorajsze znaczniki precz
             var have = done.Select(x => (string)x).ToHashSet(); bool any = false;
             foreach (var x in _komContacts.ToList())
             {
@@ -400,10 +402,13 @@ namespace Velivo
                 var key = KomIntroKey(x.Id, peerId);
                 string Card(KomContact c) => KomCardTag + new JsonObject { ["id"] = c.Id, ["name"] = c.Name, ["dev"] = c.Device, ["key"] = key, ["relay"] = c.Relay ?? "", ["dom"] = c.Dom }.ToJsonString();
                 // serwery wymieniają się WSZYSTKIMI kontaktami od razu (drugi serwer jest w sieci - słychać go): CHUWI zna mamę dodaną przez NUCBOX, także gdy mamy teraz nie ma
-                if (!have.Contains(tag + "|s")) { KomDeliver(peer, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag + "|s"); any = true; }
+                // też co dzień: serwer, który kartę przegapił (starsza wersja, wyłączony), dostaje ją znowu - znany kontakt się nie zmienia
+                if (!have.Contains(tag + "|s" + today)) { KomDeliver(peer, new KomMsg { Mine = true, Text = Card(x), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag + "|s" + today); any = true; }
                 // kontakt poznaje drugi serwer, gdy jest w sieci (karta nie czeka w skrzynce) - nieobecny przy następnym sprawdzeniu (co 10 min)
-                if (!have.Contains(tag) && KomOnline(x.Id) && (x.Dom || !string.IsNullOrEmpty(peer.Relay) || !_komPcs.Contains(peerId))) {   // znajomym (mama) tylko moje serwery i telefony - bez pytań o każdy mój komputer
-                    KomDeliver(x, new KomMsg { Mine = true, Text = Card(peer), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(tag); any = true; }
+                // co dzień od nowa: jednorazowa karta przepadała, gdy telefon miał starą wersję albo ją pominął - mama znała tylko NUCBOX i bez niego była poza siecią
+                var dtag = tag + "|" + DateTime.UtcNow.ToString("yyyyMMdd");
+                if (!have.Contains(dtag) && KomOnline(x.Id) && (x.Dom || !string.IsNullOrEmpty(peer.Relay) || !_komPcs.Contains(peerId))) {   // znajomym (mama) tylko moje serwery i telefony - bez pytań o każdy mój komputer
+                    KomDeliver(x, new KomMsg { Mine = true, Text = Card(peer), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); done.Add(dtag); any = true; }
             }
             if (any) KomSave();
         }

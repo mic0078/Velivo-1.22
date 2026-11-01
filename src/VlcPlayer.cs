@@ -1534,7 +1534,8 @@ namespace Velivo
                 b.Content = sp; b.Width = double.NaN; b.Padding = new Thickness(8, 0, 8, 0);
             };
             withLabel(subs, L.T("Napisy")); withLabel(lector, L.T("Lektor")); withLabel(audio, L.T("Dźwięk")); withLabel(aspect, L.T("Proporcje")); withLabel(snap, L.T("Zrzut"));
-            var toolsRow = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 0), Visibility = GetPref("pasek-narzedzia") == "1" ? Visibility.Visible : Visibility.Collapsed };
+            var toolsRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left,   // bez zawijania - WrapPanel + zmniejszanie paska (fitBar) przeliczały się w kółko
+                Margin = new Thickness(4, 2, 4, 0), Visibility = GetPref("pasek-narzedzia") == "1" ? Visibility.Visible : Visibility.Collapsed };
             foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap }) toolsRow.Children.Add(b);
             var tools = glyphBtn("tune", L.T("Obraz i dźwięk – napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki (pokaż / schowaj rząd)"));
             tools.Click += (s, e) => { bool on = toolsRow.Visibility != Visibility.Visible; toolsRow.Visibility = on ? Visibility.Visible : Visibility.Collapsed; SetPref("pasek-narzedzia", on ? "1" : "0"); };
@@ -1748,9 +1749,9 @@ namespace Velivo
             SizeChangedEventHandler fitBar = (s, e) =>
             {
                 double need = mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right, have = overlay.ActualWidth;
-                double k = need > 0 && have > 0 && need > have ? have / need : 1;
+                double k = need > 0 && have > 0 && need > have ? Math.Floor(have / need * 20) / 20 : 1;   // skok co 5% - bez przeliczania paska w kółko (przycinało obraz)
                 var cur = ctlRow.LayoutTransform as ScaleTransform;
-                if (Math.Abs((cur?.ScaleX ?? 1) - k) > 0.01) ctlRow.LayoutTransform = k < 1 ? new ScaleTransform(k, k) : Transform.Identity;
+                if (Math.Abs((cur?.ScaleX ?? 1) - k) > 0.001) ctlRow.LayoutTransform = k < 1 ? new ScaleTransform(k, k) : Transform.Identity;
             };
             overlay.SizeChanged += fitBar; mainCol.SizeChanged += fitBar; quick.SizeChanged += fitBar;
             // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
@@ -3313,8 +3314,9 @@ namespace Velivo
                 qLists.Visibility = vis(!isTv);   // ⭐ ulubione filmy i kanały w obu trybach - szybkie przejście na drugą stronę
                 lib.Visibility = hist.Visibility = vis(!isTv && !narrow);
                 swapTv = !isTv; swap.Visibility = vis(!isTv ? tvOn : true);
-                swap.Content = isTv ? "🎬 " + L.T("Filmy") : "📺 " + L.T("TV");
-                swap.ToolTip = isTv ? L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy") : L.T("Przełącz na telewizję – lista kanałów\nPrawy przycisk: ostatnio oglądane kanały");
+                var swC = isTv ? "🎬 " + L.T("Filmy") : "📺 " + L.T("TV");
+                if ((swap.Content as string) != swC) swap.ToolTip = isTv ? L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy") : L.T("Przełącz na telewizję – lista kanałów\nPrawy przycisk: ostatnio oglądane kanały");
+                if ((swap.Content as string) != swC) swap.Content = swC;   // tylko przy zmianie - bez przerysowania paska co 2 s
                 tools.Visibility = vis(!narrow); toolsRow.Visibility = vis(!narrow && GetPref("pasek-narzedzia") == "1");
             };
             updMode = updQuick;

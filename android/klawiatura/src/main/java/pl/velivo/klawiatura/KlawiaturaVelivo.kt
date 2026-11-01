@@ -369,6 +369,7 @@ class KlawiaturaVelivo : InputMethodService() {
     override fun onAppPrivateCommand(action: String?, data: android.os.Bundle?) { if (action == "pl.velivo.slowo" && !secret) finishWord(""); if (action == "pl.velivo.brajl") brailleOn() }
     override fun onFinishInputView(finishingInput: Boolean) {   // klawiatura chowa się - zaległy zapis od razu
         super.onFinishInputView(finishingInput); stopListening(); Dzwiek.stop(); komNew()?.close(); saveNow(this)
+        sym = 0; ecat = -1   // jak Gboard: po schowaniu klawiatura wraca do liter (nie otwiera się na emoji / znakach)
         if (taps > 0 && !noLearn) prefs(this).edit().putFloat("rytm-nacisk", dwell).putFloat("rytm-tempo", tempo).putInt("rytm-n", taps).apply()
     }
     override fun onDestroy() { getSystemService(android.content.ClipboardManager::class.java)?.removePrimaryClipChangedListener(clipListener); tts?.shutdown(); rec?.destroy(); super.onDestroy() }

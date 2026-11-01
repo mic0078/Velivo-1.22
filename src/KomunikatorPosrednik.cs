@@ -1339,7 +1339,9 @@ namespace Velivo
                     while (left > 0) { int n = fs.Read(buf, 0, (int)Math.Min(buf.Length, left)); if (n <= 0) return; o.Write(buf, 0, n); left -= n; }
                 }
                 File.Move(tmp, f, true);
-                File.WriteAllText(Path.Combine(KomRestoreDir, c.Id + ".json"), new JsonObject { ["name"] = c.Name, ["dev"] = KomClean((string)hd["Dev"]), ["at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["size"] = size }.ToJsonString());
+                var meta = new JsonObject { ["name"] = c.Name, ["dev"] = KomClean((string)hd["Dev"]), ["at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["size"] = size };
+                if ((string)hd["Login"] is { Length: 32 } lg && lg.All(Uri.IsHexDigit) && (string)hd["Pin"] is { Length: 64 } pv && pv.All(Uri.IsHexDigit)) { meta["login"] = lg; meta["pin"] = pv; }   // 🔐 numer (skrót) + sprawdzian PIN-u - nowy telefon tej osoby
+                File.WriteAllText(Path.Combine(KomRestoreDir, c.Id + ".json"), meta.ToJsonString());
                 var ok = Encoding.UTF8.GetBytes("ok"); fs.WriteFrame(ok, 0, ok.Length);
                 App.LogInfo("Pośrednik: kopia od " + c.Name + " (" + (size / 1024) + " KB)");
             }
@@ -1363,6 +1365,19 @@ namespace Velivo
             var req = (string)h["Req"] ?? "";
             foreach (var old in _komRestoreReq.Where(x => DateTime.UtcNow - x.Value.At > TimeSpan.FromMinutes(6)).ToList()) _komRestoreReq.TryRemove(old.Key, out _);
             byte[] rep = Encoding.UTF8.GetBytes("wait");
+            if ((string)h["Login"] is { Length: 32 } lg && lg.All(Uri.IsHexDigit))
+            {   // 🔐 użytkownik po numerze i PIN-ie (jak WhatsApp) - konto od razu, bez pytania właściciela; 5 prób na godzinę na numer
+                var t0 = _komRestoreTries.AddOrUpdate("l" + lg, (DateTime.UtcNow, 1), (_, o) => DateTime.UtcNow - o.at > TimeSpan.FromHours(1) ? (DateTime.UtcNow, 1) : (o.at, o.n + 1));
+                string hit = null, pin = null; long best = -1;
+                try { foreach (var m in Directory.GetFiles(KomRestoreDir, "*.json")) try { var j = JsonNode.Parse(File.ReadAllText(m)); if ((string)j?["login"] == lg && ((long?)j["at"] ?? 0) > best) { best = (long?)j["at"] ?? 0; hit = Path.GetFileNameWithoutExtension(m); pin = (string)j["pin"]; } } catch (Exception) { } } catch (Exception) { }
+                var pv = (string)h["Pin"] ?? "";
+                if (t0.n > 5) rep = Encoding.UTF8.GetBytes("later");
+                else if (hit == null) rep = Encoding.UTF8.GetBytes("none");
+                else if (pin == null || pv.Length != pin.Length || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(pv), Encoding.ASCII.GetBytes(pin))) rep = Encoding.UTF8.GetBytes("badpin");
+                else try { rep = File.ReadAllBytes(Path.Combine(KomRestoreDir, hit + ".gz")); _komRestoreTries.TryRemove("l" + lg, out _); } catch (Exception) { rep = Encoding.UTF8.GetBytes("none"); }
+                App.LogInfo("Pośrednik: przywracanie po numerze z " + ip + " – " + (rep.Length > 16 ? "konto oddane" : Encoding.UTF8.GetString(rep)));
+                await KomWriteBlock(s, rep, token); return;
+            }
             if (req.Length != 32 || !req.All(Uri.IsHexDigit)) rep = Encoding.UTF8.GetBytes("no");
             else if (_komRestoreReq.TryGetValue(req, out var r))
             {

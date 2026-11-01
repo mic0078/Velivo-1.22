@@ -142,13 +142,24 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         backupPlanned = true
         main.postDelayed({ backupPlanned = false; Thread { serverBackup() }.start() }, maxOf(60000L, 1800000L - (System.currentTimeMillis() - serverBackupAt)))
     }
+    // 🔐 użytkownik, nie telefon (jak numer w WhatsApp): numer telefonu + własny PIN. Serwer dostaje tylko skrót numeru i sprawdzian PIN-u (PBKDF2),
+    // a nowy telefon z tym numerem i PIN-em dostaje swoje konto od razu - bez klikania na serwerze
+    private fun loginOf(nr: String) = nr.filter { it.isDigit() }.takeLast(9).let { d -> MessageDigest.getInstance("SHA-256").digest("velivo-nr\n$d".toByteArray(Charsets.UTF_8)).take(16).joinToString("") { "%02x".format(it) } }
+    private fun pinOf(login: String, pin: String) = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        .generateSecret(javax.crypto.spec.PBEKeySpec(pin.trim().toCharArray(), "velivo-pin\n$login".toByteArray(Charsets.UTF_8), 100000, 256)).encoded.joinToString("") { "%02x".format(it) }
+    val loginNr get() = open(prefs.getString("login-nr", null)) ?: ""
+    fun setLogin(nr: String, pin: String): Boolean {
+        if (nr.count { it.isDigit() } < 7 || pin.trim().length < 4) return false
+        val l = loginOf(nr); prefs.edit().putString("login-nr", seal(nr.trim())).putString("login-l", l).putString("login-v", pinOf(l, pin)).apply()
+        Thread { serverBackup() }.start(); return true
+    }
     // wynik: liczba serwerów, które przyjęły kopię
     fun serverBackup(): Int {
         val data = runCatching { java.io.ByteArrayOutputStream().also { bo -> java.util.zip.GZIPOutputStream(bo).use { it.write(export().toByteArray(Charsets.UTF_8)) } }.toByteArray() }.getOrNull() ?: return 0
         val servers = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup } }
         val ok = java.util.concurrent.atomic.AtomicInteger(); val left = java.util.concurrent.CountDownLatch(servers.size)
         servers.forEach { r -> Thread { try { runCatching { relayConnect(r, "backup")?.use { f ->
-            f.writeFrame(JSONObject().put("Size", data.size).put("Dev", Build.MODEL ?: "").toString().toByteArray(Charsets.UTF_8))
+            f.writeFrame(JSONObject().put("Size", data.size).put("Dev", Build.MODEL ?: "").put("Login", prefs.getString("login-l", "")).put("Pin", prefs.getString("login-v", "")).toString().toByteArray(Charsets.UTF_8))
             f.output.write(data); f.output.flush()
             if (String(f.readFrame(), Charsets.UTF_8) == "ok") ok.incrementAndGet()
         } } } finally { left.countDown() } }.start() }
@@ -158,7 +169,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // ♻ nowy telefon: adres serwera z linku „Mój adres” (od kogokolwiek z rodziny albo host:port); serwer pyta właściciela, czyje to konto.
     // wait(tekst) - stan dla okienka; cancel() - przerwanie; wynik "ok" albo opis
-    fun serverRestore(link: String, wait: (String) -> Unit, cancel: () -> Boolean): String {
+    fun serverRestore(link: String, nr: String, pin: String, wait: (String) -> Unit, cancel: () -> Boolean): String {
+        val lg = if (nr.isNotBlank()) loginOf(nr) else ""; val pv = if (lg.isNotEmpty()) pinOf(lg, pin) else ""
         val code = link.trim().substringAfter("VELIVO-KONTAKT:").trim().split(Regex("\\s+")).firstOrNull() ?: ""
         val j = runCatching { JSONObject(String(Base64.decode(code, Base64.URL_SAFE), Charsets.UTF_8)) }.getOrNull()
         // bez linku: nowy telefon nie zna adresu - w domowym Wi-Fi sam szuka serwerów; sama nazwa domu (np. n5plus.ddns.net) - porty serwerów 41920–41929 i 443
@@ -182,16 +194,19 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val r = runCatching { java.net.Socket().use { so ->
                     so.connect(InetSocketAddress(hp.substringBeforeLast(':'), hp.substringAfterLast(':').toInt()), 6000); so.soTimeout = 60000
                     val out = so.getOutputStream(); val inp = DataInputStream(so.getInputStream())
-                    writeBlock(out, JSONObject().put("Type", "relay-restore").put("Req", req).put("Dev", Build.MANUFACTURER + " " + Build.MODEL).put("Ts", System.currentTimeMillis()).toString().toByteArray(Charsets.UTF_8)); writeBlock(out, ByteArray(32))
+                    writeBlock(out, JSONObject().put("Type", "relay-restore").put("Req", req).put("Login", lg).put("Pin", pv).put("Dev", Build.MANUFACTURER + " " + Build.MODEL).put("Ts", System.currentTimeMillis()).toString().toByteArray(Charsets.UTF_8)); writeBlock(out, ByteArray(32))
                     readBlock(inp, 64 shl 20) } }.getOrNull() ?: continue
                 heard = true
                 val txt = if (r.size < 16) String(r, Charsets.UTF_8) else ""
                 if (txt == "no") return if (pl) "Właściciel serwera odmówił" else "The server owner declined"
-                if (txt == "none") { none.add(hp); if (none.size == hosts.size) return if (pl) "Na serwerze nie ma jeszcze kopii tego konta (stary telefon musiał mieć nowy Komunikator i choć raz połączyć się z serwerem)" else "The server has no backup of this account yet (the old phone needed the new Messenger and to connect to the server at least once)"; continue }
+                if (txt == "badpin") return if (pl) "Zły PIN dla tego numeru" else "Wrong PIN for this number"
+                if (txt == "later") return if (pl) "Za dużo prób – spróbuj za godzinę" else "Too many tries – try again in an hour"
+                if (txt == "none") { none.add(hp); if (none.size == hosts.size) return if (lg.isNotEmpty()) (if (pl) "Serwer nie zna tego numeru – na starym telefonie ustaw numer i PIN (💾 Kopia i przywracanie) albo zostaw numer pusty i poproś właściciela serwera o potwierdzenie" else "The server does not know this number – set the number and PIN on the old phone (💾 Backup and restore) or leave the number empty and ask the server owner to confirm") else if (pl) "Na serwerze nie ma jeszcze kopii tego konta (stary telefon musiał mieć nowy Komunikator i choć raz połączyć się z serwerem)" else "The server has no backup of this account yet (the old phone needed the new Messenger and to connect to the server at least once)"; continue }
                 if (txt == "wait") continue
                 val json = runCatching { String(java.util.zip.GZIPInputStream(r.inputStream()).readBytes(), Charsets.UTF_8) }.getOrNull() ?: continue
                 if (JSONObject(json).optString("cid").length != 32) continue
-                wipe(); import(json); listen(); announce(); serverBackupSoon()
+                wipe(); import(json); if (lg.isNotEmpty()) prefs.edit().putString("login-nr", seal(nr.trim())).putString("login-l", lg).putString("login-v", pv).apply()
+                listen(); announce(); serverBackupSoon()
                 return "ok"
             }
             wait(if (heard) (if (pl) "Serwer pyta właściciela. Poproś go, żeby na komputerze kliknął „Tak” przy Twoim telefonie (${Build.MODEL})." else "The server is asking its owner. Ask them to click “Yes” for your phone (${Build.MODEL}) on the computer.")
@@ -2280,23 +2295,25 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     // 💾 kopia: sama na moich serwerach (☁), do pliku (Google Drive) i przywracanie - z serwera albo z pliku
     private fun backupMenu() {
         val at = k.serverBackupAt
-        val items = arrayOf("☁ " + t("Kopia na moich serwerach: ", "Backup on my servers: ") + (if (at > 0) java.text.SimpleDateFormat("d.MM HH:mm", Locale.ROOT).format(java.util.Date(at)) + t(" (sama, co 30 min) – stuknij: teraz", " (automatic, every 30 min) – tap: now") else t("jeszcze nie – stuknij: teraz", "not yet – tap: now")),
+        val items = arrayOf("🔐 " + t("Numer i PIN do nowego telefonu: ", "Number and PIN for a new phone: ") + (k.loginNr.ifEmpty { t("nieustawione – stuknij", "not set – tap") }),
+            "☁ " + t("Kopia na moich serwerach: ", "Backup on my servers: ") + (if (at > 0) java.text.SimpleDateFormat("d.MM HH:mm", Locale.ROOT).format(java.util.Date(at)) + t(" (sama, co 30 min) – stuknij: teraz", " (automatic, every 30 min) – tap: now") else t("jeszcze nie – stuknij: teraz", "not yet – tap: now")),
             "♻ " + t("Przywróć z serwera (nowy albo wyczyszczony telefon)…", "Restore from the server (new or reset phone)…"),
             "💾 " + t("Zapisz kopię do pliku (telefon, Google Drive)…", "Save a backup file (phone, Google Drive)…"),
             "📥 " + t("Przywróć z pliku kopii…", "Restore from a backup file…"), "ℹ " + t("Jak to działa?", "How does it work?"))
         // bez setMessage - Android przy tekście chowa listę (było puste okienko z samym opisem)
-        val info = t("Kontakty, rozmowy i ustawienia same idą na Twoje serwery. Nowy telefon: ♻ Przywróć z serwera – właściciel serwera klika „Tak” i wszystko wraca. Zdjęcia i filmy z rozmów nie wchodzą do kopii.",
-                "Contacts, chats and settings go to your servers automatically. New phone: ♻ Restore from the server – the server owner clicks “Yes” and everything comes back. Photos and videos from chats are not in the backup.")
+        val info = t("Kontakty, rozmowy i ustawienia same idą na Twoje serwery. Nowy telefon: ♻ Przywróć z serwera – wpisz swój numer i PIN i wszystko wraca (bez numeru – właściciel serwera klika „Tak”). Zdjęcia i filmy z rozmów nie wchodzą do kopii.",
+                "Contacts, chats and settings go to your servers automatically. New phone: ♻ Restore from the server – enter your number and PIN and everything comes back (without a number – the server owner clicks “Yes”). Photos and videos from chats are not in the backup.")
         Dlg().setTitle("💾 " + t("Kopia i przywracanie", "Backup and restore"))
             .setItems(items) { _, i ->
             when (i) {
-                0 -> { Toast.makeText(a, t("☁ Wysyłam kopię…", "☁ Sending the backup…"), Toast.LENGTH_SHORT).show()
+                0 -> loginSetup()
+                1 -> { Toast.makeText(a, t("☁ Wysyłam kopię…", "☁ Sending the backup…"), Toast.LENGTH_SHORT).show()
                     Thread { val n = k.serverBackup(); a.runOnUiThread { Toast.makeText(a, if (n > 0) t("☁ Kopia na serwerach: ", "☁ Backup on servers: ") + n else t("☁ Żaden serwer nie przyjął kopii – serwer wyłączony albo bez nowego Velivo", "☁ No server took the backup – server off or without the new Velivo"), Toast.LENGTH_LONG).show() } }.start() }
-                1 -> restoreAccount()
-                2 -> password(true) { p -> backupPass = p
+                2 -> restoreAccount()
+                3 -> password(true) { p -> backupPass = p
                     runCatching { a.startActivityForResult(android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("application/octet-stream")
                         .putExtra(android.content.Intent.EXTRA_TITLE, "Velivo-kopia-" + java.text.SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(java.util.Date()) + ".velivo"), Komunikator.REQ_BACKUP) } }
-                4 -> Dlg().setTitle("ℹ " + t("Kopia i przywracanie", "Backup and restore")).setMessage(info).setPositiveButton(android.R.string.ok) { _, _ -> backupMenu() }.show()
+                5 -> Dlg().setTitle("ℹ " + t("Kopia i przywracanie", "Backup and restore")).setMessage(info).setPositiveButton(android.R.string.ok) { _, _ -> backupMenu() }.show()
                 else -> Dlg().setMessage(t("Kopia zastąpi kontakty i rozmowy w tym telefonie (telefon dostanie identyfikator z kopii – kontakty dalej Cię znają). Dalej?",
                         "The backup replaces contacts and chats on this phone (it gets the identity from the backup – contacts still know you). Continue?"))
                     .setPositiveButton(t("Wybierz plik", "Choose file")) { _, _ -> pickingBackup = true; pickFiles() }.setNegativeButton(android.R.string.cancel, null).show()
@@ -2612,20 +2629,41 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // ♻ nowy / wyczyszczony telefon: link „Mój adres” od kogoś z rodziny (prowadzi do serwera) → właściciel serwera potwierdza → konto, kontakty i rozmowy wracają
     fun restoreAccount() {
-        val link = EditText(a).apply { hint = t("puste = szukaj w domowym Wi-Fi", "empty = search the home Wi-Fi"); minLines = 2
+        val nr = EditText(a).apply { hint = t("Twój numer telefonu", "Your phone number"); inputType = android.text.InputType.TYPE_CLASS_PHONE; setSingleLine(true) }
+        val pin = EditText(a).apply { hint = t("Twój PIN", "Your PIN"); inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD; setSingleLine(true) }
+        val link = EditText(a).apply { hint = t("adres serwera – puste = szukaj w domowym Wi-Fi", "server address – empty = search the home Wi-Fi"); setSingleLine(true)
             runCatching { a.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(a)?.toString()?.takeIf { it.contains("VELIVO-KONTAKT:") }?.let { setText(it.trim()) } } }
-        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(link) }
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(nr); addView(pin); addView(link) }
         Dlg().setTitle("♻ " + t("Przywróć z serwera", "Restore from the server"))
-            .setMessage(t("W domu: połącz telefon z domowym Wi-Fi i zostaw pole puste – telefon sam znajdzie serwer. Poza domem: wpisz adres domu (np. n5plus.ddns.net) albo wklej link „Mój adres” od kogoś z rodziny. Na komputerze z serwerem pojawi się pytanie – kliknij swoje imię i wracają kontakty i rozmowy (te w tym telefonie zostaną zastąpione).",
-                "At home: join the home Wi-Fi and leave the field empty – the phone finds the server. Away: enter the home address (e.g. n5plus.ddns.net) or paste a “My address” link from a family member. A question appears on the server computer – click your name and contacts and chats come back (those on this phone are replaced)."))
+            .setMessage(t("Wpisz swój numer telefonu i PIN (ustawione na starym telefonie) – serwer rozpozna Cię i odda kontakty i rozmowy. W domowym Wi-Fi adres zostaw pusty, poza domem wpisz adres domu (np. n5plus.ddns.net). Bez numeru i PIN-u – właściciel serwera potwierdza na komputerze.",
+                "Enter your phone number and PIN (set on the old phone) – the server recognises you and gives back contacts and chats. On the home Wi-Fi leave the address empty, away enter the home address (e.g. n5plus.ddns.net). Without number and PIN – the server owner confirms on the computer."))
             .setView(box)
             .setPositiveButton(t("Przywróć", "Restore")) { _, _ ->
                 val stop = java.util.concurrent.atomic.AtomicBoolean()
                 val wait = Dlg().setTitle("♻").setMessage(t("Łączę z serwerem…", "Connecting to the server…")).setNegativeButton(android.R.string.cancel) { _, _ -> stop.set(true) }.setCancelable(false).show()
                 Thread {
-                    val r = k.serverRestore(link.text.toString(), { m -> a.runOnUiThread { wait.setMessage(m) } }, { stop.get() })
+                    val r = k.serverRestore(link.text.toString(), nr.text.toString(), pin.text.toString(), { m -> a.runOnUiThread { wait.setMessage(m) } }, { stop.get() })
                     a.runOnUiThread { runCatching { wait.dismiss() }; Toast.makeText(a, if (r == "ok") t("♻ Konto przywrócone – kontakty i rozmowy wróciły", "♻ Account restored – contacts and chats are back") else r, Toast.LENGTH_LONG).show(); if (r == "ok") show() }
                 }.start()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+    // 🔐 numer i PIN: po nich serwer rozpoznaje mnie na nowym telefonie; PIN dwa razy (literówka = konto nie do odzyskania)
+    private fun loginSetup() {
+        val nr = EditText(a).apply { hint = t("Twój numer telefonu", "Your phone number"); inputType = android.text.InputType.TYPE_CLASS_PHONE; setSingleLine(true); setText(k.loginNr) }
+        val p1 = EditText(a).apply { hint = t("Wymyśl PIN (min. 4 cyfry)", "Make up a PIN (min. 4 digits)"); inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD; setSingleLine(true) }
+        val p2 = EditText(a).apply { hint = t("PIN jeszcze raz", "PIN again"); inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD; setSingleLine(true) }
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(nr); addView(p1); addView(p2) }
+        Dlg().setTitle("🔐 " + t("Numer i PIN do nowego telefonu", "Number and PIN for a new phone"))
+            .setMessage(t("Po zmianie telefonu wpiszesz ten numer i PIN – serwer rozpozna, że to Ty, i odda Twoje kontakty i rozmowy. Zapamiętaj PIN.",
+                "After changing phones you enter this number and PIN – the server recognises you and gives back your contacts and chats. Remember the PIN."))
+            .setView(box)
+            .setPositiveButton(t("Zapisz", "Save")) { _, _ ->
+                val m = when {
+                    p1.text.toString().trim() != p2.text.toString().trim() -> t("PIN-y się różnią – nic nie zapisano", "The PINs differ – nothing saved")
+                    k.setLogin(nr.text.toString(), p1.text.toString()) -> t("🔐 Zapisano – kopia idzie na serwery", "🔐 Saved – the backup goes to the servers")
+                    else -> t("Wpisz numer telefonu i PIN (min. 4 cyfry)", "Enter the phone number and a PIN (min. 4 digits)")
+                }
+                Toast.makeText(a, m, Toast.LENGTH_LONG).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 

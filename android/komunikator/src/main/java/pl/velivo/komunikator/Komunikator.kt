@@ -1054,9 +1054,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val from = contact(h.optString("Id"))?.takeIf { c -> MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(c.key, ad)) }
         val media = from != null && onMedia != null && name.startsWith("Velivo-Filmy-TV") && name.endsWith(".json") && size < 64L * 1024 * 1024
         val auto = media || (from != null && autoImages && size <= 2L * 1024 * 1024 * 1024)   // zdjęcie / plik od kontaktu - od razu do rozmowy (jak w innych komunikatorach)
-        val ok = (!box || from != null) && (auto || ask { a -> askFile(from?.name ?: dev, name, size, if (from != null) "" else code(key), a) })
-        out.write(if (ok) 1 else 0); out.flush()
-        if (!ok) return
+        // ten sam plik (Mid) z kilku serwerów naraz (skrzynka 📬 u każdego) albo już w rozmowie - odmowa, serwer kasuje swoją kopię; przyjęty tylko raz
+        val fmid = h.optString("Mid").takeIf { it.length == 32 }
+        val dup = fmid != null && from != null && (synchronized(fileIn) { fmid in fileIn } || chat(from.id).any { it.mid == fmid })
+        val ok = !dup && (!box || from != null) && (auto || ask { a -> askFile(from?.name ?: dev, name, size, if (from != null) "" else code(key), a) })
+        val go = ok && (fmid == null || synchronized(fileIn) { fileIn.add(fmid) })
+        out.write(if (go) 1 else 0); out.flush()
+        if (!go) return
         cn.timeout(60000)
         val tmp = java.io.File(tmpDir, "odbior-" + UUID.randomUUID() + ".part")
         var good = false
@@ -1100,8 +1104,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 // plik / zdjęcie jak wiadomość: nieprzeczytane i powiadomienie (✓ u nadawcy, ✓✓ po otwarciu rozmowy)
                 if (grp == null) { if (chatOpen != from.id) prefs.edit().putInt("nowe-${from.id}", unread(from.id) + 1).apply(); notifyMessage(from) }
             }
-        } finally { if (!good) tmp.delete() }
+        } finally { if (!good) { tmp.delete(); if (fmid != null) synchronized(fileIn) { fileIn.remove(fmid) } } }   // nieudany - powtórka może przyjść
     }
+    private val fileIn = HashSet<String>()
 
     // plik na inny telefon: open() - strumień od początku (dwa razy: suma, potem wysyłka)
     // retry - plik, który czekał na odbiorcę (kopia w Velivo), wysyłany ponownie z tym samym wpisem w rozmowie

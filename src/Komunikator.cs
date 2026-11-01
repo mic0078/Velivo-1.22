@@ -1313,6 +1313,8 @@ namespace Velivo
                 var c = KomContactById(id); var mac = KomB64((string)h["Mac"]);
                 if (c != null) using (var hm = new HMACSHA256(c.Key)) { var exp = hm.ComputeHash(ad); if (mac.Length == 32 && CryptographicOperations.FixedTimeEquals(mac, exp)) from = c; }
                 if (from == null) { App.LogInfo("Komunikator: plik od nieznanego nadawcy (" + dev + ") – odrzucony bez pytania"); return; }   // nigdy okienka z kodem (serwer pytał o pliki idące do kogoś innego)
+                // ten sam plik (Mid) z kilku serwerów (skrzynka 📬 u każdego) albo już w rozmowie - odmowa, serwer kasuje swoją kopię
+                if ((string)h["Mid"] is { Length: 32 } dm && (_komFileIn.ContainsKey(dm) || _komChats.Values.Any(l => l.Any(m => m.Mid == dm)))) { App.LogInfo("Komunikator: ten sam plik drugi raz (" + name + ") – pominięty"); return; }
                 dev = from.Name;
                 if (_komAutoImages && size <= KomAutoImageLimit)
                 {   // zdjecie / plik od kontaktu - od razu do rozmowy (bez pytania i bez okna zapisu)
@@ -1333,6 +1335,8 @@ namespace Velivo
                     Filter = (L.En ? "All files" : "Wszystkie pliki") + "|*.*", OverwritePrompt = true };
                 if (dlg.ShowDialog((Window)_komWindow ?? PairDialogOwner()) == true) target = dlg.FileName; else accept = false;
             });
+            var fmid = accept && (string)h["Mid"] is { Length: 32 } m0 ? m0 : null;
+            if (fmid != null && !_komFileIn.TryAdd(fmid, true)) accept = false;   // dwie kopie naraz - przyjmuje pierwsza
             await s.WriteAsync(new[] { (byte)(accept ? 1 : 0) }, 0, 1, token); await s.FlushAsync(token);
             if (!accept) return;
             string tmp = target + ".velivo-part";
@@ -1385,8 +1389,9 @@ namespace Velivo
                     }
                 });
             }
-            finally { if (tmp != null) try { File.Delete(tmp); } catch (Exception) { } CryptographicOperations.ZeroMemory(key); }
+            finally { if (tmp != null) { try { File.Delete(tmp); } catch (Exception) { } if (fmid != null) _komFileIn.TryRemove(fmid, out _); } CryptographicOperations.ZeroMemory(key); }   // nieudany - powtórka może przyjść
         }
+        static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _komFileIn = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>();
 
         // plik w rozmowie: ten sam identyfikator u nadawcy i odbiorcy (Mid z naglowka) - "przeczytane" (✓✓) dziala jak przy wiadomosciach
         void KomNote(KomContact c, bool mine, string text, string mid = null, string path = null)

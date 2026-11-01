@@ -2494,8 +2494,7 @@ namespace Velivo
             vid.MediaEnded += (s, e) => { vid.Position = TimeSpan.Zero; vid.Pause(); paused = true; };
             void Toggle() { if (paused) vid.Play(); else vid.Pause(); paused = !paused; }
             void Full() { bool on = d.WindowStyle != WindowStyle.None; d.WindowStyle = on ? WindowStyle.None : WindowStyle.SingleBorderWindow; d.WindowState = on ? WindowState.Maximized : WindowState.Normal; hint.Visibility = on ? Visibility.Collapsed : Visibility.Visible; }   // ⛶ pełny ekran (Esc - wyjście)
-            d.MouseLeftButtonUp += (s, e) => Toggle();
-            d.MouseDoubleClick += (s, e) => { Toggle(); Full(); };   // dwuklik: pełny ekran (pierwsze kliknięcie dwukliku nie pauzuje)
+            d.MouseLeftButtonDown += (s, e) => { Toggle(); if (e.ClickCount == 2) Full(); };   // dwuklik: pełny ekran, a pauza z pierwszego kliknięcia cofnięta drugim
             d.PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Space) Toggle();

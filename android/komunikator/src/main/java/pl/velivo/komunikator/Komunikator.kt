@@ -3040,14 +3040,15 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     })
                 }
                 // zdjęcie: miniatura nad dymkiem; stuknięcie - pełny ekran
-                val img = m.path?.takeIf { k.isImage(it) }?.let { thumb(it) }
+                val vid = m.path?.takeIf { it.substringAfterLast('.').lowercase() in setOf("mp4", "3gp", "webm", "mkv", "mov") && java.io.File(it).exists() }   // 🎬 film - klatka z ▶ i długością (jak WhatsApp)
+                val img = if (vid != null) vthumb(vid) else m.path?.takeIf { k.isImage(it) }?.let { thumb(it) }
                 if (img != null) msgs.addView(android.widget.ImageView(a).apply {
                     setImageBitmap(img); m.path?.let { gif(this, it) }   // 🎞 GIF rusza się w rozmowie
                     adjustViewBounds = true; maxWidth = px(240); maxHeight = px(280); scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
                     clipToOutline = true; outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, px(14).toFloat()) } }
                     layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = px(6) }
-                    contentDescription = t("Zdjęcie: ", "Photo: ") + m.text
-                    setOnClickListener { showPhoto(m.path!!, photos(c)) }
+                    contentDescription = (if (vid != null) t("Film: ", "Video: ") else t("Zdjęcie: ", "Photo: ")) + m.text
+                    setOnClickListener { if (vid != null) openFile(vid) else showPhoto(m.path!!, photos(c)) }
                     selectable(this, m)
                 })
                 if (m.lp.isNotEmpty() && m.path == null) runCatching {   // 🔗 podgląd linku (jak w WhatsApp): serwis, tytuł, opis - stuknięcie otwiera stronę
@@ -3092,7 +3093,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                             sp.setSpan(object : android.text.style.ClickableSpan() { override fun onClick(v: View) { openLink(u.url) } }, st, en, 0)
                         }
                     }
-                    if (img != null) setOnClickListener { showPhoto(m.path!!, photos(c)) }
+                    if (vid != null) setOnClickListener { openFile(vid) }
+                    else if (img != null) setOnClickListener { showPhoto(m.path!!, photos(c)) }
                     else if (m.path != null && java.io.File(m.path!!).exists() && java.io.File(m.path!!).name.contains("Glosowa-")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
@@ -3551,6 +3553,19 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     // miniatury raz na plik (rozmowa odświeża się często)
     private val thumbs = HashMap<String, android.graphics.Bitmap?>()
     private fun thumb(path: String): android.graphics.Bitmap? = thumbs.getOrPut(path) { decode(path, px(240)) }
+    // 🎬 miniatura filmu: pierwsza klatka (z obrotem z telefonu), na środku ▶, w rogu 🎥 i długość
+    private fun vthumb(path: String): android.graphics.Bitmap? = thumbs.getOrPut(path) { runCatching {
+        val r = android.media.MediaMetadataRetriever(); r.setDataSource(path)
+        val fr = r.getFrameAtTime(500_000) ?: r.frameAtTime; val ms = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L; r.release()
+        fr ?: return@runCatching null
+        val sc = px(240).toFloat() / maxOf(fr.width, fr.height); val b = android.graphics.Bitmap.createScaledBitmap(fr, (fr.width * sc).toInt().coerceAtLeast(1), (fr.height * sc).toInt().coerceAtLeast(1), true).copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+        val cv = android.graphics.Canvas(b); val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        val cx = b.width / 2f; val cy = b.height / 2f; val rad = px(26).toFloat()
+        p.color = Color.argb(0x90, 0, 0, 0); cv.drawCircle(cx, cy, rad, p)
+        p.color = Color.WHITE; cv.drawPath(android.graphics.Path().apply { moveTo(cx - rad * 0.35f, cy - rad * 0.5f); lineTo(cx + rad * 0.55f, cy); lineTo(cx - rad * 0.35f, cy + rad * 0.5f); close() }, p)
+        val txt = "🎥 " + (ms / 60000) + ":" + "%02d".format((ms / 1000) % 60); p.textSize = px(14).toFloat(); p.setShadowLayer(px(3).toFloat(), 0f, 0f, Color.BLACK)
+        cv.drawText(txt, px(8).toFloat(), b.height - px(8).toFloat(), p); b
+    }.getOrNull() }
     private fun decode(path: String, maxSide: Int): android.graphics.Bitmap? = runCatching {
         val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
         android.graphics.BitmapFactory.decodeFile(path, o)

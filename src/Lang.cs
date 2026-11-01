@@ -1369,6 +1369,7 @@ namespace Velivo
             { "Klik / spacja – pauza", "Click / space – pause" },
             { "odtwarzacz Velivo", "Velivo player" },
             { "dwuklik / F – pełny ekran", "double-click / F – full screen" },
+            { "Odtwórz film", "Play video" },
             { "Lektor", "Narrator" },
             { "Dźwięk", "Audio" },
             { "Proporcje", "Aspect" },

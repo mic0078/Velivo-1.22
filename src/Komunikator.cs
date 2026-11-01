@@ -1517,6 +1517,31 @@ namespace Velivo
             catch (Exception) { return b; }
         }
 
+        // 🎬 klatka filmu od Windows (miniatura Eksploratora - już obrócona jak w telefonie) i długość; raz na plik
+        readonly Dictionary<string, (ImageSource img, string len)> _komVThumbs = new Dictionary<string, (ImageSource, string)>();
+        async Task KomVideoThumb(string path, Image target, TextBlock lenText)
+        {
+            try
+            {
+                if (!_komVThumbs.TryGetValue(path, out var v))
+                {
+                    var f = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                    var d = (await f.Properties.GetVideoPropertiesAsync()).Duration;
+                    ImageSource img = null;
+                    using (var th = await f.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.VideosView, 260))
+                        if (th != null && th.Size > 0)
+                        {
+                            var ms = new MemoryStream(); await th.AsStreamForRead().CopyToAsync(ms); ms.Position = 0;
+                            var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.StreamSource = ms; b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); b.Freeze(); img = b;
+                        }
+                    v = (img, "🎥 " + (int)d.TotalMinutes + ":" + d.Seconds.ToString("00"));
+                    _komVThumbs[path] = v;
+                }
+                target.Source = v.img; lenText.Text = v.len;
+            }
+            catch (Exception) { lenText.Text = "🎥"; }   // brak miniatury (np. kodek nieznany Windows) - czarny kafelek z ▶ i tak pokazuje, że to film
+        }
+
         ImageSource KomThumb(string path)
         {
             if (_komThumbs.TryGetValue(path, out var t)) return t;
@@ -1855,6 +1880,18 @@ namespace Velivo
                         var ip = m.Path; img.MouseLeftButtonUp += (s2, e2) => { if (!selMode) KomViewer(w, c, ip); };   // 🖼 podgląd w Velivo (← → po zdjęciach rozmowy)
                         KomDragOut(img, ip);
                         body.Children.Add(img);
+                    }
+                    if (hasFile && KomIsVideo(m.Path))
+                    {   // 🎬 film: klatka z ▶ i długością (jak WhatsApp) - kliknięcie gra w okienku komunikatora
+                        var vp = m.Path; var frame = new Image { Stretch = Stretch.Uniform, MaxWidth = 260, MaxHeight = 260, MinWidth = 160, MinHeight = 90 };
+                        var len = new TextBlock { Foreground = Brushes.White, FontSize = 12, Margin = new Thickness(6, 0, 0, 4), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 0, BlurRadius = 4 } };
+                        var playIc = new TextBlock { Text = "▶", Foreground = Brushes.White, FontSize = 22, Width = 46, Height = 46, TextAlignment = TextAlignment.Center, Padding = new Thickness(4, 8, 0, 0), Background = new SolidColorBrush(Color.FromArgb(0x90, 0, 0, 0)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                        var vg = new Grid { Background = Brushes.Black, Cursor = Cursors.Hand, Margin = new Thickness(0, 2, 0, 4), ToolTip = L.T("Odtwórz film"), HorizontalAlignment = HorizontalAlignment.Left, Children = { frame, playIc, len } };
+                        playIc.Clip = new EllipseGeometry(new Point(23, 23), 23, 23);
+                        _ = KomVideoThumb(vp, frame, len);
+                        vg.MouseLeftButtonUp += (s2, e2) => { if (!selMode) KomVideoViewer(w, vp); };
+                        KomDragOut(vg, vp);
+                        body.Children.Add(vg);
                     }
                     if (!hasFile && m.Lp != null) try
                     {   // 🔗 podgląd linku (jak w WhatsApp): serwis, tytuł, opis - kliknięcie otwiera stronę

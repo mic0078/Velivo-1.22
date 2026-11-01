@@ -3641,8 +3641,7 @@ namespace Velivo
                 if (mp.TakeSnapshot(0, file, 0, 0)) ShowToast(L.T("📷 Zapisano klatkę: ") + System.IO.Path.GetFileName(file), file);
             };
             seek.PreviewMouseDown += (s, e) => seeking = true;
-            seek.PreviewMouseUp += (s, e) => { if (seeking && mp.Length > 0) { seekTo = (long)(seek.Value / 1000 * mp.Length); seekAt = DateTime.Now; mp.Time = seekTo; TogetherSend("seek", seekTo); } seeking = false; };
-            seek.LostMouseCapture += (s, e) => { if (seeking && Mouse.LeftButton != MouseButtonState.Pressed) { seeking = false; } };   // puszczone poza paskiem - suwak nie zostaje „zamrożony” do następnego kliknięcia
+            seek.PreviewMouseUp += (s, e) => { if (mp.Length > 0) { seekTo = (long)(seek.Value / 1000 * mp.Length); seekAt = DateTime.Now; mp.Time = seekTo; TogetherSend("seek", seekTo); } seeking = false; };
             seek.ValueChanged += (s, e) => { if (seeking && mp.Length > 0) timeNow.Text = FormatTime((long)(seek.Value / 1000 * mp.Length)); };
 
             // menu napisow / dzwieku / proporcji budowane przy otwarciu (sciezki znane dopiero po starcie filmu)

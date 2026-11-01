@@ -1665,7 +1665,7 @@ namespace Velivo
             var selText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
             var selBar = new DockPanel { Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
             Button SelBtn(string t, string tip) { var b = new Button { Content = t, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 0), ToolTip = tip }; DockPanel.SetDock(b, Dock.Left); selBar.Children.Add(b); buttons.Add(b); return b; }
-            var selFwd = SelBtn("↪ " + L.T("Przekaż"), L.T("Przekaż zaznaczone")); var selCopy = SelBtn("📋 " + L.T("Kopiuj"), L.T("Kopiuj zaznaczone")); var selDel = SelBtn("🗑 " + L.T("Usuń u mnie"), L.T("Usuń zaznaczone tylko na tym komputerze")); var selEnd = SelBtn("✕", L.T("Zakończ zaznaczanie"));
+            var selFwd = SelBtn("↪ " + L.T("Przekaż"), L.T("Przekaż zaznaczone")); var selCopy = SelBtn("📋 " + L.T("Kopiuj"), L.T("Kopiuj zaznaczone")); var selDel = SelBtn("🗑 " + L.T("Usuń u mnie"), L.T("Usuń zaznaczone tylko na tym komputerze")); var selDelAll = SelBtn("🚫 " + L.T("Usuń u wszystkich"), L.T("Twoje zaznaczone wiadomości znikają też u rozmówcy (jak w WhatsApp); cudze – tylko u Ciebie")); var selEnd = SelBtn("✕", L.T("Zakończ zaznaczanie"));
             selBar.Children.Add(selText); DockPanel.SetDock(selBar, Dock.Bottom);
             var tools = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(6, 0, 0, 6) };
             foreach (var b in new[] { galBtn, voiceBtn, callBtn, helpBtn }) { b.Height = 34; b.Margin = new Thickness(0, 0, 6, 0); tools.Children.Add(b); }
@@ -2036,6 +2036,18 @@ namespace Velivo
                 var c = Current(); if (c == null || picked.Count == 0) return;
                 if (MessageBox.Show(w, L.T("Usunąć zaznaczone wiadomości na tym komputerze?"), "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                 foreach (var x in picked) { KomChat(c.Id).Remove(x); if (x.Path != null && x.Path.StartsWith(KomMediaDir, StringComparison.OrdinalIgnoreCase)) try { File.Delete(x.Path); } catch (Exception) { } }
+                selMode = false; picked.Clear(); KomSave(); FillList(); FillChat();
+            };
+            selDelAll.Click += (s, e) =>
+            {   // 🚫 hurtem: moje - u wszystkich (jak jedna wiadomość), cudze - tylko tutaj
+                var c = Current(); if (c == null || picked.Count == 0) return;
+                var mine = picked.Where(x => x.Mine && !x.Text.StartsWith("🚫")).ToList(); int other = picked.Count(x => !x.Mine);
+                if (MessageBox.Show(w, L.T("Usunąć u wszystkich Twoje zaznaczone wiadomości: ") + mine.Count + (other > 0 ? L.T("\nWiadomości rozmówcy (") + other + L.T(") znikną tylko u Ciebie.") : "") + "?", "Velivo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                foreach (var x in picked.ToList())
+                {
+                    if (x.Path != null && x.Path.StartsWith(KomMediaDir, StringComparison.OrdinalIgnoreCase)) try { File.Delete(x.Path); } catch (Exception) { }
+                    if (mine.Contains(x)) KomDeleteForAll(c, x); else if (!x.Mine) KomChat(c.Id).Remove(x);
+                }
                 selMode = false; picked.Clear(); KomSave(); FillList(); FillChat();
             };
             selFwd.Click += async (s, e) =>

@@ -1528,7 +1528,8 @@ namespace Velivo
             // ⚙ Obraz i dźwięk: napisy, lektor, ścieżka, proporcje, zrzut - w drugim rzędzie z podpisami (jedna ikona na pasku zamiast pięciu)
             Action<Button, string> withLabel = (b, t) =>
             {
-                var sp = new StackPanel { Orientation = Orientation.Horizontal }; sp.Children.Add(b.Content as UIElement);
+                var ic = b.Content as UIElement; b.Content = null;   // ikona musi najpierw odejść od przycisku (inaczej wyjątek „już jest podrzędnym elementem”)
+                var sp = new StackPanel { Orientation = Orientation.Horizontal }; sp.Children.Add(ic);
                 sp.Children.Add(new TextBlock { Text = t, FontSize = 12, Foreground = Brushes.Gainsboro, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 2, 0) });
                 b.Content = sp; b.Width = double.NaN; b.Padding = new Thickness(8, 0, 8, 0);
             };

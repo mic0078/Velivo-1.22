@@ -666,7 +666,7 @@ namespace Velivo
         LibraryVideo LastFilm()
         {
             var tv = TvRecDirs();
-            return LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && !v.Done && v.Pos > 0 && !UnderAny(v.Path, tv) && File.Exists(v.Path)).OrderByDescending(v => v.Last).FirstOrDefault();
+            return LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && !v.Done && v.Pos > 0 && !IsTvRec(v.Path, tv) && File.Exists(v.Path)).OrderByDescending(v => v.Last).FirstOrDefault();
         }
 
         void ContinueLastFilm()
@@ -744,7 +744,7 @@ namespace Velivo
                 // czy plik jest na dysku - w tle: wylaczony NAS / odlaczony dysk sieciowy odpowiada dopiero po kilku sekundach
                 var res = await System.Threading.Tasks.Task.Run(() =>
                 {
-                    var mine = local.Where(v => tv ? UnderAny(v.Path, recDirs) : !UnderAny(v.Path, recDirs) && IsShared(v) == shared).ToList();   // nagrania TV - tylko w swojej bibliotece
+                    var mine = local.Where(v => tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared).ToList();   // nagrania TV - tylko w swojej bibliotece
                     var all = new List<LibraryVideo>(mine);
                     var of = new Dictionary<LibraryVideo, KeyValuePair<LanPeerInfo, LanFilmItem>>();
                     // ten sam film z NAS na kilku komputerach = jedna pozycja
@@ -838,7 +838,7 @@ namespace Velivo
             deleteBtn.Click += (s, a) =>
             {
                 bool shared = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs();
-                Func<LibraryVideo, bool> mine = v => tv ? UnderAny(v.Path, recDirs) : !UnderAny(v.Path, recDirs) && IsShared(v) == shared;
+                Func<LibraryVideo, bool> mine = v => tv ? IsTvRec(v.Path, recDirs) : !IsTvRec(v.Path, recDirs) && IsShared(v) == shared;
                 int here = LoadLibrary().Count(mine), fromPeers = shared && !tv ? remoteOf.Count : 0;
                 var name = tv ? L.T("Nagrane z TV") : shared ? sharedName() : localName();
                 // filmy z innych komputerow sa zapisane tam - tu mozna usunac tylko wpisy z tego komputera
@@ -882,7 +882,7 @@ namespace Velivo
                     jfDelete = ans == MessageBoxResult.Yes;
                     if (!jfDelete) JellyfinSkipAdd(jf.Select(x => x.Path));
                 }
-                var l = LoadLibrary(); bool sh = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs(); l.RemoveAll(v => (tv ? UnderAny(v.Path, recDirs) : IsShared(v) == sh) && rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
+                var l = LoadLibrary(); bool sh = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs(); l.RemoveAll(v => (tv ? IsTvRec(v.Path, recDirs) : IsShared(v) == sh) && rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
                 SaveLibrary(l); fill();
                 if (jfDelete) ShowToast(await JellyfinDeleteAsync(jc, jf.Select(x => x.Id).Distinct().ToList()), null);
             };
@@ -2218,7 +2218,7 @@ namespace Velivo
                     : fk == fRec ? libAll.Where(v => v.Last > 0 && v.Peer == null).ToList()
                     : fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? (fk.StartsWith("\u0001mine") ? pls.Mine : pls.Named.TryGetValue(fk.Substring(4), out var pl0) ? pl0 : new List<string>())
                         .Select(u => FindEntry(libAll, u, null) ?? new LibraryVideo { Path = u, Title = System.IO.Path.GetFileNameWithoutExtension(u) }).ToList()   // kolejnosc playlisty
-                    : SortFilms(libAll.Where(v => v.Peer == null && !UnderAny(v.Path, recDirs)), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
+                    : SortFilms(libAll.Where(v => v.Peer == null && !IsTvRec(v.Path, recDirs)), v => v.Title, v => MetaFor(v.Path), how, v => v.MyTitle);
                 // sortowanie nie dotyczy kolejnosci odtwarzania ani ostatnio ogladanych (zawsze od najnowszego)
                 chSort.Visibility = fk == fRec || fk == fCur && !remoteCur || fk.StartsWith("\u0001mine") || fk.StartsWith("\u0001pl:") ? Visibility.Collapsed : Visibility.Visible;
                 chList.Items.Clear(); ListBoxItem cur = null;
@@ -3114,7 +3114,7 @@ namespace Velivo
                 fSub(L.T("🕘 Ostatnio oglądane"), libF.Where(v => v.Last > 0).OrderByDescending(v => v.Last).Take(20));
                 var favF = LoadPlaylists().Named.TryGetValue("⭐ Ulubione", out var fl) ? fl : new List<string>();
                 fSub(L.T("⭐ Ulubione"), favF.Select(u => libF.FirstOrDefault(v => string.Equals(v.Path, u, StringComparison.OrdinalIgnoreCase))).Where(v => v != null).OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
-                var recD = TvRecDirs(); var allF = libF.Where(v => !UnderAny(v.Path, recD)).ToList();   // nagrania TV - tylko w "Nagrane z TV"
+                var recD = TvRecDirs(); var allF = libF.Where(v => !IsTvRec(v.Path, recD)).ToList();   // nagrania TV - tylko w "Nagrane z TV"
                 fSub(L.T("📚 Wszystkie filmy (") + allF.Count + ")", allF.OrderBy(v => ShownTitle(v, MetaFor(v.Path)), StringComparer.CurrentCultureIgnoreCase));
                 if (fm.Items.Count > 0) fm.Items.Add(new Separator());
                 pa(fm, L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(false, Window.GetWindow(overlay) ?? win); if (fs != null && fs.Length > 0) pipShow(pipFilm(fs[0])); }, true);

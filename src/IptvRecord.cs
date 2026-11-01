@@ -50,6 +50,9 @@ namespace Velivo
         }
 
         internal static bool UnderAny(string path, List<string> dirs) { return dirs.Any(d => (path ?? "").StartsWith(d, StringComparison.OrdinalIgnoreCase)); }
+        // nagranie z TV = plik nagrany przez Velivo („kanał – tytuł RRRR-MM-DD GG.MM.ts”) w folderze nagrań; zwykłe filmy w tym samym folderze (albo cały dysk ustawiony na nagrania) zostają w bibliotece - wcześniej znikały wszystkie
+        static readonly System.Text.RegularExpressions.Regex RecName = new System.Text.RegularExpressions.Regex(@" \d{4}-\d{2}-\d{2} \d{2}\.\d{2}\.ts$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        internal static bool IsTvRec(string path, List<string> dirs) { return UnderAny(path, dirs) && RecName.IsMatch(path ?? ""); }
 
         static long UnixMs(DateTime local) { return new DateTimeOffset(local).ToUnixTimeMilliseconds(); }
         static DateTime LocalOf(long ms) { return DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime; }

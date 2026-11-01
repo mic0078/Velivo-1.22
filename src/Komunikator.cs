@@ -1529,12 +1529,12 @@ namespace Velivo
                     var d = (await f.Properties.GetVideoPropertiesAsync()).Duration;
                     ImageSource img = null;
                     using (var th = await f.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.VideosView, 260))
-                        if (th != null && th.Size > 0)
+                        if (th != null && th.Size > 0 && th.Type == Windows.Storage.FileProperties.ThumbnailType.Image)   // Icon = Windows nie zna formatu (np. .webm nagrany w Velivo) - zamiast ikony pliku czarny kafelek z ▶
                         {
                             var ms = new MemoryStream(); await th.AsStreamForRead().CopyToAsync(ms); ms.Position = 0;
                             var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.StreamSource = ms; b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); b.Freeze(); img = b;
                         }
-                    v = (img, "🎥 " + (int)d.TotalMinutes + ":" + d.Seconds.ToString("00"));
+                    v = (img, d.TotalSeconds >= 1 ? "🎥 " + (int)d.TotalMinutes + ":" + d.Seconds.ToString("00") : "🎥");   // długości nie zna (webm) - bez „0:00”
                     _komVThumbs[path] = v;
                 }
                 target.Source = v.img; lenText.Text = v.len;

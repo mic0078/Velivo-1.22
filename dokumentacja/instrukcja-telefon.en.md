@@ -235,6 +235,8 @@ Menu → **⭐ Add this song** on an open YouTube video (category, playlists) �
 
 **Selecting messages (messenger):** press and hold a message – it is selected, further taps add or remove others. Bar at the top: ✕ (number selected), ↩ Reply, 📋 Copy, ↪ Forward, 🗑 For me, 🚫 For all, ⋯ More.
 
+**Voice message:** 🎤 – record; ⏹ – stop, then a bar 🗑 Delete / ▶ Listen / ➤ Send; ➤ while recording – sends at once.
+
 ## 8b. Velivo keyboard
 
 The same keyboard as on the computer, in Velivo colours (dark, light or black-and-white theme – chosen in the keyboard app). Works in every app.

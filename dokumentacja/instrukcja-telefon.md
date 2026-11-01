@@ -235,6 +235,8 @@ Menu → **⭐ Dodaj ten utwór** na otwartym filmie YouTube (kategoria, playlis
 
 **Zaznaczanie wiadomości (komunikator):** przytrzymaj palec na wiadomości – zostaje zaznaczona, kolejne stuknięcia dodają lub odznaczają inne. U góry pasek: ✕ (liczba zaznaczonych), ↩ Odpowiedz, 📋 Kopiuj, ↪ Przekaż, 🗑 U mnie, 🚫 U wszystkich, ⋯ Więcej.
 
+**Wiadomość głosowa:** 🎤 – nagrywasz; ⏹ – koniec, pod rozmową pasek 🗑 Usuń / ▶ Odsłuchaj / ➤ Wyślij; ➤ w trakcie nagrywania – wysyła od razu.
+
 ## 8b. Klawiatura Velivo
 
 Ta sama klawiatura co na komputerze, w kolorach Velivo (motyw ciemny, jasny lub czarno-biały – wybór w aplikacji klawiatury). Działa we wszystkich aplikacjach.

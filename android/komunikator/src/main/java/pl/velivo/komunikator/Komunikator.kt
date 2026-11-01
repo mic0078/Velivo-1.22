@@ -3166,8 +3166,21 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             true
         }
         // 🎤 wiadomość głosowa: stuknij - nagrywanie, stuknij ponownie - wysyłka (jak plik: w domu, przez internet, do skrzynki)
-        var rec: android.media.MediaRecorder? = null; var recFile: java.io.File? = null; var recAt = 0L
-        val mic = round("🎤", t("Wiadomość głosowa: stuknij, mów, stuknij ponownie, by wysłać", "Voice message: tap, speak, tap again to send"), pal().button) {}
+        var rec: android.media.MediaRecorder? = null; var recFile: java.io.File? = null; var recAt = 0L; var sendNow = false
+        val mic = round("🎤", t("Wiadomość głosowa: stuknij i mów; ⏹ – koniec, potem Wyślij / Odsłuchaj / Usuń; ➤ w trakcie – od razu wyślij", "Voice message: tap and speak; ⏹ – stop, then Send / Listen / Delete; ➤ while recording – send now"), pal().button) {}
+        // 🎤 po nagraniu (jak WhatsApp): pasek ➤ Wyślij / ▶ Odsłuchaj / 🗑 Usuń - nagranie nie leci od razu
+        val voiceBar = LinearLayout(a).apply { visibility = View.GONE; setPadding(px(8), px(6), px(8), px(4)); gravity = Gravity.CENTER_VERTICAL }
+        fun voiceAct(label: String, color: Int, run: () -> Unit) = TextView(a).apply {
+            text = label; gravity = Gravity.CENTER; textSize = 15f; setTextColor(Color.WHITE); setPadding(px(6), px(10), px(6), px(10))
+            background = GradientDrawable().apply { setColor(color); cornerRadius = px(22).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(px(3), 0, px(3), 0) }; setOnClickListener { run() }
+        }
+        fun voiceReady(f: java.io.File) {
+            voiceBar.removeAllViews(); voiceBar.visibility = View.VISIBLE
+            voiceBar.addView(voiceAct("🗑 " + t("Usuń", "Delete"), Color.rgb(0xB9, 0x1C, 0x1C)) { player?.let { runCatching { it.stop() } }; f.delete(); voiceBar.visibility = View.GONE })
+            voiceBar.addView(voiceAct("▶ " + t("Odsłuchaj", "Listen"), pal().button) { play(f.path) })
+            voiceBar.addView(voiceAct("➤ " + t("Wyślij", "Send"), violet) { player?.let { runCatching { it.stop() } }; voiceBar.visibility = View.GONE; attachTo = c; sendFiles(listOf(Uri.fromFile(f))) })
+        }
         mic.setOnClickListener {
             val r = rec
             if (r == null) {
@@ -3185,16 +3198,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 }.getOrNull()
                 rec = recorder(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION) ?: recorder(android.media.MediaRecorder.AudioSource.MIC)
                 if (rec != null) { recFile = f; recAt = System.currentTimeMillis(); mic.text = "⏹"; (mic.background as? GradientDrawable)?.setColor(Color.rgb(229, 57, 53))
-                    Toast.makeText(a, "🎤 " + t("Nagrywam… stuknij ⏹, by wysłać", "Recording… tap ⏹ to send"), Toast.LENGTH_SHORT).show() }
+                    Toast.makeText(a, "🎤 " + t("Nagrywam… ⏹ – koniec, ➤ – wyślij od razu", "Recording… ⏹ – stop, ➤ – send now"), Toast.LENGTH_SHORT).show() }
                 else Toast.makeText(a, t("Nie udało się włączyć mikrofonu", "Could not start the microphone"), Toast.LENGTH_SHORT).show()
             } else {
                 rec = null; val ok = runCatching { r.stop() }.isSuccess; r.release()
                 mic.text = "🎤"; (mic.background as? GradientDrawable)?.setColor(pal().button)
                 val f = recFile; recFile = null
-                if (ok && f != null && System.currentTimeMillis() - recAt > 700) { attachTo = c; sendFiles(listOf(Uri.fromFile(f))) } else f?.delete()
+                if (ok && f != null && System.currentTimeMillis() - recAt > 700) { if (sendNow) { sendNow = false; attachTo = c; sendFiles(listOf(Uri.fromFile(f))) } else voiceReady(f) } else f?.delete()
             }
         }
         val btn = round("➤", t("Wyślij", "Send"), violet) {   // klawiatura Velivo najpierw poprawia ostatnie słowo, potem wysyłka
+            if (rec != null) { sendNow = true; mic.performClick(); return@round }   // ➤ w trakcie nagrywania - od razu wysyła głosówkę (jak WhatsApp)
             (a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).sendAppPrivateCommand(input, "pl.velivo.slowo", null); input.postDelayed({ send() }, 150) }
         input.setOnEditorActionListener { _, id, _ -> if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { send(); true } else false }
         val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(cam); addView(mic); addView(input); addView(btn) }
@@ -3244,7 +3258,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         k.onTyping = { id -> if (id == c.id && chatWith == c.id) { status(); input.postDelayed({ if (chatWith == c.id) status() }, 6500) } }
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }
         root.removeAllViews()
-        root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(head); addView(selBar); addView(scroll); addView(replyBar); addView(row) })
+        root.addView(LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; addView(head); addView(selBar); addView(scroll); addView(replyBar); addView(voiceBar); addView(row) })
     }
 
     // przytrzymanie wiadomości: kopiuj, (zdjęcie) zapisz w Galerii, usuń u mnie

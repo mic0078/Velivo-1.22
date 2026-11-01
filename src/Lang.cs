@@ -1345,6 +1345,7 @@ namespace Velivo
             { "Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy", "Switch to films – film library\nRight-click: recently watched films" },
             { "Przełącz na telewizję – lista kanałów\nPrawy przycisk: ostatnio oglądane kanały", "Switch to TV – channel list\nRight-click: recently watched channels" },
             { "TV", "TV" },
+            { "Kanały", "Channels" },
             { "Lektor", "Narrator" },
             { "Dźwięk", "Audio" },
             { "Proporcje", "Aspect" },

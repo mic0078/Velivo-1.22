@@ -135,3 +135,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-01: pasek odtwarzacza uporządkowany – napisy, lektor, ścieżka, proporcje i zrzut w rzędzie „Obraz i dźwięk” (`toolsRow`, ikona tune, `pasek-narzedzia`), przyciski drugiego trybu (TV/film) i nieczynne schowane w `updQuick` (co 2 s i przy starcie odtwarzania); wąskie okno (<820) chowa rząd, bibliotekę i historię.
 * 2026-11-01: przełącznik 🎬 Filmy / 📺 TV na początku prawej grupy paska (`swap`, stan w `updQuick`).
 * 2026-11-01: prawy przycisk na 🎬 Filmy / 📺 TV – historia drugiej strony (kanały: `showChHist` z `chAnchor`, filmy: `ShowHistory`).
+* 2026-11-01: ⭐ Kanały i ⭐ Filmy z podpisami w obu trybach; 📺 kanały po prawej tylko przy TV (przy filmie – przełącznik „📺 TV”).

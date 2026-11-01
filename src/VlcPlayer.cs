@@ -1565,6 +1565,7 @@ namespace Velivo
             var qRecDir = qBtn("folder", L.T("Folder z nagraniami")); var qTv = qBtn("tv", L.T("Kanały telewizji")); var qGuide = qBtn("guide", L.T("Pełny program TV"));
             var qInfo = qBtn("info", L.T("Pokaż pasek informacji (I)")); var qRefresh = qBtn("refresh", L.T("Odśwież kanał (F5)")); var qLists = qBtn("playlists", L.T("Playlisty i moja kolejka"));
             var qFavTv = qFavBtn("tv", L.T("Moje ulubione kanały TV")); var qFavFilm = qFavBtn("film", L.T("Moje ulubione filmy"));
+            withLabel(qFavTv, L.T("Kanały")); withLabel(qFavFilm, L.T("Filmy"));   // dwie gwiazdki z podpisem - od razu widać, która jest która
             var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 2, 4, 4) };   // ta sama wysokosc co rzad przyciskow (btnRow: 2 u gory, 4 u dolu)
             var qBarTime = qBtn("eye", L.T("Pasek sterowania: jak długo zostaje widoczny i jak bardzo przezroczysty"));
             foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
@@ -3308,7 +3309,7 @@ namespace Velivo
                 bool isTv = c != null;
                 qRec.Visibility = vis(qRec.IsEnabled); qRecStop.Visibility = vis(recAll.Count > 0); qRefresh.Visibility = vis(isTv);
                 qGuide.Visibility = qRecSet.Visibility = vis(isTv && tvOn); qRecDir.Visibility = vis(tvOn && (isTv || recAll.Count > 0));
-                qTv.Visibility = qFavTv.Visibility = pipBtn.Visibility = vis(tvOn);
+                qFavTv.Visibility = pipBtn.Visibility = vis(tvOn); qTv.Visibility = vis(tvOn && isTv);   // przy filmie kanały otwiera „📺 TV” po lewej
                 qLists.Visibility = vis(!isTv);   // ⭐ ulubione filmy i kanały w obu trybach - szybkie przejście na drugą stronę
                 lib.Visibility = hist.Visibility = vis(!isTv && !narrow);
                 swapTv = !isTv; swap.Visibility = vis(!isTv ? tvOn : true);

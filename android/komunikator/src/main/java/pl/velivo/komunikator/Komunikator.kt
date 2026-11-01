@@ -161,8 +161,20 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun serverRestore(link: String, wait: (String) -> Unit, cancel: () -> Boolean): String {
         val code = link.trim().substringAfter("VELIVO-KONTAKT:").trim().split(Regex("\\s+")).firstOrNull() ?: ""
         val j = runCatching { JSONObject(String(Base64.decode(code, Base64.URL_SAFE), Charsets.UTF_8)) }.getOrNull()
-        val hosts = (if (j != null) listOf(j.optString("a")) + (j.optJSONArray("r")?.let { r -> (0 until r.length()).map { r.optString(it) } } ?: emptyList()) else listOf(link.trim())).filter { ':' in it }.distinct()
-        if (hosts.isEmpty()) return if (pl) "To nie jest link „Mój adres” Velivo" else "This is not a Velivo “My address” link"
+        // bez linku: nowy telefon nie zna adresu - w domowym Wi-Fi sam szuka serwerów; sama nazwa domu (np. n5plus.ddns.net) - porty serwerów 41920–41929 i 443
+        val raw = link.trim()
+        val cand = when {
+            j != null -> listOf(j.optString("a")) + (j.optJSONArray("r")?.let { r -> (0 until r.length()).map { r.optString(it) } } ?: emptyList())
+            raw.isEmpty() -> { wait(if (pl) "Szukam serwera w tej sieci Wi-Fi…" else "Looking for the server on this Wi-Fi…"); find()
+                found.values.flatMap { pe -> foundRelay[pe.id]?.let { listOf(it) } ?: (41920..41929).map { (pe.addr.hostAddress ?: "") + ":" + it } } }
+            ':' in raw -> listOf(raw)
+            else -> (41920..41929).map { "$raw:$it" } + "$raw:443"
+        }.filter { ':' in it }.distinct()
+        if (cand.isEmpty()) return if (raw.isEmpty()) (if (pl) "Nie widzę serwera w tej sieci Wi-Fi – połącz telefon z domowym Wi-Fi albo wpisz adres domu" else "No server on this Wi-Fi – join the home Wi-Fi or enter the home address")
+            else (if (pl) "To nie jest link „Mój adres” ani adres domu" else "This is not a “My address” link or a home address")
+        // tylko adresy, które odpowiadają (sprawdzane naraz) - zamknięte porty nie wydłużają czekania
+        val hosts = cand.map { hp -> java.util.concurrent.FutureTask<String?> { hp.takeIf { runCatching { java.net.Socket().use { so -> so.connect(InetSocketAddress(hp.substringBeforeLast(':'), hp.substringAfterLast(':').toInt()), 3000) } }.isSuccess } }.also { Thread(it).start() } }
+            .mapNotNull { runCatching { it.get(10, java.util.concurrent.TimeUnit.SECONDS) }.getOrNull() }.ifEmpty { cand.take(3) }
         val req = UUID.randomUUID().toString().replace("-", "")
         val end = System.currentTimeMillis() + 300000; var heard = false; val none = HashSet<String>()
         while (System.currentTimeMillis() < end && !cancel()) {
@@ -368,7 +380,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         when (t) {
             "p2p-who" -> sendUdp(packet("p2p-here"), sender)
             "p2p-typing" -> if (p.optString("to") == myId && contact(from) != null) { typingAt[from] = System.currentTimeMillis(); main.post { onTyping(from) } }   // ✍ „pisze…”
-            "p2p-here" -> if (!net) found[from] = Peer(from, clean(p.optString("device")), sender)
+            "p2p-here" -> if (!net) { found[from] = Peer(from, clean(p.optString("device")), sender); p.optString("relay").substringAfterLast(':', "").toIntOrNull()?.let { foundRelay[from] = (sender.hostAddress ?: "") + ":" + it } }   // ♻ serwer w Wi-Fi - nowy telefon znajdzie go bez linku
             "p2p-msg" -> message(p, sender)
             "p2p-ack" -> {
                 val c = contact(from) ?: return true; val mid = p.optString("mid")
@@ -1107,6 +1119,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         } finally { if (!good) { tmp.delete(); if (fmid != null) synchronized(fileIn) { fileIn.remove(fmid) } } }   // nieudany - powtórka może przyjść
     }
     private val fileIn = HashSet<String>()
+    private val foundRelay = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     // plik na inny telefon: open() - strumień od początku (dwa razy: suma, potem wysyłka)
     // retry - plik, który czekał na odbiorcę (kopia w Velivo), wysyłany ponownie z tym samym wpisem w rozmowie
@@ -2599,12 +2612,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
 
     // ♻ nowy / wyczyszczony telefon: link „Mój adres” od kogoś z rodziny (prowadzi do serwera) → właściciel serwera potwierdza → konto, kontakty i rozmowy wracają
     fun restoreAccount() {
-        val link = EditText(a).apply { hint = "VELIVO-KONTAKT:…"; minLines = 2
+        val link = EditText(a).apply { hint = t("puste = szukaj w domowym Wi-Fi", "empty = search the home Wi-Fi"); minLines = 2
             runCatching { a.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(a)?.toString()?.takeIf { it.contains("VELIVO-KONTAKT:") }?.let { setText(it.trim()) } } }
         val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(link) }
         Dlg().setTitle("♻ " + t("Przywróć z serwera", "Restore from the server"))
-            .setMessage(t("Wklej link „Mój adres” od kogoś z rodziny – prowadzi do Twojego serwera. Właściciel serwera zobaczy na komputerze pytanie i kliknie „Tak” – wtedy wracają Twoje kontakty i rozmowy. Kontakty i rozmowy, które są teraz w tym telefonie, zostaną zastąpione.",
-                "Paste a “My address” link from a family member – it leads to your server. The server owner sees a question on the computer and clicks “Yes” – then your contacts and chats come back. Contacts and chats now on this phone will be replaced."))
+            .setMessage(t("W domu: połącz telefon z domowym Wi-Fi i zostaw pole puste – telefon sam znajdzie serwer. Poza domem: wpisz adres domu (np. n5plus.ddns.net) albo wklej link „Mój adres” od kogoś z rodziny. Na komputerze z serwerem pojawi się pytanie – kliknij swoje imię i wracają kontakty i rozmowy (te w tym telefonie zostaną zastąpione).",
+                "At home: join the home Wi-Fi and leave the field empty – the phone finds the server. Away: enter the home address (e.g. n5plus.ddns.net) or paste a “My address” link from a family member. A question appears on the server computer – click your name and contacts and chats come back (those on this phone are replaced)."))
             .setView(box)
             .setPositiveButton(t("Przywróć", "Restore")) { _, _ ->
                 val stop = java.util.concurrent.atomic.AtomicBoolean()

@@ -148,6 +148,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-01: napisy telefon → Windows: wieczne „Czekam na napisy…” – rozpoznawanie mowy w telefonie dostaje ciszę, gdy rozmowa trzyma mikrofon (Android), a kod ponawiał po cichu bez końca; teraz po 4 pustych próbach komunikat. Napisy z komputera nie istnieją (Windows nie rozpoznaje mowy). Nie zakładaj, że dwa programy naraz dostaną mikrofon.
 * 2026-11-01: plik do telefonu przychodził 3 razy (z każdego serwera) – skrzynka 📬 ma kopię u każdego serwera, a odbiorca przyjmował każdą; teraz odbiorca (telefon i Windows) odmawia pliku o tym samym Mid (serwer kasuje kopię). Przy kilku serwerach odbiorca musi sam odrzucać powtórki – nie licz na to, że serwery się zgrają.
 * 2026-11-01: okienko 💾 Kopia i przywracanie pokazywało sam opis bez listy – w AlertDialog setMessage chowa setItems. Lista w okienku Androida: nigdy razem z setMessage.
+* 2026-11-01: przywracanie na nowym telefonie wymagało linku „Mój adres”, którego nowy telefon nie ma skąd wziąć – właściciel: „skąd mam znać swój link?!”; teraz puste pole = szukanie serwera w Wi-Fi, albo sama nazwa domu. Przejdź każdą funkcję oczami osoby z pustym, nowym telefonem.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

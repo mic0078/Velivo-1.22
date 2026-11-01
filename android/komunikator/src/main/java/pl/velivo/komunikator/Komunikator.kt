@@ -132,7 +132,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         if (System.currentTimeMillis() - recoveryAt > 600000 && prefs.getString("odzysk-k", null) != null) { recoveryAt = System.currentTimeMillis(); Thread { uploadRecovery() }.start() }   // ♻ kopia konta na serwerach - najwyżej co 10 min
     }
 
-    // ♻ kod odzyskiwania konta (3 słowa, jak numer w WhatsApp): zaszyfrowana kluczem z tych słów kopia mojej tożsamości i kontaktów
+    // ♻ kod odzyskiwania konta (własny PIN albo słowa, min. 4 znaki, jak numer w WhatsApp): zaszyfrowana kluczem z tych słów kopia mojej tożsamości i kontaktów
     // leży na moich serwerach (one jej nie odczytają); po reinstalacji telefonu te same słowa przywracają to samo konto - nikt nie dodaje mnie od nowa
     @Volatile private var recoveryAt = 0L
     private fun recoveryKey(words: String): ByteArray = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
@@ -140,7 +140,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun recoveryLookup(k: ByteArray) = MessageDigest.getInstance("SHA-256").digest(k + "velivo-odzysk-l".toByteArray(Charsets.UTF_8)).take(16).joinToString("") { "%02x".format(it) }
     val hasRecovery get() = prefs.getString("odzysk-k", null) != null
     fun setRecovery(words: String): Boolean {
-        if (words.trim().split(Regex("\\s+")).size < 3) return false
+        if (words.replace(Regex("\\s+"), "").length < 4) return false
         prefs.edit().putString("odzysk-k", seal(b64(recoveryKey(words)))).apply()
         Thread { uploadRecovery() }.start(); return true
     }
@@ -153,10 +153,10 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         val body = JSONObject().put("l", recoveryLookup(k)).put("b", b64(n + c.doFinal(JSONObject().put("id", myId).put("c", a).toString().toByteArray(Charsets.UTF_8)))).toString()
         synchronized(this) { contacts.filter { it.relay != null && !it.isGroup } }.forEach { hidden(it, RESTORE + body) }   // na każdy mój serwer
     }
-    // po reinstalacji: adres (link „Mój adres” od kogokolwiek z moich serwerów albo host:port) + 3 słowa; wynik "ok" albo opis
+    // po reinstalacji: adres (link „Mój adres” od kogokolwiek z moich serwerów albo host:port) + własny kod; wynik "ok" albo opis
     fun restore(link: String, words: String): String {
-        val fail = if (pl) "Nie znaleziono kopii – sprawdź 3 słowa i adres" else "No backup found – check the 3 words and the address"
-        if (words.trim().split(Regex("\\s+")).size < 3) return if (pl) "Wpisz 3 słowa" else "Enter 3 words"
+        val fail = if (pl) "Nie znaleziono kopii – sprawdź kod i adres" else "No backup found – check the code and the address"
+        if (words.replace(Regex("\\s+"), "").length < 4) return if (pl) "Wpisz co najmniej 4 znaki" else "Enter at least 4 characters"
         return runCatching {
             val code = link.trim().substringAfter("VELIVO-KONTAKT:").trim().split(Regex("\\s+")).firstOrNull() ?: ""
             val j = runCatching { JSONObject(String(Base64.decode(code, Base64.URL_SAFE), Charsets.UTF_8)) }.getOrNull()
@@ -2554,26 +2554,26 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    // 🔑 kod odzyskiwania: 3 słowa wymyślone samemu - z nimi po wyczyszczeniu telefonu wraca to samo konto i wszystkie kontakty
+    // 🔑 kod odzyskiwania: własny PIN albo słowa (min. 4 znaki) - z nimi po wyczyszczeniu telefonu wraca to samo konto i wszystkie kontakty
     private fun recoveryCode() {
-        val e = EditText(a).apply { hint = t("np. kot morze lipiec", "e.g. cat sea july"); setSingleLine(true) }
+        val e = EditText(a).apply { hint = t("np. 4821 albo kot morze", "e.g. 4821 or cat sea"); setSingleLine(true) }
         Dlg().setTitle("🔑 " + t("Kod odzyskiwania konta", "Account recovery code"))
             .setMessage((if (k.hasRecovery) t("Kod jest ustawiony. Możesz wpisać nowy.\n\n", "A code is set. You can enter a new one.\n\n") else "") +
-                t("Wymyśl 3 słowa i zapisz je w bezpiecznym miejscu. Po wyczyszczeniu albo zmianie telefonu: ➕ → ♻ Przywróć konto – wraca to samo konto i wszystkie kontakty, nikt nie musi Cię dodawać od nowa. Kopia leży zaszyfrowana na Twoich serwerach – bez tych słów nikt jej nie odczyta.",
-                  "Make up 3 words and keep them safe. After resetting or changing the phone: ➕ → ♻ Restore account – the same account and all contacts come back, nobody has to add you again. The backup is encrypted on your servers – nobody can read it without these words."))
+                t("Wymyśl własny kod – PIN albo słowa, co najmniej 4 znaki – i zapisz go w bezpiecznym miejscu. Po wyczyszczeniu albo zmianie telefonu: ➕ → ♻ Przywróć konto – wraca to samo konto i wszystkie kontakty, nikt nie musi Cię dodawać od nowa. Kopia leży zaszyfrowana na Twoich serwerach – bez tego kodu nikt jej nie odczyta. Dłuższy kod = bezpieczniejszy.",
+                  "Make up your own code – a PIN or words, at least 4 characters – and keep it safe. After resetting or changing the phone: ➕ → ♻ Restore account – the same account and all contacts come back, nobody has to add you again. The backup is encrypted on your servers – nobody can read it without this code. Longer = safer."))
             .setView(e)
             .setPositiveButton(t("Zapisz", "Save")) { _, _ ->
-                Toast.makeText(a, if (k.setRecovery(e.text.toString())) t("🔑 Zapisano – kopia idzie na Twoje serwery", "🔑 Saved – the backup goes to your servers") else t("Wpisz 3 słowa", "Enter 3 words"), Toast.LENGTH_LONG).show()
+                Toast.makeText(a, if (k.setRecovery(e.text.toString())) t("🔑 Zapisano – kopia idzie na Twoje serwery", "🔑 Saved – the backup goes to your servers") else t("Wpisz co najmniej 4 znaki", "Enter at least 4 characters"), Toast.LENGTH_LONG).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
-    // ♻ przywrócenie konta po reinstalacji: adres serwera (link „Mój adres” od kogoś z rodziny) + 3 słowa
+    // ♻ przywrócenie konta po reinstalacji: adres serwera (link „Mój adres” od kogoś z rodziny) + własny kod
     private fun restoreAccount() {
         val link = EditText(a).apply { hint = "VELIVO-KONTAKT:…"; minLines = 2
             runCatching { a.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(a)?.toString()?.takeIf { it.contains("VELIVO-KONTAKT:") }?.let { setText(it.trim()) } } }
-        val words = EditText(a).apply { hint = t("Twoje 3 słowa", "Your 3 words"); setSingleLine(true) }
+        val words = EditText(a).apply { hint = t("Twój kod (PIN albo słowa)", "Your code (PIN or words)"); setSingleLine(true) }
         val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); addView(link); addView(words) }
         Dlg().setTitle("♻ " + t("Przywróć konto", "Restore account"))
-            .setMessage(t("Wklej link „Mój adres” od kogoś z rodziny (prowadzi do Twojego serwera) i wpisz swoje 3 słowa.", "Paste a “My address” link from a family member (it leads to your server) and enter your 3 words."))
+            .setMessage(t("Wklej link „Mój adres” od kogoś z rodziny (prowadzi do Twojego serwera) i wpisz swój kod.", "Paste a “My address” link from a family member (it leads to your server) and enter your code."))
             .setView(box)
             .setPositiveButton(t("Przywróć", "Restore")) { _, _ ->
                 val wait = Dlg().setTitle("♻").setMessage(t("Szukam kopii…", "Looking for the backup…")).show()

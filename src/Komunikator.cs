@@ -1952,6 +1952,9 @@ namespace Velivo
                     // przeczytane (✓✓) na niebiesko - jak w telefonie
                     if (m.Mine && m.Read) { stampTb.Inlines.Add(new System.Windows.Documents.Run(stamp.Substring(0, stamp.Length - 3)) { Foreground = new SolidColorBrush(Color.FromArgb(0xB3, fg.Color.R, fg.Color.G, fg.Color.B)) }); stampTb.Inlines.Add(new System.Windows.Documents.Run(" ✓✓") { Foreground = new SolidColorBrush(pal.Key == "kontrast" ? Color.FromRgb(0, 0, 0xCC) : Color.FromRgb(0x7D, 0xF9, 0xFF)), FontWeight = FontWeights.Bold }); }
                     else { stampTb.Text = stamp; stampTb.Opacity = 0.7; }
+                    // krótka wiadomość (jak w WhatsApp): godzina i ptaszki w tej samej linijce, po prawej - dymek niski i zwarty
+                    if (!hasFile && body.Children.Count == 1 && m.Text.Length <= 45 && m.Text.IndexOfAny(new[] { '\n', '\r' }) < 0)
+                    { body.Orientation = Orientation.Horizontal; stampTb.Margin = new Thickness(10, 0, 0, -2); stampTb.VerticalAlignment = VerticalAlignment.Bottom; }
                     body.Children.Add(stampTb);
                     var bubble = new Border
                     {

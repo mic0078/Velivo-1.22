@@ -2020,9 +2020,12 @@ namespace Velivo
                         };
                         var showIn = new MenuItem { Header = L.T("📁 Pokaż w folderze") }; showIn.Click += (s2, e2) => { try { System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + fp2 + "\""); } catch (Exception) { } };
                         txt.ContextMenu.Items.Add(saveAs); txt.ContextMenu.Items.Add(showIn);
-                        foreach (var ch in body.Children.OfType<FrameworkElement>().Where(x => x is Image or MediaElement)) ch.ContextMenu = txt.ContextMenu;
+                        foreach (var ch in body.Children.OfType<FrameworkElement>().Where(x => x is Image or MediaElement or Grid)) ch.ContextMenu = txt.ContextMenu;
                     }
-                    body.Children.Add(txt);
+                    // jak WhatsApp: zdjęcie / film z miniaturą - sam obraz i godzina (bez nazwy, rozmiaru, „odebrano”); głosówka - krótko
+                    bool mediaOnly = hasFile && body.Children.Count > 0 && (KomIsVideo(m.Path) || KomIsImage(m.Path));
+                    if (hasFile && Path.GetFileName(m.Path).Contains("Glosowa-")) { txt.Inlines.Clear(); txt.Text = "🎤 ▶  " + L.T("Wiadomość głosowa"); }
+                    if (!mediaOnly) body.Children.Add(txt);
                     if (!m.Mine && !hasFile && KomScamWarning(m.Text) is string scam)   // 🛡 podejrzany link / prośba o kod lub dane karty
                         body.Children.Add(new Border { Background = new SolidColorBrush(scam.StartsWith("⚠") ? Color.FromRgb(0xDC, 0x26, 0x26) : Color.FromArgb(0x50, 0xF5, 0x9E, 0x0B)), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 4, 8, 5), Margin = new Thickness(0, 6, 0, 2),
                             Child = new TextBlock { Text = scam, TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = scam.StartsWith("⚠") ? Brushes.White : fg } });

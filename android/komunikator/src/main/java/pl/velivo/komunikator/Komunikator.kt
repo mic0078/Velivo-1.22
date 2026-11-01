@@ -3068,10 +3068,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 }
                 msgs.addView(TextView(a).apply {
                     val tick = if (m.mine) (if (m.read || (m.ok && !m.text.contains("📬"))) "  ✓✓" else "  ✓") else ""   // 📬 w skrzynce pośrednika - jeszcze nie u odbiorcy   // jak WhatsApp: ✓ wysłana, ✓✓ szare doręczona, ✓✓ niebieskie przeczytana
-                    text = android.text.SpannableStringBuilder(m.text).apply {
+                    // jak WhatsApp: zdjęcie / film - tylko obraz i godzina (bez nazwy, rozmiaru, „odebrano”); głosówka - 🎤 i długość
+                    val shown = if (img != null) "" else if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) "🎤 ▶" else m.text
+                    text = android.text.SpannableStringBuilder(shown).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
                         voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
-                        append(if (m.path == null && m.text.length <= 28 && !m.text.contains('\n')) "   " else "\n"); val st = length; append(k.reactions(m)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp)
+                        append(if (shown.isEmpty()) "" else if ((m.path == null || shown != m.text) && length <= 28 && !shown.contains('\n')) "   " else "\n"); val st = length; append(k.reactions(m)   // krótka wiadomość: godzina i ptaszki w tej samej linijce (jak WhatsApp)
                             .let { if (it.isEmpty()) "" else "$it  " } + fmt.format(java.util.Date(m.ts)) + tick)
                         setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0)
                         if (m.mine && m.read) setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), length - tick.length, length, 0)   // ✓✓ przeczytane - wyraźne (na zielonym dymku jasnoniebieskie zlewało się z białym)

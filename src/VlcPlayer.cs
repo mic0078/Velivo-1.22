@@ -1580,8 +1580,8 @@ namespace Velivo
             var netUpLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };   // wysylanie (np. film dla drugiego komputera w LAN)
             netGraph.Children.Add(netLine); netGraph.Children.Add(netUpLine);
             var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 18, 0), MinWidth = 84, LineHeight = 14 };
-            var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 17, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
-            var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center };
+            var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 26, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
+            var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Center };
             var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
             var netBox = new StackPanel { Orientation = Orientation.Horizontal, ToolTip = L.T("Sieć – internet i LAN (ostatnie 30 s)\nKliknij: opcje połączenia i bufor kanałów\n↓ niebieska: pobieranie (TV, filmy z innego komputera)\n↑ zielona: wysyłanie (film dla drugiego komputera przy wspólnym oglądaniu)") };
             var netDown = new System.Windows.Documents.Run { Foreground = netLine.Stroke };
@@ -1597,10 +1597,10 @@ namespace Velivo
             endText.Inlines.Add(endRun); endText.Inlines.Add(new System.Windows.Documents.LineBreak()); endText.Inlines.Add(dotRun); endText.Inlines.Add(new System.Windows.Documents.Run(" ")); endText.Inlines.Add(stateRun); endText.Inlines.Add(leftRun);
             var lostHist = new Queue<int>();   // utracone klatki z ostatnich 10 s
             // za zegarem: film – plakat, ocena i gatunek (z Jellyfin); telewizja – logo stacji
-            var badgeImg = new Image { Height = 40, MaxWidth = 72, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };
+            var badgeImg = new Image { Height = 66, MaxWidth = 120, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };
             RenderOptions.SetBitmapScalingMode(badgeImg, BitmapScalingMode.HighQuality);
-            var badgeRate = new TextBlock { Foreground = Brushes.Gold, FontSize = 13, FontWeight = FontWeights.SemiBold };
-            var badgeGenre = new TextBlock { Foreground = Brushes.Silver, FontSize = 11.5, MaxWidth = 170, TextTrimming = TextTrimming.CharacterEllipsis };
+            var badgeRate = new TextBlock { Foreground = Brushes.Gold, FontSize = 16, FontWeight = FontWeights.SemiBold };
+            var badgeGenre = new TextBlock { Foreground = Brushes.Silver, FontSize = 13, MaxWidth = 190, TextTrimming = TextTrimming.CharacterEllipsis };
             var badgeTxt = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) }; badgeTxt.Children.Add(badgeRate); badgeTxt.Children.Add(badgeGenre);
             var badge = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 6, 0), Visibility = Visibility.Collapsed };
             badge.Children.Add(badgeImg); badge.Children.Add(badgeTxt);
@@ -1628,7 +1628,7 @@ namespace Velivo
                 badge.ToolTip = ch != null ? ch.Name : string.Join("\n", new[] { rate, gen }.Where(x => x.Length > 0));
                 badge.Visibility = img != null || rate.Length + gen.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
             };
-            quick.Children.Add(netBox); quick.Children.Add(endText); quick.Children.Add(clockBox); quick.Children.Add(badge);
+            quick.Children.Add(netBox); quick.Children.Add(endText); 
             netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
             // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
@@ -1782,6 +1782,11 @@ namespace Velivo
             ctlRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); ctlRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Grid.SetColumnSpan(seekRow, 2); Grid.SetColumn(statusRow, 1); Grid.SetRow(mainCol, 1); Grid.SetRow(quick, 1); Grid.SetColumn(quick, 1);
             ctlRow.Children.Add(seekRow); ctlRow.Children.Add(statusRow); ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quick);
+            // zegar i plakat / logo stacji z prawej na wysokość obu wierszy - większe, czytelne z kanapy
+            ctlRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var rightBox = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 4, 10, 4) };
+            rightBox.Children.Add(clockBox); rightBox.Children.Add(badge);
+            Grid.SetColumn(rightBox, 2); Grid.SetRowSpan(rightBox, 2); ctlRow.Children.Add(rightBox);
             // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
             var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
             recDot.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.35, TimeSpan.FromSeconds(1)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
@@ -1795,12 +1800,12 @@ namespace Velivo
             // przyciski szersze niż ekran (TV, niska rozdzielczość, duże skalowanie - CHUWI) - cały rząd zmniejszany, żeby nic nie było obcięte z prawej
             SizeChangedEventHandler fitBar = (s, e) =>
             {
-                double need = mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right, have = overlay.ActualWidth;
+                double need = mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right + rightBox.ActualWidth + 14, have = overlay.ActualWidth;
                 double k = need > 0 && have > 0 && need > have ? Math.Floor(have / need * 20) / 20 : 1;   // skok co 5% - bez przeliczania paska w kółko (przycinało obraz)
                 var cur = ctlRow.LayoutTransform as ScaleTransform;
                 if (Math.Abs((cur?.ScaleX ?? 1) - k) > 0.001) ctlRow.LayoutTransform = k < 1 ? new ScaleTransform(k, k) : Transform.Identity;
             };
-            overlay.SizeChanged += fitBar; mainCol.SizeChanged += fitBar; quick.SizeChanged += fitBar;
+            overlay.SizeChanged += fitBar; mainCol.SizeChanged += fitBar; quick.SizeChanged += fitBar; rightBox.SizeChanged += fitBar;
             // tryb mini: waski ciemny pasek u gory (tytul, powrot, zamknij), za niego przeciaga sie okienko
             var miniTitle = new TextBlock { Foreground = Brushes.White, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             var miniBack = glyphBtn("exitmini", L.T("Wróć do zwykłego okna"));

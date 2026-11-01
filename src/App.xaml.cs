@@ -44,7 +44,17 @@ namespace Velivo
         {
             base.OnStartup(e);
             Exit += (s, a) => Velivo.MainWindow.EnsureProcessEnds();   // nic nie zostaje w tle po zamknieciu
-            VelivoData.Migrate();   // %LOCALAPPDATA%\Przegladarka -> %LOCALAPPDATA%\Programs\Velivo\Dane, zanim cokolwiek siegnie po dane
+            VelivoData.Migrate();
+            // laptopy z dwiema kartami (Ryzen do gier): film na słabszej karcie gubił ~5 klatek/s (każda spóźniona ~25 ms);
+            // Velivo samo prosi Windows o mocną kartę (jak Ustawienia → Ekran → Grafika → Wysoka wydajność), działa od następnego uruchomienia;
+            // wybór właściciela w Ustawieniach zostaje - wpisujemy tylko, gdy go nie ma; komputer z jedną kartą nic nie zmienia
+            try
+            {
+                var exe = Environment.ProcessPath;
+                using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\DirectX\UserGpuPreferences");
+                if (exe != null && k != null && k.GetValue(exe) == null) k.SetValue(exe, "GpuPreference=2;");
+            }
+            catch (Exception ex) { App.LogError(ex); }   // %LOCALAPPDATA%\Przegladarka -> %LOCALAPPDATA%\Programs\Velivo\Dane, zanim cokolwiek siegnie po dane
             // okna o tym samym rozmiarze otwierane w tym samym miejscu - kaskadowo jak w Windows (najnowsze na wierzchu, przesuniete w dol)
             EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((s, a) =>
             {

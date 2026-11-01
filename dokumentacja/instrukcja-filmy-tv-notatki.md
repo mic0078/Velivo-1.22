@@ -136,3 +136,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-01: przełącznik 🎬 Filmy / 📺 TV na początku prawej grupy paska (`swap`, stan w `updQuick`).
 * 2026-11-01: prawy przycisk na 🎬 Filmy / 📺 TV – historia drugiej strony (kanały: `showChHist` z `chAnchor`, filmy: `ShowHistory`).
 * 2026-11-01: ⭐ Kanały i ⭐ Filmy z podpisami w obu trybach; 📺 kanały po prawej tylko przy TV (przy filmie – przełącznik „📺 TV”).
+* 2026-11-01: laptopy z dwiema kartami graficznymi – Velivo przy starcie prosi Windows o mocną kartę (HKCU\Software\Microsoft\DirectX\UserGpuPreferences, GpuPreference=2), tylko gdy właściciel sam nic nie ustawił; działa od następnego uruchomienia. Wcześniej film/TV na słabszej karcie gubiły ~5 klatek/s.

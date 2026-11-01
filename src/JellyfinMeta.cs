@@ -41,6 +41,7 @@ namespace Velivo
             public string Key { get; set; }
             public long Synced { get; set; }
             public int AutoHours { get; set; }   // samo odswiezanie biblioteki z Jellyfin co tyle godzin (0 = wylaczone)
+            public string Lan { get; set; }   // ostatni działający adres w sieci domowej - w domu router często nie wpuszcza na własny adres z internetu (n5plus…)
         }
 
         static string MetaDir { get { return Path.Combine(DataDir, "filmy-info"); } }
@@ -425,9 +426,29 @@ namespace Velivo
         }
 
         // pobranie / uzupelnienie bazy: dane wszystkich filmow, plakaty tylko nowe albo zmienione
+        // adres, który odpowiada (najpierw wpisany, potem ostatni domowy) - sprawdzany 8 s, zamiast czekać 5 min na odpowiedź, która nie przyjdzie
+        static async Task<string> JellyfinReach(JellyfinConf c)
+        {
+            foreach (var u in new[] { c.Url, c.Lan }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+                try
+                {
+                    using var t = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+                    if ((await t.GetAsync(u.TrimEnd('/') + "/System/Info/Public")).IsSuccessStatusCode)
+                    {
+                        if (Uri.TryCreate(u, UriKind.Absolute, out var uri) && System.Net.IPAddress.TryParse(uri.Host, out var ip) && IsPrivateIp(ip)) c.Lan = u;   // domowy adres na zapas
+                        return u;
+                    }
+                }
+                catch (Exception) { }
+            return null;
+        }
+        static bool IsPrivateIp(System.Net.IPAddress ip) { var b = ip.GetAddressBytes(); return b.Length == 4 && (b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168)); }
         async Task<string> SyncJellyfin(JellyfinConf c, Action<string> progress)
         {
-            using (var http = JellyfinClient(c))
+            progress(L.T("Łączę z serwerem Jellyfin…"));
+            var url = await JellyfinReach(c);
+            if (url == null) throw new HttpRequestException(L.T("Serwer Jellyfin nie odpowiada pod adresem ") + c.Url + L.T(". W domu router często nie wpuszcza na własny adres z internetu – wpisz adres w sieci domowej (np. http://192.168.8.117:8097); Velivo zapamięta oba."));
+            using (var http = JellyfinClient(new JellyfinConf { Url = url, Key = c.Key }))
             {
                 var users = JsonDocument.Parse(await (await Ok(http.GetAsync("Users"))).Content.ReadAsStringAsync()).RootElement;
                 // administrator widzi wszystkie biblioteki (pierwszy uzytkownik moze nie miec dostepu do czesci z nich)

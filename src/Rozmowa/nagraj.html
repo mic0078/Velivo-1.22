@@ -27,24 +27,14 @@ rec.onclick = () => {
     out({ k: 'photo', d: c.toDataURL('image/jpeg', 0.95).split(',')[1] }); return;
   }
   if (mr) { mr.stop(); return; }
-  // mp4 (H.264 + AAC), jak w telefonie - miniatura i odtwarzanie wszędzie. Poziom H.264 dla 720p (42E01E = 3.0 nie mieści 1280×720 - start się nie udawał);
-  // próbujemy po kolei, błąd na starcie (od razu albo w pierwszej chwili - onerror) przechodzi do następnego, na końcu webm jak dawniej
-  const kinds = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm']
-    .filter(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
-  let mime = 'video/webm';
-  // 🖼 klatka z początku nagrania - miniatura w rozmowie (gdyby Windows nie zrobił jej sam)
+  // webm - jedyny format, który tu na pewno działa (próba mp4 psuła nagrywanie na Windows); miniatura - klatka z kamery poniżej
+  // 🖼 klatka z początku nagrania - miniatura w rozmowie (Windows nie zrobi jej sam z .webm)
   let poster = '';
   setTimeout(() => { try { const c = document.createElement('canvas'); const sc = 320 / Math.max(v.videoWidth, v.videoHeight, 1); c.width = Math.round(v.videoWidth * sc); c.height = Math.round(v.videoHeight * sc); c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); poster = c.toDataURL('image/jpeg', 0.8).split(',')[1]; } catch (x) {} }, 400);
-  const begin = i => {
-    mime = kinds[i] || 'video/webm'; parts = [];
-    try { mr = new MediaRecorder(window.stream, { mimeType: mime }); }
-    catch (x) { if (i < kinds.length - 1) return begin(i + 1); throw x; }
-    mr.ondataavailable = e => { if (e.data.size) parts.push(e.data); };
-    mr.onerror = () => { if (!parts.length && i < kinds.length - 1) { mr.onstop = null; begin(i + 1); } };
-    mr.onstop = () => { clearInterval(tick); st.textContent = T('Wysyłam…', 'Sending…'); const r = new FileReader(); r.onload = () => out({ k: 'video', e: mime.startsWith('video/mp4') ? 'mp4' : 'webm', p: poster, d: r.result.split(',')[1] }); r.readAsDataURL(new Blob(parts, { type: mime })); };
-    try { mr.start(1000); } catch (x) { mr.onstop = null; if (i < kinds.length - 1) return begin(i + 1); throw x; }
-  };
-  begin(0);
+  parts = []; mr = new MediaRecorder(window.stream, { mimeType: 'video/webm' });
+  mr.ondataavailable = e => { if (e.data.size) parts.push(e.data); };
+  mr.onstop = () => { clearInterval(tick); st.textContent = T('Wysyłam…', 'Sending…'); const r = new FileReader(); r.onload = () => out({ k: 'video', e: 'webm', p: poster, d: r.result.split(',')[1] }); r.readAsDataURL(new Blob(parts, { type: 'video/webm' })); };
+  mr.start(1000);
   t0 = Date.now(); rec.textContent = '⏹';
   // najwyżej 3 minuty - plik zostaje lekki
   tick = setInterval(() => { const s = Math.round((Date.now() - t0) / 1000); st.textContent = '⏺ ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); if (s >= 180) mr.stop(); }, 500);

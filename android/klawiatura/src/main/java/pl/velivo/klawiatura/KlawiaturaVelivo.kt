@@ -186,7 +186,8 @@ class KlawiaturaVelivo : InputMethodService() {
     private fun capsWindow(): Long = if (!adapted() || tempo == 0f) 400L else (tempo * 1.6f).toLong().coerceIn(400L, 700L)
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
     private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
-    private var sym = 0   // 0 - litery, 1 - znaki (?123), 2 - więcej znaków (=\<), 3 - emoji (😀), 4 - 📋 schowek i edycja, 5 - GIF-y z telefonu - jak w Gboard
+    private var phoneField = false
+    private var sym = 0   // 6 - same cyfry (pole na liczby / telefon), 0 - litery, 1 - znaki (?123), 2 - więcej znaków (=\<), 3 - emoji (😀), 4 - 📋 schowek i edycja, 5 - GIF-y z telefonu - jak w Gboard
     private var ecat = -1   // emoji: kategoria (0 - ostatnio używane)
     private var email = false   // pole adresu e-mail - przy spacji @ zamiast 😀
     // 📋 ostatnio skopiowane teksty (jak w Gboard): tylko w pamięci, najwyżej 8 i godzinę; bez tekstów oznaczonych jako poufne (hasła z menedżerów haseł)
@@ -344,6 +345,8 @@ class KlawiaturaVelivo : InputMethodService() {
         load(this) { view.refresh() }
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
         val v = info.inputType and InputType.TYPE_MASK_VARIATION
+        phoneField = cls == InputType.TYPE_CLASS_PHONE
+        if (cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE || cls == InputType.TYPE_CLASS_DATETIME) sym = 6 else if (sym == 6) sym = 0   // pole na cyfry - same cyfry
         email = cls == InputType.TYPE_CLASS_TEXT && (v == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS || v == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS)
         secret = cls == InputType.TYPE_CLASS_TEXT && (v == InputType.TYPE_TEXT_VARIATION_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) ||
             cls == InputType.TYPE_CLASS_NUMBER && v == InputType.TYPE_NUMBER_VARIATION_PASSWORD
@@ -775,6 +778,13 @@ class KlawiaturaVelivo : InputMethodService() {
             fun chars(s: String) = s.map { K(it.toString(), it.toString(), 1f) }
             val space = K(if (lang(context) == "pl") "Polski" else "English", "space", 4f)
             val lay = when (sym) {
+                6 -> {   // 🔢 pole tylko na cyfry (kod, PIN, kwota, numer telefonu) - duże cyfry jak w Gboard
+                    val sp = K(space.label, "space", 2.5f)
+                    listOf(listOf(K("1", "1", 2.5f), K("2", "2", 2.5f), K("3", "3", 2.5f), K("-", "-", 2.5f)),
+                        listOf(K("4", "4", 2.5f), K("5", "5", 2.5f), K("6", "6", 2.5f), sp),
+                        listOf(K("7", "7", 2.5f), K("8", "8", 2.5f), K("9", "9", 2.5f), K("⌫", "bs", 2.5f)),
+                        listOf(if (phoneField) K("+", "+", 2.5f) else K(",", ",", 2.5f), K("0", "0", 2.5f), if (phoneField) K("#", "#", 2.5f) else K(".", ".", 2.5f), K("⏎", "enter", 2.5f)))
+                }
                 1 -> listOf(chars("1234567890"), chars("@#\$_&-+()/"), chars("%^=[]{}<>~"),
                     listOf(K("=\\<", "sym2", 1.5f)) + chars("*\"':;!?") + listOf(K("⌫", "bs", 1.5f)),
                     listOf(K("ABC", "abc", 1.5f), K(",", ",", 1f), K("…", "…", 1f), space, K(".", ".", 1f), K("⏎", "enter", 1.5f)))

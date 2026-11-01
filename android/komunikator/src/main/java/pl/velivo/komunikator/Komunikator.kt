@@ -2095,20 +2095,21 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         w.settings.javaScriptEnabled = true; w.settings.mediaPlaybackRequiresUserGesture = false
         w.setBackgroundColor(Color.rgb(18, 15, 36)); w.setRendererPriorityPolicy(android.webkit.WebView.RENDERER_PRIORITY_IMPORTANT, false)   // rozmowa działa też w tle (🖥 pokazywanie ekranu)
         // 💬 napisy dla rozmówcy: moja mowa → tekst (rozpoznawanie w telefonie, gdy jest - bez sieci), wyniki do strony rozmowy
-        var capRec: android.speech.SpeechRecognizer? = null; var capOn = false; var capErr = 0
+        var capRec: android.speech.SpeechRecognizer? = null; var capOn = false; var capErr = 0; var capHeard = false; var capQuiet = 0
         fun js(f: String) = w.post { w.evaluateJavascript(f, null) }
         fun capStop() { capOn = false; capRec?.destroy(); capRec = null }
         fun capStart() {
             if (!android.speech.SpeechRecognizer.isRecognitionAvailable(a)) { js("capFail()"); return }
-            capOn = true; capRec?.destroy()
+            capOn = true; capHeard = false; capQuiet = 0; capRec?.destroy()
             val r = if (Build.VERSION.SDK_INT >= 31 && android.speech.SpeechRecognizer.isOnDeviceRecognitionAvailable(a)) android.speech.SpeechRecognizer.createOnDeviceSpeechRecognizer(a) else android.speech.SpeechRecognizer.createSpeechRecognizer(a)
             capRec = r
             fun again() { if (capOn) w.postDelayed({ if (capOn && capRec === r) runCatching { r.startListening(capIntent()) } }, 250) }
             r.setRecognitionListener(object : android.speech.RecognitionListener {
-                override fun onPartialResults(b: android.os.Bundle?) { b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { js("capText(" + JSONObject.quote(it) + ",false)") } }
-                override fun onResults(b: android.os.Bundle) { capErr = 0; b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { js("capText(" + JSONObject.quote(it) + ",true)") }; again() }
+                override fun onPartialResults(b: android.os.Bundle?) { b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { capHeard = true; js("capText(" + JSONObject.quote(it) + ",false)") } }
+                override fun onResults(b: android.os.Bundle) { capErr = 0; b.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { capHeard = true; js("capText(" + JSONObject.quote(it) + ",true)") }; again() }
                 override fun onError(e: Int) {   // cisza / nic nie rozpoznano - dalej; mikrofon zajęty przez rozmowę - po kilku razach komunikat u rozmówcy
-                    if (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) { again(); return }
+                    // rozmowa trzyma mikrofon, a Android daje wtedy rozpoznawaniu ciszę - same „nic nie usłyszano” bez żadnego słowa = napisy tu nie działają (zamiast wiecznego „Czekam na napisy…”)
+                    if (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) { if (!capHeard && ++capQuiet >= 4) { capStop(); js("capFail()") } else again(); return }
                     if (++capErr >= 4) { capStop(); js("capFail()") } else again()
                 }
                 override fun onReadyForSpeech(p: android.os.Bundle?) {}; override fun onBeginningOfSpeech() {}; override fun onRmsChanged(v: Float) {}

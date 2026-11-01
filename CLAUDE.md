@@ -145,6 +145,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-01: po instalacji serwery przestały się widzieć (dom i internet) – instalator kasował WSZYSTKIE reguły zapory Velivo przed dodaniem nowej; teraz tylko własną. Nigdy nie kasuj cudzych/starych ustawień systemu, od których zależy działanie.
 * 2026-11-01: kod odzyskiwania konta schowałem w ➕ Dodaj kontakt, a w poleceniu budowy podałem `zbuduj.ps1 -Komunikator` (zbuduj.ps1 nie zna przełączników – APK nie powstał); potem ⚙ Konto obok ➕ – też źle; teraz w 👤 Mój profil (jak ważne ustawienia na Windows), budowa aplikacji zawsze `zbuduj-wszystko.ps1`. Nowa funkcja – miejsce, gdzie szuka jej ktoś pierwszy raz.
 * 2026-11-01: kod odzyskiwania (PIN/słowa), kopia do pliku i klucz – trzy podobne drogi, właściciel: „pomieszane i skomplikowane”; teraz jedna: kopia sama na serwerach, nowy telefon → ♻ → właściciel serwera klika osobę. Zanim dodasz drugą drogę do tego samego, sprawdź, czy istniejąca nie wystarczy.
+* 2026-11-01: napisy telefon → Windows: wieczne „Czekam na napisy…” – rozpoznawanie mowy w telefonie dostaje ciszę, gdy rozmowa trzyma mikrofon (Android), a kod ponawiał po cichu bez końca; teraz po 4 pustych próbach komunikat. Napisy z komputera nie istnieją (Windows nie rozpoznaje mowy). Nie zakładaj, że dwa programy naraz dostaną mikrofon.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

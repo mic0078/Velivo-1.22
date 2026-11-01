@@ -2508,6 +2508,19 @@ namespace Velivo
             };
             d.Closed += (s, e) => { try { vid.Stop(); vid.Close(); } catch (Exception) { } };
             d.Show(); vid.Play();
+            _ = KomVideoRotate(vid, path);
+        }
+        // 📱 film nagrany telefonem pionowo ma w pliku tylko znacznik obrotu - podgląd Windows (MediaElement) go nie stosuje i pokazywał film obrócony o 90°
+        static async Task KomVideoRotate(MediaElement vid, string path)
+        {
+            try
+            {
+                var f = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                var o = (await f.Properties.GetVideoPropertiesAsync()).Orientation;
+                int deg = o == Windows.Storage.FileProperties.VideoOrientation.Rotate90 ? 90 : o == Windows.Storage.FileProperties.VideoOrientation.Rotate180 ? 180 : o == Windows.Storage.FileProperties.VideoOrientation.Rotate270 ? 270 : 0;
+                if (deg != 0) vid.LayoutTransform = new RotateTransform(deg);
+            }
+            catch (Exception ex) { App.LogError(ex); }
         }
         void KomViewer(Window owner, KomContact c, string path)
         {

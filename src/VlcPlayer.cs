@@ -1868,6 +1868,8 @@ namespace Velivo
             };
 
             bool seeking = false, full0 = false;
+            long seekTo = -1; DateTime seekAt = DateTime.MinValue;   // po kliknięciu: VLC jeszcze chwilę podaje stary czas - suwak nie może wracać (wyglądało, jakby klik nie zadziałał)
+            Func<long, bool> seekHold = t => seekTo >= 0 && (DateTime.Now - seekAt).TotalSeconds < 4 && Math.Abs(t - seekTo) > 3000;
             WindowState prevState = WindowState.Normal;
             float[] speeds = { 0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f };
             int speedIdx = 3;
@@ -2832,7 +2834,7 @@ namespace Velivo
                 {
                     seek.IsEnabled = mp.Length > 0;
                     timeNow.Text = c.ArchiveStart.Value.AddMilliseconds(Math.Max(0, mp.Time)).ToString("HH:mm:ss"); timeLen.Text = L.T("⏪ ARCHIWUM");
-                    if (mp.Length > 0 && !seeking) seek.Value = 1000.0 * mp.Time / mp.Length;
+                    if (mp.Length > 0 && !seeking && !seekHold(mp.Time)) seek.Value = 1000.0 * mp.Time / mp.Length;
                     return true;
                 }
                 seek.IsEnabled = false;   // na zywo nie przewijamy
@@ -2855,8 +2857,9 @@ namespace Velivo
                 var lc = liveCh();
                 if (lc != null && !lc.ArchiveStart.HasValue) { if ((DateTime.Now - tvLastUpd).TotalSeconds < 5) return; tvLastUpd = DateTime.Now; }   // na zywo: co 5 s wystarczy (godziny i napis zmieniaja sie z audycja)
                 if (tvShown()) return;
+                if (seekHold(e.Time)) return;
                 timeNow.Text = FormatTime(e.Time);
-                if (!seeking && mp.Length > 0) seek.Value = 1000.0 * e.Time / mp.Length;
+                if (!seeking && mp.Length > 0 && !seekHold(e.Time)) seek.Value = 1000.0 * e.Time / mp.Length;
             }));
             mp.Playing += (s, e) => Dispatcher.BeginInvoke(guard(() => { play.Content = PlayerIcon("pause"); overlay.Background = see; bigLogo.Visibility = Visibility.Collapsed; if (!Surround51) mp.SetChannel(AudioOutputChannel.Stereo); if (chPanel.Visibility == Visibility.Visible && !chPanel.IsMouseOver) { chHide.Stop(); chHide.Start(); } }));   // lista po Stop chowa sie, gdy film znowu gra
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => play.Content = PlayerIcon("play")));
@@ -3624,7 +3627,8 @@ namespace Velivo
                 if (mp.TakeSnapshot(0, file, 0, 0)) ShowToast(L.T("📷 Zapisano klatkę: ") + System.IO.Path.GetFileName(file), file);
             };
             seek.PreviewMouseDown += (s, e) => seeking = true;
-            seek.PreviewMouseUp += (s, e) => { if (mp.Length > 0) { mp.Time = (long)(seek.Value / 1000 * mp.Length); TogetherSend("seek", mp.Time); } seeking = false; };
+            seek.PreviewMouseUp += (s, e) => { if (seeking && mp.Length > 0) { seekTo = (long)(seek.Value / 1000 * mp.Length); seekAt = DateTime.Now; mp.Time = seekTo; TogetherSend("seek", seekTo); } seeking = false; };
+            seek.LostMouseCapture += (s, e) => { if (seeking && Mouse.LeftButton != MouseButtonState.Pressed) { seeking = false; } };   // puszczone poza paskiem - suwak nie zostaje „zamrożony” do następnego kliknięcia
             seek.ValueChanged += (s, e) => { if (seeking && mp.Length > 0) timeNow.Text = FormatTime((long)(seek.Value / 1000 * mp.Length)); };
 
             // menu napisow / dzwieku / proporcji budowane przy otwarciu (sciezki znane dopiero po starcie filmu)

@@ -140,3 +140,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-01: pasek odtwarzacza jako Grid (`ctlRow`): pasek postępu w wierszu 0 przez obie kolumny (prawy margines do `streamInfo`, w `alignInfo`; przy REC / połączeniach tylko nad przyciskami), plakat/ocena/gatunek albo logo stacji za zegarem (`showBadge`), głośność zielona (`ModernSliderStyle(fill)`).
 * 2026-11-01: prawy przycisk na ⭐ Filmy – przewijana lista wszystkich filmów (plakaty w tle), na ⭐ Kanały – kanały grupy, która leci (albo ostatnio oglądanej).
 * 2026-11-01: klik w plakat / logo za zegarem – okienko: film (plakat, tytuł, rok, ★, wiek, gatunki, opis, reżyseria, obsada z Jellyfin), TV (program, godziny, kategorie, pełny opis, co potem).
+* 2026-11-01: pasek postępu – po kliknięciu suwak trzyma nowe miejsce do 4 s (VLC podaje jeszcze stary czas i suwak wracał – wyglądało, jakby klik nie zadziałał); puszczenie myszy poza paskiem nie zamraża suwaka.

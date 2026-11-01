@@ -40,6 +40,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - ⭐📺 / ⭐🎬 **Moje ulubione kanały / filmy** – lista z logo albo plakatem, klik odtwarza. Prawy przycisk: odtwórz, przesuń wyżej / niżej, usuń z ulubionych i sortowanie (A–Z, moja kolejność, filmy także: ostatnio oglądany).
 - 🌙 **Wyłącznik czasowy** – zatrzymuje po 15–120 minutach, po końcu filmu albo (przy TV) po końcu programu. Możesz zaznaczyć „💻 Potem wyłącz komputer” – masz 60 sekund, żeby to anulować. W ostatnich 30 sekundach dźwięk łagodnie cichnie.
 - ⧉ **Obraz w obrazie (PiP)** – drugi kanał albo film w małym okienku.
+- **🎬 Filmy / 📺 TV** – szybkie przełączanie: przy telewizji przycisk „🎬 Filmy” otwiera bibliotekę filmów, przy filmie „📺 TV” – listę kanałów.
 - ⚙ **Obraz i dźwięk** (ikona suwaków) – pokazuje / chowa drugi rząd z podpisami: Napisy, Lektor, Dźwięk (ścieżka/język), Proporcje, Zrzut. Velivo pamięta, czy rząd jest otwarty.
 - Biblioteka, 🕘 ostatnio oglądane, tryb mini, pełny ekran, głośność.
 - **Pasek dopasowuje się do tego, co oglądasz:** przy filmie nie ma przycisków telewizji (nagrywanie, program TV, odśwież kanał); przy telewizji nie ma biblioteki, historii filmów, kolejki i ulubionych filmów. Przyciski, których akurat nie da się użyć (np. ⏹ zatrzymaj nagrywanie, gdy nic się nie nagrywa), są schowane zamiast szare.

@@ -1538,7 +1538,10 @@ namespace Velivo
             foreach (var b in new UIElement[] { subs, lector, audio, aspect, snap }) toolsRow.Children.Add(b);
             var tools = glyphBtn("tune", L.T("Obraz i dźwięk – napisy, lektor, ścieżka dźwięku, proporcje, zrzut klatki (pokaż / schowaj rząd)"));
             tools.Click += (s, e) => { bool on = toolsRow.Visibility != Visibility.Visible; toolsRow.Visibility = on ? Visibility.Visible : Visibility.Collapsed; SetPref("pasek-narzedzia", on ? "1" : "0"); };
-            foreach (var b in new UIElement[] { fav, sleep, pipBtn, tools, lib, hist, mini, full, mute, vol, volText }) right.Children.Add(b);
+            // przełącznik TV ↔ Filmy: przy telewizji „🎬 Filmy” (biblioteka), przy filmie „📺 TV” (kanały) - zawsze w tym samym miejscu
+            var swap = textBtn("🎬 " + L.T("Filmy"), L.T("Przełącz na filmy – biblioteka filmów")); swap.FontSize = 13; swap.Margin = new Thickness(6, 0, 6, 0);
+            bool swapTv = false;   // true = przycisk prowadzi do telewizji
+            foreach (var b in new UIElement[] { swap, fav, sleep, pipBtn, tools, lib, hist, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 4) };
             btnRow.Children.Add(left); btnRow.Children.Add(right);
             // pasek nakladany na obraz (jak w "Na wierzchu"): chowa sie po chwili bez ruchu myszy, film nie zmienia rozmiaru
@@ -3308,6 +3311,9 @@ namespace Velivo
                 qTv.Visibility = qFavTv.Visibility = pipBtn.Visibility = vis(tvOn);
                 qLists.Visibility = qFavFilm.Visibility = vis(!isTv);
                 lib.Visibility = hist.Visibility = vis(!isTv && !narrow);
+                swapTv = !isTv; swap.Visibility = vis(!isTv ? tvOn : true);
+                swap.Content = isTv ? "🎬 " + L.T("Filmy") : "📺 " + L.T("TV");
+                swap.ToolTip = isTv ? L.T("Przełącz na filmy – biblioteka filmów") : L.T("Przełącz na telewizję – lista kanałów");
                 tools.Visibility = vis(!narrow); toolsRow.Visibility = vis(!narrow && GetPref("pasek-narzedzia") == "1");
             };
             updMode = updQuick;
@@ -3396,6 +3402,7 @@ namespace Velivo
             };
             qRecSet.Click += (s, e) => RecMarginDialog(Window.GetWindow(overlay) ?? win);
             qTv.Click += (s, e) => ShowIptv(Window.GetWindow(overlay) ?? win);
+            swap.Click += (s, e) => { if (swapTv) ShowIptv(Window.GetWindow(overlay) ?? win); else ShowVideoLibrary(Window.GetWindow(overlay) ?? win); };
             qGuide.Click += (s, e) => ShowEpgGuide(Window.GetWindow(overlay) ?? win, qTvCh()?.LiveUrl ?? qTvCh()?.Url);
             qInfo.Click += (s, e) => showInfo(true);
             qRefresh.Click += (s, e) => { if (qTvCh() != null) { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); } };

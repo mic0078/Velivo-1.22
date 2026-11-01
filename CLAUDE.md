@@ -142,6 +142,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-10-29: opóźnienia plików z Windows – kawałek 1 MB wysyłany trzema zapisami bez NoDelay (czekanie na potwierdzenia TCP), stary adres kontaktu na drugim porcie czekał do 15 s przed 📬; teraz jeden zapis na kawałek, NoDelay, 3 s na port, tunel serwera 256 KB na ramkę.
 * 2026-10-29: mama (stara wersja) nie dostawała wiadomości przy 3 włączonych serwerach – zna tylko NUCBOX:41920, a w mojej tabeli przekierowań 41920 nie było; doradzając zmiany w routerze, zachowaj stare porty, które znają urządzenia. Teraz serwer pamięta swoje dawne porty i przez UPnP kieruje je na obecny.
 * 2026-11-01: „velivo-sekret” jako wiadomość co 10 min na Ryzenie – starsze Velivo nie zna sygnału, a serwer wysyłał go przy każdej wymianie; teraz tylko póki nieuzgodniony i najwyżej 3 razy. Nowy sygnał między urządzeniami: pomyśl, co pokaże starsza wersja, i nie powtarzaj go bez potrzeby.
+* 2026-11-01: po instalacji serwery przestały się widzieć (dom i internet) – instalator kasował WSZYSTKIE reguły zapory Velivo przed dodaniem nowej; teraz tylko własną. Nigdy nie kasuj cudzych/starych ustawień systemu, od których zależy działanie.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

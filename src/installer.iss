@@ -343,11 +343,11 @@ begin
 end;
 
 // 🛡 zapora Windows: ten program przyjmuje połączenia w każdej sieci (kabel, Wi-Fi) - jedno „Tak” przy instalacji, gdy właściciel jest przy komputerze;
-// wcześniej zgoda była proszona dopiero w tle (start z Windows) i bez niej zapora po cichu blokowała serwer z internetu; blokady tego programu usuwane
+// kasowana tylko własna reguła (wcześniej wszystkie reguły programu – gdy dodanie nowej się nie udało, Velivo zostawało bez żadnej i nic nie przechodziło)
 procedure OpenFirewall(Exe: String);
 var Code: Integer;
 begin
-  ShellExec('runas', ExpandConstant('{cmd}'), '/c "netsh advfirewall firewall delete rule name=all program="' + Exe + '" & netsh advfirewall firewall add rule name="' + ExtractFileName(Exe) + ' - Velivo" dir=in action=allow program="' + Exe + '" enable=yes profile=any"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  ShellExec('runas', ExpandConstant('{cmd}'), '/c "netsh advfirewall firewall delete rule name="' + ExtractFileName(Exe) + ' - Velivo" & netsh advfirewall firewall add rule name="' + ExtractFileName(Exe) + ' - Velivo" dir=in action=allow program="' + Exe + '" enable=yes profile=any"', '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

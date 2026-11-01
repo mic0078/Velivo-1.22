@@ -382,8 +382,12 @@ namespace Velivo
         {
             var peer = KomContactById(peerId); if (peer == null || peer.IsGroup || !peer.Dom) return;   // tylko moje urządzenie z domu (serwer, telefon, laptop) - nigdy znajomego
             if (!string.IsNullOrEmpty(peer.Relay))
-            {   // drugi serwer: najpierw wspólny sekret (te same klucze par na każdym serwerze)
-                KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
+            {   // drugi serwer: najpierw wspólny sekret (te same klucze par na każdym serwerze); tylko póki nieuzgodniony i najwyżej 3 razy -
+                // starsze Velivo nie zna tego sygnału i pokazywało go jako wiadomość co 10 minut
+                bool agreed = _komSekPeer.TryGetValue(peerId, out var po0) && po0 == KomSekOrigin;
+                _komSekSent.TryGetValue(peerId, out var sent0);
+                if (!agreed && sent0 < 3) { _komSekSent[peerId] = sent0 + 1;
+                KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); }
                 if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;
             }
             if (_komOpt["intro"] is not JsonArray done) _komOpt["intro"] = done = new JsonArray();
@@ -430,7 +434,7 @@ namespace Velivo
         // 🔑 moje serwery mają jeden wspólny sekret przedstawiania (serwera o najmniejszym id) - urządzenie przedstawione przez którykolwiek serwer
         // dostaje ten sam klucz pary, co od pierwszego (wcześniej każdy serwer liczył inny i trzeci serwer odrzucał „inny klucz”)
         const string KomSekTag = "\u0001velivo-sekret\n";
-        readonly Dictionary<string, string> _komSekPeer = new Dictionary<string, string>();   // czyj sekret ma mój serwer obok
+        readonly Dictionary<string, string> _komSekPeer = new Dictionary<string, string>(); readonly Dictionary<string, int> _komSekSent = new Dictionary<string, int>();   // czyj sekret ma mój serwer obok
         string KomSekOrigin => (string)_komOpt["introBy"] ?? _komId;
         void KomSekIn(KomContact from, string body)
         {
@@ -440,6 +444,7 @@ namespace Velivo
             bool changed = !_komSekPeer.TryGetValue(from.Id, out var was) || was != o;
             _komSekPeer[from.Id] = o;
             if (string.CompareOrdinal(o, KomSekOrigin) < 0) { _komOpt["introSec"] = s; _komOpt["introBy"] = o; KomSave(); changed = true; }
+            if (changed) _komSekSent.Remove(from.Id);   // nowa wiadomość od niego - odpowiedź może pójść
             if (changed && _komRelayListener != null) { _komSyncAt[from.Id] = DateTime.UtcNow; KomRelaySync(from.Id); }   // od razu odpowiedź i kontakty (bez czekania 10 min); bez zmian - cisza, więc nie w kółko
         }
         // zapasowe adresy jednego serwera: jego host i hosty moich domowych serwerów, port zapamiętany i każdy 41920–41929 (bez obecnego adresu)

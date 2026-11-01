@@ -169,8 +169,9 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // ♻ nowy telefon: adres serwera z linku „Mój adres” (od kogokolwiek z rodziny albo host:port); serwer pyta właściciela, czyje to konto.
     // wait(tekst) - stan dla okienka; cancel() - przerwanie; wynik "ok" albo opis
-    fun serverRestore(link: String, nr: String, pin: String, wait: (String) -> Unit, cancel: () -> Boolean): String {
-        val lg = if (nr.isNotBlank()) loginOf(nr) else ""; val pv = if (lg.isNotEmpty()) pinOf(lg, pin) else ""
+    // adresy serwera do łączenia: link „Mój adres”, host:port, sama nazwa domu (porty 41920–41929 i 443) albo puste = szukanie w domowym Wi-Fi;
+    // tylko te, które odpowiadają (sprawdzane naraz); błąd - opis dla człowieka
+    private fun serverHosts(link: String, wait: (String) -> Unit): Result<List<String>> {
         val code = link.trim().substringAfter("VELIVO-KONTAKT:").trim().split(Regex("\\s+")).firstOrNull() ?: ""
         val j = runCatching { JSONObject(String(Base64.decode(code, Base64.URL_SAFE), Charsets.UTF_8)) }.getOrNull()
         // bez linku: nowy telefon nie zna adresu - w domowym Wi-Fi sam szuka serwerów; sama nazwa domu (np. n5plus.ddns.net) - porty serwerów 41920–41929 i 443
@@ -182,11 +183,57 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             ':' in raw -> listOf(raw)
             else -> (41920..41929).map { "$raw:$it" } + "$raw:443"
         }.filter { ':' in it }.distinct()
-        if (cand.isEmpty()) return if (raw.isEmpty()) (if (pl) "Nie widzę serwera w tej sieci Wi-Fi – połącz telefon z domowym Wi-Fi albo wpisz adres domu" else "No server on this Wi-Fi – join the home Wi-Fi or enter the home address")
-            else (if (pl) "To nie jest link „Mój adres” ani adres domu" else "This is not a “My address” link or a home address")
+        if (cand.isEmpty()) return Result.failure(Exception(if (raw.isEmpty()) (if (pl) "Nie widzę serwera w tej sieci Wi-Fi – połącz telefon z domowym Wi-Fi albo wpisz adres domu" else "No server on this Wi-Fi – join the home Wi-Fi or enter the home address")
+            else (if (pl) "To nie jest link „Mój adres” ani adres domu" else "This is not a “My address” link or a home address")))
         // tylko adresy, które odpowiadają (sprawdzane naraz) - zamknięte porty nie wydłużają czekania
         val hosts = cand.map { hp -> java.util.concurrent.FutureTask<String?> { hp.takeIf { runCatching { java.net.Socket().use { so -> so.connect(InetSocketAddress(hp.substringBeforeLast(':'), hp.substringAfterLast(':').toInt()), 3000) } }.isSuccess } }.also { Thread(it).start() } }
             .mapNotNull { runCatching { it.get(10, java.util.concurrent.TimeUnit.SECONDS) }.getOrNull() }.ifEmpty { cand.take(3) }
+        return Result.success(hosts)
+    }
+    // 📝 nowe konto na serwerze (jak w Signalu): imię, numer i PIN; serwer zakłada konto od razu albo po zgodzie właściciela; wynik "ok" albo opis
+    fun register(link: String, name: String, nr: String, pin: String, wait: (String) -> Unit, cancel: () -> Boolean): String {
+        if (name.isBlank() || nr.count { it.isDigit() } < 7 || pin.trim().length < 4) return if (pl) "Wpisz imię, numer telefonu i PIN (min. 4 cyfry)" else "Enter a name, phone number and PIN (min. 4 digits)"
+        val hosts = serverHosts(link, wait).getOrElse { return it.message ?: "" }
+        val kp = ecPair(); val myPub = kp.public.encoded; val lg = loginOf(nr); val pv = pinOf(lg, pin)
+        val end = System.currentTimeMillis() + 300000
+        while (System.currentTimeMillis() < end && !cancel()) {
+            for (hp in hosts) {
+                val r = runCatching { java.net.Socket().use { so ->
+                    so.connect(InetSocketAddress(hp.substringBeforeLast(':'), hp.substringAfterLast(':').toInt()), 6000); so.soTimeout = 20000
+                    val out = so.getOutputStream(); val inp = DataInputStream(so.getInputStream())
+                    writeBlock(out, JSONObject().put("Type", "relay-register").put("Id", myId).put("Name", name.trim().take(64)).put("Nr", nr.trim().take(20)).put("Pub", b64(myPub)).put("Login", lg).put("Pin", pv).put("Ts", System.currentTimeMillis()).toString().toByteArray(Charsets.UTF_8)); writeBlock(out, ByteArray(32))
+                    JSONObject(String(readBlock(inp, 8192) ?: throw java.io.IOException(), Charsets.UTF_8)) } }.getOrNull() ?: continue
+                if (r.optBoolean("wait")) continue
+                if (!r.optBoolean("ok")) return when (r.optString("why")) {
+                    "off" -> if (pl) "Ten serwer nie przyjmuje nowych kont" else "This server does not accept new accounts"
+                    "taken" -> if (pl) "Ten numer ma już konto – użyj ♻ Przywróć z serwera (numer i PIN)" else "This number already has an account – use ♻ Restore from the server (number and PIN)"
+                    "later" -> if (pl) "Za dużo nowych kont z tej sieci – spróbuj jutro" else "Too many new accounts from this network – try tomorrow"
+                    else -> if (pl) "Właściciel serwera nie dodał konta" else "The server owner did not add the account"
+                }
+                val rPub = unb64(r.optString("relayPub"))
+                val relay = Contact(r.optString("relay"), clean(r.optString("relayName")).ifEmpty { "Velivo" }, agree(kp, rPub, "velivo-prosba", myPub, rPub), "", clean(r.optString("relayName")), false, r.optString("relayAddr").takeIf { ':' in it } ?: hp)
+                if (relay.id.length != 32) continue
+                synchronized(this) { if (contact(relay.id) == null) contacts.add(relay) }
+                prefs.edit().putString("login-nr", seal(nr.trim())).putString("login-l", lg).putString("login-v", pv).apply()
+                saveContacts(); announce(); main.post { onChange() }
+                Thread { serverBackup() }.start()
+                return "ok"
+            }
+            wait(if (pl) "Czekam na zgodę właściciela serwera…" else "Waiting for the server owner to approve…")
+            Thread.sleep(4000)
+        }
+        return if (cancel()) (if (pl) "Przerwano" else "Cancelled") else (if (pl) "Nikt nie potwierdził na serwerze (5 min) – spróbuj jeszcze raz" else "Nobody confirmed on the server (5 min) – try again")
+    }
+    // 🔎 znajomy po numerze: pytanie do moich serwerów; znaleziony - oboje dostajecie siebie nawzajem (prośba o kontakt), nie - odpowiedź serwera w rozmowie z nim
+    fun findByNumber(nr: String): Int {
+        if (nr.count { it.isDigit() } < 7) return 0
+        val rs = synchronized(this) { contacts.filter { it.relay != null && !it.isGroup } }
+        rs.forEach { hidden(it, FIND + loginOf(nr)) }
+        return rs.size
+    }
+    fun serverRestore(link: String, nr: String, pin: String, wait: (String) -> Unit, cancel: () -> Boolean): String {
+        val lg = if (nr.isNotBlank()) loginOf(nr) else ""; val pv = if (lg.isNotEmpty()) pinOf(lg, pin) else ""
+        val hosts = serverHosts(link, wait).getOrElse { return it.message ?: "" }
         val req = UUID.randomUUID().toString().replace("-", "")
         val end = System.currentTimeMillis() + 300000; var heard = false; val none = HashSet<String>()
         while (System.currentTimeMillis() < end && !cancel()) {
@@ -1810,6 +1857,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         const val CARD = "\u0001velivo-kontakt\n"
         const val DEL = "\u0001velivo-usun\n"
         const val CLIP = "\u0001velivo-schowek\n"; const val EDIT = "\u0001velivo-edycja\n"; const val REACT = "\u0001velivo-reakcja\n"; const val PHOTO = "\u0001velivo-zdjecie\n"; const val TIMER = "\u0001velivo-znikanie\n"
+        const val FIND = "\u0001velivo-szukaj\n"   // 🔎 szukanie konta po numerze na moich serwerach
         const val ADDR = "\u0001velivo-adres\n"; const val ASK = "\u0001velivo-prosba\n"; const val ASKOK = "\u0001velivo-prosba-ok\n"
         fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
         fun unb64(s: String): ByteArray = runCatching { Base64.decode(s, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
@@ -2470,6 +2518,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     "No contacts yet.\n\nTap “➕ Add” while the other device has Velivo messenger open (phone: Velivo browser or keyboard, computer: Velivo for Windows) on the same Wi-Fi.")
                 setTextColor(dim); textSize = 15f; setPadding(px(10), px(24), px(10), px(8))
             })
+            if (k.contacts.isEmpty()) rows.addView(pill("📝 " + t("Załóż konto na serwerze", "Create an account on a server"), t("Imię, numer telefonu i PIN – jak w Signalu", "Name, phone number and PIN – like Signal")) { registerAccount() }, LinearLayout.LayoutParams(-1, px(52)).apply { bottomMargin = px(8) })
             if (k.contacts.isEmpty()) rows.addView(pill("♻ " + t("Mam już konto – przywróć z serwera", "I already have an account – restore from the server"), t("Nowy albo wyczyszczony telefon: kontakty i rozmowy wracają z Twojego serwera", "New or reset phone: contacts and chats come back from your server")) { restoreAccount() }, LinearLayout.LayoutParams(-1, px(52)))
             if (who.isNotBlank() && found().isEmpty()) rows.addView(TextView(a).apply { text = t("Nie ma osoby: ", "No contact: ") + who; setTextColor(dim); textSize = 16f; setPadding(px(10), px(16), px(10), px(8)) })
             for (c in found().sortedWith(compareByDescending<Komunikator.Contact> { k.pinned(it.id) }.thenByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0L })) {   // 0L - ten sam typ co czas (Int z Long = awaria sortowania)   // 📌 przypięte na górze
@@ -2622,8 +2671,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun addChoice() {
         Dlg().setTitle("➕ " + t("Dodaj kontakt", "Add contact"))
             .setItems(arrayOf("📱 " + t("Ktoś obok mnie (ta sama sieć Wi-Fi)", "Someone next to me (same Wi-Fi)"), "📤 " + t("Mój adres – wyślij komuś (działa wszędzie)", "My address – send to someone (works anywhere)"),
-                "🔗 " + t("Mam od kogoś adres albo zaproszenie…", "I have someone's address or invitation…"), "👥 " + t("Nowa grupa…", "New group…"), "👤 " + t("Połącz moich znajomych ze sobą…", "Connect my contacts with each other…"))) { _, i ->
-                when (i) { 0 -> addContact(); 1 -> myAddress(); 2 -> haveAddress(); 3 -> newGroup(); else -> introduce() }
+                "🔗 " + t("Mam od kogoś adres albo zaproszenie…", "I have someone's address or invitation…"), "👥 " + t("Nowa grupa…", "New group…"), "👤 " + t("Połącz moich znajomych ze sobą…", "Connect my contacts with each other…"),
+                "🔎 " + t("Znajdź po numerze telefonu…", "Find by phone number…"))) { _, i ->
+                when (i) { 0 -> addContact(); 1 -> myAddress(); 2 -> haveAddress(); 3 -> newGroup(); 4 -> introduce(); else -> findNumber() }
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
@@ -2645,6 +2695,42 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     val r = k.serverRestore(link.text.toString(), nr.text.toString(), pin.text.toString(), { m -> a.runOnUiThread { wait.setMessage(m) } }, { stop.get() })
                     a.runOnUiThread { runCatching { wait.dismiss() }; Toast.makeText(a, if (r == "ok") t("♻ Konto przywrócone – kontakty i rozmowy wróciły", "♻ Account restored – contacts and chats are back") else r, Toast.LENGTH_LONG).show(); if (r == "ok") show() }
                 }.start()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+    // 📝 konto na serwerze (jak w Signalu): imię, numer, PIN (2 razy) i adres serwera (puste = domowe Wi-Fi)
+    private fun registerAccount() {
+        val pinType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        val name = EditText(a).apply { hint = t("Twoje imię (widzą je znajomi)", "Your name (friends see it)"); setSingleLine(true) }
+        val nr = EditText(a).apply { hint = t("Twój numer telefonu", "Your phone number"); inputType = android.text.InputType.TYPE_CLASS_PHONE; setSingleLine(true) }
+        val p1 = EditText(a).apply { hint = t("Wymyśl PIN (min. 4 cyfry)", "Make up a PIN (min. 4 digits)"); inputType = pinType; setSingleLine(true) }
+        val p2 = EditText(a).apply { hint = t("PIN jeszcze raz", "PIN again"); inputType = pinType; setSingleLine(true) }
+        val addr = EditText(a).apply { hint = t("adres serwera, np. n5plus.ddns.net (puste = domowe Wi-Fi)", "server address, e.g. n5plus.ddns.net (empty = home Wi-Fi)"); setSingleLine(true) }
+        val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setPadding(px(20), px(8), px(20), 0); listOf(name, nr, p1, p2, addr).forEach { addView(it) } }
+        Dlg().setTitle("📝 " + t("Załóż konto na serwerze", "Create an account on a server"))
+            .setMessage(t("Jak w Signalu: konto na serwerze kogoś z rodziny. Znajomi znajdą Cię po numerze, a na nowym telefonie numer i PIN przywrócą konto i rozmowy. Zapamiętaj PIN.",
+                "Like Signal: an account on a family member's server. Friends find you by number, and on a new phone the number and PIN restore the account and chats. Remember the PIN."))
+            .setView(box)
+            .setPositiveButton(t("Załóż", "Create")) { _, _ ->
+                if (p1.text.toString().trim() != p2.text.toString().trim()) { Toast.makeText(a, t("PIN-y się różnią – wpisz jeszcze raz", "The PINs differ – try again"), Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                val stop = java.util.concurrent.atomic.AtomicBoolean()
+                val wait = Dlg().setTitle("📝").setMessage(t("Łączę z serwerem…", "Connecting to the server…")).setNegativeButton(android.R.string.cancel) { _, _ -> stop.set(true) }.setCancelable(false).show()
+                Thread {
+                    val r = k.register(addr.text.toString(), name.text.toString(), nr.text.toString(), p1.text.toString(), { m -> a.runOnUiThread { wait.setMessage(m) } }, { stop.get() })
+                    a.runOnUiThread { runCatching { wait.dismiss() }; Toast.makeText(a, if (r == "ok") t("📝 Konto założone – znajomych dodasz: ➕ → 🔎 Znajdź po numerze", "📝 Account created – add friends: ➕ → 🔎 Find by number") else r, Toast.LENGTH_LONG).show(); if (r == "ok") show() }
+                }.start()
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+    // 🔎 znajomy po numerze telefonu - serwer przedstawia was sobie (oboje dostajecie prośbę o kontakt)
+    private fun findNumber() {
+        val nr = EditText(a).apply { hint = t("Numer telefonu znajomego", "Your friend's phone number"); inputType = android.text.InputType.TYPE_CLASS_PHONE; setSingleLine(true) }
+        val box = LinearLayout(a).apply { setPadding(px(20), px(8), px(20), 0); addView(nr, LinearLayout.LayoutParams(-1, -2)) }
+        Dlg().setTitle("🔎 " + t("Znajdź po numerze telefonu", "Find by phone number"))
+            .setMessage(t("Twoje serwery sprawdzą, czy ta osoba ma u nich konto. Jeśli tak – oboje dostaniecie prośbę o kontakt. Jeśli nie – serwer odpisze w rozmowie z nim.",
+                "Your servers check whether this person has an account there. If yes – you both get a contact request. If not – the server replies in your chat with it."))
+            .setView(box)
+            .setPositiveButton(t("Szukaj", "Search")) { _, _ ->
+                val n = k.findByNumber(nr.text.toString())
+                Toast.makeText(a, if (n > 0) t("🔎 Pytam serwery: ", "🔎 Asking servers: ") + n else t("Wpisz numer (min. 7 cyfr) – i potrzebny jest serwer w kontaktach", "Enter a number (min. 7 digits) – and a server is needed in contacts"), Toast.LENGTH_LONG).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
     // 🔐 numer i PIN: po nich serwer rozpoznaje mnie na nowym telefonie; PIN dwa razy (literówka = konto nie do odzyskania)

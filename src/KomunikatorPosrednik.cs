@@ -565,6 +565,7 @@ namespace Velivo
                 }
                 var h = JsonNode.Parse(hello);
                 if ((string)h?["Type"] == "relay-ask") { await KomAskServe(h, mac, s, token); return; }
+                if ((string)h?["Type"] == "relay-register") { await KomRegisterServe(h, s, cl, token); return; }   // 📝 nowe konto na serwerze (jak w Signalu): numer + PIN
                 if ((string)h?["Type"] == "relay-restore") { await KomRestoreServe(h, s, cl, token); return; }   // ♻ nowy telefon prosi o kopię konta - decyduje właściciel serwera   // 🔗 prośba o kontakt z linku „Mój adres Velivo” (ktoś spoza kontaktów)
                 id = (string)h["Id"];
                 KomContact c = null; await Dispatcher.InvokeAsync(() => { KomLoad(); c = KomContactById(id ?? ""); });
@@ -1432,6 +1433,89 @@ namespace Velivo
             w.Closed += (s, e) => t.Stop();
             w.Show(); w.Activate(); t.Start();
         }
+        // 📝 konta na serwerze (jak w Signalu): ktoś z internetu instaluje Komunikator, podaje adres serwera, imię, numer i PIN - serwer zakłada mu konto
+        // (otwarta - od razu; za zgodą - właściciel klika; wyłączona - nikt). Numer bez SMS-a: tylko nazwa konta, chroni go PIN; pierwszy zajmuje numer.
+        string KomRegMode => (string)_komOpt["rejestracja"] is "otwarta" or "wylaczona" ? (string)_komOpt["rejestracja"] : "zgoda";
+        JsonObject KomAccounts() { if (_komOpt["konta"] is not JsonObject a) _komOpt["konta"] = a = new JsonObject(); return a; }
+        readonly ConcurrentDictionary<string, JsonObject> _komRegRes = new ConcurrentDictionary<string, JsonObject>();
+        readonly ConcurrentDictionary<string, bool> _komRegAsk = new ConcurrentDictionary<string, bool>();
+        async Task KomRegisterServe(JsonNode h, Stream s, TcpClient cl, CancellationToken token)
+        {
+            var ip = (cl.Client.RemoteEndPoint as IPEndPoint)?.Address?.ToString() ?? "?";
+            string id = (string)h["Id"] ?? "", pub = (string)h["Pub"] ?? "", lg = (string)h["Login"] ?? "", pin = (string)h["Pin"] ?? "";
+            var name = KomClean((string)h["Name"]); var nr = KomClean((string)h["Nr"]);
+            JsonObject resp;
+            if (id.Length != 32 || !id.All(Uri.IsHexDigit) || pub.Length is 0 or > 400 || lg.Length != 32 || !lg.All(Uri.IsHexDigit) || pin.Length != 64 || !pin.All(Uri.IsHexDigit) || name.Length == 0) resp = new JsonObject { ["ok"] = false, ["why"] = "bad" };
+            else if (_komRegRes.TryRemove(id, out var done)) resp = done;
+            else
+            {
+                resp = null;
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    var mode = KomRegMode;
+                    var taken = KomAccounts().Any(kv => (string)kv.Value?["login"] == lg && kv.Key != id);
+                    if (mode == "wylaczona") resp = new JsonObject { ["ok"] = false, ["why"] = "off" };
+                    else if (taken) resp = new JsonObject { ["ok"] = false, ["why"] = "taken" };
+                    else if (KomForgotten(id) || KomContactById(id) != null) resp = new JsonObject { ["ok"] = false, ["why"] = "no" };
+                    else if (mode == "otwarta")
+                    {   // najwyżej 3 nowe konta z jednego adresu na dobę - ochrona przed zalewem kont
+                        var t = _komRestoreTries.AddOrUpdate("r" + ip, (DateTime.UtcNow, 1), (_, o) => DateTime.UtcNow - o.at > TimeSpan.FromDays(1) ? (DateTime.UtcNow, 1) : (o.at, o.n + 1));
+                        resp = t.n > 3 ? new JsonObject { ["ok"] = false, ["why"] = "later" } : KomRegisterCreate(id, name, pub, lg, pin, nr);
+                    }
+                    else
+                    {
+                        resp = new JsonObject { ["wait"] = true };
+                        if (_komRegAsk.Count < 10 && _komRegAsk.TryAdd(id, true))
+                            _ = Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                KomPlaySound();
+                                bool yes; try { yes = MessageBox.Show((Window)_komWindow ?? PairDialogOwner(), L.T("Nowe konto na Twoim serwerze:") + "\n\n" + name + (nr.Length > 0 ? "\n" + L.T("numer: ") + nr : "") + "\n\n" + L.T("Numer nie jest sprawdzany SMS-em – dodaj tylko, gdy wiesz, kto to jest. Dodać?"),
+                                    "📝 " + L.T("Nowe konto"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes; }
+                                finally { _komRegAsk.TryRemove(id, out _); }
+                                _komRegRes[id] = yes && !KomAccounts().Any(kv => (string)kv.Value?["login"] == lg) ? KomRegisterCreate(id, name, pub, lg, pin, nr) : new JsonObject { ["ok"] = false, ["why"] = "no" };
+                            }));
+                    }
+                });
+            }
+            if (resp["wait"] == null) App.LogInfo("Pośrednik: nowe konto „" + name + "” z " + ip + " – " + ((bool?)resp["ok"] == true ? "założone" : (string)resp["why"]));
+            await KomWriteBlock(s, Encoding.UTF8.GetBytes(resp.ToJsonString()), token);
+        }
+        JsonObject KomRegisterCreate(string id, string name, string pub, string lg, string pin, string nr)
+        {
+            using var me = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
+            var myPub = me.ExportSubjectPublicKeyInfo(); byte[] reqPub, k;
+            try { reqPub = Convert.FromBase64String(pub); k = KomAgree(me, reqPub, "velivo-prosba", reqPub, myPub); } catch (Exception) { return new JsonObject { ["ok"] = false, ["why"] = "bad" }; }
+            _komContacts.Add(new KomContact { Id = id, Name = name, Key = k, Addr = "", Device = name, Own = false });
+            KomAccounts()[id] = new JsonObject { ["login"] = lg, ["pin"] = pin, ["nr"] = nr, ["name"] = name, ["at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+            KomSave(); _komRefresh?.Invoke();
+            var r = new JsonObject { ["ok"] = true, ["relay"] = _komId, ["relayName"] = _lanDeviceName, ["relayPub"] = Convert.ToBase64String(myPub) };
+            if (_komRelayHost.Length > 0) r["relayAddr"] = _komRelayHost + ":" + _komRelayPort;
+            return r;
+        }
+        // 🔎 szukanie po numerze: konto z tym numerem (skrót) dostaje się z pytającym nawzajem jako kontakty (wspólny nowy klucz); najwyżej 20 na godzinę
+        const string KomFindTag = "\u0001velivo-szukaj\n";
+        void KomFindIn(KomContact c, string lg)
+        {
+            if (_komRelayListener == null) return;
+            var t = _komRestoreTries.AddOrUpdate("s" + c.Id, (DateTime.UtcNow, 1), (_, o) => DateTime.UtcNow - o.at > TimeSpan.FromHours(1) ? (DateTime.UtcNow, 1) : (o.at, o.n + 1));
+            string hit = t.n > 20 ? null : KomAccounts().Where(kv => (string)kv.Value?["login"] == lg.Trim() && kv.Key != c.Id).Select(kv => kv.Key).FirstOrDefault();
+            if (hit == null && t.n <= 20) try { foreach (var m in Directory.GetFiles(KomRestoreDir, "*.json")) { var j = JsonNode.Parse(File.ReadAllText(m)); var mid = Path.GetFileNameWithoutExtension(m); if ((string)j?["login"] == lg.Trim() && mid != c.Id) { hit = mid; break; } } } catch (Exception) { }   // numer ustawiony w 💾 na telefonie
+            var other = hit != null ? KomContactById(hit) : null;
+            long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (other == null) { KomDeliver(c, new KomMsg { Mine = true, Text = "🔎 " + L.T("Nie ma konta z tym numerem na tym serwerze."), Ts = ts, Mid = Guid.NewGuid().ToString("N") }); return; }
+            var key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+            string Card(KomContact x) => KomCardTag + new JsonObject { ["id"] = x.Id, ["name"] = x.Name, ["dev"] = x.Device, ["key"] = key, ["relay"] = x.Relay ?? "" }.ToJsonString();
+            KomDeliver(c, new KomMsg { Mine = true, Text = Card(other), Ts = ts, Mid = Guid.NewGuid().ToString("N") });
+            KomDeliver(other, new KomMsg { Mine = true, Text = Card(c), Ts = ts, Mid = Guid.NewGuid().ToString("N") });
+        }
+        Button KomRegisterButton()
+        {
+            string Label() => "📝 " + L.T("Nowe konta z internetu: ") + (KomRegMode == "otwarta" ? L.T("każdy sam (otwarte)") : KomRegMode == "wylaczona" ? L.T("wyłączone") : L.T("za moją zgodą"));
+            var b = new Button { Content = Label(), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
+                ToolTip = L.T("Czy ktoś z internetu może sam założyć konto na tym serwerze (Komunikator → Załóż konto: imię, numer, PIN). Kliknij, aby zmienić.") };
+            b.Click += (s, e) => { _komOpt["rejestracja"] = KomRegMode == "zgoda" ? "otwarta" : KomRegMode == "otwarta" ? "wylaczona" : "zgoda"; KomSave(); b.Content = Label(); };
+            return b;
+        }
         // 👥 kontakty serwera: kogo znają moje serwery; usunięcie - na wszystkich moich serwerach naraz (i nie wraca przy wymianie kontaktów)
         const string KomForgetTag = "\u0001velivo-zapomnij\n";
         bool KomForgotten(string id) => _komOpt["removed"] is JsonArray ra && ra.Any(x => (string)x == id);
@@ -1501,7 +1585,7 @@ namespace Velivo
             var grid = new StackPanel { Margin = new Thickness(16), Children = {
                 on, _komRelaySummary,
                 new TextBlock { Text = L.T("Serwer przekazuje Twoje rozmowy, gdy Ty albo Twoje kontakty jesteście poza domem (dane komórkowe, inny kraj). Działa sam – nic nie trzeba ustawiać."), TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Opacity = 0.8 },
-                KomServerContactsButton(owner), more, ok } };
+                KomServerContactsButton(owner), KomRegisterButton(), more, ok } };
             var d = new Window { Title = L.T("🌍 Rozmowy poza domem"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid };
             KomStyle(d);
             KomRelayStatus();

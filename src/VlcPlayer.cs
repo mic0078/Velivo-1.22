@@ -449,16 +449,27 @@ namespace Velivo
         {
             var syncMsg = await System.Threading.Tasks.Task.Run(() => SyncJellyfin(jc, _ => { }));
             if (tvView || !File.Exists(JellyfinFilesFile)) return syncMsg;
-            var msg = await JellyfinAddNewAsync(shared);
+            var msg = await JellyfinAddNewAsync(shared, askOwner);
             if (askOwner != null) AskRemovedFromJellyfin(askOwner);
             return msg;
         }
 
         // nowe filmy z Jellyfin (plik dostępny na tym komputerze) do biblioteki; niedostępne - do raportu
-        async System.Threading.Tasks.Task<string> JellyfinAddNewAsync(bool shared)
+        async System.Threading.Tasks.Task<string> JellyfinAddNewAsync(bool shared, Window askOwner = null)
         {
             if (!File.Exists(JellyfinFilesFile)) return "";
             var jfFiles = File.ReadAllLines(JellyfinFilesFile).ToList();
+            // filmy usunięte wcześniej „tylko z Velivo” nie wracają same - ręczne „Pobierz / uzupełnij” mówi, ile ich jest, i pyta o przywrócenie
+            // (biblioteka pusta, a „Nowe: 0” - nie było widać dlaczego)
+            var skipped = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), File.Exists)
+                .Where(p => JellyfinSkipped().Contains(p, StringComparer.OrdinalIgnoreCase)).ToList());
+            if (askOwner != null && skipped.Count > 0 && MessageBox.Show(askOwner, string.Format(L.T("{0} filmów z Jellyfin jest na tym komputerze, ale wcześniej usunięto je tylko z biblioteki Velivo, więc nie wracają same.\n\nPrzywrócić je do biblioteki?"), skipped.Count),
+                    "🎞 Jellyfin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                var back = new HashSet<string>(skipped, StringComparer.OrdinalIgnoreCase);
+                try { File.WriteAllLines(JellyfinSkipFile, JellyfinSkipped().Where(p => !back.Contains(p))); } catch (Exception ex) { App.LogError(ex); }
+                skipped.Clear();
+            }
             var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path).Concat(JellyfinSkipped()), File.Exists));   // usunięte „tylko z Velivo” nie wracają
             int n = 0;
             if (add.Count > 0) { var l = LoadLibrary(); n = AddToLibrary(l, add, shared); SaveLibrary(l); }
@@ -466,7 +477,7 @@ namespace Velivo
             var missing = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), p => !File.Exists(p)));
             try { File.AppendAllLines(System.IO.Path.Combine(DataDir, "jellyfin-raport.txt"), new[] { "", "Pliki z Jellyfin niedostępne na tym komputerze (" + missing.Count + "):" }.Concat(missing.Select(m => "  " + m))); } catch (Exception) { }
             _libRefresh?.Invoke();
-            return L.T("🎬 Nowe filmy z Jellyfin: ") + n + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : "");
+            return L.T("🎬 Nowe filmy z Jellyfin: ") + n + (skipped.Count > 0 ? L.T(" · usuniętych wcześniej z Velivo (nie wracają): ") + skipped.Count : "") + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : "");
         }
         bool _libSharedView;   // otwarta biblioteka: wspolna albo tego komputera
         bool _libTvView;

@@ -459,9 +459,13 @@ namespace Velivo
         {
             if (!File.Exists(JellyfinFilesFile)) return "";
             var jfFiles = File.ReadAllLines(JellyfinFilesFile).ToList();
+            // 🎞 Jellyfin jest serwerem: film, którego pliku nie ma na tym komputerze, gra wprost z Jellyfin (strumień) - bez Velivo na NUCBOX i bez „wspólnej”
+            var jc0 = LoadJellyfinConf(); bool canJf = jc0 != null && !string.IsNullOrEmpty(jc0.Url) && !string.IsNullOrEmpty(jc0.Key);
+            var fromJf = new HashSet<string>(canJf ? jfFiles.Where(p => !string.IsNullOrEmpty(MetaFor(p)?.Id)) : Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            Func<string, bool> playable = p => File.Exists(p) || fromJf.Contains(p);
             // filmy usunięte wcześniej „tylko z Velivo” nie wracają same - ręczne „Pobierz / uzupełnij” mówi, ile ich jest, i pyta o przywrócenie
             // (biblioteka pusta, a „Nowe: 0” - nie było widać dlaczego)
-            var skipped = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), File.Exists)
+            var skipped = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), playable)
                 .Where(p => JellyfinSkipped().Contains(p, StringComparer.OrdinalIgnoreCase)).ToList());
             if (askOwner != null && skipped.Count > 0 && MessageBox.Show(askOwner, string.Format(L.T("{0} filmów z Jellyfin jest na tym komputerze, ale wcześniej usunięto je tylko z biblioteki Velivo, więc nie wracają same.\n\nPrzywrócić je do biblioteki?"), skipped.Count),
                     "🎞 Jellyfin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
@@ -470,11 +474,11 @@ namespace Velivo
                 try { File.WriteAllLines(JellyfinSkipFile, JellyfinSkipped().Where(p => !back.Contains(p))); } catch (Exception ex) { App.LogError(ex); }
                 skipped.Clear();
             }
-            var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path).Concat(JellyfinSkipped()), File.Exists));   // usunięte „tylko z Velivo” nie wracają
+            var add = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path).Concat(JellyfinSkipped()), playable));   // usunięte „tylko z Velivo” nie wracają
             int n = 0;
             if (add.Count > 0) { var l = LoadLibrary(); n = AddToLibrary(l, add, shared); SaveLibrary(l); }
             // brakujace pliki (Jellyfin zna, tu niedostepne) - do raportu, zeby bylo widac dlaczego
-            var missing = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), p => !File.Exists(p)));
+            var missing = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), p => !playable(p)));
             try { File.AppendAllLines(System.IO.Path.Combine(DataDir, "jellyfin-raport.txt"), new[] { "", "Pliki z Jellyfin niedostępne na tym komputerze (" + missing.Count + "):" }.Concat(missing.Select(m => "  " + m))); } catch (Exception) { }
             _libRefresh?.Invoke();
             return L.T("🎬 Nowe filmy z Jellyfin: ") + n + (skipped.Count > 0 ? L.T(" · usuniętych wcześniej z Velivo (nie wracają): ") + skipped.Count : "") + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : "")
@@ -678,7 +682,7 @@ namespace Velivo
         LibraryVideo LastFilm()
         {
             var tv = TvRecDirs();
-            return LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && !v.Done && v.Pos > 0 && !IsTvRec(v.Path, tv) && File.Exists(v.Path)).OrderByDescending(v => v.Last).FirstOrDefault();
+            return LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && !v.Done && v.Pos > 0 && !IsTvRec(v.Path, tv) && FilmPlayable(v.Path)).OrderByDescending(v => v.Last).FirstOrDefault();
         }
 
         void ContinueLastFilm()
@@ -779,11 +783,12 @@ namespace Velivo
                     };
                     var now = DateTime.Now;
                     Func<LibraryVideo, MovieInfo> mf = v => LookupMeta(meta, v.Path);   // dane z Jellyfin (lokalna baza)
+                    var jfc = LoadJellyfinConf(); bool jfOn = jfc != null && !string.IsNullOrEmpty(jfc.Url) && !string.IsNullOrEmpty(jfc.Key);   // brak pliku tutaj - film z serwera Jellyfin
                     var r = SortLibrary(all.Where(v => q.Length == 0 || v.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (v.MyTitle ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || v.Path.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         mf(v) is MovieInfo m1 && ((m1.Name ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || (m1.Original ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)), key, desc, mf)
                     .Select(v => new LibRow
                     {
-                        Item = v, Missing = !of.ContainsKey(v) && (v.Peer != null ? !online.Contains(v.Peer) : !exists(v.Path)), Title = ShownTitle(v, mf(v)),
+                        Item = v, Missing = !of.ContainsKey(v) && (v.Peer != null ? !online.Contains(v.Peer) : !exists(v.Path) && !(jfOn && !string.IsNullOrEmpty(mf(v)?.Id))), Title = ShownTitle(v, mf(v)),
                         Year = mf(v)?.Year > 0 ? mf(v).Year.ToString() : "", Rating = mf(v)?.Rating > 0 ? "★ " + mf(v).Rating.ToString("0.0") : "", Genre = string.Join(", ", mf(v)?.Genres ?? new List<string>()),
                         Length = v.Len > 0 ? FormatTime(v.Len) : "",
                         Seen = SeenText(v),
@@ -2801,7 +2806,8 @@ namespace Velivo
                 // nagrywany kanal (opcja): obraz z pliku nagrania - jedno polaczenie z dostawca, pauza i cofanie
                 curRecFile = tv != null && IptvSt.WatchFromRec ? RecFileFor(path) : null;
                 if (curRecFile != null) stream = false;
-                using (var media = curRecFile != null ? new Media(_libVlc, curRecFile, FromType.FromPath) : stream ? new Media(_libVlc, new Uri(path)) : new Media(_libVlc, path, FromType.FromPath))
+                var src = !stream && curRecFile == null && tv == null && !File.Exists(path) ? JellyfinStreamUrl(path) : null;   // 🎞 pliku nie ma na tym komputerze - z serwera Jellyfin
+                using (var media = curRecFile != null ? new Media(_libVlc, curRecFile, FromType.FromPath) : src != null ? new Media(_libVlc, new Uri(src)) : stream ? new Media(_libVlc, new Uri(path)) : new Media(_libVlc, path, FromType.FromPath))
                 {
                     // napisy o tej samej nazwie obok filmu (film.srt, film.pl.srt) dolaczane same - jak w VLC; przy strumieniu - z komputera wlasciciela
                     if (stream && rf?.Sub != null) media.AddSlave(MediaSlaveType.Subtitle, 4, rf.Sub);
@@ -3418,7 +3424,7 @@ namespace Velivo
                 if (grM.Items.Count > 0) tvM.Items.Add(grM);
                 if (tvM.Items.Count > 0) cm.Items.Add(tvM);
                 var fm = new MenuItem { Header = L.T("🎬 Filmy") };
-                var libF = LoadLibrary().Where(v => v.Peer == null && v.Path != p0 && File.Exists(v.Path)).ToList();
+                var libF = LoadLibrary().Where(v => v.Peer == null && v.Path != p0 && FilmPlayable(v.Path)).ToList();
                 Action<string, IEnumerable<LibraryVideo>> fSub = (h, list) =>
                 {
                     var sm = new MenuItem { Header = h };
@@ -3591,7 +3597,7 @@ namespace Velivo
             Action showAllFilms = null; showAllFilms = () =>
             {
                 var recDirs = TvRecDirs(); int sort = FavSort("wszystkie-filmy");
-                var films = LoadLibrary().Where(v => v.Peer == null && !IsShared(v) && !IsTvRec(v.Path, recDirs) && File.Exists(v.Path))   // tylko filmy tego komputera, bez wspólnej grupy
+                var films = LoadLibrary().Where(v => v.Peer == null && !IsShared(v) && !IsTvRec(v.Path, recDirs) && FilmPlayable(v.Path))   // tylko filmy tego komputera, bez wspólnej grupy
                     .GroupBy(v => v.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First())   // bez powtórek
                     .Select(v => (v, m: MetaFor(v.Path))).Select(x => (x.v, x.m, t: ShownTitle(x.v, x.m))).ToList();
                 if (sort == 0) films = films.OrderBy(x => x.t, StringComparer.CurrentCultureIgnoreCase).ToList();
@@ -3846,7 +3852,7 @@ namespace Velivo
                 add(L.T("📂 Otwórz plik…"), () => { var fs = PickVideoFiles(true, Window.GetWindow(overlay) ?? win); if (fs != null) PlayVideos(fs, 0); }, true);
                 {   // ostatnio ogladane - osobno TV i filmy, po 20 ostatnich, najnowsze na gorze
                     var rf = new MenuItem { Header = L.T("🕘 Ostatnio oglądane Filmy") };
-                    foreach (var v0 in LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != path && File.Exists(v.Path)).OrderByDescending(v => v.Last).Take(20))
+                    foreach (var v0 in LoadLibrary().Where(v => v.Peer == null && v.Last > 0 && v.Path != path && FilmPlayable(v.Path)).OrderByDescending(v => v.Last).Take(20))
                     { var v = v0; var mi = new MenuItem { Header = ShownTitle(v, MetaFor(v.Path)) }; mi.Click += (q, w2) => PlayVideos(new[] { v.Path }, 0); rf.Items.Add(mi); }
                     var rt = new MenuItem { Header = L.T("🕘 Ostatnio oglądane TV") };
                     var kpl = IptvInstalled && IptvSt.Recent.Any(u => u != path && !_iptvPlaying.ContainsKey(u)) ? KnownPlaylist() : _iptvPl;   // TV jeszcze nie otwierana - kanaly z pamieci podrecznej

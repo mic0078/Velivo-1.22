@@ -145,3 +145,5 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-01: PiP – prawy przycisk: „ℹ Co teraz leci w podglądzie” (program TV z opisem) / „ℹ O filmie w podglądzie” – to samo okienko co klik w plakat (`showAbout`).
 * 2026-11-01: wznowienie filmu sprawdzane – gdy VLC zignoruje przewinięcie (pauza przy pytaniu, buforowanie, film z sieci), Velivo ponawia do 4 razy co 1,2 s (wcześniej film szedł od początku).
 * 2026-11-01: ↕ wysokość paska odtwarzacza (👁 → suwak 100–160 %, `pasek-wysokosc`): `applyBarHeight` skaluje wysokość przycisków, ikony (`_barIcon` – także podmieniane ⏸/▶), napisy, obrazki i suwak głośności od zapamiętanych wartości bazowych.
+
+* 2026-11-02: 🎞 Jellyfin jako serwer biblioteki: `JellyfinAddNewAsync` dodaje też pliki niedostępne lokalnie, gdy mają Id w bazie (`fromJf`); odtwarzanie – brak pliku → `JellyfinStreamUrl` (`/Videos/{id}/stream?static=true&api_key=…`, adres `_jfWorking` z `JellyfinReach`, inaczej `Url`); listy (Kontynuuj, ostatnio, boczna) – `FilmPlayable`. Klucz w adresie nie trafia do vlc.log (`VlcLogSafe` ucina zapytanie).

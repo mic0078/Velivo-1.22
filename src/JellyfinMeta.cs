@@ -321,6 +321,18 @@ namespace Velivo
         }
 
         internal MovieInfo MetaFor(string path) { return LookupMeta(Meta, path); }
+        // 🎞 film z serwera Jellyfin (oryginalny plik, bez przekodowania - VLC odtwarza każdy format); null - brak serwera albo filmu w Jellyfin
+        // film do obejrzenia tutaj: plik na dysku albo film z serwera Jellyfin (listy: Kontynuuj, ostatnio oglądane, boczna lista)
+        internal bool FilmPlayable(string path) => File.Exists(path) || JellyfinStreamUrl(path) != null;
+        JellyfinConf _jfConfCache; DateTime _jfConfAt;   // ustawienia Jellyfin czytane najwyżej co 30 s (listy pytają o setki filmów)
+        internal string JellyfinStreamUrl(string path)
+        {
+            if (DateTime.UtcNow - _jfConfAt > TimeSpan.FromSeconds(30)) { _jfConfCache = LoadJellyfinConf(); _jfConfAt = DateTime.UtcNow; }
+            var c = _jfConfCache; var id = MetaFor(path)?.Id;
+            if (c == null || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key) || string.IsNullOrEmpty(id)) return null;
+            var b = _jfWorking != null && (_jfWorking == c.Url || _jfWorking == c.Lan) ? _jfWorking : c.Url;
+            return b.TrimEnd('/') + "/Videos/" + Uri.EscapeDataString(id) + "/stream?static=true&api_key=" + Uri.EscapeDataString(c.Key);
+        }
 
         // sortowanie listy filmow: az / za / ocena / rok (rok nierozpoznanego filmu z nazwy pliku)
         internal static List<T> SortFilms<T>(IEnumerable<T> src, Func<T, string> raw, Func<T, MovieInfo> meta, string how, Func<T, string> custom = null)
@@ -427,6 +439,7 @@ namespace Velivo
 
         // pobranie / uzupelnienie bazy: dane wszystkich filmow, plakaty tylko nowe albo zmienione
         // adres, który odpowiada (najpierw wpisany, potem ostatni domowy) - sprawdzany 8 s, zamiast czekać 5 min na odpowiedź, która nie przyjdzie
+        static string _jfWorking;   // ostatni adres Jellyfin, który odpowiedział (dom / internet) - pod nim gra film ze strumienia
         static async Task<string> JellyfinReach(JellyfinConf c)
         {
             foreach (var u in new[] { c.Url, c.Lan }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -436,7 +449,7 @@ namespace Velivo
                     if ((await t.GetAsync(u.TrimEnd('/') + "/System/Info/Public")).IsSuccessStatusCode)
                     {
                         if (Uri.TryCreate(u, UriKind.Absolute, out var uri) && System.Net.IPAddress.TryParse(uri.Host, out var ip) && IsPrivateIp(ip)) c.Lan = u;   // domowy adres na zapas
-                        return u;
+                        _jfWorking = u; return u;
                     }
                 }
                 catch (Exception) { }

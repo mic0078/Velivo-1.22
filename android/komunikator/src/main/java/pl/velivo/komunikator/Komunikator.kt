@@ -3256,7 +3256,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 }.setNegativeButton(android.R.string.cancel, null).show()
             })
             addView(icon("🖼", t("Zdjęcia, filmy i pliki z rozmowy", "Photos, videos and files in this chat")) { gallery(c) })
-            if (!c.isGroup) { addView(icon("📞", t("Rozmowa głosowa", "Voice call")) { openCall(c, true, true) }); addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) } }
+            if (!c.isGroup) { addView(icon("📞", t("Rozmowa głosowa", "Voice call")) { openCall(c, true, true) }.apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(green) } })   // wyraźna zielona słuchawka; addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) } }
         input.setText(k.draft(c.id)); input.setSelection(input.text.length); sendOrMic()
         fill(); status(); ringPending(c)
         input.addTextChangedListener(object : android.text.TextWatcher {
@@ -3398,10 +3398,31 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun gallery(c: Komunikator.Contact) {
         val ms = k.chat(c.id).filter { m -> m.path?.let { java.io.File(it).exists() } == true }.reversed()
         if (ms.isEmpty()) { Toast.makeText(a, t("Brak plików w tej rozmowie", "No files in this chat"), Toast.LENGTH_SHORT).show(); return }
-        Dlg().setTitle("🖼 " + c.name).setItems(ms.map { (if (k.isImage(it.path!!)) "🖼 " else "") + it.text + " · " + when_(it.ts) }.toTypedArray()) { _, i ->
-            val p = ms[i].path!!
-            if (k.isImage(p)) showPhoto(p, photos(c)) else if (p.contains("Glosowa-")) play(p) else openFile(p)
-        }.show()
+        // jak WhatsApp: siatka miniatur (zdjęcie / klatka filmu), pod spodem tylko data; inne pliki - ikona i rodzaj
+        var dlg: AlertDialog? = null
+        val vids = setOf("mp4", "3gp", "webm", "mkv", "mov")
+        val grid = android.widget.GridView(a).apply {
+            numColumns = 3; horizontalSpacing = px(4); verticalSpacing = px(4); setPadding(px(8), px(4), px(8), px(4)); stretchMode = android.widget.GridView.STRETCH_COLUMN_WIDTH
+            adapter = object : android.widget.BaseAdapter() {
+                override fun getCount() = ms.size; override fun getItem(i: Int) = ms[i]; override fun getItemId(i: Int) = i.toLong()
+                override fun getView(i: Int, v: View?, parent: android.view.ViewGroup): View {
+                    val m = ms[i]; val p = m.path!!; val vid = p.substringAfterLast('.').lowercase() in vids
+                    val box = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+                    val img = android.widget.ImageView(a).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; layoutParams = LinearLayout.LayoutParams(-1, px(104))
+                        background = GradientDrawable().apply { setColor(Color.argb(60, 128, 128, 128)); cornerRadius = px(8).toFloat() }; clipToOutline = true }
+                    val emo = TextView(a).apply { textSize = 34f; gravity = Gravity.CENTER; setTextColor(ink); layoutParams = LinearLayout.LayoutParams(-1, px(104))
+                        background = GradientDrawable().apply { setColor(Color.argb(60, 128, 128, 128)); cornerRadius = px(8).toFloat() }
+                        text = if (p.contains("Glosowa-")) "🎤" else if (p.endsWith(".apk", true)) "📲" else "📄" }
+                    if (k.isImage(p) || vid) { box.addView(img); Thread { val b = synchronized(thumbs) { if (vid) vthumb(p) else thumb(p) }; img.post { if (b != null) img.setImageBitmap(b) else { box.removeView(img); box.addView(emo, 0) } } }.start() }
+                    else box.addView(emo)
+                    box.addView(TextView(a).apply { text = when_(m.ts); textSize = 12f; setTextColor(dim); gravity = Gravity.CENTER; maxLines = 1; setPadding(0, px(2), 0, px(4)) })
+                    return box
+                }
+            }
+            setOnItemClickListener { _, _, i, _ -> val p = ms[i].path!!; dlg?.dismiss()
+                if (k.isImage(p)) showPhoto(p, photos(c)) else if (p.contains("Glosowa-")) play(p) else openFile(p) }
+        }
+        dlg = Dlg().setTitle("🖼 " + c.name).setView(grid).show()
     }
 
     // 💾 rozmowa jako tekst w Pobranych

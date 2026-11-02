@@ -2293,6 +2293,8 @@ namespace Velivo
                 gNote.Items.Insert(0, snd);
                 var tidy = new MenuItem { Header = L.T("🧹 Porządki na dysku…") }; tidy.Click += (a, b) => KomCleanup(w);
                 gNote.Items.Add(tidy);
+                var dsz = new MenuItem { Header = L.T("💽 Dane serwera na dysku…") }; dsz.Click += async (a, b) => await KomDataSize(w);
+                gNote.Items.Add(dsz);
                 var ph = new MenuItem { Header = L.T("👤 Moje zdjęcie profilowe…") };
                 ph.Click += (a, b) =>
                 {
@@ -2439,6 +2441,25 @@ namespace Velivo
                 b.Child = new TextBlock { Text = c.IsGroup ? "👥" : (c.Name.Trim().Length > 0 ? c.Name.Trim().Substring(0, 1).ToUpper() : "?"), Foreground = Brushes.White, FontWeight = FontWeights.Bold, FontSize = size * 0.42, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             }
             return b;
+        }
+        // 💽 ile zajmują dane komunikatora i serwera na dysku tego komputera (liczone w tle - duże foldery nie zatrzymują okna)
+        async Task KomDataSize(Window w)
+        {
+            KomInfo("💽 " + L.T("Liczę…"));
+            var r = await Task.Run(() =>
+            {
+                long F(string f) { try { return File.Exists(f) ? new FileInfo(f).Length : 0; } catch (Exception) { return 0; } }
+                (long size, int n) D(string d) { long s = 0; int n = 0; try { if (Directory.Exists(d)) foreach (var f in Directory.EnumerateFiles(d, "*", SearchOption.AllDirectories)) { s += F(f); n++; } } catch (Exception) { } return (s, n); }
+                return (chat: F(KomFile), box: F(KomStoreFile), media: D(KomMediaDir), files: D(Path.Combine(DataDir, "skrzynka")));
+            });
+            long all = r.chat + r.box + r.media.size + r.files.size;
+            var t = L.T("Rozmowy, kontakty i konta: ") + KomSize(r.chat) + "\n"
+                + L.T("Pliki z rozmów (zdjęcia, głosówki, filmy): ") + KomSize(r.media.size) + " (" + r.media.n + ")\n"
+                + L.T("📬 Skrzynka – wiadomości dla nieobecnych: ") + KomSize(r.box) + "\n"
+                + L.T("📬 Skrzynka – pliki dla nieobecnych: ") + KomSize(r.files.size) + " (" + r.files.n + ")\n\n"
+                + L.T("Razem: ") + KomSize(all) + "\n" + L.T("Folder: ") + DataDir + "\n\n" + L.T("Zwolnić miejsce: 🧹 Porządki na dysku albo 🧹 Wyczyść rozmowę (menu kontaktu).");
+            KomInfo("");
+            MessageBox.Show(w, t, L.T("💽 Dane serwera na dysku"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
         // 🧹 porządki (ostrożnie): tylko pliki, których nie pokazuje żadna rozmowa i starsze niż 2 dni, skrzynki usuniętych kontaktów, resztki przerwanych odbiorów;
         // najpierw podsumowanie i pytanie, pliki do Kosza (można przywrócić), rozmowy, kontakty i skrzynka obecnych kontaktów - nietknięte

@@ -425,4 +425,6 @@
     <string name="kom_alerts_msg">Żeby wiadomości i rozmowy zawsze pokazywały się na ekranie (także zablokowanym), pozwól Velivo pokazywać powiadomienia i rozmowy na cały ekran oraz wyłącz dla Velivo oszczędzanie baterii (inaczej wiadomości dochodzą dopiero po otwarciu). Potem otwórz Velivo ponownie – powie, czego jeszcze brakuje.</string>
     <string name="kom_alerts_on">Włącz</string>
     <string-array name="theme_colors"><item>Grafit</item><item>Granat</item><item>Nocny fiolet</item><item>Las</item><item>Ocean</item><item>Zachód słońca</item><item>Czerń (OLED)</item><item>Papier</item><item>Mgła</item></string-array>
+    <string name="jf_refresh_fail">Nie odświeżono biblioteki: %1$s (serwer %2$s)</string>
+    <string name="jf_no_user">nie wybrano użytkownika Jellyfin – ⚙ → serwer</string>
 </resources>

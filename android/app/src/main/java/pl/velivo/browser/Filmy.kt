@@ -297,7 +297,7 @@ object Jelly {
     fun base(c: Conf) = if (away && c.net.isNotEmpty()) c.net else c.url
     // czy serwer odpowiada pod adresem domowym (krótko - w domu od razu)
     fun homeReachable(c: Conf): Boolean = runCatching {
-        val h = URL(base(c) + "/System/Info/Public").openConnection() as HttpURLConnection
+        val h = URL(c.url + "/System/Info/Public").openConnection() as HttpURLConnection   // zawsze adres domowy - po wyjściu z domu base() wskazywał internet
         h.connectTimeout = 1500; h.readTimeout = 2500; h.responseCode in 200..299
     }.getOrDefault(false)
     class Item(val id: String, val name: String, val type: String, val year: Int, val overview: String, val series: String, val ticks: Long, val posTicks: Long, val added: String, val last: String = "")

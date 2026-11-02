@@ -2481,8 +2481,12 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             val cache = Jelly.cached(this, passwords)
             if (cache != null) { lib = cache.first; resume = cache.second; scr.setRows(rows(), titles[mode]) } else scr.setRows(emptyList(), getString(R.string.tv_loading))
             Thread {
-                val ok = runCatching { Jelly.refresh(this, passwords, c).let { lib = it.first; resume = it.second } }.isSuccess
-                runOnUiThread { scr.setRows(rows(), titles[mode] + if (!ok && cache == null) " · " + getString(R.string.jf_error) else "") }
+                val r = runCatching { Jelly.refresh(this, passwords, c).let { lib = it.first; resume = it.second } }
+                runOnUiThread {
+                    scr.setRows(rows(), titles[mode] + if (r.isFailure && cache == null) " · " + getString(R.string.jf_error) else "")
+                    // błąd widoczny także przy zapisanej liście (wcześniej stara lista bez słowa) - powód i adres serwera
+                    r.exceptionOrNull()?.let { e -> toast(getString(R.string.jf_refresh_fail, (if (c.user.isEmpty()) getString(R.string.jf_no_user) else tvErr(e)), runCatching { Uri.parse(Jelly.base(c)).host + ":" + Uri.parse(Jelly.base(c)).port }.getOrDefault(""))) }
+                }
             }.start()
         }
         scr.addButton("☰", R.string.tv_filter) {

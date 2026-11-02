@@ -2288,6 +2288,8 @@ namespace Velivo
                     _komSound = dlg.ShowDialog(w) == true ? dlg.FileName : ""; KomSave(); KomPlaySound();
                 };
                 gNote.Items.Insert(0, snd);
+                var tidy = new MenuItem { Header = L.T("🧹 Porządki na dysku…") }; tidy.Click += (a, b) => KomCleanup(w);
+                gNote.Items.Add(tidy);
                 var ph = new MenuItem { Header = L.T("👤 Moje zdjęcie profilowe…") };
                 ph.Click += (a, b) =>
                 {
@@ -2434,6 +2436,41 @@ namespace Velivo
                 b.Child = new TextBlock { Text = c.IsGroup ? "👥" : (c.Name.Trim().Length > 0 ? c.Name.Trim().Substring(0, 1).ToUpper() : "?"), Foreground = Brushes.White, FontWeight = FontWeights.Bold, FontSize = size * 0.42, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             }
             return b;
+        }
+        // 🧹 porządki (ostrożnie): tylko pliki, których nie pokazuje żadna rozmowa i starsze niż 2 dni, skrzynki usuniętych kontaktów, resztki przerwanych odbiorów;
+        // najpierw podsumowanie i pytanie, pliki do Kosza (można przywrócić), rozmowy, kontakty i skrzynka obecnych kontaktów - nietknięte
+        void KomCleanup(Window w)
+        {
+            var old = DateTime.Now.AddDays(-2); var del = new List<string>(); long size = 0;
+            void Take(string f) { try { var i = new FileInfo(f); if (i.LastWriteTime < old) { del.Add(f); size += i.Length; } } catch (Exception) { } }
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in _komChats.Values.SelectMany(x => x).Select(x => x.Path).Where(p => p != null)) { used.Add(p); used.Add(p + ".jpg"); }   // .jpg - miniatura filmu
+            int orphan = 0, boxes = 0, parts = 0;
+            try
+            {
+                if (Directory.Exists(KomMediaDir))
+                    foreach (var f in Directory.GetFiles(KomMediaDir))
+                        if (!used.Contains(f) && !Path.GetFileName(f).StartsWith("profil-", StringComparison.OrdinalIgnoreCase)) { int n0 = del.Count; Take(f); if (del.Count > n0) orphan++; }
+                var boxRoot = Path.Combine(DataDir, "skrzynka");
+                if (Directory.Exists(boxRoot))
+                    foreach (var d in Directory.GetDirectories(boxRoot))
+                    {
+                        bool gone = KomContactById(Path.GetFileName(d)) == null;   // kontakt usunięty - nikt tego nie odbierze
+                        foreach (var f in Directory.GetFiles(d)) if (gone || f.EndsWith(".part", StringComparison.OrdinalIgnoreCase)) { int n0 = del.Count; Take(f); if (del.Count > n0) { if (gone) boxes++; else parts++; } }
+                    }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            if (del.Count == 0) { MessageBox.Show(w, L.T("Porządek – nie ma nic do usunięcia.\n\nRozmowy, kontakty i pliki widoczne w rozmowach nie są nigdy ruszane."), L.T("🧹 Porządki na dysku"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+            var q = (L.En ? "Found (older than 2 days):\n" : "Znalezione (starsze niż 2 dni):\n")
+                + (orphan > 0 ? "• " + orphan + L.T(" plików komunikatora, których nie ma już w żadnej rozmowie") + "\n" : "")
+                + (boxes > 0 ? "• " + boxes + L.T(" plików w skrzynce 📬 dla usuniętych kontaktów") + "\n" : "")
+                + (parts > 0 ? "• " + parts + L.T(" resztek przerwanych przesyłek") + "\n" : "")
+                + "\n" + L.T("Razem: ") + KomSize(size) + "\n\n" + L.T("Pliki trafią do Kosza (można je przywrócić). Rozmowy, kontakty i skrzynka obecnych kontaktów zostają. Usunąć?");
+            if (MessageBox.Show(w, q, L.T("🧹 Porządki na dysku"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            int done = 0;
+            foreach (var f in del) try { Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(f, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin); done++; } catch (Exception ex) { App.LogInfo("Porządki: " + f + " – " + ex.Message); }
+            KomSave();
+            KomInfo("🧹 " + L.T("Przeniesione do Kosza: ") + done + " (" + KomSize(size) + ")");
         }
         // 🧹 wyczyszczenie rozmowy (kontakt zostaje); files - także pliki z folderu komunikatora (odebrane, nagrane, zrzuty), nigdy pliki użytkownika spoza niego
         void KomClearChat(Window w, KomContact c, bool files)

@@ -1677,7 +1677,12 @@ namespace Velivo
             root.Children.Add(left);
 
             var right = new DockPanel(); Grid.SetColumn(right, 2);
-            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxHeight = 92 };   // nazwa w 1–2 liniach, stan zawsze w osobnej linii pod nią (dalej „…”)
+            // nagłówek jak WhatsApp: zdjęcie z lewej, obok nazwa (do 2 linii, słowa nie są dzielone) i pod nią stan - kolumna, nic nie wchodzi pod zdjęcie
+            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.WrapWithOverflow, MaxHeight = 50 };
+            var headSub = new TextBlock { FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Visibility = Visibility.Collapsed };
+            var headPic = new ContentControl { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), Focusable = false };
+            var headCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; headCol.Children.Add(header); headCol.Children.Add(headSub);
+            var headBox = new DockPanel { Margin = new Thickness(4, 0, 0, 6) }; DockPanel.SetDock(headPic, Dock.Left); headBox.Children.Add(headPic); headBox.Children.Add(headCol);
             var searchBox = new TextBox { Width = 160, Margin = new Thickness(6, 0, 0, 6), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("🔍 Szukaj w rozmowie") };
             var top = new DockPanel(); DockPanel.SetDock(top, Dock.Top);
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
@@ -1731,7 +1736,7 @@ namespace Velivo
             var tools = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(6, 0, 0, 6) };
             foreach (var b in new[] { galBtn, voiceBtn, callBtn, helpBtn }) { b.Height = 34; b.Margin = new Thickness(0, 0, 6, 0); tools.Children.Add(b); }
             tools.Children.Add(searchBox); searchBox.Margin = new Thickness(0); searchBox.Height = 34;
-            DockPanel.SetDock(tools, Dock.Right); top.Children.Add(tools); top.Children.Add(header);
+            DockPanel.SetDock(tools, Dock.Right); top.Children.Add(tools); top.Children.Add(headBox);
             void SendOrMic() { bool t = input.Text.Trim().Length > 0 && !Equals(micBtn.Tag, "rec"); sendBtn.Visibility = t ? Visibility.Visible : Visibility.Collapsed; micBtn.Visibility = t ? Visibility.Collapsed : Visibility.Visible; }
             input.TextChanged += (s0, e0) => SendOrMic(); SendOrMic();
             // ↩ odpowiedź na wiadomość: cytat nad polem (kliknięcie - anuluj), idzie przed tekstem
@@ -1868,26 +1873,25 @@ namespace Velivo
             {
                 FillNet();
                 var c = Current();
-                header.Inlines.Clear(); header.ToolTip = null;
+                header.Inlines.Clear(); header.ToolTip = null; headBox.ToolTip = null; headPic.Content = null; headSub.Inlines.Clear(); headSub.Visibility = Visibility.Collapsed;
                 if (c == null) header.Text = L.T("Wybierz rozmowę z listy");
                 else if (c.IsGroup)
                 {   // 👥 grupa: skład zamiast „w sieci”
-                    header.Inlines.Add(new System.Windows.Documents.Run("👥 " + c.Name + "  "));
-                    header.Inlines.Add(new System.Windows.Documents.Run(string.Join(", ", KomMembers(c).Select(id => KomContactById(id)?.Name ?? "…"))) { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
+                    header.Inlines.Add(new System.Windows.Documents.Run("👥 " + c.Name));
+                    headSub.Inlines.Add(new System.Windows.Documents.Run(string.Join(", ", KomMembers(c).Select(id => KomContactById(id)?.Name ?? "…"))) { Foreground = new SolidColorBrush(pal.Dim) }); headSub.Visibility = Visibility.Visible;
                 }
                 else
                 {
                     bool on = KomOnline(c.Id);
-                    var hav = KomAvatarEl(c, on, 32, pal); hav.Margin = new Thickness(0, 0, 8, -6);   // 🖼 zdjęcie profilowe rozmówcy (bez zdjęcia - litera)
-                    header.Inlines.Add(new System.Windows.Documents.InlineUIContainer(hav));
-                    header.Inlines.Add(new System.Windows.Documents.Run(c.Name + "  "));
-                    if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) header.Inlines.Add(new System.Windows.Documents.Run("(" + c.Device + ")  ") { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
-                    header.Inlines.Add(new System.Windows.Documents.LineBreak()); header.Inlines.Add(new System.Windows.Documents.InlineUIContainer(new Border { Width = 40 }));   // jak WhatsApp: stan w drugiej linii pod nazwą - nagłówek wąski
-                    if (_komTypingAt.TryGetValue(c.Id, out var ty) && DateTime.UtcNow - ty < TimeSpan.FromSeconds(6)) { header.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) }); goto headerDone; }
+                    var hav = KomAvatarEl(c, on, 36, pal); headPic.Content = hav;   // 🖼 zdjęcie profilowe rozmówcy (bez zdjęcia - litera)
+                    header.Inlines.Add(new System.Windows.Documents.Run(c.Name));
+                    headSub.Visibility = Visibility.Visible;
+                    var dev = c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name ? "  ·  " + c.Device : "";   // urządzenie - na końcu linii stanu (najważniejszy stan widać pierwszy)
+                    if (_komTypingAt.TryGetValue(c.Id, out var ty) && DateTime.UtcNow - ty < TimeSpan.FromSeconds(6)) { headSub.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) }); goto headerDone; }
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
-                    header.ToolTip = on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci");   // pełny opis po najechaniu
-                    header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● 🌍 internet") : L.T("● 🏠 sieć domowa")) : L.T("● poza siecią") + seen)   // krótko - zawsze widać, także w wąskim oknie
-                        { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
+                    headBox.ToolTip = c.Name + (dev.Length > 0 ? " (" + c.Device + ")" : "") + "\n" + (on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"));   // pełny opis po najechaniu
+                    headSub.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● 🌍 internet") : L.T("● 🏠 sieć domowa")) : L.T("● poza siecią") + seen) { Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
+                    if (dev.Length > 0) headSub.Inlines.Add(new System.Windows.Documents.Run(dev) { Foreground = new SolidColorBrush(pal.Dim) });
                     headerDone:;
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;

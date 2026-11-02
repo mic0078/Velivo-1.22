@@ -643,6 +643,16 @@ namespace Velivo
             LanPhoneAdd phoneAdd = null;
             LanKbSync kbSync = null;
             LanFilmMsg film = null;
+            if (pkt.t == "rekey")   // nowy klucz grupy - tylko zaszyfrowany obecnym kluczem
+            {
+                if (_lanLegacyNoKeyMode) return;
+                LanRekey rk;
+                try { rk = DecryptLanBlob<LanRekey>(pkt); }
+                catch (Exception) { return; }
+                var rp = pkt;
+                await Dispatcher.InvokeAsync(() => HandleLanRekey(rp, rk));
+                return;
+            }
             if (pkt.t == "film")   // filmy w sieci (LanVideo.cs) - tylko sparowane, zaszyfrowane
             {
                 if (_lanLegacyNoKeyMode) return;
@@ -696,7 +706,7 @@ namespace Velivo
             else if (pkt.t == "hello")
             {
                 if (_lanLegacyNoKeyMode) return;
-                if (!VerifyLanHello(pkt)) return;
+                if (!VerifyLanHello(pkt)) { LanRekeyStraggler(pkt); return; }   // dawny klucz (wyłączony przy zmianie) - dostaje obecny
             }
             else if (pkt.t == "state")
             {

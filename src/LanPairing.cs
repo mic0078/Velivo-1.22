@@ -348,6 +348,8 @@ namespace Velivo
         void PersistPairedLanKey(string key)
         {
             if (!AppSettings.IsLanSyncKeyStrong(key)) throw new InvalidDataException(L.T("Nieprawidłowy klucz synchronizacji."));
+            var old = _settings.LanSyncKey;
+            if (AppSettings.IsLanSyncKeyStrong(old) && old != key) { LanSendRekey(key); LanAddOldKey(old); }   // dawna grupa przechodzi na nowy klucz razem z tym komputerem
             _settings.LanSync = true;
             _settings.LanSyncKey = key;
             if (_lanSyncSettingCheck != null) _lanSyncSettingCheck.IsChecked = true;
@@ -562,5 +564,91 @@ namespace Velivo
                 if (key != null) CryptographicOperations.ZeroMemory(key);
             }
         }
-    }
+    
+        // ---------- jedna grupa przy dowolnej liczbie komputerów ----------
+        // Parowanie może dać komputerowi inny klucz niż miała jego dotychczasowa grupa (np. NUCBOX + Ryzen, potem CHUWI).
+        // Wtedy: (1) nowy klucz idzie do dawnej grupy zaszyfrowany starym kluczem („rekey”); (2) dawne klucze są pamiętane
+        // (DPAPI, najwyżej 5) - komputer wyłączony w czasie zmiany dostaje nowy klucz, gdy tylko odezwie się starym.
+        sealed class LanRekey { public string k { get; set; } }
+        static readonly byte[] LanOldKeysEntropy = Encoding.UTF8.GetBytes("Velivo.LanOldKeys.v1");
+        string LanOldKeysPath => Path.Combine(DataDir, "lan-dawne-klucze.dpapi");
+        readonly Dictionary<string, (byte[] Enc, byte[] Auth)> _lanOldDerived = new Dictionary<string, (byte[] Enc, byte[] Auth)>();
+        readonly Dictionary<string, DateTime> _lanRekeySent = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        List<string> LanOldKeys()
+        {
+            try { return File.Exists(LanOldKeysPath) ? Encoding.UTF8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(LanOldKeysPath), LanOldKeysEntropy, DataProtectionScope.CurrentUser)).Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList() : new List<string>(); }
+            catch (Exception) { return new List<string>(); }
+        }
+
+        void LanAddOldKey(string key)
+        {
+            try
+            {
+                var l = LanOldKeys(); l.Remove(key); l.Insert(0, key);
+                File.WriteAllBytes(LanOldKeysPath, ProtectedData.Protect(Encoding.UTF8.GetBytes(string.Join("\n", l.Take(5))), LanOldKeysEntropy, DataProtectionScope.CurrentUser));
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // nowy klucz do dawnej grupy - zaszyfrowany obecnym (starym) kluczem, więc odczyta go tylko ta grupa
+        void LanSendRekey(string newKey)
+        {
+            if (_lanTx == null || _lanEncryptionKey == null || _lanLegacyNoKeyMode) return;
+            try
+            {
+                var pkt = new LanStatePacket { t = "rekey", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+                EncryptLanBlob(pkt, JsonSerializer.SerializeToUtf8Bytes(new LanRekey { k = newKey }));
+                LanSend(pkt);
+                LanLog(L.T("Nowy klucz grupy wysłany do wcześniej sparowanych urządzeń."));
+            }
+            catch (Exception ex) { App.LogError(ex); }
+        }
+
+        // przyszedł nowy klucz grupy (zaszyfrowany obecnym kluczem) - przechodzimy na niego; nigdy z powrotem na dawny klucz
+        void HandleLanRekey(LanStatePacket pkt, LanRekey r)
+        {
+            if (r == null || !AppSettings.IsLanSyncKeyStrong(r.k) || r.k == _settings.LanSyncKey || LanOldKeys().Contains(r.k)) return;
+            PersistPairedLanKey(r.k);
+            LanLog(L.T("Nowy klucz grupy od ") + PairDeviceLabel(pkt.device) + L.T(" – synchronizacja dalej działa ze wszystkimi."));
+            StartLanSync();
+        }
+
+        // komputer odzywa się dawnym kluczem (był wyłączony przy zmianie) - wysyłamy mu obecny klucz zaszyfrowany tym dawnym
+        void LanRekeyStraggler(LanStatePacket hello)
+        {
+            if (_lanTx == null || _settings == null || !AppSettings.IsLanSyncKeyStrong(_settings.LanSyncKey) || string.IsNullOrWhiteSpace(hello.key)) return;
+            lock (_lanRekeySent)
+            {
+                if (_lanRekeySent.TryGetValue(hello.id ?? "", out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(1)) return;
+                _lanRekeySent[hello.id ?? ""] = DateTime.UtcNow;
+            }
+            byte[] supplied;
+            try { supplied = Convert.FromBase64String(hello.key); } catch (FormatException) { return; }
+            foreach (var old in LanOldKeys())
+            {
+                (byte[] Enc, byte[] Auth) d;
+                lock (_lanOldDerived)
+                    if (!_lanOldDerived.TryGetValue(old, out d))
+                    {
+                        var m = DeriveLanKeyMaterial(old.Trim());
+                        d = (m.Take(32).ToArray(), m.Skip(32).Take(32).ToArray());
+                        CryptographicOperations.ZeroMemory(m);
+                        _lanOldDerived[old] = d;
+                    }
+                byte[] expected;
+                using (var h = new HMACSHA256(d.Auth)) expected = h.ComputeHash(LanAssociatedData(hello));
+                if (supplied.Length != expected.Length || !CryptographicOperations.FixedTimeEquals(supplied, expected)) continue;
+                var pkt = new LanStatePacket { t = "rekey", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+                var plain = CompressLanPayload(JsonSerializer.SerializeToUtf8Bytes(new LanRekey { k = _settings.LanSyncKey }));
+                var nonce = RandomNumberGenerator.GetBytes(12); var cipher = new byte[plain.Length]; var tag = new byte[16];
+                using (var gcm = new AesGcm(d.Enc, 16)) gcm.Encrypt(nonce, plain, cipher, tag, LanAssociatedData(pkt));
+                CryptographicOperations.ZeroMemory(plain);
+                pkt.nonce = Convert.ToBase64String(nonce); pkt.tag = Convert.ToBase64String(tag); pkt.data = Convert.ToBase64String(cipher);
+                var dev = PairDeviceLabel(hello.device);
+                Dispatcher.BeginInvoke(new Action(() => { LanSend(pkt); LanLog(L.T("Wysłano obecny klucz grupy do ") + dev + L.T(" (miał dawny klucz).")); }));
+                return;
+            }
+        }
+}
 }

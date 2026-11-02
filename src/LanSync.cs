@@ -963,7 +963,7 @@ namespace Velivo
                     LanLog(L.T("Nie wysłano pakietu LAN: przekracza limit UDP (") + data.Length.ToString("N0") + " B).");
                     return;
                 }
-                foreach (var target in LanBroadcastTargets())
+                foreach (var target in LanTargets(pkt.t))
                     _ = _lanTx.SendAsync(data, data.Length, new IPEndPoint(target, LanPort));
                 _lanPacketsTx++;
                 _lanLastTxUtc = DateTime.UtcNow;
@@ -1247,6 +1247,35 @@ namespace Velivo
 
         // 255.255.255.255 Windows wysyla tylko jedna karta sieciowa (czesto VPN / Hyper-V / VirtualBox),
         // wiec inne komputery w LAN nie dostawaly pakietow. Wysylamy tez na adres rozgloszeniowy kazdej aktywnej karty IPv4.
+        // rozgłoszenie + bezpośrednio: znane komputery (ostatnie 10 min) i - przy parowaniu oraz co minutę przy „hello” - każdy adres sieci /24.
+        // Router bywa nie przepuszcza rozgłoszeń między Wi-Fi a kablem (HP na Wi-Fi 5G nie słyszał Ryzena na kablu) - pakiet wprost do adresu dochodzi.
+        DateTime _lanSweepAt;
+        List<IPAddress> LanTargets(string t)
+        {
+            var list = LanBroadcastTargets();
+            try { foreach (var p in _lanPeers.Values.ToList()) if (DateTime.UtcNow - p.LastSeenUtc < TimeSpan.FromMinutes(10) && IPAddress.TryParse(p.Address, out var pa) && !list.Contains(pa)) list.Add(pa); } catch (Exception) { }   // lista zmieniana w innym wątku - bez niej tylko rozgłoszenie
+            bool sweep = t != null && (t.StartsWith("pair-", StringComparison.Ordinal) || (t == "hello" && DateTime.UtcNow - _lanSweepAt > TimeSpan.FromSeconds(60)));
+            if (!sweep) return list;
+            if (t == "hello") _lanSweepAt = DateTime.UtcNow;
+            try
+            {
+                foreach (var nic in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (nic.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up || nic.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                    foreach (var ua in nic.GetIPProperties().UnicastAddresses)
+                    {
+                        if (ua.Address.AddressFamily != AddressFamily.InterNetwork || ua.IPv4Mask == null) continue;
+                        var ip = ua.Address.GetAddressBytes(); var mask = ua.IPv4Mask.GetAddressBytes();
+                        if (ip[0] == 169 && ip[1] == 254) continue;   // adres bez sieci (Bluetooth, wirtualne karty)
+                        if (mask.Length != 4 || mask[0] != 255 || mask[1] != 255 || mask[2] != 255) continue;   // tylko sieci domowe /24 i mniejsze (254 adresy)
+                        for (int h = 1; h < 255; h++) { if (h == ip[3]) continue; var a = new IPAddress(new byte[] { ip[0], ip[1], ip[2], (byte)h }); if (!list.Contains(a)) list.Add(a); }
+                    }
+                }
+            }
+            catch (Exception) { }
+            return list;
+        }
+
         static List<IPAddress> LanBroadcastTargets()
         {
             var list = new List<IPAddress> { IPAddress.Broadcast };

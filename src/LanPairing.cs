@@ -95,8 +95,10 @@ namespace Velivo
             _lanPairSeen.Add(pkt.pairId); LanLog(m); ShowToast(m, null);
         }
 
+        readonly HashSet<string> _lanPairDone = new HashSet<string>(StringComparer.Ordinal);   // ten sam pakiet parowania dochodzi rozgłoszeniem i wprost - obsłużony raz (bez dwóch okienek)
         void HandleLanPairPacket(LanStatePacket pkt, string sourceAddress)
         {
+            if (!_lanPairDone.Add(pkt.t + "|" + pkt.pairId + "|" + pkt.id + "|" + pkt.data)) return;
             try
             {
                 switch (pkt.t)
@@ -423,7 +425,7 @@ namespace Velivo
             if (_lanTx == null) return;
             var data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(pkt));
             if (data.Length > 60000) return;
-            foreach (var target in LanBroadcastTargets())
+            foreach (var target in LanTargets(pkt.t))
             {
                 try { _lanTx.Send(data, data.Length, new IPEndPoint(target, LanPort)); }
                 catch (Exception) { }

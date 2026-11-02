@@ -87,7 +87,7 @@ The rules are kept on the phone only (they do not sync with the computer).
 | Tile | What it does |
 | --- | --- |
 | 📺 TV | Channels from your IPTV list (M3U) with the TV guide, guide grid, catch-up ⏪ and scheduling ⏰ |
-| 🎬 Library | Films and series from your Jellyfin server on the home network – continue watching, films, series with episodes |
+| 🎬 Library | Films and series from your Jellyfin server on the home network – continue watching, films, series with episodes; with an away address (⚙ → 🌍) it switches between home Wi-Fi and mobile data by itself |
 | 🎞 My films | Your own list of chosen files (phone, memory card, cloud drive) – ＋ adds, press and hold removes from the list |
 | 🎵 My songs | Your list of songs from YouTube: categories, own playlists, playing in order |
 | ⭐ Add this song | Adds the video/song open on YouTube to My songs |

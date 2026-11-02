@@ -87,7 +87,7 @@ Reguły są zapisane tylko w telefonie (nie synchronizują się z komputerem).
 | Kafelek | Co robi |
 | --- | --- |
 | 📺 Telewizja | Kanały z Twojej listy IPTV (M3U) z programem TV, siatką programu, archiwum ⏪ i planowaniem ⏰ |
-| 🎬 Biblioteka | Filmy i seriale z Twojego serwera Jellyfin w sieci domowej – „oglądane dalej”, filmy, seriale z odcinkami |
+| 🎬 Biblioteka | Filmy i seriale z Twojego serwera Jellyfin w sieci domowej – „oglądane dalej”, filmy, seriale z odcinkami; z wpisanym adresem poza domem (⚙ → 🌍) sama przełącza się między domowym Wi-Fi a danymi |
 | 🎞 Moje filmy | Twoja lista wybranych plików (z telefonu, karty pamięci, dysku w chmurze) – ＋ dodaje, przytrzymanie usuwa z listy |
 | 🎵 Moje utwory | Twoja lista utworów z YouTube: kategorie, własne playlisty, odtwarzanie po kolei |
 | ⭐ Dodaj ten utwór | Dodaje film/utwór otwarty na YouTube do Moich utworów |

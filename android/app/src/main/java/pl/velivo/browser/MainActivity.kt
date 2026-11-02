@@ -2434,7 +2434,22 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }.start()
     }
 
+    // 🔁 zmiana sieci (Wi-Fi ↔ dane) przy otwartej bibliotece - wczytanie od nowa pod właściwym adresem (najwyżej co 3 s)
+    private var jfNetChanged: (() -> Unit)? = null
+    private var jfNetAt = 0L
+    private val jfNetCb by lazy {
+        object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) = jfNetPing()
+            override fun onLost(network: android.net.Network) = jfNetPing()
+        }.also { cb -> runCatching { (getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager).registerDefaultNetworkCallback(cb) } }
+    }
+    private fun jfNetPing() {
+        val now = System.currentTimeMillis(); if (now - jfNetAt < 3000) return; jfNetAt = now
+        window.decorView.postDelayed({ jfNetChanged?.invoke() }, 1500)   // chwila na ustalenie się nowej sieci
+    }
+
     private fun openLibrary() {
+        jfNetCb
         val c = Jelly.conf(passwords) ?: return
         val hdr = mapOf("X-Emby-Token" to c.key)
         var mode = prefs.getInt("jf-widok2", 1)   // 0 oglądane dalej, 1 filmy (domyślnie - cała biblioteka od razu), 2 seriale
@@ -2481,6 +2496,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             val cache = Jelly.cached(this, passwords)
             if (cache != null) { lib = cache.first; resume = cache.second; scr.setRows(rows(), titles[mode]) } else scr.setRows(emptyList(), getString(R.string.tv_loading))
             Thread {
+                Jelly.decide(c, true)   // sieć mogła się zmienić (Wi-Fi ↔ dane) - adres i plakaty od nowa
                 val r = runCatching { Jelly.refresh(this, passwords, c).let { lib = it.first; resume = it.second } }
                 runOnUiThread {
                     scr.setRows(rows(), titles[mode] + if (r.isFailure && cache == null) " · " + getString(R.string.jf_error) else "")
@@ -2493,6 +2509,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
             AlertDialog.Builder(this).setSingleChoiceItems(titles.toTypedArray(), mode) { d, i -> mode = i; prefs.edit().putInt("jf-widok2", i).apply(); d.dismiss(); scr.setRows(rows(), titles[mode]) }.show()
         }
         scr.addButton("⟳", R.string.reload) { load() }
+        jfNetChanged = { load() }   // przełączenie dom ↔ internet przy otwartej bibliotece, samo
         scr.addButton("⚙", R.string.jf_settings) { setupJellyfin { load() } }
         scr.show()
         load()

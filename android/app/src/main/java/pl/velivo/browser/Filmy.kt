@@ -295,6 +295,8 @@ object Jelly {
     // 🌍 poza domem: adres internetowy zamiast domowego (ustawia biblioteka po sprawdzeniu i zgodzie)
     @Volatile var away = false
     fun base(c: Conf) = if (away && c.net.isNotEmpty()) c.net else c.url
+    // 🏠/🌍 wybór adresu od nowa (każde wczytanie listy i zmiana sieci): w domu - domowy, poza domem - internetowy, gdy wolno
+    fun decide(c: Conf, allowNet: Boolean) { away = !homeReachable(c) && allowNet && c.net.isNotEmpty() }
     // czy serwer odpowiada pod adresem domowym (krótko - w domu od razu)
     fun homeReachable(c: Conf): Boolean = runCatching {
         val h = URL(c.url + "/System/Info/Public").openConnection() as HttpURLConnection   // zawsze adres domowy - po wyjściu z domu base() wskazywał internet

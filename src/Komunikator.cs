@@ -1676,7 +1676,7 @@ namespace Velivo
             root.Children.Add(left);
 
             var right = new DockPanel(); Grid.SetColumn(right, 2);
-            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxHeight = 70 };   // nazwa w 1. linii, stan w 2. (dalej „…”)
+            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxHeight = 80 };   // nazwa w 1. linii, stan w 2. (dalej „…”)
             var searchBox = new TextBox { Width = 160, Margin = new Thickness(6, 0, 0, 6), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("🔍 Szukaj w rozmowie") };
             var top = new DockPanel(); DockPanel.SetDock(top, Dock.Top);
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
@@ -1867,7 +1867,7 @@ namespace Velivo
             {
                 FillNet();
                 var c = Current();
-                header.Inlines.Clear();
+                header.Inlines.Clear(); header.ToolTip = null;
                 if (c == null) header.Text = L.T("Wybierz rozmowę z listy");
                 else if (c.IsGroup)
                 {   // 👥 grupa: skład zamiast „w sieci”
@@ -1884,7 +1884,8 @@ namespace Velivo
                     header.Inlines.Add(new System.Windows.Documents.LineBreak()); header.Inlines.Add(new System.Windows.Documents.InlineUIContainer(new Border { Width = 40 }));   // jak WhatsApp: stan w drugiej linii pod nazwą - nagłówek wąski
                     if (_komTypingAt.TryGetValue(c.Id, out var ty) && DateTime.UtcNow - ty < TimeSpan.FromSeconds(6)) { header.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) }); goto headerDone; }
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
-                    header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))
+                    header.ToolTip = on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci");   // pełny opis po najechaniu
+                    header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● 🌍 internet") : L.T("● 🏠 sieć domowa")) : L.T("● poza siecią") + seen)   // krótko - zawsze widać, także w wąskim oknie
                         { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
                     headerDone:;
                 }

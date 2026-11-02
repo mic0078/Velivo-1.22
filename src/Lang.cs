@@ -1849,6 +1849,8 @@ namespace Velivo
             { "Obraz i dźwięk", "Picture & sound" },
             { "Ulubione", "Favourites" },
             { "Widok", "View" },
+            { "● 🌍 internet", "● 🌍 internet" },
+            { "● 🏠 sieć domowa", "● 🏠 home network" },
             { "🧹 Porządki na dysku…", "🧹 Disk clean-up…" },
             { "🧹 Porządki na dysku", "🧹 Disk clean-up" },
             { "Porządek – nie ma nic do usunięcia.\n\nRozmowy, kontakty i pliki widoczne w rozmowach nie są nigdy ruszane.", "All tidy – nothing to remove.\n\nChats, contacts and files shown in chats are never touched." },

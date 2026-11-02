@@ -3170,7 +3170,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             true
         }
         // 🎤 wiadomość głosowa: stuknij - nagrywanie, stuknij ponownie - wysyłka (jak plik: w domu, przez internet, do skrzynki)
-        var rec: android.media.MediaRecorder? = null; var recFile: java.io.File? = null; var recAt = 0L; var sendNow = false
+        var rec: android.media.MediaRecorder? = null; var recFile: java.io.File? = null; var recAt = 0L; var sendNow = false; var sendOrMic: () -> Unit = {}
         val mic = round("🎤", t("Wiadomość głosowa: stuknij i mów; ⏹ – koniec, potem Wyślij / Odsłuchaj / Usuń; ➤ w trakcie – od razu wyślij", "Voice message: tap and speak; ⏹ – stop, then Send / Listen / Delete; ➤ while recording – send now"), pal().button) {}
         // 🎤 po nagraniu (jak WhatsApp): pasek ➤ Wyślij / ▶ Odsłuchaj / 🗑 Usuń - nagranie nie leci od razu
         val voiceBar = LinearLayout(a).apply { visibility = View.GONE; setPadding(px(8), px(6), px(8), px(4)); gravity = Gravity.CENTER_VERTICAL }
@@ -3201,12 +3201,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     }
                 }.getOrNull()
                 rec = recorder(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION) ?: recorder(android.media.MediaRecorder.AudioSource.MIC)
-                if (rec != null) { recFile = f; recAt = System.currentTimeMillis(); mic.text = "⏹"; (mic.background as? GradientDrawable)?.setColor(Color.rgb(229, 57, 53))
+                if (rec != null) { sendOrMic(); recFile = f; recAt = System.currentTimeMillis(); mic.text = "⏹"; (mic.background as? GradientDrawable)?.setColor(Color.rgb(229, 57, 53))
                     Toast.makeText(a, "🎤 " + t("Nagrywam… ⏹ – koniec, ➤ – wyślij od razu", "Recording… ⏹ – stop, ➤ – send now"), Toast.LENGTH_SHORT).show() }
                 else Toast.makeText(a, t("Nie udało się włączyć mikrofonu", "Could not start the microphone"), Toast.LENGTH_SHORT).show()
             } else {
                 rec = null; val ok = runCatching { r.stop() }.isSuccess; r.release()
-                mic.text = "🎤"; (mic.background as? GradientDrawable)?.setColor(pal().button)
+                mic.text = "🎤"; (mic.background as? GradientDrawable)?.setColor(pal().button); sendOrMic()
                 val f = recFile; recFile = null
                 if (ok && f != null && System.currentTimeMillis() - recAt > 700) { if (sendNow) { sendNow = false; attachTo = c; sendFiles(listOf(Uri.fromFile(f))) } else voiceReady(f) } else f?.delete()
             }
@@ -3215,7 +3215,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (rec != null) { sendNow = true; mic.performClick(); return@round }   // ➤ w trakcie nagrywania - od razu wysyła głosówkę (jak WhatsApp)
             (a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).sendAppPrivateCommand(input, "pl.velivo.slowo", null); input.postDelayed({ send() }, 150) }
         input.setOnEditorActionListener { _, id, _ -> if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { send(); true } else false }
-        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(cam); addView(mic); addView(input); addView(btn) }
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(input); addView(cam); addView(mic); addView(btn) }
+        // jak WhatsApp: pusty tekst - 🎤 w miejscu ➤ (więcej miejsca na pisanie); ➤ widać przy tekście i w trakcie nagrywania (wyślij od razu)
+        sendOrMic = { val txt = input.text.isNotEmpty(); btn.visibility = if (txt || rec != null) View.VISIBLE else View.GONE; mic.visibility = if (txt && rec == null) View.GONE else View.VISIBLE }
         val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
         val title = TextView(a).apply { textSize = 18f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
         fun status() {
@@ -3252,12 +3254,12 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             })
             addView(icon("🖼", t("Zdjęcia, filmy i pliki z rozmowy", "Photos, videos and files in this chat")) { gallery(c) })
             if (!c.isGroup) { addView(icon("📞", t("Rozmowa głosowa", "Voice call")) { openCall(c, true, true) }); addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) } }
-        input.setText(k.draft(c.id)); input.setSelection(input.text.length)
+        input.setText(k.draft(c.id)); input.setSelection(input.text.length); sendOrMic()
         fill(); status(); ringPending(c)
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(x: CharSequence?, st: Int, n: Int, af: Int) {}
             override fun onTextChanged(x: CharSequence?, st: Int, b: Int, n: Int) { if (n > 0) k.sendTyping(c) }   // ✍ druga osoba widzi „pisze…”
-            override fun afterTextChanged(x: android.text.Editable?) { cam.visibility = if (x.isNullOrEmpty()) View.VISIBLE else View.GONE; k.setDraft(c.id, x?.toString() ?: "") }   // ✏ szkic zostaje po wyjściu   // pisanie - więcej miejsca na tekst (jak w WhatsApp)
+            override fun afterTextChanged(x: android.text.Editable?) { cam.visibility = if (x.isNullOrEmpty()) View.VISIBLE else View.GONE; sendOrMic(); k.setDraft(c.id, x?.toString() ?: "") }   // ✏ szkic zostaje po wyjściu   // pisanie - więcej miejsca na tekst (jak w WhatsApp)
         })
         k.onTyping = { id -> if (id == c.id && chatWith == c.id) { status(); input.postDelayed({ if (chatWith == c.id) status() }, 6500) } }
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }

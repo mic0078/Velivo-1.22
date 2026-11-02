@@ -235,7 +235,7 @@ Menu → **⭐ Add this song** on an open YouTube video (category, playlists) �
 
 **Selecting messages (messenger):** press and hold a message – it is selected, further taps add or remove others. Bar at the top: ✕ (number selected), ↩ Reply, 📋 Copy, ↪ Forward, 🗑 For me, 🚫 For all, ⋯ More.
 
-**Voice message:** 🎤 – record; ⏹ – stop, then a bar 🗑 Delete / ▶ Listen / ➤ Send; ➤ while recording – sends at once.
+**Voice message:** 🎤 – record; ⏹ – stop, then a bar 🗑 Delete / ▶ Listen / ➤ Send; ➤ while recording – sends at once. Like WhatsApp: with an empty field the right button is 🎤; once you type it turns into ➤ Send (more room for text).
 
 ## 8b. Velivo keyboard
 

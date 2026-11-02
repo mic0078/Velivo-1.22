@@ -1603,12 +1603,12 @@ namespace Velivo
             var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 2, 4, 4) };   // ta sama wysokosc co rzad przyciskow (btnRow: 2 u gory, 4 u dolu)
             var qBarTime = qBtn("eye", L.T("Pasek sterowania: jak długo zostaje widoczny i jak bardzo przezroczysty"));
             var qInfoSet = qBtn("tune", L.T("Pasek informacji: kiedy się pokazuje, znikanie, przezroczystość, wielkość tekstu"));
-            right.Children.Add(grp(L.T("Telewizja"), new UIElement[] { qTv, qGuide, qInfo, qRefresh }));
+            right.Children.Add(grp(L.T("Telewizja"), new UIElement[] { qTv, qGuide, qRefresh }));
             right.Children.Add(grp(L.T("Nagrywanie"), new UIElement[] { qRec, qRecStop, qRecSet, qRecDir }));
-            right.Children.Add(grp(L.T("Film"), new UIElement[] { lib, qLists, tools }));
-            right.Children.Add(grp(L.T("Obraz i dźwięk"), new UIElement[] { pipBtn, mini, full, mute, vol, volText }));
+            right.Children.Add(grp(L.T("Film"), new UIElement[] { lib, qLists }));
+            right.Children.Add(grp(L.T("Obraz i dźwięk"), new UIElement[] { tools, pipBtn, mini, full, mute, vol, volText }));
             right.Children.Add(grp(L.T("Ulubione"), new UIElement[] { fav, qFavTv, qFavFilm }));
-            right.Children.Add(grp(L.T("Widok"), new UIElement[] { qBarTime, qInfoSet }));
+            right.Children.Add(grp(L.T("Widok"), new UIElement[] { qInfo, qBarTime, qInfoSet }));
             // przełącznik TV ↔ Filmy - niebieski, osobno na końcu (zawsze widać, jak przejść na drugą stronę)
             swap.Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8)); swap.Margin = new Thickness(8, 0, 4, 15); swap.VerticalAlignment = VerticalAlignment.Bottom;
             right.Children.Add(swap);

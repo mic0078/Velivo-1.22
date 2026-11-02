@@ -621,7 +621,8 @@ namespace Velivo
             var body = new TextBlock { Text = shortText, TextWrapping = TextWrapping.Wrap, Foreground = fg, FontSize = 14, Margin = new Thickness(0, 6, 0, 8), MaxHeight = 140, TextTrimming = TextTrimming.CharacterEllipsis, Cursor = Cursors.Hand, ToolTip = L.T("Otwórz rozmowę") };
             var reply = new TextBox { MinHeight = 30, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, VerticalContentAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(pal.Input), Foreground = fg, BorderBrush = accent, CaretBrush = fg, ToolTip = L.T("Odpowiedz (Enter - wyślij)") };
             var send = new Button { Content = "➤", Width = 36, Margin = new Thickness(6, 0, 0, 0), Background = accent, Foreground = new SolidColorBrush(pal.MineFg), BorderThickness = new Thickness(0), ToolTip = L.T("Wyślij"), Cursor = Cursors.Hand };
-            var row = new DockPanel(); DockPanel.SetDock(send, Dock.Right); row.Children.Add(send); row.Children.Add(reply);
+            var like = new Button { Content = "👍", Width = 36, Margin = new Thickness(6, 0, 0, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 16, ToolTip = L.T("Wyślij 👍 bez otwierania rozmowy"), Cursor = Cursors.Hand };
+            var row = new DockPanel(); DockPanel.SetDock(send, Dock.Right); DockPanel.SetDock(like, Dock.Right); row.Children.Add(send); row.Children.Add(like); row.Children.Add(reply);
             var stack = new StackPanel { Children = { head, body, row } };
             w.Content = new Border
             {
@@ -640,6 +641,7 @@ namespace Velivo
                 KomSend(c, t); _komUnread.Remove(c.Id); KomSave(); _komRefresh?.Invoke(); w.Close();
             }
             send.Click += (s, e) => Reply();
+            like.Click += (s, e) => { reply.Text = "👍"; Reply(); };
             reply.PreviewKeyDown += (s, e) => { if (e.Key == Key.Enter) { e.Handled = true; Reply(); } else if (e.Key == Key.Escape) w.Close(); };
             reply.GotKeyboardFocus += (s, e) => timer.Stop();
             w.Closed += (s, e) => { timer.Stop(); _komPopups.Remove(w); KomStackPopups(); };
@@ -1829,7 +1831,8 @@ namespace Velivo
                     var med = new MenuItem { Header = L.T("🎬 Wyślij Filmy i TV") }; med.Click += async (s, e) => await KomSendMedia(w, c);
                     var mini = new MenuItem { Header = L.T("🔝 Osobne okienko (na wierzchu)") }; mini.Click += (s, e) => KomMini(c);
                     var exp = new MenuItem { Header = L.T("💾 Eksport rozmowy…") }; exp.Click += (s, e) => KomExport(w, c);
-                    cm.Items.Add(mini); cm.Items.Add(exp);
+                    var bub = new MenuItem { Header = KomHasBubble(c.Id) ? L.T("💬 Zamknij bąbelek na pulpicie") : L.T("💬 Bąbelek na pulpicie (zawsze pod ręką)") }; bub.Click += (s, e) => KomBubbleToggle(c);
+                    cm.Items.Add(mini); cm.Items.Add(bub); cm.Items.Add(exp);
                     var pin = new MenuItem { Header = KomPinned(c.Id) ? "📌 " + L.T("Odepnij") : "📌 " + L.T("Przypnij na górze") }; pin.Click += (s, e) => KomSetPinned(c.Id, !KomPinned(c.Id));
                     var mute = new MenuItem { Header = KomMuted(c.Id) ? "🔔 " + L.T("Wyłącz wyciszenie") : "🔕 " + L.T("Wycisz") };
                     if (KomMuted(c.Id)) mute.Click += (s, e) => KomMute(c.Id, 0);
@@ -3222,6 +3225,7 @@ namespace Velivo
         void KomTrayUpdate()
         {
             _ = Dispatcher.BeginInvoke(new Action(() => { if (_komWindow?.TaskbarItemInfo is System.Windows.Shell.TaskbarItemInfo ti) { int un = _komUnread.Values.Sum(); ti.Overlay = un > 0 ? KomBadge(un) : null; } }));   // 🔢 czerwona liczba na ikonie paska zadań
+            KomBubblesUpdate();   // 💬 bąbelki na pulpicie: licznik i podskok
             if (_komTray == null) return;
             int n = _komUnread.Values.Sum();
             var t = L.T("Komunikator Velivo") + (n > 0 ? " – " + n + L.T(" nowe") : "");

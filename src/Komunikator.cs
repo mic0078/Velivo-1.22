@@ -987,8 +987,9 @@ namespace Velivo
         }
         void KomSendPhoto(KomContact c)
         {
-            if (_komPhotoV == 0 || c.IsGroup || _komPhotoSent.TryGetValue(c.Id, out var v) && v == _komPhotoV) return;
-            _komPhotoSent[c.Id] = _komPhotoV; KomSave();
+            var tag = _komPhotoV + DateTime.UtcNow.Date.Ticks / TimeSpan.TicksPerDay;   // co dzień od nowa: zdjęcie skasowane u kontaktu (np. porządki w folderze) wraca samo
+            if (_komPhotoV == 0 || c.IsGroup || _komPhotoSent.TryGetValue(c.Id, out var v) && v == tag) return;
+            _komPhotoSent[c.Id] = tag; KomSave();
             var p = KomPhoto(_komId);
             KomDeliver(c, new KomMsg { Mine = true, Text = KomPhotoTag + new JsonObject { ["p"] = p != null ? Convert.ToBase64String(File.ReadAllBytes(p)) : "" }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") });
         }

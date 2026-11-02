@@ -419,6 +419,7 @@ namespace Velivo
         JsonObject KomPacket(string t)
         {
             var p = new JsonObject { ["t"] = t, ["id"] = _komId, ["device"] = _lanDeviceName, ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["kind"] = "pc" };
+            if (t == "p2p-here") p["srv"] = _komRelayListener != null;   // jestem serwerem (także bez ustalonego adresu domu) - liczony w „Serwery: x z y”
             if (t == "p2p-here" && _komRelayOn && _komRelayHost.Length > 0 && _komUp == null) p["relay"] = _komRelayHost + ":" + _komRelayPort;   // tylko w domu (laptop poza domem nie podaje adresu obcej sieci)   // 🌍 pośrednik: kontakty zapamietuja adres na wyjscie z domu
             return p;
         }
@@ -480,6 +481,7 @@ namespace Velivo
                 if (t == "p2p-here" && (bool?)p["fwd"] != true && !IPAddress.IsLoopback(sender) && c.Addr != sender.ToString()) { c.Addr = sender.ToString(); KomSave(); }   // aktualny adres - pliki bez ponownego szukania
                 if ((bool?)p["fwd"] == true && c.Addr == sender.ToString()) { c.Addr = ""; KomSave(); }   // zapisany adres to pośrednik (NUCBOX), nie kontakt - kasowany
                 // 🌍 adres pośrednika kontaktu (np. NUCBOX z No-IP) - poza domem rozmowy ida przez niego
+                if (t == "p2p-here") { bool was0 = _komSrvAt.TryGetValue(c.Id, out var s0) && s0 != DateTime.MinValue; if ((bool?)p["srv"] == true || p["relay"] != null) _komSrvAt[c.Id] = DateTime.UtcNow; else if ((bool?)p["srv"] == false) _komSrvAt[c.Id] = DateTime.MinValue; if (was0 != (_komSrvAt.TryGetValue(c.Id, out var s1) && s1 != DateTime.MinValue)) _komRefresh?.Invoke(); }   // nowa wersja mówi „nie jestem serwerem” - nie liczony, choć ma stary adres
                 var relayAddr = (string)p["relay"];
                 if (t == "p2p-here" && relayAddr != null && relayAddr.Length < 200 && relayAddr.Contains(':') && relayAddr != c.Relay) { c.Relay = relayAddr; KomSave(); }
                 // prawdziwa nazwa urzadzenia (zmieniona na tamtym komputerze / telefonie); wlasna nazwa kontaktu zostaje
@@ -1850,7 +1852,8 @@ namespace Velivo
                 netText.Text = away ? L.T("🌍 Poza domem – przez internet") + (_komUpRelay != null ? L.T(" (przez ") + _komUpRelay.Name + ")" : "") : L.T("🏠 W domu – sieć domowa");
                 netState.Background = new SolidColorBrush(away ? Color.FromRgb(0x25, 0x63, 0xEB) : Color.FromRgb(0x16, 0xA3, 0x4A));
                 // ile moich serwerów działa (ten komputer też, gdy jest serwerem) - od razu widać, czy zapas jest gotowy
-                var srv = _komContacts.Where(x => x.Dom && !x.IsGroup && !string.IsNullOrEmpty(x.Relay)).Select(x => (x.Name, on: KomOnline(x.Id))).ToList();
+                // serwer = mój kontakt, który sam mówi „jestem serwerem” (ostatnie 2 dni) albo ma zapisany adres serwera i nie powiedział, że już nim nie jest
+                var srv = _komContacts.Where(x => x.Dom && !x.IsGroup && (_komSrvAt.TryGetValue(x.Id, out var sa) ? DateTime.UtcNow - sa < TimeSpan.FromDays(2) : !string.IsNullOrEmpty(x.Relay))).Select(x => (x.Name, on: KomOnline(x.Id))).ToList();
                 if (_komRelayListener != null) srv.Insert(0, (_lanDeviceName + L.T(" (ten komputer)"), true));
                 if (srv.Count > 0) netText.Text += "\n" + L.T("Serwery: ") + srv.Count(x => x.on) + L.T(" z ") + srv.Count + L.T(" działa");
                 netState.ToolTip = (away ? L.T("Wiadomości i pliki idą przez pośrednika w domu, zaszyfrowane") : L.T("Wiadomości i pliki idą prosto w sieci domowej"))

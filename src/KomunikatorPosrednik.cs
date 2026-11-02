@@ -33,6 +33,7 @@ namespace Velivo
         readonly ConcurrentDictionary<string, TaskCompletionSource<KomFrameStream>> _komTunnels = new ConcurrentDictionary<string, TaskCompletionSource<KomFrameStream>>();
         readonly ConcurrentDictionary<string, IPAddress> _komLanAddr = new ConcurrentDictionary<string, IPAddress>();   // ostatni adres w sieci domowej (kazde urzadzenie)
         readonly ConcurrentDictionary<string, DateTime> _komLanSeen = new ConcurrentDictionary<string, DateTime>();
+        readonly ConcurrentDictionary<string, DateTime> _komSrvAt = new ConcurrentDictionary<string, DateTime>();   // kiedy kontakt ostatnio ogłosił „jestem serwerem” (brak wpisu po „nie jestem” = nie liczony)
         readonly ConcurrentDictionary<string, JsonNode> _komLanRelays = new ConcurrentDictionary<string, JsonNode>();   // ostatnie „jestem” innych pośredników w domu - dla telefonu, który łączy się z internetu
         readonly ConcurrentDictionary<string, IPAddress> _komViaRelay = new ConcurrentDictionary<string, IPAddress>();   // 🌍 urządzenie poza domem - przez którego pośrednika w domu (adres w sieci domowej; kilka pośredników bez konfliktów)
         IPAddress KomLanFresh(string id) => _komLanAddr.TryGetValue(id, out var a) && _komLanSeen.TryGetValue(id, out var s) && DateTime.UtcNow - s < TimeSpan.FromSeconds(100) ? a : null;   // adres w domu - tylko świeży (stary mógł dostać inny komputer)
@@ -1120,7 +1121,11 @@ namespace Velivo
             // router bez UPnP (przekierowanie ręczne): prawdziwy test - połączenie z adresem domu na 443 i odpowiedź naszego pośrednika
             if (!alt.mapped && _komRelayHost.Length > 0) alt.mapped = await KomRelayProbe(_komRelayHost, KomRelayAltPort);
             _komRelayAlt = alt.mapped; _komRelayUpnp = ext != null || mapped || note == "taken";   // router odpowiada na UPnP - umiemy sprawdzić przekierowanie
-            _komRelayRouter = mapped ? L.T("Router: port otwarty automatycznie") : (note == "taken" ? L.T("Router: port już przekierowany (ręcznie)") : L.T("Router nie otworzył portu sam – przekieruj go w routerze na ten komputer"));
+            // port główny: prawdziwy test z adresu domu (jak 443) - UPnP mówi tylko, co router zapamiętał, nie czy działa przekierowanie ręczne
+            var main = _komRelayHost.Length > 0 ? await KomRelayProbe(_komRelayHost, port) : (bool?)null;
+            _komRelayRouter = main == true ? L.T("Port ") + port + L.T(": otwarty – sprawdzone połączeniem z adresu domu")
+                : main == false ? L.T("Port ") + port + L.T(": z internetu nie odpowiada – przekieruj w routerze TCP ") + port + L.T(" na ") + KomLanIp() + L.T(" i zezwól w zaporze")
+                : mapped ? L.T("Router: port otwarty automatycznie") : (note == "taken" ? L.T("Router: port już przekierowany (ręcznie)") : L.T("Router nie otworzył portu sam – przekieruj go w routerze na ten komputer"));
             if (_komRelayAuto && ext != null && ext != _komRelayHost) { _komRelayHost = ext; KomSave(); KomAnnounce(); }   // nowy adres - urzadzenia w domu dostaja go od razu
             KomRelayStatus();
         }
@@ -1317,7 +1322,7 @@ namespace Velivo
             var lan = _komRelayOn ? KomLanIp() : "";
             _komRelayStatusText.Text = !_komRelayOn ? L.T("Wyłączony") : (_komRelayListener != null ? L.T("Działa – urządzenia poza domem: ") + _komRemote.Count : L.T("Nie działa – sprawdź port")) +
                 (lan.Length > 0 ? "\n" + L.T("Ten komputer w sieci domowej: ") + lan + L.T(" – na ten adres przekierowanie w routerze (port ") + _komRelayPort + L.T(" i 443)") : "") +
-                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayDns.Length > 0 ? "\n" + _komRelayDns : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + (_komRemote.IsEmpty ? _komRelayRouter : L.T("Router: port działa – są połączenia z internetu")) : "") +
+                (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayDns.Length > 0 ? "\n" + _komRelayDns : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + _komRelayRouter : "") +
                 (_komRelayOn && _komRelayListener != null ? "\n" + (_komRelayAlt ? L.T("Zapasowo port 443: otwarty (działa też w sieciach blokujących porty)")
                     : _komRelayUpnp ? L.T("Zapasowo port 443: nieotwarty – w routerze przekieruj 443 na ten komputer, port ") + _komRelayPort
                     : L.T("Zapasowo port 443: router nie pozwala tego sprawdzić – jeśli przekierowałeś w routerze 443 na ten komputer, port ") + _komRelayPort + L.T(", działa")) : "");
@@ -1617,6 +1622,7 @@ namespace Velivo
             var d = new Window { Title = L.T("🌍 Rozmowy poza domem"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid };
             KomStyle(d);
             KomRelayStatus();
+            if (_komRelayOn && _komRelayListener != null && _komUp == null) { _komRelayRouter = L.T("Sprawdzam porty…"); KomRelayStatus(); _ = KomRelayAutoAsync(); }   // stan zawsze z bieżącego sprawdzenia, nie sprzed godziny
             ok.Click += (s, e) => d.DialogResult = true;
             d.Closed += (s, e) => { _komRelayStatusText = null; _komRelaySummary = null; };
             d.ShowDialog();   // zamknięcie okna (✕ albo OK) zapisuje zmiany - wcześniej bez OK zostawał stary adres i port

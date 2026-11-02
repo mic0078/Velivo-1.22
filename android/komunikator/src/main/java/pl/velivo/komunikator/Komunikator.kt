@@ -1255,7 +1255,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             var res = r
             if (to != null && pend != null) {
                 if (r == "ok") { pend.ok = true; pend.text += if (box) (if (pl) " – 📬 czeka na serwerze" else " – 📬 waiting on the server") else if (pl) " – odebrano" else " – received" }
-                else if (r == "odrzucono") { synchronized(this) { chat(to.id).remove(pend) }; pend.path?.let { java.io.File(it).delete() } }   // odrzucony - bez wpisu
+                else if (r == "odrzucono" && !box) { synchronized(this) { chat(to.id).remove(pend) }; pend.path?.let { java.io.File(it).delete() } }   // odrzucony przez odbiorcę - bez wpisu; skrzynka 📬 odmówiła (serwer nie zna kontaktu) - plik zostaje i czeka u nas
                 else if (retry == null) {
                     if (sendBox(to, name, size, open, pend, group) == "ok") res = "skrzynka"   // odbiorcy nie ma: 📬 do skrzynki pośrednika
                     else runCatching {   // bez pośrednika - kopia w Velivo („…”), wyślę sama, gdy się pojawi

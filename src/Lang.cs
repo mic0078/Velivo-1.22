@@ -2417,6 +2417,7 @@ namespace Velivo
             { "⚠ Jellyfin: ", "⚠ Jellyfin: " },
             { "🎬 Nowe filmy z Jellyfin: ", "🎬 New films from Jellyfin: " },
             { " · niedostępnych tutaj: ", " · not available here: " },
+            { "Pliki filmów są na dysku innego komputera (serwera Jellyfin), nie na tym. Tutaj oglądasz je w bibliotece 🌐 Wspólna (oba komputery włączone, Velivo uruchomione, sparowane w sieci domowej).", "The film files are on another computer's disk (the Jellyfin server), not this one. Here you watch them in the 🌐 Shared library (both computers on, Velivo running, paired on the home network)." },
             { "{0} filmów z Jellyfin jest na tym komputerze, ale wcześniej usunięto je tylko z biblioteki Velivo, więc nie wracają same.\n\nPrzywrócić je do biblioteki?", "{0} Jellyfin films are on this computer, but they were removed earlier from the Velivo library only, so they don't come back by themselves.\n\nRestore them to the library?" },
             { " · usuniętych wcześniej z Velivo (nie wracają): ", " · removed earlier from Velivo (not re-added): " },
             { " (lista w jellyfin-raport.txt)", " (list in jellyfin-raport.txt)" },

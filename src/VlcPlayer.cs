@@ -477,7 +477,8 @@ namespace Velivo
             var missing = await System.Threading.Tasks.Task.Run(() => NewJellyfinFiles(jfFiles, LoadLibrary().Select(v => v.Path), p => !File.Exists(p)));
             try { File.AppendAllLines(System.IO.Path.Combine(DataDir, "jellyfin-raport.txt"), new[] { "", "Pliki z Jellyfin niedostępne na tym komputerze (" + missing.Count + "):" }.Concat(missing.Select(m => "  " + m))); } catch (Exception) { }
             _libRefresh?.Invoke();
-            return L.T("🎬 Nowe filmy z Jellyfin: ") + n + (skipped.Count > 0 ? L.T(" · usuniętych wcześniej z Velivo (nie wracają): ") + skipped.Count : "") + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : "");
+            return L.T("🎬 Nowe filmy z Jellyfin: ") + n + (skipped.Count > 0 ? L.T(" · usuniętych wcześniej z Velivo (nie wracają): ") + skipped.Count : "") + (missing.Count > 0 ? L.T(" · niedostępnych tutaj: ") + missing.Count + L.T(" (lista w jellyfin-raport.txt)") : "")
+                + (n == 0 && missing.Count > 0 && LoadLibrary().Count == 0 ? "\n" + L.T("Pliki filmów są na dysku innego komputera (serwera Jellyfin), nie na tym. Tutaj oglądasz je w bibliotece 🌐 Wspólna (oba komputery włączone, Velivo uruchomione, sparowane w sieci domowej).") : "");
         }
         bool _libSharedView;   // otwarta biblioteka: wspolna albo tego komputera
         bool _libTvView;

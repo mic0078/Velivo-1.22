@@ -1270,6 +1270,8 @@ namespace Velivo
             { "Wysyłam: ", "Sending: " },
             { "Wyślij pliki na telefon lub komputer z Velivo w tej sieci (bez parowania, z kodem)", "Send files to a phone or computer with Velivo on this network (no pairing, with a code)" },
             { "Wyślij", "Send" },
+            { "Wyślij plik (albo przeciągnij plik na okienko)", "Send a file (or drag a file onto the window)" },
+            { "Kliknij, aby otworzyć", "Click to open" },
             { "Rozmowa wideo", "Video call" },
             { "Przeczytane", "Read" },
             { "📶 Velivo w tej sieci: ", "📶 Velivo on this network: " },

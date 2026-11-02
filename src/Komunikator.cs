@@ -2790,9 +2790,12 @@ namespace Velivo
             if (_komMinis.TryGetValue(c.Id, out var old)) { old.Activate(); return; }
             var pal = KomCurrentPal();
             var msgs = new StackPanel { Margin = new Thickness(6) }; var sv = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            var box = new TextBox { MinHeight = 30, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(6), ToolTip = L.T("Wiadomość (Enter - wyślij)") };
-            var dp = new DockPanel(); DockPanel.SetDock(box, Dock.Bottom); dp.Children.Add(box); dp.Children.Add(sv);
-            var d = new Window { Title = "💬 " + c.Name, Width = 340, Height = 460, Topmost = true, Content = dp, Icon = KomWindowIcon() };
+            var box = new TextBox { MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 6, 4, 6), TextWrapping = TextWrapping.Wrap, MaxHeight = 120, ToolTip = L.T("Wiadomość (Enter - wyślij)") };
+            var att = new Button { Content = "📎", Width = 36, Margin = new Thickness(6, 6, 0, 6), ToolTip = L.T("Wyślij plik (albo przeciągnij plik na okienko)") };
+            var snd = new Button { Content = "➤", Width = 40, Margin = new Thickness(0, 6, 6, 6), FontSize = 16, ToolTip = L.T("Wyślij") };
+            var bar = new DockPanel(); DockPanel.SetDock(att, Dock.Left); DockPanel.SetDock(snd, Dock.Right); bar.Children.Add(att); bar.Children.Add(snd); bar.Children.Add(box);
+            var dp = new DockPanel(); DockPanel.SetDock(bar, Dock.Bottom); dp.Children.Add(bar); dp.Children.Add(sv);
+            var d = new Window { Title = "💬 " + c.Name, Width = 340, Height = 460, Topmost = true, Content = dp, Icon = KomWindowIcon(), AllowDrop = true };
             string sig = null;
             void Fill()
             {
@@ -2800,17 +2803,36 @@ namespace Velivo
                 var ns = l.Count + ":" + last?.Mid + last?.Read + last?.Ok + last?.Text?.Length; if (ns == sig) return; sig = ns;
                 msgs.Children.Clear();
                 foreach (var m in l.Skip(Math.Max(0, l.Count - 60)))
-                    msgs.Children.Add(new Border { Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs), CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(m.Mine ? 40 : 0, 2, m.Mine ? 0 : 40, 2), HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } });
+                {
+                    var fp = m.Path; var bub = new Border { Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs), CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(m.Mine ? 40 : 0, 2, m.Mine ? 0 : 40, 2), HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                        Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } };
+                    if (!string.IsNullOrEmpty(fp) && File.Exists(fp)) { bub.Cursor = Cursors.Hand; bub.ToolTip = L.T("Kliknij, aby otworzyć"); bub.MouseLeftButtonUp += (s, e) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { } }; }
+                    msgs.Children.Add(bub);
+                }
                 sv.ScrollToEnd();
                 if (d.IsActive) { if (_komUnread.Remove(c.Id)) { KomSave(); KomTrayUpdate(); _komRefresh?.Invoke(); } KomSendRead(c); }
             }
-            box.PreviewKeyDown += (s, e) => { if (e.Key != Key.Enter) return; e.Handled = true; var t = box.Text.Trim(); if (t.Length == 0) return; box.Clear(); KomSend(c, t); Fill(); _komRefresh?.Invoke(); };
+            void Send() { var t = box.Text.Trim(); if (t.Length == 0) return; box.Clear(); KomSend(c, t); Fill(); _komRefresh?.Invoke(); box.Focus(); }
+            async Task Files(string[] files)
+            {
+                if (files == null) { var dlg = new Microsoft.Win32.OpenFileDialog { Title = "📎 " + c.Name, Multiselect = true }; if (dlg.ShowDialog(d) != true) return; files = dlg.FileNames; }
+                if (files.Length == 0 || !KomPreview(d, c, files)) return;
+                if (c.IsGroup) { await KomSendGroupFiles(d, c, files); return; }
+                IPAddress addr = null;
+                if (!KomOnline(c.Id) || !IPAddress.TryParse(c.Addr ?? "", out addr) || IPAddress.IsLoopback(addr)) addr = (await KomFind()).FirstOrDefault(x => x.Id == c.Id).Addr;
+                await KomSendFilesTo(d, c.Name, addr ?? IPAddress.Loopback, c, files); sig = null; Fill();
+            }
+            box.PreviewKeyDown += (s, e) => { if (e.Key != Key.Enter || (Keyboard.Modifiers & ModifierKeys.Shift) != 0) return; e.Handled = true; Send(); };
+            snd.Click += (s, e) => Send();
+            att.Click += async (s, e) => await Files(null);
+            d.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Effects = DragDropEffects.Copy; e.Handled = true; };
+            d.PreviewDrop += async (s, e) => { if (e.Data.GetData(DataFormats.FileDrop) is not string[] dr) return; e.Handled = true; await Files(dr.Where(File.Exists).ToArray()); };
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; timer.Tick += (s, e) => Fill(); timer.Start();
             d.Activated += (s, e) => { sig = null; Fill(); };
             d.Closed += (s, e) => { timer.Stop(); _komMinis.Remove(c.Id); };
             _komMinis[c.Id] = d;
-            KomStyle(d); d.Show(); Fill(); box.Focus();
+            KomStyle(d); d.Show(); Fill();
+            d.Dispatcher.BeginInvoke(new Action(() => { d.Activate(); box.Focus(); Keyboard.Focus(box); }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // po zamknięciu menu fokus wracał do głównego okna - okienko bez klawiatury
         }
         // 💾 eksport rozmowy: HTML (ze zdjęciami i plikami w folderze obok) albo tekst
         void KomExport(Window owner, KomContact c)

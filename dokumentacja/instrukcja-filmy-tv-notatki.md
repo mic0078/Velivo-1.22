@@ -147,3 +147,4 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-01: ↕ wysokość paska odtwarzacza (👁 → suwak 100–160 %, `pasek-wysokosc`): `applyBarHeight` skaluje wysokość przycisków, ikony (`_barIcon` – także podmieniane ⏸/▶), napisy, obrazki i suwak głośności od zapamiętanych wartości bazowych.
 
 * 2026-11-02: 🎞 Jellyfin jako serwer biblioteki: `JellyfinAddNewAsync` dodaje też pliki niedostępne lokalnie, gdy mają Id w bazie (`fromJf`); odtwarzanie – brak pliku → `JellyfinStreamUrl` (`/Videos/{id}/stream?static=true&api_key=…`, adres `_jfWorking` z `JellyfinReach`, inaczej `Url`); listy (Kontynuuj, ostatnio, boczna) – `FilmPlayable`. Klucz w adresie nie trafia do vlc.log (`VlcLogSafe` ucina zapytanie).
+* 2026-11-02: pasek odtwarzacza – przycisk ⏺ REC i „🔌 Połączenia z dostawcą” ucięte od góry: wiersz miał stałą wysokość 21 px, a przyciski z emoji są wyższe; teraz MinHeight 21 i bez pionowego odstępu w przyciskach.

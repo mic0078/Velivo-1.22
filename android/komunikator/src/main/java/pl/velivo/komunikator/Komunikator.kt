@@ -2555,14 +2555,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (who.isNotBlank() && found().isEmpty()) rows.addView(TextView(a).apply { text = t("Nie ma osoby: ", "No contact: ") + who; setTextColor(dim); textSize = 16f; setPadding(px(10), px(16), px(10), px(8)) })
             for (c in found().sortedWith(compareByDescending<Komunikator.Contact> { k.pinned(it.id) }.thenByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0L })) {   // 0L - ten sam typ co czas (Int z Long = awaria sortowania)   // 📌 przypięte na górze
                 val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull(); val on = k.online(c.id)
-                val av = avatar(c, on).apply { layoutParams = android.widget.FrameLayout.LayoutParams(px(52), px(52)) }
+                val av = avatar(c, on).apply { layoutParams = android.widget.FrameLayout.LayoutParams(px(46), px(46)) }
                 val dot = android.widget.FrameLayout(a).apply {   // jak WhatsApp: duże zdjęcie, w sieci - zielona kropka w rogu
-                    layoutParams = LinearLayout.LayoutParams(px(52), px(52)).apply { rightMargin = px(14) }; addView(av)
+                    layoutParams = LinearLayout.LayoutParams(px(46), px(46)).apply { rightMargin = px(14) }; addView(av)
                     if (on) addView(View(a).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(green); setStroke(px(2), pal().bg1) }; layoutParams = android.widget.FrameLayout.LayoutParams(px(15), px(15), Gravity.END or Gravity.BOTTOM) })
                 }
                 val name = TextView(a).apply {
                     text = android.text.SpannableStringBuilder((if (k.pinned(c.id)) "📌 " else "") + c.name + if (k.muted(c.id)) " 🔕" else "").apply {
-                    }; textSize = 17f * fs; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+                    }; textSize = 17f; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
                 val time = TextView(a).apply { text = last?.let { when_(it.ts) } ?: ""; textSize = 12f; setTextColor(if (n > 0) green else dim) }
                 val top = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(name); addView(time) }
                 val snippet = TextView(a).apply {
@@ -3185,9 +3185,9 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (uris.isEmpty()) p else { attachTo = c; sendFiles(uris); null }
         }
         fun round(text: String, tip: String, color: Int, act: () -> Unit) = Button(a).apply {
-            this.text = text; textSize = 22f; setTextColor(if (color == violet) pal().mineFg else ink); contentDescription = tip; tooltipText = tip; setPadding(0, 0, 0, 0)
+            this.text = text; textSize = 19f; setTextColor(if (color == violet) pal().mineFg else ink); contentDescription = tip; tooltipText = tip; setPadding(0, 0, 0, 0)
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
-            layoutParams = LinearLayout.LayoutParams(px(54), px(54)).apply { leftMargin = px(4); rightMargin = px(4) }   // większe - łatwiej trafić dużym palcem (było 46)
+            layoutParams = LinearLayout.LayoutParams(px(48), px(48)).apply { leftMargin = px(3); rightMargin = px(3) }   // trochę mniejsze (było 54), dalej łatwo trafić
             setOnClickListener { act() }
         }
         // ↩ odpowiedź na wiadomość: cytat nad polem, idzie przed tekstem
@@ -3280,27 +3280,19 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         // jak WhatsApp: pusty tekst - 🎤 w miejscu ➤ (więcej miejsca na pisanie); ➤ widać przy tekście i w trakcie nagrywania (wyślij od razu)
         sendOrMic = { val txt = input.text.isNotEmpty(); btn.visibility = if (txt || rec != null) View.VISIBLE else View.GONE; mic.visibility = if (txt && rec == null) View.GONE else View.VISIBLE }
         val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
-        val title = TextView(a).apply { textSize = 18f; maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+        val tName = TextView(a).apply { textSize = 17f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setTextColor(ink) }   // jak WhatsApp: nazwa w 1 linii (bez nazwy urządzenia), pod nią stan w 1 linii
+        val tSub = TextView(a).apply { textSize = 12.5f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
+        val title = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); addView(tName); addView(tSub) }
         fun status() {
             if (c.isGroup) {   // 👥 grupa: skład zamiast „w sieci”
-                val names = k.members(c).map { id -> k.contact(id)?.name ?: "…" }
-                title.text = android.text.SpannableStringBuilder("👥 " + c.name).apply { append("\n"); val st = length; append(names.joinToString(", ")); setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0); setSpan(android.text.style.ForegroundColorSpan(Color.GRAY), st, length, 0) }
-                title.setTextColor(ink); return
+                tName.text = "👥 " + c.name; tSub.text = k.members(c).map { id -> k.contact(id)?.name ?: "…" }.joinToString(", "); tSub.setTextColor(Color.GRAY); return
             }
-            val on = k.online(c.id)
-            if (k.typing(c.id)) {   // ✍ „pisze…”
-                title.text = android.text.SpannableStringBuilder(c.name).apply { append("\n"); val st = length; append("✍ " + t("pisze…", "typing…")); setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0); setSpan(android.text.style.ForegroundColorSpan(green), st, length, 0) }
-                title.setTextColor(ink); return
-            }
-            title.text = android.text.SpannableStringBuilder(c.name).apply {
-                if (c.own && c.device.isNotEmpty() && c.device != c.name) { val s0 = length; append("  (" + c.device + ")"); setSpan(android.text.style.RelativeSizeSpan(0.7f), s0, length, 0) }
-                append("\n"); val st = length
-                val seen = k.lastSeenAt(c.id)?.let { " · " + t("ostatnio ", "last seen ") + when_(it) } ?: ""
-                append(if (on) "● " + (if (k.viaInternet(c.id)) t("w sieci · 🌍 przez internet", "online · 🌍 via internet") else t("w sieci · 🏠 sieć domowa", "online · 🏠 home network")) else "● " + t("poza siecią", "offline") + seen + "\n" + t("wiadomości dojdą, gdy wróci", "messages arrive when back"))
-                setSpan(android.text.style.ForegroundColorSpan(if (on) green else Color.GRAY), st, length, 0)
-                setSpan(android.text.style.RelativeSizeSpan(0.7f), st, length, 0)
-            }
-            title.setTextColor(ink)
+            val on = k.online(c.id); tName.text = c.name
+            if (k.typing(c.id)) { tSub.text = "✍ " + t("pisze…", "typing…"); tSub.setTextColor(green); return }   // ✍ „pisze…”
+            val seen = k.lastSeenAt(c.id)?.let { " · " + t("ostatnio ", "last seen ") + when_(it) } ?: ""
+            tSub.text = if (on) "● " + (if (k.viaInternet(c.id)) t("🌍 internet", "🌍 internet") else t("🏠 sieć domowa", "🏠 home network")) else "● " + t("poza siecią", "offline") + seen
+            tSub.setTextColor(if (on) green else Color.GRAY)
+            title.contentDescription = c.name + ", " + tSub.text + if (on) "" else ", " + t("wiadomości dojdą, gdy wróci", "messages arrive when back")
         }
         val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(4), px(8), px(6)); background = ColorDrawableCompat(Color.argb(50, 0, 0, 0)); addView(back)
             addView(avatar(c, !c.isGroup && k.online(c.id)))   // 🖼 zdjęcie profilowe rozmówcy (bez zdjęcia - litera)
@@ -3315,6 +3307,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             })
             addView(icon("🖼", t("Zdjęcia, filmy i pliki z rozmowy", "Photos, videos and files in this chat")) { gallery(c) })
             if (!c.isGroup) { addView(icon("📞", t("Rozmowa głosowa", "Voice call")) { openCall(c, true, true) }.apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(green) } }); addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) } }   // 📞 wyraźna, zielona
+        for (i in 0 until head.childCount) (head.getChildAt(i) as? TextView)?.takeIf { it.layoutParams?.width == px(44) }?.apply { setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, textSize * 0.85f); layoutParams = (layoutParams as LinearLayout.LayoutParams).apply { width = px(38); height = px(38) } }   // ikony nagłówka trochę mniejsze
         input.setText(k.draft(c.id)); input.setSelection(input.text.length); sendOrMic()
         fill(); status(); ringPending(c)
         input.addTextChangedListener(object : android.text.TextWatcher {

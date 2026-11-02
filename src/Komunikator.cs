@@ -1676,7 +1676,7 @@ namespace Velivo
             root.Children.Add(left);
 
             var right = new DockPanel(); Grid.SetColumn(right, 2);
-            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxHeight = 64 };   // długa nazwa - w dwóch liniach (dalej „…”)
+            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxHeight = 70 };   // nazwa w 1. linii, stan w 2. (dalej „…”)
             var searchBox = new TextBox { Width = 160, Margin = new Thickness(6, 0, 0, 6), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("🔍 Szukaj w rozmowie") };
             var top = new DockPanel(); DockPanel.SetDock(top, Dock.Top);
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };
@@ -1881,6 +1881,7 @@ namespace Velivo
                     header.Inlines.Add(new System.Windows.Documents.InlineUIContainer(hav));
                     header.Inlines.Add(new System.Windows.Documents.Run(c.Name + "  "));
                     if (c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name) header.Inlines.Add(new System.Windows.Documents.Run("(" + c.Device + ")  ") { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(pal.Dim) });
+                    header.Inlines.Add(new System.Windows.Documents.LineBreak()); header.Inlines.Add(new System.Windows.Documents.InlineUIContainer(new Border { Width = 40 }));   // jak WhatsApp: stan w drugiej linii pod nazwą - nagłówek wąski
                     if (_komTypingAt.TryGetValue(c.Id, out var ty) && DateTime.UtcNow - ty < TimeSpan.FromSeconds(6)) { header.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { FontSize = 12, FontWeight = FontWeights.Normal, Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) }); goto headerDone; }
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
                     header.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"))

@@ -1147,7 +1147,7 @@ class KlawiaturaVelivo : InputMethodService() {
         private fun keyAction(k: K) {
             when (k.code) {
                 // ⇧ dwa razy szybko - stałe wielkie litery (zamiast osobnego ⇪)
-                "shift" -> { val now = System.currentTimeMillis(); val was = caps; if (caps) { caps = false; shift = false } else if (now - shiftAt < capsWindow()) { caps = true; shift = false }   // shift xor caps = wielka: oba naraz dawały małe else shift = !shift; shiftAt = if (was) 0L else now; shiftAuto = false; refresh() }   // 2 szybkie stuknięcia = duże litery (także gdy Shift był włączony sam na początku zdania)
+                "shift" -> { val now = System.currentTimeMillis(); val was = caps; if (caps) { caps = false; shift = false } else if (now - shiftAt < capsWindow()) { caps = true; shift = false } else shift = !shift; shiftAt = if (was) 0L else now; shiftAuto = false; refresh() }   // 2 szybkie stuknięcia = duże litery (także gdy Shift był włączony sam na początku zdania)
                 "caps" -> { caps = !caps; shift = false; shiftAuto = false; refresh() }
                 "alt" -> { alt = !alt; refresh() }
                 "bs" -> backspace()

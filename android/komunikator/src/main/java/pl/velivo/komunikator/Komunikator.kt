@@ -599,6 +599,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         return (0 until 6).joinToString(" ") { i -> "%05d".format(Locale.ROOT, ((h[i * 4].toLong() and 0xff shl 24) or (h[i * 4 + 1].toLong() and 0xff shl 16) or (h[i * 4 + 2].toLong() and 0xff shl 8) or (h[i * 4 + 3].toLong() and 0xff)) % 100000) }
     }
 
+    // 🧹 wyczyszczenie rozmowy (kontakt zostaje); zwraca kopie plików w Velivo z tej rozmowy (nie używane w innej)
+    fun clearChat(c: Contact): List<String> {
+        val l = synchronized(this) { chat(c.id).toList().also { chat(c.id).clear() } }
+        saveChat(c.id); prefs.edit().remove("nowe-${c.id}").apply(); main.post { onChange() }
+        val keep = synchronized(this) { chats.values.flatten().mapNotNull { it.path }.toSet() }
+        return l.mapNotNull { it.path }.distinct().filter { it.startsWith(mediaDir.path) && it !in keep && java.io.File(it).exists() }
+    }
     fun deleteLocal(c: Contact, m: Msg) {
         synchronized(this) { chat(c.id).remove(m) }; saveChat(c.id)
         m.path?.let { p -> if (p.startsWith(mediaDir.path)) java.io.File(p).delete() }   // kopia pliku w Velivo (nie ta z Pobranych / Galerii)
@@ -2811,9 +2818,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val items = arrayOf("✏ " + t("Zmień nazwę", "Rename"), "🗑 " + t("Usuń kontakt i rozmowę", "Delete contact and chat"),
             if (k.pinned(c.id)) "📌 " + t("Odepnij", "Unpin") else "📌 " + t("Przypnij na górze", "Pin to top"),
             if (k.muted(c.id)) "🔔 " + t("Wyłącz wyciszenie", "Unmute") else "🔕 " + t("Wycisz…", "Mute…"),
-            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off")) + arrayOf("♿ " + t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille"))
+            "⏳ " + t("Znikające wiadomości…", "Disappearing messages…"), "💾 " + t("Eksport rozmowy (TXT)", "Export chat (TXT)")) + if (c.isGroup) emptyArray() else arrayOf("🛡 " + t("Kod bezpieczeństwa", "Safety code"), "📋 " + t("Wspólny schowek z tym urządzeniem: ", "Shared clipboard with this device: ") + if (k.clipOn(c.id)) t("wł.", "on") else t("wył.", "off")) + arrayOf("🧹 " + t("Wyczyść rozmowę…", "Clear chat…"), "♿ " + t("Ułatwienia: niewidomi, niesłyszący, brajl", "Accessibility: blind, deaf, Braille"))
         Dlg().setTitle(c.name).setItems(items) { _, i ->
             if (items[i].startsWith("♿")) { accessibility(); return@setItems }
+            if (items[i].startsWith("🧹")) { clearChat(c); return@setItems }
             if (i == 2) { k.setPinned(c.id, !k.pinned(c.id)); return@setItems }
             if (i == 7) { k.setClip(c.id, !k.clipOn(c.id))
                 Toast.makeText(a, "📋 " + (if (k.clipOn(c.id)) t("Wspólny schowek z „${c.name}” włączony – włącz go też tam. Kopie z telefonu wysyła klawiatura Velivo.", "Shared clipboard with “${c.name}” on – turn it on there too. Copies from the phone are sent by the Velivo keyboard.") else t("Wspólny schowek wyłączony", "Shared clipboard off")), Toast.LENGTH_LONG).show(); return@setItems }
@@ -2844,6 +2852,20 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     .setNegativeButton(android.R.string.cancel, null).show()
             } else Dlg().setMessage(t("Usunąć „${c.name}” i całą rozmowę?", "Delete “${c.name}” and the whole chat?"))
                 .setPositiveButton(t("Usuń", "Delete")) { _, _ -> k.remove(c) }.setNegativeButton(android.R.string.cancel, null).show()
+        }.show()
+    }
+
+    // 🧹 wyczyść rozmowę: pliki do Pobranych (zostają w telefonie) albo usunięte; kontakt zostaje
+    private fun clearChat(c: Komunikator.Contact) {
+        fun go(del: Boolean) = Thread {
+            var n = 0
+            k.clearChat(c).forEach { p -> if (del || toDownloads(p) != null) { java.io.File(p).delete(); n++ } }
+            a.runOnUiThread { Toast.makeText(a, "🧹 " + (if (del) t("Rozmowa wyczyszczona, usunięte pliki: ", "Chat cleared, files deleted: ") else t("Rozmowa wyczyszczona, pliki w Pobranych: ", "Chat cleared, files in Downloads: ")) + n, Toast.LENGTH_LONG).show() }
+        }.start()
+        Dlg().setTitle("🧹 " + c.name).setItems(arrayOf(t("Wyczyść – pliki zostają (w Pobranych)", "Clear – keep files (in Downloads)"), t("Wyczyść i usuń pliki z telefonu", "Clear and delete files from the phone"))) { _, j ->
+            if (j == 0) go(false)
+            else Dlg().setMessage(t("Wyczyścić rozmowę z „${c.name}” i usunąć z telefonu jej zdjęcia, głosówki i pliki?", "Clear the chat with “${c.name}” and delete its photos, voice messages and files from the phone?"))
+                .setPositiveButton(t("Usuń", "Delete")) { _, _ -> go(true) }.setNegativeButton(android.R.string.cancel, null).show()
         }.show()
     }
 

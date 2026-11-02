@@ -1841,7 +1841,11 @@ namespace Velivo
                         var upd = new MenuItem { Header = "📲 " + L.T("Wyślij aktualizację aplikacji (APK)…"), ToolTip = L.T("Nowa wersja Velivo na telefon tej osoby – tam jedno stuknięcie „Zainstaluj”") }; upd.Click += async (s, e) => await KomSendUpdate(w, c);
                         cm.Items.Add(upd);
                     }
-                    cm.Items.Add(med); cm.Items.Add(del); item.ContextMenu = cm;
+                    var clr = new MenuItem { Header = "🧹 " + L.T("Wyczyść rozmowę") };
+                    var clrKeep = new MenuItem { Header = L.T("Wyczyść – pliki zostają na dysku") }; clrKeep.Click += (s, e) => KomClearChat(w, c, false);
+                    var clrDel = new MenuItem { Header = L.T("Wyczyść i usuń pliki z dysku") }; clrDel.Click += (s, e) => KomClearChat(w, c, true);
+                    clr.Items.Add(clrKeep); clr.Items.Add(clrDel);
+                    cm.Items.Add(med); cm.Items.Add(clr); cm.Items.Add(del); item.ContextMenu = cm;
                     list.Items.Add(item);
                     if (c.Id == sel) item.IsSelected = true;
                 }
@@ -2430,6 +2434,20 @@ namespace Velivo
                 b.Child = new TextBlock { Text = c.IsGroup ? "👥" : (c.Name.Trim().Length > 0 ? c.Name.Trim().Substring(0, 1).ToUpper() : "?"), Foreground = Brushes.White, FontWeight = FontWeights.Bold, FontSize = size * 0.42, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             }
             return b;
+        }
+        // 🧹 wyczyszczenie rozmowy (kontakt zostaje); files - także pliki z folderu komunikatora (odebrane, nagrane, zrzuty), nigdy pliki użytkownika spoza niego
+        void KomClearChat(Window w, KomContact c, bool files)
+        {
+            var q = files ? (L.En ? "Clear the chat with “" + c.Name + "” and delete its received files, voice and video messages from this computer's disk?\n\nYour own files sent from other folders stay." : "Wyczyścić rozmowę z „" + c.Name + "” i usunąć z dysku tego komputera odebrane pliki, głosówki i nagrania z tej rozmowy?\n\nTwoje pliki wysłane z innych folderów zostają.")
+                : (L.En ? "Clear the chat with “" + c.Name + "”? Files stay on the disk (folder Velivo\\Dane\\Komunikator)." : "Wyczyścić rozmowę z „" + c.Name + "”? Pliki zostają na dysku (folder Velivo\\Dane\\Komunikator).");
+            if (MessageBox.Show(w, q, L.T("Komunikator Velivo"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            var l = KomChat(c.Id).ToList(); KomChat(c.Id).Clear(); _komUnread.Remove(c.Id); KomSave(); _komRefresh?.Invoke();
+            if (!files) { KomInfo("🧹 " + L.T("Rozmowa wyczyszczona, pliki zostały na dysku")); return; }
+            var keep = new HashSet<string>(_komChats.Values.SelectMany(x => x).Select(x => x.Path).Where(p => p != null), StringComparer.OrdinalIgnoreCase);   // ten sam plik w innej rozmowie - zostaje
+            int n = 0;
+            foreach (var p in l.Select(x => x.Path).Where(p => p != null).Distinct(StringComparer.OrdinalIgnoreCase))
+                try { if (p.StartsWith(KomMediaDir, StringComparison.OrdinalIgnoreCase) && !keep.Contains(p) && File.Exists(p)) { if (_komVoicePath == p) KomPlayVoice(p); File.Delete(p); n++; } } catch (Exception ex) { App.LogError(ex); }
+            KomInfo("🧹 " + L.T("Rozmowa wyczyszczona, usunięte pliki: ") + n);
         }
         // 🎤 głosówka w komunikatorze (ponownie - stop), ⏩ 1× / 1,5× / 2×; długość w pasku stanu
         MediaPlayer _komVoice; string _komVoicePath;

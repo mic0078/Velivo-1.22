@@ -89,7 +89,7 @@ Na samym końcu paska (za separatorem):
 
 Nad nimi:
 - **⏺ REC** – czerwona pigułka, gdy coś się nagrywa (kanał i godzina końca). Kliknij, aby zatrzymać albo przedłużyć.
-- **🔌 Połączenia z dostawcą** (w jednej linii z „NA ŻYWO”) – ile połączeń teraz używasz (oglądanie, nagrania, PiP). Kliknij i ustaw, na ile pozwala Twój dostawca – ostrzeżenie pojawi się tylko po przekroczeniu.
+- **🔌 2 / 3** (w jednej linii z „NA ŻYWO”) – ile połączeń z dostawcą teraz używasz (oglądanie, nagrania, PiP) i limit; widać tylko przy 2 i więcej połączeniach albo na limicie. Kliknij i ustaw, na ile pozwala Twój dostawca. Obok: „⏺ REC · do 15:00” przy nagrywaniu, z prawej „FHD · 6,4 Mb/s” (szczegóły w podpowiedzi, „⚠ utracone” na pomarańczowo, gdy giną klatki). Ikony paska są większe.
 
 Gdy coś się nagrywa, u góry obrazu widać małą czerwoną kropkę: **„Trwa nagrywanie: nazwa kanału”** (także przy schowanym pasku i przy oglądaniu innego kanału).
 

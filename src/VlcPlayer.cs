@@ -1247,7 +1247,8 @@ namespace Velivo
         {
             return new System.Windows.Shapes.Path { Data = Geometry.Parse(PlayerIcons[name]), Fill = Brushes.White, Width = _barIcon, Height = _barIcon, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
         }
-        static double _barIcon = 20;   // wielkość ikon paska odtwarzacza (wysokość paska z ustawień 👁)
+        const double BarIcon0 = 24;   // ikony paska przy 100 % (20 px było za małe w przyciskach 36 px)
+        static double _barIcon = BarIcon0;   // wielkość ikon paska odtwarzacza (wysokość paska z ustawień 👁)
 
         // nowoczesny suwak (pasek postepu, glosnosc, PiP): cienka linia, niebieska czesc do uchwytu, okragly bialy uchwyt
         internal static Style ModernSliderStyle(string fill = "#3B82F6")   // fill: kolor wypełnienia (głośność - zielona)
@@ -1446,7 +1447,7 @@ namespace Velivo
 
         void BuildVlcWindow()
         {
-            _barIcon = 20;   // ikony nowego okna od zwykłej wielkości - wysokość paska nakładana po zbudowaniu
+            _barIcon = BarIcon0;   // ikony nowego okna od zwykłej wielkości - wysokość paska nakładana po zbudowaniu
             LibraryVideo current = null;   // film, ktory teraz gra (jego wpis w bibliotece)
             var mp = new LibVLCSharp.Shared.MediaPlayer(_libVlc) { EnableKeyInput = false, EnableMouseInput = false, Volume = 100 };
             _playerMp = mp;
@@ -1751,14 +1752,8 @@ namespace Velivo
                         var st = md.Statistics;
                         double kbps = Math.Max(0, st.DemuxBitrate) * 8000;   // VLC: bajty na ms -> kb/s
                         var q = vh >= 2000 ? "4K" : vh >= 1000 ? "FHD" : vh >= 700 ? "HD" : vh > 0 ? "SD" : "";
-                        var parts = new List<string>();
-                        if (vh > 0) parts.Add(q + " " + vw + "×" + vh);
-                        if (isFilm && techKey == pNow && techShort.Length > 0) parts.Add(techShort);   // film: kodek obrazu
-                        if (kbps > 0) parts.Add(kbps >= 1000 ? (kbps / 1000).ToString("0.0") + " Mb/s" : kbps.ToString("0") + " kb/s");
-                        var fps = mp.Fps; if (fps > 0) parts.Add(fps.ToString("0.#") + L.T(" kl/s"));
-                        info = string.Join(" · ", parts);
                         int lost = st.LostPictures;
-                        if (lost > 0) info += L.T("  ⚠ utracone: ") + lost;
+                        info = string.Join(" · ", new[] { q, kbps > 0 ? (kbps >= 1000 ? (kbps / 1000).ToString("0.0") + " Mb/s" : kbps.ToString("0") + " kb/s") : "" }.Where(x => x.Length > 0)) + (lost > 0 ? L.T("  ⚠ utracone: ") + lost : "");
                         var col = lost > 0 ? Brushes.Orange : Brushes.Silver; if (streamInfo.Foreground != col) streamInfo.Foreground = col;
                     }
                     if (streamInfo.Text != info) streamInfo.Text = info;
@@ -1873,14 +1868,14 @@ namespace Velivo
             Action<double> applyBarHeight = null; double barF = 1;
             applyBarHeight = f =>
             {
-                double prevF = barF; barF = f; _barIcon = Math.Round(20 * f);
+                double prevF = barF; barF = f; _barIcon = Math.Round(BarIcon0 * f);
                 void walk(object o)
                 {
                     switch (o)
                     {
                         case Button b: if (!barBase.ContainsKey(b)) barBase[b] = double.IsNaN(b.Height) ? 36 : b.Height; b.Height = Math.Round(barBase[b] * f);
                             if (!barBase.ContainsKey((b, "fs"))) barBase[(b, "fs")] = b.FontSize; b.FontSize = barBase[(b, "fs")] * f; walk(b.Content); return;
-                        case System.Windows.Shapes.Path p: if (!barBase.ContainsKey(p)) barBase[p] = double.IsNaN(p.Width) ? 20 : p.Width / prevF; p.Width = p.Height = Math.Round(barBase[p] * f); return;   // ikona podmieniona później (⏸/▶) ma już bieżącą wielkość - podstawa = szerokość / poprzednia skala
+                        case System.Windows.Shapes.Path p: if (!barBase.ContainsKey(p)) barBase[p] = double.IsNaN(p.Width) ? BarIcon0 : p.Width / prevF; p.Width = p.Height = Math.Round(barBase[p] * f); return;   // ikona podmieniona później (⏸/▶) ma już bieżącą wielkość - podstawa = szerokość / poprzednia skala
                         case TextBlock t: if (!barBase.ContainsKey(t)) barBase[t] = t.FontSize; t.FontSize = barBase[t] * f; return;
                         case Image im: if (!barBase.ContainsKey(im)) barBase[im] = double.IsNaN(im.Height) ? 0 : im.Height; if (barBase[im] > 0) im.Height = Math.Round(barBase[im] * f); return;
                         case Slider sl: if (!barBase.ContainsKey(sl)) barBase[sl] = double.IsNaN(sl.Width) ? 0 : sl.Width; if (barBase[sl] > 0) sl.Width = Math.Round(barBase[sl] * f); return;
@@ -3460,11 +3455,11 @@ namespace Velivo
                 recOn.Visibility = recs.Count > 0 && !mini0 ? Visibility.Visible : Visibility.Collapsed;
                 recOnText.Text = recs.Count == 0 ? "" : recs.Count > 1 ? L.T("Trwa nagrywanie: ") + string.Join(", ", recs.Select(x => x.Channel))
                     : c != null && (c.LiveUrl ?? c.Url) == recs[0].Url ? L.T("Trwa nagrywanie tego kanału") : L.T("Trwa nagrywanie: ") + recs[0].Channel;
-                if (recs.Count == 1) recPill.Content = (c != null && (c.LiveUrl ?? c.Url) == recs[0].Url ? L.T("⏺ REC  Nagrywasz ten kanał") : "⏺ REC  " + recs[0].Channel) + L.T(" · do ") + LocalOf(recs[0].Stop).ToString("HH:mm");
+                if (recs.Count == 1) recPill.Content = (c != null && (c.LiveUrl ?? c.Url) == recs[0].Url ? "⏺ REC" : "⏺ REC  " + recs[0].Channel) + L.T(" · do ") + LocalOf(recs[0].Stop).ToString("HH:mm");   // krótko; pełny opis w podpowiedzi
                 else if (recs.Count > 1) recPill.Content = L.T("⏺ REC  ") + recs.Count + L.T(" kanały");
                 int used = (c != null && curRecFile == null ? 1 : 0) + recs.Count + (pipCh != null && pipCh.Group != pipFilmGrp ? 1 : 0);
-                connText.Visibility = IptvInstalled && (used > 0) ? Visibility.Visible : Visibility.Collapsed;
-                connText.Content = L.T("🔌 Połączenia z dostawcą: ") + used + (IptvSt.MaxConn > 0 ? " / " + IptvSt.MaxConn : "");
+                connText.Visibility = IptvInstalled && (used > 1 || IptvSt.MaxConn > 0 && used >= IptvSt.MaxConn) ? Visibility.Visible : Visibility.Collapsed;   // samo oglądanie (1 połączenie) - bez napisu
+                connText.Content = "🔌 " + used + (IptvSt.MaxConn > 0 ? " / " + IptvSt.MaxConn : "");
                 connText.Foreground = IptvSt.MaxConn > 0 && used >= IptvSt.MaxConn ? Brushes.Orange : Brushes.Silver;
                 connText.ToolTip = L.T("Połączenia z dostawcą IPTV teraz: ") + used + L.T(" (oglądanie, nagrania, podgląd PiP)") + (IptvSt.MaxConn > 0 ? L.T("\nLimit dostawcy: ") + IptvSt.MaxConn : L.T("\nKliknij, aby podać limit dostawcy"));
                 bool tvOn = IptvInstalled; qTv.IsEnabled = qGuide.IsEnabled = qFavTv.IsEnabled = qRecDir.IsEnabled = qRecSet.IsEnabled = tvOn;

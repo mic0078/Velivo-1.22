@@ -55,11 +55,7 @@ namespace Velivo
                 return;
             }
             ExpireLanPairings();
-            if (_lanPendingPairs.Count > 0)
-            {
-                MessageBox.Show(PairDialogOwner(), L.T("Trwa już próba parowania. Zakończ ją albo poczekaj na wygaśnięcie."), "Parowanie Velivo");
-                return;
-            }
+            foreach (var old in _lanPendingPairs.Keys.ToList()) RemoveLanPairing(old);   // nowa prośba zastępuje poprzednią (wcześniej blokada „trwa już próba” na 3 minuty bez możliwości przerwania)
 
             var pairId = Guid.NewGuid().ToString("N");
             var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
@@ -76,6 +72,27 @@ namespace Velivo
             });
             LanLog(L.T("Wysłano prośbę o parowanie; oczekuję na potwierdzenie drugiego urządzenia."));
             ShowToast(L.T("Prośba o parowanie LAN została wysłana."), null);
+            // po 30 s bez żadnej odpowiedzi - powiedz wprost, co sprawdzić (wcześniej cisza)
+            var wait = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            wait.Tick += (s, e) =>
+            {
+                wait.Stop();
+                if (!_lanPendingPairs.TryGetValue(pairId, out var p) || p.TransportKey != null || _lanPairSeen.Contains(pairId)) return;
+                var m = L.T("Żaden komputer nie odpowiedział na prośbę o parowanie.\n\nNa drugim komputerze sprawdź: Velivo jest uruchomione, synchronizacja LAN jest włączona, wybrany jest ten sam profil i oba komputery są w tej samej sieci.");
+                LanLog(m); MessageBox.Show(PairDialogOwner(), m, L.T("Parowanie Velivo"), MessageBoxButton.OK, MessageBoxImage.Information);
+            };
+            wait.Start();
+        }
+        readonly HashSet<string> _lanPairSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // druga strona widzi prośbę (pytanie na ekranie) - bez komunikatu „nikt nie odpowiedział”
+        void LanPairNack(LanStatePacket pkt, string why) => LanSend(new LanStatePacket { t = "pair-nack", id = _lanId, device = _lanDeviceName, profile = SelectedProfileName, ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), pairId = pkt.pairId, data = why });
+        void HandleLanPairNack(LanStatePacket pkt)
+        {
+            if (!_lanPendingPairs.TryGetValue(pkt.pairId ?? "", out var p) || !p.Initiator || p.TransportKey != null) return;
+            if (pkt.data == "ask") { _lanPairSeen.Add(pkt.pairId); return; }
+            var who = PairDeviceLabel(pkt.device);
+            var m = pkt.data == "profile" ? L.T("Komputer „") + who + L.T("” ma wybrany inny profil: „") + (pkt.profile ?? "") + L.T("”. Wybierz na obu ten sam profil i spróbuj ponownie.")
+                : L.T("Komputer „") + who + L.T("” odrzucił parowanie.");
+            _lanPairSeen.Add(pkt.pairId); LanLog(m); ShowToast(m, null);
         }
 
         void HandleLanPairPacket(LanStatePacket pkt, string sourceAddress)
@@ -89,6 +106,7 @@ namespace Velivo
                     case "pair-response": HandleLanPairResponse(pkt, sourceAddress); break;
                     case "pair-key": HandleLanPairKey(pkt); break;
                     case "pair-ack": HandleLanPairAck(pkt); break;
+                    case "pair-nack": HandleLanPairNack(pkt); break;
                 }
             }
             catch (Exception ex)
@@ -141,6 +159,7 @@ namespace Velivo
             if (!string.Equals(pkt.profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
             {
                 LanLog(L.T("Odrzucono prośbę o parowanie z innego profilu."));
+                LanPairNack(pkt, "profile");   // nadawca od razu wie, dlaczego
                 return;
             }
             if (_lanPendingPairs.ContainsKey(pkt.pairId)) return;
@@ -164,9 +183,11 @@ namespace Velivo
                 var text = L.T("Urządzenie ") + device + " (" + sourceAddress + L.T(") chce sparować profil „") + SelectedProfileName + "”.\n\n" +
                            L.T("Na obu komputerach musi być widoczny ten sam kod: ") + code + "\n\n" +
                            L.T("Po sparowaniu urządzenia będą synchronizować także zapisane hasła. Czy akceptujesz?");
+                LanPairNack(pkt, "ask");   // „pytanie jest na ekranie” - nadawca czeka spokojnie
                 if (MessageBox.Show(PairDialogOwner(), text, L.T("Potwierdź parowanie Velivo"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 {
                     LanLog(L.T("Odrzucono prośbę o parowanie od ") + device + ".");
+                    LanPairNack(pkt, "no");
                     return;
                 }
 
@@ -418,9 +439,16 @@ namespace Velivo
             return clean.Length == 0 ? L.T("Nieznane urządzenie") : clean;
         }
 
+        // pytanie (parowanie, prośba z telefonu…) zawsze na wierzchu: gdy żadne okno Velivo nie jest aktywne (schowane w zasobniku albo pod innymi programami),
+        // właścicielem jest niewidoczne okienko „na wierzchu” na środku ekranu - wcześniej okno pytania ginęło pod innymi oknami i druga strona „nic nie dostawała”
+        Window _pairTop;
         Window PairDialogOwner()
         {
-            return Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) ?? this;
+            var act = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive && w.IsVisible);
+            if (act != null) return act;
+            if (_pairTop == null) _pairTop = new Window { WindowStyle = WindowStyle.None, AllowsTransparency = true, Opacity = 0, ShowInTaskbar = false, Topmost = true, Width = 1, Height = 1, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+            try { if (!_pairTop.IsVisible) _pairTop.Show(); _pairTop.Activate(); System.Media.SystemSounds.Asterisk.Play(); } catch (Exception) { return this; }
+            return _pairTop;
         }
 
         string PromptRecoveryPassphrase(string title)

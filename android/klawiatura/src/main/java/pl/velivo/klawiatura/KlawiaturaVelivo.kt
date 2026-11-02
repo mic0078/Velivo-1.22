@@ -183,7 +183,7 @@ class KlawiaturaVelivo : InputMethodService() {
     }
     private fun adapted() = pref("klaw-rytm") && taps >= 30 && dwell > 0f
     private fun longDelay(): Long = if (pref("klaw-senior", false)) 700L else if (!adapted()) 420L else (dwell * 2.5f + 150).toLong().coerceIn(380L, 700L)
-    private fun capsWindow(): Long = if (!adapted() || tempo == 0f) 400L else (tempo * 1.6f).toLong().coerceIn(400L, 700L)
+    private fun capsWindow(): Long = if (!adapted() || tempo == 0f) 650L else (tempo * 2f).toLong().coerceIn(600L, 900L)   // od puszczenia do puszczenia palca - 0,4 s było za mało
     private var lastSwipe: String? = null; private var lastTrace: List<Slownik.P>? = null; private var lastKeyW = 1.0
     private var shift = false; private var caps = false; private var alt = false; private var shiftAuto = false
     private var phoneField = false
@@ -838,6 +838,7 @@ class KlawiaturaVelivo : InputMethodService() {
                 if (shift && !shiftAuto && sym == 0) { val i = "1234567890-=[];',./".indexOf(ch); if (i >= 0) return "!@#$%^&*()_+{}:\"<>?"[i].toString() }
                 return ch.toString()
             }
+            if (c == "shift" && caps) return "⇪"   // duże litery na stałe - inny znak niż jednorazowy ⇧
             return k.label
         }
 

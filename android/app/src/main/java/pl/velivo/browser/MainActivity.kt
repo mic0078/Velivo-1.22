@@ -2485,7 +2485,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 runOnUiThread {
                     scr.setRows(rows(), titles[mode] + if (r.isFailure && cache == null) " · " + getString(R.string.jf_error) else "")
                     // błąd widoczny także przy zapisanej liście (wcześniej stara lista bez słowa) - powód i adres serwera
-                    r.exceptionOrNull()?.let { e -> toast(getString(R.string.jf_refresh_fail, (if (c.user.isEmpty()) getString(R.string.jf_no_user) else tvErr(e)), runCatching { Uri.parse(Jelly.base(c)).host + ":" + Uri.parse(Jelly.base(c)).port }.getOrDefault(""))) }
+                    r.exceptionOrNull()?.let { e -> toast(getString(R.string.jf_refresh_fail, (if (Jelly.conf(passwords)?.user.isNullOrEmpty()) getString(R.string.jf_no_user) else tvErr(e)), runCatching { Uri.parse(Jelly.base(c)).host + ":" + Uri.parse(Jelly.base(c)).port }.getOrDefault(""))) }
                 }
             }.start()
         }
@@ -2525,7 +2525,7 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
                 val cur = Jelly.conf(passwords)
                 val labels = found.map { "🎬 " + it.second + "\n" + it.first } + getString(R.string.jf_manual) + getString(R.string.jf_key_file) +
                     (if (cur != null) listOf("🌍 " + getString(R.string.jf_net_addr) + (if (cur.net.isNotEmpty()) "\n" + cur.net else ""), getString(R.string.jf_forget)) else emptyList())
-                AlertDialog.Builder(this).setTitle(if (found.isEmpty()) getString(R.string.jf_none_found) else getString(R.string.jf_settings))
+                AlertDialog.Builder(this).setTitle(if (found.isEmpty() && cur == null) getString(R.string.jf_none_found) else getString(R.string.jf_settings))
                     .setItems(labels.toTypedArray()) { _, i ->
                         when {
                             i < found.size -> jellyfinUser(found[i].first, done)

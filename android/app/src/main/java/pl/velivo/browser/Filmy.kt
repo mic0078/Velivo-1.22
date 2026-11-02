@@ -420,7 +420,9 @@ object Jelly {
 
     // biblioteka z serwera i zapis (zaszyfrowany) - przy następnym otwarciu od razu na ekranie, bez czekania
     fun refresh(ctx: Context, pw: Passwords, c: Conf): Pair<List<Item>, List<Item>> {
-        val lib = get(c, "/Users/${c.user}$LIB"); val res = get(c, "/Users/${c.user}$RES")
+        // klucz z komputera bez wybranego użytkownika („nie wybrano użytkownika”) - pierwszy użytkownik z serwera, zapamiętany
+        val user = c.user.ifEmpty { users(c).firstOrNull()?.first.orEmpty().also { u -> if (u.isNotEmpty()) save(pw, Conf(c.url, c.key, u, c.net)) } }
+        val lib = get(c, "/Users/$user$LIB"); val res = get(c, "/Users/$user$RES")
         cacheFile(ctx).writeBytes(pw.sealBytes(JSONObject().put("lib", lib).put("res", res).toString().toByteArray(Charsets.UTF_8)))
         return items(lib) to items(res)
     }
@@ -429,7 +431,7 @@ object Jelly {
         val j = JSONObject(String(pw.openBytes(cacheFile(ctx).readBytes())!!, Charsets.UTF_8))
         items(j.getString("lib")) to items(j.getString("res"))
     }.getOrNull()
-    fun episodes(c: Conf, seriesId: String) = items(get(c, "/Shows/$seriesId/Episodes?UserId=${c.user}&Fields=Overview"))
+    fun episodes(c: Conf, seriesId: String) = items(get(c, "/Shows/$seriesId/Episodes?UserId=${c.user.ifEmpty { users(c).firstOrNull()?.first.orEmpty() }}&Fields=Overview"))
     fun image(c: Conf, id: String) = base(c) + "/Items/$id/Images/Primary?maxHeight=360&quality=80"
     fun stream(c: Conf, id: String) = base(c) + "/Videos/$id/stream?static=true"
 

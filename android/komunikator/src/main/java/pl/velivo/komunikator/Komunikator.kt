@@ -1640,7 +1640,8 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     fun isImage(name: String) = name.substringAfterLast('.', "").lowercase() in setOf("jpg", "jpeg", "png", "gif", "bmp", "webp")
 
     // ♿ ułatwienia (wzrok i słuch): duże litery, nowe wiadomości czytane na głos, błysk lampy i mocna wibracja przy wiadomości i dzwonku
-    var big: Boolean get() = prefs.getBoolean("duze", false); set(v) { prefs.edit().putBoolean("duze", v).apply() }
+    var big: Boolean get() = prefs.getBoolean("duze", false); set(v) { prefs.edit().putBoolean("duze", v).remove("litery").apply() }
+    var textScale: Float get() = prefs.getFloat("litery", if (big) 1.3f else 1f); set(v) { prefs.edit().putFloat("litery", v).putBoolean("duze", v >= 1.3f).apply() }   // 🔠 wielkość liter w rozmowach (nazwy kontaktów - stałe)
     var readNew: Boolean get() = prefs.getBoolean("czytaj-nowe", false); set(v) { prefs.edit().putBoolean("czytaj-nowe", v).apply() }
     var flashAlert: Boolean get() = prefs.getBoolean("blysk", false); set(v) { prefs.edit().putBoolean("blysk", v).apply() }
     var blindVibe: Boolean get() = prefs.getBoolean("wibracje-niewidomy", false); set(v) { prefs.edit().putBoolean("wibracje-niewidomy", v).apply() }   // 👁 wibracje bez błysku
@@ -2110,7 +2111,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 val c = chatWith?.let { k.contact(it) }; if (c != null) openChat(c) else show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
-    private val fs get() = if (k.big) 1.3f else 1f   // 🔠 duże litery
+    private val fs get() = k.textScale   // 🔠 wielkość liter w rozmowach
 
     private fun chooseTheme() {
         val keys = listOf("auto") + palettes.map { it.key }
@@ -2611,11 +2612,19 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         bellLabel()
         val palette = icon("🎨", t("Motyw komunikatora", "Messenger theme")) { chooseTheme() }
         val access = icon("♿", t("Ułatwienia: duże litery, czytanie na głos, błysk przy dzwonku", "Accessibility: big text, read aloud, flash on ring")) { accessibility() }
-        val me = icon("👤", t("Mój profil: zdjęcie i blokada", "My profile: photo and lock")) { profile() }
+        val me: View = k.photo(k.myId)?.let { f -> decode(f.path, px(40)) }?.let { b -> android.widget.ImageView(a).apply {   // 👤 moje zdjęcie profilowe zamiast ludzika, gdy jest
+            setImageBitmap(b); scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; clipToOutline = true; outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.GRAY) }; contentDescription = t("Mój profil: zdjęcie i blokada", "My profile: photo and lock"); tooltipText = contentDescription
+            layoutParams = LinearLayout.LayoutParams(px(38), px(38)).apply { leftMargin = px(4); rightMargin = px(4) }; setOnClickListener { profile() }
+        } } ?: icon("👤", t("Mój profil: zdjęcie i blokada", "My profile: photo and lock")) { profile() }
         val logo = android.widget.ImageView(a).apply { setImageDrawable(runCatching { a.packageManager.getApplicationIcon(a.packageName) }.getOrNull()); contentDescription = "Velivo"; layoutParams = LinearLayout.LayoutParams(px(40), px(40)).apply { leftMargin = px(14) } }   // logo Velivo (ikona aplikacji - ta sama w Komunikatorze, przeglądarce i klawiaturze)
         val more = icon("⋮", t("Więcej: ułatwienia, motyw, powiadomienia", "More: accessibility, theme, notifications"), 24f) {   // jak WhatsApp: mniej ikon u góry, reszta w ⋮
-            Dlg().setItems(arrayOf(access.contentDescription.toString().let { "♿ $it" }, "🎨 " + palette.contentDescription, (if (k.background) "🔔 " else "🔕 ") + bell.contentDescription)) { _, i ->
-                when (i) { 0 -> accessibility(); 1 -> chooseTheme(); else -> { k.background = !k.background; bellLabel(); Toast.makeText(a, bell.contentDescription, Toast.LENGTH_SHORT).show() } }
+            val sizes = floatArrayOf(0.9f, 1f, 1.15f, 1.3f, 1.5f); val sizeNames = arrayOf(t("Mała", "Small"), t("Normalna", "Normal"), t("Większa", "Larger"), t("Duża", "Big"), t("Bardzo duża", "Very big"))
+            val cur = sizes.indices.minByOrNull { kotlin.math.abs(sizes[it] - k.textScale) } ?: 1
+            Dlg().setItems(arrayOf("🔠 " + t("Wielkość liter w rozmowach: ", "Text size in chats: ") + sizeNames[cur], access.contentDescription.toString().let { "♿ $it" }, "🎨 " + palette.contentDescription, (if (k.background) "🔔 " else "🔕 ") + bell.contentDescription)) { _, i ->
+                when (i) {
+                    0 -> Dlg().setTitle("🔠 " + t("Wielkość liter w rozmowach", "Text size in chats")).setSingleChoiceItems(sizeNames, cur) { d, j -> d.dismiss(); k.textScale = sizes[j]; show() }.show()
+                    1 -> accessibility(); 2 -> chooseTheme(); else -> { k.background = !k.background; bellLabel(); Toast.makeText(a, bell.contentDescription, Toast.LENGTH_SHORT).show() } }
             }.show()
         }
         val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(8), px(8), px(4)); addView(logo); addView(title); addView(me); addView(more); addView(close) }

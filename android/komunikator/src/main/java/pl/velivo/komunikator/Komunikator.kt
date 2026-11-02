@@ -3460,6 +3460,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         if (ms.isEmpty()) { Toast.makeText(a, t("Brak plików w tej rozmowie", "No files in this chat"), Toast.LENGTH_SHORT).show(); return }
         // jak WhatsApp: siatka miniatur (zdjęcie / klatka filmu), pod spodem tylko data; inne pliki - ikona i rodzaj
         var dlg: AlertDialog? = null
+        val sel = HashSet<Int>()   // 🗑 przytrzymanie - zaznaczanie (potem stuknięcia dokładają / zdejmują), usuwanie wybranych
         val vids = setOf("mp4", "3gp", "webm", "mkv", "mov")
         val grid = android.widget.GridView(a).apply {
             numColumns = 3; horizontalSpacing = px(4); verticalSpacing = px(4); setPadding(px(8), px(4), px(8), px(4)); stretchMode = android.widget.GridView.STRETCH_COLUMN_WIDTH
@@ -3475,14 +3476,37 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                         text = if (p.contains("Glosowa-")) "🎤" else if (p.endsWith(".apk", true)) "📲" else "📄" }
                     if (k.isImage(p) || vid) { box.addView(img); Thread { val b = synchronized(thumbs) { if (vid) vthumb(p) else thumb(p) }; img.post { if (b != null) img.setImageBitmap(b) else { box.removeView(img); box.addView(emo, 0) } } }.start() }
                     else box.addView(emo)
-                    box.addView(TextView(a).apply { text = when_(m.ts); textSize = 12f; setTextColor(dim); gravity = Gravity.CENTER; maxLines = 1; setPadding(0, px(2), 0, px(4)) })
+                    box.addView(TextView(a).apply { text = (if (i in sel) "✅ " else "") + when_(m.ts); textSize = 12f; setTextColor(if (i in sel) green else dim); gravity = Gravity.CENTER; maxLines = 1; setPadding(0, px(2), 0, px(4)) })
+                    if (i in sel) { box.background = GradientDrawable().apply { setStroke(px(3), green); cornerRadius = px(10).toFloat() }; box.setPadding(px(3), px(3), px(3), 0) }
                     return box
                 }
             }
-            setOnItemClickListener { _, _, i, _ -> val p = ms[i].path!!; dlg?.dismiss()
-                if (k.isImage(p)) showPhoto(p, photos(c)) else if (p.contains("Glosowa-")) play(p) else openFile(p) }
         }
-        dlg = Dlg().setTitle("🖼 " + c.name).setView(grid).show()
+        fun mark(i: Int) {
+            if (!sel.add(i)) sel.remove(i)
+            (grid.adapter as android.widget.BaseAdapter).notifyDataSetChanged()
+            dlg?.setTitle("🖼 " + c.name + if (sel.isEmpty()) "" else "  ·  " + t("zaznaczone: ", "selected: ") + sel.size)
+            dlg?.getButton(AlertDialog.BUTTON_POSITIVE)?.visibility = if (sel.isEmpty()) View.GONE else View.VISIBLE
+        }
+        grid.setOnItemLongClickListener { _, _, i, _ -> mark(i); true }
+        grid.setOnItemClickListener { _, _, i, _ ->
+            if (sel.isNotEmpty()) { mark(i); return@setOnItemClickListener }
+            val p = ms[i].path!!; dlg?.dismiss()
+            if (k.isImage(p)) showPhoto(p, photos(c)) else if (p.contains("Glosowa-")) play(p) else openFile(p)
+        }
+        dlg = Dlg().setTitle("🖼 " + c.name).setView(grid).setPositiveButton("🗑 " + t("Usuń", "Delete"), null).setNegativeButton(t("Zamknij", "Close"), null).show()
+        dlg?.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
+            visibility = View.GONE
+            setOnClickListener {
+                val pick = sel.sorted().map { ms[it] }
+                Dlg().setMessage(t("Usunąć ${pick.size} z rozmowy i z telefonu? Tego nie da się cofnąć. (Kopie zapisane w Galerii / Pobranych zostają.)", "Delete ${pick.size} from the chat and the phone? This cannot be undone. (Copies saved in Gallery / Downloads stay.)"))
+                    .setPositiveButton(t("Usuń", "Delete")) { _, _ ->
+                        pick.forEach { m -> k.deleteLocal(c, m) }; dlg?.dismiss()
+                        Toast.makeText(a, "🗑 " + t("Usunięto: ", "Deleted: ") + pick.size, Toast.LENGTH_SHORT).show()
+                    }.setNegativeButton(android.R.string.cancel, null).show()
+            }
+        }
+        Toast.makeText(a, t("Przytrzymaj, aby zaznaczyć i usunąć", "Hold to select and delete"), Toast.LENGTH_SHORT).show()
     }
 
     // 💾 rozmowa jako tekst w Pobranych

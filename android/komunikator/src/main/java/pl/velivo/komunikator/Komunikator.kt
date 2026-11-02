@@ -3256,7 +3256,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 }.setNegativeButton(android.R.string.cancel, null).show()
             })
             addView(icon("🖼", t("Zdjęcia, filmy i pliki z rozmowy", "Photos, videos and files in this chat")) { gallery(c) })
-            if (!c.isGroup) { addView(icon("📞", t("Rozmowa głosowa", "Voice call")) { openCall(c, true, true) }.apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(green) } })   // wyraźna zielona słuchawka; addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) } }
+            if (!c.isGroup) { addView(icon("📞", t("Rozmowa głosowa", "Voice call")) { openCall(c, true, true) }.apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(green) } }); addView(icon("📹", t("Rozmowa wideo", "Video call")) { openCall(c, true) }) } }   // 📞 wyraźna, zielona
         input.setText(k.draft(c.id)); input.setSelection(input.text.length); sendOrMic()
         fill(); status(); ringPending(c)
         input.addTextChangedListener(object : android.text.TextWatcher {

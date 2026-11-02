@@ -2595,10 +2595,15 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         fill()
         listRefresh = { if (chatWith == null) fill() }
         val close = icon("✕", t("Zamknij", "Close")) { screen?.dismiss() }
-        val title = TextView(a).apply {
-            val tt = "Velivo"
-            text = android.text.SpannableString(tt + "\n" + t("Komunikator", "Messenger") + " · By MichAel").apply { setSpan(android.text.style.RelativeSizeSpan(0.5f), tt.length + 1, length, 0) }; textSize = 24f; setTextColor(ink); setTypeface(typeface, android.graphics.Typeface.BOLD)   // autor pod nazwą
-            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(10), 0, px(4), 0)
+        val title = LinearLayout(a).apply {   // „Velivo” w kolorach Velivo (fiolet → niebieski), miękka czcionka; pod spodem autor
+            orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(10), 0, px(4), 0)
+            addView(TextView(a).apply {
+                text = "Velivo"; textSize = 26f; maxLines = 1; letterSpacing = 0.02f
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                setTextColor(Color.rgb(0x8B, 0x5C, 0xF6))
+                paint.shader = android.graphics.LinearGradient(0f, 0f, paint.measureText("Velivo"), 0f, Color.rgb(0xA7, 0x8B, 0xFA), Color.rgb(0x3B, 0x82, 0xF6), android.graphics.Shader.TileMode.CLAMP)
+            })
+            addView(TextView(a).apply { text = t("Komunikator", "Messenger") + " · By MichAel"; textSize = 12f; setTextColor(dim); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
         }
         lateinit var bell: TextView
         fun bellLabel() { bell.text = if (k.background) "🔔" else "🔕"; bell.contentDescription = t("Wiadomości, gdy Velivo zamknięte: ", "Messages while Velivo is closed: ") + (if (k.background) t("wł.", "on") else t("wył.", "off")); bell.tooltipText = bell.contentDescription }

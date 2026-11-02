@@ -1676,7 +1676,7 @@ namespace Velivo
             root.Children.Add(left);
 
             var right = new DockPanel(); Grid.SetColumn(right, 2);
-            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis };
+            var header = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, 0, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxHeight = 64 };   // długa nazwa - w dwóch liniach (dalej „…”)
             var searchBox = new TextBox { Width = 160, Margin = new Thickness(6, 0, 0, 6), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("🔍 Szukaj w rozmowie") };
             var top = new DockPanel(); DockPanel.SetDock(top, Dock.Top);
             var input = new TextBox { AcceptsReturn = true, Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.En ? "en-US" : "pl-PL"), SpellCheck = { IsEnabled = true }, TextWrapping = TextWrapping.Wrap, MaxHeight = 120, MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, ToolTip = L.T("Wiadomość (Enter - wyślij, Shift+Enter - nowa linia)") };

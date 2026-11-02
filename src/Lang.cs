@@ -1302,6 +1302,7 @@ namespace Velivo
             { ": z internetu nie odpowiada – przekieruj w routerze TCP ", ": not reachable from the internet – in the router forward TCP " },
             { " i zezwól w zaporze", " and allow it in the firewall" },
             { "Sprawdzam porty…", "Checking ports…" },
+            { "Zapasowo port 443: w routerze prowadzi do innego komputera w domu (np. CHUWI) – tam działa zapasowy dostęp; tutaj nic nie trzeba", "Backup port 443: the router sends it to another computer at home (e.g. CHUWI) – the backup access works there; nothing needed here" },
             { " działa", " working" },
             { "działa", "working" },
             { "inny klucz (ten kontakt trzeba usunąć i dodać na nowo)", "different key (remove this contact and add it again)" },

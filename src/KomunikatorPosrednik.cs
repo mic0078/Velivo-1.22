@@ -1083,7 +1083,8 @@ namespace Velivo
         {
             if (!_komRelayOn || _komUp != null || _komRelayBusy) return;
             _komRelayBusy = true;
-            try { await KomRelayAutoOnce(); } finally { _komRelayBusy = false; }
+            try { await KomRelayAutoOnce(); }
+            finally { _komRelayBusy = false; if (_komRelayRouter == L.T("Sprawdzam porty…")) { _komRelayRouter = ""; KomRelayStatus(); } }   // zakończone bez wyniku (np. zmiana portu) - bez wiecznego „Sprawdzam”
         }
         async Task KomRelayAutoOnce()
         {
@@ -1119,7 +1120,8 @@ namespace Velivo
             // 🌍 zapasowe wejście przez port 443 (sieci blokujące nietypowe porty) - w routerze 443 -> port pośrednika na tym komputerze
             var alt = await Task.Run(() => KomUpnpAsync(KomRelayAltPort, port));
             // router bez UPnP (przekierowanie ręczne): prawdziwy test - połączenie z adresem domu na 443 i odpowiedź naszego pośrednika
-            if (!alt.mapped && _komRelayHost.Length > 0) alt.mapped = await KomRelayProbe(_komRelayHost, KomRelayAltPort);
+            _komRelayAltOther = false;
+            if (!alt.mapped && _komRelayHost.Length > 0) { alt.mapped = await KomRelayProbe(_komRelayHost, KomRelayAltPort); _komRelayAltOther = _komProbeOther; }
             _komRelayAlt = alt.mapped; _komRelayUpnp = ext != null || mapped || note == "taken";   // router odpowiada na UPnP - umiemy sprawdzić przekierowanie
             // port główny: prawdziwy test z adresu domu (jak 443) - UPnP mówi tylko, co router zapamiętał, nie czy działa przekierowanie ręczne
             var main = _komRelayHost.Length > 0 ? await KomRelayProbe(_komRelayHost, port) : (bool?)null;
@@ -1200,15 +1202,18 @@ namespace Velivo
         // test przekierowania: połączenie z adresem domu na podanym porcie liczy się tylko wtedy, gdy przyjął je NASZ pośrednik
         // (nie np. panel routera na 443); router bez „pętli” do własnego adresu - wynik „nie wiadomo” (false), napis mówi, jak sprawdzić
         DateTime _komRelayAcceptAt;
+        bool _komProbeOther, _komRelayAltOther;   // test portu: połączenie przyjął inny komputer w domu
         async Task<bool> KomRelayProbe(string host, int port)
         {
+            _komProbeOther = false;
             var t0 = DateTime.UtcNow;
             try
             {
                 using var cl = new TcpClient(); using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 await cl.ConnectAsync(host, port, cts.Token);
                 await Task.Delay(700);
-                return _komRelayAcceptAt > t0;
+                if (_komRelayAcceptAt > t0) return true;
+                _komProbeOther = true; return false;   // port odpowiada, ale to nie ten komputer (np. 443 na CHUWI)
             }
             catch (Exception) { return false; }
         }
@@ -1324,6 +1329,7 @@ namespace Velivo
                 (lan.Length > 0 ? "\n" + L.T("Ten komputer w sieci domowej: ") + lan + L.T(" – na ten adres przekierowanie w routerze (port ") + _komRelayPort + L.T(" i 443)") : "") +
                 (_komRelayOn && _komRelayHost.Length > 0 ? "\n" + L.T("Adres domu: ") + _komRelayHost + ":" + _komRelayPort : "") + (_komRelayOn && _komRelayDns.Length > 0 ? "\n" + _komRelayDns : "") + (_komRelayOn && _komRelayRouter.Length > 0 ? "\n" + _komRelayRouter : "") +
                 (_komRelayOn && _komRelayListener != null ? "\n" + (_komRelayAlt ? L.T("Zapasowo port 443: otwarty (działa też w sieciach blokujących porty)")
+                    : _komRelayAltOther ? L.T("Zapasowo port 443: w routerze prowadzi do innego komputera w domu (np. CHUWI) – tam działa zapasowy dostęp; tutaj nic nie trzeba")
                     : _komRelayUpnp ? L.T("Zapasowo port 443: nieotwarty – w routerze przekieruj 443 na ten komputer, port ") + _komRelayPort
                     : L.T("Zapasowo port 443: router nie pozwala tego sprawdzić – jeśli przekierowałeś w routerze 443 na ten komputer, port ") + _komRelayPort + L.T(", działa")) : "");
         }

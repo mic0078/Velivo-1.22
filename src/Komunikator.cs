@@ -2791,7 +2791,7 @@ namespace Velivo
             var pal = KomCurrentPal();
             var msgs = new StackPanel { Margin = new Thickness(6) }; var sv = new ScrollViewer { Content = msgs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             var box = new TextBox { MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 6, 4, 6), TextWrapping = TextWrapping.Wrap, MaxHeight = 120, ToolTip = L.T("Wiadomość (Enter - wyślij)") };
-            var att = new Button { Content = "📎", Width = 36, Margin = new Thickness(6, 6, 0, 6), ToolTip = L.T("Wyślij plik (albo przeciągnij plik na okienko)") };
+            var att = new Button { Content = KomIcon("attach"), Width = 40, Margin = new Thickness(6, 6, 0, 6), ToolTip = L.T("Wyślij plik (albo przeciągnij plik na okienko)") };
             var snd = new Button { Content = "➤", Width = 40, Margin = new Thickness(0, 6, 6, 6), FontSize = 16, ToolTip = L.T("Wyślij") };
             var bar = new DockPanel(); DockPanel.SetDock(att, Dock.Left); DockPanel.SetDock(snd, Dock.Right); bar.Children.Add(att); bar.Children.Add(snd); bar.Children.Add(box);
             var dp = new DockPanel(); DockPanel.SetDock(bar, Dock.Bottom); dp.Children.Add(bar); dp.Children.Add(sv);
@@ -2806,6 +2806,11 @@ namespace Velivo
                 {
                     var fp = m.Path; var bub = new Border { Background = new SolidColorBrush(m.Mine ? pal.Mine : pal.Theirs), CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(m.Mine ? 40 : 0, 2, m.Mine ? 0 : 40, 2), HorizontalAlignment = m.Mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
                         Child = new TextBlock { Text = m.Text + "   " + DateTimeOffset.FromUnixTimeMilliseconds(m.Ts).LocalDateTime.ToString("HH:mm") + (m.Mine ? (m.Read || (m.Ok && !m.Text.Contains("📬")) ? " ✓✓" : " ✓") : ""), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(m.Mine ? pal.MineFg : pal.Fg) } };
+                    if (!string.IsNullOrEmpty(fp) && bub.Child is TextBlock btx)
+                    {   // plik jak w głównym oknie: rysowana ikona spinacza zamiast znaku 📎 (w WPF szary, nieczytelny)
+                        foreach (var pre in new[] { "📎", "🖼", "🎤", "🎬", "📄", "\uFE0F" }) if (btx.Text.StartsWith(pre, StringComparison.Ordinal)) btx.Text = btx.Text.Substring(pre.Length).TrimStart(); bub.Child = null;
+                        var row = new DockPanel(); var ic = KomIcon("attach", 18); ic.Margin = new Thickness(0, 0, 6, 0); ic.VerticalAlignment = VerticalAlignment.Top; DockPanel.SetDock(ic, Dock.Left); row.Children.Add(ic); row.Children.Add(btx); bub.Child = row;
+                    }
                     if (!string.IsNullOrEmpty(fp) && File.Exists(fp)) { bub.Cursor = Cursors.Hand; bub.ToolTip = L.T("Kliknij, aby otworzyć"); bub.MouseLeftButtonUp += (s, e) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { } }; }
                     msgs.Children.Add(bub);
                 }

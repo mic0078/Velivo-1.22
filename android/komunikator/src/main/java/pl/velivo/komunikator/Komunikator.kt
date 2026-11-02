@@ -3102,6 +3102,20 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)
                     selectable(this, m)
                 })
+                if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) {   // 🎤 obok głosówki ⏩ szybkość, w trakcie odsłuchu odliczanie (jak WhatsApp)
+                    val bv = msgs.getChildAt(msgs.childCount - 1) as TextView; val lp = bv.layoutParams
+                    voiceViews[m.path!!] = bv; bv.tag = bv.text
+                    msgs.removeView(bv); bv.layoutParams = LinearLayout.LayoutParams(-2, -2)
+                    val sp = TextView(a).apply {
+                        text = "⏩ " + speedText(k.voiceSpeed); textSize = 13f * fs; setTextColor(ink); setPadding(px(10), px(6), px(10), px(6)); background = bg(pal().theirs, 14)
+                        contentDescription = t("Szybkość odtwarzania głosówek", "Voice playback speed")
+                        setOnClickListener { k.voiceSpeed = nextSpeed(); text = "⏩ " + speedText(k.voiceSpeed); player?.let { p -> runCatching { p.playbackParams = p.playbackParams.setSpeed(k.voiceSpeed) } } }
+                    }
+                    val row = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; layoutParams = lp }
+                    val gap = LinearLayout.LayoutParams(-2, -2).apply { if (m.mine) rightMargin = px(6) else leftMargin = px(6) }
+                    if (m.mine) { row.addView(sp, gap); row.addView(bv) } else { row.addView(bv); row.addView(sp, gap) }
+                    msgs.addView(row)
+                }
                 if (!m.mine && m.path == null) Ochrona.messageWarning(m.text, pl)?.let { w -> msgs.addView(TextView(a).apply {   // 🛡 podejrzany link / prośba o kod lub dane karty
                     text = w; textSize = 14f * fs; setTextColor(if (w.startsWith("⚠")) Color.WHITE else ink); setPadding(px(12), px(6), px(12), px(7))
                     background = bg(if (w.startsWith("⚠")) Color.rgb(0xDC, 0x26, 0x26) else Color.argb(0x40, 0xF5, 0x9E, 0x0B), 12)
@@ -3459,6 +3473,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private var player: android.media.MediaPlayer? = null; private var playing: String? = null
     private fun nextSpeed() = when (k.voiceSpeed) { 1f -> 1.5f; 1.5f -> 2f; else -> 1f }
     private fun speedText(x: Float) = if (x == 1.5f) t("1,5×", "1.5×") else "${x.toInt()}×"
+    // ⏳ odliczanie w dymku głosówki: „🎤 ⏸ · 0:04” zamiast „🎤 ▶ · 0:06”; left < 0 - powrót do zwykłego napisu
+    private val voiceViews = HashMap<String, TextView>(); private val voiceTick = Handler(Looper.getMainLooper())
+    private fun voiceShow(path: String?, left: Long) {
+        val v = voiceViews[path ?: return] ?: return; val o = v.tag as? CharSequence ?: return
+        if (left < 0) { v.text = o; return }
+        val head = "🎤 ▶ · " + (voiceLength(path) ?: return); if (!o.startsWith(head)) return
+        v.text = android.text.SpannableStringBuilder(o).replace(0, head.length, "🎤 ⏸ · " + "%d:%02d".format(Locale.ROOT, left / 60000, left / 1000 % 60))
+    }
     // 🎤 długość głosówki (raz na plik)
     private val lengths = HashMap<String, String>()
     private fun voiceLength(path: String?): String? {
@@ -3511,12 +3533,17 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     private fun play(path: String) {
         audioNormal()
         val was = playing; player?.let { runCatching { it.stop() }; it.release() }; player = null; playing = null
+        voiceTick.removeCallbacksAndMessages(null); voiceShow(was, -1)
         if (was == path) return
-        player = runCatching { android.media.MediaPlayer().apply { setDataSource(path); setOnCompletionListener { it.release(); if (player === it) { player = null; playing = null } }; prepare(); start()
+        player = runCatching { android.media.MediaPlayer().apply { setDataSource(path); setOnCompletionListener { it.release(); if (player === it) { player = null; playing = null; voiceTick.removeCallbacksAndMessages(null); voiceShow(path, -1) } }; prepare(); start()
             if (k.voiceSpeed != 1f) playbackParams = playbackParams.setSpeed(k.voiceSpeed)
             // 🔊 głosówki z mikrofonu telefonu bywają bardzo ciche (surowy mikrofon, bez wzmocnienia) - głośniej o 12 dB, ogranicznik nie przesteruje
             runCatching { voiceBoost?.release(); voiceBoost = android.media.audiofx.LoudnessEnhancer(audioSessionId).apply { setTargetGain(1200); enabled = true } } } }.getOrNull()   // ⏩ 1,5× / 2×
-        if (player != null) { playing = path; Toast.makeText(a, "▶ " + t("Wiadomość głosowa (stuknij, by zatrzymać)", "Voice message (tap to stop)"), Toast.LENGTH_SHORT).show() }
+        if (player != null) { playing = path; Toast.makeText(a, "▶ " + t("Wiadomość głosowa (stuknij, by zatrzymać)", "Voice message (tap to stop)"), Toast.LENGTH_SHORT).show()
+            voiceTick.post(object : Runnable { override fun run() {
+                val p = player ?: return; if (playing != path) return
+                voiceShow(path, runCatching { ((p.duration - p.currentPosition) / k.voiceSpeed).toLong() + 999 }.getOrDefault(0L)); voiceTick.postDelayed(this, 250)
+            } }) }
         else Toast.makeText(a, t("Nie udało się odtworzyć", "Could not play"), Toast.LENGTH_SHORT).show()
     }
 

@@ -48,7 +48,7 @@ Pasek pojawia się, gdy ruszysz myszką, i chowa się po chwili.
 - Biblioteka, 🕘 ostatnio oglądane, tryb mini, pełny ekran, głośność.
 - **Pasek dopasowuje się do tego, co oglądasz:** przy filmie nie ma przycisków telewizji (nagrywanie, program TV, odśwież kanał); przy telewizji nie ma biblioteki, historii filmów i kolejki. ⭐ ulubione kanały i ⭐ ulubione filmy są w obu trybach. Przyciski, których akurat nie da się użyć (np. ⏹ zatrzymaj nagrywanie, gdy nic się nie nagrywa), są schowane zamiast szare.
 - Na małym ekranie (telewizor, starszy laptop, duże skalowanie) pasek przycisków sam się zmniejsza – nic nie jest obcięte.
-- Przyciski paska są w grupach z podpisem: **Odtwarzanie, Telewizja, Nagrywanie, Film, Obraz i dźwięk, Ulubione, Widok**; grupa bez przycisków w danym trybie znika. Niebieski przycisk na końcu przełącza **Filmy ↔ TV**.
+- Przyciski paska są w grupach z podpisem: **Odtwarzanie, Telewizja, Nagrywanie, Film, Obraz i dźwięk, Ulubione, Widok**; grupa bez przycisków w danym trybie znika. Niebieski przycisk na końcu przełącza **Filmy ↔ TV**. Dalej, za kreską, ramki **Sieć** (wykres, ↓ ↑) i **Czas i odbiór** (koniec, ile zostało, stan odbioru i jakość), potem zegar i logo stacji albo plakat.
 - **↕ Wysokość paska:** 👁 (ustawienia paska) → suwak 100–160 % – wyższe przyciski, większe ikony, napisy i zegar; Velivo zapamiętuje.
 - Dwuklik w plik filmu w Windows otwiera od razu sam odtwarzacz Velivo – przeglądarka nie wyskakuje (czeka zminimalizowana na pasku zadań).
 - Gdy Velivo uruchamia się razem z Windows, po cichu przygotowuje telewizję (kanały, program TV) i odtwarzacz – po otwarciu wszystko działa od razu.

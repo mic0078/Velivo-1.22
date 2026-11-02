@@ -1555,6 +1555,9 @@ namespace Velivo
                 foreach (var it in items) visDp.AddValueChanged(it, upd);
                 upd(null, null); return g;
             };
+            // podpis pod elementem (jak pod grupami) i ramka o wysokości grup - prawa strona paska w tym samym porządku co lewa
+            Func<UIElement, string, FrameworkElement> capt = (el, t) => { var p = new StackPanel { Margin = new Thickness(3, 0, 3, 0), VerticalAlignment = VerticalAlignment.Bottom }; p.Children.Add(el); p.Children.Add(new TextBlock { Text = t, FontSize = 11, Foreground = Brushes.Silver, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) }); return p; };
+            Func<UIElement, Border> card = el => new Border { Background = new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF)), CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 0, 10, 0), Height = 40, Child = el };
             left.Children.Add(grp(L.T("Odtwarzanie"), new UIElement[] { prev, play, stop, next, filmNav, tvNav, hist, sleep }));
             var right = new StackPanel { Orientation = Orientation.Horizontal };
             bool narrow = false; Action updMode = null;
@@ -1610,15 +1613,15 @@ namespace Velivo
             right.Children.Add(grp(L.T("Ulubione"), new UIElement[] { fav, qFavTv, qFavFilm }));
             right.Children.Add(grp(L.T("Widok"), new UIElement[] { qInfo, qBarTime, qInfoSet }));
             // przełącznik TV ↔ Filmy - niebieski, osobno na końcu (zawsze widać, jak przejść na drugą stronę)
-            swap.Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8)); swap.Margin = new Thickness(8, 0, 4, 15); swap.VerticalAlignment = VerticalAlignment.Bottom;
-            right.Children.Add(swap);
+            swap.Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8)); swap.Margin = new Thickness(5, 0, 2, 0); swap.Height = 40;
+            right.Children.Add(capt(swap, L.T("Przełącz")));
             // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data
-            quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+            quick.Children.Add(new Border { Width = 1, Height = 36, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(4, 0, 8, 18), VerticalAlignment = VerticalAlignment.Bottom });
             var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
             var netGraph = new Canvas { Width = 120, Height = 28, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)) };
             var netUpLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };   // wysylanie (np. film dla drugiego komputera w LAN)
             netGraph.Children.Add(netLine); netGraph.Children.Add(netUpLine);
-            var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 18, 0), MinWidth = 84, LineHeight = 14 };
+            var netText = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), MinWidth = 72, LineHeight = 14 };
             var nowTime = new TextBlock { Foreground = Brushes.White, FontSize = 26, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
             var nowDate = new TextBlock { Foreground = Brushes.Silver, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Center };
             var clockBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }; clockBox.Children.Add(nowTime); clockBox.Children.Add(nowDate);
@@ -1630,10 +1633,12 @@ namespace Velivo
             // ⏱ koniec filmu / audycji TV i ● stan odbioru (z utraconych klatek i przerw strumienia) - między wykresem a zegarem
             var endRun = new System.Windows.Documents.Run { Foreground = Brushes.White }; var leftRun = new System.Windows.Documents.Run { Foreground = Brushes.Silver };
             var dotRun = new System.Windows.Documents.Run("●") { Foreground = Brushes.Gray }; var stateRun = new System.Windows.Documents.Run { Foreground = Brushes.Silver };
-            var endText = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0), LineHeight = 14, MinWidth = 200, Visibility = Visibility.Collapsed,   // stała szerokość - zmiana tekstu co sekundę nie przesuwa i nie skaluje paska
+            var endText = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed,   // stała szerokość - zmiana tekstu co sekundę nie przesuwa i nie skaluje paska
                
                 ToolTip = L.T("⏱ O której skończy się film (albo audycja TV według programu) i ile zostało.\n● Odbiór: Dobry – płynnie; Słaby – gubi klatki (przycina komputer albo łącze); Przerywa – strumień staje albo się buforuje.") };
-            endText.Inlines.Add(endRun); endText.Inlines.Add(new System.Windows.Documents.LineBreak()); endText.Inlines.Add(dotRun); endText.Inlines.Add(new System.Windows.Documents.Run(" ")); endText.Inlines.Add(stateRun); endText.Inlines.Add(leftRun);
+            endText.Inlines.Add(endRun); endText.Inlines.Add(leftRun);   // 1. linijka: ⏱ do 16:20 · zostało 12 min
+            var stateText = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center };   // 2. linijka: ● Dobry odbiór · jakość strumienia
+            stateText.Inlines.Add(dotRun); stateText.Inlines.Add(new System.Windows.Documents.Run(" ")); stateText.Inlines.Add(stateRun);
             var lostHist = new Queue<int>();   // utracone klatki z ostatnich 10 s
             // za zegarem: film – plakat, ocena i gatunek (z Jellyfin); telewizja – logo stacji
             var badgeImg = new Image { Height = 66, MaxWidth = 120, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };
@@ -1709,12 +1714,17 @@ namespace Velivo
                 pop.IsOpen = true;
             };
             badge.MouseLeftButtonUp += (s, e) => { e.Handled = true; _ = showAbout(badge, badgeP, badgeCh, badgeImg.Source); };
-            quick.Children.Add(netBox); quick.Children.Add(endText); 
+            quick.Children.Add(capt(card(netBox), L.T("Sieć")));
             netBox.Cursor = Cursors.Hand; netBox.Background = Brushes.Transparent;
             long netLast = -1, netUpLast = -1; var netHist = new List<double>(); var netUpHist = new List<double>();
             // z prawej, nad wykresem sieci i zegarem: jakosc strumienia (rozdzielczosc, przeplywnosc, klatki, utracone klatki)
             var streamInfo = new TextBlock { Foreground = Brushes.Silver, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
                 ToolTip = L.T("Jakość strumienia: rozdzielczość, przepływność obrazu i dźwięku, klatki na sekundę.\nUtracone klatki (pomarańczowe) – przycina komputer; spadek Mb/s – przycina strumień od dostawcy.") };
+            var line2 = new StackPanel { Orientation = Orientation.Horizontal }; line2.Children.Add(stateText);
+            line2.Children.Add(new TextBlock { Text = "  ·  ", FontSize = 12, Foreground = Brushes.Gray, VerticalAlignment = VerticalAlignment.Center }); line2.Children.Add(streamInfo);
+            var endCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center, MinWidth = 230 }; endCol.Children.Add(endText); endCol.Children.Add(line2);
+            var endBox = capt(card(endCol), L.T("Czas i odbiór")); quick.Children.Add(endBox);
+            EventHandler endVis = (s, e) => endBox.Visibility = endText.Visibility; visDp.AddValueChanged(endText, endVis); endVis(null, null);   // bez filmu / kanału - cała ramka znika
             string techKey = null, techShort = "", techFull = "";   // dane techniczne biezacego filmu (raz na film)
             var netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             bool netBusy = false;
@@ -1831,9 +1841,8 @@ namespace Velivo
                 Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse("<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><Border Background='Transparent' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border></ControlTemplate>") };
             var statusRow = new DockPanel { LastChildFill = false, Margin = new Thickness(12, 4, 4, 0), MinHeight = 21, VerticalAlignment = VerticalAlignment.Top };   // MinHeight: przycisk REC i połączenia (emoji) są wyższe niż 21 px - przy stałej wysokości wystawały i były ucięte od góry   // ta sama wysokosc i linia co rzad z czasem / NA ZYWO
             // separator nad dolnym separatorem (przed wykresem sieci)
-            var infoSep = new Border { Width = 1, Height = 16, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-            DockPanel.SetDock(recPill, Dock.Left); DockPanel.SetDock(connText, Dock.Left); DockPanel.SetDock(streamInfo, Dock.Right); DockPanel.SetDock(infoSep, Dock.Right);
-            statusRow.Children.Add(recPill); statusRow.Children.Add(connText); statusRow.Children.Add(streamInfo); statusRow.Children.Add(infoSep);
+            DockPanel.SetDock(recPill, Dock.Left); DockPanel.SetDock(connText, Dock.Left);
+            statusRow.Children.Add(recPill); statusRow.Children.Add(connText);   // jakość strumienia - w ramce „Czas i odbiór”
             // układ: u góry pasek postępu (przez całą szerokość, do danych strumienia) i dane strumienia; pod spodem przyciski i szybkie ikony
             quick.VerticalAlignment = VerticalAlignment.Bottom;
             // dane strumienia rowno od lewej z wykresem sieci (zaraz za separatorem)
@@ -1841,7 +1850,7 @@ namespace Velivo
             {
                 try
                 {
-                    var x = netBox.TranslatePoint(new Point(0, 0), statusRow).X; if (x > 0 && statusRow.ActualWidth > x) streamInfo.Width = statusRow.ActualWidth - x;
+                    var x = netBox.TranslatePoint(new Point(0, 0), statusRow).X;
                     // pasek postępu sięga do danych strumienia; przy nagrywaniu / połączeniach (napisy po lewej) - tylko nad przyciskami
                     bool free = recPill.Visibility != Visibility.Visible && connText.Visibility != Visibility.Visible;
                     double r = free && x > 0 ? statusRow.ActualWidth - x + 16 : statusRow.ActualWidth + statusRow.Margin.Left;
@@ -1859,8 +1868,10 @@ namespace Velivo
             ctlRow.Children.Add(seekRow); ctlRow.Children.Add(statusRow); ctlRow.Children.Add(mainCol); ctlRow.Children.Add(quick);
             // zegar i plakat / logo stacji z prawej na wysokość obu wierszy - większe, czytelne z kanapy
             ctlRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var rightBox = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 4, 10, 4) };
-            rightBox.Children.Add(clockBox); rightBox.Children.Add(badge);
+            var rightBox = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(4, 4, 10, 12) };
+            var badgeSep = new Border { Width = 1, Height = 40, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            EventHandler sepVis = (s, e) => badgeSep.Visibility = badge.Visibility; visDp.AddValueChanged(badge, sepVis); sepVis(null, null);
+            rightBox.Children.Add(clockBox); rightBox.Children.Add(badgeSep); rightBox.Children.Add(badge);
             Grid.SetColumn(rightBox, 2); Grid.SetRowSpan(rightBox, 2); ctlRow.Children.Add(rightBox);
             // na obrazie (u gory na srodku, takze przy schowanym pasku): mala czerwona kropka i co sie nagrywa
             var recDot = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };

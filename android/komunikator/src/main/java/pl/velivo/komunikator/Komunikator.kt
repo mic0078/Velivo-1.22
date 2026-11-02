@@ -3487,6 +3487,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             (grid.adapter as android.widget.BaseAdapter).notifyDataSetChanged()
             dlg?.setTitle("🖼 " + c.name + if (sel.isEmpty()) "" else "  ·  " + t("zaznaczone: ", "selected: ") + sel.size)
             dlg?.getButton(AlertDialog.BUTTON_POSITIVE)?.visibility = if (sel.isEmpty()) View.GONE else View.VISIBLE
+            dlg?.getButton(AlertDialog.BUTTON_NEUTRAL)?.visibility = if (sel.isEmpty()) View.GONE else View.VISIBLE
         }
         grid.setOnItemLongClickListener { _, _, i, _ -> mark(i); true }
         grid.setOnItemClickListener { _, _, i, _ ->
@@ -3494,7 +3495,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             val p = ms[i].path!!; dlg?.dismiss()
             if (k.isImage(p)) showPhoto(p, photos(c)) else if (p.contains("Glosowa-")) play(p) else openFile(p)
         }
-        dlg = Dlg().setTitle("🖼 " + c.name).setView(grid).setPositiveButton("🗑 " + t("Usuń", "Delete"), null).setNegativeButton(t("Zamknij", "Close"), null).show()
+        dlg = Dlg().setTitle("🖼 " + c.name).setView(grid).setPositiveButton("🗑 " + t("Usuń", "Delete"), null).setNeutralButton("↪ " + t("Przekaż", "Forward"), null).setNegativeButton(t("Zamknij", "Close"), null).show()
+        dlg?.getButton(AlertDialog.BUTTON_NEUTRAL)?.apply { visibility = View.GONE; setOnClickListener { val pick = sel.sorted().map { ms[it] }; dlg?.dismiss(); forwardAll(c, pick) } }   // ↪ zaznaczone pliki do innej osoby / grupy
         dlg?.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
             visibility = View.GONE
             setOnClickListener {
@@ -3506,7 +3508,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     }.setNegativeButton(android.R.string.cancel, null).show()
             }
         }
-        Toast.makeText(a, t("Przytrzymaj, aby zaznaczyć i usunąć", "Hold to select and delete"), Toast.LENGTH_SHORT).show()
+        Toast.makeText(a, t("Przytrzymaj, aby zaznaczyć – potem usuń albo przekaż", "Hold to select – then delete or forward"), Toast.LENGTH_SHORT).show()
     }
 
     // 💾 rozmowa jako tekst w Pobranych

@@ -3139,8 +3139,10 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         onReply = { m -> replyTo = m; replyBar.text = "↩ " + k.quote(m).trim() + "   ✕"; replyBar.visibility = View.VISIBLE; input.requestFocus() }
         fun send() { val s = input.text.toString().trim(); if (s.isEmpty()) return; input.setText(""); k.send(c, (replyTo?.let { k.quote(it) } ?: "") + s); replyTo = null; replyBar.visibility = View.GONE; fill() }
         // 📎 plik albo 🎬 wiadomość wideo (aparat telefonu; nagranie idzie jak plik - także do skrzynki 📬)
+        var camShot: () -> Unit = {}
         val clip = round("📎", t("Załącz plik albo nagraj wiadomość wideo", "Attach a file or record a video message"), pal().button) {
-            Dlg().setItems(arrayOf("📎 " + t("Plik / zdjęcie", "File / photo"), "🎬 " + t("Nagraj wiadomość wideo", "Record a video message"), "📍 " + t("Moja lokalizacja", "My location"))) { _, i ->
+            Dlg().setItems(arrayOf("📎 " + t("Plik / zdjęcie", "File / photo"), "🎬 " + t("Nagraj wiadomość wideo", "Record a video message"), "📍 " + t("Moja lokalizacja", "My location"), "📷 " + t("Zrób zdjęcie aparatem (pełna jakość)", "Take a photo (full quality)"))) { _, i ->
+                if (i == 3) { camShot(); return@setItems }
                 if (i == 2) { sendLocation(c) { fill() }; return@setItems }
                 attachTo = c
                 if (i == 0) pickFiles()
@@ -3215,7 +3217,8 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (rec != null) { sendNow = true; mic.performClick(); return@round }   // ➤ w trakcie nagrywania - od razu wysyła głosówkę (jak WhatsApp)
             (a.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).sendAppPrivateCommand(input, "pl.velivo.slowo", null); input.postDelayed({ send() }, 150) }
         input.setOnEditorActionListener { _, id, _ -> if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { send(); true } else false }
-        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(input); addView(cam); addView(mic); addView(btn) }
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(4), px(6), px(4), px(8)); addView(clip); addView(input); addView(mic); addView(btn) }   // jak Windows: 📷 w menu 📎 - więcej miejsca na tekst
+        camShot = { cam.performClick() }
         // jak WhatsApp: pusty tekst - 🎤 w miejscu ➤ (więcej miejsca na pisanie); ➤ widać przy tekście i w trakcie nagrywania (wyślij od razu)
         sendOrMic = { val txt = input.text.isNotEmpty(); btn.visibility = if (txt || rec != null) View.VISIBLE else View.GONE; mic.visibility = if (txt && rec == null) View.GONE else View.VISIBLE }
         val back = icon("←", t("Rozmowy", "Chats"), 22f) { show() }.apply { (layoutParams as LinearLayout.LayoutParams).apply { leftMargin = px(6); rightMargin = px(6) } }
@@ -3259,7 +3262,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(x: CharSequence?, st: Int, n: Int, af: Int) {}
             override fun onTextChanged(x: CharSequence?, st: Int, b: Int, n: Int) { if (n > 0) k.sendTyping(c) }   // ✍ druga osoba widzi „pisze…”
-            override fun afterTextChanged(x: android.text.Editable?) { cam.visibility = if (x.isNullOrEmpty()) View.VISIBLE else View.GONE; sendOrMic(); k.setDraft(c.id, x?.toString() ?: "") }   // ✏ szkic zostaje po wyjściu   // pisanie - więcej miejsca na tekst (jak w WhatsApp)
+            override fun afterTextChanged(x: android.text.Editable?) { sendOrMic(); k.setDraft(c.id, x?.toString() ?: "") }   // ✏ szkic zostaje po wyjściu   // pisanie - więcej miejsca na tekst (jak w WhatsApp)
         })
         k.onTyping = { id -> if (id == c.id && chatWith == c.id) { status(); input.postDelayed({ if (chatWith == c.id) status() }, 6500) } }
         chatRefresh = { k.markRead(c.id); k.sendRead(c); fill(); status() }

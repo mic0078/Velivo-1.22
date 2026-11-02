@@ -427,4 +427,5 @@
     <string-array name="theme_colors"><item>Graphite</item><item>Navy</item><item>Night violet</item><item>Forest</item><item>Ocean</item><item>Sunset</item><item>Black (OLED)</item><item>Paper</item><item>Mist</item></string-array>
     <string name="jf_refresh_fail">Library not refreshed: %1$s (server %2$s)</string>
     <string name="jf_no_user">no Jellyfin user chosen – ⚙ → server</string>
+    <string name="media_pick_help">Tick what should go to this phone. Unticked items stay as they are. Addresses with a token are not shown – only the server.</string>
 </resources>

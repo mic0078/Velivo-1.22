@@ -2795,8 +2795,22 @@ return JSON.stringify({t:title,b:out.join('\n\n')})})()"""
         }
         // tytuł w kilku wierszach - kod do porównania z komputerem zawsze widoczny w całości
         val title = TextView(this).apply { text = getString(R.string.media_pick_title, dev) + if (code != null) "\n" + getString(R.string.media_share_code, code) else ""; textSize = 18f; setPadding(dp(24), dp(20), dp(24), dp(4)) }
-        AlertDialog.Builder(this).setCustomTitle(title)
-            .setMultiChoiceItems(items.map { it.first }.toTypedArray(), pick) { _, i, on -> pick[i] = on }
+        // czytelnie: krótkie objaśnienie, każda pozycja osobnym kafelkiem - pole zaznaczenia, pogrubiona nazwa, pod nią pełny adres (bez ucinania)
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(4), dp(20), dp(8)) }
+        box.addView(TextView(this).apply { text = getString(R.string.media_pick_help); textSize = 14f; alpha = 0.85f; setPadding(0, 0, 0, dp(10)) })
+        items.forEachIndexed { i, (label, _) ->
+            val lines = label.split("\n")
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(10), dp(8), dp(10))
+                background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(Color.argb(0x30, 0x8B, 0x5C, 0xF6)) } }
+            val cb = android.widget.CheckBox(this).apply { isChecked = pick[i]; setOnCheckedChangeListener { _, on -> pick[i] = on } }
+            val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), 0, 0, 0) }
+            texts.addView(TextView(this).apply { text = lines[0]; textSize = 17f; setTypeface(typeface, android.graphics.Typeface.BOLD) })
+            if (lines.size > 1) texts.addView(TextView(this).apply { text = lines.drop(1).joinToString("\n"); textSize = 14f; alpha = 0.8f })
+            row.addView(cb); row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.setOnClickListener { cb.isChecked = !cb.isChecked }
+            box.addView(row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) })
+        }
+        AlertDialog.Builder(this).setCustomTitle(title).setView(ScrollView(this).apply { addView(box) })
             .setPositiveButton(R.string.file_accept) { _, _ -> apply() }.setNegativeButton(android.R.string.cancel, null).show()
     }
 

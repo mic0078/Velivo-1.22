@@ -1849,6 +1849,7 @@ namespace Velivo
             { "Obraz i dźwięk", "Picture & sound" },
             { "Ulubione", "Favourites" },
             { "Widok", "View" },
+            { "Szybkość odtwarzania głosówek – kliknij: 1× / 1,5× / 2×", "Voice playback speed – click: 1× / 1.5× / 2×" },
             { "Przełącz", "Switch" },
             { "Sieć", "Network" },
             { "Czas i odbiór", "Time & signal" },

@@ -2027,8 +2027,15 @@ namespace Velivo
                     }
                     // jak WhatsApp: zdjęcie / film z miniaturą - sam obraz i godzina (bez nazwy, rozmiaru, „odebrano”); głosówka - krótko
                     bool mediaOnly = hasFile && body.Children.Count > 0 && (KomIsVideo(m.Path) || KomIsImage(m.Path));
-                    if (hasFile && Path.GetFileName(m.Path).Contains("Glosowa-")) { txt.Inlines.Clear(); txt.Text = "🎤 ▶  " + L.T("Wiadomość głosowa"); }
-                    if (!mediaOnly) body.Children.Add(txt);
+                    bool isVoice = hasFile && Path.GetFileName(m.Path).Contains("Glosowa-");
+                    if (isVoice) { txt.Inlines.Clear(); txt.Text = KomVoiceIdle; _komVoiceTxt[m.Path] = txt; txt.VerticalAlignment = VerticalAlignment.Center; }
+                    if (isVoice)
+                    {   // ⏩ szybkość obok głosówki (jak w telefonie), w trakcie odsłuchu odliczanie w dymku
+                        var spd = new Button { Content = "⏩ " + KomSpeedText(KomVoiceSpeed), Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(8, 2, 8, 2), Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center, ToolTip = L.T("Szybkość odtwarzania głosówek – kliknij: 1× / 1,5× / 2×") };
+                        spd.Click += (s2, e2) => { _komOpt["glos-x"] = KomNextSpeed(); KomSave(); if (_komVoice != null) _komVoice.SpeedRatio = KomVoiceSpeed; spd.Content = "⏩ " + KomSpeedText(KomVoiceSpeed); };
+                        var vrow = new StackPanel { Orientation = Orientation.Horizontal }; vrow.Children.Add(txt); vrow.Children.Add(spd); body.Children.Add(vrow);
+                    }
+                    else if (!mediaOnly) body.Children.Add(txt);
                     if (!m.Mine && !hasFile && KomScamWarning(m.Text) is string scam)   // 🛡 podejrzany link / prośba o kod lub dane karty
                         body.Children.Add(new Border { Background = new SolidColorBrush(scam.StartsWith("⚠") ? Color.FromRgb(0xDC, 0x26, 0x26) : Color.FromArgb(0x50, 0xF5, 0x9E, 0x0B)), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 4, 8, 5), Margin = new Thickness(0, 6, 0, 2),
                             Child = new TextBlock { Text = scam, TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = scam.StartsWith("⚠") ? Brushes.White : fg } });
@@ -2429,17 +2436,32 @@ namespace Velivo
         double KomVoiceSpeed => (double?)_komOpt["glos-x"] ?? 1.0;
         double KomNextSpeed() => KomVoiceSpeed == 1.0 ? 1.5 : KomVoiceSpeed == 1.5 ? 2.0 : 1.0;
         static string KomSpeedText(double x) => x == 1.5 ? L.T("1,5×") : (int)x + "×";
+        // ⏳ odliczanie w dymku: „🎤 ⏸  0:04” w trakcie, potem znowu „🎤 ▶  Wiadomość głosowa”
+        readonly Dictionary<string, TextBlock> _komVoiceTxt = new Dictionary<string, TextBlock>();
+        System.Windows.Threading.DispatcherTimer _komVoiceTick;
+        static string KomVoiceIdle => "🎤 ▶  " + L.T("Wiadomość głosowa");
+        void KomVoiceShow(string path, TimeSpan? left) { if (path != null && _komVoiceTxt.TryGetValue(path, out var t)) t.Text = left is TimeSpan l ? "🎤 ⏸  " + ((int)l.TotalMinutes) + ":" + l.Seconds.ToString("00") : KomVoiceIdle; }
         void KomPlayVoice(string path)
         {
             var was = _komVoicePath; try { _komVoice?.Stop(); _komVoice?.Close(); } catch (Exception) { }
-            _komVoice = null; _komVoicePath = null;
+            _komVoice = null; _komVoicePath = null; _komVoiceTick?.Stop(); KomVoiceShow(was, null);
             if (was == path) return;
             var p = new MediaPlayer { Volume = 1.0 };   // WPF MediaPlayer ma domyślnie połowę głośności (0,5) - głosówki z telefonu były „strasznie cicho”
             p.MediaOpened += (s, e) => KomInfo("▶ " + L.T("Wiadomość głosowa") + (p.NaturalDuration.HasTimeSpan ? " " + p.NaturalDuration.TimeSpan.ToString(@"m\:ss") : "") + " · " + KomSpeedText(KomVoiceSpeed) + " – " + L.T("kliknij, by zatrzymać"));
-            p.MediaEnded += (s, e) => { p.Close(); if (_komVoice == p) { _komVoice = null; _komVoicePath = null; } };
+            p.MediaEnded += (s, e) => { p.Close(); if (_komVoice == p) { _komVoice = null; _komVoicePath = null; _komVoiceTick?.Stop(); KomVoiceShow(path, null); } };
             p.MediaFailed += (s, e) => { if (_komVoice == p) { _komVoice = null; _komVoicePath = null; } try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }); } catch (Exception) { } };
             p.Open(new Uri(path)); p.SpeedRatio = KomVoiceSpeed; p.Play();
             _komVoice = p; _komVoicePath = path;
+            if (_komVoiceTick == null)
+            {
+                _komVoiceTick = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+                _komVoiceTick.Tick += (s, e) =>
+                {
+                    var v = _komVoice; if (v == null) { _komVoiceTick.Stop(); return; }
+                    if (v.NaturalDuration.HasTimeSpan) KomVoiceShow(_komVoicePath, TimeSpan.FromSeconds(Math.Ceiling(Math.Max(0, (v.NaturalDuration.TimeSpan - v.Position).TotalSeconds) / Math.Max(0.25, v.SpeedRatio))));
+                };
+            }
+            _komVoiceTick.Start();
         }
         // 📍 położenie z Windows (lokalizacja musi być włączona w ustawieniach prywatności)
         static async Task<string> KomLocation()

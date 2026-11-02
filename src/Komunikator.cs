@@ -2793,7 +2793,13 @@ namespace Velivo
             var box = new TextBox { MinHeight = 34, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 6, 4, 6), TextWrapping = TextWrapping.Wrap, MaxHeight = 120, ToolTip = L.T("Wiadomość (Enter - wyślij)") };
             var att = new Button { Content = KomIcon("attach"), FontSize = 16, Width = 44, Margin = new Thickness(6, 6, 0, 6), ToolTip = L.T("Wyślij plik (albo przeciągnij plik na okienko)") };
             var snd = new Button { Content = "➤", Width = 44, Margin = new Thickness(0, 6, 6, 6), FontSize = 16, ToolTip = L.T("Wyślij") };
-            var bar = new DockPanel(); DockPanel.SetDock(att, Dock.Left); DockPanel.SetDock(snd, Dock.Right); bar.Children.Add(att); bar.Children.Add(snd); bar.Children.Add(box);
+            var emo = new Button { Content = KomIcon("emoji"), FontSize = 16, Width = 44, Margin = new Thickness(6, 6, 0, 6), ToolTip = L.T("Emotki (Win+.)") };
+            var mic = new Button { Content = KomIcon("mic"), FontSize = 16, Width = 44, Margin = new Thickness(0, 6, 6, 6), ToolTip = L.T("Wiadomość głosowa: kliknij, mów, kliknij ponownie, by wysłać") };
+            var bar = new DockPanel(); foreach (var b in new[] { att, emo }) DockPanel.SetDock(b, Dock.Left); DockPanel.SetDock(snd, Dock.Right); DockPanel.SetDock(mic, Dock.Right);
+            bar.Children.Add(att); bar.Children.Add(emo); bar.Children.Add(snd); bar.Children.Add(mic); bar.Children.Add(box);   // jak główne okno: 📎 😊 [pole] 🎤 (➤ zamiast 🎤, gdy jest tekst)
+            void SendOrMic() { bool t = box.Text.Trim().Length > 0 && !Equals(mic.Tag, "rec"); snd.Visibility = t ? Visibility.Visible : Visibility.Collapsed; mic.Visibility = t ? Visibility.Collapsed : Visibility.Visible; }
+            box.TextChanged += (s, e) => SendOrMic(); SendOrMic();
+            emo.Click += (s, e) => { box.Focus(); keybd_event(0x5B, 0, 0, 0); keybd_event(0xBE, 0, 0, 0); keybd_event(0xBE, 0, 2, 0); keybd_event(0x5B, 0, 2, 0); };
             var dp = new DockPanel(); DockPanel.SetDock(bar, Dock.Bottom); dp.Children.Add(bar); dp.Children.Add(sv);
             var d = new Window { Title = "💬 " + c.Name, Width = 340, Height = 460, Topmost = true, Content = dp, Icon = KomWindowIcon(), AllowDrop = true };
             string sig = null;
@@ -2824,6 +2830,23 @@ namespace Velivo
             }
             box.PreviewKeyDown += (s, e) => { if (e.Key != Key.Enter || (Keyboard.Modifiers & ModifierKeys.Shift) != 0) return; e.Handled = true; Send(); };
             snd.Click += (s, e) => Send();
+            bool recording = false; string recPath = null; DateTime recAt = default;
+            mic.Click += async (s, e) =>
+            {   // 🎤 jak w głównym oknie (osobny alias nagrywania - oba okna naraz się nie gryzą)
+                if (!recording)
+                {
+                    Directory.CreateDirectory(KomMediaDir); recPath = Path.Combine(KomMediaDir, "Glosowa-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".wav");
+                    KomMci("close velivorecm");
+                    if (KomMci("open new type waveaudio alias velivorecm") != 0 || KomMci("set velivorecm bitspersample 16 channels 1 samplespersec 22050") != 0 || KomMci("record velivorecm") != 0)
+                    { KomMci("close velivorecm"); KomInfo(L.T("Nie udało się włączyć mikrofonu")); return; }
+                    recording = true; recAt = DateTime.UtcNow; mic.Content = KomIcon("stop"); mic.Tag = "rec"; return;
+                }
+                recording = false; mic.Content = KomIcon("mic"); mic.Tag = null; SendOrMic();
+                KomMci("stop velivorecm"); bool ok = KomMci("save velivorecm \"" + recPath + "\"") == 0; KomMci("close velivorecm");
+                if (ok && DateTime.UtcNow - recAt > TimeSpan.FromMilliseconds(700) && File.Exists(recPath)) await Files(new[] { recPath });
+                else try { File.Delete(recPath); } catch (Exception) { }
+            };
+            d.Closed += (s, e) => { if (recording) { KomMci("stop velivorecm"); KomMci("close velivorecm"); try { File.Delete(recPath); } catch (Exception) { } } };
             att.Click += async (s, e) => await Files(null);
             d.PreviewDragOver += (s, e) => { if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; e.Effects = DragDropEffects.Copy; e.Handled = true; };
             d.PreviewDrop += async (s, e) => { if (e.Data.GetData(DataFormats.FileDrop) is not string[] dr) return; e.Handled = true; await Files(dr.Where(File.Exists).ToArray()); };
@@ -2832,8 +2855,8 @@ namespace Velivo
             d.Closed += (s, e) => { timer.Stop(); _komMinis.Remove(c.Id); };
             _komMinis[c.Id] = d;
             KomStyle(d);
-            foreach (var b in new[] { att, snd }) { b.Template = KomBtnTemplate; b.BorderBrush = new SolidColorBrush(pal.Border); b.BorderThickness = new Thickness(1); }   // jak w głównym oknie: 📎 rysowany na zwykłym tle, ➤ w kolorze moich wiadomości
-            att.Background = new SolidColorBrush(pal.Button); snd.Background = new SolidColorBrush(pal.Mine); snd.Foreground = new SolidColorBrush(pal.MineFg);
+            foreach (var b in new[] { att, emo, mic, snd }) { b.Template = KomBtnTemplate; b.BorderBrush = new SolidColorBrush(pal.Border); b.BorderThickness = new Thickness(1); }   // jak w głównym oknie: 📎 rysowany na zwykłym tle, ➤ w kolorze moich wiadomości
+            att.Background = emo.Background = mic.Background = new SolidColorBrush(pal.Button); snd.Background = new SolidColorBrush(pal.Mine); snd.Foreground = new SolidColorBrush(pal.MineFg);
             d.Show(); Fill();
             d.Dispatcher.BeginInvoke(new Action(() => { d.Activate(); box.Focus(); Keyboard.Focus(box); }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);   // po zamknięciu menu fokus wracał do głównego okna - okienko bez klawiatury
         }

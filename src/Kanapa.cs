@@ -1,0 +1,224 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+
+namespace Velivo
+{
+    // 🛋 Tryb Kanapa: Velivo na pełnym ekranie telewizora - duże kafelki (Oglądaj dalej, Ulubione kanały, Nowe w bibliotece),
+    // sterowanie samymi strzałkami, Enter i Esc (pilot, klawiatura bezprzewodowa). Zaznaczony kafelek - złota ramka i powiększenie.
+    // Tylko czyta bibliotekę i kanały i woła te same funkcje odtwarzania co biblioteka / ulubione (PlayVideos) - niczego nie zmienia.
+    public partial class MainWindow
+    {
+        Window _kanapa;
+        static readonly Brush KnGold = KnBrush(Color.FromRgb(0xF5, 0xB5, 0x44)), KnFg = KnBrush(Color.FromRgb(0xEE, 0xF2, 0xF8)), KnDim = KnBrush(Color.FromRgb(0x8E, 0x9B, 0xB5)),
+            KnCard = KnBrush(Color.FromRgb(0x17, 0x20, 0x36)), KnLive = KnBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+        static Brush KnBrush(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+
+        internal void ShowKanapa()
+        {
+            if (_kanapa != null) { _kanapa.Activate(); return; }
+            var w = new Window
+            {
+                Title = "Velivo – " + L.T("Kanapa"), WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, WindowState = WindowState.Maximized, Topmost = true,
+                Background = new RadialGradientBrush(Color.FromRgb(0x1D, 0x2B, 0x4D), Color.FromRgb(0x0B, 0x0F, 0x17)) { Center = new Point(0.8, 0), GradientOrigin = new Point(0.8, 0), RadiusX = 1.1, RadiusY = 1.0 },
+                Foreground = KnFg, FontFamily = new FontFamily("Segoe UI"),
+            };
+            _kanapa = w;
+            var root = new DockPanel { Margin = new Thickness(48, 30, 48, 24) };
+            // góra: logo, zakładki, zegar
+            var top = new DockPanel { Margin = new Thickness(0, 0, 0, 22) }; DockPanel.SetDock(top, Dock.Top);
+            var logo = new TextBlock { FontSize = 34, FontWeight = FontWeights.ExtraBold, VerticalAlignment = VerticalAlignment.Center };
+            logo.Inlines.Add(new System.Windows.Documents.Run("Veli")); logo.Inlines.Add(new System.Windows.Documents.Run("vo") { Foreground = KnGold });
+            var clock = new TextBlock { FontSize = 30, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Text = DateTime.Now.ToString("HH:mm") };
+            DockPanel.SetDock(logo, Dock.Left); DockPanel.SetDock(clock, Dock.Right);
+            var tabs = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            top.Children.Add(logo); top.Children.Add(clock); top.Children.Add(tabs);
+            var hint = new TextBlock { Foreground = KnDim, FontSize = 15, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0),
+                Text = L.T("←↑→↓ wybór   ·   Enter – oglądaj   ·   Esc – wstecz / wyjście   ·   Home – Kanapa") };
+            DockPanel.SetDock(hint, Dock.Bottom);
+            var body = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
+            root.Children.Add(top); root.Children.Add(hint); root.Children.Add(body);
+            w.Content = root;
+
+            var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(15) }; tm.Tick += (s, e) => clock.Text = DateTime.Now.ToString("HH:mm"); tm.Start();
+            string tab = "start";
+            void Wyjdz() { tm.Stop(); w.Close(); }
+            void Graj(Action a) { Wyjdz(); try { a(); } catch (Exception ex) { App.LogError(ex); } }
+
+            // kafelek: Button z własnym szablonem - złota ramka i powiększenie, gdy wybrany (z kanapy widać, gdzie jesteś)
+            Button Tile(double wd, double ht, UIElement content, Action act)
+            {
+                var b = new Button { Width = wd, Height = ht, Margin = new Thickness(0, 0, 18, 0), Content = content, Focusable = true, Cursor = Cursors.Hand, RenderTransformOrigin = new Point(0.5, 0.5) };
+                b.Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+                    "<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
+                    "<Border x:Name='bd' CornerRadius='12' BorderThickness='4' BorderBrush='Transparent' Background='#172036' ClipToBounds='True' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+                    "<ContentPresenter/></Border>" +
+                    "<ControlTemplate.Triggers><Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='bd' Property='BorderBrush' Value='#F5B544'/></Trigger>" +
+                    "<Trigger Property='IsMouseOver' Value='True'><Setter TargetName='bd' Property='BorderBrush' Value='#80F5B544'/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+                var sc = new ScaleTransform(1, 1); b.RenderTransform = sc;
+                b.GotKeyboardFocus += (s, e) => { sc.ScaleX = sc.ScaleY = 1.07; Panel.SetZIndex(b, 2); b.BringIntoView(new Rect(-40, -40, wd + 80, ht + 80)); };
+                b.LostKeyboardFocus += (s, e) => { sc.ScaleX = sc.ScaleY = 1; Panel.SetZIndex(b, 0); };
+                b.MouseEnter += (s, e) => b.Focus();
+                b.Click += (s, e) => act();
+                return b;
+            }
+            UIElement Caption(string t, string sub = null)
+            {
+                var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(0xCC, 0, 0, 0), 90) };
+                sp.Children.Add(new TextBlock { Text = t, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = KnFg, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(10, 14, 10, sub == null ? 8 : 0) });
+                if (sub != null) sp.Children.Add(new TextBlock { Text = sub, FontSize = 13, Foreground = KnDim, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(10, 0, 10, 8) });
+                return sp;
+            }
+            ImageSource Poster(string path)
+            {
+                try { var m = MetaFor(path); if (m?.Poster != null) { var f = Path.Combine(PosterDir, m.Poster); if (File.Exists(f)) return LoadLogo(f, 360); } } catch (Exception) { }
+                return null;
+            }
+            string Tytul(LibraryVideo v) => !string.IsNullOrEmpty(v.MyTitle) ? v.MyTitle : !string.IsNullOrEmpty(v.Title) ? v.Title : Path.GetFileNameWithoutExtension(v.Path);
+            Button FilmTile(LibraryVideo v, double wd = 170)
+            {
+                var g = new Grid(); var img = Poster(v.Path);
+                if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
+                else g.Children.Add(new TextBlock { Text = "🎬", FontSize = 46, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = KnDim });
+                g.Children.Add(Caption(Tytul(v)));
+                if (v.Len > 0 && v.Pos > 0 && !v.Done)
+                    g.Children.Add(new ProgressBar { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Minimum = 0, Maximum = v.Len, Value = v.Pos, Foreground = KnGold, Background = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(0) });
+                var path = v.Path;
+                return Tile(wd, wd * 1.5, g, () => Graj(() => PlayVideos(new[] { path }, 0)));
+            }
+            List<IptvChannel> FavChannels()
+            {
+                var all = KnownPlaylist()?.Channels ?? new List<IptvChannel>();
+                return IptvSt.Fav.Select(u => _iptvPlaying.TryGetValue(u, out var c1) ? c1 : all.FirstOrDefault(c => c.Url == u)).Where(c => c != null).ToList();
+            }
+            Button ChannelTile(List<IptvChannel> list, int i)
+            {
+                var ch = list[i]; var g = new Grid();
+                var name = new TextBlock { Text = ch.Name, FontSize = 24, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10) };
+                var logoImg = new Image { Stretch = Stretch.Uniform, Margin = new Thickness(24, 18, 24, 30) };
+                g.Children.Add(name); g.Children.Add(logoImg);
+                g.Children.Add(new Border { Background = KnLive, CornerRadius = new CornerRadius(4), Padding = new Thickness(7, 2, 7, 2), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10),
+                    Child = new TextBlock { Text = L.T("NA ŻYWO"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White } });
+                if (!string.IsNullOrEmpty(ch.Logo)) _ = SetLogo(ch.Logo, logoImg, name);
+                return Tile(260, 146, g, () => Graj(() => { foreach (var x in list) _iptvPlaying[x.Url] = x; PlayVideos(list.Select(x => x.Url).ToArray(), i); }));
+            }
+            async System.Threading.Tasks.Task SetLogo(string url, Image img, TextBlock name)
+            {
+                try { var src = await GetLogo(url); if (src != null) { img.Source = src; name.Visibility = Visibility.Collapsed; } } catch (Exception) { }
+            }
+            UIElement Row(string title, IEnumerable<UIElement> tiles)
+            {
+                var sp = new StackPanel { Margin = new Thickness(0, 0, 0, 26) };
+                sp.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
+                var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8) };
+                foreach (var t in tiles) line.Children.Add(t);
+                if (line.Children.Count == 0) line.Children.Add(new TextBlock { Text = L.T("Pusto"), Foreground = KnDim, FontSize = 16 });
+                sp.Children.Add(new ScrollViewer { Content = line, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false });
+                return sp;
+            }
+            UIElement Wrap(IEnumerable<UIElement> tiles)
+            {
+                var wp = new WrapPanel { Margin = new Thickness(8) };
+                foreach (var t in tiles) { if (t is FrameworkElement fe) fe.Margin = new Thickness(0, 0, 18, 18); wp.Children.Add(t); }
+                return wp;
+            }
+
+            var tabBtns = new Dictionary<string, Button>();
+            void Pokaz(string t)
+            {
+                tab = t; var lib = new List<LibraryVideo>();
+                try { lib = LoadLibrary().Where(v => !string.IsNullOrEmpty(v.Path)).ToList(); } catch (Exception ex) { App.LogError(ex); }
+                foreach (var kv in tabBtns) { bool on = kv.Key == t; kv.Value.Background = on ? KnFg : Brushes.Transparent; kv.Value.Foreground = on ? new SolidColorBrush(Color.FromRgb(0x0B, 0x0F, 0x17)) : KnDim; }
+                var st = new StackPanel();
+                if (t == "start")
+                {
+                    var cont = lib.Where(v => v.Pos > 0 && !v.Done && v.Last > 0).OrderByDescending(v => v.Last).Take(12).ToList();
+                    if (cont.Count > 0)
+                    {   // duży kafelek: ostatni film, ile zostało i o której się skończy
+                        var v = cont[0]; var hero = new DockPanel { Margin = new Thickness(8, 8, 8, 30) };
+                        var g = new Grid(); var img = Poster(v.Path);
+                        if (img != null) g.Children.Add(new Image { Source = img, Stretch = Stretch.UniformToFill });
+                        g.Children.Add(Caption(Tytul(v)));
+                        var path = v.Path; var big = Tile(420, 236, g, () => Graj(() => PlayVideos(new[] { path }, 0))); DockPanel.SetDock(big, Dock.Left);
+                        var info = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(14, 0, 0, 6) };
+                        info.Children.Add(new TextBlock { Text = L.T("Oglądaj dalej"), FontSize = 28, FontWeight = FontWeights.Bold });
+                        if (v.Len > v.Pos) { var left = TimeSpan.FromMilliseconds(v.Len - v.Pos); info.Children.Add(new TextBlock { Text = L.T("Zostało ") + (int)left.TotalMinutes + L.T(" min · skończy się o ") + DateTime.Now.Add(left).ToString("HH:mm"), FontSize = 17, Foreground = KnDim, Margin = new Thickness(0, 6, 0, 0) }); }
+                        var m = MetaFor(v.Path); var meta = string.Join(" · ", new[] { m?.Year > 0 ? m.Year.ToString() : null, m?.Rating > 0 ? "★ " + m.Rating.ToString("0.0") : null }.Where(x => x != null));
+                        if (meta.Length > 0) info.Children.Add(new TextBlock { Text = meta, FontSize = 15, Foreground = KnDim, Margin = new Thickness(0, 4, 0, 0) });
+                        info.Children.Add(new Border { Background = KnGold, CornerRadius = new CornerRadius(18), Padding = new Thickness(16, 6, 16, 6), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0),
+                            Child = new TextBlock { Text = L.T("▶ Wznów (Enter)"), FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x1A, 0x12, 0x04)) } });
+                        hero.Children.Add(big); hero.Children.Add(info); st.Children.Add(hero);
+                        if (cont.Count > 1) st.Children.Add(Row(L.T("Oglądaj dalej"), cont.Skip(1).Select(x => (UIElement)FilmTile(x, 150))));
+                    }
+                    var fav = FavChannels();
+                    st.Children.Add(Row(L.T("Ulubione kanały"), fav.Select((c, i) => (UIElement)ChannelTile(fav, i))));
+                    st.Children.Add(Row(L.T("Nowe w bibliotece"), lib.OrderByDescending(v => v.Added).Take(20).Select(v => (UIElement)FilmTile(v))));
+                }
+                else if (t == "tv")
+                {
+                    var fav = FavChannels();
+                    var all = (KnownPlaylist()?.Channels ?? new List<IptvChannel>()).Take(120).ToList();
+                    st.Children.Add(Row(L.T("Ulubione kanały"), fav.Select((c, i) => (UIElement)ChannelTile(fav, i))));
+                    st.Children.Add(new TextBlock { Text = L.T("Wszystkie kanały"), FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
+                    st.Children.Add(Wrap(all.Select((c, i) => (UIElement)ChannelTile(all, i))));
+                }
+                else if (t == "film")
+                    st.Children.Add(Wrap(lib.OrderBy(Tytul, StringComparer.CurrentCultureIgnoreCase).Select(v => (UIElement)FilmTile(v))));
+                body.Content = st; body.ScrollToTop();
+                w.Dispatcher.BeginInvoke(new Action(() => { var first = FindTile(st); (first ?? (UIElement)tabBtns[t]).Focus(); }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+            Button TabBtn(string key, string text, Action act)
+            {
+                var b = new Button { Content = text, FontSize = 19, Padding = new Thickness(20, 8, 20, 8), Margin = new Thickness(4, 0, 4, 0), BorderThickness = new Thickness(0), Cursor = Cursors.Hand, Foreground = KnDim, Background = Brushes.Transparent };
+                b.Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+                    "<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+                    "<Border x:Name='bd' CornerRadius='22' Background='{TemplateBinding Background}' BorderThickness='3' BorderBrush='Transparent' Padding='{TemplateBinding Padding}'><ContentPresenter/></Border>" +
+                    "<ControlTemplate.Triggers><Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='bd' Property='BorderBrush' Value='#F5B544'/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+                b.Click += (s, e) => act();
+                if (key != null) tabBtns[key] = b;
+                tabs.Children.Add(b); return b;
+            }
+            TabBtn("start", L.T("Start"), () => Pokaz("start"));
+            TabBtn("tv", "📺 " + L.T("Telewizja"), () => Pokaz("tv"));
+            TabBtn("film", "🎬 " + L.T("Filmy"), () => Pokaz("film"));
+            TabBtn(null, "🎲 " + L.T("Co dziś?"), () =>
+            {   // to samo losowanie co w bibliotece
+                List<LibraryVideo> pool; try { pool = LoadLibrary().Where(v => v.Peer == null && File.Exists(v.Path)).ToList(); } catch (Exception) { return; }
+                if (pool.Count == 0) return;
+                w.Topmost = false;
+                ShowRandomPicker(w, pool, null, ps => Graj(() => PlayVideos(ps.ToArray(), 0)));
+                if (_kanapa == w) w.Topmost = true;
+            });
+            TabBtn(null, "✕ " + L.T("Zamknij"), Wyjdz);
+
+            // strzałki: przejście do sąsiedniego kafelka (ScrollViewer nie przewija sam); Enter - jak klik; Esc - Start, potem wyjście
+            w.PreviewKeyDown += (s, e) =>
+            {
+                var dir = e.Key switch { Key.Left => FocusNavigationDirection.Left, Key.Right => FocusNavigationDirection.Right, Key.Up => FocusNavigationDirection.Up, Key.Down => FocusNavigationDirection.Down, _ => (FocusNavigationDirection?)null };
+                if (dir != null && Keyboard.FocusedElement is UIElement fe) { fe.MoveFocus(new TraversalRequest(dir.Value)); e.Handled = true; return; }
+                if ((e.Key == Key.Enter || e.Key == Key.Space) && Keyboard.FocusedElement is Button fb) { fb.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; return; }
+                if (e.Key == Key.Escape || e.Key == Key.BrowserBack || e.Key == Key.Back) { e.Handled = true; if (tab != "start") Pokaz("start"); else Wyjdz(); return; }
+                if (e.Key == Key.Home) { e.Handled = true; Wyjdz(); }
+            };
+            w.Closed += (s, e) => { tm.Stop(); if (_kanapa == w) _kanapa = null; };
+            w.Show(); w.Activate();
+            Pokaz("start");
+        }
+
+        static Button FindTile(DependencyObject d)
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(d); i++)
+            {
+                var ch = VisualTreeHelper.GetChild(d, i);
+                if (ch is Button b && b.Focusable) return b;
+                var r = FindTile(ch); if (r != null) return r;
+            }
+            return null;
+        }
+    }
+}

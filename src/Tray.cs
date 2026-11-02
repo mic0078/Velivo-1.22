@@ -72,6 +72,7 @@ namespace Velivo
                 var filmItem = menu.Items.Add(L.T("🎬 Biblioteka filmów"), null, (s, e) => Dispatcher.Invoke(ShowVideoLibrary));
                 var playerItem = menu.Items.Add(L.T("▶ Uruchom odtwarzacz wideo"), null, (s, e) => Dispatcher.Invoke(OpenEmptyPlayer));
                 var tvItem = menu.Items.Add(L.T("📺 Uruchom TV"), null, (s, e) => Dispatcher.Invoke(StartTv));
+                menu.Items.Add(L.T("🛋 Kanapa (telewizor)"), null, (s, e) => Dispatcher.Invoke(ShowKanapa));
                 menu.Items.Add(L.T("🧹 Porządki i kopia bezpieczeństwa"), null, (s, e) => Dispatcher.Invoke(ShowTidy));
                 menu.Items.Add(L.T("🕶 Otwórz kartę incognito"), null, (s, e) => Dispatcher.Invoke(() => { ShowFromTray(); PrivateTab_Click(this, new RoutedEventArgs()); }));
                 menu.Items.Add(L.T("🏦 Otwórz w trybie bankowym"), null, (s, e) => Dispatcher.Invoke(() => { ShowFromTray(); OpenBankTab(); }));

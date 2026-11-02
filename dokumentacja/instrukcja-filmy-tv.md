@@ -108,6 +108,7 @@ Gdy coś się nagrywa, u góry obrazu widać małą czerwoną kropkę: **„Trwa
 | PgUp / PgDn | poprzedni / następny kanał |
 | F5 | odśwież kanał |
 | G / H | przesunięcie napisów |
+| Home | 🛋 Kanapa – duże kafelki na telewizor (też przycisk 🛋 na pasku i w menu zasobnika) |
 | J / K | dźwięk wcześniej / później o 50 ms (też przyciski 🔊− / 🔊+ w grupie „Obraz i dźwięk”; zapamiętane na komputerze) |
 | R | wyrównaj obraz z dźwiękiem (film: skok w to samo miejsce, TV: odświeżenie kanału; też prawy przycisk na 🔊− / 🔊+, wraca do 0 ms) |
 | [ ] | prędkość |
@@ -303,3 +304,8 @@ Menu (logo V) → grupa **Filmy i TV**: **📺 Telewizja**, **🎬 Biblioteka** 
 * **🕘 Historia** (pasek odtwarzacza, w miejscu 📌): 20 ostatnio oglądanych filmów alfabetycznie – klik odtwarza od miejsca przerwania. „📌 Zawsze na wierzchu” – pod prawym przyciskiem. **Pełny ekran** nie zasłania już biblioteki, listy kanałów ani programu TV.
 * **Filmy usunięte z Jellyfin:** gdy Velivo to wykryje, pokazuje dymek z listą, który zostaje na ekranie (także po ponownym uruchomieniu), aż wybierzesz **🗑 Usuń z Velivo** albo **Zostaw**. Pliki na dysku zostają.
 * **🕘 Historia – wygląd i menu:** ciemna lista z plakatem, „kiedy” i ile obejrzano; ten sam film zapisany pod kilkoma ścieżkami to jedna pozycja. Prawy przycisk: ▶ Odtwórz, ⏮ Od początku, 📂 Pokaż w folderze, 🕘 Usuń z historii oglądania, 🗑 Usuń z biblioteki (plik zostaje) oraz sortowanie: A–Z, ostatnio oglądany na górze, najstarszy na górze (także prawy przycisk na pustym miejscu listy).
+
+
+## 🛋 Kanapa (telewizor)
+
+Pełny ekran z dużymi kafelkami: **Oglądaj dalej** (ile zostało i o której koniec), **Ulubione kanały**, **Nowe w bibliotece**; zakładki Telewizja, Filmy, 🎲 Co dziś? (losowanie). Sterowanie: strzałki, Enter – oglądaj, Esc – wstecz / wyjście. Włączanie: przycisk 🛋 na pasku odtwarzacza, klawisz Home, menu zasobnika „🛋 Kanapa”.

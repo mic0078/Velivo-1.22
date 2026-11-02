@@ -1617,6 +1617,9 @@ namespace Velivo
             // przełącznik TV ↔ Filmy - niebieski, osobno na końcu (zawsze widać, jak przejść na drugą stronę)
             swap.Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8)); swap.Margin = new Thickness(5, 0, 2, 0); swap.Height = 40;
             right.Children.Add(capt(swap, L.T("Przełącz")));
+            var sofa = textBtn("🛋", L.T("Kanapa – duże kafelki na telewizor, sterowanie strzałkami, Enter i Esc (Home)")); sofa.Height = 40; sofa.Margin = new Thickness(2, 0, 2, 0);
+            sofa.Click += (s, e) => ShowKanapa();
+            right.Children.Add(capt(sofa, L.T("Kanapa")));
             // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data
             quick.Children.Add(new Border { Width = 1, Height = 36, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(4, 0, 8, 18), VerticalAlignment = VerticalAlignment.Bottom });
             var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
@@ -4078,6 +4081,7 @@ namespace Velivo
                     case Key.F5: if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); } break;
                     case Key.Escape: if (chPanel.Visibility == Visibility.Visible) showChannels(false); else if (full0) toggleFull(); else if (mini0) toggleMini(); else h = false; break;
                     case Key.M: toggleMute(); break;
+                    case Key.Home: ShowKanapa(); break;   // 🛋 Kanapa
                     case Key.J: setADelay(aDelayMs - 50); break;   // dźwięk wcześniej (jak w VLC)
                     case Key.K: setADelay(aDelayMs + 50); break;   // dźwięk później
                     case Key.R: resync(); break;   // wyrównaj obraz z dźwiękiem

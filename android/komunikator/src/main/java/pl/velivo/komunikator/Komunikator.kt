@@ -3488,7 +3488,6 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             (grid.adapter as android.widget.BaseAdapter).notifyDataSetChanged()
             dlg?.setTitle("🖼 " + c.name + if (sel.isEmpty()) "" else "  ·  " + t("zaznaczone: ", "selected: ") + sel.size)
             dlg?.getButton(AlertDialog.BUTTON_POSITIVE)?.visibility = if (sel.isEmpty()) View.GONE else View.VISIBLE
-            dlg?.getButton(AlertDialog.BUTTON_NEUTRAL)?.visibility = if (sel.isEmpty()) View.GONE else View.VISIBLE
         }
         grid.setOnItemLongClickListener { _, _, i, _ -> mark(i); true }
         grid.setOnItemClickListener { _, _, i, _ ->
@@ -3496,20 +3495,32 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             val p = ms[i].path!!; dlg?.dismiss()
             if (k.isImage(p)) showPhoto(p, photos(c)) else if (p.contains("Glosowa-")) play(p) else openFile(p)
         }
-        dlg = Dlg().setTitle("🖼 " + c.name).setView(grid).setPositiveButton("🗑 " + t("Usuń", "Delete"), null).setNeutralButton("↪ " + t("Przekaż", "Forward"), null).setNegativeButton(t("Zamknij", "Close"), null).show()
-        dlg?.getButton(AlertDialog.BUTTON_NEUTRAL)?.apply { visibility = View.GONE; setOnClickListener { val pick = sel.sorted().map { ms[it] }; dlg?.dismiss(); forwardAll(c, pick) } }   // ↪ zaznaczone pliki do innej osoby / grupy
+        dlg = Dlg().setTitle("🖼 " + c.name).setView(grid).setPositiveButton("✅ " + t("Zaznaczone…", "Selected…"), null).setNegativeButton(t("Zamknij", "Close"), null).show()
         dlg?.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
             visibility = View.GONE
             setOnClickListener {
                 val pick = sel.sorted().map { ms[it] }
-                Dlg().setMessage(t("Usunąć ${pick.size} z rozmowy i z telefonu? Tego nie da się cofnąć. (Kopie zapisane w Galerii / Pobranych zostają.)", "Delete ${pick.size} from the chat and the phone? This cannot be undone. (Copies saved in Gallery / Downloads stay.)"))
-                    .setPositiveButton(t("Usuń", "Delete")) { _, _ ->
-                        pick.forEach { m -> k.deleteLocal(c, m) }; dlg?.dismiss()
-                        Toast.makeText(a, "🗑 " + t("Usunięto: ", "Deleted: ") + pick.size, Toast.LENGTH_SHORT).show()
-                    }.setNegativeButton(android.R.string.cancel, null).show()
+                val acts = arrayOf("📥 " + t("Przenieś do Galerii (i usuń z Velivo)", "Move to Gallery (and remove from Velivo)"), "↪ " + t("Przekaż", "Forward"), "🗑 " + t("Usuń", "Delete"))
+                Dlg().setTitle(t("Zaznaczone: ", "Selected: ") + pick.size).setItems(acts) { _, w ->
+                    when (w) {
+                        0 -> { dlg?.dismiss(); Thread {
+                            val done = pick.filter { m -> toGallery(m.path!!) }
+                            a.runOnUiThread {
+                                done.forEach { m -> k.deleteLocal(c, m) }
+                                Toast.makeText(a, "📥 " + t("Przeniesiono: ", "Moved: ") + done.size + (if (done.size < pick.size) "  ·  " + t("nie udało się: ", "failed: ") + (pick.size - done.size) else "") + "\n" + t("Zdjęcia: Obrazy/Velivo, filmy: Filmy/Velivo, inne: Pobrane", "Photos: Pictures/Velivo, videos: Movies/Velivo, other: Downloads"), Toast.LENGTH_LONG).show()
+                            }
+                        }.start() }
+                        1 -> { dlg?.dismiss(); forwardAll(c, pick) }
+                        else -> Dlg().setMessage(t("Usunąć ${pick.size} z rozmowy i z telefonu? Tego nie da się cofnąć. (Kopie zapisane w Galerii / Pobranych zostają.)", "Delete ${pick.size} from the chat and the phone? This cannot be undone. (Copies saved in Gallery / Downloads stay.)"))
+                            .setPositiveButton(t("Usuń", "Delete")) { _, _ ->
+                                pick.forEach { m -> k.deleteLocal(c, m) }; dlg?.dismiss()
+                                Toast.makeText(a, "🗑 " + t("Usunięto: ", "Deleted: ") + pick.size, Toast.LENGTH_SHORT).show()
+                            }.setNegativeButton(android.R.string.cancel, null).show()
+                    }
+                }.show()
             }
         }
-        Toast.makeText(a, t("Przytrzymaj, aby zaznaczyć – potem usuń albo przekaż", "Hold to select – then delete or forward"), Toast.LENGTH_SHORT).show()
+        Toast.makeText(a, t("Przytrzymaj, aby zaznaczyć – potem przenieś do Galerii, przekaż albo usuń", "Hold to select – then move to Gallery, forward or delete"), Toast.LENGTH_SHORT).show()
     }
 
     // 💾 rozmowa jako tekst w Pobranych
@@ -3541,6 +3552,20 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         tts?.let { say(it); return }
         tts = android.speech.tts.TextToSpeech(a) { st -> if (st == android.speech.tts.TextToSpeech.SUCCESS) tts?.let { it.language = Locale.getDefault(); say(it) } }
     }
+
+    // 📥 kopia pliku w Galerii (zdjęcia: Obrazy/Velivo, filmy: Filmy/Velivo), inne do Pobranych; true = zapisane
+    private fun toGallery(path: String): Boolean = runCatching {
+        val f = java.io.File(path); val ext = f.extension.lowercase()
+        val vid = ext in setOf("mp4", "3gp", "webm", "mkv", "mov")
+        if (!k.isImage(path) && !vid) return@runCatching toDownloads(path) != null
+        val v = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, f.name.removePrefix("wyslane-"))
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, (if (vid) android.os.Environment.DIRECTORY_MOVIES else android.os.Environment.DIRECTORY_PICTURES) + "/Velivo")
+        }
+        val uri = a.contentResolver.insert(if (vid) android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v)!!
+        a.contentResolver.openOutputStream(uri)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
+        true
+    }.getOrDefault(false)
 
     // 🎤 odtwarzanie wiadomości głosowej w rozmowie (stuknięcie ponownie - stop)
     private var player: android.media.MediaPlayer? = null; private var playing: String? = null

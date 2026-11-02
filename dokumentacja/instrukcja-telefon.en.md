@@ -235,6 +235,8 @@ Menu → **⭐ Add this song** on an open YouTube video (category, playlists) �
 
 **Selecting messages (messenger):** press and hold a message – it is selected, further taps add or remove others. Bar at the top: ✕ (number selected), ↩ Reply, 📋 Copy, ↪ Forward, 🗑 For me, 🚫 For all, ⋯ More.
 
+**🖼 Chat files – several at once:** hold a thumbnail, tap more, then **✅ Selected…**: 📥 Move to Gallery (photos → Pictures/Velivo, videos → Movies/Velivo, other → Downloads; only files saved successfully are removed from Velivo), ↪ Forward, 🗑 Delete.
+
 **Voice message:** 🎤 – record; ⏹ – stop, then a bar 🗑 Delete / ▶ Listen / ➤ Send; ➤ while recording – sends at once. Like WhatsApp: with an empty field the right button is 🎤; once you type it turns into ➤ Send (more room for text).
 
 ## 8b. Velivo keyboard

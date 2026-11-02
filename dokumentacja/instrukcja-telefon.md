@@ -235,6 +235,8 @@ Menu → **⭐ Dodaj ten utwór** na otwartym filmie YouTube (kategoria, playlis
 
 **Zaznaczanie wiadomości (komunikator):** przytrzymaj palec na wiadomości – zostaje zaznaczona, kolejne stuknięcia dodają lub odznaczają inne. U góry pasek: ✕ (liczba zaznaczonych), ↩ Odpowiedz, 📋 Kopiuj, ↪ Przekaż, 🗑 U mnie, 🚫 U wszystkich, ⋯ Więcej.
 
+**🖼 Pliki rozmowy – kilka naraz:** przytrzymaj miniaturę, stuknij kolejne, potem **✅ Zaznaczone…**: 📥 Przenieś do Galerii (zdjęcia → Obrazy/Velivo, filmy → Filmy/Velivo, inne → Pobrane; z Velivo usuwane tylko te, które się zapisały), ↪ Przekaż, 🗑 Usuń.
+
 **Wiadomość głosowa:** 🎤 – nagrywasz; ⏹ – koniec, pod rozmową pasek 🗑 Usuń / ▶ Odsłuchaj / ➤ Wyślij; ➤ w trakcie nagrywania – wysyła od razu. Jak w WhatsApp: przy pustym polu po prawej jest 🎤, a gdy zaczniesz pisać – zmienia się w ➤ Wyślij (więcej miejsca na tekst).
 
 ## 8b. Klawiatura Velivo

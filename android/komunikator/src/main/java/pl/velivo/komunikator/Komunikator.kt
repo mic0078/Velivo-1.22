@@ -2536,13 +2536,14 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         fun fold(x: String) = java.text.Normalizer.normalize(x.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}"), "").replace('ł', 'l')
         fun found() = k.contacts.filter { who.isBlank() || fold(it.name).contains(fold(who.trim())) || fold(it.device).contains(fold(who.trim())) }
         // 🏠 / 🌍 jak połączony jest ten telefon - zawsze widoczne u góry
-        val netBar = TextView(a).apply { textSize = 14f; setTextColor(Color.WHITE); setPadding(px(14), px(8), px(14), px(8)); layoutParams = LinearLayout.LayoutParams(-1, -2).apply { leftMargin = px(10); rightMargin = px(10); bottomMargin = px(6) } }
+        val netBar = TextView(a).apply { textSize = 12.5f; setTextColor(Color.WHITE); setPadding(px(12), px(4), px(12), px(4)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(-2, -2).apply { leftMargin = px(16); rightMargin = px(16); bottomMargin = px(8) } }   // mała pastylka zamiast dużego paska
+        val lockNote = TextView(a).apply { text = "🔒 " + t("Rozmowy szyfrowane – tylko między Wami", "Chats are encrypted – only between you"); textSize = 12f; setTextColor(dim); gravity = Gravity.CENTER; setPadding(0, px(14), 0, px(150)) }   // dół z miejscem na przyciski ＋ i 📤
         fun fill() {
             val nr = k.noRelay
             netBar.text = if (k.away) t("🌍 Poza domem – przez internet", "🌍 Away from home – via internet") + (k.awayVia?.let { t(" (przez $it)", " (through $it)") } ?: "")
                 else if (nr != null) t("⚠ Poza domem – żaden serwer nie odpowiada: ", "⚠ Away from home – no server answers: ") + nr
                 else t("🏠 W domu – sieć domowa", "🏠 At home – home network")
-            netBar.background = bg(if (k.away) Color.rgb(0x25, 0x63, 0xEB) else if (nr != null) Color.rgb(0xDC, 0x26, 0x26) else Color.rgb(0x16, 0xA3, 0x4A), 10)
+            netBar.background = bg(if (k.away) Color.rgb(0x25, 0x63, 0xEB) else if (nr != null) Color.rgb(0xDC, 0x26, 0x26) else Color.rgb(0x16, 0xA3, 0x4A), 12)
             rows.removeAllViews()
             if (k.contacts.isEmpty()) rows.addView(TextView(a).apply {
                 text = t("Brak kontaktów.\n\nStuknij „➕ Dodaj”, gdy drugie urządzenie ma otwarty komunikator Velivo (telefon: przeglądarka albo klawiatura Velivo, komputer: Velivo na Windows) w tej samej sieci Wi-Fi.",
@@ -2554,10 +2555,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             if (who.isNotBlank() && found().isEmpty()) rows.addView(TextView(a).apply { text = t("Nie ma osoby: ", "No contact: ") + who; setTextColor(dim); textSize = 16f; setPadding(px(10), px(16), px(10), px(8)) })
             for (c in found().sortedWith(compareByDescending<Komunikator.Contact> { k.pinned(it.id) }.thenByDescending { k.chat(it.id).lastOrNull()?.ts ?: 0L })) {   // 0L - ten sam typ co czas (Int z Long = awaria sortowania)   // 📌 przypięte na górze
                 val n = k.unread(c.id); val last = k.chat(c.id).lastOrNull(); val on = k.online(c.id)
-                val dot = avatar(c, on)
+                val av = avatar(c, on).apply { layoutParams = android.widget.FrameLayout.LayoutParams(px(52), px(52)) }
+                val dot = android.widget.FrameLayout(a).apply {   // jak WhatsApp: duże zdjęcie, w sieci - zielona kropka w rogu
+                    layoutParams = LinearLayout.LayoutParams(px(52), px(52)).apply { rightMargin = px(14) }; addView(av)
+                    if (on) addView(View(a).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(green); setStroke(px(2), pal().bg1) }; layoutParams = android.widget.FrameLayout.LayoutParams(px(15), px(15), Gravity.END or Gravity.BOTTOM) })
+                }
                 val name = TextView(a).apply {
                     text = android.text.SpannableStringBuilder((if (k.pinned(c.id)) "📌 " else "") + c.name + if (k.muted(c.id)) " 🔕" else "").apply {
-                        if (c.own && c.device.isNotEmpty() && c.device != c.name) { val st = length; append("  " + c.device); setSpan(android.text.style.ForegroundColorSpan(dim), st, length, 0); setSpan(android.text.style.RelativeSizeSpan(0.75f), st, length, 0) }   // prawdziwe urządzenie
                     }; textSize = 17f * fs; setTextColor(ink); if (n > 0) setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
                 val time = TextView(a).apply { text = last?.let { when_(it.ts) } ?: ""; textSize = 12f; setTextColor(if (n > 0) green else dim) }
                 val top = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(name); addView(time) }
@@ -2576,24 +2580,25 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 val bottom = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; addView(snippet); addView(badge) }
                 val text = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); addView(top); addView(bottom) }
                 rows.addView(LinearLayout(a).apply {
-                    gravity = Gravity.CENTER_VERTICAL; setPadding(px(14), px(12), px(14), px(12)); background = bg(pal().panel, 14)
-                    layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) }
+                    gravity = Gravity.CENTER_VERTICAL; setPadding(px(6), px(10), px(6), px(10))   // bez kafelka - czysty wiersz jak w WhatsApp
+                    background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(50, 128, 128, 128)), null, GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = px(12).toFloat() })
+                    layoutParams = LinearLayout.LayoutParams(-1, -2)
                     addView(dot)
-                    if (on) addView(TextView(a).apply { setText(if (k.viaInternet(c.id)) "🌍" else "🏠"); textSize = 15f; setPadding(0, 0, px(8), 0); contentDescription = if (k.viaInternet(c.id)) t("przez internet", "via internet") else t("sieć domowa", "home network") })
                     addView(text)
                     contentDescription = t("Rozmowa z ", "Chat with ") + c.name + " - " + (if (on) t("w sieci", "online") else t("poza siecią", "offline")) + if (n > 0) ", " + t("nowe: ", "new: ") + n else ""
                     setOnClickListener { openChat(c) }
                     setOnLongClickListener { manage(c); true }
                 })
             }
+            if (k.contacts.isNotEmpty()) rows.addView(lockNote)
         }
         fill()
         listRefresh = { if (chatWith == null) fill() }
         val close = icon("✕", t("Zamknij", "Close")) { screen?.dismiss() }
         val title = TextView(a).apply {
-            val tt = "💬 " + t("Komunikator Velivo", "Velivo messenger")
-            text = android.text.SpannableString(tt + "\nBy MichAel").apply { setSpan(android.text.style.RelativeSizeSpan(0.55f), tt.length + 1, length, 0) }; textSize = 20f; setTextColor(ink); setTypeface(typeface, android.graphics.Typeface.BOLD)   // autor pod nazwą
-            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(16), 0, px(4), 0)
+            val tt = "Velivo"
+            text = android.text.SpannableString(tt + "\n" + t("Komunikator", "Messenger") + " · By MichAel").apply { setSpan(android.text.style.RelativeSizeSpan(0.5f), tt.length + 1, length, 0) }; textSize = 24f; setTextColor(ink); setTypeface(typeface, android.graphics.Typeface.BOLD)   // autor pod nazwą
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; layoutParams = LinearLayout.LayoutParams(0, -2, 1f); setPadding(px(10), 0, px(4), 0)
         }
         lateinit var bell: TextView
         fun bellLabel() { bell.text = if (k.background) "🔔" else "🔕"; bell.contentDescription = t("Wiadomości, gdy Velivo zamknięte: ", "Messages while Velivo is closed: ") + (if (k.background) t("wł.", "on") else t("wył.", "off")); bell.tooltipText = bell.contentDescription }
@@ -2602,7 +2607,13 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
         val palette = icon("🎨", t("Motyw komunikatora", "Messenger theme")) { chooseTheme() }
         val access = icon("♿", t("Ułatwienia: duże litery, czytanie na głos, błysk przy dzwonku", "Accessibility: big text, read aloud, flash on ring")) { accessibility() }
         val me = icon("👤", t("Mój profil: zdjęcie i blokada", "My profile: photo and lock")) { profile() }
-        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(8), px(8), px(8)); addView(title); addView(me); addView(access); addView(palette); addView(bell); addView(close) }
+        val logo = android.widget.ImageView(a).apply { setImageDrawable(runCatching { a.packageManager.getApplicationIcon(a.packageName) }.getOrNull()); contentDescription = "Velivo"; layoutParams = LinearLayout.LayoutParams(px(40), px(40)).apply { leftMargin = px(14) } }   // logo Velivo (ikona aplikacji - ta sama w Komunikatorze, przeglądarce i klawiaturze)
+        val more = icon("⋮", t("Więcej: ułatwienia, motyw, powiadomienia", "More: accessibility, theme, notifications"), 24f) {   // jak WhatsApp: mniej ikon u góry, reszta w ⋮
+            Dlg().setItems(arrayOf(access.contentDescription.toString().let { "♿ $it" }, "🎨 " + palette.contentDescription, (if (k.background) "🔔 " else "🔕 ") + bell.contentDescription)) { _, i ->
+                when (i) { 0 -> accessibility(); 1 -> chooseTheme(); else -> { k.background = !k.background; bellLabel(); Toast.makeText(a, bell.contentDescription, Toast.LENGTH_SHORT).show() } }
+            }.show()
+        }
+        val head = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(8), px(8), px(4)); addView(logo); addView(title); addView(me); addView(more); addView(close) }
         lateinit var search: EditText
         fun openFound(say: Boolean) {
             val f = found()
@@ -2632,15 +2643,21 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
             r.startListening(android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))
         }
         val find = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(10), 0, px(10), px(6)); addView(search); addView(voice) }
-        val actions = LinearLayout(a).apply {
-            gravity = Gravity.CENTER; setPadding(px(10), px(8), px(10), px(10))
-            addView(pill("➕ " + t("Dodaj kontakt", "Add contact"), t("Dodaj kontakt – obok Ciebie albo gdziekolwiek przez internet", "Add a contact – next to you or anywhere via internet")) { addChoice() }, LinearLayout.LayoutParams(0, px(46), 1f).apply { rightMargin = px(8) })
-            addView(pill("📤 " + t("Wyślij pliki", "Send files"), t("Pliki do osoby z komunikatora (w domu i poza domem)", "Files to a messenger contact (at home and away)")) { attachTo = null; pickFiles() }, LinearLayout.LayoutParams(0, px(46), 1f))
+        val fab = TextView(a).apply {   // ＋ dodaj kontakt i 📤 wyślij pliki - pływające w prawym dolnym rogu, jak w WhatsApp
+            text = "+"; textSize = 30f; gravity = Gravity.CENTER; setTextColor(Color.rgb(6, 33, 15)); setTypeface(typeface, android.graphics.Typeface.BOLD); background = bg(green, 18); elevation = px(6).toFloat()
+            contentDescription = t("Dodaj kontakt – obok Ciebie albo gdziekolwiek przez internet", "Add a contact – next to you or anywhere via internet"); tooltipText = contentDescription; setOnClickListener { addChoice() }
+            layoutParams = android.widget.FrameLayout.LayoutParams(px(60), px(60), Gravity.END or Gravity.BOTTOM).apply { rightMargin = px(18); bottomMargin = px(18) }
+        }
+        val sendFab = TextView(a).apply {
+            text = "📤"; textSize = 20f; gravity = Gravity.CENTER; background = bg(pal().button, 14); elevation = px(4).toFloat()
+            contentDescription = t("Wyślij pliki – do osoby z komunikatora (w domu i poza domem)", "Send files – to a messenger contact (at home and away)"); tooltipText = contentDescription; setOnClickListener { attachTo = null; pickFiles() }
+            layoutParams = android.widget.FrameLayout.LayoutParams(px(50), px(50), Gravity.END or Gravity.BOTTOM).apply { rightMargin = px(23); bottomMargin = px(92) }
         }
         root.removeAllViews()
         root.addView(LinearLayout(a).apply {
             orientation = LinearLayout.VERTICAL
-            addView(head); addView(netBar); if (k.contacts.size > 1) addView(find); addView(ScrollView(a).apply { addView(rows); layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }); addView(actions)
+            addView(head); addView(netBar); if (k.contacts.size > 1) addView(find)
+            addView(android.widget.FrameLayout(a).apply { layoutParams = LinearLayout.LayoutParams(-1, 0, 1f); addView(ScrollView(a).apply { addView(rows) }); addView(sendFab); addView(fab) })
         })
     }
 

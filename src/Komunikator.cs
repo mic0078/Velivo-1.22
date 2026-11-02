@@ -559,6 +559,7 @@ namespace Velivo
             if (text.StartsWith(KomFindTag, StringComparison.Ordinal)) { KomFindIn(c, text.Substring(KomFindTag.Length)); return; }   // 🔎 szukanie konta po numerze
             if (text.StartsWith(KomRestoreTag, StringComparison.Ordinal)) return;   // ♻ starsza wersja (kod odzyskiwania) - kopia idzie teraz osobnym połączeniem
             if (text.StartsWith(KomForgetTag, StringComparison.Ordinal)) { if (c.Dom && _komRelayListener != null) KomForget(text.Substring(KomForgetTag.Length).Trim(), false); return; }   // 🗑 kontakt usunięty na moim drugim serwerze
+            if (text.StartsWith(KomAcctTag, StringComparison.Ordinal)) { if (c.Dom && _komRelayListener != null) KomAcctIn(text.Substring(KomAcctTag.Length)); return; }   // 📝 konta z mojego drugiego serwera - jedna baza
             if (text.StartsWith(KomSekTag, StringComparison.Ordinal)) { if (c.Dom) KomSekIn(c, text.Substring(KomSekTag.Length)); return; }   // 🔑 wspólny sekret przedstawiania moich serwerów
             if (text.StartsWith(KomCardTag, StringComparison.Ordinal)) { KomCardIn(c, text.Substring(KomCardTag.Length)); return; }   // 👤 kontakt przedstawiony przez znajomego
             if (text.StartsWith(KomDelTag, StringComparison.Ordinal)) { KomDelIn(c, text.Substring(KomDelTag.Length)); return; }   // 🚫 nadawca usunął wiadomość u wszystkich

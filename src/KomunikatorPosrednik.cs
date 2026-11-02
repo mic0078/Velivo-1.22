@@ -391,6 +391,10 @@ namespace Velivo
                 if (!agreed && sent0 < 3) { _komSekSent[peerId] = sent0 + 1;
                 KomDeliver(peer, new KomMsg { Mine = true, Text = KomSekTag + new JsonObject { ["s"] = KomIntroSec(), ["o"] = KomSekOrigin }.ToJsonString(), Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); }
                 if (!_komSekPeer.TryGetValue(peerId, out var po) || po != KomSekOrigin) return;
+                // 📝 jedna baza na moich serwerach: konta (numer + PIN) i usunięci - drugiemu serwerowi tylko po zmianie (skrót), tą samą drogą co wiadomość (dom albo internet)
+                var acc = new JsonObject { ["konta"] = JsonNode.Parse(KomAccounts().ToJsonString()), ["removed"] = JsonNode.Parse((_komOpt["removed"] ?? new JsonArray()).ToJsonString()) }.ToJsonString();
+                var ah = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(acc)), 0, 8);
+                if (!_komAccSent.TryGetValue(peerId, out var sh) || sh != ah) { _komAccSent[peerId] = ah; KomDeliver(peer, new KomMsg { Mine = true, Text = KomAcctTag + acc, Ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Mid = Guid.NewGuid().ToString("N") }); }
             }
             if (_komOpt["intro"] is not JsonArray done) _komOpt["intro"] = done = new JsonArray();
             var today = "|" + DateTime.UtcNow.ToString("yyyyMMdd");
@@ -1556,6 +1560,26 @@ namespace Velivo
         }
         // 👥 kontakty serwera: kogo znają moje serwery; usunięcie - na wszystkich moich serwerach naraz (i nie wraca przy wymianie kontaktów)
         const string KomForgetTag = "\u0001velivo-zapomnij\n";
+        const string KomAcctTag = "\u0001velivo-konta\n";
+        readonly ConcurrentDictionary<string, string> _komAccSent = new ConcurrentDictionary<string, string>();
+        // 📝 konta i usunięci od mojego drugiego serwera: dopisuje nowsze (at), numer należy do tego, kto zajął go pierwszy; usunięci - usuwani i tutaj
+        void KomAcctIn(string json)
+        {
+            JsonObject o; try { o = JsonNode.Parse(json) as JsonObject; } catch (Exception) { return; }
+            if (o == null) return;
+            bool ch = false; var mine = KomAccounts();
+            if (o["removed"] is JsonArray rr) foreach (var x in rr.Select(n => (string)n).Where(x => x is { Length: 32 }).ToList()) if (!KomForgotten(x) && KomContactById(x) == null) { KomForget(x, false); ch = true; }   // kogoś obecnego tutaj (np. dodanego tu od nowa) nie kasuje - usunięcie z okna i tak idzie od razu na wszystkie serwery
+            if (o["konta"] is JsonObject ka) foreach (var kv in ka.ToList())
+            {
+                if (kv.Key.Length != 32 || kv.Value is not JsonObject v || KomForgotten(kv.Key)) continue;
+                long at = (long?)v["at"] ?? 0;
+                if (mine[kv.Key] is JsonObject cur && ((long?)cur["at"] ?? 0) >= at) continue;
+                var lg = (string)v["login"];
+                if (mine.Any(x => x.Key != kv.Key && (string)x.Value?["login"] == lg && ((long?)x.Value?["at"] ?? 0) <= at)) continue;   // numer zajęty wcześniej przez kogoś innego - pierwszy wygrywa
+                mine[kv.Key] = JsonNode.Parse(v.ToJsonString()); ch = true;
+            }
+            if (ch) KomSave();
+        }
         bool KomForgotten(string id) => _komOpt["removed"] is JsonArray ra && ra.Any(x => (string)x == id);
         void KomForget(string id, bool spread)
         {

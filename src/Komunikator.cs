@@ -1886,12 +1886,11 @@ namespace Velivo
                     var hav = KomAvatarEl(c, on, 36, pal); headPic.Content = hav;   // 🖼 zdjęcie profilowe rozmówcy (bez zdjęcia - litera)
                     header.Inlines.Add(new System.Windows.Documents.Run(c.Name));
                     headSub.Visibility = Visibility.Visible;
-                    var dev = c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name ? "  ·  " + c.Device : "";   // urządzenie - na końcu linii stanu (najważniejszy stan widać pierwszy)
+                    var dev = c.Own && !string.IsNullOrEmpty(c.Device) && c.Device != c.Name ? c.Device : "";   // urządzenie - tylko w podpowiedzi (pod nazwą sam stan, jak w WhatsApp)
                     if (_komTypingAt.TryGetValue(c.Id, out var ty) && DateTime.UtcNow - ty < TimeSpan.FromSeconds(6)) { headSub.Inlines.Add(new System.Windows.Documents.Run("✍ " + L.T("pisze…")) { Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) }); goto headerDone; }
                     var seen = _komSeenAt.TryGetValue(c.Id, out var sa) ? " · " + L.T("ostatnio ") + (sa.Date == DateTime.Today ? sa.ToString("HH:mm") : sa.ToString("g")) : "";
                     headBox.ToolTip = c.Name + (dev.Length > 0 ? " (" + c.Device + ")" : "") + "\n" + (on ? (KomViaNet(c.Id) ? L.T("● w sieci · 🌍 przez internet") : L.T("● w sieci · 🏠 sieć domowa")) : L.T("● poza siecią") + seen + " – " + L.T("wiadomości dojdą, gdy wróci"));   // pełny opis po najechaniu
                     headSub.Inlines.Add(new System.Windows.Documents.Run(on ? (KomViaNet(c.Id) ? L.T("● 🌍 internet") : L.T("● 🏠 sieć domowa")) : L.T("● poza siecią") + seen) { Foreground = on ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) : new SolidColorBrush(pal.Dim) });
-                    if (dev.Length > 0) headSub.Inlines.Add(new System.Windows.Documents.Run(dev) { Foreground = new SolidColorBrush(pal.Dim) });
                     headerDone:;
                 }
                 input.IsEnabled = sendBtn.IsEnabled = c != null;

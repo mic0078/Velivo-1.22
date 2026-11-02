@@ -453,7 +453,11 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
             var other = _lanPeers.Values.Where(p => p.Id != _lanId && DateTime.UtcNow - p.LastSeenUtc < TimeSpan.FromMinutes(3) && !string.Equals(p.Profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
                 .GroupBy(p => p.Id).Select(g => g.First()).ToList();
             if (other.Count > 0) return string.Join(", ", other.Select(p => p.Device + " (" + L.T("profil ") + "„" + (p.Profile ?? "") + "”)")) + L.T(" – inny profil niż tutaj („") + SelectedProfileName + L.T("”). Wybierz ten sam profil na obu komputerach.");
-            return L.T("Brak innych Velivo w sieci (muszą być włączone i sparowane)");
+            if (_settings == null || !_settings.LanSync || _lanEncryptionKey == null || _lanLegacyNoKeyMode)
+                return L.T("Na tym komputerze synchronizacja LAN jest wyłączona albo niesparowana: ⚙ Ustawienia → Synchronizacja w czasie rzeczywistym (LAN) – włącz i sparuj z drugim komputerem (ten sam kod).");
+            var old = _lanPeers.Values.Where(p => p.Id != _lanId && p.Profile != null).OrderByDescending(p => p.LastSeenUtc).FirstOrDefault();
+            if (old != null) return old.Device + L.T(" – ostatnio w sieci ") + old.LastSeenUtc.ToLocalTime().ToString("HH:mm") + L.T(". Włącz tam Velivo (synchronizacja LAN włączona).");
+            return L.T("Nie słychać innych Velivo w sieci domowej – na drugim komputerze włącz Velivo i synchronizację LAN (⚙ Ustawienia), sparuj kodem.");
         }
 
         List<LanPeerInfo> SendTargets()

@@ -1609,7 +1609,9 @@ namespace Velivo
             right.Children.Add(grp(L.T("Telewizja"), new UIElement[] { qTv, qGuide, qRefresh }));
             right.Children.Add(grp(L.T("Nagrywanie"), new UIElement[] { qRec, qRecStop, qRecSet, qRecDir }));
             right.Children.Add(grp(L.T("Film"), new UIElement[] { lib, qLists }));
-            right.Children.Add(grp(L.T("Obraz i dźwięk"), new UIElement[] { tools, pipBtn, mini, full, mute, vol, volText }));
+            // 🔊 przesunięcie dźwięku względem obrazu (jak J / K w VLC) - soundbar, Bluetooth, HDMI; prawy przycisk: wyrównaj teraz
+            var aEarly = textBtn("🔊−", ""); var aLate = textBtn("🔊+", ""); aEarly.FontSize = aLate.FontSize = 13;
+            right.Children.Add(grp(L.T("Obraz i dźwięk"), new UIElement[] { tools, pipBtn, mini, full, mute, vol, volText, aEarly, aLate }));
             right.Children.Add(grp(L.T("Ulubione"), new UIElement[] { fav, qFavTv, qFavFilm }));
             right.Children.Add(grp(L.T("Widok"), new UIElement[] { qInfo, qBarTime, qInfoSet }));
             // przełącznik TV ↔ Filmy - niebieski, osobno na końcu (zawsze widać, jak przejść na drugą stronę)
@@ -2231,6 +2233,33 @@ namespace Velivo
             // Bez zmiany opoznienia dzwieku - VLC nie podaje roznicy PTS obrazu i dzwieku, wiec nie ma wiarygodnej wartosci do korekty
             DateTime syncHiccup = DateTime.MinValue, syncFixed = DateTime.MinValue, syncReload = DateTime.MinValue; long sDisc = -1, sCorr = -1, sLostV = -1, sLostA = -1; int sBad = 0, sStep = 0; bool sSlow = false;   // sSlow: ten komputer gubi klatki także bez przycięć (słaby, np. CHUWI) - wtedy gubienie nie świadczy o rozjechaniu
             mp.Buffering += (s, e) => { if (e.Cache < 100f) syncHiccup = DateTime.Now; };
+            long fLostV = -1, fLostA = -1; int fBad = 0; bool fSlow = false; DateTime fFixed = DateTime.MinValue;   // to samo dla filmów: po przycięciu rozjechane - skok w to samo miejsce
+            int aDelayMs = int.TryParse(GetPref("dzwiek-przesuniecie"), out var adm) ? Math.Max(-5000, Math.Min(5000, adm)) : 0;   // zapamiętane na tym komputerze (stałe opóźnienie głośnika)
+            Func<string> aDelayText = () => L.T("Dźwięk: ") + (aDelayMs > 0 ? "+" : "") + aDelayMs + " ms" + (aDelayMs > 0 ? L.T("  (później)") : aDelayMs < 0 ? L.T("  (wcześniej)") : "");
+            Action aDelayTips = () =>
+            {
+                var now = "\n" + aDelayText() + "\n" + L.T("Prawy przycisk: wyrównaj teraz (R) i wróć do 0 ms");
+                aEarly.ToolTip = L.T("Dźwięk wcześniej o 50 ms (J) – gdy głos jest spóźniony względem ust") + now;
+                aLate.ToolTip = L.T("Dźwięk później o 50 ms (K) – gdy głos wyprzedza obraz") + now;
+            };
+            Action<int> setADelay = ms =>
+            {
+                aDelayMs = Math.Max(-5000, Math.Min(5000, ms)); SetPref("dzwiek-przesuniecie", aDelayMs.ToString());
+                try { mp.SetAudioDelay(aDelayMs * 1000L); } catch (Exception) { }
+                aDelayTips(); showOsd(aDelayText());
+            };
+            // ⇆ wyrównanie obrazu z dźwiękiem: film - skok w to samo miejsce (VLC opróżnia bufory i zaczyna synchronizację od nowa), TV - odświeżenie kanału
+            Action resync = () =>
+            {
+                var pth = _playlist.Count > _playIndex ? _playlist[_playIndex] : null; if (pth == null) return;
+                if (_iptvPlaying.ContainsKey(pth)) { showOsd(L.T("🔄 Wyrównuję obraz z dźwiękiem…")); _vlcLoad(_playIndex); return; }
+                if (mp.Length <= 0 || !mp.IsSeekable) return;
+                mp.Time = Math.Max(0, mp.Time - 200); fFixed = DateTime.Now; showOsd(L.T("🔄 Wyrównuję obraz z dźwiękiem…"));
+            };
+            aEarly.Click += (s, e) => setADelay(aDelayMs - 50); aLate.Click += (s, e) => setADelay(aDelayMs + 50);
+            MouseButtonEventHandler aReset = (s, e) => { e.Handled = true; setADelay(0); resync(); };
+            aEarly.MouseRightButtonUp += aReset; aLate.MouseRightButtonUp += aReset; aDelayTips();
+            mp.Playing += (s, e) => Dispatcher.BeginInvoke(new Action(() => { try { if (aDelayMs != 0) mp.SetAudioDelay(aDelayMs * 1000L); } catch (Exception) { } }));   // każdy film / kanał z tym samym przesunięciem
             var tvWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             tvWatch.Tick += (s, e) =>
             {
@@ -2241,6 +2270,30 @@ namespace Velivo
                 // opcja: dluga pauza na zywo - polaczenie z dostawca zwolnione (▶ laczy ponownie)
                 if (pth != null && _iptvPlaying.ContainsKey(pth) && mp.State == VLCState.Paused && curRecFile == null && IptvSt.PauseRelease && (DateTime.Now - pausedAt).TotalMinutes >= 5)
                 { userStopped = true; vlcRun(() => mp.Stop()); showOsd(L.T("⏸ Połączenie z dostawcą zwolnione po 5 min pauzy – ▶ wznawia")); return; }
+                // 🎬 film: po przycięciu (buforowanie, dziura w pliku / strumieniu Jellyfin) VLC stale gubi klatki albo dźwięk - rozjechane; skok w to samo miejsce, najwyżej co minutę
+                try
+                {
+                    var fs = pth != null && !_iptvPlaying.ContainsKey(pth) && !userStopped && mp.State == VLCState.Playing && mp.IsSeekable ? mp.Media?.Statistics : null;
+                    if (fs == null) { fLostV = fLostA = -1; fBad = 0; }
+                    else
+                    {
+                        var q = fs.Value; long dV = fLostV < 0 ? 0 : q.LostPictures - fLostV, dA = fLostA < 0 ? 0 : q.LostAudioBuffers - fLostA;
+                        fLostV = q.LostPictures; fLostA = q.LostAudioBuffers;
+                        var since = (DateTime.Now - syncHiccup).TotalSeconds;
+                        if (since < 4 || since > 90) { fBad = 0; if (since > 90 && dV >= 3) fSlow = true; }   // słaby komputer gubi klatki zawsze - to nie rozjechanie
+                        else if (!fSlow)
+                        {
+                            fBad = dV >= 3 || dA >= 2 ? fBad + 1 : 0;
+                            if (fBad >= 3 && (DateTime.Now - fFixed).TotalSeconds > 60)
+                            {
+                                fBad = 0;
+                                try { lock (VlcLogFile) File.AppendAllText(VlcLogFile, DateTime.Now.ToString("HH:mm:ss") + " film: po przycieciu obraz i dzwiek rozjechane (gubi klatki " + dV + ", dzwiek " + dA + ") - skok w to samo miejsce\n"); } catch (Exception) { }
+                                resync();
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex) { App.LogError(ex); }
                 if (pth == null || !_iptvPlaying.ContainsKey(pth) || userStopped || mp.State == VLCState.Paused) { lastTvProgress = DateTime.Now; return; }
                 // straznik dzwieku: obraz idzie, a dzwiek przestal grac (po dluzszym ogladaniu wyjscie dzwieku VLC potrafi sie
                 // zawiesic - wczesniej pomagalo tylko 🔄 Odswiez). Najpierw ponowne wlaczenie sciezki dzwieku (bez przerwy w obrazie),
@@ -4025,6 +4078,9 @@ namespace Velivo
                     case Key.F5: if (_playlist.Count > _playIndex && _iptvPlaying.ContainsKey(_playlist[_playIndex])) { showOsd(L.T("🔄 Odświeżam kanał…")); _vlcLoad(_playIndex); } break;
                     case Key.Escape: if (chPanel.Visibility == Visibility.Visible) showChannels(false); else if (full0) toggleFull(); else if (mini0) toggleMini(); else h = false; break;
                     case Key.M: toggleMute(); break;
+                    case Key.J: setADelay(aDelayMs - 50); break;   // dźwięk wcześniej (jak w VLC)
+                    case Key.K: setADelay(aDelayMs + 50); break;   // dźwięk później
+                    case Key.R: resync(); break;   // wyrównaj obraz z dźwiękiem
                     case Key.G: setSubDelay(mp.SpuDelay / 1000000.0 - 0.05); showOsd(sdText.Text); break;   // napisy wczesniej (jak w VLC)
                     case Key.H: setSubDelay(mp.SpuDelay / 1000000.0 + 0.05); showOsd(sdText.Text); break;   // napisy pozniej
                     case Key.N: case Key.PageDown: step(1); break;

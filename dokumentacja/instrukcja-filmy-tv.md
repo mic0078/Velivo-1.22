@@ -108,6 +108,8 @@ Gdy coś się nagrywa, u góry obrazu widać małą czerwoną kropkę: **„Trwa
 | PgUp / PgDn | poprzedni / następny kanał |
 | F5 | odśwież kanał |
 | G / H | przesunięcie napisów |
+| J / K | dźwięk wcześniej / później o 50 ms (też przyciski 🔊− / 🔊+ w grupie „Obraz i dźwięk”; zapamiętane na komputerze) |
+| R | wyrównaj obraz z dźwiękiem (film: skok w to samo miejsce, TV: odświeżenie kanału; też prawy przycisk na 🔊− / 🔊+, wraca do 0 ms) |
 | [ ] | prędkość |
 | P / N | poprzedni / następny film |
 
@@ -215,6 +217,7 @@ Drugi kanał albo film w małym okienku – przy telewizji i przy filmie.
 
 - **💬 Pobierz napisy…** – z menu pod prawym przyciskiem (na filmie albo w bibliotece). Napisy pochodzą z OpenSubtitles.com: logujesz się raz swoim kontem (hasło zapisane zaszyfrowane na tym komputerze), Velivo szuka po odcisku pliku i po nazwie, a wybrane napisy zapisuje obok filmu jako `film.pl.srt` – wczytują się same.
 - **G / H** – przesuwasz napisy, gdy się spóźniają lub wyprzedzają; Velivo zapamięta to dla filmu.
+- **Rozjechany dźwięk:** po przycięciu (sieć, Jellyfin) film wyrównuje się sam; ręcznie – **R** albo prawy przycisk na 🔊−/🔊+. Stałe opóźnienie głośnika (Bluetooth, soundbar) – **J / K**.
 - **Lektor** czyta napisy na głos; ustawienia lektora są zapamiętywane dla każdego filmu.
 
 ---

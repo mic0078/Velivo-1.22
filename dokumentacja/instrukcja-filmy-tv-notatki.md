@@ -149,3 +149,5 @@ Uzupełniać przy każdej nowej funkcji lub zmianie zachowania.
 * 2026-11-02: 🎞 Jellyfin jako serwer biblioteki: `JellyfinAddNewAsync` dodaje też pliki niedostępne lokalnie, gdy mają Id w bazie (`fromJf`); odtwarzanie – brak pliku → `JellyfinStreamUrl` (`/Videos/{id}/stream?static=true&api_key=…`, adres `_jfWorking` z `JellyfinReach`, inaczej `Url`); listy (Kontynuuj, ostatnio, boczna) – `FilmPlayable`. Klucz w adresie nie trafia do vlc.log (`VlcLogSafe` ucina zapytanie).
 * 2026-11-02: pasek odtwarzacza – przycisk ⏺ REC i „🔌 Połączenia z dostawcą” ucięte od góry: wiersz miał stałą wysokość 21 px, a przyciski z emoji są wyższe; teraz MinHeight 21 i bez pionowego odstępu w przyciskach.
 * 2026-11-02: pasek – większe ikony (BarIcon0 = 24 px zamiast 20, suwak wysokości od tej wielkości); górny wiersz krótko: „⏺ REC · do 15:00”, „🔌 2 / 3” tylko przy 2+ połączeniach albo limicie, dane strumienia „FHD · 6,4 Mb/s” (+ ⚠ utracone), szczegóły w podpowiedzi.
+
+* 2026-11-02: pasek odtwarzacza w grupach z podpisami (grp w VlcPlayer.cs), szybkie ikony przeniesione do grup, niebieski przełącznik Filmy ↔ TV na końcu.

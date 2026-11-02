@@ -1542,7 +1542,20 @@ namespace Velivo
             var chHistBtn = glyphBtn("chhist", L.T("Historia kanałów – ostatnie 20 (alfabetycznie)"));
             var filmNav = new StackPanel { Orientation = Orientation.Horizontal }; foreach (var b in new UIElement[] { back10, fwd10, speed }) filmNav.Children.Add(b);
             var tvNav = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed }; foreach (var b in new UIElement[] { chBack, chFirst, chHistBtn }) tvNav.Children.Add(b);
-            foreach (var b in new UIElement[] { prev, play, stop, next, filmNav, tvNav }) left.Children.Add(b);
+            // grupy przycisków z podpisem pod spodem (Odtwarzanie, Telewizja, Film, …) - grupa bez widocznych przycisków znika razem z podpisem
+            var visDp = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(UIElement.VisibilityProperty, typeof(UIElement));
+            Func<string, UIElement[], FrameworkElement> grp = (cap, items) =>
+            {
+                var row = new StackPanel { Orientation = Orientation.Horizontal };
+                foreach (var it in items) row.Children.Add(it);
+                var g = new StackPanel { Margin = new Thickness(3, 0, 3, 0), VerticalAlignment = VerticalAlignment.Bottom };
+                g.Children.Add(new Border { Background = new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF)), CornerRadius = new CornerRadius(10), Padding = new Thickness(3, 2, 3, 2), Child = row });
+                g.Children.Add(new TextBlock { Text = cap, FontSize = 11, Foreground = Brushes.Silver, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0) });
+                EventHandler upd = (s, e) => g.Visibility = items.Any(x => x.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
+                foreach (var it in items) visDp.AddValueChanged(it, upd);
+                upd(null, null); return g;
+            };
+            left.Children.Add(grp(L.T("Odtwarzanie"), new UIElement[] { prev, play, stop, next, filmNav, tvNav, hist, sleep }));
             var right = new StackPanel { Orientation = Orientation.Horizontal };
             bool narrow = false; Action updMode = null;
             // ⚙ Obraz i dźwięk: napisy, lektor, ścieżka, proporcje, zrzut - w drugim rzędzie z podpisami (jedna ikona na pasku zamiast pięciu)
@@ -1562,7 +1575,6 @@ namespace Velivo
             // przełącznik TV ↔ Filmy: przy telewizji „🎬 Filmy” (biblioteka), przy filmie „📺 TV” (kanały) - zawsze w tym samym miejscu
             var swap = textBtn("🎬 " + L.T("Filmy"), L.T("Przełącz na filmy – biblioteka filmów\nPrawy przycisk: ostatnio oglądane filmy")); swap.FontSize = 13; swap.Margin = new Thickness(6, 0, 6, 0);
             bool swapTv = false;   // true = przycisk prowadzi do telewizji
-            foreach (var b in new UIElement[] { swap, fav, sleep, pipBtn, tools, lib, hist, mini, full, mute, vol, volText }) right.Children.Add(b);
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 4) };
             btnRow.Children.Add(left); btnRow.Children.Add(right);
             // pasek nakladany na obraz (jak w "Na wierzchu"): chowa sie po chwili bez ruchu myszy, film nie zmienia rozmiaru
@@ -1590,10 +1602,16 @@ namespace Velivo
             qFavTv.ToolTip = L.T("Moje ulubione kanały TV") + "\n" + L.T("Prawy przycisk: wszystkie kanały tej grupy"); qFavFilm.ToolTip = L.T("Moje ulubione filmy") + "\n" + L.T("Prawy przycisk: wszystkie filmy");   // dwie gwiazdki z podpisem - od razu widać, która jest która
             var quick = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 2, 4, 4) };   // ta sama wysokosc co rzad przyciskow (btnRow: 2 u gory, 4 u dolu)
             var qBarTime = qBtn("eye", L.T("Pasek sterowania: jak długo zostaje widoczny i jak bardzo przezroczysty"));
-            foreach (var b in new UIElement[] { qRec, qRecStop, qRecSet, qRecDir, qTv, qGuide, qInfo, qRefresh, qLists, qFavTv, qFavFilm }) quick.Children.Add(b);
-            quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });   // separator - ustawienia paska osobno
             var qInfoSet = qBtn("tune", L.T("Pasek informacji: kiedy się pokazuje, znikanie, przezroczystość, wielkość tekstu"));
-            quick.Children.Add(qBarTime); quick.Children.Add(qInfoSet);
+            right.Children.Add(grp(L.T("Telewizja"), new UIElement[] { qTv, qGuide, qInfo, qRefresh }));
+            right.Children.Add(grp(L.T("Nagrywanie"), new UIElement[] { qRec, qRecStop, qRecSet, qRecDir }));
+            right.Children.Add(grp(L.T("Film"), new UIElement[] { lib, qLists, tools }));
+            right.Children.Add(grp(L.T("Obraz i dźwięk"), new UIElement[] { pipBtn, mini, full, mute, vol, volText }));
+            right.Children.Add(grp(L.T("Ulubione"), new UIElement[] { fav, qFavTv, qFavFilm }));
+            right.Children.Add(grp(L.T("Widok"), new UIElement[] { qBarTime, qInfoSet }));
+            // przełącznik TV ↔ Filmy - niebieski, osobno na końcu (zawsze widać, jak przejść na drugą stronę)
+            swap.Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8)); swap.Margin = new Thickness(8, 0, 4, 15); swap.VerticalAlignment = VerticalAlignment.Bottom;
+            right.Children.Add(swap);
             // na koncu: separator, maly wykres pobierania z sieci (30 s) z predkoscia oraz godzina i data
             quick.Children.Add(new Border { Width = 1, Height = 22, Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
             var netLine = new System.Windows.Shapes.Polyline { Stroke = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };

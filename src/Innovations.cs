@@ -447,6 +447,15 @@ try { if (C.dark && window === window.top && /^https?:$/.test(location.protocol)
             public string to { get; set; }
         }
 
+        // pusta lista „Odtwórz na / Oglądaj razem” - dlaczego: komputer widać, ale ma inny profil Velivo (lista go nie pokazuje), albo nikogo nie słychać
+        string NoPeersWhy()
+        {
+            var other = _lanPeers.Values.Where(p => p.Id != _lanId && DateTime.UtcNow - p.LastSeenUtc < TimeSpan.FromMinutes(3) && !string.Equals(p.Profile ?? "", SelectedProfileName, StringComparison.OrdinalIgnoreCase))
+                .GroupBy(p => p.Id).Select(g => g.First()).ToList();
+            if (other.Count > 0) return string.Join(", ", other.Select(p => p.Device + " (" + L.T("profil ") + "„" + (p.Profile ?? "") + "”)")) + L.T(" – inny profil niż tutaj („") + SelectedProfileName + L.T("”). Wybierz ten sam profil na obu komputerach.");
+            return L.T("Brak innych Velivo w sieci (muszą być włączone i sparowane)");
+        }
+
         List<LanPeerInfo> SendTargets()
         {
             return _lanPeers.Values

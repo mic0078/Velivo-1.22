@@ -271,8 +271,11 @@ namespace Velivo
         // "Odtworz na" / "Ogladaj razem" z biblioteki tego komputera
         void PlayFilmOn(LibraryVideo v, LanPeerInfo peer, bool together)
         {
-            if (!File.Exists(v.Path)) return;
-            var m = FilmFor(v, peer, together ? "together" : "play");
+            // 🎞 film z serwera Jellyfin (pliku nie ma na tym komputerze) - drugi komputer bierze go z Jellyfin; wcześniej nic się nie działo
+            var jf = File.Exists(v.Path) ? null : JellyfinStreamUrl(v.Path);
+            if (!File.Exists(v.Path) && jf == null) { ShowToast(L.T("🎬 Nie ma tego filmu na tym komputerze ani w Jellyfin"), null); return; }
+            var m = jf != null ? new LanFilmMsg { kind = together ? "together" : "play", id = FilmId(v.Path), title = v.Title, pos = v.Done ? 0 : v.Pos, len = v.Len, done = v.Done, url = jf, prefs = PrefsOf(v) }
+                : FilmFor(v, peer, together ? "together" : "play");
             if (m.url == null && m.unc == null) { ShowToast(L.T("🎬 Nie udało się udostępnić filmu w sieci"), null); return; }
             if (together)
             {

@@ -941,7 +941,7 @@ namespace Velivo
                 var root = new MenuItem { Header = text };
                 var r = list.SelectedItem as LibRow;
                 var peers = SendTargets();
-                if (peers.Count == 0) root.Items.Add(new MenuItem { Header = L.T("Brak innych Velivo w sieci (muszą być włączone i sparowane)"), IsEnabled = false });
+                if (peers.Count == 0) root.Items.Add(new MenuItem { Header = NoPeersWhy(), IsEnabled = false });
                 foreach (var p0 in peers)
                 {
                     var p = p0;
@@ -3909,7 +3909,7 @@ namespace Velivo
                         bool together = together0;
                         var root = new MenuItem { Header = together ? L.T("👥 Oglądaj razem z…") : L.T("📺 Odtwórz na…") };
                         var peers = SendTargets();
-                        if (peers.Count == 0) root.Items.Add(new MenuItem { Header = L.T("Brak innych Velivo w sieci (muszą być włączone i sparowane)"), IsEnabled = false });
+                        if (peers.Count == 0) root.Items.Add(new MenuItem { Header = NoPeersWhy(), IsEnabled = false });
                         foreach (var p0 in peers)
                         {
                             var p = p0; var mi = new MenuItem { Header = "🖥 " + p.Device };

@@ -155,7 +155,7 @@ Przy kilku komputerach użyj **pliku odzyskiwania** (komputer: Zapisz plik odzys
   - **pobieranie aplikacji (APK) spoza Sklepu Play** – ostrzeżenie, domyślnie **Nie pobieraj**;
   - **najpierw https** – strona otwiera się szyfrowana; gdy się nie da, Velivo pyta, czy otworzyć bez szyfrowania (sieć domowa – router, NAS – bez pytania). Błędny certyfikat jest zawsze blokowany.
 - Telefon nigdy nie wysyła całego profilu – tylko nowe pozycje, które komputer potwierdza. Komputer rozpoznaje telefon (na liście urządzeń jako 📱) i odrzuca od niego pakiety, które wysyłają tylko komputery – telefon nie zmieni ustawień komputera.
-- Połączenie jest szyfrowane (AES-GCM) kluczem z parowania; inne telefony w sieci nic nie odczytają.
+- Połączenie jest szyfrowane (AES-GCM) kluczem z parowania; inne telefony w sieci nic nie odczytają. Gdy komputery zmienią klucz (np. dojdzie nowy komputer), telefon dostaje nowy klucz sam – także gdy był wtedy wyłączony; nie trzeba parować od nowa.
 - Pozycja w czytniku, ukryte elementy i ustawienia zostają w telefonie.
 
 - **Filmy i TV:** adresy list kanałów (często z tokenem) i dane logowania Jellyfin są zaszyfrowane w telefonie (Android Keystore) i nie trafiają do logów ani komunikatów o błędach. Lista kanałów i program są zapisane zaszyfrowane. Zaplanowane audycje pamiętają tylko nazwę kanału.

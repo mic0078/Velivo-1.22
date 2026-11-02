@@ -197,6 +197,7 @@ class LanSync(
             "pair-key" -> pairKey(p, sender)
             "state" -> state(p, sender)
             "tab" -> tab(p)
+            "rekey" -> rekey(p)
             "kb" -> kb(p)
             "media-conf" -> mediaConf(p)
             "media-give" -> mediaGive(p)
@@ -342,6 +343,16 @@ class LanSync(
         c.updateAAD(ad(pkt))
         val out = c.doFinal(zipped)
         return pkt.put("nonce", b64(nonce)).put("data", b64(out.copyOfRange(0, out.size - 16))).put("tag", b64(out.copyOfRange(out.size - 16, out.size)))
+    }
+
+    // 🔑 nowy klucz grupy od komputera (Windows: LanSendRekey / LanRekeyStraggler) - zaszyfrowany obecnym kluczem telefonu,
+    // więc telefon zostaje w grupie, gdy komputery zmieniły klucz (nowy komputer, telefon wyłączony w czasie zmiany)
+    private fun rekey(p: JSONObject) {
+        val k = openBlob(p)?.optString("k") ?: return
+        if (k.trim().toByteArray(Charsets.UTF_8).size < 24 || k == lanKey()) return
+        saveKey(k)
+        deriveKeys()
+        hello()
     }
 
     private fun tab(p: JSONObject) {

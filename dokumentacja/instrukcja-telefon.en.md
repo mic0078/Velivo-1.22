@@ -155,7 +155,7 @@ With several computers use the **recovery file** (computer: Save recovery file�
   - **app (APK) downloads from outside Google Play** – a warning, **Don't download** by default;
   - **HTTPS first** – pages open encrypted; if that fails, Velivo asks whether to open the page unencrypted (home network – router, NAS – without asking). A bad certificate is always blocked.
 - The phone never sends its whole profile – only new items, which the computer confirms. The computer recognises the phone (shown as 📱 in the device list) and rejects packets from it that only computers send – the phone can't change the computer's settings.
-- The connection is encrypted (AES-GCM) with the key from pairing; other phones on the network can read nothing.
+- The connection is encrypted (AES-GCM) with the key from pairing; other phones on the network can read nothing. When the computers change the key (e.g. a new computer joins), the phone gets the new key by itself – even if it was off at the time; no need to pair again.
 - Your reading position, removed elements and settings stay on the phone.
 
 - **Films and TV:** channel list addresses (often with a token) and Jellyfin sign-in data are encrypted on the phone (Android Keystore) and never go to logs or error messages. The channel list and guide are stored encrypted. Scheduled programmes remember only the channel name.

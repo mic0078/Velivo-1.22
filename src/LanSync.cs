@@ -1353,6 +1353,7 @@ namespace Velivo
         void RefreshLanDiagnosticsUi()
         {
             if (_lanDiagWindow == null || _lanDiagStatus == null) return;
+            if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(new Action(RefreshLanDiagnosticsUi)); return; }   // wysyłanie w tle - okno diagnostyki tylko z wątku okna („Wątek wywołujący nie może uzyskać dostępu…”)
 
             var now = DateTime.UtcNow;
             var active = _lanPeers.Values.Where(p => now - p.LastSeenUtc < TimeSpan.FromSeconds(20)).OrderByDescending(p => p.LastSeenUtc).ToList();

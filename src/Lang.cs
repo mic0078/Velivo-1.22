@@ -514,6 +514,7 @@ namespace Velivo
             { "\", aby zachować synchronizację LAN?", "\" to keep LAN sync?" },
             { "Nie wysłano pakietu LAN: przekracza limit UDP (", "LAN packet not sent: exceeds the UDP limit (" },
             { "Błąd nadawania LAN: ", "LAN send error: " },
+            { "Akceptuj tylko wtedy, gdy kody są identyczne. Ten komputer przekaże drugiemu swój klucz LAN – wcześniej sparowane urządzenia zostają.", "Accept only if the codes match. This computer will pass its LAN key to the other one – devices paired earlier stay paired." },
             { "🌐 Zsynchronizowano z Velivo w sieci lokalnej.", "🌐 Synced with Velivo on the local network." },
             { "Zsynchronizowano z ", "Synced with " },
             { " (ustawienia przyjęte)", " (settings accepted)" },

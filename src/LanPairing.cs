@@ -223,7 +223,7 @@ namespace Velivo
             var code = PairConfirmationCode(transportKey, pkt.pairId);
             var text = L.T("Potwierdź sparowanie z ") + device + " (" + sourceAddress + ").\n\n" +
                        L.T("Porównaj kod z drugim komputerem: ") + code + "\n\n" +
-                       L.T("Akceptuj tylko wtedy, gdy kody są identyczne. Sparowanie zastąpi obecny klucz LAN; pozostałe urządzenia trzeba będzie sparować ponownie.");
+                       L.T("Akceptuj tylko wtedy, gdy kody są identyczne. Ten komputer przekaże drugiemu swój klucz LAN – wcześniej sparowane urządzenia zostają.");
             if (MessageBox.Show(PairDialogOwner(), text, L.T("Potwierdź parowanie Velivo"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             {
                 CryptographicOperations.ZeroMemory(transportKey);
@@ -235,7 +235,7 @@ namespace Velivo
             pending.PeerId = pkt.id;
             pending.PeerDevice = device;
             pending.TransportKey = transportKey;
-            pending.LanKey = pending.Phone ? CurrentLanKeyBytes() ?? RandomNumberGenerator.GetBytes(32) : RandomNumberGenerator.GetBytes(32);
+            pending.LanKey = CurrentLanKeyBytes() ?? RandomNumberGenerator.GetBytes(32);   // klucz grupy (jak dla telefonu) - nowy klucz odcinał wcześniej sparowane komputery (NUCBOX + CHUWI → Ryzen znikał)
             var keyPacket = new LanStatePacket
             {
                 t = "pair-key",

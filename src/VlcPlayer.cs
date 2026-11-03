@@ -1149,6 +1149,7 @@ namespace Velivo
         List<string> _playlist = new List<string>();
         int _playIndex;
         Action<int> _vlcLoad;
+        Action<bool> _vlcQuiet;   // 🛋 okienko w Kanapie: bez paska i bez reakcji na mysz
 
         bool EnsureLibVlc()
         {
@@ -4062,7 +4063,8 @@ namespace Velivo
                 var cp = _playlist.Count > _playIndex ? _playlist[_playIndex] : null;
                 if (cp != null && e.GetPosition(overlay).X < 14 && chPanel.Visibility != Visibility.Visible) showChannels(true);   // kanaly albo filmy
             };
-            mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(showBar));
+            _vlcQuiet = q => { overlay.IsHitTestVisible = !q; if (q) { hideTimer.Stop(); controls.Visibility = Visibility.Collapsed; miniBar.Visibility = Visibility.Collapsed; if (chPanel.Visibility == Visibility.Visible) showChannels(false); } else showBar(); };
+            mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => { if (overlay.IsHitTestVisible) showBar(); }));
             mp.Paused += (s, e) => Dispatcher.BeginInvoke(guard(() => pausedAt = DateTime.Now));   // pauza - pasek zostaje widoczny
             hideTimer.Start();
             win.PreviewKeyDown += (s, e) =>
@@ -4102,7 +4104,7 @@ namespace Velivo
             win.Closed += (s, e) =>
             {
                 saveTimer.Stop(); hideTimer.Stop(); osdTimer.Stop(); lectorTimer.Stop(); LectorStopVoice(lc, mp);
-                _vlcWin = null; _vlcLoad = null; _vlcRemoteCtl = null; _vlcAsk = null; _playShared = null;
+                _vlcWin = null; _vlcLoad = null; _vlcQuiet = null; _vlcRemoteCtl = null; _vlcAsk = null; _playShared = null;
                 LeaveTogether();   // zamkniecie odtwarzacza: wychodzisz ze wspolnego ogladania, druga osoba oglada dalej
                 if (!_mainClosing) SaveTvResume(-1);
                 if (_hiddenForPlayer && !_mainClosing) { _hiddenForPlayer = false; ShowFromTray(); }

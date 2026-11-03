@@ -379,7 +379,9 @@ namespace Velivo
                 {
                     var wa = SystemParameters.WorkArea;
                     pv.WindowState = WindowState.Normal; pv.WindowStyle = WindowStyle.None; pv.ResizeMode = ResizeMode.NoResize;
-                    pv.Width = 448; pv.Height = 252; pv.Left = wa.Right - 448 - 40; pv.Top = wa.Top + 92;
+                    pv.Width = 352; pv.Height = 198; pv.Left = wa.Right - 352 - 48 - 120; pv.Top = wa.Top + 22;   // w pasie u góry, obok „Zamknij” i zegara - nie zasłania kafelków
+                    det.Margin = new Thickness(8, 0, 352 + 140, 10);   // opis nie wchodzi pod okienko
+                    _vlcQuiet?.Invoke(true);
                     w.Topmost = false;   // Kanapa zwykłym oknem na pełnym ekranie, okienko filmu „na wierzchu” - zawsze nad nią (dwa okna na wierzchu: wygrywało aktywne)
                     pv.Topmost = true; w.Activate();
                 }
@@ -389,6 +391,7 @@ namespace Velivo
                     try
                     {
                         if (_vlcWin != pv) return;   // odtwarzacz zamknięty w międzyczasie
+                        _vlcQuiet?.Invoke(false);
                         pv.Topmost = was.Top; pv.WindowStyle = was.Style; pv.ResizeMode = was.Resize;
                         pv.Left = was.L; pv.Top = was.T; pv.Width = was.W; pv.Height = was.H; pv.WindowState = was.State;
                         pv.Activate();

@@ -74,7 +74,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     }
     // read: moja - odbiorca przeczytał (✓✓); odebrana - wysłaliśmy „przeczytane”
     // file: wpis o pliku (nie wysyłany ponownie jako tekst)
-    class Msg(val mine: Boolean, var text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false, var file: Boolean = false, var path: String? = null, var re: String = "", var lp: String = "")   // re: reakcje „id:emoji,…”
+    class Msg(val mine: Boolean, var text: String, val ts: Long, var ok: Boolean, val mid: String, var read: Boolean = false, var file: Boolean = false, var path: String? = null, var re: String = "", var lp: String = "", var heard: Boolean = false)   // re: reakcje „id:emoji,…”
 
     private val prefs = ctx.getSharedPreferences("komunikator", Context.MODE_PRIVATE)
     private val random = SecureRandom()
@@ -276,7 +276,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     @Synchronized fun chat(id: String): MutableList<Msg> = chats.getOrPut(id) {
         runCatching {
             val a = JSONArray(open(prefs.getString("rozmowa-$id", null)) ?: "[]")
-            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid"), it.optBoolean("rd"), it.optBoolean("f"), it.optString("p").ifEmpty { null }, it.optString("re"), it.optString("lp")) }.toMutableList()
+            (0 until a.length()).map { a.getJSONObject(it) }.map { Msg(it.optBoolean("me"), it.optString("t"), it.optLong("ts"), it.optBoolean("ok", true), it.optString("mid"), it.optBoolean("rd"), it.optBoolean("f"), it.optString("p").ifEmpty { null }, it.optString("re"), it.optString("lp"), it.optBoolean("hd")) }.toMutableList()
         }.getOrDefault(mutableListOf())
     }
     @Synchronized private fun saveChat(id: String) {
@@ -285,7 +285,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             val old = System.currentTimeMillis() - h * 3600000L
             l.removeAll { m -> (m.ts < old).also { gone -> if (gone) m.path?.let { p -> if (p.startsWith(mediaDir.path)) java.io.File(p).delete() } } }
         }
-        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid).put("rd", it.read).put("f", it.file).put("p", it.path ?: "").put("re", it.re).put("lp", it.lp)) }
+        val a = JSONArray(); l.forEach { a.put(JSONObject().put("me", it.mine).put("t", it.text).put("ts", it.ts).put("ok", it.ok).put("mid", it.mid).put("rd", it.read).put("f", it.file).put("p", it.path ?: "").put("re", it.re).put("lp", it.lp).put("hd", it.heard)) }
         prefs.edit().putString("rozmowa-$id", seal(a.toString())).apply()
         serverBackupSoon()
     }
@@ -364,7 +364,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 val list = chat(id); val have = list.map { it.mid }.toHashSet()
                 val ms = o.optJSONObject("chats")?.optJSONArray(id) ?: JSONArray()
                 for (k in 0 until ms.length()) ms.getJSONObject(k).let { m ->
-                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid"), m.optBoolean("rd"), m.optBoolean("f"), m.optString("p").ifEmpty { null }, m.optString("re"), m.optString("lp")))
+                    if (have.add(m.optString("mid"))) list.add(Msg(m.optBoolean("me"), m.optString("t"), m.optLong("ts"), m.optBoolean("ok", true), m.optString("mid"), m.optBoolean("rd"), m.optBoolean("f"), m.optString("p").ifEmpty { null }, m.optString("re"), m.optString("lp"), m.optBoolean("hd")))
                 }
                 list.sortBy { it.ts }
                 val un = o.optJSONObject("unread")?.optInt(id) ?: 0
@@ -462,6 +462,14 @@ class Komunikator private constructor(private val ctx: Context, private val devi
                 synchronized(this) { chat(c.id).forEach { if (it.mine && it.mid == mid && it.text.contains("📬")) { it.ok = true; it.text = it.text.replace(" – 📬 czeka na serwerze", " – odebrano").replace(" – 📬 waiting on the server", " – received"); any = true } } }
                 if (any) { saveChat(c.id); main.post { onChange() } }
             }
+            // 🎧 odbiorca odsłuchał naszą głosówkę
+            "p2p-heard" -> {
+                val c = contact(from) ?: return true; val mid = p.optString("mid")
+                if (p.optString("to") != myId || !MessageDigest.isEqual(unb64(p.optString("mac")), hmac(c.key, "heard\n$mid".toByteArray()))) return true
+                var any = false
+                synchronized(this) { chat(c.id).forEach { if (it.mine && !it.heard && it.mid == mid) { it.heard = true; it.read = true; it.ok = true; any = true } } }
+                if (any) { saveChat(c.id); main.post { onChange() } }
+            }
             // ✓✓ odbiorca przeczytał nasze wiadomości
             "p2p-read" -> {
                 val c = contact(from) ?: return true; val mids = p.optString("mids")
@@ -472,6 +480,17 @@ class Komunikator private constructor(private val ctx: Context, private val devi
             }
         }
         return true
+    }
+
+    // 🎧 odsłuchana głosówka - „odsłuchane” do nadawcy (tymi samymi drogami co „przeczytane”)
+    fun sendHeard(c: Contact, m: Msg) {
+        if (m.mine || m.heard || m.mid.length != 32 || c.isGroup) return
+        m.heard = true; saveChat(c.id)
+        val p = packet("p2p-heard").put("to", c.id).put("mid", m.mid).put("mac", b64(hmac(c.key, "heard\n${m.mid}".toByteArray())))
+        Thread {
+            val to = runCatching { InetAddress.getByName(c.addr.ifEmpty { null } ?: throw Exception()) }.getOrNull()?.takeIf { !it.isLoopbackAddress }
+            for (i in 0 until 2) { if (to != null) sendUdp(p, to); sendUdp(p, null); Thread.sleep(1500) }
+        }.start()
     }
 
     // rozmowa na ekranie: „przeczytane” do nadawcy (najwyżej 60 naraz)
@@ -3224,7 +3243,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 msgs.addView(TextView(a).apply {
                     val tick = if (m.mine) "  \uFFFC" else ""   // znak stanu z ikony Velivo (VStan) zamiast ptaszków
                     // jak WhatsApp: zdjęcie / film - tylko obraz i godzina (bez nazwy, rozmiaru, „odebrano”); głosówka - 🎤 i długość
-                    val shown = if (img != null) "" else if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) "🎤 ▶" else m.text
+                    val shown = if (img != null) "" else if (m.path?.contains("Glosowa-") == true && java.io.File(m.path!!).exists()) (if (m.mine && m.heard) "🎧 ▶" else "🎤 ▶") else m.text
                     text = android.text.SpannableStringBuilder(shown).apply {
                         if (m.text.startsWith("› ")) { val e = m.text.indexOf('\n').let { if (it < 0) length else it }; setSpan(android.text.style.QuoteSpan(violet), 0, e, 0); setSpan(android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), 0, e, 0) }   // ↩ cytat
                         voiceLength(m.path)?.let { append(" · $it") }   // 🎤 długość głosówki
@@ -3241,7 +3260,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     background = GradientDrawable().apply { setColor(if (m.mine) violet else pal().theirs); cornerRadii = if (m.mine) floatArrayOf(r, r, s, s, r, r, r, r) else floatArrayOf(s, s, r, r, r, r, r, r) }
                     layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = if (m.mine) Gravity.END else Gravity.START; topMargin = if (series) px(2) else px(8); if (m.mine) leftMargin = px(48) else rightMargin = px(48) }
                     contentDescription = (if (m.mine) t("Ty: ", "You: ") else c.name + ": ") + m.text + ", " + fmt.format(java.util.Date(m.ts)) +
-                        if (m.mine) ", " + (if (m.read) t("przeczytane", "read") else if (m.ok) t("doręczone", "delivered") else t("czeka na doręczenie", "waiting")) else ""
+                        if (m.mine) ", " + (if (m.heard) t("odsłuchane", "listened") else if (m.read) t("przeczytane", "read") else if (m.ok) t("doręczone", "delivered") else t("czeka na doręczenie", "waiting")) else ""
                     // 🔗 adresy w wiadomości - stuknięcie otwiera przeglądarkę
                     if (m.path == null && android.text.util.Linkify.addLinks(this, android.text.util.Linkify.WEB_URLS)) (text as? android.text.Spannable)?.let { sp ->
                         sp.getSpans(0, sp.length, android.text.style.URLSpan::class.java).forEach { u ->
@@ -3251,7 +3270,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                     }
                     if (vid != null) setOnClickListener { openFile(vid) }
                     else if (img != null) setOnClickListener { showPhoto(m.path!!, photos(c)) }
-                    else if (m.path != null && java.io.File(m.path!!).exists() && java.io.File(m.path!!).name.contains("Glosowa-")) setOnClickListener { play(m.path!!) }   // 🎤 głosowa: odtwarzanie w rozmowie
+                    else if (m.path != null && java.io.File(m.path!!).exists() && java.io.File(m.path!!).name.contains("Glosowa-")) setOnClickListener { play(m.path!!); k.sendHeard(c, m) }   // 🎤 głosowa: odtwarzanie w rozmowie
                     else if (m.path != null && java.io.File(m.path!!).exists()) setOnClickListener { openFile(m.path!!) }   // plik: stuknięcie otwiera
                     else if (m.path != null) setOnClickListener { Toast.makeText(a, t("Nie ma już tego pliku na telefonie: ", "This file is no longer on the phone: ") + java.io.File(m.path!!).name, Toast.LENGTH_LONG).show() }   // brak pliku - powód zamiast ciszy
                     else if (!m.file && (text as? android.text.Spanned)?.getSpans(0, text.length, android.text.style.ClickableSpan::class.java).isNullOrEmpty()) setOnClickListener { speak(m.text) }   // 🔊 tekst: stuknięcie czyta na głos (ponownie - stop)

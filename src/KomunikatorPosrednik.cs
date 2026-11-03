@@ -1135,9 +1135,16 @@ namespace Velivo
         bool _komRelayBusy;
         async Task KomRelayAutoAsync()
         {
-            if (!_komRelayOn || _komUp != null || _komRelayBusy) return;
+            if (_komRelayBusy) return;   // trwa inne sprawdzanie - ono ustawi wynik
+            if (!_komRelayOn || _komUp != null) { if (_komRelayRouter == L.T("Sprawdzam porty…")) { _komRelayRouter = ""; KomRelayStatus(); } return; }   // nie sprawdzam - bez wiecznego „Sprawdzam”
             _komRelayBusy = true;
-            try { await KomRelayAutoOnce(); }
+            var once = KomRelayAutoOnce();
+            try
+            {   // router bez odpowiedzi (UPnP) nie może trzymać „Sprawdzam porty…” w nieskończoność (Ryzen: 12 min)
+                if (await Task.WhenAny(once, Task.Delay(TimeSpan.FromSeconds(60))) != once) { _komRelayRouter = L.T("Nie udało się sprawdzić portów – router nie odpowiedział w 60 s"); KomRelayStatus(); }
+                await once;
+            }
+            catch (Exception ex) { App.LogError(ex); }
             finally { _komRelayBusy = false; if (_komRelayRouter == L.T("Sprawdzam porty…")) { _komRelayRouter = ""; KomRelayStatus(); } }   // zakończone bez wyniku (np. zmiana portu) - bez wiecznego „Sprawdzam”
         }
         async Task KomRelayAutoOnce()

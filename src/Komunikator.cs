@@ -29,7 +29,7 @@ namespace Velivo
     {
         // Name - nazwa wyswietlana (wlasna albo nazwa urzadzenia); Device - prawdziwa nazwa urzadzenia (aktualizowana z sieci); Own - nazwa nadana przez uzytkownika
         sealed class KomContact { public string Id; public string Name; public byte[] Key; public string Addr; public string Device; public bool Own; public string Relay; public bool Dom; public bool IsGroup => Key.Length == 0; }   // Dom: moje urządzenie z domu (sparowane kodem w sieci domowej albo przedstawione jako domowe przez mój serwer) - tylko takim serwerom ufa wymiana kontaktów   // 👥 grupa: bez klucza, członkowie w Addr („grupa:id,id”)   // Relay: adres pośrednika tego kontaktu (No-IP:port) - rozmowy poza domem
-        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; public string Re = ""; public string Lp; }   // Lp: 🔗 podgląd linku (JSON: u, t, d, s)   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
+        sealed class KomMsg { public bool Mine; public string Text; public long Ts; public bool Ok; public string Mid; public bool Read; public bool File; public string Path; public string Re = ""; public string Lp; public bool Heard; }   // Lp: 🔗 podgląd linku (JSON: u, t, d, s)   // Read: moja - przeczytana (✓✓), odebrana - wyslano potwierdzenie; File: wpis o pliku (nie wysylany ponownie jako tekst)
         // stan mojej wiadomości (znak z ikony Velivo zamiast ptaszków): 1 czeka na serwerze, 2 wysłana (w drodze), 3 dostarczona, 4 przeczytana
         static int KomState(KomMsg m) => m.Read ? 4 : m.Text.Contains("📬") ? 1 : m.Ok ? 3 : 2;
         static string KomStateText(int st) => st == 4 ? L.T("Przeczytana") : st == 3 ? L.T("Dostarczona") : st == 1 ? L.T("Czeka na serwerze") : L.T("Wysłana – w drodze");
@@ -124,7 +124,7 @@ namespace Velivo
                         {
                             var l = new List<KomMsg>();
                             foreach (var m in kv.Value.AsArray())
-                                try { l.Add(new KomMsg { Mine = (bool?)m["me"] ?? false, Text = (string)m["t"] ?? "", Ts = (long?)m["ts"] ?? 0, Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"], Re = (string)m["re"] ?? "", Lp = (string)m["lp"] }); }
+                                try { l.Add(new KomMsg { Mine = (bool?)m["me"] ?? false, Text = (string)m["t"] ?? "", Ts = (long?)m["ts"] ?? 0, Ok = (bool?)m["ok"] ?? true, Mid = (string)m["mid"] ?? "", Read = (bool?)m["rd"] ?? false, File = (bool?)m["f"] ?? false, Path = (string)m["p"], Re = (string)m["re"] ?? "", Lp = (string)m["lp"], Heard = (bool?)m["hd"] ?? false }); }
                                 catch (Exception) { }
                             _komChats[kv.Key] = l;
                         }
@@ -165,7 +165,7 @@ namespace Velivo
                 foreach (var kv in _komChats)
                 {
                     var a = new JsonArray();
-                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File, ["p"] = m.Path, ["re"] = m.Re, ["lp"] = m.Lp });
+                    foreach (var m in kv.Value.Skip(Math.Max(0, kv.Value.Count - 500))) a.Add(new JsonObject { ["me"] = m.Mine, ["t"] = m.Text, ["ts"] = m.Ts, ["ok"] = m.Ok, ["mid"] = m.Mid, ["rd"] = m.Read, ["f"] = m.File, ["p"] = m.Path, ["re"] = m.Re, ["lp"] = m.Lp, ["hd"] = m.Heard });
                     chats[kv.Key] = a;
                 }
                 var unread = new JsonObject(); foreach (var kv in _komUnread) unread[kv.Key] = kv.Value;
@@ -525,6 +525,17 @@ namespace Velivo
                     }
                 case "p2p-msg": KomReceive(p, c, sender, ts); return;
                 case "p2p-invite": KomInviteStore(p, c); return;   // ✉ zaproszenie od kontaktu (ten komputer jest pośrednikiem)
+                case "p2p-heard":   // 🎧 odbiorca odsłuchał naszą głosówkę
+                    {
+                        if (c == null || (string)p["to"] != _komId) return;
+                        var hm = (string)p["mid"] ?? "";
+                        var hmac = KomB64((string)p["mac"]); var hexp = KomHmac(c.Key, "heard\n" + hm);
+                        if (hmac.Length != hexp.Length || !CryptographicOperations.FixedTimeEquals(hmac, hexp)) return;
+                        bool hany = false;
+                        foreach (var m in KomChat(c.Id)) if (m.Mine && !m.Heard && m.Mid == hm) { m.Heard = true; m.Read = true; m.Ok = true; hany = true; }
+                        if (hany) { KomSave(); _komRefresh?.Invoke(); }
+                        return;
+                    }
                 case "p2p-read":   // ✓✓ odbiorca przeczytal nasze wiadomosci
                     {
                         if (c == null || (string)p["to"] != _komId) return;
@@ -720,6 +731,15 @@ namespace Velivo
         }
 
         // rozmowa na ekranie: "przeczytane" do nadawcy
+        // 🎧 odsłuchana głosówka - „odsłuchane” do nadawcy (tymi samymi drogami co „przeczytane”)
+        void KomSendHeard(KomContact c, KomMsg m)
+        {
+            if (c == null || c.IsGroup || m.Mine || m.Heard || (m.Mid ?? "").Length != 32) return;
+            m.Heard = true; KomSave();
+            IPAddress.TryParse(c.Addr ?? "", out var to); if (to != null && IPAddress.IsLoopback(to)) to = null;
+            var p = KomPacket("p2p-heard"); p["to"] = c.Id; p["mid"] = m.Mid; p["mac"] = Convert.ToBase64String(KomHmac(c.Key, "heard\n" + m.Mid));
+            _ = Task.Run(async () => { for (int i = 0; i < 2; i++) { if (to != null) KomSendUdp(p, to); KomSendUdp(p, null); await Task.Delay(1500); } });
+        }
         void KomSendRead(KomContact c)
         {
             if (c.IsGroup) { foreach (var m in KomChat(c.Id).Where(m => !m.Mine)) m.Read = true; return; }   // 👥 grupa - bez potwierdzeń
@@ -1927,7 +1947,7 @@ namespace Velivo
                 tools.Visibility = c != null ? Visibility.Visible : Visibility.Collapsed;   // bez rozmowy - bez wyszarzonych przycisków, napis „Wybierz rozmowę” cały
                 fileBtn.IsEnabled = micBtn.IsEnabled = vidBtn.IsEnabled = camBtn.IsEnabled = locBtn.IsEnabled = c != null; callBtn.IsEnabled = voiceBtn.IsEnabled = helpBtn.IsEnabled = c != null && !c.IsGroup; galBtn.IsEnabled = c != null;   // grupa: tekst, pliki, głosówki (rozmowa wideo - 1:1)
                 var cs = new StringBuilder(pal.Key ?? "").Append(_komAutoImages).Append(c?.Id).Append('|').Append(searchBox.Text).Append('|').Append(selMode).Append(picked.Count).Append('|');
-                if (c != null) foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300))) cs.Append(m.Mid).Append(m.Ok ? '1' : '0').Append(m.Read ? '1' : '0').Append(m.Text?.GetHashCode()).Append(m.Path).Append(KomReactions(m)).Append(m.Lp?.Length).Append(';');
+                if (c != null) foreach (var m in KomChat(c.Id).Skip(Math.Max(0, KomChat(c.Id).Count - 300))) cs.Append(m.Mid).Append(m.Ok ? '1' : '0').Append(m.Read ? '1' : '0').Append(m.Heard ? '1' : '0').Append(m.Text?.GetHashCode()).Append(m.Path).Append(KomReactions(m)).Append(m.Lp?.Length).Append(';');
                 if (cs.ToString() == chatSig) return;   // nagłówek (w sieci, pisze…) odświeżony wyżej; dymki bez zmian - bez przebudowy
                 chatSig = cs.ToString();
                 msgs.Children.Clear();
@@ -2000,11 +2020,11 @@ namespace Velivo
                     }
                     if (hasFile)
                     {   // 🎤 głosówka - w komunikatorze; 🖼 🎬 - podgląd w Velivo; inne - program Windows; 🖱 przeciągnięcie - plik na pulpit / do folderu
-                        var fp = m.Path; txt.Cursor = Cursors.Hand; KomDragOut(txt, fp);
+                        var fp = m.Path; var hm0 = m; txt.Cursor = Cursors.Hand; KomDragOut(txt, fp);
                         txt.MouseLeftButtonUp += (s2, e2) =>
                         {
                             if (selMode) return;
-                            if (Path.GetFileName(fp).Contains("Glosowa-")) { KomPlayVoice(fp); return; }
+                            if (Path.GetFileName(fp).Contains("Glosowa-")) { KomPlayVoice(fp); KomSendHeard(c, hm0); return; }
                             if (KomIsVideo(fp)) { KomVideoViewer(w, fp); return; }   // 🎬 film - od razu w okienku komunikatora; kodek, którego Windows nie zna (HEVC) - odtwarzacz Velivo (VLC)
                             if (KomIsImage(fp)) { KomViewer(w, c, fp); return; }
                             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fp) { UseShellExecute = true }); } catch (Exception) { }
@@ -2087,6 +2107,7 @@ namespace Velivo
                     }
                     var stampTb = new TextBlock { FontSize = 10, HorizontalAlignment = HorizontalAlignment.Right, Foreground = fg, ToolTip = m.Mine ? KomStateText(KomState(m)) : null };
                     // godzina w kolorze dymka, obok znak stanu z ikony Velivo (czeka / w drodze / dostarczona / przeczytana)
+                    if (m.Mine && m.Heard) { stampTb.Inlines.Add(new System.Windows.Documents.Run("🎧 ")); stampTb.ToolTip = L.T("Odsłuchana"); }   // głosówka odsłuchana przez odbiorcę
                     stampTb.Inlines.Add(new System.Windows.Documents.Run(stamp) { Foreground = new SolidColorBrush(Color.FromArgb(0xB3, fg.Color.R, fg.Color.G, fg.Color.B)) });
                     if (m.Mine) stampTb.Inlines.Add(new System.Windows.Documents.InlineUIContainer(KomStateIcon(KomState(m), fg.Color, 12, new Thickness(4, 0, 0, -2))) { BaselineAlignment = BaselineAlignment.Center });
                     // krótka wiadomość (jak w WhatsApp): godzina i ptaszki w tej samej linijce, po prawej - dymek niski i zwarty

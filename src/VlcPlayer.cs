@@ -449,7 +449,7 @@ namespace Velivo
         {
             var syncMsg = await System.Threading.Tasks.Task.Run(() => SyncJellyfin(jc, _ => { }));
             if (tvView || !File.Exists(JellyfinFilesFile)) return syncMsg;
-            var msg = await JellyfinAddNewAsync(shared, askOwner);
+            var msg = await JellyfinAddToChosenAsync(jc, askOwner);   // do bibliotek zaznaczonych w 🎞 Jellyfin…
             if (askOwner != null) AskRemovedFromJellyfin(askOwner);
             return msg;
         }

@@ -1724,7 +1724,7 @@ namespace Velivo
                 IEnumerable<string[]> r = data.Where(x => q.Length == 0 || x.Any(v => (v ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0));
                 if (sortCol >= 0) { var l = r.ToList(); l.Sort((x, y) => (desc ? -1 : 1) * Cmp(x[sortCol], y[sortCol])); r = l; }
                 var list = r.ToList(); bool first = lv.ItemsSource == null || !((System.Collections.IList)lv.ItemsSource).GetEnumerator().MoveNext();
-                var keepSel = new HashSet<string>(lv.SelectedItems.Cast<string[]>().Select(x => string.Join("\u0001", x)));   // zaznaczenie (też Ctrl+A) zostaje po odświeżeniu co 5 s
+                var keepSel = new HashSet<string>(lv.SelectedItems.Cast<string[]>().Select(x => string.Join("\u0001", x)));   // zaznaczony wiersz zostaje po odświeżeniu co 5 s (kilka zaznaczonych, np. Ctrl+A - tabela czeka z odświeżeniem)
                 lv.ItemsSource = list;
                 if (keepSel.Count > 0) foreach (var x in list) if (keepSel.Contains(string.Join("\u0001", x))) lv.SelectedItems.Add(x);
                 if (first && list.Count > 0) foreach (var c in gv.Columns) { c.Width = 0; c.Width = double.NaN; }   // szerokość kolumn do zawartości (raz, bez skakania co 5 s)
@@ -1741,7 +1741,7 @@ namespace Velivo
                 gv.Columns.Add(new GridViewColumn { Header = h, CellTemplate = new DataTemplate { VisualTree = tb } });
             }
             search.TextChanged += (s, e) => Show();
-            return (lv, () => { try { data = rows(); } catch (Exception ex) { data = new List<string[]> { new[] { "⚠ " + ex.Message } }; } Show(); });
+            return (lv, () => { if (lv.SelectedItems.Count > 1) return; try { data = rows(); } catch (Exception ex) { data = new List<string[]> { new[] { "⚠ " + ex.Message } }; } Show(); });
         }
         // 🛠 wygląd panelu administratora (granat jak w makiecie): tło, kafelki, przyciski, zakładki, kolory stanów
         static SolidColorBrush AdmB(int rgb) => new SolidColorBrush(Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb));

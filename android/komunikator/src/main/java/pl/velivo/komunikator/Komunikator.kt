@@ -1170,7 +1170,7 @@ class Komunikator private constructor(private val ctx: Context, private val devi
         // nadawca z moich kontaktów (ta sama sieć Velivo), a podpis innym kluczem (np. para z innego serwera) - też kontakt, bez kodu (właściciel: „znają się – po co klucze”); plik i tak szyfrowany w drodze
         val from = contact(h.optString("Id"))?.takeIf { c -> !c.isGroup && (MessageDigest.isEqual(unb64(h.optString("Mac")), hmac(c.key, ad)) || (!box && h.optString("Mac").isNotEmpty())) }
         val media = from != null && onMedia != null && name.startsWith("Velivo-Filmy-TV") && name.endsWith(".json") && size < 64L * 1024 * 1024
-        val auto = media || (from != null && autoImages && size <= 2L * 1024 * 1024 * 1024)   // zdjęcie / plik od kontaktu - od razu do rozmowy (jak w innych komunikatorach)
+        val auto = media || (from != null && autoImages)   // zdjęcie / plik od kontaktu - od razu do rozmowy (jak w innych komunikatorach)
         // ten sam plik (Mid) z kilku serwerów naraz (skrzynka 📬 u każdego) albo już w rozmowie - odmowa, serwer kasuje swoją kopię; przyjęty tylko raz
         val fmid = h.optString("Mid").takeIf { it.length == 32 }
         val dup = fmid != null && from != null && (synchronized(fileIn) { fmid in fileIn } || chat(from.id).any { it.mid == fmid })

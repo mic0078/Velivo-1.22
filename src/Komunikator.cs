@@ -1365,11 +1365,12 @@ namespace Velivo
             {
                 var c = KomContactById(id); var mac = KomB64((string)h["Mac"]);
                 if (c != null) using (var hm = new HMACSHA256(c.Key)) { var exp = hm.ComputeHash(ad); if (mac.Length == 32 && CryptographicOperations.FixedTimeEquals(mac, exp)) from = c; }
+                if (from == null && c != null && !c.IsGroup && mac.Length == 32 && (string)h["Type"] != "p2p-box") { from = c; App.LogInfo("Komunikator: plik od kontaktu " + c.Name + " podpisany innym kluczem pary – przyjęty bez kodu"); }   // kontakt z mojej sieci nigdy nie pyta o kod
                 if (from == null) { App.LogInfo("Komunikator: plik od nieznanego nadawcy (" + dev + ") – odrzucony bez pytania"); return; }   // nigdy okienka z kodem (serwer pytał o pliki idące do kogoś innego)
                 // ten sam plik (Mid) z kilku serwerów (skrzynka 📬 u każdego) albo już w rozmowie - odmowa, serwer kasuje swoją kopię
                 if ((string)h["Mid"] is { Length: 32 } dm && (_komFileIn.ContainsKey(dm) || _komChats.Values.Any(l => l.Any(m => m.Mid == dm)))) { App.LogInfo("Komunikator: ten sam plik drugi raz (" + name + ") – pominięty"); return; }
                 dev = from.Name;
-                if (_komAutoImages && size <= KomAutoImageLimit)
+                if (_komAutoImages)
                 {   // zdjecie / plik od kontaktu - od razu do rozmowy (bez pytania i bez okna zapisu)
                     try
                     {
@@ -1549,7 +1550,6 @@ namespace Velivo
         // 🖼📎 zdjecia i pliki od dodanych kontaktow (do 2 GB) od razu w rozmowie, jak w innych komunikatorach (zgoda: dodanie kontaktu kodem);
         // zapis w wybranym miejscu - prawy przycisk; wylacznik w 🎨. Wieksze i od nieznajomych - z pytaniem
         bool _komAutoImages = true;
-        const long KomAutoImageLimit = 2L * 1024 * 1024 * 1024;
         static string KomMediaDir => System.IO.Path.Combine(DataDir, "Komunikator");
         static bool KomIsImage(string name) => new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp" }.Contains(System.IO.Path.GetExtension(name ?? "").ToLowerInvariant());
         readonly Dictionary<string, ImageSource> _komThumbs = new Dictionary<string, ImageSource>();

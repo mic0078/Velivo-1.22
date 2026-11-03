@@ -1437,7 +1437,7 @@ namespace Velivo
                         string asId = _komId; var fileKey = to?.Key;
                         // tylko gdy odbiorca NIE zna tego komputera (nigdy nie przysłał nic naszym kluczem); najpierw serwer, który działa - inaczej plik z Ryzena szedł do Motoroli jako „od CHUWI” (wyłączonego)
                         if (box && to != null && group == null && _komOpt["alias"] is JsonObject al && (_komOpt["knows"] as JsonObject)?[to.Id] == null)
-                            foreach (var kv in al.OrderByDescending(x => KomOnline(x.Key.Substring(x.Key.IndexOf('|') + 1))).ToList()) if (kv.Key.StartsWith(to.Id + "|") && kv.Value?.GetValue<string>() is string ak)
+                            foreach (var kv in al.Where(x => KomOnline(x.Key.Substring(x.Key.IndexOf('|') + 1))).ToList()) if (kv.Key.StartsWith(to.Id + "|") && kv.Value?.GetValue<string>() is string ak)   // tylko serwer, który teraz działa - wyłączony (CHUWI, HP) nigdy jako nadawca
                                 try { var k2 = Convert.FromBase64String(ak); if (k2.Length == 32) { asId = kv.Key.Substring(to.Id.Length + 1); fileKey = k2; break; } } catch (Exception) { }
                         var h = new JsonObject { ["Type"] = box ? "p2p-box" : "p2p-file", ["Id"] = asId, ["Device"] = _lanDeviceName, ["Hash"] = hash, ["Size"] = size, ["Name"] = name, ["Pub"] = box ? "" : Convert.ToBase64String(pubA), ["Nonce"] = Convert.ToBase64String(baseNonce) };
                         if (mid != null) h["Mid"] = mid;

@@ -3772,6 +3772,7 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
     }
 
     private fun openFile(path: String) {
+        if (k.isImage(path) && java.io.File(path).exists()) { showPhoto(path); return }   // 🔍 zdjęcie zawsze w Velivo (pełny ekran, powiększanie) - nie w obcej aplikacji
         // 📦 aplikacja (.apk): instalator Androida; za pierwszym razem zgoda „Instaluj nieznane aplikacje” dla Velivo
         if (path.endsWith(".apk", true) && !a.packageManager.canRequestPackageInstalls()) {
             Toast.makeText(a, t("Pozwól Velivo instalować aplikacje, wróć i stuknij plik jeszcze raz", "Allow Velivo to install apps, then come back and tap the file again"), Toast.LENGTH_LONG).show()

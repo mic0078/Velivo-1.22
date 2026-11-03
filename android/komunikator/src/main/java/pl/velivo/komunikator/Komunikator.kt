@@ -542,7 +542,13 @@ class Komunikator private constructor(private val ctx: Context, private val devi
     private fun reSet(re: String, id: String, e: String) = (re.split(',').filter { it.length > 33 && !it.startsWith("$id:") } + listOfNotNull(e.ifEmpty { null }?.let { "$id:$it" })).joinToString(",")
     fun reactions(m: Msg) = m.re.split(',').filter { it.length > 33 }.joinToString("") { it.substring(33) }
     // ↩ odpowiedź: pierwszy wiersz cytowanej wiadomości (bez jej cytatu) - czytelne także w starszym Velivo
-    fun quote(m: Msg) = "› " + (m.text.lines().firstOrNull { !it.startsWith("› ") } ?: "").removeSuffix(" ✏").take(70) + "\n"
+    fun quote(m: Msg): String {
+        val l = (m.text.lines().firstOrNull { !it.startsWith("› ") } ?: "").removeSuffix(" ✏")
+        // plik: bez rozmiaru i stanu wysyłki („· 2.4 MB – 📬 czeka na serwerze”); zdjęcie - samo „📷 Zdjęcie”, jak w WhatsApp
+        val f = if (l.contains(" · ")) l.substringBefore(" · ") else l
+        val q = if (f != l && isImage(f.substringAfter(' '))) "📷 " + (if (pl) "Zdjęcie" else "Photo") else f
+        return "› " + q.take(70) + "\n"
+    }
 
     // 🖼 moje zdjęcie profilowe (małe) - u kontaktów zamiast kropki; nowe dostaje każdy, kto się odezwie
     fun photo(id: String) = java.io.File(mediaDir, "profil-$id.jpg").takeIf { it.exists() }
@@ -3080,14 +3086,19 @@ class KomunikatorOkno(private val a: Activity, private val k: Komunikator, priva
                 runCatching { a.contentResolver.openInputStream(uris[0])!!.use { android.media.ExifInterface(it) } }.getOrNull())
             box.addView(android.widget.ImageView(a).apply { setImageBitmap(bmp); adjustViewBounds = true; maxHeight = px(360) })
         }
+        // ✏ opis (jak w WhatsApp) - idzie zaraz po pliku jako wiadomość
+        val cap = android.widget.EditText(a).apply { hint = t("Dodaj opis…", "Add a caption…"); setTextColor(ink); setHintTextColor(0xFF8B93A7.toInt()); textSize = 16f
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE }
         box.addView(TextView(a).apply { text = names.joinToString("\n") { (if (k.isImage(it)) "🖼 " else if (it.startsWith("Glosowa-")) "🎤 " else "📎 ") + it }; setTextColor(ink); textSize = 15f; setPadding(0, px(8), 0, 0) })
+        box.addView(cap)
         fun look(u: Uri, n: String) {
             if (u.scheme == "file") { if (n.startsWith("Glosowa-")) play(u.path!!) else openFile(u.path!!); return }
             runCatching { a.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(u, a.contentResolver.getType(u) ?: "*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
                 .onFailure { Toast.makeText(a, t("Brak programu do podglądu", "No app to preview"), Toast.LENGTH_SHORT).show() }
         }
         val d = Dlg().setTitle("📤 " + c.name).setView(ScrollView(a).apply { addView(box) })
-            .setPositiveButton("➤ " + t("Wyślij", "Send")) { _, _ -> attachTo = c; sendFiles(uris, true) }
+            .setPositiveButton("➤ " + t("Wyślij", "Send")) { _, _ -> attachTo = c; sendFiles(uris, true)
+                cap.text.toString().trim().takeIf { it.isNotEmpty() }?.let { s -> android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ k.send(c, s); k.onChange() }, 1500) } }   // opis po pliku (plik pierwszy w rozmowie)
             .setNegativeButton(t("Anuluj", "Cancel")) { _, _ -> uris.filter { it.scheme == "file" && it.path?.startsWith(a.cacheDir.path) == true }.forEach { java.io.File(it.path!!).delete() } }
         if (uris.size == 1) d.setNeutralButton(if (names[0].startsWith("Glosowa-")) "▶ " + t("Odsłuchaj", "Listen") else "👁 " + t("Podgląd", "Preview"), null)
         val dlg = d.show()

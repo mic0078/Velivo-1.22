@@ -65,6 +65,7 @@ namespace Velivo
             public string pinned { get; set; }             // karty przypiete (adresy); null = starsza wersja bez tej funkcji
             public string banks { get; set; }              // wszystkie profile bankowe (plik -> zawartosc)
             public string bank { get; set; }               // tryb bankowy: haslo (skrot), klucze, karty zaszyfrowane; null = starsza wersja
+            public string jellyfin { get; set; }           // serwery Jellyfin (adres + klucz) - inny komputer pyta, czy dodać; null = starsza wersja albo brak
             public string bookmarksDeleted { get; set; }   // usuniete zakladki (url<TAB>czas), zeby usuniecie dzialalo na obu   // kiedy dane na nadawcy ostatnio zmienil uzytkownik (ms UTC); nowsze wygrywa
         }
 
@@ -922,6 +923,7 @@ namespace Velivo
                 pinned = ReadTextOrEmpty(PinnedFile),
                 bank = _lanLegacyNoKeyMode ? null : ReadTextOrEmpty(BankFileFor("")),   // tylko w zaszyfrowanym pakiecie
                 banks = _lanLegacyNoKeyMode ? null : ExportBanksForSync(),               // wszystkie profile bankowe
+                jellyfin = _lanLegacyNoKeyMode ? null : JellyfinForSync(),               // klucze Jellyfin tylko w zaszyfrowanym pakiecie
             };
             if (_lanLegacyNoKeyMode)
             {
@@ -1079,6 +1081,7 @@ namespace Velivo
             if (pkt == null || pkt.t != "state" || _lanLegacyNoKeyMode || _lanEncryptionKey == null) return;
             long lastStamp;
             if (_lanPeerStamps.TryGetValue(pkt.id, out lastStamp) && pkt.ts <= lastStamp) return;
+            if (!string.IsNullOrEmpty(state?.jellyfin)) JellyfinFromSync(state.jellyfin, string.IsNullOrWhiteSpace(pkt.device) ? "?" : pkt.device.Trim());   // poza odciskiem - także przy reszcie bez zmian
             var localFingerprint = CurrentLanFingerprint();
             var localHash = LanFingerprintMac(localFingerprint);
             if (string.Equals(pkt.hash, localHash, StringComparison.Ordinal))

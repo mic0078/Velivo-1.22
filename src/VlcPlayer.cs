@@ -901,7 +901,7 @@ namespace Velivo
                 }
                 var l = LoadLibrary(); bool sh = _libSharedView, tv = _libTvView; var recDirs = TvRecDirs(); l.RemoveAll(v => (tv ? IsTvRec(v.Path, recDirs) : IsShared(v) == sh) && rs.Any(r => string.Equals(r.Item.Path, v.Path, StringComparison.OrdinalIgnoreCase)));
                 SaveLibrary(l); fill();
-                if (jfDelete) ShowToast(await JellyfinDeleteAsync(jc, jf.Select(x => x.Id).Distinct().ToList()), null);
+                if (jfDelete) foreach (var g in jf.GroupBy(x => MetaFor(x.Path)?.Srv)) ShowToast(await JellyfinDeleteAsync(JfServers(jc).FirstOrDefault(sv => JfSame(sv.Url, g.Key)) ?? jc, g.Select(x => x.Id).Distinct().ToList()), null);   // każdy film na swoim serwerze
             };
             // usun z biblioteki i plik z dysku (do Kosza; dysk sieciowy nie ma Kosza - wtedy na stale)
             Action removeFiles = () =>

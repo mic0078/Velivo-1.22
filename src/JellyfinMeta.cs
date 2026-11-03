@@ -33,6 +33,7 @@ namespace Velivo
             public string Director { get; set; }
             public string ImageTag { get; set; }
             public string Poster { get; set; }   // plik plakatu w bazie (nazwa)
+            public string Srv { get; set; }   // adres serwera Jellyfin, z którego film pochodzi (kilka serwerów - strumień z właściwego)
         }
 
         sealed class JellyfinConf
@@ -42,7 +43,13 @@ namespace Velivo
             public long Synced { get; set; }
             public int AutoHours { get; set; }   // samo odswiezanie biblioteki z Jellyfin co tyle godzin (0 = wylaczone)
             public string Lan { get; set; }   // ostatni działający adres w sieci domowej - w domu router często nie wpuszcza na własny adres z internetu (n5plus…)
+            public List<JellyfinConf> More { get; set; }   // kolejne serwery Jellyfin - filmy ze wszystkich w jednej bibliotece
+            public List<string> Declined { get; set; }   // serwery z innych moich komputerów, których właściciel nie chciał dodać
         }
+        // wszystkie ustawione serwery: główny + kolejne (tylko z adresem i kluczem)
+        static List<JellyfinConf> JfServers(JellyfinConf c) => c == null ? new List<JellyfinConf>() : new[] { c }.Concat(c.More ?? new List<JellyfinConf>()).Where(x => x != null && !string.IsNullOrEmpty(x.Url) && !string.IsNullOrEmpty(x.Key)).ToList();
+        static bool JfSame(string a, string b) => !string.IsNullOrEmpty(a) && string.Equals(a.Trim().TrimEnd('/'), (b ?? "").Trim().TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+        static string JfName(string url) => Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host + ":" + u.Port : url;
 
         static string MetaDir { get { return Path.Combine(DataDir, "filmy-info"); } }
         static string MetaFile { get { return Path.Combine(MetaDir, "baza.json"); } }
@@ -328,7 +335,8 @@ namespace Velivo
         internal string JellyfinStreamUrl(string path)
         {
             if (DateTime.UtcNow - _jfConfAt > TimeSpan.FromSeconds(30)) { _jfConfCache = LoadJellyfinConf(); _jfConfAt = DateTime.UtcNow; }
-            var c = _jfConfCache; var id = MetaFor(path)?.Id;
+            var mi = MetaFor(path); var id = mi?.Id;
+            var c = JfServers(_jfConfCache).FirstOrDefault(x => JfSame(x.Url, mi?.Srv)) ?? _jfConfCache;   // film z serwera, z którego pochodzi
             if (c == null || string.IsNullOrEmpty(c.Url) || string.IsNullOrEmpty(c.Key) || string.IsNullOrEmpty(id)) return null;
             var b = _jfWorking != null && (_jfWorking == c.Url || _jfWorking == c.Lan) ? _jfWorking : c.Url;
             return b.TrimEnd('/') + "/Videos/" + Uri.EscapeDataString(id) + "/stream?static=true&api_key=" + Uri.EscapeDataString(c.Key);
@@ -456,7 +464,27 @@ namespace Velivo
             return null;
         }
         static bool IsPrivateIp(System.Net.IPAddress ip) { var b = ip.GetAddressBytes(); return b.Length == 4 && (b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168)); }
+        // kilka serwerów: każdy po kolei do jednej bazy (ten sam plik - jeden wpis), wyłączony serwer nie psuje pozostałych
         async Task<string> SyncJellyfin(JellyfinConf c, Action<string> progress)
+        {
+            var all = JfServers(c);
+            if (all.Count <= 1) { var r1 = await SyncJellyfinOne(c, progress, JellyfinFilesFile); SaveJellyfinConf(c); return r1; }
+            var msgs = new List<string>(); var files = new List<string>(); int ok = 0;
+            foreach (var s in all)
+            {
+                var name = JfName(s.Url);
+                var f = Path.Combine(MetaDir, "pliki-" + System.Text.RegularExpressions.Regex.Replace(name, @"[^\w.-]", "_") + ".txt");
+                try { msgs.Add(name + ": " + await SyncJellyfinOne(s, t => progress(name + " · " + t), f)); ok++; }
+                catch (Exception ex) { msgs.Add(name + ": ⚠ " + ex.Message); }
+                try { if (File.Exists(f)) files.AddRange(File.ReadAllLines(f)); } catch (Exception) { }
+            }
+            SaveJellyfinConf(c);   // adresy domowe (Lan) serwerów zapamiętane
+            if (ok == 0) throw new HttpRequestException(string.Join("\n", msgs));
+            try { File.WriteAllLines(JellyfinFilesFile, files.Distinct(StringComparer.OrdinalIgnoreCase)); } catch (Exception ex) { App.LogError(ex); }
+            return string.Join("\n", msgs);
+        }
+
+        async Task<string> SyncJellyfinOne(JellyfinConf c, Action<string> progress, string filesFile)
         {
             progress(L.T("Łączę z serwerem Jellyfin…"));
             var url = await JellyfinReach(c);
@@ -495,7 +523,7 @@ namespace Velivo
                     n++;
                     var path = it.TryGetProperty("Path", out var pth) ? pth.GetString() : null; if (path == null) continue;
                     if (roots.Count > 0 && !roots.Any(r => path.Replace('/', '\\').StartsWith(r, StringComparison.OrdinalIgnoreCase))) continue;   // poza bibliotekami Jellyfin
-                    var m = ParseJellyfinItem(it);
+                    var m = ParseJellyfinItem(it); m.Srv = c.Url;
                     var key = MetaKey(path);
                     if (it.TryGetProperty("Type", out var ty) && ty.GetString() == "Movie") jfAll.Add((m.Name + (m.Year > 0 ? " (" + m.Year + ")" : "") + (string.IsNullOrEmpty(m.Overview) && m.Rating <= 0 ? "  [nierozpoznany w Jellyfin]" : ""), path));
                     meta.TryGetValue(key, out var old);
@@ -534,7 +562,7 @@ namespace Velivo
                 foreach (var m in meta.Values.Distinct().ToList()) AddTitleKeys(meta, m);
                 foreach (var kv in LoadManual()) meta[kv.Key] = kv.Value;   // reczne informacje zostaja po pobraniu z Jellyfin
                 _meta = meta;
-                c.Synced = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); SaveJellyfinConf(c);
+                c.Synced = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var lib = LoadLibrary(); int matched = lib.Count(v => LookupMeta(meta, v.Path) != null);
                 // raport: filmy biblioteki bez danych i filmy Jellyfin bez pliku w bibliotece - widac, czemu sie nie lacza
                 try
@@ -546,7 +574,7 @@ namespace Velivo
                     foreach (var j in jfAll.Where(j => !libKeys.Contains(MetaKey(j.Path))).OrderBy(j => j.Path)) rep.Append("  " + j.Name + "   <-   " + j.Path + "\n");
                     File.WriteAllText(Path.Combine(DataDir, "jellyfin-raport.txt"), rep.ToString());
                     // co zniknelo z Jellyfin od poprzedniego pobrania; gdy serwer zwrocil wyraznie mniej (blad, odlaczony dysk) - nic nie oznaczamy
-                    var oldFiles = File.Exists(JellyfinFilesFile) ? File.ReadAllLines(JellyfinFilesFile).ToList() : new List<string>();
+                    var oldFiles = File.Exists(filesFile) ? File.ReadAllLines(filesFile).ToList() : new List<string>();
                     var nowKeys = new HashSet<string>(jfAll.Select(j => MetaKey(j.Path)));
                     if (oldFiles.Count > 0 && jfAll.Count >= oldFiles.Count / 2)
                     {
@@ -555,7 +583,7 @@ namespace Velivo
                             .Where(o => !nowKeys.Contains(MetaKey(o))).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                         if (pending.Count > 0) File.WriteAllLines(JellyfinRemovedFile, pending); else File.Delete(JellyfinRemovedFile);
                     }
-                    File.WriteAllLines(JellyfinFilesFile, jfAll.Select(j => j.Path));   // pliki filmow Jellyfin - Odswiez w bibliotece dopisuje nowe
+                    File.WriteAllLines(filesFile, jfAll.Select(j => j.Path));   // pliki filmow Jellyfin - Odswiez w bibliotece dopisuje nowe
                 }
                 catch (Exception ex) { App.LogError(ex); }
                 return L.T("✅ Filmów z Jellyfin: ") + total + L.T(" · dopasowanych w bibliotece: ") + matched + " / " + lib.Count + L.T(" · nowe plakaty: ") + posters;
@@ -699,13 +727,51 @@ namespace Velivo
             });
             fromFile.HorizontalAlignment = HorizontalAlignment.Left; fromFile.Margin = new Thickness(0, 4, 0, 0);
             p.Children.Insert(p.Children.IndexOf(key) + 1, fromFile);   // pod polem klucza
+            // kolejne serwery Jellyfin (filmy ze wszystkich w jednej bibliotece) - lista z usuwaniem
+            var moreP = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+            p.Children.Insert(p.Children.IndexOf(fromFile) + 1, moreP);
+            Action showMore = null;
+            showMore = () =>
+            {
+                moreP.Children.Clear();
+                var more = (c.More ?? new List<JellyfinConf>()).Where(x => !string.IsNullOrEmpty(x?.Url)).ToList();
+                if (more.Count == 0) return;
+                moreP.Children.Add(new TextBlock { Text = L.T("Kolejne serwery Jellyfin (ich filmy są w tej samej bibliotece):"), TextWrapping = TextWrapping.Wrap });
+                foreach (var m in more)
+                {
+                    var row = new DockPanel { Margin = new Thickness(0, 3, 0, 0) };
+                    var del = SmallButton(L.T("✕ Usuń"), () => { c.More.Remove(m); SaveJellyfinConf(c); JfShareChanged(); showMore(); });
+                    del.ToolTip = L.T("Usuń ten serwer z Velivo na tym komputerze (filmy na serwerze zostają)");
+                    DockPanel.SetDock(del, Dock.Right); row.Children.Add(del);
+                    row.Children.Add(new TextBlock { Text = "🎞 " + m.Url, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+                    moreP.Children.Add(row);
+                }
+            };
+            showMore();
+            // nowy adres: zastąpić stary serwer czy zostawić oba (filmy z obu w bibliotece); false = anulowano
+            Func<string, string, bool> apply = (nu, nk) =>
+            {
+                if (JfSame(c.Url, nu)) { c.Key = nk; return true; }
+                if (!string.IsNullOrEmpty(c.Url) && c.Url != "http://" && !string.IsNullOrEmpty(c.Key))
+                {
+                    var a = MessageBox.Show(d, L.T("Nowy adres serwera Jellyfin: ") + nu + L.T("\n\nTak – zostaw oba serwery (filmy z obu w jednej bibliotece)\nNie – zastąp stary serwer nowym: ") + c.Url,
+                        "Velivo", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                    if (a == MessageBoxResult.Cancel) return false;
+                    if (a == MessageBoxResult.Yes) { c.More ??= new List<JellyfinConf>(); c.More.Add(new JellyfinConf { Url = c.Url, Key = c.Key, Lan = c.Lan, Synced = c.Synced }); }
+                }
+                var known = c.More?.FirstOrDefault(x => JfSame(x.Url, nu));   // serwer już był na liście kolejnych - teraz główny
+                if (known != null) c.More.Remove(known);
+                c.Url = nu; c.Key = nk; c.Lan = known?.Lan;   // zapasowy adres domowy starego serwera nie pasuje do nowego klucza
+                showMore();
+                return true;
+            };
             var ok = new Button { Content = L.T("⬇ Pobierz / uzupełnij teraz"), Height = 30, Padding = new Thickness(12, 0, 12, 0), IsDefault = true, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
             ok.Click += async (s, e) =>
             {
-                if (!string.Equals(c.Url?.TrimEnd('/'), url.Text.Trim().TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) c.Lan = null;   // nowy serwer - zapasowy adres domowy starego serwera (np. NUCBOX) już nie pasuje do nowego klucza
-                c.Url = url.Text.Trim(); c.Key = key.Text.Trim();
-                if (!Uri.TryCreate(c.Url, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https") || c.Key.Length == 0) { info.Foreground = Brushes.IndianRed; info.Text = L.T("Podaj adres serwera i klucz API."); return; }
-                SaveJellyfinConf(c);
+                var nu = url.Text.Trim(); var nk = key.Text.Trim();
+                if (!Uri.TryCreate(nu, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https") || nk.Length == 0) { info.Foreground = Brushes.IndianRed; info.Text = L.T("Podaj adres serwera i klucz API."); return; }
+                if (!apply(nu, nk)) return;
+                SaveJellyfinConf(c); JfShareChanged();
                 ok.IsEnabled = false; info.Foreground = Brushes.Gray; info.Text = L.T("Łączę z serwerem…");
                 try
                 {
@@ -721,14 +787,48 @@ namespace Velivo
             };
             p.Children.Add(ok);
             // zmieniony adres / klucz zapisany także przy zamknięciu okna (wcześniej tylko przyciskiem „Pobierz” - zostawał stary adres)
-            d.Closed += (s, e) =>
+            d.Closing += (s, e) =>   // okno jeszcze otwarte - pytanie „zostawić oba?” ma właściciela
             {
                 var nu = url.Text.Trim(); var nk = key.Text.Trim();
-                if (Uri.TryCreate(nu, UriKind.Absolute, out var u2) && (u2.Scheme == "http" || u2.Scheme == "https") && nk.Length > 0 && (nu != c.Url || nk != c.Key))
-                { var cur = LoadJellyfinConf() ?? c; if (!string.Equals(cur.Url?.TrimEnd('/'), nu.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) cur.Lan = null; cur.Url = nu; cur.Key = nk; SaveJellyfinConf(cur); }
+                if (Uri.TryCreate(nu, UriKind.Absolute, out var u2) && (u2.Scheme == "http" || u2.Scheme == "https") && nk.Length > 0 && (nu != c.Url || nk != c.Key) && apply(nu, nk))
+                { SaveJellyfinConf(c); JfShareChanged(); }
             };
             d.Content = p;
             d.Show();
+        }
+
+        // 🎞 wspólna lista serwerów Jellyfin moich komputerów (synchronizacja LAN, zaszyfrowana): nowy serwer z innego komputera - za zgodą
+        void JfShareChanged() { _lastLanFingerprint = ""; }   // wyślij stan od razu
+        string JellyfinForSync() { var l = JfServers(LoadJellyfinConf()).Select(x => new JellyfinConf { Url = x.Url, Key = x.Key }).ToList(); return l.Count == 0 ? null : JsonSerializer.Serialize(l); }
+        readonly HashSet<string> _jfAsking = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void JellyfinFromSync(string json, string device)
+        {
+            List<JellyfinConf> inc; try { inc = JsonSerializer.Deserialize<List<JellyfinConf>>(json); } catch (Exception) { return; }
+            foreach (var x in inc ?? new List<JellyfinConf>())
+            {
+                if (x == null || string.IsNullOrEmpty(x.Url) || string.IsNullOrEmpty(x.Key) || !Uri.TryCreate(x.Url, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https")) continue;
+                var c = LoadJellyfinConf();
+                var have = JfServers(c).FirstOrDefault(s => JfSame(s.Url, x.Url));
+                if (have != null) continue;   // znany serwer - klucz zostaje ten, który działa tutaj
+                if ((c?.Declined ?? new List<string>()).Any(dd => JfSame(dd, x.Url)) || !_jfAsking.Add(x.Url)) continue;
+                var srv = x;
+                _ = Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        var yes = MessageBox.Show(PairDialogOwner(), L.T("Komputer ") + device + L.T(" ma serwer Jellyfin: ") + srv.Url + L.T("\n\nDodać go tutaj? Filmy z niego trafią do tej samej biblioteki (Twoje inne serwery zostają)."),
+                            L.T("🎞 Jellyfin z innego komputera"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                        var cc = LoadJellyfinConf() ?? new JellyfinConf();
+                        if (!yes) { cc.Declined ??= new List<string>(); cc.Declined.Add(srv.Url); SaveJellyfinConf(cc); return; }
+                        if (string.IsNullOrEmpty(cc.Url) || cc.Url == "http://" || string.IsNullOrEmpty(cc.Key)) { cc.Url = srv.Url; cc.Key = srv.Key; cc.Lan = null; }
+                        else if (!JfServers(cc).Any(s => JfSame(s.Url, srv.Url))) { cc.More ??= new List<JellyfinConf>(); cc.More.Add(new JellyfinConf { Url = srv.Url, Key = srv.Key }); }
+                        cc.Synced = 0; SaveJellyfinConf(cc);
+                        AutoSyncJellyfin();   // od razu pobierz filmy z nowego serwera
+                    }
+                    catch (Exception ex) { App.LogError(ex); }
+                    finally { _jfAsking.Remove(srv.Url); }
+                }));
+            }
         }
     }
 }

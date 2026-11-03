@@ -218,7 +218,8 @@ namespace Velivo
             var gone = new JsonArray();
             try
             {
-                foreach (var hdr in Directory.GetFiles(dir, "*.hdr").OrderBy(x => x))
+                // najmniejsze najpierw - duży plik (np. 90 MB przez dane komórkowe) nie blokuje małych
+                foreach (var hdr in Directory.GetFiles(dir, "*.hdr").OrderBy(x => { try { return new FileInfo(Path.ChangeExtension(x, ".bin")).Length; } catch (Exception) { return 0L; } }).ThenBy(x => x))
                 {
                     // kopia - oddaje serwer z oryginałem, jeśli działa i odbiorca jest z nim połączony albo w domu (bez podwójnej wysyłki 77 MB);
                     // kopia idzie, gdy oryginał nie działa albo odbiorca jest połączony tylko ze mną
@@ -241,12 +242,12 @@ namespace Velivo
                         {
                             using (var fi = File.OpenRead(bin)) await fi.CopyToAsync(st, 1 << 16, cts.Token);
                             await st.FlushAsync(cts.Token);
-                            if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) return;
+                            if (!await ReadExactAsync(st, new byte[32], 32, cts.Token)) continue;   // ten plik przerwany - następne próbują dalej (ponowienie za minutę)
                         }
                         File.Delete(bin); File.Delete(hdr); try { File.Delete(Path.ChangeExtension(hdr, ".src")); } catch (Exception) { }   // odebrany (albo odrzucony przez odbiorcę)
                         var gh = Path.GetFileNameWithoutExtension(hdr).Split('-').Last(); gone.Add(gh); _komBoxDoneOut[gh] = (id, DateTime.UtcNow);
                     }
-                    catch (Exception) { return; }
+                    catch (Exception) { if (st == null) return; }   // zerwany przy jednym pliku - pozostałe dalej
                     finally { st?.Dispose(); cl?.Dispose(); }
                 }
                 if (Directory.GetFiles(dir).Length == 0) Directory.Delete(dir);

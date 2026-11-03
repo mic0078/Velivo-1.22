@@ -1365,7 +1365,7 @@ namespace Velivo
             {
                 var c = KomContactById(id); var mac = KomB64((string)h["Mac"]);
                 if (c != null) using (var hm = new HMACSHA256(c.Key)) { var exp = hm.ComputeHash(ad); if (mac.Length == 32 && CryptographicOperations.FixedTimeEquals(mac, exp)) from = c; }
-                if (from == null && c != null && !c.IsGroup && mac.Length == 32 && (string)h["Type"] != "p2p-box") { from = c; App.LogInfo("Komunikator: plik od kontaktu " + c.Name + " podpisany innym kluczem pary – przyjęty bez kodu"); }   // kontakt z mojej sieci nigdy nie pyta o kod
+                if (from == null && c != null && !c.IsGroup && c.Dom && mac.Length == 32 && (string)h["Type"] != "p2p-box") { from = c; App.LogInfo("Komunikator: plik od kontaktu " + c.Name + " podpisany innym kluczem pary – przyjęty bez kodu"); }   // kontakt z mojej sieci nigdy nie pyta o kod
                 if (from == null) { App.LogInfo("Komunikator: plik od nieznanego nadawcy (" + dev + ") – odrzucony bez pytania"); return; }   // nigdy okienka z kodem (serwer pytał o pliki idące do kogoś innego)
                 // ten sam plik (Mid) z kilku serwerów (skrzynka 📬 u każdego) albo już w rozmowie - odmowa, serwer kasuje swoją kopię
                 if ((string)h["Mid"] is { Length: 32 } dm && (_komFileIn.ContainsKey(dm) || _komChats.Values.Any(l => l.Any(m => m.Mid == dm)))) { App.LogInfo("Komunikator: ten sam plik drugi raz (" + name + ") – pominięty"); return; }

@@ -9,6 +9,14 @@
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:alertDialogTheme">@style/Velivo.Okno</item>
     </style>
+    <!-- 🫧 bąbelek: Android nie osadza w dymku okna przezroczystego (windowIsTranslucent) - dymek się zwijał zamiast otworzyć rozmowę -->
+    <style name="Velivo.Babelek" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#06B6D4</item>
+        <item name="android:colorPrimary">#7C3AED</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:alertDialogTheme">@style/Velivo.Okno</item>
+    </style>
     <style name="Velivo.Okno" parent="@android:style/Theme.Material.Dialog.Alert">
         <item name="android:windowBackground">@drawable/okno_tlo</item>
         <item name="android:colorAccent">#06B6D4</item>

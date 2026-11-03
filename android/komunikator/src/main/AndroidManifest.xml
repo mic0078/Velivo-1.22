@@ -56,7 +56,7 @@
             </intent-filter>
         </activity>
         <!-- 🫧 bąbelek rozmowy: okno osadzane w dymku (Android 11+) -->
-        <activity android:name=".Babelek" android:exported="false" android:allowEmbedded="true" android:resizeableActivity="true" android:documentLaunchMode="always"
+        <activity android:name=".Babelek" android:exported="false" android:theme="@style/Velivo.Babelek" android:allowEmbedded="true" android:resizeableActivity="true" android:documentLaunchMode="always"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
         <receiver android:name=".KomunikatorAkcja" android:exported="false" />
         <!-- 📋 wspólny schowek: tekst skopiowany na telefonie od klawiatury Velivo (tylko aplikacje Velivo) -->

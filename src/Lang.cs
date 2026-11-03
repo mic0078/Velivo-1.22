@@ -1476,6 +1476,8 @@ namespace Velivo
             { "Rozmowa wideo", "Video call" },
             { "Przeczytane", "Read" },
             { "Przeczytana", "Read" },
+            { "kółko myszy – powiększ", "mouse wheel – zoom" },
+            { "dwuklik / F11 – pełny ekran", "double-click / F11 – full screen" },
             { "Dostarczona", "Delivered" },
             { "Czeka na serwerze", "Waiting on the server" },
             { "Wysłana – w drodze", "Sent – on its way" },

@@ -2744,14 +2744,15 @@ namespace Velivo
             var items = KomChat(c.Id).Select(m => m.Path).Where(p => !string.IsNullOrEmpty(p) && File.Exists(p) && KomIsImage(p)).Distinct().ToList();   // zdjęcia i GIF-y; filmy - odtwarzacz Velivo
             if (items.Count == 0) return;
             int i = Math.Max(0, items.IndexOf(path));
-            var img = new Image { Stretch = Stretch.Uniform };
+            var zoom = new MatrixTransform();   // 🔍 kółko myszy - powiększ w miejscu kursora, przeciągnięcie - przesuń powiększone
+            var img = new Image { Stretch = Stretch.Uniform, RenderTransform = zoom };
             var vid = new MediaElement { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Close, Stretch = Stretch.Uniform };
             var hint = new TextBlock { Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(10), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center };
             var grid = new Grid { Background = Brushes.Black, Children = { img, vid, hint } };
             var d = new Window { Uid = "own-theme", Owner = owner, Width = 1000, Height = 700, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = grid, Background = Brushes.Black, Icon = KomWindowIcon() };
             void Show()
             {
-                var p = items[i]; d.Title = "🖼 " + Path.GetFileName(p) + "  (" + (i + 1) + "/" + items.Count + ")";
+                var p = items[i]; d.Title = "🖼 " + Path.GetFileName(p) + "  (" + (i + 1) + "/" + items.Count + ")"; zoom.Matrix = Matrix.Identity;
                 vid.Stop(); vid.Source = null;
                 if (KomIsGif(p))
                 {
@@ -2762,19 +2763,42 @@ namespace Velivo
                     vid.Visibility = Visibility.Collapsed; img.Visibility = Visibility.Visible;
                     try { var b = new System.Windows.Media.Imaging.BitmapImage(); b.BeginInit(); b.UriSource = new Uri(p); b.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; b.EndInit(); img.Source = KomUpright(b, p); } catch (Exception) { img.Source = null; }
                 }
-                hint.Text = "← →  " + L.T("poprzednie / następne") + "   ·   Enter – " + L.T("otwórz w programie Windows") + "   ·   Esc – " + L.T("zamknij");
+                hint.Text = "← →  " + L.T("poprzednie / następne") + "   ·   " + L.T("kółko myszy – powiększ") + "   ·   " + L.T("dwuklik / F11 – pełny ekran") + "   ·   Enter – " + L.T("otwórz w programie Windows") + "   ·   Esc – " + L.T("zamknij");
             }
             vid.MediaEnded += (s, e) => { if (KomIsGif(items[i])) { vid.Position = TimeSpan.FromMilliseconds(1); vid.Play(); } };   // 🎞 GIF w kółko
             d.PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Right && i < items.Count - 1) { i++; Show(); }
                 else if (e.Key == Key.Left && i > 0) { i--; Show(); }
-                else if (e.Key == Key.Escape) d.Close();
+                else if (e.Key == Key.F11) Full();
+                else if (e.Key == Key.Escape) { if (d.WindowStyle == WindowStyle.None) Full(); else d.Close(); }
                 else if (e.Key == Key.Enter) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(items[i]) { UseShellExecute = true }); } catch (Exception) { } }
                 else return;
                 e.Handled = true;
             };
-            grid.MouseLeftButtonUp += (s, e) => { var x = e.GetPosition(grid).X; if (x < grid.ActualWidth / 3 && i > 0) { i--; Show(); } else if (x > grid.ActualWidth * 2 / 3 && i < items.Count - 1) { i++; Show(); } };   // klik z lewej / prawej strony
+            void Full()
+            {   // pełny ekran: bez ramki, cały monitor; drugi raz (dwuklik / F11 / Esc) - zwykłe okno
+                bool on = d.WindowStyle != WindowStyle.None;
+                if (on) { d.WindowState = WindowState.Normal; d.WindowStyle = WindowStyle.None; d.ResizeMode = ResizeMode.NoResize; d.WindowState = WindowState.Maximized; }
+                else { d.WindowStyle = WindowStyle.SingleBorderWindow; d.ResizeMode = ResizeMode.CanResize; d.WindowState = WindowState.Normal; }
+            }
+            grid.MouseWheel += (s, e) =>
+            {
+                var pt = e.GetPosition(img); var m = zoom.Matrix; double f = e.Delta > 0 ? 1.25 : 0.8;
+                m.ScaleAtPrepend(f, f, pt.X, pt.Y);
+                zoom.Matrix = m.M11 <= 1.001 ? Matrix.Identity : m.M11 > 10 ? zoom.Matrix : m; e.Handled = true;
+            };
+            Point? dragAt = null; bool dragged = false;
+            grid.MouseLeftButtonDown += (s, e) =>
+            {
+                if (e.ClickCount == 2) { Full(); dragged = true; e.Handled = true; return; }
+                dragged = false; if (zoom.Matrix.M11 > 1.001) { dragAt = e.GetPosition(grid); grid.CaptureMouse(); }
+            };
+            grid.MouseMove += (s, e) =>
+            {
+                if (dragAt is not Point p0) return; var p1 = e.GetPosition(grid); var m = zoom.Matrix; m.Translate(p1.X - p0.X, p1.Y - p0.Y); zoom.Matrix = m; dragAt = p1; dragged = true;
+            };
+            grid.MouseLeftButtonUp += (s, e) => { bool wasZoom = dragAt != null; dragAt = null; grid.ReleaseMouseCapture(); if (wasZoom || dragged) return; var x = e.GetPosition(grid).X; if (x < grid.ActualWidth / 3 && i > 0) { i--; Show(); } else if (x > grid.ActualWidth * 2 / 3 && i < items.Count - 1) { i++; Show(); } };   // klik z lewej / prawej strony
             d.Closed += (s, e) => { try { vid.Stop(); vid.Close(); } catch (Exception) { } };
             Show(); d.Show();
         }

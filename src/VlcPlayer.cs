@@ -1928,8 +1928,8 @@ namespace Velivo
                 double one = mainCol.ActualWidth + quick.ActualWidth + quick.Margin.Left + quick.Margin.Right + rightBox.ActualWidth + 14;
                 double full = one;
                 for (int i = 0; i < 4; i++) { var el = hideOrder[i]; if (!hidden[i] && el.ActualWidth > 0) natW[i] = el.ActualWidth + el.Margin.Left + el.Margin.Right; if (hidden[i]) full += natW[i]; }
-                var want = new bool[4]; double cur = full;
-                if (barF > 1.001) for (int i = 0; i < 4; i++) { if (cur <= (hidden[i] ? have - 30 : have - 4)) break; if (natW[i] > 0) { want[i] = true; cur -= natW[i]; } }
+                var want = new bool[4]; double rest = full;
+                if (barF > 1.001) for (int i = 0; i < 4; i++) { if (rest <= (hidden[i] ? have - 30 : have - 4)) break; if (natW[i] > 0) { want[i] = true; rest -= natW[i]; } }
                 bool chg = false;
                 for (int i = 0; i < 4; i++) if (want[i] != hidden[i]) { hidden[i] = want[i]; hideOrder[i].MaxWidth = want[i] ? 0 : double.PositiveInfinity; hideOrder[i].IsHitTestVisible = !want[i]; chg = true; }
                 if (chg) { barNeed = 0; return; }   // po zmianie układu przyjdzie nowe SizeChanged z prawdziwymi szerokościami

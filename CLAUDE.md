@@ -191,6 +191,7 @@ Claude zapamiętuje do 3 dni wstecz, a nawet 5 dni, jeśli użytkownik nie był 
 * 2026-11-03: Kanapa – gatunek dalej przeklikiwany (poprawiłem tylko grupę TV, choć wniosek z poprzedniej linii mówił „od razu w podobnych”), a Filmy ucięte do 400 (Take(400) – bez komunikatu); teraz wspólny wybór z listy (`Lista`) i wszystkie filmy. Nie ucinaj list po cichu.
 * 2026-11-03: Kanapa – wybór grupy/gatunku/sortowania ginął po zamknięciu (zmienne tylko w oknie), złota ramka dużego kafelka ucięta (powiększenie 1,07 > margines), a wracając do Kanapy z grającym filmem został sam dźwięk (odtwarzacz pod Kanapą). Teraz zapis w ustawieniach, większy margines, odtwarzacz jako okienko pod zegarem i powrót po wyjściu. Wybory w nowym widoku zawsze zapamiętuj; przy powiększeniu sprawdź margines.
 * 2026-11-03: piąty raz komentarz w środku linii (C#, Kanapa) – zamiana początku linii zostawiła resztę za `//`; budowa padła. Przed wysłaniem: `grep -n '//.*;'` w zmienionych liniach – po komentarzu nie może być kodu.
+* 2026-11-03: okienko filmu w Kanapie było pod nią – oba okna na wierzchu, a aktywowana Kanapa wychodziła nad odtwarzacz; teraz odtwarzacz to okno podrzędne Kanapy (Owner), oddawane w Closing (inaczej zamknąłby się z nią). Okno nad innym oknem na wierzchu – Owner, nie samo Topmost.
 * 2026-10-21: autokorekta zmieniała dobre słowa spoza słownika (naprawiaj → naprawiać): formy rozkazujące uznane za poprawne, dwie pomyłki tylko przy zgodnym początku, cofnięta poprawka (⌫) zapamiętana na stałe.
 
 ## Zrobione (pamięć)

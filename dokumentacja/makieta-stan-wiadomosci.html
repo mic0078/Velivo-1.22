@@ -1,36 +1,35 @@
 <!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stan wiadomości – makieta</title>
 <style>
-:root{--bg:#161b2b;--card:#1f2639;--mine:#2d4fb8;--txt:#e8ecf4;--dim:#9aa4bd}
+:root{--bg:#161b2b;--card:#1f2639;--txt:#e8ecf4;--dim:#9aa4bd}
 body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 Segoe UI,system-ui,sans-serif;padding:16px}
 h1{font-size:20px;margin:0 0 4px}p{color:var(--dim);margin:0 0 16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;max-width:1000px}
-.c{background:var(--card);border-radius:12px;padding:14px}
-.c h2{font-size:15px;margin:0 0 10px}
-.b{background:var(--mine);border-radius:14px 14px 4px 14px;padding:8px 12px;margin-left:auto;max-width:200px}
-.m{display:flex;justify-content:flex-end;align-items:center;gap:6px;font-size:12px;color:#d6defa;margin-top:2px}
-.big{display:flex;gap:18px;align-items:center;margin:8px 0 2px}
-svg{display:block}
-.lg{font-size:13px;color:var(--dim)}
+.c{background:var(--card);border-radius:12px;padding:14px}.c h2{font-size:15px;margin:0 0 10px}
+.b{background:#3b4fd8;border-radius:14px 14px 4px 14px;padding:8px 12px;margin:10px 0 0 auto;max-width:200px}
+.m{display:flex;justify-content:flex-end;align-items:center;gap:6px;font-size:12px;color:#fff;margin-top:2px}
+.big{display:flex;gap:14px;align-items:center}.lg{font-size:13px;color:var(--dim)}
 </style></head><body>
-<h1>Stan wiadomości – znak Velivo zamiast ptaszków</h1>
-<p>Mała litera V (logo) przy godzinie. Godzina zawsze biała, kolor ma tylko znak.</p>
+<h1>Stan wiadomości – ikona Velivo zamiast ptaszków</h1>
+<p>Kolory i kształt z ikony Velivo: zaokrąglone białe V, linie ruchu, fioletowo-niebiesko-turkusowe tło. Godzina zawsze biała.</p>
 <svg width="0" height="0" style="position:absolute"><defs>
-<symbol id="v" viewBox="0 0 24 24"><path d="M3 4h5l4 10 4-10h5l-7 16h-4z"/></symbol>
-<symbol id="vo" viewBox="0 0 24 24"><path d="M3 4h5l4 10 4-10h5l-7 16h-4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset=".5" stop-color="#4f7cf0"/><stop offset="1" stop-color="#06b6d4"/></linearGradient>
+<symbol id="vv" viewBox="0 0 32 32"><path d="M11 8l6 15 6-15" fill="none" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="ln" viewBox="0 0 32 32"><g stroke-width="2.2" stroke-linecap="round" opacity=".75"><path d="M2 12h6"/><path d="M4 17h6"/><path d="M6 22h5"/></g></symbol>
+<symbol id="tile" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="8"/></symbol>
 </defs></svg>
 <div class="grid">
-<div class="c"><h2>1. Czeka (na serwerze / bez sieci)</h2>
-<div class="big"><svg width="40" height="40" style="color:#9aa4bd"><use href="#vo"/></svg><span class="lg">pusty kontur V + zegarek w podpowiedzi</span></div>
-<div class="b">Cześć mamo<div class="m">19:41 <svg width="14" height="14" style="color:#c9d2ee"><use href="#vo"/></svg></div></div></div>
-<div class="c"><h2>2. Wysłana (dotarła do serwera)</h2>
-<div class="big"><svg width="40" height="40" fill="#c9d2ee"><use href="#v"/></svg><span class="lg">jedno pełne V, szare</span></div>
-<div class="b">Cześć mamo<div class="m">19:41 <svg width="14" height="14" fill="#c9d2ee"><use href="#v"/></svg></div></div></div>
+<div class="c"><h2>1. Czeka (serwer / brak sieci)</h2>
+<div class="big"><svg width="44" height="44" viewBox="0 0 32 32"><use href="#vv" stroke="#c9d2ee" opacity=".55"/></svg><span class="lg">samo V, przygaszone</span></div>
+<div class="b">Cześć mamo<div class="m">19:41 <svg width="16" height="16" viewBox="0 0 32 32"><use href="#vv" stroke="#fff" opacity=".55"/></svg></div></div></div>
+<div class="c"><h2>2. Wysłana (w drodze)</h2>
+<div class="big"><svg width="44" height="44" viewBox="0 0 32 32"><use href="#ln" stroke="#fff"/><use href="#vv" stroke="#fff"/></svg><span class="lg">białe V z liniami ruchu</span></div>
+<div class="b">Cześć mamo<div class="m">19:41 <svg width="16" height="16" viewBox="0 0 32 32"><use href="#ln" stroke="#fff"/><use href="#vv" stroke="#fff"/></svg></div></div></div>
 <div class="c"><h2>3. Dostarczona, nieprzeczytana</h2>
-<div class="big"><svg width="52" height="40" fill="#c9d2ee" viewBox="0 0 34 24"><use href="#v" width="24" height="24"/><use href="#v" x="10" width="24" height="24"/></svg><span class="lg">dwa V, szare</span></div>
-<div class="b">Cześć mamo<div class="m">19:41 <svg width="20" height="14" viewBox="0 0 34 24" fill="#c9d2ee"><use href="#v" width="24" height="24"/><use href="#v" x="10" width="24" height="24"/></svg></div></div></div>
+<div class="big"><svg width="44" height="44" viewBox="0 0 32 32"><use href="#tile" fill="#8a93ad"/><use href="#vv" stroke="#fff"/></svg><span class="lg">ikona Velivo, szara</span></div>
+<div class="b">Cześć mamo<div class="m">19:41 <svg width="16" height="16" viewBox="0 0 32 32"><use href="#tile" fill="#8a93ad"/><use href="#vv" stroke="#fff"/></svg></div></div></div>
 <div class="c"><h2>4. Przeczytana</h2>
-<div class="big"><svg width="52" height="40" fill="#7df9ff" viewBox="0 0 34 24"><use href="#v" width="24" height="24"/><use href="#v" x="10" width="24" height="24"/></svg><span class="lg">dwa V, jasnoniebieskie</span></div>
-<div class="b">Cześć mamo<div class="m">19:41 <svg width="20" height="14" viewBox="0 0 34 24" fill="#7df9ff"><use href="#v" width="24" height="24"/><use href="#v" x="10" width="24" height="24"/></svg></div></div></div>
+<div class="big"><svg width="44" height="44" viewBox="0 0 32 32"><use href="#tile" fill="url(#g)"/><use href="#vv" stroke="#fff"/></svg><span class="lg">ikona Velivo w pełnych kolorach</span></div>
+<div class="b">Cześć mamo<div class="m">19:41 <svg width="16" height="16" viewBox="0 0 32 32"><use href="#tile" fill="url(#g)" stroke="#fff" stroke-width="1.5"/><use href="#vv" stroke="#fff"/></svg></div></div></div>
 </div>
-<p style="margin-top:16px">Najechanie / stuknięcie na znak: słowami „Czeka na serwerze”, „Wysłana”, „Dostarczona”, „Przeczytana 19:43”. Ten sam znak na Windows i telefonie.</p>
+<p style="margin-top:16px">Najechanie / stuknięcie: „Czeka na serwerze”, „Wysłana”, „Dostarczona”, „Przeczytana 19:43”. To samo na Windows i telefonie.</p>
 </body></html>

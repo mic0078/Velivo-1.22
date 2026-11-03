@@ -333,6 +333,8 @@ namespace Velivo
                 return;
             }
             _komLanAddr[from] = addr; _komLanSeen[from] = DateTime.UtcNow; _komViaNet.TryRemove(from, out _);
+            if (t == "p2p-boxdays" && KomFromRelay(addr) && (int?)p["days"] is int bd && bd > 0 && ((long?)p["at"] ?? 0) > ((long?)_komOpt["boxDaysAt"] ?? 0))
+            { _komOpt["boxDays"] = bd; _komOpt["boxDaysAt"] = (long)p["at"]; KomSave(); return; }   // 📬 przechowywanie ustawione na innym moim serwerze - nowsze wygrywa
             if (t == "p2p-boxdone" && (string)p["to"] is string dto && KomFromRelay(addr))
             {   // 📬 inny pośrednik doręczył - kopie tutaj usuwane (bez podwójnej wysyłki)
                 if (p["mids"] is JsonArray dm && _komStore.TryGetValue(dto, out var dl)) { var ms = dm.Select(x => (string)x).ToHashSet(); lock (dl) dl.RemoveAll(x => ms.Contains((string)x["mid"])); KomStoreSave(); }
@@ -1646,75 +1648,159 @@ namespace Velivo
             };
             return b;
         }
-        // 📬 okno skrzynki: co czeka na tym serwerze (komu, ile, od kiedy) i ostatnie wpisy dziennika - odświeżane co 5 s
+        // 📬 Centrum serwera (pełne okno): skrzynka, osoby, dziennik skrzynki, błędy Velivo, informacje techniczne - tabele z sortowaniem (klik w nagłówek) i szukaniem
         Button KomBoxButton(Window owner)
         {
             var b = new Button { Content = "📬 " + L.T("Skrzynka serwera…"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
                 ToolTip = L.T("Pliki czekające na odbiorców i co się z nimi dzieje") };
-            b.Click += (s, e) =>
-            {
-                var head = new TextBlock { FontWeight = FontWeights.SemiBold, FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 560 };
-                var list = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-                var log = new TextBox { IsReadOnly = true, FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12, Width = 560, Height = 260, TextWrapping = TextWrapping.NoWrap,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 4, 0, 0) };
-                var conn = new TextBox { IsReadOnly = true, FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12, Width = 560, Height = 170, TextWrapping = TextWrapping.NoWrap,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 4, 0, 0) };
-                void Fill()
-                {
-                    list.Children.Clear(); int all = 0;
-                    var root = Path.Combine(DataDir, "skrzynka");
-                    foreach (var d in Directory.Exists(root) ? Directory.GetDirectories(root) : Array.Empty<string>())
-                    {
-                        var bins = Directory.GetFiles(d, "*.bin").Select(x => new FileInfo(x)).ToList(); if (bins.Count == 0) continue;
-                        all += bins.Count; var id = Path.GetFileName(d); bool on = KomOnline(id);
-                        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 3, 2, 3) };
-                        row.Children.Add(new System.Windows.Shapes.Ellipse { Width = 12, Height = 12, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
-                            Fill = new System.Windows.Media.SolidColorBrush(on ? System.Windows.Media.Color.FromRgb(0x22, 0xC5, 0x5E) : System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF)) });
-                        row.Children.Add(new TextBlock { Text = (KomContactById(id)?.Name ?? id) + " – " + bins.Count + L.T(" plików, ") + (bins.Sum(x => x.Length) / 1048576.0).ToString("0.#") + " MB" + L.T(", najstarszy od ")
-                            + bins.Min(x => x.LastWriteTime).ToString("dd.MM HH:mm") + " · " + (on ? L.T("w sieci – serwer wysyła") : L.T("poza siecią – wyślę, gdy się pojawi")) });
-                        list.Children.Add(row);
-                    }
-                    int msgs = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; });
-                    head.Text = (all == 0 && msgs == 0 ? L.T("✅ Skrzynka pusta – wszystko doręczone.") : L.T("Czeka na odbiorców: ") + all + L.T(" plików") + " · " + L.T("wiadomości: ") + msgs)
-                        + "\n" + L.T("Ten komputer: ") + Environment.MachineName + " · " + (_komRelayListener != null ? L.T("serwer działa, port ") + _komRelayPort : L.T("serwer wyłączony"))
-                        + " · " + (_komUp != null ? L.T("połączony z serwerem ") + _komUpRelay?.Name : L.T("w domu"));
-                    // każda osoba: w sieci? którędy? kiedy ostatnio? ile czeka wiadomości
-                    var sb = new StringBuilder();
-                    foreach (var c in _komContacts.Where(x => !x.IsGroup).OrderByDescending(x => KomOnline(x.Id)).ThenBy(x => x.Name))
-                    {
-                        var way = new List<string>();
-                        if (_komRemote.ContainsKey(c.Id)) way.Add(L.T("przez internet z tym serwerem"));
-                        if (_komLanSeen.TryGetValue(c.Id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100)) way.Add(L.T("sieć domowa ") + (_komLanAddr.TryGetValue(c.Id, out var la) ? la.ToString() : ""));
-                        if (_komViaRelay.TryGetValue(c.Id, out var vr)) way.Add(L.T("przez serwer ") + (_komContacts.FirstOrDefault(r => _komLanAddr.TryGetValue(r.Id, out var ra) && ra.Equals(vr))?.Name ?? vr.ToString()));
-                        int w = _komStore.TryGetValue(c.Id, out var q) ? q.Count : 0;
-                        sb.AppendLine((KomOnline(c.Id) ? "● " : "○ ") + c.Name.PadRight(22).Substring(0, 22) + " " + (way.Count > 0 ? string.Join(", ", way) : "—")
-                            + (_komSeenAt.TryGetValue(c.Id, out var sa) ? L.T(" · ostatnio ") + sa.ToString("dd.MM HH:mm") : "") + (w > 0 ? L.T(" · czeka wiadomości: ") + w : "")
-                            + (!string.IsNullOrEmpty(c.Relay) ? L.T(" · serwer ") + c.Relay : ""));
-                    }
-                    conn.Text = sb.ToString();
-                    try { var p = Path.Combine(DataDir, "skrzynka.log"); log.Text = File.Exists(p) ? string.Join(Environment.NewLine, File.ReadLines(p).Reverse().Take(80)) : L.T("(dziennik jeszcze pusty)"); } catch (Exception) { }
-                }
-                // 📋 cały raport do schowka - do wklejenia przy zgłoszeniu błędu (bez kluczy i treści wiadomości)
-                var copy = new Button { Content = "📋 " + L.T("Kopiuj raport"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
-                    ToolTip = L.T("Kopiuje wszystko z tego okna (oraz ostatnie błędy programu) – wklej, zgłaszając problem") };
-                copy.Click += (s2, e2) =>
-                {
-                    string err = ""; try { var bp = Path.Combine(DataDir, "bledy.log"); if (File.Exists(bp)) err = string.Join(Environment.NewLine, File.ReadLines(bp).Reverse().Take(30)); } catch (Exception) { }
-                    try { Clipboard.SetText(DateTime.Now.ToString("yyyy-MM-dd HH:mm") + "\n" + head.Text + "\n\n" + string.Join("\n", list.Children.OfType<StackPanel>().Select(r => r.Children.OfType<TextBlock>().FirstOrDefault()?.Text))
-                        + "\n\n== " + L.T("Połączenia") + " ==\n" + conn.Text + "\n== " + L.T("Dziennik") + " ==\n" + log.Text + "\n\n== " + L.T("Błędy programu") + " ==\n" + err); copy.Content = "✅ " + L.T("Skopiowano"); } catch (Exception) { }
-                };
-                Fill();
-                var help = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 560, Opacity = 0.8, Margin = new Thickness(0, 6, 0, 0),
-                    Text = L.T("Gdy odbiorcy nie ma albo połączenie się zerwie, plik czeka tutaj, a serwer próbuje co minutę. Zielona kropka – odbiorca w sieci teraz. Niżej dziennik: najnowsze wpisy na górze.") };
-                var w = new Window { Title = "📬 " + L.T("Skrzynka serwera"), SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                    Content = new StackPanel { Margin = new Thickness(16), Children = { head, help, list,
-                        new TextBlock { Text = L.T("Osoby i urządzenia – którędy połączone (● w sieci, ○ poza siecią):"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) }, conn,
-                        new TextBlock { Text = L.T("Dziennik:"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) }, log, copy } } };
-                var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s2, e2) => Fill(); tm.Start();
-                w.Closed += (s2, e2) => tm.Stop();
-                KomStyle(w); w.ShowDialog();
-            };
+            b.Click += (s, e) => KomServerCenter(owner);
             return b;
+        }
+        // tabela: kolumny, wiersze (tekst), szukanie i sortowanie; zwraca element i odświeżanie
+        (FrameworkElement, Action) KomTable(string[] cols, Func<List<string[]>> rows, TextBox search)
+        {
+            var gv = new GridView();
+            var lv = new ListView { View = gv, Margin = new Thickness(0, 4, 0, 0) };
+            int sortCol = -1; bool desc = false; List<string[]> data = new List<string[]>();
+            int Cmp(string a, string c) => double.TryParse((a ?? "").Split(' ')[0], out var x) && double.TryParse((c ?? "").Split(' ')[0], out var y) ? x.CompareTo(y) : string.Compare(a, c, StringComparison.CurrentCultureIgnoreCase);
+            void Show()
+            {
+                var q = search.Text.Trim();
+                IEnumerable<string[]> r = data.Where(x => q.Length == 0 || x.Any(v => (v ?? "").IndexOf(q, StringComparison.CurrentCultureIgnoreCase) >= 0));
+                if (sortCol >= 0) { var l = r.ToList(); l.Sort((x, y) => (desc ? -1 : 1) * Cmp(x[sortCol], y[sortCol])); r = l; }
+                lv.ItemsSource = r.ToList();
+            }
+            for (int k = 0; k < cols.Length; k++)
+            {
+                int col = k;
+                var h = new GridViewColumnHeader { Content = cols[k], Cursor = System.Windows.Input.Cursors.Hand };
+                h.Click += (s, e) => { desc = sortCol == col && !desc; sortCol = col; foreach (var c in gv.Columns) ((GridViewColumnHeader)c.Header).Content = cols[gv.Columns.IndexOf(c)]; h.Content = cols[col] + (desc ? " ▼" : " ▲"); Show(); };
+                gv.Columns.Add(new GridViewColumn { Header = h, DisplayMemberBinding = new System.Windows.Data.Binding("[" + k + "]") });
+            }
+            search.TextChanged += (s, e) => Show();
+            return (lv, () => { try { data = rows(); } catch (Exception ex) { data = new List<string[]> { new[] { "⚠ " + ex.Message } }; } Show(); });
+        }
+        int KomBoxDays => (int?)_komOpt["boxDays"] ?? 30;
+        // przechowywanie (ustawia właściciel): pliki i wiadomości w skrzynce oraz wpisy dziennika starsze niż N dni - usuwane; raz na godzinę
+        DateTime _komExpireAt;
+        void KomBoxExpire()
+        {
+            if (DateTime.UtcNow - _komExpireAt < TimeSpan.FromHours(1)) return; _komExpireAt = DateTime.UtcNow;
+            var limit = DateTime.Now.AddDays(-KomBoxDays);
+            try
+            {
+                var root = Path.Combine(DataDir, "skrzynka");
+                if (Directory.Exists(root)) foreach (var d in Directory.GetDirectories(root))
+                    foreach (var hdr in Directory.GetFiles(d, "*.hdr").Where(x => File.GetLastWriteTime(x) < limit))
+                    {
+                        foreach (var ext in new[] { ".hdr", ".bin", ".src" }) try { File.Delete(Path.ChangeExtension(hdr, ext)); } catch (Exception) { }
+                        KomBoxLog(Path.GetFileName(d), "usunięty – czekał dłużej niż " + KomBoxDays + " dni");
+                    }
+                long lim = DateTimeOffset.UtcNow.AddDays(-KomBoxDays).ToUnixTimeMilliseconds(); bool ch = false;
+                foreach (var kv in _komStore) lock (kv.Value) ch |= kv.Value.RemoveAll(x => (long?)x["ts"] is long t && t < lim) > 0;
+                if (ch) KomStoreSave();
+                var p = Path.Combine(DataDir, "skrzynka.log");
+                if (File.Exists(p)) { var keep = File.ReadLines(p).Where(l => !(l.Length > 19 && DateTime.TryParse(l.Substring(0, 19), out var t) && t < limit)).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, keep) + Environment.NewLine); }
+            }
+            catch (Exception ex) { App.LogError(ex); }
+            KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdays", ["id"] = _komId, ["days"] = KomBoxDays, ["at"] = (long?)_komOpt["boxDaysAt"] ?? 0 });   // moje serwery - to samo przechowywanie (nowsze ustawienie wygrywa)
+        }
+        void KomServerCenter(Window owner)
+        {
+            var w = new Window { Title = "📬 " + L.T("Centrum serwera") + " – " + Environment.MachineName, Width = 1100, Height = 760, WindowState = WindowState.Maximized, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            string Ago(DateTime t) => t.ToString("yyyy-MM-dd HH:mm");
+            // kafelki
+            var cards = new System.Windows.Controls.Primitives.UniformGrid { Rows = 1, Margin = new Thickness(0, 0, 0, 8) };
+            TextBlock Card(string sub) { var v = new TextBlock { FontSize = 22, FontWeight = FontWeights.SemiBold }; cards.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = Brushes.SlateGray, CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0),
+                Child = new StackPanel { Children = { v, new TextBlock { Text = sub, Opacity = 0.75 } } } }); return v; }
+            var cSrv = Card(L.T("serwer")); var cFiles = Card(L.T("pliki czekają")); var cMsg = Card(L.T("wiadomości czekają")); var cOn = Card(L.T("osób w sieci"));
+            var search = new TextBox { Padding = new Thickness(4), ToolTip = L.T("Szukaj w otwartej tabeli (osoba, zdarzenie, adres…)") };
+            // 1. skrzynka
+            var (tBox, rBox) = KomTable(new[] { L.T("Osoba"), L.T("Plik (rozmiar KB)"), L.T("Czeka od"), L.T("Stan") }, () =>
+            {
+                var l = new List<string[]>(); var root = Path.Combine(DataDir, "skrzynka");
+                foreach (var d in Directory.Exists(root) ? Directory.GetDirectories(root) : Array.Empty<string>())
+                {
+                    var id = Path.GetFileName(d); var name = KomContactById(id)?.Name ?? id; bool on = KomOnline(id);
+                    foreach (var bin in Directory.GetFiles(d, "*.bin").Select(x => new FileInfo(x)))
+                        l.Add(new[] { name, (bin.Length / 1024) + " KB" + (Path.GetFileName(bin.FullName).StartsWith('k') ? L.T(" (kopia od innego serwera)") : ""), Ago(bin.LastWriteTime), on ? L.T("w sieci – serwer wysyła") : L.T("poza siecią – wyślę, gdy się pojawi") });
+                }
+                foreach (var kv in _komStore) { int n; lock (kv.Value) n = kv.Value.Count; if (n > 0) l.Add(new[] { KomContactById(kv.Key)?.Name ?? kv.Key, n + L.T(" wiadomości (tekst)"), "", KomOnline(kv.Key) ? L.T("w sieci – serwer wysyła") : L.T("poza siecią – wyślę, gdy się pojawi") }); }
+                return l;
+            }, search);
+            // 2. osoby i urządzenia
+            var (tPeople, rPeople) = KomTable(new[] { L.T("Stan"), L.T("Osoba"), L.T("Rodzaj"), L.T("Połączenie"), L.T("Adres"), L.T("Ostatnio") }, () =>
+                _komContacts.Where(x => !x.IsGroup).Select(c =>
+                {
+                    var way = new List<string>();
+                    if (_komRemote.ContainsKey(c.Id)) way.Add(L.T("przez internet z tym serwerem"));
+                    bool lan = _komLanSeen.TryGetValue(c.Id, out var ls) && DateTime.UtcNow - ls < TimeSpan.FromSeconds(100); if (lan) way.Add(L.T("sieć domowa"));
+                    if (_komViaRelay.TryGetValue(c.Id, out var vr)) way.Add(L.T("przez serwer ") + (_komContacts.FirstOrDefault(r => _komLanAddr.TryGetValue(r.Id, out var ra) && ra.Equals(vr))?.Name ?? vr.ToString()));
+                    return new[] { KomOnline(c.Id) ? L.T("● w sieci") : L.T("○ poza siecią"), c.Name, !string.IsNullOrEmpty(c.Relay) ? L.T("mój serwer") + " (" + c.Relay + ")" : c.Dom ? L.T("moje urządzenie") : L.T("znajomy"),
+                        way.Count > 0 ? string.Join(", ", way) : "—", _komLanAddr.TryGetValue(c.Id, out var la) ? la.ToString() : "", _komSeenAt.TryGetValue(c.Id, out var sa) ? Ago(sa) : "" };
+                }).ToList(), search);
+            // 3. dziennik skrzynki, 4. błędy Velivo - z plików (najnowsze na górze)
+            List<string[]> LogRows(string file, int n)
+            {
+                var p = Path.Combine(DataDir, file); if (!File.Exists(p)) return new List<string[]>();
+                return File.ReadLines(p).Reverse().Take(n).Select(l => l.Length > 21 && DateTime.TryParse(l.Substring(0, 19), out _) ? new[] { l.Substring(0, 19), l.Substring(19).Trim() } : new[] { "", l }).ToList();
+            }
+            var (tLog, rLog) = KomTable(new[] { L.T("Czas"), L.T("Zdarzenie (osoba i co się stało)") }, () => LogRows("skrzynka.log", 3000), search);
+            var (tErr, rErr) = KomTable(new[] { L.T("Czas"), L.T("Błąd Velivo") }, () => LogRows("bledy.log", 3000), search);
+            // 5. informacje techniczne
+            var (tInfo, rInfo) = KomTable(new[] { L.T("Co"), L.T("Wartość") }, () =>
+            {
+                long boxSize = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) boxSize = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Sum(x => new FileInfo(x).Length); } catch (Exception) { }
+                return new List<string[]> {
+                    new[] { L.T("Komputer"), Environment.MachineName }, new[] { L.T("Windows"), Environment.OSVersion.VersionString },
+                    new[] { L.T("Wersja Velivo"), System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "" },
+                    new[] { L.T("Folder danych"), DataDir }, new[] { L.T("Serwer (pośrednik)"), _komRelayListener != null ? L.T("działa, port ") + _komRelayPort : L.T("wyłączony") },
+                    new[] { L.T("Adres domu"), _komRelayHost }, new[] { L.T("Router / porty"), _komRelayRouter },
+                    new[] { L.T("Ten komputer w internecie"), _komUp != null ? L.T("połączony z serwerem ") + _komUpRelay?.Name : L.T("w domu") },
+                    new[] { L.T("Kontakty"), _komContacts.Count(x => !x.IsGroup).ToString() }, new[] { L.T("Moje serwery widoczne w domu"), string.Join(", ", _komLanRelays.Keys.Select(k => KomContactById(k)?.Name ?? k)) },
+                    new[] { L.T("Skrzynka na dysku"), (boxSize / 1048576.0).ToString("0.0") + " MB" }, new[] { L.T("Przechowywanie"), KomBoxDays + L.T(" dni") },
+                    new[] { L.T("Czas działania Velivo"), (DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).ToString(@"d\d\ hh\:mm") } };
+            }, search);
+            var tabs = new TabControl();
+            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo) })
+                tabs.Items.Add(new TabItem { Header = h, Content = el });
+            void All()
+            {
+                int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
+                cSrv.Text = _komRelayListener != null ? L.T("Działa") : L.T("Wyłączony"); cFiles.Text = files.ToString(); cMsg.Text = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }).ToString();
+                cOn.Text = _komContacts.Count(x => !x.IsGroup && KomOnline(x.Id)) + " / " + _komContacts.Count(x => !x.IsGroup);
+                rBox(); rPeople(); rLog(); rErr(); rInfo();
+            }
+            // przechowywanie: ustawia właściciel, idzie do moich serwerów
+            var days = new[] { 7, 14, 30, 90, 365 };
+            var keep = new ComboBox { Width = 130, ItemsSource = days.Select(d => d + L.T(" dni")).ToList(), SelectedIndex = Math.Max(0, Array.IndexOf(days, KomBoxDays)),
+                ToolTip = L.T("Jak długo serwer trzyma niedoręczone pliki i wiadomości oraz wpisy dziennika – to samo ustawienie dostają moje inne serwery") };
+            keep.SelectionChanged += (s, e) => { _komOpt["boxDays"] = days[Math.Max(0, keep.SelectedIndex)]; _komOpt["boxDaysAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); KomSave(); _komExpireAt = DateTime.MinValue; KomBoxExpire(); All(); };
+            var copy = new Button { Content = "📋 " + L.T("Kopiuj raport"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0),
+                ToolTip = L.T("Kopiuje otwartą tabelę i informacje techniczne (bez kluczy i treści wiadomości) – wklej, zgłaszając problem") };
+            copy.Click += (s, e) =>
+            {
+                string Tab(FrameworkElement el) => el is ListView lv && lv.ItemsSource is IEnumerable<string[]> r ? string.Join(Environment.NewLine, r.Select(x => string.Join("  |  ", x))) : "";
+                try { Clipboard.SetText(DateTime.Now.ToString("yyyy-MM-dd HH:mm") + "  " + Environment.MachineName + Environment.NewLine + "== " + ((TabItem)tabs.SelectedItem).Header + " ==" + Environment.NewLine
+                    + Tab((FrameworkElement)((TabItem)tabs.SelectedItem).Content) + Environment.NewLine + "== " + L.T("Informacje techniczne") + " ==" + Environment.NewLine + Tab(tInfo)); copy.Content = "✅ " + L.T("Skopiowano"); } catch (Exception) { }
+            };
+            var folder = new Button { Content = "📂 " + L.T("Folder danych"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
+            folder.Click += (s, e) => { try { System.Diagnostics.Process.Start("explorer.exe", DataDir); } catch (Exception) { } };
+            var refresh = new Button { Content = "🔄 " + L.T("Odśwież"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) }; refresh.Click += (s, e) => All();
+            var bar = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 4, 0) }, keep, refresh, copy, folder } };
+            DockPanel.SetDock(right, Dock.Right); bar.Children.Add(right);
+            bar.Children.Add(new DockPanel { Children = { new TextBlock { Text = "🔍 ", VerticalAlignment = VerticalAlignment.Center }, search } });
+            var help = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8),
+                Text = L.T("Wszystko o tym serwerze w jednym miejscu. Klik w nagłówek kolumny – sortowanie (drugi klik – odwrotnie), pole 🔍 – szukanie w otwartej tabeli. Niedoręczone pliki czekają na serwerze, a serwer próbuje co minutę; po czasie z „Przechowuj” są usuwane. Odświeża się samo co 5 s.") };
+            var root2 = new DockPanel { Margin = new Thickness(16) };
+            foreach (var el in new FrameworkElement[] { cards, help, bar }) { DockPanel.SetDock(el, Dock.Top); root2.Children.Add(el); }
+            root2.Children.Add(tabs);
+            w.Content = root2;
+            All();
+            var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) }; tm.Tick += (s, e) => { if (w.IsActive || w.IsVisible) All(); }; tm.Start();
+            w.Closed += (s, e) => tm.Stop();
+            KomStyle(w); w.Show();
         }
         void KomRelayDialog(Window owner)
         {

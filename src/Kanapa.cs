@@ -119,13 +119,13 @@ namespace Velivo
             Button ChannelTile(List<IptvChannel> list, int i)
             {
                 var ch = list[i]; var g = new Grid();
-                var name = new TextBlock { Text = ch.Name, FontSize = 24, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10) };
+                var name = new TextBlock { Text = ch.Name, Foreground = KnFg, FontSize = 24, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10) };
                 var logoImg = new Image { Stretch = Stretch.Uniform, Margin = new Thickness(24, 18, 24, 30) };
                 g.Children.Add(name); g.Children.Add(logoImg);
-                g.Children.Add(new Border { Background = KnLive, CornerRadius = new CornerRadius(4), Padding = new Thickness(7, 2, 7, 2), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10),
+                var now = Teraz(ch);
+                if (now != null) g.Children.Add(new Border { Background = KnLive, CornerRadius = new CornerRadius(4), Padding = new Thickness(7, 2, 7, 2), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10),
                     Child = new TextBlock { Text = L.T("NA ŻYWO"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White } });
                 if (!string.IsNullOrEmpty(ch.Logo)) _ = SetLogo(ch.Logo, logoImg, name);
-                var now = Teraz(ch);
                 if (now != null) g.Children.Add(new TextBlock { Text = now.Title, FontSize = 13, Foreground = KnFg, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(10, 12, 10, 6),
                     Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(0xCC, 0, 0, 0), 90) });
                 var b = Tile(260, 146, g, () => Graj(() => { foreach (var x in list) _iptvPlaying[x.Url] = x; PlayVideos(list.Select(x => x.Url).ToArray(), i); }));
@@ -162,7 +162,7 @@ namespace Velivo
             }
 
             var tabBtns = new Dictionary<string, Button>();
-            int kSort = 0, kGen = 0, kSortTv = 0, kGrp = 0; Action odswiez = null;
+            int kSort = 0, kGen = 0, kSortTv = 0, kGrp = 0; Action odswiez = null; bool wyborGrupy = false;
             var szukaj = new TextBox { Width = 380, FontSize = 18, Padding = new Thickness(12, 6, 12, 6), Background = KnCard, Foreground = KnFg, CaretBrush = KnFg, BorderBrush = KnGold, BorderThickness = new Thickness(0, 0, 0, 2), VerticalContentAlignment = VerticalAlignment.Center,
                 ToolTip = L.T("Szukaj: tytuł, aktor albo kanał i program – zacznij pisać") };
             var tSzukaj = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
@@ -186,7 +186,7 @@ namespace Velivo
             }
             void Pokaz(string t)
             {
-                tab = t; var lib = new List<LibraryVideo>(); odswiez = null; Opis("", "", ""); if (szukaj.Text.Length > 0) szukaj.Text = "";
+                tab = t; var lib = new List<LibraryVideo>(); odswiez = null; wyborGrupy = false; Opis("", "", ""); if (szukaj.Text.Length > 0) szukaj.Text = "";
                 try
                 {   // ten sam film kilka razy (plik na dysku + strumień z Jellyfin, kopia z innego komputera, kilka wersji) - jeden kafelek:
                     // obejrzany ostatnio (postęp), potem ten z plikiem na dysku
@@ -246,7 +246,19 @@ namespace Velivo
                         box.Content = sp;
                     }
                     Przycisk(bar, () => L.T("Sortuj: ") + tvSorts[kSortTv], b => { kSortTv = (kSortTv + 1) % tvSorts.Length; b.Content = L.T("Sortuj: ") + tvSorts[kSortTv]; Fill(); });
-                    Przycisk(bar, () => L.T("Grupa: ") + (kGrp == 0 || kGrp > groups.Count ? L.T("wszystkie") : groups[kGrp - 1]), b => { kGrp = (kGrp + 1) % (groups.Count + 1); b.Content = L.T("Grupa: ") + (kGrp == 0 ? L.T("wszystkie") : groups[kGrp - 1]); Fill(); });
+                    Przycisk(bar, () => L.T("Grupa: ") + (kGrp == 0 || kGrp > groups.Count ? L.T("wszystkie") : groups[kGrp - 1]), b =>
+                    {   // wybór grupy z listy (jak w Jellyfin), nie przeklikiwanie po kolei
+                        var wp = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) }; var sp = new StackPanel();
+                        sp.Children.Add(new TextBlock { Text = L.T("Wybierz grupę kanałów"), FontSize = 26, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 0, 0, 16) });
+                        for (int gi = 0; gi <= groups.Count; gi++)
+                        {
+                            int k = gi; var n = allCh.Count(c => k == 0 || string.Equals(c.Group, groups[k - 1], StringComparison.CurrentCultureIgnoreCase));
+                            Przycisk(wp, () => (k == 0 ? L.T("wszystkie") : groups[k - 1]) + "  (" + n + ")", _ => { kGrp = k; wyborGrupy = false; Pokaz("tv"); });
+                        }
+                        foreach (var x in wp.Children.OfType<Button>()) x.Margin = new Thickness(8, 0, 8, 12);
+                        sp.Children.Add(wp); body.Content = sp; body.ScrollToTop(); wyborGrupy = true; odswiez = null;
+                        w.Dispatcher.BeginInvoke(new Action(() => { var cur = wp.Children.OfType<Button>().ElementAtOrDefault(kGrp) ?? wp.Children.OfType<Button>().FirstOrDefault(); cur?.Focus(); cur?.BringIntoView(); }), System.Windows.Threading.DispatcherPriority.Loaded);
+                    });
                     if (_iptvEpg == null) bar.Children.Add(new TextBlock { Text = L.T("Wczytuję program TV…"), FontSize = 16, Foreground = KnDim, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
                     odswiez = Fill; Fill(); st.Children.Add(bar); st.Children.Add(box);
                 }
@@ -318,7 +330,7 @@ namespace Velivo
                 var dir = e.Key switch { Key.Left => FocusNavigationDirection.Left, Key.Right => FocusNavigationDirection.Right, Key.Up => FocusNavigationDirection.Up, Key.Down => FocusNavigationDirection.Down, _ => (FocusNavigationDirection?)null };
                 if (dir != null && Keyboard.FocusedElement is UIElement fe) { fe.MoveFocus(new TraversalRequest(dir.Value)); e.Handled = true; return; }
                 if ((e.Key == Key.Enter || e.Key == Key.Space) && Keyboard.FocusedElement is Button fb) { fb.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; return; }
-                if (e.Key == Key.Escape || e.Key == Key.BrowserBack || e.Key == Key.Back) { e.Handled = true; if (tab != "start") Pokaz("start"); else Wyjdz(); return; }
+                if (e.Key == Key.Escape || e.Key == Key.BrowserBack || e.Key == Key.Back) { e.Handled = true; if (wyborGrupy) { wyborGrupy = false; Pokaz(tab); } else if (tab != "start") Pokaz("start"); else Wyjdz(); return; }
                 if (e.Key == Key.Home) { e.Handled = true; Wyjdz(); }
             };
             // 🎮 kontroler (Xbox i zgodne XInput): krzyżak / lewa gałka - strzałki, A - Enter, B - wstecz, Y - szukaj, LB / RB - poprzednia / następna zakładka

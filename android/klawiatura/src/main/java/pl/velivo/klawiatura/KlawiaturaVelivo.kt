@@ -497,7 +497,7 @@ class KlawiaturaVelivo : InputMethodService() {
         val lw = wd.lowercase()
         Slownik.learnPair(prevWord, lw); Slownik.learnTriple(prevWord2, prevWord, lw); prevWord2 = prevWord; prevWord = lw
         synchronized(learned) { learned[lw] = (learned[lw] ?: 0) + 1 }; Slownik.noteRecent(lw)
-        if (lw != "ze" && !Slownik.isKnown(lw) && !Slownik.isTypo(lw) && lw !in own) addAsk = wd
+        if (lw != "ze" && !Slownik.isKnown(lw) && synchronized(learned) { lw !in own }) addAsk = wd   // nowe słowo zostawione bez poprawki - zawsze pytanie o zapis (też wpisane litera po literze)
         saveSoon(this)
     }
 
@@ -826,7 +826,10 @@ class KlawiaturaVelivo : InputMethodService() {
             sugR.clear(); sugX = 0f
             val sw = (width - pad * 2) / 3
             // ➕ „zapamiętać słowo?” na początku (widoczne), potem do 6 propozycji - 3 na ekranie, reszta po przesunięciu paska palcem
-            ((addAsk?.let { listOf("➕$it") } ?: emptyList()) + sugList).forEachIndexed { i, s -> sugR.add(RectF(pad + sw * i, headH, pad + sw * (i + 1), headH + sugH) to s) }
+            // nowe słowo w trakcie pisania (słownik nie zna, nic się nie dopasowuje) - też ➕; pole ➕ podwójnej szerokości, żeby słowo nie było ucinane
+            val ask = addAsk ?: cur.takeIf { it.length >= 3 && !noLearn && Slownik.loaded && !Slownik.isKnown(it.lowercase()) && synchronized(learned) { it.lowercase() !in own } && sugList.none { s -> s.startsWith(it, true) } }
+            var sx = pad
+            ((ask?.let { listOf("➕$it") } ?: emptyList()) + sugList).forEach { s -> val ww = if (s.startsWith("➕")) sw * 2 else sw; sugR.add(RectF(sx, headH, sx + ww, headH + sugH) to s); sx += ww }
         }
 
         private fun label(k: K): String {

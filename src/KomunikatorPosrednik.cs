@@ -344,7 +344,7 @@ namespace Velivo
             if ((bool?)p["fwd"] == true)
             {   // przekazany przez pośrednika - kontakt jest poza domem (🌍), połączony z pośrednikiem pod tym adresem
                 _komViaNet[from] = true;
-                if ((bool?)p["box"] == true && t == "p2p-msg" && (string)p["to"] is string bto && KomFromRelay(addr)) { var cp = p.DeepClone().AsObject(); cp.Remove("fwd"); cp.Remove("box"); if (_komRemote.TryGetValue(bto, out var brc)) KomSendFrame(brc, cp); else KomStoreKeep(cp, bto); }   // 📬 kopia od innego pośrednika w domu - gdy tamten padnie, ten doręczy
+                if ((bool?)p["box"] == true && t == "p2p-msg" && (string)p["to"] is string bto && KomFromRelay(addr)) { var cp = p.DeepClone().AsObject(); cp.Remove("fwd"); cp.Remove("box"); if (_komRemote.TryGetValue(bto, out var brc)) { KomSendFrame(brc, cp); if ((string)cp["mid"] is string bm) { _komBoxDoneOut["m:" + bm] = (bto, DateTime.UtcNow); KomBoxPeers(new JsonObject { ["t"] = "p2p-boxdone", ["id"] = _komId, ["to"] = bto, ["mids"] = new JsonArray((JsonNode)bm), ["ts"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); } } else KomStoreKeep(cp, bto); }   // 📬 kopia od innego pośrednika w domu - gdy tamten padnie, ten doręczy
                 if (t == "p2p-bye") _komViaRelay.TryRemove(new KeyValuePair<string, IPAddress>(from, addr)); else _komViaRelay[from] = addr;
                 return;
             }

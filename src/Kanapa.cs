@@ -175,6 +175,15 @@ namespace Velivo
                 bar.Children.Add(new TextBlock { Text = "🔍", FontSize = 22, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }); bar.Children.Add(szukaj);
                 return bar;
             }
+            void Lista(string title, List<string> items, int cur, Action<int> pick)
+            {
+                var wp = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) }; var sp = new StackPanel();
+                sp.Children.Add(new TextBlock { Text = title, FontSize = 26, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 0, 0, 16) });
+                for (int i = 0; i < items.Count; i++) { int k = i; Przycisk(wp, () => items[k], _ => { pick(k); wyborGrupy = false; Pokaz(tab); }); }
+                foreach (var x in wp.Children.OfType<Button>()) x.Margin = new Thickness(8, 0, 8, 12);
+                sp.Children.Add(wp); body.Content = sp; body.ScrollToTop(); wyborGrupy = true; odswiez = null;
+                w.Dispatcher.BeginInvoke(new Action(() => { var b0 = wp.Children.OfType<Button>().ElementAtOrDefault(cur) ?? wp.Children.OfType<Button>().FirstOrDefault(); b0?.Focus(); b0?.BringIntoView(); }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
             void Przycisk(Panel bar, Func<string> text, Action<Button> act)
             {
                 var b = new Button { Content = text(), FontSize = 17, Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(12, 0, 0, 0), Cursor = Cursors.Hand, Foreground = KnFg, Background = KnCard };
@@ -246,19 +255,8 @@ namespace Velivo
                         box.Content = sp;
                     }
                     Przycisk(bar, () => L.T("Sortuj: ") + tvSorts[kSortTv], b => { kSortTv = (kSortTv + 1) % tvSorts.Length; b.Content = L.T("Sortuj: ") + tvSorts[kSortTv]; Fill(); });
-                    Przycisk(bar, () => L.T("Grupa: ") + (kGrp == 0 || kGrp > groups.Count ? L.T("wszystkie") : groups[kGrp - 1]), b =>
-                    {   // wybór grupy z listy (jak w Jellyfin), nie przeklikiwanie po kolei
-                        var wp = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) }; var sp = new StackPanel();
-                        sp.Children.Add(new TextBlock { Text = L.T("Wybierz grupę kanałów"), FontSize = 26, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 0, 0, 16) });
-                        for (int gi = 0; gi <= groups.Count; gi++)
-                        {
-                            int k = gi; var n = allCh.Count(c => k == 0 || string.Equals(c.Group, groups[k - 1], StringComparison.CurrentCultureIgnoreCase));
-                            Przycisk(wp, () => (k == 0 ? L.T("wszystkie") : groups[k - 1]) + "  (" + n + ")", _ => { kGrp = k; wyborGrupy = false; Pokaz("tv"); });
-                        }
-                        foreach (var x in wp.Children.OfType<Button>()) x.Margin = new Thickness(8, 0, 8, 12);
-                        sp.Children.Add(wp); body.Content = sp; body.ScrollToTop(); wyborGrupy = true; odswiez = null;
-                        w.Dispatcher.BeginInvoke(new Action(() => { var cur = wp.Children.OfType<Button>().ElementAtOrDefault(kGrp) ?? wp.Children.OfType<Button>().FirstOrDefault(); cur?.Focus(); cur?.BringIntoView(); }), System.Windows.Threading.DispatcherPriority.Loaded);
-                    });
+                    Przycisk(bar, () => L.T("Grupa: ") + (kGrp == 0 || kGrp > groups.Count ? L.T("wszystkie") : groups[kGrp - 1]), _ =>
+                        Lista(L.T("Wybierz grupę kanałów"), new[] { L.T("wszystkie") + "  (" + allCh.Count + ")" }.Concat(groups.Select(g => g + "  (" + allCh.Count(c => string.Equals(c.Group, g, StringComparison.CurrentCultureIgnoreCase)) + ")")).ToList(), kGrp, k => kGrp = k));
                     if (_iptvEpg == null) bar.Children.Add(new TextBlock { Text = L.T("Wczytuję program TV…"), FontSize = 16, Foreground = KnDim, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
                     odswiez = Fill; Fill(); st.Children.Add(bar); st.Children.Add(box);
                 }
@@ -280,11 +278,12 @@ namespace Velivo
                             3 => l.OrderByDescending(v => MetaFor(v.Path)?.Year ?? 0),
                             _ => l.OrderBy(Tytul, StringComparer.CurrentCultureIgnoreCase),
                         };
-                        var list = l.Take(400).ToList(); count.Text = list.Count + L.T(" filmów");
+                        var list = l.ToList(); count.Text = list.Count + L.T(" filmów");
                         box.Content = Wrap(list.Select(v => (UIElement)FilmTile(v)));
                     }
                     Przycisk(bar, () => L.T("Sortuj: ") + sorts[kSort], b => { kSort = (kSort + 1) % sorts.Length; b.Content = L.T("Sortuj: ") + sorts[kSort]; Fill(); });
-                    Przycisk(bar, () => L.T("Gatunek: ") + (kGen == 0 || kGen > genres.Count ? L.T("wszystkie") : genres[kGen - 1]), b => { kGen = (kGen + 1) % (genres.Count + 1); b.Content = L.T("Gatunek: ") + (kGen == 0 ? L.T("wszystkie") : genres[kGen - 1]); Fill(); });
+                    Przycisk(bar, () => L.T("Gatunek: ") + (kGen == 0 || kGen > genres.Count ? L.T("wszystkie") : genres[kGen - 1]), _ =>
+                        Lista(L.T("Wybierz gatunek"), new[] { L.T("wszystkie") + "  (" + lib.Count + ")" }.Concat(genres.Select(g => g + "  (" + lib.Count(v => MetaFor(v.Path)?.Genres?.Contains(g, StringComparer.CurrentCultureIgnoreCase) ?? false) + ")")).ToList(), kGen, k => kGen = k));
                     bar.Children.Add(count);
                     odswiez = Fill; Fill(); st.Children.Add(bar); st.Children.Add(box);
                 }

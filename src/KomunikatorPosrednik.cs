@@ -2030,10 +2030,11 @@ namespace Velivo
             var folder = new Button { Content = "📂 " + L.T("Folder danych"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
             folder.Click += (s, e) => { try { System.Diagnostics.Process.Start("explorer.exe", DataDir); } catch (Exception) { } };
             var refresh = new Button { Content = "🔄 " + L.T("Odśwież"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) }; refresh.Click += (s, e) => All();
-            var bar = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-            var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 4, 0) }, keep, refresh, del, clear, save, copy, folder } };
-            DockPanel.SetDock(right, Dock.Right); bar.Children.Add(right);
-            bar.Children.Add(new DockPanel { Children = { new TextBlock { Text = "🔍 ", VerticalAlignment = VerticalAlignment.Center }, search } });
+            var bar = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };   // pole szukania w osobnym wierszu na całą szerokość, przyciski pod nim zawijane (wąskie okno)
+            bar.Children.Add(new DockPanel { Margin = new Thickness(0, 0, 0, 6), Children = { new TextBlock { Text = "🔍 ", VerticalAlignment = VerticalAlignment.Center }, search } });
+            var right = new WrapPanel { Children = { new TextBlock { Text = L.T("Przechowuj: "), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }, keep, refresh, del, clear, save, copy, folder } };
+            foreach (FrameworkElement el in right.Children) el.Margin = new Thickness(el.Margin.Left, 2, el.Margin.Right, 2);
+            bar.Children.Add(right);
             var help = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 8),
                 Text = L.T("Wszystko o tym serwerze w jednym miejscu. Klik w nagłówek kolumny – sortowanie (drugi klik – odwrotnie), pole 🔍 – szukanie w otwartej tabeli. Niedoręczone pliki czekają na serwerze, a serwer próbuje co minutę; po czasie z „Przechowuj” są usuwane. Odświeża się samo co 5 s.") };
             var root2 = new DockPanel { Margin = new Thickness(16) };

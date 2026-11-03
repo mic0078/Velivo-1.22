@@ -637,7 +637,7 @@ namespace Velivo
                 // 🔁 zastępstwo: telefon zna tylko inny mój serwer (np. mama - tylko NUCBOX), a trafił tutaj (443, adres domu) - mój serwer przekazał mi jego klucz z tym telefonem, więc obsługuję go w jego imieniu
                 var rk = c?.Key; var rel = (string)h["Relay"] ?? "";
                 if (c != null && rel != _komId && _komOpt["alias"] is JsonObject al && (string)al[c.Id + "|" + rel] is { } ak) { try { rk = Convert.FromBase64String(ak); } catch (Exception) { } if (rk?.Length == 32) { rel = _komId; who += " (zamiast " + (KomContactById((string)h["Relay"])?.Name ?? "innego serwera") + ")"; } }
-                string why = c == null ? "nieznane urządzenie (nie ma go w kontaktach tego serwera)" : (string)h["Type"] != "relay-hello" ? "zły typ" : rel != _komId ? "połączenie do innego serwera (adres wskazuje ten komputer)"
+                string why = c == null ? "nieznane urządzenie (nie ma go w kontaktach tego serwera)" : (string)h["Type"] != "relay-hello" ? "zły typ" : rel != _komId ? "połączenie do innego serwera: " + (KomContactById(rel)?.Name ?? (rel.Length >= 6 ? rel.Substring(0, 6) : "?")) + " (adres wskazuje ten komputer; brak klucza zastępczego od tamtego serwera)"
                     : Math.Abs(ts - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) > 300000 ? "zły czas zegara (różnica ponad 5 min)" : null;
                 if (why != null) { App.LogInfo("Pośrednik: odrzucono " + who + " – " + why); _komLastReject = (c?.Name ?? L.T("nieznane urządzenie")) + " – " + why; _ = Dispatcher.BeginInvoke(new Action(KomRelayStatus)); cl.Dispose(); return; }
                 var exp = KomMacBytes(rk, "relay-hello\n", hello);
@@ -1753,7 +1753,7 @@ namespace Velivo
                 if (Wait.Any(x.Contains)) return AdmB(0xfbbf24);
                 if (Dim.Any(x.Contains)) return AdmB(0x8b93a7);   // poza siecią - szary, jak w makiecie
                 if (Ok.Any(x.Contains) || x.Contains("w sieci")) return AdmB(0x4ade80);
-                return DependencyProperty.UnsetValue;
+                return AdmB(0xe8ecf4);   // zwykły tekst jasny - „brak wartości” dawał domyślną czerń WPF (nie kolor wiersza)
             }
             public object ConvertBack(object v, Type t, object p, System.Globalization.CultureInfo c) => throw new NotSupportedException();
         }

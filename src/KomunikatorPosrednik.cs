@@ -563,7 +563,7 @@ namespace Velivo
         // ---------- pośrednik (serwer) ----------
         void KomRelayStart()
         {
-            KomRelayStop();
+            KomRelayStop(!_komRelayOn);
             if (!_komRelayOn) { _komRelayAutoTimer?.Stop(); return; }
             KomStoreLoad();   // 📬 wiadomości czekające sprzed ponownego uruchomienia
             _ = KomRelayAutoAsync();
@@ -594,9 +594,9 @@ namespace Velivo
             catch (Exception ex) { App.LogError(ex); KomInfo(L.T("🌍 Pośrednik: port zajęty lub zablokowany – ") + ex.Message); }
         }
 
-        void KomRelayStop()
+        void KomRelayStop(bool bye = false)
         {
-            try { if (_komRelayListener != null) KomBoxPeers(new JsonObject { ["t"] = "p2p-srvbye", ["id"] = _komId }); } catch (Exception) { }   // ☕ wyłączam się - inne serwery przejmują
+            try { if (bye && _komRelayListener != null) KomBoxPeers(new JsonObject { ["t"] = "p2p-srvbye", ["id"] = _komId }); } catch (Exception) { }   // ☕ wyłączam się (zamknięcie Velivo / wyłączenie serwera) - inne serwery przejmują; nie przy ponownym uruchomieniu serwera
             try { _komRelayCts?.Cancel(); } catch (Exception) { }
             try { _komRelayListener?.Stop(); } catch (Exception) { }
             _komRelayListener = null; _komRelayCts = null;
@@ -1901,8 +1901,9 @@ namespace Velivo
                 var l = new List<string[]>();
                 string[] Row(JsonObject i, string state, string last) => new[] { (string)i["name"], state, (string)i["ver"], ((int?)i["port"])?.ToString() ?? "", (string)i["host"], (string)i["router"], (string)i["conns"], ((int?)i["files"])?.ToString() ?? "", ((int?)i["msgs"])?.ToString() ?? "", (string)i["since"], last };
                 var me = KomSrvInfoNow(); l.Add(Row(me, (bool?)me["on"] == true ? L.T("● działa (ten komputer)") : L.T("○ serwer wyłączony (ten komputer)"), L.T("teraz")));
-                foreach (var kv in _komSrvInfo) l.Add(Row(kv.Value.Info, DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) ? ((bool?)kv.Value.Info["on"] == true ? L.T("● działa") : L.T("○ serwer wyłączony")) : L.T("○ brak wieści – wyłączony albo poza siecią domową"), Ago(kv.Value.At.ToLocalTime())));
-                foreach (var c in _komContacts.Where(x => !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && !_komSrvInfo.ContainsKey(x.Id)))
+                foreach (var kv in _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromHours(12))) l.Add(Row(kv.Value.Info, DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) ? ((bool?)kv.Value.Info["on"] == true ? L.T("● działa") : L.T("○ serwer wyłączony")) : L.T("○ brak wieści – wyłączony albo poza siecią domową"), Ago(kv.Value.At.ToLocalTime())));
+                // serwery bez wieści od 12 h (odłączone: CHUWI, HP) - nie zaśmiecają listy; wracają same, gdy się odezwą
+                foreach (var c in _komContacts.Where(x => !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && !_komSrvInfo.ContainsKey(x.Id) && (KomOnline(x.Id) || (_komSeenAt.TryGetValue(x.Id, out var xs) && DateTime.Now - xs < TimeSpan.FromHours(12)))))
                     l.Add(new[] { c.Name, KomOnline(c.Id) ? L.T("● w sieci – starsza wersja (nie podaje stanu)") : L.T("○ brak wieści – wyłączony albo starsza wersja"), "?", "", c.Relay, "", "", "", "", "", _komSeenAt.TryGetValue(c.Id, out var sa) ? Ago(sa) : "" });
                 return l;
             }, search);

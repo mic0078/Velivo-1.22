@@ -148,7 +148,7 @@ namespace Velivo
         void ExitFromTray()
         {
             _komExit = true;
-            try { KomBye(); KomRelayStop(); } catch (Exception) { }
+            try { KomBye(); KomRelayStop(true); } catch (Exception) { }
             KomTrayRemove();
             try { _komWindow?.Close(); } catch (Exception) { }
             Application.Current.Shutdown();

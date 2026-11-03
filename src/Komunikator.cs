@@ -1115,7 +1115,7 @@ namespace Velivo
             {
                 _ = KomPollAsks();   // 🔗 odpowiedzi na moje prośby z czyjegoś adresu
                 // 📬 skrzynka pośrednika: nieudana próba oddania pliku (słaby zasięg odbiorcy) - ponawiana co minutę, póki odbiorca w sieci, a nie dopiero przy jego ponownym połączeniu
-                if (_komRelayListener != null) { KomBoxDoneRepeat(); KomBoxExpire(); }
+                if (_komRelayListener != null) { KomBoxDoneRepeat(); KomBoxExpire(); KomSrvInfoSend(); }
                 if (_komRelayListener != null) foreach (var id in _komRemote.Keys.Concat(_komLanSeen.Where(kv => DateTime.UtcNow - kv.Value < TimeSpan.FromSeconds(100)).Select(kv => kv.Key)).Distinct().ToList()) _ = KomBoxFlush(id);
                 if (_komContacts.Count == 0) return;
                 KomSendUdp(KomPacket("p2p-here"), null);

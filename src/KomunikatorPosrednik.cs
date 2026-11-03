@@ -354,6 +354,7 @@ namespace Velivo
                 try { var sp = Path.Combine(DataDir, "skrzynka-serwery.log"); if (File.Exists(sp) && new FileInfo(sp).Length > 4_000_000) File.Delete(sp); File.AppendAllText(sp, bl.Replace("\r", " ").Replace("\n", " ") + Environment.NewLine); } catch (Exception) { }
                 return;
             }
+            if (t == "p2p-srvinfo" && KomFromRelay(addr) && p is JsonObject si) { _komSrvInfo[from] = ((JsonObject)si.DeepClone(), DateTime.UtcNow); return; }   // 📊 stan innego mojego serwera
             if (t == "p2p-boxlogclr" && KomFromRelay(addr))
             {   // 🧹 dziennik skrzynki wyczyszczony na innym moim serwerze - tutaj też
                 foreach (var lp in new[] { "skrzynka.log", "skrzynka-serwery.log" }) try { File.Delete(Path.Combine(DataDir, lp)); } catch (Exception) { }
@@ -1678,8 +1679,8 @@ namespace Velivo
         // 📬 Centrum serwera (pełne okno): skrzynka, osoby, dziennik skrzynki, błędy Velivo, informacje techniczne - tabele z sortowaniem (klik w nagłówek) i szukaniem
         Button KomBoxButton(Window owner)
         {
-            var b = new Button { Content = "📬 " + L.T("Skrzynka serwera…"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
-                ToolTip = L.T("Pliki czekające na odbiorców i co się z nimi dzieje") };
+            var b = new Button { Content = "🛠 " + L.T("Panel administratora…"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
+                ToolTip = L.T("Wszystko o moich serwerach: stan, sterowanie, skrzynka, osoby, dzienniki, błędy") };
             b.Click += (s, e) => KomServerCenter(owner);
             return b;
         }
@@ -1710,6 +1711,17 @@ namespace Velivo
             return (lv, () => { try { data = rows(); } catch (Exception ex) { data = new List<string[]> { new[] { "⚠ " + ex.Message } }; } Show(); });
         }
         int KomBoxDays => (int?)_komOpt["boxDays"] ?? 30;
+        // 📊 stan każdego mojego serwera (co minutę między serwerami w domu) - panel administratora pokazuje wszystkie naraz, z wersją (różne wersje = częsta przyczyna błędów)
+        readonly ConcurrentDictionary<string, (JsonObject Info, DateTime At)> _komSrvInfo = new ConcurrentDictionary<string, (JsonObject, DateTime)>();
+        static string KomBuild => (System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "?") + " (" + (File.Exists(Environment.ProcessPath) ? File.GetLastWriteTime(Environment.ProcessPath).ToString("yyyy-MM-dd HH:mm") : "?") + ")";
+        JsonObject KomSrvInfoNow()
+        {
+            int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
+            return new JsonObject { ["t"] = "p2p-srvinfo", ["id"] = _komId, ["name"] = Environment.MachineName, ["ver"] = KomBuild, ["on"] = _komRelayListener != null, ["port"] = _komRelayPort,
+                ["host"] = _komRelayHost, ["router"] = _komRelayRouter, ["conns"] = string.Join(", ", _komRemote.Keys.Select(k => KomContactById(k)?.Name ?? "?")), ["files"] = files,
+                ["msgs"] = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }), ["since"] = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToString("yyyy-MM-dd HH:mm") };
+        }
+        void KomSrvInfoSend() { try { KomBoxPeers(KomSrvInfoNow()); } catch (Exception) { } }
         static void KomLogKeep(string p, Func<string, bool> keep)
         {
             try { if (File.Exists(p)) { var l = File.ReadAllLines(p).Where(keep).ToList(); VelivoData.SafeWrite(p, string.Join(Environment.NewLine, l) + (l.Count > 0 ? Environment.NewLine : "")); } } catch (Exception ex) { App.LogError(ex); }
@@ -1740,13 +1752,13 @@ namespace Velivo
         }
         void KomServerCenter(Window owner)
         {
-            var w = new Window { Title = "📬 " + L.T("Centrum serwera") + " – " + Environment.MachineName, Width = 1100, Height = 760, WindowState = WindowState.Maximized, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var w = new Window { Title = "🛠 " + L.T("Panel administratora") + " – " + Environment.MachineName, Width = 1100, Height = 760, WindowState = WindowState.Maximized, Owner = owner, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             string Ago(DateTime t) => t.ToString("yyyy-MM-dd HH:mm");
             // kafelki
             var cards = new System.Windows.Controls.Primitives.UniformGrid { Rows = 1, Margin = new Thickness(0, 0, 0, 8) };
             TextBlock Card(string sub) { var v = new TextBlock { FontSize = 22, FontWeight = FontWeights.SemiBold }; cards.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = Brushes.SlateGray, CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0),
                 Child = new StackPanel { Children = { v, new TextBlock { Text = sub, Opacity = 0.75 } } } }); return v; }
-            var cSrv = Card(L.T("serwer")); var cFiles = Card(L.T("pliki czekają")); var cMsg = Card(L.T("wiadomości czekają")); var cOn = Card(L.T("osób w sieci"));
+            var cSrv = Card(L.T("serwer")); var cFiles = Card(L.T("pliki czekają")); var cMsg = Card(L.T("wiadomości czekają")); var cOn = Card(L.T("osób w sieci")); var cVer = Card(L.T("wersje serwerów"));
             var search = new TextBox { Padding = new Thickness(4), ToolTip = L.T("Szukaj w otwartej tabeli (osoba, zdarzenie, adres…)") };
             // stan słowami z tego, co serwer naprawdę widzi: odbiorca połączony z TYM serwerem (wysyła), z innym (tamten oddaje), poza siecią
             string Why(string id, bool copy) =>
@@ -1807,15 +1819,53 @@ namespace Velivo
                     new[] { L.T("Skrzynka na dysku"), (boxSize / 1048576.0).ToString("0.0") + " MB" }, new[] { L.T("Przechowywanie"), KomBoxDays + L.T(" dni") },
                     new[] { L.T("Czas działania Velivo"), (DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).ToString(@"d\d\ hh\:mm") } };
             }, search);
+            // 📊 Przegląd: wszystkie moje serwery naraz (ten + wieści od innych co minutę)
+            var (tOver, rOver) = KomTable(new[] { L.T("Serwer"), L.T("Stan"), L.T("Wersja (kompilacja)"), L.T("Port"), L.T("Adres domu"), L.T("Router / porty"), L.T("Połączeni przez internet"), L.T("Pliki"), L.T("Wiadomości"), L.T("Działa od"), L.T("Ostatnia wieść") }, () =>
+            {
+                var l = new List<string[]>();
+                string[] Row(JsonObject i, string state, string last) => new[] { (string)i["name"], state, (string)i["ver"], ((int?)i["port"])?.ToString() ?? "", (string)i["host"], (string)i["router"], (string)i["conns"], ((int?)i["files"])?.ToString() ?? "", ((int?)i["msgs"])?.ToString() ?? "", (string)i["since"], last };
+                var me = KomSrvInfoNow(); l.Add(Row(me, (bool?)me["on"] == true ? L.T("● działa (ten komputer)") : L.T("○ serwer wyłączony (ten komputer)"), L.T("teraz")));
+                foreach (var kv in _komSrvInfo) l.Add(Row(kv.Value.Info, DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3) ? ((bool?)kv.Value.Info["on"] == true ? L.T("● działa") : L.T("○ serwer wyłączony")) : L.T("○ brak wieści – wyłączony albo poza siecią domową"), Ago(kv.Value.At.ToLocalTime())));
+                foreach (var c in _komContacts.Where(x => !x.IsGroup && !string.IsNullOrEmpty(x.Relay) && !_komSrvInfo.ContainsKey(x.Id)))
+                    l.Add(new[] { c.Name, KomOnline(c.Id) ? L.T("● w sieci – starsza wersja (nie podaje stanu)") : L.T("○ brak wieści – wyłączony albo starsza wersja"), "?", "", c.Relay, "", "", "", "", "", _komSeenAt.TryGetValue(c.Id, out var sa) ? Ago(sa) : "" });
+                return l;
+            }, search);
+            // 🖥 Serwery: sterowanie tym serwerem
+            var srvState = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 14, Margin = new Thickness(0, 0, 0, 10) };
+            Button Act(string text, string tip, Action a) { var bt = new Button { Content = text, Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8), ToolTip = tip }; bt.Click += (s, e) => { try { a(); } catch (Exception ex) { App.LogError(ex); MessageBox.Show(w, ex.Message, "⚠"); } }; return bt; }
+            var onOff = Act("", L.T("Włącza albo wyłącza serwer (pośrednika rozmów) na tym komputerze"), () =>
+            {
+                if (_komRelayOn && MessageBox.Show(w, L.T("Wyłączyć serwer na tym komputerze? Osoby połączone z nim przejdą na inny mój serwer."), "🖥", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                _komRelayOn = !_komRelayOn; if (!_komRelayOn) _komRelayAsked = true; KomSave(); KomRelayStart(); if (_komRelayOn) KomAnnounce(); All();
+            });
+            var acts = new WrapPanel { Children = {
+                onOff,
+                Act("🔄 " + L.T("Uruchom serwer od nowa"), L.T("Zamyka połączenia i uruchamia serwer ponownie (telefony połączą się same w ciągu kilkudziesięciu sekund)"), () => { if (!_komRelayOn) return; KomRelayStart(); KomAnnounce(); KomBoxLog(_komId, "serwer uruchomiony od nowa z panelu administratora"); All(); }),
+                Act("🔍 " + L.T("Sprawdź porty i router teraz"), L.T("Sprawdza połączeniem z adresu domu, czy port serwera i 443 są otwarte, i odnawia przekierowanie w routerze (UPnP)"), () => { _komRelayRouter = L.T("Sprawdzam porty…"); All(); _ = Task.Run(async () => { await KomRelayAutoAsync(); _ = Dispatcher.BeginInvoke(new Action(All)); }); }),
+                Act("🛡 " + L.T("Otwórz zaporę Windows"), L.T("Sprawdza zaporę Windows i w razie potrzeby otwiera port serwera (Windows zapyta o zgodę)"), () => { int pt = _komRelayPort; _ = Task.Run(() => { bool ok = KomFirewallOk(pt); _ = Dispatcher.BeginInvoke(new Action(() => { if (ok) MessageBox.Show(w, L.T("Zapora Windows jest otwarta dla serwera."), "🛡"); else { _komFwAsked = DateTime.MinValue; KomFirewallCheck(); } })); }); }),
+                Act("⚙ " + L.T("Adres domu i port…"), L.T("Okno ustawień serwera: adres domu, port, konta i kontakty"), () => KomRelayDialog(w)),
+                Act("📤 " + L.T("Wyślij stan do moich serwerów"), L.T("Od razu wymienia stan z innymi moimi serwerami w domu (normalnie co minutę)"), () => { KomSrvInfoSend(); KomAnnounce(); }) } };
+            var pServers = new StackPanel { Margin = new Thickness(8), Children = { srvState, acts,
+                new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.75, Text = L.T("Te przyciski działają na tym komputerze. Stan wszystkich moich serwerów naraz – zakładka Przegląd. Zmiana na jednym serwerze nie wyłącza pozostałych: osoby połączone z wyłączonym serwerem przechodzą na inny.") } } };
+            void SrvFill()
+            {
+                onOff.Content = _komRelayOn ? "⏻ " + L.T("Wyłącz serwer") : "⏻ " + L.T("Włącz serwer");
+                srvState.Text = (_komRelayListener != null ? L.T("● Serwer działa na porcie ") + _komRelayPort : _komRelayOn ? L.T("⚠ Serwer włączony, ale nie nasłuchuje (port zajęty?)") : L.T("○ Serwer wyłączony"))
+                    + "\n" + L.T("Adres domu: ") + (string.IsNullOrEmpty(_komRelayHost) ? L.T("ustalam…") : _komRelayHost) + "\n" + L.T("Router / porty: ") + _komRelayRouter
+                    + "\n" + L.T("Połączeni przez internet: ") + (_komRemote.IsEmpty ? "—" : string.Join(", ", _komRemote.Keys.Select(k => KomContactById(k)?.Name ?? "?")))
+                    + (_komLastReject != null ? "\n" + L.T("Ostatnio nie wpuszczono: ") + _komLastReject : "") + "\n" + L.T("Wersja: ") + KomBuild;
+            }
             var tabs = new TabControl();
-            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo) })
+            foreach (var (h, el) in new (string, FrameworkElement)[] { ("📊 " + L.T("Przegląd"), tOver), ("🖥 " + L.T("Serwery"), new ScrollViewer { Content = pServers, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }), ("📬 " + L.T("Skrzynka"), tBox), ("👥 " + L.T("Osoby i urządzenia"), tPeople), ("📜 " + L.T("Dziennik skrzynki"), tLog), ("⚠ " + L.T("Błędy Velivo"), tErr), ("ℹ " + L.T("Informacje techniczne"), tInfo) })
                 tabs.Items.Add(new TabItem { Header = h, Content = el });
             void All()
             {
                 int files = 0; try { var root = Path.Combine(DataDir, "skrzynka"); if (Directory.Exists(root)) files = Directory.GetFiles(root, "*.bin", SearchOption.AllDirectories).Length; } catch (Exception) { }
                 cSrv.Text = _komRelayListener != null ? L.T("Działa") : L.T("Wyłączony"); cFiles.Text = files.ToString(); cMsg.Text = _komStore.Sum(kv => { lock (kv.Value) return kv.Value.Count; }).ToString();
                 cOn.Text = _komContacts.Count(x => !x.IsGroup && KomOnline(x.Id)) + " / " + _komContacts.Count(x => !x.IsGroup);
-                rBox(); rPeople(); rLog(); rErr(); rInfo();
+                var vers = _komSrvInfo.Where(kv => DateTime.UtcNow - kv.Value.At < TimeSpan.FromMinutes(3)).Select(kv => ((string)kv.Value.Info["ver"] ?? "").Split(' ')[0]).Append(KomBuild.Split(' ')[0]).Distinct().Count();
+                cVer.Text = vers <= 1 ? L.T("zgodne") : L.T("RÓŻNE – zaktualizuj");
+                rOver(); SrvFill(); rBox(); rPeople(); rLog(); rErr(); rInfo();
             }
             // przechowywanie: ustawia właściciel, idzie do moich serwerów
             var days = new[] { 7, 14, 30, 90, 365 };
